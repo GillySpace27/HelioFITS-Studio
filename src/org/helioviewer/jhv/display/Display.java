@@ -20,6 +20,36 @@ public final class Display {
         gridType = _gridType;
     }
 
+    private static double diskPower = 0.5;
+    private static double logDiskRMin = 0.9;
+    private static double logDiskRMax = 0; // 0 = follow the loaded layers
+    private static double powerDiskRMin = 0;
+    private static double powerDiskRMax = 0;
+
+    public static double getDiskPower() {
+        return diskPower;
+    }
+
+    public static void setDiskPower(double p) {
+        diskPower = Math.clamp(p, 0.05, 2);
+    }
+
+    public static double getLogDiskRMin() {
+        return logDiskRMin;
+    }
+
+    public static double getLogDiskRMax() {
+        return logDiskRMax;
+    }
+
+    public static double getPowerDiskRMin() {
+        return powerDiskRMin;
+    }
+
+    public static double getPowerDiskRMax() {
+        return powerDiskRMax;
+    }
+
     static int glWidth = 1;
     static int glHeight = 1;
     public static final double[] pixelScale = {1, 1};

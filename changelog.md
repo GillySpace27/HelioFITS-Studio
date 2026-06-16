@@ -4,6 +4,7 @@
 ## JHelioviewer 5.5.1 (pending)
 
 - Add options to choose colors and line thickness for annotations
+- Add `LogDisk` and `PowerDisk` Sun-centered radial disk projections (PowerDisk with a tunable radial exponent) and a per-layer flat-in-disk override
 
 ## JHelioviewer 5.5.0 (2026-06-01)
 

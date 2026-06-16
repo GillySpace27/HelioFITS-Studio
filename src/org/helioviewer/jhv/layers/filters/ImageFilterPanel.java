@@ -16,6 +16,7 @@ import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.layers.ImageLayer;
 
 import com.jidesoft.swing.JideSplitButton;
+import com.jidesoft.swing.JideToggleButton;
 
 public class ImageFilterPanel implements FilterDetails {
 
@@ -61,6 +62,13 @@ public class ImageFilterPanel implements FilterDetails {
         enhanceButton.setAlwaysDropdown(true);
         enhanceButton.add(enhancePanel);
 
+        JideToggleButton flatButton = new JideToggleButton("◯", layer.getGLImage().isFlatInDisk());
+        flatButton.setToolTipText("Render this layer flat (no radial warp) in disk projections");
+        flatButton.addActionListener(e -> {
+            layer.getGLImage().setFlatInDisk(flatButton.isSelected());
+            DisplayController.display();
+        });
+        buttonPanel.add(flatButton, BorderLayout.LINE_START);
         buttonPanel.add(enhanceButton, BorderLayout.LINE_END);
     }
 

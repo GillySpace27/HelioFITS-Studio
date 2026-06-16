@@ -49,6 +49,7 @@ public class GLImage {
     private double blend = .5;
     private double sharpen = 0;
     private double enhanced = 0;
+    private boolean flatInDisk = false;
     private DifferenceMode diffMode = DifferenceMode.None;
 
     private LUT lut = LUT.gray();
@@ -263,6 +264,14 @@ public class GLImage {
         enhanced = Math.clamp(_enhanced, 0, 3);
     }
 
+    public boolean isFlatInDisk() {
+        return flatInDisk;
+    }
+
+    public void setFlatInDisk(boolean _flatInDisk) {
+        flatInDisk = _flatInDisk;
+    }
+
     public void setDifferenceMode(DifferenceMode mode) {
         diffMode = mode;
     }
@@ -312,6 +321,7 @@ public class GLImage {
         setInnerMask(jo.optDouble("innerMask", innerMask));
         setBrightness(jo.optDouble("brightOffset", brightOffset), jo.optDouble("brightScale", brightScale));
         setEnhanced(jo.optDouble("enhanced", enhanced));
+        setFlatInDisk(jo.optBoolean("flatInDisk", flatInDisk));
         String strDiffMode = jo.optString("differenceMode", diffMode.toString());
         try {
             diffMode = DifferenceMode.valueOf(strDiffMode);
@@ -338,6 +348,7 @@ public class GLImage {
         jo.put("brightOffset", brightOffset);
         jo.put("brightScale", brightScale);
         jo.put("enhanced", enhanced);
+        jo.put("flatInDisk", flatInDisk);
         jo.put("differenceMode", diffMode);
 
         JSONObject colorObject = new JSONObject();
