@@ -4,6 +4,8 @@
 ## JHelioviewer 5.5.1 (pending)
 
 - Add options to choose colors and line thickness for annotations
+- Add the radial histogram equalizing filter (RHEF) with an upsilon midtone control
+- Add `RHEF` radial histogram equalizing filter with an Upsilon midtone control
 
 ## JHelioviewer 5.5.0 (2026-06-01)
 

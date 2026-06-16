@@ -49,6 +49,8 @@ public class GLImage {
     private double blend = .5;
     private double sharpen = 0;
     private double enhanced = 0;
+    private double upsilonLow = .6;   // RHEF midtone defaults (Gilly & DeForest Fig. 3, AIA 171)
+    private double upsilonHigh = .4;
     private DifferenceMode diffMode = DifferenceMode.None;
 
     private LUT lut = LUT.gray();
@@ -81,7 +83,7 @@ public class GLImage {
 
     private final float[] color = new float[4];
 
-    public void applyFilters() {
+    public void applyFilters(boolean rhefActive) {
         MetaData metaData = uploadedImageData.metaData();
         // shader.bindSector(gl, -Math.max(Math.abs(metaData.getSector0()), Math.abs(sector0)), Math.max(metaData.getSector1(), sector1));
         color[0] = (float) (opacity * red); // https://amindforeverprogramming.blogspot.com/2013/07/why-alpha-premultiplied-colour-blending.html
@@ -92,9 +94,14 @@ public class GLImage {
                 1f / uploadedImageData.imageBuffer().width, 1f / uploadedImageData.imageBuffer().height, (float) (-2 * sharpen), diffMode.ordinal(),
                 metaData.getSector0(), metaData.getSector1(), (float) enhanced,
                 metaData.getCutOffX(), metaData.getCutOffY(), metaData.getCutOffValue(), metaData.getCalculateDepth() ? 1 : 0,
-                (float) brightOffset, (float) (brightScale * metaData.getResponseFactor()),
+                // RHEF output is already a normalized rank in [0, 1]; the raw-DN response
+                // factor must NOT rescale it (that pushes the uniform upper half past 1 and
+                // clamps it to white). The user's Levels (brightOffset/brightScale) still
+                // apply as a black/white-point control on the equalized output.
+                (float) brightOffset, (float) (brightScale * (rhefActive ? 1 : metaData.getResponseFactor())),
                 Math.max(metaData.getInnerRadius(), (float) innerMask), Display.getShowCorona() ? metaData.getOuterRadius() : 1,
-                (float) slitLeft, (float) slitRight);
+                (float) slitLeft, (float) slitRight,
+                (float) (rhefActive ? upsilonLow : 1), (float) (rhefActive ? upsilonHigh : 1));
 
         applyLUT();
         applyMask(metaData.getDetectorMask());
@@ -263,6 +270,19 @@ public class GLImage {
         enhanced = Math.clamp(_enhanced, 0, 3);
     }
 
+    public void setUpsilon(double low, double high) {
+        upsilonLow = Math.clamp(low, 0.05, 1);
+        upsilonHigh = Math.clamp(high, 0.05, 1);
+    }
+
+    public double getUpsilonLow() {
+        return upsilonLow;
+    }
+
+    public double getUpsilonHigh() {
+        return upsilonHigh;
+    }
+
     public void setDifferenceMode(DifferenceMode mode) {
         diffMode = mode;
     }
@@ -312,6 +332,7 @@ public class GLImage {
         setInnerMask(jo.optDouble("innerMask", innerMask));
         setBrightness(jo.optDouble("brightOffset", brightOffset), jo.optDouble("brightScale", brightScale));
         setEnhanced(jo.optDouble("enhanced", enhanced));
+        setUpsilon(jo.optDouble("upsilonLow", upsilonLow), jo.optDouble("upsilonHigh", upsilonHigh));
         String strDiffMode = jo.optString("differenceMode", diffMode.toString());
         try {
             diffMode = DifferenceMode.valueOf(strDiffMode);
@@ -338,6 +359,8 @@ public class GLImage {
         jo.put("brightOffset", brightOffset);
         jo.put("brightScale", brightScale);
         jo.put("enhanced", enhanced);
+        jo.put("upsilonLow", upsilonLow);
+        jo.put("upsilonHigh", upsilonHigh);
         jo.put("differenceMode", diffMode);
 
         JSONObject colorObject = new JSONObject();
