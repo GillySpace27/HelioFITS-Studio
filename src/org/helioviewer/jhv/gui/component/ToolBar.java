@@ -17,6 +17,7 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.ButtonGroup;
 import javax.swing.Icon;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JRadioButtonMenuItem;
@@ -29,6 +30,8 @@ import org.helioviewer.jhv.app.Platform;
 import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.base.Colors;
+import org.helioviewer.jhv.display.Display;
+import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.MapMode;
 import org.helioviewer.jhv.display.interaction.Interaction;
 import org.helioviewer.jhv.gui.Actions;
@@ -133,6 +136,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private JideToggleButton multiviewButton;
     private final EnumMap<AnnotationMode, JRadioButtonMenuItem> annotationItems = new EnumMap<>(AnnotationMode.class);
     private final EnumMap<MapMode, JRadioButtonMenuItem> projectionItems = new EnumMap<>(MapMode.class);
+    private JHVSlider powerDiskSlider; // PowerDisk radial exponent; only meaningful for that mode
     private JideToggleButton refreshButton;
     private JideToggleButton trackingButton;
 
@@ -240,6 +244,9 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             projectionButton.add(item);
             projectionItems.put(el, item);
         }
+        projectionButton.addSeparator();
+        projectionButton.add(createPowerDiskPanel());
+        powerDiskSlider.setEnabled(ViewState.getProjection() == MapMode.PowerDisk);
         addButton(projectionButton);
 
         JideSplitButton annotationButton = toolSplitButton(ANNOTATION);
@@ -317,6 +324,26 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             panel.add(button);
         }
         annotationButton.add(panel);
+    }
+
+    // PowerDisk radial exponent p (display radius ~ r^p): slider 0.25..2, default 0.5.
+    // power() is read live every render, so the value takes effect through the scale rebuild.
+    private JPanel createPowerDiskPanel() {
+        powerDiskSlider = new JHVSlider(25, 200, (int) Math.round(Display.getDiskPower() * 100));
+        powerDiskSlider.setToolTipText("PowerDisk radial exponent p (display radius ∼ rᵖ)");
+        powerDiskSlider.setPreferredSize(new Dimension(110, powerDiskSlider.getPreferredSize().height));
+        JLabel value = new JLabel(String.format("p %.2f", Display.getDiskPower()), JLabel.RIGHT);
+        powerDiskSlider.addChangeListener(e -> {
+            double p = powerDiskSlider.getValue() / 100.;
+            Display.setDiskPower(p);
+            value.setText(String.format("p %.2f", p));
+            DisplayController.display();
+        });
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(BorderFactory.createEmptyBorder(3, 8, 3, 8));
+        panel.add(value, BorderLayout.LINE_START);
+        panel.add(powerDiskSlider, BorderLayout.CENTER);
+        return panel;
     }
 
     private static JPanel createAnnotationThicknessPanel() {
@@ -417,6 +444,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         JRadioButtonMenuItem activeProjection = projectionItems.get(ViewState.getProjection());
         if (activeProjection != null)
             activeProjection.setSelected(true);
+        if (powerDiskSlider != null)
+            powerDiskSlider.setEnabled(ViewState.getProjection() == MapMode.PowerDisk);
         JRadioButtonMenuItem activeAnnotationMode = annotationItems.get(ViewState.getAnnotationMode());
         if (activeAnnotationMode != null)
             activeAnnotationMode.setSelected(true);

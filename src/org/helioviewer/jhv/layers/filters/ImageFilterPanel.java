@@ -2,6 +2,7 @@ package org.helioviewer.jhv.layers.filters;
 
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.FlowLayout;
 import java.awt.GridLayout;
 
 import javax.swing.JComboBox;
@@ -15,6 +16,7 @@ import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.layers.ImageLayer;
 
 import com.jidesoft.swing.JideSplitButton;
+import com.jidesoft.swing.JideToggleButton;
 
 public class ImageFilterPanel implements FilterDetails {
 
@@ -97,7 +99,17 @@ public class ImageFilterPanel implements FilterDetails {
             }
         });
 
-        buttonPanel.add(upsilonButton, BorderLayout.LINE_START);
+        JideToggleButton flatButton = new JideToggleButton("◯", layer.getGLImage().isFlatInDisk());
+        flatButton.setToolTipText("Render this layer flat (no radial warp) in disk projections");
+        flatButton.addActionListener(e -> {
+            layer.getGLImage().setFlatInDisk(flatButton.isSelected());
+            DisplayController.display();
+        });
+
+        JPanel leftButtons = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
+        leftButtons.add(upsilonButton);
+        leftButtons.add(flatButton);
+        buttonPanel.add(leftButtons, BorderLayout.LINE_START);
         buttonPanel.add(enhanceButton, BorderLayout.LINE_END);
     }
 

@@ -7,6 +7,7 @@
 - Add `RHEF` radial histogram equalizing filter with an Upsilon midtone control
 - Add a `New PUNCH Layer` source that loads FITS frames from the PUNCH archive at `umbra.nascom.nasa.gov/punch`
 - Add a per-layer refresh button to check the PUNCH archive for new frames
+- Add `LogDisk` and `PowerDisk` Sun-centered radial disk projections (PowerDisk with a tunable radial exponent) and a per-layer flat-in-disk override
 
 ## JHelioviewer 5.5.0 (2026-06-01)
 

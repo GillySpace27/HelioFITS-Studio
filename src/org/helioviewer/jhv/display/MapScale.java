@@ -16,6 +16,11 @@ public interface MapScale {
 
     double getYstop();
 
+    // Free radial-scale parameter passed to the shaders (power-law exponent inverse)
+    default double getYParam() {
+        return 1;
+    }
+
     MapScale ortho = new LinearMapScale(0, 0, 0, 0);
     MapScale lati = new LatitudinalMapScale(-180, 180, -90, 90);
 
@@ -29,6 +34,16 @@ public interface MapScale {
 
     static MapScale logpolar(double radialSize) {
         return new LogMapScale(0, 360, 0.05, Math.max(0.05, radialSize));
+    }
+
+    static MapScale diskLog(double radialSize) {
+        double rMax = Display.getLogDiskRMax();
+        return new LogMapScale(0, 360, Display.getLogDiskRMin(), Math.max(rMax > 0 ? rMax : radialSize, 2));
+    }
+
+    static MapScale diskPower(double radialSize) {
+        double rMax = Display.getPowerDiskRMax();
+        return new PowerMapScale(0, 360, Display.getPowerDiskRMin(), Math.max(rMax > 0 ? rMax : radialSize, 1));
     }
 
     abstract class MapScaleBase implements MapScale {
@@ -126,6 +141,45 @@ public interface MapScale {
         @Override
         public double invScaleY(double val) {
             return Math.exp(val);
+        }
+
+    }
+
+    final class PowerMapScale extends MapScaleBase {
+
+        // Read live (not an instance field: the superclass constructor calls scaleY());
+        // the slider takes effect through the per-render scale rebuild
+        private static double power() {
+            return Display.getDiskPower();
+        }
+
+        PowerMapScale(double _xStart, double _xStop, double _yStart, double _yStop) {
+            super(_xStart, _xStop, _yStart, _yStop);
+        }
+
+        @Override
+        public double getYParam() {
+            return 1 / power();
+        }
+
+        @Override
+        public double scaleX(double val) {
+            return val;
+        }
+
+        @Override
+        public double invScaleX(double val) {
+            return val;
+        }
+
+        @Override
+        public double scaleY(double val) {
+            return Math.pow(val, power());
+        }
+
+        @Override
+        public double invScaleY(double val) {
+            return Math.pow(val, 1 / power());
         }
 
     }

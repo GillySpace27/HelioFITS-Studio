@@ -209,7 +209,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         if (!isVisible[vp.idx])
             return;
 
-        GLSLSolarShader shader = mv.mode().shader;
+        GLSLSolarShader shader = mv.isDisk() && glImage.isFlatInDisk() ? GLSLSolarShader.diskFlat : mv.mode().shader;
         shader.use();
         glImage.applyFilters(view.getFilter() == ImageFilter.Type.RHEF);
 

@@ -51,6 +51,7 @@ public class GLImage {
     private double enhanced = 0;
     private double upsilonLow = .6;   // RHEF midtone defaults (Gilly & DeForest Fig. 3, AIA 171)
     private double upsilonHigh = .4;
+    private boolean flatInDisk = false;
     private DifferenceMode diffMode = DifferenceMode.None;
 
     private LUT lut = LUT.gray();
@@ -283,6 +284,14 @@ public class GLImage {
         return upsilonHigh;
     }
 
+    public boolean isFlatInDisk() {
+        return flatInDisk;
+    }
+
+    public void setFlatInDisk(boolean _flatInDisk) {
+        flatInDisk = _flatInDisk;
+    }
+
     public void setDifferenceMode(DifferenceMode mode) {
         diffMode = mode;
     }
@@ -333,6 +342,7 @@ public class GLImage {
         setBrightness(jo.optDouble("brightOffset", brightOffset), jo.optDouble("brightScale", brightScale));
         setEnhanced(jo.optDouble("enhanced", enhanced));
         setUpsilon(jo.optDouble("upsilonLow", upsilonLow), jo.optDouble("upsilonHigh", upsilonHigh));
+        setFlatInDisk(jo.optBoolean("flatInDisk", flatInDisk));
         String strDiffMode = jo.optString("differenceMode", diffMode.toString());
         try {
             diffMode = DifferenceMode.valueOf(strDiffMode);
@@ -361,6 +371,7 @@ public class GLImage {
         jo.put("enhanced", enhanced);
         jo.put("upsilonLow", upsilonLow);
         jo.put("upsilonHigh", upsilonHigh);
+        jo.put("flatInDisk", flatInDisk);
         jo.put("differenceMode", diffMode);
 
         JSONObject colorObject = new JSONObject();
