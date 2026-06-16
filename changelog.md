@@ -4,6 +4,8 @@
 ## JHelioviewer 5.5.1 (pending)
 
 - Add options to choose colors and line thickness for annotations
+- Add a `New PUNCH Layer` source that loads FITS frames from the PUNCH archive at `umbra.nascom.nasa.gov/punch`
+- Add a per-layer refresh button to check the PUNCH archive for new frames
 
 ## JHelioviewer 5.5.0 (2026-06-01)
 
