@@ -6,6 +6,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -30,12 +31,13 @@ import org.helioviewer.jhv.time.TimeUtils;
 public final class PunchClient {
 
     private static final String BASE_URL = "https://umbra.nascom.nasa.gov/punch";
-    private static final Pattern FILE_PATTERN = Pattern.compile("href=\"(PUNCH_L[0-9A-Z]_[A-Z0-9]{3}_(\\d{14})_v[0-9A-Za-z]+\\.fits)\"");
+    private static final Pattern FILE_PATTERN = Pattern.compile("href=\"(PUNCH_L[0-9A-Z]_[A-Z0-9]{3}_(\\d{14})_v([0-9A-Za-z]+)\\.fits)\"");
+    public static final String LATEST_VERSION = "Latest"; // sentinel: newest pipeline version present in the range
     private static final Pattern DIR_PATTERN = Pattern.compile("href=\"([A-Z0-9]{2,4})/\"");
     private static final Pattern NUM_DIR_PATTERN = Pattern.compile("href=\"(\\d{2,4})/\"");
     private static final DateTimeFormatter FILE_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
-    public record DataItem(String file, URI uri, long milli) {
+    public record DataItem(String file, URI uri, long milli, String version) {
         @Override
         public String toString() {
             return TimeUtils.format(milli) + "  " + file;
@@ -55,8 +57,8 @@ public final class PunchClient {
         void setPunchResponseCoverage(long latestDayMilli);
     }
 
-    public static void submitSearchTime(@Nonnull ReceiverItems receiver, @Nonnull String level, @Nonnull String product, long start, long end, long cadence) {
-        Task.submit("punch", new QueryItems(level, product, start, end, cadence), receiver::setPunchResponseItems, "Error listing the PUNCH archive");
+    public static void submitSearchTime(@Nonnull ReceiverItems receiver, @Nonnull String level, @Nonnull String product, long start, long end, long cadence, @Nonnull String version) {
+        Task.submit("punch", new QueryItems(level, product, start, end, cadence, version), receiver::setPunchResponseItems, "Error listing the PUNCH archive");
     }
 
     public static void submitGetProducts(@Nonnull ReceiverProducts receiver, @Nonnull String level) {
@@ -67,11 +69,11 @@ public final class PunchClient {
         Task.submit("punch", new QueryCoverage(level, product), receiver::setPunchResponseCoverage, "Error listing the PUNCH archive");
     }
 
-public static void submitLoad(@Nonnull List<DataItem> items, @Nonnull String level, @Nonnull String product, long start, long end, long cadence) {
+    public static void submitLoad(@Nonnull List<DataItem> items, @Nonnull String level, @Nonnull String product, long start, long end, long cadence, @Nonnull String version) {
         List<URI> uris = items.stream().map(DataItem::uri).toList();
         Commands.loadImage(uris).thenAccept(layer -> {
             if (layer != null) {
-                rememberQuery(layer, level, product, start, end, cadence, uris);
+                rememberQuery(layer, level, product, start, end, cadence, version, uris);
                 // Raw PUNCH FITS carry no display range, so each frame would auto-normalize to its
                 // own percentile range and the movie strobes. The layer loads immediately; in the
                 // background PunchRange samples a bounded subset, derives one shared range, and pins
@@ -93,13 +95,13 @@ public static void submitLoad(@Nonnull List<DataItem> items, @Nonnull String lev
         void onRefreshComplete(RefreshResult result);
     }
 
-    private record QueryState(String level, String product, long start, long end, long cadence, Set<URI> loadedUris) {}
+    private record QueryState(String level, String product, long start, long end, long cadence, String version, Set<URI> loadedUris) {}
 
     // Weak so we do not pin layers that the user has removed
     private static final Map<ImageLayer, QueryState> layerQueries = Collections.synchronizedMap(new WeakHashMap<>());
 
-    static void rememberQuery(ImageLayer layer, String level, String product, long start, long end, long cadence, List<URI> uris) {
-        layerQueries.put(layer, new QueryState(level, product, start, end, cadence, new HashSet<>(uris)));
+    static void rememberQuery(ImageLayer layer, String level, String product, long start, long end, long cadence, String version, List<URI> uris) {
+        layerQueries.put(layer, new QueryState(level, product, start, end, cadence, version, new HashSet<>(uris)));
     }
 
     public static boolean hasRememberedQuery(ImageLayer layer) {
@@ -114,7 +116,7 @@ public static void submitLoad(@Nonnull List<DataItem> items, @Nonnull String lev
             receiver.onRefreshComplete(new RefreshResult(0, 0, null));
             return;
         }
-        Task.submit("punch-refresh", new QueryItems(q.level, q.product, q.start, q.end, q.cadence), items -> {
+        Task.submit("punch-refresh", new QueryItems(q.level, q.product, q.start, q.end, q.cadence, q.version), items -> {
             List<URI> newUris = new ArrayList<>();
             for (DataItem it : items)
                 if (!q.loadedUris.contains(it.uri))
@@ -127,7 +129,7 @@ public static void submitLoad(@Nonnull List<DataItem> items, @Nonnull String lev
                 // Track the union on the original layer so a second refresh diffs correctly
                 q.loadedUris.addAll(newUris);
                 if (newLayer != null)
-                    rememberQuery(newLayer, q.level, q.product, q.start, q.end, q.cadence, newUris);
+                    rememberQuery(newLayer, q.level, q.product, q.start, q.end, q.cadence, q.version, newUris);
                 receiver.onRefreshComplete(new RefreshResult(q.loadedUris.size() - newUris.size(), newUris.size(), newLayer));
             });
         }, "Error refreshing PUNCH layer");
@@ -190,14 +192,27 @@ public static void submitLoad(@Nonnull List<DataItem> items, @Nonnull String lev
         }
     }
 
-    private record QueryItems(String level, String product, long start, long end,
-                              long cadence) implements Callable<List<DataItem>> {
+    private record QueryItems(String level, String product, long start, long end, long cadence, String version) implements Callable<List<DataItem>> {
         @Override
         public List<DataItem> call() throws Exception {
-            // Newer versions of the same timestamp overwrite older ones (index is name-sorted)
-            TreeMap<Long, DataItem> found = new TreeMap<>();
+            List<DataItem> all = new ArrayList<>();
             for (long day = TimeUtils.floorDay(start); day <= end; day += TimeUtils.DAY_IN_MILLIS)
-                listDay(found, day);
+                listDay(all, day);
+
+            // Pick a single pipeline version so a movie is never a mix of, e.g., v0k and v0l (their
+            // calibrations differ; mixing strobes). "Latest" = the newest version present in the
+            // range; otherwise the exact version requested. Frames lacking that version are dropped
+            // (gaps are preferable to mixing). Version strings are short and same-length (v0k < v0l),
+            // so natural ordering gives the newest.
+            String target = (version == null || version.isBlank() || LATEST_VERSION.equals(version))
+                    ? all.stream().map(DataItem::version).max(Comparator.naturalOrder()).orElse(null)
+                    : version;
+
+            // Keep the chosen version, newest-per-timestamp (each timestamp+version is unique here).
+            TreeMap<Long, DataItem> found = new TreeMap<>();
+            for (DataItem item : all)
+                if (target == null || target.equals(item.version()))
+                    found.put(item.milli(), item);
 
             // lastKept is seeded just below the first possible in-range item so that any
             // item with milli >= start passes the cadence check on the first iteration.
@@ -205,15 +220,15 @@ public static void submitLoad(@Nonnull List<DataItem> items, @Nonnull String lev
             List<DataItem> result = new ArrayList<>(found.size());
             long lastKept = start - Math.max(1, cadence) - 1;
             for (DataItem item : found.values()) {
-                if (item.milli >= start && item.milli <= end && item.milli - lastKept >= cadence) {
+                if (item.milli() >= start && item.milli() <= end && item.milli() - lastKept >= cadence) {
                     result.add(item);
-                    lastKept = item.milli;
+                    lastKept = item.milli();
                 }
             }
             return result;
         }
 
-        private void listDay(TreeMap<Long, DataItem> found, long day) throws Exception {
+        private void listDay(List<DataItem> all, long day) throws Exception {
             LocalDateTime date = LocalDateTime.ofEpochSecond(day / 1000, 0, ZoneOffset.UTC);
             String dirUrl = String.format("%s/%s/%s/%04d/%02d/%02d/", BASE_URL, level, product, date.getYear(), date.getMonthValue(), date.getDayOfMonth());
             String html = readIndex(dirUrl);
@@ -225,7 +240,7 @@ public static void submitLoad(@Nonnull List<DataItem> items, @Nonnull String lev
             while (m.find()) {
                 String file = m.group(1);
                 long milli = TimeUtils.parse(FILE_TIME, m.group(2));
-                found.put(milli, new DataItem(file, URI.create(dirUrl + file), milli));
+                all.add(new DataItem(file, URI.create(dirUrl + file), milli, m.group(3)));
                 matched++;
             }
             Log.info("PUNCH parsed " + matched + " files from " + dirUrl);

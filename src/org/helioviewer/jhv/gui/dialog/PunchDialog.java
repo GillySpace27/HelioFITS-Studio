@@ -76,6 +76,10 @@ public class PunchDialog extends StandardDialog implements PunchClient.ReceiverI
     private final JComboBox<String> levelCombo = new JComboBox<>(Level);
     private final JComboBox<String> productCombo = new JComboBox<>();
     private final JComboBox<Cadence> cadenceCombo = new JComboBox<>(Cadences);
+    // Pipeline version to load: "Latest" picks the newest version in the range; a specific code
+    // (e.g. v0l) loads only that version, so a movie is never a mix of calibrations. Editable so a
+    // newly released version can be typed without a code change.
+    private final JComboBox<String> versionCombo = new JComboBox<>(new String[]{PunchClient.LATEST_VERSION, "v0k", "v0l"});
     private final TimeSelectorPanel timeSelectorPanel = new TimeSelectorPanel();
     private final JList<PunchClient.DataItem> listPane = new JList<>();
     private final JLabel foundLabel = new JLabel("0 found", JLabel.RIGHT);
@@ -140,7 +144,7 @@ public class PunchDialog extends StandardDialog implements PunchClient.ReceiverI
             }
             if (levelCombo.getSelectedItem() instanceof String level && productCombo.getSelectedItem() instanceof String product &&
                     cadenceCombo.getSelectedItem() instanceof Cadence cadence) {
-                PunchClient.submitLoad(items, level, product, timeSelectorPanel.getStartTime(), timeSelectorPanel.getEndTime(), cadence.milli);
+                PunchClient.submitLoad(items, level, product, timeSelectorPanel.getStartTime(), timeSelectorPanel.getEndTime(), cadence.milli, selectedVersion());
                 setVisible(false);
             }
         });
@@ -154,6 +158,10 @@ public class PunchDialog extends StandardDialog implements PunchClient.ReceiverI
         dataSelector.add(levelCombo);
         dataSelector.add(productCombo);
         dataSelector.add(cadenceCombo);
+        versionCombo.setEditable(true);
+        versionCombo.setToolTipText("Pipeline version: \"Latest\" loads the newest version in the range; a specific code (e.g. v0l) loads only that version so a movie is never a mix of calibrations");
+        dataSelector.add(new JLabel("Version", JLabel.RIGHT));
+        dataSelector.add(versionCombo);
         JButton searchButton = getSearchButton();
         dataSelector.add(searchButton);
 
@@ -225,7 +233,7 @@ public class PunchDialog extends StandardDialog implements PunchClient.ReceiverI
             if (levelCombo.getSelectedItem() instanceof String level && productCombo.getSelectedItem() instanceof String product &&
                     cadenceCombo.getSelectedItem() instanceof Cadence cadence) {
                 clearResults();
-                PunchClient.submitSearchTime(this, level, product, timeSelectorPanel.getStartTime(), timeSelectorPanel.getEndTime(), cadence.milli);
+                PunchClient.submitSearchTime(this, level, product, timeSelectorPanel.getStartTime(), timeSelectorPanel.getEndTime(), cadence.milli, selectedVersion());
                 foundLabel.setText("Searching...");
             }
         });
@@ -236,6 +244,11 @@ public class PunchDialog extends StandardDialog implements PunchClient.ReceiverI
         listPane.setListData(new PunchClient.DataItem[0]);
         foundLabel.setText("0 found");
         selectedLabel.setText("0 selected");
+    }
+
+    // The version box is editable, so a future code can be typed; blank falls back to "Latest".
+    private String selectedVersion() {
+        return versionCombo.getSelectedItem() instanceof String v && !v.isBlank() ? v.trim() : PunchClient.LATEST_VERSION;
     }
 
     @Nullable
