@@ -12,7 +12,7 @@ import org.helioviewer.jhv.time.TimeListener;
 // CACTus event dialog, disengaged by moving the p slider or leaving RadialWarp.
 public final class CMETracker implements TimeListener.Change {
 
-    private static final double SCREEN_FRACTION = 0.55; // front pinned at this fraction of the outer FOV radius
+    private static final double SCREEN_FRACTION = 0.60; // front pinned at this fraction of the outer FOV radius
     private static final double EDGE_FRACTION = 0.10;   // log-radial band held at the FOV edges: below it the entry
                                                         // exponent is held (the front emerges naturally), beyond it
                                                         // the exponent freezes and the front drifts out
