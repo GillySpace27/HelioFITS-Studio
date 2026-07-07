@@ -69,7 +69,9 @@ public final class DiskGrid {
         return Arrays.copyOf(rings, count);
     }
 
-    private static float ringRho(MapScale scale, double r) {
+    // Screen radius (disk world units, rim at 0.5) of a physical radius r under the
+    // active radial warp. Shared so overlays (e.g. SWEK CACTus arcs) sit on the grid.
+    public static float ringRho(MapScale scale, double r) {
         return (float) (.5 * (scale.getYValueInv(r) + .5));
     }
 

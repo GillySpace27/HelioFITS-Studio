@@ -23,6 +23,7 @@ import org.helioviewer.jhv.event.JHVRelatedEvents;
 import org.helioviewer.jhv.event.SWEKGroup;
 import org.helioviewer.jhv.image.nio.NativeImageFactory;
 import org.helioviewer.jhv.layers.AbstractLayer;
+import org.helioviewer.jhv.layers.grid.DiskGrid;
 import org.helioviewer.jhv.math.MathUtils;
 import org.helioviewer.jhv.math.PolarBasis;
 import org.helioviewer.jhv.math.Quat;
@@ -174,6 +175,42 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
 
                 texBuf.putCoord(q.rotateInverseVector(PolarBasis.vec3(r, theta)), el);
             }
+        }
+    }
+
+    // CACTus arc for the Sun-centered disk projections (RadialWarp): same wedge as the
+    // orthographic arc, but placed in the disk's world coordinates -- physical radius r
+    // maps to the warped screen radius DiskGrid.ringRho(scale, r), and PolarBasis puts the
+    // angle at north-up/CCW, matching the disk grid. The front sits on the grid ring at
+    // distSun, so with CME tracking engaged it holds a fixed screen radius.
+    private void drawCactusArcDisk(JHVRelatedEvents evtr, JHVEvent evt, long timestamp, MapScale scale) {
+        CactusArcParams params = cactusArcParams(evt, timestamp);
+        double principalAngle = Math.toRadians(params.principalAngleDegree());
+        double halfWidth = Math.toRadians(params.angularWidthDegree()) / 2.;
+        double thetaStart = principalAngle - halfWidth;
+        double thetaEnd = principalAngle + halfWidth;
+        double rhoFront = DiskGrid.ringRho(scale, params.distSun());
+        double rhoInner = DiskGrid.ringRho(scale, DIST_SUN_BEGIN);
+
+        BufVertex vexBuf = evtr.isHighlighted() ? bufThick : bufEvent;
+        byte[] color = Colors.bytes(evtr.getColor());
+
+        // outer arc: sweep the angle at the front radius
+        int steps = Math.max(2, (int) (params.angularWidthDegree() / 2));
+        for (int i = 0; i <= steps; i++) {
+            Vec3 p = PolarBasis.vec3(rhoFront, thetaStart + (thetaEnd - thetaStart) * i / steps);
+            if (i == 0)
+                vexBuf.putVertex(p, Colors.Null);
+            vexBuf.putVertex(p, color);
+        }
+        vexBuf.repeatVertex(Colors.Null);
+
+        // radial spokes at both edges and the principal angle, inner edge to front
+        for (double theta : new double[]{thetaStart, principalAngle, thetaEnd}) {
+            vexBuf.putVertex(PolarBasis.vec3(rhoInner, theta), Colors.Null);
+            vexBuf.putVertex(PolarBasis.vec3(rhoInner, theta), color);
+            vexBuf.putVertex(PolarBasis.vec3(rhoFront, theta), color);
+            vexBuf.repeatVertex(Colors.Null);
         }
     }
 
@@ -410,6 +447,8 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
             JHVEvent evt = evtr.getClosestTo(currentTime);
             if (evt.isCactus() && (mv.isPolar() || mv.isLogPolar())) {
                 drawCactusArcScale(vp, evtr, evt, currentTime, scale);
+            } else if (evt.isCactus() && mv.isDisk()) {
+                drawCactusArcDisk(evtr, evt, currentTime, scale);
             } else {
                 drawPolygon(mv, vp, evtr, evt);
                 if (icons) {
