@@ -174,12 +174,15 @@ public interface MapScale {
         // C1-continuous at r = 1. This is the Box-Cox family (r^p - 1)/p: p = 1 linear,
         // p = 0 logarithmic (the limit -> ln r), p = -1 inverse (2 - 1/r, bounding r = inf
         // to a finite edge). The slider exposes p in [-1, 1].
-        @Override
-        public double scaleY(double val) {
-            double p = power();
+        static double warp(double p, double val) {
             if (val <= 1)
                 return val;
             return p == 0 ? 1 + Math.log(val) : 1 + (Math.pow(val, p) - 1) / p;
+        }
+
+        @Override
+        public double scaleY(double val) {
+            return warp(power(), val);
         }
 
         @Override

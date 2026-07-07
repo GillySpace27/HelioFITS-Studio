@@ -30,6 +30,7 @@ import org.helioviewer.jhv.app.Platform;
 import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.base.Colors;
+import org.helioviewer.jhv.display.CMETracker;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.MapMode;
@@ -335,6 +336,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         radialWarpSlider.setPreferredSize(new Dimension(110, radialWarpSlider.getPreferredSize().height));
         JLabel value = new JLabel(String.format("p %.3f", Display.getDiskPower()), JLabel.RIGHT);
         radialWarpSlider.addChangeListener(e -> {
+            CMETracker.stop(); // a manual p move takes the wheel back from CME tracking
             Display.setDiskPower(radialWarpSlider.getValue() / 1000.);
             value.setText(String.format("p %.3f", Display.getDiskPower()));
             DisplayController.display();
