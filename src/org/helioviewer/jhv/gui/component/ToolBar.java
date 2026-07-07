@@ -327,7 +327,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         annotationButton.add(panel);
     }
 
-    // RadialWarp radial exponent p (display radius ~ r^p): slider 0.01..2, default 1.0 (linear).
+    // RadialWarp radial exponent p (display radius ~ r^p): slider -1..1 in 0.001 steps, default 0.0 (logarithmic).
     // power() is read live every render, so the value takes effect through the scale rebuild.
     private JPanel createRadialWarpPanel() {
         radialWarpSlider = new JHVSlider(-1000, 1000, (int) Math.round(Display.getDiskPower() * 1000));
