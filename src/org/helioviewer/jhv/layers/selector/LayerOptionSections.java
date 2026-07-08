@@ -86,7 +86,7 @@ public final class LayerOptionSections implements Layers.Listener {
         if (layer instanceof ImageLayer il && cache.get(il) instanceof ImagePanels p) {
             p.rendering().refresh(layer);
             p.manage().refresh(layer);
-            p.manage().updateReadout();
+            p.manage().forceReadoutRefresh();
         }
     }
 

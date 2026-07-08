@@ -32,6 +32,7 @@ final class ImageLayerManagePanel extends JPanel {
 
     private final ImageLayer layer;
     private final JLabel readout = new JLabel();
+    private int lastFrameCount = -1; // memoize: skip the median recompute when the frame set is unchanged
     private final JideToggleButton downloadButton = new JideToggleButton(Buttons.download);
     private final JProgressBar progressBar = new JProgressBar();
     private DownloadProgress downloadProgress;
@@ -120,10 +121,20 @@ final class ImageLayerManagePanel extends JPanel {
         downloadButton.setVisible(!imageLayer.isLocal());
     }
 
+    // Force a recompute even if the frame count is unchanged — used when the layer's
+    // view may have been swapped (layerUpdated) so a same-count/different-range layer refreshes.
+    void forceReadoutRefresh() {
+        lastFrameCount = -1;
+        updateReadout();
+    }
+
     void updateReadout() {
         View view = layer.getView();
         int max = view.getMaximumFrameNumber();
         int frames = max + 1;
+        if (frames == lastFrameCount) // timeUpdated fires per displayed frame; skip the O(n log n) sort when nothing changed
+            return;
+        lastFrameCount = frames;
         long start = view.getFirstTime().milli;
         long end = view.getLastTime().milli;
         String cadence = frames > 1
