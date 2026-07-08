@@ -33,6 +33,7 @@ import org.helioviewer.jhv.gui.status.ViewpointStatusPanel;
 import org.helioviewer.jhv.input.InputController;
 import org.helioviewer.jhv.layers.Layer;
 import org.helioviewer.jhv.layers.Layers;
+import org.helioviewer.jhv.layers.selector.LayerOptionSections;
 import org.helioviewer.jhv.layers.selector.LayersPanel;
 import org.helioviewer.jhv.layers.selector.LayersSectionPanel;
 import org.helioviewer.jhv.movie.Player;
@@ -122,12 +123,14 @@ public final class MainFrame {
         renderCanvas = null;
         renderHost = new RenderStartupHost();
 
-        layersPanel = new LayersPanel();
-
         leftPane = new SideContentPane();
+        JPanel layerOptionsWrapper = new JPanel(new BorderLayout());
+        JPanel geometryWrapper = new JPanel(new BorderLayout());
         JPanel manageWrapper = new JPanel(new BorderLayout());
-        layersSectionPanel = new LayersSectionPanel(manageWrapper);
-        imageLayersPane = new ImageLayersPane(MoviePanel.getInstance(), layersSectionPanel);
+        LayerOptionSections sections = new LayerOptionSections(layerOptionsWrapper, geometryWrapper, manageWrapper);
+        layersPanel = new LayersPanel(sections);                       // table needs the controller
+        layersSectionPanel = new LayersSectionPanel(manageWrapper); // ctor calls MainFrame.getLayersPanel()
+        imageLayersPane = new ImageLayersPane(MoviePanel.getInstance(), layersSectionPanel, layerOptionsWrapper, geometryWrapper);
         leftPane.add("Image Layers", imageLayersPane, true);
 
         leftScrollPane = new JScrollPane(leftPane, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
@@ -277,7 +280,7 @@ public final class MainFrame {
         contentWidth = Math.max(contentWidth, measureMoviePanelWidth(moviePanel, Layers.getViewpointLayer()));
         contentWidth = Math.max(contentWidth, measureMoviePanelWidth(moviePanel, Layers.getConnectionLayer()));
 
-        layersPanel.setOptionsPanel(null);
+        layersPanel.setSelectedLayer(null);
         moviePanel.setAdvanced(false);
         moviePanel.setFixedPreferredWidth(contentWidth);
         leftPane.revalidate();
@@ -288,7 +291,7 @@ public final class MainFrame {
     }
 
     private static int measureMoviePanelWidth(MoviePanel moviePanel, Layer optionsLayer) {
-        layersPanel.setOptionsPanel(optionsLayer);
+        layersPanel.setSelectedLayer(optionsLayer);
         moviePanel.revalidate();
         moviePanel.doLayout();
         return moviePanel.getPreferredSize().width;
