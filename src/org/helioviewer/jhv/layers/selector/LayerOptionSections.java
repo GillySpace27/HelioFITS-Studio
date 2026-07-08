@@ -17,7 +17,7 @@ import org.helioviewer.jhv.layers.Layers;
 // generic options panel in the Layer options wrapper only.
 public final class LayerOptionSections implements Layers.Listener {
 
-    private record ImagePanels(ImageLayerRenderingPanel rendering, ImageLayerGeometryPanel geometry) {}
+    private record ImagePanels(ImageLayerRenderingPanel rendering, ImageLayerGeometryPanel geometry, ImageLayerManagePanel manage) {}
 
     private final JPanel layerOptionsWrapper;
     private final JPanel geometryWrapper;
@@ -37,12 +37,13 @@ public final class LayerOptionSections implements Layers.Listener {
         manageWrapper.removeAll();
 
         if (layer instanceof ImageLayer il) {
-            ImagePanels p = cache.computeIfAbsent(il, k -> new ImagePanels(new ImageLayerRenderingPanel(il), new ImageLayerGeometryPanel(il)));
+            ImagePanels p = cache.computeIfAbsent(il, k -> new ImagePanels(new ImageLayerRenderingPanel(il), new ImageLayerGeometryPanel(il), new ImageLayerManagePanel(il)));
             ComponentUtils.setEnabled(p.rendering(), il.isEnabled());
             ComponentUtils.setEnabled(p.geometry(), il.isEnabled());
             layerOptionsWrapper.add(p.rendering());
             geometryWrapper.add(p.geometry());
-            // manageWrapper filled in Task 4 (and readout in Task 5)
+            manageWrapper.add(p.manage());
+            // readout in Task 5
         } else if (layer != null) {
             Component generic = LayerOptions.getOptionsPanel(layer);
             if (generic != null) {
@@ -81,8 +82,10 @@ public final class LayerOptionSections implements Layers.Listener {
 
     @Override
     public void layerUpdated(Layer layer) {
-        if (layer instanceof ImageLayer il && cache.get(il) instanceof ImagePanels p)
+        if (layer instanceof ImageLayer il && cache.get(il) instanceof ImagePanels p) {
             p.rendering().refresh(layer);
+            p.manage().refresh(layer);
+        }
     }
 
     @Override
