@@ -3,7 +3,6 @@ package org.helioviewer.jhv.gui.component;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
-import java.awt.EventQueue;
 import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -16,34 +15,25 @@ import javax.swing.ButtonGroup;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.SpinnerNumberModel;
-import javax.swing.event.PopupMenuEvent;
-import javax.swing.event.PopupMenuListener;
 
 import org.helioviewer.jhv.app.Commands;
 import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.gui.Actions;
 import org.helioviewer.jhv.gui.CompletionNotifications;
 import org.helioviewer.jhv.gui.ComponentUtils;
-import org.helioviewer.jhv.gui.Interfaces;
-import org.helioviewer.jhv.gui.MainFrame;
-import org.helioviewer.jhv.gui.dialog.ObservationDialog;
 import org.helioviewer.jhv.gui.time.TimeSelectorPanel;
-import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.movie.ExportMovie;
 import org.helioviewer.jhv.movie.Player;
-import org.helioviewer.jhv.timelines.draw.DrawController;
 
 import com.jidesoft.swing.JideButton;
-import com.jidesoft.swing.JideSplitButton;
 import com.jidesoft.swing.JideToggleButton;
 
 @SuppressWarnings("serial")
-public class MoviePanel extends JPanel implements Interfaces.ObservationSelector, Player.StatusListener, ExportMovie.StatusListener, ViewState.PlaybackConfigListener, ViewState.RecordingConfigListener {
+public class MoviePanel extends JPanel implements Player.StatusListener, ExportMovie.StatusListener, ViewState.PlaybackConfigListener, ViewState.RecordingConfigListener {
 
     private static final int FRAME_HOLD_REPEAT_MS = 125;
     private int fixedPreferredWidth = -1;
@@ -51,9 +41,6 @@ public class MoviePanel extends JPanel implements Interfaces.ObservationSelector
     private boolean isAdvanced;
 
     private final TimeSelectorPanel timeSelectorPanel = new TimeSelectorPanel();
-    private final CadencePanel cadencePanel = new CadencePanel(timeSelectorPanel);
-    private final ImageSelectorPanel imageSelectorPanel;
-    private final JideSplitButton addLayerButton;
 
     private static TimeSlider timeSlider;
     private final JideButton playButton;
@@ -192,37 +179,6 @@ public class MoviePanel extends JPanel implements Interfaces.ObservationSelector
         add(modePanel);
         add(recordPanel);
         add(timeSelectorPanel);
-        add(cadencePanel);
-
-        ObservationDialog.getInstance(); // make sure it's instanced
-        imageSelectorPanel = new ImageSelectorPanel(this);
-
-        addLayerButton = new JideSplitButton(Buttons.newLayer);
-        addLayerButton.setAlwaysDropdown(true);
-        addLayerButton.add(imageSelectorPanel);
-        addLayerButton.getPopupMenu().addPopupMenuListener(new PopupMenuListener() {
-            @Override
-            public void popupMenuWillBecomeVisible(PopupMenuEvent e) {
-                EventQueue.invokeLater(() -> imageSelectorPanel.getFocused().grabFocus());
-            }
-
-            @Override
-            public void popupMenuWillBecomeInvisible(PopupMenuEvent e) {}
-
-            @Override
-            public void popupMenuCanceled(PopupMenuEvent e) {}
-        });
-
-        JideButton syncButton = new JideButton(Buttons.syncLayers);
-        syncButton.setToolTipText("Synchronize time intervals of all layers");
-        syncButton.addActionListener(e -> syncLayersSpan());
-
-        JPanel addLayerPanel = new JPanel(new BorderLayout());
-        addLayerPanel.add(addLayerButton, BorderLayout.LINE_START);
-        addLayerPanel.add(syncButton, BorderLayout.LINE_END);
-        add(addLayerPanel);
-
-        add(MainFrame.getLayersPanel());
 
         Player.addStatusListener(this);
         ExportMovie.addStatusListener(this);
@@ -230,61 +186,20 @@ public class MoviePanel extends JPanel implements Interfaces.ObservationSelector
         ViewState.addRecordingConfigListener(this);
     }
 
-    @Override
-    public int getCadence() {
-        // User-selected time step; frame count falls out of span / cadence.
-        // ponytail: default matches the old auto-fit (~96 frames) for the default 2-day span; no separate frame-count field.
-        return cadencePanel.getCadence();
-    }
-
-    @Override
     public void setTime(long start, long end) {
         timeSelectorPanel.setTime(start, end);
     }
 
-    @Override
     public long getStartTime() {
         return timeSelectorPanel.getStartTime();
     }
 
-    @Override
     public long getEndTime() {
         return timeSelectorPanel.getEndTime();
     }
 
-    @Override
-    public void load(String server, int sourceId) {
-        addLayerButton.doClickOnMenu();
-        if (checkSanity())
-            imageSelectorPanel.load(null, server, sourceId, getStartTime(), getEndTime(), getCadence());
-    }
-
-    @Override
-    public void setAvailabilityEnabled(boolean enabled) {}
-
-    private boolean checkSanity() {
-        long start = getStartTime();
-        long end = getEndTime();
-        if (start > end) {
-            setTime(end, end);
-            JOptionPane.showMessageDialog(null, "End date is before start date", "Error", JOptionPane.ERROR_MESSAGE);
-            return false;
-        }
-        return true;
-    }
-
-    public void syncLayersSpan(long start, long end) {
-        setTime(start, end);
-        syncLayersSpan();
-    }
-
-    private void syncLayersSpan() {
-        if (checkSanity()) {
-            long start = getStartTime();
-            long end = getEndTime();
-            DrawController.setSelectedInterval(start, end);
-            ImageLayers.syncLayersSpan(start, end, getCadence());
-        }
+    public TimeSelectorPanel getTimeSelectorPanel() {
+        return timeSelectorPanel;
     }
 
     private static class RecordButton extends JideToggleButton implements ActionListener {

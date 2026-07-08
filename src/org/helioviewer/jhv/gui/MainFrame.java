@@ -34,6 +34,7 @@ import org.helioviewer.jhv.input.InputController;
 import org.helioviewer.jhv.layers.Layer;
 import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.layers.selector.LayersPanel;
+import org.helioviewer.jhv.layers.selector.LayersSectionPanel;
 import org.helioviewer.jhv.movie.Player;
 import org.helioviewer.jhv.opengl.AngleCanvas;
 import org.helioviewer.jhv.opengl.angle.AngleRenderer;
@@ -105,6 +106,7 @@ public final class MainFrame {
     private static MainContentPanel mainContentPanel;
 
     private static LayersPanel layersPanel;
+    private static LayersSectionPanel layersSectionPanel;
     private static ImageLayersPane imageLayersPane;
 
     private static MenuBar menuBar;
@@ -123,7 +125,9 @@ public final class MainFrame {
         layersPanel = new LayersPanel();
 
         leftPane = new SideContentPane();
-        imageLayersPane = new ImageLayersPane(MoviePanel.getInstance(), new JPanel());
+        JPanel manageWrapper = new JPanel(new BorderLayout());
+        layersSectionPanel = new LayersSectionPanel(manageWrapper);
+        imageLayersPane = new ImageLayersPane(MoviePanel.getInstance(), layersSectionPanel);
         leftPane.add("Image Layers", imageLayersPane, true);
 
         leftScrollPane = new JScrollPane(leftPane, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
@@ -304,6 +308,10 @@ public final class MainFrame {
 
     public static LayersPanel getLayersPanel() {
         return layersPanel;
+    }
+
+    public static LayersSectionPanel getLayersSectionPanel() {
+        return layersSectionPanel;
     }
 
     public static MenuBar getMenuBar() {
