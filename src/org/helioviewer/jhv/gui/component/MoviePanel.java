@@ -36,7 +36,6 @@ import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.movie.ExportMovie;
 import org.helioviewer.jhv.movie.Player;
-import org.helioviewer.jhv.time.TimeUtils;
 import org.helioviewer.jhv.timelines.draw.DrawController;
 
 import com.jidesoft.swing.JideButton;
@@ -52,6 +51,7 @@ public class MoviePanel extends JPanel implements Interfaces.ObservationSelector
     private boolean isAdvanced;
 
     private final TimeSelectorPanel timeSelectorPanel = new TimeSelectorPanel();
+    private final CadencePanel cadencePanel = new CadencePanel(timeSelectorPanel);
     private final ImageSelectorPanel imageSelectorPanel;
     private final JideSplitButton addLayerButton;
 
@@ -192,6 +192,7 @@ public class MoviePanel extends JPanel implements Interfaces.ObservationSelector
         add(modePanel);
         add(recordPanel);
         add(timeSelectorPanel);
+        add(cadencePanel);
 
         ObservationDialog.getInstance(); // make sure it's instanced
         imageSelectorPanel = new ImageSelectorPanel(this);
@@ -231,7 +232,9 @@ public class MoviePanel extends JPanel implements Interfaces.ObservationSelector
 
     @Override
     public int getCadence() {
-        return TimeUtils.defaultCadence(getStartTime(), getEndTime());
+        // User-selected time step; frame count falls out of span / cadence.
+        // ponytail: default matches the old auto-fit (~96 frames) for the default 2-day span; no separate frame-count field.
+        return cadencePanel.getCadence();
     }
 
     @Override

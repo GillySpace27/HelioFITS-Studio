@@ -39,7 +39,7 @@ public class ObservationDialog extends StandardDialog implements Interfaces.Obse
     private final JButton availabilityBtn = new JButton("Available data");
 
     private final TimeSelectorPanel timeSelectorPanel = new TimeSelectorPanel();
-    private final CadencePanel cadencePanel = new CadencePanel();
+    private final CadencePanel cadencePanel = new CadencePanel(timeSelectorPanel);
     private final ImageSelectorPanel imageSelectorPanel;
     private ImageLayer layer;
 
