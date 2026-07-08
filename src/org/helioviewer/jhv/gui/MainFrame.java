@@ -20,6 +20,7 @@ import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.app.Platform;
 import org.helioviewer.jhv.display.DisplayController;
+import org.helioviewer.jhv.gui.component.ImageLayersPane;
 import org.helioviewer.jhv.gui.component.MainContentPanel;
 import org.helioviewer.jhv.gui.component.MenuBar;
 import org.helioviewer.jhv.gui.component.MoviePanel;
@@ -104,6 +105,7 @@ public final class MainFrame {
     private static MainContentPanel mainContentPanel;
 
     private static LayersPanel layersPanel;
+    private static ImageLayersPane imageLayersPane;
 
     private static MenuBar menuBar;
 
@@ -121,7 +123,8 @@ public final class MainFrame {
         layersPanel = new LayersPanel();
 
         leftPane = new SideContentPane();
-        leftPane.add("Image Layers", MoviePanel.getInstance(), true);
+        imageLayersPane = new ImageLayersPane(MoviePanel.getInstance(), new JPanel());
+        leftPane.add("Image Layers", imageLayersPane, true);
 
         leftScrollPane = new JScrollPane(leftPane, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         leftScrollPane.setFocusable(false);
