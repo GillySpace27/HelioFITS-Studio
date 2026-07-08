@@ -112,7 +112,9 @@ public final class LayersSectionPanel extends JPanel implements Interfaces.Obser
     @Override
     public void load(String server, int sourceId) {
         addLayerButton.doClickOnMenu();
-        imageSelectorPanel.load(null, server, sourceId, getStartTime(), getEndTime(), getCadence());
+        if (checkSanity()) {
+            imageSelectorPanel.load(null, server, sourceId, getStartTime(), getEndTime(), getCadence());
+        }
     }
 
     @Override

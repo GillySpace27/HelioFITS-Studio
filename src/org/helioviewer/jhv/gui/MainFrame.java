@@ -276,12 +276,14 @@ public final class MainFrame {
         MoviePanel moviePanel = MoviePanel.getInstance();
         // Freeze the left pane to the widest startup state so the scrollbar never overlaps options panels.
         moviePanel.setAdvanced(true);
-        int contentWidth = measureMoviePanelWidth(moviePanel, null);
-        contentWidth = Math.max(contentWidth, measureMoviePanelWidth(moviePanel, Layers.getViewpointLayer()));
-        contentWidth = Math.max(contentWidth, measureMoviePanelWidth(moviePanel, Layers.getConnectionLayer()));
+        int contentWidth = measureImageLayersPaneWidth(null);
+        contentWidth = Math.max(contentWidth, measureImageLayersPaneWidth(Layers.getViewpointLayer()));
+        contentWidth = Math.max(contentWidth, measureImageLayersPaneWidth(Layers.getConnectionLayer()));
 
         layersPanel.setSelectedLayer(null);
         moviePanel.setAdvanced(false);
+        // imageLayersPane nests transport/layers/options/geometry as BoxLayout.PAGE_AXIS siblings, so pinning
+        // moviePanel's own preferred width to the measured max pins the container's preferred width too.
         moviePanel.setFixedPreferredWidth(contentWidth);
         leftPane.revalidate();
 
@@ -290,11 +292,11 @@ public final class MainFrame {
         leftPaneHost.revalidate();
     }
 
-    private static int measureMoviePanelWidth(MoviePanel moviePanel, Layer optionsLayer) {
+    private static int measureImageLayersPaneWidth(Layer optionsLayer) {
         layersPanel.setSelectedLayer(optionsLayer);
-        moviePanel.revalidate();
-        moviePanel.doLayout();
-        return moviePanel.getPreferredSize().width;
+        imageLayersPane.revalidate();
+        imageLayersPane.doLayout();
+        return imageLayersPane.getPreferredSize().width;
     }
 
     public static Component getRenderComponent() {
