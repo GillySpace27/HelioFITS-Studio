@@ -64,7 +64,7 @@ public final class LayersSectionPanel extends JPanel implements Interfaces.Obser
     }
 
     private void syncLayersSpan() {
-        ImageLayers.syncLayersSpan(getStartTime(), getEndTime(), getCadence());
+        syncLayersSpan(getStartTime(), getEndTime());
     }
 
     // Entry point for external callers that need to move the master range to a given
@@ -74,7 +74,7 @@ public final class LayersSectionPanel extends JPanel implements Interfaces.Obser
         setTime(start, end);
         if (checkSanity()) {
             DrawController.setSelectedInterval(getStartTime(), getEndTime());
-            syncLayersSpan();
+            ImageLayers.syncLayersSpan(getStartTime(), getEndTime(), getCadence());
         }
     }
 
