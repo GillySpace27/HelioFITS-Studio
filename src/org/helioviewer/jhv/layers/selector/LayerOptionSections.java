@@ -40,6 +40,7 @@ public final class LayerOptionSections implements Layers.Listener {
             ImagePanels p = cache.computeIfAbsent(il, k -> new ImagePanels(new ImageLayerRenderingPanel(il), new ImageLayerGeometryPanel(il), new ImageLayerManagePanel(il)));
             ComponentUtils.setEnabled(p.rendering(), il.isEnabled());
             ComponentUtils.setEnabled(p.geometry(), il.isEnabled());
+            ComponentUtils.setEnabled(p.manage(), il.isEnabled());
             layerOptionsWrapper.add(p.rendering());
             geometryWrapper.add(p.geometry());
             manageWrapper.add(p.manage());
