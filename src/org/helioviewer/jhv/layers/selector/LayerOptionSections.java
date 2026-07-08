@@ -44,7 +44,7 @@ public final class LayerOptionSections implements Layers.Listener {
             layerOptionsWrapper.add(p.rendering());
             geometryWrapper.add(p.geometry());
             manageWrapper.add(p.manage());
-            // readout in Task 5
+            p.manage().updateReadout();
         } else if (layer != null) {
             Component generic = LayerOptions.getOptionsPanel(layer);
             if (generic != null) {
@@ -86,9 +86,14 @@ public final class LayerOptionSections implements Layers.Listener {
         if (layer instanceof ImageLayer il && cache.get(il) instanceof ImagePanels p) {
             p.rendering().refresh(layer);
             p.manage().refresh(layer);
+            p.manage().updateReadout();
         }
     }
 
     @Override
-    public void timeUpdated(Layer layer) {}
+    public void timeUpdated(Layer layer) {
+        if (layer instanceof ImageLayer il && cache.get(il) instanceof ImagePanels p) {
+            p.manage().updateReadout();
+        }
+    }
 }

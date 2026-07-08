@@ -3,7 +3,10 @@ package org.helioviewer.jhv.layers.selector;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.Insets;
+import java.util.Arrays;
 
+import javax.swing.BoxLayout;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 
@@ -16,6 +19,8 @@ import org.helioviewer.jhv.io.DownloadLayer;
 import org.helioviewer.jhv.io.PunchClient;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layer;
+import org.helioviewer.jhv.time.TimeUtils;
+import org.helioviewer.jhv.view.View;
 
 import com.jidesoft.swing.JideButton;
 import com.jidesoft.swing.JideToggleButton;
@@ -25,12 +30,17 @@ import com.jidesoft.swing.JideToggleButton;
 @SuppressWarnings("serial")
 final class ImageLayerManagePanel extends JPanel {
 
+    private final ImageLayer layer;
+    private final JLabel readout = new JLabel();
     private final JideToggleButton downloadButton = new JideToggleButton(Buttons.download);
     private final JProgressBar progressBar = new JProgressBar();
     private DownloadProgress downloadProgress;
 
     ImageLayerManagePanel(ImageLayer layer) {
-        setLayout(new BorderLayout());
+        this.layer = layer;
+        setLayout(new BoxLayout(this, BoxLayout.PAGE_AXIS));
+
+        JPanel buttonRow = new JPanel(new BorderLayout());
 
         downloadButton.setToolTipText("Download selected layer");
         downloadButton.addActionListener(e -> {
@@ -94,16 +104,54 @@ final class ImageLayerManagePanel extends JPanel {
         rightCluster.add(refreshButton, BorderLayout.LINE_START);
         rightCluster.add(metaButton, BorderLayout.LINE_END);
 
-        add(downloadButton, BorderLayout.LINE_START);
-        add(rightCluster, BorderLayout.LINE_END);
+        buttonRow.add(downloadButton, BorderLayout.LINE_START);
+        buttonRow.add(rightCluster, BorderLayout.LINE_END);
+
+        add(readout);
+        add(buttonRow);
 
         // Usually refreshed through ImageLayer activation; initialize here too in case that activation already happened before panel creation.
         refresh(layer);
+        updateReadout();
     }
 
     void refresh(Layer layer) {
         ImageLayer imageLayer = (ImageLayer) layer;
         downloadButton.setVisible(!imageLayer.isLocal());
+    }
+
+    void updateReadout() {
+        View view = layer.getView();
+        int max = view.getMaximumFrameNumber();
+        int frames = max + 1;
+        long start = view.getFirstTime().milli;
+        long end = view.getLastTime().milli;
+        String cadence = frames > 1
+                ? formatCadence(medianSpacingSec(view, max))
+                : "—";
+        readout.setText(String.format("<html>%s – %s<br>cadence %s · %d frame%s</html>",
+                TimeUtils.format(start),
+                TimeUtils.format(end),
+                cadence, frames, frames == 1 ? "" : "s"));
+    }
+
+    private static long medianSpacingSec(View view, int max) {
+        long[] gaps = new long[max];
+        long prev = view.getFrameTime(0).milli;
+        for (int i = 1; i <= max; i++) {
+            long t = view.getFrameTime(i).milli;
+            gaps[i - 1] = (t - prev) / 1000;
+            prev = t;
+        }
+        Arrays.sort(gaps);
+        return gaps[gaps.length / 2];
+    }
+
+    private static String formatCadence(long sec) {
+        if (sec >= 86400) return (sec / 86400) + " d";
+        if (sec >= 3600) return (sec / 3600) + " h";
+        if (sec >= 60) return (sec / 60) + " min";
+        return sec + " s";
     }
 
     private void downloadProgress(int value) {
