@@ -28,7 +28,7 @@ public final class LayersSectionPanel extends JPanel implements Interfaces.Obser
     private final ImageSelectorPanel imageSelectorPanel;
     private final JideSplitButton addLayerButton;
 
-    public LayersSectionPanel(JPanel manageWrapper) {
+    public LayersSectionPanel() {
         setLayout(new BoxLayout(this, BoxLayout.PAGE_AXIS));
 
         // request cadence for the next layer, sourced against the master time range
@@ -49,21 +49,16 @@ public final class LayersSectionPanel extends JPanel implements Interfaces.Obser
             public void popupMenuCanceled(PopupMenuEvent e) {}
         });
 
-        JideButton syncButton = new JideButton(Buttons.syncLayers);
-        syncButton.setToolTipText("Synchronize time intervals of all layers");
-        syncButton.addActionListener(e -> syncLayersSpan());
-
         JPanel addLayerRow = new JPanel(new BorderLayout());
         addLayerRow.add(addLayerButton, BorderLayout.LINE_START);
         addLayerRow.add(cadencePanel, BorderLayout.CENTER);
-        addLayerRow.add(syncButton, BorderLayout.LINE_END);
 
         add(addLayerRow);
         add(MainFrame.getLayersPanel());
-        add(manageWrapper);
     }
 
-    private void syncLayersSpan() {
+    // The Sync button lives next to the time range (in ImageLayersPane) and calls this.
+    public void syncLayers() {
         syncLayersSpan(getStartTime(), getEndTime());
     }
 

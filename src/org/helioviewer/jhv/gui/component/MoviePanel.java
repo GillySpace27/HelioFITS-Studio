@@ -38,8 +38,6 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
     private static final int FRAME_HOLD_REPEAT_MS = 125;
     private int fixedPreferredWidth = -1;
 
-    private boolean isAdvanced;
-
     private final TimeSelectorPanel timeSelectorPanel = new TimeSelectorPanel();
 
     private static TimeSlider timeSlider;
@@ -47,7 +45,6 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
 
     private final RecordButton recordButton;
 
-    private final JideButton advancedButton;
     private final JHVSpinner speedSpinner;
     private final JComboBox<ViewState.PlaybackSpeedUnit> speedUnitComboBox;
     private final JComboBox<Player.AdvanceMode> advanceModeComboBox;
@@ -58,6 +55,11 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
 
     private final JPanel modePanel = new JPanel(new FlowLayout(FlowLayout.TRAILING, 0, 0));
     private final JPanel recordPanel = new JPanel(new GridBagLayout());
+
+    private JPanel buttonPanel;
+    private JComponent frameNumberPanel;
+    private JPanel northTransport; // scrubber + play/prev/next/record + frame counter, docked at the top
+    private JPanel playbackOptions; // speed / advance-mode / recording settings — the "Playback options" pane
 
     private static MoviePanel instance;
 
@@ -71,12 +73,8 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         // Time slider
         timeSlider = new TimeSlider(TimeSlider.HORIZONTAL, 0, 0, 0);
 
-        JPanel sliderPanel = new JPanel(new BorderLayout());
-        sliderPanel.add(timeSlider);
-
-        JPanel secondLine = new JPanel(new BorderLayout());
         // Control buttons
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 1, 0));
+        buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 1, 0));
         int small = 18, big = 26;
 
         JideButton prevFrameButton = new JideButton(Buttons.backward);
@@ -102,17 +100,16 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         recordButton = new RecordButton(small);
         buttonPanel.add(recordButton);
 
-        advancedButton = new JideButton(Buttons.optionsDown);
-        advancedButton.setToolTipText("Options to control playback and recording");
-        advancedButton.addActionListener(e -> setAdvanced(!isAdvanced));
-        buttonPanel.add(advancedButton);
-
-        secondLine.add(buttonPanel, BorderLayout.LINE_START);
-
         // Current frame number
-        JComponent frameNumberPanel = timeSlider.getFrameNumberPanel();
+        frameNumberPanel = timeSlider.getFrameNumberPanel();
         frameNumberPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 5));
-        secondLine.add(frameNumberPanel, BorderLayout.LINE_END);
+
+        // The scrubber + play/prev/next/record + frame counter live in an always-visible top bar
+        // (MainFrame docks northTransport); the sidebar pane keeps only settings + the time range.
+        northTransport = new JPanel(new BorderLayout());
+        northTransport.add(buttonPanel, BorderLayout.LINE_START);
+        northTransport.add(timeSlider, BorderLayout.CENTER);
+        northTransport.add(frameNumberPanel, BorderLayout.LINE_END);
 
         // Speed
         modePanel.add(new JLabel(" Play ", JLabel.RIGHT));
@@ -133,12 +130,11 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         advanceModeComboBox.addActionListener(e -> ViewState.setPlaybackAdvanceMode((Player.AdvanceMode) advanceModeComboBox.getSelectedItem()));
         modePanel.add(advanceModeComboBox);
 
-        // Record
+        // Record — right-justified and compact (no stretching)
         GridBagConstraints c = new GridBagConstraints();
-        c.anchor = GridBagConstraints.LINE_START;
-        c.weightx = 1;
+        c.anchor = GridBagConstraints.LINE_END;
         c.weighty = 1;
-        c.fill = GridBagConstraints.HORIZONTAL;
+        c.fill = GridBagConstraints.NONE;
 
         loopButton = new JRadioButton(ViewState.RecordingMode.LOOP.toString());
         shotButton = new JRadioButton(ViewState.RecordingMode.SHOT.toString());
@@ -146,7 +142,9 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
 
         c.gridy = 0;
         c.gridx = 0;
+        c.weightx = 1; // glue column absorbs slack so the record controls pack to the right
         recordPanel.add(new JLabel("Record ", JLabel.RIGHT), c);
+        c.weightx = 0;
         c.gridx = 1;
         recordPanel.add(loopButton, c);
         c.gridx = 2;
@@ -165,7 +163,7 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
 
         c.gridy = 1;
         c.gridx = 2;
-        recordPanel.add(new JLabel("Size ", JLabel.RIGHT), c);
+        recordPanel.add(new JLabel("Output size ", JLabel.RIGHT), c);
 
         recordSizeComboBox = new JComboBox<>(ViewState.RecordingSize.values());
         recordSizeComboBox.addActionListener(e -> ViewState.setRecordingSize((ViewState.RecordingSize) recordSizeComboBox.getSelectedItem()));
@@ -174,11 +172,12 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
 
         timeSelectorPanel.addListener(Layers.timeSelectionListener);
 
-        add(sliderPanel);
-        add(secondLine);
-        add(modePanel);
-        add(recordPanel);
-        add(timeSelectorPanel);
+        // Playback/recording settings, exposed as their own top-level "Playback options" pane.
+        // The master time range is exposed separately and placed atop the Image Layers pane.
+        playbackOptions = new JPanel();
+        playbackOptions.setLayout(new BoxLayout(playbackOptions, BoxLayout.PAGE_AXIS));
+        playbackOptions.add(modePanel);
+        playbackOptions.add(recordPanel);
 
         Player.addStatusListener(this);
         ExportMovie.addStatusListener(this);
@@ -202,6 +201,12 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         return timeSelectorPanel;
     }
 
+    // The always-visible top transport bar (scrubber + play/prev/next/record + frame counter).
+    // MainFrame docks this at the top so playback is reachable whether or not the sidebar is open.
+    public JComponent getNorthTransport() {
+        return northTransport;
+    }
+
     private static class RecordButton extends JideToggleButton implements ActionListener {
         RecordButton(float fontSize) {
             super(Buttons.record);
@@ -221,11 +226,9 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         }
     }
 
-    public void setAdvanced(boolean advanced) {
-        isAdvanced = advanced;
-        advancedButton.setText(advanced ? Buttons.optionsDown : Buttons.optionsRight);
-        modePanel.setVisible(advanced);
-        recordPanel.setVisible(advanced);
+    // The playback speed / advance-mode / recording settings, shown as the "Playback options" pane.
+    public JComponent getPlaybackOptions() {
+        return playbackOptions;
     }
 
     public void setFixedPreferredWidth(int width) {

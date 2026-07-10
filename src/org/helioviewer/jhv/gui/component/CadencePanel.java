@@ -1,14 +1,18 @@
 package org.helioviewer.jhv.gui.component;
 
-import java.awt.FlowLayout;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
 
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 
+import org.helioviewer.jhv.gui.UIGlobals;
 import org.helioviewer.jhv.gui.time.TimeSelectorPanel;
 import org.helioviewer.jhv.io.APIRequest;
+import org.helioviewer.jhv.time.TimeUtils;
 
 @SuppressWarnings("serial")
 public final class CadencePanel extends JPanel {
@@ -22,12 +26,13 @@ public final class CadencePanel extends JPanel {
     private final JComboBox<String> unitCombo = new JComboBox<>(timeStepUnits);
     private final JHVSpinner framesSpinner = new JHVSpinner(1, FRAMES_MIN, FRAMES_MAX, 1);
     private final JCheckBox byFramesCheck = new JCheckBox("Frame count");
+    private final JLabel durationLabel = new JLabel(); // total span, under the unit dropdown
 
     private boolean updating; // ponytail: reentrancy guard, the two spinners derive each other
 
     public CadencePanel(TimeSelectorPanel timeSelectorPanel) {
         this.timeSelectorPanel = timeSelectorPanel;
-        setLayout(new FlowLayout(FlowLayout.TRAILING, 5, 0));
+        setLayout(new GridBagLayout());
 
         applyCadenceValue(APIRequest.CADENCE_DEFAULT);
         unitCombo.setSelectedItem("min");
@@ -38,16 +43,40 @@ public final class CadencePanel extends JPanel {
         framesSpinner.addChangeListener(e -> onFramesEdited());
         ((JHVSpinner.DefaultEditor) framesSpinner.getEditor()).getTextField().setColumns(6);
 
+        byFramesCheck.setToolTipText("Switch which value you set directly: unchecked = cadence (time step) drives the frame count; checked = frame count drives the cadence");
         byFramesCheck.addActionListener(e -> setByFrames(byFramesCheck.isSelected()));
         timeSelectorPanel.addListener((start, end) -> resync());
 
-        add(new JLabel("Time step", JLabel.RIGHT));
-        add(cadenceSpinner);
-        add(unitCombo);
-        add(byFramesCheck);
-        add(framesSpinner);
+        // Two stacked rows so the wide "time step / frame count" pair no longer forces the whole
+        // sidebar wide; the two input fields line up in the same column.
+        GridBagConstraints c = new GridBagConstraints();
+        c.insets = new Insets(0, 2, 0, 2);
+        c.anchor = GridBagConstraints.LINE_START;
+
+        c.gridy = 0;
+        c.gridx = 0;
+        add(new JLabel("Time step", JLabel.RIGHT), c);
+        c.gridx = 1;
+        add(cadenceSpinner, c);
+        c.gridx = 2;
+        add(unitCombo, c);
+
+        c.gridy = 1;
+        c.gridx = 0;
+        add(byFramesCheck, c);
+        c.gridx = 1;
+        add(framesSpinner, c);
+        c.gridx = 2;
+        durationLabel.setFont(UIGlobals.uiFontSmall);
+        durationLabel.setToolTipText("Total duration of the selected time range");
+        add(durationLabel, c);
 
         setByFrames(false);
+        updateDuration();
+    }
+
+    private void updateDuration() {
+        durationLabel.setText(TimeUtils.formatDurationSig(timeSelectorPanel.getEndTime() - timeSelectorPanel.getStartTime()));
     }
 
     private void setByFrames(boolean byFrames) {
@@ -58,6 +87,7 @@ public final class CadencePanel extends JPanel {
     }
 
     private void resync() {
+        updateDuration();
         if (byFramesCheck.isSelected())
             onFramesEdited();
         else

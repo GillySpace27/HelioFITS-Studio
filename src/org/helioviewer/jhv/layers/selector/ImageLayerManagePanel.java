@@ -2,9 +2,11 @@ package org.helioviewer.jhv.layers.selector;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.Insets;
 import java.util.Arrays;
 
+import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -32,7 +34,7 @@ final class ImageLayerManagePanel extends JPanel {
 
     private final ImageLayer layer;
     private final JLabel readout = new JLabel();
-    private int lastFrameCount = -1; // memoize: skip the median recompute when the frame set is unchanged
+    private long lastReadoutSig = Long.MIN_VALUE; // memoize: skip rebuild when nothing shown changed
     private final JideToggleButton downloadButton = new JideToggleButton(Buttons.download);
     private final JProgressBar progressBar = new JProgressBar();
     private DownloadProgress downloadProgress;
@@ -76,10 +78,29 @@ final class ImageLayerManagePanel extends JPanel {
             metaDialog.showDialog();
         });
 
-        // Only PUNCH layers carry a remembered query; the button stays hidden otherwise
+        // Icons sit inline with the readout on one row, not on a line of their own.
+        JPanel icons = new JPanel(new FlowLayout(FlowLayout.TRAILING, 2, 0));
+        icons.add(downloadButton);
+        // The PUNCH archive-refresh button is mission-specific: only build it for an actual PUNCH
+        // layer (one that carries a remembered PUNCH query), never in the general panel.
+        if (PunchClient.hasRememberedQuery(layer))
+            icons.add(makeRefreshButton());
+        icons.add(metaButton);
+
+        readout.setBorder(BorderFactory.createEmptyBorder(8, 0, 8, 0)); // let the readout breathe
+        buttonRow.add(readout, BorderLayout.CENTER);
+        buttonRow.add(icons, BorderLayout.LINE_END);
+
+        add(buttonRow);
+
+        // Usually refreshed through ImageLayer activation; initialize here too in case that activation already happened before panel creation.
+        refresh(layer);
+        updateReadout();
+    }
+
+    private JideButton makeRefreshButton() {
         JideButton refreshButton = new JideButton(Buttons.refresh);
         refreshButton.setToolTipText("Check the PUNCH archive for new frames in this layer's time range");
-        refreshButton.setVisible(PunchClient.hasRememberedQuery(layer));
         JProgressBar refreshSpinner = new JProgressBar();
         refreshSpinner.setUI(new CircularProgressUI());
         refreshSpinner.setIndeterminate(true);
@@ -100,20 +121,7 @@ final class ImageLayerManagePanel extends JPanel {
                         : String.format("Loaded %d new frame%s as a new layer.", result.newCount(), result.newCount() == 1 ? "" : "s"));
             });
         });
-
-        JPanel rightCluster = new JPanel(new BorderLayout());
-        rightCluster.add(refreshButton, BorderLayout.LINE_START);
-        rightCluster.add(metaButton, BorderLayout.LINE_END);
-
-        buttonRow.add(downloadButton, BorderLayout.LINE_START);
-        buttonRow.add(rightCluster, BorderLayout.LINE_END);
-
-        add(readout);
-        add(buttonRow);
-
-        // Usually refreshed through ImageLayer activation; initialize here too in case that activation already happened before panel creation.
-        refresh(layer);
-        updateReadout();
+        return refreshButton;
     }
 
     void refresh(Layer layer) {
@@ -121,29 +129,37 @@ final class ImageLayerManagePanel extends JPanel {
         downloadButton.setVisible(!imageLayer.isLocal());
     }
 
-    // Force a recompute even if the frame count is unchanged — used when the layer's
+    // Force a recompute even if the signature is unchanged — used when the layer's
     // view may have been swapped (layerUpdated) so a same-count/different-range layer refreshes.
     void forceReadoutRefresh() {
-        lastFrameCount = -1;
+        lastReadoutSig = Long.MIN_VALUE;
         updateReadout();
     }
 
     void updateReadout() {
         View view = layer.getView();
         int max = view.getMaximumFrameNumber();
-        int frames = max + 1;
-        if (frames == lastFrameCount) // timeUpdated fires per displayed frame; skip the O(n log n) sort when nothing changed
+        int total = max + 1;
+        boolean downloading = layer.isDownloading();
+        int done = downloading ? view.getCompleteFrameCount() : total;
+
+        // timeUpdated fires per displayed frame; rebuild only when something shown actually
+        // changed. While downloading, `done` climbs so the signature advances each new frame;
+        // during plain playback total/done are stable so we skip the O(n log n) median sort.
+        long sig = ((long) total << 21) ^ ((long) done << 1) ^ (downloading ? 1 : 0);
+        if (sig == lastReadoutSig)
             return;
-        lastFrameCount = frames;
+        lastReadoutSig = sig;
+
         long start = view.getFirstTime().milli;
         long end = view.getLastTime().milli;
-        String cadence = frames > 1
-                ? formatCadence(medianSpacingSec(view, max))
-                : "—";
-        readout.setText(String.format("<html>%s – %s<br>cadence %s · %d frame%s</html>",
-                TimeUtils.format(start),
-                TimeUtils.format(end),
-                cadence, frames, frames == 1 ? "" : "s"));
+        String cadence = total > 1 ? formatSeconds(medianSpacingSec(view, max)) : "—";
+        String frames = downloading
+                ? (max == 0 ? "0/0 frames" : done + "/" + total + " frames") // scope not yet known
+                : total + (total == 1 ? " frame" : " frames");
+        String duration = TimeUtils.formatDurationSig(end - start);
+        readout.setText(String.format("<html>%s – %s<br>cadence %s · %s · %s total</html>",
+                TimeUtils.format(start), TimeUtils.format(end), cadence, frames, duration));
     }
 
     private static long medianSpacingSec(View view, int max) {
@@ -158,7 +174,7 @@ final class ImageLayerManagePanel extends JPanel {
         return gaps[gaps.length / 2];
     }
 
-    private static String formatCadence(long sec) {
+    private static String formatSeconds(long sec) {
         if (sec >= 86400) return (sec / 86400) + " d";
         if (sec >= 3600) return (sec / 3600) + " h";
         if (sec >= 60) return (sec / 60) + " min";
