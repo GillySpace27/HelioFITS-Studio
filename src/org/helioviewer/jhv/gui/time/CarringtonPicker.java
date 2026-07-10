@@ -48,7 +48,7 @@ class CarringtonPicker extends JideButton {
             @Override
             public void mouseMoved(MouseEvent e) {
                 int index = list.locationToIndex(e.getPoint());
-                list.setToolTipText(index >= 0 ? TimeUtils.format(Carrington.CR_start[index]).substring(0, 4) : null);
+                list.setToolTipText(index >= 0 ? TimeUtils.format(Carrington.CR_start[index]) : null);
             }
         });
         list.addMouseListener(new MouseAdapter() {

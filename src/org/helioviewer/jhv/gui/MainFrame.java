@@ -143,7 +143,7 @@ public final class MainFrame {
         // The scrubber + playback buttons are always docked at the top (see below); the sidebar keeps
         // the recording/speed settings as their own "Playback options" pane, and the master time range
         // now lives atop Image Layers where it belongs.
-        leftPane.add("Playback options", moviePanel.getPlaybackOptions(), true);
+        leftPane.add("Playback and Recording", moviePanel.getPlaybackOptions(), true);
         leftPane.add("Image Layers", imageLayersPane, true);
 
         leftScrollPane = new JScrollPane(leftPane, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
@@ -313,11 +313,27 @@ public final class MainFrame {
         layersPanel.setSelectedLayer(null);
         leftPane.revalidate();
 
-        // The fixed host width stretches every top-level pane (via SideContentPane's fill) to match,
-        // so nothing clips and the width does not oscillate on layer selection.
+        // The fixed host width stretches every top-level pane (via SideContentPane's fill) to match.
         int scrollbarWidth = leftScrollPane.getVerticalScrollBar().getPreferredSize().width;
-        leftPaneHost.setFixedWidth(contentWidth + scrollbarWidth);
+        fixedContentWidth = contentWidth + scrollbarWidth;
+        leftPaneHost.setFixedWidth(fixedContentWidth);
         leftPaneHost.revalidate();
+        // Dynamic content (CR button, Sync, video/duration labels, per-layer options) can get wider
+        // than the startup measurement, and there is no horizontal scrollbar — so grow to fit. Only
+        // ever growing keeps the width from oscillating as layers are selected.
+        UITimer.register(MainFrame::growLeftPaneToFit);
+    }
+
+    private static int fixedContentWidth;
+
+    private static void growLeftPaneToFit() {
+        int needed = Math.max(imageLayersPane.getPreferredSize().width, MoviePanel.getInstance().getPlaybackOptions().getPreferredSize().width)
+                + leftScrollPane.getVerticalScrollBar().getPreferredSize().width;
+        if (needed > fixedContentWidth) {
+            fixedContentWidth = needed;
+            leftPaneHost.setFixedWidth(fixedContentWidth);
+            leftPaneHost.revalidate();
+        }
     }
 
     private static int measureImageLayersPaneWidth(Layer optionsLayer) {

@@ -24,10 +24,12 @@ import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.gui.Actions;
 import org.helioviewer.jhv.gui.CompletionNotifications;
 import org.helioviewer.jhv.gui.ComponentUtils;
+import org.helioviewer.jhv.gui.UIGlobals;
 import org.helioviewer.jhv.gui.time.TimeSelectorPanel;
 import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.movie.ExportMovie;
 import org.helioviewer.jhv.movie.Player;
+import org.helioviewer.jhv.time.TimeUtils;
 
 import com.jidesoft.swing.JideButton;
 import com.jidesoft.swing.JideToggleButton;
@@ -55,6 +57,7 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
 
     private final JPanel modePanel = new JPanel(new FlowLayout(FlowLayout.TRAILING, 0, 0));
     private final JPanel recordPanel = new JPanel(new GridBagLayout());
+    private final JLabel videoLengthLabel = new JLabel(); // estimated length of the recorded video
 
     private JPanel buttonPanel;
     private JComponent frameNumberPanel;
@@ -162,6 +165,10 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         freeButton.addActionListener(e -> ViewState.setRecordingMode(ViewState.RecordingMode.FREE));
 
         c.gridy = 1;
+        c.gridx = 1;
+        videoLengthLabel.setFont(UIGlobals.uiFontSmall);
+        videoLengthLabel.setToolTipText("Estimated length of the recorded video at the current speed and frame count");
+        recordPanel.add(videoLengthLabel, c);
         c.gridx = 2;
         recordPanel.add(new JLabel("Output size ", JLabel.RIGHT), c);
 
@@ -183,6 +190,8 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         ExportMovie.addStatusListener(this);
         ViewState.addPlaybackConfigListener(this);
         ViewState.addRecordingConfigListener(this);
+
+        updateVideoLength();
     }
 
     public void setTime(long start, long end) {
@@ -251,6 +260,16 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         ViewState.setPlaybackSpeed(speed, unit);
     }
 
+    // Length of the recorded video for the actually loaded movie at the current speed.
+    private void updateVideoLength() {
+        if (!Player.isAvailable()) {
+            videoLengthLabel.setText("");
+            return;
+        }
+        double seconds = ViewState.estimateVideoSeconds(Player.getMaximumFrameNumber() + 1, Player.getEndTime() - Player.getStartTime());
+        videoLengthLabel.setText("≈ " + TimeUtils.formatDurationSig(Math.round(seconds * 1000)));
+    }
+
     public static TimeSlider getTimeSlider() {
         return timeSlider;
     }
@@ -266,6 +285,7 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
             playButton.setText(Buttons.play);
             playButton.setToolTipText("Play movie");
         }
+        updateVideoLength(); // frame count / span may have changed
     }
 
     @Override
@@ -293,6 +313,8 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
 
         if (speedUnitComboBox.getSelectedItem() != playbackData.speedUnit())
             speedUnitComboBox.setSelectedItem(playbackData.speedUnit());
+
+        updateVideoLength();
     }
 
     @Override
