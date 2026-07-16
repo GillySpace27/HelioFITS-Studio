@@ -10,14 +10,19 @@ radial enhancement filter, CME tracking, and grid styling.
   >> Full walkthrough: open  JHV-Preview-Guide.pdf
 
 
-ON macOS, THE EASIER OPTION IS THE .dmg
+ON APPLE SILICON, THE EASIER OPTION IS THE .dmg
   If you are on an Apple Silicon Mac, download  JHelioviewer-PUNCH-preview.dmg
   instead of this zip. It is signed and notarized (so it opens with no security
   warning) and carries its own Java runtime, so you do not need to install Java.
   Open the .dmg, drag JHelioviewer to Applications, and double-click.
 
-  This zip is for other platforms, older Intel Macs, or if you prefer to run from
-  your own Java.
+  This zip is the path for Intel Macs, or if you prefer to run from your own Java.
+
+
+TESTED PLATFORMS
+  Only macOS is tested right now (Apple Silicon via the .dmg, Intel via this zip).
+  This zip also contains Linux (run.sh) and Windows (run.bat) launchers, but they
+  have not been tried on those platforms yet — use them at your own risk.
 
 
 REQUIREMENTS (for this zip)
@@ -27,9 +32,7 @@ REQUIREMENTS (for this zip)
 
 
 HOW TO RUN
-  macOS:    double-click  run.command   (or run ./run.command in a Terminal here)
-  Linux:    ./run.sh      from a terminal in this folder
-  Windows:  double-click  run.bat
+  Intel Mac:  double-click  run.command   (or run ./run.command in a Terminal here)
 
   The launcher finds your Java 25 automatically. If it cannot, it will tell you
   how to install it.
