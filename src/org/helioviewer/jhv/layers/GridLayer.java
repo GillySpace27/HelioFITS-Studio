@@ -50,7 +50,7 @@ public final class GridLayer extends AbstractLayer {
     private static final double LINEWIDTH_AXES = 2 * LINEWIDTH;
     // private static final double PLANETEXT_Z = 0.01;
 
-    private double lonStep = 15;
+    private double lonStep = 30;
     private double latStep = 20;
     private boolean gridNeedsInit = true;
 
@@ -59,12 +59,12 @@ public final class GridLayer extends AbstractLayer {
     private boolean showRadial = false;
 
     private Colors.NamedColor gridColor = Colors.NamedColor.ReducedGreen;
-    private double gridAlpha = 1;
-    private byte[] gridColorBytes = gridColor.bytes();
+    private double gridAlpha = 0.47;
+    private byte[] gridColorBytes = Colors.bytes(gridColor.awtColor(), gridAlpha); // honors a non-1 default alpha
     private double labelAlpha = 1;
     private double gridLineScale = 1;
-    private double gridLabelSize = GRID_LABEL_SIZE_REF;
-    private double gridLabelAngle = 120;
+    private double gridLabelSize = 16;
+    private double gridLabelAngle = 148;
 
     private final GLSLShape earthPoint = new GLSLShape(false);
     private final GLSLLine axesLine = new GLSLLine(false);
