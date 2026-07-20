@@ -22,6 +22,7 @@
 - Show the JHelioviewer icon in the macOS Dock and the Windows taskbar instead of the generic Java icon
 - Add a cadence control and a large-download confirmation to the ASPIICS layer dialog
 - Add a double-ended radial mask (inner disk and outer corona) to the layer options
+- Add a per-layer refresh button to check the PUNCH archive for new frames
 
 ### Timeline, events, and UI
 - Map HEK Flare Trigger events to Flare events (fixes #105)
