@@ -59,6 +59,17 @@ public final class Actions {
         }
     }
 
+    public static class TrackCME extends AbstractAction {
+        public TrackCME() {
+            super("Track CME...");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            org.helioviewer.jhv.event.info.CactusTrackDialog.open();
+        }
+    }
+
     public static class ExitProgram extends AbstractKeyAction {
         public ExitProgram() {
             super("Quit", KeyStroke.getKeyStroke(KeyEvent.VK_Q, DesktopIntegration.menuShortcutMask));

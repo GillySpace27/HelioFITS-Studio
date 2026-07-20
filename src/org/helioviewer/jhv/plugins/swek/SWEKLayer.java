@@ -11,6 +11,7 @@ import javax.swing.ImageIcon;
 
 import org.helioviewer.jhv.astronomy.Sun;
 import org.helioviewer.jhv.base.Colors;
+import org.helioviewer.jhv.display.CMETracker;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.MapScale;
 import org.helioviewer.jhv.display.MapView;
@@ -23,6 +24,7 @@ import org.helioviewer.jhv.event.JHVRelatedEvents;
 import org.helioviewer.jhv.event.SWEKGroup;
 import org.helioviewer.jhv.image.nio.NativeImageFactory;
 import org.helioviewer.jhv.layers.AbstractLayer;
+import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.math.MathUtils;
 import org.helioviewer.jhv.math.PolarBasis;
 import org.helioviewer.jhv.math.Quat;
@@ -49,6 +51,10 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
     private static final double LINEWIDTH_HIGHLIGHT = 2 * LINEWIDTH;
     private static final double POLYGON_RADIUS = Sun.Radius * 1.01;
     private static final double DIST_SUN_BEGIN = 2.4;
+    private static final long CACTUS_MAX_TRAVEL_MS = 14L * 24 * 3600 * 1000; // lookback for propagated fronts (covers slow CMEs)
+
+    private static final byte[] TRACK_FRONT = Colors.bytes(255, 140, 0);  // orange dot at the tracked CME's calculated front
+    private static final byte[] TRACK_FREEZE = Colors.bytes(170, 60, 230); // purple circle at the freeze location (SCREEN_FRACTION)
 
     private static final HashMap<String, GLTexture> iconCacheId = new HashMap<>();
     private static final double ICON_ALPHA = 0.7;
@@ -59,6 +65,7 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
 
     private SWEKContext swekContext;
     private boolean icons = true;
+    private boolean extendCactus = false; // propagate CACTus fronts past the LASCO catalog end, out to the loaded FOV
 
     private final GLSLLine lineEvent = new GLSLLine(true);
     private final BufVertex bufEvent = new BufVertex(512 * GLSLLine.stride); // pre-allocate
@@ -73,9 +80,15 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
     private long cachedEventsEnd = Long.MIN_VALUE;
     private List<JHVRelatedEvents> cachedActiveEvents = List.of();
 
+    private long cachedPropTime = Long.MIN_VALUE;
+    private long cachedPropStart, cachedPropEnd;
+    private double cachedPropFov = Double.NaN;
+    private List<JHVRelatedEvents> cachedProp = List.of();
+
     public SWEKLayer(JSONObject jo) {
         if (jo != null) {
             icons = jo.optBoolean("icons", icons);
+            extendCactus = jo.optBoolean("extendCactus", extendCactus);
             SWEKPlugin.restoreLayer(this);
         }
     }
@@ -87,6 +100,7 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
     @Override
     public void serialize(JSONObject jo) {
         jo.put("icons", icons);
+        jo.put("extendCactus", extendCactus);
     }
 
     private static void bindTexture(SWEKGroup group) {
@@ -274,6 +288,83 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         }
     }
 
+    // Warped screen radius of physical radius r on the Sun-centered disk; matches
+    // RadialWarpGrid.ringRho so arcs and markers sit exactly on the grid rings.
+    private static double ringRho(MapScale scale, double r) {
+        return .5 * scale.toUnitY(r);
+    }
+
+    // CACTus arc for the Sun-centered disk projection (RadialWarp): same wedge as the
+    // orthographic arc, but placed in the disk's world coordinates — physical radius r
+    // maps to the warped screen radius ringRho(scale, r), and PolarBasis puts the
+    // angle at north-up/CCW, matching the disk grid. The front sits on the grid ring at
+    // distSun, so with CME tracking engaged it holds a fixed screen radius.
+    private void drawCactusArcDisk(JHVRelatedEvents evtr, JHVEvent evt, long timestamp, MapScale scale) {
+        CactusArcParams params = cactusArcParams(evt, timestamp);
+        double principalAngle = Math.toRadians(params.principalAngleDegree());
+        double halfWidth = Math.toRadians(params.angularWidthDegree()) / 2.;
+        double thetaStart = principalAngle - halfWidth;
+        double thetaEnd = principalAngle + halfWidth;
+        double rhoFront = ringRho(scale, params.distSun());
+        double rhoInner = ringRho(scale, DIST_SUN_BEGIN);
+
+        BufVertex vexBuf = evtr.isHighlighted() ? bufThick : bufEvent;
+        byte[] color = Colors.bytes(evtr.getColor());
+
+        // outer arc: sweep the angle at the front radius
+        int steps = Math.max(2, (int) (params.angularWidthDegree() / 2));
+        for (int i = 0; i <= steps; i++) {
+            Vec3 p = PolarBasis.vec3(rhoFront, thetaStart + (thetaEnd - thetaStart) * i / steps);
+            if (i == 0)
+                vexBuf.putVertex(p, Colors.Null);
+            vexBuf.putVertex(p, color);
+        }
+        vexBuf.repeatVertex(Colors.Null);
+
+        // radial spokes at both edges and the principal angle, inner edge to front
+        for (double theta : new double[]{thetaStart, principalAngle, thetaEnd}) {
+            vexBuf.putVertex(PolarBasis.vec3(rhoInner, theta), Colors.Null);
+            vexBuf.putVertex(PolarBasis.vec3(rhoInner, theta), color);
+            vexBuf.putVertex(PolarBasis.vec3(rhoFront, theta), color);
+            vexBuf.repeatVertex(Colors.Null);
+        }
+    }
+
+    // While CME tracking is engaged (RadialWarp or RectWarp), mark it: an orange dot at the
+    // front's calculated location (physical radius -> warped screen position) and a purple circle
+    // at the fixed "freeze" screen radius (SCREEN_FRACTION), both on the tracked position angle.
+    // If the solve is right, the front sits on the freeze radius and the two are concentric.
+    private void drawTrackerMarkers(MapView mv, Viewport vp, MapScale scale) {
+        double paDeg = CMETracker.positionAngleDeg();
+        double frac = CMETracker.screenFraction();
+        double rCme = CMETracker.currentFront();
+        Vec3 freeze;
+        Vec3 front;
+        if (mv.isRadialWarp()) { // Sun-centered disk: screen fraction f -> rho = 0.5*f (matches ringRho)
+            double pa = Math.toRadians(paDeg);
+            freeze = PolarBasis.vec3(0.5 * frac, pa);
+            front = PolarBasis.vec3(ringRho(scale, rCme), pa);
+        } else { // RectWarp unwrap: x = angle, y = warped radius normalized to [-0.5, 0.5]
+            double x = (scale.toUnitX(paDeg) - 0.5) * vp.aspect;
+            freeze = new Vec3(x, frac - 0.5, 0);
+            front = new Vec3(x, scale.toUnitY(rCme) - 0.5, 0);
+        }
+        ringInto(freeze, 0.028, TRACK_FREEZE); // the freeze location
+        ringInto(front, 0.007, TRACK_FRONT);   // the calculated front (small -> reads as a dot)
+    }
+
+    private void ringInto(Vec3 center, double radius, byte[] color) {
+        int n = 48;
+        for (int i = 0; i <= n; i++) {
+            double a = 2 * Math.PI * i / n;
+            Vec3 p = new Vec3(center.x + radius * Math.cos(a), center.y + radius * Math.sin(a), 0);
+            if (i == 0)
+                bufEvent.putVertex(p, Colors.Null);
+            bufEvent.putVertex(p, color);
+        }
+        bufEvent.repeatVertex(Colors.Null);
+    }
+
     private void drawCactusArcScale(Viewport vp, JHVRelatedEvents evtr, JHVEvent evt, long timestamp, MapScale scale) {
         CactusArcParams params = cactusArcParams(evt, timestamp);
         double angularWidthDegree = params.angularWidthDegree();
@@ -347,7 +438,7 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         int idx = 0;
         for (JHVRelatedEvents evtr : evs) {
             JHVEvent evt = evtr.getClosestTo(currentTime);
-            if (mv.isLatitudinal() && evt.isCactus())
+            if ((mv.isLatitudinal() || mv.isRadialWarp()) && evt.isCactus()) // disk CACTus (drawCactusArcDisk) emits no icon quad
                 continue;
             bindTexture(evtr.getSupplier().group());
             glslTexture.renderTexture(GL.TRIANGLE_STRIP, Colors.floats(evtr.getColor(), ICON_ALPHA), idx, 4);
@@ -369,6 +460,39 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
 
     private void invalidateActiveEvents() {
         cachedEventsTime = Long.MIN_VALUE;
+        cachedPropTime = Long.MIN_VALUE;
+    }
+
+    // CACTus events past their catalog end whose front, propagated at the catalog radial speed,
+    // is still inside the loaded FOV. Empty unless the "extend" toggle is on. Disjoint from
+    // activeEvents() (which ends at the LASCO edge), so drawing both never double-counts one.
+    // NB: the front here is a constant-speed extrapolation beyond where LASCO measured the CME.
+    private List<JHVRelatedEvents> propagatingCactus(long time) {
+        if (!extendCactus)
+            return List.of();
+        double fov = ImageLayers.getLargestRadialSize();
+        if (fov <= DIST_SUN_BEGIN)
+            return List.of();
+        // Memoized on (time, movie range, fov) like activeEvents(), so the repeated per-viewport /
+        // per-frame calls during playback don't re-scan + re-parse the event set every frame.
+        long start = Player.getStartTime();
+        long end = Player.getEndTime();
+        if (time != cachedPropTime || start != cachedPropStart || end != cachedPropEnd || fov != cachedPropFov) {
+            cachedPropTime = time;
+            cachedPropStart = start;
+            cachedPropEnd = end;
+            cachedPropFov = fov;
+            List<JHVRelatedEvents> out = new ArrayList<>();
+            for (JHVRelatedEvents evtr : JHVEventCache.getEvents(time - CACTUS_MAX_TRAVEL_MS, time)) {
+                if (evtr.getEnd() >= time) // still within its catalog window -> already drawn by activeEvents
+                    continue;
+                JHVEvent evt = evtr.getClosestTo(time);
+                if (evt.isCactus() && cactusArcParams(evt, time).distSun() <= fov)
+                    out.add(evtr);
+            }
+            cachedProp = out;
+        }
+        return cachedProp;
     }
 
     @Override
@@ -377,7 +501,8 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
             return;
         long currentTime = mv.viewpoint().time.milli;
         List<JHVRelatedEvents> evs = activeEvents(currentTime);
-        if (evs.isEmpty())
+        List<JHVRelatedEvents> prop = propagatingCactus(currentTime); // empty unless the extend toggle is on
+        if (evs.isEmpty() && prop.isEmpty())
             return;
 
         for (JHVRelatedEvents evtr : evs) {
@@ -391,8 +516,14 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
                 }
             }
         }
+        boolean savedIcons = icons;
+        icons = false; // extrapolated fronts: wireframe only (keeps the icon buffer aligned with evs)
+        for (JHVRelatedEvents evtr : prop)
+            drawCactusArc(evtr, evtr.getClosestTo(currentTime), currentTime);
+        icons = savedIcons;
+
         renderEvents(vp);
-        if (icons) {
+        if (icons && !evs.isEmpty()) {
             renderIcons(mv, evs, currentTime);
         }
     }
@@ -403,7 +534,10 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
             return;
         long currentTime = mv.viewpoint().time.milli;
         List<JHVRelatedEvents> evs = activeEvents(currentTime);
-        if (evs.isEmpty())
+        boolean radial = mv.isRectWarp() || mv.isRadialWarp();
+        List<JHVRelatedEvents> prop = radial ? propagatingCactus(currentTime) : List.of(); // empty unless extend toggle on
+        boolean markers = radial && CMETracker.isTracking();
+        if (evs.isEmpty() && prop.isEmpty() && !markers)
             return;
 
         MapScale scale = mv.scale(vp);
@@ -411,6 +545,8 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
             JHVEvent evt = evtr.getClosestTo(currentTime);
             if (evt.isCactus() && mv.isRectWarp()) {
                 drawCactusArcScale(vp, evtr, evt, currentTime, scale);
+            } else if (evt.isCactus() && mv.isRadialWarp()) {
+                drawCactusArcDisk(evtr, evt, currentTime, scale);
             } else {
                 drawPolygon(mv, vp, evtr, evt);
                 if (icons) {
@@ -418,8 +554,18 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
                 }
             }
         }
+        for (JHVRelatedEvents evtr : prop) { // extrapolated CACTus fronts past the LASCO edge, out to the loaded FOV
+            JHVEvent evt = evtr.getClosestTo(currentTime);
+            if (mv.isRectWarp())
+                drawCactusArcScale(vp, evtr, evt, currentTime, scale);
+            else
+                drawCactusArcDisk(evtr, evt, currentTime, scale);
+        }
+        if (markers)
+            drawTrackerMarkers(mv, vp, scale);
+
         renderEvents(vp);
-        if (icons) {
+        if (icons && !evs.isEmpty()) {
             renderIcons(mv, evs, currentTime);
         }
     }
@@ -516,6 +662,16 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
 
     void setIcons(boolean _icons) {
         icons = _icons;
+        DisplayController.display();
+    }
+
+    boolean isExtendCactus() {
+        return extendCactus;
+    }
+
+    void setExtendCactus(boolean _extend) {
+        extendCactus = _extend;
+        cachedPropTime = Long.MIN_VALUE; // toggling must not serve a stale list
         DisplayController.display();
     }
 

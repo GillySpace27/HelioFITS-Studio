@@ -16,9 +16,13 @@ import javax.swing.JScrollPane;
 import javax.swing.WindowConstants;
 
 import org.helioviewer.jhv.app.Log;
+import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.database.EventDatabase;
+import org.helioviewer.jhv.display.CMETracker;
+import org.helioviewer.jhv.display.MapMode;
 import org.helioviewer.jhv.event.JHVEvent;
 import org.helioviewer.jhv.event.JHVEventCache;
+import org.helioviewer.jhv.event.JHVEventParameter;
 import org.helioviewer.jhv.event.JHVRelatedEvents;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.thread.Task;
@@ -78,7 +82,53 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
 
         add(allTablePanel, allTablePanelConstraint);
 
+        if (event.isCactus()) {
+            GridBagConstraints trackConstraint = new GridBagConstraints();
+            trackConstraint.gridx = 0;
+            trackConstraint.gridy = 2;
+            trackConstraint.weightx = 1;
+            trackConstraint.anchor = GridBagConstraints.LINE_END;
+            add(createTrackButton(event), trackConstraint);
+        }
+
         Task.submit("event-info", new DatabaseCallable(event), this::onSuccessDatabase, SWEKEventInformationDialog::onFailureDatabase);
+    }
+
+    // Animate the warp lambda so this CME front stays at a fixed screen radius while the
+    // corona rubber-bands around it. Transient, like camera tracking: moving the lambda
+    // slider or leaving the warp projections disengages.
+    private static JButton createTrackButton(JHVEvent event) {
+        JButton trackButton = new JButton(CMETracker.isTracking() ? "Stop Tracking" : "Track CME");
+        trackButton.setToolTipText("Animate the warp lambda so this CME front stays at a fixed screen radius");
+        trackButton.addActionListener(e -> {
+            if (CMETracker.isTracking()) {
+                CMETracker.stop();
+            } else {
+                ViewState.setProjection(MapMode.RadialWarp); // no-op if already there; fits on entry
+                CMETracker.track(readCMESpeed(event), event.start, readCMEDouble(event, "event_coord1"));
+            }
+            trackButton.setText(CMETracker.isTracking() ? "Stop Tracking" : "Track CME");
+        });
+        return trackButton;
+    }
+
+    private static double readCMESpeed(JHVEvent event) { // mirrors SWEKData.readCMESpeed (plugin-private)
+        return readCMEDouble(event, "cme_radiallinvel", 500);
+    }
+
+    private static double readCMEDouble(JHVEvent event, String key) {
+        return readCMEDouble(event, key, 0);
+    }
+
+    private static double readCMEDouble(JHVEvent event, String key, double fallback) {
+        JHVEventParameter p = event.getParameter(key);
+        if (p == null)
+            return fallback;
+        try {
+            return Double.parseDouble(p.getParameterValue());
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
     }
 
     private record DatabaseCallable(JHVEvent qEvent) implements Callable<List<JHVEvent>> {

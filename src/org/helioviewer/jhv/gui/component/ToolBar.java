@@ -30,6 +30,7 @@ import org.helioviewer.jhv.app.Platform;
 import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.base.Colors;
+import org.helioviewer.jhv.display.CMETracker;
 import org.helioviewer.jhv.display.MapMode;
 import org.helioviewer.jhv.display.interaction.Interaction;
 import org.helioviewer.jhv.gui.Actions;
@@ -334,6 +335,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         warpLambdaValue = new JLabel(String.format("%.3f", ViewState.getWarpLambda()), JLabel.RIGHT);
         warpLambdaValue.setPreferredSize(new JLabel("-0.000").getPreferredSize());
         warpLambdaSlider.addChangeListener(e -> {
+            CMETracker.stop(); // a manual lambda move takes the wheel back from CME tracking
             ViewState.setWarpLambda(warpLambdaSlider.getValue() / 1000.);
             warpLambdaValue.setText(String.format("%.3f", ViewState.getWarpLambda()));
         });

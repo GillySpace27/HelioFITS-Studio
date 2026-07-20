@@ -20,6 +20,8 @@
 - Remove the redundant Polar and LogPolar projections, subsumed by RectWarp
 - Add grid line color, opacity and width controls to the grid layer (by @GillySpace27)
 - Show the JHelioviewer icon in the macOS Dock and the Windows taskbar instead of the generic Java icon
+- Add `Track CME`: animate the warp lambda so a CACTus CME front stays at a fixed screen radius while the corona rubber-bands around it; engage from a CACTus event dialog or the Track picker, disengage by moving the lambda slider or leaving the warp projections
+- Add a SWEK option to extend CACTus CME wedges past the LASCO catalog edge, out to the loaded field of view
 - Add a cadence control and a large-download confirmation to the ASPIICS layer dialog
 - Add a double-ended radial mask (inner disk and outer corona) to the layer options
 - Add a per-layer refresh button to check the PUNCH archive for new frames

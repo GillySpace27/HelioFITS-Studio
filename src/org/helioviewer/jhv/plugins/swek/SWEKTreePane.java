@@ -1,9 +1,12 @@
 package org.helioviewer.jhv.plugins.swek;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
 import java.awt.Image;
 import java.awt.Point;
 import java.awt.Rectangle;
@@ -31,7 +34,9 @@ import org.helioviewer.jhv.event.SWEKCatalog;
 import org.helioviewer.jhv.event.SWEKDownloader;
 import org.helioviewer.jhv.event.SWEKGroup;
 import org.helioviewer.jhv.event.SWEKSupplier;
+import org.helioviewer.jhv.display.CMETracker;
 import org.helioviewer.jhv.event.filter.FilterDialog;
+import org.helioviewer.jhv.event.info.CactusTrackDialog;
 import org.helioviewer.jhv.gui.component.BusyIndicator;
 
 import com.jidesoft.swing.JideButton;
@@ -40,6 +45,9 @@ import com.jidesoft.swing.JideButton;
 final class SWEKTreePane extends JPanel {
 
     private static final int RIGHT_ALIGNMENT = 300;
+    private static final Color TRACK_ACTIVE = new Color(255, 140, 0); // "Tracking" indicator
+
+    private final java.util.List<Runnable> trackerListeners = new java.util.ArrayList<>(); // CMETracker listeners to release on teardown
 
     private final DefaultTreeModel treeModel;
     private final JTree tree;
@@ -124,7 +132,7 @@ final class SWEKTreePane extends JPanel {
             if (component instanceof JPanel panel && panel.getComponentCount() > 1)
                 panel.getComponent(1).setVisible(busy);
         } else if (value instanceof DefaultMutableTreeNode node && node.getUserObject() instanceof SWEKSupplier supplier) {
-            component = supplierComponents.computeIfAbsent(supplier, SWEKTreePane::createSupplierComponent);
+            component = supplierComponents.computeIfAbsent(supplier, this::createSupplierComponent);
             if (component instanceof JPanel panel && panel.getComponent(0) instanceof JCheckBox checkBox)
                 checkBox.setSelected(JHVEventCache.isSupplierActive(supplier));
         }
@@ -153,7 +161,7 @@ final class SWEKTreePane extends JPanel {
         return panel;
     }
 
-    private static Component createSupplierComponent(SWEKSupplier supplier) {
+    private Component createSupplierComponent(SWEKSupplier supplier) {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setOpaque(false);
 
@@ -162,6 +170,38 @@ final class SWEKTreePane extends JPanel {
         checkBox.setFocusPainted(false);
         checkBox.setOpaque(false);
         panel.add(checkBox, BorderLayout.LINE_START);
+
+        // Right-aligned action strip: Track (CACTus only) sits to the left of Filter.
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.TRAILING, 0, 0));
+        actions.setOpaque(false);
+        int rowHeight = checkBox.getPreferredSize().height;
+
+        if (supplier.isCactus()) {
+            JideButton trackButton = new JideButton("Track");
+            trackButton.setToolTipText("Browse the loaded CACTus CMEs and track one through the corona");
+            Color defaultFg = trackButton.getForeground();
+            Font baseFont = trackButton.getFont();
+            // Reflect the live tracking state: orange bold "Tracking" while engaged. Components are
+            // cached per supplier for the panel's life, so this one listener registration is bounded.
+            Runnable sync = () -> {
+                boolean t = CMETracker.isTracking();
+                trackButton.setText(t ? "Tracking" : "Track");
+                trackButton.setForeground(t ? TRACK_ACTIVE : defaultFg);
+                trackButton.setFont(baseFont.deriveFont(t ? Font.BOLD : Font.PLAIN));
+                tree.repaint(); // the cell component is an orphan renderer stamp; force the JTree to re-stamp
+            };
+            sync.run();
+            CMETracker.addChangeListener(sync);
+            trackerListeners.add(sync); // released in removeNotify()
+            trackButton.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    CactusTrackDialog.open();
+                }
+            });
+            actions.add(trackButton);
+            rowHeight = trackButton.getPreferredSize().height;
+        }
 
         if (supplier.containsFilter()) {
             FilterDialog filterDialog = new FilterDialog(supplier);
@@ -175,8 +215,13 @@ final class SWEKTreePane extends JPanel {
                     filterDialog.setVisible(true);
                 }
             });
-            panel.setPreferredSize(new Dimension(RIGHT_ALIGNMENT, filterButton.getPreferredSize().height));
-            panel.add(filterButton, BorderLayout.LINE_END);
+            actions.add(filterButton);
+            rowHeight = filterButton.getPreferredSize().height;
+        }
+
+        if (actions.getComponentCount() > 0) {
+            panel.setPreferredSize(new Dimension(RIGHT_ALIGNMENT, rowHeight));
+            panel.add(actions, BorderLayout.LINE_END);
         }
         return panel;
     }
@@ -193,6 +238,8 @@ final class SWEKTreePane extends JPanel {
     public void removeNotify() {
         SWEKDownloader.clearGroupChangedCallback();
         loadingTimer.stop();
+        trackerListeners.forEach(CMETracker::removeChangeListener);
+        trackerListeners.clear();
         super.removeNotify();
     }
 

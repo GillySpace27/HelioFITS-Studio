@@ -27,8 +27,8 @@ public final class MenuBar extends JMenuBar {
         fileMenu.add(new Actions.NewLayer());
         fileMenu.add(new Actions.NewSoarLayer());
         fileMenu.add(new Actions.NewSynopticLayer());
-        fileMenu.add(new Actions.NewAspiicsLayer());
         fileMenu.add(new Actions.NewPunchLayer());
+        fileMenu.add(new Actions.NewAspiicsLayer());
         fileMenu.add(new Actions.OpenLocalFile());
         fileMenu.addSeparator();
         fileMenu.add(new Actions.LoadState());
@@ -77,6 +77,7 @@ public final class MenuBar extends JMenuBar {
         viewMenu.add(white);
 
         viewMenu.addSeparator();
+        viewMenu.add(new Actions.TrackCME());
         viewMenu.add(new Actions.ShowDialog("FITS Settings...", new FITSSettings.SettingsDialog()));
 
         add(viewMenu);
