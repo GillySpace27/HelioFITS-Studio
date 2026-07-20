@@ -23,6 +23,7 @@
 - Add a cadence control and a large-download confirmation to the ASPIICS layer dialog
 - Add a double-ended radial mask (inner disk and outer corona) to the layer options
 - Add a per-layer refresh button to check the PUNCH archive for new frames
+- Pin a multi-frame FITS layer to one shared display range so a PUNCH movie does not strobe as each frame auto-normalizes
 
 ### Timeline, events, and UI
 - Map HEK Flare Trigger events to Flare events (fixes #105)

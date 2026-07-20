@@ -67,11 +67,21 @@ public final class PunchClient {
         Task.submit("punch", new QueryCoverage(level, product), receiver::setPunchResponseCoverage, "Error listing the PUNCH archive");
     }
 
-    public static void submitLoad(@Nonnull List<DataItem> items, @Nonnull String level, @Nonnull String product, long start, long end, long cadence) {
+public static void submitLoad(@Nonnull List<DataItem> items, @Nonnull String level, @Nonnull String product, long start, long end, long cadence) {
         List<URI> uris = items.stream().map(DataItem::uri).toList();
         Commands.loadImage(uris).thenAccept(layer -> {
-            if (layer != null)
+            if (layer != null) {
                 rememberQuery(layer, level, product, start, end, cadence, uris);
+                // Raw PUNCH FITS carry no display range, so each frame would auto-normalize to its
+                // own percentile range and the movie strobes. The layer loads immediately; in the
+                // background PunchRange samples a bounded subset, derives one shared range, and pins
+                // the whole layer to it (ImageLayer.setFixedRange) so every frame decodes identically
+                // — the strobe disappears once the range arrives, without blocking the load.
+                Task.submit("punch-range", () -> PunchRange.compute(uris), range -> {
+                    if (range != null)
+                        layer.setFixedRange(range[0], range[1]);
+                }, "Error computing the PUNCH display range");
+            }
         });
     }
 
