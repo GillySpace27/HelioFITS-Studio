@@ -21,6 +21,7 @@
 - Add grid line color, opacity and width controls to the grid layer (by @GillySpace27)
 - Show the JHelioviewer icon in the macOS Dock and the Windows taskbar instead of the generic Java icon
 - Add a cadence control and a large-download confirmation to the ASPIICS layer dialog
+- Add a double-ended radial mask (inner disk and outer corona) to the layer options
 
 ### Timeline, events, and UI
 - Map HEK Flare Trigger events to Flare events (fixes #105)

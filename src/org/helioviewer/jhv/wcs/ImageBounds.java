@@ -18,7 +18,7 @@ public final class ImageBounds {
                 Math.max(Math.hypot(x0, y1), Math.hypot(x1, y1)));
     }
 
-    private static Vec2 sunCenter(MetaData metaData) {
+private static Vec2 sunCenter(MetaData metaData) {
         WcsHeader wcsHeader = metaData.getWcsHeader();
         if (!wcsHeader.projection.isSurfaceMap()) {
             Vec2 sun = WcsProjection.helioprojectiveToPlane(wcsHeader, 0, 0);
@@ -26,6 +26,19 @@ public final class ImageBounds {
                 return sun;
         }
         return wcsHeader.crval;
+    }
+
+    // Radius of the largest circle centered on the Sun that fits inside the FOV (distance to
+    // the nearest edge). Unlike radial() (the corner distance), beyond this radius the data
+    // covers only the corners, so this is the meaningful outer radius for masks and disk range.
+    public static double inscribed(MetaData metaData) {
+        Region region = metaData.getPhysicalRegion();
+        Vec2 sun = sunCenter(metaData);
+        double right = region.urx - sun.x;
+        double left = sun.x - region.llx;
+        double top = region.ury - sun.y;
+        double bottom = sun.y - region.lly;
+        return Math.max(0, Math.min(Math.min(right, left), Math.min(top, bottom)));
     }
 
     public static Region hpc(MetaData metaData) {
