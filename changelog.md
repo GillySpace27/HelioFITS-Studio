@@ -20,6 +20,7 @@
 - Remove the redundant Polar and LogPolar projections, subsumed by RectWarp
 - Add grid line color, opacity and width controls to the grid layer (by @GillySpace27)
 - Show the JHelioviewer icon in the macOS Dock and the Windows taskbar instead of the generic Java icon
+- Add a cadence control and a large-download confirmation to the ASPIICS layer dialog
 
 ### Timeline, events, and UI
 - Map HEK Flare Trigger events to Flare events (fixes #105)
