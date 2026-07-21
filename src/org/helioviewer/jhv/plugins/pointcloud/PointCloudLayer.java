@@ -136,10 +136,9 @@ public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.R
         }
     }
 
-    @Override
-    public void renderScale(MapView mv, Viewport vp) {
-        render(mv, vp);
-    }
+    // A point cloud is an inherently 3D object; the flat/projected map modes reach the
+    // layer through renderScale, so leaving it unimplemented confines the cloud to the
+    // orthographic view where it is meaningful.
 
     private void meshReady(PointCloudMesh.Result result) {
         readyResult = result;
