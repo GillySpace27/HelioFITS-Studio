@@ -139,6 +139,17 @@ public final class Actions {
         }
     }
 
+    public static class NewPointCloudLayer extends AbstractAction {
+        public NewPointCloudLayer() {
+            super("New Point Cloud Layer...");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            org.helioviewer.jhv.layers.Layers.add(new org.helioviewer.jhv.plugins.pointcloud.PointCloudLayer(null));
+        }
+    }
+
     public static class OpenLocalFile extends AbstractKeyAction {
         public OpenLocalFile() {
             super("Open Image Layer...", KeyStroke.getKeyStroke(KeyEvent.VK_O, DesktopIntegration.menuShortcutMask));

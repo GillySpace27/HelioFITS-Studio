@@ -24,6 +24,7 @@ import org.json.JSONObject;
 public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.Receiver { // public for state restore
 
     private static final double WIRE_WIDTH = 2 * GLSLLine.LINEWIDTH_BASIC;
+    static final double DEFAULT_ALPHA_PCT = 92; // just below the convex hull: the ripples resolve
 
     private final GLSLShape pointsShape = new GLSLShape(true);
     private final GLSLLine wireLine = new GLSLLine(true);
@@ -34,8 +35,9 @@ public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.R
     private final List<URI> sources = new ArrayList<>();
     private final List<URI> pendingRestore = new ArrayList<>();
     private JHVTime shownTime;
+    private String cloudName; // the loaded cloud's name, shown in the layers panel
 
-    private double alphaPct = 92;
+    private double alphaPct = DEFAULT_ALPHA_PCT;
     private String lutName = "Rainbow";
     private boolean colorByValue = true;
     private boolean showPoints = true;
@@ -93,6 +95,8 @@ public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.R
     public void setCloud(PointCloudData data) {
         clouds.put(data.time(), data);
         clouds.buildIndex();
+        cloudName = data.name();
+        Layers.fireNameUpdated(this);
         invalidateMesh();
         DisplayController.display();
     }
@@ -178,7 +182,7 @@ public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.R
 
     @Override
     public String getName() {
-        return "Point Cloud";
+        return cloudName == null ? "Point Cloud" : cloudName;
     }
 
     @Nullable

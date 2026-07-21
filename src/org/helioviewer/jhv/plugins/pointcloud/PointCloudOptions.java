@@ -1,9 +1,11 @@
 package org.helioviewer.jhv.plugins.pointcloud;
 
+import java.awt.BorderLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.File;
-import java.net.URI;
 
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
@@ -23,6 +25,7 @@ class PointCloudOptions extends JPanel {
     PointCloudOptions(PointCloudLayer layer) {
         setLayout(new GridBagLayout());
         GridBagConstraints c = new GridBagConstraints();
+        c.fill = GridBagConstraints.HORIZONTAL;
         c.weightx = 1;
         c.anchor = GridBagConstraints.LINE_START;
         c.gridx = 0;
@@ -33,10 +36,9 @@ class PointCloudOptions extends JPanel {
         open.addActionListener(e -> {
             java.awt.FileDialog fd = new java.awt.FileDialog((java.awt.Frame) null, "Open point cloud", java.awt.FileDialog.LOAD);
             fd.setVisible(true);
-            String dir = fd.getDirectory();
             String file = fd.getFile();
             if (file != null) {
-                layer.load(new File(dir, file).toURI());
+                layer.load(new File(fd.getDirectory(), file).toURI());
                 refreshAlpha(layer);
             }
         });
@@ -47,26 +49,38 @@ class PointCloudOptions extends JPanel {
         c.gridx = 1;
         add(points, c);
 
-        JHVSpinner size = new JHVSpinner(layer.getPointSize(), 0.005, 0.1, 0.005);
-        size.addChangeListener(e -> layer.setPointSize((Double) size.getValue()));
         c.gridx = 2;
-        add(labeled("Size", size), c);
+        add(labeled("Size", makeSpinner(layer.getPointSize(), 0.005, 0.1, 0.005, layer::setPointSize)), c);
 
+        JCheckBox byValue = new JCheckBox("Color by data", layer.getColorByValue());
+        byValue.addActionListener(e -> layer.setColorByValue(byValue.isSelected()));
+        c.gridx = 3;
+        add(byValue, c);
+
+        // Alpha row: the slider spans the full width of the panel. Double-click resets
+        // it to the default (just below the convex hull, where the ripples resolve).
         JSlider alpha = new JSlider(0, 100, (int) Math.round(layer.getAlphaPct()));
-        alpha.setToolTipText("Alpha-shape threshold (percentile of circumradii): 100 = convex hull");
+        alpha.setToolTipText("Alpha-shape threshold (percentile of circumradii): 100 = convex hull. Double-click to reset.");
         alpha.addChangeListener(e -> {
             layer.setAlphaPct(alpha.getValue());
             refreshAlpha(layer);
         });
+        alpha.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2)
+                    alpha.setValue((int) Math.round(PointCloudLayer.DEFAULT_ALPHA_PCT));
+            }
+        });
+        JPanel alphaRow = new JPanel(new BorderLayout(4, 0));
+        alphaRow.add(new JLabel("Alpha"), BorderLayout.WEST);
+        alphaRow.add(alpha, BorderLayout.CENTER);
+        alphaRow.add(alphaLabel, BorderLayout.EAST);
         c.gridy = 1;
         c.gridx = 0;
-        add(new JLabel("Alpha"), c);
-        c.gridx = 1;
-        c.gridwidth = 2;
-        add(alpha, c);
+        c.gridwidth = GridBagConstraints.REMAINDER;
+        add(alphaRow, c);
         c.gridwidth = 1;
-        c.gridx = 3;
-        add(alphaLabel, c);
 
         JCheckBox wire = new JCheckBox("Wireframe", layer.getShowWire());
         wire.addActionListener(e -> layer.setShowWire(wire.isSelected()));
@@ -79,10 +93,8 @@ class PointCloudOptions extends JPanel {
         c.gridx = 1;
         add(surface, c);
 
-        JHVSpinner opacity = new JHVSpinner(layer.getOpacity(), 0, 1, 0.05);
-        opacity.addChangeListener(e -> layer.setOpacity((Double) opacity.getValue()));
         c.gridx = 2;
-        add(labeled("Opacity", opacity), c);
+        add(labeled("Opacity", makeSpinner(layer.getOpacity(), 0, 1, 0.05, layer::setOpacity)), c);
 
         JComboBox<String> lut = new JComboBox<>(LUT.names());
         lut.setSelectedItem(layer.getLut());
@@ -91,14 +103,9 @@ class PointCloudOptions extends JPanel {
         c.gridx = 0;
         add(new JLabel("Colormap"), c);
         c.gridx = 1;
-        c.gridwidth = 2;
+        c.gridwidth = GridBagConstraints.REMAINDER;
         add(lut, c);
         c.gridwidth = 1;
-
-        JCheckBox byValue = new JCheckBox("Color by data", layer.getColorByValue());
-        byValue.addActionListener(e -> layer.setColorByValue(byValue.isSelected()));
-        c.gridx = 3;
-        add(byValue, c);
 
         refreshAlpha(layer);
     }
@@ -106,6 +113,13 @@ class PointCloudOptions extends JPanel {
     private void refreshAlpha(PointCloudLayer layer) {
         String a = layer.resolvedAlpha();
         alphaLabel.setText(a == null ? "" : a);
+    }
+
+    private static JHVSpinner makeSpinner(double value, double min, double max, double step,
+                                          java.util.function.DoubleConsumer setter) {
+        JHVSpinner s = new JHVSpinner(value, min, max, step);
+        s.addChangeListener(e -> setter.accept((Double) s.getValue()));
+        return s;
     }
 
     private static JPanel labeled(String text, JHVSpinner spinner) {
