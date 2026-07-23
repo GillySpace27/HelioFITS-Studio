@@ -22,6 +22,9 @@ import org.helioviewer.jhv.input.InputController;
 import org.helioviewer.jhv.input.InputPointerListener;
 import org.helioviewer.jhv.input.InputPointerMotionListener;
 import org.helioviewer.jhv.input.PointerEvent;
+import javax.annotation.Nullable;
+
+import org.helioviewer.jhv.math.MathUtils;
 import org.helioviewer.jhv.math.PolarBasis;
 import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.math.Vec2;
@@ -123,21 +126,25 @@ class SWEKPopupController implements InputPointerListener, InputPointerMotionLis
 
     @Override
     public void mouseClicked(PointerEvent e) {
-        // Clicking selects the wedge under the cursor: the selection IS the global highlight, so it
-        // stays bold on the canvas and stays linked to the Track-CME dialog row and the timeline bar
-        // (all keyed off isHighlighted). Clicking empty space clears the selection. Hover no longer
-        // drives the highlight — only the click does — so the selection persists as the mouse moves.
+        // Single click selects the wedge under the cursor: the selection IS the global highlight, so
+        // it stays bold on the canvas and stays linked to the Track-CME dialog row and the timeline
+        // bar (all keyed off isHighlighted). Clicking empty space clears the selection. Hover no
+        // longer drives the highlight — only the click does — so a selection survives mouse movement.
+        // The details popup is reserved for a DOUBLE click, so browsing wedges stays quiet.
         JHVRelatedEvents mouseOverJHVEvent = swekContext.mouseOverJHVEvent();
         JHVEventCache.highlight(mouseOverJHVEvent);
-        if (mouseOverJHVEvent != null) {
-            Component canvas = component();
-            SWEKEventInformationDialog hekPopUp = new SWEKEventInformationDialog(mouseOverJHVEvent, mouseOverJHVEvent.getClosestTo(swekContext.mouseOverTime()));
-            hekPopUp.pack();
-            hekPopUp.setLocation(calcWindowPosition(canvas, AwtInputAdapter.toAwtPoint(e), hekPopUp.getWidth(), hekPopUp.getHeight()));
-            hekPopUp.setVisible(true);
+        if (mouseOverJHVEvent == null)
+            return;
 
-            canvas.setCursor(helpCursor);
-        }
+        Component canvas = component();
+        canvas.setCursor(helpCursor);
+        if (e.clickCount() < 2)
+            return;
+
+        SWEKEventInformationDialog hekPopUp = new SWEKEventInformationDialog(mouseOverJHVEvent, mouseOverJHVEvent.getClosestTo(swekContext.mouseOverTime()));
+        hekPopUp.pack();
+        hekPopUp.setLocation(calcWindowPosition(canvas, AwtInputAdapter.toAwtPoint(e), hekPopUp.getWidth(), hekPopUp.getHeight()));
+        hekPopUp.setVisible(true);
     }
 
     @Override
@@ -159,11 +166,39 @@ class SWEKPopupController implements InputPointerListener, InputPointerMotionLis
         component().setCursor(lastCursor != null ? lastCursor : Cursor.getDefaultCursor());
     }
 
+    private static final double DIST_SUN_BEGIN = 2.4; // inner edge of a CACTus wedge, matches SWEKLayer
+    private static final double ANGLE_PAD_DEG = 3;    // grace either side of the wedge's angular span
+    private static final double RADIUS_PAD = 0.4;     // grace either side of its radial span, in Rsun
+
     private static double computeDistSun(JHVEvent evt, long currentTime) {
         double speed = SWEKData.readCMESpeed(evt);
-        double distSun = 2.4;
+        double distSun = DIST_SUN_BEGIN;
         distSun += speed * (currentTime - evt.start) / Sun.RadiusMeter;
         return distSun;
+    }
+
+    // Mouse position expressed as (position angle in degrees, radial distance in Rsun) for the warp
+    // projections. Both map scales invert cleanly, so a wedge can be hit-tested against the region
+    // it actually covers rather than a small box around its front point.
+    @Nullable
+    private static Vec2 mouseToPolar(MapView mv, Viewport vp, MapScale scale, Vec2 m) {
+        if (mv.isRadialWarp()) // Sun-centered disk: rho = 0.5 * unitY (see SWEKLayer.ringRho)
+            return new Vec2(Math.toDegrees(PolarBasis.angle(m.x, m.y)), scale.toMapY(2 * Math.hypot(m.x, m.y)));
+        if (mv.isRectWarp()) // unwrap: x = angle, y = warped radius
+            return new Vec2(scale.toMapX(m.x / vp.aspect + 0.5), scale.toMapY(m.y + 0.5));
+        return null;
+    }
+
+    // Angular separation from the wedge's principal angle, or NaN when the mouse is outside the
+    // wedge entirely. Smaller = deeper inside, which is how overlapping wedges are ranked.
+    private static double wedgeMiss(JHVEvent evt, long currentTime, Vec2 polar) {
+        double halfWidth = SWEKData.readCMEAngularWidthDegree(evt) / 2;
+        double distSun = computeDistSun(evt, currentTime);
+        if (polar.y < DIST_SUN_BEGIN - RADIUS_PAD || polar.y > distSun + RADIUS_PAD)
+            return Double.NaN;
+        // shortest signed separation, wrap-safe
+        double delta = Math.abs(MathUtils.mapTo0To360(polar.x - SWEKData.readCMEPrincipalAngleDegree(evt) + 180) - 180);
+        return delta > halfWidth + ANGLE_PAD_DEG ? Double.NaN : delta;
     }
 
     @Override
@@ -230,30 +265,37 @@ class SWEKPopupController implements InputPointerListener, InputPointerMotionLis
 
     private static JHVRelatedEvents findProjectedEvent(List<JHVRelatedEvents> activeEvents, long currentTime, MapView mv, Viewport vp, Vec2 mousePosition) {
         MapScale scale = mv.scale(vp);
+        Vec2 polar = mouseToPolar(mv, vp, scale, mousePosition);
+        JHVRelatedEvents bestWedge = null;
+        double bestMiss = Double.MAX_VALUE;
+
         for (JHVRelatedEvents evtr : activeEvents) {
             JHVEvent evt = evtr.getClosestTo(currentTime);
             JHVPositionInformation pi = evt.getPositionInformation();
             if (pi == null)
                 continue;
 
-            Vec2 tf = null;
-            if (mv.isRectWarp() && evt.isCactus()) {
-                double principalAngle = SWEKData.readCMEPrincipalAngleDegree(evt);
-                double distSun = computeDistSun(evt, currentTime);
-                tf = new Vec2((scale.toUnitX(principalAngle) - 0.5) * vp.aspect, scale.toUnitY(distSun) - 0.5);
-            } else {
-                Vec3 pt = pi.centralPoint();
-                if (pt != null)
-                    tf = mv.projectToScreen(vp, pt);
+            // A CACTus wedge is selectable anywhere inside the region it spans, not just at its
+            // front point — the old point test meant hitting a ~0.02 box on a wedge tens of
+            // degrees wide. When wedges overlap, the one we are deepest inside wins.
+            if (evt.isCactus() && polar != null) {
+                double miss = wedgeMiss(evt, currentTime, polar);
+                if (!Double.isNaN(miss) && miss < bestMiss) {
+                    bestMiss = miss;
+                    bestWedge = evtr;
+                }
+                continue;
             }
 
-            if (tf != null) {
+            Vec3 pt = pi.centralPoint();
+            if (pt != null) {
+                Vec2 tf = mv.projectToScreen(vp, pt);
                 double deltaX = Math.abs(tf.x - mousePosition.x);
                 double deltaY = Math.abs(tf.y - mousePosition.y);
                 if (deltaX < 0.02 && deltaY < 0.02)
                     return evtr;
             }
         }
-        return null;
+        return bestWedge;
     }
 }

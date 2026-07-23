@@ -23,14 +23,30 @@ final class SWEKLayerOptionsPanel extends JPanel {
         extend.setToolTipText("Propagate each CACTus CME front past the LASCO edge by constant-speed extrapolation, out to the chosen distance");
         extend.setHorizontalTextPosition(SwingConstants.LEFT);
 
-        // Distance slider (R☉), live-labeled. Enabled only while the extend toggle is on.
+        // Distance slider (R☉), live-labeled. Enabled only while the extend toggle is on. It starts
+        // on "auto", which tracks the loaded field of view so fronts run out at the edge of the
+        // data; moving it pins an explicit reach, and double-clicking returns it to auto.
         int min = (int) Math.round(SWEKLayer.extendDistanceMin());
         int max = (int) Math.round(SWEKLayer.extendDistanceMax());
-        JSlider distance = new JSlider(min, max, (int) Math.round(layer.getExtendDistance()));
+        JSlider distance = new JSlider(min, max, (int) Math.round(layer.effectiveExtendDistance()));
         JLabel distanceLabel = new JLabel();
-        distanceLabel.setToolTipText("Extrapolation reach in solar radii");
-        Runnable relabel = () -> distanceLabel.setText(distance.getValue() + " R☉");
+        distanceLabel.setToolTipText("Extrapolation reach in solar radii. Auto follows the loaded field of view; double-click to return to auto");
+        Runnable relabel = () -> distanceLabel.setText(layer.isExtendDistanceAuto()
+                ? "auto (" + Math.round(layer.effectiveExtendDistance()) + " R☉)"
+                : distance.getValue() + " R☉");
         relabel.run();
+        distance.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    // setValue fires the change listener, which pins an explicit distance — so
+                    // park the knob first and switch back to auto last, letting auto win.
+                    distance.setValue((int) Math.round(layer.effectiveExtendDistance()));
+                    layer.setExtendDistanceAuto();
+                    relabel.run();
+                }
+            }
+        });
         distance.setEnabled(extend.isSelected());
         distanceLabel.setEnabled(extend.isSelected());
         distance.addChangeListener(e -> {

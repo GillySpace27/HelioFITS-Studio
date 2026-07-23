@@ -23,6 +23,7 @@ import org.helioviewer.jhv.event.JHVPositionInformation;
 import org.helioviewer.jhv.event.JHVRelatedEvents;
 import org.helioviewer.jhv.event.SWEKGroup;
 import org.helioviewer.jhv.image.nio.NativeImageFactory;
+import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.layers.AbstractLayer;
 import org.helioviewer.jhv.math.MathUtils;
 import org.helioviewer.jhv.math.PolarBasis;
@@ -47,7 +48,7 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
 
     private static final int DIVPOINTS = 10;
     private static final double LINEWIDTH = GLSLLine.LINEWIDTH_BASIC;
-    private static final double LINEWIDTH_HIGHLIGHT = 2 * LINEWIDTH;
+    private static final double LINEWIDTH_HIGHLIGHT = 4 * LINEWIDTH; // selection has to read at a glance
     private static final double POLYGON_RADIUS = Sun.Radius * 1.01;
     private static final double DIST_SUN_BEGIN = 2.4;
     private static final long CACTUS_MAX_TRAVEL_MS = 14L * 24 * 3600 * 1000; // lookback for propagated fronts (covers slow CMEs)
@@ -64,12 +65,14 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
 
     private static final double EXTEND_DIST_MIN = 2;
     private static final double EXTEND_DIST_MAX = 200;
-    private static final double EXTEND_DIST_DEFAULT = 60;
+    private static final double EXTEND_DIST_FALLBACK = 60; // only until something is loaded
 
     private SWEKContext swekContext;
     private boolean icons = true;
-    private boolean extendCactus = false; // propagate CACTus fronts past the LASCO catalog end
-    private double extendDistance = EXTEND_DIST_DEFAULT; // R☉ to propagate fronts out to when extending
+    private boolean extendCactus = true; // propagate CACTus fronts past the LASCO catalog end
+    // R☉ to propagate fronts out to. 0 = auto, meaning follow the loaded field of view so an
+    // extended front runs out at the edge of the data instead of at an arbitrary fixed radius.
+    private double extendDistance = 0;
 
     private final GLSLLine lineEvent = new GLSLLine(true);
     private final BufVertex bufEvent = new BufVertex(512 * GLSLLine.stride); // pre-allocate
@@ -93,7 +96,9 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         if (jo != null) {
             icons = jo.optBoolean("icons", icons);
             extendCactus = jo.optBoolean("extendCactus", extendCactus);
-            extendDistance = Math.clamp(jo.optDouble("extendDistance", extendDistance), EXTEND_DIST_MIN, EXTEND_DIST_MAX);
+            extendDistance = jo.optDouble("extendDistance", extendDistance);
+            if (extendDistance > 0) // 0 stays "auto"; anything else is the user's explicit reach
+                extendDistance = Math.clamp(extendDistance, EXTEND_DIST_MIN, EXTEND_DIST_MAX);
             SWEKPlugin.restoreLayer(this);
         }
     }
@@ -476,7 +481,7 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
     private List<JHVRelatedEvents> propagatingCactus(long time) {
         if (!extendCactus)
             return List.of();
-        double fov = extendDistance;
+        double fov = effectiveExtendDistance();
         if (fov <= DIST_SUN_BEGIN)
             return List.of();
         // Memoized on (time, movie range, fov) like activeEvents(), so the repeated per-viewport /
@@ -689,13 +694,28 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         return EXTEND_DIST_MAX;
     }
 
-    double getExtendDistance() {
-        return extendDistance;
+    // The reach actually used: the user's explicit distance, or the loaded FOV while on auto, so
+    // extended fronts run out at the edge of the data.
+    double effectiveExtendDistance() {
+        if (extendDistance > 0)
+            return extendDistance;
+        double fov = ImageLayers.getLargestRadialSize();
+        return fov > EXTEND_DIST_MIN ? Math.min(fov, EXTEND_DIST_MAX) : EXTEND_DIST_FALLBACK;
+    }
+
+    boolean isExtendDistanceAuto() {
+        return extendDistance <= 0;
     }
 
     void setExtendDistance(double _distance) {
         extendDistance = Math.clamp(_distance, EXTEND_DIST_MIN, EXTEND_DIST_MAX);
         cachedPropTime = Long.MIN_VALUE; // changing the reach must not serve a stale list
+        DisplayController.display();
+    }
+
+    void setExtendDistanceAuto() {
+        extendDistance = 0;
+        cachedPropTime = Long.MIN_VALUE;
         DisplayController.display();
     }
 

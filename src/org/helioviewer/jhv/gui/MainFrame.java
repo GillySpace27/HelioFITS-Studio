@@ -152,10 +152,10 @@ public final class MainFrame {
         // now lives atop Image Layers where it belongs.
         // Added expanded so stabilizeLeftPaneWidth() can measure the real content width; they are
         // collapsed at the end of that method so the sidebar opens wide but with panels closed.
-        // Order: pick-what-to-see (Image Layers) before how-to-play (Playback), then the plugin
-        // panels (Timeline Layers, SWEK) below — the movie-building workflow top to bottom.
-        leftPane.add("Image Layers", imageLayersPane, true);
+        // Order: Playback and Recording sits at the top, then Image Layers, then the plugin panels
+        // (Timeline Layers, SWEK) below.
         leftPane.add("Playback and Recording", moviePanel.getPlaybackOptions(), true);
+        leftPane.add("Image Layers", imageLayersPane, true);
 
         leftScrollPane = new JScrollPane(leftPane, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         leftScrollPane.setFocusable(false);
