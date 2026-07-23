@@ -58,6 +58,14 @@ public enum Directories {
             return HOME.getPath() + "kernels" + File.separator;
         }
     },
+    // Persistent content-addressed download cache: survives relaunch (unlike the transient
+    // per-session fileCacheDir under CACHE), so a saved session reloads from disk.
+    FILECACHE {
+        @Override
+        public String getPath() {
+            return HOME.getPath() + "FileCache" + File.separator;
+        }
+    },
     // The downloads directory
     DOWNLOADS {
         @Override
