@@ -143,6 +143,11 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private JHVSlider warpLambdaSlider;
     private JHVSlider warpEdgeSlider;
     private JLabel warpLambdaValue;
+    private JLabel warpEdgeValue;
+    // CME tracking writes lambda / outer radius straight to Display; while it does, we mirror the
+    // values into the sliders. Guarded so that programmatic move does not look like a manual one
+    // and disengage the very tracking that caused it.
+    private boolean syncingFromTracker;
     private JideToggleButton refreshButton;
     private JideToggleButton trackingButton;
 
@@ -430,6 +435,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         boolean warpOn = ViewState.getProjection().usesWarpLambda();
         warpLambdaSlider.setEnabled(warpOn);
         warpEdgeSlider.setEnabled(warpOn);
+        CMETracker.addSolveListener(this::syncWarpSlidersFromTracker); // follow the tracked knob
 
         palette.setContentPane(content);
         palette.pack();
@@ -461,6 +467,33 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         return palette;
     }
 
+    // Mirror the knob CME tracking is animating back into its slider, so the readout matches what
+    // the projection is actually doing. Inverts the Edge slider's log mapping (radius = 2*(full/2)^t).
+    private void syncWarpSlidersFromTracker() {
+        if (warpLambdaSlider == null || warpEdgeSlider == null)
+            return;
+        syncingFromTracker = true;
+        try {
+            if (CMETracker.getMode() == CMETracker.Mode.WARP) {
+                warpLambdaSlider.setValue((int) Math.round(Display.getWarpLambda() * 1000));
+                warpLambdaValue.setText(String.format("%.3f", Display.getWarpLambda()));
+            } else {
+                double radius = Display.getWarpOuterRadius();
+                double full = Math.max(ImageLayers.getLargestRadialSize(), 2);
+                if (radius <= 0 || full <= 2) {
+                    warpEdgeSlider.setValue(1000);
+                    warpEdgeValue.setText("auto");
+                } else {
+                    double t = 1000 * Math.log(Math.max(radius, 2) / 2) / Math.log(full / 2);
+                    warpEdgeSlider.setValue((int) Math.round(Math.clamp(t, 0, 1000)));
+                    warpEdgeValue.setText(String.format("%.0f R☉", radius));
+                }
+            }
+        } finally {
+            syncingFromTracker = false;
+        }
+    }
+
     private JPanel createWarpLambdaPanel() {
         warpLambdaSlider = new JHVSlider(-1000, 1000, (int) Math.round(ViewState.getWarpLambda() * 1000));
         warpLambdaSlider.setToolTipText("Warp strength (Box-Cox lambda) for warp projections");
@@ -469,7 +502,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         warpLambdaValue = new JLabel(String.format("%.3f", ViewState.getWarpLambda()), JLabel.RIGHT);
         warpLambdaValue.setPreferredSize(new JLabel("-0.000").getPreferredSize());
         warpLambdaSlider.addChangeListener(e -> {
-            CMETracker.stop(); // a manual lambda move takes the wheel back from CME tracking
+            if (!syncingFromTracker && CMETracker.getMode() == CMETracker.Mode.WARP)
+                CMETracker.stop(); // a manual move takes the wheel back, but only from the knob tracking drives
             ViewState.setWarpLambda(warpLambdaSlider.getValue() / 1000.);
             warpLambdaValue.setText(String.format("%.3f", ViewState.getWarpLambda()));
         });
@@ -490,9 +524,12 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         warpEdgeSlider.setToolTipText("Outer edge of the warp projections (far right: full field of view)");
         warpEdgeSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, warpEdgeSlider.getPreferredSize().height));
         JLabel label = new JLabel("Edge");
-        JLabel value = new JLabel("auto", JLabel.RIGHT);
+        warpEdgeValue = new JLabel("auto", JLabel.RIGHT);
+        JLabel value = warpEdgeValue;
         value.setPreferredSize(new JLabel("-0.000").getPreferredSize());
         warpEdgeSlider.addChangeListener(e -> {
+            if (!syncingFromTracker && CMETracker.getMode() == CMETracker.Mode.EDGE)
+                CMETracker.stop(); // edge-mode tracking owns this slider; a manual move takes it back
             int t = warpEdgeSlider.getValue();
             if (t == 1000) {
                 Display.setWarpOuterRadius(0); // auto: the full loaded FOV

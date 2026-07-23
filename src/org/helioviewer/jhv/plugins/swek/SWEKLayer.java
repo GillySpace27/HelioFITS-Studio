@@ -339,6 +339,12 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
             vexBuf.putVertex(PolarBasis.vec3(rhoFront, theta), color);
             vexBuf.repeatVertex(Colors.Null);
         }
+
+        if (icons) { // marker at the front, so a disk wedge is as findable as one in the other modes
+            double sz = evtr.isHighlighted() ? ICON_SIZE_HIGHLIGHTED : ICON_SIZE;
+            Vec3 at = PolarBasis.vec3(rhoFront, principalAngle);
+            drawImageScale(at.x, at.y, sz, sz);
+        }
     }
 
     // While CME tracking is engaged (RadialWarp or RectWarp), mark it: an orange dot at the
@@ -449,7 +455,7 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         int idx = 0;
         for (JHVRelatedEvents evtr : evs) {
             JHVEvent evt = evtr.getClosestTo(currentTime);
-            if ((mv.isLatitudinal() || mv.isRadialWarp()) && evt.isCactus()) // disk CACTus (drawCactusArcDisk) emits no icon quad
+            if (mv.isLatitudinal() && evt.isCactus()) // no icon quad emitted for CACTus there
                 continue;
             bindTexture(evtr.getSupplier().group());
             glslTexture.renderTexture(GL.TRIANGLE_STRIP, Colors.floats(evtr.getColor(), ICON_ALPHA), idx, 4);
@@ -527,16 +533,29 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
                 }
             }
         }
-        boolean savedIcons = icons;
-        icons = false; // extrapolated fronts: wireframe only (keeps the icon buffer aligned with evs)
+        // Extended fronts keep their icon too, so a wedge stays just as findable (and clickable)
+        // after it passes the catalog window as it was before.
         for (JHVRelatedEvents evtr : prop)
             drawCactusArc(evtr, evtr.getClosestTo(currentTime), currentTime);
-        icons = savedIcons;
 
         renderEvents(vp);
-        if (icons && !evs.isEmpty()) {
-            renderIcons(mv, evs, currentTime);
+        List<JHVRelatedEvents> iconEvents = concat(evs, prop); // must match what emitted icon quads
+        if (icons && !iconEvents.isEmpty()) {
+            renderIcons(mv, iconEvents, currentTime);
         }
+    }
+
+    // evs + prop without copying when one side is empty; renderIcons walks the icon buffer in the
+    // same order the draw calls filled it, so the two lists have to agree.
+    private static List<JHVRelatedEvents> concat(List<JHVRelatedEvents> a, List<JHVRelatedEvents> b) {
+        if (b.isEmpty())
+            return a;
+        if (a.isEmpty())
+            return b;
+        List<JHVRelatedEvents> out = new ArrayList<>(a.size() + b.size());
+        out.addAll(a);
+        out.addAll(b);
+        return out;
     }
 
     @Override
@@ -576,8 +595,9 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
             drawTrackerMarkers(mv, vp, scale);
 
         renderEvents(vp);
-        if (icons && !evs.isEmpty()) {
-            renderIcons(mv, evs, currentTime);
+        List<JHVRelatedEvents> iconEvents = concat(evs, prop);
+        if (icons && !iconEvents.isEmpty()) {
+            renderIcons(mv, iconEvents, currentTime);
         }
     }
 
@@ -665,6 +685,12 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
             return;
         invalidateActiveEvents();
         requestEvents(true, Player.getStartTime(), Player.getEndTime());
+    }
+
+    // The extended fronts currently drawn. The picker needs the same set the renderer uses, or a
+    // wedge past its catalog window stays visible but stops being selectable.
+    List<JHVRelatedEvents> propagatingNow(long time) {
+        return propagatingCactus(time);
     }
 
     boolean isIcons() {

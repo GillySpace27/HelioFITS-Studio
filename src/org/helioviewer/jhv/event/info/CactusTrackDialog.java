@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -87,7 +88,7 @@ public final class CactusTrackDialog extends JDialog implements JHVEventListener
             @Override
             public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 2)
-                    trackSelected();
+                    trackSelected(CMETracker.getMode()); // double-click reuses whichever mode was last used
             }
         });
         // Row selection -> canvas/timeline: highlight the picked wedge (skip while we are the ones
@@ -100,9 +101,13 @@ public final class CactusTrackDialog extends JDialog implements JHVEventListener
         status = new JLabel(" ");
         status.setBorder(javax.swing.BorderFactory.createEmptyBorder(4, 6, 4, 6));
 
-        JButton trackButton = new JButton("Track");
-        trackButton.setToolTipText("Jump to this CME's onset and animate the RadialWarp exponent to hold its front at a fixed screen radius");
-        trackButton.addActionListener(e -> trackSelected());
+        // One button per way of holding the front, rather than a mode selector plus a Track button.
+        JButton trackWarpButton = new JButton("Track (Warp)");
+        trackWarpButton.setToolTipText("Jump to this CME's onset and animate the Box-Cox warp (λ) so the front holds a fixed screen radius — the corona rubber-bands around a stationary front");
+        trackWarpButton.addActionListener(e -> trackSelected(CMETracker.Mode.WARP));
+        JButton trackEdgeButton = new JButton("Track (Edge)");
+        trackEdgeButton.setToolTipText("Jump to this CME's onset and animate the outer edge crop instead, holding λ — the field of view widens to follow the front, like a zoom-out");
+        trackEdgeButton.addActionListener(e -> trackSelected(CMETracker.Mode.EDGE));
         JButton detailsButton = new JButton("Details…");
         detailsButton.addActionListener(e -> detailsSelected());
         JButton closeButton = new JButton("Close");
@@ -110,7 +115,8 @@ public final class CactusTrackDialog extends JDialog implements JHVEventListener
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.TRAILING));
         buttons.add(detailsButton);
-        buttons.add(trackButton);
+        buttons.add(trackWarpButton);
+        buttons.add(trackEdgeButton);
         buttons.add(closeButton);
 
         setLayout(new BorderLayout());
@@ -214,7 +220,7 @@ public final class CactusTrackDialog extends JDialog implements JHVEventListener
         return rows.get(table.convertRowIndexToModel(viewRow));
     }
 
-    private void trackSelected() {
+    private void trackSelected(CMETracker.Mode mode) {
         JHVRelatedEvents re = selected();
         if (re == null)
             return;
@@ -224,6 +230,7 @@ public final class CactusTrackDialog extends JDialog implements JHVEventListener
         }
         JHVEvent evt = representative(re);
         CMETracker.stop();                           // disengage first: setTime fires listeners synchronously,
+        CMETracker.setMode(mode);                    // ...and pick the knob before engaging
         Player.setTime(new JHVTime(evt.start));      // so a still-registered tracker must not solve with stale params
         ViewState.setProjection(MapMode.RadialWarp); // no-op if already there; fits on entry
         CMETracker.track(speedOf(evt), evt.start, paOf(evt)); // re-engage with this CME's params

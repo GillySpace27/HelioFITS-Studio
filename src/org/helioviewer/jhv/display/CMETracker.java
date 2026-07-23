@@ -25,6 +25,37 @@ public final class CMETracker implements TimeListener.Change {
     private static final double ONSET_RSUN = 2.4;       // front start radius; matches SWEKLayer.DIST_SUN_BEGIN so
                                                         // the drawn CACTus arc rides exactly at the pinned front
 
+    // Which knob is animated to hold the front. WARP re-solves the Box-Cox lambda against a fixed
+    // outer radius (the corona rubber-bands around a stationary front); EDGE holds lambda and
+    // re-solves the outer radius instead, so the field of view widens as the CME travels — the
+    // linear counterpart, closer to a zoom-out that follows the front.
+    public enum Mode {
+        WARP("Warp (λ)"), EDGE("Edge (crop)");
+
+        private final String label;
+
+        Mode(String _label) {
+            label = _label;
+        }
+
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
+
+    private static Mode mode = Mode.WARP;
+
+    public static Mode getMode() {
+        return mode;
+    }
+
+    public static void setMode(Mode _mode) {
+        mode = _mode;
+        if (tracking)
+            solveAndSet(animMilli); // re-pin with the other knob straight away
+    }
+
     private static final CMETracker instance = new CMETracker();
     private static final List<Runnable> listeners = new ArrayList<>(); // notified when tracking engages/disengages
 
@@ -97,6 +128,19 @@ public final class CMETracker implements TimeListener.Change {
             r.run();
     }
 
+    // Notified after every solve, so the toolbar sliders can follow the knob tracking is driving
+    // (the solve writes straight to Display, bypassing the widgets).
+    private static final List<Runnable> solveListeners = new ArrayList<>();
+
+    public static void addSolveListener(Runnable r) {
+        solveListeners.add(r);
+    }
+
+    private static void fireSolved() {
+        for (Runnable r : solveListeners)
+            r.run();
+    }
+
     @Override
     public void timeChanged(long milli) {
         if (!tracking)
@@ -106,6 +150,15 @@ public final class CMETracker implements TimeListener.Change {
             smoother.stop();
             fireChanged();
             return;
+        }
+        // The ease exists to smooth forward frame-to-frame motion. A backward jump — the movie
+        // looping, or a backward scrub — must NOT be eased: easing would walk the solve back
+        // through the whole pass, undoing the zoom gradually and then jumping again once the front
+        // re-appears. Snap instead, so each pass starts at the right place and only ever widens.
+        if (milli < animMilli) {
+            animMilli = milli;
+            solveAndSet(animMilli);
+            DisplayController.display();
         }
         targetMilli = milli;
         if (!smoother.isRunning())
@@ -129,15 +182,36 @@ public final class CMETracker implements TimeListener.Change {
     }
 
     private static void solveAndSet(double milli) {
+        double rCme = ONSET_RSUN + speed * (milli - onset) / Sun.RadiusMeter; // km/s * milli == m
+        if (mode == Mode.EDGE) {
+            solveEdge(rCme);
+            fireSolved();
+            return;
+        }
         double userOut = Display.getWarpOuterRadius(); // honor the radial crop, like the renderer
         double rOut = userOut > 0 ? userOut : ImageLayers.getLargestRadialSize();
         if (rOut <= 1) // no warped corona visible: hold lambda
             return;
-        double rCme = ONSET_RSUN + speed * (milli - onset) / Sun.RadiusMeter; // km/s * milli == m
         double logOut = Math.log(rOut);
         double rEnter = Math.exp(EDGE_FRACTION * logOut);
         double rExit = Math.exp((1 - EDGE_FRACTION) * logOut);
         Display.setWarpLambda(solve(Math.clamp(rCme, rEnter, rExit), rOut));
+        fireSolved();
+    }
+
+    // EDGE mode: lambda is the user's, so widen/narrow the radial crop until the front sits at
+    // SCREEN_FRACTION. Set through Display (not the toolbar slider) so this does not trip the
+    // slider's disengage listener, exactly as the lambda path does.
+    private static void solveEdge(double rCme) {
+        double maxOut = ImageLayers.getLargestRadialSize(); // never crop wider than the data
+        if (maxOut <= 1)
+            return;
+        // Before onset, park at the front's start radius rather than skipping the solve. Skipping
+        // left the crop holding the previous pass's fully-widened value, which then snapped inward
+        // the moment the front appeared. Clamping keeps the pass monotone: tightest at onset,
+        // widening from there.
+        double r = Math.max(rCme, ONSET_RSUN);
+        Display.setWarpOuterRadius(solveOuter(r, Display.getWarpLambda(), maxOut));
     }
 
     // Normalized radial screen position of physical radius r for a given lambda: an exact copy of
@@ -167,6 +241,30 @@ public final class CMETracker implements TimeListener.Change {
             double mid = 0.5 * (lo + hi);
             if (unitY(r, rOut, mid) > SCREEN_FRACTION)
                 lo = mid; // front lands too far out: raise lambda toward linear
+            else
+                hi = mid;
+        }
+        return 0.5 * (lo + hi);
+    }
+
+    // Find the outer radius (the Edge crop) that lands the front at SCREEN_FRACTION for a FIXED
+    // lambda: unitY(r, rOut, lambda) == SCREEN_FRACTION. unitY falls monotonically as rOut grows —
+    // a wider field of view pushes a fixed physical radius inward — in both the limb anchor and the
+    // Box-Cox term, and for either sign of lambda, so bisection is safe. Bracketed below by the
+    // front itself (where unitY == 1, too far out) and above by the loaded FOV; if even the full
+    // FOV cannot pull the front in to SCREEN_FRACTION we saturate there and let it drift out,
+    // matching how the lambda solve saturates at its endpoints.
+    private static double solveOuter(double r, double lambda, double maxOut) {
+        double lo = Math.max(1.0001 * r, 1.1);
+        if (lo >= maxOut)
+            return maxOut;
+        double hi = maxOut;
+        if (unitY(r, hi, lambda) > SCREEN_FRACTION)
+            return hi;
+        for (int i = 0; i < 60; i++) {
+            double mid = 0.5 * (lo + hi);
+            if (unitY(r, mid, lambda) > SCREEN_FRACTION)
+                lo = mid; // front still too far out: widen the FOV
             else
                 hi = mid;
         }

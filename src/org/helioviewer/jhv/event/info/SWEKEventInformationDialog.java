@@ -88,28 +88,56 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
             trackConstraint.gridy = 2;
             trackConstraint.weightx = 1;
             trackConstraint.anchor = GridBagConstraints.LINE_END;
-            add(createTrackButton(event), trackConstraint);
+            add(createTrackButtons(event), trackConstraint);
         }
 
         Task.submit("event-info", new DatabaseCallable(event), this::onSuccessDatabase, SWEKEventInformationDialog::onFailureDatabase);
     }
 
-    // Animate the warp lambda so this CME front stays at a fixed screen radius while the
-    // corona rubber-bands around it. Transient, like camera tracking: moving the lambda
-    // slider or leaving the warp projections disengages.
-    private static JButton createTrackButton(JHVEvent event) {
-        JButton trackButton = new JButton(CMETracker.isTracking() ? "Stop Tracking" : "Track CME");
-        trackButton.setToolTipText("Animate the warp lambda so this CME front stays at a fixed screen radius");
-        trackButton.addActionListener(e -> {
-            if (CMETracker.isTracking()) {
-                CMETracker.stop();
-            } else {
-                ViewState.setProjection(MapMode.RadialWarp); // no-op if already there; fits on entry
-                CMETracker.track(readCMESpeed(event), event.start, readCMEDouble(event, "event_coord1"));
-            }
-            trackButton.setText(CMETracker.isTracking() ? "Stop Tracking" : "Track CME");
+    // Hold this CME front at a fixed screen radius, by either of the two knobs: WARP animates the
+    // Box-Cox lambda so the corona rubber-bands around a stationary front, EDGE holds lambda and
+    // widens the outer crop instead (a zoom-out that follows the front). Transient, like camera
+    // tracking: moving the driven slider or leaving the warp projections disengages.
+    private static JPanel createTrackButtons(JHVEvent event) {
+        JPanel panel = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.TRAILING, 4, 0));
+        JButton warpButton = new JButton();
+        JButton edgeButton = new JButton();
+        warpButton.setToolTipText("Animate the Box-Cox warp (λ) so this CME front stays at a fixed screen radius");
+        edgeButton.setToolTipText("Animate the outer edge crop instead, holding λ — the field of view widens to follow the front");
+
+        // Both labels reflect the shared tracking state, so engaging one shows the other is off.
+        Runnable refresh = () -> {
+            warpButton.setText(trackingIn(CMETracker.Mode.WARP) ? "Stop Tracking" : "Track (Warp)");
+            edgeButton.setText(trackingIn(CMETracker.Mode.EDGE) ? "Stop Tracking" : "Track (Edge)");
+        };
+        warpButton.addActionListener(e -> {
+            toggleTracking(event, CMETracker.Mode.WARP);
+            refresh.run();
         });
-        return trackButton;
+        edgeButton.addActionListener(e -> {
+            toggleTracking(event, CMETracker.Mode.EDGE);
+            refresh.run();
+        });
+        refresh.run();
+
+        panel.add(warpButton);
+        panel.add(edgeButton);
+        return panel;
+    }
+
+    private static boolean trackingIn(CMETracker.Mode mode) {
+        return CMETracker.isTracking() && CMETracker.getMode() == mode;
+    }
+
+    private static void toggleTracking(JHVEvent event, CMETracker.Mode mode) {
+        if (trackingIn(mode)) {
+            CMETracker.stop();
+            return;
+        }
+        CMETracker.stop(); // switching modes mid-track: disengage before re-engaging on the other knob
+        CMETracker.setMode(mode);
+        ViewState.setProjection(MapMode.RadialWarp); // no-op if already there; fits on entry
+        CMETracker.track(readCMESpeed(event), event.start, readCMEDouble(event, "event_coord1"));
     }
 
     private static double readCMESpeed(JHVEvent event) { // mirrors SWEKData.readCMESpeed (plugin-private)

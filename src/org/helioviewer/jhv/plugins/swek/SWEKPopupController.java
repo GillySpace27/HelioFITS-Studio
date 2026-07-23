@@ -205,7 +205,17 @@ class SWEKPopupController implements InputPointerListener, InputPointerMotionLis
     public void mouseMoved(PointerEvent e) {
         Position viewpoint = GLRenderer.getDisplayedViewpoint();
         long currentTime = viewpoint.time.milli;
+        // Same set the layer draws: events live at this time, plus the extended fronts propagated
+        // past their catalog window. Without the latter a wedge stays on screen but stops being
+        // selectable the moment it leaves the catalog — which is when its icon changes too.
         List<JHVRelatedEvents> activeEvents = JHVEventCache.getEvents(currentTime, currentTime);
+        List<JHVRelatedEvents> extended = layer == null ? List.of() : layer.propagatingNow(currentTime);
+        if (!extended.isEmpty()) {
+            List<JHVRelatedEvents> both = new java.util.ArrayList<>(activeEvents.size() + extended.size());
+            both.addAll(activeEvents);
+            both.addAll(extended);
+            activeEvents = both;
+        }
         if (activeEvents.isEmpty()) {
             clearHoverPreview();
             return;
