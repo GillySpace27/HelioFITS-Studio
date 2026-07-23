@@ -1,6 +1,7 @@
 package org.helioviewer.jhv.layers;
 
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -28,6 +29,7 @@ import org.helioviewer.jhv.view.BaseView;
 import org.helioviewer.jhv.view.View;
 import org.helioviewer.jhv.wcs.WcsHeader;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 public class ImageLayer extends AbstractLayer implements View.DataHandler {
@@ -36,6 +38,8 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     private final ImageLayerLoader loader;
 
     private boolean removed;
+    @Nullable private List<URI> sourceUris; // remote URIs for a direct-URI layer (no APIRequest), for state persistence
+    private List<URI> failedUris = List.of(); // URIs that failed during the last load — missing, but retryable
     protected View view;
 
     public static ImageLayer create(JSONObject jo) {
@@ -55,6 +59,16 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         if (apiRequest != null) {
             jo.put("APIRequest", apiRequest.toJson());
             jo.put("imageParams", glImage.toJson());
+        } else if (sourceUris != null && !sourceUris.isEmpty()) {
+            // Direct-URI layers (e.g. PUNCH FITS) have no server request; persist the remote
+            // URIs so a restored session reloads them — from the persistent cache, no re-download.
+            JSONArray arr = new JSONArray();
+            for (URI uri : sourceUris)
+                arr.put(uri.toString());
+            jo.put("uris", arr);
+            jo.put("imageParams", glImage.toJson());
+            if (fixedRange != null) // keep the shared FITS range so a restored PUNCH movie does not strobe
+                jo.put("fixedRange", new JSONArray().put(fixedRange[0]).put(fixedRange[1]));
         }
     }
 
@@ -62,7 +76,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     protected ImageLayer(View _view) {
         view = _view;
         glImage = null;
-        loader = new ImageLayerLoader(v -> {}, () -> {});
+        loader = new ImageLayerLoader(v -> {}, () -> {}, st -> {}, failed -> {});
     }
 
     private ImageLayer(JSONObject jo) {
@@ -73,14 +87,28 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         }
 
         glImage = new GLImage();
-        loader = new ImageLayerLoader(this::setView, this::unload);
+        loader = new ImageLayerLoader(this::setView, this::unload, this::setLoadStatus, this::setFailedUris);
 
         if (jo != null) {
             applyImageParams(jo.optJSONObject("imageParams"));
 
             JSONObject apiRequest = jo.optJSONObject("APIRequest");
-            if (apiRequest != null)
+            if (apiRequest != null) {
                 load(APIRequest.fromJson(apiRequest));
+            } else {
+                JSONArray uris = jo.optJSONArray("uris");
+                if (uris != null) {
+                    List<URI> list = new ArrayList<>(uris.length());
+                    for (Object o : uris)
+                        list.add(URI.create(o.toString()));
+                    if (!list.isEmpty())
+                        load(list);
+
+                    JSONArray range = jo.optJSONArray("fixedRange");
+                    if (range != null && range.length() == 2)
+                        setFixedRange(range.getDouble(0), range.getDouble(1));
+                }
+            }
         }
     }
 
@@ -103,6 +131,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         if (removed)
             return;
 
+        sourceUris = List.copyOf(uris); // remembered so serialize() can persist a direct-URI layer
         loader.load(uris);
         Layers.fireLayerUpdated(this); // give feedback asap
     }
@@ -380,6 +409,33 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         Layers.fireTimeUpdated(this);
 
         ImageLayers.displaySynced(imageData.viewpoint());
+    }
+
+    // Transient human-readable load stage ("Connecting...", "Downloading 3/40 frames...")
+    // shown by the layer readout while the first frames are still on the wire. Null once the
+    // view is delivered. Set from worker threads; marshalled to the EDT here.
+    private volatile String loadStatus;
+
+    @Nullable
+    public String getLoadStatus() {
+        return loadStatus;
+    }
+
+    private void setLoadStatus(@Nullable String status) {
+        loadStatus = status;
+        java.awt.EventQueue.invokeLater(() -> Layers.fireLayerUpdated(this));
+    }
+
+    // URIs that failed during the last load: known to exist (were requested), but not downloaded.
+    // Lets the Dataset Coverage timeline distinguish this from a genuine archive gap. Set from a
+    // worker thread; marshalled to the EDT here.
+    public List<URI> getFailedUris() {
+        return failedUris;
+    }
+
+    private void setFailedUris(List<URI> uris) {
+        failedUris = uris;
+        java.awt.EventQueue.invokeLater(() -> Layers.fireLayerUpdated(this));
     }
 
     @Override

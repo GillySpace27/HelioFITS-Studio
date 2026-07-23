@@ -29,6 +29,7 @@ import org.helioviewer.jhv.opengl.AnglePbuffer;
 import org.helioviewer.jhv.plugins.PluginManager;
 import org.helioviewer.jhv.plugins.eve.EVEPlugin;
 import org.helioviewer.jhv.plugins.pfss.PfssPlugin;
+import org.helioviewer.jhv.plugins.pointcloud.PointCloudPlugin;
 import org.helioviewer.jhv.plugins.swek.SWEKPlugin;
 import org.helioviewer.jhv.thread.Task;
 
@@ -106,6 +107,7 @@ public class JHelioviewer {
             frame.setLocationRelativeTo(null);
             frame.setVisible(true);
             UITimer.start();
+            org.helioviewer.jhv.app.Session.init(); // session dirty-tracking + autosave timer
 
             Task.submit("init", new Init(true), JHelioviewer::onSuccessInit, JHelioviewer::onFailureInit);
         });
@@ -130,6 +132,7 @@ public class JHelioviewer {
                 PluginManager.addPlugin(new EVEPlugin());
             PluginManager.addPlugin(new SWEKPlugin());
             PluginManager.addPlugin(new PfssPlugin());
+            PluginManager.addPlugin(new PointCloudPlugin());
         } catch (Exception e) {
             Log.warn("Plugin load error", e);
         }

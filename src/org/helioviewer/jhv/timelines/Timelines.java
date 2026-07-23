@@ -28,6 +28,7 @@ public class Timelines implements Interfaces.MainContentPanelPlugin {
 
     public Timelines() {
         layers.add(new RadioData(null));
+        layers.add(new CoverageTimelineLayer()); // per-image-layer frame coverage track
     }
 
     public static TimelineLayers getLayers() {

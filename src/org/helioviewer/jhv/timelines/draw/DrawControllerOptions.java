@@ -57,8 +57,29 @@ class DrawControllerOptions extends JPanel {
 
         statusLabel = new JLabel("", JLabel.RIGHT);
 
+        // Toggle: mark the movie's trim (in/out) points on the timeline.
+        JideToggleButton endpointsButton = new JideToggleButton("Trim");
+        endpointsButton.setToolTipText("Show the movie's trim in/out points (drag or I/O keys to trim)");
+        endpointsButton.setSelected(DrawController.isShowMovieEndpoints());
+        endpointsButton.addActionListener(e -> DrawController.setShowMovieEndpoints(endpointsButton.isSelected()));
+
+        // Global vertical extent of every timeline bar.
+        javax.swing.JSlider barSlider = new javax.swing.JSlider(2, 24, DrawConstants.getBarHeight());
+        barSlider.setPreferredSize(new java.awt.Dimension(70, barSlider.getPreferredSize().height));
+        barSlider.setToolTipText("Timeline bar height");
+        barSlider.addChangeListener(e -> {
+            DrawConstants.setBarHeight(barSlider.getValue());
+            DrawController.drawRequest();
+        });
+
+        javax.swing.JPanel center = new javax.swing.JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.CENTER, 4, 0));
+        center.add(lockButton);
+        center.add(endpointsButton);
+        center.add(new JLabel("↕"));
+        center.add(barSlider);
+
         add(statusLabel, BorderLayout.LINE_START);
-        add(lockButton, BorderLayout.CENTER);
+        add(center, BorderLayout.CENTER);
         add(zoomCombo, BorderLayout.LINE_END);
     }
 

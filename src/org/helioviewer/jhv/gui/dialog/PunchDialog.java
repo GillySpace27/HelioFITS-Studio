@@ -190,6 +190,13 @@ public class PunchDialog extends StandardDialog implements PunchClient.ReceiverI
         });
 
         JPanel foundPanel = new JPanel(new FlowLayout(FlowLayout.TRAILING, 5, 0));
+        JButton selectAllButton = new JButton("Select All");
+        selectAllButton.addActionListener(e -> {
+            int n = listPane.getModel().getSize();
+            if (n > 0)
+                listPane.setSelectionInterval(0, n - 1);
+        });
+        foundPanel.add(selectAllButton);
         foundPanel.add(foundLabel);
         JPanel selectedPanel = new JPanel(new FlowLayout(FlowLayout.TRAILING, 5, 0));
         selectedPanel.add(selectedLabel);

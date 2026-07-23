@@ -8,12 +8,9 @@ import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Insets;
-import java.awt.Point;
 import java.awt.Polygon;
 import java.awt.RenderingHints;
 import java.awt.Toolkit;
-import java.awt.geom.Line2D;
-import java.awt.image.BufferedImage;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
@@ -108,6 +105,10 @@ public final class TimeSlider extends JSlider implements Interfaces.LazyComponen
         getActionMap().put("previousFrame", Actions.PREVIOUS_FRAME);
         getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0, false), "playPause");
         getActionMap().put("playPause", Actions.PLAY_PAUSE);
+        getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_I, 0, false), "trimStart");
+        getActionMap().put("trimStart", Actions.TRIM_START);
+        getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_O, 0, false), "trimEnd");
+        getActionMap().put("trimEnd", Actions.TRIM_END);
 
         frameNumberPanel = new FrameNumberPanel(getValue(), getMaximum());
     }
@@ -310,46 +311,10 @@ public final class TimeSlider extends JSlider implements Interfaces.LazyComponen
             case Range -> dragging ? UIGlobals.closedHandCursor : UIGlobals.openHandCursor;
             // A crop cursor reads as "trim" the instant Option is held — a stronger discovery cue
             // than a bare resize arrow for a gesture users don't know exists.
-            case RangeStart, RangeEnd -> trimCursor();
+            case RangeStart, RangeEnd -> TrimCursor.get();
             // I-beam for plain scrubbing: it reads as "set the position here".
             case Frame -> Cursor.getPredefinedCursor(Cursor.TEXT_CURSOR);
         };
-    }
-
-    private static Cursor trimCursor;
-
-    // A crop-marks glyph drawn to a cursor image (not a font glyph, so it can never fall back to a
-    // blank box). White halo under black strokes keeps it visible over any track colour. Falls back
-    // to a resize cursor if the platform rejects custom cursors.
-    private static Cursor trimCursor() {
-        if (trimCursor != null)
-            return trimCursor;
-        try {
-            Toolkit tk = Toolkit.getDefaultToolkit();
-            Dimension best = tk.getBestCursorSize(28, 28);
-            int s = best.width > 0 ? best.width : 28;
-            BufferedImage img = new BufferedImage(s, s, BufferedImage.TYPE_INT_ARGB);
-            Graphics2D g = img.createGraphics();
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            float a = s * 0.30f, b = s * 0.70f, o = s * 0.16f; // inner square corners + overhang
-            Line2D[] marks = {
-                    new Line2D.Float(a - o, a, b, a), // top edge, over-hanging left
-                    new Line2D.Float(a, a - o, a, b), // left edge, over-hanging up
-                    new Line2D.Float(a, b, b + o, b), // bottom edge, over-hanging right
-                    new Line2D.Float(b, a, b, b + o), // right edge, over-hanging down
-            };
-            for (int pass = 0; pass < 2; pass++) {
-                g.setColor(pass == 0 ? Color.WHITE : Color.BLACK);
-                g.setStroke(new BasicStroke(pass == 0 ? 4f : 2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                for (Line2D m : marks)
-                    g.draw(m);
-            }
-            g.dispose();
-            trimCursor = tk.createCustomCursor(img, new Point(s / 2, s / 2), "trim");
-        } catch (Exception e) {
-            trimCursor = Cursor.getPredefinedCursor(Cursor.W_RESIZE_CURSOR);
-        }
-        return trimCursor;
     }
 
     private DragMode nearestBoundary(int x) {

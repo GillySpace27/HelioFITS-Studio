@@ -35,11 +35,12 @@ import org.helioviewer.jhv.timelines.draw.TimeAxis;
 final class ChartDrawGraphPane extends JComponent implements MouseInputListener, MouseWheelListener, ComponentListener, DrawController.Listener {
 
     private enum DragMode {
-        MOVIELINE, CHART, NODRAG
+        MOVIELINE, CHART, TRIM, NODRAG
     }
 
     private Point mousePressedPosition;
     private boolean chartDragged;
+    private boolean trimDraggingEnd; // which trim handle an Option-drag is moving
 
     private BufferedImage screenImage;
 
@@ -63,6 +64,40 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
         addComponentListener(this);
         DrawController.addDrawListener(this);
         DrawController.setGraphSize(new Rectangle(getWidth(), getHeight()));
+
+        // Same trim keys as the top scrubber: click the timeline to move the playhead to (say) an
+        // instrument's first frame in the coverage track, then I/O to trim there.
+        setFocusable(true);
+        addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mousePressed(java.awt.event.MouseEvent e) {
+                requestFocusInWindow();
+            }
+        });
+        getInputMap(WHEN_FOCUSED).put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_I, 0), "trimStart");
+        getActionMap().put("trimStart", org.helioviewer.jhv.gui.Actions.TRIM_START);
+        getInputMap(WHEN_FOCUSED).put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_O, 0), "trimEnd");
+        getActionMap().put("trimEnd", org.helioviewer.jhv.gui.Actions.TRIM_END);
+
+        // Show the crop cursor the instant Option is pressed while hovering, not just once the
+        // mouse next moves. WHEN_IN_FOCUSED_WINDOW so it fires regardless of which component has
+        // keyboard focus — purely visual, so it's safe to bind window-wide.
+        getInputMap(WHEN_IN_FOCUSED_WINDOW).put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ALT, 0, false), "altDown");
+        getInputMap(WHEN_IN_FOCUSED_WINDOW).put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ALT, 0, true), "altUp");
+        getActionMap().put("altDown", new javax.swing.AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                if (getMousePosition() != null)
+                    setCursor(org.helioviewer.jhv.gui.component.TrimCursor.get());
+            }
+        });
+        getActionMap().put("altUp", new javax.swing.AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                if (getMousePosition() != null)
+                    setCursor(Cursor.getDefaultCursor()); // next mouseMoved refines it further
+            }
+        });
     }
 
     @Override
@@ -99,6 +134,7 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             g.drawImage(screenImage, 0, 0, getWidth(), getHeight(), null);
             drawMovieLine(g);
+            drawMovieEndpoints(g);
             labelPainter.drawMouseValues(g, geometry, DrawController.selectedAxis, mousePosition);
         }
     }
@@ -150,6 +186,41 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
         g.drawLine(movieLinePosition, 0, movieLinePosition, DrawController.getGeometry().size().height);
     }
 
+    // Mark the movie's trim (in/out) points as vertical guides with handle triangles, shading the
+    // trimmed-away regions. Same playback range as the top scrubber, so trimming from either shows
+    // here. Toggled by the "Ends" button.
+    private static void drawMovieEndpoints(Graphics2D g) {
+        if (!DrawController.isShowMovieEndpoints())
+            return;
+        long inTime = org.helioviewer.jhv.movie.Player.getPlaybackFirstTime();
+        long outTime = org.helioviewer.jhv.movie.Player.getPlaybackLastTime();
+        if (outTime <= inTime)
+            return;
+        java.awt.Rectangle area = DrawController.getGeometry().area();
+        org.helioviewer.jhv.timelines.draw.TimeAxis.Mapper m = DrawController.selectedAxis.mapper(area.x, area.width);
+        int h = DrawController.getGeometry().size().height;
+        int xIn = m.toPixel(inTime);
+        int xOut = m.toPixel(outTime);
+
+        // dim the trimmed-away regions (outside [in, out]) within the plot
+        g.setColor(new java.awt.Color(0, 0, 0, 90));
+        if (xIn > area.x)
+            g.fillRect(area.x, area.y, Math.min(xIn, area.x + area.width) - area.x, area.height);
+        if (xOut < area.x + area.width)
+            g.fillRect(Math.max(xOut, area.x), area.y, area.x + area.width - Math.max(xOut, area.x), area.height);
+
+        g.setColor(UIGlobals.TL_MOVIE_FRAME_COLOR);
+        java.awt.Stroke saved = g.getStroke();
+        g.setStroke(new java.awt.BasicStroke(1.5f));
+        for (int x : new int[]{xIn, xOut}) {
+            if (x >= area.x && x <= area.x + area.width) {
+                g.drawLine(x, 0, x, h);
+                g.fillPolygon(new int[]{x - 4, x + 4, x}, new int[]{area.y, area.y, area.y + 6}, 3); // handle
+            }
+        }
+        g.setStroke(saved);
+    }
+
     @Override
     public void mouseClicked(MouseEvent e) {
         Point p = e.getPoint();
@@ -184,13 +255,39 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
     public void mousePressed(MouseEvent e) {
         Point p = e.getPoint();
         mousePressedPosition = p;
-        if (overMovieLine(p)) {
+        if (e.isAltDown()) { // Option-drag trims the movie, like the top scrubber's ends
+            dragMode = DragMode.TRIM;
+            trimDraggingEnd = nearerToTrimEnd(p.x);
+            setTrimAt(p.x);
+        } else if (overMovieLine(p)) {
             // setCursor(Cursor.getPredefinedCursor(Cursor.E_RESIZE_CURSOR));
             dragMode = DragMode.MOVIELINE;
         } else {
             setCursor(UIGlobals.closedHandCursor);
             dragMode = DragMode.CHART;
         }
+    }
+
+    // True if x is nearer the current out-point than the in-point.
+    private static boolean nearerToTrimEnd(int x) {
+        java.awt.Rectangle area = DrawController.getGeometry().area();
+        org.helioviewer.jhv.timelines.draw.TimeAxis.Mapper m = DrawController.selectedAxis.mapper(area.x, area.width);
+        int xIn = m.toPixel(org.helioviewer.jhv.movie.Player.getPlaybackFirstTime());
+        int xOut = m.toPixel(org.helioviewer.jhv.movie.Player.getPlaybackLastTime());
+        return Math.abs(x - xOut) <= Math.abs(x - xIn);
+    }
+
+    // Set the trim in/out (whichever this drag owns) to the frame nearest the cursor time.
+    private void setTrimAt(int x) {
+        java.awt.Rectangle area = DrawController.getGeometry().area();
+        org.helioviewer.jhv.timelines.draw.TimeAxis.Mapper m = DrawController.selectedAxis.mapper(area.x, area.width);
+        long t = m.toValue(Math.clamp(x, area.x, area.x + area.width));
+        int frame = org.helioviewer.jhv.movie.Player.frameForTime(t);
+        org.helioviewer.jhv.app.state.ViewState.PlaybackData d = org.helioviewer.jhv.app.state.ViewState.playbackData();
+        if (trimDraggingEnd)
+            org.helioviewer.jhv.app.Commands.setPlaybackRange(d.firstFrame(), Math.max(frame, d.firstFrame()));
+        else
+            org.helioviewer.jhv.app.Commands.setPlaybackRange(Math.min(frame, d.lastFrame()), d.lastFrame());
     }
 
     @Override
@@ -206,6 +303,7 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
                 }
             }
             case MOVIELINE -> DrawController.setMovieFrame(p);
+            case TRIM -> setTrimAt(p.x);
             case NODRAG -> {}
         }
         dragMode = DragMode.NODRAG;
@@ -225,6 +323,7 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
                     DrawController.moveY(p, p.y - mousePressedPosition.y);
                 }
                 case MOVIELINE -> DrawController.setMovieFrame(p);
+                case TRIM -> setTrimAt(p.x);
                 case NODRAG -> {}
             }
         }
@@ -241,7 +340,11 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
         mousePosition = e.getPoint();
 
         GraphGeometry geometry = DrawController.getGeometry();
-        if (overMovieLine(mousePosition)) {
+        if (e.isAltDown()) {
+            // Option held anywhere over the timeline: crop cursor, matching the top scrubber — the
+            // same trim gesture (Option-drag) works here.
+            setCursor(org.helioviewer.jhv.gui.component.TrimCursor.get());
+        } else if (overMovieLine(mousePosition)) {
             setCursor(Cursor.getPredefinedCursor(Cursor.E_RESIZE_CURSOR));
         } else if (TimelineLayers.getDrawableUnderMouse() != null) {
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));

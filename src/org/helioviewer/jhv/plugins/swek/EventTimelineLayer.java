@@ -186,7 +186,7 @@ public final class EventTimelineLayer extends AbstractTimelineLayer implements J
 
     @Nullable
     private static JHVRelatedEvents drawEvent(Rectangle graphArea, JHVRelatedEvents event, int x0, int x1, int yPosition, Graphics2D g, Point mousePosition) {
-        int spacePerLine = 3;
+        int spacePerLine = Math.max(2, DrawConstants.getBarHeight() - 2);
         int y = graphArea.y + spacePerLine * 2 * yPosition + DrawConstants.EVENT_OFFSET;
         int w = Math.max(x1 - x0, 1);
         int h = spacePerLine;

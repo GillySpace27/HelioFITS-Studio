@@ -24,7 +24,6 @@ import org.helioviewer.jhv.event.JHVRelatedEvents;
 import org.helioviewer.jhv.event.SWEKGroup;
 import org.helioviewer.jhv.image.nio.NativeImageFactory;
 import org.helioviewer.jhv.layers.AbstractLayer;
-import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.math.MathUtils;
 import org.helioviewer.jhv.math.PolarBasis;
 import org.helioviewer.jhv.math.Quat;
@@ -63,9 +62,14 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
 
     private static final float[][] texCoord = {{0, 1}, {1, 1}, {0, 0}, {1, 0}};
 
+    private static final double EXTEND_DIST_MIN = 2;
+    private static final double EXTEND_DIST_MAX = 200;
+    private static final double EXTEND_DIST_DEFAULT = 60;
+
     private SWEKContext swekContext;
     private boolean icons = true;
-    private boolean extendCactus = false; // propagate CACTus fronts past the LASCO catalog end, out to the loaded FOV
+    private boolean extendCactus = false; // propagate CACTus fronts past the LASCO catalog end
+    private double extendDistance = EXTEND_DIST_DEFAULT; // R☉ to propagate fronts out to when extending
 
     private final GLSLLine lineEvent = new GLSLLine(true);
     private final BufVertex bufEvent = new BufVertex(512 * GLSLLine.stride); // pre-allocate
@@ -89,6 +93,7 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         if (jo != null) {
             icons = jo.optBoolean("icons", icons);
             extendCactus = jo.optBoolean("extendCactus", extendCactus);
+            extendDistance = Math.clamp(jo.optDouble("extendDistance", extendDistance), EXTEND_DIST_MIN, EXTEND_DIST_MAX);
             SWEKPlugin.restoreLayer(this);
         }
     }
@@ -101,6 +106,7 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
     public void serialize(JSONObject jo) {
         jo.put("icons", icons);
         jo.put("extendCactus", extendCactus);
+        jo.put("extendDistance", extendDistance);
     }
 
     private static void bindTexture(SWEKGroup group) {
@@ -464,13 +470,13 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
     }
 
     // CACTus events past their catalog end whose front, propagated at the catalog radial speed,
-    // is still inside the loaded FOV. Empty unless the "extend" toggle is on. Disjoint from
-    // activeEvents() (which ends at the LASCO edge), so drawing both never double-counts one.
+    // is still within the user's extend distance. Empty unless the "extend" toggle is on. Disjoint
+    // from activeEvents() (which ends at the LASCO edge), so drawing both never double-counts one.
     // NB: the front here is a constant-speed extrapolation beyond where LASCO measured the CME.
     private List<JHVRelatedEvents> propagatingCactus(long time) {
         if (!extendCactus)
             return List.of();
-        double fov = ImageLayers.getLargestRadialSize();
+        double fov = extendDistance;
         if (fov <= DIST_SUN_BEGIN)
             return List.of();
         // Memoized on (time, movie range, fov) like activeEvents(), so the repeated per-viewport /
@@ -672,6 +678,24 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
     void setExtendCactus(boolean _extend) {
         extendCactus = _extend;
         cachedPropTime = Long.MIN_VALUE; // toggling must not serve a stale list
+        DisplayController.display();
+    }
+
+    static double extendDistanceMin() {
+        return EXTEND_DIST_MIN;
+    }
+
+    static double extendDistanceMax() {
+        return EXTEND_DIST_MAX;
+    }
+
+    double getExtendDistance() {
+        return extendDistance;
+    }
+
+    void setExtendDistance(double _distance) {
+        extendDistance = Math.clamp(_distance, EXTEND_DIST_MIN, EXTEND_DIST_MAX);
+        cachedPropTime = Long.MIN_VALUE; // changing the reach must not serve a stale list
         DisplayController.display();
     }
 

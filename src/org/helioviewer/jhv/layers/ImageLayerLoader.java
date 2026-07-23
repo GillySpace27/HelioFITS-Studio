@@ -36,22 +36,31 @@ final class ImageLayerLoader {
     private final LatestWorker<DecodedImage> executor = new LatestWorker<>("View-Decoder");
     private final Consumer<View> onViewLoaded;
     private final Runnable onUnload;
+    private final Consumer<String> statusSink; // load-stage readout; null clears
+    private final Consumer<List<URI>> onFailedUris; // URIs that failed during a multi-frame load
 
     private Future<View> loadFuture;
     private Future<?> downloadFuture;
     private int loadGeneration;
 
-    ImageLayerLoader(@Nonnull Consumer<View> _onViewLoaded, @Nonnull Runnable _onUnload) {
+    ImageLayerLoader(@Nonnull Consumer<View> _onViewLoaded, @Nonnull Runnable _onUnload, @Nonnull Consumer<String> _statusSink,
+                      @Nonnull Consumer<List<URI>> _onFailedUris) {
         onViewLoaded = _onViewLoaded;
         onUnload = _onUnload;
+        statusSink = _statusSink;
+        onFailedUris = _onFailedUris;
     }
 
     void load(APIRequest req) {
         cancelLoad();
         int gen = ++loadGeneration;
         loadFuture = Task.submit("request", () -> {
+                    statusSink.accept("Contacting server\u2026");
                     URI uri = requestAPI(req.toJpipRequest());
-                    return uri == null ? null : createView(req, uri);
+                    if (uri == null)
+                        return null;
+                    statusSink.accept("Opening image stream\u2026");
+                    return createView(req, uri);
                 },
                 result -> onSuccess(result, gen),
                 (logContext, t) -> onFailure(t, gen));
@@ -59,6 +68,7 @@ final class ImageLayerLoader {
 
     void load(List<URI> uriList) {
         cancelLoad();
+        onFailedUris.accept(List.of()); // clear any stale failures from a previous load
         int gen = ++loadGeneration;
         loadFuture = Task.submit(uriList.toString(), () -> loadUri(uriList),
                 result -> onSuccess(result, gen),
@@ -100,6 +110,7 @@ final class ImageLayerLoader {
     }
 
     private void onSuccess(View result, int gen) {
+        statusSink.accept(null);
         if (gen != loadGeneration) {
             if (result != null) {
                 result.abolish();
@@ -114,6 +125,7 @@ final class ImageLayerLoader {
     }
 
     private void onFailure(Throwable t, int gen) {
+        statusSink.accept(null);
         if (gen != loadGeneration) {
             return;
         }
@@ -128,17 +140,29 @@ final class ImageLayerLoader {
     }
 
     private View loadUri(List<URI> uriList) throws Exception {
-        if (uriList.size() == 1) {
+        int total = uriList.size();
+        if (total == 1) {
+            statusSink.accept("Connecting\u2026");
             return createView(null, uriList.getFirst());
         } else {
+            // ponytail: frame-count granularity only; per-file byte progress needs NetFileCache changes
+            statusSink.accept("Connecting \u2014 0/" + total + " frames\u2026");
+            java.util.concurrent.atomic.AtomicInteger done = new java.util.concurrent.atomic.AtomicInteger();
+            List<URI> failed = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
             List<View> views = uriList.parallelStream().map(uri -> {
                 try {
-                    return createView(null, uri);
+                    View v = createView(null, uri);
+                    statusSink.accept("Retrieving \u2014 " + done.incrementAndGet() + "/" + total + " frames\u2026");
+                    return v;
                 } catch (Exception e) {
                     Log.warn(uri.toString(), e);
+                    failed.add(uri); // remembered so the layer can report it as retryable, not just absent
+                    statusSink.accept("Retrieving \u2014 " + done.incrementAndGet() + "/" + total + " frames\u2026");
                     return null;
                 }
             }).filter(Objects::nonNull).toList();
+            statusSink.accept("Assembling " + views.size() + " frames\u2026");
+            onFailedUris.accept(failed);
             return new ManyView(views);
         }
     }

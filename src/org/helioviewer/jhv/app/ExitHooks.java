@@ -17,8 +17,15 @@ public class ExitHooks {
         Runtime.getRuntime().addShutdownHook(finishMovieThread);
     }
 
+    // Returns false to abort the quit (unsaved-changes "Cancel"), which blocks an OS shutdown.
+    // closingThisWindow: true for the red close button (dismiss this window, don't reopen it),
+    // false for Cmd-Q / app quit (keep every window in the reopen set).
+    public static boolean exitProgram(boolean closingThisWindow) {
+        return Session.confirmExitAndAutosave(closingThisWindow);
+    }
+
     public static boolean exitProgram() {
-        return true;
+        return exitProgram(false);
     }
 
 }

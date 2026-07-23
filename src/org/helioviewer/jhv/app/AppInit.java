@@ -36,10 +36,14 @@ public final class AppInit {
         loadLibs(Platform.getResourceDir());
         KakaduMessageSystem.startKduMessageSystem();
 
-        try {
-            JPIPCacheManager.init();
-        } catch (Exception e) {
-            Log.error("JPIP cache initialization error", e);
+        // The Ehcache JPIP store takes an exclusive dir lock, which only the primary instance can
+        // hold. Secondary windows skip it (memory-only JPIP) rather than log a scary lock error.
+        if (!Session.isExtraWindow()) {
+            try {
+                JPIPCacheManager.init();
+            } catch (Exception e) {
+                Log.error("JPIP cache initialization error", e);
+            }
         }
         try {
             AIAResponse.load();

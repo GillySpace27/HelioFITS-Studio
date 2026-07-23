@@ -137,6 +137,12 @@ final class ImageLayerManagePanel extends JPanel {
     }
 
     void updateReadout() {
+        String loadStatus = layer.getLoadStatus();
+        if (loadStatus != null) { // frames still on the wire: show the load stage, not "0/0"
+            lastReadoutSig = Long.MIN_VALUE; // recompute the real readout once frames land
+            readout.setText("<html><i>" + loadStatus + "</i></html>");
+            return;
+        }
         View view = layer.getView();
         int max = view.getMaximumFrameNumber();
         int total = max + 1;

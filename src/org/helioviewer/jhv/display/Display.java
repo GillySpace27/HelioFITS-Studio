@@ -31,6 +31,19 @@ public final class Display {
         warpLambda = Math.clamp(lambda, -1, 1);
     }
 
+    // Outer edge of the warp projections in solar radii. 0 = auto: the largest radial size
+    // among the loaded layers. Lowering it is a radial crop — a linear zoom-in independent
+    // of the lambda warp — and makes the projection edge itself mutable.
+    private static double warpOuterRadius = 0.0;
+
+    public static double getWarpOuterRadius() {
+        return warpOuterRadius;
+    }
+
+    public static void setWarpOuterRadius(double radius) {
+        warpOuterRadius = radius <= 0 ? 0 : Math.max(radius, 1.1);
+    }
+
     static int glWidth = 1;
     static int glHeight = 1;
     public static final double[] pixelScale = {1, 1};
@@ -128,6 +141,10 @@ public final class Display {
         if (!separateViewportZoom)
             resetViewportZoom();
     }
+
+    // Overlay a dashed frame showing the region of the canvas that the recorded video will capture
+    // (the output resolution's aspect ratio, which can differ from the on-screen canvas aspect).
+    public static boolean showPrintableArea = false;
 
     private static boolean showCorona = true;
 

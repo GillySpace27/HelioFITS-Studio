@@ -56,6 +56,7 @@ layout(std140) uniform ScreenBlock {
     float yStart;
     float yStop;
     float lambda;
+    float limb;
 } screen;
 
 layout(std140) uniform DisplayBlock {
@@ -194,7 +195,7 @@ vec2 getNormalizedMapPos(void) {
 // The disk is linear; only distances beyond the limb use Box-Cox scaling.
 float unwarpRadius(float normalizedRadius) {
     float outerRadius = screen.yStop;
-    float limbPosition = 1. / outerRadius;
+    float limbPosition = screen.limb > 0. ? screen.limb : 1. / outerRadius;
     if (outerRadius <= 1. || normalizedRadius <= limbPosition)
         return normalizedRadius / limbPosition;
 

@@ -9,6 +9,24 @@ import org.helioviewer.jhv.time.JHVTime;
 
 public class NullView implements View {
 
+    // Frames at an explicit set of times, so a non-image layer (e.g. a point cloud time series)
+    // can hand the movie clock exactly its own timestamps instead of an even cadence — every
+    // frame then lands on a real cloud.
+    public static ManyView create(java.util.Collection<JHVTime> times) {
+        if (times.isEmpty())
+            throw new IllegalArgumentException("No times");
+
+        ArrayList<View> list = new ArrayList<>();
+        for (JHVTime t : times)
+            list.add(new NullView(t.milli));
+
+        try {
+            return new ManyView(list);
+        } catch (Exception ignore) { // cannot happen
+            return null;
+        }
+    }
+
     public static ManyView create(long start, long end, int cadence) {
         if (end < start)
             throw new IllegalArgumentException("End cannot be earlier than start");

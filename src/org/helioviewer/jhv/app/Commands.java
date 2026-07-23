@@ -83,6 +83,24 @@ public final class Commands {
         ViewState.setPlaybackRange(firstFrame, lastFrame);
     }
 
+    // Trim the movie in/out points to the current frame (video-editor style). The playback range
+    // is shared, so both the top scrubber and the bottom timeline update together.
+    public static void trimStartHere() {
+        ViewState.PlaybackData d = ViewState.playbackData();
+        int cur = org.helioviewer.jhv.movie.Player.getCurrentFrameNumber();
+        setPlaybackRange(Math.min(cur, d.lastFrame()), d.lastFrame());
+    }
+
+    public static void trimEndHere() {
+        ViewState.PlaybackData d = ViewState.playbackData();
+        int cur = org.helioviewer.jhv.movie.Player.getCurrentFrameNumber();
+        setPlaybackRange(d.firstFrame(), Math.max(cur, d.firstFrame()));
+    }
+
+    public static void trimReset() {
+        setPlaybackRange(0, org.helioviewer.jhv.movie.Player.getMaximumFrameNumber());
+    }
+
     public static void play() {
         Player.play();
     }

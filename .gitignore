@@ -6,3 +6,4 @@ release/install4j/builds
 gradle
 JHelioviewer.jar
 *.iml
+.DS_Store

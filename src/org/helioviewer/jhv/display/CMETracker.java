@@ -129,7 +129,8 @@ public final class CMETracker implements TimeListener.Change {
     }
 
     private static void solveAndSet(double milli) {
-        double rOut = ImageLayers.getLargestRadialSize();
+        double userOut = Display.getWarpOuterRadius(); // honor the radial crop, like the renderer
+        double rOut = userOut > 0 ? userOut : ImageLayers.getLargestRadialSize();
         if (rOut <= 1) // no warped corona visible: hold lambda
             return;
         double rCme = ONSET_RSUN + speed * (milli - onset) / Sun.RadiusMeter; // km/s * milli == m
@@ -143,7 +144,11 @@ public final class CMETracker implements TimeListener.Change {
     // MapScale.BoxCoxRadialScale.toUnitY, but with lambda as a free variable so it can be solved
     // for, instead of reading the Display global.
     private static double unitY(double r, double rOut, double lambda) {
-        double limb = 1 / rOut;
+        // Same limb anchor as BoxCoxRadialScale: the lambda-dependent origin-anchored
+        // position (limb varies with the solve's trial lambda — still monotone).
+        double bc = rOut <= 1 ? 0
+                : (lambda == 0 ? Math.log(rOut) : (Math.pow(rOut, lambda) - 1) / lambda);
+        double limb = Math.max(1 / rOut, 1 / (1 + bc));
         if (rOut <= 1 || r <= 1)
             return r * limb;
         double u = lambda == 0

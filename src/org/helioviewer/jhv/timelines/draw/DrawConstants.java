@@ -9,6 +9,17 @@ import org.helioviewer.jhv.math.MathUtils;
 
 public class DrawConstants {
 
+    // Global vertical extent (px) of the horizontal bars every timeline layer draws — user-adjustable.
+    private static int barHeight = 5;
+
+    public static int getBarHeight() {
+        return barHeight;
+    }
+
+    public static void setBarHeight(int px) {
+        barHeight = Math.clamp(px, 2, 24);
+    }
+
     public static final int GRAPH_LEFT_SPACE = 50;
     public static final int GRAPH_RIGHT_SPACE = 10;
     public static final int GRAPH_TOP_SPACE = 20;

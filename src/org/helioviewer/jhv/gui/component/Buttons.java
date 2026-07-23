@@ -49,6 +49,13 @@ public class Buttons {
 
     public static final String sync = button(MaterialDesign.SYNC);
     public static final String info = button(MaterialDesign.INFORMATION_VARIANT);
+    public static final String save = button(MaterialDesign.CONTENT_SAVE);
+    public static final String load = button(MaterialDesign.FOLDER_OPEN);
+    public static final String newSession = button(MaterialDesign.PLUS);
+    public static final String revert = button(MaterialDesign.BACKUP_RESTORE);
+    public static final String saveAs = button(MaterialDesign.CONTENT_SAVE_ALL);
+    public static final String collapseAll = button(MaterialDesign.CHEVRON_UP);
+    public static final String expandAll = button(MaterialDesign.CHEVRON_DOWN);
     public static final String download = button(MaterialDesign.DOWNLOAD);
     public static final String mgn = button(MaterialDesign.IMAGE_FILTER_HDR);
 

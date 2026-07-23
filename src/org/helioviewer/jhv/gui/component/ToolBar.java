@@ -17,6 +17,7 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.ButtonGroup;
 import javax.swing.Icon;
+import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
@@ -31,11 +32,14 @@ import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.display.CMETracker;
+import org.helioviewer.jhv.display.Display;
+import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.MapMode;
 import org.helioviewer.jhv.display.interaction.Interaction;
 import org.helioviewer.jhv.gui.Actions;
 import org.helioviewer.jhv.input.InputController;
 import org.helioviewer.jhv.io.samp.SampClient;
+import org.helioviewer.jhv.layers.ImageLayers;
 //import org.helioviewer.jhv.timelines.band.HapiReader;
 
 import com.jidesoft.swing.JideButton;
@@ -135,8 +139,9 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private JideToggleButton diffRotationButton;
     private JideToggleButton multiviewButton;
     private final EnumMap<AnnotationMode, JRadioButtonMenuItem> annotationItems = new EnumMap<>(AnnotationMode.class);
-    private final EnumMap<MapMode, JRadioButtonMenuItem> projectionItems = new EnumMap<>(MapMode.class);
+    private final EnumMap<MapMode, javax.swing.JRadioButton> projectionItems = new EnumMap<>(MapMode.class);
     private JHVSlider warpLambdaSlider;
+    private JHVSlider warpEdgeSlider;
     private JLabel warpLambdaValue;
     private JideToggleButton refreshButton;
     private JideToggleButton trackingButton;
@@ -234,20 +239,24 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         addButton(multiviewButton);
         addSeparator(dim);
 
-        JideSplitButton projectionButton = toolSplitButton(PROJECTION);
-        ButtonGroup projectionGroup = new ButtonGroup();
-        for (MapMode el : MapMode.values()) {
-            JRadioButtonMenuItem item = new JRadioButtonMenuItem(el.toString());
-            if (el == ViewState.getProjection())
-                item.setSelected(true);
-            item.addActionListener(e -> ViewState.setProjection(el));
-            projectionGroup.add(item);
-            projectionButton.add(item);
-            projectionItems.put(el, item);
+        // The projection controls live in a persistent palette, not a dropdown: it survives
+        // focus loss (so the sliders can be worked against the view) and only collapses when
+        // the toolbar button is toggled again or its window is closed.
+        JideToggleButton projectionButton = toolToggleButton(PROJECTION);
+        projectionToggle = projectionButton; // so the View menu can toggle the same palette
+        if (projectionPalette != null) {
+            projectionPalette.dispose(); // toolbar is recreated on display-mode change
+            projectionPalette = null;
         }
-        projectionButton.addSeparator();
-        projectionButton.add(createWarpLambdaPanel());
-        warpLambdaSlider.setEnabled(ViewState.getProjection().usesWarpLambda());
+        projectionButton.addActionListener(e -> {
+            if (projectionPalette == null)
+                projectionPalette = createProjectionPalette(projectionButton);
+            if (projectionButton.isSelected()) {
+                dockPalette();
+                projectionPalette.setVisible(true);
+            } else
+                projectionPalette.setVisible(false);
+        });
         addButton(projectionButton);
 
         JideSplitButton annotationButton = toolSplitButton(ANNOTATION);
@@ -327,11 +336,136 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         annotationButton.add(panel);
     }
 
+    private JDialog projectionPalette;
+    private boolean palettePinned = true; // pinned: docks to the corner + follows; unpinned: free-floating
+    private static JideToggleButton projectionToggle; // current toolbar's projection button, for the View menu
+
+    // Toggle the projection palette exactly as the toolbar button does (used by View ▸ Projection).
+    public static void toggleProjectionPalette() {
+        if (projectionToggle != null)
+            projectionToggle.doClick();
+    }
+
+    // Pin the palette to the top-right corner of the render canvas; it follows the window.
+    private void dockPalette() {
+        java.awt.Component rc = org.helioviewer.jhv.gui.MainFrame.getRenderComponent();
+        if (!palettePinned || projectionPalette == null || rc == null || !rc.isShowing())
+            return;
+        java.awt.Point loc = rc.getLocationOnScreen();
+        projectionPalette.setLocation(loc.x + rc.getWidth() - projectionPalette.getWidth() - 12, loc.y + 12);
+    }
+
+    private JDialog createProjectionPalette(JideToggleButton toggle) {
+        JDialog palette = new JDialog(org.helioviewer.jhv.gui.MainFrame.get(), false);
+        palette.setUndecorated(true); // no OS chrome: a docked tool palette, not a window
+        palette.setFocusableWindowState(false); // don't steal keyboard focus from the view
+
+        JPanel content = new JPanel();
+        content.setLayout(new javax.swing.BoxLayout(content, javax.swing.BoxLayout.PAGE_AXIS));
+        content.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(content.getBackground().brighter()),
+                BorderFactory.createEmptyBorder(4, 8, 6, 8)));
+
+        JPanel header = new JPanel(new BorderLayout());
+        header.setOpaque(false);
+        JLabel title = new JLabel("Projection");
+        title.setFont(title.getFont().deriveFont(java.awt.Font.BOLD));
+        title.setToolTipText("Drag to move (undocks); use the pin to re-dock to the corner");
+        header.add(title, BorderLayout.CENTER);
+
+        // Drag the header to float the palette anywhere (this undocks it).
+        java.awt.event.MouseAdapter dragger = new java.awt.event.MouseAdapter() {
+            private java.awt.Point grab;
+
+            @Override
+            public void mousePressed(java.awt.event.MouseEvent e) {
+                grab = e.getPoint();
+            }
+
+            @Override
+            public void mouseDragged(java.awt.event.MouseEvent e) {
+                palettePinned = false; // dragging floats it
+                java.awt.Point on = e.getLocationOnScreen();
+                palette.setLocation(on.x - grab.x, on.y - grab.y);
+            }
+        };
+        title.addMouseListener(dragger);
+        title.addMouseMotionListener(dragger);
+
+        JPanel headerButtons = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.TRAILING, 0, 0));
+        headerButtons.setOpaque(false);
+        JideToggleButton pin = new JideToggleButton("\u25f1"); // dock-to-corner glyph
+        pin.setSelected(palettePinned);
+        pin.setToolTipText("Dock to the top-right corner (unpin to float freely)");
+        pin.addActionListener(e -> {
+            palettePinned = pin.isSelected();
+            if (palettePinned)
+                dockPalette();
+        });
+        JideButton close = new JideButton("\u2715");
+        close.setToolTipText("Collapse (the toolbar Projection button reopens it)");
+        close.addActionListener(e -> {
+            toggle.setSelected(false);
+            palette.setVisible(false);
+        });
+        headerButtons.add(pin);
+        headerButtons.add(close);
+        header.add(headerButtons, BorderLayout.LINE_END);
+        content.add(header);
+        content.add(new javax.swing.JSeparator());
+
+        ButtonGroup projectionGroup = new ButtonGroup();
+        for (MapMode el : MapMode.values()) {
+            javax.swing.JRadioButton item = new javax.swing.JRadioButton(el.toString());
+            if (el == ViewState.getProjection())
+                item.setSelected(true);
+            item.addActionListener(e -> ViewState.setProjection(el));
+            projectionGroup.add(item);
+            content.add(item);
+            projectionItems.put(el, item);
+        }
+        content.add(new javax.swing.JSeparator());
+        content.add(createWarpLambdaPanel());
+        content.add(createWarpEdgePanel());
+        boolean warpOn = ViewState.getProjection().usesWarpLambda();
+        warpLambdaSlider.setEnabled(warpOn);
+        warpEdgeSlider.setEnabled(warpOn);
+
+        palette.setContentPane(content);
+        palette.pack();
+
+        java.awt.event.ComponentAdapter follow = new java.awt.event.ComponentAdapter() {
+            @Override
+            public void componentMoved(java.awt.event.ComponentEvent e) {
+                if (palette.isVisible())
+                    dockPalette();
+            }
+
+            @Override
+            public void componentResized(java.awt.event.ComponentEvent e) {
+                if (palette.isVisible())
+                    dockPalette();
+            }
+        };
+        org.helioviewer.jhv.gui.MainFrame.get().addComponentListener(follow);
+        // Owned + non-focusable, so clicking into the render view raises the frame above the
+        // palette. Re-raise it (without stealing focus) whenever the frame comes forward — this
+        // keeps it above the JHV window only, never over other apps the way alwaysOnTop would.
+        org.helioviewer.jhv.gui.MainFrame.get().addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowActivated(java.awt.event.WindowEvent e) {
+                if (palette.isVisible())
+                    palette.toFront();
+            }
+        });
+        return palette;
+    }
+
     private JPanel createWarpLambdaPanel() {
         warpLambdaSlider = new JHVSlider(-1000, 1000, (int) Math.round(ViewState.getWarpLambda() * 1000));
-        warpLambdaSlider.setToolTipText("Box-Cox lambda for warp projections");
+        warpLambdaSlider.setToolTipText("Warp strength (Box-Cox lambda) for warp projections");
         warpLambdaSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, warpLambdaSlider.getPreferredSize().height));
-        JLabel label = new JLabel("λ");
+        JLabel label = new JLabel("Warp");
         warpLambdaValue = new JLabel(String.format("%.3f", ViewState.getWarpLambda()), JLabel.RIGHT);
         warpLambdaValue.setPreferredSize(new JLabel("-0.000").getPreferredSize());
         warpLambdaSlider.addChangeListener(e -> {
@@ -344,6 +478,38 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         panel.add(label, BorderLayout.LINE_START);
         panel.add(warpLambdaSlider, BorderLayout.CENTER);
         panel.add(warpLambdaValue, BorderLayout.LINE_END);
+        return panel;
+    }
+
+    // ponytail: session-only knob -- not persisted in ViewState; add there if it earns it.
+    // Edge: the projection's outer radius as a fraction of the loaded FOV, mapped in log
+    // space from 2 Rsun (far left) to the full FOV (far right = auto). A radial crop: a
+    // linear zoom-in independent of the lambda warp, tracking layer changes when at auto.
+    private JPanel createWarpEdgePanel() {
+        warpEdgeSlider = new JHVSlider(0, 1000, 1000);
+        warpEdgeSlider.setToolTipText("Outer edge of the warp projections (far right: full field of view)");
+        warpEdgeSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, warpEdgeSlider.getPreferredSize().height));
+        JLabel label = new JLabel("Edge");
+        JLabel value = new JLabel("auto", JLabel.RIGHT);
+        value.setPreferredSize(new JLabel("-0.000").getPreferredSize());
+        warpEdgeSlider.addChangeListener(e -> {
+            int t = warpEdgeSlider.getValue();
+            if (t == 1000) {
+                Display.setWarpOuterRadius(0); // auto: the full loaded FOV
+                value.setText("auto");
+            } else {
+                double full = Math.max(ImageLayers.getLargestRadialSize(), 2);
+                double radius = 2 * Math.pow(full / 2, t / 1000.);
+                Display.setWarpOuterRadius(radius);
+                value.setText(String.format("%.0f R\u2609", radius));
+            }
+            DisplayController.display();
+        });
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(BorderFactory.createEmptyBorder(3, 8, 3, 8));
+        panel.add(label, BorderLayout.LINE_START);
+        panel.add(warpEdgeSlider, BorderLayout.CENTER);
+        panel.add(value, BorderLayout.LINE_END);
         return panel;
     }
 
@@ -442,11 +608,14 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         coronaButton.setSelected(ViewState.isShowCorona());
         multiviewButton.setSelected(ViewState.isMultiview());
         refreshButton.setSelected(ViewState.isRefresh());
-        JRadioButtonMenuItem activeProjection = projectionItems.get(ViewState.getProjection());
+        javax.swing.JRadioButton activeProjection = projectionItems.get(ViewState.getProjection());
         if (activeProjection != null)
             activeProjection.setSelected(true);
         if (warpLambdaSlider != null) {
-            warpLambdaSlider.setEnabled(ViewState.getProjection().usesWarpLambda());
+            boolean warpEnabled = ViewState.getProjection().usesWarpLambda();
+            warpLambdaSlider.setEnabled(warpEnabled);
+            if (warpEdgeSlider != null)
+                warpEdgeSlider.setEnabled(warpEnabled);
             warpLambdaSlider.setValue((int) Math.round(ViewState.getWarpLambda() * 1000));
         }
         if (warpLambdaValue != null)

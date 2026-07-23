@@ -24,8 +24,11 @@ import org.helioviewer.jhv.display.CMETracker;
 import org.helioviewer.jhv.display.MapMode;
 import org.helioviewer.jhv.event.JHVEvent;
 import org.helioviewer.jhv.event.JHVEventCache;
+import org.helioviewer.jhv.event.JHVEventListener;
 import org.helioviewer.jhv.event.JHVEventParameter;
 import org.helioviewer.jhv.event.JHVRelatedEvents;
+import org.helioviewer.jhv.event.SWEKCatalog;
+import org.helioviewer.jhv.event.SWEKSupplier;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.movie.Player;
 import org.helioviewer.jhv.time.JHVTime;
@@ -37,7 +40,7 @@ import org.helioviewer.jhv.time.TimeUtils;
 // no runtime arc-catching. Kept in event.info (core) so the menu action need not import the
 // SWEK plugin; the SWEK panel's Track button calls in from the plugin side.
 @SuppressWarnings("serial")
-public final class CactusTrackDialog extends JDialog {
+public final class CactusTrackDialog extends JDialog implements JHVEventListener.Handle, JHVEventListener.Highlight {
 
     private static final String[] COLUMNS = {"Onset (UTC)", "Speed km/s", "Width°", "PA°", "Source"};
 
@@ -47,6 +50,7 @@ public final class CactusTrackDialog extends JDialog {
     public static void open() {
         if (instance == null)
             instance = new CactusTrackDialog();
+        instance.ensureCactusLoaded(); // pull CACTus events for the movie range if not already active
         instance.reload();
         instance.setVisible(true);
         instance.toFront();
@@ -56,6 +60,7 @@ public final class CactusTrackDialog extends JDialog {
     private final JTable table;
     private final JLabel status;
     private final List<JHVRelatedEvents> rows = new ArrayList<>(); // aligned with model rows
+    private boolean syncingSelection; // guard against the table<->canvas highlight feedback loop
 
     private CactusTrackDialog() {
         super(MainFrame.get(), "Track CME");
@@ -85,6 +90,12 @@ public final class CactusTrackDialog extends JDialog {
                     trackSelected();
             }
         });
+        // Row selection -> canvas/timeline: highlight the picked wedge (skip while we are the ones
+        // mirroring a canvas-driven highlight, so the two directions don't ping-pong).
+        table.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting() && !syncingSelection)
+                JHVEventCache.highlight(selected());
+        });
 
         status = new JLabel(" ");
         status.setBorder(javax.swing.BorderFactory.createEmptyBorder(4, 6, 4, 6));
@@ -111,7 +122,66 @@ public final class CactusTrackDialog extends JDialog {
         setLocationRelativeTo(MainFrame.get());
     }
 
+    // Listen only while shown: the cache handler repopulates the table when the async CACTus
+    // download lands, and the highlight listener mirrors a canvas wedge selection into the table.
+    @Override
+    public void setVisible(boolean b) {
+        if (b) {
+            JHVEventCache.registerHandler(this);
+            JHVEventCache.addHighlightListener(this);
+        } else {
+            JHVEventCache.unregisterHandler(this);
+            JHVEventCache.removeHighlightListener(this);
+        }
+        super.setVisible(b);
+    }
+
+    // Make the dialog self-sufficient: if CACTus isn't an active supplier yet, activate it and
+    // request the current movie range, rather than requiring the user to tick it in the SWEK tree
+    // first. The download is async; the Handle callbacks below refresh the table when it arrives.
+    private void ensureCactusLoaded() {
+        SWEKSupplier cactus = SWEKCatalog.findCactus();
+        if (cactus == null)
+            return;
+        if (!JHVEventCache.isSupplierActive(cactus))
+            JHVEventCache.setSupplierActive(cactus, true);
+        JHVEventCache.requestForInterval(Player.getStartTime(), Player.getEndTime(), this);
+    }
+
+    @Override
+    public void cacheUpdated() {
+        java.awt.EventQueue.invokeLater(this::reload);
+    }
+
+    @Override
+    public void newEventsReceived() {
+        java.awt.EventQueue.invokeLater(this::reload);
+    }
+
+    // Canvas/timeline -> table: when the global highlight changes (e.g. a wedge was clicked on the
+    // canvas), select the matching row. Guarded so mirroring the highlight doesn't re-fire it.
+    @Override
+    public void highlightChanged() {
+        java.awt.EventQueue.invokeLater(() -> {
+            JHVRelatedEvents hl = JHVEventCache.getHighlighted();
+            int modelRow = hl == null ? -1 : rows.indexOf(hl);
+            syncingSelection = true;
+            try {
+                if (modelRow < 0)
+                    table.clearSelection();
+                else {
+                    int viewRow = table.convertRowIndexToView(modelRow);
+                    table.setRowSelectionInterval(viewRow, viewRow);
+                    table.scrollRectToVisible(table.getCellRect(viewRow, 0, true));
+                }
+            } finally {
+                syncingSelection = false;
+            }
+        });
+    }
+
     private void reload() {
+        syncingSelection = true; // rebuilding the model churns the selection; don't treat that as a user pick
         model.setRowCount(0);
         rows.clear();
 
@@ -129,6 +199,8 @@ public final class CactusTrackDialog extends JDialog {
                             intParam(evt, "event_coord1"),
                             re.getSupplier().displayName()});
                 });
+        syncingSelection = false;
+        highlightChanged(); // restore the row selection to whatever wedge is currently highlighted
 
         status.setText(rows.isEmpty()
                 ? "No CACTus events in the loaded range — enable HEK → CME → CACTus and load a coronagraph movie."

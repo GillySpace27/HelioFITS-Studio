@@ -6,6 +6,7 @@ import java.util.function.Supplier;
 
 import javax.annotation.Nullable;
 
+import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.layers.ImageLayer;
@@ -131,6 +132,13 @@ public class Player {
 
     private static int deltaT;
 
+    // How many consecutive movieTimer ticks have failed to move lastTimestamp forward — a frame
+    // whose data never arrives (a stalled/failed network fetch, e.g. a slow archive) can otherwise
+    // leave playback silently "playing" in place forever. A few ticks' grace avoids false positives
+    // from a single legitimate repeat; past that, we've genuinely stalled.
+    private static int stuckTicks;
+    private static final int STUCK_TICK_LIMIT = 5;
+
     private static void relativeTimeAdvance() {
         ImageLayer layer = Layers.getActiveImageLayer();
         if (layer != null) {
@@ -140,11 +148,50 @@ public class Player {
                     time -> JHVTime.clamp(view.getLowerTime(time), playbackFirstTime, playbackLastTime),
                     time -> JHVTime.clamp(view.getHigherTime(time), playbackFirstTime, playbackLastTime));
 
-            if (next == null)
+            if (next == null) {
                 pause();
-            else
-                syncTime(next);
+                return;
+            }
+            if (isStuck(next)) {
+                // The view's own lower/higher traversal can't move past this point (e.g. a gap
+                // left by a frame that failed to download) even though we haven't reached the
+                // configured end. Try a direct index scan past the stuck point first — it uses
+                // the frame list itself rather than the traversal that got stuck.
+                JHVTime skip = scanPastGap(view, next);
+                if (skip != null) {
+                    stuckTicks = 0;
+                    syncTime(skip);
+                    return;
+                }
+                if (++stuckTicks >= STUCK_TICK_LIMIT) {
+                    stuckTicks = 0;
+                    pause();
+                    Message.warn("Playback stalled", "Could not advance past " + TimeUtils.format(next.milli)
+                            + " — the next frame's data may have failed to download. Paused; scrub to resume.");
+                    return;
+                }
+            } else {
+                stuckTicks = 0;
+            }
+            syncTime(next);
         }
+    }
+
+    // Look past a stuck point directly in the frame index (not via getLowerTime/getHigherTime,
+    // which is what got stuck) for the next frame within the playback range.
+    @Nullable
+    private static JHVTime scanPastGap(View view, JHVTime stuckAt) {
+        int max = view.getMaximumFrameNumber();
+        for (int i = view.getCurrentFrameNumber() + 1; i <= max; i++) {
+            JHVTime t = view.getFrameTime(i);
+            if (t.milli > stuckAt.milli && t.milli <= playbackLastTime.milli)
+                return t;
+        }
+        return null;
+    }
+
+    private static boolean isStuck(JHVTime next) {
+        return next.milli == lastTimestamp.milli && next.milli != playbackLastTime.milli;
     }
 
     private static void absoluteTimeAdvance() {
@@ -155,10 +202,21 @@ public class Player {
                     time -> new JHVTime(Math.max(playbackFirstTime.milli, time.milli - deltaT)),
                     time -> new JHVTime(Math.min(playbackLastTime.milli, time.milli + deltaT)));
 
-            if (next == null)
+            if (next == null) {
                 pause();
-            else
-                syncTime(next);
+                return;
+            }
+            if (isStuck(next)) {
+                if (++stuckTicks >= STUCK_TICK_LIMIT) {
+                    stuckTicks = 0;
+                    pause();
+                    Message.warn("Playback stalled", "Could not advance past " + TimeUtils.format(next.milli) + ". Paused; scrub to resume.");
+                    return;
+                }
+            } else {
+                stuckTicks = 0;
+            }
+            syncTime(next);
         }
     }
 
@@ -228,6 +286,40 @@ public class Player {
     public static boolean isAvailable() {
         ImageLayer layer = Layers.getActiveImageLayer();
         return layer != null && layer.getView().isMultiFrame();
+    }
+
+    // Trim (playback range) endpoint times — shared with the bottom timeline so trim markers line up.
+    public static long getPlaybackFirstTime() {
+        return playbackFirstTime.milli;
+    }
+
+    public static long getPlaybackLastTime() {
+        return playbackLastTime.milli;
+    }
+
+    public static int getCurrentFrameNumber() {
+        ImageLayer layer = Layers.getActiveImageLayer();
+        return layer == null ? 0 : layer.getView().getCurrentFrameNumber();
+    }
+
+    // Frame index whose timestamp is nearest the given time — lets the bottom timeline set a trim
+    // point (a frame) from a cursor time.
+    public static int frameForTime(long millis) {
+        ImageLayer layer = Layers.getActiveImageLayer();
+        if (layer == null)
+            return 0;
+        View view = layer.getView();
+        int max = view.getMaximumFrameNumber();
+        int best = 0;
+        long bestDiff = Long.MAX_VALUE;
+        for (int i = 0; i <= max; i++) {
+            long d = Math.abs(view.getFrameTime(i).milli - millis);
+            if (d < bestDiff) {
+                bestDiff = d;
+                best = i;
+            }
+        }
+        return best;
     }
 
     public static int getMaximumFrameNumber() {

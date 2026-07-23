@@ -34,8 +34,14 @@ public final class GLRenderer {
             case Orthographic -> createConstantScales(viewports, MapScale.ortho);
             case HPC -> createHpcScales(viewports);
             case Latitudinal -> createConstantScales(viewports, MapScale.lati);
-            case RadialWarp, RectWarp -> createConstantScales(viewports, MapScale.boxCoxRadial(ImageLayers.getLargestRadialSize()));
+            case RadialWarp, RectWarp -> createConstantScales(viewports, MapScale.boxCoxRadial(effectiveOuterRadius()));
         };
+    }
+
+    // The warp projections' outer edge: the user's radial crop when set, else the full FOV.
+    public static double effectiveOuterRadius() {
+        double user = Display.getWarpOuterRadius();
+        return user > 0 ? user : ImageLayers.getLargestRadialSize();
     }
 
     private static MapScale[] createHpcScales(Viewport[] viewports) {
@@ -195,6 +201,58 @@ public final class GLRenderer {
         Viewport vp = Display.fullViewport;
         GL.glViewport(vp.x, vp.yGL, vp.width, vp.height);
         Layers.renderFullFloat(vp);
+        renderPrintableArea(vp);
+    }
+
+    private static final GLSLLine printableLine = new GLSLLine(true);
+    private static final BufVertex printableBuf = new BufVertex(1024 * GLSLLine.stride);
+
+    // Dashed frame of the region the recorded video will capture. The export preserves the camera's
+    // vertical extent and changes the horizontal with the output aspect, so the printable width is
+    // the canvas width scaled by (outputAspect / canvasAspect), full height, centred.
+    private static void renderPrintableArea(Viewport vp) {
+        if (!Display.showPrintableArea)
+            return;
+        org.helioviewer.jhv.app.state.ViewState.Size out = org.helioviewer.jhv.app.state.ViewState.recordingData().size().getSize();
+        if (out.width() <= 0 || out.height() <= 0 || vp.width <= 0 || vp.height <= 0)
+            return;
+        double aspectOut = out.width() / (double) out.height();
+        double aspectCanvas = vp.width / (double) vp.height;
+        double pw = vp.width * aspectOut / aspectCanvas;
+        double x0 = (vp.width - pw) / 2, x1 = x0 + pw;
+        double y0 = 0, y1 = vp.height;
+
+        byte[] col = org.helioviewer.jhv.base.Colors.bytes(255, 230, 60, 235);
+        byte[] nul = org.helioviewer.jhv.base.Colors.Null;
+        dashedEdge(x0, y0, x1, y0, col, nul);
+        dashedEdge(x1, y0, x1, y1, col, nul);
+        dashedEdge(x1, y1, x0, y1, col, nul);
+        dashedEdge(x0, y1, x0, y0, col, nul);
+
+        Transform.pushProjection();
+        Transform.setOrtho2DProjection(0, vp.width, 0, vp.height);
+        Transform.pushView();
+        Transform.setIdentityView();
+        printableLine.setVertexRepeatable(printableBuf);
+        printableLine.renderLine(vp, 2);
+        Transform.popView();
+        Transform.popProjection();
+    }
+
+    private static void dashedEdge(double ax, double ay, double bx, double by, byte[] col, byte[] nul) {
+        double dash = 12, gap = 8;
+        double dx = bx - ax, dy = by - ay;
+        double len = Math.hypot(dx, dy);
+        if (len < 1)
+            return;
+        double ux = dx / len, uy = dy / len;
+        for (double s = 0; s < len; s += dash + gap) {
+            double e = Math.min(s + dash, len);
+            printableBuf.putVertex((float) (ax + ux * s), (float) (ay + uy * s), 0, 1, nul);
+            printableBuf.putVertex((float) (ax + ux * s), (float) (ay + uy * s), 0, 1, col);
+            printableBuf.putVertex((float) (ax + ux * e), (float) (ay + uy * e), 0, 1, col);
+            printableBuf.repeatVertex(nul);
+        }
     }
 
     private GLRenderer() {}

@@ -41,6 +41,20 @@ public final class SideContentPane extends JComponent {
         add(dummy, c);
     }
 
+    public void expandAll() {
+        for (CollapsiblePane pane : map.values())
+            pane.setExpanded(true);
+        revalidate();
+        repaint();
+    }
+
+    public void collapseAll() {
+        for (CollapsiblePane pane : map.values())
+            pane.setExpanded(false);
+        revalidate();
+        repaint();
+    }
+
     public void remove(JComponent component) {
         CollapsiblePane pane = map.remove(component);
         if (pane != null)

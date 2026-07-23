@@ -123,7 +123,12 @@ class SWEKPopupController implements InputPointerListener, InputPointerMotionLis
 
     @Override
     public void mouseClicked(PointerEvent e) {
+        // Clicking selects the wedge under the cursor: the selection IS the global highlight, so it
+        // stays bold on the canvas and stays linked to the Track-CME dialog row and the timeline bar
+        // (all keyed off isHighlighted). Clicking empty space clears the selection. Hover no longer
+        // drives the highlight — only the click does — so the selection persists as the mouse moves.
         JHVRelatedEvents mouseOverJHVEvent = swekContext.mouseOverJHVEvent();
+        JHVEventCache.highlight(mouseOverJHVEvent);
         if (mouseOverJHVEvent != null) {
             Component canvas = component();
             SWEKEventInformationDialog hekPopUp = new SWEKEventInformationDialog(mouseOverJHVEvent, mouseOverJHVEvent.getClosestTo(swekContext.mouseOverTime()));
@@ -137,12 +142,20 @@ class SWEKPopupController implements InputPointerListener, InputPointerMotionLis
 
     @Override
     public void mouseExited(PointerEvent e) {
-        resetHover();
+        clearHoverPreview(); // leaving the canvas keeps the selection
     }
 
+    // Full teardown: drop the hover tooltip and the selection. Used when the layer is disabled/removed.
     void resetHover() {
         swekContext.clearHover();
         JHVEventCache.highlight(null);
+        component().setCursor(lastCursor != null ? lastCursor : Cursor.getDefaultCursor());
+    }
+
+    // Mouse moved off the events (or left the canvas): drop the hover tooltip/cursor but keep the
+    // clicked selection highlighted.
+    private void clearHoverPreview() {
+        swekContext.clearHover();
         component().setCursor(lastCursor != null ? lastCursor : Cursor.getDefaultCursor());
     }
 
@@ -159,7 +172,7 @@ class SWEKPopupController implements InputPointerListener, InputPointerMotionLis
         long currentTime = viewpoint.time.milli;
         List<JHVRelatedEvents> activeEvents = JHVEventCache.getEvents(currentTime, currentTime);
         if (activeEvents.isEmpty()) {
-            resetHover();
+            clearHoverPreview();
             return;
         }
 
@@ -174,7 +187,6 @@ class SWEKPopupController implements InputPointerListener, InputPointerMotionLis
 
         swekContext.setMouseOver(mouseOverX, mouseOverY, currentTime, mouseOverJHVEvent);
         Component canvas = component();
-        JHVEventCache.highlight(mouseOverJHVEvent);
         Cursor cursor = canvas.getCursor();
         if (helpCursor != cursor)
             lastCursor = cursor;

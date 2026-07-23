@@ -165,6 +165,16 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         freeButton.addActionListener(e -> ViewState.setRecordingMode(ViewState.RecordingMode.FREE));
 
         c.gridy = 1;
+        c.gridx = 0;
+        com.jidesoft.swing.JideToggleButton printableToggle = new com.jidesoft.swing.JideToggleButton("Frame");
+        printableToggle.setToolTipText("Show the recorded video's printable area (the output resolution's aspect) on the canvas");
+        printableToggle.setSelected(org.helioviewer.jhv.display.Display.showPrintableArea);
+        printableToggle.addActionListener(e -> {
+            org.helioviewer.jhv.display.Display.showPrintableArea = printableToggle.isSelected();
+            org.helioviewer.jhv.display.DisplayController.display();
+        });
+        recordPanel.add(printableToggle, c);
+
         c.gridx = 1;
         videoLengthLabel.setFont(UIGlobals.uiFontSmall);
         videoLengthLabel.setToolTipText("Estimated length of the recorded video at the current speed and frame count");

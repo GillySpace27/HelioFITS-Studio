@@ -38,6 +38,17 @@ public final class DrawController implements Interfaces.LazyComponent, Interface
     private static long currentTime;
 
     private static boolean locked;
+    private static boolean showMovieEndpoints = true; // draw the movie trim in/out as vertical markers
+
+    public static boolean isShowMovieEndpoints() {
+        return showMovieEndpoints;
+    }
+
+    public static void setShowMovieEndpoints(boolean show) {
+        showMovieEndpoints = show;
+        drawRequest();
+    }
+
     private static final EDTTimer layersUpdater = new EDTTimer(1000 / 2, DrawController::syncLockedLayers);
 
     static {
@@ -55,6 +66,9 @@ public final class DrawController implements Interfaces.LazyComponent, Interface
         long t = System.currentTimeMillis();
         setSelectedInterval(t - 2 * TimeUtils.DAY_IN_MILLIS, t);
         UITimer.register(this);
+        // Redraw the trim markers when the movie in/out points change from anywhere (top scrubber,
+        // the I/O keys, or the bottom timeline itself).
+        org.helioviewer.jhv.app.state.ViewState.addPlaybackRangeListener(DrawController::drawRequest);
     }
 
     public static void saveState(JSONObject jo) {
@@ -238,6 +252,10 @@ public final class DrawController implements Interfaces.LazyComponent, Interface
     public void timeChanged(long milli) {
         currentTime = milli;
         drawMovieLine = true;
+        // Advance the playhead in the same beat as the frame. The drawMovieLine flag is flushed by
+        // the UITimer poll, but during playback that poll was starved by the render loop and the
+        // line only moved on mouse activity; a direct (coalesced) repaint keeps it in sync.
+        listeners.forEach(Listener::drawMovieLineRequest);
     }
 
     public static int getMovieLinePosition() {

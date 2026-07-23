@@ -79,6 +79,10 @@ public class JHVEventCache {
             fireHighlightChanged();
     }
 
+    public static JHVRelatedEvents getHighlighted() {
+        return lastHighlighted;
+    }
+
     public static void addHighlightListener(JHVEventListener.Highlight listener) {
         highlightListeners.add(listener);
     }

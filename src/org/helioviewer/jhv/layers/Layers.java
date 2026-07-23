@@ -49,7 +49,13 @@ public final class Layers {
     public static final TimeListener.Selection timeSelectionListener = Layers::timeSelectionChanged;
 
     private static void timeSelectionChanged(long start, long end) {
-        nullImageLayer.setView(NullView.create(start, end, TimeUtils.defaultCadence(start, end)));
+        // Re-assert the exact placeholder timestamps (e.g. a point cloud series) that fall inside
+        // the new selection, so a selection change doesn't replace real data times with an even
+        // cadence. Falls back to the cadence view when nothing real lands in the window.
+        List<JHVTime> inRange = placeholderTimesWithin(start, end);
+        nullImageLayer.setView(inRange.isEmpty()
+                ? NullView.create(start, end, TimeUtils.defaultCadence(start, end))
+                : NullView.create(inRange));
         // Replacing the placeholder NullView also needs a full Movie resync when it is active.
         if (activeLayer == nullImageLayer)
             Player.setMaster(activeLayer);
@@ -59,6 +65,32 @@ public final class Layers {
 
     public static ImageLayer getActiveImageLayer() {
         return activeLayer;
+    }
+
+    // Timestamps supplied by a non-image layer to drive the movie clock; remembered so a later
+    // time-selection change can restore them instead of clobbering them with an even cadence.
+    private static List<JHVTime> placeholderTimes = List.of();
+
+    private static List<JHVTime> placeholderTimesWithin(long start, long end) {
+        if (placeholderTimes.isEmpty())
+            return List.of();
+        List<JHVTime> out = new ArrayList<>();
+        for (JHVTime t : placeholderTimes)
+            if (t.milli >= start && t.milli <= end)
+                out.add(t);
+        return out;
+    }
+
+    // Let a non-image layer (e.g. a point cloud time series) drive the movie clock when no real
+    // image layer is loaded, by installing its timestamps as the placeholder master's frames.
+    // A real image layer always wins — it carries the authoritative cadence — so installing is a
+    // no-op once one is active (the times are still remembered). Pass an empty list to forget them.
+    public static void setPlaceholderMasterTimes(java.util.Collection<JHVTime> times) {
+        placeholderTimes = times.isEmpty() ? List.of() : List.copyOf(times);
+        if (activeLayer != nullImageLayer || placeholderTimes.isEmpty())
+            return;
+        nullImageLayer.setView(NullView.create(placeholderTimes));
+        Player.setMaster(nullImageLayer);
     }
 
     public static void setActiveImageLayer(ImageLayer layer) {

@@ -11,10 +11,16 @@ import java.awt.event.ActionEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 
+import java.awt.Font;
+import javax.swing.BorderFactory;
+import javax.swing.JLabel;
+import javax.swing.SwingConstants;
 import javax.swing.JFrame;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
+import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
+import javax.swing.JTextField;
 import javax.swing.TransferHandler;
 
 import org.helioviewer.jhv.app.AppInfo;
@@ -144,14 +150,19 @@ public final class MainFrame {
         // The scrubber + playback buttons are always docked at the top (see below); the sidebar keeps
         // the recording/speed settings as their own "Playback options" pane, and the master time range
         // now lives atop Image Layers where it belongs.
-        leftPane.add("Playback and Recording", moviePanel.getPlaybackOptions(), true);
+        // Added expanded so stabilizeLeftPaneWidth() can measure the real content width; they are
+        // collapsed at the end of that method so the sidebar opens wide but with panels closed.
+        // Order: pick-what-to-see (Image Layers) before how-to-play (Playback), then the plugin
+        // panels (Timeline Layers, SWEK) below — the movie-building workflow top to bottom.
         leftPane.add("Image Layers", imageLayersPane, true);
+        leftPane.add("Playback and Recording", moviePanel.getPlaybackOptions(), true);
 
         leftScrollPane = new JScrollPane(leftPane, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         leftScrollPane.setFocusable(false);
         leftScrollPane.setBorder(null);
         leftScrollPane.getVerticalScrollBar().setUnitIncrement(layersPanel.getGridRowHeight());
         leftPaneHost = new FixedWidthPanel();
+        leftPaneHost.add(buildSessionBar(), BorderLayout.NORTH); // document name + save/load, above Playback and Recording
         leftPaneHost.add(leftScrollPane, BorderLayout.CENTER);
 
         awtInputAdapter = new AwtInputAdapter();
@@ -248,8 +259,10 @@ public final class MainFrame {
         frame.addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
-                Actions.ExitProgram exitAction = new Actions.ExitProgram();
-                exitAction.actionPerformed(new ActionEvent(this, 0, ""));
+                // Red close button = dismiss THIS window (drop it from the reopen set), unlike
+                // Cmd-Q which keeps every window for next launch.
+                if (org.helioviewer.jhv.app.ExitHooks.exitProgram(true))
+                    System.exit(0);
             }
         });
 
@@ -297,6 +310,230 @@ public final class MainFrame {
         return mainFrame;
     }
 
+    private static JLabel sessionNameLabel;
+    private static JTextField sessionNameField;
+    private static java.awt.CardLayout sessionNameCards;
+    private static JPanel sessionNamePanel;
+
+    // The document-name bar: a name that double-clicks into an editable field (inline rename +
+    // save), flanked by native Save and Load icons.
+    private static JComponent buildSessionBar() {
+        JPanel bar = new JPanel(new BorderLayout());
+        bar.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
+
+        // Collapse-all / expand-all, left of the name: open or close every sidebar panel at once.
+        JideButton collapseAllButton = new JideButton(Buttons.collapseAll);
+        collapseAllButton.setToolTipText("Collapse all panels");
+        collapseAllButton.addActionListener(e -> { if (leftPane != null) leftPane.collapseAll(); });
+        JideButton expandAllButton = new JideButton(Buttons.expandAll);
+        expandAllButton.setToolTipText("Expand all panels");
+        expandAllButton.addActionListener(e -> { if (leftPane != null) leftPane.expandAll(); });
+        JPanel leftIcons = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEADING, 0, 0));
+        leftIcons.setOpaque(false);
+        leftIcons.add(collapseAllButton);
+        leftIcons.add(expandAllButton);
+        bar.add(leftIcons, BorderLayout.LINE_START);
+
+        sessionNameCards = new java.awt.CardLayout();
+        sessionNamePanel = new JPanel(sessionNameCards);
+        sessionNamePanel.setOpaque(false);
+
+        sessionNameLabel = new JLabel("Untitled", SwingConstants.CENTER);
+        sessionNameLabel.setFont(sessionNameLabel.getFont().deriveFont(Font.BOLD));
+        sessionNameLabel.setToolTipText("Double-click to rename this session");
+        sessionNameLabel.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                if (e.getClickCount() == 2)
+                    beginRenameSession();
+            }
+        });
+
+        sessionNameField = new JTextField();
+        sessionNameField.setHorizontalAlignment(SwingConstants.CENTER);
+        sessionNameField.addActionListener(e -> commitRenameSession()); // Enter
+        sessionNameField.addFocusListener(new java.awt.event.FocusAdapter() {
+            @Override
+            public void focusLost(java.awt.event.FocusEvent e) {
+                commitRenameSession();
+            }
+        });
+        sessionNameField.registerKeyboardAction(e -> endRenameSession(), // Escape cancels
+                javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ESCAPE, 0),
+                JComponent.WHEN_FOCUSED);
+
+        sessionNamePanel.add(sessionNameLabel, "view");
+        sessionNamePanel.add(sessionNameField, "edit");
+        bar.add(sessionNamePanel, BorderLayout.CENTER);
+
+        // New (plain click = new session, instant; ⌘-click = new window, which takes a moment → spinner).
+        JideButton newButton = new JideButton(Buttons.newSession);
+        newButton.setToolTipText("New session (⌘-click for a new window)");
+        JProgressBar newSpinner = makeSpinner();
+        newButton.addActionListener(e -> {
+            if ((e.getModifiers() & java.awt.event.InputEvent.META_MASK) != 0) {
+                int before = org.helioviewer.jhv.app.Session.liveWindowCount();
+                startSpinner(newButton, newSpinner);
+                Runnable done = stopSpinner(newButton, newSpinner, Buttons.newSession);
+                new Actions.NewWindow().actionPerformed(null);
+                pollUntil(() -> org.helioviewer.jhv.app.Session.liveWindowCount() > before, 15000, done);
+            } else {
+                new Actions.NewSession().actionPerformed(null); // instant
+            }
+        });
+
+        // Open (dialog is instant; the reload after choosing a file spins until it lands).
+        JideButton loadButton = new JideButton(Buttons.load);
+        loadButton.setToolTipText("Open a saved session…");
+        JProgressBar loadSpinner = makeSpinner();
+        loadButton.addActionListener(e -> {
+            java.io.File state = org.helioviewer.jhv.gui.dialog.LoadStateDialog.get();
+            if (state != null) {
+                startSpinner(loadButton, loadSpinner);
+                org.helioviewer.jhv.app.Session.onNextStateLoad(stopSpinner(loadButton, loadSpinner, Buttons.load));
+                org.helioviewer.jhv.app.Commands.loadState(state.toURI());
+                org.helioviewer.jhv.app.Session.setSessionFile(state, true);
+            }
+        });
+
+        // Save: quick-save to the current file (silent → spinner); untitled falls back to Save As (dialog).
+        JideButton saveButton = new JideButton(Buttons.save);
+        saveButton.setToolTipText("Save");
+        JProgressBar saveSpinner = makeSpinner();
+        saveButton.addActionListener(e -> {
+            if (org.helioviewer.jhv.app.Session.isNamedSession()) {
+                startSpinner(saveButton, saveSpinner);
+                Runnable done = stopSpinner(saveButton, saveSpinner, Buttons.save);
+                new Thread(() -> { // off the EDT so the spinner animates during the write
+                    org.helioviewer.jhv.app.Session.quickSaveToCurrent();
+                    done.run();
+                }, "JHV-QuickSave").start();
+            } else {
+                new Actions.SaveStateAs().actionPerformed(null); // dialog is its own feedback
+            }
+        });
+
+        JideButton saveAsButton = new JideButton(Buttons.saveAs);
+        saveAsButton.setToolTipText("Save As…");
+        saveAsButton.addActionListener(e -> new Actions.SaveStateAs().actionPerformed(null));
+
+        // Revert: reload the session from its file (spins until the load completes).
+        JideButton revertButton = new JideButton(Buttons.revert);
+        revertButton.setToolTipText("Revert to saved (reload this session from its file)");
+        JProgressBar revertSpinner = makeSpinner();
+        revertButton.addActionListener(e -> {
+            java.io.File f = org.helioviewer.jhv.app.Session.currentSessionFile();
+            if (f == null || !f.isFile())
+                return;
+            int r = javax.swing.JOptionPane.showConfirmDialog(mainFrame,
+                    "Discard changes and revert to the last saved state?",
+                    "Revert to Saved", javax.swing.JOptionPane.OK_CANCEL_OPTION, javax.swing.JOptionPane.WARNING_MESSAGE);
+            if (r != javax.swing.JOptionPane.OK_OPTION)
+                return;
+            startSpinner(revertButton, revertSpinner);
+            org.helioviewer.jhv.app.Session.onNextStateLoad(stopSpinner(revertButton, revertSpinner, Buttons.revert));
+            org.helioviewer.jhv.app.Commands.loadState(f.toURI());
+        });
+
+        // Standard-practice order: New, Open, Save, Save As, Revert.
+        JPanel icons = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.TRAILING, 0, 0));
+        icons.setOpaque(false);
+        icons.add(newButton);
+        icons.add(loadButton);
+        icons.add(saveButton);
+        icons.add(saveAsButton);
+        icons.add(revertButton);
+        bar.add(icons, BorderLayout.LINE_END);
+        return bar;
+    }
+
+    // ---- session-bar spinner helpers: show a spinner in place of a glyph until an action lands ---
+
+    private static JProgressBar makeSpinner() {
+        JProgressBar spinner = new JProgressBar();
+        spinner.setUI(new org.helioviewer.jhv.gui.component.CircularProgressUI());
+        spinner.setIndeterminate(true);
+        spinner.setPreferredSize(new Dimension(16, 16));
+        return spinner;
+    }
+
+    private static void startSpinner(JideButton button, JProgressBar spinner) {
+        button.setEnabled(false);
+        button.setText(null);
+        button.add(spinner);
+        button.revalidate();
+        button.repaint();
+    }
+
+    private static Runnable stopSpinner(JideButton button, JProgressBar spinner, String glyph) {
+        return () -> EventQueue.invokeLater(() -> {
+            button.remove(spinner);
+            button.setText(glyph);
+            button.setEnabled(true);
+            button.revalidate();
+            button.repaint();
+        });
+    }
+
+    // Poll `condition` on the EDT every 200 ms; run `then` when it holds or after timeoutMs (safety).
+    private static void pollUntil(java.util.function.BooleanSupplier condition, int timeoutMs, Runnable then) {
+        long deadline = System.nanoTime() + timeoutMs * 1_000_000L;
+        javax.swing.Timer timer = new javax.swing.Timer(200, null);
+        timer.addActionListener(ev -> {
+            if (condition.getAsBoolean() || System.nanoTime() > deadline) {
+                timer.stop();
+                then.run();
+            }
+        });
+        timer.setRepeats(true);
+        timer.start();
+    }
+
+    private static void beginRenameSession() {
+        sessionNameField.setText(org.helioviewer.jhv.app.Session.displayName().equals("Untitled") ? "" : org.helioviewer.jhv.app.Session.displayName());
+        sessionNameCards.show(sessionNamePanel, "edit");
+        sessionNameField.requestFocusInWindow();
+        sessionNameField.selectAll();
+    }
+
+    private static boolean renaming;
+
+    private static void commitRenameSession() {
+        if (renaming)
+            return;
+        renaming = true;
+        try {
+            String name = sessionNameField.getText().trim();
+            if (!name.isEmpty())
+                org.helioviewer.jhv.app.Session.renameCurrentSession(name);
+            endRenameSession();
+        } finally {
+            renaming = false;
+        }
+    }
+
+    private static void endRenameSession() {
+        sessionNameCards.show(sessionNamePanel, "view");
+    }
+
+    // Show the current session's name in-app (the macOS title bar is hidden here) and in the
+    // window title / Window menu / Mission Control.
+    public static void setSessionName(String name) {
+        String shown = name == null || name.isBlank() ? "Untitled" : name;
+        if (sessionNameLabel != null)
+            sessionNameLabel.setText(shown);
+        if (mainFrame != null)
+            mainFrame.setTitle(shown + " — " + AppInfo.programName);
+    }
+
+    public static void toFront() {
+        if (mainFrame != null) {
+            mainFrame.setState(java.awt.Frame.NORMAL); // de-minimize if needed
+            mainFrame.toFront();
+            mainFrame.requestFocus();
+        }
+    }
+
     public static SideContentPane getLeftContentPane() {
         return leftPane;
     }
@@ -324,6 +561,8 @@ public final class MainFrame {
         // than the startup measurement, and there is no horizontal scrollbar — so grow to fit. Only
         // ever growing keeps the width from oscillating as layers are selected.
         UITimer.register(MainFrame::growLeftPaneToFit);
+
+        leftPane.collapseAll(); // open the sidebar at full width but with every panel collapsed
     }
 
     private static int fixedContentWidth;

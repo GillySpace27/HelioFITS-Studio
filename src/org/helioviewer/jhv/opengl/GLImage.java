@@ -94,10 +94,11 @@ public class GLImage {
 
     public void applyFilters(boolean rhefActive) {
         MetaData metaData = uploadedImageData.metaData();
-        // Radial mask scale: the layer's inscribed (nearest-edge) radius. getOuterRadius() can
-        // be Float.MAX_VALUE (unbounded FOV, e.g. AIA); the corner distance overshoots the
-        // circular FOV, so inscribed is the meaningful full-extent reference.
-        double maskRef = ImageBounds.inscribed(metaData);
+        // Radial mask scale: the layer's corner (outermost) radius, so the mask handle at 1.0
+        // sits at the far corner of a square-cornered FOV (e.g. PUNCH). Referencing the inscribed
+        // nearest-edge radius instead made the first tick below 1.0 jump straight past all the
+        // corner data — a discontinuity between "full image" and "cropped to the nearest edge".
+        double maskRef = ImageBounds.radial(metaData);
         // shader.bindSector(gl, -Math.max(Math.abs(metaData.getSector0()), Math.abs(sector0)), Math.max(metaData.getSector1(), sector1));
         color[0] = (float) (opacity * red); // https://amindforeverprogramming.blogspot.com/2013/07/why-alpha-premultiplied-colour-blending.html
         color[1] = (float) (opacity * green);

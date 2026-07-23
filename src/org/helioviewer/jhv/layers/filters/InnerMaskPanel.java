@@ -25,7 +25,7 @@ public class InnerMaskPanel implements FilterDetails {
 
     public InnerMaskPanel(ImageLayer layer) {
         MetaData m = layer.getMetaData();
-        outerR = m != null ? ImageBounds.inscribed(m) : 1; // nearest-edge radius; corner/getOuterRadius overshoot
+        outerR = m != null ? ImageBounds.radial(m) : 1; // corner (outermost) radius, so 1.0 = the far corner, no jump
         int low = (int) Math.round(layer.getGLImage().getInnerMask() * STEPS);
         int high = (int) Math.round(layer.getGLImage().getOuterMask() * STEPS);
         slider = new JHVRangeSlider(0, STEPS, low, high);

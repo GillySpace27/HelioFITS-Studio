@@ -32,12 +32,26 @@ public class CommandLine {
 
     public static void setArguments(String[] args) {
         arguments = args;
-        // append state if user set in GUI, command line takes precedence
+        // Precedence: an explicit -state on the command line, else a GUI-pinned default session
+        // (startup.loadState), else the auto-restored last session. Command line always wins
+        // because it is appended last and loadRequest() honors the first -state it sees.
+        String stateArg = null;
+        java.io.File restore = org.helioviewer.jhv.app.Session.restoreCandidate();
         String propState = Settings.getProperty("startup.loadState");
-        if (propState != null && !"false".equals(propState) && !"true".equals(propState)) {
+        if (org.helioviewer.jhv.app.Session.isExtraWindow()) {
+            // A spawned window restores only its assigned session file (empty if brand-new);
+            // the pinned default is a primary-window concept.
+            if (restore != null)
+                stateArg = restore.toURI().toString();
+        } else if (propState != null && !"false".equals(propState) && !"true".equals(propState)) {
+            stateArg = Path.of(propState).toUri().toString();
+        } else if (restore != null) {
+            stateArg = restore.toURI().toString();
+        }
+        if (stateArg != null) {
             arguments = Arrays.copyOf(args, args.length + 2);
             arguments[args.length] = "-state";
-            arguments[args.length + 1] = Path.of(propState).toUri().toString();
+            arguments[args.length + 1] = stateArg;
         }
     }
 

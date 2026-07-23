@@ -45,6 +45,8 @@ public final class TimeSelectorPanel extends JPanel {
         HOUR_6("6 hours", 21_600_000L),
         HOUR_12("12 hours", 43_200_000L),
         HOUR_24("24 hours", 86_400_000L),
+        HOUR_48("48 hours", 172_800_000L),
+        HOUR_72("72 hours", 259_200_000L),
         WEEK_1("1 week", 7 * TimeUtils.DAY_IN_MILLIS),
         CR_1("1 CR", Math.round(Carrington.CR_SYNODIC_MEAN * TimeUtils.DAY_IN_MILLIS)),
         MONTH_1("1 month", 30 * TimeUtils.DAY_IN_MILLIS),

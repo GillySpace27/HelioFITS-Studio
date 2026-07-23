@@ -1,0 +1,42 @@
+package org.helioviewer.jhv.plugins.pointcloud;
+
+import org.helioviewer.jhv.layers.selector.LayerOptions;
+import org.helioviewer.jhv.plugins.Plugin;
+
+import org.json.JSONObject;
+
+public class PointCloudPlugin extends Plugin {
+
+    public PointCloudPlugin() {
+        super("Point Cloud Plugin", "Render point clouds and their alpha-shape meshes");
+    }
+
+    @Override
+    public void install() {
+        // Layers are created on demand from File > New Point Cloud Layer, not here.
+    }
+
+    @Override
+    public void uninstall() {
+        // Point-cloud layers are user-created and user-removed; nothing plugin-owned to drop.
+    }
+
+    @Override
+    public void installGUI() {
+        LayerOptions.register(PointCloudLayer.class, l -> new PointCloudOptions((PointCloudLayer) l));
+    }
+
+    @Override
+    public void uninstallGUI() {
+        LayerOptions.unregister(PointCloudLayer.class);
+    }
+
+    @Override
+    public void saveState(JSONObject jo) {
+    }
+
+    @Override
+    public void loadState(JSONObject jo) {
+    }
+
+}

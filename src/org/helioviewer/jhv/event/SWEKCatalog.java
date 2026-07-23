@@ -37,6 +37,15 @@ public final class SWEKCatalog {
         return suppliersByGroup.getOrDefault(group, List.of());
     }
 
+    // The CACTus CME supplier, or null if the catalog has no CACTus entry. Avoids hardcoding
+    // its composite key so a SWEK.json rename can't silently break the Track-CME auto-load.
+    public static SWEKSupplier findCactus() {
+        for (SWEKSupplier s : suppliers.values())
+            if (s.isCactus())
+                return s;
+        return null;
+    }
+
     public static void setRelatedEvents(List<SWEK.RelatedEvents> events) {
         relatedEvents = events;
         updateDatabaseFields();

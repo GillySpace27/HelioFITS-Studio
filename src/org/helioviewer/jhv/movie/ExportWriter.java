@@ -33,7 +33,10 @@ class ExportWriter {
     private File tempFile;
 
     ExportWriter(ExportFormat _format, int _w, int _h, int _fps) {
-        prefix = Directories.EXPORTS.getPath() + "JHV_" + TimeUtils.formatFilename(System.currentTimeMillis());
+        // Name the export after the current session so a recording is self-identifying.
+        String session = org.helioviewer.jhv.app.Session.displayName();
+        String base = "Untitled".equals(session) ? "JHV" : session.replaceAll("[^A-Za-z0-9._-]", "_");
+        prefix = Directories.EXPORTS.getPath() + base + "_" + TimeUtils.formatFilename(System.currentTimeMillis());
         format = _format;
         w = _w;
         h = _h;
@@ -86,8 +89,9 @@ class ExportWriter {
             "-colorspace", "bt709",
             "-color_range", "2",
             "-tune", "animation",
-            "-movflags", "+faststart",
-            "-movflags", "+write_colr" // may be useless
+            // One -movflags wins over another in ffmpeg, so combine them: +faststart moves the
+            // moov atom to the front, which is what makes the file seek/scrub responsively.
+            "-movflags", "+faststart+write_colr"
     );
     private static final List<String> formatImage = List.of(
             "-vf", "scale=in_range=pc:out_range=pc"
@@ -125,6 +129,18 @@ class ExportWriter {
         command.addAll(input);
         command.addAll(format.settings);
         command.addAll(format == ExportFormat.PNG ? formatImage : formatVideo);
+        if (format != ExportFormat.PNG) {
+            // Frequent keyframes (~2/sec, scene-cut off) so scrubbing backward is smooth: a player
+            // only has to decode back to the nearest keyframe. The default GOP (~250) makes reverse
+            // scrubbing stutter. +faststart (above) handles the seek index.
+            int gop = Math.max(1, fps / 2);
+            command.add("-g");
+            command.add(String.valueOf(gop));
+            command.add("-keyint_min");
+            command.add(String.valueOf(gop));
+            command.add("-sc_threshold");
+            command.add("0");
+        }
         command.add("-y");
         command.add(outPath);
         return command;

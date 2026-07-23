@@ -39,7 +39,7 @@ public class GLSLSolarShader extends GLSLShader {
     private static final int PROJECTION_SIZE = projectionBuf.capacity() * 4;
 
     private static GLBO screenBO;
-    private static final FloatBuffer screenBuf = BufferUtils.newFloatBuffer(16 + 6 + 2);
+    private static final FloatBuffer screenBuf = BufferUtils.newFloatBuffer(16 + 8);
     private static final int SCREEN_SIZE = screenBuf.capacity() * 4;
 
     private static GLBO displayBO;
@@ -148,6 +148,7 @@ public class GLSLSolarShader extends GLSLShader {
         screenBuf.put((float) scale.toMapX(0)).put((float) scale.toMapX(1));
         screenBuf.put((float) scale.toMapY(0)).put((float) scale.toMapY(1));
         screenBuf.put((float) scale.warpLambda());
+        screenBuf.put((float) scale.warpLimb());
 
         screenBuf.flip();
         screenBO.setBufferData(SCREEN_SIZE, screenBuf); // always changes

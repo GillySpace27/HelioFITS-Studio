@@ -63,7 +63,24 @@ static void jhv_run_on_main_sync(void (^block)(void)) {
         return;
     }
 
-    dispatch_sync(dispatch_get_main_queue(), block);
+    // A plain dispatch_sync(main) from the EDT deadlocks against AWT: LWCToolkit.invokeAndWait
+    // pumps the main thread in its private "AWTRunLoopMode", which does NOT drain the main dispatch
+    // queue — so if the AppKit thread is inside invokeAndWait while we hold the sync, neither side
+    // advances. (Reliably hit when a second GUI process attaches its Metal layer.) Schedule the
+    // block on the main run loop in both the default and the AWT modes so it runs even during
+    // invokeAndWait, and wait on a semaphore. CFRunLoopPerformBlock runs the block once, in the
+    // first of the given modes to become active.
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    CFRunLoopRef mainLoop = CFRunLoopGetMain();
+    CFStringRef modes[] = {kCFRunLoopDefaultMode, CFSTR("AWTRunLoopMode")};
+    CFArrayRef modeArray = CFArrayCreate(NULL, (const void **) modes, 2, &kCFTypeArrayCallBacks);
+    CFRunLoopPerformBlock(mainLoop, modeArray, ^{
+        block();
+        dispatch_semaphore_signal(done);
+    });
+    CFRelease(modeArray);
+    CFRunLoopWakeUp(mainLoop);
+    dispatch_semaphore_wait(done, DISPATCH_TIME_FOREVER);
 }
 
 static void jhv_run_on_main_async(void (^block)(void)) {

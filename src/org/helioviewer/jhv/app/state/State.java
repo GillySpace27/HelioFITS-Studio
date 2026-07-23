@@ -39,14 +39,22 @@ public final class State {
     public static void save(String dir, String file) {
         JSONObject json = toJson();
 
-        AppThread.create(() -> {
-            Path path = Path.of(dir, file);
-            try (BufferedWriter writer = Files.newBufferedWriter(path)) {
-                json.write(writer);
-            } catch (IOException e) {
-                Log.error(e);
-            }
-        }, "JHV-SaveState").start();
+        AppThread.create(() -> writeJson(json, dir, file), "JHV-SaveState").start();
+    }
+
+    // Synchronous save for shutdown: the async variant can be cut off by System.exit before the
+    // write lands. Build the JSON on the (EDT) caller, write on the same thread.
+    public static void saveNow(String dir, String file) {
+        writeJson(toJson(), dir, file);
+    }
+
+    private static void writeJson(JSONObject json, String dir, String file) {
+        Path path = Path.of(dir, file);
+        try (BufferedWriter writer = Files.newBufferedWriter(path)) {
+            json.write(writer);
+        } catch (IOException e) {
+            Log.error(e);
+        }
     }
 
     private static JSONObject toJson() {
@@ -150,6 +158,15 @@ public final class State {
             }
         }
         Timelines.getLayers().restore(newList);
+
+        // The coverage track is a default; keep it present even when restoring a session saved
+        // before it existed (or one that simply didn't include it).
+        boolean hasCoverage = false;
+        for (TimelineLayer tl : TimelineLayers.get())
+            if (tl instanceof org.helioviewer.jhv.timelines.CoverageTimelineLayer)
+                hasCoverage = true;
+        if (!hasCoverage)
+            Timelines.getLayers().add(new org.helioviewer.jhv.timelines.CoverageTimelineLayer());
     }
 
     private static void loadLayers(JSONObject data, @Nullable Commands.OperationContext context, ViewState.ModeData modeData) {
@@ -225,10 +242,20 @@ public final class State {
             if (masterLayer != null && Layers.getImageLayers().contains(masterLayer))
                 Layers.setActiveImageLayer(masterLayer);
             applyRestoredPlaybackState();
+            DisplayController.render(1); // force a full-quality decode so restored frames load from cache immediately
+            // A second, deferred render: on the auto-restore at startup the immediate one can land
+            // before the GL canvas has attached, so nothing shows until a manual reload. This
+            // repeats it once the canvas is up, so the restored session displays on its own.
+            javax.swing.Timer deferred = new javax.swing.Timer(900, ev -> DisplayController.render(1));
+            deferred.setRepeats(false);
+            deferred.start();
+            org.helioviewer.jhv.app.Session.markSaved(); // a freshly-loaded session is not "unsaved"
+            org.helioviewer.jhv.app.Session.fireStateLoadComplete();
             Commands.notifyLoadStateFinished(context, true, "State loaded.");
         }
 
         void onFailure(Throwable t) {
+            org.helioviewer.jhv.app.Session.fireStateLoadComplete();
             Log.error(t);
             String message = t.getMessage() == null || t.getMessage().isBlank() ? "State load failed." : t.getMessage();
             Commands.notifyLoadStateFinished(context, false, message);

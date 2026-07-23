@@ -14,6 +14,12 @@ public interface MapScale {
         return 1;
     }
 
+    // Fraction of the radial extent occupied by the linear disk; only the Box-Cox scale
+    // (and the warp shaders, via ScreenBlock) use a non-trivial value.
+    default double warpLimb() {
+        return 0;
+    }
+
     MapScale ortho = new LinearMapScale(0, 0, 0, 0);
     MapScale lati = new LinearMapScale(-180, 180, -90, 90);
 
@@ -79,7 +85,21 @@ public interface MapScale {
 
         BoxCoxRadialScale(double _radialSize) {
             radialSize = _radialSize;
-            limb = 1 / _radialSize;
+            // The limb's screen position. This restores the original origin-anchored warp: the
+            // full radial axis is normalized by warp(R), so the limb sits at
+            // warp(1)/warp(R) = 1/(1 + boxcox(R, lambda)) and the disk's share GROWS as lambda
+            // compresses the corona (~18% at lambda=0 with a 100 Rsun FOV, ~50% at -1, 1/R at
+            // +1 = linear). The corona formula is unchanged; only this anchor differs from
+            // upstream's fixed 1/R, which rendered the disk invisible under a wide FOV.
+            double lambda = Display.getWarpLambda();
+            double bc = _radialSize <= 1 ? 0
+                    : (lambda == 0 ? Math.log(_radialSize) : (Math.pow(_radialSize, lambda) - 1) / lambda);
+            limb = Math.max(1 / _radialSize, 1 / (1 + bc));
+        }
+
+        @Override
+        public double warpLimb() {
+            return limb;
         }
 
         @Override

@@ -129,6 +129,11 @@ class CellRenderer {
                 // While downloading, append finished/total to the right of the timestamp (still
                 // just left of the row's download spinner) rather than replacing the time.
                 if (layer.isDownloading() && layer instanceof ImageLayer il) {
+                    String loadStatus = il.getLoadStatus();
+                    if (loadStatus != null) { // frames still on the wire: narrate the stage instead of "0 / 0"
+                        setText(loadStatus);
+                        return;
+                    }
                     View view = il.getView();
                     int max = view.getMaximumFrameNumber();
                     // Before the download scope is known (max == 0) show 0 / 0 rather than 1 / 1.

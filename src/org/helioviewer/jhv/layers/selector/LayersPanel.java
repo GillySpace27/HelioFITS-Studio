@@ -127,6 +127,13 @@ public final class LayersPanel extends JPanel {
 
     }
 
+    // Frame-download progress (the "X / N" column) changed for some layer. Mark the table dirty so
+    // its lazyRepaint flushes on the next UITimer tick — otherwise the count only refreshes on a
+    // model/name update or mouse activity, and streaming JPX layers appeared frozen at "0 / N".
+    public void downloadProgressChanged() {
+        grid.repaint();
+    }
+
     public LayersPanel(LayerOptionSections sections) {
         this.sections = sections;
         setLayout(new GridBagLayout());
@@ -145,6 +152,15 @@ public final class LayersPanel extends JPanel {
         jsp.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, getBackground().brighter()));
         jsp.getViewport().setBackground(grid.getBackground());
         add(jsp, gc);
+
+        // Drag handle below the list: grow it until every layer is visible (scrollbar disappears).
+        GridBagConstraints hc = new GridBagConstraints();
+        hc.gridx = 0;
+        hc.gridy = 1;
+        hc.weightx = 1;
+        hc.weighty = 0;
+        hc.fill = GridBagConstraints.HORIZONTAL;
+        add(makeResizeHandle(jsp), hc);
 
         grid.setTableHeader(null);
         grid.setShowHorizontalLines(true);
@@ -242,6 +258,42 @@ public final class LayersPanel extends JPanel {
         grid.setTransferHandler(new TableRowTransferHandler(grid));
 
         jsp.setPreferredSize(new Dimension(-1, grid.getRowHeight() * NUMBEROFVISIBLEROWS + 1));
+    }
+
+    // A thin strip the user drags vertically to resize the layer list, clamped between two rows
+    // and exactly all rows (so the scrollbar vanishes once every layer fits).
+    private java.awt.Component makeResizeHandle(JScrollPane jsp) {
+        javax.swing.JPanel handle = new javax.swing.JPanel();
+        handle.setPreferredSize(new Dimension(0, 5));
+        handle.setMinimumSize(new Dimension(0, 5));
+        handle.setBackground(getBackground().brighter());
+        handle.setToolTipText("Drag to resize the layer list");
+        handle.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.N_RESIZE_CURSOR));
+        java.awt.event.MouseAdapter drag = new java.awt.event.MouseAdapter() {
+            private int startY;
+            private int startH;
+
+            @Override
+            public void mousePressed(java.awt.event.MouseEvent e) {
+                startY = e.getYOnScreen();
+                startH = jsp.getPreferredSize().height;
+            }
+
+            @Override
+            public void mouseDragged(java.awt.event.MouseEvent e) {
+                int rh = grid.getRowHeight();
+                int rows = Math.max(grid.getRowCount(), 1);
+                int minH = rh * 2 + 1;
+                int maxH = rh * rows + 1; // all rows visible → scrollbar gone
+                int h = Math.clamp((long) startH + (e.getYOnScreen() - startY), minH, maxH);
+                jsp.setPreferredSize(new Dimension(-1, h));
+                jsp.revalidate();
+                revalidate();
+            }
+        };
+        handle.addMouseListener(drag);
+        handle.addMouseMotionListener(drag);
+        return handle;
     }
 
     public int getGridRowHeight() {
