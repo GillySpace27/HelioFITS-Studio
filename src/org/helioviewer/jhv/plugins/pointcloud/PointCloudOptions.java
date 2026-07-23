@@ -32,17 +32,42 @@ class PointCloudOptions extends JPanel {
         c.gridy = 0;
 
         JButton open = new JButton("Open…");
-        open.setToolTipText("Load a PointCloud .json or .json.gz file");
+        open.setToolTipText("Load one or more PointCloud .json / .json.gz files");
         open.addActionListener(e -> {
             java.awt.FileDialog fd = new java.awt.FileDialog((java.awt.Frame) null, "Open point cloud", java.awt.FileDialog.LOAD);
+            fd.setMultipleMode(true);
             fd.setVisible(true);
-            String file = fd.getFile();
-            if (file != null) {
-                layer.load(new File(fd.getDirectory(), file).toURI());
+            File[] files = fd.getFiles();
+            if (files.length > 0) {
+                for (File f : files)
+                    layer.load(f.toURI());
                 refreshAlpha(layer);
             }
         });
-        add(open, c);
+        JButton openDir = new JButton("Open folder…");
+        openDir.setToolTipText("Load every .json / .json.gz point cloud in a folder (sorted by filename)");
+        openDir.addActionListener(e -> {
+            javax.swing.JFileChooser fc = new javax.swing.JFileChooser();
+            fc.setFileSelectionMode(javax.swing.JFileChooser.DIRECTORIES_ONLY);
+            fc.setDialogTitle("Open point-cloud folder");
+            if (fc.showOpenDialog(this) == javax.swing.JFileChooser.APPROVE_OPTION) {
+                File dir = fc.getSelectedFile();
+                File[] files = dir.listFiles((d, n) -> {
+                    String s = n.toLowerCase();
+                    return s.endsWith(".json") || s.endsWith(".json.gz");
+                });
+                if (files != null && files.length > 0) {
+                    java.util.Arrays.sort(files); // filename order == timestamp order
+                    for (File f : files)
+                        layer.load(f.toURI());
+                    refreshAlpha(layer);
+                }
+            }
+        });
+        JPanel openRow = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 4, 0));
+        openRow.add(open);
+        openRow.add(openDir);
+        add(openRow, c);
 
         JCheckBox points = new JCheckBox("Points", layer.getShowPoints());
         points.addActionListener(e -> layer.setShowPoints(points.isSelected()));
