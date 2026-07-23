@@ -275,6 +275,8 @@ public final class ViewState {
 
         projection = newProjection;
         Display.setMapMode(newProjection);
+        if (newProjection.isDisk())
+            ImageLayers.applyDiskImagerFlatDefault();
         notifyModeListeners();
     }
 

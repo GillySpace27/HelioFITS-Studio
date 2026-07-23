@@ -2,7 +2,8 @@
 
 ## Motivation
 RHEF is a parameter-free coronal-enhancement filter that rank-equalizes pixels within
-radial annuli centered on the Sun (Gilly & DeForest; sunkit-image `radial.rhef`). Unlike
+radial annuli centered on the Sun ([Gilly & DeForest 2024](https://arxiv.org/html/2511.02798v1);
+[sunkit-image `radial.rhef`](https://docs.sunpy.org/projects/sunkit-image/en/stable/api/sunkit_image.radial.rhef.html)). Unlike
 the spatially-local MGN and WOW filters already in JHV, it normalizes per-radius, which
 flattens the steep radial brightness falloff of the corona and reveals faint outer
 structure (streamers, CME fronts) without manual tuning. It applies to any Sun-centered
@@ -12,11 +13,15 @@ imagery — SDO/AIA, SWAP, LASCO, PUNCH — and is the filter requested in #<RHE
 - A new `ImageFilter.Type.RHEF` filter (decode-time, CPU), implemented with a
   sort-and-group rank kernel so cost does not scale with annulus count.
 - An **Upsilon** midtone control implementing the paper's two-parameter redistribution
-  (Eq. 2): `Υ_L` shapes intensities below the median, `Υ_H` above. Two independent sliders
-  (each 0.05–1), defaulting to the AIA-171 recommendation `Υ_L=0.60, Υ_H=0.40` (Fig. 3), so
-  RHEF looks right out of the box instead of blown out. Applied at render time in
-  `solarCommon.frag` (instant slider response) and **gated to the RHEF filter only** — for
-  None/MGN/WOW the layer passes `Υ=1`, so their rendering is untouched.
+  ([§3.2, Eq. 2](https://arxiv.org/html/2511.02798v1)): `Υ_L` shapes intensities below the
+  median, `Υ_H` above. The two handles are **asymmetric by design** — softening shadows and
+  highlights independently is the point of the control, not redundant tuning; sunkit-image's
+  `rhef` exposes the same split light/dark upsilon
+  ([implementation](https://docs.sunpy.org/projects/sunkit-image/en/stable/_modules/sunkit_image/radial.html#rhef)).
+  Two independent sliders (each 0.05–1), defaulting to the AIA-171 recommendation
+  `Υ_L=0.60, Υ_H=0.40` (Fig. 3), so RHEF looks right out of the box instead of blown out.
+  Applied at render time in `solarCommon.frag` (instant slider response) and **gated to the
+  RHEF filter only** — for None/MGN/WOW the layer passes `Υ=1`, so their rendering is untouched.
 
 ## How it works
 RHEF must know where the Sun is and the pixel scale to define its annuli, but JHV filters
@@ -54,3 +59,13 @@ off-center-Sun (nonzero `CRVAL`) annulus centering Y-sign. Both are isolated and
 - The default `Υ_L=0.60, Υ_H=0.40` is the AIA-171 row of Fig. 3, applied to every layer.
   Worth keying the default off the layer's wavelength (full Fig. 3 table) instead of one
   representative pair?
+
+## References
+- Gilly & DeForest 2024, *Radial Histogram Equalizing Filter*, §3.2 (two-sided Upsilon
+  redistribution): https://arxiv.org/html/2511.02798v1
+- sunkit-image `radial.rhef` API (split light/dark `upsilon`):
+  https://docs.sunpy.org/projects/sunkit-image/en/stable/api/sunkit_image.radial.rhef.html
+- sunkit-image `rhef` source:
+  https://docs.sunpy.org/projects/sunkit-image/en/stable/_modules/sunkit_image/radial.html#rhef
+- sunkit-image RHEF gallery example:
+  https://docs.sunpy.org/projects/sunkit-image/en/stable/generated/gallery/radial_histogram_equalization.html

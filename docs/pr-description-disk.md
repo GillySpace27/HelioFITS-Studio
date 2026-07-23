@@ -1,61 +1,69 @@
-# Add LogDisk and PowerDisk radial projections with a flat-in-disk override
+# Add a PowerDisk Sun-centered radial disk projection
 
 ## Motivation
 JHV's Polar / LogPolar projections are rectilinear unwraps (x = angle, y = radius). For
 coronal work it's often more useful to keep a **Sun-centered disk** view while remapping the
-radial axis so faint outer structure gets screen area it otherwise loses. This adds two such
-Sun-centered disk projections:
-- **LogDisk** — radius mapped logarithmically (reuses the existing log scale).
-- **PowerDisk** — radius mapped by a power law `r^p` (default p = 0.5), which spreads the
-  mid/outer corona without the strong inner compression of a pure log.
+radial axis so faint outer structure gets screen area it otherwise loses. This adds one such
+projection, **PowerDisk**, with a single tunable control that spans the whole useful family.
 
-It also adds a per-layer **flat-in-disk** override: paint a layer flat in the sky plane,
-pegged to the solar limb, instead of warping it with the active radial transform — useful for
-disk imagery (e.g. AIA) composited under a remapped coronagraph.
+## What this adds (commit 1)
+- **`MapMode.PowerDisk`** (new `Kind.DISK`), auto-exposed in the projection toolbar menu.
+- **A radial exponent `p`**, the Box-Cox power transform `(rᵖ−1)/p`, on a live slider in the
+  Projection dropdown:
+  - `p = 1` linear, `p = 0` logarithmic (the exact limit `→ ln r`), `p = −1` inverse
+    (`2 − 1/r`, bounding `r = ∞` to a finite edge). Default `p = 0` (log), which sits mid-slider.
+  - **Linear inside the limb:** the warp is applied only to the corona (`r > 1 R☉`); the disk
+    itself (`r ≤ 1`) stays an undistorted, linearly-scaled sphere, C¹-continuous at the limb. So
+    the on-disk image is never radially smeared, at any `p`.
+- **Automatic flat-in-disk for disk imagers.** A disk imager (FOV dominated by the disk) is
+  rendered flat in the sky plane rather than radially warped — the radial warp polar-resamples
+  and smears the disk center, flat does not. This is decided **live in the renderer** from the
+  layer metadata, so it holds regardless of layer load order; there is no manual toggle to get
+  wrong. Coronagraphs keep the warp.
+  - Disk-vs-coronagraph is detected by field of view (`ImageBounds.inscribed < 2 R☉`), because
+    JP2/Helioviewer sources carry no occulter metadata — `innerRadius`/cutoff/mask are FITS-only,
+    so a JP2 LASCO reports `innerRadius = 0`, identical to AIA. FITS coronagraphs (PUNCH) also
+    report `innerRadius ≥ 1`.
+- **Radial range** — a double-ended slider (same dropdown) sets the inner/outer radius (R☉) the
+  disk shows; its maximum tracks the loaded layers' extent (a `Layers.Listener`), so the outer
+  handle at the top means "fit to the data".
+- **`DiskGrid`** — Sun-centered rings + angular spokes drawn in the disk's isotropic world
+  space. The grid layer's **Longitude** step drives the spoke spacing; the lat/lon-graticule
+  controls that don't map to a radial grid (Grid type, Latitude) are greyed out while a disk
+  projection is active.
+- Fragment shaders `solarDisk{Power,Flat}.frag` + `GLSLSolarShader` instances; two trailing
+  floats (`yParam` = p, `diskFlatRadius`) appended to the shared `Screen` UBO block. Java-side
+  projection math (`ProjectedMap`, `MapScale`, `PolarBasis`, `MapView`, `PositionStatusPanel`)
+  kept dual-consistent with the GLSL per `docs/non-ortho-projection-note.md`.
 
-## What this adds
-- `MapMode.LogDisk` / `MapMode.PowerDisk` (new `Kind.DISK`), auto-exposed in the projection
-  toolbar menu; defaults p = 0.5, logDisk inner radius 0.9 R☉.
-- **PowerDisk's exponent `p` is live-tunable** via a slider (0.25–2.0) in the Projection
-  toolbar dropdown — enabled only while PowerDisk is the active projection, mirroring how the
-  existing annotation-thickness slider sits in its split-button. `p` is read live each render
-  (`PowerMapScale.power()`), so dragging it reshapes the radial mapping in real time. This is
-  the heart of the mode: low `p` spreads the faint outer corona, high `p` favours the inner.
-- Three fragment shaders `solarDisk{Log,Power,Flat}.frag` and their `GLSLSolarShader`
-  instances; two trailing floats (`yParam`, `diskFlatRadius`) appended to the shared `Screen`
-  UBO block.
-- Java-side projection math (`ProjectedMap`, `MapScale`, `PolarBasis`, `MapView`,
-  `PositionStatusPanel`, `GridLayer` + new `DiskGrid`) kept dual-consistent with the GLSL,
-  per `docs/non-ortho-projection-note.md`.
-- A per-layer flat-in-disk toggle persisted on `GLImage`.
+## Also in this PR (separable commits)
+These are committed separately and could be split into their own PRs if you'd prefer:
 
-## Deferred (follow-up PR)
-A dedicated left-pane options panel (`ProjectionOptionsPanel`) bundling the radial-range
-controls (logDisk/powerDisk inner/outer R☉) and a disk-grid colour picker is intentionally
-**not** in this PR — those have sensible defaults, so the modes are fully usable without it.
-PowerDisk's exponent, the one parameter that defines the mode, *is* shipped here (toolbar
-slider, above); the deferred panel is purely the secondary range/colour tuning.
-
-## Files
-`display/{MapMode,MapScale,MapView,ProjectedMap,Display}.java`,
-`math/PolarBasis.java`, `opengl/{GLSLSolarShader,GLRenderer,GLImage}.java`,
-`layers/{GridLayer, grid/DiskGrid}.java`, `layers/ImageLayer.java`,
-`gui/component/ToolBar.java` (PowerDisk exponent slider),
-`gui/status/PositionStatusPanel.java`, `layers/filters/ImageFilterPanel.java`,
-`resources/glsl/solarDisk{Log,Power,Flat}.frag`, `resources/glsl/solarCommon.frag`.
+- **Double-ended radial mask** (commit 2, per layer) — the band between two handles is shown:
+  the low handle masks the disk inward from center, the high handle masks the corona inward from
+  the edge. This is what gives a coronagraph a **transparent central hole** (so a disk imager
+  composited below shows through) and/or an outer crop — the core of a clean coronagraph-over-disk
+  composite. Normalized to the layer's inscribed radius, so resolution is consistent across
+  fields of view (incl. unbounded-FOV layers like AIA, where `getOuterRadius()` is not finite).
+- **Grid color / opacity / line-width** (commit 3) — per-grid-layer styling applied across the
+  orthographic graticule, the polar/flat map grid and the disk rings/spokes (axis, Earth and
+  radial-distance overlays keep their semantic colors); labels fade with the opacity too. General
+  grid feature, mirrors the existing annotation color/thickness options — the most natural one to
+  split out.
 
 ## Testing
-Builds clean (`ant compile`, full tree). The three new fragment shaders were checked by hand
-to resolve every symbol they reference against the current `solarCommon.frag` (ant does not
-compile GLSL). **Reviewer note:** the projection visuals and the new `Screen`-UBO float
-packing need an in-app look on the ANGLE/LWJGL path — the remaining smoke test.
+Builds clean (`ant compile`, full tree; each commit compiles on its own). Fragment shaders were
+checked by hand against `solarCommon.frag` (ant does not compile GLSL) and smoke-tested in-app on
+the ANGLE/Metal path: PowerDisk across `p = −1…0…1`, the `p = 0` log endpoint (verified visually
+indistinguishable from a true-log render), auto-flat on AIA, and a multi-instrument
+AIA + LASCO C2/C3 composite. **Reviewer note:** the new `Screen`-UBO float packing is the one
+item a headless build can't cover.
 
 ## Open questions for the maintainer
-- After #314 (unify non-ortho coordinate handling) / #316 (surface-map WCS), is a new
-  Sun-centered disk remap best expressed the way this PR does it, or is there a newer seam
-  you'd prefer it hook into?
-- PowerDisk's exponent slider lives in the Projection split-button dropdown (enabled only for
-  that mode). Is that the home you'd want for a projection parameter, or would you prefer it in
-  a separate options area?
-- Is appending two floats to the shared `Screen` `std140` block (used by all solar shaders)
-  acceptable, or would you rather they live elsewhere?
+- After #314 (unify non-ortho coordinate handling) / #316 (surface-map WCS), is a Sun-centered
+  disk remap best expressed the way this PR does it, or is there a newer seam you'd prefer?
+- The exponent and radial-range sliders live in the Projection split-button dropdown (enabled
+  only in disk modes). Right home, or a separate options area?
+- Is appending two floats to the shared `Screen` `std140` block acceptable, or elsewhere?
+- The mask and grid-styling commits are bundled here for context but are independent — say the
+  word and either becomes its own PR.

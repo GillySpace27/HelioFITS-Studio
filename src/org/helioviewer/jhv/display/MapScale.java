@@ -37,13 +37,13 @@ public interface MapScale {
     }
 
     static MapScale diskLog(double radialSize) {
-        double rMax = Display.getLogDiskRMax();
-        return new LogMapScale(0, 360, Display.getLogDiskRMin(), Math.max(rMax > 0 ? rMax : radialSize, 2));
+        double rMax = Display.getDiskRMax();
+        return new LogMapScale(0, 360, Math.max(Display.getDiskRMin(), 0.1), Math.max(rMax > 0 ? rMax : radialSize, 2));
     }
 
     static MapScale diskPower(double radialSize) {
-        double rMax = Display.getPowerDiskRMax();
-        return new PowerMapScale(0, 360, Display.getPowerDiskRMin(), Math.max(rMax > 0 ? rMax : radialSize, 1));
+        double rMax = Display.getDiskRMax();
+        return new PowerMapScale(0, 360, Display.getDiskRMin(), Math.max(rMax > 0 ? rMax : radialSize, 1));
     }
 
     abstract class MapScaleBase implements MapScale {

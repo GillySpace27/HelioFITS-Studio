@@ -21,6 +21,10 @@ public enum MapMode {
     public final GLSLSolarShader shader;
     final Kind kind;
 
+    public boolean isDisk() {
+        return kind == Kind.DISK;
+    }
+
     MapMode(GLSLSolarShader _shader, Kind _kind) {
         shader = _shader;
         kind = _kind;

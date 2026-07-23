@@ -39,6 +39,18 @@ public final class ImageLayers {
         return decoded;
     }
 
+    // Disk imagers see the disk (inner radius ~ 0), so they default to a flat in-disk layout
+    // when a disk projection is selected; coronagraphs are occulted (inner radius > 1 R_sun)
+    // and keep the radial warp. Called on switching into a disk mode.
+    public static void applyDiskImagerFlatDefault() {
+        for (ImageLayer layer : Layers.getImageLayers()) {
+            MetaData m = layer.getMetaData();
+            if (m != null)
+                layer.getGLImage().setFlatInDisk(m.getInnerRadius() < 1);
+        }
+        DisplayController.display(); // re-pick the per-layer disk shader (ImageLayer render)
+    }
+
     public static double getLargestPhysicalHeight() {
         double size = 0;
         for (ImageLayer layer : Layers.getImageLayers()) {
@@ -55,6 +67,18 @@ public final class ImageLayers {
             if (!layer.isEnabled())
                 continue;
             size = Math.max(size, ImageBounds.radial(layer.getMetaData()));
+        }
+        return size;
+    }
+
+    // Inscribed (nearest-edge) radius of the widest layer; the meaningful outer radius for
+    // the disk view (beyond it the FOV has only corner data), used to size the range slider.
+    public static double getLargestDiskRadius() {
+        double size = 0;
+        for (ImageLayer layer : Layers.getImageLayers()) {
+            if (!layer.isEnabled())
+                continue;
+            size = Math.max(size, ImageBounds.inscribed(layer.getMetaData()));
         }
         return size;
     }
