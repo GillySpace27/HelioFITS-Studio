@@ -4,6 +4,7 @@ import java.lang.ref.Cleaner;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ShortBuffer;
+import java.util.Arrays;
 import java.util.function.DoubleUnaryOperator;
 
 import javax.annotation.Nullable;
@@ -246,6 +247,16 @@ public final class ImageBuffer {
 
         public ShortBuffer shortBuffer() {
             return (ShortBuffer) writeBuffer;
+        }
+
+        public WriteBuffer clearPixels() {
+            if (directBuffer != null)
+                MemoryUtil.memSet(MemoryUtil.memAddress(writeBuffer), 0, directBuffer.byteSize());
+            else if (byteArray != null)
+                Arrays.fill(byteArray, (byte) 0);
+            else
+                Arrays.fill(shortArray, (short) 0);
+            return this;
         }
 
         public ImageBuffer finish() {
