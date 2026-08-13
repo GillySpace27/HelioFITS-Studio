@@ -79,6 +79,10 @@ RUNS: tuple[ValidationRun, ...] = (
         (str(DATA / "psp_L3_wispr_20231227T150704_V1_2222.fits"), "--inverse-zpn"),
     ),
     ValidationRun(
+        "all_pixels_zpn_wispr_1211",
+        (str(DATA / "psp_L3_wispr_20231227T150508_V1_1211.fits"), "--all-pixels"),
+    ),
+    ValidationRun(
         "hpc_render_compare",
         (str(DATA / "20241224_194245_d4c2A.fts"), "--hpc-render-compare", "--render-size", "2048"),
     ),
