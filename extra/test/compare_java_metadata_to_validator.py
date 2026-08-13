@@ -7,6 +7,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -69,6 +70,253 @@ def suite_cases() -> list[tuple[Path, int | None]]:
     return cases
 
 
+def write_generated_case(validator, output_dir: Path, name: str, header) -> Path:
+    file_path = output_dir / f"{name}.fits"
+    validator.fits.PrimaryHDU(
+        data=validator.np.zeros((8, 8), dtype=validator.np.int16),
+        header=header,
+    ).writeto(file_path, output_verify="silentfix")
+    return file_path
+
+
+def generated_matrix_cases(
+    validator,
+    output_dir: Path,
+) -> tuple[list[tuple[Path, int | None]], set[Path], Path]:
+    source = SCRIPT_DIR / "data" / "sample.171.fits"
+    with validator.fits.open(source) as hdul:
+        source_header = validator.find_image_hdu(hdul, 1).header.copy()
+
+    observer_cases = (
+        (
+            "pc_unequal_negative",
+            {
+                "CDELT1": -0.7,
+                "CDELT2": 1.1,
+                "PC1_1": 0.9,
+                "PC1_2": 0.2,
+                "PC2_1": -0.1,
+                "PC2_2": 1.05,
+                # Irrelevant PV cards must not leak into a TAN interpretation.
+                "PV2_3": 123.0,
+            },
+        ),
+        (
+            "pc_partial",
+            {
+                "CDELT1": -0.7,
+                "CDELT2": 1.1,
+                "PC1_2": 0.15,
+            },
+        ),
+        (
+            "crota_unequal",
+            {
+                "CDELT1": -0.7,
+                "CDELT2": 1.1,
+                "CROTA2": 23.0,
+            },
+        ),
+        (
+            "pc_radian_units",
+            {
+                "CUNIT1": "rad",
+                "CUNIT2": "rad",
+                "CDELT1": -3.4e-6,
+                "CDELT2": 5.3e-6,
+                "CRVAL1": 2e-5,
+                "CRVAL2": -1e-5,
+                "PC1_1": 0.95,
+                "PC1_2": -0.12,
+                "PC2_1": 0.08,
+                "PC2_2": 1.02,
+            },
+        ),
+        (
+            "pc_mixed_angular_units",
+            {
+                "CUNIT1": "arcmin",
+                "CUNIT2": "mas",
+                "CDELT1": -0.012,
+                "CDELT2": 730.0,
+                "CRVAL1": 0.03,
+                "CRVAL2": -1200.0,
+                "PC1_1": 0.98,
+                "PC1_2": -0.08,
+                "PC2_1": 0.06,
+                "PC2_2": 1.01,
+            },
+        ),
+        (
+            "pc_precedes_cd_crota",
+            {
+                "CDELT1": -0.7,
+                "CDELT2": 1.1,
+                "PC1_1": 0.91,
+                "PC1_2": 0.17,
+                "PC2_1": -0.13,
+                "PC2_2": 1.04,
+                "CD1_1": 12.0,
+                "CD1_2": 13.0,
+                "CD2_1": 14.0,
+                "CD2_2": 15.0,
+                "CROTA2": 71.0,
+            },
+        ),
+        (
+            "cd_without_cdelt",
+            {
+                "CD1_1": -0.7,
+                "CD1_2": 0.2,
+                "CD2_1": -0.1,
+                "CD2_2": 1.1,
+            },
+        ),
+        (
+            "partial_cd_ignores_cdelt_crota",
+            {
+                "CDELT1": 19.0,
+                "CDELT2": 23.0,
+                "CD1_2": 0.2,
+                "CD2_1": -0.1,
+                "CD2_2": 1.1,
+                "CROTA2": 47.0,
+            },
+        ),
+        (
+            "cd_mixed_angular_units",
+            {
+                "CUNIT1": "arcmin",
+                "CUNIT2": "mas",
+                "CD1_1": -0.012,
+                "CD1_2": 0.003,
+                "CD2_1": -180.0,
+                "CD2_2": 730.0,
+            },
+        ),
+        (
+            "missing_observer_cunit",
+            {
+                "CDELT1": -0.7,
+                "CDELT2": 1.1,
+                "PC1_1": 0.97,
+                "PC1_2": 0.12,
+                "PC2_1": -0.07,
+                "PC2_2": 1.02,
+            },
+        ),
+        (
+            "lasco_transform_suppression",
+            {
+                "TELESCOP": "SOHO",
+                "INSTRUME": "LASCO",
+                "DETECTOR": "C2",
+                "DATE-OBS": "2012-08-31",
+                "TIME_OBS": "17:34:11.34",
+                "CDELT1": 11.4,
+                "CDELT2": 12.1,
+                "PC1_1": 0.96,
+                "PC1_2": -0.28,
+                "PC2_1": 0.28,
+                "PC2_2": 0.96,
+            },
+        ),
+    )
+
+    generated: list[tuple[Path, int | None]] = []
+    astropy_cases: set[Path] = set()
+    lasco_case = output_dir / "lasco_transform_suppression.fits"
+    reset_keys = (
+        "CROTA", "CROTA1", "CROTA2",
+        "PC1_1", "PC1_2", "PC2_1", "PC2_2",
+        "CD1_1", "CD1_2", "CD2_1", "CD2_2",
+        "PV2_0", "PV2_1", "PV2_2", "PV2_3", "PV2_4", "PV2_5",
+    )
+
+    for name, values in observer_cases:
+        header = source_header.copy()
+        for key in reset_keys:
+            header.remove(key, ignore_missing=True, remove_all=True)
+        if name == "missing_observer_cunit":
+            header.remove("CUNIT1", ignore_missing=True, remove_all=True)
+            header.remove("CUNIT2", ignore_missing=True, remove_all=True)
+        if name in ("cd_without_cdelt", "cd_mixed_angular_units"):
+            header.remove("CDELT1", ignore_missing=True, remove_all=True)
+            header.remove("CDELT2", ignore_missing=True, remove_all=True)
+        header["CRPIX1"] = 4.5
+        header["CRPIX2"] = 4.5
+        for key, value in values.items():
+            header[key] = value
+
+        file_path = write_generated_case(validator, output_dir, name, header)
+        generated.append((file_path, 0))
+        if file_path != lasco_case and name != "missing_observer_cunit":
+            astropy_cases.add(file_path)
+
+    surface_cases = (
+        (
+            "car_pc_unequal_negative",
+            SCRIPT_DIR / "data" / "sunerf_map.fits",
+            {
+                "CDELT1": -0.08,
+                "CDELT2": 0.05,
+                "PC1_1": 0.94,
+                "PC1_2": 0.18,
+                "PC2_1": -0.11,
+                "PC2_2": 1.03,
+            },
+        ),
+        (
+            "cea_pc_unequal_negative",
+            SCRIPT_DIR / "data" / "mrzqs260301t2314c2308_169.fits",
+            {
+                "CDELT1": -0.8,
+                "CDELT2": 0.006,
+                "PC1_1": 0.999,
+                "PC1_2": 0.01,
+                "PC2_1": -0.01,
+                "PC2_2": 0.999,
+            },
+        ),
+        (
+            "car_cd",
+            SCRIPT_DIR / "data" / "sunerf_map.fits",
+            {
+                "CD1_1": -0.08,
+                "CD1_2": 0.01,
+                "CD2_1": -0.005,
+                "CD2_2": 0.05,
+            },
+        ),
+        (
+            "cea_cd",
+            SCRIPT_DIR / "data" / "mrzqs260301t2314c2308_169.fits",
+            {
+                "CD1_1": -0.8,
+                "CD1_2": 0.01,
+                "CD2_1": -0.01,
+                "CD2_2": 0.006,
+            },
+        ),
+    )
+    for name, source, values in surface_cases:
+        with validator.fits.open(source) as hdul:
+            source_hdu = validator.find_image_hdu(hdul, None)
+            header = source_hdu.header.copy()
+        for key in ("PC1_1", "PC1_2", "PC2_1", "PC2_2", "CD1_1", "CD1_2", "CD2_1", "CD2_2"):
+            header.remove(key, ignore_missing=True, remove_all=True)
+        header["CRPIX1"] = 4.5
+        header["CRPIX2"] = 4.5
+        for key, value in values.items():
+            header[key] = value
+
+        file_path = write_generated_case(validator, output_dir, name, header)
+        generated.append((file_path, 0))
+        astropy_cases.add(file_path)
+
+    return generated, astropy_cases, lasco_case
+
+
 def compare_scalars(name: str, java_value: float, py_value: float, abs_tol: float, rel_tol: float) -> str | None:
     diff = abs(java_value - py_value)
     limit = max(abs_tol, rel_tol * max(abs(java_value), abs(py_value), 1.0))
@@ -95,13 +343,29 @@ def main() -> int:
 
     failures: list[str] = []
 
-    for file_path, hdu in suite_cases():
+    with TemporaryDirectory() as temp_dir:
+        generated_cases, astropy_cases, _lasco_case = generated_matrix_cases(validator, Path(temp_dir))
+        return run_cases(validator, suite_cases() + generated_cases, astropy_cases, float_fields, failures)
+
+
+def run_cases(validator, cases, astropy_cases, float_fields, failures: list[str]) -> int:
+    for file_path, hdu in cases:
         with validator.fits.open(file_path) as hdul:
             image_hdu = validator.find_image_hdu(hdul, hdu)
             py_meta = validator.build_jhv_meta(image_hdu.header)
         java_meta = java_dump(file_path, hdu)
 
         case_errors: list[str] = []
+
+        if file_path in astropy_cases:
+            _, _, projection_wcs, pixel_wcs = validator.load_validation_context(file_path, hdu)
+            astropy_status = validator.run_forward_validation(
+                file_path, projection_wcs, pixel_wcs, py_meta,
+                samples=0, seed=0, report_worst=0,
+                all_pixels=True, max_error_px=1e-7,
+            )
+            if astropy_status != 0:
+                case_errors.append("generated matrix case disagrees with Astropy")
 
         for field in ("pixel_width", "pixel_height", "projection"):
             py_value = getattr(py_meta, field)
@@ -158,7 +422,7 @@ def main() -> int:
             print(f"- {label}")
         return 1
 
-    print(f"\nAll {len(suite_cases())} Java/Python metadata comparison case(s) matched.")
+    print(f"\nAll {len(cases)} Java/Python metadata comparison case(s) matched.")
     return 0
 
 
