@@ -88,11 +88,8 @@ def main() -> int:
         "unit_per_pixel_x": (1e-15, 1e-12),
         "unit_per_pixel_y": (1e-15, 1e-12),
         "plane_units_per_rad": (1e-6, 1e-7),
-        "crpix1_gl": (0.0, 0.0),
-        "crpix2_gl": (0.0, 0.0),
         "crval_internal_x": (1e-15, 1e-12),
         "crval_internal_y": (1e-15, 1e-12),
-        "crota_rad": (1e-12, 1e-12),
         "observer_distance": (1e-2, 1e-4),
     }
 
@@ -128,6 +125,15 @@ def main() -> int:
 
         for index, (java_value, py_value) in enumerate(zip(java_meta["pv2"], py_meta.pv2, strict=True)):
             mismatch = compare_scalars(f"pv2[{index}]", float(java_value), float(py_value), 1e-6, 1e-7)
+            if mismatch is not None:
+                case_errors.append(mismatch)
+
+        for index, (java_value, py_value) in enumerate(zip(
+            java_meta["image_to_plane"], py_meta.image_to_plane, strict=True
+        )):
+            mismatch = compare_scalars(
+                f"image_to_plane[{index}]", float(java_value), float(py_value), 1e-12, 1e-12
+            )
             if mismatch is not None:
                 case_errors.append(mismatch)
 
