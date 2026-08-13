@@ -112,6 +112,7 @@ public final class JHVMetadataDump {
         double arcsecPerPixelY = meta.wcsProjection == org.helioviewer.jhv.wcs.WcsHeader.Projection.CEA
                 ? meta.unitPerPixelY
                 : meta.unitPerPixelY / meta.unitPerArcsec;
+        Region renderRegion = meta.roiToRegion(0, 0, pixelWidth, pixelHeight, 1, 1);
 
         return new JSONObject()
                 .put("pixel_width", pixelWidth)
@@ -127,6 +128,11 @@ public final class JHVMetadataDump {
                 .put("crval_internal_x", meta.crval.x)
                 .put("crval_internal_y", meta.crval.y)
                 .put("crota_rad", crotaRad(meta))
+                .put("render_rect", new JSONArray(new double[]{
+                        renderRegion.llx,
+                        renderRegion.lly,
+                        1 / renderRegion.width,
+                        1 / renderRegion.height}))
                 .put("observer_distance", meta.viewpoint.distance)
                 .put("projection", meta.wcsProjection.name())
                 .put("zpn_upper_eta", meta.getWcsHeader().zpnUpperEta)
