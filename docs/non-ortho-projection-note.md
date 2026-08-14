@@ -141,6 +141,16 @@ This note documents the convention used by the non-orthographic display modes (`
 - In `Orthographic`, `CAR` and `CEA` wrap only the visible solar sphere and
   have no off-limb representation.
 
+For CEA, an explicit `CUNIT2` selects the angular FITS WCS convention used by wcslib/Astropy. Historical normalized
+maps with no `CUNIT2` retain JHV's compatibility convention in which the second plane coordinate is stored directly as
+`sin(latitude) / PV2_1`. This is a missing-unit compatibility assumption, not Astropy's interpretation of the original
+header; validation canonicalizes that legacy row to equivalent angular values before comparing it with Astropy.
+
+The supported solar WCS subset also assumes the canonical native poles used by the current data: observer-image
+`HPLN/HPLT` projections use `LONPOLE=180°`, while `CRLN/CRLT` surface maps use `LONPOLE=0°` and `LATPOLE=90°`. JHV
+does not implement arbitrary FITS celestial/native pole rotations; in particular, a noncanonical surface `CRVAL2`
+cannot be interpreted independently of `LONPOLE` and `LATPOLE`.
+
 ## GLSL Improvements
 
 - Upload WCS `crval` already converted to radians, or add radians alongside the

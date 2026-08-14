@@ -26,7 +26,8 @@
 - Add a double-ended radial mask (inner disk and outer corona) to the layer options
 - Add a per-layer refresh button to check the PUNCH archive for new frames
 - Pin a multi-frame FITS layer to one shared display range so a PUNCH movie does not strobe as each frame auto-normalizes
-- Support FITS WCS `CDi_j` linear-transformation matrices
+- Improve FITS WCS interpretation of angular units, including surface maps,
+  and full `PCi_j` and `CDi_j` linear transformations
 
 ### Timeline, events, and UI
 - Map HEK Flare Trigger events to Flare events (fixes #105)

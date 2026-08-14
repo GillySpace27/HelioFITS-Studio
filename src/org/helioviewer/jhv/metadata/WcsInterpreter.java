@@ -64,9 +64,11 @@ final class WcsInterpreter {
 
         if (isSurfaceMap) {
             boolean isCea = projection == WcsHeader.Projection.CEA;
-            transform = computeSurfaceTransform(wcs, axes, isCea);
-            crvalX = Math.toRadians(wcs.crval1);
-            crvalY = isCea ? readCeaLatitudeY(wcs) : Math.toRadians(wcs.crval2);
+            transform = computeSurfaceTransform(m, wcs, axes, isCea);
+            double longitude = wcs.crval1 * axes.arcsecX / ARCSEC_PER_RAD;
+            double latitude = wcs.crval2 * axes.arcsecY / ARCSEC_PER_RAD;
+            crvalX = longitude;
+            crvalY = isCea ? ceaLatitudeCoordinate(latitude, wcs.pv2_1) : latitude;
         } else {
             transform = computeObserverTransform(m, wcs, axes);
             crvalX = wcs.crval1 * axes.arcsecX;
@@ -147,11 +149,17 @@ final class WcsInterpreter {
         return pv2;
     }
 
-    private static LinearTransform computeSurfaceTransform(WcsInput wcs, PixelAxes axes, boolean isCea) {
+    private static LinearTransform computeSurfaceTransform(MetaDataContainer m, WcsInput wcs, PixelAxes axes, boolean isCea) {
         // Surface-map X is angular longitude. Y is angular latitude for CAR and equal-area Y for CEA.
+        // Historical normalized CEA maps omit CUNIT2 and store the second plane coordinate
+        // directly as sin(latitude) / lambda. An explicit CUNIT2 selects the FITS angular
+        // convention used by wcslib/Astropy, which JHV converts to the same internal coordinate.
+        // This deliberately overrides the FITS default of degrees when CUNIT2 is absent.
+        boolean normalizedCeaY = isCea && m.getString("CUNIT2").isEmpty();
+        double axis1Scale = axes.arcsecX / ARCSEC_PER_RAD;
+        double axis2Scale = normalizedCeaY ? 1 : axes.arcsecY / ARCSEC_PER_RAD;
+
         if (!wcs.pc.present && wcs.cd.present) {
-            double axis1Scale = axes.arcsecX / ARCSEC_PER_RAD;
-            double axis2Scale = isCea ? 1 : axes.arcsecY / ARCSEC_PER_RAD;
             Mat2 cd = wcs.cd.matrix;
             return normalize(
                     axis1Scale * cd.m00,
@@ -160,11 +168,11 @@ final class WcsInterpreter {
                     axis2Scale * cd.m11);
         }
 
-        double cdelt1Rad = Math.toRadians(axes.arcsecPerPixelX / 3600.);
-        double cdelt2Surface = isCea ? wcs.cdelt2 : Math.toRadians(axes.arcsecPerPixelY / 3600.);
+        double cdelt1Surface = wcs.cdelt1 * axis1Scale;
+        double cdelt2Surface = wcs.cdelt2 * axis2Scale;
         return normalize(
-                cdelt1Rad * axes.pc.m00,
-                cdelt1Rad * axes.pc.m01,
+                cdelt1Surface * axes.pc.m00,
+                cdelt1Surface * axes.pc.m01,
                 cdelt2Surface * axes.pc.m10,
                 cdelt2Surface * axes.pc.m11);
     }
@@ -209,10 +217,9 @@ final class WcsInterpreter {
                 unitPerPixelY);
     }
 
-    private static double readCeaLatitudeY(WcsInput wcs) {
+    private static double ceaLatitudeCoordinate(double latitude, double pv2_1) {
         // JHV stores the CEA second axis as the equal-area latitude coordinate y = sin(lat) / lambda.
-        double latitude = Math.toRadians(wcs.crval2);
-        double lambda = Math.max(wcs.pv2_1, 1e-12);
+        double lambda = Math.max(pv2_1, 1e-12);
         return Math.sin(latitude) / lambda;
     }
 
