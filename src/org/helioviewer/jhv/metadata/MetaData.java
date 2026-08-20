@@ -51,4 +51,6 @@ public interface MetaData {
     @Nonnull
     DetectorMask getDetectorMask();
 
+    boolean isIndexedSurfaceMap();
+
 }

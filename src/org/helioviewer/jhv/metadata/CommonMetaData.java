@@ -15,6 +15,7 @@ class CommonMetaData implements MetaData {
     protected Region region = Region.DEFAULT;
     protected String displayName = "unknown";
     protected DetectorMask detectorMask = DetectorMask.NONE;
+    protected boolean isIndexedSurfaceMap = false;
 
     protected boolean calculateDepth;
 
@@ -140,6 +141,11 @@ class CommonMetaData implements MetaData {
     @Override
     public DetectorMask getDetectorMask() {
         return detectorMask;
+    }
+
+    @Override
+    public boolean isIndexedSurfaceMap() {
+        return isIndexedSurfaceMap;
     }
 
 }
