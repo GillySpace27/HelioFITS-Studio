@@ -46,9 +46,13 @@ final class WcsInterpreter {
             double pc22) {}
 
     static Result read(MetaDataContainer m) {
+        return read(m, null);
+    }
+
+    static Result read(MetaDataContainer m, WcsHeader.Projection forcedProjection) {
         String ctype1 = m.getString("CTYPE1").orElse("");
         String ctype2 = m.getString("CTYPE2").orElse("");
-        WcsHeader.Projection projection = WcsHeader.Projection.fromCtype(ctype1, ctype2);
+        WcsHeader.Projection projection = forcedProjection != null ? forcedProjection : WcsHeader.Projection.fromCtype(ctype1, ctype2);
         boolean isSurfaceMap = projection.isSurfaceMap();
 
         WcsInput wcs = readWcsInput(m);
