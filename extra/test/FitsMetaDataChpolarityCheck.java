@@ -42,7 +42,7 @@ public final class FitsMetaDataChpolarityCheck {
         headers.put("CRVAL2", "-90.0");
         headers.put("DATE-OBS", "2025-09-09T04:19:22.127");
         MetaDataContainer m = new MapMetaDataContainer(headers);
-        return new FitsMetaData(m, MetaData.UNKNOWN_SOURCE_URI);
+        return new FitsMetaData(m);
     }
 
     private static void assertTrue(boolean cond, String message) {
