@@ -144,6 +144,12 @@ public final class FitsMetaData extends CommonMetaData {
         detector = m.getString("DETECTOR").orElse("");
         measurement = m.getString("WAVELNTH").orElse("");
 
+        String origin = m.getString("ORIGIN").orElse("");
+        if (origin.startsWith("ptmc_compo")) {
+            detector = "CHPOL";
+            isIndexedSurfaceMap = true;
+        }
+
         if (measurement.endsWith("."))
             measurement = measurement.substring(0, measurement.length() - 1);
         else if (measurement.endsWith(".0"))
@@ -201,6 +207,8 @@ public final class FitsMetaData extends CommonMetaData {
             displayName = instrument + ' ' + measurement;
         } else if (detector.equals("demregpy")) {
             displayName = "DEM " + instrument;
+        } else if (isIndexedSurfaceMap) {
+            displayName = "CH/Polarity Legend " + origin;
         } else {
             displayName = instrument + ' ' + measurement;
         }
@@ -272,7 +280,7 @@ public final class FitsMetaData extends CommonMetaData {
         if (instrument.equals("CALLISTO")) { // pixel based
             region = new Region(0, 0, pixelW, pixelH);
         } else {
-            WcsInterpreter.Result wcs = WcsInterpreter.read(m);
+            WcsInterpreter.Result wcs = WcsInterpreter.read(m, isIndexedSurfaceMap ? WcsHeader.Projection.CAR : null);
             wcsProjection = wcs.projection();
             boolean isSurfaceMap = wcsProjection.isSurfaceMap();
 
