@@ -23,15 +23,17 @@ final class ImageLayerRenderingPanel extends JPanel {
 
     private final LUTPanel lutPanel;
     private final FilterDetails levelsPanel;
+    private final FilterDetails sharpenPanel;
+    private final DifferencePanel differencePanel;
 
     ImageLayerRenderingPanel(ImageLayer layer) {
-        DifferencePanel differencePanel = new DifferencePanel(layer);
+        differencePanel = new DifferencePanel(layer);
         FilterDetails opacityPanel = new SliderFilterPanel.Opacity(layer);
         FilterDetails blendPanel = new SliderFilterPanel.Blend(layer);
         FilterDetails channelMixerPanel = new ChannelMixerPanel(layer);
         lutPanel = new LUTPanel(layer);
         levelsPanel = new LevelsPanel(layer);
-        FilterDetails sharpenPanel = new SliderFilterPanel.Sharpen(layer);
+        sharpenPanel = new SliderFilterPanel.Sharpen(layer);
         FilterDetails imageFilterPanel = new ImageFilterPanel(layer);
 
         setLayout(new GridBagLayout());
@@ -70,13 +72,19 @@ final class ImageLayerRenderingPanel extends JPanel {
         ImageLayer imageLayer = (ImageLayer) layer;
         lutPanel.setLUT(imageLayer.getView().getDefaultLUT());
 
-        // Indexed categorical maps encode a category ID per pixel; the levels stretch is applied
-        // before the LUT lookup, so moving it would remap index -> wrong colour. Hide the control
-        // rather than let it silently corrupt the legend.
+        // Indexed categorical maps encode a category ID per pixel; levels, sharpen, and difference
+        // all blend or rescale pixel values before the LUT lookup, so any of them would remap
+        // index -> wrong colour. Hide these controls rather than let them silently corrupt the legend.
         boolean indexed = imageLayer.getMetaData().isIndexedSurfaceMap();
         levelsPanel.getFirst().setVisible(!indexed);
         levelsPanel.getSecond().setVisible(!indexed);
         levelsPanel.getThird().setVisible(!indexed);
+        sharpenPanel.getFirst().setVisible(!indexed);
+        sharpenPanel.getSecond().setVisible(!indexed);
+        sharpenPanel.getThird().setVisible(!indexed);
+        differencePanel.getFirst().setVisible(!indexed);
+        differencePanel.getSecond().setVisible(!indexed);
+        differencePanel.getThird().setVisible(!indexed);
     }
 
 }

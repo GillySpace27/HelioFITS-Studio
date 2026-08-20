@@ -43,7 +43,10 @@ public class GLSLSolarShader extends GLSLShader {
     private static final int SCREEN_SIZE = screenBuf.capacity() * 4;
 
     private static GLBO displayBO;
-    private static final FloatBuffer displayBuf = BufferUtils.newFloatBuffer(4 + 4 + 4 + 4 + 2 + 2 + 2 + 1 + 1 + 4 /* indexed + std140 padding */);
+    // Must mirror the DisplayBlock member order in solarCommon.frag byte-for-byte; capacity must
+    // be >= the std140 block size rounded up to a multiple of 16 (the final 4 floats are
+    // `indexed` plus that rounding, not per-member padding -- a bare float has 4-byte alignment).
+    private static final FloatBuffer displayBuf = BufferUtils.newFloatBuffer(4 + 4 + 4 + 4 + 2 + 2 + 2 + 1 + 1 + 4 /* indexed + std140 block-size rounding */);
     private static final int DISPLAY_SIZE = displayBuf.capacity() * 4;
 
     public static void init() {
@@ -170,7 +173,7 @@ public class GLSLSolarShader extends GLSLShader {
         displayBuf.put(bOffset).put(bScale);
         displayBuf.put(innerRadius).put(outerRadius).put(slitLeft).put(slitRight);
         displayBuf.put(upsilonLow).put(upsilonHigh);
-        displayBuf.put(indexed).put(0).put(0).put(0); // own std140 row
+        displayBuf.put(indexed).put(0).put(0).put(0); // indexed, then padding to round the std140 block size up to a multiple of 16
 
         displayBuf.flip();
         displayBO.setBufferDataIfChanged(DISPLAY_SIZE, displayBuf);

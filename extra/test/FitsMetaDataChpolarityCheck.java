@@ -25,19 +25,34 @@ public final class FitsMetaDataChpolarityCheck {
         assertTrue(!unrelated.isIndexedSurfaceMap(), "non-ptmc_compo origin must NOT set isIndexedSurfaceMap");
         assertTrue(!"CHPOL".equals(unrelated.getDetector()), "non-ptmc_compo origin must NOT set detector=CHPOL");
 
+        // Finding 3 regression: same ORIGIN prefix, but a helioprojective-diagnostic-shaped pixel
+        // grid that does not span a full sphere. The ORIGIN prefix alone must not be enough to
+        // force CAR projection with categorical colours; the span check must reject it.
+        FitsMetaData nonSpherical = buildWithGeometry("ptmc_compo_diag_20250909_041922", 1024, 1024, 0.01, 0.01);
+        assertTrue(!nonSpherical.isIndexedSurfaceMap(),
+                "ptmc_compo origin with non-spherical geometry must NOT set isIndexedSurfaceMap");
+        assertTrue(!"CHPOL".equals(nonSpherical.getDetector()),
+                "ptmc_compo origin with non-spherical geometry must NOT set detector=CHPOL, got " + nonSpherical.getDetector());
+        assertTrue(nonSpherical.getWcsHeader().projection != WcsHeader.Projection.CAR,
+                "ptmc_compo origin with non-spherical geometry must NOT force CAR projection, got " + nonSpherical.getWcsHeader().projection);
+
         System.out.println("FitsMetaDataChpolarityCheck: PASS");
     }
 
     // package-visible (not private): Task 4's ChpolarityLutRegistrationCheck reuses this builder
     static FitsMetaData build(String origin) {
+        return buildWithGeometry(origin, 4013, 2011, 0.0897247426998, 0.0895816823006);
+    }
+
+    private static FitsMetaData buildWithGeometry(String origin, int naxis1, int naxis2, double cdelt1, double cdelt2) {
         java.util.Map<String, String> headers = new java.util.HashMap<>();
         headers.put("ORIGIN", origin);
-        headers.put("NAXIS1", "4013");
-        headers.put("NAXIS2", "2011");
+        headers.put("NAXIS1", String.valueOf(naxis1));
+        headers.put("NAXIS2", String.valueOf(naxis2));
         headers.put("CTYPE1", "Longitude");
         headers.put("CTYPE2", "Latitude");
-        headers.put("CDELT1", "0.0897247426998");
-        headers.put("CDELT2", "0.0895816823006");
+        headers.put("CDELT1", String.valueOf(cdelt1));
+        headers.put("CDELT2", String.valueOf(cdelt2));
         headers.put("CRVAL1", "0.0");
         headers.put("CRVAL2", "-90.0");
         headers.put("DATE-OBS", "2025-09-09T04:19:22.127");

@@ -77,14 +77,20 @@ def default_angular_cunit(header, axis: int) -> str | None:
     return None
 
 
+# FITS standardizes on "deg", but "degree"/"degrees" occur in the wild (e.g. IDL-written
+# synoptic maps); mirrors WcsInterpreter.isDegrees.
+def _is_degrees(cunit: str | None) -> bool:
+    return bool(cunit) and cunit.strip().lower() in ("deg", "degree", "degrees")
+
+
 def unit_scale_from_cunit(cunit: str | None) -> float:
-    if cunit and cunit.lower() == "deg":
+    if _is_degrees(cunit):
         return 3600.0
     return 1.0
 
 
 def angular_header_value_to_deg(value: float, cunit: str | None) -> float:
-    if cunit and cunit.lower() == "deg":
+    if _is_degrees(cunit):
         return float(value)
     return float(value) / 3600.0
 

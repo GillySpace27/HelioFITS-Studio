@@ -73,7 +73,10 @@ layout(std140) uniform DisplayBlock {
     float upsilonLow;
     float upsilonHigh;
     // Non-zero for index-coded categorical images, whose pixel value selects a LUT entry rather
-    // than a position on a ramp. std140 puts this in its own 16-byte row (3 floats of padding).
+    // than a position on a ramp. The Java-side put() sequence (GLSLSolarShader) must mirror this
+    // member order byte-for-byte, and the buffer capacity must be >= this std140 block size
+    // rounded up to a multiple of 16 (the trailing 12 bytes after this scalar are that rounding,
+    // not per-member padding -- a bare float has 4-byte base alignment, not 16).
     float indexed;
 } display;
 

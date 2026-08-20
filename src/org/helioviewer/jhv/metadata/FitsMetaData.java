@@ -27,6 +27,16 @@ public final class FitsMetaData extends CommonMetaData {
     private double referenceX = 0;
     private double referenceY = 0;
 
+    // ptmc_compo pipeline: ORIGIN prefix match detected in identifyObservation, but NAXIS/CDELT
+    // aren't in scope until retrievePixelParameters -- see the full-sphere span check there, which
+    // is what actually decides isIndexedSurfaceMap.
+    private String origin = "";
+    private boolean originIsPtmcCompo = false;
+
+    // Full-sphere span check tolerance for hand-produced Carrington maps (Finding 3): generous,
+    // since these are hand-annotated rather than machine-generated to exact WCS geometry.
+    private static final double SPHERE_SPAN_TOLERANCE = 0.05;
+
     public FitsMetaData(@Nonnull MetaDataContainer m) {
         identifyObservation(m);
 
@@ -144,11 +154,13 @@ public final class FitsMetaData extends CommonMetaData {
         detector = m.getString("DETECTOR").orElse("");
         measurement = m.getString("WAVELNTH").orElse("");
 
-        String origin = m.getString("ORIGIN").orElse("");
-        if (origin.startsWith("ptmc_compo")) {
-            detector = "CHPOL";
-            isIndexedSurfaceMap = true;
-        }
+        // ORIGIN detection for the ptmc_compo indexed-surface-map pipeline: trimmed and case-folded
+        // (Finding 6) so a leading space or different case doesn't silently disable the feature.
+        // This only records that the pipeline claims to be an indexed surface map; the geometry
+        // check that actually gates isIndexedSurfaceMap/detector="CHPOL" (Finding 3) runs in
+        // retrievePixelParameters, once NAXIS/CDELT are available.
+        origin = m.getString("ORIGIN").orElse("");
+        originIsPtmcCompo = origin.trim().toLowerCase().startsWith("ptmc_compo");
 
         if (measurement.endsWith("."))
             measurement = measurement.substring(0, measurement.length() - 1);
@@ -207,7 +219,9 @@ public final class FitsMetaData extends CommonMetaData {
             displayName = instrument + ' ' + measurement;
         } else if (detector.equals("demregpy")) {
             displayName = "DEM " + instrument;
-        } else if (isIndexedSurfaceMap) {
+        } else if (originIsPtmcCompo) {
+            // Provisional name; retrievePixelParameters overrides it once the full-sphere span
+            // check (Finding 3) confirms this is actually a valid indexed surface map.
             displayName = "CH/Polarity Legend " + origin;
         } else {
             displayName = instrument + ' ' + measurement;
@@ -277,6 +291,28 @@ public final class FitsMetaData extends CommonMetaData {
             pixelH = (int) m.getRequiredLong("NAXIS2");
         }
 
+        // ptmc_compo span check (Finding 3, paired with the ORIGIN detection in identifyObservation):
+        // the ORIGIN prefix alone doesn't prove this is a full-sphere Carrington map -- the same IDL
+        // pipeline also emits helioprojective diagnostic images under the same ORIGIN prefix. Only
+        // trust the indexed-surface-map treatment (forced CAR projection, nearest-neighbor sampling,
+        // categorical LUT) when the pixel grid actually spans a full sphere in degrees.
+        if (originIsPtmcCompo) {
+            double cdelt1 = m.getDouble("CDELT1").orElse(0.);
+            double cdelt2 = m.getDouble("CDELT2").orElse(0.);
+            double spanLon = pixelW * Math.abs(cdelt1);
+            double spanLat = pixelH * Math.abs(cdelt2);
+            boolean spansFullSphere = withinTolerance(spanLon, 360.) && withinTolerance(spanLat, 180.);
+            if (spansFullSphere) {
+                isIndexedSurfaceMap = true;
+                detector = "CHPOL";
+                displayName = ("CH/Polarity Legend " + origin).trim().intern();
+            } else {
+                Log.warn(String.join(" ", "ORIGIN", origin, "matches ptmc_compo but geometry does not span a full sphere",
+                        "(NAXIS1*|CDELT1|=" + spanLon + ", expected ~360;",
+                        "NAXIS2*|CDELT2|=" + spanLat + ", expected ~180); not treating as an indexed surface map"));
+            }
+        }
+
         if (instrument.equals("CALLISTO")) { // pixel based
             region = new Region(0, 0, pixelW, pixelH);
         } else {
@@ -326,6 +362,10 @@ public final class FitsMetaData extends CommonMetaData {
                 sunShiftY = -sun.y;
             }
         }
+    }
+
+    private static boolean withinTolerance(double value, double target) {
+        return Math.abs(value - target) <= target * SPHERE_SPAN_TOLERANCE;
     }
 
     private double getSolarRadiusFactor() {
