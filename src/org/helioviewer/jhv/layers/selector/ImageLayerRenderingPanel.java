@@ -22,6 +22,7 @@ import org.helioviewer.jhv.layers.filters.SliderFilterPanel;
 final class ImageLayerRenderingPanel extends JPanel {
 
     private final LUTPanel lutPanel;
+    private final FilterDetails levelsPanel;
 
     ImageLayerRenderingPanel(ImageLayer layer) {
         DifferencePanel differencePanel = new DifferencePanel(layer);
@@ -29,7 +30,7 @@ final class ImageLayerRenderingPanel extends JPanel {
         FilterDetails blendPanel = new SliderFilterPanel.Blend(layer);
         FilterDetails channelMixerPanel = new ChannelMixerPanel(layer);
         lutPanel = new LUTPanel(layer);
-        FilterDetails levelsPanel = new LevelsPanel(layer);
+        levelsPanel = new LevelsPanel(layer);
         FilterDetails sharpenPanel = new SliderFilterPanel.Sharpen(layer);
         FilterDetails imageFilterPanel = new ImageFilterPanel(layer);
 
@@ -66,7 +67,16 @@ final class ImageLayerRenderingPanel extends JPanel {
     }
 
     void refresh(Layer layer) {
-        lutPanel.setLUT(((ImageLayer) layer).getView().getDefaultLUT());
+        ImageLayer imageLayer = (ImageLayer) layer;
+        lutPanel.setLUT(imageLayer.getView().getDefaultLUT());
+
+        // Indexed categorical maps encode a category ID per pixel; the levels stretch is applied
+        // before the LUT lookup, so moving it would remap index -> wrong colour. Hide the control
+        // rather than let it silently corrupt the legend.
+        boolean indexed = imageLayer.getMetaData().isIndexedSurfaceMap();
+        levelsPanel.getFirst().setVisible(!indexed);
+        levelsPanel.getSecond().setVisible(!indexed);
+        levelsPanel.getThird().setVisible(!indexed);
     }
 
 }
