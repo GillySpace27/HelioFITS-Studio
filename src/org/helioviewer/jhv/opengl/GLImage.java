@@ -74,7 +74,8 @@ public class GLImage {
     public void streamImage(View.ImageData imageData, View.ImageData prevImageData, View.ImageData baseImageData) {
         if (uploadedImageData != imageData) {
             tex.bind();
-            tex.copyImageBuffer(imageData.imageBuffer(), GL.LINEAR);
+            int filter = imageData.metaData().isIndexedSurfaceMap() ? GL.NEAREST : GL.LINEAR;
+            tex.copyImageBuffer(imageData.imageBuffer(), filter);
             uploadedImageData = imageData;
         }
 
