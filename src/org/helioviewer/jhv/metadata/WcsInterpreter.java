@@ -2,6 +2,8 @@ package org.helioviewer.jhv.metadata;
 
 import java.util.Optional;
 
+import javax.annotation.Nullable;
+
 import org.helioviewer.jhv.wcs.WcsHeader;
 
 final class WcsInterpreter {
@@ -49,7 +51,7 @@ final class WcsInterpreter {
         return read(m, null);
     }
 
-    static Result read(MetaDataContainer m, WcsHeader.Projection forcedProjection) {
+    static Result read(MetaDataContainer m, @Nullable WcsHeader.Projection forcedProjection) {
         String ctype1 = m.getString("CTYPE1").orElse("");
         String ctype2 = m.getString("CTYPE2").orElse("");
         WcsHeader.Projection projection = forcedProjection != null ? forcedProjection : WcsHeader.Projection.fromCtype(ctype1, ctype2);
