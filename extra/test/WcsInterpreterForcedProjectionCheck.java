@@ -28,13 +28,15 @@ public final class WcsInterpreterForcedProjectionCheck {
         // A ">0" check on unitPerPixelX/Y does NOT discriminate correct routing from the rejected
         // "wrong fix" (forcing the projection only on the returned Result, after isSurfaceMap was
         // already computed from fromCtype): both produce a positive number. What differs is WHICH
-        // number: forcing before isSurfaceMap routes CDELT1 (0.0897247426998 deg/px) through the
-        // surface-map conversion to radians/px (CDELT1 / ARCSEC_PER_RAD ~= 0.0015659 rad/px),
-        // while forcing only the Result field leaves isSurfaceMap false, so CDELT1 is scaled to
-        // arcsec instead (raw deg-derived value, ~0.0897247427, unchanged from CDELT1). So the
-        // correct value is ~57x smaller than the buggy one, and the buggy one is numerically
-        // identical to the unforced TAN case above. Both assertions below fail under the wrong fix.
-        double expectedUnitPerPixelX = 0.0015659; // rad/px: CDELT1 (deg) -> rad, surface-map branch
+        // number: forcing before isSurfaceMap routes CDELT1/CDELT2 (degrees/px) through the
+        // surface-map conversion to radians/px (CDELT * pi/180, per computeLinearTransform's
+        // isSurfaceMap branch), while forcing only the Result field leaves isSurfaceMap false, so
+        // CDELT1/CDELT2 are scaled to arcsec instead (raw deg-derived value, unchanged in magnitude
+        // from CDELT1/CDELT2). So the correct value is ~57x smaller than the buggy one, and the
+        // buggy one is numerically identical to the unforced TAN case above. All assertions below
+        // fail under the wrong fix.
+        double expectedUnitPerPixelX = 0.0015659; // rad/px: CDELT1 (deg) * pi/180, surface-map branch
+        double expectedUnitPerPixelY = 0.0015635; // rad/px: CDELT2 (deg) * pi/180, surface-map branch
         double epsilon = 1e-6;
         assertTrue(Math.abs(forced.unitPerPixelX() - expectedUnitPerPixelX) < epsilon,
                 "forced surface-map unitPerPixelX: expected ~" + expectedUnitPerPixelX
@@ -44,6 +46,16 @@ public final class WcsInterpreterForcedProjectionCheck {
         assertTrue(forced.unitPerPixelX() != unforced.unitPerPixelX(),
                 "forced.unitPerPixelX() (" + forced.unitPerPixelX()
                         + ") must differ from unforced.unitPerPixelX() (" + unforced.unitPerPixelX()
+                        + "); forcing CAR should route through the surface-map angular-scale conversion, "
+                        + "not merely relabel the projection on the Result");
+        assertTrue(Math.abs(forced.unitPerPixelY() - expectedUnitPerPixelY) < epsilon,
+                "forced surface-map unitPerPixelY: expected ~" + expectedUnitPerPixelY
+                        + " rad/px (CDELT2 routed through the surface-map branch before isSurfaceMap is read), got "
+                        + forced.unitPerPixelY()
+                        + " (a 'forced-after-the-branch' bug leaves this at the raw CDELT2-derived value, ~0.0895816823)");
+        assertTrue(forced.unitPerPixelY() != unforced.unitPerPixelY(),
+                "forced.unitPerPixelY() (" + forced.unitPerPixelY()
+                        + ") must differ from unforced.unitPerPixelY() (" + unforced.unitPerPixelY()
                         + "); forcing CAR should route through the surface-map angular-scale conversion, "
                         + "not merely relabel the projection on the Result");
 
