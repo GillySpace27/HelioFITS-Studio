@@ -158,6 +158,8 @@
   "color":"PUNCH"},
  {"instrument":"WFI+NFI Mosaic",
   "color":"PUNCH"},
+ {"detector":"CHPOL",
+  "color":"CH/Polarity Legend"},
 
 ]
 
