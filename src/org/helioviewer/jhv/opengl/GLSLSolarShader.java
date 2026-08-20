@@ -43,7 +43,7 @@ public class GLSLSolarShader extends GLSLShader {
     private static final int SCREEN_SIZE = screenBuf.capacity() * 4;
 
     private static GLBO displayBO;
-    private static final FloatBuffer displayBuf = BufferUtils.newFloatBuffer(4 + 4 + 4 + 4 + 2 + 2 + 2 + 1 + 1);
+    private static final FloatBuffer displayBuf = BufferUtils.newFloatBuffer(4 + 4 + 4 + 4 + 2 + 2 + 2 + 1 + 1 + 4 /* indexed + std140 padding */);
     private static final int DISPLAY_SIZE = displayBuf.capacity() * 4;
 
     public static void init() {
@@ -161,7 +161,8 @@ public class GLSLSolarShader extends GLSLShader {
                             float bOffset, float bScale,
                             float innerRadius, float outerRadius,
                             float slitLeft, float slitRight,
-                            float upsilonLow, float upsilonHigh) {
+                            float upsilonLow, float upsilonHigh,
+                            float indexed) {
         displayBuf.put(color);
         displayBuf.put(shWidth).put(shHeight).put(shWeight).put(isDiff);
         displayBuf.put(sector0).put(sector1).put(/*sector0 + 2 * Math.PI == sector1*/ sector0 == sector1 ? 0 : 1).put(enhanced);
@@ -169,6 +170,7 @@ public class GLSLSolarShader extends GLSLShader {
         displayBuf.put(bOffset).put(bScale);
         displayBuf.put(innerRadius).put(outerRadius).put(slitLeft).put(slitRight);
         displayBuf.put(upsilonLow).put(upsilonHigh);
+        displayBuf.put(indexed).put(0).put(0).put(0); // own std140 row
 
         displayBuf.flip();
         displayBO.setBufferDataIfChanged(DISPLAY_SIZE, displayBuf);

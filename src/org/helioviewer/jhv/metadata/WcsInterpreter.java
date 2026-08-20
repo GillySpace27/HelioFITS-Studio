@@ -121,8 +121,15 @@ final class WcsInterpreter {
 
     private static double readAngularAxisScaleArcsec(MetaDataContainer m, String cunitKey, boolean defaultDegrees) {
         return m.getString(cunitKey)
-                .map(u -> u.equalsIgnoreCase("deg") ? 3600. : 1.)
+                .map(u -> isDegrees(u) ? 3600. : 1.)
                 .orElse(defaultDegrees ? 3600. : 1.);
+    }
+
+    // FITS standardizes on "deg", but "degree"/"degrees" occur in the wild (e.g. IDL-written
+    // synoptic maps). Treating those as arcsec silently scales the image by 1/3600.
+    private static boolean isDegrees(String unit) {
+        String u = unit.trim();
+        return u.equalsIgnoreCase("deg") || u.equalsIgnoreCase("degree") || u.equalsIgnoreCase("degrees");
     }
 
     private static float[] readPv2(MetaDataContainer m, WcsInput wcs, WcsHeader.Projection projection) {

@@ -72,6 +72,9 @@ layout(std140) uniform DisplayBlock {
     vec2 slit;
     float upsilonLow;
     float upsilonHigh;
+    // Non-zero for index-coded categorical images, whose pixel value selects a LUT entry rather
+    // than a position on a ramp. std140 puts this in its own 16-byte row (3 floats of padding).
+    float indexed;
 } display;
 
 uniform sampler2D image;
@@ -156,7 +159,10 @@ vec4 getColor(const vec2 texcoord, const vec2 difftexcoord, const float factor) 
         value = value < .5 ? .5 * pow(2. * value, display.upsilonLow) : 1. - .5 * pow(2. - 2. * value, display.upsilonHigh);
     }
 
-    value += dither(texcoord);
+    // Dither breaks up banding in continuous ramps, but on a categorical LUT a +/-1/255 nudge
+    // lands on a neighbouring legend entry, turning flat regions into salt-and-pepper noise.
+    if (display.indexed == 0.)
+        value += dither(texcoord);
 
     return texture(lut, vec2(value, 0.5)) * display.color;
 }

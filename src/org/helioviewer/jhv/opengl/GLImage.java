@@ -117,7 +117,8 @@ public class GLImage {
                 Math.max(metaData.getInnerRadius(), (float) (innerMask * maskRef)),
                 Display.getShowCorona() ? (outerMask < 1 ? (float) (outerMask * maskRef) : metaData.getOuterRadius()) : 1,
                 (float) slitLeft, (float) slitRight,
-                (float) (rhefActive ? upsilonLow : 1), (float) (rhefActive ? upsilonHigh : 1));
+                (float) (rhefActive ? upsilonLow : 1), (float) (rhefActive ? upsilonHigh : 1),
+                metaData.isIndexedSurfaceMap() ? 1 : 0);
 
         applyLUT();
         applyMask(metaData.getDetectorMask());
