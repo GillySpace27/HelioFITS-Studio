@@ -1,0 +1,34 @@
+{
+  "_about": [
+    "Category labels for index-coded (categorical) colour tables, keyed by LUT name.",
+    "A LUT listed here is drawn as a discrete legend: one block per group, showing the colours of",
+    "its indices side by side with the label underneath. A LUT absent from this file is drawn as a",
+    "continuous gradient with just its name, so this file is purely additive and affects no",
+    "existing colour table.",
+    "'indices' are raw pixel values, which for an indexed image are also the LUT entry numbers.",
+    "Grouping merges entries naming one feature (a coronal hole and its boundary) into one block,",
+    "which is how these maps are conventionally presented.",
+    "Keys starting with '_' are ignored by the loader."
+  ],
+
+  "_about CH/Polarity Legend": [
+    "Transcribed from Ian Hewins' '20 in Color Table.docx', the source of truth for the McIntosh",
+    "Archive (Digital Ontology) maps. Labels are that document's own names. Indices 0/1 (white and",
+    "black background) and 14/15 (documented as unused) deliberately carry no legend entry."
+  ],
+
+  "CH/Polarity Legend": [
+    {"indices": [2, 3], "label": "+ CH"},
+    {"indices": [4], "label": "+ Polarity"},
+    {"indices": [5, 6], "label": "- CH"},
+    {"indices": [7], "label": "- Polarity"},
+    {"indices": [8], "label": "Neutral line"},
+    {"indices": [9], "label": "Filaments"},
+    {"indices": [10], "label": "Sun Spots"},
+    {"indices": [11], "label": "Missing"},
+    {"indices": [12], "label": "Border"},
+    {"indices": [13], "label": "Plage centers"},
+    {"indices": [16, 17], "label": "AIA + CH bdy"},
+    {"indices": [18, 19], "label": "AIA - CH bdy"}
+  ]
+}

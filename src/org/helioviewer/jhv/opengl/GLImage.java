@@ -66,6 +66,8 @@ public class GLImage {
     private LUT lastLut;
 
     private boolean invertLUT = false;
+    private boolean showColorbar = false;
+    private boolean colorbarChosen = false; // user toggled it, or a saved session specified it
     private boolean lastInverted = false;
     private boolean lutChanged = true;
     private DetectorMask uploadedMask = DetectorMask.NONE;
@@ -348,6 +350,30 @@ public class GLImage {
         return invertLUT;
     }
 
+    public boolean getShowColorbar() {
+        return showColorbar;
+    }
+
+    public void setShowColorbar(boolean show) {
+        showColorbar = show;
+        colorbarChosen = true;
+    }
+
+    /**
+     * Default the legend on for a layer type that is unreadable without one (an indexed
+     * categorical map), without overriding a choice the user or a saved session already made.
+     */
+    public void setShowColorbarDefault(boolean show) {
+        if (!colorbarChosen)
+            showColorbar = show;
+    }
+
+    // The colour table currently driving this layer, for the legend. Inversion is a display
+    // toggle, so the legend must mirror it -- callers pair this with getInvertLUT().
+    public LUT getLUT() {
+        return lut;
+    }
+
     public void fromJson(JSONObject jo) {
         setSharpen(jo.optDouble("sharpen", sharpen));
         setOpacity(jo.optDouble("opacity", opacity));
@@ -370,6 +396,10 @@ public class GLImage {
             blue = colorObject.optBoolean("blue", getBlue()) ? 1 : 0;
         }
         invertLUT = jo.optBoolean("invert", invertLUT);
+        if (jo.has("colorbar")) {
+            showColorbar = jo.optBoolean("colorbar", showColorbar);
+            colorbarChosen = true;
+        }
     }
 
     public JSONObject toJson() {
@@ -396,6 +426,7 @@ public class GLImage {
         colorObject.put("blue", getBlue());
         jo.put("color", colorObject);
         jo.put("invert", invertLUT);
+        jo.put("colorbar", showColorbar);
 
         return jo;
     }

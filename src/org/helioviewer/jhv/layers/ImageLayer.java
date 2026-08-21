@@ -35,6 +35,7 @@ import org.json.JSONObject;
 public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
     private final GLImage glImage;
+    private final Colorbar colorbar = new Colorbar();
     private final ImageLayerLoader loader;
 
     private boolean removed;
@@ -145,6 +146,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     @Override
     public void init() {
         glImage.init();
+        colorbar.init();
     }
 
     @Override
@@ -217,6 +219,26 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         }
         dispose();
         //System.gc(); // reclaim memory asap
+    }
+
+    @Override
+    public void renderFloat(MapView mv, Viewport vp) {
+        if (!isVisible[vp.idx] || !glImage.getShowColorbar() || imageData == null)
+            return;
+        colorbar.render(vp, glImage.getLUT(), glImage.getInvertLUT(), colorbarSlot());
+    }
+
+    // Legends stack upward from the bottom, so each enabled layer needs a distinct slot. Counting
+    // the enabled layers below this one keeps the order stable as layers are toggled or removed.
+    private int colorbarSlot() {
+        int slot = 0;
+        for (ImageLayer il : Layers.getImageLayers()) {
+            if (il == this)
+                break;
+            if (il.glImage.getShowColorbar())
+                slot++;
+        }
+        return slot;
     }
 
     @Override
@@ -353,6 +375,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     @Override
     public void dispose() {
         glImage.dispose();
+        colorbar.dispose();
     }
 
     private View.ImageData imageData;
@@ -372,6 +395,8 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         }
 
         imageData = newImageData;
+        // A categorical map is unreadable without its legend, so show it unless told otherwise.
+        glImage.setShowColorbarDefault(newImageData.metaData().isIndexedSurfaceMap());
     }
 
     @Nullable

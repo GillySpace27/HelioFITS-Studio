@@ -26,12 +26,21 @@ public class LUTPanel implements FilterDetails {
         JideToggleButton invertButton = new JideToggleButton(Buttons.invert, layer.getGLImage().getInvertLUT());
         invertButton.setToolTipText("Invert color table");
 
+        JideToggleButton colorbarButton = new JideToggleButton(Buttons.colorbar, layer.getGLImage().getShowColorbar());
+        colorbarButton.setToolTipText("Show the color table legend at the bottom of the view");
+
         ActionListener listener = e -> {
             layer.getGLImage().setLUT(lutCombo.getLUT(), invertButton.isSelected());
             DisplayController.display();
         };
         lutCombo.addActionListener(listener);
         invertButton.addActionListener(listener);
+        colorbarButton.addActionListener(e -> {
+            layer.getGLImage().setShowColorbar(colorbarButton.isSelected());
+            DisplayController.display();
+        });
+
+        buttonPanel.add(colorbarButton, BorderLayout.LINE_START);
         buttonPanel.add(invertButton, BorderLayout.LINE_END);
     }
 

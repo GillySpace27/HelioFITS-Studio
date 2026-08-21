@@ -60,6 +60,7 @@ public class Buttons {
     public static final String mgn = button(MaterialDesign.IMAGE_FILTER_HDR);
 
     public static final String invert = button(MaterialDesign.INVERT_COLORS);
+    public static final String colorbar = button(MaterialDesign.BORDER_ALL);
     public static final String corona = button(MaterialDesign.WHITE_BALANCE_SUNNY);
 
     public static final String calendar = button(MaterialDesign.CALENDAR);
