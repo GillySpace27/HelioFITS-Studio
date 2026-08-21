@@ -14,7 +14,10 @@
   "_about CH/Polarity Legend": [
     "Transcribed from Ian Hewins' '20 in Color Table.docx', the source of truth for the McIntosh",
     "Archive (Digital Ontology) maps. Labels are that document's own names. Indices 0/1 (white and",
-    "black background) and 14/15 (documented as unused) deliberately carry no legend entry."
+    "black background) and 14/15 (documented as unused) deliberately carry no legend entry.",
+    "Legend stops after Sun Spots: Missing/Border are annotation artefacts rather than solar",
+    "features, and the AIA CH-boundary indices are not used in this product. Their colours still",
+    "render if present in the data -- this file only controls what the legend lists."
   ],
 
   "CH/Polarity Legend": [
@@ -24,11 +27,6 @@
     {"indices": [7], "label": "- Polarity"},
     {"indices": [8], "label": "Neutral line"},
     {"indices": [9], "label": "Filaments"},
-    {"indices": [10], "label": "Sun Spots"},
-    {"indices": [11], "label": "Missing"},
-    {"indices": [12], "label": "Border"},
-    {"indices": [13], "label": "Plage centers"},
-    {"indices": [16, 17], "label": "AIA + CH bdy"},
-    {"indices": [18, 19], "label": "AIA - CH bdy"}
+    {"indices": [10], "label": "Sun Spots"}
   ]
 }
