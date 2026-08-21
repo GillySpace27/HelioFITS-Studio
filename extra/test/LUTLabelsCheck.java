@@ -16,7 +16,7 @@ public final class LUTLabelsCheck {
     public static void main(String[] args) {
         List<LUTLabels.Group> groups = LUTLabels.get(CATEGORICAL);
         assertTrue(groups != null, "'" + CATEGORICAL + "' should be categorical (present in lut-labels.json)");
-        assertTrue(groups.size() == 7, "expected 7 legend groups (the legend stops after Sun Spots), got " + groups.size());
+        assertTrue(groups.size() == 8, "expected 8 legend groups (traced solar features only), got " + groups.size());
 
         // Prose keys are documentation, not data: they must never surface as a legend.
         assertTrue(LUTLabels.get("_about") == null, "keys starting with '_' must be ignored");
@@ -43,6 +43,7 @@ public final class LUTLabelsCheck {
         assertLabel(groups, 2, "- CH", new int[]{5, 6});
         assertLabel(groups, 4, "Neutral line", new int[]{8});
         assertLabel(groups, 6, "Sun Spots", new int[]{10});
+        assertLabel(groups, 7, "Plage centers", new int[]{13});
 
         System.out.println("LUTLabelsCheck: PASS");
     }
