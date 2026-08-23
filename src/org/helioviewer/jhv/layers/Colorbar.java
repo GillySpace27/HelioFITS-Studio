@@ -1,17 +1,28 @@
 package org.helioviewer.jhv.layers;
 
+import java.util.ArrayList;
 import java.util.List;
 
+import javax.annotation.Nullable;
+
 import org.helioviewer.jhv.base.Colors;
+import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.Viewport;
+import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.lut.LUT;
 import org.helioviewer.jhv.image.lut.LUTLabels;
+import org.helioviewer.jhv.input.InputController;
+import org.helioviewer.jhv.input.InputPointerListener;
+import org.helioviewer.jhv.input.InputPointerMotionListener;
+import org.helioviewer.jhv.input.PointerEvent;
 import org.helioviewer.jhv.opengl.BufVertex;
 import org.helioviewer.jhv.opengl.GL;
+import org.helioviewer.jhv.opengl.GLImage;
 import org.helioviewer.jhv.opengl.GLSLShape;
 import org.helioviewer.jhv.opengl.GLText;
 import org.helioviewer.jhv.opengl.Transform;
 import org.helioviewer.jhv.opengl.text.SdfTextRenderer;
+import org.helioviewer.jhv.view.View;
 
 /**
  * Draws a colour-table legend along the bottom of the viewport.
@@ -31,10 +42,52 @@ final class Colorbar {
     private static final double LABEL_PAD = 3;
     private static final float MIN_LABEL_SCALE = 0.45f;
 
+    // The globe is routinely framed to fill the viewport edge to edge (Zoom-Fit, Actual Size), so
+    // there is no guarantee of empty space at the bottom for the legend to sit in. A full-width
+    // backing panel is what makes it read as a footer the image sits above rather than a HUD
+    // straddling the image; the swatches and labels alone were fully opaque but only over their
+    // own narrow strip, so the globe still showed through on both sides and between rows.
+    private static final byte[] PANEL_BG = Colors.bytes(18, 18, 20, 235);
+    private static final double PANEL_PAD = 4; // px of breathing room around the swatches
+
+    // Each enabled layer draws its own colorbar in a separate pass (ImageLayer.renderFloat), so
+    // when several are stacked, whichever one happens to render last paints on top of the others.
+    // A background reaching down to the viewport floor -- to read as one continuous footer instead
+    // of a stack of separate boxes -- would then paint over every lower slot's already-drawn
+    // swatches, near-erasing them behind its own near-opaque panel. Each slot's background must
+    // stay confined to its own band; SLOT_GAP already leaves enough room that adjacent panels meet
+    // without a visible seam.
+
+    private static final int HOVER_OFFSET_X = 12;
+    private static final int HOVER_OFFSET_Y = 20; // subtracted from mouseY, so the tooltip sits above the cursor -- the bar itself is already near the bottom edge
+
     private final GLSLShape quads = new GLSLShape(true);
     private final BufVertex vex = new BufVertex(8 * 1024 * GLSLShape.stride);
+    private final List<String> hoverText = new ArrayList<>();
+    // AWT/mouse convention (origin top-left); -1 sentinel keeps Viewport.contains() false until
+    // the first real mouseMoved arrives.
+    private int mouseX = -1, mouseY = -1;
 
-    void render(Viewport vp, LUT lut, boolean inverted, int slot) {
+    private final class HoverListener implements InputPointerListener, InputPointerMotionListener {
+        @Override
+        public void mouseMoved(PointerEvent e) {
+            mouseX = e.x();
+            mouseY = e.y();
+            DisplayController.display(); // render loop is redraw-on-demand; without this the tooltip lags behind the cursor
+        }
+
+        @Override
+        public void mouseExited(PointerEvent e) {
+            mouseX = mouseY = -1;
+            DisplayController.display();
+        }
+    }
+
+    private final HoverListener hoverListener = new HoverListener();
+
+    void render(Viewport vp, GLImage glImage, View.ImageData imageData, boolean rhefActive, int slot) {
+        LUT lut = glImage.getLUT();
+        boolean inverted = glImage.getInvertLUT();
         if (lut == null)
             return;
 
@@ -50,12 +103,16 @@ final class Colorbar {
 
         double x0 = margin;
         double x1 = vp.width - margin;
-        double yBar = margin + slot * slotH + labelH; // labels sit under their swatches
+        double slotBottom = margin + slot * slotH; // this slot's own floor, not the viewport's
+        double yBar = slotBottom + labelH; // labels sit under their swatches
         double yTop = yBar + barH;
         if (yTop > vp.height) // out of room; drop this legend rather than draw over the image
             return;
 
         vex.clear();
+        // Full width, but confined to this slot's own band top and bottom -- see the comment on
+        // PANEL_BG above for why it must not reach past that into a neighbouring slot's territory.
+        quad(0, Math.max(0, slotBottom - PANEL_PAD), vp.width, yTop + PANEL_PAD, PANEL_BG);
         if (groups == null)
             buildGradient(argb, inverted, x0, x1, yBar, yTop);
         else
@@ -66,11 +123,82 @@ final class Colorbar {
         Transform.pushView();
         Transform.setIdentityView();
         quads.setVertexRepeatable(vex);
+        // Depth testing is on for the whole frame (GLRenderer sets it up once, for the 3D scene),
+        // and is still active here: this is a flat screen-space overlay drawn after the sphere,
+        // but at whatever pixels the sphere's curved surface happens to sit closer in the depth
+        // buffer than this quad, the depth test discards this fragment and the sphere shows
+        // through anyway -- inconsistently, following the sphere's curvature rather than draw
+        // order. SdfTextRenderer already disables depth testing around itself for the same reason
+        // (see its beginRendering/endRendering); this quad pass needs the same treatment.
+        GL.glDisable(GL.DEPTH_TEST);
         quads.renderShape(GL.TRIANGLES);
+        GL.glEnable(GL.DEPTH_TEST);
         Transform.popView();
         Transform.popProjection();
 
         drawLabels(vp, lut, groups, x0, x1, yBar, labelH);
+        updateHover(vp, lut, groups, glImage, imageData, rhefActive, x0, x1, yBar, yTop, labelH);
+    }
+
+    // Hovering a categorical block exposes the raw index it covers (several pixel values can share
+    // one legend block, e.g. a coronal hole and its boundary). Hovering a continuous ramp tries to
+    // recover the physical pixel value the colour represents, undoing this layer's Levels/response
+    // adjustment and then the FITS decoder's own stretch (see ImageBuffer.PhysicalScale and
+    // FITSImage.inverseMapping); when that is not possible -- a server/JPX-backed layer never had
+    // FITS DN to begin with, or RHEF's rank transform and difference deltas have no simple inverse
+    // -- it falls back to the plain display-range percentage.
+    private void updateHover(Viewport vp, LUT lut, List<LUTLabels.Group> groups, GLImage glImage, View.ImageData imageData,
+                             boolean rhefActive, double x0, double x1, double yBar, double yTop, double labelH) {
+        if (!vp.contains(mouseX, mouseY))
+            return;
+        double localX = mouseX - vp.x;
+        double localY = vp.height - (mouseY - vp.yAWT);
+        if (localX < x0 || localX > x1 || localY < yBar - labelH || localY > yTop)
+            return;
+
+        double frac = Math.clamp((localX - x0) / (x1 - x0), 0, 1);
+        String text;
+        if (groups == null) {
+            String physical = physicalValueText(frac, glImage, imageData, rhefActive);
+            text = physical != null ? physical + " · " + lut.name() : String.format("%.0f%% · %s", frac * 100, lut.name());
+        } else {
+            double blockW = (x1 - x0) / groups.size();
+            int g = Math.clamp((int) (frac * groups.size()), 0, groups.size() - 1);
+            LUTLabels.Group group = groups.get(g);
+            int[] indices = group.indices();
+            double bx = x0 + g * blockW;
+            double stripeW = blockW / indices.length;
+            int s = Math.clamp((int) ((localX - bx) / stripeW), 0, indices.length - 1);
+            // Block position comes from group order (lut-labels.json), never from the colortable,
+            // so it names the same raw index regardless of "inverted" -- that flag only changes
+            // which colour color() looks up for it, not which data value this screen slot is.
+            text = "idx " + indices[s] + " · " + group.label();
+        }
+        hoverText.clear();
+        hoverText.add(text);
+        GLText.drawTextFloat(vp, hoverText, mouseX + HOVER_OFFSET_X, mouseY - HOVER_OFFSET_Y);
+    }
+
+    // frac is the value the shader fed into the LUT lookup: display-space, after this layer's own
+    // Levels (brightOffset/brightScale) and, for AIA, its instrument response-factor correction --
+    // see GLImage.applyFilters. Undo that first to get back to the decoder's raw [0,1] texture
+    // value, then hand it to ImageBuffer.PhysicalScale to undo the stretch and min/max normalize.
+    @Nullable
+    private static String physicalValueText(double frac, GLImage glImage, View.ImageData imageData, boolean rhefActive) {
+        if (rhefActive || glImage.getDifferenceMode() != GLImage.DifferenceMode.None)
+            return null; // RHEF's rank transform and difference deltas have no simple physical inverse
+        ImageBuffer.PhysicalScale scale = imageData.imageBuffer().physicalScale();
+        if (scale == null)
+            return null; // server/JPX-backed layer: the client never had the original FITS DN
+
+        double denom = glImage.getBrightScale() * imageData.metaData().getResponseFactor();
+        if (denom == 0)
+            return null;
+        double texRaw = (frac - glImage.getBrightOffset()) / denom;
+        if (texRaw < 0 || texRaw > 1)
+            return null; // outside this layer's own Levels window -- a clipped/saturated region, not one physical value
+
+        return String.format("%.4g", scale.toPhysical(texRaw));
     }
 
     /** Continuous LUT: a smooth ramp across the full width. */
@@ -173,9 +301,11 @@ final class Colorbar {
 
     void init() {
         quads.init();
+        InputController.addListener(hoverListener);
     }
 
     void dispose() {
         quads.dispose();
+        InputController.removeListener(hoverListener);
     }
 }

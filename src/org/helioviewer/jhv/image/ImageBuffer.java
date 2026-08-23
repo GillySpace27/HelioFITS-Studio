@@ -4,10 +4,38 @@ import java.lang.ref.Cleaner;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ShortBuffer;
+import java.util.function.DoubleUnaryOperator;
+
+import javax.annotation.Nullable;
 
 import org.lwjgl.system.MemoryUtil;
 
 public final class ImageBuffer {
+
+    // Set only by the direct-FITS decode path (FITSImage), which is the one place that still has
+    // the physical (BZERO/BSCALE-corrected) pixel value before it gets stretched and squashed into
+    // the [0,1] texture. Server-backed layers (JPX/JPIP movies) never carry this: the server bakes
+    // in its own stretch before the client ever sees a pixel, so there is nothing to invert.
+    public record PhysicalScale(float min, float max, DoubleUnaryOperator inverseStretch) {
+        // displayFraction: the normalized [0,1] value that was fed into the LUT lookup, i.e. after
+        // this buffer's own stretch but before any layer-level Levels/response adjustment -- the
+        // caller is responsible for undoing those first.
+        public double toPhysical(double displayFraction) {
+            return min + inverseStretch.applyAsDouble(Math.clamp(displayFraction, 0, 1)) * (max - min);
+        }
+    }
+
+    @Nullable
+    private PhysicalScale physicalScale;
+
+    public void setPhysicalScale(@Nullable PhysicalScale scale) {
+        physicalScale = scale;
+    }
+
+    @Nullable
+    public PhysicalScale physicalScale() {
+        return physicalScale;
+    }
 
     private static final Cleaner cleaner = Cleaner.create();
 

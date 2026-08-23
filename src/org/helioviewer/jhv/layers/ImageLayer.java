@@ -232,7 +232,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     public void renderFloat(MapView mv, Viewport vp) {
         if (!isVisible[vp.idx] || !glImage.getShowColorbar() || imageData == null)
             return;
-        colorbar.render(vp, glImage.getLUT(), glImage.getInvertLUT(), colorbarSlot());
+        colorbar.render(vp, glImage, imageData, view.getFilter() == ImageFilter.Type.RHEF, colorbarSlot());
     }
 
     // Legends stack upward from the bottom, so each enabled layer needs a distinct slot. Counting

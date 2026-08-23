@@ -6,6 +6,7 @@ import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ShortBuffer;
 import java.util.Arrays;
+import java.util.function.DoubleUnaryOperator;
 
 import javax.annotation.Nullable;
 
@@ -164,10 +165,6 @@ public final class FITSImage implements URIImageReader {
         return new SampleBuffer(samples, sampleLen);
     }
 
-    private interface NormalizedMapping {
-        double map(double x);
-    }
-
     private static final int SCALE_LOOKUP_SIZE = 1 << 16;
     private static final int RAW_SHORT_LOOKUP_SIZE = 1 << Short.SIZE;
     private static final short HALF_FLOAT_ZERO = Float.floatToFloat16(0f);
@@ -185,7 +182,7 @@ public final class FITSImage implements URIImageReader {
         }
     }
 
-    private static NormalizedLookup normalizedLookup(NormalizedMapping mapping) {
+    private static NormalizedLookup normalizedLookup(DoubleUnaryOperator mapping) {
         short[] values = new short[SCALE_LOOKUP_SIZE];
 
         for (int i = 0; i < values.length; i++) {
@@ -195,7 +192,7 @@ public final class FITSImage implements URIImageReader {
         return new NormalizedLookup(values);
     }
 
-    private static NormalizedMapping normalizedMapping(FITSViewState.Data state, float range) {
+    static DoubleUnaryOperator normalizedMapping(FITSViewState.Data state, float range) { // package-private: exercised directly by extra/test/FITSImageInverseCheck.java
         return switch (state.scalingMode()) {
             case Gamma -> {
                 double gamma = state.gamma();
@@ -214,18 +211,40 @@ public final class FITSImage implements URIImageReader {
         };
     }
 
-    private static short mapNormalizedToHalfFloat(double x, NormalizedMapping mapping) {
+    // Inverse of normalizedMapping, for recovering a physical value from a displayed one (colorbar
+    // hover). y is the stretched [0,1] value; the result is the pre-stretch normalized (v-min)/range
+    // that produced it. Mirrors each case above algebraically -- keep the two in sync.
+    static DoubleUnaryOperator inverseMapping(FITSViewState.Data state, float range) { // package-private: same reason
+        return switch (state.scalingMode()) {
+            case Gamma -> {
+                double gamma = state.gamma();
+                yield y -> Math.pow(y, 1. / gamma);
+            }
+            case Beta -> {
+                double k = range * state.beta();
+                double asinhK = MathUtils.asinh(k);
+                yield y -> Math.sinh(y * asinhK) / k;
+            }
+            case Alpha -> {
+                double alpha = state.alpha();
+                double log1pAlpha = Math.log1p(alpha);
+                yield y -> Math.expm1(y * log1pAlpha) / alpha;
+            }
+        };
+    }
+
+    private static short mapNormalizedToHalfFloat(double x, DoubleUnaryOperator mapping) {
         if (!(x > 0)) {
             return HALF_FLOAT_ZERO;
         }
         if (x >= 1) {
             return HALF_FLOAT_ONE;
         }
-        return Float.floatToFloat16((float) Math.clamp(mapping.map(x), 0, 1));
+        return Float.floatToFloat16((float) Math.clamp(mapping.applyAsDouble(x), 0, 1));
     }
 
     private static short[] rawShortToHalfFloat(boolean hasBlank, long blank, double bzero, double bscale, float min, double toUnit,
-                                               NormalizedMapping mapping) {
+                                               DoubleUnaryOperator mapping) {
         short[] values = new short[RAW_SHORT_LOOKUP_SIZE];
 
         for (int i = 0; i < values.length; i++) {
@@ -242,7 +261,7 @@ public final class FITSImage implements URIImageReader {
         float range = max - min;
         double toUnit = 1. / range;
         double toIndex = SCALE_LOOKUP_SIZE / (double) range;
-        NormalizedMapping mapping = normalizedMapping(state, range);
+        DoubleUnaryOperator mapping = normalizedMapping(state, range);
 
         final boolean identity = bzero == 0.0 && bscale == 1.0; // hope HotSpot can generate a fast path
         switch (pixels) {
@@ -421,7 +440,11 @@ public final class FITSImage implements URIImageReader {
 
         ImageBuffer.WriteBuffer outBuffer = ImageBuffer.createWriteBuffer(width, height, ImageBuffer.Format.Gray16F, filter);
         convertPixels(pixels, outBuffer.shortBuffer(), hasBlank, blank, bzero, bscale, width, height, min, max, state);
-        return outBuffer.finish();
+        ImageBuffer result = outBuffer.finish();
+        // min/max are already BZERO/BSCALE-corrected physical values (see sampleImage/rawShortToHalfFloat
+        // above), so no further un-baking is needed once the stretch itself is inverted.
+        result.setPhysicalScale(new ImageBuffer.PhysicalScale(min, max, inverseMapping(state, max - min)));
+        return result;
     }
 
     private static final String nl = System.lineSeparator();
