@@ -21,7 +21,11 @@ public class LUTPanel implements FilterDetails {
     private final JPanel buttonPanel = new JPanel(new BorderLayout());
     private final JLabel title = new JLabel("Color ", JLabel.RIGHT);
 
-    public LUTPanel(ImageLayer layer) {
+    // onLutChanged: notified after a LUT/invert change lands on the layer. Whether a categorical
+    // LUT is in play can flip here, which gates other controls elsewhere (see
+    // ImageLayerRenderingPanel.applyIndexedGating()). The callback must not call back into this
+    // panel's setLUT()/combo -- that reopens the combo's own listener and loops forever.
+    public LUTPanel(ImageLayer layer, Runnable onLutChanged) {
         lutCombo = new LUTComboBox();
         JideToggleButton invertButton = new JideToggleButton(Buttons.invert, layer.getGLImage().getInvertLUT());
         invertButton.setToolTipText("Invert color table");
@@ -31,6 +35,7 @@ public class LUTPanel implements FilterDetails {
 
         ActionListener listener = e -> {
             layer.getGLImage().setLUT(lutCombo.getLUT(), invertButton.isSelected());
+            onLutChanged.run();
             DisplayController.display();
         };
         lutCombo.addActionListener(listener);

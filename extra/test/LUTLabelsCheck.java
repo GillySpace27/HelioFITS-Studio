@@ -27,6 +27,13 @@ public final class LUTLabelsCheck {
                 "'" + LUT.gray().name() + "' has no sidecar entry and must stay continuous");
         assertTrue(LUTLabels.get("no such LUT") == null, "unknown LUT must stay continuous");
 
+        // isCategorical() is the gate the rendering panel (Levels/Sharpen/Filter/...) and the
+        // shader (dither, texture filter) key off -- it must track the LUT actually in use, not
+        // the FITS product, so switching a layer's colour table away from a categorical one hands
+        // those controls back.
+        assertTrue(LUTLabels.isCategorical(LUT.get(CATEGORICAL)), "'" + CATEGORICAL + "' LUT should read as categorical");
+        assertTrue(!LUTLabels.isCategorical(LUT.gray()), "'" + LUT.gray().name() + "' LUT should read as continuous");
+
         // Every referenced index must be addressable in the 256-entry table, else the legend would
         // read colours that do not exist.
         int entries = LUT.get(CATEGORICAL).lut8().length;

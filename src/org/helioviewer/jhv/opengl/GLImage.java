@@ -7,6 +7,7 @@ import org.helioviewer.jhv.base.BufferUtils;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.lut.LUT;
+import org.helioviewer.jhv.image.lut.LUTLabels;
 import org.helioviewer.jhv.metadata.DetectorMask;
 import org.helioviewer.jhv.metadata.MetaData;
 import org.helioviewer.jhv.wcs.ImageBounds;
@@ -76,7 +77,10 @@ public class GLImage {
     public void streamImage(View.ImageData imageData, View.ImageData prevImageData, View.ImageData baseImageData) {
         if (uploadedImageData != imageData) {
             tex.bind();
-            int filter = imageData.metaData().isIndexedSurfaceMap() ? GL.NEAREST : GL.LINEAR;
+            // NEAREST so a categorical LUT never samples a blended half-index between two category
+            // IDs; gated on the LUT in use, not the FITS product, so a continuous LUT over the same
+            // data gets the ordinary smooth LINEAR treatment. Mirrors applyFilters()'s dither gate.
+            int filter = LUTLabels.isCategorical(lut) ? GL.NEAREST : GL.LINEAR;
             tex.copyImageBuffer(imageData.imageBuffer(), filter);
             uploadedImageData = imageData;
         }
@@ -120,7 +124,7 @@ public class GLImage {
                 Display.getShowCorona() ? (outerMask < 1 ? (float) (outerMask * maskRef) : metaData.getOuterRadius()) : 1,
                 (float) slitLeft, (float) slitRight,
                 (float) (rhefActive ? upsilonLow : 1), (float) (rhefActive ? upsilonHigh : 1),
-                metaData.isIndexedSurfaceMap() ? 1 : 0);
+                LUTLabels.isCategorical(lut) ? 1 : 0);
 
         applyLUT();
         applyMask(metaData.getDetectorMask());

@@ -38,6 +38,14 @@ public final class LUTLabels {
         return labels.get(lutName);
     }
 
+    // The discriminator for "does this pixel value have to stay exact": the LUT currently in use,
+    // not the FITS product it happens to be displaying. The same indexed data reads correctly
+    // through a continuous LUT too (e.g. inspecting raw category IDs as a heatmap), so what breaks
+    // is tied to which colour table is on screen right now, and follows the user switching it.
+    public static boolean isCategorical(LUT lut) {
+        return get(lut.name()) != null;
+    }
+
     private static Map<String, List<Group>> load() {
         Map<String, List<Group>> loaded = new HashMap<>();
         try (InputStream is = FileUtils.getResource("/luts/lut-labels.json");

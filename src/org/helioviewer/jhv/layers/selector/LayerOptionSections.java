@@ -55,6 +55,14 @@ public final class LayerOptionSections implements Layers.Listener, Interfaces.La
             ComponentUtils.setEnabled(p.rendering(), il.isEnabled());
             ComponentUtils.setEnabled(p.geometry(), il.isEnabled());
             ComponentUtils.setEnabled(p.manage(), il.isEnabled());
+            // The blanket enable above is keyed only on the layer's on/off checkbox, so it just
+            // re-enabled every control in the rendering panel -- including the ones refresh()
+            // disables for an indexed categorical layer (Levels, Sharpen, Filter, ...). Reapply
+            // that finer-grained pass on top so selecting the layer doesn't undo it every time.
+            // Skip it when the layer itself is off: refresh() only ever disables the indexed rows,
+            // so running it here would partially re-enable a layer the checkbox just turned off.
+            if (il.isEnabled())
+                p.rendering().refresh(il);
             layerOptionsWrapper.add(p.rendering());
             geometryWrapper.add(p.geometry());
             manageWrapper.add(p.manage());
