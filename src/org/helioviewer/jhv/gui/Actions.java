@@ -7,6 +7,7 @@ import java.awt.event.KeyEvent;
 import java.io.File;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.List;
 
 import javax.swing.AbstractAction;
 import javax.swing.JOptionPane;
@@ -30,6 +31,7 @@ import org.helioviewer.jhv.gui.dialog.SynopticDialog;
 import org.helioviewer.jhv.io.DataSources;
 import org.helioviewer.jhv.io.ExtensionFileFilter;
 import org.helioviewer.jhv.layers.ImageLayer;
+import org.helioviewer.jhv.layers.Layer;
 import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.movie.Player;
@@ -462,8 +464,12 @@ public final class Actions {
         }
     }
 
-    // Clears all loaded image layers and annotations for a fresh start. The session autosaves
-    // the now-empty state, so the previous auto-restore is replaced; named .jhv saves are untouched.
+    // Clears every user-added layer and the annotations for a fresh start. Deletable is the same
+    // test the row's "x" control uses, so this drops whatever the user loaded -- image layers,
+    // point clouds, anything added later -- while the always-present defaults (grid, viewpoint,
+    // miniview and friends) stay. Clearing only the image layers left point clouds behind in a
+    // session that was supposed to be empty. The session autosaves the now-empty state, so the
+    // previous auto-restore is replaced; named .jhv saves are untouched.
     public static class NewSession extends AbstractAction {
         public NewSession() {
             super("Start New Session");
@@ -471,15 +477,15 @@ public final class Actions {
 
         @Override
         public void actionPerformed(ActionEvent e) {
-            if (!Layers.getImageLayers().isEmpty()) {
+            List<Layer> removable = Layers.getLayers().stream().filter(Layer::isDeletable).toList();
+            if (!removable.isEmpty()) {
                 int r = JOptionPane.showConfirmDialog(MainFrame.get(),
                         "Clear all loaded layers and start a new session?",
                         "New Session", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
                 if (r != JOptionPane.OK_OPTION)
                     return;
             }
-            for (ImageLayer layer : new ArrayList<>(Layers.getImageLayers()))
-                Layers.remove(layer);
+            removable.forEach(Layers::remove);
             Annotations.clear();
             org.helioviewer.jhv.app.Session.resetToUntitled(); // clear the name back to Untitled
         }
