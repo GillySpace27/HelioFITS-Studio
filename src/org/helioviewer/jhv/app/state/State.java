@@ -4,8 +4,10 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -48,13 +50,59 @@ public final class State {
         writeJson(toJson(), dir, file);
     }
 
+    // Write through a temp file and move it into place. Writing directly truncates the target
+    // first, so an exception mid-write -- or two autosaves overlapping -- left a corrupt session
+    // and nothing to fall back on. The displaced version is kept as .bak, one deep.
     private static void writeJson(JSONObject json, String dir, String file) {
         Path path = Path.of(dir, file);
-        try (BufferedWriter writer = Files.newBufferedWriter(path)) {
-            json.write(writer);
+        Path temp = Path.of(dir, file + ".tmp");
+        try {
+            try (BufferedWriter writer = Files.newBufferedWriter(temp)) {
+                json.write(writer);
+            }
+            if (losesAllImageLayers(json, path)) // keep one step back from an emptying save
+                Files.copy(path, Path.of(dir, file + ".bak"), StandardCopyOption.REPLACE_EXISTING);
+            try {
+                Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) { // e.g. across filesystems
+                Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING);
+            }
         } catch (IOException e) {
             Log.error(e);
+            try {
+                Files.deleteIfExists(temp);
+            } catch (IOException ignored) {
+                // nothing useful to do; the stale temp is harmless
+            }
         }
+    }
+
+    // True when this write would replace a file that had image layers with one that has none.
+    // That is the shape of the loss being guarded against -- a session emptied by a save taken at
+    // the wrong moment -- and it fires once on the transition, so it does not churn a .bak on
+    // every autosave, and never for a session that legitimately holds no image layers.
+    private static boolean losesAllImageLayers(JSONObject json, Path path) {
+        try {
+            if (!json.getJSONObject("org.helioviewer.jhv.state").getJSONArray("imageLayers").isEmpty())
+                return false;
+            if (!Files.isRegularFile(path))
+                return false;
+            JSONObject old = new JSONObject(Files.readString(path));
+            return !old.getJSONObject("org.helioviewer.jhv.state").getJSONArray("imageLayers").isEmpty();
+        } catch (Exception e) { // unreadable or older layout: nothing worth preserving
+            return false;
+        }
+    }
+
+    // An image layer is only worth writing if the file can reload it: a request to reissue, or
+    // URIs to re-read. Anything else is a husk -- it restores as a layer with nothing to load,
+    // which then gets pruned, so keeping it actively loses the layer instead of preserving it.
+    // Consulted on both the write and the read side; see extra/test/SessionStateCheck.java.
+    static boolean hasRestorableData(JSONObject data) {
+        if (data.optJSONObject("APIRequest") != null)
+            return true;
+        JSONArray uris = data.optJSONArray("uris");
+        return uris != null && !uris.isEmpty();
     }
 
     private static JSONObject toJson() {
@@ -72,7 +120,13 @@ public final class State {
 
         JSONArray ji = new JSONArray();
         ImageLayer active = Layers.getActiveImageLayer();
-        Layers.forEachImageLayer(layer -> ji.put(layer2json(layer, layer == active)));
+        Layers.forEachImageLayer(layer -> {
+            JSONObject jo = layer2json(layer, layer == active);
+            if (hasRestorableData(jo.getJSONObject("data")))
+                ji.put(jo);
+            else // still loading and with nothing to reissue: skip rather than write a husk
+                Log.info("Not saving image layer with no restorable source: " + layer.getName());
+        });
         main.put("imageLayers", ji);
 
         saveTimelineState(main);
@@ -198,6 +252,13 @@ public final class State {
                     JSONObject jd = jo.optJSONObject("data");
                     if (jd == null)
                         continue;
+                    if (!hasRestorableData(jd)) {
+                        // A husk from a session saved before the write-side guard existed. Creating
+                        // it would only get it pruned below, which marks the session dirty and lets
+                        // the next autosave write the emptied scene back over the file.
+                        Log.warn("Skipping unrestorable image layer in state: " + jo.optString("name"));
+                        continue;
+                    }
 
                     try {
                         ImageLayer layer = ImageLayer.createDetached(jd);
@@ -250,12 +311,12 @@ public final class State {
             deferred.setRepeats(false);
             deferred.start();
             org.helioviewer.jhv.app.Session.markSaved(); // a freshly-loaded session is not "unsaved"
-            org.helioviewer.jhv.app.Session.fireStateLoadComplete();
+            org.helioviewer.jhv.app.Session.fireStateLoadComplete(true);
             Commands.notifyLoadStateFinished(context, true, "State loaded.");
         }
 
         void onFailure(Throwable t) {
-            org.helioviewer.jhv.app.Session.fireStateLoadComplete();
+            org.helioviewer.jhv.app.Session.fireStateLoadComplete(false);
             Log.error(t);
             String message = t.getMessage() == null || t.getMessage().isBlank() ? "State load failed." : t.getMessage();
             Commands.notifyLoadStateFinished(context, false, message);
@@ -279,6 +340,7 @@ public final class State {
             loadLayers(jo, context, modeData);
         } catch (Exception e) {
             Log.error(e);
+            org.helioviewer.jhv.app.Session.fireStateLoadComplete(false); // else the caller's spinner never stops
             String message = e.getMessage() == null || e.getMessage().isBlank() ? "State load failed." : e.getMessage();
             Commands.notifyLoadStateFinished(context, false, message);
         }

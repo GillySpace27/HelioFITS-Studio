@@ -390,7 +390,16 @@ public final class MainFrame {
             java.io.File state = org.helioviewer.jhv.gui.dialog.LoadStateDialog.get();
             if (state != null) {
                 startSpinner(loadButton, loadSpinner);
-                org.helioviewer.jhv.app.Session.onNextStateLoad(stopSpinner(loadButton, loadSpinner, Buttons.load));
+                java.io.File previous = org.helioviewer.jhv.app.Session.currentSessionFile();
+                boolean previousNamed = org.helioviewer.jhv.app.Session.isNamedSession();
+                Runnable stop = stopSpinner(loadButton, loadSpinner, Buttons.load);
+                org.helioviewer.jhv.app.Session.onNextStateLoad(success -> {
+                    // Repointing the window at a file the load never populated would let the next
+                    // autosave write the *previous* scene over the user's project.
+                    if (!success && previous != null)
+                        org.helioviewer.jhv.app.Session.setSessionFile(previous, previousNamed);
+                    stop.run();
+                });
                 org.helioviewer.jhv.app.Commands.loadState(state.toURI());
                 org.helioviewer.jhv.app.Session.setSessionFile(state, true);
             }
@@ -404,10 +413,10 @@ public final class MainFrame {
             if (org.helioviewer.jhv.app.Session.isNamedSession()) {
                 startSpinner(saveButton, saveSpinner);
                 Runnable done = stopSpinner(saveButton, saveSpinner, Buttons.save);
-                new Thread(() -> { // off the EDT so the spinner animates during the write
-                    org.helioviewer.jhv.app.Session.quickSaveToCurrent();
-                    done.run();
-                }, "JHV-QuickSave").start();
+                // Snapshot on the EDT: the scene is EDT-owned, and reading it from a worker
+                // thread raced layer changes and could throw the save away.
+                org.helioviewer.jhv.app.Session.quickSaveToCurrent();
+                done.run();
             } else {
                 new Actions.SaveStateAs().actionPerformed(null); // dialog is its own feedback
             }
@@ -431,7 +440,8 @@ public final class MainFrame {
             if (r != javax.swing.JOptionPane.OK_OPTION)
                 return;
             startSpinner(revertButton, revertSpinner);
-            org.helioviewer.jhv.app.Session.onNextStateLoad(stopSpinner(revertButton, revertSpinner, Buttons.revert));
+            Runnable stopRevert = stopSpinner(revertButton, revertSpinner, Buttons.revert);
+            org.helioviewer.jhv.app.Session.onNextStateLoad(success -> stopRevert.run());
             org.helioviewer.jhv.app.Commands.loadState(f.toURI());
         });
 

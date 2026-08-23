@@ -31,6 +31,7 @@ class LoadState {
     private static void onFailure(@Nullable Commands.OperationContext context, String logContext, Throwable error) {
         String errorMessage = "Error getting the data";
         Log.error(logContext, error);
+        org.helioviewer.jhv.app.Session.fireStateLoadComplete(false); // the load is over, however badly
         Message.err(errorMessage, error.getMessage());
         String message = error.getMessage() == null || error.getMessage().isBlank() ? errorMessage : error.getMessage();
         Commands.notifyLoadStateFinished(context, false, message);

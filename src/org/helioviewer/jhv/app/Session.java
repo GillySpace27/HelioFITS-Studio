@@ -58,7 +58,13 @@ public final class Session {
         return n.equals(MAIN_FILE) || (n.startsWith("window-") && n.endsWith(".jhv"));
     }
 
-    public static void init() {
+    // Which file this window owns. Resolved on first use rather than in init(), because
+    // CommandLine.setArguments asks restoreCandidate() which session to reopen well before
+    // init() runs on the EDT -- and while sessionFile was still null it always answered "none",
+    // so no session was ever auto-restored and the empty scene was saved over it on quit.
+    private static void ensureSessionFile() {
+        if (sessionFile != null)
+            return;
         String assigned = System.getProperty("jhv.sessionFile");
         if (assigned != null) {
             sessionFile = new File(assigned);
@@ -67,6 +73,10 @@ public final class Session {
             sessionFile = (mainPath != null && !mainPath.isBlank()) ? new File(mainPath) : new File(Directories.STATES.getPath(), MAIN_FILE);
         }
         named = !isAutoFile(sessionFile);
+    }
+
+    public static void init() {
+        ensureSessionFile();
         updateTitle();
 
         if (isExtra()) {
@@ -91,19 +101,21 @@ public final class Session {
         updateLive(true); // announce this window to the Window menu
     }
 
-    // One-shot listeners fired (on the EDT) when a state load finishes — used to stop a button's
-    // spinner once the reload actually completes.
-    private static final List<Runnable> stateLoadListeners = new ArrayList<>();
+    // One-shot listeners fired (on the EDT) when a state load finishes, with whether it succeeded.
+    // Used to stop a button's spinner once the reload actually completes, and to undo an
+    // optimistic setSessionFile when it did not.
+    private static final List<java.util.function.Consumer<Boolean>> stateLoadListeners = new ArrayList<>();
 
-    public static void onNextStateLoad(Runnable r) {
+    public static void onNextStateLoad(java.util.function.Consumer<Boolean> r) {
         stateLoadListeners.add(r);
     }
 
-    public static void fireStateLoadComplete() {
-        List<Runnable> copy = new ArrayList<>(stateLoadListeners);
+    public static void fireStateLoadComplete(boolean success) {
+        restorePending = false; // the scene is now this session's, however the load went
+        List<java.util.function.Consumer<Boolean>> copy = new ArrayList<>(stateLoadListeners);
         stateLoadListeners.clear();
-        for (Runnable r : copy)
-            r.run();
+        for (java.util.function.Consumer<Boolean> r : copy)
+            r.accept(success);
     }
 
     public static void markDirty() {
@@ -120,8 +132,19 @@ public final class Session {
     }
 
     // The session to auto-restore on launch (this window's file), or null.
+    @Nullable
     public static File restoreCandidate() {
-        return sessionFile != null && sessionFile.isFile() && sessionFile.length() > 0 ? sessionFile : null;
+        ensureSessionFile();
+        return sessionFile.isFile() && sessionFile.length() > 0 ? sessionFile : null;
+    }
+
+    // Set once startup has queued a session to restore. Until that load reports back, this
+    // window's scene is not yet the session's, so the automatic saves must leave the file
+    // alone: writing an empty or half-restored scene over it is how a project gets erased.
+    private static boolean restorePending;
+
+    public static void expectStateLoad() {
+        restorePending = true;
     }
 
     // Point this window at a named .jhv (after Save As / Load), so autosave follows it and the
@@ -234,7 +257,7 @@ public final class Session {
     }
 
     private static void autosaveIfChanged() {
-        if (changeCounter == autosavedCounter || sessionFile == null)
+        if (changeCounter == autosavedCounter || sessionFile == null || restorePending)
             return;
         autosavedCounter = changeCounter;
         State.save(sessionFile.getParent(), sessionFile.getName());
@@ -264,7 +287,7 @@ public final class Session {
                 saveNamedNow();
         }
 
-        if (sessionFile != null)
+        if (sessionFile != null && !restorePending) // never overwrite a session we never restored
             State.saveNow(sessionFile.getParent(), sessionFile.getName());
         if (closingThisWindow && isExtra())
             registryRemove(sessionFile); // user dismissed this window: do not reopen it

@@ -40,6 +40,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
     private boolean removed;
     @Nullable private List<URI> sourceUris; // remote URIs for a direct-URI layer (no APIRequest), for state persistence
+    @Nullable private APIRequest pendingRequest; // the request we asked for, before the view carries it
     private List<URI> failedUris = List.of(); // URIs that failed during the last load — missing, but retryable
     protected View view;
 
@@ -56,7 +57,12 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
     @Override
     public void serialize(JSONObject jo) {
+        // While a layer is still loading its view carries no request yet, so fall back to the one
+        // we asked for. Without this a save taken mid-load wrote an empty object, and restoring
+        // that husk silently dropped the layer.
         APIRequest apiRequest = view.getAPIRequest();
+        if (apiRequest == null)
+            apiRequest = pendingRequest;
         if (apiRequest != null) {
             jo.put("APIRequest", apiRequest.toJson());
             jo.put("imageParams", glImage.toJson());
@@ -124,6 +130,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         if (req.equals(view.getAPIRequest()))
             return;
 
+        pendingRequest = req; // so serialize() can persist the layer before the view arrives
         loader.load(req);
         Layers.fireLayerUpdated(this); // give feedback asap
     }

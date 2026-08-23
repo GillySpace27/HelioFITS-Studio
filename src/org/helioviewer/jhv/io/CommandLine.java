@@ -49,6 +49,7 @@ public class CommandLine {
             stateArg = restore.toURI().toString();
         }
         if (stateArg != null) {
+            org.helioviewer.jhv.app.Session.expectStateLoad(); // hold the automatic saves until it lands
             arguments = Arrays.copyOf(args, args.length + 2);
             arguments[args.length] = "-state";
             arguments[args.length + 1] = stateArg;
