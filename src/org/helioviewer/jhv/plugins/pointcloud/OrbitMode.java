@@ -28,6 +28,19 @@ import org.json.JSONObject;
 // The rotation is applied as the DELTA between consecutive frames via rotateDragRotation, never
 // as an absolute set. That keeps any manual drag the user has dialled in, composes exactly
 // because every delta is about the same axis, and needs no new setter on Camera.
+//
+// KNOWN LIMITATION (verified 2026-08-23). TURNTABLE works only when nothing else is driving the
+// movie clock, i.e. no image layer or cloud time series is loaded. It gets its stationary subject
+// by installing its OWN master clock of framesPerRev timestamps one millisecond apart, and that
+// only holds while it is the sole claimant. With a real time series loaded, that clock is either
+// refused or it flattens the series, so you cannot currently orbit a structure that is also
+// evolving in time. PLAYBACK is the mode for that case, but it ties angular rate to movie time
+// rather than giving a clean rotation independent of playback.
+//
+// Making TURNTABLE work in general is UNIMPLEMENTED. It needs the camera orbit decoupled from the
+// Player frame sequence altogether (its own animation source, driven by wall time or an export
+// frame counter) instead of borrowing the master clock to manufacture frames. Left as-is because
+// the standalone rotation movie is the case that was actually needed.
 final class OrbitMode implements Player.Listener {
 
     enum Driver {TURNTABLE, PLAYBACK}
