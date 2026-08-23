@@ -6,6 +6,7 @@ import java.util.List;
 
 import javax.annotation.Nullable;
 
+import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
@@ -29,6 +30,7 @@ public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.R
     private final GLSLShape pointsShape = new GLSLShape(true);
     private final GLSLLine wireLine = new GLSLLine(true);
     private final GLSLShape surfaceShape = new GLSLShape(true);
+    private final GLSLLine arrowLine = new GLSLLine(true);
     private final PointCloudMeshWorker meshWorker = new PointCloudMeshWorker(this::meshReady);
 
     private final TimeMap<PointCloudData> clouds = new TimeMap<>();
@@ -46,6 +48,16 @@ public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.R
     private boolean showSurface = false;
     private double opacity = 0.3;
 
+    // Heliographic direction marker; see PointCloudArrow. Defaults are the GCS propagation
+    // direction Yara De Leo gave for the 2021-10-28 limb event.
+    private boolean showArrow = false;
+    private double arrowLon = 106;
+    private double arrowLat = 25;
+    private double arrowLength = 8;
+    private double arrowWidth = 3;
+    private double arrowHalfAngle = 0; // >0 turns the arrow into an ice-cream-cone CME model
+    private Colors.NamedColor arrowColor = Colors.NamedColor.Red;
+
     private PointCloudMesh.Parameters uploadedParameters;
     private PointCloudMesh.Result readyResult;
 
@@ -59,6 +71,14 @@ public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.R
             showWire = jo.optBoolean("showWire", showWire);
             showSurface = jo.optBoolean("showSurface", showSurface);
             opacity = Math.clamp(jo.optDouble("opacity", opacity), 0, 1);
+            showArrow = jo.optBoolean("showArrow", showArrow);
+            arrowLon = Math.clamp(jo.optDouble("arrowLon", arrowLon), -360, 360);
+            arrowLat = Math.clamp(jo.optDouble("arrowLat", arrowLat), -90, 90);
+            arrowLength = Math.clamp(jo.optDouble("arrowLength", arrowLength), 1, 200);
+            arrowWidth = Math.clamp(jo.optDouble("arrowWidth", arrowWidth), 0.5, 20);
+            arrowHalfAngle = Math.clamp(jo.optDouble("arrowHalfAngle", arrowHalfAngle), 0, 89);
+            arrowColor = Colors.NamedColor.parse(jo.optString("arrowColor", arrowColor.name()), arrowColor);
+            OrbitMode.get().deserialize(jo); // camera-global, but this panel is where it is driven from
             JSONArray uris = jo.optJSONArray("sources");
             if (uris != null)
                 for (int i = 0; i < uris.length(); i++) {
@@ -80,6 +100,14 @@ public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.R
         jo.put("showWire", showWire);
         jo.put("showSurface", showSurface);
         jo.put("opacity", opacity);
+        jo.put("showArrow", showArrow);
+        jo.put("arrowLon", arrowLon);
+        jo.put("arrowLat", arrowLat);
+        jo.put("arrowLength", arrowLength);
+        jo.put("arrowWidth", arrowWidth);
+        jo.put("arrowHalfAngle", arrowHalfAngle);
+        jo.put("arrowColor", arrowColor.name());
+        OrbitMode.get().serialize(jo);
         JSONArray uris = new JSONArray();
         for (URI uri : sources)
             uris.put(uri.toString());
@@ -112,7 +140,18 @@ public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.R
                 PointCloudLoader.submit(uri, this);
             pendingRestore.clear();
         }
-        if (!isVisible[vp.idx] || clouds.isEmpty())
+        if (!isVisible[vp.idx])
+            return;
+
+        // Before the empty-cloud bail: the arrow is a direction reference, useful against bare
+        // context imagery while working out why a cloud does not sit where it should.
+        if (showArrow) {
+            arrowLine.setVertexRepeatable(
+                    PointCloudArrow.build(arrowLon, arrowLat, arrowLength, arrowHalfAngle, arrowColor));
+            arrowLine.renderLine(vp, arrowWidth * GLSLLine.LINEWIDTH_BASIC);
+        }
+
+        if (clouds.isEmpty())
             return;
 
         PointCloudData data = clouds.nearestValue(mv.viewpoint().time);
@@ -205,6 +244,7 @@ public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.R
         pointsShape.init();
         wireLine.init();
         surfaceShape.init();
+        arrowLine.init();
     }
 
     @Override
@@ -213,6 +253,7 @@ public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.R
         pointsShape.dispose();
         wireLine.dispose();
         surfaceShape.dispose();
+        arrowLine.dispose();
     }
 
     double getAlphaPct() {
@@ -353,6 +394,69 @@ public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.R
 
     void setOpacity(double v) {
         opacity = v;
+        DisplayController.display();
+    }
+
+    boolean getShowArrow() {
+        return showArrow;
+    }
+
+    void setShowArrow(boolean v) {
+        showArrow = v;
+        DisplayController.display();
+    }
+
+    double getArrowLon() {
+        return arrowLon;
+    }
+
+    void setArrowLon(double v) {
+        arrowLon = v;
+        DisplayController.display();
+    }
+
+    double getArrowLat() {
+        return arrowLat;
+    }
+
+    void setArrowLat(double v) {
+        arrowLat = v;
+        DisplayController.display();
+    }
+
+    double getArrowLength() {
+        return arrowLength;
+    }
+
+    void setArrowLength(double v) {
+        arrowLength = v;
+        DisplayController.display();
+    }
+
+    double getArrowWidth() {
+        return arrowWidth;
+    }
+
+    void setArrowWidth(double v) {
+        arrowWidth = v;
+        DisplayController.display();
+    }
+
+    double getArrowHalfAngle() {
+        return arrowHalfAngle;
+    }
+
+    void setArrowHalfAngle(double v) {
+        arrowHalfAngle = v;
+        DisplayController.display();
+    }
+
+    Colors.NamedColor getArrowColor() {
+        return arrowColor;
+    }
+
+    void setArrowColor(Colors.NamedColor v) {
+        arrowColor = v;
         DisplayController.display();
     }
 
