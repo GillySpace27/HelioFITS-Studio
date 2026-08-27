@@ -9,6 +9,7 @@ import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.MapMode;
+import org.helioviewer.jhv.display.SurfaceModel;
 import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.movie.Player;
 
@@ -107,8 +108,9 @@ public final class ViewState {
         }
     }
 
-    public record ModeData(MapMode projection, double warpLambda, AnnotationMode annotationMode, boolean multiview,
-                           boolean tracking, boolean refresh, boolean showCorona, boolean differentialRotation) {}
+    public record ModeData(MapMode projection, SurfaceModel surfaceModel, double warpLambda, AnnotationMode annotationMode,
+                           boolean multiview, boolean tracking, boolean refresh, boolean showCorona,
+                           boolean differentialRotation) {}
 
     public record PlaybackData(Player.AdvanceMode advanceMode, int speed, PlaybackSpeedUnit speedUnit,
                                int firstFrame, int lastFrame) {}
@@ -142,7 +144,7 @@ public final class ViewState {
     private static RecordingSize recordingSize = RecordingSize.ORIGINAL;
 
     public static ModeData modeData() {
-        return new ModeData(projection, warpLambda, getAnnotationMode(), multiview, tracking, refresh, showCorona, differentialRotation);
+        return new ModeData(projection, Display.getSurfaceModel(), warpLambda, getAnnotationMode(), multiview, tracking, refresh, showCorona, differentialRotation);
     }
 
     public static PlaybackData playbackData() {
@@ -168,6 +170,7 @@ public final class ViewState {
         ModeData data = modeData();
         target.put("multiview", data.multiview());
         target.put("projection", data.projection());
+        target.put("surfaceModel", data.surfaceModel());
         target.put("warpLambda", data.warpLambda());
         target.put("annotationMode", data.annotationMode());
         target.put("tracking", data.tracking());
@@ -179,6 +182,7 @@ public final class ViewState {
     public static ModeData readModeJson(JSONObject source) {
         ModeData current = modeData();
         MapMode projectionValue = current.projection();
+        SurfaceModel surfaceModelValue = current.surfaceModel();
         double warpLambdaValue = current.warpLambda();
         AnnotationMode annotationModeValue = current.annotationMode();
         boolean multiviewValue = current.multiview();
@@ -187,11 +191,17 @@ public final class ViewState {
         boolean showCoronaValue = current.showCorona();
         boolean differentialRotationValue = current.differentialRotation();
         String projectionName = source.optString("projection", projectionValue.name());
+        String surfaceModelName = source.optString("surfaceModel", surfaceModelValue.name());
         String annotationModeName = source.optString("annotationMode", annotationModeValue.name());
         try {
             projectionValue = MapMode.valueOf(projectionName);
         } catch (IllegalArgumentException e) {
             Log.warn("Ignoring invalid projection state value: " + projectionName, e);
+        }
+        try {
+            surfaceModelValue = SurfaceModel.valueOf(surfaceModelName);
+        } catch (IllegalArgumentException e) {
+            Log.warn("Ignoring invalid surface model state value: " + surfaceModelName, e);
         }
         try {
             annotationModeValue = AnnotationMode.valueOf(annotationModeName);
@@ -207,6 +217,7 @@ public final class ViewState {
 
         return new ModeData(
                 projectionValue,
+                surfaceModelValue,
                 warpLambdaValue,
                 annotationModeValue,
                 multiviewValue,
@@ -218,6 +229,7 @@ public final class ViewState {
 
     public static void applyMode(ModeData data) {
         boolean changed = projection != data.projection()
+                || Display.getSurfaceModel() != data.surfaceModel()
                 || warpLambda != data.warpLambda()
                 || annotationMode != data.annotationMode()
                 || multiview != data.multiview()
@@ -232,6 +244,7 @@ public final class ViewState {
         suppressModeNotifications = true;
         try {
             setProjection(data.projection());
+            Display.setSurfaceModel(data.surfaceModel());
             setWarpLambda(data.warpLambda());
             setAnnotationMode(data.annotationMode());
             setMultiview(data.multiview());
@@ -257,6 +270,7 @@ public final class ViewState {
         ModeData current = modeData();
         applyMode(new ModeData(
                 projection == null ? current.projection() : projection,
+                current.surfaceModel(),
                 current.warpLambda(),
                 annotationMode == null ? current.annotationMode() : annotationMode,
                 multiview == null ? current.multiview() : multiview,

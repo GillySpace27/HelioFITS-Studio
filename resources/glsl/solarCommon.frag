@@ -215,6 +215,36 @@ float unwarpRadius(float normalizedRadius) {
             : pow(1. + u * (pow(outerRadius, lambda) - 1.), 1. / lambda);
 }
 
+// Twin of display/SurfaceModel.java. Where a line of sight is taken to have originated:
+// the plane of sky (r = D tan e, z = 0), or the Thomson sphere of 90-degree scattering
+// (r = D sin e, z = r^2 / D). A placement model, not a measured depth. Keep the two in
+// step -- the mesh is built in Java and sampled here, so a divergence shows up as imagery
+// sliding off its own geometry.
+#define SURFACE_PLANE_OF_SKY 0.
+#define SURFACE_THOMSON_SPHERE 1.
+// Both models degenerate at 90 degrees; clamp rather than divide. Matches
+// SurfaceModel.MAX_ELONGATION.
+#define MAX_ELONGATION 1.5533431
+
+float surfaceHeliocentricRadius(const float elongation, const float observerDistance, const float model) {
+    float e = clamp(elongation, 0., MAX_ELONGATION);
+    return observerDistance * (model == SURFACE_THOMSON_SPHERE ? sin(e) : tan(e));
+}
+
+float surfaceDepth(const float heliocentricRadius, const float observerDistance, const float model) {
+    if (model != SURFACE_THOMSON_SPHERE || observerDistance <= 0.)
+        return 0.;
+    float r = min(heliocentricRadius, observerDistance);
+    return r * r / observerDistance;
+}
+
+float surfaceElongation(const float heliocentricRadius, const float observerDistance, const float model) {
+    if (observerDistance <= 0.)
+        return 0.;
+    float ratio = heliocentricRadius / observerDistance;
+    return model == SURFACE_THOMSON_SPHERE ? asin(clamp(ratio, -1., 1.)) : atan(ratio);
+}
+
 vec3 rotate_vector_inverse(const vec4 quat, const vec3 vec) {
     return vec + 2. * cross(cross(vec, quat.xyz) + quat.w * vec, quat.xyz);
 }

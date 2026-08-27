@@ -21,6 +21,20 @@ public final class Display {
         gridType = _gridType;
     }
 
+    // Where a coronagraph line of sight is taken to have originated. Defaults to the plane of
+    // sky because that is what every projection assumed before SurfaceModel existed, hard-coded
+    // as z = 0; changing the default would silently move everyone's imagery. See SurfaceModel
+    // for why this is a placement model rather than a measurement.
+    private static SurfaceModel surfaceModel = SurfaceModel.PlaneOfSky;
+
+    public static SurfaceModel getSurfaceModel() {
+        return surfaceModel;
+    }
+
+    public static void setSurfaceModel(SurfaceModel model) {
+        surfaceModel = model == null ? SurfaceModel.PlaneOfSky : model;
+    }
+
     private static double warpLambda = 0.0;
 
     public static double getWarpLambda() {

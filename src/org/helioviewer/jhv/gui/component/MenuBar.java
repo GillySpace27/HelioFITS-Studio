@@ -5,13 +5,17 @@ import java.awt.event.KeyEvent;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
+import javax.swing.JRadioButtonMenuItem;
+import javax.swing.ButtonGroup;
 
 import org.helioviewer.jhv.app.AppInfo;
 import org.helioviewer.jhv.app.Platform;
 import org.helioviewer.jhv.display.Display;
+import org.helioviewer.jhv.display.SurfaceModel;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.Actions;
 import org.helioviewer.jhv.gui.DesktopIntegration;
+import org.helioviewer.jhv.gui.PresentationMode;
 import org.helioviewer.jhv.gui.dialog.AboutDialog;
 import org.helioviewer.jhv.gui.dialog.LogDialog;
 import org.helioviewer.jhv.gui.dialog.SettingsDialog;
@@ -92,7 +96,12 @@ public final class MenuBar extends JMenuBar {
         });
         viewMenu.add(white);
 
+        viewMenu.add(surfaceModelMenu());
+
         viewMenu.addSeparator();
+        viewMenu.add(new Actions.TogglePresentationMode());
+        viewMenu.add(screenMenu("Presentation Output Display", PresentationMode.OUTPUT_SCREEN));
+        viewMenu.add(screenMenu("Presentation Controls Display", PresentationMode.CONTROLS_SCREEN));
         viewMenu.add(new Actions.ShowProjectionPalette());
         viewMenu.add(new Actions.TrackCME());
         viewMenu.add(new Actions.ShowDialog("FITS Settings...", new FITSSettings.SettingsDialog()));
@@ -208,6 +217,68 @@ public final class MenuBar extends JMenuBar {
             item.addActionListener(e -> org.helioviewer.jhv.app.Session.raiseWindow(w.pid()));
             windowMenu.add(item);
         }
+    }
+
+
+    // Pick which physical display carries the presentation output and which carries the
+    // controls. Rebuilt every time the menu opens: displays get plugged and unplugged mid-talk,
+    // and a menu built once at startup would offer a projector that is no longer there (or miss
+    // the one that is). "Automatic" keeps the default rule -- output on the non-main display,
+    // controls on the main one.
+    private static JMenu screenMenu(String title, String key) {
+        JMenu menu = new JMenu(title);
+        menu.addMenuListener(new javax.swing.event.MenuListener() {
+            @Override
+            public void menuSelected(javax.swing.event.MenuEvent e) {
+                menu.removeAll();
+                ButtonGroup group = new ButtonGroup();
+                String current = PresentationMode.preference(key);
+
+                JRadioButtonMenuItem auto = new JRadioButtonMenuItem("Automatic");
+                auto.setSelected(current.isEmpty());
+                auto.addActionListener(a -> PresentationMode.setPreference(key, ""));
+                group.add(auto);
+                menu.add(auto);
+                menu.addSeparator();
+
+                for (PresentationMode.Screen screen : PresentationMode.screens()) {
+                    JRadioButtonMenuItem item = new JRadioButtonMenuItem(screen.label());
+                    item.setSelected(screen.id().equals(current));
+                    item.addActionListener(a -> PresentationMode.setPreference(key, screen.id()));
+                    group.add(item);
+                    menu.add(item);
+                }
+            }
+
+            @Override
+            public void menuDeselected(javax.swing.event.MenuEvent e) {}
+
+            @Override
+            public void menuCanceled(javax.swing.event.MenuEvent e) {}
+        });
+        return menu;
+    }
+
+
+    // Where a coronagraph line of sight is taken to have originated. This is a placement model
+    // rather than a measurement (see SurfaceModel), and it changes radial positions by 6 to 40
+    // percent across a wide field, so it is an explicit user choice recorded in the session
+    // file rather than a hidden constant.
+    private static JMenu surfaceModelMenu() {
+        JMenu menu = new JMenu("Coronagraph Surface");
+        menu.setToolTipText("Where wide-field brightness is placed in depth: a projection assumption, not a measured distance");
+        ButtonGroup group = new ButtonGroup();
+        for (SurfaceModel model : SurfaceModel.values()) {
+            JRadioButtonMenuItem item = new JRadioButtonMenuItem(model.toString());
+            item.setSelected(Display.getSurfaceModel() == model);
+            item.addActionListener(e -> {
+                Display.setSurfaceModel(model);
+                DisplayController.display();
+            });
+            group.add(item);
+            menu.add(item);
+        }
+        return menu;
     }
 
 }
