@@ -41,7 +41,7 @@ public class GLGrab {
 
             capture.bindForRender();
             GL.glClear(GL.COLOR_BUFFER_BIT | GL.DEPTH_BUFFER_BIT);
-            if (GLRenderer.getMapView().isOrthographic()) {
+            if (GLRenderer.getMapView().rendersIn3D()) { // must match display()'s fork, or export takes the wrong path
                 GLRenderer.renderScene();
             } else {
                 GLRenderer.renderSceneScale();
