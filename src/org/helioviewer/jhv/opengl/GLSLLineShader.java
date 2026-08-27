@@ -19,7 +19,7 @@ class GLSLLineShader extends GLSLShader {
 
     public static void init() {
         screenBO = new GLBO(GL.UNIFORM_BUFFER, GL.STREAM_DRAW);
-        line._init(false);
+        line._init(false, true);
     }
 
     public static void dispose() {
@@ -30,6 +30,7 @@ class GLSLLineShader extends GLSLShader {
     @Override
     protected void initUniforms(int id) {
         setupUBO(id, "ScreenBlock", screenBO.getID(), UBO.LINE_SCREEN);
+        GLSLWarp.setupBlock(id);
     }
 
     void bindParams(Viewport vp, double _thickness) {

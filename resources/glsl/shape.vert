@@ -7,6 +7,6 @@ out vec4 fragColor;
 uniform mat4 ModelViewProjectionMatrix;
 
 void main(void) {
-    gl_Position = ModelViewProjectionMatrix * Vertex;
+    gl_Position = ModelViewProjectionMatrix * warpWorld(Vertex);
     fragColor = Color;
 }

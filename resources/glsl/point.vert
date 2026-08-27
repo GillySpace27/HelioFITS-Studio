@@ -8,7 +8,7 @@ uniform mat4 ModelViewProjectionMatrix;
 uniform float factor;
 
 void main(void) {
-    gl_Position = ModelViewProjectionMatrix * vec4(Vertex.xyz, 1.);
+    gl_Position = ModelViewProjectionMatrix * vec4(warpWorld(Vertex.xyz), 1.);
     gl_PointSize = Vertex.w * factor;
     fragColor = Color;
 }

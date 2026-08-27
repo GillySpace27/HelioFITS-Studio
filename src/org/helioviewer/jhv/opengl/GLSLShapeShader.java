@@ -13,8 +13,8 @@ class GLSLShapeShader extends GLSLShader {
     }
 
     public static void init() {
-        point._init(false);
-        shape._init(false);
+        point._init(false, true);
+        shape._init(false, true);
     }
 
     public static void dispose() {
@@ -24,6 +24,7 @@ class GLSLShapeShader extends GLSLShader {
 
     @Override
     protected void initUniforms(int id) {
+        GLSLWarp.setupBlock(id);
         refModelViewProjectionMatrix = GL.glGetUniformLocation(id, "ModelViewProjectionMatrix");
         factorRef = GL.glGetUniformLocation(id, "factor");
     }

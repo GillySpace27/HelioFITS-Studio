@@ -85,6 +85,7 @@ public final class GLRenderer {
         GL.glClear(GL.COLOR_BUFFER_BIT | GL.DEPTH_BUFFER_BIT);
 
         GLSLSolar.quad.init();
+        GLSLWarp.init(); // must precede the shaders that bind its block
         GLSLSolarShader.init();
         GLSLLineShader.init();
         GLSLShapeShader.init();
@@ -130,6 +131,7 @@ public final class GLRenderer {
 
         GLSLSolar.quad.dispose();
         GLSLSolarShader.dispose();
+        GLSLWarp.dispose();
         GLSLLineShader.dispose();
         GLSLShapeShader.dispose();
         GLSLTextureShader.dispose();
@@ -144,6 +146,13 @@ public final class GLRenderer {
             GL.glViewport(vp.x, vp.yGL, vp.width, vp.height);
             Transform.ortho(vp.aspect, mv.cameraWidth(vp), mv.cameraTranslationX(), mv.cameraTranslationY(), mv.viewRotation());
             GLSLSolarShader.bindScreen(vp, scale);
+            // World-space overlays share the imagery's radial compression, so a point cloud sits
+            // where the imagery would put the same direction and distance. Only RadialWarp warps;
+            // orthographic passes geometry through untouched.
+            if (mv.isRadialWarp())
+                GLSLWarp.enable(scale, effectiveOuterRadius());
+            else
+                GLSLWarp.disable();
 
             // Only in true orthographic: solarSphere.frag discards outside radius 1 in view
             // units, which stops being the limb once the radial warp moves it.
@@ -170,6 +179,8 @@ public final class GLRenderer {
     }
 
     private static void renderMiniview() {
+        GLSLWarp.disable(); // an undistorted context view, even while the main scene is warped
+
         MiniviewLayer miniview = Layers.getMiniviewLayer();
         if (miniview != null && miniview.isEnabled()) {
             Viewport vp = miniview.getViewport();
@@ -188,6 +199,8 @@ public final class GLRenderer {
     }
 
     static void renderSceneScale() {
+        GLSLWarp.disable(); // flat projections never warp overlays
+
         MapView mv = mapView;
         for (Viewport vp : Display.getViewports()) {
             MapScale scale = mv.scale(vp);
@@ -202,6 +215,8 @@ public final class GLRenderer {
     }
 
     private static void renderFullFloatScene() {
+        GLSLWarp.disable(); // screen-space HUD; never warped
+
         Viewport vp = Display.fullViewport;
         GL.glViewport(vp.x, vp.yGL, vp.width, vp.height);
         Layers.renderFullFloat(vp);

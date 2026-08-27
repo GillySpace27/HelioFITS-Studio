@@ -5,6 +5,8 @@ import org.helioviewer.jhv.io.FileUtils;
 
 abstract class GLSLShader {
     private static final String COMMON_FRAGMENT = "/glsl/solarCommon.frag";
+    // Vertex-stage counterpart, carrying the world-space warp shared by the overlay shaders.
+    private static final String COMMON_VERTEX = "/glsl/warpCommon.vert";
 
     protected static final class UBO {
         static final int WCS = 0;
@@ -12,6 +14,7 @@ abstract class GLSLShader {
         static final int SOLAR_SCREEN = 2;
         static final int DISPLAY = 3;
         static final int LINE_SCREEN = 4;
+        static final int WARP = 5;
 
         private UBO() {
         }
@@ -38,11 +41,28 @@ abstract class GLSLShader {
     }
 
     protected final void _init(boolean common) {
+        _init(common, false);
+    }
+
+    /**
+     * @param commonFragment prepend solarCommon.frag to the fragment stage
+     * @param commonVertex   prepend warpCommon.vert to the vertex stage
+     */
+    protected final void _init(boolean commonFragment, boolean commonVertex) {
         try {
-            vertexID = attachShader(GL.VERTEX_SHADER, FileUtils.readResourceString(vertex));
+            String vertexText = FileUtils.readResourceString(vertex);
+            if (commonVertex) {
+                // The #version line has to stay first, so splice the common in after it rather
+                // than in front of it.
+                String common = FileUtils.readResourceString(COMMON_VERTEX);
+                int nl = vertexText.indexOf('\n');
+                vertexText = nl < 0 ? common + vertexText
+                        : vertexText.substring(0, nl + 1) + common + vertexText.substring(nl + 1);
+            }
+            vertexID = attachShader(GL.VERTEX_SHADER, vertexText);
 
             String fragmentText = FileUtils.readResourceString(fragment);
-            if (common)
+            if (commonFragment)
                 fragmentText = FileUtils.readResourceString(COMMON_FRAGMENT) + fragmentText;
             fragmentID = attachShader(GL.FRAGMENT_SHADER, fragmentText);
 

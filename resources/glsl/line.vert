@@ -34,9 +34,12 @@ void main(void) {
     vec2 ndcToPixel = 0.5 * viewportSize;
     vec2 pixelToNdc = 1.0 / ndcToPixel;
 
-    vec4 prev = screen.mvp * PrevVertex;
-    vec4 curr = screen.mvp * CurrVertex;
-    vec4 next = screen.mvp * NextVertex;
+    // Every sampled vertex warps, not just the current one: the joins are computed from
+    // prev/next in screen space, so warping a subset would bend segments against neighbours
+    // that had not moved.
+    vec4 prev = screen.mvp * warpWorld(PrevVertex);
+    vec4 curr = screen.mvp * warpWorld(CurrVertex);
+    vec4 next = screen.mvp * warpWorld(NextVertex);
 
     prevPixel = viewportOrigin + (prev.xy / prev.w + 1.0) * ndcToPixel;
     currPixel = viewportOrigin + (curr.xy / curr.w + 1.0) * ndcToPixel;
