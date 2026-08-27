@@ -57,6 +57,8 @@ public class Buttons {
     public static final String collapseAll = button(MaterialDesign.CHEVRON_UP);
     public static final String expandAll = button(MaterialDesign.CHEVRON_DOWN);
     public static final String download = button(MaterialDesign.DOWNLOAD);
+    public static final String cache = button(MaterialDesign.FOLDER_OPEN);
+    public static final String deleteCache = button(MaterialDesign.DELETE);
     public static final String mgn = button(MaterialDesign.IMAGE_FILTER_HDR);
 
     public static final String invert = button(MaterialDesign.INVERT_COLORS);
@@ -85,6 +87,8 @@ public class Buttons {
     public static final String offDisk = toolBar(MaterialDesign.WEATHER_SUNNY);
     public static final String pan = toolBar(MaterialDesign.CURSOR_MOVE);
     public static final String projection = toolBar(MaterialDesign.CUBE_OUTLINE);
+    public static final String presentation = toolBar(MaterialDesign.PROJECTOR_SCREEN);
+    public static final String overflow = toolBar(MaterialDesign.CHEVRON_DOWN);
     public static final String refresh = toolBar(MaterialDesign.REFRESH);
     public static final String resetCamera = toolBar(MaterialDesign.IMAGE_FILTER_CENTER_FOCUS);
     public static final String resetCameraAxis = toolBar(MaterialDesign.DEBUG_STEP_OUT);

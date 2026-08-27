@@ -48,6 +48,15 @@ public final class MainContentPanel extends JPanel {
     }
 
     // Adds a plug-in and the associated GUI to the container. The GUI will be displayed below the main component.
+    // Presentation mode folds the plugins pane (timelines, SWEK) away without touching the
+    // user's own "display.plugins" preference, so leaving the mode restores what they had.
+    public void setPluginsVisible(boolean visible) {
+        collapsiblePane.setVisible(visible);
+        splitPane.setDividerSize(visible && splitPane.getBottomComponent() == collapsiblePane ? DIVIDER_SIZE : 0);
+        revalidate();
+        repaint();
+    }
+
     public void addPlugin(Interfaces.MainContentPanelPlugin plugin) {
         if (plugin == null || pluginList.contains(plugin) || plugin.getVisualInterfaces().isEmpty()) {
             return;

@@ -17,7 +17,22 @@ public final class DesktopIntegration {
 
     public static final boolean canBrowse = Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE);
     public static final boolean canOpen = Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN);
+    // BROWSE_FILE_DIR selects the file inside its folder (Finder on macOS, the file manager on
+    // Linux). Windows does not support it, so there we settle for opening the folder itself.
+    public static final boolean canRevealFile = Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE_FILE_DIR);
     public static final int menuShortcutMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+
+    /** Show a file in the desktop's file manager, selected where the platform allows it. */
+    public static void reveal(File file) {
+        try {
+            if (!file.isDirectory() && canRevealFile)
+                Desktop.getDesktop().browseFileDirectory(file);
+            else if (canOpen)
+                Desktop.getDesktop().open(file.isDirectory() ? file : file.getParentFile());
+        } catch (Exception e) {
+            Log.warn("Could not reveal " + file, e);
+        }
+    }
 
     public static final HyperlinkListener hyperOpenURL = e -> {
         if (e.getEventType() == HyperlinkEvent.EventType.ACTIVATED && e.getURL() != null)

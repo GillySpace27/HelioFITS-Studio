@@ -9,6 +9,7 @@ import javax.swing.JLabel;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.component.JHVSlider;
 import org.helioviewer.jhv.layers.ImageLayer;
+import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.opengl.GLImage;
 
 public class SliderFilterPanel {
@@ -18,7 +19,7 @@ public class SliderFilterPanel {
             super("Blend ",
                     0, 100, (int) (layer.getGLImage().getBlend() * 100),
                     LevelsPanel::formatPercent,
-                    value -> layer.getGLImage().setBlend(value / 100.));
+                    value -> Layers.applyToSelected(layer, gl -> gl.setBlend(value / 100.)));
         }
     }
 
@@ -27,7 +28,7 @@ public class SliderFilterPanel {
             super("δCROTA",
                     GLImage.MIN_DCROTA * 10, GLImage.MAX_DCROTA * 10, (int) (layer.getGLImage().getDeltaCROTA() * 10),
                     value -> formatDegree(value / 10.0),
-                    value -> layer.getGLImage().setDeltaCROTA(value / 10.0));
+                    value -> Layers.applyToSelected(layer, gl -> gl.setDeltaCROTA(value / 10.0)));
         }
     }
 
@@ -36,7 +37,7 @@ public class SliderFilterPanel {
             super("δCRVAL1",
                     GLImage.MIN_DCRVAL, GLImage.MAX_DCRVAL, layer.getGLImage().getDeltaCRVAL1(),
                     SliderFilterPanel::formatArcsec,
-                    layer.getGLImage()::setDeltaCRVAL1);
+                    value -> Layers.applyToSelected(layer, gl -> gl.setDeltaCRVAL1(value)));
         }
     }
 
@@ -45,7 +46,7 @@ public class SliderFilterPanel {
             super("δCRVAL2",
                     GLImage.MIN_DCRVAL, GLImage.MAX_DCRVAL, layer.getGLImage().getDeltaCRVAL2(),
                     SliderFilterPanel::formatArcsec,
-                    layer.getGLImage()::setDeltaCRVAL2);
+                    value -> Layers.applyToSelected(layer, gl -> gl.setDeltaCRVAL2(value)));
         }
     }
 
@@ -54,7 +55,7 @@ public class SliderFilterPanel {
             super("Opacity ",
                     0, 100, (int) (layer.getGLImage().getOpacity() * 100),
                     LevelsPanel::formatPercent,
-                    value -> layer.getGLImage().setOpacity(value / 100.));
+                    value -> Layers.applyToSelected(layer, gl -> gl.setOpacity(value / 100.)));
         }
     }
 
@@ -63,7 +64,7 @@ public class SliderFilterPanel {
             super("Sharpen ",
                     -100, 100, (int) (layer.getGLImage().getSharpen() * 100),
                     LevelsPanel::formatPercent,
-                    value -> layer.getGLImage().setSharpen(value / 100.));
+                    value -> Layers.applyToSelected(layer, gl -> gl.setSharpen(value / 100.)));
         }
     }
 

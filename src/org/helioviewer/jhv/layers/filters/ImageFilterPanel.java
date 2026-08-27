@@ -13,6 +13,7 @@ import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.component.JHVSlider;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.layers.ImageLayer;
+import org.helioviewer.jhv.layers.Layers;
 
 import com.jidesoft.swing.JideSplitButton;
 
@@ -44,7 +45,7 @@ public class ImageFilterPanel implements FilterDetails {
         label.setToolTipText("<html><body>pixel⋅R<sup>v");
         slider.addChangeListener(e -> {
             double value = slider.getValue() / 10.;
-            layer.getGLImage().setEnhanced(value);
+            Layers.applyToSelected(layer, gl -> gl.setEnhanced(value));
             label.setText(formatLabel(value));
             DisplayController.display();
         });
@@ -69,7 +70,7 @@ public class ImageFilterPanel implements FilterDetails {
         JLabel upsilonLowLabel = new JLabel(formatUpsilon(upsilonLowSlider.getValue() / 100.), JLabel.RIGHT);
         upsilonLowSlider.addChangeListener(e -> {
             double value = upsilonLowSlider.getValue() / 100.;
-            layer.getGLImage().setUpsilon(value, layer.getGLImage().getUpsilonHigh());
+            Layers.applyToSelected(layer, gl -> gl.setUpsilon(value, gl.getUpsilonHigh()));
             upsilonLowLabel.setText(formatUpsilon(value));
             DisplayController.display();
         });
@@ -77,7 +78,7 @@ public class ImageFilterPanel implements FilterDetails {
         JLabel upsilonHighLabel = new JLabel(formatUpsilon(upsilonHighSlider.getValue() / 100.), JLabel.RIGHT);
         upsilonHighSlider.addChangeListener(e -> {
             double value = upsilonHighSlider.getValue() / 100.;
-            layer.getGLImage().setUpsilon(layer.getGLImage().getUpsilonLow(), value);
+            Layers.applyToSelected(layer, gl -> gl.setUpsilon(gl.getUpsilonLow(), value));
             upsilonHighLabel.setText(formatUpsilon(value));
             DisplayController.display();
         });
@@ -95,8 +96,10 @@ public class ImageFilterPanel implements FilterDetails {
             if (filterCombo.getSelectedItem() instanceof ImageFilter.Type type && type != layer.getView().getFilter()) {
                 filterCombo.setToolTipText(type.description);
                 upsilonButton.setVisible(type == ImageFilter.Type.RHEF);
-                layer.getView().clearCache();
-                layer.getView().setFilter(type);
+                Layers.applyToSelectedLayers(layer, il -> {
+                    il.getView().clearCache();
+                    il.getView().setFilter(type);
+                });
                 DisplayController.render(1);
             }
         });

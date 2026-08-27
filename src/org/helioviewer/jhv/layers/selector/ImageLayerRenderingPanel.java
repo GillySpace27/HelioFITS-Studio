@@ -12,6 +12,7 @@ import org.helioviewer.jhv.gui.ComponentUtils;
 import org.helioviewer.jhv.image.lut.LUTLabels;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layer;
+import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.layers.filters.ChannelMixerPanel;
 import org.helioviewer.jhv.layers.filters.DifferencePanel;
 import org.helioviewer.jhv.layers.filters.FilterDetails;
@@ -87,7 +88,14 @@ final class ImageLayerRenderingPanel extends JPanel {
     void refresh(Layer layer) {
         ImageLayer imageLayer = (ImageLayer) layer;
         lutPanel.setLUT(imageLayer.getView().getDefaultLUT());
-        applyIndexedGating(imageLayer);
+        // refresh() also fires from layerUpdated, which arrives while a multi-selection may be
+        // live. Gating on this one layer there would re-enable controls the selection as a whole
+        // disqualifies, so defer to the selection whenever this layer is part of one.
+        List<Layer> selection = Layers.getSelection();
+        if (selection.size() > 1 && selection.contains(layer))
+            refreshForSelection(selection);
+        else
+            applyIndexedGating(imageLayer);
     }
 
     // Gate on the LUT currently in use, not the FITS product: the same indexed data reads fine
@@ -97,10 +105,25 @@ final class ImageLayerRenderingPanel extends JPanel {
     // exist and why they are inactive here. Called both from refresh() and directly from
     // LUTPanel's listener so switching the colormap updates this live -- must never touch
     // lutPanel itself, see the comment on its construction above.
+    // With several layers selected these controls fan out to all of them, so the gate has to ask
+    // about all of them: one categorical layer in the selection is enough to make a value-affecting
+    // control meaningless for that layer, and a control that silently skips one of its targets is
+    // worse than one that is visibly unavailable.
+    void refreshForSelection(List<Layer> selection) {
+        boolean anyIndexed = selection.stream()
+                .anyMatch(l -> l instanceof ImageLayer il && LUTLabels.isCategorical(il.getGLImage().getLUT()));
+        setIndexedGating(anyIndexed, selection.size());
+    }
+
     private void applyIndexedGating(ImageLayer imageLayer) {
-        boolean indexed = LUTLabels.isCategorical(imageLayer.getGLImage().getLUT());
+        setIndexedGating(LUTLabels.isCategorical(imageLayer.getGLImage().getLUT()), 1);
+    }
+
+    private void setIndexedGating(boolean indexed, int selectionSize) {
         String reason = indexed
-                ? "Disabled: this layer's colours are a fixed category legend, not a value range to adjust"
+                ? (selectionSize > 1
+                        ? "Disabled: one of the selected layers uses a fixed category legend, not a value range to adjust"
+                        : "Disabled: this layer's colours are a fixed category legend, not a value range to adjust")
                 : null;
         for (FilterDetails details : List.of(levelsPanel, sharpenPanel, channelMixerPanel, imageFilterPanel))
             setInteractable(!indexed, reason, details.getFirst(), details.getSecond(), details.getThird());

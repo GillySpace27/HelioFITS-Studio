@@ -82,6 +82,28 @@ public enum Directories {
         return new File(getPath());
     }
 
+    /**
+     * Whether a path lies inside one of the two cache roots and is therefore safe to delete.
+     *
+     * <p>Resolves symlinks and {@code ..} first, so a path that merely starts with the right
+     * text cannot escape. Used to gate cache deletion: every path fed to it is built by JHV, so
+     * this should never refuse anything -- which is the point. A delete loop should fail closed
+     * if how those paths are derived ever changes.
+     */
+    public static boolean isInsideCache(File file) {
+        try {
+            java.nio.file.Path path = file.getCanonicalFile().toPath();
+            for (Directories dir : new Directories[]{FILECACHE, DOWNLOADS}) {
+                java.nio.file.Path root = dir.getFile().getCanonicalFile().toPath();
+                if (path.startsWith(root) && !path.equals(root))
+                    return true;
+            }
+        } catch (java.io.IOException ignore) {
+            // unreadable path: treat as outside
+        }
+        return false;
+    }
+
     public static void createPersistentDirs() {
         for (Directories dir : Directories.values()) {
             if (dir == Directories.CACHE || dir == Directories.DOWNLOADS)

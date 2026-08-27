@@ -3,6 +3,7 @@ package org.helioviewer.jhv.gui;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Taskbar;
 import java.awt.EventQueue;
@@ -114,6 +115,13 @@ public final class MainFrame {
     private static JideButton sidebarCollapseHandle;
     private static boolean sidebarCollapsed;
 
+    // Presentation mode needs to take these away from the frame and give them back. They were
+    // locals in prepare(), so there was no handle on the chrome at all.
+    private static JPanel toolBarPanel;
+    private static StatusPanel statusPanel;
+    private static JPanel westWrap;
+    private static Component northTransport;
+
     private static SideContentPane leftPane;
 
     private static AngleCanvas renderCanvas;
@@ -178,11 +186,12 @@ public final class MainFrame {
         sidebarCollapseHandle.setPreferredSize(new Dimension(16, 0));
         sidebarCollapseHandle.addActionListener(e -> setSidebarCollapsed(!sidebarCollapsed));
 
-        JPanel westWrap = new JPanel(new BorderLayout());
+        westWrap = new JPanel(new BorderLayout());
         westWrap.add(leftPaneHost, BorderLayout.CENTER);
         westWrap.add(sidebarCollapseHandle, BorderLayout.LINE_END);
 
-        centerPanel.add(MoviePanel.getInstance().getNorthTransport(), BorderLayout.PAGE_START);
+        northTransport = MoviePanel.getInstance().getNorthTransport();
+        centerPanel.add(northTransport, BorderLayout.PAGE_START);
         centerPanel.add(westWrap, BorderLayout.WEST);
         centerPanel.add(mainContentPanel, BorderLayout.CENTER);
 
@@ -191,14 +200,14 @@ public final class MainFrame {
         PositionStatusPanel positionStatus = new PositionStatusPanel();
         InputController.addListener(positionStatus);
 
-        StatusPanel statusPanel = new StatusPanel(5, 5);
+        statusPanel = new StatusPanel(5, 5);
         statusPanel.addPlugin(framerateStatus, StatusPanel.Alignment.LEFT);
         statusPanel.addPlugin(positionStatus, StatusPanel.Alignment.RIGHT);
         statusPanel.addPlugin(viewpointStatus, StatusPanel.Alignment.RIGHT);
 
         ToolBar toolBar = new ToolBar();
 
-        JPanel toolBarPanel = new JPanel(new BorderLayout());
+        toolBarPanel = new JPanel(new BorderLayout());
         toolBarPanel.add(toolBar, BorderLayout.CENTER);
 
         mainFrame.getContentPane().add(toolBarPanel, BorderLayout.NORTH);
@@ -656,6 +665,51 @@ public final class MainFrame {
 
     public static MenuBar getMenuBar() {
         return menuBar;
+    }
+
+    // Show or hide everything that is not the render output. Presentation mode owns this; the
+    // sidebar's own collapsed state is left alone so exiting restores what the user had.
+    // The canvas is never removed from its container: detaching it would run removeNotify(),
+    // which tears down the native Metal host and every static GL object with it.
+    static void setChromeVisible(boolean visible) {
+        toolBarPanel.setVisible(visible);
+        statusPanel.setVisible(visible);
+        westWrap.setVisible(visible);
+        northTransport.setVisible(visible);
+        mainContentPanel.setPluginsVisible(visible);
+        centerPanel.revalidate();
+        mainFrame.validate(); // push the new bounds down to the canvas synchronously
+        centerPanel.repaint();
+        if (renderCanvas != null)
+            renderCanvas.refreshHost(); // a plain display() only reshapes the GL viewport
+    }
+
+    /**
+     * A panel presentation mode can lend out, carrying the slot it has to go back into.
+     *
+     * <p>{@code fills} says how it should be laid out while on loan: false means it wants only
+     * its natural height and stacks at the top (the toolbar, the transport), true means it
+     * should take all the height left over (the sidebar). Stacking everything in a BoxLayout
+     * instead gave each panel its <em>maximum</em> height, which for a JPanel is unbounded, so
+     * the toolbar and scrubber ballooned and the layer list was squeezed to the bottom.
+     */
+    record ChromeSlot(Component panel, Container parent, String constraint, boolean fills) {
+        void restore() {
+            parent.add(panel, constraint);
+        }
+    }
+
+    // One list, in display order, so what gets borrowed and where it returns to cannot drift
+    // apart: a panel added here is automatically restored to the slot named right beside it.
+    static java.util.List<ChromeSlot> chromeForPresenterView() {
+        return java.util.List.of(
+                new ChromeSlot(toolBarPanel, mainFrame.getContentPane(), BorderLayout.NORTH, false),
+                new ChromeSlot(northTransport, centerPanel, BorderLayout.PAGE_START, false),
+                new ChromeSlot(westWrap, centerPanel, BorderLayout.WEST, true));
+    }
+
+    public static boolean isSidebarCollapsed() {
+        return sidebarCollapsed;
     }
 
     private MainFrame() {}

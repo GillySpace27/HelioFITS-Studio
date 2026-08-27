@@ -8,6 +8,7 @@ import javax.annotation.Nullable;
 
 import javax.swing.JCheckBox;
 import javax.swing.JLabel;
+import javax.swing.JRadioButton;
 import javax.swing.JTable;
 import javax.swing.table.DefaultTableCellRenderer;
 
@@ -67,6 +68,37 @@ class CellRenderer {
                 }
             }
             return label;
+        }
+
+    }
+
+    // Which layer drives the movie clock. It used to be set by clicking the layer's NAME, while
+    // clicking a few pixels to the side of the name merely selected it -- two very different
+    // outcomes from what looks like the same click. It is a radio button now: one per row, next
+    // to the visibility box, exclusive by nature, and it says what it does.
+    static final class Master extends DefaultTableCellRenderer {
+
+        private final JRadioButton radio = new JRadioButton();
+        private final JLabel blank = new JLabel();
+
+        Master() {
+            radio.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
+        }
+
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+            java.awt.Color background = isSelected ? table.getSelectionBackground() : table.getBackground();
+            // Only image layers can drive the clock, so other rows get an empty cell rather than
+            // a radio button that would never do anything.
+            if (!(value instanceof ImageLayer)) {
+                blank.setOpaque(true);
+                blank.setBackground(background);
+                return blank;
+            }
+            radio.setSelected(value == Layers.getActiveImageLayer());
+            radio.setToolTipText("Use this layer as the master for the movie clock and frame rate");
+            radio.setBackground(background);
+            return radio;
         }
 
     }

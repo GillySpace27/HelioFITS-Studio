@@ -116,6 +116,18 @@ public final class Actions {
         }
     }
 
+    // Output-only fullscreen, the same toggle as the toolbar Presentation button.
+    public static class TogglePresentationMode extends AbstractKeyAction {
+        public TogglePresentationMode() {
+            super("Presentation Mode", KeyStroke.getKeyStroke(KeyEvent.VK_P, DesktopIntegration.menuShortcutMask | InputEvent.SHIFT_DOWN_MASK));
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            org.helioviewer.jhv.gui.component.ToolBar.togglePresentationMode();
+        }
+    }
+
     public static class TrackCME extends AbstractAction {
         public TrackCME() {
             super("Track CME...");

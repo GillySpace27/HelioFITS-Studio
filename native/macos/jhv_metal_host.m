@@ -111,6 +111,17 @@ static CGFloat jhv_layer_y(CALayer *windowLayer, double y, double height) {
 
 static CGFloat jhv_window_scale(CALayer *windowLayer) {
     CGFloat windowScale = windowLayer.contentsScale;
+    // NSScreen.mainScreen is the screen holding the KEY window, not the screen this layer is
+    // on. With a Retina laptop driving a 1x external display (or the reverse) that is the wrong
+    // backing scale, and the drawable comes out at half or double size. Ask the layer's own
+    // window first and only fall back to a global guess when there is no window to ask.
+    if (windowScale <= 0.0) {
+        NSWindow *window = [(NSView *)windowLayer.delegate isKindOfClass:NSView.class]
+                ? ((NSView *)windowLayer.delegate).window
+                : nil;
+        if (window != nil)
+            windowScale = window.backingScaleFactor;
+    }
     if (windowScale <= 0.0)
         windowScale = NSScreen.mainScreen.backingScaleFactor;
     if (windowScale <= 0.0)

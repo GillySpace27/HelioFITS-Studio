@@ -11,6 +11,7 @@ import javax.swing.JPanel;
 
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.layers.ImageLayer;
+import org.helioviewer.jhv.layers.Layers;
 
 public class ChannelMixerPanel implements FilterDetails {
 
@@ -31,9 +32,9 @@ public class ChannelMixerPanel implements FilterDetails {
         boxPanel.add(blueCheckBox, BorderLayout.LINE_END);
 
         ActionListener listener = e -> {
-            layer.getGLImage().setColor(redCheckBox.isSelected() ? 1 : 0,
+            Layers.applyToSelected(layer, gl -> gl.setColor(redCheckBox.isSelected() ? 1 : 0,
                     greenCheckBox.isSelected() ? 1 : 0,
-                    blueCheckBox.isSelected() ? 1 : 0);
+                    blueCheckBox.isSelected() ? 1 : 0));
             DisplayController.display();
         };
         redCheckBox.addActionListener(listener);

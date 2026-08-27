@@ -13,6 +13,7 @@ import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.layers.ImageLayer;
+import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.opengl.GLImage;
 
 import com.jidesoft.swing.JideButton;
@@ -30,7 +31,7 @@ public class DifferencePanel implements FilterDetails {
             if (mode == layer.getGLImage().getDifferenceMode())
                 item.setSelected(true);
             item.addActionListener(e -> {
-                layer.getGLImage().setDifferenceMode(mode);
+                Layers.applyToSelected(layer, gl -> gl.setDifferenceMode(mode));
                 DisplayController.display();
             });
             modeGroup.add(item);

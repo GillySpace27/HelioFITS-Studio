@@ -9,6 +9,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.annotation.Nullable;
 import javax.swing.AbstractAction;
@@ -41,13 +43,16 @@ public final class LayersPanel extends JPanel {
     private static final int ICON_WIDTH = 12;
 
     static final int ENABLED_COL = 0;
-    static final int NAME_COL = 1;
-    static final int TIME_COL = 2;
-    static final int DOWNLOAD_COL = 3;
-    static final int REMOVE_COL = 4;
-    static final int NUMBER_COLUMNS = 5;
+    static final int MASTER_COL = 1;
+    static final int NAME_COL = 2;
+    static final int TIME_COL = 3;
+    static final int DOWNLOAD_COL = 4;
+    static final int REMOVE_COL = 5;
+    static final int NUMBER_COLUMNS = 6;
 
     private static final int NUMBEROFVISIBLEROWS = 9;
+
+    private JScrollPane jsp; // the layer list's viewport, resized by the drag handle below
 
     private final LayersTable grid;
     private final LayerOptionSections sections;
@@ -61,7 +66,7 @@ public final class LayersPanel extends JPanel {
 
         @Override
         public void changeSelection(int row, int col, boolean toggle, boolean extend) {
-            if (col != ENABLED_COL && col != REMOVE_COL)
+            if (col != ENABLED_COL && col != MASTER_COL && col != REMOVE_COL)
                 super.changeSelection(row, col, toggle, extend);
             // otherwise prevent changing selection
         }
@@ -148,7 +153,7 @@ public final class LayersPanel extends JPanel {
 
         grid = new LayersTable(model);
 
-        JScrollPane jsp = new JScrollPane(grid, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        jsp = new JScrollPane(grid, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         jsp.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, getBackground().brighter()));
         jsp.getViewport().setBackground(grid.getBackground());
         add(jsp, gc);
@@ -165,13 +170,20 @@ public final class LayersPanel extends JPanel {
         grid.setTableHeader(null);
         grid.setShowHorizontalLines(true);
         grid.setRowSelectionAllowed(true);
-        grid.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        // Multi-select: shift-click a run, cmd/ctrl-click to add one. changeSelection() below
+        // already forwards the toggle/extend flags, so the gestures work as soon as the model
+        // allows more than one row.
+        grid.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         grid.setColumnSelectionAllowed(false);
         grid.setIntercellSpacing(new Dimension(0, 0));
 
         grid.getColumnModel().getColumn(ENABLED_COL).setCellRenderer(new CellRenderer.Enabled());
         grid.getColumnModel().getColumn(ENABLED_COL).setPreferredWidth(ICON_WIDTH + 8);
         grid.getColumnModel().getColumn(ENABLED_COL).setMaxWidth(ICON_WIDTH + 8);
+
+        grid.getColumnModel().getColumn(MASTER_COL).setCellRenderer(new CellRenderer.Master());
+        grid.getColumnModel().getColumn(MASTER_COL).setPreferredWidth(ICON_WIDTH + 8);
+        grid.getColumnModel().getColumn(MASTER_COL).setMaxWidth(ICON_WIDTH + 8);
 
         grid.getColumnModel().getColumn(NAME_COL).setCellRenderer(new CellRenderer.Name());
 
@@ -196,9 +208,11 @@ public final class LayersPanel extends JPanel {
             if (e.getType() != TableModelEvent.UPDATE || e.getColumn() == NAME_COL || e.getColumn() == TIME_COL)
                 return;
 
-            int row = grid.getSelectedRow();
-            if (row >= 0 && e.getFirstRow() <= row && row <= e.getLastRow())
-                refreshSelectedOptionsPanel();
+            for (int row : grid.getSelectedRows())
+                if (e.getFirstRow() <= row && row <= e.getLastRow()) {
+                    refreshSelectedOptionsPanel();
+                    break;
+                }
         });
 
         grid.addMouseListener(new MouseAdapter() {
@@ -217,9 +231,9 @@ public final class LayersPanel extends JPanel {
                     layer.setEnabled(!layer.isEnabled());
                     model.updateCell(v.row, v.col);
                     DisplayController.render(1);
-                } else if (v.col == NAME_COL && layer instanceof ImageLayer il) {
+                } else if (v.col == MASTER_COL && layer instanceof ImageLayer il) {
                     Layers.setActiveImageLayer(il);
-                    grid.repaint(); // multiple rows involved
+                    grid.repaint(); // the previous master's radio has to clear too
                 } else if (v.col == REMOVE_COL && layer.isDeletable()) {
                     boolean selected = selectedLayer() == layer;
                     Layers.remove(layer);
@@ -308,9 +322,21 @@ public final class LayersPanel extends JPanel {
         return grid.getValueAt(row, 0) instanceof Layer layer ? layer : null;
     }
 
+    // Every selected row, in table order. getSelectedRow() alone returns the lowest-indexed one,
+    // which under a multi-selection model silently reads as "the selection" while being one of it.
+    private List<Layer> selectedLayers() {
+        int[] rows = grid.getSelectedRows();
+        List<Layer> picked = new ArrayList<>(rows.length);
+        for (int row : rows)
+            if (grid.getValueAt(row, 0) instanceof Layer layer)
+                picked.add(layer);
+        return picked;
+    }
+
     private void selectExistingRow(int preferredRow) {
         int rowCount = grid.getRowCount();
         if (rowCount == 0) {
+            Layers.setSelection(List.of()); // nothing left to fan edits out to
             sections.setSelectedLayer(null);
             return;
         }
@@ -320,11 +346,23 @@ public final class LayersPanel extends JPanel {
     }
 
     private void refreshSelectedOptionsPanel() {
-        sections.setSelectedLayer(selectedLayer());
+        List<Layer> picked = selectedLayers();
+        Layers.setSelection(picked); // so a filter panel can fan an edit out across the selection
+        sections.setSelection(picked);
     }
 
     public void setSelectedLayer(@Nullable Layer layer) {
         sections.setSelectedLayer(layer);
+    }
+
+    // Grow the list until every layer is visible, which is the same upper bound the drag handle
+    // clamps to (all rows shown, so the scrollbar disappears). Presentation mode calls this so
+    // the layer list is fully open rather than needing a drag mid-talk.
+    public void showAllRows() {
+        if (jsp == null)
+            return;
+        jsp.setPreferredSize(new Dimension(-1, grid.getRowHeight() * Math.max(grid.getRowCount(), 1) + 1));
+        jsp.revalidate();
     }
 
 }

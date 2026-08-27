@@ -135,6 +135,14 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         Layers.fireLayerUpdated(this); // give feedback asap
     }
 
+    /**
+     * The remote URIs this layer was loaded from, empty for a layer served over JPIP (which
+     * streams from the server and never lands in the persistent file cache).
+     */
+    public List<URI> getSourceUris() {
+        return sourceUris == null ? List.of() : sourceUris;
+    }
+
     public void load(List<URI> uris) {
         if (removed)
             return;

@@ -60,6 +60,11 @@ public class NetFileCache {
         return new DataUri(uri, target.toUri(), cached);
     }
 
+    /** Where this URI's bytes live on disk once cached, whether or not the file exists yet. */
+    public static File cachedFile(@Nonnull URI uri) {
+        return persistentPath(uri);
+    }
+
     private static File persistentPath(URI uri) {
         return new File(Directories.FILECACHE.getFile(), sha256(uri.toString()));
     }

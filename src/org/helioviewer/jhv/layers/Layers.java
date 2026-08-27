@@ -163,6 +163,9 @@ public final class Layers {
             return;
 
         layers.remove(row);
+        selection.remove(layer); // a removed layer must not keep receiving fanned-out edits
+        if (layer instanceof ImageLayer il)
+            fanned.remove(il);
         if (layer instanceof ImageLayer) {
             imageLayersCount--;
         }
@@ -300,6 +303,60 @@ public final class Layers {
         return Collections.unmodifiableList(layers);
     }
 
+    // ---- selection -------------------------------------------------------------------------
+    // Which layers the user currently has picked in the layer table. Distinct from activeLayer,
+    // which is the movie master and is single by nature (Player.setMaster). Selection lives here
+    // rather than only in the JTable so a filter panel can ask "am I editing several at once?"
+    // without reaching up into the GUI.
+    private static final ArrayList<Layer> selection = new ArrayList<>();
+
+    public static void setSelection(List<Layer> newSelection) {
+        selection.clear();
+        selection.addAll(newSelection);
+    }
+
+    public static List<Layer> getSelection() {
+        return Collections.unmodifiableList(selection);
+    }
+
+    /**
+     * Apply one edit to every image layer the edit should reach: the layer whose control was
+     * touched, plus every other image layer selected alongside it.
+     *
+     * <p>Each filter panel binds its listeners to a single layer at construction and is cached
+     * per layer, so fanning out has to happen at the point of edit rather than by rebuilding
+     * panels. Routing every setter through here is what makes a control apply to the whole
+     * selection. An edit on a layer that is not itself selected stays local, which is what
+     * happens when a panel is driven programmatically rather than by a click.
+     */
+    public static void applyToSelected(ImageLayer origin, Consumer<org.helioviewer.jhv.opengl.GLImage> edit) {
+        applyToSelectedLayers(origin, il -> edit.accept(il.getGLImage()));
+    }
+
+    /** As {@link #applyToSelected}, for edits that touch the layer or its View rather than its GLImage. */
+    public static void applyToSelectedLayers(ImageLayer origin, Consumer<ImageLayer> edit) {
+        edit.accept(origin);
+        if (!selection.contains(origin))
+            return;
+        for (Layer layer : selection)
+            if (layer != origin && layer instanceof ImageLayer il) {
+                edit.accept(il);
+                fanned.add(il);
+            }
+    }
+
+    // Layers changed by a fan-out rather than through their own panel. Each layer's options
+    // panel reads the GLImage once, when it is built, and is then cached -- so a peer edited
+    // this way keeps showing the slider positions it had before, and selecting it would report
+    // stale values for imagery that has already changed. Recorded here and consumed by the
+    // options panel, which rebuilds from current state the next time the layer is shown.
+    private static final Set<ImageLayer> fanned = Collections.newSetFromMap(new IdentityHashMap<>());
+
+    /** Whether this layer was edited via a fan-out since its panel was last built; clears the flag. */
+    public static boolean consumeFannedEdit(ImageLayer layer) {
+        return fanned.remove(layer);
+    }
+
     private static ArrayList<Layer> normalizeRestoreList(List<Layer> restoredLayers) {
         Map<Class<? extends Layer>, Layer> restoredDefaults = new HashMap<>();
         ArrayList<Layer> normalized = new ArrayList<>();
@@ -328,6 +385,8 @@ public final class Layers {
 
         layers.forEach(Layers::detach);
         layers.clear();
+        selection.clear();
+        fanned.clear();
         imageLayersCount = 0;
 
         newLayers.addAll(normalizedLayers);

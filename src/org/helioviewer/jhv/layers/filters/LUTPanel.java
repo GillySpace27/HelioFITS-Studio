@@ -12,6 +12,7 @@ import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.image.lut.LUT;
 import org.helioviewer.jhv.image.lut.LUTComboBox;
 import org.helioviewer.jhv.layers.ImageLayer;
+import org.helioviewer.jhv.layers.Layers;
 
 import com.jidesoft.swing.JideToggleButton;
 
@@ -34,14 +35,21 @@ public class LUTPanel implements FilterDetails {
         colorbarButton.setToolTipText("Show the color table legend at the bottom of the view");
 
         ActionListener listener = e -> {
-            layer.getGLImage().setLUT(lutCombo.getLUT(), invertButton.isSelected());
+            // Only a real interaction may reach the whole selection. setLUT() below drives this
+            // same listener to sync the combo when a layer is selected, and fanning that out
+            // would stamp the lead layer's colour table onto every other selected layer just
+            // for clicking on them: selecting has to be free of side effects.
+            if (syncing)
+                layer.getGLImage().setLUT(lutCombo.getLUT(), invertButton.isSelected());
+            else
+                Layers.applyToSelected(layer, gl -> gl.setLUT(lutCombo.getLUT(), invertButton.isSelected()));
             onLutChanged.run();
             DisplayController.display();
         };
         lutCombo.addActionListener(listener);
         invertButton.addActionListener(listener);
         colorbarButton.addActionListener(e -> {
-            layer.getGLImage().setShowColorbar(colorbarButton.isSelected());
+            Layers.applyToSelected(layer, gl -> gl.setShowColorbar(colorbarButton.isSelected()));
             DisplayController.display();
         });
 
@@ -49,8 +57,17 @@ public class LUTPanel implements FilterDetails {
         buttonPanel.add(invertButton, BorderLayout.LINE_END);
     }
 
+    // Programmatic sync of the combo to a layer's own table. Fires the listener above, which is
+    // why it is flagged: the resulting change belongs to this one layer, never to the selection.
+    private boolean syncing;
+
     public void setLUT(LUT lut) {
-        lutCombo.setLUT(lut);
+        syncing = true;
+        try {
+            lutCombo.setLUT(lut);
+        } finally {
+            syncing = false;
+        }
     }
 
     @Override

@@ -17,6 +17,7 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.ButtonGroup;
 import javax.swing.Icon;
+import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -73,6 +74,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private final ButtonText OFFDISK = new ButtonText(Buttons.offDisk, "Corona", "Toggle off-disk corona");
     private final ButtonText PAN = new ButtonText(Buttons.pan, "Pan", "Pan");
     private final ButtonText PROJECTION = new ButtonText(Buttons.projection, "Projection", "Projection");
+    private final ButtonText PRESENTATION = new ButtonText(Buttons.presentation, "Present", "Presentation mode: output only, fullscreen (Esc to leave)");
     private final ButtonText REFRESH = new ButtonText(Buttons.refresh, "Refresh", "Automatic refresh");
     private final ButtonText RESETCAMERA = new ButtonText(Buttons.resetCamera, "Reset View", "Reset view to default");
     private final ButtonText RESETCAMERAAXIS = new ButtonText(Buttons.resetCameraAxis, "Reset Axis", "Reset view axis");
@@ -151,7 +153,22 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private JideToggleButton refreshButton;
     private JideToggleButton trackingButton;
 
+    // --- overflow ----------------------------------------------------------------------------
+    // A toolbar narrower than its contents used to just clip whatever did not fit, with no way
+    // to reach it: the buttons were still there, laid out past the right edge and invisible.
+    // That is only more likely now, since the presenter window is a third of a screen wide.
+    // Everything that does not fit moves into a chevron menu at the right-hand end instead.
+    private final java.util.List<Component> items = new java.util.ArrayList<>();
+    private final java.util.List<Component> overflowed = new java.util.ArrayList<>();
+    private JideButton overflowButton;
+    private JPopupMenu overflowPopup;
+    private JPanel overflowPanel;
+    // While the menu is open its buttons are parented to it rather than to the toolbar, so
+    // re-running the fit calculation would see them missing and "fit" everything. Freeze it.
+    private boolean overflowOpen;
+
     private void createNewToolBar() {
+        current = this;
         annotationItems.clear();
         projectionItems.clear();
         if (Platform.isMacOS()) {
@@ -264,6 +281,17 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         });
         addButton(projectionButton);
 
+        JideToggleButton presentationButton = toolToggleButton(PRESENTATION);
+        presentationToggle = presentationButton;
+        presentationButton.setSelected(org.helioviewer.jhv.gui.PresentationMode.isActive());
+        presentationButton.addActionListener(e -> {
+            // The button's own selected state has already flipped; drive the mode from what it
+            // now says, so a stale state (toolbar rebuilt while presenting) cannot invert it.
+            if (presentationButton.isSelected() != org.helioviewer.jhv.gui.PresentationMode.isActive())
+                org.helioviewer.jhv.gui.PresentationMode.toggle();
+        });
+        addButton(presentationButton);
+
         JideSplitButton annotationButton = toolSplitButton(ANNOTATION);
         ButtonGroup annotationGroup = new ButtonGroup();
         for (AnnotationMode mode : AnnotationMode.values()) {
@@ -319,6 +347,111 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
 */
     }
 
+    // Called once the bar is fully populated: remember the running order, then add the chevron
+    // as the one child that is not part of it.
+    private void installOverflow() {
+        items.clear();
+        java.util.Collections.addAll(items, getComponents());
+
+        overflowButton = new JideButton(Buttons.overflow);
+        overflowButton.setToolTipText("More toolbar controls");
+        overflowButton.setFocusPainted(false);
+        overflowButton.addActionListener(e -> showOverflow());
+        overflowButton.setVisible(false);
+        add(overflowButton);
+    }
+
+    private void showOverflow() {
+        if (overflowed.isEmpty())
+            return;
+        if (overflowPopup == null) {
+            overflowPopup = new JPopupMenu();
+            overflowPanel = new JPanel();
+            overflowPanel.setLayout(new javax.swing.BoxLayout(overflowPanel, javax.swing.BoxLayout.PAGE_AXIS));
+            overflowPopup.add(overflowPanel);
+            overflowPopup.addPopupMenuListener(new javax.swing.event.PopupMenuListener() {
+                @Override
+                public void popupMenuWillBecomeVisible(javax.swing.event.PopupMenuEvent e) {}
+
+                @Override
+                public void popupMenuWillBecomeInvisible(javax.swing.event.PopupMenuEvent e) {
+                    // Hand the buttons back on the next tick: moving them out from under a popup
+                    // that is still closing leaves Swing repainting a component with no parent.
+                    javax.swing.SwingUtilities.invokeLater(ToolBar.this::reclaimOverflow);
+                }
+
+                @Override
+                public void popupMenuCanceled(javax.swing.event.PopupMenuEvent e) {}
+            });
+        }
+        overflowOpen = true;
+        overflowPanel.removeAll();
+        // The real buttons are moved into the menu rather than mirrored by proxy items, so a
+        // split button keeps its dropdown and a toggle keeps its pressed state.
+        for (Component c : overflowed) {
+            remove(c);
+            c.setVisible(true);
+            if (c instanceof JComponent jc)
+                jc.setAlignmentX(Component.LEFT_ALIGNMENT);
+            overflowPanel.add(c);
+        }
+        overflowPopup.pack();
+        overflowPopup.show(overflowButton, 0, overflowButton.getHeight());
+    }
+
+    private void reclaimOverflow() {
+        if (!overflowOpen)
+            return;
+        overflowOpen = false;
+        for (Component c : overflowed) {
+            overflowPanel.remove(c);
+            add(c);
+        }
+        revalidate();
+        repaint();
+    }
+
+    // Lay the bar out by hand: FlowLayout would wrap the surplus onto a second row that the
+    // toolbar has no height to show, which is the clipping this replaces.
+    @Override
+    public void doLayout() {
+        // getWidth() is 0 until the first real layout pass; without this every item would
+        // "not fit" and the whole bar would collapse into the chevron for a frame.
+        if (items.isEmpty() || overflowButton == null || overflowOpen || getWidth() <= 0) {
+            super.doLayout();
+            return;
+        }
+        java.awt.Insets in = getInsets();
+        int hgap = 1;
+        int avail = getWidth() - in.left - in.right;
+        int rowHeight = getHeight() - in.top - in.bottom;
+
+        int total = 0;
+        for (Component c : items)
+            total += c.getPreferredSize().width + hgap;
+
+        int chevron = overflowButton.getPreferredSize().width;
+        boolean needed = total > avail;
+        int limit = needed ? avail - chevron - hgap : avail;
+
+        overflowed.clear();
+        int x = in.left;
+        for (Component c : items) {
+            int cw = c.getPreferredSize().width;
+            if (x - in.left + cw <= limit) {
+                c.setVisible(true);
+                c.setBounds(x, in.top, cw, rowHeight);
+                x += cw + hgap;
+            } else {
+                c.setVisible(false);
+                overflowed.add(c);
+            }
+        }
+        overflowButton.setVisible(!overflowed.isEmpty());
+        if (!overflowed.isEmpty())
+            overflowButton.setBounds(getWidth() - in.right - chevron, in.top, chevron, rowHeight);
+    }
+
     private void addButton(AbstractButton b) {
         b.setFocusPainted(false);
         add(b);
@@ -351,21 +484,106 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             projectionToggle.doClick();
     }
 
+    private static JideToggleButton presentationToggle; // current toolbar's presentation button
+
+    // Toggle presentation mode exactly as the toolbar button does (used by View ▸ Presentation Mode
+    // and by Escape). Falls through to the mode directly if the toolbar is mid-recreate, so the
+    // Escape route can never be dead.
+    public static void togglePresentationMode() {
+        if (presentationToggle != null)
+            presentationToggle.doClick();
+        else
+            org.helioviewer.jhv.gui.PresentationMode.toggle();
+    }
+
+    // Presentation mode can also be left with Escape, which does not go through the button; keep
+    // the button's pressed state honest when that happens.
+    public static void syncPresentationToggle() {
+        if (presentationToggle != null)
+            presentationToggle.setSelected(org.helioviewer.jhv.gui.PresentationMode.isActive());
+    }
+
     // Pin the palette to the top-right corner of the render canvas; it follows the window.
     private void dockPalette() {
+        if (!palettePinned || projectionPalette == null)
+            return;
+        // In presenter view the render canvas is on the projector, so docking to it would park
+        // the palette on top of the output the audience is watching. The palette is a control,
+        // so it belongs with the rest of the chrome on the presenter's screen.
+        java.awt.Window chrome = org.helioviewer.jhv.gui.PresentationMode.chromeWindow();
+        if (chrome != null && chrome.isShowing()) {
+            projectionPalette.setLocation(
+                    chrome.getX() + chrome.getWidth() - projectionPalette.getWidth() - 12,
+                    chrome.getY() + 12);
+            return;
+        }
         java.awt.Component rc = org.helioviewer.jhv.gui.MainFrame.getRenderComponent();
-        if (!palettePinned || projectionPalette == null || rc == null || !rc.isShowing())
+        if (rc == null || !rc.isShowing())
             return;
         java.awt.Point loc = rc.getLocationOnScreen();
         projectionPalette.setLocation(loc.x + rc.getWidth() - projectionPalette.getWidth() - 12, loc.y + 12);
     }
 
+    // Presentation mode moves the chrome to another screen, so the palette has to be re-docked
+    // when it enters or leaves. The toolbar instance is per-window and gets rebuilt on display
+    // mode changes, so route through the live one.
+    private static ToolBar current;
+
+    public static void redockProjectionPalette() {
+        if (current != null)
+            current.rebuildPalette();
+    }
+
+    private static boolean paletteFrameListenersAdded;
+
+    private static void redockIfOpen() {
+        if (current != null && current.projectionPalette != null && current.projectionPalette.isVisible())
+            current.dockPalette();
+    }
+
+    private static java.awt.Window paletteOwner() {
+        java.awt.Window chrome = org.helioviewer.jhv.gui.PresentationMode.chromeWindow();
+        return chrome != null ? chrome : org.helioviewer.jhv.gui.MainFrame.get();
+    }
+
+    // Recreate the palette under the current owner, preserving whether it was open. Called when
+    // presentation mode moves the controls to another window.
+    private void rebuildPalette() {
+        if (projectionPalette == null) {
+            dockPalette();
+            return;
+        }
+        boolean wasVisible = projectionPalette.isVisible();
+        projectionPalette.dispose();
+        projectionPalette = null;
+        if (wasVisible && projectionToggle != null) {
+            projectionPalette = createProjectionPalette(projectionToggle);
+            dockPalette();
+            projectionPalette.setVisible(true);
+        }
+    }
+
     private JDialog createProjectionPalette(JideToggleButton toggle) {
-        JDialog palette = new JDialog(org.helioviewer.jhv.gui.MainFrame.get(), false);
+        // Owned by whichever window is carrying the controls. Ownership, not position, is what
+        // decides the screen here: macOS makes an owned window a child of its parent, so a
+        // palette owned by the main frame is dragged onto the projector with it no matter where
+        // it was told to sit. Re-owning is the only way to keep it with the controls, and a
+        // JDialog's owner is fixed at construction -- hence rebuildPalette() below.
+        JDialog palette = new JDialog(paletteOwner(), java.awt.Dialog.ModalityType.MODELESS);
         palette.setUndecorated(true); // no OS chrome: a docked tool palette, not a window
         palette.setFocusableWindowState(false); // don't steal keyboard focus from the view
+        // UTILITY is the window class macOS actually has for a floating tool palette (an NSPanel).
+        // Left as a plain undecorated non-focusable dialog it is an ordinary NSWindow that never
+        // becomes key, and a never-key window does not get its cursor rects re-evaluated -- the
+        // pointer keeps whatever the last component set and can be left invisible over the palette.
+        // Three other dialogs here (FITSSettings, CactusTrackDialog, SWEKEventInformationDialog)
+        // already use UTILITY; this one was the odd one out.
+        palette.setType(java.awt.Window.Type.UTILITY);
 
         JPanel content = new JPanel();
+        // Belt and braces with the UTILITY type above: state the cursor this panel wants, so
+        // entering it always restores a visible arrow instead of inheriting a stale one.
+        content.setCursor(java.awt.Cursor.getDefaultCursor());
         content.setLayout(new javax.swing.BoxLayout(content, javax.swing.BoxLayout.PAGE_AXIS));
         content.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(content.getBackground().brighter()),
@@ -440,30 +658,36 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         palette.setContentPane(content);
         palette.pack();
 
-        java.awt.event.ComponentAdapter follow = new java.awt.event.ComponentAdapter() {
-            @Override
-            public void componentMoved(java.awt.event.ComponentEvent e) {
-                if (palette.isVisible())
-                    dockPalette();
-            }
+        // These two are registered once for the lifetime of the app, and deliberately act on
+        // the projectionPalette FIELD rather than on the palette local: rebuildPalette() can
+        // construct the palette many times, so a listener that captured one instance would go
+        // on nudging a disposed window while the live one sat unmanaged.
+        if (!paletteFrameListenersAdded) {
+            paletteFrameListenersAdded = true;
+            java.awt.event.ComponentAdapter follow = new java.awt.event.ComponentAdapter() {
+                @Override
+                public void componentMoved(java.awt.event.ComponentEvent e) {
+                    redockIfOpen();
+                }
 
-            @Override
-            public void componentResized(java.awt.event.ComponentEvent e) {
-                if (palette.isVisible())
-                    dockPalette();
-            }
-        };
-        org.helioviewer.jhv.gui.MainFrame.get().addComponentListener(follow);
-        // Owned + non-focusable, so clicking into the render view raises the frame above the
-        // palette. Re-raise it (without stealing focus) whenever the frame comes forward — this
-        // keeps it above the JHV window only, never over other apps the way alwaysOnTop would.
-        org.helioviewer.jhv.gui.MainFrame.get().addWindowListener(new java.awt.event.WindowAdapter() {
-            @Override
-            public void windowActivated(java.awt.event.WindowEvent e) {
-                if (palette.isVisible())
-                    palette.toFront();
-            }
-        });
+                @Override
+                public void componentResized(java.awt.event.ComponentEvent e) {
+                    redockIfOpen();
+                }
+            };
+            org.helioviewer.jhv.gui.MainFrame.get().addComponentListener(follow);
+            // Owned + non-focusable, so clicking into the render view raises the frame above the
+            // palette. Re-raise it (without stealing focus) whenever the frame comes forward:
+            // this keeps it above the JHV window only, never over other apps the way
+            // alwaysOnTop would.
+            org.helioviewer.jhv.gui.MainFrame.get().addWindowListener(new java.awt.event.WindowAdapter() {
+                @Override
+                public void windowActivated(java.awt.event.WindowEvent e) {
+                    if (current != null && current.projectionPalette != null && current.projectionPalette.isVisible())
+                        current.projectionPalette.toFront();
+                }
+            });
+        }
         return palette;
     }
 
@@ -602,8 +826,11 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     }
 
     private void recreate() {
+        overflowOpen = false;
+        overflowed.clear();
         removeAll();
         createNewToolBar();
+        installOverflow(); // must come last: it snapshots the finished running order
         revalidate();
         repaint();
     }

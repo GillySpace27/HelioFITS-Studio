@@ -36,6 +36,8 @@ final class ImageLayerManagePanel extends JPanel {
     private final JLabel readout = new JLabel();
     private long lastReadoutSig = Long.MIN_VALUE; // memoize: skip rebuild when nothing shown changed
     private final JideToggleButton downloadButton = new JideToggleButton(Buttons.download);
+    private final com.jidesoft.swing.JideButton cacheButton = new com.jidesoft.swing.JideButton(Buttons.cache);
+    private final com.jidesoft.swing.JideButton deleteCacheButton = new com.jidesoft.swing.JideButton(Buttons.deleteCache);
     private final JProgressBar progressBar = new JProgressBar();
     private DownloadProgress downloadProgress;
 
@@ -72,6 +74,15 @@ final class ImageLayerManagePanel extends JPanel {
 
         MetaDataDialog metaDialog = new MetaDataDialog();
         JideButton metaButton = new JideButton(Buttons.info);
+        // Deleting a cached dataset by hand is the only way to force a genuine re-download: the
+        // persistent cache is keyed by a SHA-256 of the source URI, so the files are hash-named
+        // and impossible to pick out of the folder by eye. Reveal the layer's own file, selected.
+        cacheButton.setToolTipText("Show this layer's cached file on disk");
+        cacheButton.addActionListener(e -> revealCache());
+
+        deleteCacheButton.setToolTipText("Delete this layer's cached files, forcing a fresh download");
+        deleteCacheButton.addActionListener(e -> deleteCache());
+
         metaButton.setToolTipText("Show metadata of selected layer");
         metaButton.addActionListener(e -> {
             metaDialog.setMetaData(layer);
@@ -81,6 +92,8 @@ final class ImageLayerManagePanel extends JPanel {
         // Icons sit inline with the readout on one row, not on a line of their own.
         JPanel icons = new JPanel(new FlowLayout(FlowLayout.TRAILING, 2, 0));
         icons.add(downloadButton);
+        icons.add(cacheButton);
+        icons.add(deleteCacheButton);
         icons.add(makeRefreshButton());
         icons.add(metaButton);
 
@@ -127,6 +140,100 @@ final class ImageLayerManagePanel extends JPanel {
     void refresh(Layer layer) {
         ImageLayer imageLayer = (ImageLayer) layer;
         downloadButton.setVisible(!imageLayer.isLocal());
+        // A JPIP layer streams from the server and never lands in the file cache, so there would
+        // be nothing to show; a local file is already sitting where the user put it.
+        boolean hasCache = !imageLayer.isLocal();
+        cacheButton.setVisible(hasCache);
+        deleteCacheButton.setVisible(hasCache);
+    }
+
+    // Everything this layer has put on disk. There are two separate stores and a layer uses one
+    // or the other, never both:
+    //   - a JPIP layer streams from the server, and the download button saves the whole movie as
+    //     ONE .jpx under Downloads/;
+    //   - a direct-URI layer (PUNCH FITS and friends) is cached by NetFileCache as one file per
+    //     frame URI under FileCache/, hash-named, so a 97-frame movie is 97 files.
+    private java.util.List<java.io.File> cachedFiles() {
+        java.util.List<java.io.File> found = new java.util.ArrayList<>();
+        for (java.net.URI uri : layer.getSourceUris()) {
+            java.io.File f = org.helioviewer.jhv.io.NetFileCache.cachedFile(uri);
+            if (f.isFile())
+                found.add(f);
+        }
+        String baseName = layer.getView().getBaseName();
+        if (baseName != null) {
+            java.io.File jpx = new java.io.File(org.helioviewer.jhv.io.Directories.DOWNLOADS.getPath(), baseName);
+            if (jpx.isFile())
+                found.add(jpx);
+        }
+        return found;
+    }
+
+    private static String humanSize(long bytes) {
+        if (bytes < 1024)
+            return bytes + " B";
+        if (bytes < 1024 * 1024)
+            return String.format("%.1f KB", bytes / 1024.);
+        if (bytes < 1024L * 1024 * 1024)
+            return String.format("%.1f MB", bytes / (1024. * 1024));
+        return String.format("%.2f GB", bytes / (1024. * 1024 * 1024));
+    }
+
+    private void deleteCache() {
+        java.util.List<java.io.File> found = cachedFiles();
+        if (found.isEmpty()) {
+            Message.warn("Nothing cached on disk", "This layer has no cached files, so there is nothing to delete.");
+            return;
+        }
+        long bytes = 0;
+        for (java.io.File f : found)
+            bytes += f.length();
+
+        int answer = javax.swing.JOptionPane.showConfirmDialog(org.helioviewer.jhv.gui.MainFrame.get(),
+                "Delete " + found.size() + " cached file" + (found.size() == 1 ? "" : "s")
+                        + " (" + humanSize(bytes) + ") for \"" + layer.getName() + "\"?\n\n"
+                        + "This only removes the local copy: the data downloads again next time it is needed.\n"
+                        + "Frames already loaded stay in memory until the layer is reloaded.",
+                "Delete Cached Files", javax.swing.JOptionPane.OK_CANCEL_OPTION, javax.swing.JOptionPane.WARNING_MESSAGE);
+        if (answer != javax.swing.JOptionPane.OK_OPTION)
+            return;
+
+        int deleted = 0, failed = 0;
+        for (java.io.File f : found) {
+            if (!org.helioviewer.jhv.io.Directories.isInsideCache(f)) {
+                org.helioviewer.jhv.app.Log.warn("Refusing to delete outside the cache: " + f);
+                failed++;
+            } else if (f.delete())
+                deleted++;
+            else
+                failed++;
+        }
+        if (failed == 0)
+            Message.warn("Cache deleted", "Removed " + deleted + " file" + (deleted == 1 ? "" : "s")
+                    + " (" + humanSize(bytes) + "). Reload the layer to fetch it again.");
+        else
+            Message.err("Cache partly deleted", "Removed " + deleted + " file" + (deleted == 1 ? "" : "s")
+                    + ", but " + failed + " could not be deleted. See the log for details.");
+    }
+
+    private void revealCache() {
+        java.util.List<java.io.File> found = cachedFiles();
+        if (found.isEmpty()) {
+            Message.warn("Nothing cached on disk",
+                    "This layer has no files in the cache, so there is nothing to delete. "
+                            + "Opening the cache folder anyway.");
+            org.helioviewer.jhv.gui.DesktopIntegration.reveal(org.helioviewer.jhv.io.Directories.FILECACHE.getFile());
+            return;
+        }
+        org.helioviewer.jhv.gui.DesktopIntegration.reveal(found.getFirst());
+        // The file cache is content-addressed, so its files are named by a SHA-256 of the source
+        // URI with no extension: one selected file gets the user to the right folder, but they
+        // cannot pick the rest out by eye. Say how many there are so "did I get them all?" has
+        // an answer.
+        if (found.size() > 1)
+            Message.warn("Cached files",
+                    "This layer has " + found.size() + " cached files, all in the folder now open. "
+                            + "They are named by a hash of their source URL, so sort by Date Added to see them together.");
     }
 
     // Force a recompute even if the signature is unchanged — used when the layer's

@@ -7,6 +7,7 @@ import javax.swing.JLabel;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.component.JHVRangeSlider;
 import org.helioviewer.jhv.layers.ImageLayer;
+import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.metadata.MetaData;
 import org.helioviewer.jhv.wcs.ImageBounds;
 
@@ -34,8 +35,10 @@ public class InnerMaskPanel implements FilterDetails {
         slider.addChangeListener(e -> {
             int lo = slider.getLowValue();
             int hi = slider.getHighValue();
-            layer.getGLImage().setInnerMask(lo / (double) STEPS);
-            layer.getGLImage().setOuterMask(hi / (double) STEPS);
+            Layers.applyToSelected(layer, gl -> {
+                gl.setInnerMask(lo / (double) STEPS);
+                gl.setOuterMask(hi / (double) STEPS);
+            });
             label.setText(format(lo, hi));
             DisplayController.display();
         });
