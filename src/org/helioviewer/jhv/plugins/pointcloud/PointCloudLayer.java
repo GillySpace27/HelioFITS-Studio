@@ -84,7 +84,7 @@ public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.R
                 for (int i = 0; i < uris.length(); i++) {
                     URI uri = URI.create(uris.getString(i));
                     sources.add(uri);
-                    pendingRestore.add(uri); // submitted from render(), not the constructor
+                    pendingRestore.add(uri); // submitted from init(), not the constructor
                 }
         } else
             setEnabled(true); // a freshly added layer shows without ticking the box (state restore sets its own)
@@ -135,11 +135,7 @@ public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.R
 
     @Override
     public void render(MapView mv, Viewport vp) {
-        if (!pendingRestore.isEmpty()) {
-            for (URI uri : pendingRestore)
-                PointCloudLoader.submit(uri, this);
-            pendingRestore.clear();
-        }
+        submitPendingRestore(); // belt and braces; init() normally gets here first
         if (!isVisible[vp.idx])
             return;
 
@@ -245,6 +241,28 @@ public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.R
         wireLine.init();
         surfaceShape.init();
         arrowLine.init();
+        submitPendingRestore();
+    }
+
+    /**
+     * Kick off the loads a restored session asked for.
+     *
+     * <p>This used to run from {@link #render}, which quietly made restoring a point cloud
+     * conditional on the projection: this layer implements render() but not renderScale(), so in
+     * any projected mode (RectWarp, HPC, Latitudinal) render() is never called, the queue never
+     * drained, and the cloud simply never loaded. Sessions saved in a warped projection came back
+     * without their point clouds and nothing reported an error.
+     *
+     * <p>init() is the right hook because Layers.initLayers() runs it from prerender(), ahead of
+     * the mode fork in GLRenderer.display(), so it is reached in every projection. Loading data
+     * should never have depended on how the scene is drawn.
+     */
+    private void submitPendingRestore() {
+        if (pendingRestore.isEmpty())
+            return;
+        for (URI uri : pendingRestore)
+            PointCloudLoader.submit(uri, this);
+        pendingRestore.clear();
     }
 
     @Override
