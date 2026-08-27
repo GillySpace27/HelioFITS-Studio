@@ -111,7 +111,7 @@ public final class GLRenderer {
         Layers.prerender();
 
         mapView = createMapView(Display.getCamera(), viewpoint);
-        if (mapView.isOrthographic()) {
+        if (mapView.rendersIn3D()) {
             renderScene();
             renderMiniview();
         } else
@@ -145,8 +145,12 @@ public final class GLRenderer {
             Transform.ortho(vp.aspect, mv.cameraWidth(vp), mv.cameraTranslationX(), mv.cameraTranslationY(), mv.viewRotation());
             GLSLSolarShader.bindScreen(vp, scale);
 
-            GLSLSolarShader.sphere.use();
-            GLSLSolar.quad.render();
+            // Only in true orthographic: solarSphere.frag discards outside radius 1 in view
+            // units, which stops being the limb once the radial warp moves it.
+            if (mv.isOrthographic()) {
+                GLSLSolarShader.sphere.use();
+                GLSLSolar.quad.render();
+            }
 
             Layers.render(mv, vp);
             Annotations.render(mv, vp);

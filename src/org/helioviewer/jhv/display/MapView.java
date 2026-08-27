@@ -29,7 +29,10 @@ public abstract class MapView {
     }
 
     static MapView create(Camera camera, Position viewpoint, GridType gridType, MapMode mode, MapScale[] scales) {
-        return mode == MapMode.Orthographic
+        // A 3D mode needs the world-space view: its layers emit raw 3D vertices and let the
+        // rotated MVP project them. Handing RadialWarp a ProjectedView would give those layers
+        // flat screen coordinates to draw through a 3D matrix.
+        return mode.rendersIn3D()
                 ? new OrthographicView(camera, viewpoint, gridType, mode, scales)
                 : new ProjectedView(camera, viewpoint, gridType, mode, scales);
     }
@@ -72,6 +75,11 @@ public abstract class MapView {
 
     public boolean isOrthographic() {
         return mode == MapMode.Orthographic;
+    }
+
+    /** Whether the scene is drawn as rotated 3D geometry. True for Orthographic and RadialWarp. */
+    public boolean rendersIn3D() {
+        return mode.rendersIn3D();
     }
 
     public boolean isHpc() {

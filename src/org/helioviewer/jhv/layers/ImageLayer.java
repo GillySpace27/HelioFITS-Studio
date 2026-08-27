@@ -362,7 +362,12 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
                 wcs0.projection, (float) wcs0.unitsPerRad, (float) metaViewpoint0.distance, sourceView0, displayMap0,
                 wcs1.projection, (float) wcs1.unitsPerRad, (float) metaViewpoint1.distance, sourceView1, displayMap1);
 
-        GLSLSolar.quad.render();
+        // The warped modes draw a surface mesh; everything else reconstructs geometry per
+        // fragment from a full-screen quad.
+        if (shader == GLSLSolarShader.warpSurface)
+            shader.renderWarpSurface(renderViewpoint.distance, org.helioviewer.jhv.display.Display.getSurfaceModel());
+        else
+            GLSLSolar.quad.render();
     }
 
     private static double latiLongitude(GridType gridType, Position decodeViewpoint, Position metaViewpoint) {

@@ -17,12 +17,18 @@ public class GLSLSolarShader extends GLSLShader {
     public static final GLSLSolarShader lati = new GLSLSolarShader("/glsl/solar.vert", "/glsl/solarLati.frag", true);
     public static final GLSLSolarShader radialWarp = new GLSLSolarShader("/glsl/solar.vert", "/glsl/solarRadialWarp.frag", true);
     public static final GLSLSolarShader rectWarp = new GLSLSolarShader("/glsl/solar.vert", "/glsl/solarRectWarp.frag", true);
+    // Draws a mesh rather than a full-screen quad: the warp is geometry here, so the scene can
+    // be rotated and overlays can be registered against it. See warpSurface.vert.
+    public static final GLSLSolarShader warpSurface = new GLSLSolarShader("/glsl/warpSurface.vert", "/glsl/warpSurface.frag", true);
 
     private final boolean hasCommon;
 
     private int pv0Ref;
     private int pv1Ref;
     private int latiGridRef;
+    private int mvpRef;
+    private int observerDistanceRef;
+    private int surfaceModelRef;
     private static final float[] latiGridBuf = new float[6];
 
     private GLSLSolarShader(String vertex, String fragment, boolean _hasCommon) {
@@ -61,6 +67,8 @@ public class GLSLSolarShader extends GLSLShader {
         lati._init(lati.hasCommon);
         radialWarp._init(radialWarp.hasCommon);
         rectWarp._init(rectWarp.hasCommon);
+        warpSurface._init(warpSurface.hasCommon);
+        WarpSurfaceMesh.mesh.init();
     }
 
     private static void setupCommonBlocks(int programID) {
@@ -75,6 +83,9 @@ public class GLSLSolarShader extends GLSLShader {
         pv0Ref = GL.glGetUniformLocation(id, "pv0");
         pv1Ref = GL.glGetUniformLocation(id, "pv1");
         latiGridRef = GL.glGetUniformLocation(id, "latiGrid");
+        mvpRef = GL.glGetUniformLocation(id, "ModelViewProjectionMatrix");
+        observerDistanceRef = GL.glGetUniformLocation(id, "observerDistance");
+        surfaceModelRef = GL.glGetUniformLocation(id, "surfaceModel");
 
         setupCommonBlocks(id);
 
@@ -86,6 +97,23 @@ public class GLSLSolarShader extends GLSLShader {
         }
     }
 
+    /**
+     * Draw the warped surface. Only the mesh shader has these uniforms; the quad-based programs
+     * return -1 for them and glUniform on -1 is a no-op, so this is safe to call unconditionally
+     * but is only meaningful for {@link #warpSurface}.
+     */
+    public void renderWarpSurface(double observerDistance, org.helioviewer.jhv.display.SurfaceModel surfaceModel) {
+        GL.glUniformMatrix4fv(mvpRef, false, Transform.get());
+        GL.glUniform1f(observerDistanceRef, (float) observerDistance);
+        GL.glUniform1f(surfaceModelRef, surfaceModel == org.helioviewer.jhv.display.SurfaceModel.ThomsonSphere ? 1 : 0);
+        // The surface is single-sided but orbitable: once the camera swings past its edge the
+        // back faces are what you are looking at, so culling them would make the imagery vanish
+        // halfway through a rotation. GLRenderer.init enables back-face culling globally.
+        GL.glDisable(GL.CULL_FACE);
+        WarpSurfaceMesh.mesh.render();
+        GL.glEnable(GL.CULL_FACE);
+    }
+
     public static void dispose() {
         sphere._dispose();
         ortho._dispose();
@@ -93,6 +121,8 @@ public class GLSLSolarShader extends GLSLShader {
         lati._dispose();
         radialWarp._dispose();
         rectWarp._dispose();
+        warpSurface._dispose();
+        WarpSurfaceMesh.mesh.dispose();
         wcsBO.delete();
         projectionBO.delete();
         screenBO.delete();

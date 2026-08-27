@@ -226,7 +226,7 @@ class SWEKPopupController implements InputPointerListener, InputPointerMotionLis
 
         Viewport vp = Display.getActiveViewport();
         MapView mv = GLRenderer.getMapView();
-        JHVRelatedEvents mouseOverJHVEvent = mv.isOrthographic()
+        JHVRelatedEvents mouseOverJHVEvent = mv.rendersIn3D()
                 ? findOrthographicEvent(activeEvents, currentTime, mv.mouseToSurface(vp, mouseOverX, mouseOverY), mv.mouseToPlane(vp, mouseOverX, mouseOverY))
                 : findProjectedEvent(activeEvents, currentTime, mv, vp, mv.mouseToScreen(vp, mouseOverX, mouseOverY));
 

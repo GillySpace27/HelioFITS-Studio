@@ -9,17 +9,30 @@ public enum MapMode {
     Orthographic(GLSLSolarShader.ortho),
     HPC(GLSLSolarShader.hpc),
     Latitudinal(GLSLSolarShader.lati),
-    RadialWarp(GLSLSolarShader.radialWarp),
+    RadialWarp(GLSLSolarShader.warpSurface),
     RectWarp(GLSLSolarShader.rectWarp);
 
     public final GLSLSolarShader shader;
 
     public double baseCameraWidth(Camera camera) {
         return switch (this) {
-            case RadialWarp -> 1.1;
+            // RadialWarp is real geometry now, so its extent is physical (the warp's outer
+            // radius) rather than a fixed normalized disk.
+            case RadialWarp -> camera.baseCameraWidth();
             case RectWarp -> 1.0;
             case Orthographic, HPC, Latitudinal -> camera.baseCameraWidth();
         };
+    }
+
+    /**
+     * Whether this mode draws a rotated 3D scene rather than a flat projected map.
+     *
+     * <p>RadialWarp joins Orthographic here because its warp is now geometry: the imagery is a
+     * surface mesh, so it shares the ortho path's rotated MVP, depth buffer and world-space
+     * layer rendering. RectWarp, HPC and Latitudinal stay flat.
+     */
+    public boolean rendersIn3D() {
+        return this == Orthographic || this == RadialWarp;
     }
 
     public boolean usesWarpLambda() {

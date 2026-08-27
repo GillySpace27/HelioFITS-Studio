@@ -129,7 +129,7 @@ public final class Annotations {
         double pixFactor = ViewportMath.getPixelFactor(vp, mv.cameraWidth(vp));
 
         Transform.pushView();
-        if (mv.isOrthographic())
+        if (mv.rendersIn3D())
             Transform.rotateViewInverse(mv.viewpoint().toQuat());
         annotations.forEach(annotation -> renderTransformedAnnotation(mv, vp, pixFactor, annotation, annotation == activeAnnotation));
         if (pending != null)
