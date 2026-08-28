@@ -249,7 +249,7 @@ public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.R
      *
      * <p>This used to run from {@link #render}, which quietly made restoring a point cloud
      * conditional on the projection: this layer implements render() but not renderScale(), so in
-     * any projected mode (RectWarp, HPC, Latitudinal) render() is never called, the queue never
+     * any projected mode (HelioradialUnrolled, HPC, Latitudinal) render() is never called, the queue never
      * drained, and the cloud simply never loaded. Sessions saved in a warped projection came back
      * without their point clouds and nothing reported an error.
      *

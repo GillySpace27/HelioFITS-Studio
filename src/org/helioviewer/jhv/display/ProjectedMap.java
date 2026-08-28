@@ -18,8 +18,8 @@ final class ProjectedMap {
         return switch (mode) {
             case HPC -> projectHpc(viewpoint, v, scale);
             case Latitudinal -> projectLatitudinal(rotation, scale, v);
-            case RadialWarp -> projectRadialWarp(viewpoint, scale, v);
-            case RectWarp -> projectRectWarp(viewpoint, scale, v);
+            case Helioradial -> projectHelioradial(viewpoint, scale, v);
+            case HelioradialUnrolled -> projectHelioradialUnrolled(viewpoint, scale, v);
             case Orthographic -> throw new IllegalArgumentException("Orthographic mode is not projected");
         };
     }
@@ -28,7 +28,7 @@ final class ProjectedMap {
         return switch (mode) {
             case HPC -> unprojectHpc(viewpoint, pt.x, pt.y);
             case Latitudinal -> unprojectLatitudinal(rotation, pt.x, pt.y);
-            case RadialWarp, RectWarp -> unprojectRadialWarp(viewpoint, pt.x, pt.y);
+            case Helioradial, HelioradialUnrolled -> unprojectHelioradial(viewpoint, pt.x, pt.y);
             case Orthographic -> throw new IllegalArgumentException("Orthographic mode is not projected");
         };
     }
@@ -50,7 +50,7 @@ final class ProjectedMap {
         return rotation.rotateInverseVector(SphericalCoords.unit(longitude, latitude));
     }
 
-    private static Vec3 unprojectRadialWarp(Position viewpoint, double angleDeg, double radius) {
+    private static Vec3 unprojectHelioradial(Position viewpoint, double angleDeg, double radius) {
         double theta = Math.toRadians(angleDeg);
         double x = PolarBasis.x(radius, theta);
         double y = PolarBasis.y(radius, theta);
@@ -60,7 +60,7 @@ final class ProjectedMap {
                 Math.atan2(y, Math.sqrt(x * x + viewpoint.distance * viewpoint.distance)));
     }
 
-    private static Vec2 projectRadialWarp(Position viewpoint, MapScale scale, Vec3 v0) {
+    private static Vec2 projectHelioradial(Position viewpoint, MapScale scale, Vec3 v0) {
         Vec2 hpcXY = projectToHpcPlane(viewpoint, v0);
         double r = Math.hypot(hpcXY.x, hpcXY.y);
         if (r == 0)
@@ -70,7 +70,7 @@ final class ProjectedMap {
         return new Vec2(f * hpcXY.x, f * hpcXY.y);
     }
 
-    private static Vec2 projectRectWarp(Position viewpoint, MapScale scale, Vec3 v0) {
+    private static Vec2 projectHelioradialUnrolled(Position viewpoint, MapScale scale, Vec3 v0) {
         Vec2 hpcXY = projectToHpcPlane(viewpoint, v0);
         double r = Math.hypot(hpcXY.x, hpcXY.y);
         double theta = PolarBasis.angle(hpcXY.x, hpcXY.y);
@@ -94,7 +94,7 @@ final class ProjectedMap {
 
     static Vec2 projectToScreen(MapMode mode, Position viewpoint, MapScale scale, Quat rotation, Viewport vp, Vec3 v) {
         Vec2 pt = project(mode, viewpoint, scale, rotation, v);
-        return mode == MapMode.RadialWarp ? pt : new Vec2(pt.x * vp.aspect, pt.y);
+        return mode == MapMode.Helioradial ? pt : new Vec2(pt.x * vp.aspect, pt.y);
     }
 
     static void emitMapLine(MapMode mode, Position viewpoint, MapScale scale, Quat rotation, Viewport vp, List<Vec3> vertices, byte[] color, BufVertex vexBuf) {
@@ -104,8 +104,8 @@ final class ProjectedMap {
             emitHpcLine(viewpoint, scale, vp, vertices, color, vexBuf);
             return;
         }
-        if (mode == MapMode.RadialWarp) {
-            emitRadialWarpLine(viewpoint, scale, vertices, color, vexBuf);
+        if (mode == MapMode.Helioradial) {
+            emitHelioradialLine(viewpoint, scale, vertices, color, vexBuf);
             return;
         }
 
@@ -120,12 +120,12 @@ final class ProjectedMap {
         vexBuf.repeatVertex(Colors.Null);
     }
 
-    private static void emitRadialWarpLine(Position viewpoint, MapScale scale, List<Vec3> vertices, byte[] color, BufVertex vexBuf) {
-        Vec2 current = projectRadialWarp(viewpoint, scale, vertices.getFirst());
+    private static void emitHelioradialLine(Position viewpoint, MapScale scale, List<Vec3> vertices, byte[] color, BufVertex vexBuf) {
+        Vec2 current = projectHelioradial(viewpoint, scale, vertices.getFirst());
         vexBuf.putVertex((float) current.x, (float) current.y, 0, 1, Colors.Null);
         vexBuf.repeatVertex(color);
         for (int i = 1; i < vertices.size(); i++) {
-            current = projectRadialWarp(viewpoint, scale, vertices.get(i));
+            current = projectHelioradial(viewpoint, scale, vertices.get(i));
             vexBuf.putVertex((float) current.x, (float) current.y, 0, 1, color);
         }
         vexBuf.repeatVertex(Colors.Null);
@@ -163,9 +163,9 @@ final class ProjectedMap {
         }
 
         float pointSize = (float) size;
-        if (mode == MapMode.RadialWarp) {
+        if (mode == MapMode.Helioradial) {
             for (Vec3 vertex : vertices) {
-                Vec2 pt = projectRadialWarp(viewpoint, scale, vertex);
+                Vec2 pt = projectHelioradial(viewpoint, scale, vertex);
                 vexBuf.putVertex((float) pt.x, (float) pt.y, 0, pointSize, color);
             }
             return;
@@ -187,14 +187,14 @@ final class ProjectedMap {
     }
 
     static Vec2 mouseToMap(MapMode mode, Camera camera, double width, Viewport vp, MapScale scale, int x, int y) {
-        if (mode == MapMode.RadialWarp)
-            return mouseToRadialWarpMap(camera, width, vp, scale, x, y);
+        if (mode == MapMode.Helioradial)
+            return mouseToHelioradialMap(camera, width, vp, scale, x, y);
         return new Vec2(
                 scale.toMapX(ViewportMath.computeUpX(vp, width, camera.getTranslationX(), x) / vp.aspect + 0.5),
                 scale.toMapY(ViewportMath.computeUpY(vp, width, camera.getTranslationY(), y) + 0.5));
     }
 
-    private static Vec2 mouseToRadialWarpMap(Camera camera, double width, Viewport vp, MapScale scale, int x, int y) {
+    private static Vec2 mouseToHelioradialMap(Camera camera, double width, Viewport vp, MapScale scale, int x, int y) {
         double upX = ViewportMath.computeUpX(vp, width, camera.getTranslationX(), x);
         double upY = ViewportMath.computeUpY(vp, width, camera.getTranslationY(), y);
         double t = 2 * Math.hypot(upX, upY);

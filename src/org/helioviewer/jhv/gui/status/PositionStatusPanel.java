@@ -45,7 +45,7 @@ public final class PositionStatusPanel extends StatusPanel.StatusPlugin implemen
             setText(formatHpc(coord));
         } else if (mv.isLatitudinal()) {
             setText(formatLati(coord, mv.gridType()));
-        } else if (mv.isRadialWarp() || mv.isRectWarp()) {
+        } else if (mv.isHelioradial() || mv.isHelioradialUnrolled()) {
             setText(formatAngleRadius(coord));
         } else {
             Vec3 v = mv.mouseToSky(vp, x, y);

@@ -12,8 +12,8 @@ import org.helioviewer.jhv.time.TimeListener;
 // Pins a CACTus CME front at a fixed fraction of the radial field of view by animating
 // the warp lambda with movie time: as the front travels outward the Box-Cox warp is
 // re-solved every frame so the front stays at a constant screen radius while the corona
-// rubber-bands around it. Works in either projection that uses lambda — RadialWarp (disk)
-// and RectWarp (unwrap) share the warp, so the same solve drives both. Transient, like
+// rubber-bands around it. Works in either projection that uses lambda — Helioradial (disk)
+// and HelioradialUnrolled (unwrap) share the warp, so the same solve drives both. Transient, like
 // camera tracking: engaged from a CACTus event dialog, disengaged by moving the lambda
 // slider or leaving those projections.
 public final class CMETracker implements TimeListener.Change {
@@ -145,7 +145,7 @@ public final class CMETracker implements TimeListener.Change {
     public void timeChanged(long milli) {
         if (!tracking)
             return;
-        if (!Display.mode.usesWarpLambda()) { // RadialWarp or RectWarp; leaving both disengages
+        if (!Display.mode.usesWarpLambda()) { // Helioradial or HelioradialUnrolled; leaving both disengages
             tracking = false;
             smoother.stop();
             fireChanged();

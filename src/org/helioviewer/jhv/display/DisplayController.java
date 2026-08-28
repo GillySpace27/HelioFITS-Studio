@@ -140,10 +140,10 @@ public final class DisplayController {
     }
 
     private static void fitCameraToImageLayers(Camera camera, Position viewpoint) {
-        // RadialWarp's warped scene reaches exactly the warp's outer radius, because the warp
+        // Helioradial's warped scene reaches exactly the warp's outer radius, because the warp
         // holds that radius as a fixed point; fit to its diameter.
         double size = Display.mode == MapMode.Orthographic ? ImageLayers.getLargestPhysicalHeight()
-                : Display.mode == MapMode.RadialWarp ? 2 * org.helioviewer.jhv.opengl.GLRenderer.effectiveOuterRadius()
+                : Display.mode == MapMode.Helioradial ? 2 * org.helioviewer.jhv.opengl.GLRenderer.effectiveOuterRadius()
                 : 1;
         double newFOV = Camera.INITFOV;
         if (size != 0)

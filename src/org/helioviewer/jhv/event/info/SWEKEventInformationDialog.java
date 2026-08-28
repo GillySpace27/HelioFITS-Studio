@@ -136,7 +136,7 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
         }
         CMETracker.stop(); // switching modes mid-track: disengage before re-engaging on the other knob
         CMETracker.setMode(mode);
-        ViewState.setProjection(MapMode.RadialWarp); // no-op if already there; fits on entry
+        ViewState.setProjection(MapMode.Helioradial); // no-op if already there; fits on entry
         CMETracker.track(readCMESpeed(event), event.start, readCMEDouble(event, "event_coord1"));
     }
 

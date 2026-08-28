@@ -34,7 +34,7 @@ public final class GLRenderer {
             case Orthographic -> createConstantScales(viewports, MapScale.ortho);
             case HPC -> createHpcScales(viewports);
             case Latitudinal -> createConstantScales(viewports, MapScale.lati);
-            case RadialWarp, RectWarp -> createConstantScales(viewports, MapScale.boxCoxRadial(effectiveOuterRadius()));
+            case Helioradial, HelioradialUnrolled -> createConstantScales(viewports, MapScale.boxCoxRadial(effectiveOuterRadius()));
         };
     }
 
@@ -152,9 +152,9 @@ public final class GLRenderer {
             Transform.ortho(vp.aspect, mv.cameraWidth(vp), mv.cameraTranslationX(), mv.cameraTranslationY(), mv.viewRotation());
             GLSLSolarShader.bindScreen(vp, scale);
             // World-space overlays share the imagery's radial compression, so a point cloud sits
-            // where the imagery would put the same direction and distance. Only RadialWarp warps;
+            // where the imagery would put the same direction and distance. Only Helioradial warps;
             // orthographic passes geometry through untouched.
-            if (mv.isRadialWarp())
+            if (mv.isHelioradial())
                 GLSLWarp.enable(scale, effectiveOuterRadius());
             else
                 GLSLWarp.disable();

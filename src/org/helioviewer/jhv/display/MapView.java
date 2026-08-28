@@ -30,7 +30,7 @@ public abstract class MapView {
 
     static MapView create(Camera camera, Position viewpoint, GridType gridType, MapMode mode, MapScale[] scales) {
         // A 3D mode needs the world-space view: its layers emit raw 3D vertices and let the
-        // rotated MVP project them. Handing RadialWarp a ProjectedView would give those layers
+        // rotated MVP project them. Handing Helioradial a ProjectedView would give those layers
         // flat screen coordinates to draw through a 3D matrix.
         return mode.rendersIn3D()
                 ? new OrthographicView(camera, viewpoint, gridType, mode, scales)
@@ -77,7 +77,7 @@ public abstract class MapView {
         return mode == MapMode.Orthographic;
     }
 
-    /** Whether the scene is drawn as rotated 3D geometry. True for Orthographic and RadialWarp. */
+    /** Whether the scene is drawn as rotated 3D geometry. True for Orthographic and Helioradial. */
     public boolean rendersIn3D() {
         return mode.rendersIn3D();
     }
@@ -90,12 +90,12 @@ public abstract class MapView {
         return mode == MapMode.Latitudinal;
     }
 
-    public boolean isRadialWarp() {
-        return mode == MapMode.RadialWarp;
+    public boolean isHelioradial() {
+        return mode == MapMode.Helioradial;
     }
 
-    public boolean isRectWarp() {
-        return mode == MapMode.RectWarp;
+    public boolean isHelioradialUnrolled() {
+        return mode == MapMode.HelioradialUnrolled;
     }
 
     public Vec3 mouseToSky(Viewport vp, int x, int y) {

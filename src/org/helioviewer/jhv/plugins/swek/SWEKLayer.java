@@ -300,12 +300,12 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
     }
 
     // Warped screen radius of physical radius r on the Sun-centered disk; matches
-    // RadialWarpGrid.ringRho so arcs and markers sit exactly on the grid rings.
+    // HelioradialGrid.ringRho so arcs and markers sit exactly on the grid rings.
     private static double ringRho(MapScale scale, double r) {
         return .5 * scale.toUnitY(r);
     }
 
-    // CACTus arc for the Sun-centered disk projection (RadialWarp): same wedge as the
+    // CACTus arc for the Sun-centered disk projection (Helioradial): same wedge as the
     // orthographic arc, but placed in the disk's world coordinates — physical radius r
     // maps to the warped screen radius ringRho(scale, r), and PolarBasis puts the
     // angle at north-up/CCW, matching the disk grid. The front sits on the grid ring at
@@ -347,7 +347,7 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         }
     }
 
-    // While CME tracking is engaged (RadialWarp or RectWarp), mark it: an orange dot at the
+    // While CME tracking is engaged (Helioradial or HelioradialUnrolled), mark it: an orange dot at the
     // front's calculated location (physical radius -> warped screen position) and a purple circle
     // at the fixed "freeze" screen radius (SCREEN_FRACTION), both on the tracked position angle.
     // If the solve is right, the front sits on the freeze radius and the two are concentric.
@@ -357,11 +357,11 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         double rCme = CMETracker.currentFront();
         Vec3 freeze;
         Vec3 front;
-        if (mv.isRadialWarp()) { // Sun-centered disk: screen fraction f -> rho = 0.5*f (matches ringRho)
+        if (mv.isHelioradial()) { // Sun-centered disk: screen fraction f -> rho = 0.5*f (matches ringRho)
             double pa = Math.toRadians(paDeg);
             freeze = PolarBasis.vec3(0.5 * frac, pa);
             front = PolarBasis.vec3(ringRho(scale, rCme), pa);
-        } else { // RectWarp unwrap: x = angle, y = warped radius normalized to [-0.5, 0.5]
+        } else { // HelioradialUnrolled unwrap: x = angle, y = warped radius normalized to [-0.5, 0.5]
             double x = (scale.toUnitX(paDeg) - 0.5) * vp.aspect;
             freeze = new Vec3(x, frac - 0.5, 0);
             front = new Vec3(x, scale.toUnitY(rCme) - 0.5, 0);
@@ -564,7 +564,7 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
             return;
         long currentTime = mv.viewpoint().time.milli;
         List<JHVRelatedEvents> evs = activeEvents(currentTime);
-        boolean radial = mv.isRectWarp() || mv.isRadialWarp();
+        boolean radial = mv.isHelioradialUnrolled() || mv.isHelioradial();
         List<JHVRelatedEvents> prop = radial ? propagatingCactus(currentTime) : List.of(); // empty unless extend toggle on
         boolean markers = radial && CMETracker.isTracking();
         if (evs.isEmpty() && prop.isEmpty() && !markers)
@@ -573,9 +573,9 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         MapScale scale = mv.scale(vp);
         for (JHVRelatedEvents evtr : evs) {
             JHVEvent evt = evtr.getClosestTo(currentTime);
-            if (evt.isCactus() && mv.isRectWarp()) {
+            if (evt.isCactus() && mv.isHelioradialUnrolled()) {
                 drawCactusArcScale(vp, evtr, evt, currentTime, scale);
-            } else if (evt.isCactus() && mv.isRadialWarp()) {
+            } else if (evt.isCactus() && mv.isHelioradial()) {
                 drawCactusArcDisk(evtr, evt, currentTime, scale);
             } else {
                 drawPolygon(mv, vp, evtr, evt);
@@ -586,7 +586,7 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         }
         for (JHVRelatedEvents evtr : prop) { // extrapolated CACTus fronts past the LASCO edge, out to the loaded FOV
             JHVEvent evt = evtr.getClosestTo(currentTime);
-            if (mv.isRectWarp())
+            if (mv.isHelioradialUnrolled())
                 drawCactusArcScale(vp, evtr, evt, currentTime, scale);
             else
                 drawCactusArcDisk(evtr, evt, currentTime, scale);

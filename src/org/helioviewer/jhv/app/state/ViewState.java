@@ -193,11 +193,13 @@ public final class ViewState {
         String projectionName = source.optString("projection", projectionValue.name());
         String surfaceModelName = source.optString("surfaceModel", surfaceModelValue.name());
         String annotationModeName = source.optString("annotationMode", annotationModeValue.name());
-        try {
-            projectionValue = MapMode.valueOf(projectionName);
-        } catch (IllegalArgumentException e) {
-            Log.warn("Ignoring invalid projection state value: " + projectionName, e);
-        }
+        // fromName, not valueOf: sessions written before the Helioradial rename say RadialWarp
+        // and RectWarp, and those files are the provenance record for already-published figures.
+        MapMode parsedProjection = MapMode.fromName(projectionName);
+        if (parsedProjection != null)
+            projectionValue = parsedProjection;
+        else
+            Log.warn("Ignoring invalid projection state value: " + projectionName);
         try {
             surfaceModelValue = SurfaceModel.valueOf(surfaceModelName);
         } catch (IllegalArgumentException e) {
@@ -289,7 +291,7 @@ public final class ViewState {
             @Nullable String showCorona,
             @Nullable String differentialRotation) {
         applyModeUpdate(
-                parseEnum(projection, MapMode.class, "projection"),
+                parseProjection(projection),
                 parseEnum(annotationMode, AnnotationMode.class, "annotation mode"),
                 parseBoolean(multiview, "multiview"),
                 parseBoolean(tracking, "tracking"),
@@ -531,6 +533,16 @@ public final class ViewState {
             return false;
         Log.warn("Ignoring invalid " + name + " value: " + value);
         return null;
+    }
+
+    /** Like parseEnum, but accepts the pre-rename projection names. See MapMode.fromName. */
+    private static @Nullable MapMode parseProjection(@Nullable String value) {
+        if (value == null)
+            return null;
+        MapMode mode = MapMode.fromName(value);
+        if (mode == null)
+            Log.warn("Ignoring invalid projection value: " + value);
+        return mode;
     }
 
     private static <E extends Enum<E>> @Nullable E parseEnum(@Nullable String value, Class<E> enumClass, String name) {

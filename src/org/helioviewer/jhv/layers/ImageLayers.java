@@ -47,7 +47,7 @@ public final class ImageLayers {
      * How much larger the warp draws this layer than its physical size would suggest.
      *
      * <p>The decoder picks a resolution level from {@code physicalRegion.height * pixFactor},
-     * and pixFactor comes from the camera width, which in RadialWarp spans the whole warped
+     * and pixFactor comes from the camera width, which in Helioradial spans the whole warped
      * scene. But the warp expands the inner corona: a layer at radius R is drawn at
      * warpRadius(R), so its true share of the screen is larger than its physical size implies.
      *
@@ -60,11 +60,11 @@ public final class ImageLayers {
      * is not magnified at all and the peak moves out to a few Rsun, so do not assume the
      * innermost layer is always the most starved.
      *
-     * <p>RadialWarp only. The flat projections normalize their camera width differently and were
+     * <p>Helioradial only. The flat projections normalize their camera width differently and were
      * never affected.
      */
     private static double warpMagnification(ImageLayer layer) {
-        if (Display.mode != MapMode.RadialWarp)
+        if (Display.mode != MapMode.Helioradial)
             return 1;
         double outerRadius = GLRenderer.effectiveOuterRadius();
         if (outerRadius <= 0)

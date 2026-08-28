@@ -14,8 +14,8 @@ import org.helioviewer.jhv.opengl.GLSLLine;
 import org.helioviewer.jhv.opengl.GLText;
 import org.helioviewer.jhv.opengl.text.SdfTextRenderer;
 
-// Radius rings and angular spokes in RadialWarp's circular output coordinates.
-public final class RadialWarpGrid {
+// Radius rings and angular spokes in Helioradial's circular output coordinates.
+public final class HelioradialGrid {
 
     private static final int TEXT_SIZE = 12;
     private static final int SUBDIVISIONS = 180;
@@ -46,7 +46,7 @@ public final class RadialWarpGrid {
     /**
      * The same rings and spokes, emitted as world-space geometry for the 3D warped scene.
      *
-     * <p>RadialWarp used to be a flat disk drawn by {@code renderScale}, where this grid laid its
+     * <p>Helioradial used to be a flat disk drawn by {@code renderScale}, where this grid laid its
      * rings out in normalized screen coordinates. Now that the projection is real geometry the
      * rings have to be world-space circles at their true heliocentric radii, and the vertex-stage
      * warp compresses them exactly as it compresses the imagery. That is what keeps a ring

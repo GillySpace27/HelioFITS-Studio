@@ -36,7 +36,7 @@ import org.helioviewer.jhv.time.JHVTime;
 import org.helioviewer.jhv.time.TimeUtils;
 
 // Browse the CACTus CME events loaded in the current movie range and pick one to track:
-// double-click (or Track) jumps the playhead to the event onset, switches to RadialWarp, and
+// double-click (or Track) jumps the playhead to the event onset, switches to Helioradial, and
 // engages CMETracker so the front holds a fixed screen radius. Reuses the loaded event cache;
 // no runtime arc-catching. Kept in event.info (core) so the menu action need not import the
 // SWEK plugin; the SWEK panel's Track button calls in from the plugin side.
@@ -232,7 +232,7 @@ public final class CactusTrackDialog extends JDialog implements JHVEventListener
         CMETracker.stop();                           // disengage first: setTime fires listeners synchronously,
         CMETracker.setMode(mode);                    // ...and pick the knob before engaging
         Player.setTime(new JHVTime(evt.start));      // so a still-registered tracker must not solve with stale params
-        ViewState.setProjection(MapMode.RadialWarp); // no-op if already there; fits on entry
+        ViewState.setProjection(MapMode.Helioradial); // no-op if already there; fits on entry
         CMETracker.track(speedOf(evt), evt.start, paOf(evt)); // re-engage with this CME's params
         JHVEventCache.highlight(re);
     }

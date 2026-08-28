@@ -12,7 +12,7 @@ layout(std140) uniform WarpBlock {
     float lambda;
     float limb;
     float outerRadius;
-    float enabled; // 0 = pass through untouched, which is every projection except RadialWarp
+    float enabled; // 0 = pass through untouched, which is every projection except Helioradial
 } warp;
 
 // Physical heliocentric radius to its warped position. Mirrors

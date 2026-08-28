@@ -14,7 +14,7 @@ import org.helioviewer.jhv.display.ViewportMath;
 import org.helioviewer.jhv.layers.grid.FlatGrid;
 import org.helioviewer.jhv.layers.grid.GridLabel;
 import org.helioviewer.jhv.layers.grid.GridMath;
-import org.helioviewer.jhv.layers.grid.RadialWarpGrid;
+import org.helioviewer.jhv.layers.grid.HelioradialGrid;
 import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.opengl.GL;
 import org.helioviewer.jhv.opengl.GLSLLine;
@@ -74,7 +74,7 @@ public final class GridLayer extends AbstractLayer {
     private final GLSLLine radialCircleLineFar = new GLSLLine(false);
     private final GLSLLine radialThickLineFar = new GLSLLine(false);
     private final FlatGrid flatGrid = new FlatGrid();
-    private final RadialWarpGrid radialWarpGrid = new RadialWarpGrid();
+    private final HelioradialGrid helioradialGrid = new HelioradialGrid();
     private final GLSLLine gridLine = new GLSLLine(false);
 
     private List<GridLabel> latLabels;
@@ -183,13 +183,13 @@ public final class GridLayer extends AbstractLayer {
             Transform.popView();
         }
 
-        // RadialWarp now renders here rather than through renderScale, and the rings and spokes
+        // Helioradial now renders here rather than through renderScale, and the rings and spokes
         // that used to come from the flat path went with it. Emitted as world-space geometry in
         // the plane of sky, so the vertex-stage warp compresses them along with the imagery.
-        if (mv.isRadialWarp()) {
+        if (mv.isHelioradial()) {
             Transform.pushView();
             Transform.rotateViewInverse(viewpoint.toQuat());
-            radialWarpGrid.renderWorld(mv, vp, showLabels, lonStep, gridColorBytes, gridLineScale, Colors.fade(Colors.WhiteFloat, labelAlpha), gridLabelSize, gridLabelAngle);
+            helioradialGrid.renderWorld(mv, vp, showLabels, lonStep, gridColorBytes, gridLineScale, Colors.fade(Colors.WhiteFloat, labelAlpha), gridLabelSize, gridLabelAngle);
             Transform.popView();
         }
     }
@@ -198,8 +198,8 @@ public final class GridLayer extends AbstractLayer {
     public void renderScale(MapView mv, Viewport vp) {
         if (!isVisible[vp.idx])
             return;
-        if (mv.isRadialWarp())
-            radialWarpGrid.render(mv, vp, showLabels, lonStep, gridColorBytes, gridLineScale, Colors.fade(Colors.WhiteFloat, labelAlpha), gridLabelSize, gridLabelAngle);
+        if (mv.isHelioradial())
+            helioradialGrid.render(mv, vp, showLabels, lonStep, gridColorBytes, gridLineScale, Colors.fade(Colors.WhiteFloat, labelAlpha), gridLabelSize, gridLabelAngle);
         else
             flatGrid.render(mv, vp, showLabels, gridColorBytes, gridLineScale, Colors.fade(Colors.WhiteFloat, labelAlpha), gridLabelSize);
     }
@@ -271,7 +271,7 @@ public final class GridLayer extends AbstractLayer {
         GridMath.initRadialCircles(radialCircleLineFar, radialThickLineFar, RADIAL_UNIT_FAR, RADIAL_STEP_FAR);
 
         flatGrid.init();
-        radialWarpGrid.init();
+        helioradialGrid.init();
     }
 
     @Override
@@ -285,7 +285,7 @@ public final class GridLayer extends AbstractLayer {
         radialCircleLineFar.dispose();
         radialThickLineFar.dispose();
         flatGrid.dispose();
-        radialWarpGrid.dispose();
+        helioradialGrid.dispose();
     }
 
     @Override

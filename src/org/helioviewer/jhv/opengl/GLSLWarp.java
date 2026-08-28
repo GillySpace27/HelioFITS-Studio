@@ -14,7 +14,7 @@ import org.helioviewer.jhv.display.MapScale;
  * annotations at once, rather than teaching each layer about the warp.
  *
  * <p>Disabled means {@code enabled = 0}, and the shader returns the vertex untouched. Every
- * projection except RadialWarp leaves it that way, as does the miniview, which is meant to stay
+ * projection except Helioradial leaves it that way, as does the miniview, which is meant to stay
  * an undistorted context view even while the main scene is warped.
  */
 public final class GLSLWarp {
