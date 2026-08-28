@@ -692,7 +692,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
                     // vanish on every click away. The toggle button is the record of whether the
                     // user wants it open, so restore from that rather than from isVisible, which
                     // the platform has already set to false behind our back.
-                    if (current.projectionToggle != null && current.projectionToggle.isSelected()
+                    if (projectionToggle != null && projectionToggle.isSelected()
                             && !current.projectionPalette.isVisible())
                         current.projectionPalette.setVisible(true);
                     if (current.projectionPalette.isVisible())
