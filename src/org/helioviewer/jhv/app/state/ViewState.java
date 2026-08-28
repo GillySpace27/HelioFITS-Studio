@@ -6,6 +6,7 @@ import javax.annotation.Nullable;
 
 import org.helioviewer.jhv.annotation.AnnotationMode;
 import org.helioviewer.jhv.app.Log;
+import org.helioviewer.jhv.opengl.GL;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.MapMode;
@@ -78,6 +79,65 @@ public final class ViewState {
         }
     }
 
+    /**
+     * Output aspect ratio, chosen independently of resolution.
+     *
+     * <p>Splitting aspect from resolution makes "2:1 at 8K" one decision instead of a lookup in
+     * a table of fixed pairs, and makes an inconsistent width/height pair unrepresentable. 2:1
+     * is here because a fulldome master is equirectangular; the rest are the ordinary cases.
+     */
+    public enum RecordingAspect {
+        ORIGINAL("On screen", 0, 0),
+        EQUIRECT("2:1 equirectangular", 2, 1),
+        WIDE("16:9", 16, 9),
+        SQUARE("1:1", 1, 1),
+        CLASSIC("4:3", 4, 3);
+
+        private final String label;
+        public final int w;
+        public final int h;
+
+        RecordingAspect(String _label, int _w, int _h) {
+            label = _label;
+            w = _w;
+            h = _h;
+        }
+
+        public boolean isFixed() {
+            return w > 0 && h > 0;
+        }
+
+        public double ratio() {
+            return isFixed() ? w / (double) h : 0;
+        }
+
+        /** The derived dimension. Read-only in the UI: it is not an independent choice. */
+        public int shortSide(int longSide) {
+            if (!isFixed())
+                return 0;
+            return Math.max(1, (int) Math.round(longSide * (double) Math.min(w, h) / Math.max(w, h)));
+        }
+
+        public Size sizeFor(int longSide) {
+            if (!isFixed())
+                return new Size(Display.fullViewport.width, Display.fullViewport.height, false);
+            int shortSide = shortSide(longSide);
+            return w >= h ? new Size(longSide, shortSide, true) : new Size(shortSide, longSide, true);
+        }
+
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
+
+    /**
+     * The fixed size pairs this control used to offer.
+     *
+     * <p>Superseded by {@link RecordingAspect} plus a long side, but kept because SAMP messages
+     * and scripts name these values, and dropping them would break those callers silently.
+     * Each one maps onto the new pair.
+     */
     public enum RecordingSize {
         ORIGINAL("On screen", 0, 0),
         H1024("1024×1024", 1024, 1024),
@@ -102,6 +162,16 @@ public final class ViewState {
             return new Size(width, height, true);
         }
 
+        public RecordingAspect aspect() {
+            if (this == ORIGINAL)
+                return RecordingAspect.ORIGINAL;
+            return width == height ? RecordingAspect.SQUARE : RecordingAspect.WIDE;
+        }
+
+        public int longSide() {
+            return Math.max(width, height);
+        }
+
         @Override
         public String toString() {
             return label;
@@ -115,7 +185,11 @@ public final class ViewState {
     public record PlaybackData(Player.AdvanceMode advanceMode, int speed, PlaybackSpeedUnit speedUnit,
                                int firstFrame, int lastFrame) {}
 
-    public record RecordingData(RecordingMode mode, RecordingSize size) {}
+    public record RecordingData(RecordingMode mode, RecordingAspect aspect, int longSide) {
+        public Size size() {
+            return aspect.sizeFor(longSide);
+        }
+    }
 
     public record Size(int width, int height, boolean internal) {}
 
@@ -141,7 +215,10 @@ public final class ViewState {
     private static int playbackFirstFrame;
     private static int playbackLastFrame;
     private static RecordingMode recordingMode = RecordingMode.LOOP;
-    private static RecordingSize recordingSize = RecordingSize.ORIGINAL;
+    public static final int MIN_LONG_SIDE = 16;
+    private static final int DEFAULT_LONG_SIDE = 1920;
+    private static RecordingAspect recordingAspect = RecordingAspect.ORIGINAL;
+    private static int recordingLongSide = DEFAULT_LONG_SIDE;
 
     public static ModeData modeData() {
         return new ModeData(projection, Display.getSurfaceModel(), warpLambda, getAnnotationMode(), multiview, tracking, refresh, showCorona, differentialRotation, Display.isHelioradial3D());
@@ -163,7 +240,40 @@ public final class ViewState {
     }
 
     public static RecordingData recordingData() {
-        return new RecordingData(recordingMode, recordingSize);
+        return new RecordingData(recordingMode, recordingAspect, recordingLongSide);
+    }
+
+    public static RecordingAspect getRecordingAspect() {
+        return recordingAspect;
+    }
+
+    public static int getRecordingLongSide() {
+        return recordingLongSide;
+    }
+
+    public static void setRecordingAspect(RecordingAspect newAspect) {
+        if (recordingAspect == newAspect)
+            return;
+        recordingAspect = newAspect;
+        notifyRecordingConfigListeners();
+    }
+
+    /**
+     * Clamped to what the GPU can actually render into.
+     *
+     * <p>GLGrab captures through an FBO, so a long side past GL.maxTextureSize fails at capture
+     * time, after the user has set up a recording. Clamping here reports the limit while the
+     * choice is being made instead.
+     */
+    public static void setRecordingLongSide(int newLongSide) {
+        int cap = GL.maxTextureSize > 0 ? GL.maxTextureSize : 16384;
+        int clamped = Math.clamp(newLongSide, MIN_LONG_SIDE, cap);
+        if (clamped != newLongSide)
+            Log.warn("Recording long side " + newLongSide + " clamped to " + clamped + " (GPU limit " + cap + ')');
+        if (recordingLongSide == clamped)
+            return;
+        recordingLongSide = clamped;
+        notifyRecordingConfigListeners();
     }
 
     public static void writeModeJson(JSONObject target) {
@@ -580,12 +690,11 @@ public final class ViewState {
         notifyRecordingConfigListeners();
     }
 
+    /** Legacy entry point: a preset is just an aspect and a long side. */
     public static void setRecordingSize(RecordingSize newRecordingSize) {
-        if (recordingSize == newRecordingSize)
-            return;
-
-        recordingSize = newRecordingSize;
-        notifyRecordingConfigListeners();
+        setRecordingAspect(newRecordingSize.aspect());
+        if (newRecordingSize != RecordingSize.ORIGINAL)
+            setRecordingLongSide(newRecordingSize.longSide());
     }
 
     private static void applyRecordingUpdate(
@@ -595,6 +704,18 @@ public final class ViewState {
             setRecordingMode(mode);
         if (size != null)
             setRecordingSize(size);
+    }
+
+    public static void applyRecordingUpdate(
+            @Nullable RecordingMode mode,
+            @Nullable RecordingAspect aspect,
+            @Nullable Integer longSide) {
+        if (mode != null)
+            setRecordingMode(mode);
+        if (aspect != null)
+            setRecordingAspect(aspect);
+        if (longSide != null)
+            setRecordingLongSide(longSide);
     }
 
     public static void applyRecordingUpdateRaw(

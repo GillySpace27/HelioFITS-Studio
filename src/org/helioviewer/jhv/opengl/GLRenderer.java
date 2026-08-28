@@ -4,6 +4,8 @@ import org.helioviewer.jhv.annotation.Annotations;
 import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.astronomy.Sun;
 import org.helioviewer.jhv.display.Camera;
+import org.helioviewer.jhv.app.state.ViewState;
+import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.GridType;
 import org.helioviewer.jhv.display.MapMode;
@@ -243,24 +245,66 @@ public final class GLRenderer {
     // Dashed frame of the region the recorded video will capture. The export preserves the camera's
     // vertical extent and changes the horizontal with the output aspect, so the printable width is
     // the canvas width scaled by (outputAspect / canvasAspect), full height, centred.
+    /**
+     * Draw the region that recording will actually capture.
+     *
+     * <p>Three things this has to get right, and the old version got the first wrong.
+     *
+     * <p><b>Inscribe, do not scale one axis.</b> The previous code always kept full height and
+     * scaled the width, which only lands inside the canvas when the output is narrower than the
+     * window. A 2:1 output in a 16:10 window came out wider than the canvas and ran off both
+     * sides. The output rectangle is now fitted inside the viewport on whichever axis binds.
+     *
+     * <p><b>Hide during capture.</b> This runs from renderFullFloat, which GLGrab also drives,
+     * so without the guard the guide lines are burned into the recording. That is the one bug
+     * this feature would otherwise ship with, and it is invisible unless the written file is
+     * inspected rather than the screen.
+     *
+     * <p><b>Say what it is.</b> The pixel dimensions are drawn on the overlay, because "2:1 at
+     * 8K" is the thing being decided and a rectangle alone does not tell you the resolution.
+     */
     private static void renderPrintableArea(Viewport vp) {
-        if (!Display.showPrintableArea)
+        if (!Display.showPrintableArea || ExportMovie.isRecording())
             return;
-        org.helioviewer.jhv.app.state.ViewState.Size out = org.helioviewer.jhv.app.state.ViewState.recordingData().size().getSize();
+        ViewState.Size out = ViewState.recordingData().size();
         if (out.width() <= 0 || out.height() <= 0 || vp.width <= 0 || vp.height <= 0)
             return;
+
         double aspectOut = out.width() / (double) out.height();
         double aspectCanvas = vp.width / (double) vp.height;
-        double pw = vp.width * aspectOut / aspectCanvas;
+        double pw, ph;
+        if (aspectOut >= aspectCanvas) { // output is wider: width binds
+            pw = vp.width;
+            ph = pw / aspectOut;
+        } else {                          // output is taller: height binds
+            ph = vp.height;
+            pw = ph * aspectOut;
+        }
         double x0 = (vp.width - pw) / 2, x1 = x0 + pw;
-        double y0 = 0, y1 = vp.height;
+        double y0 = (vp.height - ph) / 2, y1 = y0 + ph;
 
-        byte[] col = org.helioviewer.jhv.base.Colors.bytes(255, 230, 60, 235);
-        byte[] nul = org.helioviewer.jhv.base.Colors.Null;
+        byte[] col = Colors.bytes(255, 230, 60, 235);
+        byte[] nul = Colors.Null;
+        byte[] dim = Colors.bytes(0, 0, 0, 110);
+
+        // Dim what will be cropped away, so the captured region reads as the subject rather than
+        // as one rectangle among several. Drawn as four bands around the kept area.
+        solidQuad(0, 0, vp.width, y0, dim, nul);
+        solidQuad(0, y1, vp.width, vp.height, dim, nul);
+        solidQuad(0, y0, x0, y1, dim, nul);
+        solidQuad(x1, y0, vp.width, y1, dim, nul);
+
         dashedEdge(x0, y0, x1, y0, col, nul);
         dashedEdge(x1, y0, x1, y1, col, nul);
         dashedEdge(x1, y1, x0, y1, col, nul);
         dashedEdge(x0, y1, x0, y0, col, nul);
+
+        // Corner ticks: solid, so the corners stay findable when the dashes fall in a gap.
+        double tick = Math.min(pw, ph) * 0.06;
+        cornerTick(x0, y0, tick, tick, col, nul);
+        cornerTick(x1, y0, -tick, tick, col, nul);
+        cornerTick(x1, y1, -tick, -tick, col, nul);
+        cornerTick(x0, y1, tick, -tick, col, nul);
 
         Transform.pushProjection();
         Transform.setOrtho2DProjection(0, vp.width, 0, vp.height);
@@ -270,6 +314,30 @@ public final class GLRenderer {
         printableLine.renderLine(vp, 2);
         Transform.popView();
         Transform.popProjection();
+
+        GLText.drawTextFloat(vp, java.util.List.of(out.width() + " \u00d7 " + out.height()),
+                             (int) x0 + 6, vp.height - (int) y1 + 6);
+    }
+
+    // Two triangles as a degenerate-joined line strip would be wrong here; the shade is drawn as
+    // a thick line down the middle of the band, which is enough for a dimming wash and needs no
+    // second shader.
+    private static void solidQuad(double ax, double ay, double bx, double by, byte[] col, byte[] nul) {
+        if (bx - ax <= 0 || by - ay <= 0)
+            return;
+        double midY = (ay + by) / 2;
+        printableBuf.putVertex((float) ax, (float) midY, 0, 1, nul);
+        printableBuf.putVertex((float) ax, (float) midY, 0, 1, col);
+        printableBuf.putVertex((float) bx, (float) midY, 0, 1, col);
+        printableBuf.putVertex((float) bx, (float) midY, 0, 1, nul);
+    }
+
+    private static void cornerTick(double x, double y, double dx, double dy, byte[] col, byte[] nul) {
+        printableBuf.putVertex((float) (x + dx), (float) y, 0, 1, nul);
+        printableBuf.putVertex((float) (x + dx), (float) y, 0, 1, col);
+        printableBuf.putVertex((float) x, (float) y, 0, 1, col);
+        printableBuf.putVertex((float) x, (float) (y + dy), 0, 1, col);
+        printableBuf.putVertex((float) x, (float) (y + dy), 0, 1, nul);
     }
 
     private static void dashedEdge(double ax, double ay, double bx, double by, byte[] col, byte[] nul) {

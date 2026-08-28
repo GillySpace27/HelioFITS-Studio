@@ -53,7 +53,10 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
     private final JRadioButton loopButton;
     private final JRadioButton shotButton;
     private final JRadioButton freeButton;
-    private final JComboBox<ViewState.RecordingSize> recordSizeComboBox;
+    private final JComboBox<ViewState.RecordingAspect> recordAspectComboBox;
+    private final javax.swing.JSpinner recordLongSideSpinner;
+    private final JLabel recordDerivedLabel;
+    private boolean syncingRecordSize;
 
     private final JPanel modePanel = new JPanel(new FlowLayout(FlowLayout.TRAILING, 0, 0));
     private final JPanel recordPanel = new JPanel(new GridBagLayout());
@@ -180,12 +183,52 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         videoLengthLabel.setToolTipText("Estimated length of the recorded video at the current speed and frame count");
         recordPanel.add(videoLengthLabel, c);
         c.gridx = 2;
-        recordPanel.add(new JLabel("Output size ", JLabel.RIGHT), c);
+        recordPanel.add(new JLabel("Aspect ", JLabel.RIGHT), c);
 
-        recordSizeComboBox = new JComboBox<>(ViewState.RecordingSize.values());
-        recordSizeComboBox.addActionListener(e -> ViewState.setRecordingSize((ViewState.RecordingSize) recordSizeComboBox.getSelectedItem()));
+        // Aspect and resolution are separate choices, and the short side is derived from them
+        // rather than typed. That makes an inconsistent width/height pair unrepresentable, and
+        // makes "2:1 at 8K" one decision instead of a lookup in a table of fixed pairs.
+        recordAspectComboBox = new JComboBox<>(ViewState.RecordingAspect.values());
+        recordAspectComboBox.setSelectedItem(ViewState.getRecordingAspect());
+        recordAspectComboBox.setToolTipText("Output aspect ratio. 2:1 is the equirectangular master a fulldome projector wants.");
+        recordAspectComboBox.addActionListener(e -> {
+            if (!syncingRecordSize)
+                ViewState.setRecordingAspect((ViewState.RecordingAspect) recordAspectComboBox.getSelectedItem());
+        });
         c.gridx = 3;
-        recordPanel.add(recordSizeComboBox, c);
+        recordPanel.add(recordAspectComboBox, c);
+
+        c.gridy = 2;
+        c.gridx = 0;
+        // Fitting the window to the output aspect, rather than reshaping to it automatically:
+        // inscribing 2:1 in a tall window leaves a cramped letterbox to compose in, but forcing
+        // the window would fight presentation mode, where the projector and presenter windows
+        // are deliberately different shapes.
+        javax.swing.JButton fitWindowButton = new javax.swing.JButton("Fit");
+        fitWindowButton.setToolTipText("Resize the view to the output aspect, so composition is not done in a letterbox");
+        fitWindowButton.addActionListener(e -> fitWindowToOutputAspect());
+        recordPanel.add(fitWindowButton, c);
+
+        c.gridx = 2;
+        recordPanel.add(new JLabel("Long side ", JLabel.RIGHT), c);
+
+        recordLongSideSpinner = new javax.swing.JSpinner(new javax.swing.SpinnerNumberModel(
+                ViewState.getRecordingLongSide(), ViewState.MIN_LONG_SIDE, 32768, 16));
+        recordLongSideSpinner.setToolTipText("Pixels on the long axis; the short side follows from the aspect. Clamped to what the GPU can render.");
+        recordLongSideSpinner.addChangeListener(e -> {
+            if (!syncingRecordSize)
+                ViewState.setRecordingLongSide((Integer) recordLongSideSpinner.getValue());
+        });
+        c.gridx = 3;
+        recordPanel.add(recordLongSideSpinner, c);
+
+        c.gridy = 3;
+        c.gridx = 3;
+        recordDerivedLabel = new JLabel();
+        recordDerivedLabel.setFont(UIGlobals.uiFontSmall);
+        recordDerivedLabel.setToolTipText("The size that will actually be written");
+        recordPanel.add(recordDerivedLabel, c);
+        c.gridy = 1;
 
         timeSelectorPanel.addListener(Layers.timeSelectionListener);
 
@@ -335,8 +378,46 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
             case SHOT -> shotButton.setSelected(true);
             case FREE -> freeButton.setSelected(true);
         }
-        if (recordSizeComboBox.getSelectedItem() != recordingData.size())
-            recordSizeComboBox.setSelectedItem(recordingData.size());
+        syncingRecordSize = true;
+        try {
+            if (recordAspectComboBox.getSelectedItem() != recordingData.aspect())
+                recordAspectComboBox.setSelectedItem(recordingData.aspect());
+            if (!recordLongSideSpinner.getValue().equals(recordingData.longSide()))
+                recordLongSideSpinner.setValue(recordingData.longSide());
+        } finally {
+            syncingRecordSize = false;
+        }
+        boolean fixed = recordingData.aspect().isFixed();
+        recordLongSideSpinner.setEnabled(fixed);
+        ViewState.Size out = recordingData.size();
+        recordDerivedLabel.setText(fixed ? out.width() + " \u00d7 " + out.height() : "follows the window");
+        org.helioviewer.jhv.display.DisplayController.display(); // the capture overlay moved
+    }
+
+    /**
+     * Resize the view so its aspect matches the output, so composition is not done inside a
+     * letterbox. A button rather than automatic, because reshaping on every aspect change would
+     * fight presentation mode.
+     */
+    private static void fitWindowToOutputAspect() {
+        ViewState.RecordingData data = ViewState.recordingData();
+        if (!data.aspect().isFixed())
+            return;
+        org.helioviewer.jhv.display.Viewport vp = org.helioviewer.jhv.display.Display.fullViewport;
+        if (vp.width <= 0 || vp.height <= 0)
+            return;
+        java.awt.Frame frame = org.helioviewer.jhv.gui.MainFrame.get();
+        if (frame == null)
+            return;
+        // Keep the canvas area roughly constant while changing its shape, so the window neither
+        // grows off the screen nor collapses.
+        double area = (double) vp.width * vp.height;
+        double ratio = data.aspect().ratio();
+        int targetW = (int) Math.round(Math.sqrt(area * ratio));
+        int targetH = (int) Math.round(Math.sqrt(area / ratio));
+        java.awt.Dimension frameSize = frame.getSize();
+        frame.setSize(frameSize.width + (targetW - vp.width), frameSize.height + (targetH - vp.height));
+        frame.validate();
     }
 
 }

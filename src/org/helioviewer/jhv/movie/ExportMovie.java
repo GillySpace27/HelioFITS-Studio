@@ -128,7 +128,7 @@ public final class ExportMovie implements Player.Listener {
             scrh = EVEImage.getHeight();
         }
 
-        ViewState.Size size = recordingData.size().getSize();
+        ViewState.Size size = recordingData.size();
         int width = size.width();
         int height = size.height();
         boolean internal = size.internal();

@@ -46,7 +46,7 @@ depth, or someone will eventually publish a number read off a rendered pixel.
 
 ## Phases
 
-### Phase 1 — Float capture (unblocks everything else)
+### Phase 1 — Float capture (unblocks everything else)  **[NOT STARTED]**
 
 Render the offscreen capture into a floating-point FBO (`RGBA16F`, with `RGBA32F` behind a
 setting) and read that back, rather than 8-bit RGBA. Contained to `GLFrameCapture` and
@@ -57,7 +57,7 @@ Check: capture a smooth synthetic gradient at 8-bit and at 16F and confirm the b
 the first is absent in the second. A format that merely *claims* more bits is the failure mode
 here, and it looks identical to success unless the gradient is examined.
 
-### Phase 2 — Aspect lock and the output overlay
+### Phase 2 — Aspect lock and the output overlay  **[DONE 2026-08-28]**
 
 Replace the single size combo with two controls plus a derived readout:
 
