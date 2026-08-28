@@ -28,6 +28,25 @@ public final class Transform {
     private static int projDepth;
     private static int viewDepth;
 
+    static int projDepth() {
+        return projDepth;
+    }
+
+    static int viewDepth() {
+        return viewDepth;
+    }
+
+    /**
+     * Pop back to the given depths. Used by RenderGuard after a failure: the stacks are only two
+     * and three deep, so a push left unpaired by a throw would exhaust them almost immediately.
+     */
+    static void unwindTo(int projTarget, int viewTarget) {
+        while (projDepth > projTarget)
+            popProjection();
+        while (viewDepth > viewTarget)
+            popView();
+    }
+
     public static void pushProjection() {
         proj.pushMatrix();
         projDepth++;

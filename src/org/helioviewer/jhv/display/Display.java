@@ -11,6 +11,8 @@ public final class Display {
 
     public static void setMapMode(MapMode _mode) {
         mode = _mode;
+        // A failure under one projection says nothing about the next, so let it be reported again.
+        org.helioviewer.jhv.opengl.RenderGuard.reset();
         resetViewportZoom();
         DisplayController.resetCameras();
     }

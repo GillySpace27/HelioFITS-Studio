@@ -118,7 +118,7 @@ public final class GLRenderer {
         mapView = createMapView(Display.getCamera(), viewpoint);
         if (mapView.rendersIn3D()) {
             renderScene();
-            renderMiniview();
+            RenderGuard.run("miniview", GLRenderer::renderMiniview);
         } else
             renderSceneScale();
         renderFullFloatScene();
@@ -162,12 +162,14 @@ public final class GLRenderer {
             // Only in true orthographic: solarSphere.frag discards outside radius 1 in view
             // units, which stops being the limb once the radial warp moves it.
             if (mv.isOrthographic()) {
-                GLSLSolarShader.sphere.use();
-                GLSLSolar.quad.render();
+                RenderGuard.run("solar disk", () -> {
+                    GLSLSolarShader.sphere.use();
+                    GLSLSolar.quad.render();
+                });
             }
 
             Layers.render(mv, vp);
-            Annotations.render(mv, vp);
+            RenderGuard.run("annotations", () -> Annotations.render(mv, vp));
             Layers.renderFloat(mv, vp);
         }
     }
@@ -214,7 +216,7 @@ public final class GLRenderer {
             GLSLSolarShader.bindScreen(vp, scale);
 
             Layers.renderScale(mv, vp);
-            Annotations.render(mv, vp);
+            RenderGuard.run("annotations", () -> Annotations.render(mv, vp));
             Layers.renderFloat(mv, vp);
         }
     }
@@ -225,7 +227,7 @@ public final class GLRenderer {
         Viewport vp = Display.fullViewport;
         GL.glViewport(vp.x, vp.yGL, vp.width, vp.height);
         Layers.renderFullFloat(vp);
-        renderPrintableArea(vp);
+        RenderGuard.run("recording-area outline", () -> renderPrintableArea(vp));
     }
 
     private static final GLSLLine printableLine = new GLSLLine(true);

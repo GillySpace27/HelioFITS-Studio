@@ -18,6 +18,7 @@ import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.ImageBufferCache;
 import org.helioviewer.jhv.movie.Player;
+import org.helioviewer.jhv.opengl.RenderGuard;
 import org.helioviewer.jhv.time.JHVTime;
 import org.helioviewer.jhv.time.TimeListener;
 import org.helioviewer.jhv.time.TimeUtils;
@@ -187,24 +188,24 @@ public final class Layers {
     public static void prerender() {
         removeLayers();
         initLayers();
-        layers.forEach(Layer::prerender);
+        layers.forEach(layer -> RenderGuard.run(layer.getName() + " (prerender)", layer::prerender));
         reapImageBuffers();
     }
 
     public static void render(MapView mv, Viewport vp) {
-        layers.forEach(layer -> layer.render(mv, vp));
+        layers.forEach(layer -> RenderGuard.run(layer.getName(), () -> layer.render(mv, vp)));
     }
 
     public static void renderScale(MapView mv, Viewport vp) {
-        layers.forEach(layer -> layer.renderScale(mv, vp));
+        layers.forEach(layer -> RenderGuard.run(layer.getName(), () -> layer.renderScale(mv, vp)));
     }
 
     public static void renderFloat(MapView mv, Viewport vp) {
-        layers.forEach(layer -> layer.renderFloat(mv, vp));
+        layers.forEach(layer -> RenderGuard.run(layer.getName() + " (float)", () -> layer.renderFloat(mv, vp)));
     }
 
     public static void renderFullFloat(Viewport vp) {
-        layers.forEach(layer -> layer.renderFullFloat(vp));
+        layers.forEach(layer -> RenderGuard.run(layer.getName() + " (overlay)", () -> layer.renderFullFloat(vp)));
     }
 
     public static void renderMiniview(MapView mv, Viewport vp) {
