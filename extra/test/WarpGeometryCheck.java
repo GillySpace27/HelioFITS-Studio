@@ -94,6 +94,15 @@ public final class WarpGeometryCheck {
             near(lw, WarpGeometry.warpRadius(s, lp, R), 1e-9, "magnitude is the warped radius" + at);
         }
 
+        // The warped grid's spokes run from the limb out to scale.toMapY(1), on the claim that
+        // this is exactly the projection's outer radius. If it were not, the spokes would stop
+        // short of the outermost ring, or overshoot the edge of the imagery.
+        for (double outer : new double[]{215, 60, 10, 1.5}) {
+            MapScale s = MapScale.boxCoxRadial(outer);
+            near(s.toMapY(1), outer, 1e-12, "toMapY(1) is the outer radius at outer=" + outer);
+            near(s.toMapY(0), 0, 1e-12, "toMapY(0) is the origin at outer=" + outer);
+        }
+
         Display.setWarpLambda(0); // leave the global where the app defaults it
 
         System.out.println(failures == 0 ? "WarpGeometryCheck: PASS" : "WarpGeometryCheck: " + failures + " FAILURE(S)");

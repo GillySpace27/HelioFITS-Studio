@@ -182,6 +182,16 @@ public final class GridLayer extends AbstractLayer {
             }
             Transform.popView();
         }
+
+        // RadialWarp now renders here rather than through renderScale, and the rings and spokes
+        // that used to come from the flat path went with it. Emitted as world-space geometry in
+        // the plane of sky, so the vertex-stage warp compresses them along with the imagery.
+        if (mv.isRadialWarp()) {
+            Transform.pushView();
+            Transform.rotateViewInverse(viewpoint.toQuat());
+            radialWarpGrid.renderWorld(mv, vp, showLabels, lonStep, gridColorBytes, gridLineScale, Colors.fade(Colors.WhiteFloat, labelAlpha), gridLabelSize, gridLabelAngle);
+            Transform.popView();
+        }
     }
 
     @Override
