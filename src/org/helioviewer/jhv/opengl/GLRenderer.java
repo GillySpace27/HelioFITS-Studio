@@ -90,6 +90,10 @@ public final class GLRenderer {
         GLSLLineShader.init();
         GLSLShapeShader.init();
         GLSLTextureShader.init();
+        // Never initialised until now: renderPrintableArea() returns early unless
+        // Display.showPrintableArea is on, so the null VBO stayed hidden until someone
+        // ticked the box, and then it threw on every frame and blanked the canvas.
+        printableLine.init();
 
         Annotations.init();
     }
@@ -132,6 +136,7 @@ public final class GLRenderer {
         GLSLSolar.quad.dispose();
         GLSLSolarShader.dispose();
         GLSLWarp.dispose();
+        printableLine.dispose();
         GLSLLineShader.dispose();
         GLSLShapeShader.dispose();
         GLSLTextureShader.dispose();
