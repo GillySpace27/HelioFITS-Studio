@@ -28,6 +28,7 @@ import org.helioviewer.jhv.plugins.eve.EVEPlugin;
 import org.helioviewer.jhv.thread.AppThread;
 import org.helioviewer.jhv.thread.Task;
 import org.helioviewer.jhv.time.JHVTime;
+import org.helioviewer.jhv.gui.component.MoviePanel;
 import org.helioviewer.jhv.time.TimeUtils;
 import org.helioviewer.jhv.timelines.TimelineLayer;
 import org.helioviewer.jhv.timelines.TimelineLayers;
@@ -108,6 +109,11 @@ public final class State {
     private static JSONObject toJson() {
         JSONObject main = new JSONObject();
         main.put("time", Player.getTime());
+        // The master time range, which is the range every dialog copies its dates FROM. It was
+        // not being saved, so a reloaded session came back with the playhead restored but the
+        // range around it lost, and the next layer added had nothing to inherit.
+        main.put("masterStartTime", TimeUtils.format(MoviePanel.getInstance().getStartTime()));
+        main.put("masterEndTime", TimeUtils.format(MoviePanel.getInstance().getEndTime()));
         ViewState.writeModeJson(main);
         main.put("annotations", Annotations.toJson());
 
@@ -275,6 +281,17 @@ public final class State {
 
         Layers.restore(restoredLayers);
         Annotations.fromJson(data.optJSONObject("annotations"));
+
+        // Restore the range before the playhead, so the playhead lands inside it rather than
+        // being clamped by whatever range happened to be left over.
+        String masterStart = data.optString("masterStartTime", null);
+        String masterEnd = data.optString("masterEndTime", null);
+        if (masterStart != null && masterEnd != null) {
+            long ms = TimeUtils.optParse(masterStart, Long.MIN_VALUE);
+            long me = TimeUtils.optParse(masterEnd, Long.MIN_VALUE);
+            if (ms != Long.MIN_VALUE && me != Long.MIN_VALUE && me > ms)
+                MoviePanel.getInstance().setTime(ms, me);
+        }
 
         JHVTime time = new JHVTime(TimeUtils.optParse(data.optString("time"), Player.getTime().milli));
         Callback callback = new Callback(context, newLayers, masterLayer, time, modeData);

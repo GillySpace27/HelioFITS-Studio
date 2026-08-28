@@ -162,6 +162,36 @@ public final class TimeSelectorPanel extends JPanel {
         add(foreButton, c);
     }
 
+    /**
+     * Add a button that fills this selector from the movie's master time range.
+     *
+     * <p>Opt-in rather than always present, because the master range is itself a
+     * TimeSelectorPanel and a button that copied it into itself would be nonsense.
+     *
+     * <p>The point is to remove a manual step that was being done by hand: read the dates off
+     * the movie, retype or paste them into a dialog, and hope nothing was transposed. A date
+     * typed twice is a date that can differ in two places.
+     */
+    public void addUseMovieTimeButton() {
+        JideButton use = new JideButton(Buttons.calendar);
+        use.setToolTipText("Use the movie's current time range");
+        use.addActionListener(e -> {
+            org.helioviewer.jhv.gui.component.MoviePanel movie = org.helioviewer.jhv.gui.component.MoviePanel.getInstance();
+            long start = movie.getStartTime();
+            long end = movie.getEndTime();
+            if (end > start)
+                setTime(start, end);
+        });
+        GridBagConstraints c = new GridBagConstraints();
+        c.fill = GridBagConstraints.HORIZONTAL;
+        c.gridx = 3;
+        c.gridy = 0;
+        c.gridheight = 2;
+        c.weightx = 0;
+        add(use, c);
+        revalidate();
+    }
+
     private void shiftSpan(long shift) {
         setTime(getStartTime() + shift, getEndTime() + shift);
     }

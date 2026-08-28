@@ -218,6 +218,7 @@ public class PunchDialog extends StandardDialog implements PunchClient.ReceiverI
 
         JPanel content = new JPanel();
         content.setLayout(new BoxLayout(content, BoxLayout.PAGE_AXIS));
+        timeSelectorPanel.addUseMovieTimeButton();
         content.add(timeSelectorPanel);
         content.add(dataSelector);
         JPanel warningPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 5, 0));

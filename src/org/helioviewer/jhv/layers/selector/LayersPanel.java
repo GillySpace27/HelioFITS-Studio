@@ -52,6 +52,11 @@ public final class LayersPanel extends JPanel {
 
     private static final int NUMBEROFVISIBLEROWS = 9;
 
+    // Once the drag handle has been used, the height is the user's choice and auto-fit stops.
+    // Before that the list grows to fit its layers, because opening at nine rows and being
+    // resized by hand on every single use is the wrong default.
+    private boolean userResizedList;
+
     private JScrollPane jsp; // the layer list's viewport, resized by the drag handle below
 
     private final LayersTable grid;
@@ -205,6 +210,10 @@ public final class LayersPanel extends JPanel {
         });
 
         model.addTableModelListener(e -> {
+            // Adding or removing a layer changes how tall the list wants to be, so refit unless
+            // the user has taken the height over with the drag handle.
+            if (e.getType() == TableModelEvent.INSERT || e.getType() == TableModelEvent.DELETE)
+                showAllRows();
             if (e.getType() != TableModelEvent.UPDATE || e.getColumn() == NAME_COL || e.getColumn() == TIME_COL)
                 return;
 
@@ -271,6 +280,8 @@ public final class LayersPanel extends JPanel {
         grid.setDropMode(DropMode.INSERT_ROWS);
         grid.setTransferHandler(new TableRowTransferHandler(grid));
 
+        // Start at the fixed count only as a floor for an empty list; showAllRows takes over as
+        // soon as there are layers to size to.
         jsp.setPreferredSize(new Dimension(-1, grid.getRowHeight() * NUMBEROFVISIBLEROWS + 1));
     }
 
@@ -291,6 +302,7 @@ public final class LayersPanel extends JPanel {
             public void mousePressed(java.awt.event.MouseEvent e) {
                 startY = e.getYOnScreen();
                 startH = jsp.getPreferredSize().height;
+                userResizedList = true; // from here on the height is the user's, not ours
             }
 
             @Override
@@ -359,10 +371,17 @@ public final class LayersPanel extends JPanel {
     // clamps to (all rows shown, so the scrollbar disappears). Presentation mode calls this so
     // the layer list is fully open rather than needing a drag mid-talk.
     public void showAllRows() {
-        if (jsp == null)
+        if (jsp == null || userResizedList)
             return;
         jsp.setPreferredSize(new Dimension(-1, grid.getRowHeight() * Math.max(grid.getRowCount(), 1) + 1));
         jsp.revalidate();
+        revalidate();
+    }
+
+    /** Presentation mode opens the list fully even if the user had sized it down by hand. */
+    public void forceShowAllRows() {
+        userResizedList = false;
+        showAllRows();
     }
 
 }

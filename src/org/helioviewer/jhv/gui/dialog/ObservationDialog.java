@@ -84,6 +84,7 @@ public class ObservationDialog extends StandardDialog implements Interfaces.Obse
     public JComponent createContentPanel() {
         JPanel content = new JPanel();
         content.setLayout(new BoxLayout(content, BoxLayout.PAGE_AXIS));
+        timeSelectorPanel.addUseMovieTimeButton();
         content.add(timeSelectorPanel);
         content.add(cadencePanel);
         content.add(imageSelectorPanel);
