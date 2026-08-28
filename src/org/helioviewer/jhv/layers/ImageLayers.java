@@ -10,11 +10,15 @@ import javax.annotation.Nullable;
 import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
+import org.helioviewer.jhv.display.MapMode;
+import org.helioviewer.jhv.display.MapScale;
+import org.helioviewer.jhv.display.WarpGeometry;
 import org.helioviewer.jhv.io.APIRequest;
 import org.helioviewer.jhv.metadata.FitsMetaData;
 import org.helioviewer.jhv.metadata.MetaData;
 import org.helioviewer.jhv.metadata.Region;
 import org.helioviewer.jhv.movie.Player;
+import org.helioviewer.jhv.opengl.GLRenderer;
 import org.helioviewer.jhv.thread.EDTQueue;
 import org.helioviewer.jhv.thread.EDTTimer;
 import org.helioviewer.jhv.time.TimeUtils;
@@ -32,11 +36,43 @@ public final class ImageLayers {
             int idx = layer.isVisibleIdx();
             if (idx != -1) {
                 double pixFactor = DisplayController.getImagePixelFactor(Display.getViewport(idx));
-                layer.getView().decode(viewpoint, pixFactor, factor);
+                layer.getView().decode(viewpoint, pixFactor * warpMagnification(layer), factor);
                 decoded = true;
             }
         }
         return decoded;
+    }
+
+    /**
+     * How much larger the warp draws this layer than its physical size would suggest.
+     *
+     * <p>The decoder picks a resolution level from {@code physicalRegion.height * pixFactor},
+     * and pixFactor comes from the camera width, which in RadialWarp spans the whole warped
+     * scene. But the warp expands the inner corona: a layer at radius R is drawn at
+     * warpRadius(R), so its true share of the screen is larger than its physical size implies.
+     *
+     * <p>Without this correction a full-disk layer is decoded for the size it would have had
+     * unwarped. At a 215 Rsun outer radius that puts SUVI at roughly six pixels while it is
+     * being displayed across a couple of hundred, which is exactly what "low resolution" looks
+     * like. With a limb anchor set, which is the normal PUNCH configuration, the disk is the
+     * worst hit: ~33x for a full disk against ~4.7x for LASCO C3 at a 215 Rsun outer radius.
+     * The ratio is not monotonic in general, though. Without a limb anchor the on-disk region
+     * is not magnified at all and the peak moves out to a few Rsun, so do not assume the
+     * innermost layer is always the most starved.
+     *
+     * <p>RadialWarp only. The flat projections normalize their camera width differently and were
+     * never affected.
+     */
+    private static double warpMagnification(ImageLayer layer) {
+        if (Display.mode != MapMode.RadialWarp)
+            return 1;
+        double outerRadius = GLRenderer.effectiveOuterRadius();
+        if (outerRadius <= 0)
+            return 1;
+        double radius = .5 * layer.getMetaData().getPhysicalRegion().height;
+        if (radius <= 0)
+            return 1;
+        return WarpGeometry.warpRadius(MapScale.boxCoxRadial(outerRadius), radius, outerRadius) / radius;
     }
 
     public static double getLargestPhysicalHeight() {

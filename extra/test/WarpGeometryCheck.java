@@ -103,6 +103,37 @@ public final class WarpGeometryCheck {
             near(s.toMapY(0), 0, 1e-12, "toMapY(0) is the origin at outer=" + outer);
         }
 
+        // ImageLayers.warpMagnification scales the decode resolution by warpRadius(r)/r. It is
+        // only correct if that ratio is >= 1 everywhere and exactly 1 at the outer edge: >= 1
+        // because the warp never shrinks anything (which is why an unwarped resolution request
+        // starves an inner layer), and exactly 1 at the edge because the projection's own
+        // boundary is a fixed point.
+        //
+        // Set lambda explicitly. At the default lambda = 1 the warp is the identity and every
+        // ratio is trivially 1, so the assertions below would pass no matter what the code did.
+        Display.setWarpLambda(0);
+        for (double outer : new double[]{215, 60, 10}) {
+            MapScale s = MapScale.boxCoxRadial(outer);
+            near(WarpGeometry.warpRadius(s, outer, outer), outer, 1e-12, "outer edge is a fixed point at outer=" + outer);
+            boolean sawMagnification = false;
+            for (double r : new double[]{0.5, 1, 1.25, 3, 10, 50}) {
+                if (r > outer) continue;
+                double mag = WarpGeometry.warpRadius(s, r, outer) / r;
+                if (!(mag >= 1 - 1e-9)) {
+                    System.out.printf("FAIL: magnification below 1 at r=%.2f, outer=%.0f -- got %.6f%n", r, outer, mag);
+                    failures++;
+                }
+                if (mag > 1.5)
+                    sawMagnification = true;
+            }
+            // Guards against the whole block going vacuous again: if nothing is magnified then
+            // the correction this asserts would be pointless and the test proves nothing.
+            if (!sawMagnification) {
+                System.out.println("FAIL: no magnification anywhere at outer=" + outer + " -- assertions are vacuous");
+                failures++;
+            }
+        }
+
         Display.setWarpLambda(0); // leave the global where the app defaults it
 
         System.out.println(failures == 0 ? "WarpGeometryCheck: PASS" : "WarpGeometryCheck: " + failures + " FAILURE(S)");
