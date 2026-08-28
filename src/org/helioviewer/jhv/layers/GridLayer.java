@@ -8,6 +8,8 @@ import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.GridType;
+import org.helioviewer.jhv.display.MapScale;
+import org.helioviewer.jhv.display.WarpGeometry;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.display.ViewportMath;
@@ -160,6 +162,14 @@ public final class GridLayer extends AbstractLayer {
         if (showLabels) {
             Transform.pushView();
             Transform.rotateViewInverse(gridQuat);
+            // The lat/lon grid sits on the r = 1 sphere and its LINES are warped by the vertex
+            // stage; the labels are SDF text, which has no warp splice, so they would be drawn
+            // at raw radius 1 while their lines sit at the warped limb. At a 180 Rsun field that
+            // is a 29x displacement: the labels collapse into an unreadable knot at the centre.
+            // One uniform scale fixes it, because every label on a sphere shares a radius.
+            double labelScale = mv.isHelioradial() ? warpFactorAtLimb(mv, vp) : 1;
+            if (labelScale != 1)
+                Transform.scaleView(labelScale);
             drawGridText(ztext);
             Transform.popView();
         }
@@ -192,6 +202,18 @@ public final class GridLayer extends AbstractLayer {
             helioradialGrid.renderWorld(mv, vp, showLabels, lonStep, gridColorBytes, gridLineScale, Colors.fade(Colors.WhiteFloat, labelAlpha), gridLabelSize, gridLabelAngle);
             Transform.popView();
         }
+    }
+
+    /**
+     * How far the warp moves the solar limb, as a multiplier on radius 1.
+     *
+     * <p>Everything on the r = 1 sphere is displaced by this same factor, so it doubles as the
+     * scale for label geometry that bypasses the warp shader.
+     */
+    private static double warpFactorAtLimb(MapView mv, Viewport vp) {
+        MapScale scale = mv.scale(vp);
+        double outer = scale.warpOuterRadius();
+        return outer > 0 ? WarpGeometry.warpRadius(scale, 1, outer) : 1;
     }
 
     @Override

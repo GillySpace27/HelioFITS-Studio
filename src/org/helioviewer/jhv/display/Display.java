@@ -48,6 +48,25 @@ public final class Display {
         warpLambda = Math.clamp(lambda, -1, 1);
     }
 
+    /**
+     * Whether Helioradial is drawn as rotatable 3D geometry, or as the flat face-on disk.
+     *
+     * <p>Off by default, deliberately. The flat rendering is the one on the poster, in the paper
+     * figures and in everything anyone has seen, so a default install reproduces those. The 3D
+     * mode is for exploring: it puts the imagery on a real surface (plane of sky or Thomson
+     * sphere) that the camera can orbit, at the cost of the foreshortening that any surface
+     * shows when you look at it edge-on.
+     */
+    private static boolean helioradial3D = false;
+
+    public static boolean isHelioradial3D() {
+        return helioradial3D;
+    }
+
+    public static void setHelioradial3D(boolean value) {
+        helioradial3D = value;
+    }
+
     // Outer edge of the warp projections in solar radii. 0 = auto: the largest radial size
     // among the loaded layers. Lowering it is a radial crop — a linear zoom-in independent
     // of the lambda warp — and makes the projection edge itself mutable.

@@ -25,6 +25,7 @@ import org.helioviewer.jhv.opengl.GLImage;
 import org.helioviewer.jhv.opengl.GLImage.DifferenceMode;
 import org.helioviewer.jhv.opengl.GLSLSolar;
 import org.helioviewer.jhv.opengl.GLSLSolarShader;
+import org.helioviewer.jhv.opengl.Transform;
 import org.helioviewer.jhv.view.BaseView;
 import org.helioviewer.jhv.view.View;
 import org.helioviewer.jhv.wcs.WcsHeader;
@@ -287,7 +288,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         if (!isVisible[vp.idx])
             return;
 
-        GLSLSolarShader shader = mv.mode().shader;
+        GLSLSolarShader shader = mv.mode().shader();
         shader.use();
         glImage.applyFilters(view.getFilter() == ImageFilter.Type.RHEF);
 
@@ -364,9 +365,19 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
         // The warped modes draw a surface mesh; everything else reconstructs geometry per
         // fragment from a full-screen quad.
-        if (shader == GLSLSolarShader.warpSurface)
+        if (shader == GLSLSolarShader.warpSurface) {
+            // The mesh is built in (position angle, elongation), which is the OBSERVER's frame,
+            // so the viewpoint rotation carried by the shared view matrix has to come back off.
+            // Without this the surface is swung by the observer's Carrington orientation while
+            // the radial grid that annotates it is not, and the two end up in different planes:
+            // face-on grid, edge-on imagery. What is left is the drag rotation alone, which is
+            // the camera orbiting a surface that stays put, which is what dragging should mean.
+            // GridLayer does the same thing around the radial grid, for the same reason.
+            Transform.pushView();
+            Transform.rotateViewInverse(renderViewpoint.toQuat());
             shader.renderWarpSurface(renderViewpoint.distance, org.helioviewer.jhv.display.Display.getSurfaceModel());
-        else
+            Transform.popView();
+        } else
             GLSLSolar.quad.render();
     }
 

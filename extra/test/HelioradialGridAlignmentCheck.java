@@ -31,6 +31,9 @@ public final class HelioradialGridAlignmentCheck {
     private static int failures;
 
     public static void main(String[] args) {
+        // Everything below describes the 3D rendering; flat Helioradial keeps the
+        // original fixed-disk framing, which is a different contract.
+        Display.setHelioradial3D(true);
         // The identity, across the field sizes and exponents the app actually reaches.
         for (double lambda : new double[]{1, 0.5, 0, -0.5, -1}) {
             Display.setWarpLambda(lambda);

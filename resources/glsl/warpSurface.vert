@@ -63,22 +63,41 @@ void main(void) {
     // Physical heliocentric distance this ring of the mesh stands for.
     float radius = unwarpRadius(t);
 
-    // Where that line of sight is taken to have originated. On the Thomson sphere the surface
-    // curves toward the observer by z = r^2 / D; the plane of sky stays at z = 0.
-    float depth = 0.;
-    if (surfaceModel == SURFACE_THOMSON_SPHERE && observerDistance > 0.)
-        depth = min(radius, observerDistance) * min(radius, observerDistance) / observerDistance;
-    // rho^2 = r^2 - z^2: the in-plane radius shrinks as the surface curves away from the plane.
-    float rho = sqrt(max(0., radius * radius - depth * depth));
+    vec3 warped;
+    if (radius <= 1.) {
+        // ON DISK: the photosphere, and it is a sphere. Unlike the corona's depth, which is a
+        // placement model, this is simply where the emission comes from, so the disk is
+        // deprojected onto the real solar surface: impact parameter rho = radius, and the near
+        // hemisphere carries the rest. Rotating then shows a sphere with a limb, instead of a
+        // flat picture foreshortening into an ellipse.
+        //
+        // Every point here has |p| = 1, so the whole sphere shares ONE warp factor and stays a
+        // sphere rather than being sheared into a cone. That factor is the warped position of
+        // the limb, which is also where the corona branch below starts, so the two meet exactly
+        // at r = 1. The surface NORMAL jumps there (sphere against a near-flat corona) and that
+        // discontinuity is honest: it is the boundary between a measured surface and a modelled
+        // one, and it is invisible face-on because both project to the same circle.
+        float z = sqrt(max(0., 1. - radius * radius));
+        vWorld = vec3(-radius * sin(positionAngle), radius * cos(positionAngle), z);
+        warped = vWorld * (limbPosition(outerRadius) * outerRadius);
+    } else {
+        // OFF DISK: a placement model, not a measurement. On the Thomson sphere the surface
+        // curves toward the observer by z = r^2 / D; the plane of sky stays at z = 0.
+        float depth = 0.;
+        if (surfaceModel == SURFACE_THOMSON_SPHERE && observerDistance > 0.)
+            depth = min(radius, observerDistance) * min(radius, observerDistance) / observerDistance;
+        // rho^2 = r^2 - z^2: the in-plane radius shrinks as the surface curves away from the plane.
+        float rho = sqrt(max(0., radius * radius - depth * depth));
 
-    // Polar basis: 0 at north, increasing anti-clockwise. Matches math/PolarBasis.java.
-    vWorld = vec3(-rho * sin(positionAngle), rho * cos(positionAngle), depth);
+        // Polar basis: 0 at north, increasing anti-clockwise. Matches math/PolarBasis.java.
+        vWorld = vec3(-rho * sin(positionAngle), rho * cos(positionAngle), depth);
 
-    // The displayed point keeps that direction and takes the warped radius. Because the mesh is
-    // parameterised in warped space already, the warped distance is simply t * outerRadius --
-    // no need to warp the physical radius back again.
-    float len = length(vWorld);
-    vec3 warped = len > 0. ? vWorld * (t * outerRadius / len) : vec3(0.);
+        // The displayed point keeps that direction and takes the warped radius. Because the mesh
+        // is parameterised in warped space already, the warped distance is simply t * outerRadius
+        // -- no need to warp the physical radius back again.
+        float len = length(vWorld);
+        warped = len > 0. ? vWorld * (t * outerRadius / len) : vec3(0.);
+    }
 
     vec4 clip = ModelViewProjectionMatrix * vec4(warped, 1.);
     normalizedScreenpos = clip.xy / clip.w;

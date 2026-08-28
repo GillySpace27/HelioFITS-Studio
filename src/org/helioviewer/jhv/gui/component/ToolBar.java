@@ -650,9 +650,11 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         content.add(new javax.swing.JSeparator());
         content.add(createWarpLambdaPanel());
         content.add(createWarpEdgePanel());
+        content.add(createHelioradial3DPanel());
         boolean warpOn = ViewState.getProjection().usesWarpLambda();
         warpLambdaSlider.setEnabled(warpOn);
         warpEdgeSlider.setEnabled(warpOn);
+        helioradial3DBox.setEnabled(ViewState.getProjection() == MapMode.Helioradial);
         CMETracker.addSolveListener(this::syncWarpSlidersFromTracker); // follow the tracked knob
 
         palette.setContentPane(content);
@@ -743,6 +745,25 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     // Edge: the projection's outer radius as a fraction of the loaded FOV, mapped in log
     // space from 2 Rsun (far left) to the full FOV (far right = auto). A radial crop: a
     // linear zoom-in independent of the lambda warp, tracking layer changes when at auto.
+    private javax.swing.JCheckBox helioradial3DBox;
+
+    // Off by default: the flat rendering is what the poster, the paper figures and every
+    // screenshot show, so a default install reproduces them. 3D is for exploring.
+    private JPanel createHelioradial3DPanel() {
+        helioradial3DBox = new javax.swing.JCheckBox("Render in 3D", Display.isHelioradial3D());
+        helioradial3DBox.setToolTipText("Draw Helioradial as a rotatable surface instead of a flat face-on disk");
+        helioradial3DBox.addItemListener(e -> {
+            Display.setHelioradial3D(helioradial3DBox.isSelected());
+            // The render path, the shader and the camera contract all change together, so the
+            // scene has to be rebuilt rather than merely redrawn.
+            DisplayController.render(1);
+        });
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(BorderFactory.createEmptyBorder(3, 8, 3, 8));
+        panel.add(helioradial3DBox, BorderLayout.LINE_START);
+        return panel;
+    }
+
     private JPanel createWarpEdgePanel() {
         warpEdgeSlider = new JHVSlider(0, 1000, 1000);
         warpEdgeSlider.setToolTipText("Outer edge of the warp projections (far right: full field of view)");

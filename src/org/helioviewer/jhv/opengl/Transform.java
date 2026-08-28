@@ -79,6 +79,19 @@ public final class Transform {
         view.rotateAffine(quat.set((float) q.x, (float) q.y, (float) q.z, (float) -q.w));
     }
 
+    /**
+     * Uniformly scale the view.
+     *
+     * <p>Exists for geometry that cannot go through the vertex-stage warp. SDF text is the case
+     * that forced it: the text shader has no warpCommon splice, so grid labels are drawn at
+     * their raw positions while the lines they belong to are warped, leaving the labels bunched
+     * near the origin. Scaling the view by the warp factor of the surface the labels sit on puts
+     * them back on their lines.
+     */
+    public static void scaleView(double factor) {
+        view.scale((float) factor);
+    }
+
     public static void rotateView(Quat q) {
         view.rotateAffine(quat.set((float) q.x, (float) q.y, (float) q.z, (float) q.w));
     }

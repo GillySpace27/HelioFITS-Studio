@@ -110,7 +110,7 @@ public final class ViewState {
 
     public record ModeData(MapMode projection, SurfaceModel surfaceModel, double warpLambda, AnnotationMode annotationMode,
                            boolean multiview, boolean tracking, boolean refresh, boolean showCorona,
-                           boolean differentialRotation) {}
+                           boolean differentialRotation, boolean helioradial3D) {}
 
     public record PlaybackData(Player.AdvanceMode advanceMode, int speed, PlaybackSpeedUnit speedUnit,
                                int firstFrame, int lastFrame) {}
@@ -144,7 +144,7 @@ public final class ViewState {
     private static RecordingSize recordingSize = RecordingSize.ORIGINAL;
 
     public static ModeData modeData() {
-        return new ModeData(projection, Display.getSurfaceModel(), warpLambda, getAnnotationMode(), multiview, tracking, refresh, showCorona, differentialRotation);
+        return new ModeData(projection, Display.getSurfaceModel(), warpLambda, getAnnotationMode(), multiview, tracking, refresh, showCorona, differentialRotation, Display.isHelioradial3D());
     }
 
     public static PlaybackData playbackData() {
@@ -177,6 +177,7 @@ public final class ViewState {
         target.put("refresh", data.refresh());
         target.put("showCorona", data.showCorona());
         target.put("differentialRotation", data.differentialRotation());
+        target.put("helioradial3D", data.helioradial3D());
     }
 
     public static ModeData readModeJson(JSONObject source) {
@@ -190,6 +191,7 @@ public final class ViewState {
         boolean refreshValue = current.refresh();
         boolean showCoronaValue = current.showCorona();
         boolean differentialRotationValue = current.differentialRotation();
+        boolean helioradial3DValue = current.helioradial3D();
         String projectionName = source.optString("projection", projectionValue.name());
         String surfaceModelName = source.optString("surfaceModel", surfaceModelValue.name());
         String annotationModeName = source.optString("annotationMode", annotationModeValue.name());
@@ -215,6 +217,7 @@ public final class ViewState {
         trackingValue = readBoolean(source, "tracking", trackingValue);
         refreshValue = readBoolean(source, "refresh", refreshValue);
         showCoronaValue = readBoolean(source, "showCorona", showCoronaValue);
+        helioradial3DValue = readBoolean(source, "helioradial3D", helioradial3DValue);
         differentialRotationValue = readBoolean(source, "differentialRotation", differentialRotationValue);
 
         return new ModeData(
@@ -226,7 +229,8 @@ public final class ViewState {
                 trackingValue,
                 refreshValue,
                 showCoronaValue,
-                differentialRotationValue);
+                differentialRotationValue,
+                helioradial3DValue);
     }
 
     public static void applyMode(ModeData data) {
@@ -238,7 +242,8 @@ public final class ViewState {
                 || tracking != data.tracking()
                 || refresh != data.refresh()
                 || showCorona != data.showCorona()
-                || differentialRotation != data.differentialRotation();
+                || differentialRotation != data.differentialRotation()
+                || Display.isHelioradial3D() != data.helioradial3D();
 
         if (!changed)
             return;
@@ -254,6 +259,7 @@ public final class ViewState {
             setRefresh(data.refresh());
             setShowCorona(data.showCorona());
             setDifferentialRotation(data.differentialRotation());
+            Display.setHelioradial3D(data.helioradial3D());
         } finally {
             suppressModeNotifications = false;
         }
@@ -279,7 +285,8 @@ public final class ViewState {
                 tracking == null ? current.tracking() : tracking,
                 refresh == null ? current.refresh() : refresh,
                 showCorona == null ? current.showCorona() : showCorona,
-                differentialRotation == null ? current.differentialRotation() : differentialRotation));
+                differentialRotation == null ? current.differentialRotation() : differentialRotation,
+                current.helioradial3D()));
     }
 
     public static void applyModeUpdateRaw(

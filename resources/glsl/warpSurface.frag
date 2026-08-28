@@ -12,14 +12,14 @@ void main(void) {
     vec4 color;
     float observerDistance = projection[0].observerDistance;
 
-    // Undo the camera rotation before sampling. The mesh is built in a fixed frame and the MVP
-    // rotates it for display, so without this the geometry swings while the texture stays glued
-    // to it, and the imagery is no longer registered to the sky it came from. solarOrtho.frag
-    // does the same thing to its reconstructed hit point (see rotateOnDiskPoint there); this is
-    // the surface-mesh equivalent. cameraDiff is the identity whenever the render viewpoint
-    // matches the image's own, so this is a no-op in the untracked, undragged case and only
-    // takes effect once the view actually rotates.
-    vec3 sampleWorld = rotate_vector_inverse(wcs[0].cameraDiff, vWorld);
+    // Sampled straight from the mesh position, with NO camera-rotation compensation, and that
+    // is deliberate. The surface is a physical placement of the observed brightness: the mesh
+    // sits still in the observer frame of the image it carries, and dragging orbits the camera
+    // around it. The texture is therefore glued to the surface, exactly as it would be on any
+    // other textured object. Applying wcs.cameraDiff here (as solarOrtho.frag must, because it
+    // reconstructs its hit point from screen space) would counter-rotate the texture against
+    // the mesh as soon as the view was dragged.
+    vec3 sampleWorld = vWorld;
 
     // The surface point already carries its depth, so ask for its true helioprojective direction
     // rather than assuming the plane of sky the way hpcXYToHelioprojective() does.
@@ -37,8 +37,7 @@ void main(void) {
     if (!diffMode) {
         color = getColor(texCoord, texCoord, enhancementFactor);
     } else {
-        vec3 diffSampleWorld = rotate_vector_inverse(wcs[1].cameraDiff, vWorld);
-        vec2 diffHelioprojective = worldToHelioprojective(diffSampleWorld, projection[1].observerDistance);
+        vec2 diffHelioprojective = worldToHelioprojective(vWorld, projection[1].observerDistance);
         float diffEnhancementFactor;
         vec2 diffTexCoord = sampleHpcTexcoord(wcs[1], projection[1], diffHelioprojective, hpcXY, wcs[1].deltaT, pv1, diffEnhancementFactor);
         color = getColor(texCoord, diffTexCoord, max(enhancementFactor, diffEnhancementFactor));

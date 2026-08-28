@@ -34,10 +34,13 @@ public final class GLRenderer {
             case Orthographic -> createConstantScales(viewports, MapScale.ortho);
             case HPC -> createHpcScales(viewports);
             case Latitudinal -> createConstantScales(viewports, MapScale.lati);
-            // Helioradial normalizes the warp over the whole loaded field and lets the camera
-            // do the cropping, so the edge is a zoom. The unrolled layout is flat and has no
-            // camera to crop with, so its edge has to keep acting through the scale.
-            case Helioradial -> createConstantScales(viewports, MapScale.boxCoxRadial(Display.fullWarpFieldRadius()));
+            // In 3D, Helioradial normalizes the warp over the whole loaded field and lets the
+            // camera do the cropping, so the edge is a zoom. Flat, there is no camera to crop
+            // with (the map fills a fixed disk), so the edge has to act through the scale, which
+            // is what it has always done and what the published figures were made with. The
+            // unrolled layout is flat for the same reason.
+            case Helioradial -> createConstantScales(viewports, MapScale.boxCoxRadial(
+                    Display.isHelioradial3D() ? Display.fullWarpFieldRadius() : effectiveOuterRadius()));
             case HelioradialUnrolled -> createConstantScales(viewports, MapScale.boxCoxRadial(effectiveOuterRadius()));
         };
     }

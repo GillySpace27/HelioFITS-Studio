@@ -29,6 +29,9 @@ public final class HelioradialFramingCheck {
     private static int failures;
 
     public static void main(String[] args) {
+        // Everything below describes the 3D rendering; flat Helioradial keeps the
+        // original fixed-disk framing, which is a different contract.
+        Display.setHelioradial3D(true);
         Display.setWarpLambda(0);
 
         // The warp is normalized over the loaded field, which the edge must never move.

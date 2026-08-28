@@ -28,8 +28,23 @@ public enum MapMode {
     Helioradial(GLSLSolarShader.warpSurface, "Helioradial"),
     HelioradialUnrolled(GLSLSolarShader.rectWarp, "Helioradial Unrolled");
 
-    public final GLSLSolarShader shader;
+    private final GLSLSolarShader shader3D;
     private final String label;
+
+    /**
+     * The shader for this mode as currently configured.
+     *
+     * <p>Helioradial has two implementations. Flat, it is a fragment-space inverse map on a
+     * full-screen quad (solarRadialWarp.frag), which is the original and the one the published
+     * figures come from. In 3D it is a surface mesh (warpSurface). They are not
+     * interchangeable: the mesh shader expects a rotated MVP and a per-vertex world position,
+     * so the render path and the shader have to be switched together.
+     */
+    public GLSLSolarShader shader() {
+        return this == Helioradial && !Display.isHelioradial3D()
+                ? GLSLSolarShader.radialWarp
+                : shader3D;
+    }
 
     /** Menu and status-bar text. The enum name has no space; the label does. */
     @Override
@@ -88,7 +103,12 @@ public enum MapMode {
             // the rim leaves the frame. Feeding the crop into the warp instead renormalizes the
             // projection and pins the rim; using the camera's own width instead ignores the
             // edge and opens a vignette. Both have been shipped; neither is a crop.
-            case Helioradial -> HELIORADIAL_MARGIN * 2 * Display.effectiveWarpOuterRadius();
+            // Flat: the fragment-space map fills a fixed normalized disk, so the camera is the
+            // constant it always was. 3D: the scene is physical, so the camera is the edge crop
+            // and the warp is normalized over the full field (see Display.fullWarpFieldRadius).
+            case Helioradial -> Display.isHelioradial3D()
+                    ? HELIORADIAL_MARGIN * 2 * Display.effectiveWarpOuterRadius()
+                    : HELIORADIAL_MARGIN;
             case HelioradialUnrolled -> 1.0;
             case Orthographic, HPC, Latitudinal -> camera.baseCameraWidth();
         };
@@ -102,7 +122,7 @@ public enum MapMode {
      * layer rendering. Helioradial Unrolled, HPC and Latitudinal stay flat.
      */
     public boolean rendersIn3D() {
-        return this == Orthographic || this == Helioradial;
+        return this == Orthographic || (this == Helioradial && Display.isHelioradial3D());
     }
 
     public boolean usesWarpLambda() {
@@ -110,7 +130,7 @@ public enum MapMode {
     }
 
     MapMode(GLSLSolarShader _shader, String _label) {
-        shader = _shader;
+        shader3D = _shader;
         label = _label;
     }
 

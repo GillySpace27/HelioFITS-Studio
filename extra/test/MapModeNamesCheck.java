@@ -59,7 +59,14 @@ public final class MapModeNamesCheck {
                 }
 
         // Behaviour must have followed the rename rather than staying attached to old constants.
-        expect(MapMode.Helioradial.rendersIn3D(), "Helioradial renders in 3D");
+        // Helioradial's render path is now a user setting, so it is asserted against the toggle
+        // rather than unconditionally; HelioradialModeCheck owns the rest of that contract.
+        boolean saved3D = Display.isHelioradial3D();
+        Display.setHelioradial3D(true);
+        expect(MapMode.Helioradial.rendersIn3D(), "Helioradial renders in 3D when the toggle is on");
+        Display.setHelioradial3D(false);
+        expect(!MapMode.Helioradial.rendersIn3D(), "Helioradial is flat when the toggle is off");
+        Display.setHelioradial3D(saved3D);
         expect(!MapMode.HelioradialUnrolled.rendersIn3D(), "unrolled stays flat");
         expect(MapMode.Helioradial.usesWarpLambda(), "Helioradial uses the exponent");
         expect(MapMode.HelioradialUnrolled.usesWarpLambda(), "unrolled uses the exponent");
