@@ -38,10 +38,10 @@ public final class GLRenderer {
         };
     }
 
-    // The warp projections' outer edge: the user's radial crop when set, else the full FOV.
+    // Kept as the renderer-side name for what is really a display setting. See
+    // Display.effectiveWarpOuterRadius for why the logic lives there.
     public static double effectiveOuterRadius() {
-        double user = Display.getWarpOuterRadius();
-        return user > 0 ? user : ImageLayers.getLargestRadialSize();
+        return Display.effectiveWarpOuterRadius();
     }
 
     private static MapScale[] createHpcScales(Viewport[] viewports) {

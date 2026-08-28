@@ -1,5 +1,6 @@
 package org.helioviewer.jhv.display;
 
+import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layers;
 
@@ -58,6 +59,22 @@ public final class Display {
 
     public static void setWarpOuterRadius(double radius) {
         warpOuterRadius = radius <= 0 ? 0 : Math.max(radius, 1.1);
+    }
+
+    /**
+     * The warp projections' outer edge: the user's radial crop when set, else the full field.
+     *
+     * <p>Lives here rather than in the renderer because it is a display setting, and because
+     * MapMode needs it to size the helioradial camera. Routing that through GLRenderer forced
+     * the renderer's class initialization, which reaches SPICE and cannot run headless, so the
+     * framing could not be tested without a graphics context.
+     *
+     * <p>ImageLayers is touched only on the auto path, and only inside this method body, so
+     * naming it here does not drag the layer stack into Display's own initialization.
+     */
+    public static double effectiveWarpOuterRadius() {
+        double user = warpOuterRadius;
+        return user > 0 ? user : ImageLayers.getLargestRadialSize();
     }
 
     static int glWidth = 1;

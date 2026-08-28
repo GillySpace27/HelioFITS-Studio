@@ -72,11 +72,21 @@ public enum MapMode {
         };
     }
 
+    /**
+     * Margin around the helioradial disk, as a fraction of its diameter. Matches the 1.1 that
+     * the pre-geometry implementation used against a unit-diameter normalized disk, so the
+     * framing is unchanged from what users are accustomed to.
+     */
+    private static final double HELIORADIAL_MARGIN = 1.1;
+
     public double baseCameraWidth(Camera camera) {
         return switch (this) {
-            // Helioradial is real geometry now, so its extent is physical (the warp's outer
-            // radius) rather than a fixed normalized disk.
-            case Helioradial -> camera.baseCameraWidth();
+            // The helioradial scene's extent is the warp's own outer radius, NOT the camera's
+            // physical width. This is what makes the edge control a zoom rather than a crop:
+            // the warped disk always spans the same fraction of the frame, so moving the edge
+            // changes which physical range fills the view instead of shrinking the content
+            // inside a fixed view. Getting this wrong turns the edge slider into a vignette.
+            case Helioradial -> HELIORADIAL_MARGIN * 2 * Display.effectiveWarpOuterRadius();
             case HelioradialUnrolled -> 1.0;
             case Orthographic, HPC, Latitudinal -> camera.baseCameraWidth();
         };
