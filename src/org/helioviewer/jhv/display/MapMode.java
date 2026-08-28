@@ -81,11 +81,13 @@ public enum MapMode {
 
     public double baseCameraWidth(Camera camera) {
         return switch (this) {
-            // The helioradial scene's extent is the warp's own outer radius, NOT the camera's
-            // physical width. This is what makes the edge control a zoom rather than a crop:
-            // the warped disk always spans the same fraction of the frame, so moving the edge
-            // changes which physical range fills the view instead of shrinking the content
-            // inside a fixed view. Getting this wrong turns the edge slider into a vignette.
+            // The edge crop, and ONLY the edge crop, sets the helioradial camera. The warp
+            // itself is normalized over the full loaded field (Display.fullWarpFieldRadius) and
+            // never sees this number, which is what makes the edge a plain zoom: closing it
+            // shrinks the camera against a fixed mapping, so everything magnifies together and
+            // the rim leaves the frame. Feeding the crop into the warp instead renormalizes the
+            // projection and pins the rim; using the camera's own width instead ignores the
+            // edge and opens a vignette. Both have been shipped; neither is a crop.
             case Helioradial -> HELIORADIAL_MARGIN * 2 * Display.effectiveWarpOuterRadius();
             case HelioradialUnrolled -> 1.0;
             case Orthographic, HPC, Latitudinal -> camera.baseCameraWidth();

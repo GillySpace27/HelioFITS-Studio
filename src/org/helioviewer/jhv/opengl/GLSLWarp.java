@@ -40,8 +40,16 @@ public final class GLSLWarp {
     }
 
     /** Warp overlays with this scale's Box-Cox law, out to {@code outerRadius}. */
-    public static void enable(MapScale scale, double outerRadius) {
-        upload((float) scale.warpLambda(), (float) scale.warpLimb(), (float) outerRadius, 1);
+    /**
+     * Warp overlays with exactly the mapping the imagery uses.
+     *
+     * <p>Takes the outer radius from the scale rather than as a separate argument. Passing it
+     * in was how the overlays and the imagery came to disagree: the imagery normalized over the
+     * full loaded field while the overlays were handed the edge crop, so the grid sat at a
+     * different radius from the picture.
+     */
+    public static void enable(MapScale scale) {
+        upload((float) scale.warpLambda(), (float) scale.warpLimb(), (float) scale.warpOuterRadius(), 1);
     }
 
     /** Pass overlay geometry through untouched. */

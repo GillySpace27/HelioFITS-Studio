@@ -20,6 +20,19 @@ public interface MapScale {
         return 0;
     }
 
+    /**
+     * The radial extent this scale normalizes over, in solar radii.
+     *
+     * <p>Everything that warps must agree on this number: the imagery mesh takes it from the
+     * scale, and so must the overlays, or the grid and the point clouds sit at a different
+     * radius from the picture they annotate. It used to be passed to GLSLWarp separately, which
+     * is exactly how the two came apart when the edge control stopped feeding the warp.
+     * Reading it off the scale makes them impossible to desync.
+     */
+    default double warpOuterRadius() {
+        return 1;
+    }
+
     MapScale ortho = new LinearMapScale(0, 0, 0, 0);
     MapScale lati = new LinearMapScale(-180, 180, -90, 90);
 
@@ -100,6 +113,11 @@ public interface MapScale {
         @Override
         public double warpLimb() {
             return limb;
+        }
+
+        @Override
+        public double warpOuterRadius() {
+            return radialSize;
         }
 
         @Override

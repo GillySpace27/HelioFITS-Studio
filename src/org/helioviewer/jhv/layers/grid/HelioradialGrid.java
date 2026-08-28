@@ -9,7 +9,6 @@ import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.layers.GridLayer;
 import org.helioviewer.jhv.math.FastFormat;
 import org.helioviewer.jhv.opengl.BufVertex;
-import org.helioviewer.jhv.opengl.GLRenderer;
 import org.helioviewer.jhv.opengl.GLSLLine;
 import org.helioviewer.jhv.opengl.GLText;
 import org.helioviewer.jhv.opengl.text.SdfTextRenderer;
@@ -104,7 +103,9 @@ public final class HelioradialGrid {
 
     private static void drawWorldLabels(MapView mv, Viewport vp, MapScale scale, double[] rings, int ringCount, float[] color,
                                         double labelSize, double labelAngle) {
-        double outerRadius = GLRenderer.effectiveOuterRadius();
+        // From the scale, not from the renderer: labels must be placed by the same mapping
+        // that draws the rings they belong to.
+        double outerRadius = scale.warpOuterRadius();
         SdfTextRenderer renderer = GLText.renderer();
         double width = mv.cameraWidth(vp);
         double worldTextHeight = TEXT_SIZE * labelSize / GridLayer.GRID_LABEL_SIZE_REF * Display.pixelScale[1] * width / vp.height;

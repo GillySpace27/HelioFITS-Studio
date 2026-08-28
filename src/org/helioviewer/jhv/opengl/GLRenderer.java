@@ -159,7 +159,7 @@ public final class GLRenderer {
             // where the imagery would put the same direction and distance. Only Helioradial warps;
             // orthographic passes geometry through untouched.
             if (mv.isHelioradial())
-                GLSLWarp.enable(scale, effectiveOuterRadius());
+                GLSLWarp.enable(scale);
             else
                 GLSLWarp.disable();
 
