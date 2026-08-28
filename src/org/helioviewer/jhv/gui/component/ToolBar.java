@@ -685,7 +685,17 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             org.helioviewer.jhv.gui.MainFrame.get().addWindowListener(new java.awt.event.WindowAdapter() {
                 @Override
                 public void windowActivated(java.awt.event.WindowEvent e) {
-                    if (current != null && current.projectionPalette != null && current.projectionPalette.isVisible())
+                    if (current == null || current.projectionPalette == null)
+                        return;
+                    // Window.Type.UTILITY makes this an NSPanel, and macOS hides utility panels
+                    // when the owning application deactivates. That is what made the palette
+                    // vanish on every click away. The toggle button is the record of whether the
+                    // user wants it open, so restore from that rather than from isVisible, which
+                    // the platform has already set to false behind our back.
+                    if (current.projectionToggle != null && current.projectionToggle.isSelected()
+                            && !current.projectionPalette.isVisible())
+                        current.projectionPalette.setVisible(true);
+                    if (current.projectionPalette.isVisible())
                         current.projectionPalette.toFront();
                 }
             });
@@ -902,6 +912,13 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             if (warpEdgeSlider != null)
                 warpEdgeSlider.setEnabled(warpEnabled);
             warpLambdaSlider.setValue((int) Math.round(ViewState.getWarpLambda() * 1000));
+        }
+        // Enabled state has to be refreshed on every projection change, not just set once when
+        // the palette is built: a palette constructed while another projection was selected
+        // would otherwise stay disabled for the life of the window.
+        if (helioradial3DBox != null) {
+            helioradial3DBox.setEnabled(ViewState.getProjection() == MapMode.Helioradial);
+            helioradial3DBox.setSelected(Display.isHelioradial3D());
         }
         if (warpLambdaValue != null)
             warpLambdaValue.setText(String.format("%.3f", ViewState.getWarpLambda()));
