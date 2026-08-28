@@ -24,11 +24,18 @@ import org.helioviewer.jhv.opengl.GLSLSolarShader;
 public enum MapMode {
     // Menu order, and it carries meaning: Orthographic, HPC and Helioradial at lambda = 1 are
     // the same view at default settings and differ only in their grids, so they sit together.
-    // Latitudinal is the odd one out, a surface map rather than a sky view, and goes last.
+    // Latitudinal is the odd one out, a surface map rather than a sky view, and goes last;
+    // the combined mode sits between the unrolled sky view and the surface map it borrows from.
     Orthographic(GLSLSolarShader.ortho, "Orthographic"),
     HPC(GLSLSolarShader.hpc, "HPC"),
     Helioradial(GLSLSolarShader.warpSurface, "Helioradial"),
     HelioradialUnrolled(GLSLSolarShader.rectWarp, "Helioradial Unrolled"),
+    // Helioradial Unrolled off the limb; on the disk, a latitudinal map about the observer
+    // axis (vertical coordinate = heliocentric angle from the sub-observer point). The two
+    // meet at the limb along the same position-angle parameterization, which a pole-at-north
+    // latitudinal map cannot do: its hemisphere boundary is two meridian arcs plus two
+    // degenerate pole edges, not one circle.
+    HelioradialUnrolledLatitudinal(GLSLSolarShader.rectWarpLati, "Helioradial Unrolled + Latitudinal"),
     Latitudinal(GLSLSolarShader.lati, "Latitudinal");
 
     private final GLSLSolarShader shader3D;
@@ -112,7 +119,7 @@ public enum MapMode {
             case Helioradial -> Display.isHelioradial3D()
                     ? HELIORADIAL_MARGIN * 2 * Display.effectiveWarpOuterRadius()
                     : HELIORADIAL_MARGIN;
-            case HelioradialUnrolled -> 1.0;
+            case HelioradialUnrolled, HelioradialUnrolledLatitudinal -> 1.0;
             case Orthographic, HPC, Latitudinal -> camera.baseCameraWidth();
         };
     }
@@ -129,7 +136,7 @@ public enum MapMode {
     }
 
     public boolean usesWarpLambda() {
-        return this == Helioradial || this == HelioradialUnrolled;
+        return this == Helioradial || this == HelioradialUnrolled || this == HelioradialUnrolledLatitudinal;
     }
 
     MapMode(GLSLSolarShader _shader, String _label) {

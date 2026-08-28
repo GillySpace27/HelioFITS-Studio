@@ -88,14 +88,18 @@ class CellRenderer {
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
             java.awt.Color background = isSelected ? table.getSelectionBackground() : table.getBackground();
-            // Only image layers can drive the clock, so other rows get an empty cell rather than
-            // a radio button that would never do anything.
-            if (!(value instanceof ImageLayer)) {
+            // Image layers can always drive the clock. So can a layer that carries its own time
+            // series and says so; a point cloud loaded one file per epoch is the case in mind.
+            // Anything else gets an empty cell rather than a radio that would never do anything.
+            boolean isSource = value instanceof org.helioviewer.jhv.layers.TimelineSource ts && ts.canDriveTimeline();
+            if (!(value instanceof ImageLayer) && !isSource) {
                 blank.setOpaque(true);
                 blank.setBackground(background);
                 return blank;
             }
-            radio.setSelected(value == Layers.getActiveImageLayer());
+            radio.setSelected(isSource
+                    ? value == Layers.getMasterTimelineSource()
+                    : Layers.getMasterTimelineSource() == null && value == Layers.getActiveImageLayer());
             radio.setToolTipText("Use this layer as the master for the movie clock and frame rate");
             radio.setBackground(background);
             return radio;
@@ -110,7 +114,9 @@ class CellRenderer {
             if (value instanceof Layer layer) {
                 String layerName = layer.getName();
                 setText(layerName);
-                if (layer == Layers.getActiveImageLayer()) {
+                boolean master = layer == Layers.getMasterTimelineSource()
+                        || (Layers.getMasterTimelineSource() == null && layer == Layers.getActiveImageLayer());
+                if (master) {
                     setToolTipText(layerName + " (master)");
                     setFont(UIGlobals.uiFontBold);
                 } else {

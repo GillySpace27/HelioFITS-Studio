@@ -19,6 +19,7 @@ import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.ImageBufferCache;
 import org.helioviewer.jhv.movie.Player;
 import org.helioviewer.jhv.opengl.RenderGuard;
+import javax.annotation.Nullable;
 import org.helioviewer.jhv.time.JHVTime;
 import org.helioviewer.jhv.time.TimeListener;
 import org.helioviewer.jhv.time.TimeUtils;
@@ -54,6 +55,11 @@ public final class Layers {
         // the new selection, so a selection change doesn't replace real data times with an even
         // cadence. Falls back to the cadence view when nothing real lands in the window.
         List<JHVTime> inRange = placeholderTimesWithin(start, end);
+        // A user-claimed timeline source keeps its own frames even when the selection excludes
+        // them all; silently swapping it for an even cadence would look like the layer stopped
+        // animating, which is the failure this whole mechanism exists to remove.
+        if (masterTimelineSource != null && inRange.isEmpty())
+            return;
         nullImageLayer.setView(inRange.isEmpty()
                 ? NullView.create(start, end, TimeUtils.defaultCadence(start, end))
                 : NullView.create(inRange));
@@ -95,8 +101,49 @@ public final class Layers {
     }
 
     public static void setActiveImageLayer(ImageLayer layer) {
+        masterTimelineSource = null; // a real image layer takes the clock back
         activeLayer = layer == null ? nullImageLayer : layer;
         Player.setMaster(activeLayer);
+    }
+
+    // The non-image layer the user has handed the clock to, or null when imagery owns it.
+    @Nullable private static TimelineSource masterTimelineSource;
+
+    @Nullable
+    public static TimelineSource getMasterTimelineSource() {
+        return masterTimelineSource;
+    }
+
+    /**
+     * Hand the movie clock to a layer that is not imagery.
+     *
+     * <p>The clock is always driven by an ImageLayer, so this installs the source's timestamps
+     * into the placeholder layer and makes that the master. The distinction from
+     * {@link #setPlaceholderMasterTimes} is consent: that one is automatic and defers to any
+     * real image layer, this one is the user saying they want this series to be authoritative
+     * even with imagery loaded.
+     */
+    public static void setMasterTimelineSource(@Nullable TimelineSource source) {
+        masterTimelineSource = source;
+        if (source == null) {
+            Player.setMaster(activeLayer);
+            return;
+        }
+        List<JHVTime> times = List.copyOf(source.getTimelineTimes());
+        if (times.size() < 2) { // nothing to animate; leave the clock where it was
+            masterTimelineSource = null;
+            return;
+        }
+        placeholderTimes = times;
+        nullImageLayer.setView(NullView.create(times));
+        activeLayer = nullImageLayer;
+        Player.setMaster(nullImageLayer);
+    }
+
+    /** Re-install the claimed source's frames after it has loaded more of them. */
+    public static void refreshMasterTimelineSource(TimelineSource source) {
+        if (masterTimelineSource == source)
+            setMasterTimelineSource(source);
     }
 
     private static int imageLayersCount;

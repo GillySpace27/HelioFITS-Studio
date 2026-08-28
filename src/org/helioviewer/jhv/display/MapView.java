@@ -94,8 +94,10 @@ public abstract class MapView {
         return mode == MapMode.Helioradial;
     }
 
-    public boolean isHelioradialUnrolled() {
-        return mode == MapMode.HelioradialUnrolled;
+    /** Both unrolled layouts: HelioradialUnrolled and its latitudinal-disk variant. Off the
+     * limb they are the same map, which is what every current caller cares about. */
+    public boolean isUnrolled() {
+        return mode == MapMode.HelioradialUnrolled || mode == MapMode.HelioradialUnrolledLatitudinal;
     }
 
     public Vec3 mouseToSky(Viewport vp, int x, int y) {

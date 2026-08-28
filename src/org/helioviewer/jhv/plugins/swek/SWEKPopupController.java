@@ -184,7 +184,7 @@ class SWEKPopupController implements InputPointerListener, InputPointerMotionLis
     private static Vec2 mouseToPolar(MapView mv, Viewport vp, MapScale scale, Vec2 m) {
         if (mv.isHelioradial()) // Sun-centered disk: rho = 0.5 * unitY (see SWEKLayer.ringRho)
             return new Vec2(Math.toDegrees(PolarBasis.angle(m.x, m.y)), scale.toMapY(2 * Math.hypot(m.x, m.y)));
-        if (mv.isHelioradialUnrolled()) // unwrap: x = angle, y = warped radius
+        if (mv.isUnrolled()) // unwrap: x = angle, y = warped radius
             return new Vec2(scale.toMapX(m.x / vp.aspect + 0.5), scale.toMapY(m.y + 0.5));
         return null;
     }

@@ -216,7 +216,7 @@ public final class ViewState {
     private static int playbackLastFrame;
     private static RecordingMode recordingMode = RecordingMode.LOOP;
     public static final int MIN_LONG_SIDE = 16;
-    private static final int DEFAULT_LONG_SIDE = 1920;
+    private static final int DEFAULT_LONG_SIDE = 2048; // a member of the panel's power-of-two list
     private static RecordingAspect recordingAspect = RecordingAspect.ORIGINAL;
     private static int recordingLongSide = DEFAULT_LONG_SIDE;
 

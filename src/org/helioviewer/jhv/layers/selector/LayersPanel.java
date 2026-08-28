@@ -243,6 +243,10 @@ public final class LayersPanel extends JPanel {
                 } else if (v.col == MASTER_COL && layer instanceof ImageLayer il) {
                     Layers.setActiveImageLayer(il);
                     grid.repaint(); // the previous master's radio has to clear too
+                } else if (v.col == MASTER_COL
+                        && layer instanceof org.helioviewer.jhv.layers.TimelineSource ts && ts.canDriveTimeline()) {
+                    Layers.setMasterTimelineSource(ts);
+                    grid.repaint();
                 } else if (v.col == REMOVE_COL && layer.isDeletable()) {
                     boolean selected = selectedLayer() == layer;
                     Layers.remove(layer);

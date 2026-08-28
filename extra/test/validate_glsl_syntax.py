@@ -21,6 +21,7 @@ COMMON_SOLAR_FRAGMENTS = (
     "solarLati.frag",
     "solarRadialWarp.frag",
     "solarRectWarp.frag",
+    "solarRectWarpLati.frag",
     # The helioradial surface mesh's fragment shader. Same prepend as its siblings; it was
     # missing here, so the one shader added with the projection was the one not being checked.
     "warpSurface.frag",

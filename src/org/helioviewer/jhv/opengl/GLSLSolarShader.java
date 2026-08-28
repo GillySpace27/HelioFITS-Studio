@@ -17,6 +17,7 @@ public class GLSLSolarShader extends GLSLShader {
     public static final GLSLSolarShader lati = new GLSLSolarShader("/glsl/solar.vert", "/glsl/solarLati.frag", true);
     public static final GLSLSolarShader radialWarp = new GLSLSolarShader("/glsl/solar.vert", "/glsl/solarRadialWarp.frag", true);
     public static final GLSLSolarShader rectWarp = new GLSLSolarShader("/glsl/solar.vert", "/glsl/solarRectWarp.frag", true);
+    public static final GLSLSolarShader rectWarpLati = new GLSLSolarShader("/glsl/solar.vert", "/glsl/solarRectWarpLati.frag", true);
     // Draws a mesh rather than a full-screen quad: the warp is geometry here, so the scene can
     // be rotated and overlays can be registered against it. See warpSurface.vert.
     public static final GLSLSolarShader warpSurface = new GLSLSolarShader("/glsl/warpSurface.vert", "/glsl/warpSurface.frag", true);
@@ -67,6 +68,7 @@ public class GLSLSolarShader extends GLSLShader {
         lati._init(lati.hasCommon);
         radialWarp._init(radialWarp.hasCommon);
         rectWarp._init(rectWarp.hasCommon);
+        rectWarpLati._init(rectWarpLati.hasCommon);
         warpSurface._init(warpSurface.hasCommon);
         WarpSurfaceMesh.mesh.init();
     }
@@ -121,6 +123,7 @@ public class GLSLSolarShader extends GLSLShader {
         lati._dispose();
         radialWarp._dispose();
         rectWarp._dispose();
+        rectWarpLati._dispose();
         warpSurface._dispose();
         WarpSurfaceMesh.mesh.dispose();
         wcsBO.delete();

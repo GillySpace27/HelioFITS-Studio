@@ -22,7 +22,7 @@ import org.helioviewer.jhv.time.TimeMap;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.Receiver { // public for state restore
+public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.Receiver, org.helioviewer.jhv.layers.TimelineSource { // public for state restore
 
     private static final double WIRE_WIDTH = 2 * GLSLLine.LINEWIDTH_BASIC;
     static final double DEFAULT_ALPHA_PCT = 92; // just below the convex hull: the ripples resolve
@@ -114,6 +114,11 @@ public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.R
         jo.put("sources", uris);
     }
 
+    @Override
+    public java.util.Collection<JHVTime> getTimelineTimes() {
+        return clouds.navigableKeySet();
+    }
+
     public void load(URI uri) {
         if (!sources.contains(uri))
             sources.add(uri);
@@ -129,6 +134,9 @@ public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.R
         // Drive the movie clock from the cloud timestamps when no image layer is loaded, so a
         // series animates standalone. No-op once a real image layer is active.
         Layers.setPlaceholderMasterTimes(clouds.navigableKeySet());
+        // If the user has explicitly handed this layer the clock, its frame list has just grown,
+        // so the timeline has to be rebuilt or the newly arrived epochs are unreachable.
+        Layers.refreshMasterTimelineSource(this);
         invalidateMesh();
         DisplayController.display();
     }

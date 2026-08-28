@@ -54,7 +54,10 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
     private final JRadioButton shotButton;
     private final JRadioButton freeButton;
     private final JComboBox<ViewState.RecordingAspect> recordAspectComboBox;
-    private final javax.swing.JSpinner recordLongSideSpinner;
+    // Powers of two only: every consumer downstream (GPU textures, fulldome masters, video
+    // encoders) is happiest there, and a free spinner mostly collected typos.
+    private static final Integer[] LONG_SIDE_CHOICES = {256, 512, 1024, 2048, 4096, 8192, 16384};
+    private final JComboBox<Integer> recordLongSideComboBox;
     private final JLabel recordDerivedLabel;
     private boolean syncingRecordSize;
 
@@ -212,15 +215,15 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         c.gridx = 2;
         recordPanel.add(new JLabel("Long side ", JLabel.RIGHT), c);
 
-        recordLongSideSpinner = new javax.swing.JSpinner(new javax.swing.SpinnerNumberModel(
-                ViewState.getRecordingLongSide(), ViewState.MIN_LONG_SIDE, 32768, 16));
-        recordLongSideSpinner.setToolTipText("Pixels on the long axis; the short side follows from the aspect. Clamped to what the GPU can render.");
-        recordLongSideSpinner.addChangeListener(e -> {
+        recordLongSideComboBox = new JComboBox<>(LONG_SIDE_CHOICES);
+        recordLongSideComboBox.setSelectedItem(nearestLongSide(ViewState.getRecordingLongSide()));
+        recordLongSideComboBox.setToolTipText("Pixels on the long axis; the short side follows from the aspect. Clamped to what the GPU can render.");
+        recordLongSideComboBox.addActionListener(e -> {
             if (!syncingRecordSize)
-                ViewState.setRecordingLongSide((Integer) recordLongSideSpinner.getValue());
+                ViewState.setRecordingLongSide((Integer) recordLongSideComboBox.getSelectedItem());
         });
         c.gridx = 3;
-        recordPanel.add(recordLongSideSpinner, c);
+        recordPanel.add(recordLongSideComboBox, c);
 
         c.gridy = 3;
         c.gridx = 3;
@@ -382,13 +385,16 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         try {
             if (recordAspectComboBox.getSelectedItem() != recordingData.aspect())
                 recordAspectComboBox.setSelectedItem(recordingData.aspect());
-            if (!recordLongSideSpinner.getValue().equals(recordingData.longSide()))
-                recordLongSideSpinner.setValue(recordingData.longSide());
+            // SAMP and old sessions can still carry an off-list long side; show the nearest
+            // choice without writing it back, and let the derived label report the true size.
+            Integer shown = nearestLongSide(recordingData.longSide());
+            if (!shown.equals(recordLongSideComboBox.getSelectedItem()))
+                recordLongSideComboBox.setSelectedItem(shown);
         } finally {
             syncingRecordSize = false;
         }
         boolean fixed = recordingData.aspect().isFixed();
-        recordLongSideSpinner.setEnabled(fixed);
+        recordLongSideComboBox.setEnabled(fixed);
         ViewState.Size out = recordingData.size();
         recordDerivedLabel.setText(fixed ? out.width() + " \u00d7 " + out.height() : "follows the window");
         org.helioviewer.jhv.display.DisplayController.display(); // the capture overlay moved
@@ -399,6 +405,14 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
      * letterbox. A button rather than automatic, because reshaping on every aspect change would
      * fight presentation mode.
      */
+    private static Integer nearestLongSide(int longSide) {
+        Integer best = LONG_SIDE_CHOICES[0];
+        for (Integer choice : LONG_SIDE_CHOICES)
+            if (Math.abs(choice - longSide) < Math.abs(best - longSide))
+                best = choice;
+        return best;
+    }
+
     private static void fitWindowToOutputAspect() {
         ViewState.RecordingData data = ViewState.recordingData();
         if (!data.aspect().isFixed())

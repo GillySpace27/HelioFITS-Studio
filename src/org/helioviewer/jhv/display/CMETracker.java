@@ -145,7 +145,7 @@ public final class CMETracker implements TimeListener.Change {
     public void timeChanged(long milli) {
         if (!tracking)
             return;
-        if (!Display.mode.usesWarpLambda()) { // Helioradial or HelioradialUnrolled; leaving both disengages
+        if (!Display.mode.usesWarpLambda()) { // any warp mode keeps tracking; leaving them all disengages
             tracking = false;
             smoother.stop();
             fireChanged();

@@ -43,7 +43,7 @@ public final class GLRenderer {
             // unrolled layout is flat for the same reason.
             case Helioradial -> createConstantScales(viewports, MapScale.boxCoxRadial(
                     Display.isHelioradial3D() ? Display.fullWarpFieldRadius() : effectiveOuterRadius()));
-            case HelioradialUnrolled -> createConstantScales(viewports, MapScale.boxCoxRadial(effectiveOuterRadius()));
+            case HelioradialUnrolled, HelioradialUnrolledLatitudinal -> createConstantScales(viewports, MapScale.boxCoxRadial(effectiveOuterRadius()));
         };
     }
 
