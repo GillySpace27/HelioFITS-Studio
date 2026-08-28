@@ -39,7 +39,6 @@ public final class GLSLWarp {
         GLSLShader.setupUBO(programID, "WarpBlock", warpBO.getID(), GLSLShader.UBO.WARP);
     }
 
-    /** Warp overlays with this scale's Box-Cox law, out to {@code outerRadius}. */
     /**
      * Warp overlays with exactly the mapping the imagery uses.
      *
