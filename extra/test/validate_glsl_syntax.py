@@ -21,6 +21,20 @@ COMMON_SOLAR_FRAGMENTS = (
     "solarLati.frag",
     "solarRadialWarp.frag",
     "solarRectWarp.frag",
+    # The helioradial surface mesh's fragment shader. Same prepend as its siblings; it was
+    # missing here, so the one shader added with the projection was the one not being checked.
+    "warpSurface.frag",
+)
+
+# Vertex-stage splice, the mirror of the fragment prepend above. GLSLShader._init inserts
+# warpCommon.vert AFTER the #version line (a #version directive must come first), which is why
+# these cannot simply be concatenated the way the fragments are. Validating them standalone
+# reports undefined warpWorld() calls, which is a fault in the harness rather than the shader.
+COMMON_VERTEX = GLSL_DIR / "warpCommon.vert"
+COMMON_WARP_VERTEX_SHADERS = (
+    "line.vert",
+    "point.vert",
+    "shape.vert",
 )
 
 
@@ -67,11 +81,32 @@ def write_combined_solar_fragments(temp_dir: Path) -> list[Path]:
     return combined
 
 
+def write_combined_warp_vertex_shaders(temp_dir: Path) -> list[Path]:
+    """Splice warpCommon.vert in after the #version line, exactly as GLSLShader._init does."""
+    common = COMMON_VERTEX.read_text()
+    combined: list[Path] = []
+    for shader in COMMON_WARP_VERTEX_SHADERS:
+        source = (GLSL_DIR / shader).read_text()
+        lines = source.split("\n")
+        for index, line in enumerate(lines):
+            if line.lstrip().startswith("#version"):
+                spliced = "\n".join(lines[: index + 1] + [common] + lines[index + 1 :])
+                break
+        else:
+            raise SystemExit(f"{shader}: no #version directive, so the splice point is undefined")
+        target = temp_dir / shader
+        target.write_text(spliced)
+        combined.append(target)
+    return combined
+
+
 def build_shader_list(temp_dir: Path) -> list[Path]:
     common_solar = {GLSL_DIR / fragment for fragment in COMMON_SOLAR_FRAGMENTS}
-    ignored = common_solar | {COMMON_FRAGMENT}
+    common_warp = {GLSL_DIR / shader for shader in COMMON_WARP_VERTEX_SHADERS}
+    # The two common files are fragments to splice, never standalone shaders.
+    ignored = common_solar | common_warp | {COMMON_FRAGMENT, COMMON_VERTEX}
     standalone = sorted(path for path in GLSL_DIR.iterdir() if path.suffix in {".frag", ".vert"} and path not in ignored)
-    return standalone + write_combined_solar_fragments(temp_dir)
+    return standalone + write_combined_solar_fragments(temp_dir) + write_combined_warp_vertex_shaders(temp_dir)
 
 
 def main() -> int:
