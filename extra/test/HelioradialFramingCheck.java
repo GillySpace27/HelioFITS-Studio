@@ -1,21 +1,26 @@
 package org.helioviewer.jhv.display;
 
 /**
- * The edge control must be a zoom, not a vignette.
+ * The edge control must crop and magnify, not renormalize the projection.
  *
- * <p>Moving the outer-radius ("edge") control changes which physical range of the corona is
- * rendered. It must NOT change how large that range is drawn: the warped disk should always
- * span the same fraction of the frame, so the user sees the field of view change rather than
- * the content shrink inside a fixed frame.
+ * <p>Its own documented intent is "a radial crop, a linear zoom-in independent of the lambda
+ * warp". Two behaviours have been mistaken for that and neither is it:
  *
- * <p>This broke once and the symptom was not obvious from the code. When the helioradial
- * projection became real geometry, its extent went from a fixed normalized disk to physical
- * solar radii, but the camera width was left reading the camera's own physical width, which
- * does not follow the edge. Shrinking the edge then shrank the drawn disk inside an unchanged
- * frame, which reads as a vignette closing in rather than a zoom.
+ * <ul>
+ * <li><b>Vignette.</b> The warp drew out to the edge in physical units while the camera width
+ * ignored the edge, so lowering it shrank the content inside an unchanged frame and opened a
+ * growing empty border.
+ * <li><b>Renormalize.</b> The edge fed the warp's own normalization, so lowering it
+ * redistributed structure inside a rim that never moved. Features did drift outward, but the
+ * outer boundary of the data stayed pinned at the same screen radius, which reads as the
+ * picture rearranging itself rather than as a zoom. This is what the projection did before and
+ * after the geometry rewrite, so restoring the old framing did not fix it.
+ * </ul>
  *
- * <p>The invariant below is the whole property in one line: disk diameter over camera width is
- * a constant, independent of where the edge is placed.
+ * <p>A crop is neither. The warp mapping is fixed by the loaded data, and the edge decides only
+ * how much of it the camera shows, so everything magnifies together and the rim leaves the
+ * frame. The three assertions below are exactly that: the warp does not depend on the edge, a
+ * fixed feature magnifies as the edge closes, and the rim eventually goes off-frame.
  *
  * <p>Run: java -cp bin:extra/test-classes org.helioviewer.jhv.display.HelioradialFramingCheck
  */
@@ -24,50 +29,78 @@ public final class HelioradialFramingCheck {
     private static int failures;
 
     public static void main(String[] args) {
-        double reference = Double.NaN;
+        Display.setWarpLambda(0);
 
-        // Spans three decades of outer radius: a K-Cor-sized field, a LASCO-sized one, and the
-        // full PUNCH field. If framing depended on the edge at all, this range would expose it.
-        for (double outer : new double[]{5, 10, 60, 180, 215, 400}) {
-            Display.setWarpOuterRadius(outer);
-            double effective = Display.effectiveWarpOuterRadius();
-            near(effective, outer, 1e-12, "the edge control reaches effectiveWarpOuterRadius at " + outer);
+        // The warp is normalized over the loaded field, which the edge must never move.
+        // fullWarpFieldRadius reads the layer stack, whose initialization needs SPICE natives
+        // that are not present in a headless run, so this one assertion is reported as skipped
+        // rather than quietly dropped. The camera-side assertions below carry the rest and do
+        // not depend on it.
+        try {
+            double fullA = Display.fullWarpFieldRadius();
+            Display.setWarpOuterRadius(37);
+            double fullB = Display.fullWarpFieldRadius();
+            Display.setWarpOuterRadius(212);
+            double fullC = Display.fullWarpFieldRadius();
+            near(fullB, fullA, 1e-12, "the edge does not move the warp's own extent");
+            near(fullC, fullA, 1e-12, "the edge does not move the warp's own extent (again)");
+        } catch (Throwable t) {
+            System.out.println("SKIP: warp-extent independence needs the layer stack (" +
+                               t.getClass().getSimpleName() + "); camera-side assertions still run");
+        }
 
-            // Camera is unused by this branch; a null here fails loudly if that ever changes.
+        // With no layers loaded the field falls back to a floor, so the rest of the check works
+        // against a fixed stand-in rather than depending on what happens to be open.
+        double full = 180;
+        MapScale scale = MapScale.boxCoxRadial(full);
+
+        double[] edges = {180, 120, 60, 30};
+        double prevFeature = -1, prevRim = -1, widthPerEdge = -1;
+        for (double edge : edges) {
+            Display.setWarpOuterRadius(edge);
             double cameraWidth = MapMode.Helioradial.baseCameraWidth(null);
 
-            // The warp's outer edge is a fixed point, so the drawn disk has radius = outer.
-            MapScale scale = MapScale.boxCoxRadial(effective);
-            double diskDiameter = 2 * WarpGeometry.warpRadius(scale, effective, effective);
-
-            double fraction = diskDiameter / cameraWidth;
-            if (Double.isNaN(reference))
-                reference = fraction;
+            // Closing the edge must shrink the camera in proportion, which is what magnifies
+            // everything. Compared across iterations, not against itself.
+            if (widthPerEdge < 0)
+                widthPerEdge = cameraWidth / edge;
             else
-                near(fraction, reference, 1e-12,
-                     "apparent disk size is unchanged by the edge (outer=" + outer + ")");
+                near(cameraWidth / edge, widthPerEdge, 1e-12,
+                     "camera width stays a fixed multiple of the edge at " + edge);
 
-            // Framing must also leave a margin rather than run the disk to the frame edge.
-            if (!(fraction > 0.5 && fraction < 1)) {
-                System.out.printf("FAIL: disk fills %.4f of the frame at outer=%.0f; want between 0.5 and 1%n",
-                                  fraction, outer);
-                failures++;
+            double feature = WarpGeometry.warpRadius(scale, 10, full) / cameraWidth;
+            double rim = WarpGeometry.warpRadius(scale, full, full) / cameraWidth;
+
+            if (prevFeature >= 0) {
+                if (!(feature > prevFeature)) {
+                    System.out.printf("FAIL: closing the edge to %.0f did not magnify (%.4f then %.4f)%n",
+                                      edge, prevFeature, feature);
+                    failures++;
+                }
+                if (!(rim > prevRim)) {
+                    System.out.printf("FAIL: closing the edge to %.0f did not push the rim outward%n", edge);
+                    failures++;
+                }
             }
+            prevFeature = feature;
+            prevRim = rim;
         }
 
-        // The invariant must be a real number, not an accident of everything being zero.
-        if (!(reference > 0)) {
-            System.out.println("FAIL: framing fraction is not positive, so the checks above are vacuous");
+        // At the widest edge the whole field must be visible, and at the tightest it must not:
+        // that difference is the crop, and without it the assertions above could all hold while
+        // nothing ever actually left the frame.
+        Display.setWarpOuterRadius(full);
+        double rimWide = WarpGeometry.warpRadius(scale, full, full) / MapMode.Helioradial.baseCameraWidth(null);
+        Display.setWarpOuterRadius(30);
+        double rimTight = WarpGeometry.warpRadius(scale, full, full) / MapMode.Helioradial.baseCameraWidth(null);
+        if (!(rimWide < 0.5)) {
+            System.out.printf("FAIL: at the full edge the rim is at %.4f; the whole field should fit%n", rimWide);
             failures++;
         }
-
-        // The camera width has to track the edge, which is the part that actually regressed.
-        // Doubling the edge must double the width; a constant width is exactly the bug.
-        Display.setWarpOuterRadius(50);
-        double narrow = MapMode.Helioradial.baseCameraWidth(null);
-        Display.setWarpOuterRadius(100);
-        double wide = MapMode.Helioradial.baseCameraWidth(null);
-        near(wide / narrow, 2, 1e-12, "doubling the edge doubles the camera width");
+        if (!(rimTight > 0.5)) {
+            System.out.printf("FAIL: at a tight edge the rim is at %.4f; it should be cropped away%n", rimTight);
+            failures++;
+        }
 
         Display.setWarpOuterRadius(0); // back to auto, the app default
 

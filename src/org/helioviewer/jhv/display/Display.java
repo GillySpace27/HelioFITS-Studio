@@ -74,7 +74,22 @@ public final class Display {
      */
     public static double effectiveWarpOuterRadius() {
         double user = warpOuterRadius;
-        return user > 0 ? user : ImageLayers.getLargestRadialSize();
+        return user > 0 ? user : fullWarpFieldRadius();
+    }
+
+    /**
+     * The radial extent the warp itself is normalized over: always the full loaded field,
+     * never the edge crop.
+     *
+     * <p>Keeping these two apart is what makes the edge behave as its own comment promises, "a
+     * linear zoom-in independent of the lambda warp". Feeding the crop into the warp instead
+     * renormalizes the projection, so lowering the edge redistributes structure inside a rim
+     * that never moves, which reads as the picture rearranging itself rather than as a zoom.
+     * With them separated, the warp mapping is fixed by the data and the edge only decides how
+     * much of it the camera shows, so cropping magnifies everything uniformly.
+     */
+    public static double fullWarpFieldRadius() {
+        return Math.max(ImageLayers.getLargestRadialSize(), 1.1);
     }
 
     static int glWidth = 1;

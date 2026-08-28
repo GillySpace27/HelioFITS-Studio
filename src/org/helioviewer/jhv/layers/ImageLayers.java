@@ -66,7 +66,9 @@ public final class ImageLayers {
     private static double warpMagnification(ImageLayer layer) {
         if (Display.mode != MapMode.Helioradial)
             return 1;
-        double outerRadius = GLRenderer.effectiveOuterRadius();
+        // Same extent the renderer normalizes the warp over, not the edge crop, or the
+        // magnification estimate would drift from what is actually drawn.
+        double outerRadius = Display.fullWarpFieldRadius();
         if (outerRadius <= 0)
             return 1;
         double radius = .5 * layer.getMetaData().getPhysicalRegion().height;
