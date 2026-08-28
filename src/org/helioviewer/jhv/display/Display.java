@@ -64,7 +64,20 @@ public final class Display {
     }
 
     public static void setHelioradial3D(boolean value) {
+        if (helioradial3D == value)
+            return;
         helioradial3D = value;
+        // Flat and 3D are different scenes, not two looks at one scene: the shader, the render
+        // path and the camera contract all change together, and the base camera width goes from
+        // a fixed 1.1 to roughly twice the field in solar radii. Toggling without this reset
+        // leaves the old zoom applied to the new contract, which is a view hundreds of times the
+        // wrong size and reads as the toggle being broken. This is exactly what setMapMode does
+        // for a projection change, and for the same reason.
+        if (mode == MapMode.Helioradial) {
+            org.helioviewer.jhv.opengl.RenderGuard.reset();
+            resetViewportZoom();
+            DisplayController.resetCameras();
+        }
     }
 
     // Outer edge of the warp projections in solar radii. 0 = auto: the largest radial size

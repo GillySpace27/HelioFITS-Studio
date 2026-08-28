@@ -762,12 +762,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private JPanel createHelioradial3DPanel() {
         helioradial3DBox = new javax.swing.JCheckBox("Render in 3D", Display.isHelioradial3D());
         helioradial3DBox.setToolTipText("Draw Helioradial as a rotatable surface instead of a flat face-on disk");
-        helioradial3DBox.addItemListener(e -> {
-            Display.setHelioradial3D(helioradial3DBox.isSelected());
-            // The render path, the shader and the camera contract all change together, so the
-            // scene has to be rebuilt rather than merely redrawn.
-            DisplayController.render(1);
-        });
+        // setHelioradial3D does the camera reset itself, the same way a projection change does.
+        helioradial3DBox.addItemListener(e -> Display.setHelioradial3D(helioradial3DBox.isSelected()));
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(BorderFactory.createEmptyBorder(3, 8, 3, 8));
         panel.add(helioradial3DBox, BorderLayout.LINE_START);

@@ -39,6 +39,17 @@ public final class MapModeNamesCheck {
         // round-trip through the menu string and think it had persisted state correctly.
         same(MapMode.fromName("Helioradial Unrolled"), null, "label is not a valid persisted name");
 
+        // Menu order is a deliberate choice, not an accident of when constants were added:
+        // Orthographic, HPC and Helioradial are the same view at default settings and differ
+        // only in their grids, so they lead; Latitudinal is a surface map and goes last.
+        // Reordering is safe only because sessions persist NAMES, which the round trip above
+        // covers; if anything ever keys off ordinal this assertion is the warning.
+        MapMode[] order = MapMode.values();
+        equalsStr(order[0].name(), "Orthographic", "first projection");
+        equalsStr(order[1].name(), "HPC", "second projection");
+        equalsStr(order[2].name(), "Helioradial", "third projection");
+        equalsStr(order[order.length - 1].name(), "Latitudinal", "last projection");
+
         // Persisted names must stay free of spaces, since that is what distinguishes them from
         // labels and what keeps them safe in SAMP messages and command lines.
         for (MapMode mode : MapMode.values())

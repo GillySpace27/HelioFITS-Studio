@@ -22,11 +22,14 @@ import org.helioviewer.jhv.opengl.GLSLSolarShader;
  * ever accurate.
  */
 public enum MapMode {
+    // Menu order, and it carries meaning: Orthographic, HPC and Helioradial at lambda = 1 are
+    // the same view at default settings and differ only in their grids, so they sit together.
+    // Latitudinal is the odd one out, a surface map rather than a sky view, and goes last.
     Orthographic(GLSLSolarShader.ortho, "Orthographic"),
     HPC(GLSLSolarShader.hpc, "HPC"),
-    Latitudinal(GLSLSolarShader.lati, "Latitudinal"),
     Helioradial(GLSLSolarShader.warpSurface, "Helioradial"),
-    HelioradialUnrolled(GLSLSolarShader.rectWarp, "Helioradial Unrolled");
+    HelioradialUnrolled(GLSLSolarShader.rectWarp, "Helioradial Unrolled"),
+    Latitudinal(GLSLSolarShader.lati, "Latitudinal");
 
     private final GLSLSolarShader shader3D;
     private final String label;
