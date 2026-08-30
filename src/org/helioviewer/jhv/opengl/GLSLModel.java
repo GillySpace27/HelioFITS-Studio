@@ -7,20 +7,17 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-import org.helioviewer.jhv.base.BufferUtils;
 import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.display.ViewportMath;
 import org.helioviewer.jhv.math.Quat;
-import org.helioviewer.jhv.opengl.model.ModelInstance;
 import org.helioviewer.jhv.opengl.model.ModelMaterial;
 import org.helioviewer.jhv.opengl.model.ModelMesh;
 import org.helioviewer.jhv.opengl.model.ModelSampler;
 import org.helioviewer.jhv.opengl.model.ModelScene;
 import org.helioviewer.jhv.opengl.model.ModelTexture;
 
-import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.joml.Quaternionf;
@@ -29,7 +26,7 @@ public final class GLSLModel {
 
     private static final float DEFAULT_POINT_SIZE = 0.02f;
     private static final double DEFAULT_LINE_WIDTH = GLSLLine.LINEWIDTH_BASIC;
-    private static final Comparator<RenderInstance> BACK_TO_FRONT = Comparator.comparingDouble(RenderInstance::depth);
+    private static final Comparator<RenderMesh> BACK_TO_FRONT = Comparator.comparingDouble(RenderMesh::depth);
 
     private final List<ModelTexture> textureData;
     private final ModelMaterial[] meshMaterials;
@@ -40,18 +37,12 @@ public final class GLSLModel {
     private final DirectBufVertex[] lineVertices;
     private final DirectBufVertex[] pointVertices;
     private final GLSLMeshMaterial[] materialBuffers;
-    private final float[] meshCenters;
-    private final ArrayList<RenderInstance> opaqueInstances = new ArrayList<>();
-    private final ArrayList<RenderInstance> transparentInstances = new ArrayList<>();
+    private final boolean hasTriangles;
+    private final ArrayList<Integer> opaqueMeshes = new ArrayList<>();
+    private final ArrayList<RenderMesh> transparentMeshes = new ArrayList<>();
 
-    private final Matrix4f baseMvp = new Matrix4f();
-    private final Matrix4f mvp = new Matrix4f();
-    private final Matrix4f modelView = new Matrix4f();
     private final Matrix4f viewRotation = new Matrix4f();
-    private final Matrix3f normal = new Matrix3f();
     private final Quaternionf quaternion = new Quaternionf();
-    private final FloatBuffer mvpBuffer = BufferUtils.newFloatBuffer(16);
-    private final FloatBuffer normalBuffer = BufferUtils.newFloatBuffer(9);
 
     private GLTexture[] textures;
     private boolean initialized;
@@ -67,8 +58,7 @@ public final class GLSLModel {
         lineVertices = new DirectBufVertex[meshCount];
         pointVertices = new DirectBufVertex[meshCount];
         materialBuffers = new GLSLMeshMaterial[scene.materials().size()];
-        meshCenters = new float[Math.multiplyExact(meshCount, 3)];
-        boolean[] transparentMeshes = new boolean[meshCount];
+        boolean triangles = false;
 
         for (int i = 0; i < meshCount; i++) {
             ModelMesh mesh = scene.meshes().get(i);
@@ -77,6 +67,7 @@ public final class GLSLModel {
             meshMaterialIndices[i] = mesh.materialIndex();
             switch (mesh.primitive()) {
                 case TRIANGLES -> {
+                    triangles = true;
                     triangleMeshes[i] = new GLSLMesh(mesh);
                     if (materialBuffers[mesh.materialIndex()] == null)
                         materialBuffers[mesh.materialIndex()] = new GLSLMeshMaterial(material);
@@ -92,21 +83,12 @@ public final class GLSLModel {
                     pointVertices[i] = createPointVertices(mesh, material);
                 }
             }
-            transparentMeshes[i] = mesh.primitive() != ModelMesh.Primitive.TRIANGLES ||
-                    material.alphaMode() == ModelMaterial.AlphaMode.BLEND;
-            if (transparentMeshes[i])
-                storeCenter(mesh, i);
-        }
-
-        for (ModelInstance instance : scene.instances()) {
-            int meshIndex = instance.meshIndex();
-            Matrix4fc transform = instance.transform();
-            RenderInstance renderInstance = new RenderInstance(meshIndex, transform);
-            if (transparentMeshes[meshIndex])
-                transparentInstances.add(renderInstance);
+            if (mesh.primitive() != ModelMesh.Primitive.TRIANGLES || material.alphaMode() == ModelMaterial.AlphaMode.BLEND)
+                transparentMeshes.add(new RenderMesh(i, mesh.positions()));
             else
-                opaqueInstances.add(renderInstance);
+                opaqueMeshes.add(i);
         }
+        hasTriangles = triangles;
     }
 
     private static void requireUntextured(ModelMesh mesh, ModelMaterial material) {
@@ -162,51 +144,48 @@ public final class GLSLModel {
         if (!initialized)
             return;
 
-        baseMvp.set(Transform.get());
+        FloatBuffer worldToClip = Transform.get();
         Quat rotation = mv.viewRotation();
         viewRotation.rotation(quaternion.set((float) rotation.x, (float) rotation.y, (float) rotation.z, (float) rotation.w));
+        if (hasTriangles)
+            GLSLMeshShader.bindFrame(worldToClip, viewRotation.m02(), viewRotation.m12(), viewRotation.m22());
 
-        for (RenderInstance instance : opaqueInstances)
-            renderTriangle(instance);
+        for (int meshIndex : opaqueMeshes)
+            renderTriangle(meshIndex);
 
-        for (RenderInstance instance : transparentInstances)
-            instance.updateDepth(viewRotation, meshCenters);
-        transparentInstances.sort(BACK_TO_FRONT);
+        for (RenderMesh mesh : transparentMeshes)
+            mesh.updateDepth(viewRotation);
+        transparentMeshes.sort(BACK_TO_FRONT);
 
         double pointFactor = ViewportMath.getPixelFactor(vp, mv.cameraWidth(vp));
         try {
-            for (RenderInstance instance : transparentInstances) {
+            for (RenderMesh mesh : transparentMeshes) {
                 GL.glDepthMask(false);
-                if (triangleMeshes[instance.meshIndex] != null)
-                    renderTriangle(instance);
+                if (triangleMeshes[mesh.meshIndex] != null)
+                    renderTriangle(mesh.meshIndex);
                 else
-                    renderDrawing(instance, vp, pointFactor);
+                    renderDrawing(mesh.meshIndex, vp, pointFactor, worldToClip);
             }
         } finally {
             GL.glDepthMask(true);
         }
     }
 
-    private void renderDrawing(RenderInstance instance, Viewport vp, double pointFactor) {
-        bindMvp(instance.transform);
-        GLSLLine line = lineMeshes[instance.meshIndex];
+    private void renderDrawing(int meshIndex, Viewport vp, double pointFactor, FloatBuffer worldToClip) {
+        GLSLLine line = lineMeshes[meshIndex];
         if (line != null)
-            line.renderLine(vp, DEFAULT_LINE_WIDTH, mvpBuffer);
+            line.renderLine(vp, DEFAULT_LINE_WIDTH, worldToClip);
         else
-            pointMeshes[instance.meshIndex].renderPoints(pointFactor, mvpBuffer);
+            pointMeshes[meshIndex].renderPoints(pointFactor, worldToClip);
     }
 
-    private void renderTriangle(RenderInstance instance) {
-        int meshIndex = instance.meshIndex;
+    private void renderTriangle(int meshIndex) {
         ModelMaterial material = meshMaterials[meshIndex];
         if (material.doubleSided())
             GL.glDisable(GL.CULL_FACE);
-        if (instance.reverseWinding)
-            GL.glFrontFace(GL.CW);
 
         try {
             GLSLMeshShader.mesh.use();
-            bindMatrices(instance.transform);
             materialBuffers[meshMaterialIndices[meshIndex]].bind();
             if (material.baseColorTexture() != ModelMaterial.NO_TEXTURE)
                 textures[material.baseColorTexture()].bind();
@@ -214,19 +193,7 @@ public final class GLSLModel {
         } finally {
             if (material.doubleSided())
                 GL.glEnable(GL.CULL_FACE);
-            if (instance.reverseWinding)
-                GL.glFrontFace(GL.CCW);
         }
-    }
-
-    private void bindMvp(Matrix4fc transform) {
-        mvp.set(baseMvp).mul(transform).get(mvpBuffer.clear());
-    }
-
-    private void bindMatrices(Matrix4fc transform) {
-        bindMvp(transform);
-        modelView.set(viewRotation).mul(transform).normal(normal).get(normalBuffer.clear());
-        GLSLMeshShader.mesh.bindMatrices(mvpBuffer, normalBuffer);
     }
 
     public void dispose() {
@@ -257,27 +224,6 @@ public final class GLSLModel {
             }
             textures = null;
         }
-    }
-
-    private void storeCenter(ModelMesh mesh, int meshIndex) {
-        FloatBuffer positions = mesh.positions();
-        float minX = Float.POSITIVE_INFINITY, minY = Float.POSITIVE_INFINITY, minZ = Float.POSITIVE_INFINITY;
-        float maxX = Float.NEGATIVE_INFINITY, maxY = Float.NEGATIVE_INFINITY, maxZ = Float.NEGATIVE_INFINITY;
-        for (int i = 0; i < mesh.vertexCount(); i++) {
-            float x = positions.get(3 * i);
-            float y = positions.get(3 * i + 1);
-            float z = positions.get(3 * i + 2);
-            minX = Math.min(minX, x);
-            minY = Math.min(minY, y);
-            minZ = Math.min(minZ, z);
-            maxX = Math.max(maxX, x);
-            maxY = Math.max(maxY, y);
-            maxZ = Math.max(maxZ, z);
-        }
-        int center = 3 * meshIndex;
-        meshCenters[center] = 0.5f * (minX + maxX);
-        meshCenters[center + 1] = 0.5f * (minY + maxY);
-        meshCenters[center + 2] = 0.5f * (minZ + maxZ);
     }
 
     private static DirectBufVertex createPointVertices(ModelMesh mesh, ModelMaterial material) {
@@ -371,27 +317,35 @@ public final class GLSLModel {
         };
     }
 
-    private static final class RenderInstance {
+    private static final class RenderMesh {
         final int meshIndex;
-        final Matrix4f transform;
-        final boolean reverseWinding;
+        final float centerX;
+        final float centerY;
+        final float centerZ;
         private float depth;
 
-        RenderInstance(int _meshIndex, Matrix4fc _transform) {
+        RenderMesh(int _meshIndex, FloatBuffer positions) {
             meshIndex = _meshIndex;
-            transform = new Matrix4f(_transform);
-            reverseWinding = transform.determinant3x3() < 0;
+            float minX = Float.POSITIVE_INFINITY, minY = Float.POSITIVE_INFINITY, minZ = Float.POSITIVE_INFINITY;
+            float maxX = Float.NEGATIVE_INFINITY, maxY = Float.NEGATIVE_INFINITY, maxZ = Float.NEGATIVE_INFINITY;
+            while (positions.hasRemaining()) {
+                float x = positions.get();
+                float y = positions.get();
+                float z = positions.get();
+                minX = Math.min(minX, x);
+                minY = Math.min(minY, y);
+                minZ = Math.min(minZ, z);
+                maxX = Math.max(maxX, x);
+                maxY = Math.max(maxY, y);
+                maxZ = Math.max(maxZ, z);
+            }
+            centerX = 0.5f * (minX + maxX);
+            centerY = 0.5f * (minY + maxY);
+            centerZ = 0.5f * (minZ + maxZ);
         }
 
-        void updateDepth(Matrix4fc view, float[] centers) {
-            int center = 3 * meshIndex;
-            float x = centers[center];
-            float y = centers[center + 1];
-            float z = centers[center + 2];
-            float worldX = transform.m00() * x + transform.m10() * y + transform.m20() * z + transform.m30();
-            float worldY = transform.m01() * x + transform.m11() * y + transform.m21() * z + transform.m31();
-            float worldZ = transform.m02() * x + transform.m12() * y + transform.m22() * z + transform.m32();
-            depth = view.m02() * worldX + view.m12() * worldY + view.m22() * worldZ;
+        void updateDepth(Matrix4fc view) {
+            depth = view.m02() * centerX + view.m12() * centerY + view.m22() * centerZ;
         }
 
         float depth() {

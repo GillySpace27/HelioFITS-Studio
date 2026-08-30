@@ -12,6 +12,7 @@ import java.util.Map;
 import org.helioviewer.jhv.base.BufferUtils;
 import org.helioviewer.jhv.io.DataUri;
 
+import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.lwjgl.PointerBuffer;
@@ -71,14 +72,14 @@ public final class AssimpModelLoader {
             throw new IOException("Model skeletons are not supported");
 
         List<MaterialData> materialData = convertMaterials();
-        List<ModelMesh> meshes = convertMeshes(materialData);
-        ArrayList<ModelInstance> instances = new ArrayList<>();
-        convertNode(root, new Matrix4f(), instances);
-        if (instances.isEmpty())
-            throw new IOException("Model scene has no mesh instances");
+        List<ModelMesh> sourceMeshes = convertMeshes(materialData);
+        ArrayList<ModelMesh> meshes = new ArrayList<>();
+        convertNode(root, new Matrix4f(), sourceMeshes, meshes);
+        if (meshes.isEmpty())
+            throw new IOException("Model scene graph contains no meshes");
 
         String name = source.mName().dataString();
-        return new ModelScene(name.isEmpty() ? fallbackName : name, meshes, instances,
+        return new ModelScene(name.isEmpty() ? fallbackName : name, meshes,
                 materialData.stream().map(MaterialData::material).toList(), textures);
     }
 
@@ -401,23 +402,82 @@ public final class AssimpModelLoader {
         lineOffsets.put(indices.position());
     }
 
-    private void convertNode(AINode node, Matrix4fc parentTransform, List<ModelInstance> instances) throws IOException {
+    private void convertNode(AINode node, Matrix4fc parentTransform, List<ModelMesh> sourceMeshes, List<ModelMesh> meshes) throws IOException {
         Matrix4f transform = new Matrix4f(parentTransform).mul(matrix(node.mTransformation()));
         IntBuffer meshIndices = node.mMeshes();
         if (node.mNumMeshes() != 0 && meshIndices == null)
             throw new IOException("Node " + node.mName().dataString() + " has no mesh-index array");
         for (int i = 0; i < node.mNumMeshes(); i++) {
             int meshIndex = meshIndices.get(i);
-            if (meshIndex < 0 || meshIndex >= source.mNumMeshes())
+            if (meshIndex < 0 || meshIndex >= sourceMeshes.size())
                 throw new IOException("Node " + node.mName().dataString() + " uses invalid mesh index " + meshIndex);
-            instances.add(new ModelInstance(meshIndex, transform));
+            meshes.add(transformMesh(sourceMeshes.get(meshIndex), transform));
         }
 
         PointerBuffer children = node.mChildren();
         if (node.mNumChildren() != 0 && children == null)
             throw new IOException("Node " + node.mName().dataString() + " has no child array");
         for (int i = 0; i < node.mNumChildren(); i++)
-            convertNode(AINode.create(children.get(i)), transform, instances);
+            convertNode(AINode.create(children.get(i)), transform, sourceMeshes, meshes);
+    }
+
+    private static ModelMesh transformMesh(ModelMesh mesh, Matrix4fc transform) throws IOException {
+        FloatBuffer sourcePositions = mesh.positions();
+        FloatBuffer positions = BufferUtils.newFloatBuffer(sourcePositions.remaining());
+        while (sourcePositions.hasRemaining()) {
+            float x = sourcePositions.get();
+            float y = sourcePositions.get();
+            float z = sourcePositions.get();
+            positions.put(transform.m00() * x + transform.m10() * y + transform.m20() * z + transform.m30())
+                    .put(transform.m01() * x + transform.m11() * y + transform.m21() * z + transform.m31())
+                    .put(transform.m02() * x + transform.m12() * y + transform.m22() * z + transform.m32());
+        }
+
+        FloatBuffer normals = transformNormals(mesh, transform);
+        IntBuffer indices = mesh.indices();
+        if (mesh.primitive() == ModelMesh.Primitive.TRIANGLES && transform.determinant3x3() < 0)
+            indices = reverseTriangles(indices);
+
+        return new ModelMesh(mesh.name(), mesh.primitive(), positions.flip(), normals, mesh.colors(), mesh.texCoords(), indices,
+                mesh.lineOffsets(), mesh.materialIndex());
+    }
+
+    private static FloatBuffer transformNormals(ModelMesh mesh, Matrix4fc transform) throws IOException {
+        FloatBuffer sourceNormals = mesh.normals();
+        if (sourceNormals == null)
+            return null;
+        if (transform.determinant3x3() == 0)
+            throw new IOException("Triangle mesh " + mesh.name() + " has a singular node transform");
+
+        Matrix3f normalMatrix = transform.normal(new Matrix3f());
+        FloatBuffer normals = BufferUtils.newFloatBuffer(sourceNormals.remaining());
+        while (sourceNormals.hasRemaining()) {
+            float x = sourceNormals.get();
+            float y = sourceNormals.get();
+            float z = sourceNormals.get();
+            float nx = normalMatrix.m00() * x + normalMatrix.m10() * y + normalMatrix.m20() * z;
+            float ny = normalMatrix.m01() * x + normalMatrix.m11() * y + normalMatrix.m21() * z;
+            float nz = normalMatrix.m02() * x + normalMatrix.m12() * y + normalMatrix.m22() * z;
+            float length = (float) Math.sqrt(nx * nx + ny * ny + nz * nz);
+            if (length != 0) {
+                nx /= length;
+                ny /= length;
+                nz /= length;
+            }
+            normals.put(nx).put(ny).put(nz);
+        }
+        return normals.flip();
+    }
+
+    private static IntBuffer reverseTriangles(IntBuffer source) {
+        IntBuffer indices = BufferUtils.newIntBuffer(source.remaining());
+        while (source.hasRemaining()) {
+            int first = source.get();
+            int second = source.get();
+            int third = source.get();
+            indices.put(first).put(third).put(second);
+        }
+        return indices.flip();
     }
 
     private static Matrix4f matrix(AIMatrix4x4 matrix) {

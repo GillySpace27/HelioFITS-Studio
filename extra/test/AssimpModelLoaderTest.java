@@ -4,10 +4,12 @@ import java.awt.image.BufferedImage;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.List;
 import java.util.zip.GZIPOutputStream;
 
 import javax.imageio.ImageIO;
@@ -60,12 +62,12 @@ public final class AssimpModelLoaderTest {
 
     private static void checkScene(ModelScene scene) {
         check(scene.name().equals("URI loader test"), "scene name");
-        check(scene.meshes().size() == 3, "triangle, line and point meshes");
-        check(scene.instances().size() == 6, "two instances of each mesh");
+        check(scene.meshes().size() == 6, "two baked copies of the triangle, line and point meshes");
         check(scene.materials().size() == 3, "materials");
         check(scene.textures().size() == 1, "texture");
 
-        ModelMesh triangles = mesh(scene, ModelMesh.Primitive.TRIANGLES);
+        List<ModelMesh> triangleMeshes = meshes(scene, ModelMesh.Primitive.TRIANGLES);
+        ModelMesh triangles = triangleMeshes.getFirst();
         check(triangles.vertexCount() == 3, "triangle vertex count");
         check(triangles.normals() != null && triangles.normals().remaining() == 9, "generated triangle normals");
         check(triangles.texCoords() != null && triangles.texCoords().remaining() == 6, "texture coordinates");
@@ -86,7 +88,7 @@ public final class AssimpModelLoaderTest {
         checkPixel(texture.rgba(), 0, 0, 0, 255, 64);
         checkPixel(texture.rgba(), 2, 255, 0, 0, 255);
 
-        ModelMesh lines = mesh(scene, ModelMesh.Primitive.LINES);
+        ModelMesh lines = meshes(scene, ModelMesh.Primitive.LINES).getFirst();
         check(lines.indices().remaining() == 3, "line-strip indices");
         check(lines.texCoords() == null, "unused texture coordinates");
         IntBuffer offsets = lines.lineOffsets();
@@ -95,23 +97,58 @@ public final class AssimpModelLoaderTest {
         ModelMaterial drawing = scene.materials().get(lines.materialIndex());
         check(drawing.alphaMode() == ModelMaterial.AlphaMode.BLEND && close(drawing.alpha(), 0.5f), "blended material");
 
-        ModelMesh points = mesh(scene, ModelMesh.Primitive.POINTS);
+        ModelMesh points = meshes(scene, ModelMesh.Primitive.POINTS).getFirst();
         ModelMaterial markers = scene.materials().get(points.materialIndex());
         check(markers.alphaMode() == ModelMaterial.AlphaMode.OPAQUE && close(markers.alpha(), 0.5f), "default opaque material");
 
-        long translated = scene.instances().stream().filter(instance -> Math.abs(instance.transform().m30() - 2) < 1e-6).count();
-        check(translated == 3, "flattened node transforms");
+        ModelMesh transformedTriangles = triangleMeshes.getLast();
+        checkPosition(transformedTriangles.positions(), 0, 2, 0, 0);
+        checkPosition(transformedTriangles.positions(), 1, 0, 0, 0);
+        checkPosition(transformedTriangles.positions(), 2, 2, 3, 0.5f);
+        IntBuffer transformedIndices = transformedTriangles.indices();
+        check(transformedIndices.get(0) == 0 && transformedIndices.get(1) == 2 && transformedIndices.get(2) == 1,
+                "mirrored triangle winding");
+        checkNormalMatchesWinding(transformedTriangles);
+
+        checkPosition(meshes(scene, ModelMesh.Primitive.LINES).getLast().positions(), 2, 2, 3, 0.5f);
+        checkPosition(meshes(scene, ModelMesh.Primitive.POINTS).getLast().positions(), 1, 2, 3, 0.5f);
     }
 
-    private static ModelMesh mesh(ModelScene scene, ModelMesh.Primitive primitive) {
-        return scene.meshes().stream().filter(mesh -> mesh.primitive() == primitive).findFirst().orElseThrow();
+    private static List<ModelMesh> meshes(ModelScene scene, ModelMesh.Primitive primitive) {
+        return scene.meshes().stream().filter(mesh -> mesh.primitive() == primitive).toList();
+    }
+
+    private static void checkPosition(FloatBuffer positions, int vertex, float x, float y, float z) {
+        check(close(positions.get(3 * vertex), x) && close(positions.get(3 * vertex + 1), y) && close(positions.get(3 * vertex + 2), z),
+                "transformed vertex " + vertex);
+    }
+
+    private static void checkNormalMatchesWinding(ModelMesh mesh) {
+        FloatBuffer positions = mesh.positions();
+        FloatBuffer normals = mesh.normals();
+        IntBuffer indices = mesh.indices();
+        int a = indices.get(0);
+        int b = indices.get(1);
+        int c = indices.get(2);
+        float abx = positions.get(3 * b) - positions.get(3 * a);
+        float aby = positions.get(3 * b + 1) - positions.get(3 * a + 1);
+        float abz = positions.get(3 * b + 2) - positions.get(3 * a + 2);
+        float acx = positions.get(3 * c) - positions.get(3 * a);
+        float acy = positions.get(3 * c + 1) - positions.get(3 * a + 1);
+        float acz = positions.get(3 * c + 2) - positions.get(3 * a + 2);
+        float nx = aby * acz - abz * acy;
+        float ny = abz * acx - abx * acz;
+        float nz = abx * acy - aby * acx;
+        float dot = nx * normals.get(3 * a) + ny * normals.get(3 * a + 1) + nz * normals.get(3 * a + 2);
+        float crossLength = (float) Math.sqrt(nx * nx + ny * ny + nz * nz);
+        check(dot > 0.999f * crossLength, "transformed normal follows mirrored winding and non-uniform scale");
     }
 
     private static void writeGeometry(Path path) throws Exception {
         ByteBuffer data = ByteBuffer.allocate(88).order(ByteOrder.LITTLE_ENDIAN);
         data.putFloat(0).putFloat(0).putFloat(0);
         data.putFloat(1).putFloat(0).putFloat(0);
-        data.putFloat(0).putFloat(1).putFloat(0);
+        data.putFloat(0).putFloat(1).putFloat(1);
         data.putFloat(0).putFloat(0);
         data.putFloat(1).putFloat(0);
         data.putFloat(0).putFloat(1);
@@ -139,7 +176,8 @@ public final class AssimpModelLoaderTest {
                   "scenes": [{"name": "URI loader test", "nodes": [0]}],
                   "nodes": [
                     {"mesh": 0, "children": [1]},
-                    {"mesh": 0, "translation": [2, 0, 0]}
+                    {"translation": [2, 0, 0], "children": [2]},
+                    {"mesh": 0, "scale": [-2, 3, 0.5]}
                   ],
                   "buffers": [{"byteLength": 88, "uri": "geometry.bin"}],
                   "bufferViews": [

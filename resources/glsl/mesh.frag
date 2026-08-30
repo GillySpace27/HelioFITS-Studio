@@ -3,9 +3,14 @@
 precision highp float;
 
 in vec4 vertexColor;
-in vec3 viewNormal;
+in vec3 worldNormal;
 in vec2 texturePosition;
 out vec4 outColor;
+
+layout(std140) uniform FrameBlock {
+    mat4 worldToClip;
+    vec3 lightDirection;
+} frame;
 
 layout(std140) uniform MaterialBlock {
     vec4 baseColor;
@@ -26,10 +31,10 @@ void main(void) {
         color *= texture(baseColorTexture, texturePosition);
 
     if (material.unlit == 0.) {
-        vec3 normal = normalize(viewNormal);
+        vec3 normal = normalize(worldNormal);
         if (!gl_FrontFacing)
             normal = -normal;
-        color.rgb *= 0.3 + 0.7 * max(normal.z, 0.);
+        color.rgb *= 0.3 + 0.7 * max(dot(normal, frame.lightDirection), 0.);
     }
 
     if (material.alphaMode == ALPHA_OPAQUE) {

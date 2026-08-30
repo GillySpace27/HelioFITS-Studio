@@ -6,15 +6,17 @@ layout(location = 2) in vec3 normal;
 layout(location = 3) in vec2 textureCoordinate;
 
 out vec4 vertexColor;
-out vec3 viewNormal;
+out vec3 worldNormal;
 out vec2 texturePosition;
 
-uniform mat4 modelViewProjectionMatrix;
-uniform mat3 normalMatrix;
+layout(std140) uniform FrameBlock {
+    mat4 worldToClip;
+    vec3 lightDirection;
+} frame;
 
 void main(void) {
-    gl_Position = modelViewProjectionMatrix * vec4(vertex, 1.);
+    gl_Position = frame.worldToClip * vec4(vertex, 1.);
     vertexColor = color;
-    viewNormal = normalMatrix * normal;
+    worldNormal = normal;
     texturePosition = textureCoordinate;
 }

@@ -12,6 +12,7 @@ abstract class GLSLShader {
         static final int DISPLAY = 2;
         static final int LINE_SCREEN = 3;
         static final int MESH_MATERIAL = 4;
+        static final int MESH_FRAME = 5;
 
         private UBO() {
         }
