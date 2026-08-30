@@ -16,7 +16,6 @@ import org.helioviewer.jhv.image.ImageBufferCache;
 import org.helioviewer.jhv.image.lut.LUT;
 import org.helioviewer.jhv.io.APIRequest;
 import org.helioviewer.jhv.io.DataUri;
-import org.helioviewer.jhv.io.DataUri.Format.Image;
 import org.helioviewer.jhv.metadata.BasicMetaData;
 import org.helioviewer.jhv.metadata.FitsMetaData;
 import org.helioviewer.jhv.metadata.MetaData;
@@ -60,14 +59,14 @@ public class J2KView extends BaseView {
         request = _request;
 
         try {
-            boolean isJP2 = dataUri.format() == Image.JP2;
+            boolean isJP2 = dataUri.format() == DataUri.Format.JP2;
             switch (dataUri.format()) {
-                case Image.JPIP -> {
+                case JPIP -> {
                     J2KSource.Remote remote = new J2KSource.Remote();
                     reader = new J2KReader(dataUri.uri(), remote);
                     source = remote;
                 }
-                case Image.JP2, Image.JPX -> {
+                case JP2, JPX -> {
                     reader = null;
                     source = new J2KSource.Local(dataUri.file().toString(), isJP2);
                 }

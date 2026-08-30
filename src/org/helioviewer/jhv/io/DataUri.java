@@ -16,41 +16,36 @@ public class DataUri {
         String sourcePath = sourceUri.getPath();
         if (sourcePath != null) {
             sourcePath = sourcePath.toLowerCase();
-            if (sourcePath.endsWith(".fits.gz"))
-                return Format.Image.FITS;
+            boolean gzip = sourcePath.endsWith(".gz");
+            if (gzip)
+                sourcePath = sourcePath.substring(0, sourcePath.length() - 3);
+            if (gzip && sourcePath.endsWith(".fits"))
+                return Format.FITS;
             if (sourcePath.endsWith(".gltf") || sourcePath.endsWith(".glb"))
-                return Format.Model.GLTF;
+                return Format.GLTF;
         }
 
         return getFormat(tika.detect(file));
     }
 
     private static final Map<String, Format> map = Map.of(
-            "application/x-jpp-stream", Format.Image.JPIP,
-            "image/jp2", Format.Image.JP2,
-            "image/jpx", Format.Image.JPX,
-            "application/fits", Format.Image.FITS,
-            "image/png", Format.Image.PNG,
-            "image/jpeg", Format.Image.JPEG,
-            "application/zip", Format.Image.ZIP,
-            "application/x-netcdf", Format.Timeline.CDF,
-            "text/csv", Format.Timeline.CSV
+            "application/x-jpp-stream", Format.JPIP,
+            "image/jp2", Format.JP2,
+            "image/jpx", Format.JPX,
+            "application/fits", Format.FITS,
+            "image/png", Format.PNG,
+            "image/jpeg", Format.JPEG,
+            "application/zip", Format.ZIP,
+            "application/x-netcdf", Format.CDF,
+            "text/csv", Format.CSV
     );
 
     private static Format getFormat(String spec) {
         Format f = map.get(spec);
-        return f == null ? Format.Unknown.UNKNOWN : f;
+        return f == null ? Format.UNKNOWN : f;
     }
 
-    public interface Format {
-        enum Unknown implements Format {UNKNOWN}
-
-        enum Image implements Format {JPIP, JP2, JPX, FITS, PNG, JPEG, ZIP}
-
-        enum Model implements Format {GLTF}
-
-        enum Timeline implements Format {CDF, CSV}
-    }
+    public enum Format {UNKNOWN, JPIP, JP2, JPX, FITS, PNG, JPEG, ZIP, GLTF, CDF, CSV}
 
     private final URI sourceUri;
     private final URI uri;
@@ -62,7 +57,7 @@ public class DataUri {
         sourceUri = originalUri;
         uri = cachedUri;
         file = _file;
-        format = file == null ? Format.Image.JPIP : detect(originalUri, file); // JPIP not backed by file
+        format = file == null ? Format.JPIP : detect(originalUri, file); // JPIP not backed by file
         baseName = FilenameUtils.getName(originalUri.toString());
     }
 

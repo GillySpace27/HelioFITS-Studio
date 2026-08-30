@@ -15,7 +15,6 @@ import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.image.DecodedImage;
 import org.helioviewer.jhv.io.APIRequest;
 import org.helioviewer.jhv.io.DataUri;
-import org.helioviewer.jhv.io.DataUri.Format.Image;
 import org.helioviewer.jhv.io.DownloadLayer;
 import org.helioviewer.jhv.io.FileUtils;
 import org.helioviewer.jhv.io.JSONUtils;
@@ -146,9 +145,9 @@ final class ImageLayerLoader {
     private View createView(APIRequest req, URI uri) throws Exception {
         DataUri dataUri = NetFileCache.get(uri);
         return switch (dataUri.format()) {
-            case Image.JPIP, Image.JP2, Image.JPX -> new J2KView(executor, req, dataUri);
-            case Image.FITS, Image.PNG, Image.JPEG -> new URIView(executor, dataUri);
-            case Image.ZIP -> loadZip(dataUri.uri());
+            case JPIP, JP2, JPX -> new J2KView(executor, req, dataUri);
+            case FITS, PNG, JPEG -> new URIView(executor, dataUri);
+            case ZIP -> loadZip(dataUri.uri());
             default -> throw new Exception("Unknown image type");
         };
     }

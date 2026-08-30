@@ -470,8 +470,8 @@ public class BandReaderHapi {
     private static List<BandData> getHapiUri(URI uri) throws Exception { // tbd
         DataUri dataUri = NetFileCache.get(uri);
         return switch (dataUri.format()) {
-            case DataUri.Format.Image.ZIP -> loadZIP(dataUri);
-            case DataUri.Format.Timeline.CSV -> getHapiLocalCSV(dataUri);
+            case ZIP -> loadZIP(dataUri);
+            case CSV -> getHapiLocalCSV(dataUri);
             default -> throw new Exception("Unknown image type");
         };
     }

@@ -131,7 +131,7 @@ public final class RadioData extends TimelineLayer {
         public RadioJ2KData call() throws Exception {
             APIRequest req = new APIRequest("ROB", APIRequest.CallistoID, date, date, APIRequest.CADENCE_ALL);
             DataUri dataUri = NetFileCache.get(new URI(req.toFileRequest()));
-            if (dataUri.format() != DataUri.Format.Image.JP2) // paranoia
+            if (dataUri.format() != DataUri.Format.JP2) // paranoia
                 throw new Exception("Invalid data format");
 
             return new RadioJ2KData(RadioData.this, req, dataUri);
