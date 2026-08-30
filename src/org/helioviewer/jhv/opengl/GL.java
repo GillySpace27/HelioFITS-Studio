@@ -46,10 +46,13 @@ public final class GL {
     public static final int LEQUAL = GLES30.GL_LEQUAL;
     public static final int LINEAR = GLES30.GL_LINEAR;
     public static final int LINEAR_MIPMAP_LINEAR = GLES30.GL_LINEAR_MIPMAP_LINEAR;
+    public static final int LINEAR_MIPMAP_NEAREST = GLES30.GL_LINEAR_MIPMAP_NEAREST;
     public static final int LINK_STATUS = GLES30.GL_LINK_STATUS;
     public static final int MAX_SAMPLES = GLES30.GL_MAX_SAMPLES;
     public static final int MAX_TEXTURE_SIZE = GLES30.GL_MAX_TEXTURE_SIZE;
     public static final int NEAREST = GLES30.GL_NEAREST;
+    public static final int NEAREST_MIPMAP_LINEAR = GLES30.GL_NEAREST_MIPMAP_LINEAR;
+    public static final int NEAREST_MIPMAP_NEAREST = GLES30.GL_NEAREST_MIPMAP_NEAREST;
     public static final int NO_ERROR = GLES30.GL_NO_ERROR;
     public static final int ONE = GLES30.GL_ONE;
     public static final int ONE_MINUS_SRC_ALPHA = GLES30.GL_ONE_MINUS_SRC_ALPHA;

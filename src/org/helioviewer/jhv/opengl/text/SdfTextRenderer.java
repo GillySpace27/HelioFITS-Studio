@@ -418,17 +418,8 @@ public final class SdfTextRenderer {
                         + expectedWidth + "x" + expectedHeight);
             }
 
-            texture.bind();
-            GL.glPixelStorei(GL.UNPACK_ALIGNMENT, 1);
-            GL.glPixelStorei(GL.UNPACK_ROW_LENGTH, expectedWidth);
-            GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_BASE_LEVEL, 0);
-            GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_MAX_LEVEL, 15);
-            GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_MIN_FILTER, GL.LINEAR_MIPMAP_LINEAR);
-            GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_MAG_FILTER, GL.LINEAR);
-            GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_WRAP_S, GL.CLAMP_TO_EDGE);
-            GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_WRAP_T, GL.CLAMP_TO_EDGE);
-            GL.glTexImage2D(GL.TEXTURE_2D, 0, GL.R8, expectedWidth, expectedHeight, 0, GL.RED, GL.UNSIGNED_BYTE, pixels);
-            GL.glGenerateMipmap(GL.TEXTURE_2D);
+            texture.upload2D(GLTexture.Format.R8, expectedWidth, expectedHeight, GL.LINEAR_MIPMAP_LINEAR, GL.LINEAR,
+                    GL.CLAMP_TO_EDGE, GL.CLAMP_TO_EDGE, pixels);
         }
 
         private void bind() {

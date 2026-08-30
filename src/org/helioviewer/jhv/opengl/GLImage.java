@@ -3,7 +3,6 @@ package org.helioviewer.jhv.opengl;
 import java.nio.ByteBuffer;
 import java.util.Set;
 
-import org.helioviewer.jhv.base.BufferUtils;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.lut.LUT;
@@ -25,10 +24,10 @@ public class GLImage {
     public static final int MAX_DCRVAL = 180;
     public static final int MAX_MASK = 32;
 
-    private GLTexture tex;
+    private GLStreamingTexture2D tex;
     private GLTexture lutTex;
-    private GLTexture diffTex;
-    private GLTexture maskTex;
+    private GLStreamingTexture2D diffTex;
+    private GLStreamingTexture2D maskTex;
 
     private float red = 1;
     private float green = 1;
@@ -70,16 +69,13 @@ public class GLImage {
 
     public void streamImage(View.ImageData imageData, View.ImageData prevImageData, View.ImageData baseImageData) {
         if (uploadedImageData != imageData) {
-            tex.bind();
-            tex.copyImageBuffer(imageData.imageBuffer(), GL.LINEAR);
+            tex.upload(imageData.imageBuffer(), GL.LINEAR);
             uploadedImageData = imageData;
         }
 
         View.ImageData prevFrame = diffMode == DifferenceMode.Base ? baseImageData : prevImageData;
-        if (diffMode != DifferenceMode.None && prevFrame != null) {
-            diffTex.bind();
-            diffTex.copyImageBuffer(prevFrame.imageBuffer(), GL.LINEAR);
-        }
+        if (diffMode != DifferenceMode.None && prevFrame != null)
+            diffTex.upload(prevFrame.imageBuffer(), GL.LINEAR);
     }
 
     public void collectImageBuffers(Set<ImageBuffer> retained) {
@@ -129,35 +125,31 @@ public class GLImage {
 
     private void applyLUT() {
         lutTex.bind();
-
         LUT currlut = diffMode == DifferenceMode.None ? lut : LUT.gray();
         if (lutChanged || lastLut != currlut || invertLUT != lastInverted) {
             ByteBuffer lutBuffer = invertLUT ? currlut.rgbaInv() : currlut.rgba();
             lastLut = currlut;
             lastInverted = invertLUT;
 
-            GLTexture.copyByteImage(lutBuffer.remaining() / 4, 1, GL.NEAREST, lutBuffer);
+            lutTex.upload2D(GLTexture.Format.RGBA8, lutBuffer.remaining() / 4, 1, GL.NEAREST, lutBuffer);
         }
         lutChanged = false;
     }
 
     public void init() {
-        tex = new GLTexture(GL.TEXTURE_2D, GLTexture.Unit.ZERO);
+        tex = new GLStreamingTexture2D(GLTexture.Unit.ZERO);
         lutTex = new GLTexture(GL.TEXTURE_2D, GLTexture.Unit.ONE);
-        diffTex = new GLTexture(GL.TEXTURE_2D, GLTexture.Unit.TWO);
-        maskTex = new GLTexture(GL.TEXTURE_2D, GLTexture.Unit.THREE);
+        diffTex = new GLStreamingTexture2D(GLTexture.Unit.TWO);
+        maskTex = new GLStreamingTexture2D(GLTexture.Unit.THREE);
         // Texture objects were recreated, so their corresponding upload bookkeeping must start fresh.
         uploadedImageData = null;
         lutChanged = true;
         uploadedMask = DetectorMask.NONE;
 
         // Keep diffImage and mask samplers backed by a complete texture from startup to avoid macOS driver warnings.
-        diffTex.bind();
-        ByteBuffer emptyDiffTexture = BufferUtils.newByteBuffer(4).put(new byte[]{0, 0, 0, (byte) 0xFF}).flip();
-        GLTexture.copyByteImage(1, 1, GL.LINEAR, emptyDiffTexture);
+        diffTex.upload(ImageBuffer.fromBytes(1, 1, ImageBuffer.Format.RGBA32, new byte[]{0, 0, 0, (byte) 0xFF}), GL.LINEAR);
 
-        maskTex.bind();
-        maskTex.copyImageBuffer(uploadedMask.getImageBuffer(), GL.NEAREST);
+        maskTex.upload(uploadedMask.getImageBuffer(), GL.NEAREST);
     }
 
     public void dispose() {
@@ -174,8 +166,7 @@ public class GLImage {
     private void applyMask(DetectorMask detectorMask) {
         if (uploadedMask == detectorMask)
             return;
-        maskTex.bind();
-        maskTex.copyImageBuffer(detectorMask.getImageBuffer(), GL.NEAREST);
+        maskTex.upload(detectorMask.getImageBuffer(), GL.NEAREST);
         uploadedMask = detectorMask;
     }
 

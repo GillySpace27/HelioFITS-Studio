@@ -104,10 +104,9 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
                 }
 
                 tex = new GLTexture(GL.TEXTURE_2D, GLTexture.Unit.THREE);
-                tex.bind();
 
                 ByteBuffer data = NativeImageFactory.getByteBuffer(bi);
-                GLTexture.copyByteImage(bi.getWidth(), bi.getHeight(), GL.LINEAR, data);
+                tex.upload2D(GLTexture.Format.RGBA8, bi.getWidth(), bi.getHeight(), GL.LINEAR, data);
             } finally {
                 NativeImageFactory.free(bi);
             }
