@@ -144,11 +144,8 @@ public class GLImage {
         // Texture objects were recreated, so their corresponding upload bookkeeping must start fresh.
         uploadedImageData = null;
         lutChanged = true;
+
         uploadedMask = DetectorMask.NONE;
-
-        // Keep diffImage and mask samplers backed by a complete texture from startup to avoid macOS driver warnings.
-        diffTex.upload(ImageBuffer.fromBytes(1, 1, ImageBuffer.Format.RGBA32, new byte[]{0, 0, 0, (byte) 0xFF}), GL.LINEAR);
-
         maskTex.upload(uploadedMask.getImageBuffer(), GL.NEAREST);
     }
 
