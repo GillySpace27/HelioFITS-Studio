@@ -48,6 +48,7 @@ public final class SdfTextRenderer {
     private final GLSLTexture glslTexture = new GLSLTexture();
     private float[] textColor = Colors.WhiteFloat;
     private int queuedVertices;
+    private boolean rendering3D;
     private final BufCoord coordBuf = new BufCoord(TOTAL_BUFFER_VERTICES);
 
     private final Vector3f transformedA = new Vector3f();
@@ -167,9 +168,8 @@ public final class SdfTextRenderer {
             Transform.setOrtho2DProjection(0, width, 0, height);
             Transform.pushView();
             Transform.setIdentityView();
-        } else {
-            GL.glDepthMask(false);
-        }
+        } else
+            rendering3D = true;
     }
 
     private void endRendering(boolean ortho) {
@@ -179,9 +179,8 @@ public final class SdfTextRenderer {
 
             Transform.popView();
             Transform.popProjection();
-        } else {
-            GL.glDepthMask(true);
-        }
+        } else
+            rendering3D = false;
     }
 
     private AtlasMetadata loadAtlas() throws IOException {
@@ -285,12 +284,19 @@ public final class SdfTextRenderer {
 
     private void drawVertices() {
         if (queuedVertices > 0) {
-            texture.bind();
+            if (rendering3D)
+                GL.glDepthMask(false);
+            try {
+                texture.bind();
 
-            glslTexture.init();
-            glslTexture.setCoord(coordBuf);
-            glslTexture.renderSdfTexture(GL.TRIANGLES, textColor, unitRangeX, unitRangeY, 0, queuedVertices);
-            queuedVertices = 0;
+                glslTexture.init();
+                glslTexture.setCoord(coordBuf);
+                glslTexture.renderSdfTexture(GL.TRIANGLES, textColor, unitRangeX, unitRangeY, 0, queuedVertices);
+                queuedVertices = 0;
+            } finally {
+                if (rendering3D)
+                    GL.glDepthMask(true);
+            }
         }
     }
 

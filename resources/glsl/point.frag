@@ -5,6 +5,8 @@ precision highp float;
 in vec4 fragColor;
 out vec4 outColor;
 
+uniform bool opaquePass;
+
 void main(void) {
     vec2 coord = 2.0 * gl_PointCoord - vec2(1.0);
     float radius2 = dot(coord, coord);
@@ -17,5 +19,10 @@ void main(void) {
     float coverage = 1.0 - smoothstep(1.0 - delta, 1.0, radius);
     if (coverage <= 0.0)
         discard;
+
+    bool opaqueCore = fragColor.a >= 1.0 && coverage >= 1.0;
+    if (opaqueCore != opaquePass)
+        discard;
+
     outColor = fragColor * coverage;
 }

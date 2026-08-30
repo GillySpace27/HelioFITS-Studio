@@ -74,7 +74,6 @@ public class GLSLLine extends VAO implements GLSLVertexReceiver {
         // Let fully opaque line cores occlude later geometry. The second pass
         // adds translucent colors and antialiasing without writing their depth.
         GLSLLineShader.line.bindOpaquePass(true);
-        GL.glDepthMask(true);
         GL.glDrawArraysInstanced(GL.TRIANGLE_STRIP, 0, 4, count);
 
         GLSLLineShader.line.bindOpaquePass(false);

@@ -158,16 +158,16 @@ public final class GLSLModel {
         transparentMeshes.sort(BACK_TO_FRONT);
 
         double pointFactor = ViewportMath.getPixelFactor(vp, mv.cameraWidth(vp));
-        try {
-            for (RenderMesh mesh : transparentMeshes) {
+        for (RenderMesh mesh : transparentMeshes) {
+            if (triangleMeshes[mesh.meshIndex] != null) {
                 GL.glDepthMask(false);
-                if (triangleMeshes[mesh.meshIndex] != null)
+                try {
                     renderTriangle(mesh.meshIndex);
-                else
-                    renderDrawing(mesh.meshIndex, vp, pointFactor, worldToClip);
-            }
-        } finally {
-            GL.glDepthMask(true);
+                } finally {
+                    GL.glDepthMask(true);
+                }
+            } else
+                renderDrawing(mesh.meshIndex, vp, pointFactor, worldToClip);
         }
     }
 

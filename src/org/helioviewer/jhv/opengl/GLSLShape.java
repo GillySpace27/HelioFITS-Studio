@@ -47,7 +47,14 @@ public class GLSLShape extends VAO implements GLSLVertexReceiver {
         GLSLShapeShader.point.bindMVP(mvp);
 
         bind();
+
+        GLSLShapeShader.point.bindOpaquePass(true);
         GL.glDrawArrays(GL.POINTS, 0, count);
+
+        GLSLShapeShader.point.bindOpaquePass(false);
+        GL.glDepthMask(false);
+        GL.glDrawArrays(GL.POINTS, 0, count);
+        GL.glDepthMask(true);
     }
 
     public void renderShape(int mode) {
