@@ -32,6 +32,7 @@ public final class GL {
     public static final int DEPTH_TEST = GLES30.GL_DEPTH_TEST;
     public static final int DRAW_FRAMEBUFFER = GLES30.GL_DRAW_FRAMEBUFFER;
     public static final int DYNAMIC_DRAW = GLES30.GL_DYNAMIC_DRAW;
+    public static final int ELEMENT_ARRAY_BUFFER = GLES30.GL_ELEMENT_ARRAY_BUFFER;
     public static final int FLOAT = GLES30.GL_FLOAT;
     public static final int FRAGMENT_SHADER = GLES30.GL_FRAGMENT_SHADER;
     public static final int FRAMEBUFFER = GLES30.GL_FRAMEBUFFER;
@@ -86,6 +87,7 @@ public final class GL {
     public static final int UNPACK_ALIGNMENT = GLES30.GL_UNPACK_ALIGNMENT;
     public static final int UNPACK_ROW_LENGTH = GLES30.GL_UNPACK_ROW_LENGTH;
     public static final int UNSIGNED_BYTE = GLES30.GL_UNSIGNED_BYTE;
+    public static final int UNSIGNED_INT = GLES30.GL_UNSIGNED_INT;
     public static final int VENDOR = GLES30.GL_VENDOR;
     public static final int VERSION = GLES30.GL_VERSION;
     public static final int VERTEX_SHADER = GLES30.GL_VERTEX_SHADER;
@@ -253,6 +255,10 @@ public final class GL {
         GLES30.glDrawArraysInstanced(mode, first, count, primcount);
     }
 
+    public static void glDrawElements(int mode, int count, int type, long offset) {
+        GLES30.glDrawElements(mode, count, type, offset);
+    }
+
     public static void glEnable(int cap) {
         GLES30.glEnable(cap);
     }
@@ -399,6 +405,10 @@ public final class GL {
 
     public static void glUniformBlockBinding(int program, int blockIndex, int binding) {
         GLES30.glUniformBlockBinding(program, blockIndex, binding);
+    }
+
+    public static void glUniformMatrix3fv(int location, boolean transpose, FloatBuffer value) {
+        GLES30.glUniformMatrix3fv(location, transpose, value);
     }
 
     public static void glUniformMatrix4fv(int location, boolean transpose, FloatBuffer value) {

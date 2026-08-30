@@ -17,17 +17,19 @@ public record ModelScene(String name, List<ModelMesh> meshes, List<ModelInstance
         if (materials.isEmpty())
             throw new IllegalArgumentException("Model scene has no materials");
 
+        for (ModelMaterial material : materials) {
+            if (material.baseColorTexture() < ModelMaterial.NO_TEXTURE || material.baseColorTexture() >= textures.size())
+                throw new IllegalArgumentException("Invalid texture index: " + material.baseColorTexture());
+        }
         for (ModelMesh mesh : meshes) {
             if (mesh.materialIndex() >= materials.size())
                 throw new IllegalArgumentException("Invalid material index: " + mesh.materialIndex());
+            if (materials.get(mesh.materialIndex()).baseColorTexture() != ModelMaterial.NO_TEXTURE && !mesh.hasTextureCoordinates())
+                throw new IllegalArgumentException("Textured mesh has no texture coordinates: " + mesh.name());
         }
         for (ModelInstance instance : instances) {
             if (instance.meshIndex() < 0 || instance.meshIndex() >= meshes.size())
                 throw new IllegalArgumentException("Invalid mesh index: " + instance.meshIndex());
-        }
-        for (ModelMaterial material : materials) {
-            if (material.baseColorTexture() < ModelMaterial.NO_TEXTURE || material.baseColorTexture() >= textures.size())
-                throw new IllegalArgumentException("Invalid texture index: " + material.baseColorTexture());
         }
     }
 

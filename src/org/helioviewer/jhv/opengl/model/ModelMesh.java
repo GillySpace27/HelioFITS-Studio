@@ -51,7 +51,7 @@ public record ModelMesh(String name, Primitive primitive, FloatBuffer positions,
 
         switch (primitive) {
             case TRIANGLES -> {
-                if (indices.remaining() % 3 != 0)
+                if (!indices.hasRemaining() || indices.remaining() % 3 != 0)
                     throw new IllegalArgumentException("Triangle mesh does not contain a whole number of triangles");
             }
             case LINES -> validateLines(indices, lineOffsets);
@@ -75,6 +75,10 @@ public record ModelMesh(String name, Primitive primitive, FloatBuffer positions,
 
     public int vertexCount() {
         return positions.remaining() / 3;
+    }
+
+    public boolean hasTextureCoordinates() {
+        return texCoords != null;
     }
 
     @Override
