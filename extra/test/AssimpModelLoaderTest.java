@@ -1,6 +1,7 @@
 package org.helioviewer.jhv.opengl.model;
 
 import java.awt.image.BufferedImage;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -25,12 +26,14 @@ public final class AssimpModelLoaderTest {
         Path directory = Files.createTempDirectory("jhv-assimp-");
         try {
             Path model = directory.resolve("model.gltf");
-            byte[] json = modelJson().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            String document = modelJson();
+            byte[] json = document.getBytes(java.nio.charset.StandardCharsets.UTF_8);
             Files.write(model, json);
             writeGeometry(directory.resolve("geometry.bin"));
             writeTexture(directory.resolve("texture.png"));
 
             checkScene(AssimpModelLoader.load(NetFileCache.get(model.toUri())));
+            checkTexturedDrawingsRejected(directory, document);
             checkLayer(model);
 
             Path compressed = directory.resolve("model.gltf.gz");
@@ -43,6 +46,26 @@ public final class AssimpModelLoaderTest {
                 for (Path path : paths.sorted(Comparator.reverseOrder()).toList())
                     Files.delete(path);
             }
+        }
+    }
+
+    private static void checkTexturedDrawingsRejected(Path directory, String document) throws Exception {
+        String line = "\"indices\": 4, \"material\": 1, \"mode\": 3";
+        String point = "\"indices\": 5, \"material\": 2, \"mode\": 0";
+        check(document.contains(line) && document.contains(point), "drawing primitives");
+        checkLoadRejected(directory.resolve("textured-line.gltf"), document.replace(line,
+                "\"indices\": 4, \"material\": 0, \"mode\": 3"), "Textures are not supported on line mesh");
+        checkLoadRejected(directory.resolve("textured-point.gltf"), document.replace(point,
+                "\"indices\": 5, \"material\": 0, \"mode\": 0"), "Textures are not supported on point mesh");
+    }
+
+    private static void checkLoadRejected(Path path, String document, String expectedMessage) throws Exception {
+        Files.writeString(path, document);
+        try {
+            AssimpModelLoader.load(NetFileCache.get(path.toUri()));
+            throw new AssertionError("model was accepted: " + path.getFileName());
+        } catch (IOException e) {
+            check(e.getMessage().contains(expectedMessage), "unexpected rejection: " + e.getMessage());
         }
     }
 
