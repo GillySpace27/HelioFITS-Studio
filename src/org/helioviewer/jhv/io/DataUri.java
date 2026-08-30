@@ -12,11 +12,17 @@ public class DataUri {
 
     private static final Tika tika = new Tika();
 
-    private static Format detect(File file) throws IOException {
-        if (file.getPath().toLowerCase().endsWith(".fits.gz")) // hack
-            return Format.Image.FITS;
-        else
-            return getFormat(tika.detect(file));
+    private static Format detect(URI sourceUri, File file) throws IOException {
+        String sourcePath = sourceUri.getPath();
+        if (sourcePath != null) {
+            sourcePath = sourcePath.toLowerCase();
+            if (sourcePath.endsWith(".fits.gz"))
+                return Format.Image.FITS;
+            if (sourcePath.endsWith(".gltf") || sourcePath.endsWith(".glb"))
+                return Format.Model.GLTF;
+        }
+
+        return getFormat(tika.detect(file));
     }
 
     private static final Map<String, Format> map = Map.of(
@@ -41,6 +47,8 @@ public class DataUri {
 
         enum Image implements Format {JPIP, JP2, JPX, FITS, PNG, JPEG, ZIP}
 
+        enum Model implements Format {GLTF}
+
         enum Timeline implements Format {CDF, CSV}
     }
 
@@ -54,7 +62,7 @@ public class DataUri {
         sourceUri = originalUri;
         uri = cachedUri;
         file = _file;
-        format = file == null ? Format.Image.JPIP : detect(file); // JPIP not backed by file
+        format = file == null ? Format.Image.JPIP : detect(originalUri, file); // JPIP not backed by file
         baseName = FilenameUtils.getName(originalUri.toString());
     }
 
