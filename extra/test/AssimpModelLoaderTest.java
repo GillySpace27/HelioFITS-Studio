@@ -7,6 +7,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
@@ -27,13 +28,14 @@ public final class AssimpModelLoaderTest {
         try {
             Path model = directory.resolve("model.gltf");
             String document = modelJson();
-            byte[] json = document.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            byte[] json = document.getBytes(StandardCharsets.UTF_8);
             Files.write(model, json);
             writeGeometry(directory.resolve("geometry.bin"));
             writeTexture(directory.resolve("texture.png"));
 
             checkScene(AssimpModelLoader.load(NetFileCache.get(model.toUri())));
             checkTexturedDrawingsRejected(directory, document);
+            checkPositionMetadata(directory, document);
             checkLayer(model);
 
             Path compressed = directory.resolve("model.gltf.gz");
@@ -49,6 +51,75 @@ public final class AssimpModelLoaderTest {
         }
     }
 
+    private static void checkPositionMetadata(Path directory, String document) throws Exception {
+        String scene = "\"scenes\": [{\"name\": \"URI loader test\", \"nodes\": [0]}]";
+        String positionedScene = "\"scenes\": [{\"name\": \"URI loader test\", \"nodes\": [0], \"extras\": {" +
+                "\"DATE-OBS\": \"2025-10-09T18:19:52\", \"WCSNAME\": \"Heliocentric-cartesian\", " +
+                "\"CTYPE1\": \"SOLX\", \"CTYPE2\": \"SOLY\", \"CTYPE3\": \"SOLZ\", " +
+                "\"CUNIT1\": \"solRad\", \"CUNIT2\": \"solRad\", \"CUNIT3\": \"solRad\", " +
+                "\"RSUN_REF\": 695700000.0, \"CRLN_OBS\": 90, \"CRLT_OBS\": -30}}]";
+        check(document.contains(scene), "scene metadata insertion point");
+
+        Path positioned = directory.resolve("positioned.gltf");
+        Path glb = directory.resolve("positioned.glb");
+        try {
+            String positionedDocument = document.replace(scene, positionedScene);
+            Files.writeString(positioned, positionedDocument);
+            checkPositionedScene(AssimpModelLoader.load(NetFileCache.get(positioned.toUri())));
+            check(new ModelLayer(positioned.toUri()).getTimeString().equals("2025-10-09T18:19:52.000"), "layer observation time");
+
+            writeGlb(glb, positionedDocument, Files.readAllBytes(directory.resolve("geometry.bin")));
+            checkPositionedScene(AssimpModelLoader.load(NetFileCache.get(glb.toUri())));
+
+            checkPositionRejected(directory, document, scene, positionedScene.replace("\"DATE-OBS\"", "\"DATE_OBS\""),
+                    "heliocentric Cartesian coordinates require DATE-OBS");
+            checkPositionRejected(directory, document, scene, positionedScene.replace("\"CTYPE1\": \"SOLX\"", "\"CTYPE1\": \"SOLZ\""),
+                    "CTYPE1 must be SOLX");
+            checkPositionRejected(directory, document, scene, positionedScene.replace("\"CUNIT1\": \"solRad\"", "\"CUNIT1\": \"km\""),
+                    "CUNIT1 must be solRad");
+            checkPositionRejected(directory, document, scene, positionedScene.replace(", \"CRLT_OBS\": -30", ""),
+                    "missing CRLT_OBS in solar metadata");
+        } finally {
+            Files.deleteIfExists(glb);
+            Files.deleteIfExists(positioned);
+        }
+    }
+
+    private static void checkPositionedScene(ModelScene scene) {
+        check(scene.time() != null && scene.time().toString().equals("2025-10-09T18:19:52.000"), "scene observation time");
+
+        FloatBuffer positions = scene.meshes().getFirst().positions();
+        float cos30 = (float) (Math.sqrt(3) / 2);
+        checkPosition(positions, 0, 0, 0, 0);
+        checkPosition(positions, 1, 0, 0, -1);
+        checkPosition(positions, 2, 0.5f + cos30, cos30 - 0.5f, 0);
+        checkPosition(scene.meshes().get(3).positions(), 0, 0, 0, -2);
+    }
+
+    private static void checkPositionRejected(Path directory, String document, String scene, String positionedScene,
+            String expectedMessage) throws Exception {
+        checkLoadRejected(directory.resolve("invalid-position.gltf"), document.replace(scene, positionedScene), expectedMessage);
+    }
+
+    private static void writeGlb(Path path, String document, byte[] binary) throws Exception {
+        String buffer = "\"buffers\": [{\"byteLength\": 88, \"uri\": \"geometry.bin\"}]";
+        check(document.contains(buffer), "GLB buffer insertion point");
+        byte[] json = document.replace(buffer, "\"buffers\": [{\"byteLength\": 88}]")
+                .getBytes(StandardCharsets.UTF_8);
+        int jsonLength = Math.addExact(json.length, 3) & ~3;
+        int binaryLength = Math.addExact(binary.length, 3) & ~3;
+        int totalLength = Math.addExact(28, Math.addExact(jsonLength, binaryLength));
+        ByteBuffer glb = ByteBuffer.allocate(totalLength).order(ByteOrder.LITTLE_ENDIAN);
+        glb.putInt(0x46546c67).putInt(2).putInt(totalLength);
+        glb.putInt(jsonLength).putInt(0x4e4f534a).put(json);
+        while ((glb.position() & 3) != 0)
+            glb.put((byte) ' ');
+        glb.putInt(binaryLength).putInt(0x004e4942).put(binary);
+        while (glb.hasRemaining())
+            glb.put((byte) 0);
+        Files.write(path, glb.array());
+    }
+
     private static void checkTexturedDrawingsRejected(Path directory, String document) throws Exception {
         String line = "\"indices\": 4, \"material\": 1, \"mode\": 3";
         String point = "\"indices\": 5, \"material\": 2, \"mode\": 0";
@@ -61,6 +132,10 @@ public final class AssimpModelLoaderTest {
 
     private static void checkLoadRejected(Path path, String document, String expectedMessage) throws Exception {
         Files.writeString(path, document);
+        checkLoadRejected(path, expectedMessage);
+    }
+
+    private static void checkLoadRejected(Path path, String expectedMessage) throws Exception {
         try {
             AssimpModelLoader.load(NetFileCache.get(path.toUri()));
             throw new AssertionError("model was accepted: " + path.getFileName());
@@ -72,6 +147,7 @@ public final class AssimpModelLoaderTest {
     private static void checkLayer(Path model) throws Exception {
         ModelLayer layer = new ModelLayer(model.toUri());
         check(layer.getName().equals("URI loader test"), "layer name");
+        check(layer.getTimeString() == null, "unpositioned layer time");
         check(layer.isEnabled(), "layer enabled");
         check(layer.isLocal(), "local layer");
 
@@ -85,6 +161,7 @@ public final class AssimpModelLoaderTest {
 
     private static void checkScene(ModelScene scene) {
         check(scene.name().equals("URI loader test"), "scene name");
+        check(scene.time() == null, "unpositioned scene time");
         check(scene.meshes().size() == 6, "two baked copies of the triangle, line and point meshes");
         check(scene.materials().size() == 3, "materials");
         check(scene.textures().size() == 1, "texture");

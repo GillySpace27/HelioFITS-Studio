@@ -3,6 +3,8 @@ package org.helioviewer.jhv.layers;
 import java.io.IOException;
 import java.net.URI;
 
+import javax.annotation.Nullable;
+
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.io.DataUri;
@@ -10,6 +12,7 @@ import org.helioviewer.jhv.io.NetFileCache;
 import org.helioviewer.jhv.opengl.GLSLModel;
 import org.helioviewer.jhv.opengl.model.AssimpModelLoader;
 import org.helioviewer.jhv.opengl.model.ModelScene;
+import org.helioviewer.jhv.time.JHVTime;
 
 import org.json.JSONObject;
 
@@ -17,6 +20,7 @@ public final class ModelLayer extends AbstractLayer {
 
     private final URI source;
     private final String name;
+    private final @Nullable JHVTime time;
     private final GLSLModel model;
 
     public ModelLayer(URI uri) throws IOException {
@@ -27,6 +31,7 @@ public final class ModelLayer extends AbstractLayer {
         source = data.sourceUri();
         ModelScene scene = AssimpModelLoader.load(data);
         name = scene.name();
+        time = scene.time();
         model = new GLSLModel(scene);
         setEnabled(true);
     }
@@ -64,6 +69,12 @@ public final class ModelLayer extends AbstractLayer {
     @Override
     public String getName() {
         return name;
+    }
+
+    @Nullable
+    @Override
+    public String getTimeString() {
+        return time == null ? null : time.toString();
     }
 
     @Override

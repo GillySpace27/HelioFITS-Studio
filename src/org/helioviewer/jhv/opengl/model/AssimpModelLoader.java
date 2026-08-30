@@ -9,8 +9,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.annotation.Nullable;
+
 import org.helioviewer.jhv.base.BufferUtils;
 import org.helioviewer.jhv.io.DataUri;
+import org.helioviewer.jhv.math.Quat;
+import org.helioviewer.jhv.math.Vec3;
+import org.helioviewer.jhv.metadata.HeliocentricCartesianMetaData;
+import org.helioviewer.jhv.time.JHVTime;
 
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
@@ -50,7 +56,7 @@ public final class AssimpModelLoader {
             scene = fileIO.importScene(IMPORT_FLAGS);
         }
         try {
-            return new AssimpModelLoader(scene).convert(data.baseName());
+            return new AssimpModelLoader(scene).convert(data);
         } finally {
             Assimp.aiReleaseImport(scene);
         }
@@ -60,7 +66,7 @@ public final class AssimpModelLoader {
         source = _source;
     }
 
-    private ModelScene convert(String fallbackName) throws IOException {
+    private ModelScene convert(DataUri data) throws IOException {
         if ((source.mFlags() & Assimp.AI_SCENE_FLAGS_INCOMPLETE) != 0)
             throw new IOException("Assimp returned an incomplete scene");
         AINode root = source.mRootNode();
@@ -71,16 +77,37 @@ public final class AssimpModelLoader {
         if (source.mNumSkeletons() != 0)
             throw new IOException("Model skeletons are not supported");
 
+        AssimpMetaData metadata = new AssimpMetaData(data.sourceUri(), source.mMetaData());
+        JHVTime time = HeliocentricCartesianMetaData.observationTime(metadata);
+        Quat observerRotation = HeliocentricCartesianMetaData.observerRotation(metadata);
+        if (observerRotation != null && time == null)
+            throw metadata.error("heliocentric Cartesian coordinates require DATE-OBS");
+        Matrix4f coordinateTransform = coordinateTransform(observerRotation);
+
         List<MaterialData> materialData = convertMaterials();
         List<ModelMesh> sourceMeshes = convertMeshes(materialData);
         ArrayList<ModelMesh> meshes = new ArrayList<>();
-        convertNode(root, new Matrix4f(), sourceMeshes, meshes);
+        convertNode(root, coordinateTransform, sourceMeshes, meshes);
         if (meshes.isEmpty())
             throw new IOException("Model scene graph contains no meshes");
 
         String name = source.mName().dataString();
-        return new ModelScene(name.isEmpty() ? fallbackName : name, meshes,
+        return new ModelScene(name.isEmpty() ? data.baseName() : name, time, meshes,
                 materialData.stream().map(MaterialData::material).toList(), textures);
+    }
+
+    private static Matrix4f coordinateTransform(@Nullable Quat worldToObserver) {
+        if (worldToObserver == null)
+            return new Matrix4f();
+
+        Vec3 sourceX = worldToObserver.rotateInverseVector(Vec3.XAxis);
+        Vec3 sourceY = worldToObserver.rotateInverseVector(Vec3.YAxis);
+        Vec3 sourceZ = worldToObserver.rotateInverseVector(Vec3.ZAxis);
+        return new Matrix4f(
+                (float) sourceX.x, (float) sourceX.y, (float) sourceX.z, 0,
+                (float) sourceY.x, (float) sourceY.y, (float) sourceY.z, 0,
+                (float) sourceZ.x, (float) sourceZ.y, (float) sourceZ.z, 0,
+                0, 0, 0, 1);
     }
 
     private List<MaterialData> convertMaterials() throws IOException {
