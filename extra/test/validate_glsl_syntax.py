@@ -56,6 +56,25 @@ def validate_shader(glslang: str, path: Path) -> bool:
     return False
 
 
+def validate_program(glslang: str, label: str, vertex: Path, fragment: Path) -> bool:
+    completed = subprocess.run(
+        [glslang, "-l", str(vertex), str(fragment)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode == 0:
+        print(f"ok {label} program")
+        return True
+
+    print(f"FAILED {label} program")
+    if completed.stdout:
+        print(completed.stdout, end="" if completed.stdout.endswith("\n") else "\n")
+    if completed.stderr:
+        print(completed.stderr, end="" if completed.stderr.endswith("\n") else "\n")
+    return False
+
+
 def write_combined_solar_fragments(temp_dir: Path) -> list[Path]:
     common = COMMON_FRAGMENT.read_text()
     combined: list[Path] = []
@@ -89,8 +108,25 @@ def main() -> int:
         for shader in shaders:
             ok = validate_shader(glslang, shader) and ok
 
+        by_name = {shader.name: shader for shader in shaders}
+        programs = [
+            ("line", GLSL_DIR / "line.vert", GLSL_DIR / "line.frag"),
+            ("mesh", GLSL_DIR / "mesh.vert", GLSL_DIR / "mesh.frag"),
+            ("point", GLSL_DIR / "point.vert", GLSL_DIR / "point.frag"),
+            ("shape", GLSL_DIR / "shape.vert", GLSL_DIR / "shape.frag"),
+            ("texture", GLSL_DIR / "texture.vert", GLSL_DIR / "texture.frag"),
+            ("SDF texture", GLSL_DIR / "texture.vert", GLSL_DIR / "textureSdf.frag"),
+            ("solar sphere", GLSL_DIR / "solar.vert", GLSL_DIR / "solarSphere.frag"),
+        ]
+        programs.extend(
+            (Path(fragment).stem, GLSL_DIR / "solar.vert", by_name[fragment])
+            for fragment in COMMON_SOLAR_FRAGMENTS
+        )
+        for label, vertex, fragment in programs:
+            ok = validate_program(glslang, label, vertex, fragment) and ok
+
     if ok:
-        print(f"All {len(shaders)} GLSL shader(s) passed.")
+        print(f"All {len(shaders)} GLSL shaders and {len(programs)} programs passed.")
         return 0
     return 1
 
