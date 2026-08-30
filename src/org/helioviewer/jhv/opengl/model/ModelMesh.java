@@ -7,7 +7,7 @@ import java.nio.IntBuffer;
 import javax.annotation.Nullable;
 
 public record ModelMesh(String name, Primitive primitive, FloatBuffer positions, @Nullable FloatBuffer normals, ByteBuffer colors,
-                        IntBuffer indices, IntBuffer lineOffsets, int materialIndex) {
+                        @Nullable FloatBuffer texCoords, IntBuffer indices, IntBuffer lineOffsets, int materialIndex) {
 
     public enum Primitive {
         POINTS,
@@ -20,6 +20,8 @@ public record ModelMesh(String name, Primitive primitive, FloatBuffer positions,
         if (normals != null)
             normals = normals.slice().asReadOnlyBuffer();
         colors = colors.slice().asReadOnlyBuffer();
+        if (texCoords != null)
+            texCoords = texCoords.slice().asReadOnlyBuffer();
         indices = indices.slice().asReadOnlyBuffer();
         lineOffsets = lineOffsets.slice().asReadOnlyBuffer();
 
@@ -34,6 +36,8 @@ public record ModelMesh(String name, Primitive primitive, FloatBuffer positions,
             throw new IllegalArgumentException("Only triangle meshes can have normals");
         if (colors.remaining() != vertexCount * 4)
             throw new IllegalArgumentException("Color buffer does not contain one RGBA value per vertex");
+        if (texCoords != null && texCoords.remaining() != vertexCount * 2)
+            throw new IllegalArgumentException("Texture-coordinate buffer does not contain one vec2 value per vertex");
         if (materialIndex < 0)
             throw new IllegalArgumentException("Invalid material index: " + materialIndex);
         if (primitive != Primitive.LINES && lineOffsets.hasRemaining())
@@ -87,6 +91,12 @@ public record ModelMesh(String name, Primitive primitive, FloatBuffer positions,
     @Override
     public ByteBuffer colors() {
         return colors.duplicate();
+    }
+
+    @Nullable
+    @Override
+    public FloatBuffer texCoords() {
+        return texCoords == null ? null : texCoords.duplicate();
     }
 
     @Override

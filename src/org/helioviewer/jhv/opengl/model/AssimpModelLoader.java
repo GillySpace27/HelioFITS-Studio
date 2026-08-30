@@ -5,7 +5,9 @@ import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.helioviewer.jhv.base.BufferUtils;
 import org.helioviewer.jhv.io.DataUri;
@@ -15,19 +17,28 @@ import org.joml.Matrix4fc;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.assimp.AIColor4D;
 import org.lwjgl.assimp.AIFace;
+import org.lwjgl.assimp.AIMaterial;
 import org.lwjgl.assimp.AIMatrix4x4;
 import org.lwjgl.assimp.AIMesh;
 import org.lwjgl.assimp.AINode;
 import org.lwjgl.assimp.AIScene;
+import org.lwjgl.assimp.AIString;
+import org.lwjgl.assimp.AITexel;
+import org.lwjgl.assimp.AITexture;
+import org.lwjgl.assimp.AIUVTransform;
 import org.lwjgl.assimp.AIVector3D;
 import org.lwjgl.assimp.Assimp;
+import org.lwjgl.stb.STBImage;
 
 public final class AssimpModelLoader {
 
     private static final int IMPORT_FLAGS = Assimp.aiProcess_Triangulate | Assimp.aiProcess_ValidateDataStructure |
-            Assimp.aiProcess_SortByPType | Assimp.aiProcess_RemoveRedundantMaterials | Assimp.aiProcess_GenSmoothNormals;
+            Assimp.aiProcess_SortByPType | Assimp.aiProcess_EmbedTextures | Assimp.aiProcess_RemoveRedundantMaterials |
+            Assimp.aiProcess_GenSmoothNormals;
 
     private final AIScene source;
+    private final ArrayList<ModelTexture> textures = new ArrayList<>();
+    private final Map<TextureKey, Integer> textureIndices = new HashMap<>();
 
     public static ModelScene load(DataUri data) throws IOException {
         if (data.format() != DataUri.Format.GLTF)
@@ -59,17 +70,143 @@ public final class AssimpModelLoader {
         if (source.mNumSkeletons() != 0)
             throw new IOException("Model skeletons are not supported");
 
-        List<ModelMesh> meshes = convertMeshes();
+        List<MaterialData> materialData = convertMaterials();
+        List<ModelMesh> meshes = convertMeshes(materialData);
         ArrayList<ModelInstance> instances = new ArrayList<>();
         convertNode(root, new Matrix4f(), instances);
         if (instances.isEmpty())
             throw new IOException("Model scene has no mesh instances");
 
         String name = source.mName().dataString();
-        return new ModelScene(name.isEmpty() ? fallbackName : name, meshes, instances);
+        return new ModelScene(name.isEmpty() ? fallbackName : name, meshes, instances,
+                materialData.stream().map(MaterialData::material).toList(), textures);
     }
 
-    private List<ModelMesh> convertMeshes() throws IOException {
+    private List<MaterialData> convertMaterials() throws IOException {
+        PointerBuffer sourceMaterials = source.mMaterials();
+        if (source.mNumMaterials() == 0)
+            throw new IOException("Model scene has no materials");
+        if (sourceMaterials == null)
+            throw new IOException("Assimp scene has no material array");
+
+        ArrayList<MaterialData> result = new ArrayList<>(source.mNumMaterials());
+        for (int i = 0; i < source.mNumMaterials(); i++)
+            result.add(convertMaterial(AIMaterial.create(sourceMaterials.get(i)), i));
+        return List.copyOf(result);
+    }
+
+    private MaterialData convertMaterial(AIMaterial material, int materialIndex) throws IOException {
+        AIColor4D color = AIColor4D.create();
+        if (Assimp.aiGetMaterialColor(material, Assimp.AI_MATKEY_BASE_COLOR, 0, 0, color) != Assimp.aiReturn_SUCCESS &&
+                Assimp.aiGetMaterialColor(material, Assimp.AI_MATKEY_COLOR_DIFFUSE, 0, 0, color) != Assimp.aiReturn_SUCCESS)
+            color.set(1, 1, 1, 1);
+
+        float alpha = getFloat(material, Assimp.AI_MATKEY_OPACITY, 0, 0, color.a());
+        ModelMaterial.AlphaMode alphaMode = alphaMode(material);
+        float alphaCutoff = getFloat(material, Assimp.AI_MATKEY_GLTF_ALPHACUTOFF, 0, 0, 0.5f);
+        boolean doubleSided = getInt(material, Assimp.AI_MATKEY_TWOSIDED, 0, 0, 0) != 0;
+        boolean unlit = getInt(material, Assimp.AI_MATKEY_SHADING_MODEL, 0, 0, -1) == Assimp.aiShadingMode_Unlit;
+        if (getInt(material, Assimp.AI_MATKEY_BLEND_FUNC, 0, 0, Assimp.aiBlendMode_Default) != Assimp.aiBlendMode_Default)
+            throw new IOException("Material " + materialIndex + " uses unsupported additive blending");
+        if (Assimp.aiGetMaterialTextureCount(material, Assimp.aiTextureType_OPACITY) != 0)
+            throw new IOException("Material " + materialIndex + " uses a separate opacity texture");
+
+        TextureInfo texture = baseColorTexture(material, materialIndex);
+        return new MaterialData(new ModelMaterial(color.r(), color.g(), color.b(), alpha, texture.textureIndex(), alphaMode, alphaCutoff,
+                doubleSided, unlit), texture.uvIndex());
+    }
+
+    private TextureInfo baseColorTexture(AIMaterial material, int materialIndex) throws IOException {
+        int textureType = Assimp.aiTextureType_BASE_COLOR;
+        int count = Assimp.aiGetMaterialTextureCount(material, textureType);
+        if (count == 0) {
+            textureType = Assimp.aiTextureType_DIFFUSE;
+            count = Assimp.aiGetMaterialTextureCount(material, textureType);
+        }
+        if (count == 0)
+            return new TextureInfo(ModelMaterial.NO_TEXTURE, 0);
+        if (count != 1)
+            throw new IOException("Material " + materialIndex + " has more than one base-color texture");
+
+        AIString path = AIString.create();
+        int[] mapping = {Assimp.aiTextureMapping_UV};
+        int[] uvIndex = {0};
+        float[] blend = {1};
+        int[] operation = {Assimp.aiTextureOp_Multiply};
+        int[] mapModes = {Assimp.aiTextureMapMode_Wrap, Assimp.aiTextureMapMode_Wrap, Assimp.aiTextureMapMode_Wrap};
+        int[] flags = {0};
+        if (Assimp.aiGetMaterialTexture(material, textureType, 0, path, mapping, uvIndex, blend, operation, mapModes, flags) !=
+                Assimp.aiReturn_SUCCESS)
+            throw new IOException("Could not read the base-color texture of material " + materialIndex);
+        if (mapping[0] != Assimp.aiTextureMapping_UV || operation[0] != Assimp.aiTextureOp_Multiply || blend[0] != 1 || flags[0] != 0)
+            throw new IOException("Material " + materialIndex + " uses unsupported texture mapping");
+        rejectUVTransform(material, textureType, materialIndex);
+
+        ModelSampler sampler = new ModelSampler(
+                minFilter(getInt(material, Assimp._AI_MATKEY_GLTF_MAPPINGFILTER_MIN_BASE, textureType, 0, 9987)),
+                magFilter(getInt(material, Assimp._AI_MATKEY_GLTF_MAPPINGFILTER_MAG_BASE, textureType, 0, 9729)),
+                wrap(mapModes[0]), wrap(mapModes[1]));
+        String texturePath = path.dataString();
+        TextureKey key = new TextureKey(texturePath, sampler);
+        Integer index = textureIndices.get(key);
+        if (index == null) {
+            index = textures.size();
+            textures.add(loadTexture(texturePath, sampler));
+            textureIndices.put(key, index);
+        }
+        return new TextureInfo(index, uvIndex[0]);
+    }
+
+    private static void rejectUVTransform(AIMaterial material, int textureType, int materialIndex) throws IOException {
+        AIUVTransform transform = AIUVTransform.create();
+        if (Assimp.aiGetMaterialUVTransform(material, Assimp._AI_MATKEY_UVTRANSFORM_BASE, textureType, 0, transform) != Assimp.aiReturn_SUCCESS)
+            return;
+        if (transform.mTranslation().x() != 0 || transform.mTranslation().y() != 0 || transform.mScaling().x() != 1 ||
+                transform.mScaling().y() != 1 || transform.mRotation() != 0)
+            throw new IOException("Material " + materialIndex + " uses an unsupported texture-coordinate transform");
+    }
+
+    private ModelTexture loadTexture(String path, ModelSampler sampler) throws IOException {
+        AITexture texture = Assimp.aiGetEmbeddedTexture(source, path);
+        if (texture == null)
+            throw new IOException("Assimp did not embed texture " + path);
+
+        String name = texture.mFilename().dataString();
+        if (name.isEmpty())
+            name = path;
+        if (texture.mHeight() == 0)
+            return decodeTexture(name, texture.pcDataCompressed(), sampler);
+
+        int width = texture.mWidth();
+        int height = texture.mHeight();
+        ByteBuffer rgba = BufferUtils.newByteBuffer(Math.multiplyExact(Math.multiplyExact(width, height), 4));
+        AITexel.Buffer texels = texture.pcData();
+        for (int i = 0; i < texels.capacity(); i++) {
+            AITexel texel = texels.get(i);
+            rgba.put(texel.r()).put(texel.g()).put(texel.b()).put(texel.a());
+        }
+        return new ModelTexture(name, width, height, rgba.flip(), sampler);
+    }
+
+    private static ModelTexture decodeTexture(String name, ByteBuffer encoded, ModelSampler sampler) throws IOException {
+        int[] width = new int[1];
+        int[] height = new int[1];
+        int[] components = new int[1];
+        ByteBuffer decoded = STBImage.stbi_load_from_memory(encoded, width, height, components, 4);
+        if (decoded == null)
+            throw new IOException("Could not decode texture " + name + ": " + STBImage.stbi_failure_reason());
+        try {
+            ByteBuffer rgba = BufferUtils.newByteBuffer(decoded.remaining());
+            int rowSize = Math.multiplyExact(width[0], 4);
+            for (int y = height[0] - 1; y >= 0; y--)
+                rgba.put(decoded.slice(y * rowSize, rowSize));
+            return new ModelTexture(name, width[0], height[0], rgba.flip(), sampler);
+        } finally {
+            STBImage.stbi_image_free(decoded);
+        }
+    }
+
+    private List<ModelMesh> convertMeshes(List<MaterialData> materials) throws IOException {
         PointerBuffer sourceMeshes = source.mMeshes();
         if (source.mNumMeshes() == 0)
             throw new IOException("Model scene has no meshes");
@@ -78,11 +215,11 @@ public final class AssimpModelLoader {
 
         ArrayList<ModelMesh> result = new ArrayList<>(source.mNumMeshes());
         for (int i = 0; i < source.mNumMeshes(); i++)
-            result.add(convertMesh(AIMesh.create(sourceMeshes.get(i)), i));
+            result.add(convertMesh(AIMesh.create(sourceMeshes.get(i)), i, materials));
         return List.copyOf(result);
     }
 
-    private ModelMesh convertMesh(AIMesh mesh, int meshIndex) throws IOException {
+    private ModelMesh convertMesh(AIMesh mesh, int meshIndex, List<MaterialData> materials) throws IOException {
         if (mesh.mNumBones() != 0)
             throw new IOException("Mesh " + meshIndex + " uses unsupported skinning");
         if (mesh.mNumAnimMeshes() != 0)
@@ -90,16 +227,18 @@ public final class AssimpModelLoader {
 
         ModelMesh.Primitive primitive = primitive(mesh.mPrimitiveTypes(), meshIndex);
         int materialIndex = mesh.mMaterialIndex();
-        if (materialIndex < 0 || materialIndex >= source.mNumMaterials())
+        if (materialIndex < 0 || materialIndex >= materials.size())
             throw new IOException("Mesh " + meshIndex + " has invalid material index " + materialIndex);
+        MaterialData material = materials.get(materialIndex);
 
         FloatBuffer positions = copyPositions(mesh);
         FloatBuffer normals = primitive == ModelMesh.Primitive.TRIANGLES ? copyNormals(mesh, meshIndex) : null;
         ByteBuffer colors = copyColors(mesh);
+        FloatBuffer texCoords = copyTexCoords(mesh, material, meshIndex);
         IndexData indexData = copyIndices(mesh, primitive, meshIndex);
         String name = mesh.mName().dataString();
-        return new ModelMesh(name.isEmpty() ? "mesh-" + meshIndex : name, primitive, positions, normals, colors, indexData.indices(),
-                indexData.lineOffsets(), materialIndex);
+        return new ModelMesh(name.isEmpty() ? "mesh-" + meshIndex : name, primitive, positions, normals, colors, texCoords,
+                indexData.indices(), indexData.lineOffsets(), materialIndex);
     }
 
     private static FloatBuffer copyPositions(AIMesh mesh) {
@@ -138,6 +277,27 @@ public final class AssimpModelLoader {
                 AIColor4D color = colors.get(i);
                 result.put(toByte(color.r())).put(toByte(color.g())).put(toByte(color.b())).put(toByte(color.a()));
             }
+        }
+        return result.flip();
+    }
+
+    private static FloatBuffer copyTexCoords(AIMesh mesh, MaterialData material, int meshIndex) throws IOException {
+        if (material.material().baseColorTexture() == ModelMaterial.NO_TEXTURE)
+            return null;
+
+        int channel = material.uvIndex();
+        if (channel < 0 || channel >= Assimp.AI_MAX_NUMBER_OF_TEXTURECOORDS)
+            throw new IOException("Mesh " + meshIndex + " uses invalid texture-coordinate channel " + channel);
+        AIVector3D.Buffer coords = mesh.mTextureCoords(channel);
+        if (coords == null)
+            throw new IOException("Textured mesh " + meshIndex + " has no texture-coordinate channel " + channel);
+        if (mesh.mNumUVComponents(channel) < 2)
+            throw new IOException("Mesh " + meshIndex + " has one-dimensional texture coordinates");
+
+        FloatBuffer result = BufferUtils.newFloatBuffer(Math.multiplyExact(mesh.mNumVertices(), 2));
+        for (int i = 0; i < mesh.mNumVertices(); i++) {
+            AIVector3D coord = coords.get(i);
+            result.put(coord.x()).put(coord.y());
         }
         return result.flip();
     }
@@ -278,10 +438,69 @@ public final class AssimpModelLoader {
         };
     }
 
+    private static ModelMaterial.AlphaMode alphaMode(AIMaterial material) throws IOException {
+        AIString value = AIString.create();
+        if (Assimp.aiGetMaterialString(material, Assimp.AI_MATKEY_GLTF_ALPHAMODE, 0, 0, value) != Assimp.aiReturn_SUCCESS)
+            return ModelMaterial.AlphaMode.OPAQUE;
+        return switch (value.dataString()) {
+            case "OPAQUE" -> ModelMaterial.AlphaMode.OPAQUE;
+            case "MASK" -> ModelMaterial.AlphaMode.MASK;
+            case "BLEND" -> ModelMaterial.AlphaMode.BLEND;
+            default -> throw new IOException("Unsupported alpha mode: " + value.dataString());
+        };
+    }
+
+    private static float getFloat(AIMaterial material, String key, int type, int index, float fallback) {
+        float[] value = {fallback};
+        int[] count = {1};
+        return Assimp.aiGetMaterialFloatArray(material, key, type, index, value, count) == Assimp.aiReturn_SUCCESS ? value[0] : fallback;
+    }
+
+    private static int getInt(AIMaterial material, String key, int type, int index, int fallback) {
+        int[] value = {fallback};
+        int[] count = {1};
+        return Assimp.aiGetMaterialIntegerArray(material, key, type, index, value, count) == Assimp.aiReturn_SUCCESS ? value[0] : fallback;
+    }
+
+    private static ModelSampler.MinFilter minFilter(int filter) throws IOException {
+        return switch (filter) {
+            case 9728 -> ModelSampler.MinFilter.NEAREST;
+            case 9729 -> ModelSampler.MinFilter.LINEAR;
+            case 9984 -> ModelSampler.MinFilter.NEAREST_MIPMAP_NEAREST;
+            case 9985 -> ModelSampler.MinFilter.LINEAR_MIPMAP_NEAREST;
+            case 9986 -> ModelSampler.MinFilter.NEAREST_MIPMAP_LINEAR;
+            case 9987 -> ModelSampler.MinFilter.LINEAR_MIPMAP_LINEAR;
+            default -> throw new IOException("Unsupported texture minification filter: " + filter);
+        };
+    }
+
+    private static ModelSampler.MagFilter magFilter(int filter) throws IOException {
+        return switch (filter) {
+            case 9728 -> ModelSampler.MagFilter.NEAREST;
+            case 9729 -> ModelSampler.MagFilter.LINEAR;
+            default -> throw new IOException("Unsupported texture magnification filter: " + filter);
+        };
+    }
+
+    private static ModelSampler.Wrap wrap(int mode) throws IOException {
+        return switch (mode) {
+            case Assimp.aiTextureMapMode_Wrap -> ModelSampler.Wrap.REPEAT;
+            case Assimp.aiTextureMapMode_Clamp -> ModelSampler.Wrap.CLAMP_TO_EDGE;
+            case Assimp.aiTextureMapMode_Mirror -> ModelSampler.Wrap.MIRRORED_REPEAT;
+            default -> throw new IOException("Unsupported texture wrap mode: " + mode);
+        };
+    }
+
     private static byte toByte(float value) {
         return (byte) Math.round(255 * Math.clamp(value, 0, 1));
     }
 
     private record IndexData(IntBuffer indices, IntBuffer lineOffsets) {}
+
+    private record MaterialData(ModelMaterial material, int uvIndex) {}
+
+    private record TextureInfo(int textureIndex, int uvIndex) {}
+
+    private record TextureKey(String path, ModelSampler sampler) {}
 
 }

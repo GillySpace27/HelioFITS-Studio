@@ -1,5 +1,6 @@
 package org.helioviewer.jhv.opengl.model;
 
+import java.awt.image.BufferedImage;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -8,6 +9,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.zip.GZIPOutputStream;
+
+import javax.imageio.ImageIO;
 
 import org.helioviewer.jhv.io.NetFileCache;
 
@@ -20,6 +23,7 @@ public final class AssimpModelLoaderTest {
             byte[] json = modelJson().getBytes(java.nio.charset.StandardCharsets.UTF_8);
             Files.write(model, json);
             writeGeometry(directory.resolve("geometry.bin"));
+            writeTexture(directory.resolve("texture.png"));
 
             checkScene(AssimpModelLoader.load(NetFileCache.get(model.toUri())));
 
@@ -40,15 +44,42 @@ public final class AssimpModelLoaderTest {
         check(scene.name().equals("URI loader test"), "scene name");
         check(scene.meshes().size() == 3, "triangle, line and point meshes");
         check(scene.instances().size() == 6, "two instances of each mesh");
+        check(scene.materials().size() == 3, "materials");
+        check(scene.textures().size() == 1, "texture");
 
         ModelMesh triangles = mesh(scene, ModelMesh.Primitive.TRIANGLES);
         check(triangles.vertexCount() == 3, "triangle vertex count");
         check(triangles.normals() != null && triangles.normals().remaining() == 9, "generated triangle normals");
+        check(triangles.texCoords() != null && triangles.texCoords().remaining() == 6, "texture coordinates");
+        check(close(triangles.texCoords().get(0), 0) && close(triangles.texCoords().get(1), 1),
+                "Assimp texture-coordinate origin");
+        check(Byte.toUnsignedInt(triangles.colors().get(1)) == 128, "vertex colors");
+
+        ModelMaterial surface = scene.materials().get(triangles.materialIndex());
+        check(close(surface.red(), 0.5f) && close(surface.alpha(), 0.8f), "base color");
+        check(surface.alphaMode() == ModelMaterial.AlphaMode.MASK && close(surface.alphaCutoff(), 0.25f), "alpha mask");
+        check(surface.doubleSided() && surface.unlit(), "material flags");
+        check(surface.baseColorTexture() == 0, "base-color texture");
+
+        ModelTexture texture = scene.textures().getFirst();
+        check(texture.width() == 2 && texture.height() == 2, "texture dimensions");
+        check(texture.sampler().equals(new ModelSampler(ModelSampler.MinFilter.NEAREST, ModelSampler.MagFilter.NEAREST,
+                ModelSampler.Wrap.CLAMP_TO_EDGE, ModelSampler.Wrap.MIRRORED_REPEAT)), "texture sampler");
+        checkPixel(texture.rgba(), 0, 0, 0, 255, 64);
+        checkPixel(texture.rgba(), 2, 255, 0, 0, 255);
 
         ModelMesh lines = mesh(scene, ModelMesh.Primitive.LINES);
         check(lines.indices().remaining() == 3, "line-strip indices");
+        check(lines.texCoords() == null, "unused texture coordinates");
         IntBuffer offsets = lines.lineOffsets();
         check(offsets.remaining() == 2 && offsets.get(0) == 0 && offsets.get(1) == 3, "line-strip reconstruction");
+
+        ModelMaterial drawing = scene.materials().get(lines.materialIndex());
+        check(drawing.alphaMode() == ModelMaterial.AlphaMode.BLEND && close(drawing.alpha(), 0.5f), "blended material");
+
+        ModelMesh points = mesh(scene, ModelMesh.Primitive.POINTS);
+        ModelMaterial markers = scene.materials().get(points.materialIndex());
+        check(markers.alphaMode() == ModelMaterial.AlphaMode.OPAQUE && close(markers.alpha(), 0.5f), "default opaque material");
 
         long translated = scene.instances().stream().filter(instance -> Math.abs(instance.transform().m30() - 2) < 1e-6).count();
         check(translated == 3, "flattened node transforms");
@@ -59,14 +90,27 @@ public final class AssimpModelLoaderTest {
     }
 
     private static void writeGeometry(Path path) throws Exception {
-        ByteBuffer data = ByteBuffer.allocate(52).order(ByteOrder.LITTLE_ENDIAN);
+        ByteBuffer data = ByteBuffer.allocate(88).order(ByteOrder.LITTLE_ENDIAN);
         data.putFloat(0).putFloat(0).putFloat(0);
         data.putFloat(1).putFloat(0).putFloat(0);
         data.putFloat(0).putFloat(1).putFloat(0);
+        data.putFloat(0).putFloat(0);
+        data.putFloat(1).putFloat(0);
+        data.putFloat(0).putFloat(1);
+        data.put(new byte[]{(byte) 255, (byte) 128, 64, (byte) 255, 1, 2, 3, 4, 10, 20, 30, 40});
         data.putShort((short) 0).putShort((short) 1).putShort((short) 2);
         data.putShort((short) 0).putShort((short) 1).putShort((short) 2);
         data.putShort((short) 0).putShort((short) 2);
         Files.write(path, data.array());
+    }
+
+    private static void writeTexture(Path path) throws Exception {
+        BufferedImage image = new BufferedImage(2, 2, BufferedImage.TYPE_INT_ARGB);
+        image.setRGB(0, 0, 0xffff0000);
+        image.setRGB(1, 0, 0x8000ff00);
+        image.setRGB(0, 1, 0x400000ff);
+        image.setRGB(1, 1, 0x00ffffff);
+        check(ImageIO.write(image, "png", path.toFile()), "PNG writer");
     }
 
     private static String modelJson() {
@@ -79,25 +123,40 @@ public final class AssimpModelLoaderTest {
                     {"mesh": 0, "children": [1]},
                     {"mesh": 0, "translation": [2, 0, 0]}
                   ],
-                  "buffers": [{"byteLength": 52, "uri": "geometry.bin"}],
+                  "buffers": [{"byteLength": 88, "uri": "geometry.bin"}],
                   "bufferViews": [
                     {"buffer": 0, "byteOffset": 0, "byteLength": 36, "target": 34962},
-                    {"buffer": 0, "byteOffset": 36, "byteLength": 6, "target": 34963},
-                    {"buffer": 0, "byteOffset": 42, "byteLength": 6, "target": 34963},
-                    {"buffer": 0, "byteOffset": 48, "byteLength": 4, "target": 34963}
+                    {"buffer": 0, "byteOffset": 36, "byteLength": 24, "target": 34962},
+                    {"buffer": 0, "byteOffset": 60, "byteLength": 12, "target": 34962},
+                    {"buffer": 0, "byteOffset": 72, "byteLength": 6, "target": 34963},
+                    {"buffer": 0, "byteOffset": 78, "byteLength": 6, "target": 34963},
+                    {"buffer": 0, "byteOffset": 84, "byteLength": 4, "target": 34963}
                   ],
                   "accessors": [
                     {"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3",
                      "min": [0, 0, 0], "max": [1, 1, 0]},
-                    {"bufferView": 1, "componentType": 5123, "count": 3, "type": "SCALAR"},
-                    {"bufferView": 2, "componentType": 5123, "count": 3, "type": "SCALAR"},
-                    {"bufferView": 3, "componentType": 5123, "count": 2, "type": "SCALAR"}
+                    {"bufferView": 1, "componentType": 5126, "count": 3, "type": "VEC2"},
+                    {"bufferView": 2, "componentType": 5121, "count": 3, "type": "VEC4", "normalized": true},
+                    {"bufferView": 3, "componentType": 5123, "count": 3, "type": "SCALAR"},
+                    {"bufferView": 4, "componentType": 5123, "count": 3, "type": "SCALAR"},
+                    {"bufferView": 5, "componentType": 5123, "count": 2, "type": "SCALAR"}
                   ],
-                  "materials": [{}],
+                  "extensionsUsed": ["KHR_materials_unlit"],
+                  "images": [{"name": "test texture", "uri": "texture.png"}],
+                  "samplers": [{"magFilter": 9728, "minFilter": 9728, "wrapS": 33071, "wrapT": 33648}],
+                  "textures": [{"sampler": 0, "source": 0}],
+                  "materials": [
+                    {"pbrMetallicRoughness": {"baseColorFactor": [0.5, 0.6, 0.7, 0.8],
+                                              "baseColorTexture": {"index": 0}},
+                     "alphaMode": "MASK", "alphaCutoff": 0.25, "doubleSided": true,
+                     "extensions": {"KHR_materials_unlit": {}}},
+                    {"pbrMetallicRoughness": {"baseColorFactor": [0.1, 0.2, 0.3, 0.5]}, "alphaMode": "BLEND"},
+                    {"pbrMetallicRoughness": {"baseColorFactor": [0.4, 0.3, 0.2, 0.5]}}
+                  ],
                   "meshes": [{"primitives": [
-                    {"attributes": {"POSITION": 0}, "indices": 1, "material": 0, "mode": 4},
-                    {"attributes": {"POSITION": 0}, "indices": 2, "material": 0, "mode": 3},
-                    {"attributes": {"POSITION": 0}, "indices": 3, "material": 0, "mode": 0}
+                    {"attributes": {"POSITION": 0, "TEXCOORD_0": 1, "COLOR_0": 2}, "indices": 3, "material": 0, "mode": 4},
+                    {"attributes": {"POSITION": 0}, "indices": 4, "material": 1, "mode": 3},
+                    {"attributes": {"POSITION": 0}, "indices": 5, "material": 2, "mode": 0}
                   ]}]
                 }
                 """;
@@ -106,6 +165,17 @@ public final class AssimpModelLoaderTest {
     private static void check(boolean condition, String description) {
         if (!condition)
             throw new AssertionError(description);
+    }
+
+    private static boolean close(float actual, float expected) {
+        return Math.abs(actual - expected) < 1e-6f;
+    }
+
+    private static void checkPixel(ByteBuffer rgba, int pixel, int red, int green, int blue, int alpha) {
+        int offset = 4 * pixel;
+        check(Byte.toUnsignedInt(rgba.get(offset)) == red && Byte.toUnsignedInt(rgba.get(offset + 1)) == green &&
+                Byte.toUnsignedInt(rgba.get(offset + 2)) == blue && Byte.toUnsignedInt(rgba.get(offset + 3)) == alpha,
+                "texture pixel " + pixel);
     }
 
     private AssimpModelLoaderTest() {}
