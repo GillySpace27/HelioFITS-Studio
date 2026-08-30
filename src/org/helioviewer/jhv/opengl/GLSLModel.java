@@ -73,12 +73,10 @@ public final class GLSLModel {
                         materialBuffers[mesh.materialIndex()] = new GLSLMeshMaterial(material);
                 }
                 case LINES -> {
-                    requireUntextured(mesh, material);
                     lineMeshes[i] = new GLSLLine(false);
                     lineVertices[i] = createLineVertices(mesh, material);
                 }
                 case POINTS -> {
-                    requireUntextured(mesh, material);
                     pointMeshes[i] = new GLSLShape(false);
                     pointVertices[i] = createPointVertices(mesh, material);
                 }
@@ -89,13 +87,6 @@ public final class GLSLModel {
                 opaqueMeshes.add(i);
         }
         hasTriangles = triangles;
-    }
-
-    private static void requireUntextured(ModelMesh mesh, ModelMaterial material) {
-        if (material.baseColorTexture() != ModelMaterial.NO_TEXTURE) {
-            String primitive = mesh.primitive() == ModelMesh.Primitive.LINES ? "line" : "point";
-            throw new IllegalArgumentException("Textures are not supported on " + primitive + " mesh " + mesh.name());
-        }
     }
 
     public void init() {

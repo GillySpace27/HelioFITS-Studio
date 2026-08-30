@@ -231,6 +231,10 @@ public final class AssimpModelLoader {
         if (materialIndex < 0 || materialIndex >= materials.size())
             throw new IOException("Mesh " + meshIndex + " has invalid material index " + materialIndex);
         MaterialData material = materials.get(materialIndex);
+        if (primitive != ModelMesh.Primitive.TRIANGLES && material.material().baseColorTexture() != ModelMaterial.NO_TEXTURE) {
+            String type = primitive == ModelMesh.Primitive.LINES ? "line" : "point";
+            throw new IOException("Textures are not supported on " + type + " mesh " + meshIndex);
+        }
 
         FloatBuffer positions = copyPositions(mesh);
         FloatBuffer normals = primitive == ModelMesh.Primitive.TRIANGLES ? copyNormals(mesh, meshIndex) : null;
