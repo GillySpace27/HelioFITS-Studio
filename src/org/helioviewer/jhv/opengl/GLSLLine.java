@@ -1,6 +1,7 @@
 package org.helioviewer.jhv.opengl;
 
 import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
 
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.display.Viewport;
@@ -58,11 +59,15 @@ public class GLSLLine extends VAO implements GLSLVertexReceiver {
     }
 
     public void renderLine(Viewport vp, double thickness) {
+        renderLine(vp, thickness, Transform.get());
+    }
+
+    void renderLine(Viewport vp, double thickness, FloatBuffer mvp) {
         if (count == 0)
             return;
 
         GLSLLineShader.line.use();
-        GLSLLineShader.line.bindParams(vp, thickness);
+        GLSLLineShader.line.bindParams(vp, thickness, mvp);
 
         bind();
 

@@ -1,5 +1,7 @@
 package org.helioviewer.jhv.opengl;
 
+import java.nio.FloatBuffer;
+
 class GLSLShapeShader extends GLSLShader {
 
     static final GLSLShapeShader point = new GLSLShapeShader("/glsl/point.vert", "/glsl/point.frag");
@@ -32,8 +34,8 @@ class GLSLShapeShader extends GLSLShader {
         GL.glUniform1f(factorRef, (float) _factor);
     }
 
-    void bindMVP() {
-        GL.glUniformMatrix4fv(refModelViewProjectionMatrix, false, Transform.get());
+    void bindMVP(FloatBuffer mvp) {
+        GL.glUniformMatrix4fv(refModelViewProjectionMatrix, false, mvp);
     }
 
 }

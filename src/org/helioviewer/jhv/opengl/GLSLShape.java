@@ -1,6 +1,7 @@
 package org.helioviewer.jhv.opengl;
 
 import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
 
 public class GLSLShape extends VAO implements GLSLVertexReceiver {
 
@@ -34,12 +35,16 @@ public class GLSLShape extends VAO implements GLSLVertexReceiver {
     }
 
     public void renderPoints(double factor) {
+        renderPoints(factor, Transform.get());
+    }
+
+    void renderPoints(double factor, FloatBuffer mvp) {
         if (count == 0)
             return;
 
         GLSLShapeShader.point.use();
         GLSLShapeShader.point.bindParams(factor);
-        GLSLShapeShader.point.bindMVP();
+        GLSLShapeShader.point.bindMVP(mvp);
 
         bind();
         GL.glDrawArrays(GL.POINTS, 0, count);
@@ -50,7 +55,7 @@ public class GLSLShape extends VAO implements GLSLVertexReceiver {
             return;
 
         GLSLShapeShader.shape.use();
-        GLSLShapeShader.shape.bindMVP();
+        GLSLShapeShader.shape.bindMVP(Transform.get());
 
         bind();
         GL.glDrawArrays(mode, 0, count);

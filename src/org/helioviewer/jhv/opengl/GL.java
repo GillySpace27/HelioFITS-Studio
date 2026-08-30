@@ -18,11 +18,13 @@ public final class GL {
     public static final int ARRAY_BUFFER = GLES30.GL_ARRAY_BUFFER;
     public static final int BACK = GLES30.GL_BACK;
     public static final int BLEND = GLES30.GL_BLEND;
+    public static final int CCW = GLES30.GL_CCW;
     public static final int CLAMP_TO_EDGE = GLES30.GL_CLAMP_TO_EDGE;
     public static final int COLOR_ATTACHMENT0 = GLES30.GL_COLOR_ATTACHMENT0;
     public static final int COLOR_BUFFER_BIT = GLES30.GL_COLOR_BUFFER_BIT;
     public static final int COMPILE_STATUS = GLES30.GL_COMPILE_STATUS;
     public static final int CULL_FACE = GLES30.GL_CULL_FACE;
+    public static final int CW = GLES30.GL_CW;
     public static final int DEPTH_ATTACHMENT = GLES30.GL_DEPTH_ATTACHMENT;
     public static final int DEPTH_BUFFER_BIT = GLES30.GL_DEPTH_BUFFER_BIT;
     public static final int DEPTH_COMPONENT16 = GLES30.GL_DEPTH_COMPONENT16;
@@ -51,6 +53,7 @@ public final class GL {
     public static final int LINK_STATUS = GLES30.GL_LINK_STATUS;
     public static final int MAX_SAMPLES = GLES30.GL_MAX_SAMPLES;
     public static final int MAX_TEXTURE_SIZE = GLES30.GL_MAX_TEXTURE_SIZE;
+    public static final int MIRRORED_REPEAT = GLES30.GL_MIRRORED_REPEAT;
     public static final int NEAREST = GLES30.GL_NEAREST;
     public static final int NEAREST_MIPMAP_LINEAR = GLES30.GL_NEAREST_MIPMAP_LINEAR;
     public static final int NEAREST_MIPMAP_NEAREST = GLES30.GL_NEAREST_MIPMAP_NEAREST;
@@ -67,6 +70,7 @@ public final class GL {
     public static final int RED = GLES30.GL_RED;
     public static final int RENDERER = GLES30.GL_RENDERER;
     public static final int RENDERBUFFER = GLES30.GL_RENDERBUFFER;
+    public static final int REPEAT = GLES30.GL_REPEAT;
     public static final int RGB = GLES30.GL_RGB;
     public static final int RGB8 = GLES30.GL_RGB8;
     public static final int RGBA = GLES30.GL_RGBA;
@@ -273,6 +277,10 @@ public final class GL {
 
     public static void glFramebufferTexture2D(int target, int attachment, int textarget, int texture, int level) {
         GLES30.glFramebufferTexture2D(target, attachment, textarget, texture, level);
+    }
+
+    public static void glFrontFace(int mode) {
+        GLES30.glFrontFace(mode);
     }
 
     public static int glGenBuffer() {

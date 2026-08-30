@@ -35,10 +35,8 @@ class GLSLLineShader extends GLSLShader {
         opaquePassRef = GL.glGetUniformLocation(id, "opaquePass");
     }
 
-    void bindParams(Viewport vp, double _thickness) {
-        FloatBuffer mvp = Transform.get();
-        screenBuf.put(mvp);
-        mvp.flip();
+    void bindParams(Viewport vp, double _thickness, FloatBuffer mvp) {
+        screenBuf.clear().put(mvp.duplicate());
         screenBuf.put(vp.glslArray).put((float) (0.5 * _thickness)); // +3 floats padding
         screenBuf.flip();
         screenBO.setBufferData(SCREEN_SIZE, screenBuf); // always changes
