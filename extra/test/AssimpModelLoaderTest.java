@@ -13,6 +13,9 @@ import java.util.zip.GZIPOutputStream;
 import javax.imageio.ImageIO;
 
 import org.helioviewer.jhv.io.NetFileCache;
+import org.helioviewer.jhv.layers.ModelLayer;
+
+import org.json.JSONObject;
 
 public final class AssimpModelLoaderTest {
 
@@ -26,6 +29,7 @@ public final class AssimpModelLoaderTest {
             writeTexture(directory.resolve("texture.png"));
 
             checkScene(AssimpModelLoader.load(NetFileCache.get(model.toUri())));
+            checkLayer(model);
 
             Path compressed = directory.resolve("model.gltf.gz");
             try (OutputStream output = new GZIPOutputStream(Files.newOutputStream(compressed))) {
@@ -38,6 +42,20 @@ public final class AssimpModelLoaderTest {
                     Files.delete(path);
             }
         }
+    }
+
+    private static void checkLayer(Path model) throws Exception {
+        ModelLayer layer = new ModelLayer(model.toUri());
+        check(layer.getName().equals("URI loader test"), "layer name");
+        check(layer.isEnabled(), "layer enabled");
+        check(layer.isLocal(), "local layer");
+
+        JSONObject state = new JSONObject();
+        layer.serialize(state);
+        check(state.getString("uri").equals(model.toUri().toString()), "layer URI state");
+
+        ModelLayer restored = new ModelLayer(state);
+        check(restored.getName().equals(layer.getName()), "restored layer");
     }
 
     private static void checkScene(ModelScene scene) {

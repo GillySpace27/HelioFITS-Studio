@@ -10,6 +10,9 @@ public class ExtensionFileFilter {
     public static final FilenameFilter Image = new Filter(new ExtensionFilter(
             new String[]{"jpg", "jpeg", "png", "fts", "fits", "fits.gz", "jp2", "jpx", "zip"},
             "All supported files (\".jpg\", \".jpeg\", \".png\", \".fts\", \".fits\", \".fits.gz\", \".jp2\", \".jpx\", \".zip\")"));
+    public static final FilenameFilter Model = new Filter(new ExtensionFilter(
+            new String[]{"gltf", "glb", "gltf.gz", "glb.gz"},
+            "glTF models (\".gltf\", \".glb\", optionally gzip-compressed)"));
     public static final FilenameFilter Timeline = new Filter(new ExtensionFilter(
             new String[]{"json", "cdf"},
             "All supported files (\".json\", \".cdf\")"));
