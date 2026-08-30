@@ -39,6 +39,7 @@ public final class AngleCanvas extends Canvas {
     private boolean hostVisible = true;
     private boolean nativeHostVisible = true;
     private double nativeHostScale = Double.NaN;
+    private boolean attachmentFailed;
 
     public AngleCanvas() {
         setFocusable(true);
@@ -167,10 +168,9 @@ public final class AngleCanvas extends Canvas {
 
     // Create the platform-native host/window handle and ANGLE renderer on first use.
     private void attachIfNeeded() {
-        if (angleRenderer != null || !isDisplayable() || getWidth() <= 0 || getHeight() <= 0)
+        if (angleRenderer != null || attachmentFailed || !isDisplayable() || getWidth() <= 0 || getHeight() <= 0)
             return;
 
-        long newHostHandle = 0L;
         long newNativeWindowHandle = 0L;
         try {
             if (Platform.isMacOS()) {
@@ -181,10 +181,10 @@ public final class AngleCanvas extends Canvas {
                         this, location.x, location.y, getWidth(), getHeight());
                 if (host == null)
                     return;
-                newHostHandle = host.handle();
+                macHostHandle = host.handle();
                 newNativeWindowHandle = host.layer();
                 if (!hostVisible)
-                    MacAngleBridge.setVisible(newHostHandle, false);
+                    MacAngleBridge.setVisible(macHostHandle, false);
             } else if (Platform.isWindows()) {
                 newNativeWindowHandle = WinAngleBridge.hwnd(this);
             } else if (Platform.isLinux()) {
@@ -194,15 +194,14 @@ public final class AngleCanvas extends Canvas {
                 return;
 
             AngleRenderer renderer = new AngleRenderer(newNativeWindowHandle);
-            macHostHandle = newHostHandle;
             angleRenderer = renderer;
             nativeHostVisible = hostVisible;
             if (Platform.isMacOS())
                 nativeHostScale = Display.pixelScale[0];
             invalidateGlSize();
         } catch (RuntimeException | Error e) {
-            if (newHostHandle != 0L)
-                MacAngleBridge.destroy(newHostHandle);
+            // Keep the macOS host until removeNotify so its JAWT layer is cleared only during Canvas teardown.
+            attachmentFailed = true;
             throw e;
         }
     }
