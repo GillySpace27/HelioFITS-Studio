@@ -15,6 +15,7 @@ public class GLSLSolarShader extends GLSLShader {
     public static final GLSLSolarShader ortho = new GLSLSolarShader("/glsl/solar.vert", "/glsl/solarOrtho.frag", true);
     public static final GLSLSolarShader hpc = new GLSLSolarShader("/glsl/solar.vert", "/glsl/solarHpc.frag", true);
     public static final GLSLSolarShader lati = new GLSLSolarShader("/glsl/solar.vert", "/glsl/solarLati.frag", true);
+    public static final GLSLSolarShader sky = new GLSLSolarShader("/glsl/solar.vert", "/glsl/solarSky.frag", true);
     public static final GLSLSolarShader radialWarp = new GLSLSolarShader("/glsl/solar.vert", "/glsl/solarRadialWarp.frag", true);
     public static final GLSLSolarShader rectWarp = new GLSLSolarShader("/glsl/solar.vert", "/glsl/solarRectWarp.frag", true);
     // Draws a mesh rather than a full-screen quad: the warp is geometry here, so the scene can
@@ -26,11 +27,13 @@ public class GLSLSolarShader extends GLSLShader {
     private int pv0Ref;
     private int pv1Ref;
     private int latiGridRef;
+    private int skyLookRef;
     private int mvpRef;
     private int observerDistanceRef;
     private int surfaceModelRef;
     private int cropRadiusRef;
     private static final float[] latiGridBuf = new float[6];
+    private static final float[] skyLookBuf = new float[3];
 
     private GLSLSolarShader(String vertex, String fragment, boolean _hasCommon) {
         super(vertex, fragment);
@@ -66,6 +69,7 @@ public class GLSLSolarShader extends GLSLShader {
         ortho._init(ortho.hasCommon);
         hpc._init(hpc.hasCommon);
         lati._init(lati.hasCommon);
+        sky._init(sky.hasCommon);
         radialWarp._init(radialWarp.hasCommon);
         rectWarp._init(rectWarp.hasCommon);
         warpSurface._init(warpSurface.hasCommon);
@@ -84,6 +88,7 @@ public class GLSLSolarShader extends GLSLShader {
         pv0Ref = GL.glGetUniformLocation(id, "pv0");
         pv1Ref = GL.glGetUniformLocation(id, "pv1");
         latiGridRef = GL.glGetUniformLocation(id, "latiGrid");
+        skyLookRef = GL.glGetUniformLocation(id, "skyLook");
         mvpRef = GL.glGetUniformLocation(id, "ModelViewProjectionMatrix");
         observerDistanceRef = GL.glGetUniformLocation(id, "observerDistance");
         surfaceModelRef = GL.glGetUniformLocation(id, "surfaceModel");
@@ -127,6 +132,7 @@ public class GLSLSolarShader extends GLSLShader {
         ortho._dispose();
         hpc._dispose();
         lati._dispose();
+        sky._dispose();
         radialWarp._dispose();
         rectWarp._dispose();
         warpSurface._dispose();
@@ -169,6 +175,19 @@ public class GLSLSolarShader extends GLSLShader {
 
         projectionBuf.flip();
         projectionBO.setBufferDataIfChanged(PROJECTION_SIZE, projectionBuf);
+    }
+
+    /**
+      * Where the observer-sky view is aimed, and in which projection.
+      *
+      * <p>Only {@link #sky} has this uniform; every other program returns -1 for it and glUniform
+      * on -1 is a no-op, so this is safe to call unconditionally alongside the lati grid.
+      */
+    public void bindSkyLook(float lon, float lat, float projectionCode) {
+        skyLookBuf[0] = lon;
+        skyLookBuf[1] = lat;
+        skyLookBuf[2] = projectionCode;
+        GL.glUniform3fv(skyLookRef, skyLookBuf);
     }
 
     public void bindLatiGrid(float[] latiGrid0, float[] latiGrid1) {

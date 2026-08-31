@@ -410,6 +410,10 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             latiGrid1[2] = (float) metaViewpoint1.lat;
         }
         shader.bindLatiGrid(latiGrid0, latiGrid1);
+        shader.bindSkyLook(
+                (float) org.helioviewer.jhv.display.Display.getSkyLookLon(),
+                (float) org.helioviewer.jhv.display.Display.getSkyLookLat(),
+                org.helioviewer.jhv.display.Display.getSkyProjection().shaderCode());
 
         GLSLSolarShader.bindProjection(
                 wcs0.projection, (float) wcs0.unitsPerRad, (float) metaViewpoint0.distance, sourceView0, displayMap0,

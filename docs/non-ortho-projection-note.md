@@ -58,6 +58,28 @@ This note documents the convention used by the non-orthographic display modes (`
     vector but without the tangent/divide/normalize path
   - Java overlay emission clips to the visible hemisphere and does not wrap
     horizontally
+- `ObserverSky` is the same observer-centered sky as `HPC`, laid out about a
+  reference direction that the user can steer rather than about the Sun.
+  - display coordinates are the FITS WCS *native radial coordinate* in degrees,
+    per Calabretta & Greisen (2002): `TAN` gives `R = tan(rho)`, `STG` gives
+    `R = 2 tan(rho/2)`, `ARC` gives `R = rho`, where `rho` is the angular
+    distance from the reference direction. `ARC` is the default and the only
+    one that reaches the anti-solar point.
+  - the reference direction is a helioprojective `(Tx, Ty)`; `(0, 0)` is the
+    Sun, so an unsteered view reproduces the ordinary Sun-centered picture
+  - both sides build the same tangent basis at the reference direction:
+    `east = (cos Tx, 0, sin Tx)`, `north = (-sin Tx sin Ty, cos Ty, cos Tx sin Ty)`,
+    and a page point at radius `R`, azimuth `a` is
+    `cos(rho) * look + sin(rho) * (cos(a) * east + sin(a) * north)`
+  - Java in `SkyMap`, GLSL in `solarSky.frag`, and `SkyMapCheck` drives a world
+    point through the Java forward map and back out through the ray
+    construction the shader uses, which is what keeps the two from drifting
+  - both sides discard directions with `ray.z >= 0`: past 90 degrees elongation
+    the line of sight runs away from the Sun, so there is no coronagraph data
+    there. Empty sky, not clipped detail.
+  - the surface model (plane of sky / Thomson sphere) does not apply here. It
+    places brightness in DEPTH along a line of sight, and this projection is a
+    map of directions, which no depth model moves.
 - `Latitudinal` uses `x = longitude`, `y = latitude`.
   - the GLSL latitudinal shader uses explicit latitude internally as well, with
     `0` at the equator and positive northward

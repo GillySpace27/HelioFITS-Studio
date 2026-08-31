@@ -24,6 +24,9 @@ COMMON_SOLAR_FRAGMENTS = (
     # The helioradial surface mesh's fragment shader. Same prepend as its siblings; it was
     # missing here, so the one shader added with the projection was the one not being checked.
     "warpSurface.frag",
+    # The observer-sky map. Same prepend as its siblings: it reuses the shared helioprojective
+    # sampling wholesale and only changes which part of the sky reaches the screen.
+    "solarSky.frag",
 )
 
 # Vertex-stage splice, the mirror of the fragment prepend above. GLSLShader._init inserts

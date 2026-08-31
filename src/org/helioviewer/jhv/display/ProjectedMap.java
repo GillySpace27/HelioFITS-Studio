@@ -2,6 +2,8 @@ package org.helioviewer.jhv.display;
 
 import java.util.List;
 
+import javax.annotation.Nullable;
+
 import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.math.PolarBasis;
@@ -20,15 +22,29 @@ final class ProjectedMap {
             case Latitudinal -> projectLatitudinal(rotation, scale, v);
             case Helioradial -> projectHelioradial(viewpoint, scale, v);
             case HelioradialUnrolled -> projectHelioradialUnrolled(viewpoint, scale, v);
+            // Off the page rather than null, because this returns a coordinate. A point the sky
+            // projection cannot draw is one that is behind you or past its reach, and pushing it
+            // far outside the map is the truthful answer for a single placed marker: it clips.
+            // Lines do NOT come through here; they take the nullable path below and break instead.
+            case ObserverSky -> {
+                Vec2 pt = SkyMap.project(viewpoint, scale, Display.getSkyProjection(),
+                        Display.getSkyLookLon(), Display.getSkyLookLat(), v);
+                yield pt == null ? OFF_PAGE : pt;
+            }
             case Orthographic -> throw new IllegalArgumentException("Orthographic mode is not projected");
         };
     }
+
+    // Far enough outside the [-0.5, 0.5] map to clip under any zoom anyone would use.
+    private static final Vec2 OFF_PAGE = new Vec2(1e4, 1e4);
 
     static Vec3 unproject(MapMode mode, Position viewpoint, Quat rotation, Vec2 pt) {
         return switch (mode) {
             case HPC -> unprojectHpc(viewpoint, pt.x, pt.y);
             case Latitudinal -> unprojectLatitudinal(rotation, pt.x, pt.y);
             case Helioradial, HelioradialUnrolled -> unprojectHelioradial(viewpoint, pt.x, pt.y);
+            case ObserverSky -> SkyMap.unproject(viewpoint, Display.getSkyProjection(),
+                    Display.getSkyLookLon(), Display.getSkyLookLat(), pt);
             case Orthographic -> throw new IllegalArgumentException("Orthographic mode is not projected");
         };
     }
@@ -108,6 +124,10 @@ final class ProjectedMap {
             emitHelioradialLine(viewpoint, scale, vertices, color, vexBuf);
             return;
         }
+        if (mode == MapMode.ObserverSky) {
+            emitSkyLine(viewpoint, scale, vp, vertices, color, vexBuf);
+            return;
+        }
 
         Vec2 current = project(mode, viewpoint, scale, rotation, vertices.getFirst());
         emitProjectedVertex(vp, current, Colors.Null, vexBuf);
@@ -161,6 +181,14 @@ final class ProjectedMap {
             emitHpcPoints(viewpoint, scale, vp, vertices, size, color, vexBuf);
             return;
         }
+        if (mode == MapMode.ObserverSky) {
+            for (Vec3 vertex : vertices) {
+                Vec2 pt = projectSky(viewpoint, scale, vertex);
+                if (pt != null)
+                    vexBuf.putVertex((float) (pt.x * vp.aspect), (float) pt.y, 0, (float) size, color);
+            }
+            return;
+        }
 
         float pointSize = (float) size;
         if (mode == MapMode.Helioradial) {
@@ -199,6 +227,42 @@ final class ProjectedMap {
         double upY = ViewportMath.computeUpY(vp, width, camera.getTranslationY(), y);
         double t = 2 * Math.hypot(upX, upY);
         return new Vec2(Math.toDegrees(PolarBasis.angle(upX, upY)), scale.toMapY(t));
+    }
+
+    @Nullable
+    private static Vec2 projectSky(Position viewpoint, MapScale scale, Vec3 v) {
+        return SkyMap.project(viewpoint, scale, Display.getSkyProjection(),
+                Display.getSkyLookLon(), Display.getSkyLookLat(), v);
+    }
+
+    /**
+     * A line on the observer's sky, broken wherever the projection cannot carry it.
+     *
+     * <p>Same shape as the HPC path, and needed for the same reason: this is a map of directions,
+     * so a curve that leaves the drawable part of the sky has genuinely left the picture. Joining
+     * across the gap would draw a chord through the middle of the field that no part of the curve
+     * ever passed through.
+     */
+    private static void emitSkyLine(Position viewpoint, MapScale scale, Viewport vp, List<Vec3> vertices, byte[] color, BufVertex vexBuf) {
+        Vec2 previous = null;
+        int last = vertices.size() - 1;
+        for (int i = 0; i <= last; i++) {
+            Vec2 current = projectSky(viewpoint, scale, vertices.get(i));
+            if (current == null) {
+                if (previous != null)
+                    vexBuf.repeatVertex(Colors.Null);
+                previous = null;
+                continue;
+            }
+            if (previous == null) {
+                emitProjectedVertex(vp, current, Colors.Null, vexBuf);
+                vexBuf.repeatVertex(color);
+            } else
+                emitProjectedVertex(vp, current, color, vexBuf);
+            if (i == last)
+                vexBuf.repeatVertex(Colors.Null);
+            previous = current;
+        }
     }
 
     private static Vec3 toHpcViewpointSpace(Position viewpoint, Vec3 v) {

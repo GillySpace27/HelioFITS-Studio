@@ -45,6 +45,7 @@ public final class GLRenderer {
             case Helioradial -> createConstantScales(viewports, MapScale.boxCoxRadial(
                     Display.isHelioradial3D() ? Display.fullWarpFieldRadius() : effectiveOuterRadius()));
             case HelioradialUnrolled -> createConstantScales(viewports, MapScale.boxCoxRadial(effectiveOuterRadius()));
+            case ObserverSky -> createSkyScales(viewports);
         };
     }
 
@@ -62,6 +63,24 @@ public final class GLRenderer {
             double halfHeight = Math.max(0.5 * bounds.height, halfWidth / vp.aspect);
             scales[vp.idx] = MapScale.hpc(halfHeight * vp.aspect, halfHeight);
         }
+        return scales;
+    }
+
+    /**
+     * The sky page is sized by the user's field of view, not by the loaded data.
+     *
+     * <p>Deliberately unlike the HPC scale beside it, which fits itself to whatever is loaded. A
+     * look-around whose field jumped every time a layer arrived would be unusable, and the point of
+     * the mode is to be able to aim away from the data and still know where you are pointing.
+     */
+    private static MapScale[] createSkyScales(Viewport[] viewports) {
+        // The field is an angle; the page coordinate is that angle put through the projection's
+        // radial law. They are the same number only for azimuthal equidistant.
+        double halfHeight = Math.toDegrees(Display.getSkyProjection()
+                .radiusFromAngle(Math.toRadians(Display.getSkyFieldDegrees())));
+        MapScale[] scales = new MapScale[viewports.length];
+        for (Viewport vp : viewports)
+            scales[vp.idx] = MapScale.sky(halfHeight * vp.aspect, halfHeight);
         return scales;
     }
 

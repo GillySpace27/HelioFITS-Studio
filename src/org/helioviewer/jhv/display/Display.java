@@ -88,6 +88,19 @@ public final class Display {
                 double halfHeight = Math.max(0.5 * bounds.height, 0.5 * bounds.width / vp.aspect);
                 yield Math.toDegrees(Math.asin(1 / d)) / (halfHeight * m.baseCameraWidth(getCamera()));
             }
+            // The disk's angular radius put through the projection's own radial law, over the
+            // page's half-height in the same units. Exact while the view is aimed at the Sun,
+            // which is the only place the disk is centred; aimed elsewhere the projection stretches
+            // it, and that stretch is the projection working rather than an error to correct.
+            case ObserverSky -> {
+                double d = org.helioviewer.jhv.opengl.GLRenderer.getDisplayedViewpoint().distance;
+                if (d <= 1)
+                    yield 0;
+                double limbRadius = Math.toDegrees(getSkyProjection().radiusFromAngle(Math.asin(1 / d)));
+                double halfHeight = Math.toDegrees(
+                        getSkyProjection().radiusFromAngle(Math.toRadians(getSkyFieldDegrees())));
+                yield limbRadius / (halfHeight * m.baseCameraWidth(getCamera()));
+            }
             case HelioradialUnrolled, Latitudinal -> 0;
         };
     }
@@ -452,6 +465,108 @@ public final class Display {
                     DISK_SCALE_MIN, DISK_SCALE_MAX);
         } catch (Exception ignore) {
             diskScale = DEFAULT_DISK_SCALE;
+        }
+    }
+
+    /**
+     * The observer-sky projection, and where it is aimed.
+     *
+     * <p>The look direction is helioprojective: (0, 0) is the Sun, so a fresh Observer Sky view is
+     * the ordinary Sun-centred picture and turning away from it is the new thing. Kept in radians
+     * because that is what {@link SkyMap} and the shader both want; only the UI speaks degrees.
+     *
+     * <p>Persisted like the disk scale rather than carried in the session's ModeData, deliberately:
+     * these are how you have the viewer set up, not what a saved session is OF, and a shared
+     * session file should not reach in and turn someone's head.
+     */
+    private static SkyProjection skyProjection = SkyProjection.DEFAULT;
+    private static double skyLookLon;
+    private static double skyLookLat;
+
+    /** Angular radius of the sky view, measured from the centre of the picture to its top edge. */
+    public static final double SKY_FIELD_MIN = 1;
+    public static final double SKY_FIELD_MAX = 180;
+    // Wide enough to hold any coronagraph field whole (LASCO C3 reaches about 8 degrees, PUNCH
+    // about 45), so the mode opens on a picture rather than on a crop of one.
+    public static final double DEFAULT_SKY_FIELD = 60;
+
+    private static double skyFieldDegrees = DEFAULT_SKY_FIELD;
+
+    public static SkyProjection getSkyProjection() {
+        return skyProjection;
+    }
+
+    public static void setSkyProjection(SkyProjection projection) {
+        skyProjection = projection == null ? SkyProjection.DEFAULT : projection;
+        Settings.setProperty("display.skyProjection", skyProjection.name());
+    }
+
+    public static double getSkyFieldDegrees() {
+        return skyFieldDegrees;
+    }
+
+    public static void setSkyFieldDegrees(double degrees) {
+        skyFieldDegrees = Math.clamp(degrees, SKY_FIELD_MIN, SKY_FIELD_MAX);
+        Settings.setProperty("display.skyField", String.valueOf(skyFieldDegrees));
+    }
+
+    public static double getSkyLookLon() {
+        return skyLookLon;
+    }
+
+    public static double getSkyLookLat() {
+        return skyLookLat;
+    }
+
+    public static void setSkyLook(double lon, double lat) {
+        aimSkyLook(lon, lat);
+        commitSkyLook();
+    }
+
+    /**
+     * Turn the aim by an angle east and an angle north, in radians, WITHOUT writing it to disk.
+     *
+     * <p>The split is not fussiness: Settings.setProperty rewrites the whole properties file on
+     * every change, and a look-around is a drag, so persisting per motion event would put a file
+     * write between each pair of frames. The drag calls this and then {@link #commitSkyLook} once,
+     * on release.
+     */
+    public static void steerSkyLook(double east, double north) {
+        double[] aim = SkyMap.steer(skyLookLon, skyLookLat, east, north);
+        aimSkyLook(aim[0], aim[1]);
+    }
+
+    private static void aimSkyLook(double lon, double lat) {
+        skyLookLon = lon;
+        skyLookLat = Math.clamp(lat, -Math.PI / 2, Math.PI / 2);
+    }
+
+    public static void commitSkyLook() {
+        Settings.setProperty("display.skyLookLon", String.valueOf(skyLookLon));
+        Settings.setProperty("display.skyLookLat", String.valueOf(skyLookLat));
+    }
+
+    /** Aim back at the Sun. The one direction that is always worth one click. */
+    public static void resetSkyLook() {
+        setSkyLook(0, 0);
+    }
+
+    static {
+        SkyProjection saved = SkyProjection.fromName(String.valueOf(Settings.getProperty("display.skyProjection")));
+        if (saved != null)
+            skyProjection = saved;
+        try {
+            skyFieldDegrees = Math.clamp(Double.parseDouble(Settings.getProperty("display.skyField")),
+                    SKY_FIELD_MIN, SKY_FIELD_MAX);
+        } catch (Exception ignore) {
+            skyFieldDegrees = DEFAULT_SKY_FIELD;
+        }
+        try {
+            skyLookLon = Double.parseDouble(Settings.getProperty("display.skyLookLon"));
+            skyLookLat = Math.clamp(Double.parseDouble(Settings.getProperty("display.skyLookLat")),
+                    -Math.PI / 2, Math.PI / 2);
+        } catch (Exception ignore) {
+            skyLookLon = skyLookLat = 0;
         }
     }
 

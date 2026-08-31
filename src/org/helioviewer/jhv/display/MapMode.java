@@ -29,7 +29,11 @@ public enum MapMode {
     HPC(GLSLSolarShader.hpc, "HPC"),
     Helioradial(GLSLSolarShader.warpSurface, "Helioradial"),
     HelioradialUnrolled(GLSLSolarShader.rectWarp, "Helioradial Unrolled"),
-    Latitudinal(GLSLSolarShader.lati, "Latitudinal");
+    Latitudinal(GLSLSolarShader.lati, "Latitudinal"),
+    // Last because it is the only one that is not centred on the Sun. Everything above answers
+    // "what does the corona look like"; this one answers "what is in that direction", which is a
+    // different question and is why it gets its own aim and field controls.
+    ObserverSky(GLSLSolarShader.sky, "Observer Sky");
 
     private final GLSLSolarShader shader3D;
     private final String label;
@@ -127,6 +131,10 @@ public enum MapMode {
                 yield edge > 0 ? HELIORADIAL_MARGIN * 2 * edge : camera.baseCameraWidth();
             }
             case HPC, Latitudinal -> camera.baseCameraWidth();
+            // A fixed map filling the normalized domain, like the unrolled layout: the angular
+            // field is set in degrees by the sky scale, so the camera must not also be sizing it.
+            // Zoom still multiplies this, which magnifies the page without changing what is on it.
+            case ObserverSky -> 1.0;
         };
     }
 

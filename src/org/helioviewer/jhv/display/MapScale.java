@@ -40,6 +40,18 @@ public interface MapScale {
         return new LinearMapScale(-halfWidth, halfWidth, -halfHeight, halfHeight);
     }
 
+    /**
+     * The observer-sky page, in the WCS native radial coordinate in degrees.
+     *
+     * <p>Linear like the HPC scale, and for the same reason: the projection's own radial law has
+     * already been applied by the time a coordinate reaches here, so what is left is a plain
+     * window onto the projection plane. For the azimuthal equidistant default that plane is
+     * calibrated in degrees of arc, so halfHeight IS the field radius the user asked for.
+     */
+    static MapScale sky(double halfWidth, double halfHeight) {
+        return new LinearMapScale(-halfWidth, halfWidth, -halfHeight, halfHeight);
+    }
+
     static MapScale boxCoxRadial(double radialSize) {
         return new BoxCoxRadialScale(Math.max(radialSize, 1));
     }

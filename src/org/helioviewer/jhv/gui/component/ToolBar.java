@@ -36,6 +36,7 @@ import org.helioviewer.jhv.display.CMETracker;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.MapMode;
+import org.helioviewer.jhv.display.SkyProjection;
 import org.helioviewer.jhv.display.SurfaceModel;
 import org.helioviewer.jhv.display.interaction.Interaction;
 import org.helioviewer.jhv.gui.Actions;
@@ -675,7 +676,9 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         content.add(createWarpEdgePanel());
         content.add(createZoomPanel());
         content.add(createDiskPanel());
+        content.add(createSkyPanel());
         content.add(createHelioradial3DPanel());
+        setSkyPanelEnabled(ViewState.getProjection() == MapMode.ObserverSky);
         warpLambdaSlider.setEnabled(ViewState.getProjection().usesWarpLambda());
         warpEdgeSlider.setEnabled(ViewState.getProjection().usesWarpEdge());
         helioradial3DBox.setEnabled(ViewState.getProjection() == MapMode.Helioradial);
@@ -949,6 +952,126 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
      * <p>Logarithmic for the usual reason: a multiplier's useful travel is in ratios, so a linear
      * scale would give the whole range below 1.0 a tenth of the track.
      */
+    /**
+     * The Observer Sky controls: which zenithal projection, how wide a field, and where it is aimed.
+     *
+     * <p>Grouped in one bordered block rather than added as three more loose sliders, because they
+     * only mean anything together and only in one mode. The rest of this palette describes the
+     * corona; this block describes where you are standing and which way you are looking.
+     */
+    private JPanel createSkyPanel() {
+        skyProjectionBox = new javax.swing.JComboBox<>(SkyProjection.values());
+        skyProjectionBox.setSelectedItem(Display.getSkyProjection());
+        skyProjectionBox.setToolTipText(Display.getSkyProjection().tooltip());
+        skyProjectionBox.addActionListener(e -> {
+            if (skyProjectionBox.getSelectedItem() instanceof SkyProjection projection) {
+                Display.setSkyProjection(projection);
+                skyProjectionBox.setToolTipText(projection.tooltip());
+                DisplayController.display();
+            }
+        });
+        JPanel projectionRow = new JPanel(new BorderLayout());
+        projectionRow.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 4));
+        projectionRow.add(new JLabel("Sky"), BorderLayout.LINE_START);
+        projectionRow.add(skyProjectionBox, BorderLayout.LINE_END);
+
+        skyFieldSlider = new JHVSlider(0, 1000, skyFieldToSlider(Display.getSkyFieldDegrees()));
+        skyFieldSlider.setToolTipText("Angular radius of the view, centre of the picture to top edge. "
+                + "180\u00b0 is the whole sky, and only azimuthal equidistant reaches it. Double-click to reset.");
+        skyFieldSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, skyFieldSlider.getPreferredSize().height));
+        skyFieldValue = new JLabel(formatSkyField(Display.getSkyFieldDegrees()), JLabel.RIGHT);
+        skyFieldValue.setPreferredSize(new JLabel("-0.000").getPreferredSize());
+        skyFieldSlider.addChangeListener(e -> {
+            double degrees = sliderToSkyField(skyFieldSlider.getValue());
+            Display.setSkyFieldDegrees(degrees);
+            skyFieldValue.setText(formatSkyField(degrees));
+            DisplayController.display();
+        });
+        skyFieldSlider.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2)
+                    skyFieldSlider.setValue(skyFieldToSlider(Display.DEFAULT_SKY_FIELD));
+            }
+        });
+        JPanel fieldRow = new JPanel(new BorderLayout());
+        fieldRow.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 4));
+        fieldRow.add(new JLabel("Field"), BorderLayout.LINE_START);
+        fieldRow.add(skyFieldSlider, BorderLayout.CENTER);
+        fieldRow.add(skyFieldValue, BorderLayout.LINE_END);
+
+        skyAimValue = new JLabel(formatSkyAim(), JLabel.RIGHT);
+        skyAimValue.setToolTipText("Where the centre of the picture is pointing, as an offset from the Sun. "
+                + "Drag in the view to look around.");
+        javax.swing.JButton aimAtSun = new javax.swing.JButton("Aim at Sun");
+        aimAtSun.setToolTipText("Put the Sun back at the centre of the picture");
+        aimAtSun.addActionListener(e -> {
+            Display.resetSkyLook();
+            skyAimValue.setText(formatSkyAim());
+            DisplayController.display();
+        });
+        JPanel aimRow = new JPanel(new BorderLayout());
+        aimRow.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 4));
+        aimRow.add(aimAtSun, BorderLayout.LINE_START);
+        aimRow.add(skyAimValue, BorderLayout.LINE_END);
+
+        skyPanel = new JPanel();
+        skyPanel.setLayout(new javax.swing.BoxLayout(skyPanel, javax.swing.BoxLayout.PAGE_AXIS));
+        skyPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createTitledBorder("Observer sky"),
+                BorderFactory.createEmptyBorder(0, 4, 2, 4)));
+        skyPanel.add(projectionRow);
+        skyPanel.add(fieldRow);
+        skyPanel.add(aimRow);
+        return skyPanel;
+    }
+
+    private JPanel skyPanel;
+    private javax.swing.JComboBox<SkyProjection> skyProjectionBox;
+    private JHVSlider skyFieldSlider;
+    private JLabel skyFieldValue;
+    private JLabel skyAimValue;
+
+    // Greyed rather than hidden: the block would otherwise appear and disappear as the projection
+    // list is stepped through, and a palette that changes height under the pointer is worse than
+    // one with a section that is plainly not in use.
+    private void setSkyPanelEnabled(boolean enabled) {
+        if (skyPanel == null)
+            return;
+        skyPanel.setEnabled(enabled);
+        for (java.awt.Component row : skyPanel.getComponents()) {
+            row.setEnabled(enabled);
+            if (row instanceof java.awt.Container container)
+                for (java.awt.Component c : container.getComponents())
+                    c.setEnabled(enabled);
+        }
+    }
+
+    // Log-spaced: the useful settings are bunched at the narrow end (a few degrees covers LASCO),
+    // while the wide end is one gesture from all-sky.
+    static double sliderToSkyField(int value) {
+        double t = Math.clamp(value, 0, 1000) / 1000.;
+        return Display.SKY_FIELD_MIN * Math.pow(Display.SKY_FIELD_MAX / Display.SKY_FIELD_MIN, t);
+    }
+
+    static int skyFieldToSlider(double degrees) {
+        double t = Math.log(Math.clamp(degrees, Display.SKY_FIELD_MIN, Display.SKY_FIELD_MAX) / Display.SKY_FIELD_MIN)
+                / Math.log(Display.SKY_FIELD_MAX / Display.SKY_FIELD_MIN);
+        return (int) Math.round(Math.clamp(t, 0, 1) * 1000);
+    }
+
+    private static String formatSkyField(double degrees) {
+        return degrees < 10 ? String.format("%.1f\u00b0", degrees) : String.format("%.0f\u00b0", degrees);
+    }
+
+    private static String formatSkyAim() {
+        double lon = Math.toDegrees(Display.getSkyLookLon());
+        double lat = Math.toDegrees(Display.getSkyLookLat());
+        if (Math.abs(lon) < 0.05 && Math.abs(lat) < 0.05)
+            return "on the Sun";
+        return String.format("%+.1f\u00b0, %+.1f\u00b0", lon, lat);
+    }
+
     private JPanel createDiskPanel() {
         diskSlider = new JHVSlider(0, 1000, diskScaleToSlider(Display.getDiskScale()));
         diskSlider.setToolTipText("Size of the solar disk as a multiple of the nominal Box-Cox warp: 1.00\u00d7 is the warp untouched, left is bigger, right is smaller. Double-click to return to nominal.");
@@ -1044,6 +1167,9 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
      */
     private void paletteTick() {
         syncSurfaceModelBox();
+        // The aim moves by dragging in the view, which this palette never hears about.
+        if (skyAimValue != null && projectionPalette != null && projectionPalette.isVisible())
+            skyAimValue.setText(formatSkyAim());
         keepPaletteVisible();
         syncZoomSliderFromDisplay();
     }
@@ -1236,6 +1362,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             helioradial3DBox.setEnabled(ViewState.getProjection() == MapMode.Helioradial);
             helioradial3DBox.setSelected(Display.isHelioradial3D());
         }
+        setSkyPanelEnabled(ViewState.getProjection() == MapMode.ObserverSky);
         if (warpLambdaValue != null)
             warpLambdaValue.setText(String.format("%.3f", ViewState.getWarpLambda()));
         JRadioButtonMenuItem activeAnnotationMode = annotationItems.get(ViewState.getAnnotationMode());

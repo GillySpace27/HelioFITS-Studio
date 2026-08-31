@@ -26,6 +26,7 @@ public final class Interaction {
     private final InteractionTrackball interactionAxis;
     private final InteractionPan interactionPan;
     private final InteractionTrackball interactionRotate;
+    private final InteractionSkyLook interactionSkyLook;
     private final Zoom zoom;
 
     private Mode mode = Mode.ROTATE;
@@ -37,6 +38,7 @@ public final class Interaction {
         interactionAxis = InteractionTrackball.axis(camera);
         interactionPan = new InteractionPan(camera);
         interactionRotate = InteractionTrackball.rotate(camera);
+        interactionSkyLook = new InteractionSkyLook();
         zoom = new Zoom();
     }
 
@@ -50,6 +52,11 @@ public final class Interaction {
     }
 
     private Type getType() {
+        // The observer's sky has nothing to orbit: the observer stays put and a drag changes which
+        // way it is facing. So the rotate tool becomes a look-around there, which is what a user
+        // reaching for the rotate tool in that mode is asking for. Pan still pans the page.
+        if (Display.mode == org.helioviewer.jhv.display.MapMode.ObserverSky && mode != Mode.PAN)
+            return interactionSkyLook;
         return switch (mode) {
             case PAN -> interactionPan;
             case ROTATE -> interactionRotate;

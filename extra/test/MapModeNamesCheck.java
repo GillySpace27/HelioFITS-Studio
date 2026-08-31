@@ -41,14 +41,17 @@ public final class MapModeNamesCheck {
 
         // Menu order is a deliberate choice, not an accident of when constants were added:
         // Orthographic, HPC and Helioradial are the same view at default settings and differ
-        // only in their grids, so they lead; Latitudinal is a surface map and goes last.
+        // only in their grids, so they lead. The two that are not sky views of the corona go
+        // last: Latitudinal, a surface map, and then Observer Sky, the only one not centred on
+        // the Sun at all.
         // Reordering is safe only because sessions persist NAMES, which the round trip above
         // covers; if anything ever keys off ordinal this assertion is the warning.
         MapMode[] order = MapMode.values();
         equalsStr(order[0].name(), "Orthographic", "first projection");
         equalsStr(order[1].name(), "HPC", "second projection");
         equalsStr(order[2].name(), "Helioradial", "third projection");
-        equalsStr(order[order.length - 1].name(), "Latitudinal", "last projection");
+        equalsStr(order[order.length - 2].name(), "Latitudinal", "second to last projection");
+        equalsStr(order[order.length - 1].name(), "ObserverSky", "last projection");
 
         // Persisted names must stay free of spaces, since that is what distinguishes them from
         // labels and what keeps them safe in SAMP messages and command lines.

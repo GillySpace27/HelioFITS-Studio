@@ -98,6 +98,25 @@ public abstract class MapView {
         return mode == MapMode.HelioradialUnrolled;
     }
 
+    public boolean isObserverSky() {
+        return mode == MapMode.ObserverSky;
+    }
+
+    /**
+     * Helioprojective (Tx, Ty) in degrees under the cursor, for {@link MapMode#ObserverSky}.
+     *
+     * <p>The same coordinates the HPC readout shows, because they are the same coordinates: this
+     * mode changes which part of the observer's sky is on screen and how it is laid out, not what
+     * the sky is measured in. Meaningless in the other modes, whose page is not a sky.
+     */
+    public Vec2 mouseToSkyAngles(Viewport vp, int x, int y) {
+        Vec3 ray = SkyMap.pageToRay(Display.getSkyProjection(),
+                Display.getSkyLookLon(), Display.getSkyLookLat(), mouseToMap(vp, x, y));
+        return new Vec2(
+                Math.toDegrees(Math.atan2(ray.x, -ray.z)),
+                Math.toDegrees(Math.asin(Math.clamp(ray.y, -1, 1))));
+    }
+
     public Vec3 mouseToSky(Viewport vp, int x, int y) {
         return ViewportMath.unprojectToCurrentViewSphereOrPlane(camera, vp, cameraWidth(vp), x, y);
     }

@@ -47,6 +47,10 @@ public final class PositionStatusPanel extends StatusPanel.StatusPlugin implemen
             setText(formatLati(coord, mv.gridType()));
         } else if (mv.isHelioradial() || mv.isHelioradialUnrolled()) {
             setText(formatAngleRadius(coord));
+        } else if (mv.isObserverSky()) {
+            // The page coordinate here is a projection-plane radius, which nobody reads. Report the
+            // direction it stands for instead, in the same Tx/Ty the HPC readout uses.
+            setText(formatHpc(mv.mouseToSkyAngles(vp, x, y)));
         } else {
             Vec3 v = mv.mouseToSky(vp, x, y);
             if (v == null) {
