@@ -25,8 +25,8 @@ glTF is a general 3D asset standard for products that need triangle surfaces, te
 hierarchy, or a combination of surfaces, lines, and points. Its Cartesian geometry can be displayed in general glTF
 viewers, while solar metadata added to the asset tells JHV how to place it.
 
-To show how the interfaces can be used in practice, the document includes a worked conversion of COCONUT output. The
-same interfaces are intended for suitable products from other models.
+To show how the interfaces can be used in practice, the document includes a practical example based on COCONUT
+output. The same interfaces are intended for suitable products from other models.
 
 For line-only products, SunJSON is usually the more direct route. For meshed surfaces or products intended to remain
 portable outside JHV, use glTF.
@@ -69,7 +69,7 @@ The top-level fields are:
 
 - `type`: required and must be `SunJSON`;
 - `time`: required timestamp in the form `YYYY-MM-DDTHH:mm:ss`, optionally followed by fractional seconds. JHV
-  assumes UTC and does not accept timezone designators or numeric offsets;
+  assumes UTC and does not accept timezone designators or numeric offsets; and
 - `geometry`: required array of geometry entries. It may contain points, lines, and ellipses in any order.
 
 ## Geometry and appearance
@@ -83,7 +83,7 @@ Every geometry entry has four fields:
 
 Each coordinate is `[radius, Carrington longitude, Carrington latitude]`, where radius is the heliocentric distance
 in solar radii and both angles are in degrees. JHV converts these spherical coordinates directly into the Carrington
-frame; a radius below one solar radius is accepted but produces a warning because it places the coordinate beneath
+frame. A radius below one solar radius is accepted but produces a warning because it places the coordinate beneath
 the nominal solar surface.
 
 The geometry types interpret their coordinates as follows:
@@ -91,12 +91,12 @@ The geometry types interpret their coordinates as follows:
 - A `point` entry needs at least one coordinate and produces one point for each coordinate.
 - A `line` entry needs at least two coordinates. JHV joins consecutive coordinates into one connected polyline.
 - An `ellipse` entry needs exactly three coordinates. After conversion to Cartesian points, let them be $C$, $U$,
-  and $V$. JHV draws the closed curve $C + (U - C)\cos(t) + (V - C)\sin(t)$ for $0 \le t \le 2\pi$. $C$ is the center;
-  the offsets $U - C$ and $V - C$ define the curve's two Cartesian directions and lengths.
+  and $V$. JHV draws the closed curve $C + (U - C)\cos(t) + (V - C)\sin(t)$ for $0 \le t \le 2\pi$. Here, $C$ is
+  the center, while the offsets $U - C$ and $V - C$ define the curve's two Cartesian directions and lengths.
 
 Each color is straight, non-premultiplied `[R, G, B, A]`, with integer components from 0 through 255. JHV clamps
 values outside that range and converts the result to its premultiplied representation. When fewer colors than
-coordinates are supplied, the last color is repeated; extra colors are ignored, and an ellipse uses only its first
+coordinates are supplied, the last color is repeated. Extra colors are ignored, and an ellipse uses only its first
 color. The `colors` field must be present, although an empty array may be used to select JHV's default green.
 
 `thickness` is a JHV display parameter, not a physical width measured in solar radii. JHV currently clamps it to the
@@ -106,8 +106,8 @@ that the chosen value gives a suitable result in JHV.
 
 ## Loading and time selection
 
-JHV loads SunJSON from local files and HTTP(S) URIs. Dragging a `.json` file or URI into JHV selects the SunJSON
-loader; a SAMP client can instead send `jhv.load.sunjson` with either a `url` parameter or a `value` parameter
+JHV loads SunJSON from local files and HTTP URIs. Dragging a `.json` file or URI into JHV selects the SunJSON
+loader. A SAMP client can instead send `jhv.load.sunjson` with either a `url` parameter or a `value` parameter
 containing the complete JSON text. The data is stored in the Connection layer and drawn only when that layer is
 enabled.
 
@@ -130,10 +130,10 @@ glTF has two file forms:
 GLB is convenient for distribution and avoids Base64 expansion: its binary payload is about 25% smaller than the same
 payload embedded as Base64, but has no size advantage over a `.gltf` file with external binary resources.
 
-Either form can be gzip-compressed without altering its content. JHV accepts `.gltf.gz` and `.glb.gz`; an HTTP server
+Either form can be gzip-compressed without altering its content. JHV accepts `.gltf.gz` and `.glb.gz`. An HTTP server
 may instead use `Content-Encoding: gzip` while transferring the unmodified asset. Compression complements rather
-than replaces careful simplification or decimation where accuracy permits; geometric reduction also lowers the
-decoded size and rendering cost.
+than replaces careful geometry simplification or decimation where accuracy permits. Reducing the geometry also
+lowers memory use after loading and the amount of work needed to render the asset.
 
 ## Heliocentric Cartesian coordinates
 
@@ -147,10 +147,14 @@ The local Cartesian axes follow the heliocentric convention described by Thompso
 - `SOLY` points toward solar north in the observer's image plane;
 - `SOLZ` points from Sun center toward the observer.
 
-The origin is Sun center in an observer-aligned Cartesian frame, not a Carrington Cartesian frame.
+The coordinate origin is the center of the Sun, but the `SOLX`, `SOLY`, and `SOLZ` axes are aligned with the
+observer's view rather than with the Carrington coordinate system. JHV uses the observer's Carrington longitude and
+latitude to rotate the geometry into its Carrington world frame.
 
 JHV's current glTF profile requires positions in solar radii and uses a physical solar radius of 695700000 meters. The
 three glTF position components therefore have the following fixed declaration:
+
+\newpage
 
 ```text
 CTYPE1 = SOLX    CUNIT1 = solRad
@@ -188,8 +192,8 @@ default glTF scene:
 ```
 
 `DATE-OBS` is the observation or model-state time in the form `YYYY-MM-DDTHH:mm:ss`, optionally followed by fractional
-seconds. JHV assumes UTC; timezone designators and numeric offsets are not accepted.
-`CRLN_OBS` and `CRLT_OBS` are the observer's Carrington longitude and latitude at `DATE-OBS`, in degrees; latitude must
+seconds. JHV assumes UTC. Timezone designators and numeric offsets are not accepted.
+`CRLN_OBS` and `CRLT_OBS` are the observer's Carrington longitude and latitude at `DATE-OBS`, in degrees. Latitude must
 be between -90 and 90 degrees.
 
 `DSUN_OBS` records the observer distance from Sun center in meters and is retained as observer provenance. JHV
@@ -200,70 +204,64 @@ To position an asset in heliocentric coordinates, supply the complete positionin
 only part of this declaration is an error. An asset without it can still be loaded, but its positions are treated as
 JHV world coordinates. `DATE-OBS` may also be supplied by itself to give such an asset an observation time.
 
-JHV uses the observer longitude and latitude to rotate the declared `SOLX/SOLY/SOLZ` positions into Carrington
-coordinates, applying the same placement to triangles, lines, and points. Rotating the JHV view changes the camera,
-not the product's coordinates, whereas other glTF viewers ignore the solar metadata and display the local Cartesian
-geometry.
+JHV applies this placement to triangles, lines, and points. Rotating the JHV view changes the camera, not the
+product's coordinates, whereas other glTF viewers ignore the solar metadata and display the local Cartesian geometry.
 
 ## Supported glTF content
 
-JHV uses Assimp, the Open Asset Import Library, to read both glTF file forms. JHV currently supports:
+JHV uses Assimp, the Open Asset Import Library, to read both glTF file forms, but glTF can describe more than JHV can
+display. This section explains which geometry and appearance JHV preserves.
 
-- triangle meshes, including open or closed surfaces;
-- connected lines and polylines;
-- point sets;
-- static node translations, rotations, and scales, including repeated use of a mesh;
-- base colors and per-vertex RGBA colors on triangles, lines, and points;
-- one base-color texture per triangle material, embedded in the asset or stored beside a `.gltf` file;
-- opaque, cut-out (`MASK`), and translucent (`BLEND`) materials;
-- single- and double-sided triangle surfaces; and
-- unlit materials, whose colors are displayed without lighting or shading.
+**Geometry and scene structure.** JHV renders open or closed triangle surfaces, connected lines and polylines, and
+point sets. It preserves the static node hierarchy, including node translations, rotations, scales, and reuse of a
+mesh by multiple nodes, but does not support animations, skins, or morph targets.
 
-glTF colors use straight alpha, so producers must write ordinary, non-premultiplied values; JHV converts them to the
-premultiplied representation used by its renderer.
+Because glTF does not define a portable line width or point size, JHV uses fixed values for both. SunJSON is the
+better choice when a JHV-specific product needs to control these display sizes.
 
-JHV applies simple directional shading to triangle surfaces unless a material is marked as *unlit*. The shading makes
-the surface shape easier to see, but it also changes the apparent brightness of the colors. Use the glTF
-`KHR_materials_unlit` extension when encoded values must be displayed unchanged. JHV does not implement the complete
-glTF metallic/roughness lighting model, normal maps, emissive materials, or lights and cameras stored in the asset.
+**Colors, materials, and textures.** Triangles, lines, and points may use a material base color and per-vertex RGBA
+colors, while triangle materials may additionally use one base-color texture, either embedded in the asset or stored
+beside a `.gltf` file. Textures are not applied to lines or points.
 
-For predictable lighting, lit triangle meshes should provide vertex normals describing the intended surface. If they
-are absent, Assimp generates smooth normals while loading the asset, which may smooth edges that the producer intended
-to remain sharp. Unlit materials do not need normals.
+glTF colors use straight alpha, so producers must write ordinary, non-premultiplied values, which JHV converts to the
+premultiplied representation used by its renderer. JHV supports opaque (`OPAQUE`), cut-out (`MASK`), and translucent
+(`BLEND`) materials. On triangles, `MASK` discards fragments below the material's alpha cutoff, whereas on lines and
+points JHV applies the cutoff to vertex colors before rendering, making transitions along a line segment only
+approximate. Additive blending, separate opacity textures, and transformed texture coordinates are not supported.
 
-Because glTF does not define a portable line width or point size, JHV uses fixed values; use SunJSON when a JHV-only
-product requires specific line widths or point sizes.
+**Lighting and surfaces.** JHV applies simple directional shading to triangle surfaces unless their material uses the
+`KHR_materials_unlit` extension. Because shading reveals surface shape by changing the apparent brightness of its
+colors, materials whose colors encode values that must remain unchanged should be marked as unlit.
 
-JHV supports static geometry only; animation, skinning, and morph targets are not supported. Lines and points may
-carry material or per-vertex colors but not textures. JHV also does not support additive blending, separate opacity
-textures, or transformed texture coordinates.
+Lit triangle meshes should include vertex normals that describe the intended surface. If they are absent, Assimp
+generates smooth normals while loading the asset, which may smooth edges that were meant to remain sharp, whereas
+unlit materials do not need normals. JHV does not implement the complete glTF metallic/roughness model, normal maps,
+emissive materials, or lights and cameras stored in the asset.
 
-For triangle meshes, a `MASK` material discards fragments below its alpha cutoff. For lines and points, JHV applies
-the cutoff to vertex colors before rendering; transitions along a line segment are therefore only approximate.
+JHV respects single- and double-sided triangle materials, making a double-sided surface visible from either side while
+a single-sided surface disappears when viewed from its back. Opaque surfaces use the depth buffer normally, and
+ordinary alpha blending is available for translucent surfaces, but JHV cannot always determine the correct drawing
+order for overlapping or intersecting translucent geometry. Splitting such geometry into separate objects allows JHV
+to sort the objects independently and usually gives a more predictable result.
 
-Simple translucent surfaces are supported, but the appearance of overlapping surfaces can depend on their drawing
-order. Splitting them into separate objects allows JHV to order them independently and usually gives a more
-predictable result. Opaque triangle surfaces use the depth buffer normally; a double-sided surface is visible from
-either side, whereas a single-sided surface disappears when viewed from its back.
+**Preparing a product.** JHV does not expose arbitrary glTF vertex attributes as selectable data channels, so the
+producer chooses the quantity to display, converts it to vertex colors or a base-color texture, and records the
+quantity, units, range, and color map in scene `extras`.
 
-JHV does not turn arbitrary vertex attributes into selectable data channels. The producer chooses the displayed
-quantity, converts it to vertex colors or a base-color texture, and records the quantity, units, range, and color map
-in scene `extras`.
+When accuracy allows, dense lines should be simplified and dense triangle meshes decimated before export, using a
+recorded geometric or data-aware error criterion that preserves important boundaries and attributes. Comparing the
+reduced product with the full result then confirms that the reduction is acceptable, while careful reduction can
+substantially reduce file size, transfer time, and rendering cost.
 
-When accuracy allows, simplify dense lines and decimate dense triangle meshes before export. Choose and record a
-geometric or data-aware error criterion, preserve important boundaries and attributes, and compare the reduced
-product with the full result. Careful reduction can substantially reduce file size, transfer time, and rendering
-cost.
+The capabilities described here reflect the products considered so far and provide a practical starting point. As
+new real-world products require additional ways to represent or display their data, JHV's glTF support can be
+expanded where feasible.
 
-The interface can be extended when a new product needs a feature not covered here. Each addition should include a
-representative product and JHV integration tests, giving producers and JHV maintainers a concrete result to verify
-together.
+# COCONUT glTF example
 
-# Worked COCONUT glTF conversion
-
-`extra/test/create_coconut_scene.py` is a worked demonstration of the supported glTF capabilities and a starting point
-for using Qorona, PyVista/VTK, and pygltflib to produce a JHV-compatible asset from model output. It is tailored to
-the supplied COCONUT demonstration CFmesh and is not intended as a general COCONUT exporter. The resulting
+`extra/test/create_coconut_scene.py` demonstrates the supported glTF capabilities and provides a starting point for
+using Qorona, PyVista/VTK, and pygltflib to produce a JHV-compatible asset from model output. It is tailored to the
+supplied COCONUT sample CFmesh and is not intended as a general COCONUT exporter. The resulting
 `coconut-corona-scene.glb` contains:
 
 - unlit magnetic field lines colored by polarity;
@@ -272,7 +270,7 @@ the supplied COCONUT demonstration CFmesh and is not intended as a general COCON
 - eleven selected closed field lines represented by lit, thick yellow tubes with smooth vertex normals.
 
 The tube centerlines follow field lines traced from the supplied background magnetic field. Their selection, radius,
-color, and representation as solid tubes are artificial choices made only to demonstrate mesh normals and lighting.
+color, and representation as solid tubes are artificial choices included only to show mesh normals and lighting.
 
 The current sheet is unlit because its color map represents radial plasma velocity. Shading it would change the
 brightness according to surface orientation, making the same velocity appear as different colors across the mesh.
@@ -301,11 +299,11 @@ following assumptions and settings:
   observer's `SOLX/SOLY/SOLZ` frame;
 - the native cells are reconstructed with Qorona's degree-1 moving-least-squares resampler on a logarithmic
   `192 x 180 x 360` spherical grid spanning 1 to 6 solar radii;
-- field lines are traced in float64 with DOPRI5, `rtol=10^-8`, `cfl=0.125`, and an `18 x 36` seed grid; their glTF
+- field lines are traced in float64 with DOPRI5, `rtol=10^-8`, `cfl=0.125`, and an `18 x 36` seed grid. Their glTF
   positions are stored as float32;
 - after tracing, the field-line paths are simplified with the Ramer-Douglas-Peucker algorithm so that no removed
   trace vertex is farther than `10^-5` solar radii (about 7 km for the adopted solar radius) from the simplified
-  path; the same step is applied to the centerlines used to make the demonstration tubes;
+  path. The same step is applied to the centerlines used to make the tubes in this example;
 - both boundary endpoints of each complete open field line are exported as points, with the line's polarity color;
 - eleven additional closed field lines are traced from equally spaced seeds at Carrington latitude 6 degrees and
   longitudes 32 through 42 degrees, then converted to 4 Mm-radius tubes with 16 sides;
@@ -314,7 +312,7 @@ following assumptions and settings:
 - the model velocity is interpolated at each surface vertex, converted with the COOLFluiD `corona` normalization
   `v0 = 480 km/s`, and projected onto the local radial direction;
 - the extracted current-sheet mesh is reduced by a target of 50 percent with scalar-aware quadric decimation, using
-  radial velocity in the decimation error metric; vertex colors are generated from the resulting scalar values after
+  radial velocity in the decimation error metric. Vertex colors are generated from the resulting scalar values after
   this step; and
 - radial velocity is mapped through the `turbo` color map over -30 to 300 km/s, with a common surface alpha of 0.35.
 
