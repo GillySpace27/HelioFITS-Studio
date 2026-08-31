@@ -84,13 +84,44 @@ public final class AngleRenderer {
         ensureLwjglAngleConfigured();
     }
 
-    public AngleRenderer(long nativeWindowHandle) {
-        this(SurfaceKind.WINDOW, nativeWindowHandle, 0, 0);
+    public static AngleRenderer window(long nativeWindowHandle) {
+        return create(SurfaceKind.WINDOW, nativeWindowHandle, 0, 0);
     }
 
     public static AngleRenderer pbuffer(int width, int height) {
-        return new AngleRenderer(SurfaceKind.PBUFFER, 0L, width, height);
+        return create(SurfaceKind.PBUFFER, 0L, width, height);
     }
+
+    /**
+     * Build a renderer, dropping back to an 8-bit canvas if a deeper one cannot be presented.
+     *
+     * <p>Ten bits per channel is worth asking for: the whole render path is 8-bit today, so a
+     * smooth gradient is rounded to 256 levels on its way to a display that can show more, and
+     * that rounding is the one kind of banding the dither is fighting. Four times the levels
+     * removes most of the need for it.
+     *
+     * <p>Asked for rather than assumed, because whether a 10-bit window surface exists is a
+     * property of the driver, the backend and the display, none of which this code can know. The
+     * chosen format is logged either way, so what actually happened is on the record.
+     */
+    private static AngleRenderer create(SurfaceKind kind, long nativeWindowHandle, int width, int height) {
+        try {
+            return new AngleRenderer(kind, nativeWindowHandle, width, height);
+        } catch (RuntimeException e) {
+            if (!deepColor)
+                throw e;
+            // Deep colour is the only thing asked for here that a driver might refuse, so it is
+            // the only thing worth giving up before failing outright.
+            Log.warn("Deep-colour canvas failed, falling back to 8 bits per channel", e);
+            deepColor = false;
+            return new AngleRenderer(kind, nativeWindowHandle, width, height);
+        }
+    }
+
+    // Off puts the canvas back to exactly the format it has always used, without a rebuild, for
+    // anyone whose driver accepts a 10-bit surface and then presents it wrongly.
+    private static boolean deepColor =
+            !"false".equals(org.helioviewer.jhv.app.Settings.getProperty("display.deepColorCanvas"));
 
     private AngleRenderer(SurfaceKind surfaceKind, long nativeWindowHandle, int pbufferWidth, int pbufferHeight) {
         backend = selectBackend(surfaceKind);
@@ -210,33 +241,41 @@ public final class AngleRenderer {
         lwjglConfigured = true;
     }
 
+    // Ten bits first, then the eight this has always used. Ordered, not preferred-with-fallback:
+    // eglChooseConfig returns nothing at all when the requested sizes cannot be met, so each is a
+    // separate question rather than a hint.
+    private static final int[] COLOR_PREFERENCES = {10, 8};
+
     private static long chooseConfig(MemoryStack stack, long display, int samples, int surfaceType) {
-        for (int depthBits : DEPTH_PREFERENCES) {
-            if (samples > 0) {
-                long config = chooseConfig(stack, display, depthBits, samples, surfaceType);
+        for (int colorBits : deepColor ? COLOR_PREFERENCES : new int[]{8}) {
+            for (int depthBits : DEPTH_PREFERENCES) {
+                if (samples > 0) {
+                    long config = chooseConfig(stack, display, colorBits, depthBits, samples, surfaceType);
+                    if (config != 0L)
+                        return config;
+                }
+            }
+            for (int depthBits : DEPTH_PREFERENCES) {
+                long config = chooseConfig(stack, display, colorBits, depthBits, 0, surfaceType);
                 if (config != 0L)
                     return config;
             }
         }
-        for (int depthBits : DEPTH_PREFERENCES) {
-            long config = chooseConfig(stack, display, depthBits, 0, surfaceType);
-            if (config != 0L)
-                return config;
-        }
         return 0L;
     }
 
-    private static long chooseConfig(MemoryStack stack, long display, int depthBits, int samples, int surfaceType) {
+    private static long chooseConfig(MemoryStack stack, long display, int colorBits, int depthBits, int samples, int surfaceType) {
         PointerBuffer configOut = stack.mallocPointer(1);
         IntBuffer numConfigs = stack.mallocInt(1);
         int attributeCount = samples > 0 ? 19 : 15;
         IntBuffer configAttrs = stack.mallocInt(attributeCount);
         configAttrs.put(EGL15.EGL_SURFACE_TYPE).put(surfaceType);
         configAttrs.put(EGL15.EGL_RENDERABLE_TYPE).put(EGL_OPENGL_ES3_BIT);
-        configAttrs.put(EGL15.EGL_RED_SIZE).put(8);
-        configAttrs.put(EGL15.EGL_GREEN_SIZE).put(8);
-        configAttrs.put(EGL15.EGL_BLUE_SIZE).put(8);
-        configAttrs.put(EGL15.EGL_ALPHA_SIZE).put(8);
+        configAttrs.put(EGL15.EGL_RED_SIZE).put(colorBits);
+        configAttrs.put(EGL15.EGL_GREEN_SIZE).put(colorBits);
+        configAttrs.put(EGL15.EGL_BLUE_SIZE).put(colorBits);
+        // A 10-bit surface is RGB10_A2: there is no 10/10/10/8, and asking for one finds nothing.
+        configAttrs.put(EGL15.EGL_ALPHA_SIZE).put(colorBits == 10 ? 2 : 8);
         configAttrs.put(EGL15.EGL_DEPTH_SIZE).put(depthBits);
         if (samples > 0) {
             configAttrs.put(EGL15.EGL_SAMPLE_BUFFERS).put(1);
@@ -266,7 +305,11 @@ public final class AngleRenderer {
                 + " depth=" + depth
                 + " stencil=" + stencil
                 + " sampleBuffers=" + sampleBuffers
-                + " samples=" + samples);
+                + " samples=" + samples
+                // Worth stating outright rather than leaving to be read off the numbers: it is the
+                // reason a smooth gradient is rounded to 256 levels on a display that can show
+                // more, and the reason the dither exists at all.
+                + (red >= 10 ? " (deep colour)" : deepColor ? " (deep colour asked for, not offered)" : ""));
     }
 
     private int configAttrib(IntBuffer value, long config, int attribute) {
