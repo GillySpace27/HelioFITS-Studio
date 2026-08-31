@@ -496,9 +496,28 @@ public final class Display {
         return skyProjection;
     }
 
+    /**
+     * Switch the sky projection, keeping the solar disk the size it was.
+     *
+     * <p>Without this the three styles jump against each other, because the page is normalized so
+     * that the field radius lands on the top edge: at a 60 degree field the whole picture is
+     * divided by R(60), which is 1.05 for azimuthal equidistant and 1.73 for gnomonic, so
+     * everything near the centre changes size by a factor of 1.65 on a switch. The edge is the
+     * wrong thing to hold still anyway. What is worth comparing between these projections is how
+     * each of them treats the corona, and that comparison is only readable if the Sun does not
+     * move: r = 1 is the one radius every frame has in common.
+     *
+     * <p>Solved through the viewport zoom, exactly as {@link #setMapMode} does it for a projection
+     * change, and by the same pair of helpers, so the two kinds of switch cannot drift apart.
+     */
     public static void setSkyProjection(SkyProjection projection) {
-        skyProjection = projection == null ? SkyProjection.DEFAULT : projection;
+        SkyProjection wanted = projection == null ? SkyProjection.DEFAULT : projection;
+        if (wanted == skyProjection)
+            return;
+        double[] keep = mode == MapMode.ObserverSky ? captureLimbFractions(mode) : null;
+        skyProjection = wanted;
         Settings.setProperty("display.skyProjection", skyProjection.name());
+        restoreLimbFractions(mode, keep);
     }
 
     public static double getSkyFieldDegrees() {

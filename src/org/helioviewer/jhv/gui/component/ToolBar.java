@@ -995,9 +995,13 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         skyProjectionBox.setToolTipText(Display.getSkyProjection().tooltip());
         skyProjectionBox.addActionListener(e -> {
             if (skyProjectionBox.getSelectedItem() instanceof SkyProjection projection) {
-                Display.setSkyProjection(projection);
                 skyProjectionBox.setToolTipText(projection.tooltip());
-                DisplayController.display();
+                // Through the transition rather than straight to Display: switching styles
+                // replaces every pixel at once with nothing in motion, which is exactly the change
+                // the crossfade exists for. Falls through to an immediate switch when the fade is
+                // turned off in Settings.
+                org.helioviewer.jhv.display.ProjectionTransition.requestChange(
+                        () -> Display.setSkyProjection(projection));
             }
         });
         JPanel projectionRow = new JPanel(new BorderLayout());

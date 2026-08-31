@@ -31,8 +31,10 @@ public final class ProjectionTransition {
 
     private static boolean animateEnabled = !"false".equals(Settings.getProperty("display.animateProjectionChanges"));
 
-    private static MapMode pendingMode;
-    private static boolean pendingPreserveDiskSize;
+    // What to do once the outgoing scene has been captured. A Runnable rather than a MapMode,
+    // because the fade is worth having for any change that replaces the whole picture at once, and
+    // switching the observer-sky projection is one: nothing moves, every pixel is somewhere else.
+    private static Runnable pendingSwitch;
 
     private static boolean active;
     private static long startMilli;
@@ -52,17 +54,27 @@ public final class ProjectionTransition {
     /** Called from ViewState.setProjection for an interactive switch (never for session restore,
      *  which applies instantly and deterministically like every other restored setting). */
     public static void requestSwitch(MapMode newMode, boolean preserveDiskSize) {
+        requestChange(() -> Display.setMapMode(newMode, preserveDiskSize));
+    }
+
+    /**
+     * Fade across an arbitrary view change, on the same two-step contract as a projection switch.
+     *
+     * <p>The change itself is deferred to {@link #applyPendingSwitch} rather than run here, which
+     * is the whole point: the outgoing scene has to be captured while it is still the current one,
+     * and the only place a GL call is proven safe is inside GLRenderer.display().
+     */
+    public static void requestChange(Runnable apply) {
         if (!animateEnabled) {
-            Display.setMapMode(newMode, preserveDiskSize);
+            apply.run();
             return;
         }
-        pendingMode = newMode;
-        pendingPreserveDiskSize = preserveDiskSize;
+        pendingSwitch = apply;
         DisplayController.display();
     }
 
     public static boolean hasPendingSwitch() {
-        return pendingMode != null;
+        return pendingSwitch != null;
     }
 
     /**
@@ -72,14 +84,13 @@ public final class ProjectionTransition {
      * own mapView -- capturing any later would already be looking at the new projection.
      */
     public static void applyPendingSwitch(Runnable captureOutgoingScene) {
-        MapMode newMode = pendingMode;
-        boolean preserve = pendingPreserveDiskSize;
-        pendingMode = null;
-        if (newMode == null)
+        Runnable apply = pendingSwitch;
+        pendingSwitch = null;
+        if (apply == null)
             return;
 
         captureOutgoingScene.run();
-        Display.setMapMode(newMode, preserve);
+        apply.run();
         active = true;
         startMilli = System.currentTimeMillis();
         driver.start();

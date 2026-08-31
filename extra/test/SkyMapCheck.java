@@ -37,6 +37,8 @@ public final class SkyMapCheck {
         sunCentred();
         steering();
         domeProperty();
+        switchScale();
+        gridRings();
 
         if (failures != 0)
             throw new AssertionError(failures + " observer-sky failure(s)");
@@ -210,6 +212,97 @@ public final class SkyMapCheck {
         for (SkyProjection p : new SkyProjection[]{SkyProjection.Gnomonic, SkyProjection.Stereographic})
             expect(Math.abs(p.radiusFromAngle(Math.toRadians(60)) / 60
                     - p.radiusFromAngle(Math.toRadians(5)) / 5) > 1e-6, p + " must not be equidistant");
+    }
+
+    /**
+     * Why switching styles has to compensate, recorded as numbers so it does not become folklore.
+     *
+     * <p>The page is normalized so the field radius lands on the top edge, which means everything
+     * inside it is divided by R(field), and that divisor is wildly different between the three
+     * laws. Nothing is wrong with any of them; they simply cannot share a scale AND share an edge.
+     * Display.setSkyProjection holds the disk still instead, which is the only radius every frame
+     * has in common. Its own branch reaches the live viewpoint through GLRenderer and cannot run
+     * headless, the same limitation the HPC branch has in DiskSizeInvarianceCheck, so what is
+     * pinned here is the ratio that branch is built to divide out.
+     */
+    private static void switchScale() {
+        double field = Math.toRadians(60);
+        double limb = Math.atan(1 / D);
+
+        // The central scale of each style at a 60 degree field, as a fraction of the page.
+        double arc = SkyProjection.AzimuthalEquidistant.radiusFromAngle(limb)
+                / SkyProjection.AzimuthalEquidistant.radiusFromAngle(field);
+        double tan = SkyProjection.Gnomonic.radiusFromAngle(limb)
+                / SkyProjection.Gnomonic.radiusFromAngle(field);
+        double stg = SkyProjection.Stereographic.radiusFromAngle(limb)
+                / SkyProjection.Stereographic.radiusFromAngle(field);
+
+        // Left uncompensated, the Sun would change size by about two thirds on one menu click.
+        expect(arc / tan > 1.6 && arc / tan < 1.7,
+                "azimuthal equidistant draws the disk about 1.65x the gnomonic one at a 60 degree "
+                        + "field; got " + (arc / tan));
+        expect(arc / stg > 1.1 && arc / stg < 1.2,
+                "and about 1.15x the stereographic one; got " + (arc / stg));
+
+        // The compensation is a ratio of these, so it must be finite and positive for every pair.
+        for (double f : new double[]{arc, tan, stg})
+            expect(f > 0 && Double.isFinite(f), "every style must give a usable disk fraction");
+
+        // At a narrow field the three converge, so a switch there should barely move anything.
+        double narrowField = Math.toRadians(2);
+        double arcNarrow = SkyProjection.AzimuthalEquidistant.radiusFromAngle(limb)
+                / SkyProjection.AzimuthalEquidistant.radiusFromAngle(narrowField);
+        double tanNarrow = SkyProjection.Gnomonic.radiusFromAngle(limb)
+                / SkyProjection.Gnomonic.radiusFromAngle(narrowField);
+        expect(Math.abs(arcNarrow / tanNarrow - 1) < 1e-3,
+                "at a 2 degree field the styles are the same picture; got " + (arcNarrow / tanNarrow));
+    }
+
+    /**
+     * SkyGrid's ring placement: the law it draws with, checked here because the class itself holds
+     * a GL line buffer and cannot be built headless.
+     *
+     * <p>A ring is chosen in ANGLE and mapped through the projection, so "10 degrees" means the
+     * same locus in all three styles and only its page radius changes. Even spacing is then a
+     * property of the projection rather than of the grid, which is what lets the grid say which
+     * style is running without anyone reading the menu.
+     */
+    private static void gridRings() {
+        double field = 60;
+        for (SkyProjection p : SkyProjection.values()) {
+            MapScale scale = MapScale.sky(
+                    Math.toDegrees(p.radiusFromAngle(Math.toRadians(field))) * 1.6,
+                    Math.toDegrees(p.radiusFromAngle(Math.toRadians(field))));
+
+            near(ringRadius(scale, p, 0), 0, 1e-12, p + ": the centre ring has no radius");
+            near(ringRadius(scale, p, field), 0.5, 1e-12, p + ": the field ring is the page edge");
+
+            double last = -1;
+            for (double degrees : new double[]{1, 2, 5, 10, 20, 50, 60}) {
+                double radius = ringRadius(scale, p, degrees);
+                expect(radius > last, p + ": rings must grow outward, broke at " + degrees);
+                expect(radius <= 0.5 + 1e-12, p + ": no ring may leave the page, broke at " + degrees);
+                last = radius;
+            }
+        }
+
+        // Even spacing is azimuthal equidistant and nothing else.
+        MapScale arcScale = MapScale.sky(96, 60);
+        double step = ringRadius(arcScale, SkyProjection.AzimuthalEquidistant, 10);
+        for (int i = 1; i <= 6; i++)
+            near(ringRadius(arcScale, SkyProjection.AzimuthalEquidistant, 10 * i), i * step, 1e-12,
+                    "azimuthal equidistant rings must be evenly spaced at " + (10 * i) + " degrees");
+        MapScale tanScale = MapScale.sky(
+                Math.toDegrees(SkyProjection.Gnomonic.radiusFromAngle(Math.toRadians(60))) * 1.6,
+                Math.toDegrees(SkyProjection.Gnomonic.radiusFromAngle(Math.toRadians(60))));
+        double tanStep = ringRadius(tanScale, SkyProjection.Gnomonic, 10);
+        expect(ringRadius(tanScale, SkyProjection.Gnomonic, 20) > 2.05 * tanStep,
+                "gnomonic rings must spread outward, or the grid would not distinguish the styles");
+    }
+
+    /** SkyGrid.pageRadius, restated. */
+    private static double ringRadius(MapScale scale, SkyProjection projection, double degrees) {
+        return scale.toUnitY(Math.toDegrees(projection.radiusFromAngle(Math.toRadians(degrees)))) - 0.5;
     }
 
     /** Aims to test against: on the Sun, off to one side, high, and a long way from both. */

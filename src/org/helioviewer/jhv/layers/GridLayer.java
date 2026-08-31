@@ -161,6 +161,7 @@ public final class GridLayer extends AbstractLayer {
     private final GLSLLine radialCircleLineFar = new GLSLLine(false);
     private final GLSLLine radialThickLineFar = new GLSLLine(false);
     private final FlatGrid flatGrid = new FlatGrid();
+    private final org.helioviewer.jhv.layers.grid.SkyGrid skyGrid = new org.helioviewer.jhv.layers.grid.SkyGrid();
     private final HelioradialGrid helioradialGrid = new HelioradialGrid();
     private final GLSLLine gridLine = new GLSLLine(false);
 
@@ -346,6 +347,11 @@ public final class GridLayer extends AbstractLayer {
             return;
         if (mv.isHelioradial())
             helioradialGrid.render(mv, vp, showLabels, lonStep, gridColorBytes, gridLineScale, Colors.fade(Colors.WhiteFloat, labelAlpha), gridLabelSize, gridLabelAngle);
+        // The observer sky is a zenithal projection, so its grid is rings and spokes about the aim
+        // rather than a ruling of the page. See SkyGrid for why a cartesian grid there is drawable
+        // but meaningless.
+        else if (mv.isObserverSky())
+            skyGrid.render(mv, vp, showLabels, lonStep, gridColorBytes, gridLineScale, Colors.fade(Colors.WhiteFloat, labelAlpha), gridLabelSize, gridLabelAngle);
         else
             flatGrid.render(mv, vp, showLabels, gridColorBytes, gridLineScale, Colors.fade(Colors.WhiteFloat, labelAlpha), gridLabelSize);
     }
@@ -547,6 +553,7 @@ public final class GridLayer extends AbstractLayer {
         GridMath.initRadialCircles(radialCircleLineFar, radialThickLineFar, RADIAL_UNIT_FAR, RADIAL_STEP_FAR);
 
         flatGrid.init();
+        skyGrid.init();
         helioradialGrid.init();
     }
 
@@ -566,6 +573,7 @@ public final class GridLayer extends AbstractLayer {
         radialCircleLineFar.dispose();
         radialThickLineFar.dispose();
         flatGrid.dispose();
+        skyGrid.dispose();
         helioradialGrid.dispose();
     }
 
