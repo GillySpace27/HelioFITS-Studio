@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Convert a COCONUT CFmesh solution to the JHV glTF scene profile.
+"""Convert the supplied COCONUT demonstration solution to the JHV glTF scene profile.
 
 The CFmesh file does not contain an observation time or coordinate-frame declaration.  This script
 requires the time and assumes Carrington-aligned Cartesian coordinates.  It writes a self-contained
-GLB containing magnetic field lines, a triangulated B_r=0 current sheet, and the boundary endpoints
-of open field lines, all rotated into the observer-aligned SOLX/SOLY/SOLZ frame.
+GLB containing magnetic field lines, a triangulated B_r=0 current sheet, the boundary endpoints of
+open field lines, and a deliberately artificial set of thick lit tubes used to demonstrate normals
+and lighting.  The tube centerlines follow selected CFmesh field lines, but their selection, radius,
+color, and representation as solid tubes have no scientific meaning.  All geometry is rotated into
+the observer-aligned SOLX/SOLY/SOLZ frame.
 
-The constants below specify one high-quality conversion.  They are example producer settings, not
-requirements of the JHV interface.  The script reopens and validates the finished GLB.
+The constants and validation checks below are tailored to that solution.  They specify one
+high-quality example conversion, not requirements of the JHV interface.  The script reopens and
+validates the finished GLB.
 
 Requires Qorona 0.4.0, PyVista/VTK, Matplotlib, and pygltflib.  Qorona installs NumPy, SciPy,
 Astropy, and SunPy; Numba is optional and only accelerates Qorona operations.
@@ -55,6 +59,16 @@ CURRENT_SHEET_VELOCITY_MIN_KM_S = -30.0
 CURRENT_SHEET_VELOCITY_MAX_KM_S = 300.0
 CURRENT_SHEET_COLORMAP = "turbo"
 
+# Display-only test geometry. These values were chosen to make lighting conspicuous; they do not
+# describe a physical flux rope or any other structure in the COCONUT solution.
+FIELD_TUBE_LONGITUDE_MIN_DEGREES = 32.0
+FIELD_TUBE_LONGITUDE_MAX_DEGREES = 42.0
+FIELD_TUBE_SEED_COUNT = 11
+FIELD_TUBE_LATITUDE_DEGREES = 6.0
+FIELD_TUBE_RADIUS_M = 4_000_000.0
+FIELD_TUBE_SIDES = 16
+FIELD_TUBE_COLOR = (1.0, 191.0 / 255.0, 0.0)
+
 
 def main() -> None:
     args = arguments()
@@ -90,7 +104,9 @@ def main() -> None:
 def arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "input", type=Path, help="COCONUT .CFmesh or .CFmesh.xz solution"
+        "input",
+        type=Path,
+        help="supplied COCONUT demonstration .CFmesh or .CFmesh.xz solution",
     )
     parser.add_argument(
         "--timestamp", required=True, help="solution observation time (ISO-8601 UTC)"
@@ -101,7 +117,10 @@ def arguments() -> argparse.Namespace:
         default=Path("extra/test/data/coconut-corona-scene.glb"),
         help="output GLB file (default: extra/test/data/coconut-corona-scene.glb)",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.output.suffix.lower() != ".glb":
+        parser.error("--output must end in .glb")
+    return args
 
 
 def normalized_utc_timestamp(value: str) -> str:
@@ -197,6 +216,7 @@ def write_scene(
     )
     colors = polarity_colours(field, lines, 1.0, MODEL_OUTER_RADIUS)
     current_sheet = extract_current_sheet(field, velocity, world_to_sol)
+    field_tubes = create_field_tubes(field, world_to_sol)
     open_boundary_points = (
         lines.feet[lines.is_open].reshape(-1, 3) @ world_to_sol.T
     ).astype(np.float32)
@@ -289,6 +309,19 @@ def write_scene(
                 "count": len(open_boundary_points),
                 "colorQuantity": "polarity of the corresponding field line",
             },
+            "fieldTubes": {
+                "definition": "display-only lit tubes following selected CFmesh field-line centerlines; selection, radius, color, and solid-tube representation are artificial",
+                "seedLongitudeRangeDegrees": [
+                    FIELD_TUBE_LONGITUDE_MIN_DEGREES,
+                    FIELD_TUBE_LONGITUDE_MAX_DEGREES,
+                ],
+                "seedLatitudeDegrees": FIELD_TUBE_LATITUDE_DEGREES,
+                "fieldLineCount": FIELD_TUBE_SEED_COUNT,
+                "tubeRadiusM": FIELD_TUBE_RADIUS_M,
+                "tubeSides": FIELD_TUBE_SIDES,
+                "vertices": field_tubes.n_points,
+                "triangles": field_tubes.n_cells,
+            },
         },
     }
     segment_count = sum(len(position) - 1 for position in positions)
@@ -299,10 +332,83 @@ def write_scene(
         polyline_array,
         segment_count,
         current_sheet,
+        field_tubes,
         open_boundary_points,
         open_boundary_colors,
         metadata,
     )
+
+
+def create_field_tubes(field: SampledField, world_to_sol: np.ndarray) -> pv.PolyData:
+    longitudes = np.deg2rad(
+        np.linspace(
+            FIELD_TUBE_LONGITUDE_MIN_DEGREES,
+            FIELD_TUBE_LONGITUDE_MAX_DEGREES,
+            FIELD_TUBE_SEED_COUNT,
+        )
+    )
+    latitude = np.deg2rad(FIELD_TUBE_LATITUDE_DEGREES)
+    radius = 1.0 + 1.0e-9
+    seeds = np.column_stack(
+        (
+            radius * np.cos(latitude) * np.cos(longitudes),
+            radius * np.cos(latitude) * np.sin(longitudes),
+            np.full_like(longitudes, radius * np.sin(latitude)),
+        )
+    )
+    lines = trace_field_lines(
+        field,
+        seeds,
+        store_path=True,
+        show_progress=False,
+        device="cpu",
+        precision="float64",
+        rtol=TRACE_RTOL,
+        cfl=TRACE_CFL,
+    )
+    if not np.all(lines.is_closed):
+        raise RuntimeError("field-tube seeds did not all produce closed paths")
+
+    positions = []
+    polylines = []
+    vertex_count = 0
+    for path in lines.paths:
+        transformed = np.asarray(path @ world_to_sol.T, dtype=np.float32)
+        transformed = transformed[
+            np.concatenate(
+                ([True], np.any(transformed[1:] != transformed[:-1], axis=1))
+            )
+        ]
+        if len(transformed) < 2:
+            continue
+        first = vertex_count
+        vertex_count += len(transformed)
+        positions.append(transformed)
+        polylines.append(
+            np.concatenate(([len(transformed)], np.arange(first, vertex_count)))
+        )
+
+    if not positions:
+        raise RuntimeError("field-tube tracing produced no complete closed paths")
+    line_mesh = pv.PolyData(np.concatenate(positions), lines=np.concatenate(polylines))
+    tubes = line_mesh.tube(
+        radius=FIELD_TUBE_RADIUS_M / RSUN_REF,
+        n_sides=FIELD_TUBE_SIDES,
+        capping=True,
+    ).triangulate()
+    normals = np.asarray(tubes.point_data["TubeNormals"], dtype=np.float32)
+    tubes.clear_data()
+    tubes.point_data["NORMAL"] = normals
+    if (
+        tubes.n_points == 0
+        or tubes.n_cells == 0
+        or not tubes.is_all_triangles
+        or not np.isfinite(tubes.points).all()
+        or not np.isfinite(normals).all()
+        or not np.allclose(np.linalg.norm(normals, axis=1), 1.0, atol=1.0e-5)
+    ):
+        raise RuntimeError("field-line tube generation failed")
+    return tubes
 
 
 def extract_current_sheet(
@@ -408,6 +514,7 @@ def write_scene_glb(
     polylines: np.ndarray,
     segment_count: int,
     current_sheet: pv.PolyData,
+    field_tubes: pv.PolyData,
     boundary_points: np.ndarray,
     boundary_colors: np.ndarray,
     metadata: dict[str, object],
@@ -424,6 +531,14 @@ def write_scene_glb(
         raise ValueError("polylines must be a non-empty VTK line-cell array")
     if current_sheet.n_points == 0 or current_sheet.n_cells == 0:
         raise ValueError("current sheet must be a non-empty triangle mesh")
+    tube_normals = np.asarray(field_tubes.point_data.get("NORMAL"))
+    if (
+        field_tubes.n_points == 0
+        or field_tubes.n_cells == 0
+        or not field_tubes.is_all_triangles
+        or tube_normals.shape != (field_tubes.n_points, 3)
+    ):
+        raise ValueError("field tubes must be a triangle mesh with vertex normals")
     if (
         boundary_points.ndim != 2
         or boundary_points.shape[1] != 3
@@ -487,6 +602,13 @@ def write_scene_glb(
             show_scalar_bar=False,
         )
         plotter.add_mesh(
+            field_tubes,
+            name="Selected closed field-line tubes",
+            color=FIELD_TUBE_COLOR,
+            lighting=True,
+            show_scalar_bar=False,
+        )
+        plotter.add_mesh(
             point_cloud,
             name="Open-field-line boundary endpoints",
             style="points",
@@ -500,7 +622,7 @@ def write_scene_glb(
         exporter = vtkGLTFExporter()
         exporter.SetRenderWindow(plotter.render_window)
         exporter.SetInlineData(True)
-        exporter.SetSaveNormal(False)
+        exporter.SetSaveNormal(True)
         document = json.loads(exporter.WriteToString())
     finally:
         plotter.close()
@@ -521,17 +643,38 @@ def write_scene_glb(
             surface_meshes.append(mesh_index)
         elif modes == {0}:
             point_meshes.append(mesh_index)
-    if len(line_meshes) != 1 or len(surface_meshes) != 1 or len(point_meshes) != 1:
+    sheet_meshes = []
+    tube_meshes = []
+    for mesh_index in surface_meshes:
+        primitives = document["meshes"][mesh_index]["primitives"]
+        if len(primitives) != 1:
+            continue
+        attributes = primitives[0].get("attributes", {})
+        has_colors = "COLOR_0" in attributes
+        has_normals = "NORMAL" in attributes
+        if has_colors and not has_normals:
+            sheet_meshes.append(mesh_index)
+        elif has_normals and not has_colors:
+            tube_meshes.append(mesh_index)
+    if (
+        len(line_meshes) != 1
+        or len(surface_meshes) != 2
+        or len(sheet_meshes) != 1
+        or len(tube_meshes) != 1
+        or len(point_meshes) != 1
+    ):
         raise RuntimeError(
-            "VTK did not export one line, one triangle, and one point mesh"
+            "VTK did not export the expected line, surface, tube, and point meshes"
         )
 
     line_mesh = line_meshes[0]
-    surface_mesh = surface_meshes[0]
+    surface_mesh = sheet_meshes[0]
+    tube_mesh = tube_meshes[0]
     point_mesh = point_meshes[0]
     mesh_names = {
         line_mesh: "COCONUT magnetic field lines",
         surface_mesh: "Heliospheric current sheet",
+        tube_mesh: "Selected closed field-line tubes",
         point_mesh: "Open-field-line boundary endpoints",
     }
     for mesh_index, name in mesh_names.items():
@@ -542,12 +685,22 @@ def write_scene_glb(
 
     materials = document.get("materials", [])
     unlit_material_indices = set()
-    for mesh_index, name in mesh_names.items():
+    for mesh_index in (line_mesh, surface_mesh, point_mesh):
+        name = mesh_names[mesh_index]
         for primitive in document["meshes"][mesh_index]["primitives"]:
             material_index = primitive.get("material")
             if material_index is None or not 0 <= material_index < len(materials):
                 raise RuntimeError(f"VTK mesh {name} has no valid material")
             unlit_material_indices.add(material_index)
+
+    tube_primitive = document["meshes"][tube_mesh]["primitives"][0]
+    tube_material_index = tube_primitive.get("material")
+    if (
+        tube_material_index is None
+        or not 0 <= tube_material_index < len(materials)
+        or tube_material_index in unlit_material_indices
+    ):
+        raise RuntimeError("VTK field tubes do not have an independent lit material")
 
     surface_primitive = document["meshes"][surface_mesh]["primitives"][0]
     surface_material = materials[surface_primitive["material"]]
@@ -572,6 +725,8 @@ def write_scene_glb(
         segment_count,
         current_sheet.n_points,
         current_sheet.n_cells,
+        field_tubes.n_points,
+        field_tubes.n_cells,
         len(boundary_points),
         metadata,
     )
@@ -583,28 +738,34 @@ def validate_scene_glb(
     expected_segment_count: int,
     expected_surface_vertex_count: int,
     expected_surface_triangle_count: int,
+    expected_tube_vertex_count: int,
+    expected_tube_triangle_count: int,
     expected_point_count: int,
     expected_metadata: dict[str, object],
 ) -> None:
     document = GLTF2().load(path)
     scene_index = document.scene if document.scene is not None else 0
+    if document.asset is None or document.asset.version != "2.0":
+        raise RuntimeError("completed GLB is not a glTF 2.0 asset")
     if (
-        document.asset is None
-        or document.asset.version != "2.0"
-        or document.scenes is None
+        document.scenes is None
         or len(document.scenes) != 1
         or not 0 <= scene_index < len(document.scenes)
-        or document.meshes is None
-        or len(document.meshes) != 3
-        or document.materials is None
-        or len(document.materials) != 3
-        or document.extensionsUsed is None
-        or "KHR_materials_unlit" not in document.extensionsUsed
-        or document.accessors is None
-        or document.buffers is None
-        or len(document.buffers) != 1
     ):
-        raise RuntimeError("completed GLB has an unexpected scene structure")
+        raise RuntimeError("completed GLB does not contain one valid default scene")
+    if document.meshes is None or len(document.meshes) != 4:
+        raise RuntimeError("completed GLB does not contain four meshes")
+    if document.materials is None or len(document.materials) != 4:
+        raise RuntimeError("completed GLB does not contain four materials")
+    if document.accessors is None:
+        raise RuntimeError("completed GLB contains no accessors")
+    if document.buffers is None or len(document.buffers) != 1:
+        raise RuntimeError("completed GLB does not contain one binary buffer")
+    if (
+        document.extensionsUsed is None
+        or "KHR_materials_unlit" not in document.extensionsUsed
+    ):
+        raise RuntimeError("completed GLB does not declare KHR_materials_unlit")
 
     scene = document.scenes[scene_index]
     accessors = document.accessors
@@ -615,64 +776,77 @@ def validate_scene_glb(
         for primitive in (mesh.primitives if mesh.primitives is not None else [])
     ]
     line_primitives = [primitive for primitive in primitives if primitive.mode == 1]
-    surface_primitives = [primitive for primitive in primitives if primitive.mode == 4]
+    triangle_primitives = [primitive for primitive in primitives if primitive.mode == 4]
     point_primitives = [primitive for primitive in primitives if primitive.mode == 0]
+    surface_primitives = [
+        primitive
+        for primitive in triangle_primitives
+        if primitive.attributes is not None
+        and primitive.attributes.COLOR_0 is not None
+        and primitive.attributes.NORMAL is None
+    ]
+    tube_primitives = [
+        primitive
+        for primitive in triangle_primitives
+        if primitive.attributes is not None
+        and primitive.attributes.NORMAL is not None
+        and primitive.attributes.COLOR_0 is None
+    ]
     if (
-        len(primitives) != 3
+        len(primitives) != 4
         or len(line_primitives) != 1
         or len(surface_primitives) != 1
+        or len(tube_primitives) != 1
         or len(point_primitives) != 1
     ):
         raise RuntimeError(
-            "completed GLB does not contain one line, one triangle, and one point primitive"
+            "completed GLB does not contain the expected line, surface, tube, and point primitives"
         )
 
     line = line_primitives[0]
     surface = surface_primitives[0]
+    tubes = tube_primitives[0]
     points = point_primitives[0]
-    if (
-        line.attributes is None
-        or line.attributes.POSITION is None
-        or line.attributes.COLOR_0 is None
-        or line.indices is None
-        or line.material is None
-        or surface.attributes is None
-        or surface.attributes.POSITION is None
-        or surface.attributes.COLOR_0 is None
-        or surface.indices is None
-        or surface.material is None
-        or points.attributes is None
-        or points.attributes.POSITION is None
-        or points.attributes.COLOR_0 is None
-        or points.indices is None
-        or points.material is None
-        or any(
-            index is None or not 0 <= index < len(accessors)
-            for index in (
-                line.attributes.POSITION,
-                line.attributes.COLOR_0,
-                line.indices,
-                surface.attributes.POSITION,
-                surface.attributes.COLOR_0,
-                surface.indices,
-                points.attributes.POSITION,
-                points.attributes.COLOR_0,
-                points.indices,
+    expected_attributes = (
+        ("line", line, ("POSITION", "COLOR_0")),
+        ("current sheet", surface, ("POSITION", "COLOR_0")),
+        ("field tubes", tubes, ("POSITION", "NORMAL")),
+        ("boundary points", points, ("POSITION", "COLOR_0")),
+    )
+    for name, primitive, attribute_names in expected_attributes:
+        if primitive.attributes is None:
+            raise RuntimeError(f"completed GLB {name} primitive has no attributes")
+        if primitive.indices is None or primitive.material is None:
+            raise RuntimeError(
+                f"completed GLB {name} primitive has no indices or material"
             )
-        )
-        or not 0 <= line.material < len(materials)
-        or not 0 <= surface.material < len(materials)
-        or not 0 <= points.material < len(materials)
-        or any(
-            materials[material_index].extensions is None
-            or "KHR_materials_unlit" not in materials[material_index].extensions
-            for material_index in (line.material, surface.material, points.material)
-        )
-        or materials[line.material].pbrMetallicRoughness is None
-        or materials[surface.material].pbrMetallicRoughness is None
-        or materials[points.material].pbrMetallicRoughness is None
+        accessor_indices = [
+            getattr(primitive.attributes, attribute_name)
+            for attribute_name in attribute_names
+        ]
+        if any(
+            index is None or not 0 <= index < len(accessors)
+            for index in accessor_indices
+        ):
+            raise RuntimeError(f"completed GLB {name} has invalid attributes")
+        if not 0 <= primitive.indices < len(accessors):
+            raise RuntimeError(f"completed GLB {name} has invalid indices")
+        if not 0 <= primitive.material < len(materials):
+            raise RuntimeError(f"completed GLB {name} has an invalid material")
+        if materials[primitive.material].pbrMetallicRoughness is None:
+            raise RuntimeError(f"completed GLB {name} material has no base color")
+
+    for name, primitive in (
+        ("line", line),
+        ("current sheet", surface),
+        ("boundary points", points),
     ):
-        raise RuntimeError("completed GLB contains invalid primitive references")
+        extensions = materials[primitive.material].extensions
+        if extensions is None or "KHR_materials_unlit" not in extensions:
+            raise RuntimeError(f"completed GLB {name} material is not unlit")
+    tube_extensions = materials[tubes.material].extensions
+    if tube_extensions is not None and "KHR_materials_unlit" in tube_extensions:
+        raise RuntimeError("completed GLB field-tube material is unlit")
 
     line_position = accessors[line.attributes.POSITION]
     line_color = accessors[line.attributes.COLOR_0]
@@ -680,17 +854,24 @@ def validate_scene_glb(
     surface_position = accessors[surface.attributes.POSITION]
     surface_color = accessors[surface.attributes.COLOR_0]
     surface_indices = accessors[surface.indices]
+    tube_position = accessors[tubes.attributes.POSITION]
+    tube_normal = accessors[tubes.attributes.NORMAL]
+    tube_indices = accessors[tubes.indices]
     point_position = accessors[points.attributes.POSITION]
     point_color = accessors[points.attributes.COLOR_0]
     point_indices = accessors[points.indices]
     line_base_color = materials[line.material].pbrMetallicRoughness.baseColorFactor
     surface_material = materials[surface.material]
     surface_base_color = surface_material.pbrMetallicRoughness.baseColorFactor
+    tube_base_color = materials[tubes.material].pbrMetallicRoughness.baseColorFactor
     point_base_color = materials[points.material].pbrMetallicRoughness.baseColorFactor
     binary_blob = document.binary_blob()
+    if scene.name != "COCONUT corona" or scene.extras != expected_metadata:
+        raise RuntimeError("completed GLB scene metadata does not match the input")
+
     if (
-        scene.name != "COCONUT corona"
-        or scene.extras != expected_metadata
+        line_position.componentType != 5126
+        or line_position.type != "VEC3"
         or line_position.count != expected_vertex_count
         or line_color.count != expected_vertex_count
         or line_indices.count != 2 * expected_segment_count
@@ -698,6 +879,12 @@ def validate_scene_glb(
         or line_color.type != "VEC4"
         or line_color.normalized is not True
         or line_base_color != [1.0, 1.0, 1.0, 1.0]
+    ):
+        raise RuntimeError("completed GLB line data does not match the input")
+
+    if (
+        surface_position.componentType != 5126
+        or surface_position.type != "VEC3"
         or surface_position.count != expected_surface_vertex_count
         or surface_color.count != expected_surface_vertex_count
         or surface_indices.count != 3 * expected_surface_triangle_count
@@ -707,6 +894,24 @@ def validate_scene_glb(
         or surface_material.alphaMode != "BLEND"
         or surface_material.doubleSided is not True
         or surface_base_color != [1.0, 1.0, 1.0, 1.0]
+    ):
+        raise RuntimeError("completed GLB current-sheet data does not match the input")
+
+    if (
+        tube_position.componentType != 5126
+        or tube_position.type != "VEC3"
+        or tube_position.count != expected_tube_vertex_count
+        or tube_normal.count != expected_tube_vertex_count
+        or tube_indices.count != 3 * expected_tube_triangle_count
+        or tube_normal.componentType != 5126
+        or tube_normal.type != "VEC3"
+        or tube_base_color != [*FIELD_TUBE_COLOR, 1.0]
+    ):
+        raise RuntimeError("completed GLB field-tube data does not match the input")
+
+    if (
+        point_position.componentType != 5126
+        or point_position.type != "VEC3"
         or point_position.count != expected_point_count
         or point_color.count != expected_point_count
         or point_indices.count != expected_point_count
@@ -714,11 +919,15 @@ def validate_scene_glb(
         or point_color.type != "VEC4"
         or point_color.normalized is not True
         or point_base_color != [1.0, 1.0, 1.0, 1.0]
-        or document.buffers[0].uri is not None
+    ):
+        raise RuntimeError("completed GLB point data does not match the input")
+
+    if (
+        document.buffers[0].uri is not None
         or binary_blob is None
         or len(binary_blob) != document.buffers[0].byteLength
     ):
-        raise RuntimeError("completed GLB does not contain the expected geometry scene")
+        raise RuntimeError("completed GLB does not contain one embedded binary buffer")
 
 
 if __name__ == "__main__":
