@@ -89,9 +89,56 @@ public final class DiskScaleCheck {
         }
         Display.applyDiskScale(Display.DISK_SCALE_NOMINAL);
 
+        onlyTheWarpScalesListen();
+
         if (failures != 0)
             throw new AssertionError(failures + " disk-scale failure(s)");
         System.out.println("DiskScaleCheck: PASS");
+    }
+
+    /**
+     * The disk control acts through the Box-Cox limb anchor and nowhere else.
+     *
+     * <p>This is what justifies greying the Disk slider wherever the warp slider is greyed: the two
+     * are not merely usually used together, they share one mechanism, so the disk control has
+     * literally nothing to act on in a projection whose scale is linear. Pinned here rather than
+     * left to the toolbar, because the toolbar cannot be run headless and the claim is about the
+     * geometry rather than about the widget.
+     */
+    private static void onlyTheWarpScalesListen() {
+        double R = 245;
+        MapScale[] deaf = {MapScale.ortho, MapScale.lati, MapScale.hpc(2, 2), MapScale.sky(60, 60)};
+        double[][] before = sample(deaf);
+        Display.applyDiskScale(Display.DISK_SCALE_MIN);
+        double[][] atMin = sample(deaf);
+        Display.applyDiskScale(Display.DISK_SCALE_MAX);
+        double[][] atMax = sample(deaf);
+        for (int i = 0; i < deaf.length; i++)
+            for (int j = 0; j < before[i].length; j++)
+                expect(before[i][j] == atMin[i][j] && before[i][j] == atMax[i][j],
+                        "scale " + i + " must not move with the disk control");
+
+        // And the warp scale must, or the control would be greyed everywhere.
+        Display.setWarpLambda(0);
+        Display.applyDiskScale(Display.DISK_SCALE_MIN);
+        double small = MapScale.boxCoxRadial(R).warpLimb();
+        Display.applyDiskScale(Display.DISK_SCALE_MAX);
+        expect(MapScale.boxCoxRadial(R).warpLimb() > small,
+                "the warp scale must still answer to the disk control");
+        Display.applyDiskScale(Display.DISK_SCALE_NOMINAL);
+    }
+
+    private static double[][] sample(MapScale[] scales) {
+        double[][] out = new double[scales.length][6];
+        for (int i = 0; i < scales.length; i++) {
+            out[i][0] = scales[i].toMapX(0.25);
+            out[i][1] = scales[i].toMapY(0.25);
+            out[i][2] = scales[i].toMapX(0.9);
+            out[i][3] = scales[i].toMapY(0.9);
+            out[i][4] = scales[i].warpLimb();
+            out[i][5] = scales[i].warpOuterRadius();
+        }
+        return out;
     }
 
     private static void expect(boolean ok, String what) {

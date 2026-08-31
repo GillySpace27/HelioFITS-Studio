@@ -680,6 +680,9 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         content.add(createHelioradial3DPanel());
         setSkyPanelEnabled(ViewState.getProjection() == MapMode.ObserverSky);
         warpLambdaSlider.setEnabled(ViewState.getProjection().usesWarpLambda());
+        // The disk scale is a multiplier on the Box-Cox limb anchor, so it has nothing to act on
+        // wherever the warp itself does not: same condition, not a similar one.
+        diskSlider.setEnabled(ViewState.getProjection().usesWarpLambda());
         warpEdgeSlider.setEnabled(ViewState.getProjection().usesWarpEdge());
         helioradial3DBox.setEnabled(ViewState.getProjection() == MapMode.Helioradial);
         CMETracker.addSolveListener(this::syncWarpSlidersFromTracker); // follow the tracked knob
@@ -793,37 +796,56 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     // the only copy of the control -- two entry points would need syncing, and this one is beside
     // the warp knobs it interacts with.
     private JPanel createSurfaceModelPanel() {
-        javax.swing.JComboBox<SurfaceModel> box = new javax.swing.JComboBox<>(SurfaceModel.values());
-        box.setSelectedItem(Display.getSurfaceModel());
-        box.setToolTipText("Where wide-field brightness is placed in depth");
-        surfaceModelBox = box;
-        box.addActionListener(e -> {
-            if (box.getSelectedItem() instanceof SurfaceModel model) {
-                // The other half of the Location/Thomson exclusivity; see
-                // ViewpointLayerOptions.enforceSurfaceExclusivity for why they cannot coexist.
-                if (model == SurfaceModel.ThomsonSphere
-                        && !org.helioviewer.jhv.layers.ViewpointLayerOptions.allowsThomsonSphere()) {
-                    box.setSelectedItem(Display.getSurfaceModel());
-                    org.helioviewer.jhv.app.Message.warn("Surface model",
-                            "The Thomson sphere cannot be used while the active Viewpoint layer is set to a "
-                                    + "location: that puts the observer inside the field, and the sphere does not "
-                                    + "reach past the observer. Switch the Viewpoint layer to \"Observer at 1au\" "
-                                    + "or \"Heliosphere\", or turn the layer off.");
-                    return;
-                }
-                Display.setSurfaceModel(model);
-                DisplayController.display();
+        JToggleButton toggle = new JToggleButton(Display.getSurfaceModel().toString());
+        toggle.setSelected(Display.getSurfaceModel() == SurfaceModel.ThomsonSphere);
+        surfaceModelToggle = toggle;
+        // Both labels get the same width, so the button does not resize under the pointer when it
+        // flips. That is the whole point of it being a toggle rather than a list: the two surfaces
+        // are worth comparing by switching back and forth, and that only works if the control
+        // stays where your cursor already is.
+        toggle.setPreferredSize(surfaceToggleSize(toggle));
+        toggle.addActionListener(e -> {
+            SurfaceModel wanted = toggle.isSelected() ? SurfaceModel.ThomsonSphere : SurfaceModel.PlaneOfSky;
+            // The other half of the Location/Thomson exclusivity; see
+            // ViewpointLayerOptions.enforceSurfaceExclusivity for why they cannot coexist.
+            if (wanted == SurfaceModel.ThomsonSphere
+                    && !org.helioviewer.jhv.layers.ViewpointLayerOptions.allowsThomsonSphere()) {
+                toggle.setSelected(false);
+                toggle.setText(Display.getSurfaceModel().toString());
+                org.helioviewer.jhv.app.Message.warn("Surface model",
+                        "The Thomson sphere cannot be used while the active Viewpoint layer is set to a "
+                                + "location: that puts the observer inside the field, and the sphere does not "
+                                + "reach past the observer. Switch the Viewpoint layer to \"Observer at 1au\" "
+                                + "or \"Heliosphere\", or turn the layer off.");
+                return;
             }
+            Display.setSurfaceModel(wanted);
+            toggle.setText(wanted.toString());
+            DisplayController.display();
         });
 
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(BorderFactory.createEmptyBorder(3, 8, 3, 8));
         panel.add(new JLabel("Surface"), BorderLayout.LINE_START);
-        panel.add(box, BorderLayout.LINE_END);
+        panel.add(toggle, BorderLayout.LINE_END);
         return panel;
     }
 
-    private javax.swing.JComboBox<SurfaceModel> surfaceModelBox;
+    /** Wide enough for whichever surface has the longer name, so the button never moves. */
+    private static Dimension surfaceToggleSize(JToggleButton toggle) {
+        String was = toggle.getText();
+        int width = 0, height = 0;
+        for (SurfaceModel model : SurfaceModel.values()) {
+            toggle.setText(model.toString());
+            Dimension d = toggle.getPreferredSize();
+            width = Math.max(width, d.width);
+            height = Math.max(height, d.height);
+        }
+        toggle.setText(was);
+        return new Dimension(width, height);
+    }
+
+    private JToggleButton surfaceModelToggle;
 
     /**
      * Say whether the Thomson sphere is currently costing you any of the field, and how much.
@@ -832,18 +854,26 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
      * precisely the wide-field, near-Sun views it is for. So this reports rather than refuses, and
      * rides the palette's existing tick because both inputs move with no event of their own -- the
      * observer distance drifts frame by frame during playback, the field changes as layers load.
+     *
+     * <p>It also keeps the toggle's own state honest, for the same reason: the surface can be
+     * changed from outside this palette, and a toggle that says one thing while the picture shows
+     * the other is worse than a stale tooltip.
      */
-    private void syncSurfaceModelBox() {
-        if (surfaceModelBox == null)
+    private void syncSurfaceModelToggle() {
+        if (surfaceModelToggle == null)
             return;
         SurfaceModel current = Display.getSurfaceModel();
-        if (surfaceModelBox.getSelectedItem() != current)
-            surfaceModelBox.setSelectedItem(current);
+        // Something else can move this: a restored session, or the exclusivity rule dropping back
+        // to plane of sky when the viewpoint moves inside the field.
+        if (surfaceModelToggle.isSelected() != (current == SurfaceModel.ThomsonSphere))
+            surfaceModelToggle.setSelected(current == SurfaceModel.ThomsonSphere);
+        if (!current.toString().equals(surfaceModelToggle.getText()))
+            surfaceModelToggle.setText(current.toString());
 
         double distance = org.helioviewer.jhv.opengl.GLRenderer.getDisplayedViewpoint().distance;
         double outer = Display.effectiveWarpOuterRadius();
-        surfaceModelBox.setToolTipText(SurfaceModel.ThomsonSphere.canDescribe(distance, outer)
-                ? "Where wide-field brightness is placed in depth"
+        surfaceModelToggle.setToolTipText(SurfaceModel.ThomsonSphere.canDescribe(distance, outer)
+                ? "Where wide-field brightness is placed in depth. Click to switch surfaces."
                 : String.format("Where wide-field brightness is placed in depth. The Thomson sphere reaches only "
                         + "as far as the observer, %.0f R\u2609 here, so the field beyond that (out to %.0f R\u2609) "
                         + "is not shown while it is selected: the model cannot place it at any elongation.",
@@ -1166,7 +1196,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
      * the alternative was a control that silently disappeared mid-adjustment.
      */
     private void paletteTick() {
-        syncSurfaceModelBox();
+        syncSurfaceModelToggle();
         // The aim moves by dragging in the view, which this palette never hears about.
         if (skyAimValue != null && projectionPalette != null && projectionPalette.isVisible())
             skyAimValue.setText(formatSkyAim());
@@ -1355,6 +1385,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
                 warpEdgeSlider.setEnabled(ViewState.getProjection().usesWarpEdge());
             warpLambdaSlider.setValue((int) Math.round(ViewState.getWarpLambda() * 1000));
         }
+        if (diskSlider != null)
+            diskSlider.setEnabled(ViewState.getProjection().usesWarpLambda());
         // Enabled state has to be refreshed on every projection change, not just set once when
         // the palette is built: a palette constructed while another projection was selected
         // would otherwise stay disabled for the life of the window.
