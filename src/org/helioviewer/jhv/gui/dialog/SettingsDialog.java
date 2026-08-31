@@ -38,6 +38,7 @@ import org.helioviewer.jhv.app.DisplaySettings;
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.display.ProjectionTransition;
+import org.helioviewer.jhv.display.SurfaceTransition;
 import org.helioviewer.jhv.gui.Interfaces;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.io.DataSources;
@@ -198,6 +199,12 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         animateProjection.setToolTipText("Fade between projections instead of switching instantly");
         animateProjection.addActionListener(e -> ProjectionTransition.setAnimateEnabled(animateProjection.isSelected()));
         settings.add(animateProjection, c);
+
+        c.gridy++;
+        JCheckBox animateSurface = new JCheckBox("Morph between coronagraph surfaces", SurfaceTransition.isAnimateEnabled());
+        animateSurface.setToolTipText("Bend the surface between plane of sky and the Thomson sphere over about half a second, instead of switching. Every frame of it is a real surface, not a dissolve.");
+        animateSurface.addActionListener(e -> SurfaceTransition.setAnimateEnabled(animateSurface.isSelected()));
+        settings.add(animateSurface, c);
 
         JPanel timePanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
         timePanel.add(new JLabel("Use time at ", JLabel.RIGHT));

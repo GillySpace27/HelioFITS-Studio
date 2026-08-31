@@ -27,7 +27,10 @@ out float vCropExcess;
 
 uniform mat4 ModelViewProjectionMatrix;
 uniform float observerDistance;
-uniform float surfaceModel; // 0 = plane of sky, 1 = Thomson sphere; see SurfaceModel
+// 0 = plane of sky, 1 = Thomson sphere, and every value between is the morph. It was a flag
+// compared against 1; making it a blend turns the same expression into an animation, because the
+// depth law is linear in it. See SurfaceTransition.
+uniform float surfaceModel;
 // The Edge crop, in solar radii, or 0 for no crop. Separate from screen.yStop, which is the full
 // loaded field the warp is normalized over: the crop must cut the picture WITHOUT renormalizing
 // the mapping or moving the camera, or it is a zoom rather than a crop.
@@ -74,8 +77,12 @@ void main(void) {
 
     // Physical heliocentric distance this ring of the mesh stands for.
     float radius = unwarpRadius(t);
-    vSurfaceExcess = (surfaceModel == SURFACE_THOMSON_SPHERE && observerDistance > 0.)
-            ? radius / observerDistance : 0.;
+    // The crop travels with the morph: the Thomson model has no surface past r = D, so the field
+    // has to shrink from the full loaded extent to D as the surface curves in. Snapping it at
+    // either end would put a hard pop into an otherwise continuous movement.
+    float surfaceLimit = mix(outerRadius, observerDistance, surfaceModel);
+    vSurfaceExcess = (surfaceModel > 0. && observerDistance > 0. && surfaceLimit > 0.)
+            ? radius / surfaceLimit : 0.;
     vCropExcess = cropRadius > 0. ? radius / cropRadius : 0.;
 
     vec3 warped;
@@ -97,10 +104,12 @@ void main(void) {
         warped = vWorld * (limbPosition(outerRadius) * outerRadius);
     } else {
         // OFF DISK: a placement model, not a measurement. On the Thomson sphere the surface
-        // curves toward the observer by z = r^2 / D; the plane of sky stays at z = 0.
+        // curves toward the observer by z = r^2 / D; the plane of sky stays at z = 0. Scaling
+        // that depth by the blend walks each vertex along its OWN line of sight between the two,
+        // so every frame of the morph is a real surface rather than a dissolve between pictures.
         float depth = 0.;
-        if (surfaceModel == SURFACE_THOMSON_SPHERE && observerDistance > 0.)
-            depth = min(radius, observerDistance) * min(radius, observerDistance) / observerDistance;
+        if (surfaceModel > 0. && observerDistance > 0.)
+            depth = surfaceModel * min(radius, observerDistance) * min(radius, observerDistance) / observerDistance;
         // rho^2 = r^2 - z^2: the in-plane radius shrinks as the surface curves away from the plane.
         float rho = sqrt(max(0., radius * radius - depth * depth));
 

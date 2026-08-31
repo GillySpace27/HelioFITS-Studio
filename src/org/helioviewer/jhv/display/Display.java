@@ -110,6 +110,9 @@ public final class Display {
 
     public static void setSurfaceModel(SurfaceModel model) {
         surfaceModel = model == null ? SurfaceModel.PlaneOfSky : model;
+        // Every route to the setting animates: the palette, a restored session, and the rule that
+        // drops back to plane of sky when the viewpoint moves inside the field.
+        SurfaceTransition.requestSurface(surfaceModel);
     }
 
     private static double warpLambda = 0.0;

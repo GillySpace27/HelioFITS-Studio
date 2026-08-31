@@ -107,7 +107,10 @@ public class GLSLSolarShader extends GLSLShader {
     public void renderWarpSurface(double observerDistance, org.helioviewer.jhv.display.SurfaceModel surfaceModel) {
         GL.glUniformMatrix4fv(mvpRef, false, Transform.get());
         GL.glUniform1f(observerDistanceRef, (float) observerDistance);
-        GL.glUniform1f(surfaceModelRef, surfaceModel == org.helioviewer.jhv.display.SurfaceModel.ThomsonSphere ? 1 : 0);
+        // A blend rather than a flag. 0 is plane of sky, 1 the Thomson sphere, and the values
+        // between are the morph: see SurfaceTransition for why every one of them is a real
+        // surface rather than a dissolve.
+        GL.glUniform1f(surfaceModelRef, (float) org.helioviewer.jhv.display.SurfaceTransition.blend());
         // The user's Edge crop, NOT the field the warp is normalized over. Zero when the edge is
         // on auto, which is no crop at all rather than a crop at the full field.
         GL.glUniform1f(cropRadiusRef, (float) org.helioviewer.jhv.display.Display.getWarpOuterRadius());
