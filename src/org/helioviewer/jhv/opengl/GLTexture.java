@@ -60,7 +60,7 @@ public final class GLTexture {
     public void upload2D(Format format, int width, int height, int minFilter, int magFilter,
                          int wrapS, int wrapT, Buffer source) {
         requireTarget(GL.TEXTURE_2D);
-        if (!valid2DSize(width, height))
+        if (invalid2DSize(width, height))
             return;
 
         boolean mipmaps = usesMipmaps(minFilter);
@@ -96,11 +96,11 @@ public final class GLTexture {
             throw new IllegalStateException("Texture target " + target + " does not support this operation");
     }
 
-    static boolean valid2DSize(int width, int height) {
+    static boolean invalid2DSize(int width, int height) {
         if (width >= 1 && height >= 1 && width <= GL.maxTextureSize && height <= GL.maxTextureSize)
-            return true;
+            return false;
         Log.warn("w= " + width + " h=" + height);
-        return false;
+        return true;
     }
 
     private static int maxMipmapLevel(int width, int height) {

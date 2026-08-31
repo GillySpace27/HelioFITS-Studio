@@ -193,8 +193,7 @@ public final class AngleCanvas extends Canvas {
             if (newNativeWindowHandle == 0L)
                 return;
 
-            AngleRenderer renderer = new AngleRenderer(newNativeWindowHandle);
-            angleRenderer = renderer;
+            angleRenderer = new AngleRenderer(newNativeWindowHandle);
             nativeHostVisible = hostVisible;
             if (Platform.isMacOS())
                 nativeHostScale = Display.pixelScale[0];

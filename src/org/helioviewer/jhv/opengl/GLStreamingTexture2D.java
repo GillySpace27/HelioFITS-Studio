@@ -31,7 +31,7 @@ final class GLStreamingTexture2D {
     void upload(ImageBuffer image, int filter) {
         int width = image.width;
         int height = image.height;
-        if (!GLTexture.valid2DSize(width, height))
+        if (GLTexture.invalid2DSize(width, height))
             return;
 
         GLTexture.Format format = textureFormat(image.format);
