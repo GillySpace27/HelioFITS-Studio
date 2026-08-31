@@ -36,6 +36,7 @@ import org.helioviewer.jhv.display.CMETracker;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.MapMode;
+import org.helioviewer.jhv.display.SurfaceModel;
 import org.helioviewer.jhv.display.interaction.Interaction;
 import org.helioviewer.jhv.gui.Actions;
 import org.helioviewer.jhv.input.InputController;
@@ -135,6 +136,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         } catch (Exception ignore) {}
         setDisplayMode(displayMode);
         ViewState.addModeListener(this);
+        org.helioviewer.jhv.gui.UITimer.register(this::paletteTick);
     }
 
     private JideToggleButton coronaButton;
@@ -572,13 +574,28 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         JDialog palette = new JDialog(paletteOwner(), java.awt.Dialog.ModalityType.MODELESS);
         palette.setUndecorated(true); // no OS chrome: a docked tool palette, not a window
         palette.setFocusableWindowState(false); // don't steal keyboard focus from the view
-        // UTILITY is the window class macOS actually has for a floating tool palette (an NSPanel).
-        // Left as a plain undecorated non-focusable dialog it is an ordinary NSWindow that never
-        // becomes key, and a never-key window does not get its cursor rects re-evaluated -- the
-        // pointer keeps whatever the last component set and can be left invisible over the palette.
-        // Three other dialogs here (FITSSettings, CactusTrackDialog, SWEKEventInformationDialog)
-        // already use UTILITY; this one was the odd one out.
-        palette.setType(java.awt.Window.Type.UTILITY);
+        // The watchdog in paletteTick can re-show this at any moment; without this, each such
+        // re-show would be entitled to pull focus, so a palette restored while you were typing
+        // elsewhere would take the keyboard with it.
+        palette.setAutoRequestFocus(false);
+        // Being owned by the main frame is supposed to keep a dialog above it, but a
+        // non-focusable owned window does not hold its place in the stacking order here: click
+        // anywhere in the view and the frame comes up over the palette, which is a control you
+        // are meant to be working WHILE watching that view. Raising it again on the frame's
+        // windowActivated was tried and is not enough -- that only fires when the frame becomes
+        // active, so any other route to the front left the palette buried. This states the
+        // requirement directly instead of re-deriving it from window events.
+        // Cost, accepted deliberately: alwaysOnTop is not scoped to one application, so the
+        // palette also floats above other apps while it is open. Closing it (the toolbar
+        // button, or the palette's own close box) puts that back.
+        palette.setAlwaysOnTop(true);
+        // Deliberately NOT Window.Type.UTILITY. That maps to an NSPanel, and macOS orders utility
+        // panels out whenever the owning app deactivates, which is what made the palette vanish
+        // on any click away -- a windowActivated listener could put it back, but only once the
+        // main frame came forward again, so anything else taking focus left it gone. UTILITY was
+        // adopted to stop a stale invisible cursor over a never-key window; the explicit
+        // content.setCursor below was added alongside it for the same reason and fixes that on
+        // its own, so the panel type is the half that can go.
 
         JPanel content = new JPanel();
         // Belt and braces with the UTILITY type above: state the cursor this panel wants, so
@@ -644,16 +661,23 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
                 item.setSelected(true);
             item.addActionListener(e -> ViewState.setProjection(el));
             projectionGroup.add(item);
+            // A BoxLayout positions each child by its own alignmentX, and JComponent's default is
+            // centred. The rows below are panels that stretch to the full width, so only these
+            // buttons -- narrow, and each a different width -- were left floating on the centre
+            // line with a ragged left edge.
+            item.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
             content.add(item);
             projectionItems.put(el, item);
         }
         content.add(new javax.swing.JSeparator());
+        content.add(createSurfaceModelPanel());
         content.add(createWarpLambdaPanel());
         content.add(createWarpEdgePanel());
+        content.add(createZoomPanel());
+        content.add(createDiskPanel());
         content.add(createHelioradial3DPanel());
-        boolean warpOn = ViewState.getProjection().usesWarpLambda();
-        warpLambdaSlider.setEnabled(warpOn);
-        warpEdgeSlider.setEnabled(warpOn);
+        warpLambdaSlider.setEnabled(ViewState.getProjection().usesWarpLambda());
+        warpEdgeSlider.setEnabled(ViewState.getProjection().usesWarpEdge());
         helioradial3DBox.setEnabled(ViewState.getProjection() == MapMode.Helioradial);
         CMETracker.addSolveListener(this::syncWarpSlidersFromTracker); // follow the tracked knob
 
@@ -678,10 +702,11 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
                 }
             };
             org.helioviewer.jhv.gui.MainFrame.get().addComponentListener(follow);
-            // Owned + non-focusable, so clicking into the render view raises the frame above the
-            // palette. Re-raise it (without stealing focus) whenever the frame comes forward:
-            // this keeps it above the JHV window only, never over other apps the way
-            // alwaysOnTop would.
+            // Backstop only. Keeping the palette above the view is now stated outright by
+            // setAlwaysOnTop where it is created, because deriving it from window events was
+            // exactly what kept failing: this fires when the frame becomes active, and the
+            // palette was going behind on routes that never make it active. Re-raising here
+            // still costs nothing and covers ordering the flag does not settle on its own.
             org.helioviewer.jhv.gui.MainFrame.get().addWindowListener(new java.awt.event.WindowAdapter() {
                 @Override
                 public void windowActivated(java.awt.event.WindowEvent e) {
@@ -759,20 +784,316 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
 
     // Off by default: the flat rendering is what the poster, the paper figures and every
     // screenshot show, so a default install reproduces them. 3D is for exploring.
+    // Where a coronagraph line of sight is taken to have originated: a placement assumption, not a
+    // measurement (see SurfaceModel), which moves radial positions by 6 to 40 percent across a
+    // wide field. It sits here rather than under View because it is a projection choice, and it is
+    // the only copy of the control -- two entry points would need syncing, and this one is beside
+    // the warp knobs it interacts with.
+    private JPanel createSurfaceModelPanel() {
+        javax.swing.JComboBox<SurfaceModel> box = new javax.swing.JComboBox<>(SurfaceModel.values());
+        box.setSelectedItem(Display.getSurfaceModel());
+        box.setToolTipText("Where wide-field brightness is placed in depth");
+        surfaceModelBox = box;
+        box.addActionListener(e -> {
+            if (box.getSelectedItem() instanceof SurfaceModel model) {
+                // The other half of the Location/Thomson exclusivity; see
+                // ViewpointLayerOptions.enforceSurfaceExclusivity for why they cannot coexist.
+                if (model == SurfaceModel.ThomsonSphere
+                        && !org.helioviewer.jhv.layers.ViewpointLayerOptions.allowsThomsonSphere()) {
+                    box.setSelectedItem(Display.getSurfaceModel());
+                    org.helioviewer.jhv.app.Message.warn("Surface model",
+                            "The Thomson sphere cannot be used while the active Viewpoint layer is set to a "
+                                    + "location: that puts the observer inside the field, and the sphere does not "
+                                    + "reach past the observer. Switch the Viewpoint layer to \"Observer at 1au\" "
+                                    + "or \"Heliosphere\", or turn the layer off.");
+                    return;
+                }
+                Display.setSurfaceModel(model);
+                DisplayController.display();
+            }
+        });
+
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(BorderFactory.createEmptyBorder(3, 8, 3, 8));
+        panel.add(new JLabel("Surface"), BorderLayout.LINE_START);
+        panel.add(box, BorderLayout.LINE_END);
+        return panel;
+    }
+
+    private javax.swing.JComboBox<SurfaceModel> surfaceModelBox;
+
+    /**
+     * Say whether the Thomson sphere is currently costing you any of the field, and how much.
+     *
+     * <p>The mode stays selectable either way: greying it out was tried and locked it off in
+     * precisely the wide-field, near-Sun views it is for. So this reports rather than refuses, and
+     * rides the palette's existing tick because both inputs move with no event of their own -- the
+     * observer distance drifts frame by frame during playback, the field changes as layers load.
+     */
+    private void syncSurfaceModelBox() {
+        if (surfaceModelBox == null)
+            return;
+        SurfaceModel current = Display.getSurfaceModel();
+        if (surfaceModelBox.getSelectedItem() != current)
+            surfaceModelBox.setSelectedItem(current);
+
+        double distance = org.helioviewer.jhv.opengl.GLRenderer.getDisplayedViewpoint().distance;
+        double outer = Display.effectiveWarpOuterRadius();
+        surfaceModelBox.setToolTipText(SurfaceModel.ThomsonSphere.canDescribe(distance, outer)
+                ? "Where wide-field brightness is placed in depth"
+                : String.format("Where wide-field brightness is placed in depth. The Thomson sphere reaches only "
+                        + "as far as the observer, %.0f R\u2609 here, so the field beyond that (out to %.0f R\u2609) "
+                        + "is not shown while it is selected: the model cannot place it at any elongation.",
+                        distance, outer));
+    }
+
     private JPanel createHelioradial3DPanel() {
         helioradial3DBox = new javax.swing.JCheckBox("Render in 3D", Display.isHelioradial3D());
         helioradial3DBox.setToolTipText("Draw Helioradial as a rotatable surface instead of a flat face-on disk");
         // setHelioradial3D does the camera reset itself, the same way a projection change does.
         helioradial3DBox.addItemListener(e -> Display.setHelioradial3D(helioradial3DBox.isSelected()));
+
+        // Puts every control in this palette back to neutral in one press: warp off, edge wide
+        // open, magnification 1x. "Warp off" is lambda = 1, NOT the app's start-up lambda of 0
+        // -- 0 is the logarithmic member of the family and warps hard; 1 is the exact identity,
+        // where the projection reduces to the unwarped view. Resetting to the start-up value
+        // would leave the picture visibly warped, which is not what a reset can mean here.
+        javax.swing.JButton resetView = new javax.swing.JButton("Reset view");
+        resetView.setToolTipText("Return warp, edge and zoom to their defaults");
+        resetView.addActionListener(e -> resetProjectionControls());
+
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(BorderFactory.createEmptyBorder(3, 8, 3, 8));
         panel.add(helioradial3DBox, BorderLayout.LINE_START);
+        panel.add(resetView, BorderLayout.LINE_END);
         return panel;
+    }
+
+    // Tracking animates lambda / the edge crop frame by frame, so it has to let go before the
+    // defaults are written or it would overwrite them on the next tick. The state is set
+    // directly rather than by moving the sliders, because a slider already sitting at its
+    // default fires no change event and would silently skip its half of the reset.
+    private void resetProjectionControls() {
+        CMETracker.stop();
+        ViewState.setWarpLambda(1); // the identity member: no warp at all
+        Display.setWarpOuterRadius(0); // auto: the full loaded field
+        Display.setDiskScale(Display.DEFAULT_DISK_SCALE); // the shipped default, not the raw anchor
+        if (diskSlider != null)
+            diskSlider.setValue(diskScaleToSlider(Display.DEFAULT_DISK_SCALE));
+        Display.resetViewportZoom();
+
+        syncingFromTracker = true; // the widgets are following state here, not driving it
+        try {
+            if (warpLambdaSlider != null) {
+                warpLambdaSlider.setValue(1000);
+                warpLambdaValue.setText(String.format("%.3f", 1.));
+            }
+            if (warpEdgeSlider != null) {
+                warpEdgeSlider.setValue(1000);
+                warpEdgeValue.setText("auto");
+            }
+        } finally {
+            syncingFromTracker = false;
+        }
+        syncZoomSliderFromDisplay();
+        DisplayController.display();
+    }
+
+    // Zoom: the viewport zoom the mouse wheel drives (Viewport.zoom), shown as a magnification
+    // rather than as the raw factor, because the raw factor runs the other way -- it multiplies
+    // the CAMERA WIDTH, so 2 means half size. Exposed mostly as an indicator: at extreme zoom
+    // the imagery degrades, grids crowd and picking drifts, and with the wheel as the only
+    // control there was nothing on screen that said how far in or out you actually were.
+    private JHVSlider zoomSlider;
+    private JLabel zoomValue;
+    private boolean syncingZoom;
+
+    private static final double ZOOM_LOG2_RANGE = 6; // 2^-6 .. 2^6, i.e. 1/64x .. 64x, 1x centred
+
+    // Runs the same way round as Edge, which is the other control that decides how much sky is
+    // on screen: left is a tight view, right is a wide one. Edge does that by construction
+    // (its left end is a 2 R_sun crop, its right end the full field), and zoom read the other
+    // way, so the two sliders undid each other when dragged in the same direction.
+    static double zoomSliderToMagnification(int t) {
+        return Math.pow(2, (0.5 - t / 1000.) * 2 * ZOOM_LOG2_RANGE);
+    }
+
+    static int magnificationToZoomSlider(double magnification) {
+        double t = 1000 * (0.5 - Math.log(magnification) / (Math.log(2) * 2 * ZOOM_LOG2_RANGE));
+        return (int) Math.round(Math.clamp(t, 0, 1000));
+    }
+
+    private static String formatMagnification(double magnification) {
+        return magnification >= 100 || magnification < 0.01
+                ? String.format("%.0e×", magnification)
+                : String.format(magnification < 10 ? "%.2f×" : "%.1f×", magnification);
+    }
+
+    private JHVSlider diskSlider;
+    private JLabel diskValue;
+
+    /**
+     * How much of the radial axis the solar disk gets, as a multiple of the nominal Box-Cox
+     * anchor, separated from the warp exponent that used to decide it as a side effect.
+     *
+     * <p>Runs the same way as Warp, Edge and Zoom: further left is a bigger disk, because on those
+     * three further left is a tighter field and so a larger apparent size.
+     *
+     * <p><b>No sentinel, deliberately.</b> A discrete "auto" position adjacent to a continuous
+     * range is a discontinuity by construction: one pixel of travel would jump the disk from the
+     * nominal share to the top of the range. Making 1.0 an ordinary value on the scale removes the
+     * jump entirely, and it costs nothing, because 1.0 IS the automatic behaviour -- the anchor is
+     * returned untouched there. Nominal therefore sits near the left rather than at it, about a
+     * fifth of the way in, which is where log-spacing puts it between 2 and 0.05.
+     *
+     * <p>Logarithmic for the usual reason: a multiplier's useful travel is in ratios, so a linear
+     * scale would give the whole range below 1.0 a tenth of the track.
+     */
+    private JPanel createDiskPanel() {
+        diskSlider = new JHVSlider(0, 1000, diskScaleToSlider(Display.getDiskScale()));
+        diskSlider.setToolTipText("Size of the solar disk as a multiple of the nominal Box-Cox warp: 1.00\u00d7 is the warp untouched, left is bigger, right is smaller. Double-click to return to nominal.");
+        diskSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, diskSlider.getPreferredSize().height));
+        JLabel label = new JLabel("Disk");
+        diskValue = new JLabel(formatDiskScale(Display.getDiskScale()), JLabel.RIGHT);
+        diskValue.setPreferredSize(new JLabel("-0.000").getPreferredSize());
+        diskSlider.addChangeListener(e -> {
+            double scale = sliderToDiskScale(diskSlider.getValue());
+            Display.setDiskScale(scale);
+            diskValue.setText(formatDiskScale(scale));
+        });
+        // The same escape hatch the zoom slider offers: nominal is a specific value on a log
+        // scale and landing on it by dragging is luck.
+        diskSlider.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2)
+                    diskSlider.setValue(diskScaleToSlider(Display.DEFAULT_DISK_SCALE));
+            }
+        });
+
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(BorderFactory.createEmptyBorder(3, 8, 3, 8));
+        panel.add(label, BorderLayout.LINE_START);
+        panel.add(diskSlider, BorderLayout.CENTER);
+        panel.add(diskValue, BorderLayout.LINE_END);
+        return panel;
+    }
+
+    private static String formatDiskScale(double scale) {
+        // Nominal is worth naming: it is the one value that leaves the warp exactly as it was.
+        return Math.abs(scale - Display.DISK_SCALE_NOMINAL) < 5e-3
+                ? "nominal" : String.format("%.2f\u00d7", scale);
+    }
+
+    // Log-spaced, MAX at the left so the disk grows leftward like Edge and Zoom.
+    static double sliderToDiskScale(int value) {
+        double t = Math.clamp(value, 0, 1000) / 1000.;
+        return Display.DISK_SCALE_MAX * Math.pow(Display.DISK_SCALE_MIN / Display.DISK_SCALE_MAX, t);
+    }
+
+    static int diskScaleToSlider(double scale) {
+        double t = Math.log(Math.clamp(scale, Display.DISK_SCALE_MIN, Display.DISK_SCALE_MAX) / Display.DISK_SCALE_MAX)
+                / Math.log(Display.DISK_SCALE_MIN / Display.DISK_SCALE_MAX);
+        return (int) Math.round(Math.clamp(t, 0, 1) * 1000);
+    }
+
+    private JPanel createZoomPanel() {
+        zoomSlider = new JHVSlider(0, 1000, 500);
+        zoomSlider.setToolTipText("View magnification, running the same way as Edge: left tighter, right wider. Far from 1× is where imagery softens and overlays crowd; double-click to recentre");
+        zoomSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, zoomSlider.getPreferredSize().height));
+        JLabel label = new JLabel("Zoom");
+        zoomValue = new JLabel("1.00×", JLabel.RIGHT);
+        zoomValue.setPreferredSize(new JLabel("-0.000").getPreferredSize());
+        zoomSlider.addChangeListener(e -> {
+            if (syncingZoom)
+                return;
+            double zoom = 1 / zoomSliderToMagnification(zoomSlider.getValue());
+            // Mirrors Zoom.zoom's fan-out: one viewport when they zoom separately, else all.
+            if (Display.separateViewportZoom) {
+                Display.getActiveViewport().zoom = zoom;
+            } else {
+                for (org.helioviewer.jhv.display.Viewport viewport : Display.getViewports())
+                    viewport.zoom = zoom;
+            }
+            zoomValue.setText(formatMagnification(1 / zoom));
+            DisplayController.display();
+        });
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(BorderFactory.createEmptyBorder(3, 8, 3, 8));
+        panel.add(label, BorderLayout.LINE_START);
+        panel.add(zoomSlider, BorderLayout.CENTER);
+        panel.add(zoomValue, BorderLayout.LINE_END);
+        return panel;
+    }
+
+    /**
+     * Runs at UITimer's 10 Hz: keeps the palette on screen, then keeps its zoom readout honest.
+     *
+     * <p>The zoom half is a poll because the mouse wheel writes Viewport.zoom directly with no
+     * notification, and polling beats threading a listener through every zoom write site.
+     *
+     * <p>The visibility half is a watchdog, and deliberately so. The palette kept vanishing, and
+     * each time it was traced to a different mechanism hiding it from underneath: first macOS
+     * ordering out a Window.Type.UTILITY panel on app deactivate, then the owned-window rules
+     * that pull a child down with its parent. Chasing those one at a time meant re-learning the
+     * platform's rules for every new way it found to close the thing. This inverts the problem:
+     * the toolbar toggle is the single record of whether the user wants the palette open, so
+     * anything that hides it while that toggle is still pressed is by definition wrong and is
+     * simply undone, whatever did it and for whatever reason. Worst case it costs a flicker;
+     * the alternative was a control that silently disappeared mid-adjustment.
+     */
+    private void paletteTick() {
+        syncSurfaceModelBox();
+        keepPaletteVisible();
+        syncZoomSliderFromDisplay();
+    }
+
+    private void keepPaletteVisible() {
+        JDialog palette = projectionPalette;
+        if (palette == null || projectionToggle == null || !projectionToggle.isSelected())
+            return; // never open, mid-rebuild, or the user genuinely closed it
+        // One hiding IS legitimate and must be left alone: a minimized or hidden owner takes its
+        // owned windows down with it, and re-showing here would float the palette over other
+        // applications while JHV itself is out of the way.
+        java.awt.Window owner = palette.getOwner();
+        if (owner != null) {
+            if (!owner.isShowing())
+                return;
+            if (owner instanceof java.awt.Frame frame && (frame.getExtendedState() & java.awt.Frame.ICONIFIED) != 0)
+                return;
+        }
+        if (!palette.isVisible()) {
+            dockPalette();
+            palette.setVisible(true);
+            palette.toFront(); // non-focusable, so this raises without taking the keyboard
+        }
+    }
+
+    // Off-scale zooms (the wheel is unbounded, this slider is not) park the handle at the end
+    // and let the number keep telling the truth.
+    private void syncZoomSliderFromDisplay() {
+        if (zoomSlider == null || projectionPalette == null || !projectionPalette.isVisible())
+            return;
+        double zoom = Display.getActiveViewport().zoom;
+        if (zoom <= 0)
+            return;
+        double magnification = 1 / zoom;
+        syncingZoom = true;
+        try {
+            int t = magnificationToZoomSlider(magnification);
+            if (zoomSlider.getValue() != t)
+                zoomSlider.setValue(t);
+            String text = formatMagnification(magnification);
+            if (!text.equals(zoomValue.getText()))
+                zoomValue.setText(text);
+        } finally {
+            syncingZoom = false;
+        }
     }
 
     private JPanel createWarpEdgePanel() {
         warpEdgeSlider = new JHVSlider(0, 1000, 1000);
-        warpEdgeSlider.setToolTipText("Outer edge of the warp projections (far right: full field of view)");
+        warpEdgeSlider.setToolTipText("Circular crop, in solar radii: cuts the picture to a disc without moving the camera or changing the warp. Zoom magnifies instead; rightmost is auto, no crop.");
         warpEdgeSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, warpEdgeSlider.getPreferredSize().height));
         JLabel label = new JLabel("Edge");
         warpEdgeValue = new JLabel("auto", JLabel.RIGHT);
@@ -903,10 +1224,9 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         if (activeProjection != null)
             activeProjection.setSelected(true);
         if (warpLambdaSlider != null) {
-            boolean warpEnabled = ViewState.getProjection().usesWarpLambda();
-            warpLambdaSlider.setEnabled(warpEnabled);
+            warpLambdaSlider.setEnabled(ViewState.getProjection().usesWarpLambda());
             if (warpEdgeSlider != null)
-                warpEdgeSlider.setEnabled(warpEnabled);
+                warpEdgeSlider.setEnabled(ViewState.getProjection().usesWarpEdge());
             warpLambdaSlider.setValue((int) Math.round(ViewState.getWarpLambda() * 1000));
         }
         // Enabled state has to be refreshed on every projection change, not just set once when

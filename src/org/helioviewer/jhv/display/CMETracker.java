@@ -13,9 +13,10 @@ import org.helioviewer.jhv.time.TimeListener;
 // the warp lambda with movie time: as the front travels outward the Box-Cox warp is
 // re-solved every frame so the front stays at a constant screen radius while the corona
 // rubber-bands around it. Works in either projection that uses lambda — Helioradial (disk)
-// and HelioradialUnrolled (unwrap) share the warp, so the same solve drives both. Transient, like
-// camera tracking: engaged from a CACTus event dialog, disengaged by moving the lambda
-// slider or leaving those projections.
+// and HelioradialUnrolled (unwrap) share the warp, so the same solve drives both; EDGE mode
+// additionally works in Orthographic, where the crop sizes the camera. Transient, like
+// camera tracking: engaged from a CACTus event dialog, disengaged by moving the driving
+// slider or leaving the projections the current mode can act on.
 public final class CMETracker implements TimeListener.Change {
 
     private static final double SCREEN_FRACTION = 0.60; // front pinned at this fraction of the outer FOV radius
@@ -145,7 +146,11 @@ public final class CMETracker implements TimeListener.Change {
     public void timeChanged(long milli) {
         if (!tracking)
             return;
-        if (!Display.mode.usesWarpLambda()) { // any warp mode keeps tracking; leaving them all disengages
+        // Disengage only when the current projection cannot show what tracking is doing: the
+        // lambda solve needs a warp mode, while the edge crop also reaches Orthographic
+        // through the camera, so edge-mode tracking survives the switch to the plain sky view.
+        boolean effective = mode == Mode.EDGE ? Display.mode.usesWarpEdge() : Display.mode.usesWarpLambda();
+        if (!effective) {
             tracking = false;
             smoother.stop();
             fireChanged();
@@ -211,7 +216,11 @@ public final class CMETracker implements TimeListener.Change {
         // the moment the front appeared. Clamping keeps the pass monotone: tightest at onset,
         // widening from there.
         double r = Math.max(rCme, ONSET_RSUN);
-        Display.setWarpOuterRadius(solveOuter(r, Display.getWarpLambda(), maxOut));
+        // A non-warp view (Orthographic) displays radius linearly whatever lambda says, and the
+        // Box-Cox map at lambda = 1 IS the linear map, so solving with 1 pins the front exactly
+        // there; warp modes keep the user's lambda.
+        double lambda = Display.mode.usesWarpLambda() ? Display.getWarpLambda() : 1;
+        Display.setWarpOuterRadius(solveOuter(r, lambda, maxOut));
     }
 
     // Normalized radial screen position of physical radius r for a given lambda: an exact copy of

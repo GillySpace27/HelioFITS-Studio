@@ -10,6 +10,9 @@ import org.helioviewer.jhv.io.Directories;
 // specific legend indices unpack to the exact colors the category codes require (Finding 7: a
 // future edit inserting one entry above the block would shift every category by one and, without
 // these content checks, the count-only check above would still pass).
+//
+// Run: needs FitsMetaDataChpolarityCheck.java and MapMetaDataContainer.java on the same javac
+// command line; see the note in FitsMetaDataChpolarityCheck.
 public final class ChpolarityLutRegistrationCheck {
 
     public static void main(String[] args) throws Exception {

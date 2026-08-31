@@ -37,7 +37,7 @@ public final class LayersSectionPanel extends JPanel implements Interfaces.Obser
 
         addLayerButton = new JideSplitButton(Buttons.newLayer);
         addLayerButton.setAlwaysDropdown(true);
-        addLayerButton.add(imageSelectorPanel);
+        addLayerButton.add(buildSourcePanel());
         addLayerButton.getPopupMenu().addPopupMenuListener(new PopupMenuListener() {
             @Override
             public void popupMenuWillBecomeVisible(PopupMenuEvent e) {
@@ -55,6 +55,60 @@ public final class LayersSectionPanel extends JPanel implements Interfaces.Obser
 
         add(addLayerRow);
         add(MainFrame.getLayersPanel());
+    }
+
+    /**
+     * The New Layer dropdown, with the format chosen first.
+     *
+     * <p>Format is the top-level choice rather than a detail inside each dialog because it decides
+     * how much of the measurement you get, not merely where the bytes come from: a Helioviewer JP2
+     * is an 8-bit browse product byte-scaled at ingest, while the native FITS behind it is 16-bit.
+     * Same mission, same frame, two very different things to film.
+     */
+    private JPanel buildSourcePanel() {
+        JPanel cards = new JPanel(new java.awt.CardLayout());
+        cards.add(imageSelectorPanel, "JP2");
+        cards.add(new org.helioviewer.jhv.gui.component.VsoSelectorPanel(this::getStartTime, this::getEndTime), "VSO");
+        cards.add(buildNativePanel(), "NATIVE");
+
+        JPanel chooser = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEADING, 0, 2));
+        javax.swing.ButtonGroup group = new javax.swing.ButtonGroup();
+        String[][] formats = {
+                {"JP2", "JPEG 2000", "Helioviewer's browse product: fast, streamed, and 8-bit. Every mission it carries, and the quantization is already baked in."},
+                {"VSO", "FITS (VSO)", "Calibrated FITS through the Virtual Solar Observatory, which federates most missions. Full bit depth, larger files, slower to load."},
+                {"NATIVE", "FITS (native)", "Straight from a mission's own archive, for the ones VSO serves badly or not at all."},
+        };
+        for (String[] f : formats) {
+            javax.swing.JToggleButton b = new javax.swing.JToggleButton(f[1]);
+            b.setFont(org.helioviewer.jhv.gui.UIGlobals.uiFontSmall);
+            b.setToolTipText(f[2]);
+            b.setSelected("JP2".equals(f[0]));
+            b.addActionListener(e -> ((java.awt.CardLayout) cards.getLayout()).show(cards, f[0]));
+            group.add(b);
+            chooser.add(b);
+        }
+
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.add(chooser, BorderLayout.PAGE_START);
+        panel.add(cards, BorderLayout.CENTER);
+        return panel;
+    }
+
+    /** The archives with their own client, each keeping its own dialog rather than being flattened. */
+    private static JPanel buildNativePanel() {
+        JPanel panel = new JPanel(new java.awt.GridLayout(0, 1, 0, 3));
+        panel.setBorder(javax.swing.BorderFactory.createEmptyBorder(6, 8, 6, 8));
+        Object[][] archives = {
+                {"PUNCH (SDAC)\u2026", (Runnable) () -> org.helioviewer.jhv.gui.dialog.PunchDialog.getInstance().showDialog()},
+                {"Solar Orbiter (SOAR)\u2026", (Runnable) () -> org.helioviewer.jhv.gui.dialog.SoarDialog.getInstance().showDialog()},
+                {"Proba-3 ASPIICS\u2026", (Runnable) () -> org.helioviewer.jhv.gui.dialog.AspiicsDialog.getInstance().showDialog()},
+        };
+        for (Object[] a : archives) {
+            javax.swing.JButton b = new javax.swing.JButton((String) a[0]);
+            b.addActionListener(e -> ((Runnable) a[1]).run());
+            panel.add(b);
+        }
+        return panel;
     }
 
     // The Sync button lives next to the time range (in ImageLayersPane) and calls this.

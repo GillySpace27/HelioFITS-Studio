@@ -38,6 +38,27 @@ public final class SurfaceModelCheck {
             }
         }
 
+        // --- the surface passes through the observer ---------------------------------------
+        // Thales stated as an endpoint rather than as an identity: the sphere's diameter runs
+        // from the Sun to the observer, so its far end IS the observer at (0, 0, D). This is
+        // what the blue observer marker in 3D Helioradial exists to show -- the modelled
+        // surface must close exactly on that dot once the loaded field reaches 1 au, and a
+        // visible gap between them means the field stops short, not that the model is wrong.
+        // Asserted at MAX_ELONGATION rather than at 90 degrees because that is the clamp the
+        // renderer actually evaluates; the residual gap is the clamp's, and is bounded here so
+        // that a wider clamp cannot quietly move the surface away from the observer.
+        Vec3 far = SurfaceModel.ThomsonSphere.surfacePoint(0, SurfaceModel.MAX_ELONGATION, D);
+        double gap = Math.sqrt(far.x * far.x + far.y * far.y + (far.z - D) * (far.z - D));
+        if (!(gap < 0.02 * D)) {
+            System.out.printf("FAIL: Thomson surface should converge on the observer -- gap %.4f Rsun of %.1f%n", gap, D);
+            failures++;
+        }
+        // ... and it approaches from the near side, never overshooting past the observer.
+        if (far.z > D + EPS) {
+            System.out.printf("FAIL: Thomson surface overshoots the observer -- z=%.6f > D=%.1f%n", far.z, D);
+            failures++;
+        }
+
         // Plane of sky must stay in the plane.
         for (double deg : new double[]{1, 10, 45, 80}) {
             Vec3 p = SurfaceModel.PlaneOfSky.surfacePoint(0, Math.toRadians(deg), D);
@@ -104,6 +125,29 @@ public final class SurfaceModelCheck {
         finite(SurfaceModel.ThomsonSphere.depth(1, 0), "depth with D=0");
         finite(SurfaceModel.ThomsonSphere.elongation(1, 0), "elongation with D=0");
 
+        // The domain limit, and why it is a refusal rather than a clamp.
+        //
+        // depth() clamps its radius, so past r = D it returns a constant D while rho = sqrt(r^2 -
+        // D^2) keeps growing: the surface extrudes into a flat sheet at fixed depth that renders
+        // exactly like corona correctly placed on a plane. Seen with a 245 Rsun field from 66 Rsun,
+        // three quarters of the picture was that sheet. canDescribe is what stops it being drawn.
+        double DD = 66;
+        expect(SurfaceModel.ThomsonSphere.depth(DD, DD) == SurfaceModel.ThomsonSphere.depth(4 * DD, DD),
+                "depth() really does pin past r = D, which is what makes the sheet");
+
+        expect(!SurfaceModel.ThomsonSphere.canDescribe(66, 245), "a field past the observer is undescribable");
+        expect(SurfaceModel.ThomsonSphere.canDescribe(215, 100), "a field inside the observer is fine");
+        expect(SurfaceModel.ThomsonSphere.canDescribe(215, 215), "reaching exactly the observer is the boundary case");
+        expect(!SurfaceModel.ThomsonSphere.canDescribe(0, 10), "no observer distance, nothing to describe");
+        expect(SurfaceModel.PlaneOfSky.canDescribe(1, 1e9), "the plane of sky has no domain limit");
+
+        // canDescribe reports, it does not gate: refusing the mode outright was tried and locked
+        // the Thomson sphere off in exactly the wide-field, near-Sun views it exists for. The
+        // renderer clips the undescribable part instead, in warpSurface.vert/.frag via
+        // vSurfaceExcess, which is where the sheet is actually prevented from reaching the screen.
+        expect(!SurfaceModel.ThomsonSphere.canDescribe(66, 245),
+                "the 66-from-245 case still reports as lossy, it is simply no longer refused");
+
         System.out.println(failures == 0 ? "SurfaceModelCheck: PASS" : "SurfaceModelCheck: " + failures + " FAILURE(S)");
         if (failures != 0)
             System.exit(1);
@@ -123,6 +167,13 @@ public final class SurfaceModelCheck {
     private static void near(double got, double want, String what) {
         if (Double.isNaN(got) || Math.abs(got - want) > EPS * Math.max(1, Math.abs(want))) {
             System.out.printf("FAIL: %s -- got %.12f, want %.12f%n", what, got, want);
+            failures++;
+        }
+    }
+
+    private static void expect(boolean ok, String what) {
+        if (!ok) {
+            System.out.println("FAIL: " + what);
             failures++;
         }
     }

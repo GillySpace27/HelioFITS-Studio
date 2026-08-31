@@ -14,13 +14,12 @@ import org.helioviewer.jhv.wcs.WcsProjection;
 
 final class ProjectedMap {
 
-    static Vec2 project(MapMode mode, Position viewpoint, MapScale scale, Quat rotation, Vec3 v) {
+    private static Vec2 project(MapMode mode, Position viewpoint, MapScale scale, Quat rotation, Vec3 v) {
         return switch (mode) {
             case HPC -> projectHpc(viewpoint, v, scale);
             case Latitudinal -> projectLatitudinal(rotation, scale, v);
             case Helioradial -> projectHelioradial(viewpoint, scale, v);
             case HelioradialUnrolled -> projectHelioradialUnrolled(viewpoint, scale, v);
-            case HelioradialUnrolledLatitudinal -> projectHelioradialUnrolledLatitudinal(viewpoint, scale, v);
             case Orthographic -> throw new IllegalArgumentException("Orthographic mode is not projected");
         };
     }
@@ -30,7 +29,6 @@ final class ProjectedMap {
             case HPC -> unprojectHpc(viewpoint, pt.x, pt.y);
             case Latitudinal -> unprojectLatitudinal(rotation, pt.x, pt.y);
             case Helioradial, HelioradialUnrolled -> unprojectHelioradial(viewpoint, pt.x, pt.y);
-            case HelioradialUnrolledLatitudinal -> unprojectHelioradialLatitudinal(viewpoint, pt.x, pt.y);
             case Orthographic -> throw new IllegalArgumentException("Orthographic mode is not projected");
         };
     }
@@ -77,45 +75,6 @@ final class ProjectedMap {
         double r = Math.hypot(hpcXY.x, hpcXY.y);
         double theta = PolarBasis.angle(hpcXY.x, hpcXY.y);
         return new Vec2(scale.toUnitX(Math.toDegrees(theta)) - 0.5, scale.toUnitY(r) - 0.5);
-    }
-
-    // The combined map: Helioradial Unrolled off the limb; on the disk the vertical
-    // coordinate is heliocentric angle gamma from the sub-observer point, a latitudinal map
-    // about the observer axis. Points are placed by their line of sight, like the imagery,
-    // and the two branches agree at the limb (gamma = 90 degrees <-> plane radius 1). The
-    // disk's map-Y is the gamma fraction gamma / (pi/2), scaled into the linear band below
-    // the Box-Cox limb anchor exactly as the plane radius is in HelioradialUnrolled.
-    // Known fold: surface points with gamma between the front-branch radius-1 crossing
-    // (89.47 degrees at 1 au) and 90 degrees project to plane radii marginally above 1 and
-    // land at the seam rather than at their gamma fraction; the displacement is under a
-    // pixel at any realistic band height, the price of an exactly continuous seam.
-    private static Vec2 projectHelioradialUnrolledLatitudinal(Position viewpoint, MapScale scale, Vec3 v0) {
-        Vec2 hpcXY = projectToHpcPlane(viewpoint, v0);
-        double r = Math.hypot(hpcXY.x, hpcXY.y);
-        double theta = PolarBasis.angle(hpcXY.x, hpcXY.y);
-        double unitY = r < 1
-                ? gammaOfPlaneRadius(r, viewpoint.distance) / (Math.PI / 2) * scale.warpLimb()
-                : scale.toUnitY(r);
-        return new Vec2(scale.toUnitX(Math.toDegrees(theta)) - 0.5, unitY - 0.5);
-    }
-
-    // Heliocentric angle of the front intersection with the unit sphere of the line of sight
-    // through plane radius r <= 1, for an observer on the axis at distance d (solar radii).
-    // Twin of the sin(gamma) * d / (d - cos(gamma)) forward map in solarRectWarpLati.frag.
-    private static double gammaOfPlaneRadius(double r, double d) {
-        double d2 = d * d, r2 = r * r;
-        double s = (d2 - Math.sqrt(d2 * (1 - r2) + r2)) / (r2 + d2);
-        return Math.atan2(s * r, d * (1 - s));
-    }
-
-    private static Vec3 unprojectHelioradialLatitudinal(Position viewpoint, double angleDeg, double radius) {
-        if (radius >= 1)
-            return unprojectHelioradial(viewpoint, angleDeg, radius);
-        double gamma = radius * (Math.PI / 2); // the disk's map-Y is the gamma fraction
-        double theta = Math.toRadians(angleDeg);
-        double sg = Math.sin(gamma);
-        Vec3 view = new Vec3(PolarBasis.x(sg, theta), PolarBasis.y(sg, theta), Math.cos(gamma));
-        return viewpoint.toQuat().rotateInverseVector(view);
     }
 
     private static Vec2 projectToHpcPlane(Position viewpoint, Vec3 v0) {

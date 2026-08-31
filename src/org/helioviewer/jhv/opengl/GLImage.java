@@ -124,7 +124,9 @@ public class GLImage {
                 Display.getShowCorona() ? (outerMask < 1 ? (float) (outerMask * maskRef) : metaData.getOuterRadius()) : 1,
                 (float) slitLeft, (float) slitRight,
                 (float) (rhefActive ? upsilonLow : 1), (float) (rhefActive ? upsilonHigh : 1),
-                LUTLabels.isCategorical(lut) ? 1 : 0);
+                LUTLabels.isCategorical(lut) ? 1 : 0,
+                Display.highBitDepthCapture ? 1 : 0,
+                Display.showClipping ? 1 : 0);
 
         applyLUT();
         applyMask(metaData.getDetectorMask());
@@ -143,7 +145,25 @@ public class GLImage {
             lastLut = currlut;
             lastInverted = invertLUT;
 
-            GLTexture.copyByteImage(lutBuffer.remaining() / 4, 1, GL.NEAREST, lutBuffer);
+            // LINEAR for a continuous ramp, NEAREST for a categorical one.
+            //
+            // The table is 256 entries of 8-bit RGBA, so NEAREST caps the whole renderer at 256
+            // colours no matter how much precision the data carried in (FITS arrives as 16-bit
+            // half-float and survives the shader's arithmetic intact) -- which is why a dither
+            // has to be added before the lookup to break up the banding. Interpolating between
+            // entries lifts that ceiling: the ramp becomes continuous and the dither is only
+            // needed for an 8-bit destination.
+            //
+            // Categorical tables must keep NEAREST. Their pixel value SELECTS an entry rather
+            // than positioning on a ramp, so a blend of two entries is a colour that means
+            // nothing -- a mix of two channel polarities, say. Same reason the shader already
+            // refuses to dither them. Keyed on the table actually being uploaded, which in
+            // difference mode is grey rather than the layer's own.
+            // Half-entry note: sampling at `value` rather than at the texel centre shifts the
+            // ramp by 1/512 under LINEAR. Left alone deliberately -- it is invisible on a ramp,
+            // and correcting it would change which entry a categorical lookup lands on.
+            int filter = LUTLabels.isCategorical(currlut) ? GL.NEAREST : GL.LINEAR;
+            GLTexture.copyByteImage(lutBuffer.remaining() / 4, 1, filter, lutBuffer);
         }
         lutChanged = false;
     }

@@ -8,6 +8,10 @@ import org.helioviewer.jhv.wcs.WcsHeader;
 // Standalone self-check (no test framework in this repo). Confirms the ORIGIN-prefix detection
 // branch: files from the ptmc_compo pipeline are recognized as indexed surface maps with a
 // synthetic "CHPOL" detector; anything else is unaffected.
+//
+// Run: javac must be given extra/test/MapMetaDataContainer.java on the same command line. That
+// helper declares package org.helioviewer.jhv.metadata but sits flat in extra/test, so -sourcepath
+// cannot find it and a one-file compile fails with "cannot find symbol: class MapMetaDataContainer".
 public final class FitsMetaDataChpolarityCheck {
 
     public static void main(String[] args) throws Exception {

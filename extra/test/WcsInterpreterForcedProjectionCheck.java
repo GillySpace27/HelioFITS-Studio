@@ -5,6 +5,9 @@ import org.helioviewer.jhv.wcs.WcsHeader;
 // Standalone self-check (no test framework in this repo — see extra/test/JHVMetadataDump.java for
 // the established pattern). Confirms forcing CAR routes WcsInterpreter through the surface-map
 // geometry branch even when CTYPE1/CTYPE2 don't literally end in "CAR".
+//
+// Run: javac must be given extra/test/MapMetaDataContainer.java on the same command line; see the
+// note in FitsMetaDataChpolarityCheck for why -sourcepath does not find it.
 public final class WcsInterpreterForcedProjectionCheck {
 
     public static void main(String[] args) {

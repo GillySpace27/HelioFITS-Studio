@@ -11,7 +11,6 @@ import javax.swing.ButtonGroup;
 import org.helioviewer.jhv.app.AppInfo;
 import org.helioviewer.jhv.app.Platform;
 import org.helioviewer.jhv.display.Display;
-import org.helioviewer.jhv.display.SurfaceModel;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.Actions;
 import org.helioviewer.jhv.gui.DesktopIntegration;
@@ -96,7 +95,14 @@ public final class MenuBar extends JMenuBar {
         });
         viewMenu.add(white);
 
-        viewMenu.add(surfaceModelMenu());
+        JCheckBoxMenuItem clipping = new JCheckBoxMenuItem("Show Clipped Pixels");
+        clipping.setToolTipText("Magenta where the display range is exceeded, green where it bottoms out. Flat regions that stay unflagged were already flat in the data.");
+        clipping.addItemListener(e -> {
+            Display.showClipping = clipping.getState();
+            DisplayController.display();
+        });
+        viewMenu.add(clipping);
+
 
         viewMenu.addSeparator();
         viewMenu.add(new Actions.TogglePresentationMode());
@@ -112,11 +118,16 @@ public final class MenuBar extends JMenuBar {
         // "New Timeline…"/"Open Timeline…" at indices 5/6 (see EVEPlugin.installGUI).
         layersMenu = new JMenu("Layers");
         layersMenu.setMnemonic(KeyEvent.VK_L);
+        // Grouped by what the layer actually carries, because that is the choice that decides how
+        // much of the measurement survives: a JP2 from Helioviewer is an 8-bit browse product,
+        // where a native FITS is the calibrated one. Same missions, different data.
         layersMenu.add(new Actions.NewLayer());
-        layersMenu.add(new Actions.NewSoarLayer());
         layersMenu.add(new Actions.NewSynopticLayer());
+        layersMenu.addSeparator();
         layersMenu.add(new Actions.NewPunchLayer());
+        layersMenu.add(new Actions.NewSoarLayer());
         layersMenu.add(new Actions.NewAspiicsLayer());
+        layersMenu.addSeparator();
         layersMenu.add(new Actions.NewPointCloudLayer());
         layersMenu.add(new Actions.OpenLocalFile());
         add(layersMenu);
@@ -259,26 +270,5 @@ public final class MenuBar extends JMenuBar {
         return menu;
     }
 
-
-    // Where a coronagraph line of sight is taken to have originated. This is a placement model
-    // rather than a measurement (see SurfaceModel), and it changes radial positions by 6 to 40
-    // percent across a wide field, so it is an explicit user choice recorded in the session
-    // file rather than a hidden constant.
-    private static JMenu surfaceModelMenu() {
-        JMenu menu = new JMenu("Coronagraph Surface");
-        menu.setToolTipText("Where wide-field brightness is placed in depth: a projection assumption, not a measured distance");
-        ButtonGroup group = new ButtonGroup();
-        for (SurfaceModel model : SurfaceModel.values()) {
-            JRadioButtonMenuItem item = new JRadioButtonMenuItem(model.toString());
-            item.setSelected(Display.getSurfaceModel() == model);
-            item.addActionListener(e -> {
-                Display.setSurfaceModel(model);
-                DisplayController.display();
-            });
-            group.add(item);
-            menu.add(item);
-        }
-        return menu;
-    }
 
 }

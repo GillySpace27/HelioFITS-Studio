@@ -237,6 +237,7 @@ public class ViewpointLayer extends AbstractLayer {
             InputController.addListener(hoverListener);
             options.activate();
             options.applyCurrentViewpoint(DisplayController.ViewpointApplyMode.KEEP_TRANSFORM);
+            options.enforceOnActivation(); // the mode did not change, but it just took the camera
         } else {
             hoverText.clear();
             clearOrbitWorker();

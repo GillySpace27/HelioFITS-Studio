@@ -7,8 +7,38 @@
 // orbit, so it can only ever face the viewer.
 
 in vec3 vWorld;
+in float vSurfaceExcess;
+in float vCropExcess;
+
+// Twin of solarRadialWarp.frag's helper: CAR/CEA sample the solar surface along the sight line,
+// everything else keeps the plane-of-sky path. On this mesh the vertex stage already places
+// on-disk vertices on the unit sphere, so re-deriving the surface point from the sight line
+// agrees with the geometry there and correctly finds no surface beyond the limb, where the mesh
+// has left the sphere for the plane-of-sky/Thomson surface and a synoptic map has nothing to say.
+vec2 sampleWarpTexcoord(const WCS wcs, const ProjectionParams projection, const vec2 helioprojective, const vec2 hpcXY, const float dt, const float[6] PV, out float enhancementFactor) {
+    if (isSurfaceMapProjection(projection)) {
+        vec2 surfaceTexCoord;
+        if (!sampleSurfaceMapTexcoord(helioprojective, wcs, projection, PV, surfaceTexCoord))
+            discard;
+        enhancementFactor = 1.;
+        return surfaceTexCoord;
+    }
+    return sampleHpcTexcoord(wcs, projection, helioprojective, hpcXY, dt, PV, enhancementFactor);
+}
 
 void main(void) {
+    // Past the observer's own distance the Thomson sphere has no surface, so there is nowhere to
+    // put this brightness. Dropped rather than drawn flat: the flat version is indistinguishable
+    // from corona correctly placed on a plane, which makes it a picture that lies. Throwing the
+    // outer field away is a real cost, and it is the honest one.
+    if (vSurfaceExcess > 1.)
+        discard;
+
+    // The Edge crop: cut to a circle at the chosen radius, leaving the mapping and the camera
+    // alone. That is the whole difference between this and the Zoom slider beside it.
+    if (vCropExcess > 1.)
+        discard;
+
     vec4 color;
     float observerDistance = projection[0].observerDistance;
 
@@ -33,13 +63,13 @@ void main(void) {
     float enhancementFactor;
     bool diffMode = display.isDiff != NODIFFERENCE;
     clipHpcGeometry(hpcXY);
-    vec2 texCoord = sampleHpcTexcoord(wcs[0], projection[0], helioprojective, hpcXY, wcs[0].deltaT, pv0, enhancementFactor);
+    vec2 texCoord = sampleWarpTexcoord(wcs[0], projection[0], helioprojective, hpcXY, wcs[0].deltaT, pv0, enhancementFactor);
     if (!diffMode) {
         color = getColor(texCoord, texCoord, enhancementFactor);
     } else {
         vec2 diffHelioprojective = worldToHelioprojective(vWorld, projection[1].observerDistance);
         float diffEnhancementFactor;
-        vec2 diffTexCoord = sampleHpcTexcoord(wcs[1], projection[1], diffHelioprojective, hpcXY, wcs[1].deltaT, pv1, diffEnhancementFactor);
+        vec2 diffTexCoord = sampleWarpTexcoord(wcs[1], projection[1], diffHelioprojective, hpcXY, wcs[1].deltaT, pv1, diffEnhancementFactor);
         color = getColor(texCoord, diffTexCoord, max(enhancementFactor, diffEnhancementFactor));
     }
     outColor = color;

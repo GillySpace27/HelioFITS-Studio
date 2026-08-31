@@ -37,6 +37,7 @@ import javax.swing.table.TableModel;
 import org.helioviewer.jhv.app.DisplaySettings;
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.Settings;
+import org.helioviewer.jhv.display.ProjectionTransition;
 import org.helioviewer.jhv.gui.Interfaces;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.io.DataSources;
@@ -182,6 +183,22 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         normalizeRadius.addActionListener(e -> DisplaySettings.setNormalizeRadius(normalizeRadius.isSelected()));
         settings.add(normalizeRadius, c);
 
+        c.gridx = 0;
+        c.gridy = 6;
+        settings.add(new JLabel("Projection:", JLabel.RIGHT), c);
+
+        c.gridx = 1;
+        c.gridy = 6;
+        // Lives here rather than in the projection palette: it is an accessibility preference
+        // about how the UI behaves, set once and persisted, not display state to reach for while
+        // composing. A crossfade is pure alpha with no geometry in motion, which is the one
+        // animation style generally considered safe for vestibular motion sensitivity, so this
+        // defaults on and exists as the opt-out for anyone it still bothers.
+        JCheckBox animateProjection = new JCheckBox("Crossfade between projections", ProjectionTransition.isAnimateEnabled());
+        animateProjection.setToolTipText("Fade between projections instead of switching instantly");
+        animateProjection.addActionListener(e -> ProjectionTransition.setAnimateEnabled(animateProjection.isSelected()));
+        settings.add(animateProjection, c);
+
         JPanel timePanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
         timePanel.add(new JLabel("Use time at ", JLabel.RIGHT));
         ButtonGroup timeModeGroup = new ButtonGroup();
@@ -197,23 +214,8 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         }
 
         c.gridx = 1;
-        c.gridy = 6;
+        c.gridy = 7;
         settings.add(timePanel, c);
-
-        c.gridx = 0;
-        c.gridy = 7;
-        settings.add(new JLabel("Record video as:", JLabel.RIGHT), c);
-
-        c.gridx = 1;
-        c.gridy = 7;
-        JComboBox<ExportFormat> comboVideo = new JComboBox<>(ExportFormat.values());
-        ExportFormat videoFormat = ExportFormat.H264;
-        try {
-            videoFormat = ExportFormat.valueOf(Settings.getProperty("video.format"));
-        } catch (Exception ignore) {}
-        comboVideo.setSelectedItem(videoFormat);
-        comboVideo.addActionListener(e -> Settings.setProperty("video.format", ((ExportFormat) Objects.requireNonNull(comboVideo.getSelectedItem())).name()));
-        settings.add(comboVideo, c);
 
         c.gridx = 0;
         c.gridy = 8;

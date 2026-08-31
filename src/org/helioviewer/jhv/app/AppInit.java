@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import org.helioviewer.jhv.astronomy.Spice;
 import org.helioviewer.jhv.io.Directories;
@@ -97,13 +98,24 @@ public final class AppInit {
                 "solo_ANC_soc-orbit-stp_20200210-20301120_416_V1_00544_V01.bsp",
                 "solo_ANC_soc-default-att-stp_20200210-20301120_416_V1_00544_V01.bc");
 
-        List<String> builtinKernels = kernels.parallelStream().map(k -> { // order does not matter
+        // Optional because it is a build product, not a source file: extra/tools builds it from
+        // JPL's de440s and it is not in git. It extends the outer planets past de432s_reduced's
+        // 1990-2050, which is 60 years and cannot hold one orbit of Saturn (29.5), Uranus (84) or
+        // Neptune (164.8). Without it those three draw partial orbit arcs, which is the honest
+        // picture when the ephemeris does not reach, so a missing file is a note and not an error.
+        List<String> optionalKernels = List.of("outer_planets_de440s.bsp");
+
+        List<String> builtinKernels = Stream.concat(kernels.stream(), optionalKernels.stream())
+                .parallel().map(k -> { // order does not matter
             try (InputStream in = FileUtils.getResource("/kernels/" + k)) {
                 Path kp = Path.of(Directories.dataCacheDir, k);
                 Files.copy(in, kp, StandardCopyOption.REPLACE_EXISTING);
                 return kp.toString();
             } catch (Exception e) {
-                Log.error("SPICE kernel copy error", e);
+                if (optionalKernels.contains(k))
+                    Log.warn("Optional SPICE kernel absent, outer planet orbits will be partial: " + k);
+                else
+                    Log.error("SPICE kernel copy error", e);
                 return null;
             }
         }).filter(Objects::nonNull).toList();

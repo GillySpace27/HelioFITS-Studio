@@ -14,7 +14,9 @@ import org.helioviewer.jhv.opengl.text.SdfTextRenderer;
 
 import org.json.JSONObject;
 
-public class TimestampLayer extends AbstractLayer {
+// final, like its sibling default layers: nothing extends it, and enabling from the constructor
+// below is only free of the this-escape hazard because there is no subclass left to initialize.
+public final class TimestampLayer extends AbstractLayer {
 
     public static final int MIN_SCALE = 50;
     public static final int MAX_SCALE = 300;
@@ -39,6 +41,14 @@ public class TimestampLayer extends AbstractLayer {
     public TimestampLayer(JSONObject jo) {
         if (jo != null)
             deserialize(jo);
+        else
+            // Fresh construction (Layers' DEFAULT_LAYERS), as opposed to restoring a saved
+            // session, where State applies the stored "enabled" flag instead. Without this the
+            // layer sat at AbstractLayer's default of disabled for the whole run: renderFloat
+            // returns on its first line when the layer is not visible, so the on-canvas time
+            // silently never drew and nothing logged, since nothing had failed. GridLayer and
+            // MiniviewLayer carry the same else-branch; this one was missing it.
+            setEnabled(true);
     }
 
     @Override

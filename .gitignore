@@ -9,3 +9,6 @@ JHelioviewer.jar
 .DS_Store
 # Compiled self-checks; javac output, not source.
 extra/test-classes
+# Built by extra/tools/build_outer_planet_kernel.py from JPL's de440s. A derived 3.5 MB binary;
+# out of git because history cannot be shrunk again once a blob is in it.
+resources/kernels/outer_planets_de440s.bsp

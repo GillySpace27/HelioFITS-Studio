@@ -2,6 +2,7 @@ package org.helioviewer.jhv.layers.selector;
 
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.FlowLayout;
 import java.awt.Graphics;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -9,9 +10,10 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 
-import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.Icon;
+import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JFormattedTextField;
@@ -22,97 +24,188 @@ import javax.swing.SwingConstants;
 
 import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.display.Display;
+import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.GridType;
-import org.helioviewer.jhv.gui.component.Buttons;
+import org.helioviewer.jhv.gui.component.CollapsiblePane;
 import org.helioviewer.jhv.gui.component.JHVSlider;
 import org.helioviewer.jhv.gui.component.JHVSpinner;
 import org.helioviewer.jhv.gui.component.TerminatedFormatterFactory;
 import org.helioviewer.jhv.layers.GridLayer;
 
-import com.jidesoft.swing.JideToggleButton;
 
 @SuppressWarnings("serial")
 final class GridLayerOptions extends JPanel {
 
+    /**
+     * Four collapsed sections rather than one flat list.
+     *
+     * <p>The grid, the Thomson sphere, the ecliptic plane and the planets are four separate things
+     * that happen to be drawn by one layer, and flattening them produced a column of eleven
+     * unlabelled sliders where "Line width" and "Thomson line width" sat five rows apart with
+     * nothing saying which belonged to what. Each section now carries its own colour, opacity,
+     * width and density, so a slider's meaning comes from the header above it.
+     */
     GridLayerOptions(GridLayer layer) {
-        setLayout(new GridBagLayout());
+        setLayout(new BoxLayout(this, BoxLayout.PAGE_AXIS));
 
-        GridBagConstraints c0 = new GridBagConstraints();
-        c0.fill = GridBagConstraints.HORIZONTAL;
-        c0.weightx = 1.;
-        c0.weighty = 1.;
+        add(new CollapsiblePane("Grid", gridSection(layer), true, true));
+        add(new CollapsiblePane("Thomson sphere", thomsonSection(layer), false, true));
+        add(new CollapsiblePane("Ecliptic plane", eclipticSection(layer), false, true));
+        add(new CollapsiblePane("Planets", planetSection(layer), false, true));
+    }
 
-        c0.gridy = 0;
+    private JPanel gridSection(GridLayer layer) {
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints c = new GridBagConstraints();
+        c.fill = GridBagConstraints.HORIZONTAL;
+        c.weightx = 1;
 
-        c0.gridx = 1;
-        c0.anchor = GridBagConstraints.LINE_END;
-        add(createToggle("Solar axis", layer.isShowAxis(), layer::setShowAxis), c0);
+        c.gridy = 0;
+        c.gridx = 1;
+        c.anchor = GridBagConstraints.LINE_END;
+        panel.add(createToggle("Solar axis", layer.isShowAxis(), layer::setShowAxis), c);
+        c.gridx = 3;
+        panel.add(createToggle("Grid labels", layer.isShowLabels(), layer::setShowLabels), c);
 
-        c0.gridx = 3;
-        c0.anchor = GridBagConstraints.LINE_END;
-        add(createToggle("Grid labels", layer.isShowLabels(), layer::setShowLabels), c0);
+        c.gridy = 1;
+        c.gridx = 1;
+        panel.add(createToggle("Radial grid", layer.isShowRadial(), layer::setShowRadial), c);
+        c.gridx = 2;
+        panel.add(new JLabel("Grid type ", JLabel.RIGHT), c);
+        c.gridx = 3;
+        c.anchor = GridBagConstraints.LINE_START;
+        panel.add(createGridTypeBox(layer), c);
 
-        c0.gridy = 1;
+        c.gridy = 2;
+        c.gridx = 0;
+        c.anchor = GridBagConstraints.LINE_END;
+        panel.add(new JLabel("Longitude ", JLabel.RIGHT), c);
+        c.gridx = 1;
+        c.anchor = GridBagConstraints.LINE_START;
+        panel.add(createGridResolutionSpinner(layer.getLonStep(), layer::setLonStep), c);
+        c.gridx = 2;
+        c.anchor = GridBagConstraints.LINE_END;
+        panel.add(new JLabel("Latitude ", JLabel.RIGHT), c);
+        c.gridx = 3;
+        c.anchor = GridBagConstraints.LINE_START;
+        panel.add(createGridResolutionSpinner(layer.getLatStep(), layer::setLatStep), c);
 
-        c0.gridx = 1;
-        c0.anchor = GridBagConstraints.LINE_END;
-        add(createToggle("Radial grid", layer.isShowRadial(), layer::setShowRadial), c0);
+        JPanel rows = new JPanel(new GridBagLayout());
+        addAdjustmentRow(rows, "Color ", createColorBox(layer), 0);
+        addAdjustmentRow(rows, "Line width ", createLineWidthSlider(layer), 1);
+        addAdjustmentRow(rows, "Line opacity ", createOpacitySlider(layer.getGridAlpha(), layer::setGridAlpha), 2);
+        addAdjustmentRow(rows, "Label opacity ", createOpacitySlider(layer.getLabelAlpha(), layer::setLabelAlpha), 3);
+        addAdjustmentRow(rows, "Label size ", createLabelSizeSlider(layer), 4);
+        addAdjustmentRow(rows, "Ring label angle ", createLabelAngleSlider(layer), 5);
 
-        c0.gridx = 2;
-        c0.anchor = GridBagConstraints.LINE_END;
-        add(new JLabel("Grid type ", JLabel.RIGHT), c0);
-        c0.gridx = 3;
-        c0.anchor = GridBagConstraints.LINE_START;
-        add(createGridTypeBox(layer), c0);
+        c.gridy = 3;
+        c.gridx = 0;
+        c.gridwidth = 4;
+        c.anchor = GridBagConstraints.LINE_START;
+        panel.add(rows, c);
+        return panel;
+    }
 
-        c0.gridy = 2;
+    private JPanel thomsonSection(GridLayer layer) {
+        JCheckBox toggle = createToggle("Show", layer.isShowThomson(), layer::setShowThomson);
+        toggle.setToolTipText("Wireframe of the surface where scattering is at 90 degrees, which is where a coronagraph's line of sight is assumed to have originated. Drawn whichever surface model the imagery uses, so the two can be compared.");
+        JPanel panel = surfacePanel(toggle,
+                createSurfaceColorBox(layer.getThomsonColor(), layer::setThomsonColor),
+                createOpacitySlider(layer.getThomsonAlpha(), layer::setThomsonAlpha),
+                createScaleSlider(layer.getThomsonLineScale(), layer::setThomsonLineScale),
+                createScaleSlider(layer.getThomsonDensity(), layer::setThomsonDensity));
+        return panel;
+    }
 
-        c0.gridx = 0;
-        c0.anchor = GridBagConstraints.LINE_END;
-        add(new JLabel("Longitude ", JLabel.RIGHT), c0);
+    private JPanel eclipticSection(GridLayer layer) {
+        JCheckBox toggle = createToggle("Show", layer.isShowEcliptic(), layer::setShowEcliptic);
+        toggle.setToolTipText("The plane the planets orbit in, taken from Earth's own orbit rather than a tabulated inclination, so it passes through the Earth marker by construction.");
+        return surfacePanel(toggle,
+                createSurfaceColorBox(layer.getEclipticColor(), layer::setEclipticColor),
+                createOpacitySlider(layer.getEclipticAlpha(), layer::setEclipticAlpha),
+                createScaleSlider(layer.getEclipticLineScale(), layer::setEclipticLineScale),
+                createScaleSlider(layer.getEclipticDensity(), layer::setEclipticDensity));
+    }
 
-        c0.gridx = 1;
-        c0.anchor = GridBagConstraints.LINE_START;
-        add(createGridResolutionSpinner(layer.getLonStep(), layer::setLonStep), c0);
+    /** The same four controls for either reference surface, so the two sections read alike. */
+    private static JPanel surfacePanel(JCheckBox toggle, Component color, Component opacity,
+                                       Component lineWidth, Component density) {
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints c = new GridBagConstraints();
+        c.fill = GridBagConstraints.HORIZONTAL;
+        c.weightx = 1;
+        c.gridy = 0;
+        c.gridx = 0;
+        c.anchor = GridBagConstraints.LINE_END;
+        panel.add(toggle, c);
+        c.gridx = 1;
+        c.gridwidth = 3;
+        c.anchor = GridBagConstraints.LINE_START;
+        panel.add(color, c);
 
-        c0.gridx = 2;
-        c0.anchor = GridBagConstraints.LINE_END;
-        add(new JLabel("Latitude ", JLabel.RIGHT), c0);
+        JPanel rows = new JPanel(new GridBagLayout());
+        addAdjustmentRow(rows, "Opacity ", opacity, 0);
+        addAdjustmentRow(rows, "Line width ", lineWidth, 1);
+        addAdjustmentRow(rows, "Density ", density, 2);
 
-        c0.gridx = 3;
-        c0.anchor = GridBagConstraints.LINE_START;
-        add(createGridResolutionSpinner(layer.getLatStep(), layer::setLatStep), c0);
+        c.gridy = 1;
+        c.gridx = 0;
+        c.gridwidth = 4;
+        panel.add(rows, c);
+        return panel;
+    }
 
-        JPanel adjustmentsPanel = new JPanel(new GridBagLayout());
-        adjustmentsPanel.setBorder(BorderFactory.createEmptyBorder(0, 2, 0, 0));
-        addAdjustmentRow(adjustmentsPanel, "Color ", createColorBox(layer), 0);
-        addAdjustmentRow(adjustmentsPanel, "Line width ", createLineWidthSlider(layer), 1);
-        addAdjustmentRow(adjustmentsPanel, "Line opacity ", createOpacitySlider(layer.getGridAlpha(), layer::setGridAlpha), 2);
-        addAdjustmentRow(adjustmentsPanel, "Label opacity ", createOpacitySlider(layer.getLabelAlpha(), layer::setLabelAlpha), 3);
-        addAdjustmentRow(adjustmentsPanel, "Label size ", createLabelSizeSlider(layer), 4);
-        addAdjustmentRow(adjustmentsPanel, "Ring label angle ", createLabelAngleSlider(layer), 5);
+    /**
+     * Planets, drawn by this layer rather than by ViewpointLayer.
+     *
+     * <p>The earlier version put a button here that enabled the Viewpoint layer and forced it into
+     * Heliosphere mode, because that layer only draws planets in that one camera mode. Handing the
+     * camera over to see a marker is too high a price, and it moved the view out from under the
+     * user. These are plain toggles now, with no dependency on any other layer.
+     */
+    private JPanel planetSection(GridLayer layer) {
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints c = new GridBagConstraints();
+        c.fill = GridBagConstraints.HORIZONTAL;
+        c.weightx = 1;
 
-        JideToggleButton adjButton = new JideToggleButton(Buttons.adjustmentsRight);
-        adjButton.addActionListener(e -> {
-            boolean selected = adjButton.isSelected();
-            adjustmentsPanel.setVisible(selected);
-            adjButton.setText(selected ? Buttons.adjustmentsDown : Buttons.adjustmentsRight);
-        });
-        adjustmentsPanel.setVisible(false);
+        c.gridy = 0;
+        c.gridx = 0;
+        c.anchor = GridBagConstraints.LINE_END;
+        JCheckBox show = createToggle("Show", layer.isShowPlanets(), layer::setShowPlanets);
+        show.setToolTipText("Mercury through Neptune, positioned from the shipped ephemeris, in the same frame as the Earth marker.");
+        panel.add(show, c);
 
-        c0.gridy = 3;
-        c0.gridx = 1;
-        c0.gridwidth = 3;
-        c0.anchor = GridBagConstraints.LINE_START;
-        c0.fill = GridBagConstraints.NONE;
-        add(adjButton, c0);
+        c.gridx = 1;
+        c.anchor = GridBagConstraints.LINE_START;
+        JCheckBox names = createToggle("Names", layer.isShowPlanetNames(), layer::setShowPlanetNames);
+        panel.add(names, c);
 
-        c0.gridy = 4;
-        c0.gridx = 0;
-        c0.gridwidth = 4;
-        c0.anchor = GridBagConstraints.LINE_START;
-        c0.fill = GridBagConstraints.HORIZONTAL;
-        add(adjustmentsPanel, c0);
+        c.gridx = 2;
+        c.anchor = GridBagConstraints.LINE_END;
+        JCheckBox orbits = createToggle("Orbits", layer.isShowPlanetOrbits(), layer::setShowPlanetOrbits);
+        orbits.setToolTipText("One full orbit each, sampled from the ephemeris rather than drawn as a circle, so an eccentric orbit like Mercury's is the shape it really is.");
+        panel.add(orbits, c);
+
+        c.gridy = 1;
+        c.gridx = 0;
+        c.anchor = GridBagConstraints.LINE_END;
+        JCheckBox follow = createToggle("Follow solar rotation", layer.isPlanetsFollowRotation(), layer::setPlanetsFollowRotation);
+        follow.setToolTipText("On: Earth sits on the observer marker and the planets register with the imagery, so a planet bright in a coronagraph frame lands on its marker. Off: an inertial layout where each planet moves at its own orbital rate, good for watching Mercury lap Earth, but nothing lines up with the picture.");
+        c.gridwidth = 2;
+        panel.add(follow, c);
+        c.gridwidth = 1;
+
+        JPanel rows = new JPanel(new GridBagLayout());
+        addAdjustmentRow(rows, "Orbit opacity ",
+                createOpacitySlider(layer.getPlanetOrbitAlpha(), layer::setPlanetOrbitAlpha), 0);
+
+        c.gridy = 2;
+        c.gridx = 0;
+        c.gridwidth = 3;
+        c.anchor = GridBagConstraints.LINE_START;
+        panel.add(rows, c);
+        return panel;
     }
 
     private static void addAdjustmentRow(JPanel panel, String text, Component component, int y) {
@@ -140,6 +233,23 @@ final class GridLayerOptions extends JPanel {
             layer.setGridColor(color);
         });
         return comboBox;
+    }
+
+    /** A colour box for a reference surface, which owns its own colour rather than the grid's. */
+    private static JComboBox<Colors.NamedColor> createSurfaceColorBox(Colors.NamedColor initial, Consumer<Colors.NamedColor> setter) {
+        JComboBox<Colors.NamedColor> comboBox = new JComboBox<>(Colors.NamedColor.values());
+        comboBox.setSelectedItem(initial);
+        comboBox.setRenderer(new ColorRenderer());
+        comboBox.addActionListener(e ->
+                setter.accept((Colors.NamedColor) Objects.requireNonNull(comboBox.getSelectedItem())));
+        return comboBox;
+    }
+
+    /** A 0.25x to 4x multiplier, for line widths and mesh density alike. */
+    private static JHVSlider createScaleSlider(double initialValue, DoubleConsumer valueSetter) {
+        JHVSlider slider = new JHVSlider(25, 400, (int) Math.round(initialValue * 100));
+        slider.addChangeListener(e -> valueSetter.accept(slider.getValue() / 100.));
+        return slider;
     }
 
     private static JHVSlider createOpacitySlider(double initialValue, DoubleConsumer valueSetter) {

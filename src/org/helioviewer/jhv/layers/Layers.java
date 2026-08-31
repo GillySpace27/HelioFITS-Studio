@@ -166,6 +166,7 @@ public final class Layers {
         // DEFAULT_LAYERS.put(StarLayer.class, () -> new StarLayer(null));
         DEFAULT_LAYERS.put(TimestampLayer.class, () -> new TimestampLayer(null));
         DEFAULT_LAYERS.put(MiniviewLayer.class, () -> new MiniviewLayer(null));
+        DEFAULT_LAYERS.put(ObserverLayer.class, () -> new ObserverLayer(null));
 
         DEFAULT_LAYERS.values().forEach(supplier -> add(supplier.get()));
     }

@@ -78,6 +78,12 @@ layout(std140) uniform DisplayBlock {
     // rounded up to a multiple of 16 (the trailing 12 bytes after this scalar are that rounding,
     // not per-member padding -- a bare float has 4-byte base alignment, not 16).
     float indexed;
+    // Non-zero while capturing to a high-bit-depth destination. Dither exists to hide 8-bit
+    // banding; writing it into a 16-bit file would just be recording the noise. Occupies one of
+    // the three trailing floats that were std140 rounding, so the block size is unchanged.
+    float highBitDepth;
+    // Non-zero to paint clipped pixels in flag colours instead of their LUT colour.
+    float showClipping;
 } display;
 
 uniform sampler2D image;
@@ -162,9 +168,22 @@ vec4 getColor(const vec2 texcoord, const vec2 difftexcoord, const float factor) 
         value = value < .5 ? .5 * pow(2. * value, display.upsilonLow) : 1. - .5 * pow(2. - 2. * value, display.upsilonHigh);
     }
 
+    // Clipping flags, tested BEFORE the dither so a +/-1/255 nudge is never reported as
+    // clipping. This is the only place the transfer function's range is knowable: fetch()
+    // applies Levels and the response factor without clamping, and the LUT texture is
+    // CLAMP_TO_EDGE, so everything at or past the ends silently renders as the end colour.
+    // Magenta and green because no solar colour table contains either.
+    // Skipped for categorical layers, where the value is an index and "range" means nothing.
+    if (display.showClipping != 0. && display.indexed == 0.) {
+        if (value >= 1.)
+            return vec4(1., 0., 1., 1.) * display.color;
+        if (value <= 0.)
+            return vec4(0., 1., 0., 1.) * display.color;
+    }
+
     // Dither breaks up banding in continuous ramps, but on a categorical LUT a +/-1/255 nudge
     // lands on a neighbouring legend entry, turning flat regions into salt-and-pepper noise.
-    if (display.indexed == 0.)
+    if (display.indexed == 0. && display.highBitDepth == 0.)
         value += dither(texcoord);
 
     return texture(lut, vec2(value, 0.5)) * display.color;
@@ -539,6 +558,42 @@ void clipHpcGeometry(const vec2 hpcXY) {
         if (flatDist > display.cutOff.z || flatDistAlt > display.cutOff.z)
             discard;
     }
+}
+
+bool isSurfaceMapProjection(const ProjectionParams projection) {
+    return projection.projectionCode == WCS_PROJECTION_CAR
+        || projection.projectionCode == WCS_PROJECTION_CEA;
+}
+
+/**
+ * Sample a CAR/CEA surface map (the indexed Carrington synoptic map, among others) along a
+ * helioprojective line of sight.
+ *
+ * A surface map is a map OF THE SPHERE: every texel is a longitude/latitude, so the only way
+ * to sample it is to intersect the line of sight with the solar surface and ask where that
+ * point lands on the map. That is why this returns false off the limb rather than falling
+ * back to a plane -- a sight line that misses the Sun has no surface point, and the caller
+ * must discard rather than invent one. It is also why the projection-generic
+ * projectHelioprojectiveToWcsPlane() cannot serve here: it has no CAR/CEA branch and silently
+ * treats them as TAN, which is what left these maps blank in every non-ortho projection.
+ *
+ * The frame correction mirrors solarOrtho.frag: sight lines are built in the observer frame,
+ * while the map is glued to the Sun, so sourceViewQuat (which ImageLayer fills with the view
+ * rotation for surface maps specifically) undoes the view. Wrapped X, because a synoptic map
+ * is periodic in longitude and the seam would otherwise clip.
+ */
+bool sampleSurfaceMapTexcoord(const vec2 helioprojective, const WCS wcs, const ProjectionParams projection, const float[6] PV, out vec2 texCoord) {
+    vec3 world;
+    if (!helioprojectiveToWorld(helioprojective, projection.observerDistance, world)) {
+        texCoord = vec2(0.);
+        return false;
+    }
+    vec3 surface = rotate_vector_inverse(projection.sourceViewQuat, world);
+    vec2 plane = projection.projectionCode == WCS_PROJECTION_CEA
+            ? projectCeaToWcsPlane(surface, wcs.crval, projection.planeUnitsPerRadian, PV)
+            : projectCarToWcsPlane(surface, wcs.crval, projection.planeUnitsPerRadian);
+    texCoord = wcsPlaneToWrappedXTexcoord(plane, wcs);
+    return true;
 }
 
 vec2 sampleHpcTexcoord(const WCS wcs, const ProjectionParams projection, vec2 helioprojective, const vec2 hpcXY, const float dt, const float[6] PV, out float enhancementFactor) {

@@ -18,6 +18,8 @@ public final class ViewportMath {
         return 0.5 - (screenY - vp.yAWT) / vp.height;
     }
 
+    // Must stay identical to MapView.cameraWidth: this is the picking/interaction side of the
+    // same number, so any factor missing here puts the mouse somewhere other than the pixel.
     private static double zoomedCameraWidth(Camera camera, Viewport vp) {
         return Display.mode.baseCameraWidth(camera) * vp.zoom;
     }

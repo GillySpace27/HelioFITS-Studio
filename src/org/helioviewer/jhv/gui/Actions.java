@@ -168,7 +168,7 @@ public final class Actions {
 
     public static class NewLayer extends AbstractKeyAction {
         public NewLayer() {
-            super("New Image Layer...", KeyStroke.getKeyStroke(KeyEvent.VK_N, DesktopIntegration.menuShortcutMask));
+            super("New JP2 Image Layer\u2026", KeyStroke.getKeyStroke(KeyEvent.VK_N, DesktopIntegration.menuShortcutMask));
         }
 
         @Override
@@ -179,7 +179,7 @@ public final class Actions {
 
     public static class NewSoarLayer extends AbstractAction {
         public NewSoarLayer() {
-            super("New SOAR Layer...");
+            super("New FITS Layer \u2014 Solar Orbiter (SOAR)\u2026");
         }
 
         @Override
@@ -201,7 +201,7 @@ public final class Actions {
 
     public static class NewPunchLayer extends AbstractAction {
         public NewPunchLayer() {
-            super("New PUNCH Layer...");
+            super("New FITS Layer \u2014 PUNCH (SDAC)\u2026");
         }
 
         @Override

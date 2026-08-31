@@ -64,10 +64,14 @@ public final class ExportMovie implements Player.Listener {
         BufferedImage eve = null;
         boolean submitted = false;
         try {
-            screen = MappedImageFactory.createRGBImage(grabber.w, grabber.h);
+            // Sized to the capture's stride: 6 bytes per pixel once the target is RGBA16F.
+            // createRGBImage allocates 3, so a 16-bit frame needs twice the width's worth of
+            // bytes, which is what asking for 2w gives without a new factory method.
+            int bpp = grabber.bytesPerPixel();
+            screen = MappedImageFactory.createRGBImage(bpp == 6 ? 2 * grabber.w : grabber.w, grabber.h);
             grabber.renderFrame(MappedImageFactory.getByteBuffer(screen));
             eve = EVEImage == null ? null : NativeImageFactory.copyImage(EVEImage);
-            encodeExecutor.execute(new FrameConsumer(exporter, screen, eve, EVEMovieLinePosition));
+            encodeExecutor.execute(new FrameConsumer(exporter, screen, eve, EVEMovieLinePosition, bpp));
             submitted = true;
         } catch (Exception e) {
             Log.error(e);
@@ -140,21 +144,28 @@ public final class ExportMovie implements Player.Listener {
         int exportHeight = mode == ViewState.RecordingMode.SHOT ? canvasHeight + sh : ((canvasHeight + sh) / MACROBLOCK) * MACROBLOCK;
 
         canvasHeight = exportHeight - sh;
-        grabber = new GLGrab(canvasWidth, canvasHeight);
+        // A snapshot is always a PNG whatever the movie format is set to, so it qualifies on its
+        // own; otherwise the chosen depth says whether the grab has to be deep. That used to be
+        // "is it a frame series", on the grounds that an mp4 would need a 10/12-bit pixel format
+        // and a matching profile; the depth control is that decision, made per recording.
+        ExportFormat format = org.helioviewer.jhv.gui.component.MoviePanel.storedFormat();
+        ExportFormat.Chroma chroma = org.helioviewer.jhv.gui.component.MoviePanel.storedChroma();
+        ExportFormat.Depth depth = org.helioviewer.jhv.gui.component.MoviePanel.storedDepth();
+        boolean deepOutput = mode == ViewState.RecordingMode.SHOT || format.wantsHighBitDepth(depth);
+        grabber = new GLGrab(canvasWidth, canvasHeight, deepOutput);
 
         if (mode == ViewState.RecordingMode.SHOT) {
-            exporter = new ExportWriter(ExportFormat.PNG, canvasWidth, exportHeight, fps);
+            // A snapshot is a PNG regardless, so it takes PNG's own fixed depth and sampling.
+            exporter = new ExportWriter(ExportFormat.PNG, ExportFormat.Chroma.RGB, ExportFormat.Depth.SIXTEEN,
+                    canvasWidth, exportHeight, fps, false); // a single still
             shallStop = true;
 
             recording = true;
             notifyStatusChanged();
             DisplayController.render(1);
         } else {
-            ExportFormat format = ExportFormat.H264;
-            try {
-                format = ExportFormat.valueOf(Settings.getProperty("video.format"));
-            } catch (Exception ignore) {}
-            exporter = new ExportWriter(format, canvasWidth, exportHeight, fps);
+            exporter = new ExportWriter(format, chroma, depth, canvasWidth, exportHeight, fps,
+                    org.helioviewer.jhv.gui.component.MoviePanel.isAllIntra());
 
             recording = true;
             notifyStatusChanged();
@@ -223,11 +234,11 @@ public final class ExportMovie implements Player.Listener {
     }
 
     private record FrameConsumer(ExportWriter exportWriter, BufferedImage mainImage, BufferedImage eveImage,
-                                 int movieLinePosition) implements Runnable {
+                                 int movieLinePosition, int bytesPerPixel) implements Runnable {
         @Override
         public void run() {
             try {
-                exportWriter.encode(mainImage, eveImage, movieLinePosition);
+                exportWriter.encode(mainImage, eveImage, movieLinePosition, bytesPerPixel);
             } catch (Exception e) {
                 Log.error(e);
             } finally {

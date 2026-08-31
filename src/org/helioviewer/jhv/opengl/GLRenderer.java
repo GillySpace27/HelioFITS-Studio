@@ -11,6 +11,7 @@ import org.helioviewer.jhv.display.GridType;
 import org.helioviewer.jhv.display.MapMode;
 import org.helioviewer.jhv.display.MapScale;
 import org.helioviewer.jhv.display.MapView;
+import org.helioviewer.jhv.display.ProjectionTransition;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.layers.Layers;
@@ -43,7 +44,7 @@ public final class GLRenderer {
             // unrolled layout is flat for the same reason.
             case Helioradial -> createConstantScales(viewports, MapScale.boxCoxRadial(
                     Display.isHelioradial3D() ? Display.fullWarpFieldRadius() : effectiveOuterRadius()));
-            case HelioradialUnrolled, HelioradialUnrolledLatitudinal -> createConstantScales(viewports, MapScale.boxCoxRadial(effectiveOuterRadius()));
+            case HelioradialUnrolled -> createConstantScales(viewports, MapScale.boxCoxRadial(effectiveOuterRadius()));
         };
     }
 
@@ -99,6 +100,7 @@ public final class GLRenderer {
         GLSLLineShader.init();
         GLSLShapeShader.init();
         GLSLTextureShader.init();
+        GLSLTransitionShader.init();
         // Never initialised until now: renderPrintableArea() returns early unless
         // Display.showPrintableArea is on, so the null VBO stayed hidden until someone
         // ticked the box, and then it threw on every frame and blanked the canvas.
@@ -124,6 +126,15 @@ public final class GLRenderer {
 
         Layers.prerender();
 
+        // Wedged between prerender and the mapView rebuild, and it has to be exactly here.
+        // After prerender, because that is where each layer's GL init runs: capturing ahead of
+        // it drew the outgoing scene through vertex buffers that did not exist yet, which cost
+        // the grid its first frame. Before the rebuild, because the snapshot is of the scene
+        // being left behind, and `mapView` and `Display.mode` only still describe it until the
+        // next line.
+        if (ProjectionTransition.hasPendingSwitch())
+            ProjectionTransition.applyPendingSwitch(GLRenderer::captureTransitionSnapshot);
+
         mapView = createMapView(Display.getCamera(), viewpoint);
         if (mapView.rendersIn3D()) {
             renderScene();
@@ -131,9 +142,99 @@ public final class GLRenderer {
         } else
             renderSceneScale();
         renderFullFloatScene();
+        if (ProjectionTransition.isActive())
+            RenderGuard.run("projection transition", GLRenderer::renderTransitionOverlay);
 
         if (ExportMovie.isRecording())
             ExportMovie.handleMovieExport();
+    }
+
+    // Snapshot of the scene a projection switch is fading out of, captured once when the
+    // switch happens and re-drawn (with a shrinking alpha) on every frame of the fade. Sized to
+    // the window and never resized down; window-resize during a 280ms fade is rare enough not
+    // to be worth reclaiming the texture for.
+    private static int transitionFbo, transitionTexture, transitionDepthRbo;
+    private static int transitionW = -1, transitionH = -1;
+
+    // Renders the CURRENT (about to become outgoing) mapView into an offscreen texture, for
+    // ProjectionTransition to fade out over the new one. Mirrors GLGrab.renderFrame's pattern
+    // (bind an FBO, call the same renderScene()/renderSceneScale() the visible frame uses) --
+    // the difference is this keeps the render as a GPU texture instead of reading it back to
+    // the CPU, since it only ever needs to be sampled by another shader, never encoded.
+    private static void captureTransitionSnapshot() {
+        // Canvas-sized, NOT viewport-sized. renderScene draws each viewport at (vp.x, vp.yGL),
+        // which are offsets within the drawable, and with a letterboxed render area those are
+        // no longer zero. A viewport-sized target would receive the scene displaced by the
+        // inset and then have it stretched back over the render area on playback, so the
+        // fading image sat off-register until the fade ended and the real scene snapped into
+        // place. Matching the drawable makes those offsets mean the same thing in both.
+        int w = Display.getCanvasWidth(), h = Display.getCanvasHeight();
+        if (w <= 0 || h <= 0)
+            return;
+        ensureTransitionCapture(w, h);
+
+        GL.glBindFramebuffer(GL.FRAMEBUFFER, transitionFbo);
+        GL.glViewport(0, 0, w, h);
+        GL.glClearColor(0, 0, 0, 0);
+        GL.glClear(GL.COLOR_BUFFER_BIT | GL.DEPTH_BUFFER_BIT);
+        if (mapView.rendersIn3D())
+            renderScene();
+        else
+            renderSceneScale();
+        GL.glBindFramebuffer(GL.FRAMEBUFFER, 0);
+    }
+
+    private static void ensureTransitionCapture(int w, int h) {
+        if (w == transitionW && h == transitionH)
+            return;
+        disposeTransitionCapture();
+
+        transitionFbo = GL.glGenFramebuffer();
+        GL.glBindFramebuffer(GL.FRAMEBUFFER, transitionFbo);
+
+        transitionTexture = GL.glGenTexture();
+        GL.glBindTexture(GL.TEXTURE_2D, transitionTexture);
+        GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_MAG_FILTER, GL.LINEAR);
+        GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_MIN_FILTER, GL.LINEAR);
+        GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_WRAP_S, GL.CLAMP_TO_EDGE);
+        GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_WRAP_T, GL.CLAMP_TO_EDGE);
+        GL.glTexImage2D(GL.TEXTURE_2D, 0, GL.RGBA, w, h, 0, GL.RGBA, GL.UNSIGNED_BYTE, (java.nio.ByteBuffer) null);
+        GL.glFramebufferTexture2D(GL.FRAMEBUFFER, GL.COLOR_ATTACHMENT0, GL.TEXTURE_2D, transitionTexture, 0);
+
+        transitionDepthRbo = GL.glGenRenderbuffer();
+        GL.glBindRenderbuffer(GL.RENDERBUFFER, transitionDepthRbo);
+        GL.glRenderbufferStorage(GL.RENDERBUFFER, GL.DEPTH_COMPONENT24, w, h);
+        GL.glFramebufferRenderbuffer(GL.FRAMEBUFFER, GL.DEPTH_ATTACHMENT, GL.RENDERBUFFER, transitionDepthRbo);
+
+        GL.glBindTexture(GL.TEXTURE_2D, 0);
+        GL.glBindRenderbuffer(GL.RENDERBUFFER, 0);
+        GL.glBindFramebuffer(GL.FRAMEBUFFER, 0);
+
+        transitionW = w;
+        transitionH = h;
+    }
+
+    private static void disposeTransitionCapture() {
+        if (transitionFbo != 0)
+            GL.glDeleteFramebuffer(transitionFbo);
+        if (transitionTexture != 0)
+            GL.glDeleteTexture(transitionTexture);
+        if (transitionDepthRbo != 0)
+            GL.glDeleteRenderbuffer(transitionDepthRbo);
+        transitionFbo = transitionTexture = transitionDepthRbo = 0;
+        transitionW = transitionH = -1;
+    }
+
+    // Un-depth-tested: the fade must cover everything drawn so far this frame, including
+    // world-space layers the 3D path just wrote depth for.
+    private static void renderTransitionOverlay() {
+        // The whole drawable, to match what was captured: the snapshot is canvas-sized, so the
+        // quad has to cover the canvas for the texture to land back on the pixels it came from.
+        // The letterbox margins in it were cleared transparent and blend as nothing.
+        GL.glViewport(0, 0, Display.getCanvasWidth(), Display.getCanvasHeight());
+        GL.glDisable(GL.DEPTH_TEST);
+        GLSLTransitionShader.render(transitionTexture, ProjectionTransition.fadeAlpha());
+        GL.glEnable(GL.DEPTH_TEST);
     }
 
     public static void dispose() {
@@ -149,6 +250,8 @@ public final class GLRenderer {
         GLSLLineShader.dispose();
         GLSLShapeShader.dispose();
         GLSLTextureShader.dispose();
+        GLSLTransitionShader.dispose();
+        disposeTransitionCapture();
 
         GLException.checkErrors("GLRenderer.dispose()");
     }
@@ -179,6 +282,14 @@ public final class GLRenderer {
 
             Layers.render(mv, vp);
             RenderGuard.run("annotations", () -> Annotations.render(mv, vp));
+            // Screen-space HUD (the colour-table legend), drawn in PIXEL coordinates. The warp
+            // is a vertex-stage transform on raw vertex values (shape.vert -> warpWorld), so
+            // leaving it enabled fed pixel positions to a mapping that expects solar radii and
+            // dragged the legend toward the origin by a lambda-dependent factor -- with its SDF
+            // labels, which take an unwarped shader, staying put beside it. Same reason
+            // renderMiniview and renderFullFloatScene disable it; this one was missed because it
+            // is the only screen-space drawing that happens inside renderScene's viewport loop.
+            GLSLWarp.disable();
             Layers.renderFloat(mv, vp);
         }
     }
@@ -250,10 +361,12 @@ public final class GLRenderer {
      *
      * <p>Three things this has to get right, and the old version got the first wrong.
      *
-     * <p><b>Inscribe, do not scale one axis.</b> The previous code always kept full height and
-     * scaled the width, which only lands inside the canvas when the output is narrower than the
-     * window. A 2:1 output in a 16:10 window came out wider than the canvas and ran off both
-     * sides. The output rectangle is now fitted inside the viewport on whichever axis binds.
+     * <p><b>It traces the viewport, and that is the point.</b> With a fixed output aspect the
+     * render area is already inset to the output's shape, so the captured region and the
+     * viewport are the same rectangle and this outline sits on its border, confirming the
+     * framing rather than correcting for it. It still earns its place with "On screen", where
+     * the output follows the window and the rectangle is the whole canvas, and as the label
+     * that states the pixel size being recorded.
      *
      * <p><b>Hide during capture.</b> This runs from renderFullFloat, which GLGrab also drives,
      * so without the guard the guide lines are burned into the recording. That is the one bug
@@ -271,28 +384,17 @@ public final class GLRenderer {
             return;
 
         double aspectOut = out.width() / (double) out.height();
-        double aspectCanvas = vp.width / (double) vp.height;
-        double pw, ph;
-        if (aspectOut >= aspectCanvas) { // output is wider: width binds
-            pw = vp.width;
-            ph = pw / aspectOut;
-        } else {                          // output is taller: height binds
-            ph = vp.height;
-            pw = ph * aspectOut;
-        }
+        // Recording keeps the camera's vertical extent and takes horizontal from the output
+        // aspect. The render area already has that aspect whenever one is fixed, so this
+        // resolves to the viewport's own border there, and to a true full-height rectangle
+        // under "On screen".
+        double ph = vp.height;
+        double pw = ph * aspectOut;
         double x0 = (vp.width - pw) / 2, x1 = x0 + pw;
         double y0 = (vp.height - ph) / 2, y1 = y0 + ph;
 
         byte[] col = Colors.bytes(255, 230, 60, 235);
         byte[] nul = Colors.Null;
-        byte[] dim = Colors.bytes(0, 0, 0, 110);
-
-        // Dim what will be cropped away, so the captured region reads as the subject rather than
-        // as one rectangle among several. Drawn as four bands around the kept area.
-        solidQuad(0, 0, vp.width, y0, dim, nul);
-        solidQuad(0, y1, vp.width, vp.height, dim, nul);
-        solidQuad(0, y0, x0, y1, dim, nul);
-        solidQuad(x1, y0, vp.width, y1, dim, nul);
 
         dashedEdge(x0, y0, x1, y0, col, nul);
         dashedEdge(x1, y0, x1, y1, col, nul);
@@ -310,26 +412,20 @@ public final class GLRenderer {
         Transform.setOrtho2DProjection(0, vp.width, 0, vp.height);
         Transform.pushView();
         Transform.setIdentityView();
-        printableLine.setVertexRepeatable(printableBuf);
-        printableLine.renderLine(vp, 2);
+        // setVertex, NOT setVertexRepeatable: "repeatable" means the buffer is kept so it can be
+        // re-uploaded unchanged next frame, and this one is refilled from scratch every frame.
+        // Using it here appended a whole new outline per frame forever, so every previous frame's
+        // border stayed in the buffer and got drawn again on top of the current one.
+        printableLine.setVertex(printableBuf);
+        // Thickness is a FRACTION OF VIEWPORT HEIGHT, not pixels (line.vert: halfWidthPixels =
+        // thickness * viewportSize.y * 0.5). This read 2, i.e. two viewport heights, so the
+        // "frame" painted the entire canvas yellow instead of outlining anything.
+        printableLine.renderLine(vp, GLSLLine.LINEWIDTH_BASIC);
         Transform.popView();
         Transform.popProjection();
 
         GLText.drawTextFloat(vp, java.util.List.of(out.width() + " \u00d7 " + out.height()),
                              (int) x0 + 6, vp.height - (int) y1 + 6);
-    }
-
-    // Two triangles as a degenerate-joined line strip would be wrong here; the shade is drawn as
-    // a thick line down the middle of the band, which is enough for a dimming wash and needs no
-    // second shader.
-    private static void solidQuad(double ax, double ay, double bx, double by, byte[] col, byte[] nul) {
-        if (bx - ax <= 0 || by - ay <= 0)
-            return;
-        double midY = (ay + by) / 2;
-        printableBuf.putVertex((float) ax, (float) midY, 0, 1, nul);
-        printableBuf.putVertex((float) ax, (float) midY, 0, 1, col);
-        printableBuf.putVertex((float) bx, (float) midY, 0, 1, col);
-        printableBuf.putVertex((float) bx, (float) midY, 0, 1, nul);
     }
 
     private static void cornerTick(double x, double y, double dx, double dy, byte[] col, byte[] nul) {

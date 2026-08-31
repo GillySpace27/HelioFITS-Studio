@@ -34,7 +34,36 @@ public final class SessionStateCheck {
         // Belt and braces: a request present but empty still names a source to retry.
         assertRestorable(new JSONObject().put("APIRequest", new JSONObject()), true, "empty APIRequest object");
 
+        // A native-FITS layer restores from either half of what it now writes. The query alone has
+        // to count: a layer saved while its query was still running has no URI list yet, and
+        // rejecting it would drop the layer exactly the way the husk did.
+        assertRestorable(new JSONObject().put("fitsRequest",
+                new JSONObject().put("archive", "PUNCH").put("product", "CAM")), true, "fitsRequest alone");
+        assertRestorable(new JSONObject().put("fitsRequest", new JSONObject())
+                .put("uris", new JSONArray().put("file:/a.fits")), true, "query and list together");
+
+        assertBaseNameIsNotLiveness();
+
         System.out.println("SessionStateCheck: PASS");
+    }
+
+    // The other way a restore lost a layer, and the one that survived the husk fix. State's
+    // post-restore prune calls ImageLayer.unload on every layer it restored, so unload's test for
+    // "this one never loaded" decides what gets deleted. That test used to be
+    // view.getBaseName() == null, which is true for a perfectly good ManyView: getBaseName is a
+    // View default returning null and ManyView does not override it, because a stack of frames has
+    // no one file to name. So every multi-file layer -- a restored PUNCH movie above all -- was
+    // deleted the instant it finished loading, and the next autosave wrote the deletion to disk.
+    // If ManyView ever does declare getBaseName, this fails and the reasoning above needs redoing.
+    private static void assertBaseNameIsNotLiveness() {
+        try {
+            Class<?> declarer = org.helioviewer.jhv.view.ManyView.class.getMethod("getBaseName").getDeclaringClass();
+            if (declarer != org.helioviewer.jhv.view.View.class)
+                throw new AssertionError("ManyView.getBaseName now declared by " + declarer.getName()
+                        + "; ImageLayer.unload's liveness test may need revisiting");
+        } catch (NoSuchMethodException e) {
+            throw new AssertionError("View.getBaseName is gone", e);
+        }
     }
 
     private static void assertRestorable(JSONObject data, boolean expected, String what) {

@@ -32,6 +32,12 @@ public class BaseView implements View {
         return dataUri == null ? null : dataUri.baseName();
     }
 
+    @Nullable
+    @Override
+    public org.helioviewer.jhv.io.DataUri.Format getFormat() {
+        return dataUri == null ? null : dataUri.format();
+    }
+
     @Override
     public JHVTime getFirstTime() {
         return metaData[0].getViewpoint().time;

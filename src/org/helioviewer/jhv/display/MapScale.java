@@ -107,7 +107,21 @@ public interface MapScale {
             double lambda = Display.getWarpLambda();
             double bc = _radialSize <= 1 ? 0
                     : (lambda == 0 ? Math.log(_radialSize) : (Math.pow(_radialSize, lambda) - 1) / lambda);
-            limb = Math.max(1 / _radialSize, 1 / (1 + bc));
+            // Scaled rather than replaced, so lambda stops silently deciding the photosphere's
+            // share while the anchor it is scaling still follows the warp. A scale of 1 returns
+            // the nominal value untouched, which is what makes the control reversible.
+            //
+            // Still floored at 1/R: below the true limb the disk would be drawn smaller than the
+            // Sun actually subtends at this field, which is a misstatement rather than a taste.
+            double auto = Math.max(1 / _radialSize, 1 / (1 + bc));
+            // The floor is where the limb actually is at this field; the ceiling leaves some
+            // corona to look at. They can cross: with a field barely wider than the Sun (1.1 is
+            // fullWarpFieldRadius's own floor, so this is the no-layers-loaded case) the true limb
+            // is 0.909, above the 0.9 ceiling, and Math.clamp throws on min > max rather than
+            // picking one. The true size wins there, because it is a fact and the ceiling is a
+            // preference.
+            double trueLimb = 1 / _radialSize;
+            limb = Math.clamp(auto * Display.getDiskScale(), trueLimb, Math.max(0.9, trueLimb));
         }
 
         @Override

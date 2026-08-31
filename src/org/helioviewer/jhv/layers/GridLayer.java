@@ -15,9 +15,12 @@ import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.display.ViewportMath;
 import org.helioviewer.jhv.layers.grid.FlatGrid;
 import org.helioviewer.jhv.layers.grid.GridLabel;
+import org.helioviewer.jhv.layers.grid.ReferenceSurfaces;
 import org.helioviewer.jhv.layers.grid.GridMath;
 import org.helioviewer.jhv.layers.grid.HelioradialGrid;
 import org.helioviewer.jhv.math.Quat;
+import org.helioviewer.jhv.math.Vec3;
+import org.helioviewer.jhv.opengl.BufVertex;
 import org.helioviewer.jhv.opengl.GL;
 import org.helioviewer.jhv.opengl.GLSLLine;
 import org.helioviewer.jhv.opengl.GLSLShape;
@@ -59,6 +62,43 @@ public final class GridLayer extends AbstractLayer {
     private boolean showAxis = true;
     private boolean showLabels = true;
     private boolean showRadial = false;
+    // Reference surfaces: where a line of sight is assumed to have originated, and the plane the
+    // planets orbit in. Both off by default -- they are annotations on the geometry, not part of
+    // the picture, and drawing them unasked would clutter every ordinary view.
+    private boolean showThomson = false;
+    private boolean showEcliptic = false;
+    private Colors.NamedColor thomsonColor = Colors.NamedColor.Cyan;
+    private Colors.NamedColor eclipticColor = Colors.NamedColor.Yellow;
+    // Same affordances the grid itself has, per surface: with two wireframes and a grid overlaid
+    // on the imagery, colour alone does not separate them -- opacity is what stops a dense mesh
+    // burying the data, and width is what keeps a sparse one visible over bright corona.
+    private double thomsonAlpha = 0.7;
+    private double eclipticAlpha = 0.7;
+    private double thomsonLineScale = 1;
+    private double eclipticLineScale = 1;
+    // Planets, drawn here beside the Earth marker rather than by ViewpointLayer, which only
+    // renders them in its Heliosphere camera mode and so charges a camera for the privilege.
+    private boolean showPlanets = false;
+    private boolean showPlanetOrbits = true;
+    private boolean showPlanetNames = true;
+    private double planetOrbitAlpha = 0.5;
+    /**
+     * On by default, because this is the frame everything else in the scene is in.
+     *
+     * <p>With it on, Earth lands exactly on the observer marker at the pole of the Thomson sphere,
+     * and the planets sit where the imagery projects them, so a planet bright in a coronagraph
+     * frame coincides with its marker. The whole scene, observer and imagery included, turns
+     * together with the Sun's rotation, so relative motion between them is still each planet's
+     * true motion relative to Earth.
+     *
+     * <p>Off, the placement is inertial: each planet moves at its own orbital rate against a fixed
+     * background, which is the view for watching Mercury lap Earth. The cost is that Earth no
+     * longer coincides with the observer marker, and nothing registers against the imagery.
+     */
+    private boolean planetsFollowRotation = true;
+
+    private double thomsonDensity = 1;
+    private double eclipticDensity = 1;
 
     private Colors.NamedColor gridColor = Colors.NamedColor.ReducedGreen;
     private double gridAlpha = 0.47;
@@ -69,6 +109,51 @@ public final class GridLayer extends AbstractLayer {
     private double gridLabelAngle = 148;
 
     private final GLSLShape earthPoint = new GLSLShape(false);
+
+    /**
+     * A dot at the observer's own position in space, as opposed to {@link #earthPoint}, which
+     * marks where the observer's direction meets the photosphere.
+     *
+     * <p>Drawn only in 3D Helioradial. That is the one view where it says something: the scene
+     * can be orbited, so the observer stops being the point you are looking from and becomes a
+     * place in the picture. It is also the check that view most needs -- the Thomson sphere has
+     * the Sun-observer line as its diameter, so the modelled surface must pass exactly through
+     * this dot, and the surface reaching it (or visibly failing to, when the loaded field stops
+     * short of 1 au) is a free verification of the whole placement model. Face-on and in the
+     * flat projections it would only ever sit on disk centre, which is true but useless.
+     *
+     * <p>Rebuilt every frame rather than scaled: the vertex stage warps the raw vertex before
+     * the MVP, so the buffer has to carry the true heliocentric distance or the warp would be
+     * handed a radius of 1 and place the observer at the limb.
+     */
+    private final GLSLShape observerPoint = new GLSLShape(false);
+    private final BufVertex observerBuf = new BufVertex(GLSLShape.stride); // one vertex
+    private static final byte[] OBSERVER_COLOR = Colors.Blue;
+    // As a fraction of the camera width, so the dot keeps a constant size on screen: the point
+    // shader multiplies by pixels-per-scene-unit, and this view's camera spans hundreds of solar
+    // radii, where earthPoint's fixed 0.02 scene units would be a small fraction of one pixel.
+    private static final double OBSERVER_POINT_FRACTION = 0.012;
+    // Rebuilt only when their inputs move, not every frame: the Thomson mesh depends on the
+    // observer distance and the field size, the ecliptic on the time, and rebuilding a few
+    // thousand vertices per frame for geometry that changes on a scrub is wasted work.
+    private final GLSLShape planetPoints = new GLSLShape(false);
+    private final BufVertex planetBuf = new BufVertex(32 * GLSLShape.stride);
+    private final GLSLLine planetOrbitLine = new GLSLLine(false);
+    private long planetOrbitsBuiltDay = Long.MIN_VALUE;
+    private double planetOrbitsBuiltAlpha = -1;
+    private boolean planetOrbitsBuiltFollow;
+    private java.util.List<org.helioviewer.jhv.layers.grid.PlanetMarkers.Marker> planetMarkers = java.util.List.of();
+
+    private final GLSLLine thomsonLine = new GLSLLine(false);
+    private final GLSLLine eclipticLine = new GLSLLine(false);
+    private double thomsonBuiltDistance = -1, thomsonBuiltOuter = -1;
+    private byte[] thomsonBuiltColor;
+    private double thomsonBuiltDensity = -1;
+    private long eclipticBuiltTime = Long.MIN_VALUE;
+    private double eclipticBuiltOuter = -1;
+    private byte[] eclipticBuiltColor;
+    private double eclipticBuiltDensity = -1;
+
     private final GLSLLine axesLine = new GLSLLine(false);
     private final GLSLLine earthCircleLine = new GLSLLine(false);
     private final GLSLLine radialCircleLine = new GLSLLine(false);
@@ -98,6 +183,21 @@ public final class GridLayer extends AbstractLayer {
         jo.put("lineScale", gridLineScale);
         jo.put("labelSize", gridLabelSize);
         jo.put("labelAngle", gridLabelAngle);
+        jo.put("showThomson", showThomson);
+        jo.put("showEcliptic", showEcliptic);
+        jo.put("thomsonColor", thomsonColor.name());
+        jo.put("eclipticColor", eclipticColor.name());
+        jo.put("thomsonAlpha", thomsonAlpha);
+        jo.put("eclipticAlpha", eclipticAlpha);
+        jo.put("thomsonLineScale", thomsonLineScale);
+        jo.put("eclipticLineScale", eclipticLineScale);
+        jo.put("showPlanets", showPlanets);
+        jo.put("showPlanetOrbits", showPlanetOrbits);
+        jo.put("showPlanetNames", showPlanetNames);
+        jo.put("planetOrbitAlpha", planetOrbitAlpha);
+        jo.put("planetsFollowRotation", planetsFollowRotation);
+        jo.put("thomsonDensity", thomsonDensity);
+        jo.put("eclipticDensity", eclipticDensity);
     }
 
     private void deserialize(JSONObject jo) {
@@ -119,6 +219,21 @@ public final class GridLayer extends AbstractLayer {
         try {
             Display.setGridType(GridType.valueOf(strGridType));
         } catch (Exception ignore) {}
+        showThomson = jo.optBoolean("showThomson", showThomson);
+        showEcliptic = jo.optBoolean("showEcliptic", showEcliptic);
+        thomsonColor = Colors.NamedColor.parse(jo.optString("thomsonColor", thomsonColor.name()), thomsonColor);
+        eclipticColor = Colors.NamedColor.parse(jo.optString("eclipticColor", eclipticColor.name()), eclipticColor);
+        thomsonAlpha = Math.clamp(jo.optDouble("thomsonAlpha", thomsonAlpha), 0, 1);
+        eclipticAlpha = Math.clamp(jo.optDouble("eclipticAlpha", eclipticAlpha), 0, 1);
+        thomsonLineScale = Math.clamp(jo.optDouble("thomsonLineScale", thomsonLineScale), 0.25, 4);
+        eclipticLineScale = Math.clamp(jo.optDouble("eclipticLineScale", eclipticLineScale), 0.25, 4);
+        showPlanets = jo.optBoolean("showPlanets", showPlanets);
+        showPlanetOrbits = jo.optBoolean("showPlanetOrbits", showPlanetOrbits);
+        showPlanetNames = jo.optBoolean("showPlanetNames", showPlanetNames);
+        planetOrbitAlpha = Math.clamp(jo.optDouble("planetOrbitAlpha", planetOrbitAlpha), 0, 1);
+        planetsFollowRotation = jo.optBoolean("planetsFollowRotation", planetsFollowRotation);
+        thomsonDensity = Math.clamp(jo.optDouble("thomsonDensity", thomsonDensity), 0.25, 4);
+        eclipticDensity = Math.clamp(jo.optDouble("eclipticDensity", eclipticDensity), 0.25, 4);
     }
 
     public GridLayer(JSONObject jo) {
@@ -155,6 +270,15 @@ public final class GridLayer extends AbstractLayer {
         Transform.popView();
 
         drawEarthCircles(vp, pixFactor, Sun.getEarth(viewpoint.time));
+        if (mv.isHelioradial() && mv.rendersIn3D())
+            drawObserverPoint(vp, pixFactor, viewpoint, mv.cameraWidth(vp));
+
+        if (showPlanets)
+            drawPlanets(vp, pixFactor, viewpoint, mv.cameraWidth(vp));
+        if (showThomson)
+            drawThomsonSphere(mv, vp, viewpoint);
+        if (showEcliptic)
+            drawEcliptic(mv, vp, viewpoint);
 
         if (showAxis)
             axesLine.renderLine(vp, LINEWIDTH_AXES);
@@ -226,6 +350,131 @@ public final class GridLayer extends AbstractLayer {
             flatGrid.render(mv, vp, showLabels, gridColorBytes, gridLineScale, Colors.fade(Colors.WhiteFloat, labelAlpha), gridLabelSize);
     }
 
+    /**
+     * The field the reference surfaces should span: the projection's outer radius where there is
+     * one, and the visible camera width otherwise, so they do not stop short of the picture.
+     */
+    private static double referenceOuterRadius(MapView mv, Viewport vp) {
+        double outer = mv.scale(vp).warpOuterRadius();
+        return outer > 0 ? outer : Math.max(mv.cameraWidth(vp), 2);
+    }
+
+    /**
+     * Planet markers, their names and their orbits, in the display frame.
+     *
+     * <p>Positions are rebuilt every frame because they move with the playhead and cost one
+     * ephemeris query each. Orbits are not: measuring a period walks the ephemeris dozens of times
+     * per planet, and an orbit does not visibly change within a day, so they are cached by day.
+     */
+    private void drawPlanets(Viewport vp, double factor, Position viewpoint, double cameraWidth) {
+        if (cameraWidth <= 0)
+            return;
+        planetMarkers = org.helioviewer.jhv.layers.grid.PlanetMarkers.positions(viewpoint.time, planetsFollowRotation);
+        if (planetMarkers.isEmpty())
+            return;
+
+        long day = viewpoint.time.milli / 86400_000L;
+        if (showPlanetOrbits && (day != planetOrbitsBuiltDay || planetOrbitAlpha != planetOrbitsBuiltAlpha
+                || planetsFollowRotation != planetOrbitsBuiltFollow)) {
+            org.helioviewer.jhv.layers.grid.PlanetMarkers.buildOrbits(planetOrbitLine, viewpoint.time, planetOrbitAlpha, planetsFollowRotation);
+            planetOrbitsBuiltFollow = planetsFollowRotation;
+            planetOrbitsBuiltDay = day;
+            planetOrbitsBuiltAlpha = planetOrbitAlpha;
+        }
+        if (showPlanetOrbits)
+            planetOrbitLine.renderLine(vp, LINEWIDTH);
+
+        planetBuf.clear();
+        float size = (float) (OBSERVER_POINT_FRACTION * cameraWidth);
+        for (org.helioviewer.jhv.layers.grid.PlanetMarkers.Marker m : planetMarkers)
+            planetBuf.putVertex((float) m.position().x, (float) m.position().y, (float) m.position().z, size, m.color());
+        planetPoints.setVertex(planetBuf);
+
+        // Markers are positions, not surfaces: depth-testing them against the modelled surface
+        // would hide a planet exactly when it passes behind it, which is the case worth seeing.
+        GL.glDisable(GL.DEPTH_TEST);
+        planetPoints.renderPoints(factor);
+        if (showPlanetNames)
+            drawPlanetNames();
+        GL.glEnable(GL.DEPTH_TEST);
+    }
+
+    /** Names offset outward along the radius, so the inner planets do not stack their labels. */
+    private void drawPlanetNames() {
+        SdfTextRenderer renderer = GLText.renderer();
+        renderer.setColor(Colors.LightGrayFloat);
+        float scale = (float) (textScale / renderer.getFontSize());
+
+        GL.glDisable(GL.CULL_FACE);
+        renderer.begin3DRendering();
+        for (org.helioviewer.jhv.layers.grid.PlanetMarkers.Marker m : planetMarkers) {
+            Vec3 p = m.position();
+            double r = Math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z);
+            if (r <= 0)
+                continue;
+            double off = 1.03;
+            renderer.draw(m.label(), (float) (p.x * off), (float) (p.y * off), (float) (p.z * off),
+                    (float) (r * scale));
+        }
+        renderer.end3DRendering();
+        GL.glEnable(GL.CULL_FACE);
+    }
+
+    private void drawThomsonSphere(MapView mv, Viewport vp, Position viewpoint) {
+        double outer = referenceOuterRadius(mv, vp);
+        byte[] color = Colors.bytes(thomsonColor.awtColor(), thomsonAlpha);
+        if (viewpoint.distance != thomsonBuiltDistance || outer != thomsonBuiltOuter
+                || !java.util.Arrays.equals(color, thomsonBuiltColor) || thomsonDensity != thomsonBuiltDensity) {
+            ReferenceSurfaces.buildThomsonSphere(thomsonLine, viewpoint.distance, outer, color, thomsonDensity);
+            thomsonBuiltDistance = viewpoint.distance;
+            thomsonBuiltOuter = outer;
+            thomsonBuiltColor = color;
+            thomsonBuiltDensity = thomsonDensity;
+        }
+        // The observer's frame, like the observer dot and the radial grid: the surface is defined
+        // by where the telescope is, so it has to be swung with it rather than left in Carrington.
+        Transform.pushView();
+        Transform.rotateViewInverse(viewpoint.toQuat());
+        thomsonLine.renderLine(vp, LINEWIDTH * thomsonLineScale);
+        Transform.popView();
+    }
+
+    private void drawEcliptic(MapView mv, Viewport vp, Position viewpoint) {
+        double outer = referenceOuterRadius(mv, vp);
+        byte[] color = Colors.bytes(eclipticColor.awtColor(), eclipticAlpha);
+        long t = viewpoint.time.milli;
+        if (t != eclipticBuiltTime || outer != eclipticBuiltOuter
+                || !java.util.Arrays.equals(color, eclipticBuiltColor) || eclipticDensity != eclipticBuiltDensity) {
+            ReferenceSurfaces.buildEcliptic(eclipticLine, viewpoint.time, outer, color, eclipticDensity);
+            eclipticBuiltTime = t;
+            eclipticBuiltOuter = outer;
+            eclipticBuiltColor = color;
+            eclipticBuiltDensity = eclipticDensity;
+        }
+        // No rotation: buildEcliptic already works in the frame Sun.getEarth reports, which is the
+        // frame the Earth marker is placed in, so the plane passes through that marker by design.
+        eclipticLine.renderLine(vp, LINEWIDTH * eclipticLineScale);
+    }
+
+    // The observer sits at (0, 0, distance) in its own frame, so rotating into that frame is all
+    // it takes to place it -- the same trick drawEarthCircles uses for the sub-observer point.
+    private void drawObserverPoint(Viewport vp, double factor, Position viewpoint, double cameraWidth) {
+        if (viewpoint.distance <= 1 || cameraWidth <= 0)
+            return;
+        observerBuf.putVertex(0, 0, (float) viewpoint.distance,
+                (float) (OBSERVER_POINT_FRACTION * cameraWidth), OBSERVER_COLOR);
+        observerPoint.setVertex(observerBuf);
+
+        Transform.pushView();
+        Transform.rotateViewInverse(viewpoint.toQuat());
+        // The dot is a position, not a surface: depth-testing it against the modelled surface
+        // would hide it exactly when the surface curves past it, which is the case worth seeing.
+        GL.glDisable(GL.DEPTH_TEST);
+        observerPoint.renderPoints(factor);
+        GL.glEnable(GL.DEPTH_TEST);
+        Transform.popView();
+    }
+
     private void drawEarthCircles(Viewport vp, double factor, Position p) {
         Transform.pushView();
         Transform.rotateViewInverse(p.toQuat());
@@ -283,6 +532,11 @@ public final class GridLayer extends AbstractLayer {
         earthCircleLine.init();
         GridMath.initEarthCircles(earthCircleLine);
         earthPoint.init();
+        observerPoint.init();
+        planetPoints.init();
+        planetOrbitLine.init();
+        thomsonLine.init();
+        eclipticLine.init();
         GridMath.initEarthPoint(earthPoint);
 
         radialCircleLine.init();
@@ -302,6 +556,11 @@ public final class GridLayer extends AbstractLayer {
         axesLine.dispose();
         earthCircleLine.dispose();
         earthPoint.dispose();
+        observerPoint.dispose();
+        planetPoints.dispose();
+        planetOrbitLine.dispose();
+        thomsonLine.dispose();
+        eclipticLine.dispose();
         radialCircleLine.dispose();
         radialThickLine.dispose();
         radialCircleLineFar.dispose();
@@ -430,6 +689,141 @@ public final class GridLayer extends AbstractLayer {
 
     public void setGridLabelAngle(double _gridLabelAngle) {
         gridLabelAngle = _gridLabelAngle;
+        DisplayController.display();
+    }
+
+    public boolean isShowThomson() {
+        return showThomson;
+    }
+
+    public void setShowThomson(boolean v) {
+        showThomson = v;
+        DisplayController.display();
+    }
+
+    public boolean isShowEcliptic() {
+        return showEcliptic;
+    }
+
+    public void setShowEcliptic(boolean v) {
+        showEcliptic = v;
+        DisplayController.display();
+    }
+
+    public Colors.NamedColor getThomsonColor() {
+        return thomsonColor;
+    }
+
+    public void setThomsonColor(Colors.NamedColor c) {
+        thomsonColor = c;
+        DisplayController.display();
+    }
+
+    public Colors.NamedColor getEclipticColor() {
+        return eclipticColor;
+    }
+
+    public void setEclipticColor(Colors.NamedColor c) {
+        eclipticColor = c;
+        DisplayController.display();
+    }
+
+    public boolean isShowPlanets() {
+        return showPlanets;
+    }
+
+    public void setShowPlanets(boolean v) {
+        showPlanets = v;
+        DisplayController.display();
+    }
+
+    public boolean isShowPlanetOrbits() {
+        return showPlanetOrbits;
+    }
+
+    public void setShowPlanetOrbits(boolean v) {
+        showPlanetOrbits = v;
+        DisplayController.display();
+    }
+
+    public boolean isShowPlanetNames() {
+        return showPlanetNames;
+    }
+
+    public void setShowPlanetNames(boolean v) {
+        showPlanetNames = v;
+        DisplayController.display();
+    }
+
+    public boolean isPlanetsFollowRotation() {
+        return planetsFollowRotation;
+    }
+
+    public void setPlanetsFollowRotation(boolean v) {
+        planetsFollowRotation = v;
+        DisplayController.display();
+    }
+
+    public double getPlanetOrbitAlpha() {
+        return planetOrbitAlpha;
+    }
+
+    public void setPlanetOrbitAlpha(double v) {
+        planetOrbitAlpha = v;
+        DisplayController.display();
+    }
+
+    public double getThomsonAlpha() {
+        return thomsonAlpha;
+    }
+
+    public void setThomsonAlpha(double v) {
+        thomsonAlpha = v;
+        DisplayController.display();
+    }
+
+    public double getEclipticAlpha() {
+        return eclipticAlpha;
+    }
+
+    public void setEclipticAlpha(double v) {
+        eclipticAlpha = v;
+        DisplayController.display();
+    }
+
+    public double getThomsonLineScale() {
+        return thomsonLineScale;
+    }
+
+    public void setThomsonLineScale(double v) {
+        thomsonLineScale = v;
+        DisplayController.display();
+    }
+
+    public double getEclipticLineScale() {
+        return eclipticLineScale;
+    }
+
+    public void setEclipticLineScale(double v) {
+        eclipticLineScale = v;
+        DisplayController.display();
+    }
+
+    public double getThomsonDensity() {
+        return thomsonDensity;
+    }
+
+    public void setThomsonDensity(double v) {
+        thomsonDensity = v;
+        DisplayController.display();
+    }
+
+    public double getEclipticDensity() {
+        return eclipticDensity;
+    }
+
+    public void setEclipticDensity(double v) {
+        eclipticDensity = v;
         DisplayController.display();
     }
 

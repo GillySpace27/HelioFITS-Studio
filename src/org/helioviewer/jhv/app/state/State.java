@@ -102,6 +102,8 @@ public final class State {
     static boolean hasRestorableData(JSONObject data) {
         if (data.optJSONObject("APIRequest") != null)
             return true;
+        if (data.optJSONObject("fitsRequest") != null)
+            return true; // a query alone is restorable: it can be re-run to find its files
         JSONArray uris = data.optJSONArray("uris");
         return uris != null && !uris.isEmpty();
     }
@@ -148,7 +150,16 @@ public final class State {
         JSONObject dataObject = new JSONObject();
         layer.serialize(dataObject);
         jo.put("data", dataObject);
-        jo.put("enabled", layer.isEnabled());
+        // A layer still loading has not reached activateView() yet, so isEnabled() is false --
+        // a transient state, not a preference. Recording it turns one save taken mid-load into a
+        // permanent disable: the layer restores unticked, and because it restores unticked the
+        // next save records false again, so it never comes back on its own. Treat a load in
+        // flight as the enabled it is about to become. Same defect ImageLayer.serialize already
+        // guards for the layer's SOURCE ("a save taken mid-load wrote an empty object"); this is
+        // the other half of it.
+        boolean enabled = layer.isEnabled()
+                || (layer instanceof ImageLayer image && !image.isViewLoadFinished());
+        jo.put("enabled", enabled);
         if (master)
             jo.put("master", true);
         return jo;

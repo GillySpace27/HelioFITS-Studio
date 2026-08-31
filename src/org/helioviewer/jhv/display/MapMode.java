@@ -24,18 +24,11 @@ import org.helioviewer.jhv.opengl.GLSLSolarShader;
 public enum MapMode {
     // Menu order, and it carries meaning: Orthographic, HPC and Helioradial at lambda = 1 are
     // the same view at default settings and differ only in their grids, so they sit together.
-    // Latitudinal is the odd one out, a surface map rather than a sky view, and goes last;
-    // the combined mode sits between the unrolled sky view and the surface map it borrows from.
+    // Latitudinal is the odd one out, a surface map rather than a sky view, and goes last.
     Orthographic(GLSLSolarShader.ortho, "Orthographic"),
     HPC(GLSLSolarShader.hpc, "HPC"),
     Helioradial(GLSLSolarShader.warpSurface, "Helioradial"),
     HelioradialUnrolled(GLSLSolarShader.rectWarp, "Helioradial Unrolled"),
-    // Helioradial Unrolled off the limb; on the disk, a latitudinal map about the observer
-    // axis (vertical coordinate = heliocentric angle from the sub-observer point). The two
-    // meet at the limb along the same position-angle parameterization, which a pole-at-north
-    // latitudinal map cannot do: its hemisphere boundary is two meridian arcs plus two
-    // degenerate pole edges, not one circle.
-    HelioradialUnrolledLatitudinal(GLSLSolarShader.rectWarpLati, "Helioradial Unrolled + Latitudinal"),
     Latitudinal(GLSLSolarShader.lati, "Latitudinal");
 
     private final GLSLSolarShader shader3D;
@@ -106,21 +99,34 @@ public enum MapMode {
 
     public double baseCameraWidth(Camera camera) {
         return switch (this) {
-            // The edge crop, and ONLY the edge crop, sets the helioradial camera. The warp
-            // itself is normalized over the full loaded field (Display.fullWarpFieldRadius) and
-            // never sees this number, which is what makes the edge a plain zoom: closing it
-            // shrinks the camera against a fixed mapping, so everything magnifies together and
-            // the rim leaves the frame. Feeding the crop into the warp instead renormalizes the
-            // projection and pins the rim; using the camera's own width instead ignores the
-            // edge and opens a vignette. Both have been shipped; neither is a crop.
+            // The edge crop sizes the helioradial camera, so closing it magnifies. The warp itself
+            // is normalized over the full loaded field (Display.fullWarpFieldRadius) and never
+            // sees this number, so the mapping holds still while the framing tightens.
+            //
+            // On its own that was indistinguishable from the Zoom slider, which is the complaint
+            // this addresses: both simply made everything bigger. What separates them is the
+            // fragment-stage discard at the crop radius (warpSurface.vert/.frag). The edge now
+            // cuts the picture to a hard circle AND magnifies it, which is a zoom by crop; Zoom
+            // magnifies with no boundary at all. Same direction, visibly different operations.
+            //
+            // Sizing the camera by the full field instead was tried and is worse in two ways: it
+            // shrinks the picture rather than magnifying it, and it makes this method reach the
+            // layer stack unconditionally, which needs SPICE and takes three checks headless.
+            //
             // Flat: the fragment-space map fills a fixed normalized disk, so the camera is the
-            // constant it always was. 3D: the scene is physical, so the camera is the edge crop
-            // and the warp is normalized over the full field (see Display.fullWarpFieldRadius).
+            // constant it always was.
             case Helioradial -> Display.isHelioradial3D()
                     ? HELIORADIAL_MARGIN * 2 * Display.effectiveWarpOuterRadius()
                     : HELIORADIAL_MARGIN;
-            case HelioradialUnrolled, HelioradialUnrolledLatitudinal -> 1.0;
-            case Orthographic, HPC, Latitudinal -> camera.baseCameraWidth();
+            case HelioradialUnrolled -> 1.0;
+            // The edge crop reaches Orthographic too, sizing the camera exactly as in 3D
+            // Helioradial, so edge-mode CME tracking is available in the plain sky view;
+            // auto (no crop) keeps the camera's own framing.
+            case Orthographic -> {
+                double edge = Display.getWarpOuterRadius();
+                yield edge > 0 ? HELIORADIAL_MARGIN * 2 * edge : camera.baseCameraWidth();
+            }
+            case HPC, Latitudinal -> camera.baseCameraWidth();
         };
     }
 
@@ -136,7 +142,16 @@ public enum MapMode {
     }
 
     public boolean usesWarpLambda() {
-        return this == Helioradial || this == HelioradialUnrolled || this == HelioradialUnrolledLatitudinal;
+        return this == Helioradial || this == HelioradialUnrolled;
+    }
+
+    /**
+     * Whether the Edge crop (Display.warpOuterRadius) acts on this projection. The warp modes
+     * crop through their scale; Orthographic crops through the camera. HPC and Latitudinal
+     * have no radial coordinate a crop in solar radii could act on.
+     */
+    public boolean usesWarpEdge() {
+        return usesWarpLambda() || this == Orthographic;
     }
 
     MapMode(GLSLSolarShader _shader, String _label) {

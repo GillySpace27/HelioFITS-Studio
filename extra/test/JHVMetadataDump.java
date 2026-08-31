@@ -1,10 +1,11 @@
 package org.helioviewer.jhv.metadata;
 
 import java.io.File;
-import java.lang.reflect.Method;
 import java.util.Optional;
 
-import org.helioviewer.jhv.JHVGlobals;
+import org.helioviewer.jhv.app.AppInit;
+import org.helioviewer.jhv.app.Platform;
+import org.helioviewer.jhv.io.Directories;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -132,24 +133,13 @@ public final class JHVMetadataDump {
                 .put("pv2", pv2);
     }
 
+    // Was reflection against JHVGlobals/JHVInit/org.helioviewer.jhv.Platform, all since moved; the
+    // members are public now, so call them directly and let the compiler catch the next rename.
     private static void initSpice() throws Exception {
-        Class<?> platform = Class.forName("org.helioviewer.jhv.Platform");
-        Method platformInit = platform.getDeclaredMethod("init");
-        platformInit.setAccessible(true);
-        platformInit.invoke(null);
-
-        Method createPersistentDirs = JHVGlobals.class.getDeclaredMethod("createPersistentDirs");
-        createPersistentDirs.setAccessible(true);
-        createPersistentDirs.invoke(null);
-
-        Method createCacheDirs = JHVGlobals.class.getDeclaredMethod("createCacheDirs");
-        createCacheDirs.setAccessible(true);
-        createCacheDirs.invoke(null);
-
-        Class<?> init = Class.forName("org.helioviewer.jhv.JHVInit");
-        Method loadSpice = init.getDeclaredMethod("loadSpice");
-        loadSpice.setAccessible(true);
-        loadSpice.invoke(null);
+        Platform.init();
+        Directories.createPersistentDirs();
+        Directories.createCacheDirs();
+        AppInit.loadSpice();
     }
 
     public static void main(String[] args) throws Exception {

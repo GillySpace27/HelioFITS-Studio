@@ -10,6 +10,7 @@ import org.helioviewer.jhv.opengl.GL;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.MapMode;
+import org.helioviewer.jhv.display.ProjectionTransition;
 import org.helioviewer.jhv.display.SurfaceModel;
 import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.movie.Player;
@@ -217,7 +218,17 @@ public final class ViewState {
     private static RecordingMode recordingMode = RecordingMode.LOOP;
     public static final int MIN_LONG_SIDE = 16;
     private static final int DEFAULT_LONG_SIDE = 2048; // a member of the panel's power-of-two list
-    private static RecordingAspect recordingAspect = RecordingAspect.ORIGINAL;
+    // 16:9 rather than "On screen", so a recording is the same video whatever the window is
+    // doing. "On screen" ties the output's resolution to the window and stays available for
+    // anyone who wants that, but it is a poor default: it makes the file depend on furniture.
+    private static RecordingAspect recordingAspect = RecordingAspect.WIDE;
+
+    static {
+        // The field initializer above bypasses setRecordingAspect, which is what normally pushes
+        // the ratio down to Display. Without this the render area would start un-inset and only
+        // pick up the aspect once the combo box was touched.
+        Display.setOutputAspect(recordingAspect.ratio());
+    }
     private static int recordingLongSide = DEFAULT_LONG_SIDE;
 
     public static ModeData modeData() {
@@ -255,6 +266,10 @@ public final class ViewState {
         if (recordingAspect == newAspect)
             return;
         recordingAspect = newAspect;
+        // Push the ratio down to Display so the render path can letterbox to it without
+        // depending on this class. Both default to "no fixed aspect", so the initial state is
+        // already consistent and needs no bootstrap call.
+        Display.setOutputAspect(newAspect.ratio());
         notifyRecordingConfigListeners();
     }
 
@@ -426,7 +441,13 @@ public final class ViewState {
             return;
 
         projection = newProjection;
-        Display.setMapMode(newProjection);
+        // Interactive switches keep the solar disk the same on-screen size and (unless the
+        // user has turned it off) crossfade the outgoing scene; session restore (under
+        // suppressed notifications) applies instantly and reproduces the saved framing exactly.
+        if (suppressModeNotifications)
+            Display.setMapMode(newProjection, false);
+        else
+            ProjectionTransition.requestSwitch(newProjection, true);
         notifyModeListeners();
     }
 

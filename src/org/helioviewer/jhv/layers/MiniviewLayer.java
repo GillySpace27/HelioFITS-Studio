@@ -40,10 +40,14 @@ public final class MiniviewLayer extends AbstractLayer {
     }
 
     public void reshapeViewport() {
-        int vpw = Display.fullViewport.width;
-        int offset = (int) (vpw * 0.01);
-        int size = (int) (vpw * 0.01 * scale);
-        miniViewport = DisplayLayout.viewport(0, offset, offset, size, size, Display.fullViewport.height);
+        // Inset into the render area's corner rather than the drawable's, and measure GL y
+        // against the drawable: with a letterboxed render area the two differ, and using the
+        // render area's height as the reference put the miniview adrift vertically by exactly
+        // the size of the bars while it still sat in the canvas corner, outside the frame.
+        Viewport full = Display.fullViewport;
+        int offset = (int) (full.width * 0.01);
+        int size = (int) (full.width * 0.01 * scale);
+        miniViewport = DisplayLayout.viewport(0, full.x + offset, full.yAWT + offset, size, size, Display.getCanvasHeight());
     }
 
     public void renderBackground() {

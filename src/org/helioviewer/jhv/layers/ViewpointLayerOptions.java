@@ -8,7 +8,10 @@ import org.helioviewer.jhv.astronomy.Frame;
 import org.helioviewer.jhv.astronomy.PositionLoad;
 import org.helioviewer.jhv.astronomy.SpaceObject;
 import org.helioviewer.jhv.astronomy.UpdateViewpoint;
+import org.helioviewer.jhv.app.Message;
+import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
+import org.helioviewer.jhv.display.SurfaceModel;
 import org.helioviewer.jhv.movie.Player;
 import org.helioviewer.jhv.time.TimeListener;
 
@@ -50,7 +53,9 @@ public final class ViewpointLayerOptions implements TimeListener.Range {
         locationOptions.setChangeListener(() -> optionStateChanged(CameraMode.Location));
         equatorialOptions.setChangeListener(() -> optionStateChanged(CameraMode.Heliosphere));
 
-        cameraMode = CameraMode.Location;
+        // Observer at 1au, not Location: Location is the one mode that can put the camera inside
+        // the loaded field, and defaulting to it made the Thomson sphere refuse on a fresh start.
+        cameraMode = CameraMode.ObserverAt1au;
         if (jo != null) {
             try {
                 cameraMode = CameraMode.valueOf(jo.optString("mode"));
@@ -105,7 +110,55 @@ public final class ViewpointLayerOptions implements TimeListener.Range {
         };
     }
 
+    /**
+     * Location and the Thomson sphere cannot both hold.
+     *
+     * <p>Location puts the camera at a selected object, which for a spacecraft is routinely inside
+     * the loaded field: Solar Orbiter at 66 solar radii against a 245 solar-radii mosaic. The
+     * Thomson sphere reaches only as far as the observer, so from in there most of the picture has
+     * no surface to sit on, and every strange render chased down on 2026-08-30 came back to that
+     * one pairing.
+     *
+     * <p>Resolved by whichever was chosen last rather than by refusing either, so neither control
+     * can be reached and found dead. Switching the loser is announced; silently changing a setting
+     * the user did not touch is how the conflict stayed invisible in the first place.
+     *
+     * <p>Only while the Viewpoint layer is ENABLED. A disabled layer hands the camera back to
+     * UpdateViewpoint.observer (see ViewpointLayer.setEnabled), so a Location sitting unused in the
+     * menu drives nothing and is no reason to withhold the Thomson sphere.
+     */
+    public static void enforceSurfaceExclusivity(CameraMode chosen) {
+        if (chosen == CameraMode.Location && viewpointLayerActive()
+                && Display.getSurfaceModel() == SurfaceModel.ThomsonSphere) {
+            Display.setSurfaceModel(SurfaceModel.PlaneOfSky);
+            Message.warn("Viewpoint",
+                    "Switched the coronagraph surface to plane of sky. Viewing from a location puts the observer "
+                            + "inside the field, and the Thomson sphere does not reach past the observer.");
+            DisplayController.display();
+        }
+    }
+
+    /** The other direction: called when the surface model is what changed. */
+    public static boolean allowsThomsonSphere() {
+        return !viewpointLayerActive() || Layers.getViewpointLayer().getOptions().cameraMode != CameraMode.Location;
+    }
+
+    /** Whether the Viewpoint layer is actually driving the camera, rather than merely configured. */
+    private static boolean viewpointLayerActive() {
+        ViewpointLayer layer = Layers.getViewpointLayer();
+        return layer != null && layer.isEnabled();
+    }
+
+    /**
+     * Re-check when the layer is switched on, because that is the other way into the conflict:
+     * the mode never changed, but it just started driving the camera.
+     */
+    public void enforceOnActivation() {
+        enforceSurfaceExclusivity(cameraMode);
+    }
+
     private void optionStateChanged(CameraMode mode) {
+        enforceSurfaceExclusivity(mode);
         if (cameraMode == mode) {
             applyCurrentViewpoint(DisplayController.ViewpointApplyMode.KEEP_TRANSFORM);
             DisplayController.render(1);

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<project name="JHelioviewer" default="all">
+<project name="JHelioviewer" default="all" xmlns:if="ant:if">
     <property environment="env"/>
     <property name="src" location="src"/>
     <property name="bin" location="bin"/>
@@ -48,7 +48,25 @@
         </exec>
     </target>
 
-    <target name="compile">
+    <!--
+      The outer-planet ephemeris is a build product, not a source file: 3.5 MB cut out of JPL's
+      31 MB de440s, kept out of git because a binary in history cannot be shrunk again. Failure is
+      not fatal: the download needs the network, and without the kernel the outer planets simply
+      fall back to open orbit arcs, which is honest when the ephemeris does not reach that far.
+    -->
+    <target name="kernels">
+        <exec executable="python3" failonerror="false" resultproperty="kernel.result">
+            <arg value="extra/tools/build_outer_planet_kernel.py"/>
+            <arg value="resources/kernels/outer_planets_de440s.bsp"/>
+        </exec>
+        <condition property="kernel.missing">
+            <not><available file="resources/kernels/outer_planets_de440s.bsp"/></not>
+        </condition>
+        <echo message="outer-planet kernel unavailable; Saturn, Uranus and Neptune will draw partial orbits"
+              level="warning" if:set="kernel.missing"/>
+    </target>
+
+    <target name="compile" depends="kernels">
         <mkdir dir="${bin}"/>
         <javac srcdir="${src}" destdir="${bin}" release="25" debug="on" debuglevel="source,lines,vars" includeantruntime="false" encoding="utf-8">
             <compilerarg value="-Xlint:all"/>

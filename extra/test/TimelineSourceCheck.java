@@ -20,7 +20,7 @@ import org.helioviewer.jhv.time.JHVTime;
  * offered. The layer table keys its radio button off exactly this, so getting it wrong either
  * hides the control or offers one that cannot work.
  *
- * <p>Run: java -cp bin:extra/test-classes org.helioviewer.jhv.layers.TimelineSourceCheck
+ * <p>Run: java -cp extra/test-classes:bin org.helioviewer.jhv.layers.TimelineSourceCheck
  */
 public final class TimelineSourceCheck {
 
@@ -34,6 +34,9 @@ public final class TimelineSourceCheck {
     }
 
     public static void main(String[] args) {
+        if (System.getProperty("user.timezone") == null) // TimeUtils' static init requires it; see JHVMetadataDump precedent
+            System.setProperty("user.timezone", "UTC");
+
         expect(!new Fake(List.of()).canDriveTimeline(), "no timestamps cannot drive the timeline");
         expect(!new Fake(List.of(t("2021-10-28T16:00:00"))).canDriveTimeline(),
                "a single instant is not a series");

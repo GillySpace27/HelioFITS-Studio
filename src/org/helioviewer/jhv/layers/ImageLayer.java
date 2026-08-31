@@ -18,6 +18,7 @@ import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.io.APIRequest;
+import org.helioviewer.jhv.io.FitsRequest;
 import org.helioviewer.jhv.io.DownloadLayer;
 import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.metadata.MetaData;
@@ -40,8 +41,10 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     private final ImageLayerLoader loader;
 
     private boolean removed;
+    private boolean viewLoaded; // a real view has replaced the empty placeholder built in the constructor
     @Nullable private List<URI> sourceUris; // remote URIs for a direct-URI layer (no APIRequest), for state persistence
     @Nullable private APIRequest pendingRequest; // the request we asked for, before the view carries it
+    @Nullable private FitsRequest fitsRequest;   // the re-issuable query behind a native-FITS layer
     private List<URI> failedUris = List.of(); // URIs that failed during the last load — missing, but retryable
     protected View view;
 
@@ -67,13 +70,20 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         if (apiRequest != null) {
             jo.put("APIRequest", apiRequest.toJson());
             jo.put("imageParams", glImage.toJson());
-        } else if (sourceUris != null && !sourceUris.isEmpty()) {
+        } else if (sourceUris != null && !sourceUris.isEmpty() || fitsRequest != null) {
             // Direct-URI layers (e.g. PUNCH FITS) have no server request; persist the remote
             // URIs so a restored session reloads them — from the persistent cache, no re-download.
-            JSONArray arr = new JSONArray();
-            for (URI uri : sourceUris)
-                arr.put(uri.toString());
-            jo.put("uris", arr);
+            // The query is written ALONGSIDE them rather than instead of them: restoring from the
+            // list is exact and needs no network, while keeping the query is what lets the layer
+            // follow the date afterwards. A list alone cannot be re-asked for a different span.
+            if (sourceUris != null && !sourceUris.isEmpty()) {
+                JSONArray arr = new JSONArray();
+                for (URI uri : sourceUris)
+                    arr.put(uri.toString());
+                jo.put("uris", arr);
+            }
+            if (fitsRequest != null)
+                jo.put("fitsRequest", fitsRequest.toJson());
             jo.put("imageParams", glImage.toJson());
             if (fixedRange != null) // keep the shared FITS range so a restored PUNCH movie does not strobe
                 jo.put("fixedRange", new JSONArray().put(fixedRange[0]).put(fixedRange[1]));
@@ -104,8 +114,14 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             if (apiRequest != null) {
                 load(APIRequest.fromJson(apiRequest));
             } else {
+                JSONObject fitsJson = jo.optJSONObject("fitsRequest");
+                if (fitsJson != null)
+                    fitsRequest = FitsRequest.fromJson(fitsJson);
+
                 JSONArray uris = jo.optJSONArray("uris");
-                if (uris != null) {
+                if (uris == null && fitsRequest != null) {
+                    load(fitsRequest); // no cached list: fall back to re-running the query
+                } else if (uris != null) {
                     List<URI> list = new ArrayList<>(uris.length());
                     for (Object o : uris)
                         list.add(URI.create(o.toString()));
@@ -153,8 +169,43 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         Layers.fireLayerUpdated(this); // give feedback asap
     }
 
+    @Nullable
+    public FitsRequest getFitsRequest() {
+        return fitsRequest;
+    }
+
+    /**
+     * Run a native-FITS query and load whatever it returns. Recording the request before the
+     * results arrive is deliberate: it is what a save taken mid-load persists, and what the
+     * time-range sync reads, neither of which can wait for the URIs.
+     */
+    public void load(FitsRequest request) {
+        if (removed)
+            return;
+        fitsRequest = request;
+        java.util.function.Consumer<List<URI>> receiver = uris -> {
+            if (!removed && !uris.isEmpty())
+                load(uris);
+        };
+        switch (request.archive()) {
+            case PUNCH -> org.helioviewer.jhv.io.PunchClient.submitResolve(request, receiver);
+            case VSO -> org.helioviewer.jhv.io.VsoClient.submitResolve(request, receiver);
+        }
+        Layers.fireLayerUpdated(this);
+    }
+
+    /** Attach a query to a layer whose URIs were loaded directly, so it can follow the date later. */
+    public void setFitsRequest(@Nullable FitsRequest request) {
+        fitsRequest = request;
+    }
+
     public void unload() {
-        if (view.getBaseName() == null)
+        // "Did a view ever arrive?", not "does the view have a base name?". A ManyView -- what a
+        // multi-file layer such as a restored PUNCH movie loads into -- never has one, since
+        // getBaseName defaults to null for anything not backed by a single DataUri. So the old
+        // test read every successfully loaded multi-file layer as a failure, and State's
+        // post-restore prune deleted it the moment it finished loading: it appeared, then vanished.
+        if (!viewLoaded)
             Layers.remove(this);
         loader.cancelLoad();
     }
@@ -197,6 +248,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         ImageFilter.Type filterType = view.getFilter();
         unsetView();
         view = newView;
+        viewLoaded = true;
         loader.clearLoadFuture();
         view.setFilter(filterType);
         view.setDataHandler(this);
@@ -375,6 +427,9 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             // GridLayer does the same thing around the radial grid, for the same reason.
             Transform.pushView();
             Transform.rotateViewInverse(renderViewpoint.toQuat());
+            // The model is never downgraded here. Past r = D it has no surface, and the fragment
+            // stage discards those pixels rather than drawing the flat sheet the clamp produces,
+            // so choosing the Thomson sphere costs the outer field rather than the whole mode.
             shader.renderWarpSurface(renderViewpoint.distance, org.helioviewer.jhv.display.Display.getSurfaceModel());
             Transform.popView();
         } else

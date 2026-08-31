@@ -16,10 +16,22 @@ layout(location = 0) in vec4 Vertex;
 
 out vec2 normalizedScreenpos; // solarCommon.frag declares this; it must be fed to link
 out vec3 vWorld;              // the UNWARPED surface point, which is what the fragment samples by
+// How far past the Thomson sphere's domain this vertex is: radius / D, or 0 on the plane of sky.
+// The sphere has diameter D and its mapping r = D sin(e) saturates at r = D, so a point further
+// from the Sun than the observer is not on the surface at any elongation. depth() clamps rather
+// than refusing, which pins the depth at D while rho keeps growing and extrudes a flat sheet that
+// renders exactly like corona correctly placed on a plane. The fragment stage throws that away.
+out float vSurfaceExcess;
+// Radius as a fraction of the Edge crop, or 0 when there is no crop. Discarded past 1.
+out float vCropExcess;
 
 uniform mat4 ModelViewProjectionMatrix;
 uniform float observerDistance;
 uniform float surfaceModel; // 0 = plane of sky, 1 = Thomson sphere; see SurfaceModel
+// The Edge crop, in solar radii, or 0 for no crop. Separate from screen.yStop, which is the full
+// loaded field the warp is normalized over: the crop must cut the picture WITHOUT renormalizing
+// the mapping or moving the camera, or it is a zoom rather than a crop.
+uniform float cropRadius;
 
 // Must match the ScreenBlock in solarCommon.frag member for member.
 layout(std140) uniform ScreenBlock {
@@ -62,6 +74,9 @@ void main(void) {
 
     // Physical heliocentric distance this ring of the mesh stands for.
     float radius = unwarpRadius(t);
+    vSurfaceExcess = (surfaceModel == SURFACE_THOMSON_SPHERE && observerDistance > 0.)
+            ? radius / observerDistance : 0.;
+    vCropExcess = cropRadius > 0. ? radius / cropRadius : 0.;
 
     vec3 warped;
     if (radius <= 1.) {

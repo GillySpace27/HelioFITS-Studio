@@ -3,6 +3,7 @@ package org.helioviewer.jhv.display;
 import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layers;
+import org.helioviewer.jhv.app.Settings;
 
 public final class Display {
 
@@ -11,11 +12,84 @@ public final class Display {
     public static boolean whiteBackground = false;
 
     public static void setMapMode(MapMode _mode) {
+        setMapMode(_mode, false);
+    }
+
+    /**
+     * Switch projection. With {@code preserveDiskSize}, the solar disk keeps its on-screen
+     * diameter across the switch (solved per viewport through the zoom), so stepping
+     * Orthographic -> Helioradial -> HPC jumps minimally; the unrolled band and the surface
+     * map have no centered disk, so switches involving them fall back to the plain camera
+     * reset. Session restore passes false: there is no previous view to be continuous with,
+     * and the saved state should reproduce the canonical framing it was written under.
+     */
+    public static void setMapMode(MapMode _mode, boolean preserveDiskSize) {
+        MapMode oldMode = mode;
         mode = _mode;
         // A failure under one projection says nothing about the next, so let it be reported again.
         org.helioviewer.jhv.opengl.RenderGuard.reset();
+        double[] keep = preserveDiskSize ? captureLimbFractions(oldMode) : null;
         resetViewportZoom();
         DisplayController.resetCameras();
+        restoreLimbFractions(_mode, keep);
+    }
+
+    // The limb's current screen fraction per viewport, or null when the old mode has no
+    // centered disk to be continuous with. Captured before the camera reset, against the
+    // zooms and camera the user is actually looking at.
+    private static double[] captureLimbFractions(MapMode from) {
+        Viewport[] vps = getViewports();
+        double[] fractions = new double[vps.length];
+        for (int i = 0; i < vps.length; i++) {
+            double f1 = limbFractionAtUnitZoom(from, vps[i]);
+            if (f1 <= 0 || vps[i].zoom <= 0)
+                return null;
+            fractions[i] = f1 / vps[i].zoom;
+        }
+        return fractions;
+    }
+
+    private static void restoreLimbFractions(MapMode to, double[] fractions) {
+        if (fractions == null)
+            return;
+        Viewport[] vps = getViewports();
+        for (int i = 0; i < vps.length && i < fractions.length; i++) {
+            double f1 = limbFractionAtUnitZoom(to, vps[i]);
+            if (f1 > 0)
+                vps[i].zoom = f1 / fractions[i];
+        }
+    }
+
+    /**
+     * The solar-disk diameter as a fraction of the viewport height at zoom 1, or 0 when this
+     * projection has no centered disk. Each branch mirrors the render path it stands for:
+     * the camera contract in MapMode.baseCameraWidth, the Box-Cox limb anchor in MapScale,
+     * and the HPC scale in GLRenderer.createHpcScales — if one of those changes shape, the
+     * matching branch here must follow, or the switch stops being size-invariant.
+     * Package-private for DiskSizeInvarianceCheck (which avoids the HPC branch: it reaches
+     * the live viewpoint through GLRenderer and cannot run headless).
+     */
+    static double limbFractionAtUnitZoom(MapMode m, Viewport vp) {
+        return switch (m) {
+            case Orthographic -> 2 / m.baseCameraWidth(getCamera());
+            case Helioradial -> {
+                if (isHelioradial3D()) {
+                    double full = fullWarpFieldRadius();
+                    yield 2 * MapScale.boxCoxRadial(full).warpLimb() * full / m.baseCameraWidth(getCamera());
+                }
+                // Flat: the disk spans limb * (unit map height) inside the fixed normalized disk.
+                yield MapScale.boxCoxRadial(effectiveWarpOuterRadius()).warpLimb() / m.baseCameraWidth(getCamera());
+            }
+            case HPC -> {
+                double d = org.helioviewer.jhv.opengl.GLRenderer.getDisplayedViewpoint().distance;
+                if (d <= 1)
+                    yield 0;
+                org.helioviewer.jhv.metadata.Region bounds = ImageLayers.computeHpcScaleBounds();
+                double halfHeight = Math.max(0.5 * bounds.height, 0.5 * bounds.width / vp.aspect);
+                yield Math.toDegrees(Math.asin(1 / d)) / (halfHeight * m.baseCameraWidth(getCamera()));
+            }
+            case HelioradialUnrolled, Latitudinal -> 0;
+        };
     }
 
     public static GridType gridType = GridType.Viewpoint;
@@ -124,14 +198,50 @@ public final class Display {
         return Math.max(ImageLayers.getLargestRadialSize(), 1.1);
     }
 
+    // The render area: the part of the drawable actually drawn into. Equal to the canvas unless
+    // a fixed output aspect insets it, in which case the margin is left showing the clear colour.
     static int glWidth = 1;
     static int glHeight = 1;
+    private static int originX;
+    private static int originY;
+    // The drawable itself. GL viewport y is measured against this, not against the render area.
+    private static int canvasWidth = 1;
+    private static int canvasHeight = 1;
     public static final double[] pixelScale = {1, 1};
 
+    public static int getCanvasWidth() {
+        return canvasWidth;
+    }
+
+    public static int getCanvasHeight() {
+        return canvasHeight;
+    }
+
+    /**
+     * Set the drawable size and derive the render area inside it.
+     *
+     * <p>{@code x}/{@code y} exist for callers that draw into part of a larger drawable; the
+     * inset for the output aspect is computed on top of them, so a fixed aspect always lands
+     * centred in whatever region was handed in.
+     */
     public static void setGLSize(int x, int y, int w, int h) {
-        glWidth = w;
-        glHeight = h;
-        fullViewport = DisplayLayout.fullViewport(x, y, w, h, glHeight);
+        canvasWidth = Math.max(1, w);
+        canvasHeight = Math.max(1, h);
+
+        int rw = canvasWidth, rh = canvasHeight;
+        if (outputAspect > 0 && !outputFitSuppressed) {
+            // Inscribe the output's shape: whichever axis binds keeps its full length, and the
+            // other gives up the difference to the bars.
+            if (outputAspect >= canvasWidth / (double) canvasHeight)
+                rh = Math.max(1, (int) Math.round(canvasWidth / outputAspect));
+            else
+                rw = Math.max(1, (int) Math.round(canvasHeight * outputAspect));
+        }
+        glWidth = rw;
+        glHeight = rh;
+        originX = x + (canvasWidth - rw) / 2;
+        originY = y + (canvasHeight - rh) / 2;
+        fullViewport = DisplayLayout.fullViewport(originX, originY, rw, rh, canvasHeight);
     }
 
     private static final Camera camera = new Camera();
@@ -202,7 +312,7 @@ public final class Display {
     public static void reshapeAll() {
         Viewport[] oldViewports = viewports;
         activeViewport = 0;
-        viewports = DisplayLayout.viewports(glWidth, glHeight, countEnabledLayers());
+        viewports = DisplayLayout.viewports(originX, originY, glWidth, glHeight, canvasHeight, countEnabledLayers());
         if (separateViewportZoom) {
             int count = Math.min(oldViewports.length, viewports.length);
             for (int i = 0; i < count; i++)
@@ -225,6 +335,122 @@ public final class Display {
     // Overlay a dashed frame showing the region of the canvas that the recorded video will capture
     // (the output resolution's aspect ratio, which can differ from the on-screen canvas aspect).
     public static boolean showPrintableArea = false;
+
+    /**
+     * The video's aspect ratio, or 0 when the output simply follows the window ("On screen").
+     *
+     * <p>When it is set, the render area is inset to match it and the margin is left as
+     * letterbox bars, so what is on screen is the recorded frame at a smaller size rather than
+     * a differently-shaped view of the same scene. Recording keeps the camera's vertical extent
+     * and takes its horizontal extent from this ratio, so without the inset a wider output
+     * captured past both edges of the window and there was no composing against it.
+     *
+     * <p>The window therefore decides how large the preview is and nothing else: resolution
+     * comes from this ratio plus the long side, and framing from the camera plus this ratio.
+     */
+    private static double outputAspect;
+
+    public static void setOutputAspect(double ratio) {
+        double newAspect = ratio > 0 ? ratio : 0;
+        if (outputAspect == newAspect)
+            return;
+        outputAspect = newAspect;
+        setGLSize(0, 0, canvasWidth, canvasHeight); // re-inset the render area
+        reshapeAll();
+    }
+
+    public static double getOutputAspect() {
+        return outputAspect;
+    }
+
+    /**
+     * Set while GLGrab captures a frame. The capture renders straight into a target that IS the
+     * output size, so insetting there would letterbox the written video itself -- the bars are
+     * a preview device for reconciling a differently-shaped window, and belong on screen only.
+     */
+    public static boolean outputFitSuppressed;
+
+    /**
+     * Set while a capture is rendering into a high-bit-depth target.
+     *
+     * <p>Read by the fragment shader (DisplayBlock.highBitDepth) to skip the dither it adds
+     * before the colour-table lookup. That dither exists solely to break up 8-bit banding, so
+     * writing it into a 16-bit file would be recording noise that the destination did not need.
+     */
+    public static boolean highBitDepthCapture;
+
+    /**
+     * Paint clipped pixels in flag colours: magenta at or above the top of the display range,
+     * green at or below the bottom.
+     *
+     * <p>A diagnostic, because clipping here is otherwise silent: fetch() applies Levels and the
+     * response factor with no clamp, and the colour table is CLAMP_TO_EDGE, so a pixel driven
+     * past either end just renders as that end's colour with nothing to distinguish it from a
+     * pixel legitimately at the extreme.
+     *
+     * <p>It answers one specific question and not its neighbour. A flat region in the DISPLAY
+     * range lights up; a flat region of tied values in the SOURCE does not, because those are
+     * not clipped here at all -- RHEF gives an equal-valued block one shared average rank
+     * (FilterRHEF: "Equal values get their average rank"), which lands wherever that value falls
+     * in the annulus and is usually a mid-tone. So flat-and-flagged means the Levels are doing
+     * it; flat-and-unflagged means it arrived that way.
+     */
+    public static boolean showClipping;
+
+    /**
+     * A multiplier on the nominal Box-Cox limb anchor, deciding how much of the radial axis the
+     * solar disk takes. 1.0 is the nominal warp exactly.
+     *
+     * <p>The anchor is {@code max(1/R, 1/(1 + boxcox(R, lambda)))}, so left alone the disk's share
+     * is a side effect of the warp exponent: on a 245 solar-radii field it is under 1% at
+     * lambda = 1 and over 40% at lambda = -1, and the low corona takes whatever is left. Scaling
+     * that anchor separates the two questions -- lambda decides how the corona's radial axis is
+     * compressed, this decides how much of the axis the photosphere is allowed to take.
+     *
+     * <p>A multiplier rather than an absolute screen fraction, so the setting keeps its meaning
+     * when lambda or the field changes: "twice the nominal disk" stays twice the nominal disk,
+     * where a pinned 8% would mean something different at every warp. And a plain continuous
+     * value rather than a sentinel-plus-range, because a sentinel is a discontinuity by
+     * construction: stepping off it would jump the disk in one pixel of travel.
+     */
+    /** Below this the disk is a speck; above it there is not much corona left to look at. */
+    public static final double DISK_SCALE_MIN = 0.05;
+    public static final double DISK_SCALE_MAX = 2;
+    /** The multiplier that returns the Box-Cox anchor untouched. */
+    public static final double DISK_SCALE_NOMINAL = 1;
+    // 0.5 rather than nominal: half the anchor reads better at every field size tried, which is
+    // unsurprising -- the nominal value was never chosen, it fell out of the Box-Cox algebra.
+    public static final double DEFAULT_DISK_SCALE = 0.5;
+
+    private static double diskScale = DEFAULT_DISK_SCALE;
+
+    public static double getDiskScale() {
+        return diskScale;
+    }
+
+    public static void setDiskScale(double scale) {
+        applyDiskScale(scale);
+        Settings.setProperty("display.diskScale", String.valueOf(diskScale));
+        DisplayController.render(1);
+    }
+
+    /**
+     * The state change on its own, without the repaint or the write to Settings. Split out so the
+     * geometry can be exercised headlessly: touching DisplayController drags in the viewpoint,
+     * which drags in SPICE's native library, which no check can load.
+     */
+    static void applyDiskScale(double scale) {
+        diskScale = Math.clamp(scale, DISK_SCALE_MIN, DISK_SCALE_MAX);
+    }
+
+    static {
+        try {
+            diskScale = Math.clamp(Double.parseDouble(Settings.getProperty("display.diskScale")),
+                    DISK_SCALE_MIN, DISK_SCALE_MAX);
+        } catch (Exception ignore) {
+            diskScale = DEFAULT_DISK_SCALE;
+        }
+    }
 
     private static boolean showCorona = true;
 

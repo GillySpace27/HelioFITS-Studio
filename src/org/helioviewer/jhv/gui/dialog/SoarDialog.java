@@ -29,6 +29,7 @@ import org.helioviewer.jhv.gui.ComponentUtils;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.gui.component.MoviePanel;
 import org.helioviewer.jhv.gui.time.TimeSelectorPanel;
+import org.helioviewer.jhv.time.TimeUtils;
 import org.helioviewer.jhv.io.SoarClient;
 
 import com.google.common.collect.ImmutableSortedMap;
@@ -65,6 +66,34 @@ public class SoarDialog extends StandardDialog implements SoarClient.ReceiverIte
     private final JList<SoarClient.DataItem> listPane = new JList<>();
     private final JLabel foundLabel = new JLabel("0 found", JLabel.RIGHT);
 
+    // SOAR has no cadence or exclusion in its query, so both are applied here, to the full result
+    // the server returned. That result is kept so relaxing a filter does not need a fresh search.
+    private List<SoarClient.DataItem> allItems = List.of();
+    private final JComboBox<Cadence> cadenceCombo = new JComboBox<>(Cadences);
+    private final javax.swing.JTextField excludeField = new javax.swing.JTextField(14);
+
+    private record Cadence(String label, long milli) {
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
+
+    private static final Cadence[] Cadences = {
+            new Cadence("native cadence", 0),
+            new Cadence("every 10 minutes", 10 * TimeUtils.MINUTE_IN_MILLIS),
+            new Cadence("every 30 minutes", 30 * TimeUtils.MINUTE_IN_MILLIS),
+            new Cadence("every hour", 60 * TimeUtils.MINUTE_IN_MILLIS),
+            new Cadence("every 3 hours", 3 * 60 * TimeUtils.MINUTE_IN_MILLIS),
+            new Cadence("every 6 hours", 6 * 60 * TimeUtils.MINUTE_IN_MILLIS),
+            new Cadence("every day", TimeUtils.DAY_IN_MILLIS)};
+
+    // solo_L2_eui-fsi174-image_20211227T173845330 -- date, T, time, and milliseconds.
+    private static final java.util.regex.Pattern ITEM_TIME =
+            java.util.regex.Pattern.compile("_(\\d{8}T\\d{6})");
+    private static final java.time.format.DateTimeFormatter ITEM_FORMAT =
+            java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss");
+
     private static SoarDialog instance;
 
     public static SoarDialog getInstance() {
@@ -75,6 +104,63 @@ public class SoarDialog extends StandardDialog implements SoarClient.ReceiverIte
         super(mainFrame, true);
         setResizable(false);
         setTitle("New SOAR Layer");
+    }
+
+    /** Epoch millis parsed out of a data item id, or 0 when the id does not carry one. */
+    private static long itemMilli(SoarClient.DataItem item) {
+        java.util.regex.Matcher m = ITEM_TIME.matcher(item.id());
+        if (!m.find())
+            return 0;
+        try {
+            return java.time.LocalDateTime.parse(m.group(1), ITEM_FORMAT)
+                    .toInstant(java.time.ZoneOffset.UTC).toEpochMilli();
+        } catch (RuntimeException e) {
+            return 0;
+        }
+    }
+
+    /**
+     * Apply the exclusion list and the cadence to what the server returned, and show the result.
+     *
+     * <p>Exclusions run first: thinning what you are about to throw away would space the survivors
+     * around gaps that are not there. Comma or space separated, matched case-insensitively against
+     * the item id, which is where the descriptor and detector live.
+     */
+    private void refilter() {
+        String excludeText = excludeField.getText().strip().toLowerCase(java.util.Locale.ROOT);
+        List<String> excludes = excludeText.isEmpty() ? List.of()
+                : java.util.Arrays.stream(excludeText.split("[,\\s]+")).filter(t -> !t.isEmpty()).toList();
+
+        List<SoarClient.DataItem> kept = new java.util.ArrayList<>(allItems.size());
+        for (SoarClient.DataItem item : allItems) {
+            String id = item.id().toLowerCase(java.util.Locale.ROOT);
+            if (excludes.stream().noneMatch(id::contains))
+                kept.add(item);
+        }
+
+        long cadence = cadenceCombo.getSelectedItem() instanceof Cadence c ? c.milli : 0;
+        if (cadence > 0) {
+            kept.sort(java.util.Comparator.comparingLong(SoarDialog::itemMilli));
+            List<SoarClient.DataItem> thinned = new java.util.ArrayList<>(kept.size());
+            long last = Long.MIN_VALUE;
+            for (SoarClient.DataItem item : kept) {
+                long milli = itemMilli(item);
+                // An id with no parseable time is kept rather than dropped: silently losing a
+                // product because its name did not match a pattern is the worse failure.
+                if (milli == 0 || last == Long.MIN_VALUE || milli - last >= cadence) {
+                    thinned.add(item);
+                    if (milli != 0)
+                        last = milli;
+                }
+            }
+            kept = thinned;
+        }
+
+        listPane.setListData(kept.toArray(SoarClient.DataItem[]::new));
+        int hidden = allItems.size() - kept.size();
+        foundLabel.setText(hidden == 0
+                ? kept.size() + " found"
+                : kept.size() + " found (" + hidden + " filtered out)");
     }
 
     private static double getTotalSize(List<SoarClient.DataItem> items) {
@@ -169,6 +255,25 @@ public class SoarDialog extends StandardDialog implements SoarClient.ReceiverIte
         JButton searchButton = getSearchButton(datasetCombo, levelCombo, timeQuery);
         dataSelector.add(searchButton);
 
+        // Same button the observation and PUNCH dialogs carry; SOAR simply never called it, so its
+        // range had to be retyped whenever the movie moved.
+        timeSelectorPanel.addUseMovieTimeButton();
+
+        cadenceCombo.setToolTipText("Minimum spacing between kept frames. SOAR has no cadence in its query, so this thins the result here.");
+        cadenceCombo.addActionListener(e -> refilter());
+        excludeField.setToolTipText("Hide items whose name contains any of these, comma or space separated. e.g. burst, -1-minute");
+        excludeField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { refilter(); }
+            @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { refilter(); }
+            @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { refilter(); }
+        });
+
+        JPanel filterPanel = new JPanel(new FlowLayout(FlowLayout.TRAILING, 5, 0));
+        filterPanel.add(new JLabel("Cadence"));
+        filterPanel.add(cadenceCombo);
+        filterPanel.add(new JLabel("Exclude"));
+        filterPanel.add(excludeField);
+
         JPanel foundPanel = new JPanel(new FlowLayout(FlowLayout.TRAILING, 5, 0));
         foundPanel.add(foundLabel);
         JPanel selectedPanel = new JPanel(new FlowLayout(FlowLayout.TRAILING, 5, 0));
@@ -189,6 +294,7 @@ public class SoarDialog extends StandardDialog implements SoarClient.ReceiverIte
         content.setLayout(new BoxLayout(content, BoxLayout.PAGE_AXIS));
         content.add(queryPanel);
         content.add(dataSelector);
+        content.add(filterPanel);
         content.add(foundPanel);
         content.add(scrollPane);
         content.add(selectedPanel);
@@ -232,8 +338,8 @@ public class SoarDialog extends StandardDialog implements SoarClient.ReceiverIte
 
     @Override
     public void setSoarResponseItems(List<SoarClient.DataItem> list) {
-        listPane.setListData(list.toArray(SoarClient.DataItem[]::new));
-        foundLabel.setText(list.size() + " found");
+        allItems = List.copyOf(list);
+        refilter();
     }
 
     @Override

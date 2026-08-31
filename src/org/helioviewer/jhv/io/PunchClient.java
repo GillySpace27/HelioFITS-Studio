@@ -69,11 +69,27 @@ public final class PunchClient {
         Task.submit("punch", new QueryCoverage(level, product), receiver::setPunchResponseCoverage, "Error listing the PUNCH archive");
     }
 
+    /**
+     * Resolve a {@link FitsRequest} to the URIs it currently matches. The one entry point the
+     * layer needs, so it can re-ask for a new span without knowing anything about this archive's
+     * directory layout.
+     */
+    public static void submitResolve(@Nonnull FitsRequest request, @Nonnull java.util.function.Consumer<List<URI>> receiver) {
+        Task.submit("punch", new QueryItems(request.level(), request.product(), request.startTime(),
+                        request.endTime(), request.cadence(), request.version()),
+                items -> receiver.accept(items.stream().map(DataItem::uri).toList()),
+                "Error listing the PUNCH archive");
+    }
+
     public static void submitLoad(@Nonnull List<DataItem> items, @Nonnull String level, @Nonnull String product, long start, long end, long cadence, @Nonnull String version) {
         List<URI> uris = items.stream().map(DataItem::uri).toList();
         Commands.loadImage(uris).thenAccept(layer -> {
             if (layer != null) {
                 rememberQuery(layer, level, product, start, end, cadence, version, uris);
+                // The layer keeps the query too, not just this side map: the side map is weak,
+                // private to the missing-frames action, and never serialized, so it could not make
+                // the layer follow the master time range or survive a restore.
+                layer.setFitsRequest(new FitsRequest(FitsRequest.Archive.PUNCH, level, product, version, cadence, start, end));
                 // Raw PUNCH FITS carry no display range, so each frame would auto-normalize to its
                 // own percentile range and the movie strobes. The layer loads immediately; in the
                 // background PunchRange samples a bounded subset, derives one shared range, and pins

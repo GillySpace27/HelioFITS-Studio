@@ -14,30 +14,43 @@ final class GLFrameCapture {
     private final int height;
     private final int samples;
 
+    /**
+     * Whether the colour attachment is RGBA16F rather than RGB8.
+     *
+     * <p>The shaders compute in float and lose precision only where the result is written, so an
+     * 8-bit attachment is exactly where a 16-bit source and a smoothly interpolated colour table
+     * collapse back to 256 levels. RGBA16F keeps them. It is colour-renderable only with
+     * EXT_color_buffer_half_float (or _float), which is why the caller builds this optimistically
+     * and falls back to 8 bits rather than failing a recording outright.
+     */
+    private final boolean highBitDepth;
+    private final int readType;
+    private final int bytesPerPixel;
+
     private final int resolveFramebuffer;
     private final int resolveTexture;
     private final int drawFramebuffer;
     private final int drawColorRenderbuffer;
     private final int drawDepthRenderbuffer;
-    private final ByteBuffer rgbaReadback;
-    private final byte[] rgbaRow;
-    private final byte[] rgbRow;
+    private final ByteBuffer readback;
+    private final byte[] readbackRow;
+    private final byte[] outputRow;
 
-    GLFrameCapture(int captureW, int captureH) {
+    GLFrameCapture(int captureW, int captureH, boolean wantHighBitDepth) {
         int frameWidth = Math.max(1, captureW);
         int frameHeight = Math.max(1, captureH);
         int frameSamples = Math.clamp(EXPORT_SAMPLES, 0, GL.glGetInteger(GL.MAX_SAMPLES));
-        int colorInternalFormat = GL.RGB8;
-        int colorPixelFormat = GL.RGB;
+        int colorInternalFormat = wantHighBitDepth ? GL.RGBA16F : GL.RGB8;
+        int colorPixelFormat = wantHighBitDepth ? GL.RGBA : GL.RGB;
         int resolveFbo = 0;
         int resolveTex = 0;
         int drawFbo = 0;
         int drawColorRbo = 0;
         int drawDepthRbo = 0;
         int chosenDepthFormat;
-        ByteBuffer readback = MemoryUtil.memAlloc(frameWidth * frameHeight * 4);
-        byte[] readbackRow = new byte[frameWidth * 4];
-        byte[] outputRow = new byte[frameWidth * 3];
+        int chosenReadType = GL.UNSIGNED_BYTE;
+        int pixelBytes = 3;
+        ByteBuffer buffer = null;
 
         try {
             resolveFbo = GL.glGenFramebuffer();
@@ -49,8 +62,10 @@ final class GLFrameCapture {
             GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_MIN_FILTER, GL.LINEAR);
             GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_WRAP_S, GL.CLAMP_TO_EDGE);
             GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_WRAP_T, GL.CLAMP_TO_EDGE);
-            GL.glTexImage2D(GL.TEXTURE_2D, 0, colorInternalFormat, frameWidth, frameHeight, 0, colorPixelFormat, GL.UNSIGNED_BYTE, (ByteBuffer) null);
+            GL.glTexImage2D(GL.TEXTURE_2D, 0, colorInternalFormat, frameWidth, frameHeight, 0, colorPixelFormat,
+                    wantHighBitDepth ? GL.HALF_FLOAT : GL.UNSIGNED_BYTE, (ByteBuffer) null);
             GL.glFramebufferTexture2D(GL.FRAMEBUFFER, GL.COLOR_ATTACHMENT0, GL.TEXTURE_2D, resolveTex, 0);
+            checkFramebufferComplete("resolve"); // fails here if RGBA16F is not colour-renderable
 
             if (frameSamples > 0) {
                 drawFbo = GL.glGenFramebuffer();
@@ -72,6 +87,21 @@ final class GLFrameCapture {
                 drawDepthRbo = GL.glGenRenderbuffer();
                 chosenDepthFormat = attachDepthRenderbuffer(frameWidth, frameHeight, 0, drawDepthRbo);
             }
+
+            if (wantHighBitDepth) {
+                // readPixels guarantees only RGBA/FLOAT for a float attachment; HALF_FLOAT is
+                // commonly offered as the implementation pair and halves the transfer, so take
+                // it when the implementation names it and fall back to FLOAT otherwise.
+                GL.glBindFramebuffer(GL.FRAMEBUFFER, resolveFbo);
+                chosenReadType = GL.glGetInteger(GL.IMPLEMENTATION_COLOR_READ_TYPE) == GL.HALF_FLOAT
+                        ? GL.HALF_FLOAT : GL.FLOAT;
+                pixelBytes = 6; // rgb48le
+            }
+
+            int readBytes = chosenReadType == GL.UNSIGNED_BYTE ? 4 : chosenReadType == GL.HALF_FLOAT ? 8 : 16;
+            buffer = MemoryUtil.memAlloc(frameWidth * frameHeight * readBytes);
+            readbackRow = new byte[frameWidth * readBytes];
+            outputRow = new byte[frameWidth * pixelBytes];
         } catch (RuntimeException e) {
             if (drawDepthRbo != 0)
                 GL.glDeleteRenderbuffer(drawDepthRbo);
@@ -83,8 +113,8 @@ final class GLFrameCapture {
                 GL.glDeleteTexture(resolveTex);
             if (resolveFbo != 0)
                 GL.glDeleteFramebuffer(resolveFbo);
-            if (readback != null)
-                MemoryUtil.memFree(readback);
+            if (buffer != null)
+                MemoryUtil.memFree(buffer);
             throw e;
         } finally {
             GL.glBindRenderbuffer(GL.RENDERBUFFER, 0);
@@ -100,13 +130,19 @@ final class GLFrameCapture {
         width = frameWidth;
         height = frameHeight;
         samples = frameSamples;
-        rgbaReadback = readback;
-        rgbaRow = readbackRow;
-        rgbRow = outputRow;
+        highBitDepth = wantHighBitDepth;
+        readType = chosenReadType;
+        bytesPerPixel = pixelBytes;
+        readback = buffer;
         int depthFormat = chosenDepthFormat;
         Log.info("GLFrameCapture config: size=" + width + "x" + height
                 + " samples=" + samples
-                + " depth=" + depthBits(depthFormat));
+                + " depth=" + depthBits(depthFormat)
+                + " color=" + (highBitDepth ? "RGBA16F -> rgb48le" : "RGB8 -> rgb24"));
+    }
+
+    int bytesPerPixel() {
+        return bytesPerPixel;
     }
 
     void bindForRender() {
@@ -124,27 +160,52 @@ final class GLFrameCapture {
 
         GL.glBindFramebuffer(GL.READ_FRAMEBUFFER, resolveFramebuffer);
         GL.glPixelStorei(GL.PACK_ALIGNMENT, 1);
-        rgbaReadback.clear();
-        GL.glReadPixels(0, 0, width, height, GL.RGBA, GL.UNSIGNED_BYTE, rgbaReadback);
-        rgbaReadback.limit(width * height * 4);
+        readback.clear();
+        GL.glReadPixels(0, 0, width, height, GL.RGBA, readType, readback);
+        readback.limit(readback.capacity());
 
         buffer.clear();
         for (int y = 0; y < height; y++) {
-            rgbaReadback.get(rgbaRow);
-
-            int src = 0;
-            int dst = 0;
-            for (int x = 0; x < width; x++) {
-                rgbRow[dst++] = rgbaRow[src++];
-                rgbRow[dst++] = rgbaRow[src++];
-                rgbRow[dst++] = rgbaRow[src++];
-                src++;
-            }
-
-            buffer.put(rgbRow);
+            readback.get(readbackRow);
+            if (highBitDepth)
+                packRow16(readbackRow);
+            else
+                packRow8(readbackRow);
+            buffer.put(outputRow);
         }
         buffer.flip();
         GL.glBindFramebuffer(GL.FRAMEBUFFER, 0);
+    }
+
+    // RGBA8 -> rgb24, dropping alpha.
+    private void packRow8(byte[] row) {
+        int src = 0, dst = 0;
+        for (int x = 0; x < width; x++) {
+            outputRow[dst++] = row[src++];
+            outputRow[dst++] = row[src++];
+            outputRow[dst++] = row[src++];
+            src++;
+        }
+    }
+
+    // RGBA float -> rgb48le. The scene is display-referred and already in [0, 1], so out-of-range
+    // values are clamped rather than tone-mapped: they were clipped on screen too.
+    private void packRow16(byte[] row) {
+        int componentBytes = readType == GL.HALF_FLOAT ? 2 : 4;
+        int dst = 0;
+        for (int x = 0; x < width; x++) {
+            int base = x * 4 * componentBytes;
+            for (int ch = 0; ch < 3; ch++) {
+                int off = base + ch * componentBytes;
+                float v = componentBytes == 2
+                        ? Float.float16ToFloat((short) ((row[off] & 0xFF) | (row[off + 1] << 8)))
+                        : Float.intBitsToFloat((row[off] & 0xFF) | ((row[off + 1] & 0xFF) << 8)
+                                | ((row[off + 2] & 0xFF) << 16) | (row[off + 3] << 24));
+                int q = (int) (Math.clamp(v, 0f, 1f) * 65535 + 0.5f);
+                outputRow[dst++] = (byte) q;         // little endian, to match rgb48le
+                outputRow[dst++] = (byte) (q >>> 8);
+            }
+        }
     }
 
     void dispose() {
@@ -158,8 +219,8 @@ final class GLFrameCapture {
             GL.glDeleteTexture(resolveTexture);
         if (resolveFramebuffer != 0)
             GL.glDeleteFramebuffer(resolveFramebuffer);
-        if (rgbaReadback != null)
-            MemoryUtil.memFree(rgbaReadback);
+        if (readback != null)
+            MemoryUtil.memFree(readback);
     }
 
     private static void checkFramebufferComplete(String label) {

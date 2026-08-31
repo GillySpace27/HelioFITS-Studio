@@ -17,7 +17,6 @@ public class GLSLSolarShader extends GLSLShader {
     public static final GLSLSolarShader lati = new GLSLSolarShader("/glsl/solar.vert", "/glsl/solarLati.frag", true);
     public static final GLSLSolarShader radialWarp = new GLSLSolarShader("/glsl/solar.vert", "/glsl/solarRadialWarp.frag", true);
     public static final GLSLSolarShader rectWarp = new GLSLSolarShader("/glsl/solar.vert", "/glsl/solarRectWarp.frag", true);
-    public static final GLSLSolarShader rectWarpLati = new GLSLSolarShader("/glsl/solar.vert", "/glsl/solarRectWarpLati.frag", true);
     // Draws a mesh rather than a full-screen quad: the warp is geometry here, so the scene can
     // be rotated and overlays can be registered against it. See warpSurface.vert.
     public static final GLSLSolarShader warpSurface = new GLSLSolarShader("/glsl/warpSurface.vert", "/glsl/warpSurface.frag", true);
@@ -30,6 +29,7 @@ public class GLSLSolarShader extends GLSLShader {
     private int mvpRef;
     private int observerDistanceRef;
     private int surfaceModelRef;
+    private int cropRadiusRef;
     private static final float[] latiGridBuf = new float[6];
 
     private GLSLSolarShader(String vertex, String fragment, boolean _hasCommon) {
@@ -68,7 +68,6 @@ public class GLSLSolarShader extends GLSLShader {
         lati._init(lati.hasCommon);
         radialWarp._init(radialWarp.hasCommon);
         rectWarp._init(rectWarp.hasCommon);
-        rectWarpLati._init(rectWarpLati.hasCommon);
         warpSurface._init(warpSurface.hasCommon);
         WarpSurfaceMesh.mesh.init();
     }
@@ -88,6 +87,7 @@ public class GLSLSolarShader extends GLSLShader {
         mvpRef = GL.glGetUniformLocation(id, "ModelViewProjectionMatrix");
         observerDistanceRef = GL.glGetUniformLocation(id, "observerDistance");
         surfaceModelRef = GL.glGetUniformLocation(id, "surfaceModel");
+        cropRadiusRef = GL.glGetUniformLocation(id, "cropRadius");
 
         setupCommonBlocks(id);
 
@@ -108,6 +108,9 @@ public class GLSLSolarShader extends GLSLShader {
         GL.glUniformMatrix4fv(mvpRef, false, Transform.get());
         GL.glUniform1f(observerDistanceRef, (float) observerDistance);
         GL.glUniform1f(surfaceModelRef, surfaceModel == org.helioviewer.jhv.display.SurfaceModel.ThomsonSphere ? 1 : 0);
+        // The user's Edge crop, NOT the field the warp is normalized over. Zero when the edge is
+        // on auto, which is no crop at all rather than a crop at the full field.
+        GL.glUniform1f(cropRadiusRef, (float) org.helioviewer.jhv.display.Display.getWarpOuterRadius());
         // The surface is single-sided but orbitable: once the camera swings past its edge the
         // back faces are what you are looking at, so culling them would make the imagery vanish
         // halfway through a rotation. GLRenderer.init enables back-face culling globally.
@@ -123,7 +126,6 @@ public class GLSLSolarShader extends GLSLShader {
         lati._dispose();
         radialWarp._dispose();
         rectWarp._dispose();
-        rectWarpLati._dispose();
         warpSurface._dispose();
         WarpSurfaceMesh.mesh.dispose();
         wcsBO.delete();
@@ -198,7 +200,7 @@ public class GLSLSolarShader extends GLSLShader {
                             float innerRadius, float outerRadius,
                             float slitLeft, float slitRight,
                             float upsilonLow, float upsilonHigh,
-                            float indexed) {
+                            float indexed, float highBitDepth, float showClipping) {
         displayBuf.put(color);
         displayBuf.put(shWidth).put(shHeight).put(shWeight).put(isDiff);
         displayBuf.put(sector0).put(sector1).put(/*sector0 + 2 * Math.PI == sector1*/ sector0 == sector1 ? 0 : 1).put(enhanced);
@@ -206,7 +208,7 @@ public class GLSLSolarShader extends GLSLShader {
         displayBuf.put(bOffset).put(bScale);
         displayBuf.put(innerRadius).put(outerRadius).put(slitLeft).put(slitRight);
         displayBuf.put(upsilonLow).put(upsilonHigh);
-        displayBuf.put(indexed).put(0).put(0).put(0); // indexed, then padding to round the std140 block size up to a multiple of 16
+        displayBuf.put(indexed).put(highBitDepth).put(showClipping).put(0); // then padding to round the std140 block size up to a multiple of 16
 
         displayBuf.flip();
         displayBO.setBufferDataIfChanged(DISPLAY_SIZE, displayBuf);

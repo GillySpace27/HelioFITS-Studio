@@ -52,6 +52,16 @@ public interface View {
         return null;
     }
 
+    /**
+     * What this view decoded, or null when it cannot say. Reported so the layer list can show at a
+     * glance whether a row is an 8-bit browse product or the calibrated original: the two look
+     * identical in a layer name and are very different data.
+     */
+    @Nullable
+    default org.helioviewer.jhv.io.DataUri.Format getFormat() {
+        return null;
+    }
+
     @Nullable
     default LUT getDefaultLUT() {
         return null;

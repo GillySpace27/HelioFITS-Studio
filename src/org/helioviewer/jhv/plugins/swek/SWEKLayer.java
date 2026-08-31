@@ -347,7 +347,7 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         }
     }
 
-    // While CME tracking is engaged (any warp mode), mark it: an orange dot at the
+    // While CME tracking is engaged (Helioradial or HelioradialUnrolled), mark it: an orange dot at the
     // front's calculated location (physical radius -> warped screen position) and a purple circle
     // at the fixed "freeze" screen radius (SCREEN_FRACTION), both on the tracked position angle.
     // If the solve is right, the front sits on the freeze radius and the two are concentric.
@@ -361,7 +361,7 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
             double pa = Math.toRadians(paDeg);
             freeze = PolarBasis.vec3(0.5 * frac, pa);
             front = PolarBasis.vec3(ringRho(scale, rCme), pa);
-        } else { // unrolled unwrap: x = angle, y = warped radius normalized to [-0.5, 0.5]
+        } else { // HelioradialUnrolled unwrap: x = angle, y = warped radius normalized to [-0.5, 0.5]
             double x = (scale.toUnitX(paDeg) - 0.5) * vp.aspect;
             freeze = new Vec3(x, frac - 0.5, 0);
             front = new Vec3(x, scale.toUnitY(rCme) - 0.5, 0);
@@ -564,7 +564,7 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
             return;
         long currentTime = mv.viewpoint().time.milli;
         List<JHVRelatedEvents> evs = activeEvents(currentTime);
-        boolean radial = mv.isUnrolled() || mv.isHelioradial();
+        boolean radial = mv.isHelioradialUnrolled() || mv.isHelioradial();
         List<JHVRelatedEvents> prop = radial ? propagatingCactus(currentTime) : List.of(); // empty unless extend toggle on
         boolean markers = radial && CMETracker.isTracking();
         if (evs.isEmpty() && prop.isEmpty() && !markers)
@@ -573,7 +573,7 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         MapScale scale = mv.scale(vp);
         for (JHVRelatedEvents evtr : evs) {
             JHVEvent evt = evtr.getClosestTo(currentTime);
-            if (evt.isCactus() && mv.isUnrolled()) {
+            if (evt.isCactus() && mv.isHelioradialUnrolled()) {
                 drawCactusArcScale(vp, evtr, evt, currentTime, scale);
             } else if (evt.isCactus() && mv.isHelioradial()) {
                 drawCactusArcDisk(evtr, evt, currentTime, scale);
@@ -586,7 +586,7 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         }
         for (JHVRelatedEvents evtr : prop) { // extrapolated CACTus fronts past the LASCO edge, out to the loaded FOV
             JHVEvent evt = evtr.getClosestTo(currentTime);
-            if (mv.isUnrolled())
+            if (mv.isHelioradialUnrolled())
                 drawCactusArcScale(vp, evtr, evt, currentTime, scale);
             else
                 drawCactusArcDisk(evtr, evt, currentTime, scale);

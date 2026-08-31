@@ -55,6 +55,31 @@ public enum SurfaceModel {
         label = _label;
     }
 
+    /**
+     * Whether this model can describe a field reaching {@code outerRadius}, seen from
+     * {@code observerDistance}.
+     *
+     * <p>The Thomson sphere has diameter D and its mapping is {@code r = D sin(e)}, which
+     * saturates at {@code r = D}: a point further from the Sun than the observer is not on the
+     * surface at any elongation, so the model has nothing to say about it. That is not a rounding
+     * problem, it is the domain running out.
+     *
+     * <p>It matters because the failure is silent and looks like data. {@link #depth} clamps its
+     * radius, so past D the depth pins at D while the in-plane radius keeps growing, and the
+     * surface extrudes into a flat sheet at constant depth. Rendered, that sheet is
+     * indistinguishable from corona correctly placed on a plane, and it is neither. Observed with
+     * a 245 solar-radii field seen from 66: three quarters of the picture was that sheet.
+     *
+     * <p>Plane of sky has no such limit; it is defined at every elongation short of 90 degrees.
+     *
+     * <p>This does not gate the mode. Refusing it outright was tried and made the Thomson sphere
+     * unselectable in exactly the wide-field, near-Sun views it exists for, so the renderer clips
+     * the undescribable part away instead and this reports whether anything is being lost.
+     */
+    public boolean canDescribe(double observerDistance, double outerRadius) {
+        return this != ThomsonSphere || (observerDistance > 0 && outerRadius <= observerDistance);
+    }
+
     /** Heliocentric distance, in the same units as {@code observerDistance}, of the surface point. */
     public double heliocentricRadius(double elongation, double observerDistance) {
         double e = Math.clamp(elongation, 0, MAX_ELONGATION);

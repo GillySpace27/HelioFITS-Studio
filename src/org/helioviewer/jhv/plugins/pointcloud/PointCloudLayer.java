@@ -78,7 +78,6 @@ public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.R
             arrowWidth = Math.clamp(jo.optDouble("arrowWidth", arrowWidth), 0.5, 20);
             arrowHalfAngle = Math.clamp(jo.optDouble("arrowHalfAngle", arrowHalfAngle), 0, 89);
             arrowColor = Colors.NamedColor.parse(jo.optString("arrowColor", arrowColor.name()), arrowColor);
-            OrbitMode.get().deserialize(jo); // camera-global, but this panel is where it is driven from
             JSONArray uris = jo.optJSONArray("sources");
             if (uris != null)
                 for (int i = 0; i < uris.length(); i++) {
@@ -107,7 +106,6 @@ public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.R
         jo.put("arrowWidth", arrowWidth);
         jo.put("arrowHalfAngle", arrowHalfAngle);
         jo.put("arrowColor", arrowColor.name());
-        OrbitMode.get().serialize(jo);
         JSONArray uris = new JSONArray();
         for (URI uri : sources)
             uris.put(uri.toString());

@@ -61,6 +61,11 @@ public final class GL {
     public static final int RENDERBUFFER = GLES30.GL_RENDERBUFFER;
     public static final int RGB = GLES30.GL_RGB;
     public static final int RGB8 = GLES30.GL_RGB8;
+    public static final int RGBA16F = GLES30.GL_RGBA16F;
+    // Queried rather than assumed: readPixels guarantees only RGBA/UNSIGNED_BYTE, and the
+    // second legal pair for any given attachment is implementation-defined.
+    public static final int IMPLEMENTATION_COLOR_READ_FORMAT = GLES30.GL_IMPLEMENTATION_COLOR_READ_FORMAT;
+    public static final int IMPLEMENTATION_COLOR_READ_TYPE = GLES30.GL_IMPLEMENTATION_COLOR_READ_TYPE;
     public static final int RGBA = GLES30.GL_RGBA;
     public static final int STATIC_DRAW = GLES30.GL_STATIC_DRAW;
     public static final int STREAM_DRAW = GLES30.GL_STREAM_DRAW;

@@ -14,6 +14,7 @@ import org.helioviewer.jhv.layers.GridLayer;
 import org.helioviewer.jhv.layers.Layer;
 import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.layers.MiniviewLayer;
+import org.helioviewer.jhv.layers.ObserverLayer;
 import org.helioviewer.jhv.layers.TimestampLayer;
 import org.helioviewer.jhv.layers.ViewpointLayer;
 import org.helioviewer.jhv.layers.fov.FOVTreePane;
@@ -29,6 +30,7 @@ public final class LayerOptions implements Layers.Listener {
         register(FOVLayer.class, layer -> new FOVTreePane(((FOVLayer) layer).getCatalog()));
         register(GridLayer.class, layer -> new GridLayerOptions((GridLayer) layer));
         register(MiniviewLayer.class, layer -> new MiniviewLayerOptions((MiniviewLayer) layer));
+        register(ObserverLayer.class, layer -> new ObserverLayerOptions((ObserverLayer) layer));
         register(TimestampLayer.class, layer -> new TimestampLayerOptions((TimestampLayer) layer));
         register(ViewpointLayer.class, layer -> new ViewpointLayerOptionsPanel((ViewpointLayer) layer));
         Layers.addListener(listener);

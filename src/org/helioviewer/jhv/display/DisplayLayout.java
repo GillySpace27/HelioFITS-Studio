@@ -20,9 +20,22 @@ public final class DisplayLayout {
             {3, 3}  // 6
     };
 
-    static Viewport[] viewports(int width, int height, int count) {
+    /**
+     * Lay out {@code count} viewports inside a rectangle of the drawable.
+     *
+     * <p>The rectangle is not always the whole drawable: when the recording has a fixed aspect
+     * the render area is inset to match it, and the untouched margin is left showing the clear
+     * colour as letterbox bars. Everything downstream reads the viewport -- rendering, mouse
+     * picking, overlays -- so insetting here is what makes the on-screen view and the recorded
+     * frame the same picture, rather than each one deriving its own idea of the frame.
+     *
+     * @param originX     left edge of the render area within the drawable
+     * @param originY     top edge of the render area within the drawable (AWT direction)
+     * @param canvasHeight full drawable height, which is what GL viewport y is measured against
+     */
+    static Viewport[] viewports(int originX, int originY, int width, int height, int canvasHeight, int count) {
         if (count < 1 || count >= ROW_LAYOUTS.length) {
-            return new Viewport[]{viewport(0, 0, 0, width, height, height)};
+            return new Viewport[]{viewport(0, originX, originY, width, height, canvasHeight)};
         }
 
         Viewport[] vps = new Viewport[count];
@@ -39,7 +52,7 @@ public final class DisplayLayout {
 
             for (int c = 0; c < numCols; c++) {
                 int nextX = ((c + 1) * width) / numCols;
-                vps[idx] = viewport(idx, x, y, nextX - x, rowHeight, height);
+                vps[idx] = viewport(idx, originX + x, originY + y, nextX - x, rowHeight, canvasHeight);
                 x = nextX;
                 idx++;
             }

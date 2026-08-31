@@ -32,9 +32,19 @@ public class ManyView implements View {
     private final TimeMap<FrameInfo> frameMap = new TimeMap<>();
     private int targetFrame;
 
+    @Nullable
+    @Override
+    public org.helioviewer.jhv.io.DataUri.Format getFormat() {
+        // The frames of one layer come from one query, so the first speaks for all of them.
+        return firstView == null ? null : firstView.getFormat();
+    }
+
+    @Nullable private final View firstView;
+
     public ManyView(List<View> views) throws IOException {
         if (views.isEmpty())
             throw new IOException("Empty list of views");
+        firstView = views.getFirst();
 
         views.forEach(this::putDates);
         frameMap.buildIndex();

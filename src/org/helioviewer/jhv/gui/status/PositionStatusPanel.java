@@ -8,7 +8,6 @@ import org.helioviewer.jhv.astronomy.Sun;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.GridType;
-import org.helioviewer.jhv.display.MapMode;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.gui.TransferAccess;
@@ -46,10 +45,8 @@ public final class PositionStatusPanel extends StatusPanel.StatusPlugin implemen
             setText(formatHpc(coord));
         } else if (mv.isLatitudinal()) {
             setText(formatLati(coord, mv.gridType()));
-        } else if (mv.isHelioradial() || mv.isUnrolled()) {
-            // On the combined mode's disk the map-Y is a gamma fraction, not a radius.
-            boolean onLatiDisk = mv.mode() == MapMode.HelioradialUnrolledLatitudinal && coord != Vec2.NAN && coord.y < 1;
-            setText(onLatiDisk ? formatAngleGamma(coord) : formatAngleRadius(coord));
+        } else if (mv.isHelioradial() || mv.isHelioradialUnrolled()) {
+            setText(formatAngleRadius(coord));
         } else {
             Vec3 v = mv.mouseToSky(vp, x, y);
             if (v == null) {
@@ -117,14 +114,6 @@ public final class PositionStatusPanel extends StatusPanel.StatusPlugin implemen
             appendXY(sb, coord.x).append(',');
             appendXY(sb, coord.y);
         }
-        return sb.append(')').toString();
-    }
-
-    private String formatAngleGamma(@Nonnull Vec2 coord) {
-        StringBuilder sb = resetBuffer();
-        sb.append("(θ,γ):(");
-        appendDegrees(sb, coord.x).append(',');
-        appendDegrees(sb, 90 * coord.y);
         return sb.append(')').toString();
     }
 

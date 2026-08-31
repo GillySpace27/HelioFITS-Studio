@@ -12,14 +12,17 @@ import java.awt.event.ActionListener;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
+import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.SpinnerNumberModel;
 
 import org.helioviewer.jhv.app.Commands;
+import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.gui.Actions;
 import org.helioviewer.jhv.gui.CompletionNotifications;
@@ -27,7 +30,9 @@ import org.helioviewer.jhv.gui.ComponentUtils;
 import org.helioviewer.jhv.gui.UIGlobals;
 import org.helioviewer.jhv.gui.time.TimeSelectorPanel;
 import org.helioviewer.jhv.layers.Layers;
+import org.helioviewer.jhv.movie.ExportFormat;
 import org.helioviewer.jhv.movie.ExportMovie;
+import org.helioviewer.jhv.movie.ExportPreset;
 import org.helioviewer.jhv.movie.Player;
 import org.helioviewer.jhv.time.TimeUtils;
 
@@ -58,6 +63,49 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
     // encoders) is happiest there, and a free spinner mostly collected typos.
     private static final Integer[] LONG_SIDE_CHOICES = {256, 512, 1024, 2048, 4096, 8192, 16384};
     private final JComboBox<Integer> recordLongSideComboBox;
+    private final JComboBox<ExportFormat> recordFormatComboBox;
+    private final JComboBox<ExportFormat.Chroma> recordChromaComboBox;
+    private final JComboBox<ExportFormat.Depth> recordDepthComboBox;
+    private final JComboBox<String> recordPresetComboBox;
+    private final javax.swing.JCheckBox allIntraCheckBox;
+    private boolean syncingRecordFormat; // repopulating the two dependent combos fires their listeners
+
+    /** The persisted format, falling back to H.264 for an absent or stale name. */
+    public static ExportFormat storedFormat() {
+        try {
+            return ExportFormat.valueOf(Settings.getProperty("video.format"));
+        } catch (Exception ignore) {
+            return ExportFormat.H264;
+        }
+    }
+
+    // Both are clamped to what the current codec can actually carry. A setting saved under one
+    // codec is routinely impossible under the next (12-bit is HEVC-only here, RGB is not an x264
+    // option at all), and the alternative to clamping is handing ffmpeg a pixel format its encoder
+    // will reject at the very end of a long recording.
+    public static ExportFormat.Chroma storedChroma() {
+        ExportFormat.Chroma stored;
+        try {
+            stored = ExportFormat.Chroma.valueOf(Settings.getProperty("video.chroma"));
+        } catch (Exception ignore) {
+            stored = ExportFormat.Chroma.YUV420;
+        }
+        return storedFormat().clamp(stored);
+    }
+
+    public static ExportFormat.Depth storedDepth() {
+        ExportFormat.Depth stored;
+        try {
+            stored = ExportFormat.Depth.valueOf(Settings.getProperty("video.depth"));
+        } catch (Exception ignore) {
+            stored = ExportFormat.Depth.EIGHT;
+        }
+        return storedFormat().clamp(storedChroma(), stored);
+    }
+
+    public static boolean isAllIntra() {
+        return !"false".equals(Settings.getProperty("video.allIntra"));
+    }
     private final JLabel recordDerivedLabel;
     private boolean syncingRecordSize;
 
@@ -203,14 +251,6 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
 
         c.gridy = 2;
         c.gridx = 0;
-        // Fitting the window to the output aspect, rather than reshaping to it automatically:
-        // inscribing 2:1 in a tall window leaves a cramped letterbox to compose in, but forcing
-        // the window would fight presentation mode, where the projector and presenter windows
-        // are deliberately different shapes.
-        javax.swing.JButton fitWindowButton = new javax.swing.JButton("Fit");
-        fitWindowButton.setToolTipText("Resize the view to the output aspect, so composition is not done in a letterbox");
-        fitWindowButton.addActionListener(e -> fitWindowToOutputAspect());
-        recordPanel.add(fitWindowButton, c);
 
         c.gridx = 2;
         recordPanel.add(new JLabel("Long side ", JLabel.RIGHT), c);
@@ -225,13 +265,118 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         c.gridx = 3;
         recordPanel.add(recordLongSideComboBox, c);
 
+        // Format sits with the record controls rather than in Settings, where it was: it is a
+        // per-recording decision made at the same moment as aspect and resolution, not a
+        // preference set once. Both persist through Settings, so the choice still survives a
+        // restart and old sessions keep whatever they had.
+        // Built before the format combo, whose listener greys it out: a frame-per-file format is
+        // all-intra by definition, so the choice would be meaningless there. Default on, because
+        // this footage is faint low-contrast structure over noise, which is exactly what
+        // inter-frame prediction spends its bits away from.
+        allIntraCheckBox = new javax.swing.JCheckBox("Every frame a keyframe", isAllIntra());
+        allIntraCheckBox.setFont(UIGlobals.uiFontSmall);
+        allIntraCheckBox.setToolTipText("No inter-frame prediction: nothing is smeared or motion-compensated between frames, and scrubbing is frame-exact. Roughly 3-10x the file size, and still lossy within each frame -- use the PNG series for frame fidelity.");
+        allIntraCheckBox.addItemListener(e -> {
+            Settings.setProperty("video.allIntra", Boolean.toString(allIntraCheckBox.isSelected()));
+            if (!syncingRecordFormat)
+                syncPresetSelection();
+        });
+        allIntraCheckBox.setEnabled(!storedFormat().isSeries());
+
+        c.gridy = 2;
+        c.gridx = 2;
+        recordPanel.add(new JLabel("Preset ", JLabel.RIGHT), c);
+
+        recordPresetComboBox = new JComboBox<>();
+        recordPresetComboBox.addActionListener(e -> {
+            if (syncingRecordFormat)
+                return;
+            Object sel = recordPresetComboBox.getSelectedItem();
+            if (sel == null || ExportPreset.CUSTOM.equals(sel))
+                return;
+            ExportPreset preset = ExportPreset.byName(sel.toString());
+            if (preset != null)
+                applyPreset(preset);
+        });
+
+        JButton savePreset = new JButton("Save\u2026");
+        savePreset.setFont(UIGlobals.uiFontSmall);
+        savePreset.setToolTipText("Name the current settings as a preset, or overwrite an existing one");
+        savePreset.addActionListener(e -> saveCurrentAsPreset());
+
+        JButton deletePreset = new JButton("Delete");
+        deletePreset.setFont(UIGlobals.uiFontSmall);
+        deletePreset.setToolTipText("Remove the selected saved preset. A built-in rung you have overwritten reverts to its original.");
+        deletePreset.addActionListener(e -> deleteSelectedPreset());
+
+        JPanel presetPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
+        presetPanel.add(recordPresetComboBox);
+        presetPanel.add(savePreset);
+        presetPanel.add(deletePreset);
+        c.gridx = 3;
+        recordPanel.add(presetPanel, c);
+
         c.gridy = 3;
+        c.gridx = 2;
+        recordPanel.add(new JLabel("Format ", JLabel.RIGHT), c);
+
+        recordFormatComboBox = new JComboBox<>(ExportFormat.values());
+        recordFormatComboBox.setSelectedItem(storedFormat());
+        recordFormatComboBox.setToolTipText("Container and codec. The series formats write one file per frame into their own directory.");
+        c.gridx = 3;
+        recordPanel.add(recordFormatComboBox, c);
+
+        recordChromaComboBox = new JComboBox<>();
+        recordChromaComboBox.setToolTipText("How colour is sampled. 4:2:0 keeps one colour sample per 2x2 pixels and is what plays everywhere; 4:4:4 keeps one per pixel; RGB skips the colour conversion entirely. Subsampling assumes the eye resolves colour poorly, which is false for a colour table.");
+        recordDepthComboBox = new JComboBox<>();
+        recordDepthComboBox.setToolTipText("Bits per channel written. Above 8 the capture is taken at 16-bit float too. More depth mainly buys smooth gradients free of banding, which barely shows in PSNR and plainly shows on a corona.");
+
+        recordFormatComboBox.addActionListener(e -> {
+            ExportFormat sel = (ExportFormat) recordFormatComboBox.getSelectedItem();
+            if (sel != null) {
+                Settings.setProperty("video.format", sel.name());
+                allIntraCheckBox.setEnabled(!sel.isSeries() && sel != ExportFormat.FFV1);
+                syncPixelCombos();
+            }
+        });
+        recordChromaComboBox.addActionListener(e -> {
+            if (syncingRecordFormat)
+                return;
+            if (recordChromaComboBox.getSelectedItem() instanceof ExportFormat.Chroma sel) {
+                Settings.setProperty("video.chroma", sel.name());
+                syncPixelCombos(); // the depths on offer depend on it (FFV1 has no 8-bit RGB)
+            }
+        });
+        recordDepthComboBox.addActionListener(e -> {
+            if (syncingRecordFormat)
+                return;
+            if (recordDepthComboBox.getSelectedItem() instanceof ExportFormat.Depth sel)
+                Settings.setProperty("video.depth", sel.name());
+        });
+
+        c.gridy = 4;
+        c.gridx = 2;
+        recordPanel.add(new JLabel("Colour ", JLabel.RIGHT), c);
+        JPanel pixelPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
+        pixelPanel.add(recordChromaComboBox);
+        pixelPanel.add(recordDepthComboBox);
+        c.gridx = 3;
+        recordPanel.add(pixelPanel, c);
+
+        c.gridy = 5;
+        c.gridx = 3;
+        recordPanel.add(allIntraCheckBox, c);
+
+        c.gridy = 6;
         c.gridx = 3;
         recordDerivedLabel = new JLabel();
         recordDerivedLabel.setFont(UIGlobals.uiFontSmall);
         recordDerivedLabel.setToolTipText("The size that will actually be written");
         recordPanel.add(recordDerivedLabel, c);
         c.gridy = 1;
+
+        syncPixelCombos();
+        syncPresetList(null);
 
         timeSelectorPanel.addListener(Layers.timeSelectionListener);
 
@@ -248,6 +393,144 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         ViewState.addRecordingConfigListener(this);
 
         updateVideoLength();
+    }
+
+    private void applyPreset(ExportPreset preset) {
+        // Written through Settings rather than by driving the combos: syncPixelCombos reads
+        // Settings, so setting the stored values first and refreshing once is both shorter and
+        // free of the half-applied states a sequence of setSelectedItem calls passes through.
+        Settings.setProperty("video.format", preset.format().name());
+        Settings.setProperty("video.chroma", preset.chroma().name());
+        Settings.setProperty("video.depth", preset.depth().name());
+        Settings.setProperty("video.allIntra", Boolean.toString(preset.allIntra()));
+
+        syncingRecordFormat = true;
+        try {
+            recordFormatComboBox.setSelectedItem(preset.format());
+            allIntraCheckBox.setSelected(preset.allIntra());
+            allIntraCheckBox.setEnabled(!preset.format().isSeries() && preset.format() != ExportFormat.FFV1);
+        } finally {
+            syncingRecordFormat = false;
+        }
+        syncPixelCombos();
+    }
+
+    private void saveCurrentAsPreset() {
+        Object current = recordPresetComboBox.getSelectedItem();
+        String suggested = current == null || ExportPreset.CUSTOM.equals(current) ? "" : current.toString();
+        String name = JOptionPane.showInputDialog(this, "Name for these settings:", suggested);
+        if (name == null)
+            return;
+        name = name.strip();
+        if (name.isEmpty() || ExportPreset.CUSTOM.equals(name)) {
+            JOptionPane.showMessageDialog(this, "That name is reserved.", "Preset", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        String note = JOptionPane.showInputDialog(this,
+                "What is it for, and what does it give up?\n(Shown as the tooltip.)", "");
+        ExportPreset.save(new ExportPreset(name, note == null ? "" : note.strip(),
+                storedFormat(), storedChroma(), storedDepth(), isAllIntra(), false));
+        syncPresetList(name);
+    }
+
+    private void deleteSelectedPreset() {
+        Object sel = recordPresetComboBox.getSelectedItem();
+        if (sel == null || ExportPreset.CUSTOM.equals(sel))
+            return;
+        String name = sel.toString();
+        ExportPreset existing = ExportPreset.byName(name);
+        if (existing != null && existing.builtIn()) {
+            JOptionPane.showMessageDialog(this, "\"" + name + "\" is a built-in rung and cannot be removed.",
+                    "Preset", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        if (JOptionPane.showConfirmDialog(this, "Delete the preset \"" + name + "\"?", "Preset",
+                JOptionPane.OK_CANCEL_OPTION) != JOptionPane.OK_OPTION)
+            return;
+        ExportPreset.delete(name);
+        syncPresetList(null);
+    }
+
+    /** Rebuild the preset list, then point it at {@code select} or at whatever the settings match. */
+    private void syncPresetList(String select) {
+        syncingRecordFormat = true;
+        try {
+            recordPresetComboBox.removeAllItems();
+            recordPresetComboBox.addItem(ExportPreset.CUSTOM);
+            ExportPreset.all().forEach(p -> recordPresetComboBox.addItem(p.name()));
+        } finally {
+            syncingRecordFormat = false;
+        }
+        if (select != null && ExportPreset.byName(select) != null) {
+            ExportPreset p = ExportPreset.byName(select);
+            applyPreset(p);
+            syncingRecordFormat = true;
+            try {
+                recordPresetComboBox.setSelectedItem(select);
+            } finally {
+                syncingRecordFormat = false;
+            }
+        } else {
+            syncPresetSelection();
+        }
+    }
+
+    /**
+     * Point the preset box at whichever rung the current settings are, or at Custom when they are
+     * none of them. Called after every change to the four controls a preset covers, so the box is
+     * a readout of the settings rather than a separate thing that can disagree with them.
+     */
+    private void syncPresetSelection() {
+        ExportPreset match = ExportPreset.matching(storedFormat(), storedChroma(), storedDepth(), isAllIntra());
+        syncingRecordFormat = true;
+        try {
+            recordPresetComboBox.setSelectedItem(match == null ? ExportPreset.CUSTOM : match.name());
+            recordPresetComboBox.setToolTipText(match == null
+                    ? "The controls below do not match any saved preset."
+                    : "<html><body style='width:340px'>" + match.description() + "</body></html>");
+        } finally {
+            syncingRecordFormat = false;
+        }
+    }
+
+    /**
+     * Refill the colour and depth combos with what the current codec can carry, keeping the user's
+     * choice where it survives and falling to the nearest legal one where it does not.
+     *
+     * <p>The guard matters: removeAllItems and addItem both fire the listeners, so without it a
+     * repopulation writes whatever lands in the box first back into Settings, and switching to a
+     * codec that cannot do the user's depth silently rewrites their preference rather than just
+     * greying it out for the moment.
+     */
+    private void syncPixelCombos() {
+        ExportFormat format = storedFormat();
+        ExportFormat.Chroma chroma = storedChroma();
+        ExportFormat.Depth depth = storedDepth();
+
+        syncingRecordFormat = true;
+        try {
+            recordChromaComboBox.removeAllItems();
+            format.chromas().forEach(recordChromaComboBox::addItem);
+            recordChromaComboBox.setSelectedItem(chroma);
+
+            recordDepthComboBox.removeAllItems();
+            format.depths(chroma).forEach(recordDepthComboBox::addItem);
+            recordDepthComboBox.setSelectedItem(depth);
+        } finally {
+            syncingRecordFormat = false;
+        }
+
+        // A series fixes both; leaving live combos there would imply a choice that is not offered.
+        boolean configurable = format.isConfigurable();
+        recordChromaComboBox.setEnabled(configurable);
+        recordDepthComboBox.setEnabled(configurable);
+
+        // Write back the clamped pair, so what is shown and what a recording will use agree even
+        // when the stored setting was impossible under this codec.
+        Settings.setProperty("video.chroma", chroma.name());
+        Settings.setProperty("video.depth", depth.name());
+
+        syncPresetSelection();
     }
 
     public void setTime(long start, long end) {
@@ -411,27 +694,6 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
             if (Math.abs(choice - longSide) < Math.abs(best - longSide))
                 best = choice;
         return best;
-    }
-
-    private static void fitWindowToOutputAspect() {
-        ViewState.RecordingData data = ViewState.recordingData();
-        if (!data.aspect().isFixed())
-            return;
-        org.helioviewer.jhv.display.Viewport vp = org.helioviewer.jhv.display.Display.fullViewport;
-        if (vp.width <= 0 || vp.height <= 0)
-            return;
-        java.awt.Frame frame = org.helioviewer.jhv.gui.MainFrame.get();
-        if (frame == null)
-            return;
-        // Keep the canvas area roughly constant while changing its shape, so the window neither
-        // grows off the screen nor collapses.
-        double area = (double) vp.width * vp.height;
-        double ratio = data.aspect().ratio();
-        int targetW = (int) Math.round(Math.sqrt(area * ratio));
-        int targetH = (int) Math.round(Math.sqrt(area / ratio));
-        java.awt.Dimension frameSize = frame.getSize();
-        frame.setSize(frameSize.width + (targetW - vp.width), frameSize.height + (targetH - vp.height));
-        frame.validate();
     }
 
 }

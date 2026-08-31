@@ -17,11 +17,74 @@ import org.helioviewer.jhv.gui.component.BusyIndicator;
 import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layer;
+import org.helioviewer.jhv.io.DataUri;
 import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.view.View;
 
 @SuppressWarnings("serial")
 class CellRenderer {
+
+    /**
+     * A row's background, tinted by what the layer's data actually is.
+     *
+     * <p>A JP2 layer and a FITS layer of the same instrument carry the same name and look
+     * identical in this list, while one is an 8-bit browse product and the other the calibrated
+     * original. The tint says which without adding a column. It is derived from the table's own
+     * selection colour and then pulled most of the way back to the normal background, so it reads
+     * as a wash rather than as a second kind of selection.
+     */
+    private static final float TINT = 0.12f; // how far toward the hue; selection is effectively 1
+
+    @Nullable
+    private static java.awt.Color tintFor(Object value) {
+        if (!(value instanceof ImageLayer layer))
+            return null;
+        DataUri.Format format = layer.getView().getFormat();
+        if (!(format instanceof DataUri.Format.Image image))
+            return null;
+        return switch (image) {
+            // Calibrated, full depth. Green because it is the one that kept everything.
+            case FITS -> new java.awt.Color(0x35, 0xA0, 0x6A);
+            // Helioviewer's browse products: streamed, and 8-bit before they ever arrive.
+            case JPIP, JP2, JPX -> new java.awt.Color(0x3A, 0x7B, 0xD5);
+            // Already-rendered pictures rather than data.
+            case PNG, JPEG -> new java.awt.Color(0xC0, 0x7A, 0x22);
+            case ZIP -> null;
+        };
+    }
+
+    /** The background a row should paint: selection wins, then the format wash, then plain. */
+    static java.awt.Color background(JTable table, Object value, boolean isSelected) {
+        if (isSelected)
+            return table.getSelectionBackground();
+        java.awt.Color base = table.getBackground();
+        java.awt.Color tint = tintFor(value);
+        if (tint == null)
+            return base;
+        return new java.awt.Color(
+                Math.round(base.getRed() + (tint.getRed() - base.getRed()) * TINT),
+                Math.round(base.getGreen() + (tint.getGreen() - base.getGreen()) * TINT),
+                Math.round(base.getBlue() + (tint.getBlue() - base.getBlue()) * TINT));
+    }
+
+    /** Names the format for a tooltip, so the colour is discoverable rather than a private code. */
+    @Nullable
+    static String formatName(Object value) {
+        if (!(value instanceof ImageLayer layer))
+            return null;
+        DataUri.Format format = layer.getView().getFormat();
+        if (!(format instanceof DataUri.Format.Image image))
+            return null;
+        return switch (image) {
+            case FITS -> "FITS";
+            case JPIP -> "JPEG 2000 (streamed)";
+            case JP2 -> "JP2";
+            case JPX -> "JPX";
+            case PNG -> "PNG";
+            case JPEG -> "JPEG";
+            case ZIP -> null;
+        };
+    }
 
     static final class Enabled extends DefaultTableCellRenderer {
 
@@ -33,7 +96,7 @@ class CellRenderer {
             if (value instanceof Layer layer) {
                 checkBox.setSelected(layer.isEnabled());
             }
-            checkBox.setBackground(isSelected ? table.getSelectionBackground() : table.getBackground());
+            checkBox.setBackground(background(table, value, isSelected));
             return checkBox;
         }
 
@@ -49,6 +112,7 @@ class CellRenderer {
             JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
             label.setBorder(null); //!
             label.setText(null);
+            label.setBackground(background(table, value, isSelected));
 
             // https://stackoverflow.com/questions/3054775/jtable-strange-behavior-from-getaccessiblechild-method-resulting-in-null-point
             if (value instanceof Layer layer) {
@@ -87,7 +151,7 @@ class CellRenderer {
 
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
-            java.awt.Color background = isSelected ? table.getSelectionBackground() : table.getBackground();
+            java.awt.Color background = background(table, value, isSelected);
             // Image layers can always drive the clock. So can a layer that carries its own time
             // series and says so; a point cloud loaded one file per epoch is the case in mind.
             // Anything else gets an empty cell rather than a radio that would never do anything.
@@ -109,6 +173,14 @@ class CellRenderer {
 
     static final class Name extends DefaultTableCellRenderer {
 
+        // setValue has no table and no selection state, so the wash has to be applied here.
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+            Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            c.setBackground(background(table, value, isSelected));
+            return c;
+        }
+
         @Override
         public void setValue(Object value) {
             if (value instanceof Layer layer) {
@@ -116,11 +188,14 @@ class CellRenderer {
                 setText(layerName);
                 boolean master = layer == Layers.getMasterTimelineSource()
                         || (Layers.getMasterTimelineSource() == null && layer == Layers.getActiveImageLayer());
+                // The tint alone is a private code; the tooltip is what makes it readable.
+                String format = formatName(value);
+                String tip = format == null ? null : layerName + "  \u00b7  " + format;
                 if (master) {
-                    setToolTipText(layerName + " (master)");
+                    setToolTipText(format == null ? layerName + " (master)" : tip + "  \u00b7  master");
                     setFont(UIGlobals.uiFontBold);
                 } else {
-                    setToolTipText(null);
+                    setToolTipText(tip);
                     setFont(UIGlobals.uiFont);
                 }
             }
@@ -129,6 +204,13 @@ class CellRenderer {
     }
 
     static final class Remove extends DefaultTableCellRenderer {
+
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+            Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            c.setBackground(background(table, value, isSelected));
+            return c;
+        }
 
         private final Font font = Buttons.getMaterialFont(getFont().getSize2D());
 
@@ -145,6 +227,13 @@ class CellRenderer {
     }
 
     static final class Time extends DefaultTableCellRenderer {
+
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+            Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            c.setBackground(background(table, value, isSelected));
+            return c;
+        }
 
         static final Font font = UIGlobals.sansFont;
 

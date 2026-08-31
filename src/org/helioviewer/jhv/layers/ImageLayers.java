@@ -14,6 +14,7 @@ import org.helioviewer.jhv.display.MapMode;
 import org.helioviewer.jhv.display.MapScale;
 import org.helioviewer.jhv.display.WarpGeometry;
 import org.helioviewer.jhv.io.APIRequest;
+import org.helioviewer.jhv.io.FitsRequest;
 import org.helioviewer.jhv.metadata.FitsMetaData;
 import org.helioviewer.jhv.metadata.MetaData;
 import org.helioviewer.jhv.metadata.Region;
@@ -184,9 +185,16 @@ public final class ImageLayers {
     public static void syncLayersSpan(long startTime, long endTime, int cadence) {
         for (ImageLayer layer : Layers.getImageLayers()) {
             APIRequest req = layer.getView().getAPIRequest();
-            if (req == null)
+            if (req != null) {
+                layer.load(new APIRequest(req.server(), req.sourceId(), startTime, endTime, cadence));
                 continue;
-            layer.load(new APIRequest(req.server(), req.sourceId(), startTime, endTime, cadence));
+            }
+            // A native-FITS layer has no APIRequest and used to fall out here, which is why FITS
+            // layers never followed the date while JP2 layers did. Its own query re-issues over
+            // the new span instead.
+            FitsRequest fits = layer.getFitsRequest();
+            if (fits != null)
+                layer.load(fits.withSpan(startTime, endTime));
         }
     }
 
@@ -301,9 +309,13 @@ public final class ImageLayers {
         long now = System.currentTimeMillis();
         for (ImageLayer layer : Layers.getImageLayers()) {
             APIRequest req = layer.getView().getAPIRequest();
-            if (req == null)
+            if (req != null) {
+                layer.load(new APIRequest(req.server(), req.sourceId(), now - (req.endTime() - req.startTime()), now, req.cadence()));
                 continue;
-            layer.load(new APIRequest(req.server(), req.sourceId(), now - (req.endTime() - req.startTime()), now, req.cadence()));
+            }
+            FitsRequest fits = layer.getFitsRequest(); // same omission as syncLayersSpan had
+            if (fits != null)
+                layer.load(fits.withSpan(now - (fits.endTime() - fits.startTime()), now));
         }
     }
 
