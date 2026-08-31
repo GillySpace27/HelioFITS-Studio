@@ -540,19 +540,26 @@ def write_scene_glb(
         if node.get("mesh") in mesh_names:
             node["name"] = mesh_names[node["mesh"]]
 
+    materials = document.get("materials", [])
+    unlit_material_indices = set()
+    for mesh_index, name in mesh_names.items():
+        for primitive in document["meshes"][mesh_index]["primitives"]:
+            material_index = primitive.get("material")
+            if material_index is None or not 0 <= material_index < len(materials):
+                raise RuntimeError(f"VTK mesh {name} has no valid material")
+            unlit_material_indices.add(material_index)
+
     surface_primitive = document["meshes"][surface_mesh]["primitives"][0]
-    material_index = surface_primitive.get("material")
-    if material_index is None or not 0 <= material_index < len(
-        document.get("materials", [])
-    ):
-        raise RuntimeError("VTK current-sheet mesh has no valid material")
-    surface_material = document["materials"][material_index]
+    surface_material = materials[surface_primitive["material"]]
     surface_material["alphaMode"] = "BLEND"
     surface_material["doubleSided"] = True
 
     # lighting=False is a PyVista setting; VTK does not export it to glTF.
-    document.setdefault("extensionsUsed", []).append("KHR_materials_unlit")
-    for material in document["materials"]:
+    extensions_used = document.setdefault("extensionsUsed", [])
+    if "KHR_materials_unlit" not in extensions_used:
+        extensions_used.append("KHR_materials_unlit")
+    for material_index in unlit_material_indices:
+        material = materials[material_index]
         material.setdefault("extensions", {})["KHR_materials_unlit"] = {}
 
     # Package VTK's in-memory glTF document as one GLB.
@@ -591,11 +598,8 @@ def validate_scene_glb(
         or len(document.meshes) != 3
         or document.materials is None
         or len(document.materials) != 3
-        or document.extensionsUsed != ["KHR_materials_unlit"]
-        or any(
-            material.extensions != {"KHR_materials_unlit": {}}
-            for material in document.materials
-        )
+        or document.extensionsUsed is None
+        or "KHR_materials_unlit" not in document.extensionsUsed
         or document.accessors is None
         or document.buffers is None
         or len(document.buffers) != 1
@@ -659,6 +663,11 @@ def validate_scene_glb(
         or not 0 <= line.material < len(materials)
         or not 0 <= surface.material < len(materials)
         or not 0 <= points.material < len(materials)
+        or any(
+            materials[material_index].extensions is None
+            or "KHR_materials_unlit" not in materials[material_index].extensions
+            for material_index in (line.material, surface.material, points.material)
+        )
         or materials[line.material].pbrMetallicRoughness is None
         or materials[surface.material].pbrMetallicRoughness is None
         or materials[points.material].pbrMetallicRoughness is None
