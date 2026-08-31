@@ -433,7 +433,10 @@ public final class Actions {
                 Settings.setProperty("path.state", directory); // remember the current directory for future
                 if (!file.toLowerCase().endsWith(".jhv"))
                     file += ".jhv";
-                State.save(directory, file);
+                // Through SessionOffline, not State: a session saved by hand is the one meant to
+                // survive being opened somewhere else, so it is worth pulling its data down. The
+                // autosaves in Session go straight to State and stay cheap.
+                org.helioviewer.jhv.app.state.SessionOffline.save(directory, file);
                 org.helioviewer.jhv.app.Session.setSessionFile(new java.io.File(directory, file), true);
             }
         }

@@ -201,6 +201,16 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         settings.add(animateProjection, c);
 
         c.gridy++;
+        JCheckBox offlineSessions = new JCheckBox("Download layers when saving a session",
+                org.helioviewer.jhv.app.state.SessionOffline.isEnabled());
+        offlineSessions.setToolTipText("After Save State As, fetch whatever the session would otherwise "
+                + "have to ask a server for, then rewrite it to point at the local copies. The file then "
+                + "opens without the network. Autosaves are unaffected.");
+        offlineSessions.addActionListener(e ->
+                org.helioviewer.jhv.app.state.SessionOffline.setEnabled(offlineSessions.isSelected()));
+        settings.add(offlineSessions, c);
+
+        c.gridy++;
         JCheckBox animateSurface = new JCheckBox("Morph between coronagraph surfaces", SurfaceTransition.isAnimateEnabled());
         animateSurface.setToolTipText("Bend the surface between plane of sky and the Thomson sphere over about half a second, instead of switching. Every frame of it is a real surface, not a dissolve.");
         animateSurface.addActionListener(e -> SurfaceTransition.setAnimateEnabled(animateSurface.isSelected()));
