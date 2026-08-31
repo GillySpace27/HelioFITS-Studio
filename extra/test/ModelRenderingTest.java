@@ -90,34 +90,35 @@ public final class ModelRenderingTest {
 
     private static ModelScene testScene() {
         List<ModelMaterial> materials = List.of(
-                material(0, 1, 0, 1, ModelMaterial.AlphaMode.OPAQUE, false),
-                material(0, 0, 1, 1, ModelMaterial.AlphaMode.OPAQUE, true),
-                material(1, 0, 0, 0.5f, ModelMaterial.AlphaMode.BLEND, true),
-                material(0, 1, 0, 0.5f, ModelMaterial.AlphaMode.BLEND, true),
-                material(0, 0, 1, 0.5f, ModelMaterial.AlphaMode.OPAQUE, true));
+                material(0, 1, 0, 1, ModelMaterial.AlphaMode.OPAQUE, false, false),
+                material(0, 0, 1, 1, ModelMaterial.AlphaMode.OPAQUE, true, false),
+                material(1, 0, 0, 0.5f, ModelMaterial.AlphaMode.BLEND, true, true),
+                material(0, 1, 0, 0.5f, ModelMaterial.AlphaMode.BLEND, true, true),
+                material(0, 0, 1, 0.5f, ModelMaterial.AlphaMode.OPAQUE, true, true));
         return new ModelScene("rendering-test", TimeUtils.START, List.of(
-                triangle("culled", -1.8f, 0.3f, -1.2f, 1.1f, 0, 0, true),
-                triangle("double-sided", 1.2f, 0.3f, 1.8f, 1.1f, 0, 1, true),
-                triangle("blended", -1.8f, -1.4f, -1.2f, -0.4f, 0, 2, false),
+                triangle("culled", -1.8f, 0.3f, -1.2f, 1.1f, 0, 0, true, true),
+                triangle("double-sided", 1.2f, 0.3f, 1.8f, 1.1f, 0, 1, true, true),
+                triangle("blended", -1.8f, -1.4f, -1.2f, -0.4f, 0, 2, false, false),
                 line(),
                 point()), materials, List.of());
     }
 
     private static ModelScene backgroundScene() {
-        ModelMaterial material = material(1, 1, 0, 1, ModelMaterial.AlphaMode.OPAQUE, true);
-        ModelMesh mesh = triangle("background", 1.05f, -1.3f, 1.75f, -0.6f, 0, 0, false);
+        ModelMaterial material = material(1, 1, 0, 1, ModelMaterial.AlphaMode.OPAQUE, true, true);
+        ModelMesh mesh = triangle("background", 1.05f, -1.3f, 1.75f, -0.6f, 0, 0, false, false);
         return new ModelScene("background", TimeUtils.START, List.of(mesh), List.of(material), List.of());
     }
 
     private static ModelMaterial material(float red, float green, float blue, float alpha, ModelMaterial.AlphaMode alphaMode,
-                                          boolean doubleSided) {
-        return new ModelMaterial(red, green, blue, alpha, ModelMaterial.NO_TEXTURE, alphaMode, 0.5f, doubleSided, true);
+                                          boolean doubleSided, boolean unlit) {
+        return new ModelMaterial(red, green, blue, alpha, ModelMaterial.NO_TEXTURE, alphaMode, 0.5f, doubleSided, unlit);
     }
 
     private static ModelMesh triangle(String name, float left, float bottom, float right, float top, float z, int materialIndex,
-                                      boolean reverseWinding) {
+                                      boolean reverseWinding, boolean withNormals) {
         FloatBuffer positions = floats(left, bottom, z, right, bottom, z, (left + right) / 2, top, z);
-        FloatBuffer normals = floats(0, 0, 1, 0, 0, 1, 0, 0, 1);
+        float normalZ = reverseWinding ? -1 : 1;
+        FloatBuffer normals = withNormals ? floats(0, 0, normalZ, 0, 0, normalZ, 0, 0, normalZ) : null;
         IntBuffer indices = reverseWinding ? ints(0, 2, 1) : ints(0, 1, 2);
         return new ModelMesh(name, ModelMesh.Primitive.TRIANGLES, positions, normals, white(3), null, indices, ints(), materialIndex);
     }

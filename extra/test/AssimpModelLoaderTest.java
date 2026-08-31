@@ -36,6 +36,8 @@ public final class AssimpModelLoaderTest {
 
             checkScene(AssimpModelLoader.load(NetFileCache.get(model.toUri())));
             checkTexturedDrawingsRejected(directory, document);
+            checkLitNormalsRequired(directory, document);
+            checkUnlitNormalsDiscarded(directory, document);
             checkPositionMetadata(directory, document);
             checkLayer(model);
 
@@ -99,12 +101,13 @@ public final class AssimpModelLoaderTest {
     private static void checkPositionedScene(ModelScene scene) {
         check(scene.time().toString().equals("2025-10-09T18:19:52.000"), "scene observation time");
 
-        FloatBuffer positions = scene.meshes().getFirst().positions();
+        List<ModelMesh> triangles = meshes(scene, ModelMesh.Primitive.TRIANGLES);
+        FloatBuffer positions = triangles.getFirst().positions();
         float cos30 = (float) (Math.sqrt(3) / 2);
         checkPosition(positions, 0, 0, 0, 0);
         checkPosition(positions, 1, 0, 0, -1);
         checkPosition(positions, 2, 0.5f + cos30, cos30 - 0.5f, 0);
-        checkPosition(scene.meshes().get(3).positions(), 0, 0, 0, -2);
+        checkPosition(triangles.get(2).positions(), 0, 0, 0, -2);
     }
 
     private static void checkPositionRejected(Path directory, String document, String scene, String positionedScene,
@@ -113,9 +116,9 @@ public final class AssimpModelLoaderTest {
     }
 
     private static void writeGlb(Path path, String document, byte[] binary) throws Exception {
-        String buffer = "\"buffers\": [{\"byteLength\": 88, \"uri\": \"geometry.bin\"}]";
+        String buffer = "\"buffers\": [{\"byteLength\": 124, \"uri\": \"geometry.bin\"}]";
         check(document.contains(buffer), "GLB buffer insertion point");
-        byte[] json = document.replace(buffer, "\"buffers\": [{\"byteLength\": 88}]")
+        byte[] json = document.replace(buffer, "\"buffers\": [{\"byteLength\": 124}]")
                 .getBytes(StandardCharsets.UTF_8);
         int jsonLength = Math.addExact(json.length, 3) & ~3;
         int binaryLength = Math.addExact(binary.length, 3) & ~3;
@@ -139,6 +142,22 @@ public final class AssimpModelLoaderTest {
                 "\"indices\": 4, \"material\": 0, \"mode\": 3"), "Textures are not supported on line mesh");
         checkLoadRejected(directory.resolve("textured-point.gltf"), document.replace(point,
                 "\"indices\": 5, \"material\": 0, \"mode\": 0"), "Textures are not supported on point mesh");
+    }
+
+    private static void checkLitNormalsRequired(Path directory, String document) throws Exception {
+        String unlit = "\"extensions\": {\"KHR_materials_unlit\": {}}";
+        check(document.contains(unlit), "unlit triangle material");
+        checkLoadRejected(directory.resolve("missing-normals.gltf"), document.replace(unlit, "\"extras\": {}"),
+                "Lit triangle mesh 0 has no normals");
+    }
+
+    private static void checkUnlitNormalsDiscarded(Path directory, String document) throws Exception {
+        String attributes = "\"POSITION\": 0, \"TEXCOORD_0\": 1";
+        check(document.contains(attributes), "unlit triangle attributes");
+        Path path = directory.resolve("unlit-normals.gltf");
+        Files.writeString(path, document.replace(attributes, "\"POSITION\": 0, \"NORMAL\": 6, \"TEXCOORD_0\": 1"));
+        ModelMesh mesh = meshes(AssimpModelLoader.load(NetFileCache.get(path.toUri())), ModelMesh.Primitive.TRIANGLES).getFirst();
+        check(mesh.normals() == null, "unlit triangle normals discarded");
     }
 
     private static void checkLoadRejected(Path path, String document, String expectedMessage) throws Exception {
@@ -173,14 +192,14 @@ public final class AssimpModelLoaderTest {
     private static void checkScene(ModelScene scene) {
         check(scene.name().equals("URI loader test"), "scene name");
         check(scene.time().equals(TimeUtils.START), "default scene time");
-        check(scene.meshes().size() == 6, "two baked copies of the triangle, line and point meshes");
+        check(scene.meshes().size() == 8, "two baked copies of four mesh primitives");
         check(scene.materials().size() == 3, "materials");
         check(scene.textures().size() == 1, "texture");
 
         List<ModelMesh> triangleMeshes = meshes(scene, ModelMesh.Primitive.TRIANGLES);
         ModelMesh triangles = triangleMeshes.getFirst();
         check(triangles.vertexCount() == 3, "triangle vertex count");
-        check(triangles.normals() != null && triangles.normals().remaining() == 9, "generated triangle normals");
+        check(triangles.normals() == null, "unlit triangle normals omitted");
         check(triangles.texCoords() != null && triangles.texCoords().remaining() == 6, "texture coordinates");
         check(close(triangles.texCoords().get(0), 0) && close(triangles.texCoords().get(1), 1),
                 "Assimp texture-coordinate origin");
@@ -191,6 +210,9 @@ public final class AssimpModelLoaderTest {
         check(surface.alphaMode() == ModelMaterial.AlphaMode.MASK && close(surface.alphaCutoff(), 0.25f), "alpha mask");
         check(surface.doubleSided() && surface.unlit(), "material flags");
         check(surface.baseColorTexture() == 0, "base-color texture");
+
+        ModelMesh litTriangles = triangleMeshes.get(1);
+        check(litTriangles.normals() != null && litTriangles.normals().remaining() == 9, "lit triangle normals");
 
         ModelTexture texture = scene.textures().getFirst();
         check(texture.width() == 2 && texture.height() == 2, "texture dimensions");
@@ -256,7 +278,7 @@ public final class AssimpModelLoaderTest {
     }
 
     private static void writeGeometry(Path path) throws Exception {
-        ByteBuffer data = ByteBuffer.allocate(88).order(ByteOrder.LITTLE_ENDIAN);
+        ByteBuffer data = ByteBuffer.allocate(124).order(ByteOrder.LITTLE_ENDIAN);
         data.putFloat(0).putFloat(0).putFloat(0);
         data.putFloat(1).putFloat(0).putFloat(0);
         data.putFloat(0).putFloat(1).putFloat(1);
@@ -267,6 +289,9 @@ public final class AssimpModelLoaderTest {
         data.putShort((short) 0).putShort((short) 1).putShort((short) 2);
         data.putShort((short) 0).putShort((short) 1).putShort((short) 2);
         data.putShort((short) 0).putShort((short) 2);
+        data.putFloat(0).putFloat((float) (-1 / Math.sqrt(2))).putFloat((float) (1 / Math.sqrt(2)));
+        data.putFloat(0).putFloat((float) (-1 / Math.sqrt(2))).putFloat((float) (1 / Math.sqrt(2)));
+        data.putFloat(0).putFloat((float) (-1 / Math.sqrt(2))).putFloat((float) (1 / Math.sqrt(2)));
         Files.write(path, data.array());
     }
 
@@ -290,23 +315,25 @@ public final class AssimpModelLoaderTest {
                     {"translation": [2, 0, 0], "children": [2]},
                     {"mesh": 0, "scale": [-2, 3, 0.5]}
                   ],
-                  "buffers": [{"byteLength": 88, "uri": "geometry.bin"}],
+                  "buffers": [{"byteLength": 124, "uri": "geometry.bin"}],
                   "bufferViews": [
                     {"buffer": 0, "byteOffset": 0, "byteLength": 36, "target": 34962},
                     {"buffer": 0, "byteOffset": 36, "byteLength": 24, "target": 34962},
                     {"buffer": 0, "byteOffset": 60, "byteLength": 12, "target": 34962},
                     {"buffer": 0, "byteOffset": 72, "byteLength": 6, "target": 34963},
                     {"buffer": 0, "byteOffset": 78, "byteLength": 6, "target": 34963},
-                    {"buffer": 0, "byteOffset": 84, "byteLength": 4, "target": 34963}
+                    {"buffer": 0, "byteOffset": 84, "byteLength": 4, "target": 34963},
+                    {"buffer": 0, "byteOffset": 88, "byteLength": 36, "target": 34962}
                   ],
                   "accessors": [
                     {"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3",
-                     "min": [0, 0, 0], "max": [1, 1, 0]},
+                     "min": [0, 0, 0], "max": [1, 1, 1]},
                     {"bufferView": 1, "componentType": 5126, "count": 3, "type": "VEC2"},
                     {"bufferView": 2, "componentType": 5121, "count": 3, "type": "VEC4", "normalized": true},
                     {"bufferView": 3, "componentType": 5123, "count": 3, "type": "SCALAR"},
                     {"bufferView": 4, "componentType": 5123, "count": 3, "type": "SCALAR"},
-                    {"bufferView": 5, "componentType": 5123, "count": 2, "type": "SCALAR"}
+                    {"bufferView": 5, "componentType": 5123, "count": 2, "type": "SCALAR"},
+                    {"bufferView": 6, "componentType": 5126, "count": 3, "type": "VEC3"}
                   ],
                   "extensionsUsed": ["KHR_materials_unlit"],
                   "images": [{"name": "test texture", "uri": "texture.png"}],
@@ -322,6 +349,7 @@ public final class AssimpModelLoaderTest {
                   ],
                   "meshes": [{"primitives": [
                     {"attributes": {"POSITION": 0, "TEXCOORD_0": 1, "COLOR_0": 2}, "indices": 3, "material": 0, "mode": 4},
+                    {"attributes": {"POSITION": 0, "NORMAL": 6}, "indices": 3, "material": 1, "mode": 4},
                     {"attributes": {"POSITION": 0}, "indices": 4, "material": 1, "mode": 3},
                     {"attributes": {"POSITION": 0}, "indices": 5, "material": 2, "mode": 0}
                   ]}]

@@ -237,14 +237,18 @@ premultiplied representation used by its renderer. JHV supports opaque (`OPAQUE`
 points JHV applies the cutoff to vertex colors before rendering, making transitions along a line segment only
 approximate. Additive blending, separate opacity textures, and transformed texture coordinates are not supported.
 
-**Lighting and surfaces.** JHV applies simple directional shading to triangle surfaces unless their material uses the
-`KHR_materials_unlit` extension. Because shading reveals surface shape by changing the apparent brightness of its
-colors, materials whose colors encode values that must remain unchanged should be marked as unlit.
+**Lighting and surfaces.** `KHR_materials_unlit` is the signal JHV uses to distinguish unlit from lit triangle
+materials. Without it, JHV treats a triangle material as lit and requires vertex normals. JHV uses a simple
+viewer-facing light: a surface facing the viewer retains its full color, while surfaces angled away become darker but
+retain 30 percent ambient brightness. The light follows the view as the scene is rotated. Because shading reveals
+surface shape by changing the apparent brightness of its colors, materials whose colors encode values that must remain
+unchanged should be marked as unlit.
 
-Lit triangle meshes should include vertex normals that describe the intended surface. If they are absent, Assimp
-generates smooth normals while loading the asset, which may smooth edges that were meant to remain sharp, whereas
-unlit materials do not need normals. JHV does not implement the complete glTF metallic/roughness model, normal maps,
-emissive materials, or lights and cameras stored in the asset.
+Lit triangle meshes must include vertex normals that describe the intended surface. JHV does not generate missing
+normals because doing so could smooth edges that were meant to remain sharp. Unlit triangle meshes do not need
+normals, and JHV discards them if they are present. Omitting them from an unlit product also reduces its file size and
+memory use. JHV does not implement the complete glTF metallic/roughness model, normal maps, emissive materials, or
+lights and cameras stored in the asset.
 
 JHV respects single- and double-sided triangle materials, making a double-sided surface visible from either side while
 a single-sided surface disappears when viewed from its back. Opaque surfaces use the depth buffer normally, and

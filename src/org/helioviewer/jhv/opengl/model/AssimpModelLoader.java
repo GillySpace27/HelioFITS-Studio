@@ -41,8 +41,7 @@ import org.lwjgl.stb.STBImage;
 public final class AssimpModelLoader {
 
     private static final int IMPORT_FLAGS = Assimp.aiProcess_Triangulate | Assimp.aiProcess_ValidateDataStructure |
-            Assimp.aiProcess_SortByPType | Assimp.aiProcess_EmbedTextures | Assimp.aiProcess_RemoveRedundantMaterials |
-            Assimp.aiProcess_GenSmoothNormals;
+            Assimp.aiProcess_SortByPType | Assimp.aiProcess_EmbedTextures | Assimp.aiProcess_RemoveRedundantMaterials;
 
     private final AIScene source;
     private final ArrayList<ModelTexture> textures = new ArrayList<>();
@@ -267,7 +266,8 @@ public final class AssimpModelLoader {
         }
 
         FloatBuffer positions = copyPositions(mesh);
-        FloatBuffer normals = primitive == ModelMesh.Primitive.TRIANGLES ? copyNormals(mesh, meshIndex) : null;
+        FloatBuffer normals = primitive == ModelMesh.Primitive.TRIANGLES && !material.material().unlit() ?
+                copyNormals(mesh, meshIndex) : null;
         ByteBuffer colors = copyColors(mesh);
         FloatBuffer texCoords = copyTexCoords(mesh, material, meshIndex);
         IndexData indexData = copyIndices(mesh, primitive, meshIndex);
@@ -290,7 +290,7 @@ public final class AssimpModelLoader {
     private static FloatBuffer copyNormals(AIMesh mesh, int meshIndex) throws IOException {
         AIVector3D.Buffer normals = mesh.mNormals();
         if (normals == null)
-            throw new IOException("Triangle mesh " + meshIndex + " has no normals");
+            throw new IOException("Lit triangle mesh " + meshIndex + " has no normals");
 
         FloatBuffer result = BufferUtils.newFloatBuffer(Math.multiplyExact(mesh.mNumVertices(), 3));
         for (int i = 0; i < mesh.mNumVertices(); i++) {

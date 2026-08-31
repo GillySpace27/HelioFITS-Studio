@@ -30,8 +30,8 @@ public record ModelMesh(String name, Primitive primitive, FloatBuffer positions,
             throw new IllegalArgumentException("Position buffer is not a sequence of vec3 values");
         if (vertexCount == 0)
             throw new IllegalArgumentException("Mesh has no vertices");
-        if (primitive == Primitive.TRIANGLES && (normals == null || normals.remaining() != vertexCount * 3))
-            throw new IllegalArgumentException("Triangle mesh does not contain one normal per vertex");
+        if (normals != null && normals.remaining() != vertexCount * 3)
+            throw new IllegalArgumentException("Normal buffer does not contain one vec3 value per vertex");
         if (primitive != Primitive.TRIANGLES && normals != null)
             throw new IllegalArgumentException("Only triangle meshes can have normals");
         if (colors.remaining() != vertexCount * 4)
@@ -79,6 +79,10 @@ public record ModelMesh(String name, Primitive primitive, FloatBuffer positions,
 
     public boolean hasTextureCoordinates() {
         return texCoords != null;
+    }
+
+    public boolean hasNormals() {
+        return normals != null;
     }
 
     @Override
