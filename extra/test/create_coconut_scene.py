@@ -11,7 +11,9 @@ the observer-aligned SOLX/SOLY/SOLZ frame.
 
 The constants and validation checks below are tailored to that solution.  They specify one
 high-quality example conversion, not requirements of the JHV interface.  The script reopens and
-validates the finished GLB.
+validates the finished GLB.  Bounded polyline simplification and scalar-aware surface decimation
+reduce only the geometry prepared for display; they do not lower the reconstruction or tracing
+quality.
 
 Requires Qorona 0.4.0, PyVista/VTK, Matplotlib, and pygltflib.  Qorona installs NumPy, SciPy,
 Astropy, and SunPy; Numba is optional and only accelerates Qorona operations.
@@ -52,6 +54,13 @@ SEED_N_THETA = 18
 SEED_N_PHI = 36
 TRACE_RTOL = 1.0e-8
 TRACE_CFL = 0.125
+
+# Display-geometry post-processing. Reconstruction and tracing retain the settings above; these
+# operations reduce only the geometry stored in the demonstration product.
+POLYLINE_MAX_DEVIATION_RSUN = 1.0e-5
+CURRENT_SHEET_TARGET_REDUCTION = 0.5
+CURRENT_SHEET_SCALAR_WEIGHT = 1.0
+
 CURRENT_SHEET_OPACITY = 0.35
 # COOLFluiD's "corona" normalization uses v0 = 4.8e7 cm/s (Guo et al. 2024).
 CURRENT_SHEET_VELOCITY_SCALE_KM_S = 480.0
@@ -216,7 +225,15 @@ def write_scene(
     )
     colors = polarity_colours(field, lines, 1.0, MODEL_OUTER_RADIUS)
     current_sheet = extract_current_sheet(field, velocity, world_to_sol)
-    field_tubes = create_field_tubes(field, world_to_sol)
+
+    # Reduce only the extracted display geometry, after reconstruction and tracing are complete.
+    current_sheet_input_vertices = current_sheet.n_points
+    current_sheet_input_triangles = current_sheet.n_cells
+    current_sheet = decimate_current_sheet(current_sheet)
+    color_current_sheet(current_sheet)
+    field_tubes, tube_input_vertices, tube_output_vertices = create_field_tubes(
+        field, world_to_sol
+    )
     open_boundary_points = (
         lines.feet[lines.is_open].reshape(-1, 3) @ world_to_sol.T
     ).astype(np.float32)
@@ -234,15 +251,17 @@ def write_scene(
     vertex_colors = []
     polylines = []
     vertex_count = 0
+    input_vertex_count = 0
     for path, color, complete in zip(
         lines.paths, colors, lines.is_complete, strict=True
     ):
         if not complete:
             continue
+        path = np.asarray(path, dtype=np.float64)
+        input_vertex_count += len(path)
+        path = simplify_polyline(path, POLYLINE_MAX_DEVIATION_RSUN)
         # Paths are row vectors, hence the transposed world-to-SOL matrix on the right.
-        transformed = (np.asarray(path, dtype=np.float64) @ world_to_sol.T).astype(
-            np.float32
-        )
+        transformed = (path @ world_to_sol.T).astype(np.float32)
         # Remove adjacent points that become equal in float32. Assimp turns zero-length line
         # segments into points.
         transformed = transformed[
@@ -285,6 +304,12 @@ def write_scene(
             "precision": "float64",
             "seedGrid": [SEED_N_THETA, SEED_N_PHI],
             "incompletePathsDiscarded": True,
+            "fieldLineGeometry": {
+                "postprocessing": "Ramer-Douglas-Peucker polyline simplification",
+                "maximumDeviationSolarRadii": POLYLINE_MAX_DEVIATION_RSUN,
+                "inputVertices": input_vertex_count,
+                "outputVertices": len(position_array),
+            },
             "currentSheet": {
                 "definition": "B_r=0",
                 "grid": [FIELD_N_R, FIELD_N_THETA, FIELD_N_PHI],
@@ -301,8 +326,13 @@ def write_scene(
                     float(np.min(current_sheet.point_data["radialVelocity"])),
                     float(np.max(current_sheet.point_data["radialVelocity"])),
                 ],
-                "vertices": current_sheet.n_points,
-                "triangles": current_sheet.n_cells,
+                "postprocessing": "scalar-aware quadric decimation",
+                "targetTriangleReduction": CURRENT_SHEET_TARGET_REDUCTION,
+                "scalarWeight": CURRENT_SHEET_SCALAR_WEIGHT,
+                "inputVertices": current_sheet_input_vertices,
+                "inputTriangles": current_sheet_input_triangles,
+                "outputVertices": current_sheet.n_points,
+                "outputTriangles": current_sheet.n_cells,
             },
             "openFieldBoundaryPoints": {
                 "definition": "inner and outer boundary endpoints of complete open field lines",
@@ -319,6 +349,10 @@ def write_scene(
                 "fieldLineCount": FIELD_TUBE_SEED_COUNT,
                 "tubeRadiusM": FIELD_TUBE_RADIUS_M,
                 "tubeSides": FIELD_TUBE_SIDES,
+                "centerlinePostprocessing": "Ramer-Douglas-Peucker polyline simplification",
+                "maximumDeviationSolarRadii": POLYLINE_MAX_DEVIATION_RSUN,
+                "inputCenterlineVertices": tube_input_vertices,
+                "outputCenterlineVertices": tube_output_vertices,
                 "vertices": field_tubes.n_points,
                 "triangles": field_tubes.n_cells,
             },
@@ -339,7 +373,50 @@ def write_scene(
     )
 
 
-def create_field_tubes(field: SampledField, world_to_sol: np.ndarray) -> pv.PolyData:
+# Display-geometry post-processing: polyline simplification
+def simplify_polyline(points: np.ndarray, max_deviation: float) -> np.ndarray:
+    """Remove interior vertices while bounding their distance from the simplified line."""
+    if points.ndim != 2 or points.shape[1] != 3 or not np.isfinite(points).all():
+        raise ValueError("polyline points must be a finite Nx3 array")
+    if max_deviation <= 0.0:
+        raise ValueError("polyline maximum deviation must be positive")
+    if len(points) < 3:
+        return points
+
+    keep = np.zeros(len(points), dtype=bool)
+    keep[[0, -1]] = True
+    pending = [(0, len(points) - 1)]
+    maximum_squared = max_deviation * max_deviation
+
+    while pending:
+        first, last = pending.pop()
+        interior = points[first + 1 : last]
+        if len(interior) == 0:
+            continue
+
+        segment = points[last] - points[first]
+        segment_squared = np.dot(segment, segment)
+        relative = interior - points[first]
+        if segment_squared == 0.0:
+            distance_squared = np.einsum("ij,ij->i", relative, relative)
+        else:
+            fraction = np.clip(relative @ segment / segment_squared, 0.0, 1.0)
+            offset = relative - fraction[:, None] * segment
+            distance_squared = np.einsum("ij,ij->i", offset, offset)
+
+        farthest = int(np.argmax(distance_squared))
+        if distance_squared[farthest] > maximum_squared:
+            split = first + farthest + 1
+            keep[split] = True
+            pending.append((first, split))
+            pending.append((split, last))
+
+    return points[keep]
+
+
+def create_field_tubes(
+    field: SampledField, world_to_sol: np.ndarray
+) -> tuple[pv.PolyData, int, int]:
     longitudes = np.deg2rad(
         np.linspace(
             FIELD_TUBE_LONGITUDE_MIN_DEGREES,
@@ -372,7 +449,11 @@ def create_field_tubes(field: SampledField, world_to_sol: np.ndarray) -> pv.Poly
     positions = []
     polylines = []
     vertex_count = 0
+    input_vertex_count = 0
     for path in lines.paths:
+        path = np.asarray(path, dtype=np.float64)
+        input_vertex_count += len(path)
+        path = simplify_polyline(path, POLYLINE_MAX_DEVIATION_RSUN)
         transformed = np.asarray(path @ world_to_sol.T, dtype=np.float32)
         transformed = transformed[
             np.concatenate(
@@ -408,7 +489,7 @@ def create_field_tubes(field: SampledField, world_to_sol: np.ndarray) -> pv.Poly
         or not np.allclose(np.linalg.norm(normals, axis=1), 1.0, atol=1.0e-5)
     ):
         raise RuntimeError("field-line tube generation failed")
-    return tubes
+    return tubes, input_vertex_count, vertex_count
 
 
 def extract_current_sheet(
@@ -483,6 +564,44 @@ def extract_current_sheet(
         np.einsum("ij,ij->i", surface_velocity, model_points / radius[:, None])
         * CURRENT_SHEET_VELOCITY_SCALE_KM_S
     )
+    surface.points = np.asarray(model_points @ world_to_sol.T, dtype=np.float32)
+    surface.point_data["radialVelocity"] = radial_velocity
+    surface = surface.clean(tolerance=1.0e-6, absolute=True)
+    # Joining the coincident longitude seam can collapse a handful of seam triangles. VTK's
+    # cleaner preserves those degeneracies as line or point cells; retain only the polygonal
+    # faces so the exported object remains a pure triangle mesh.
+    polygon_surface = pv.PolyData(surface.points, surface.faces)
+    polygon_surface.point_data["radialVelocity"] = surface.point_data["radialVelocity"]
+    surface = polygon_surface.remove_unused_points()
+    if not surface.is_all_triangles:
+        raise RuntimeError("current-sheet contour is not a triangle mesh")
+    return surface
+
+
+# Display-geometry post-processing: triangle decimation
+def decimate_current_sheet(surface: pv.PolyData) -> pv.PolyData:
+    surface.set_active_scalars("radialVelocity", preference="point")
+    decimated = surface.decimate(
+        CURRENT_SHEET_TARGET_REDUCTION,
+        scalars=True,
+        scalars_weight=CURRENT_SHEET_SCALAR_WEIGHT,
+    )
+    radial_velocity = np.asarray(decimated.point_data.get("radialVelocity"))
+    if (
+        decimated.n_points == 0
+        or decimated.n_cells == 0
+        or decimated.n_cells >= surface.n_cells
+        or not decimated.is_all_triangles
+        or not np.isfinite(decimated.points).all()
+        or radial_velocity.shape != (decimated.n_points,)
+        or not np.isfinite(radial_velocity).all()
+    ):
+        raise RuntimeError("current-sheet decimation failed")
+    return decimated
+
+
+def color_current_sheet(surface: pv.PolyData) -> None:
+    radial_velocity = np.asarray(surface.point_data["radialVelocity"])
     normalized_velocity = np.clip(
         (radial_velocity - CURRENT_SHEET_VELOCITY_MIN_KM_S)
         / (CURRENT_SHEET_VELOCITY_MAX_KM_S - CURRENT_SHEET_VELOCITY_MIN_KM_S),
@@ -491,20 +610,7 @@ def extract_current_sheet(
     )
     rgba = colormaps[CURRENT_SHEET_COLORMAP](normalized_velocity, bytes=True)
     rgba[:, 3] = round(255 * CURRENT_SHEET_OPACITY)
-    surface.points = np.asarray(model_points @ world_to_sol.T, dtype=np.float32)
     surface.point_data["RGBA"] = np.ascontiguousarray(rgba, dtype=np.uint8)
-    surface.point_data["radialVelocity"] = radial_velocity
-    surface = surface.clean(tolerance=1.0e-6, absolute=True)
-    # Joining the coincident longitude seam can collapse a handful of seam triangles. VTK's
-    # cleaner preserves those degeneracies as line or point cells; retain only the polygonal
-    # faces so the exported object remains a pure triangle mesh.
-    polygon_surface = pv.PolyData(surface.points, surface.faces)
-    polygon_surface.point_data["RGBA"] = surface.point_data["RGBA"]
-    polygon_surface.point_data["radialVelocity"] = surface.point_data["radialVelocity"]
-    surface = polygon_surface.remove_unused_points()
-    if not surface.is_all_triangles:
-        raise RuntimeError("current-sheet contour is not a triangle mesh")
-    return surface
 
 
 def write_scene_glb(
@@ -583,6 +689,9 @@ def write_scene_glb(
     )
     plotter = pv.Plotter(off_screen=True)
     try:
+        # Keep the current-sheet velocity colors and line/point polarity colors
+        # unshaded. Light only the artificial tubes, whose shading reveals their
+        # round cross-section and three-dimensional shape.
         plotter.add_mesh(
             mesh,
             name="COCONUT magnetic field lines",
@@ -707,7 +816,8 @@ def write_scene_glb(
     surface_material["alphaMode"] = "BLEND"
     surface_material["doubleSided"] = True
 
-    # lighting=False is a PyVista setting; VTK does not export it to glTF.
+    # VTK does not carry PyVista's lighting=False setting into glTF, so mark
+    # these materials explicitly. The separate tube material remains lit.
     extensions_used = document.setdefault("extensionsUsed", [])
     if "KHR_materials_unlit" not in extensions_used:
         extensions_used.append("KHR_materials_unlit")
