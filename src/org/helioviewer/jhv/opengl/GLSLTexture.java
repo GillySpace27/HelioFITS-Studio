@@ -2,7 +2,7 @@ package org.helioviewer.jhv.opengl;
 
 import java.nio.Buffer;
 
-public class GLSLTexture extends VAO1 {
+public class GLSLTexture extends VAO {
 
     private static final int size0 = 4;
     private static final int size1 = 2;
@@ -20,7 +20,7 @@ public class GLSLTexture extends VAO1 {
             return;
 
         Buffer buffer = buf.toBuffer();
-        vbo.setBufferData(4 * buffer.capacity(), buffer);
+        vertexBuffer(0).setBufferData(4 * buffer.capacity(), buffer);
         buf.clear();
     }
 

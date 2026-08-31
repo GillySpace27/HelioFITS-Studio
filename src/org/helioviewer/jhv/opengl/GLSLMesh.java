@@ -6,7 +6,7 @@ import java.nio.FloatBuffer;
 import org.helioviewer.jhv.base.BufferUtils;
 import org.helioviewer.jhv.opengl.model.ModelMesh;
 
-final class GLSLMesh extends VAO1 {
+final class GLSLMesh extends VAO {
 
     private static final int POSITION_BYTES = 3 * Float.BYTES;
     private static final int NORMAL_BYTES = 3 * Float.BYTES;
@@ -52,7 +52,7 @@ final class GLSLMesh extends VAO1 {
 
         super.init();
         try {
-            vbo.setBufferData(Math.multiplyExact(data.vertexCount(), stride), interleaveVertices());
+            vertexBuffer(0).setBufferData(Math.multiplyExact(data.vertexCount(), stride), interleaveVertices());
             bind();
             indexBuffer = new GLBO(GL.ELEMENT_ARRAY_BUFFER, GL.STATIC_DRAW);
             indexBuffer.setBufferData(Math.multiplyExact(indexCount, Integer.BYTES), data.indices());

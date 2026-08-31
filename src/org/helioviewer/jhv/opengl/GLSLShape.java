@@ -11,7 +11,9 @@ public class GLSLShape extends VAO implements GLSLVertexReceiver {
     private int count;
 
     public GLSLShape(boolean _dynamic) {
-        super(2, _dynamic, new VAA[]{new VAA(0, size0, false, 0, 0, 0), new VAA(1, size1, true, 0, 0, 0)});
+        super(_dynamic,
+                new VAA[]{new VAA(0, size0, false, 0, 0, 0)},
+                new VAA[]{new VAA(1, size1, true, 0, 0, 0)});
     }
 
     @Override
@@ -26,11 +28,11 @@ public class GLSLShape extends VAO implements GLSLVertexReceiver {
         upload(vexBuf.vertexBuffer(), vexBuf.colorBuffer());
     }
 
-    private void upload(ByteBuffer vertexBuffer, ByteBuffer colorBuffer) {
+    private void upload(ByteBuffer vertices, ByteBuffer colors) {
         if (count == 0)
             return;
-        vbo[0].setBufferData(vertexBuffer.remaining(), vertexBuffer);
-        vbo[1].setBufferData(colorBuffer.remaining(), colorBuffer);
+        vertexBuffer(0).setBufferData(vertices.remaining(), vertices);
+        vertexBuffer(1).setBufferData(colors.remaining(), colors);
     }
 
     public void renderPoints(double factor) {

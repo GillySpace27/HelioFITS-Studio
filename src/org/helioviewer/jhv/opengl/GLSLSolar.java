@@ -4,7 +4,7 @@ import java.nio.FloatBuffer;
 
 import org.helioviewer.jhv.base.BufferUtils;
 
-public class GLSLSolar extends VAO1 {
+public class GLSLSolar extends VAO {
 
     public static final GLSLSolar quad = new GLSLSolar();
 
@@ -22,7 +22,7 @@ public class GLSLSolar extends VAO1 {
     @Override
     public void init() {
         super.init();
-        vbo.setBufferData(4 * 16, vertx);
+        vertexBuffer(0).setBufferData(4 * 16, vertx);
     }
 
 }
