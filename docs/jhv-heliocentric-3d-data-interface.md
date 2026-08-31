@@ -212,7 +212,7 @@ product's coordinates, whereas other glTF viewers ignore the solar metadata and 
 ## Supported glTF content
 
 JHV uses Assimp, the Open Asset Import Library, to read both glTF file forms, but glTF can describe more than JHV can
-display. This section explains which geometry and appearance JHV preserves.
+display. This section summarizes the geometry and appearance that JHV supports.
 
 **Geometry and scene structure.** JHV renders open or closed triangle surfaces, connected lines and polylines, and
 point sets. It preserves the static node hierarchy, including node translations, rotations, scales, and reuse of a
@@ -243,12 +243,13 @@ emissive materials, or lights and cameras stored in the asset.
 JHV respects single- and double-sided triangle materials, making a double-sided surface visible from either side while
 a single-sided surface disappears when viewed from its back. Opaque surfaces use the depth buffer normally, and
 ordinary alpha blending is available for translucent surfaces, but JHV cannot always determine the correct drawing
-order for overlapping or intersecting translucent geometry. Splitting such geometry into separate objects allows JHV
-to sort the objects independently and usually gives a more predictable result.
+order for overlapping or intersecting translucent geometry. JHV sorts whole translucent meshes back to front by their
+centers, not individual triangles. Export spatially separate translucent components as separate glTF mesh primitives
+so JHV can order them independently. This does not resolve intersecting surfaces or self-overlap within a mesh.
 
-**Preparing a product.** JHV does not expose arbitrary glTF vertex attributes as selectable data channels, so the
-producer chooses the quantity to display, converts it to vertex colors or a base-color texture, and records the
-quantity, units, range, and color map in scene `extras`.
+**Preparing a product.** JHV renders the colors stored in the glTF file. When those colors represent a physical
+quantity, the producer must map its values to colors before export and describe that mapping in scene `extras`,
+including the quantity, units, value range, and color map.
 
 When accuracy allows, dense lines should be simplified and dense triangle meshes decimated before export, using a
 recorded geometric or data-aware error criterion that preserves important boundaries and attributes. Comparing the
@@ -272,7 +273,8 @@ supplied COCONUT sample CFmesh and is not intended as a general COCONUT exporter
 - eleven selected closed field lines represented by lit, thick yellow tubes with smooth vertex normals.
 
 The tube centerlines follow field lines traced from the supplied background magnetic field. Their selection, radius,
-color, and representation as solid tubes are artificial choices included only to show mesh normals and lighting.
+color, and representation as solid tubes are artificial choices included to show mesh normals and lighting. They
+demonstrate a construction that could be adapted to visualize model-derived flux ropes.
 
 The current sheet is unlit because its color map represents radial plasma velocity. Shading it would change the
 brightness according to surface orientation, making the same velocity appear as different colors across the mesh.
