@@ -17,6 +17,7 @@ import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.math.Vec3;
 import org.helioviewer.jhv.metadata.HeliocentricCartesianMetaData;
 import org.helioviewer.jhv.time.JHVTime;
+import org.helioviewer.jhv.time.TimeUtils;
 
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
@@ -78,10 +79,12 @@ public final class AssimpModelLoader {
             throw new IOException("Model skeletons are not supported");
 
         AssimpMetaData metadata = new AssimpMetaData(data.sourceUri(), source.mMetaData());
-        JHVTime time = HeliocentricCartesianMetaData.observationTime(metadata);
-        Quat observerRotation = HeliocentricCartesianMetaData.observerRotation(metadata);
-        if (observerRotation != null && time == null)
-            throw metadata.error("heliocentric Cartesian coordinates require DATE-OBS");
+        JHVTime time = TimeUtils.START;
+        Quat observerRotation = null;
+        if (metadata.contains("WCSNAME")) {
+            time = HeliocentricCartesianMetaData.observationTime(metadata);
+            observerRotation = HeliocentricCartesianMetaData.observerRotation(metadata);
+        }
         Matrix4f coordinateTransform = coordinateTransform(observerRotation);
 
         List<MaterialData> materialData = convertMaterials();

@@ -25,6 +25,7 @@ import org.helioviewer.jhv.opengl.angle.AngleRenderer;
 import org.helioviewer.jhv.opengl.model.ModelMaterial;
 import org.helioviewer.jhv.opengl.model.ModelMesh;
 import org.helioviewer.jhv.opengl.model.ModelScene;
+import org.helioviewer.jhv.time.TimeUtils;
 
 public final class ModelRenderingTest {
 
@@ -94,7 +95,7 @@ public final class ModelRenderingTest {
                 material(1, 0, 0, 0.5f, ModelMaterial.AlphaMode.BLEND, true),
                 material(0, 1, 0, 0.5f, ModelMaterial.AlphaMode.BLEND, true),
                 material(0, 0, 1, 0.5f, ModelMaterial.AlphaMode.OPAQUE, true));
-        return new ModelScene("rendering-test", null, List.of(
+        return new ModelScene("rendering-test", TimeUtils.START, List.of(
                 triangle("culled", -1.8f, 0.3f, -1.2f, 1.1f, 0, 0, true),
                 triangle("double-sided", 1.2f, 0.3f, 1.8f, 1.1f, 0, 1, true),
                 triangle("blended", -1.8f, -1.4f, -1.2f, -0.4f, 0, 2, false),
@@ -105,7 +106,7 @@ public final class ModelRenderingTest {
     private static ModelScene backgroundScene() {
         ModelMaterial material = material(1, 1, 0, 1, ModelMaterial.AlphaMode.OPAQUE, true);
         ModelMesh mesh = triangle("background", 1.05f, -1.3f, 1.75f, -0.6f, 0, 0, false);
-        return new ModelScene("background", null, List.of(mesh), List.of(material), List.of());
+        return new ModelScene("background", TimeUtils.START, List.of(mesh), List.of(material), List.of());
     }
 
     private static ModelMaterial material(float red, float green, float blue, float alpha, ModelMaterial.AlphaMode alphaMode,

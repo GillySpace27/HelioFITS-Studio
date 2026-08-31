@@ -192,17 +192,19 @@ default glTF scene:
 ```
 
 `DATE-OBS` is the observation or model-state time in the form `YYYY-MM-DDTHH:mm:ss`, optionally followed by fractional
-seconds. JHV assumes UTC. Timezone designators and numeric offsets are not accepted.
+seconds. JHV assumes UTC and does not accept timezone designators or numeric offsets. Every heliocentric glTF product
+must include `DATE-OBS`, which identifies its place in a model time sequence.
 `CRLN_OBS` and `CRLT_OBS` are the observer's Carrington longitude and latitude at `DATE-OBS`, in degrees. Latitude must
 be between -90 and 90 degrees.
 
-`DSUN_OBS` records the observer distance from Sun center in meters and is retained as observer provenance. JHV
-currently neither validates it nor uses it to place the geometry.
+`DSUN_OBS` records the observer distance from Sun center in meters. When present, it must be a positive finite number.
+JHV validates it but does not currently use it to place the geometry.
 
-To position an asset in heliocentric coordinates, supply the complete positioning declaration: `WCSNAME`,
-`CTYPE1` through `CTYPE3`, `CUNIT1` through `CUNIT3`, `RSUN_REF`, `CRLN_OBS`, `CRLT_OBS`, and `DATE-OBS`. Supplying
-only part of this declaration is an error. An asset without it can still be loaded, but its positions are treated as
-JHV world coordinates. `DATE-OBS` may also be supplied by itself to give such an asset an observation time.
+A file either supplies the complete JHV scene metadata or none of it. `WCSNAME` identifies the declaration to JHV.
+When it is present, JHV requires and validates `DATE-OBS`, `CTYPE1` through `CTYPE3`, `CUNIT1` through `CUNIT3`,
+`RSUN_REF`, `CRLN_OBS`, and `CRLT_OBS`, together with optional `DSUN_OBS`. Without `WCSNAME`, an ordinary glTF asset
+instead receives default metadata: JHV treats its positions as world coordinates and assigns the application-start
+time, as it does for an image without metadata. This fallback lies outside the heliocentric interface defined here.
 
 JHV applies this placement to triangles, lines, and points. Rotating the JHV view changes the camera, not the
 product's coordinates, whereas other glTF viewers ignore the solar metadata and display the local Cartesian geometry.

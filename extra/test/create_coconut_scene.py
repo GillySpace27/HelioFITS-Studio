@@ -2,12 +2,13 @@
 """Convert the supplied COCONUT demonstration solution to the JHV glTF scene profile.
 
 The CFmesh file does not contain an observation time or coordinate-frame declaration.  This script
-requires the time and assumes Carrington-aligned Cartesian coordinates.  It writes a self-contained
-GLB containing magnetic field lines, a triangulated B_r=0 current sheet, the boundary endpoints of
-open field lines, and a deliberately artificial set of thick lit tubes used to demonstrate normals
-and lighting.  The tube centerlines follow selected CFmesh field lines, but their selection, radius,
-color, and representation as solid tubes have no scientific meaning.  All geometry is rotated into
-the observer-aligned SOLX/SOLY/SOLZ frame.
+requires the time, writes it as DATE-OBS, and assumes Carrington-aligned Cartesian coordinates.  The
+timestamp identifies the generated asset within a model time sequence.  The script writes a
+self-contained GLB containing magnetic field lines, a triangulated B_r=0 current sheet, the boundary
+endpoints of open field lines, and a deliberately artificial set of thick lit tubes used to
+demonstrate normals and lighting.  The tube centerlines follow selected CFmesh field lines, but their
+selection, radius, color, and representation as solid tubes have no scientific meaning.  All geometry
+is rotated into the observer-aligned SOLX/SOLY/SOLZ frame.
 
 The constants and validation checks below are tailored to that solution.  They specify one
 high-quality example conversion, not requirements of the JHV interface.  The script reopens and
@@ -118,7 +119,9 @@ def arguments() -> argparse.Namespace:
         help="supplied COCONUT demonstration .CFmesh or .CFmesh.xz solution",
     )
     parser.add_argument(
-        "--timestamp", required=True, help="solution observation time (ISO-8601 UTC)"
+        "--timestamp",
+        required=True,
+        help="solution observation time written as DATE-OBS (ISO-8601 UTC)",
     )
     parser.add_argument(
         "--output",

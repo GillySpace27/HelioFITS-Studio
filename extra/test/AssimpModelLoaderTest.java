@@ -18,6 +18,7 @@ import javax.imageio.ImageIO;
 
 import org.helioviewer.jhv.io.NetFileCache;
 import org.helioviewer.jhv.layers.ModelLayer;
+import org.helioviewer.jhv.time.TimeUtils;
 
 import org.json.JSONObject;
 
@@ -57,11 +58,13 @@ public final class AssimpModelLoaderTest {
                 "\"DATE-OBS\": \"2025-10-09T18:19:52\", \"WCSNAME\": \"Heliocentric-cartesian\", " +
                 "\"CTYPE1\": \"SOLX\", \"CTYPE2\": \"SOLY\", \"CTYPE3\": \"SOLZ\", " +
                 "\"CUNIT1\": \"solRad\", \"CUNIT2\": \"solRad\", \"CUNIT3\": \"solRad\", " +
-                "\"RSUN_REF\": 695700000.0, \"CRLN_OBS\": 90, \"CRLT_OBS\": -30}}]";
+                "\"RSUN_REF\": 695700000.0, \"DSUN_OBS\": 149000000000.0, " +
+                "\"CRLN_OBS\": 90, \"CRLT_OBS\": -30}}]";
         check(document.contains(scene), "scene metadata insertion point");
 
         Path positioned = directory.resolve("positioned.gltf");
         Path glb = directory.resolve("positioned.glb");
+        Path dated = directory.resolve("dated.gltf");
         try {
             String positionedDocument = document.replace(scene, positionedScene);
             Files.writeString(positioned, positionedDocument);
@@ -71,22 +74,30 @@ public final class AssimpModelLoaderTest {
             writeGlb(glb, positionedDocument, Files.readAllBytes(directory.resolve("geometry.bin")));
             checkPositionedScene(AssimpModelLoader.load(NetFileCache.get(glb.toUri())));
 
+            String datedScene = "\"scenes\": [{\"name\": \"URI loader test\", \"nodes\": [0], \"extras\": {" +
+                    "\"DATE-OBS\": \"2025-10-09T18:19:52\"}}]";
+            Files.writeString(dated, document.replace(scene, datedScene));
+            check(AssimpModelLoader.load(NetFileCache.get(dated.toUri())).time().equals(TimeUtils.START),
+                    "metadata without WCSNAME ignored");
             checkPositionRejected(directory, document, scene, positionedScene.replace("\"DATE-OBS\"", "\"DATE_OBS\""),
-                    "heliocentric Cartesian coordinates require DATE-OBS");
+                    "missing DATE-OBS in solar metadata");
             checkPositionRejected(directory, document, scene, positionedScene.replace("\"CTYPE1\": \"SOLX\"", "\"CTYPE1\": \"SOLZ\""),
                     "CTYPE1 must be SOLX");
             checkPositionRejected(directory, document, scene, positionedScene.replace("\"CUNIT1\": \"solRad\"", "\"CUNIT1\": \"km\""),
                     "CUNIT1 must be solRad");
             checkPositionRejected(directory, document, scene, positionedScene.replace(", \"CRLT_OBS\": -30", ""),
                     "missing CRLT_OBS in solar metadata");
+            checkPositionRejected(directory, document, scene, positionedScene.replace("149000000000.0", "-1"),
+                    "DSUN_OBS must be positive");
         } finally {
+            Files.deleteIfExists(dated);
             Files.deleteIfExists(glb);
             Files.deleteIfExists(positioned);
         }
     }
 
     private static void checkPositionedScene(ModelScene scene) {
-        check(scene.time() != null && scene.time().toString().equals("2025-10-09T18:19:52.000"), "scene observation time");
+        check(scene.time().toString().equals("2025-10-09T18:19:52.000"), "scene observation time");
 
         FloatBuffer positions = scene.meshes().getFirst().positions();
         float cos30 = (float) (Math.sqrt(3) / 2);
@@ -147,7 +158,7 @@ public final class AssimpModelLoaderTest {
     private static void checkLayer(Path model) throws Exception {
         ModelLayer layer = new ModelLayer(model.toUri());
         check(layer.getName().equals("URI loader test"), "layer name");
-        check(layer.getTimeString() == null, "unpositioned layer time");
+        check(layer.getTimeString().equals(TimeUtils.START.toString()), "default layer time");
         check(layer.isEnabled(), "layer enabled");
         check(layer.isLocal(), "local layer");
 
@@ -161,7 +172,7 @@ public final class AssimpModelLoaderTest {
 
     private static void checkScene(ModelScene scene) {
         check(scene.name().equals("URI loader test"), "scene name");
-        check(scene.time() == null, "unpositioned scene time");
+        check(scene.time().equals(TimeUtils.START), "default scene time");
         check(scene.meshes().size() == 6, "two baked copies of the triangle, line and point meshes");
         check(scene.materials().size() == 3, "materials");
         check(scene.textures().size() == 1, "texture");
