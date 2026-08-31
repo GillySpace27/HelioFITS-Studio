@@ -35,5 +35,11 @@ hdu.header["CRPIX1"] = data.shape[1] / 2 + 0.5
 hdu.header["CRPIX2"] = data.shape[0] / 2 + 0.5
 hdu.header["CRVAL1"] = 0.0
 hdu.header["CRVAL2"] = 0.0
+# Pin the display range: JHV honors HV_DMIN/HV_DMAX ahead of its auto-range (ZScale or
+# percentile), which would otherwise clip the ramp's ends and shear the bar against the
+# colorbar until Levels is hand-corrected. The test only works if data 0..1 maps to
+# display 0..1 exactly.
+hdu.header["HV_DMIN"] = 0.0
+hdu.header["HV_DMAX"] = 1.0
 hdu.writeto(out, overwrite=True)
 print(f"wrote {out}: {data.shape[1]}x{data.shape[0]} float32 ramp, 4096 levels")
