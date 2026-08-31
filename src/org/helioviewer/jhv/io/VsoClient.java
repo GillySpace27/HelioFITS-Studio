@@ -74,11 +74,47 @@ public final class VsoClient {
     private record Resolve(FitsRequest request) implements Callable<List<URI>> {
         @Override
         public List<URI> call() throws Exception {
-            List<Record> records = query(request);
+            List<Record> records = filterRecords(query(request), request.version());
             if (records.isEmpty())
                 return List.of();
             return getData(records, request.cadence());
         }
+    }
+
+    private static final Pattern SATELLITE = Pattern.compile("_(G\\d+)_");
+
+    /**
+     * Narrow a federated answer by fileid. VSO filters by instrument and detector, but some
+     * missions distinguish what matters in some other way: SUVI encodes channel and satellite in
+     * the fileid ("SUVI-L1b-Fe195_G19"), so a query for "suvi" returns every channel of every
+     * GOES flying, six channels times two spacecraft. The request's version field carries a
+     * token to keep ("Fe195"; blank keeps everything, which is every non-SUVI source). After the
+     * token, when more than one satellite still answers, only the best-covered one is kept: a
+     * movie that alternates spacecraft jitters by their pointing difference every frame.
+     */
+    static List<Record> filterRecords(List<Record> records, String token) {
+        if (token.isBlank())
+            return records;
+
+        String needle = token.toLowerCase(java.util.Locale.US);
+        List<Record> kept = new ArrayList<>(records.size());
+        for (Record r : records)
+            if (r.fileid().toLowerCase(java.util.Locale.US).contains(needle))
+                kept.add(r);
+
+        java.util.Map<String, Integer> perSatellite = new java.util.HashMap<>();
+        for (Record r : kept) {
+            Matcher m = SATELLITE.matcher(r.fileid());
+            if (m.find())
+                perSatellite.merge(m.group(1), 1, Integer::sum);
+        }
+        if (perSatellite.size() < 2)
+            return kept;
+        String best = java.util.Collections.max(perSatellite.entrySet(), java.util.Map.Entry.comparingByValue()).getKey();
+        return kept.stream().filter(r -> {
+            Matcher m = SATELLITE.matcher(r.fileid());
+            return m.find() && best.equals(m.group(1));
+        }).toList();
     }
 
     /**
