@@ -28,8 +28,8 @@ viewers, while solar metadata added to the asset tells JHV how to place it.
 To show how the interfaces can be used in practice, the document includes a practical example based on COCONUT
 output. The same interfaces are intended for suitable products from other models.
 
-For line-only products, SunJSON is usually the more direct route. For meshed surfaces or products intended to remain
-portable outside JHV, use glTF.
+For products made only from points, lines, and ellipses, SunJSON is usually the more direct route. For meshed surfaces
+or products intended to remain portable outside JHV, use glTF.
 
 # SunJSON
 
@@ -94,7 +94,7 @@ The geometry types interpret their coordinates as follows:
   and $V$. JHV draws the closed curve $C + (U - C)\cos(t) + (V - C)\sin(t)$ for $0 \le t \le 2\pi$. Here, $C$ is
   the center, while the offsets $U - C$ and $V - C$ define the curve's two Cartesian directions and lengths.
 
-Each color is straight, non-premultiplied `[R, G, B, A]`, with integer components from 0 through 255. JHV clamps
+Each color is straight, non-premultiplied RGBA, with integer components from 0 through 255. JHV clamps
 values outside that range and converts the result to its premultiplied representation. When fewer colors than
 coordinates are supplied, the last color is repeated. Extra colors are ignored, and an ellipse uses only its first
 color. The `colors` field must be present, although an empty array may be used to select JHV's default green.
@@ -106,10 +106,10 @@ that the chosen value gives a suitable result in JHV.
 
 ## Loading and time selection
 
-JHV loads SunJSON from local files and HTTP URIs. Dragging a `.json` file or URI into JHV selects the SunJSON
-loader. A SAMP client can instead send `jhv.load.sunjson` with either a `url` parameter or a `value` parameter
-containing the complete JSON text. The data is stored in the Connection layer and drawn only when that layer is
-enabled.
+JHV loads SunJSON from local files and HTTP URIs. Dragging a local `.json` file or an HTTP URI ending in
+`.json` into JHV selects the SunJSON loader. A SAMP client can instead send `jhv.load.sunjson` with either a `url`
+parameter or a `value` parameter containing the complete JSON text. The data is stored in the Connection layer and
+drawn only when that layer is enabled.
 
 Each file represents one timestamp. When several files are loaded, JHV treats them as a time sequence and displays
 the file whose timestamp is nearest to the current JHV time.
@@ -147,14 +147,15 @@ The local Cartesian axes follow the heliocentric convention described by Thompso
 - `SOLY` points toward solar north in the observer's image plane;
 - `SOLZ` points from Sun center toward the observer.
 
-The coordinate origin is the center of the Sun, but the `SOLX`, `SOLY`, and `SOLZ` axes are aligned with the
-observer's view rather than with the Carrington coordinate system. JHV uses the observer's Carrington longitude and
-latitude to rotate the geometry into its Carrington world frame.
+The coordinate origin is the center of the Sun. `CRLN_OBS` and `CRLT_OBS`, described below, give the Carrington
+direction that defines the local axes. For a physical observation this is the direction of the observer, while a
+model product that is not tied to a viewpoint may use a reference direction matching its native axes. At
+`CRLN_OBS = 0` and `CRLT_OBS = 0`, `SOLZ` points toward Carrington longitude zero in the solar equatorial plane,
+`SOLX` points toward Carrington longitude 90 degrees, and `SOLY` points north. Other products may declare a non-zero
+direction, which JHV uses to rotate their local coordinates into its Carrington world frame.
 
-JHV's current glTF profile requires positions in solar radii and uses a physical solar radius of 695700000 meters. The
+JHV's glTF profile requires positions in solar radii and uses a physical solar radius of 695700000 meters. The
 three glTF position components therefore have the following fixed declaration:
-
-\newpage
 
 ```text
 CTYPE1 = SOLX    CUNIT1 = solRad
@@ -177,9 +178,9 @@ default glTF scene:
       "name": "coronal model",
       "extras": {
         "DATE-OBS": "2025-10-09T18:19:52.000",
-        "DSUN_OBS": 149000000000.0,
-        "CRLN_OBS": 123.4,
-        "CRLT_OBS": 5.6,
+        "DSUN_OBS": 149597870700.0,
+        "CRLN_OBS": 0.0,
+        "CRLT_OBS": 0.0,
         "RSUN_REF": 695700000.0,
         "CTYPE1": "SOLX", "CUNIT1": "solRad",
         "CTYPE2": "SOLY", "CUNIT2": "solRad",
@@ -194,11 +195,15 @@ default glTF scene:
 `DATE-OBS` is the observation or model-state time in the form `YYYY-MM-DDTHH:mm:ss`, optionally followed by fractional
 seconds. JHV assumes UTC and does not accept timezone designators or numeric offsets. Every heliocentric glTF product
 must include `DATE-OBS`, which identifies its place in a model time sequence.
-`CRLN_OBS` and `CRLT_OBS` are the observer's Carrington longitude and latitude at `DATE-OBS`, in degrees. Latitude must
-be between -90 and 90 degrees.
 
-`DSUN_OBS` records the observer distance from Sun center in meters. When present, it must be a positive finite number.
-JHV validates it but does not currently use it to place the geometry.
+`CRLN_OBS` and `CRLT_OBS` give the Carrington longitude and latitude of the local `SOLZ` direction at `DATE-OBS`, in
+degrees, and thereby define the orientation of all three Cartesian axes. They may describe a physical observer or a
+reference direction chosen for a model product. In either case, the positions must be expressed in the corresponding
+`SOLX`, `SOLY`, and `SOLZ` frame. Latitude must be between -90 and 90 degrees.
+
+`DSUN_OBS` gives the distance of the observer or reference point from Sun center in meters. A model product using only
+a reference direction may omit it or supply a conventional positive distance. JHV validates the value when it is
+present but does not currently use it to place the geometry.
 
 A file either supplies the complete JHV scene metadata or none of it. `WCSNAME` identifies the declaration to JHV.
 When it is present, JHV requires and validates `DATE-OBS`, `CTYPE1` through `CTYPE3`, `CUNIT1` through `CUNIT3`,
@@ -215,8 +220,9 @@ JHV uses Assimp, the Open Asset Import Library, to read both glTF file forms, bu
 display. This section summarizes the geometry and appearance that JHV supports.
 
 **Geometry and scene structure.** JHV renders open or closed triangle surfaces, connected lines and polylines, and
-point sets. It preserves the static node hierarchy, including node translations, rotations, scales, and reuse of a
-mesh by multiple nodes, but does not support animations, skins, or morph targets.
+point sets. It applies the translations, rotations, and scales from the static node hierarchy, including each use of a
+mesh referenced by more than one node, before placing the resulting geometry in the solar scene. Animations, skins,
+and morph targets are not supported.
 
 Because glTF does not define a portable line width or point size, JHV uses fixed values for both. SunJSON is the
 better choice when a JHV-specific product needs to control these display sizes.
@@ -256,11 +262,15 @@ recorded geometric or data-aware error criterion that preserves important bounda
 reduced product with the full result then confirms that the reduction is acceptable, while careful reduction can
 substantially reduce file size, transfer time, and rendering cost.
 
+Before distributing a product, inspect it from several viewpoints in JHV, including its interaction with the solar
+sphere and other layers, and open the same asset in an independent glTF viewer. These checks can reveal placement,
+surface orientation, transparency, and portability problems that structural validation alone cannot find.
+
 The capabilities described here reflect the products considered so far and provide a practical starting point. As
 new real-world products require additional ways to represent or display their data, JHV's glTF support can be
 expanded where feasible.
 
-# COCONUT glTF example
+## COCONUT example
 
 `extra/test/create_coconut_scene.py` demonstrates the supported glTF capabilities and provides a starting point for
 using Qorona, PyVista/VTK, and pygltflib to produce a JHV-compatible asset from model output. It is tailored to the
@@ -285,6 +295,8 @@ remain lit so that their round cross-section and three-dimensional shape are vis
 Qorona can export field lines directly as SunJSON, whereas this example uses glTF to combine lines, surfaces, and
 points in one asset that general glTF viewers can also display.
 
+\newpage
+
 Run the converter from the repository root in an environment containing Qorona 0.4.0, PyVista/VTK, Matplotlib, and
 pygltflib:
 
@@ -298,9 +310,11 @@ python extra/test/create_coconut_scene.py \
 The CFmesh file does not identify its observation time or coordinate frame. The converter therefore uses the
 following assumptions and settings:
 
-- model coordinates are treated as Carrington-aligned Cartesian coordinates in solar radii;
-- the Earth observer is calculated at the supplied solution time, and exported geometry is rotated into that
-  observer's `SOLX/SOLY/SOLZ` frame;
+- for this CFmesh, the Qorona Cartesian coordinates are assumed to be Carrington-aligned, with `+x` at Carrington
+  longitude zero, `+y` at Carrington longitude 90 degrees, and `+z` toward solar north;
+- the output uses the reference direction `CRLN_OBS = 0`, `CRLT_OBS = 0` and records a conventional `DSUN_OBS` of
+  1 au. The converter therefore writes `(SOLX, SOLY, SOLZ) = (y, z, x)`. This fixed axis reordering preserves the
+  model's Carrington orientation and does not depend on Earth's position at the supplied time;
 - the native cells are reconstructed with Qorona's degree-1 moving-least-squares resampler on a logarithmic
   `192 x 180 x 360` spherical grid spanning 1 to 6 solar radii;
 - field lines are traced in float64 with DOPRI5, `rtol=10^-8`, `cfl=0.125`, and an `18 x 36` seed grid. Their glTF
@@ -324,29 +338,21 @@ The default scene's `extras` records the source name and SHA-256 digest, Qorona 
 surface definition, velocity mapping, and geometry counts before and after display-geometry post-processing. These
 steps reduce the product size without lowering the reconstruction grid or changing the field-line tracing tolerances.
 
-PyVista and VTK create the line, triangle, tube, and point geometry. The script obtains VTK's glTF document in memory,
-adds the solar metadata, and uses pygltflib to package it as GLB without an intermediate `.gltf` file. Colors are
-normalized unsigned-byte straight RGBA values. The current sheet is double-sided and uses ordinary alpha blending.
-The script marks the field-line, current-sheet, and point materials with `KHR_materials_unlit`. It leaves the tube
-material lit and includes one smooth normal per tube vertex.
+\newpage
 
-## Validation
+PyVista and VTK create the geometry and return a glTF document in memory. The script adds the solar metadata and uses
+pygltflib to package it directly as GLB. Colors are normalized unsigned-byte straight RGBA values, and the current
+sheet is double-sided and alpha-blended. The field-line, current-sheet, and point materials are marked with
+`KHR_materials_unlit`, while the tube material remains lit and includes one smooth normal per vertex.
 
-The converter checks its inputs before export, then reopens the completed GLB and verifies:
+### Validation
 
-- one default scene carrying the exact solar and provenance metadata;
-- one line primitive, two triangle primitives, and one point primitive;
-- finite float32 positions and non-degenerate adjacent line segments;
-- accessor counts, index counts, normalized RGBA attributes, and expected base materials;
-- the line, current-sheet, and point materials are unlit, while the yellow tube material is lit;
-- a complete float32 normal vector for every tube vertex;
-- a non-empty triangulated current sheet with the configured colors, alpha, and double-sided material;
-- boundary points on both model boundaries with both polarity colors; and
-- a single embedded binary buffer of the expected size.
-
-JHV integration tests should cover several viewpoints, non-zero observer longitude and latitude, solar occultation,
-surface winding, unlit colors, transparency, lines, points, and interaction with other depth-writing layers. The same
-asset should also be opened in an independent glTF viewer to confirm that it remains portable.
+The converter checks its input arrays before export, then reopens the completed GLB and verifies its structure and
+content. The checks cover the default scene and exact metadata, the single embedded binary buffer, the expected line,
+triangle, and point primitives, and their accessor and index counts. They also confirm finite float32 positions,
+non-degenerate adjacent line segments, normalized RGBA attributes, the intended lit and unlit materials, a complete
+normal for every tube vertex, the current sheet's colors, alpha, and double-sided material, and boundary points at both
+model limits in both polarity colors.
 
 # References
 

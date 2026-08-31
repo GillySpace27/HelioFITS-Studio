@@ -2,13 +2,17 @@
 """Convert the supplied COCONUT demonstration solution to the JHV glTF scene profile.
 
 The CFmesh file does not contain an observation time or coordinate-frame declaration.  This script
-requires the time, writes it as DATE-OBS, and assumes Carrington-aligned Cartesian coordinates.  The
-timestamp identifies the generated asset within a model time sequence.  The script writes a
-self-contained GLB containing magnetic field lines, a triangulated B_r=0 current sheet, the boundary
+requires the time, writes it as DATE-OBS, and assumes that the solution's Qorona Cartesian axes are
+Carrington-aligned: +x at Carrington longitude 0, +y at longitude 90 degrees, and +z toward solar
+north.  The timestamp identifies the generated asset within a model time sequence.  The script writes
+a self-contained GLB containing magnetic field lines, a triangulated B_r=0 current sheet, the boundary
 endpoints of open field lines, and a deliberately artificial set of thick lit tubes used to
 demonstrate normals and lighting.  The tube centerlines follow selected CFmesh field lines, but their
-selection, radius, color, and representation as solid tubes have no scientific meaning.  All geometry
-is rotated into the observer-aligned SOLX/SOLY/SOLZ frame.
+selection, radius, color, and representation as solid tubes have no scientific meaning.
+
+The output declares a reference direction at Carrington longitude and latitude zero.  Its SOLX,
+SOLY, and SOLZ components are therefore the solution's y, z, and x components respectively.  This
+is a fixed change of Cartesian axis order, not a rotation to Earth's position at the solution time.
 
 The constants and validation checks below are tailored to that solution.  They specify one
 high-quality example conversion, not requirements of the JHV interface.  The script reopens and
@@ -16,8 +20,9 @@ validates the finished GLB.  Bounded polyline simplification and scalar-aware su
 reduce only the geometry prepared for display; they do not lower the reconstruction or tracing
 quality.
 
-Requires Qorona 0.4.0, PyVista/VTK, Matplotlib, and pygltflib.  Qorona installs NumPy, SciPy,
-Astropy, and SunPy; Numba is optional and only accelerates Qorona operations.
+Requires Qorona 0.4.0, PyVista/VTK, and pygltflib.  Qorona's standard installation supplies
+NumPy, SciPy, and Matplotlib, which the script also imports.  Numba is not used directly; Qorona
+uses it to accelerate the moving-least-squares resampling when it is available.
 """
 
 from __future__ import annotations
@@ -25,28 +30,40 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
+from datetime import datetime, timezone
 from pathlib import Path
 
-import astropy.units as u
 import numpy as np
 import pyvista as pv
 import qorona
-from astropy.time import Time
 from matplotlib import colormaps
-from pygltflib import GLTF2
-from scipy.ndimage import map_coordinates
-from sunpy.coordinates.sun import B0, L0, earth_distance
-from vtkmodules.vtkIOExport import vtkGLTFExporter
-
+from pygltflib import FLOAT, GLTF2, LINES, POINTS, TRIANGLES, UNSIGNED_BYTE, VEC3, VEC4
 from qorona.field.sampled import SampledField
 from qorona.io.readers.coconut.cfmesh import CFmeshReader
 from qorona.render.fieldlines import polarity_colours
 from qorona.resample import KnnMlsResampler, LogarithmicSpacing, SphericalGrid
 from qorona.resample.grid import pad_field
 from qorona.trace import lonlat_seeds, trace_field_lines
+from scipy.ndimage import map_coordinates
+from vtkmodules.vtkIOExport import vtkGLTFExporter
 
 RSUN_REF = 695_700_000.0
+REFERENCE_DSUN_M = 149_597_870_700.0
 MODEL_OUTER_RADIUS = 6.0
+
+# This example assumes that Qorona (x, y, z) is aligned with (Carrington longitude 0,
+# longitude 90 degrees, north). For the declared reference direction (0, 0), glTF
+# (SOLX, SOLY, SOLZ) is therefore simply (y, z, x). COCONUT needs only that axis
+# permutation; the matrix form demonstrates how a producer can instead apply a general
+# rotation when its model axes have a different orientation.
+SOLUTION_TO_SOL = np.array(
+    ((0.0, 1.0, 0.0), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0)), dtype=np.float64
+)
+
+TIMESTAMP_PATTERN = re.compile(
+    r"(?P<date>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(?P<fraction>\d{1,9}))?"
+)
 
 FIELD_N_R = 192
 FIELD_N_THETA = 180
@@ -84,10 +101,8 @@ def main() -> None:
     args = arguments()
     args.output.parent.mkdir(parents=True, exist_ok=True)
 
-    timestamp = normalized_utc_timestamp(args.timestamp)
+    timestamp = args.timestamp
     source_sha256 = sha256(args.input)
-    observer = observer_metadata(timestamp)
-    world_to_sol = observer_basis(observer["CRLN_OBS"], observer["CRLT_OBS"])
     solution = CFmeshReader().read(args.input, show_progress=True)
     resampler = KnnMlsResampler()
     field, velocity = build_field(solution, resampler)
@@ -96,16 +111,26 @@ def main() -> None:
         "source": args.input.name,
         "sourceSha256": source_sha256,
         "sourceCellCount": int(solution.cell_centers.shape[0]),
-        "resampler": "k-nearest-neighbour degree-1 moving least squares",
+        "resampler": "k-nearest-neighbor degree-1 moving least squares",
         "minimumNeighbors": resampler.n_neighbors,
         "referenceCellCount": resampler.reference_cell_count,
         "ridge": resampler.ridge,
         "fieldGrid": [FIELD_N_R, FIELD_N_THETA, FIELD_N_PHI],
         "fieldGridRadialSpacing": "logarithmic",
+        "solutionAxes": [
+            "Carrington longitude 0",
+            "Carrington longitude 90",
+            "solar north",
+        ],
+        "gltfPositionComponents": ["solution y", "solution z", "solution x"],
     }
 
     write_scene(
-        field, velocity, world_to_sol, observer, timestamp, processing, args.output
+        field,
+        velocity,
+        timestamp,
+        processing,
+        args.output,
     )
 
     print(f"Wrote and validated {args.output}")
@@ -121,7 +146,8 @@ def arguments() -> argparse.Namespace:
     parser.add_argument(
         "--timestamp",
         required=True,
-        help="solution observation time written as DATE-OBS (ISO-8601 UTC)",
+        type=normalized_utc_timestamp,
+        help="UTC solution time written as DATE-OBS, without a timezone designator or offset",
     )
     parser.add_argument(
         "--output",
@@ -136,12 +162,22 @@ def arguments() -> argparse.Namespace:
 
 
 def normalized_utc_timestamp(value: str) -> str:
+    match = TIMESTAMP_PATTERN.fullmatch(value)
+    if match is None:
+        raise argparse.ArgumentTypeError(
+            "observation time must have the form YYYY-MM-DDTHH:mm:ss[.fraction] "
+            "without a timezone designator or offset"
+        )
     try:
-        time = Time(value, scale="utc")
+        time = datetime.strptime(match.group("date"), "%Y-%m-%dT%H:%M:%S").replace(
+            tzinfo=timezone.utc
+        )
     except ValueError as error:
-        raise ValueError(f"invalid UTC observation time {value!r}") from error
-    time.precision = 3
-    return time.utc.isot
+        raise argparse.ArgumentTypeError(
+            f"invalid observation time {value!r}"
+        ) from error
+    milliseconds = (match.group("fraction") or "").ljust(3, "0")[:3]
+    return f"{time:%Y-%m-%dT%H:%M:%S}.{milliseconds}"
 
 
 def sha256(path: Path) -> str:
@@ -150,38 +186,6 @@ def sha256(path: Path) -> str:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
-
-
-def observer_metadata(timestamp: str) -> dict[str, float]:
-    time = Time(timestamp, scale="utc")
-    return {
-        "DSUN_OBS": float(earth_distance(time).to_value(u.m)),
-        "CRLN_OBS": float(L0(time).to_value(u.deg)),
-        "CRLT_OBS": float(B0(time).to_value(u.deg)),
-        "RSUN_REF": RSUN_REF,
-    }
-
-
-def observer_basis(longitude_degrees: float, latitude_degrees: float) -> np.ndarray:
-    """Return the orthonormal rotation from Carrington-aligned xyz to SOLX/SOLY/SOLZ.
-
-    The returned rows are the solar-west, solar-north, and toward-observer unit vectors expressed
-    in Carrington-aligned model coordinates.  For column vectors, ``sol = basis @ world`` and
-    ``world = basis.T @ sol``.
-    """
-    longitude = np.deg2rad(longitude_degrees)
-    latitude = np.deg2rad(latitude_degrees)
-    toward_observer = np.array(
-        [
-            np.cos(latitude) * np.cos(longitude),
-            np.cos(latitude) * np.sin(longitude),
-            np.sin(latitude),
-        ]
-    )
-    north = np.array([0.0, 0.0, 1.0]) - np.sin(latitude) * toward_observer
-    north /= np.linalg.norm(north)
-    west = np.cross(north, toward_observer)
-    return np.stack((west, north, toward_observer))
 
 
 def build_field(
@@ -209,8 +213,6 @@ def build_field(
 def write_scene(
     field: SampledField,
     velocity: np.ndarray,
-    world_to_sol: np.ndarray,
-    observer: dict[str, float],
     timestamp: str,
     processing: dict[str, object],
     output: Path,
@@ -227,19 +229,16 @@ def write_scene(
         cfl=TRACE_CFL,
     )
     colors = polarity_colours(field, lines, 1.0, MODEL_OUTER_RADIUS)
-    current_sheet = extract_current_sheet(field, velocity, world_to_sol)
+    current_sheet = extract_current_sheet(field, velocity)
 
     # Reduce only the extracted display geometry, after reconstruction and tracing are complete.
     current_sheet_input_vertices = current_sheet.n_points
     current_sheet_input_triangles = current_sheet.n_cells
     current_sheet = decimate_current_sheet(current_sheet)
     color_current_sheet(current_sheet)
-    field_tubes, tube_input_vertices, tube_output_vertices = create_field_tubes(
-        field, world_to_sol
-    )
-    open_boundary_points = (
-        lines.feet[lines.is_open].reshape(-1, 3) @ world_to_sol.T
-    ).astype(np.float32)
+    field_tubes, tube_input_vertices, tube_output_vertices = create_field_tubes(field)
+    open_boundary_points = lines.feet[lines.is_open].reshape(-1, 3)
+    open_boundary_points = (open_boundary_points @ SOLUTION_TO_SOL.T).astype(np.float32)
     open_boundary_colors = np.rint(
         np.column_stack(
             (
@@ -262,16 +261,7 @@ def write_scene(
             continue
         path = np.asarray(path, dtype=np.float64)
         input_vertex_count += len(path)
-        path = simplify_polyline(path, POLYLINE_MAX_DEVIATION_RSUN)
-        # Paths are row vectors, hence the transposed world-to-SOL matrix on the right.
-        transformed = (path @ world_to_sol.T).astype(np.float32)
-        # Remove adjacent points that become equal in float32. Assimp turns zero-length line
-        # segments into points.
-        transformed = transformed[
-            np.concatenate(
-                ([True], np.any(transformed[1:] != transformed[:-1], axis=1))
-            )
-        ]
+        transformed = prepare_polyline(path)
         if len(transformed) < 2:
             continue
         first = vertex_count
@@ -290,7 +280,10 @@ def write_scene(
     polyline_array = np.concatenate(polylines)
     metadata = {
         "DATE-OBS": timestamp,
-        **observer,
+        "DSUN_OBS": REFERENCE_DSUN_M,
+        "CRLN_OBS": 0.0,
+        "CRLT_OBS": 0.0,
+        "RSUN_REF": RSUN_REF,
         "CTYPE1": "SOLX",
         "CTYPE2": "SOLY",
         "CTYPE3": "SOLZ",
@@ -343,7 +336,7 @@ def write_scene(
                 "colorQuantity": "polarity of the corresponding field line",
             },
             "fieldTubes": {
-                "definition": "display-only lit tubes following selected CFmesh field-line centerlines; selection, radius, color, and solid-tube representation are artificial",
+                "definition": "display-only lit tubes following selected traced field-line centerlines; selection, radius, color, and solid-tube representation are artificial",
                 "seedLongitudeRangeDegrees": [
                     FIELD_TUBE_LONGITUDE_MIN_DEGREES,
                     FIELD_TUBE_LONGITUDE_MAX_DEGREES,
@@ -376,7 +369,16 @@ def write_scene(
     )
 
 
-# Display-geometry post-processing: polyline simplification
+def prepare_polyline(points: np.ndarray) -> np.ndarray:
+    points = simplify_polyline(points, POLYLINE_MAX_DEVIATION_RSUN)
+    points = (points @ SOLUTION_TO_SOL.T).astype(np.float32)
+    if len(points) < 2:
+        return points
+    # Assimp turns zero-length line segments into points, so remove adjacent vertices that
+    # become equal when stored as float32.
+    return points[np.concatenate(([True], np.any(points[1:] != points[:-1], axis=1)))]
+
+
 def simplify_polyline(points: np.ndarray, max_deviation: float) -> np.ndarray:
     """Remove interior vertices while bounding their distance from the simplified line."""
     if points.ndim != 2 or points.shape[1] != 3 or not np.isfinite(points).all():
@@ -417,9 +419,7 @@ def simplify_polyline(points: np.ndarray, max_deviation: float) -> np.ndarray:
     return points[keep]
 
 
-def create_field_tubes(
-    field: SampledField, world_to_sol: np.ndarray
-) -> tuple[pv.PolyData, int, int]:
+def create_field_tubes(field: SampledField) -> tuple[pv.PolyData, int, int]:
     longitudes = np.deg2rad(
         np.linspace(
             FIELD_TUBE_LONGITUDE_MIN_DEGREES,
@@ -456,13 +456,7 @@ def create_field_tubes(
     for path in lines.paths:
         path = np.asarray(path, dtype=np.float64)
         input_vertex_count += len(path)
-        path = simplify_polyline(path, POLYLINE_MAX_DEVIATION_RSUN)
-        transformed = np.asarray(path @ world_to_sol.T, dtype=np.float32)
-        transformed = transformed[
-            np.concatenate(
-                ([True], np.any(transformed[1:] != transformed[:-1], axis=1))
-            )
-        ]
+        transformed = prepare_polyline(path)
         if len(transformed) < 2:
             continue
         first = vertex_count
@@ -495,9 +489,7 @@ def create_field_tubes(
     return tubes, input_vertex_count, vertex_count
 
 
-def extract_current_sheet(
-    field: SampledField, velocity: np.ndarray, world_to_sol: np.ndarray
-) -> pv.PolyData:
+def extract_current_sheet(field: SampledField, velocity: np.ndarray) -> pv.PolyData:
     grid = field.grid
     if velocity.shape != (grid.n_r, grid.n_theta, grid.n_phi, 3):
         raise ValueError(
@@ -567,7 +559,7 @@ def extract_current_sheet(
         np.einsum("ij,ij->i", surface_velocity, model_points / radius[:, None])
         * CURRENT_SHEET_VELOCITY_SCALE_KM_S
     )
-    surface.points = np.asarray(model_points @ world_to_sol.T, dtype=np.float32)
+    surface.points = (model_points @ SOLUTION_TO_SOL.T).astype(np.float32)
     surface.point_data["radialVelocity"] = radial_velocity
     surface = surface.clean(tolerance=1.0e-6, absolute=True)
     # Joining the coincident longitude seam can collapse a handful of seam triangles. VTK's
@@ -748,12 +740,15 @@ def write_scene_glb(
     surface_meshes = []
     point_meshes = []
     for mesh_index, exported_mesh in enumerate(document.get("meshes", [])):
-        modes = {primitive.get("mode", 4) for primitive in exported_mesh["primitives"]}
-        if modes == {1}:
+        modes = {
+            primitive.get("mode", TRIANGLES)
+            for primitive in exported_mesh["primitives"]
+        }
+        if modes == {LINES}:
             line_meshes.append(mesh_index)
-        elif modes == {4}:
+        elif modes == {TRIANGLES}:
             surface_meshes.append(mesh_index)
-        elif modes == {0}:
+        elif modes == {POINTS}:
             point_meshes.append(mesh_index)
     sheet_meshes = []
     tube_meshes = []
@@ -815,7 +810,14 @@ def write_scene_glb(
         raise RuntimeError("VTK field tubes do not have an independent lit material")
 
     surface_primitive = document["meshes"][surface_mesh]["primitives"][0]
-    surface_material = materials[surface_primitive["material"]]
+    surface_material_index = surface_primitive["material"]
+    if any(
+        primitive["material"] == surface_material_index
+        for mesh_index in (line_mesh, tube_mesh, point_mesh)
+        for primitive in document["meshes"][mesh_index]["primitives"]
+    ):
+        raise RuntimeError("VTK current sheet does not have an independent material")
+    surface_material = materials[surface_material_index]
     surface_material["alphaMode"] = "BLEND"
     surface_material["doubleSided"] = True
 
@@ -868,8 +870,8 @@ def validate_scene_glb(
         raise RuntimeError("completed GLB does not contain one valid default scene")
     if document.meshes is None or len(document.meshes) != 4:
         raise RuntimeError("completed GLB does not contain four meshes")
-    if document.materials is None or len(document.materials) != 4:
-        raise RuntimeError("completed GLB does not contain four materials")
+    if document.materials is None:
+        raise RuntimeError("completed GLB contains no materials")
     if document.accessors is None:
         raise RuntimeError("completed GLB contains no accessors")
     if document.buffers is None or len(document.buffers) != 1:
@@ -888,9 +890,13 @@ def validate_scene_glb(
         for mesh in document.meshes
         for primitive in (mesh.primitives if mesh.primitives is not None else [])
     ]
-    line_primitives = [primitive for primitive in primitives if primitive.mode == 1]
-    triangle_primitives = [primitive for primitive in primitives if primitive.mode == 4]
-    point_primitives = [primitive for primitive in primitives if primitive.mode == 0]
+    line_primitives = [primitive for primitive in primitives if primitive.mode == LINES]
+    triangle_primitives = [
+        primitive for primitive in primitives if primitive.mode == TRIANGLES
+    ]
+    point_primitives = [
+        primitive for primitive in primitives if primitive.mode == POINTS
+    ]
     surface_primitives = [
         primitive
         for primitive in triangle_primitives
@@ -960,6 +966,8 @@ def validate_scene_glb(
     tube_extensions = materials[tubes.material].extensions
     if tube_extensions is not None and "KHR_materials_unlit" in tube_extensions:
         raise RuntimeError("completed GLB field-tube material is unlit")
+    if surface.material in (line.material, tubes.material, points.material):
+        raise RuntimeError("completed GLB current-sheet material is shared")
 
     line_position = accessors[line.attributes.POSITION]
     line_color = accessors[line.attributes.COLOR_0]
@@ -983,26 +991,26 @@ def validate_scene_glb(
         raise RuntimeError("completed GLB scene metadata does not match the input")
 
     if (
-        line_position.componentType != 5126
-        or line_position.type != "VEC3"
+        line_position.componentType != FLOAT
+        or line_position.type != VEC3
         or line_position.count != expected_vertex_count
         or line_color.count != expected_vertex_count
         or line_indices.count != 2 * expected_segment_count
-        or line_color.componentType != 5121
-        or line_color.type != "VEC4"
+        or line_color.componentType != UNSIGNED_BYTE
+        or line_color.type != VEC4
         or line_color.normalized is not True
         or line_base_color != [1.0, 1.0, 1.0, 1.0]
     ):
         raise RuntimeError("completed GLB line data does not match the input")
 
     if (
-        surface_position.componentType != 5126
-        or surface_position.type != "VEC3"
+        surface_position.componentType != FLOAT
+        or surface_position.type != VEC3
         or surface_position.count != expected_surface_vertex_count
         or surface_color.count != expected_surface_vertex_count
         or surface_indices.count != 3 * expected_surface_triangle_count
-        or surface_color.componentType != 5121
-        or surface_color.type != "VEC4"
+        or surface_color.componentType != UNSIGNED_BYTE
+        or surface_color.type != VEC4
         or surface_color.normalized is not True
         or surface_material.alphaMode != "BLEND"
         or surface_material.doubleSided is not True
@@ -1011,25 +1019,25 @@ def validate_scene_glb(
         raise RuntimeError("completed GLB current-sheet data does not match the input")
 
     if (
-        tube_position.componentType != 5126
-        or tube_position.type != "VEC3"
+        tube_position.componentType != FLOAT
+        or tube_position.type != VEC3
         or tube_position.count != expected_tube_vertex_count
         or tube_normal.count != expected_tube_vertex_count
         or tube_indices.count != 3 * expected_tube_triangle_count
-        or tube_normal.componentType != 5126
-        or tube_normal.type != "VEC3"
+        or tube_normal.componentType != FLOAT
+        or tube_normal.type != VEC3
         or tube_base_color != [*FIELD_TUBE_COLOR, 1.0]
     ):
         raise RuntimeError("completed GLB field-tube data does not match the input")
 
     if (
-        point_position.componentType != 5126
-        or point_position.type != "VEC3"
+        point_position.componentType != FLOAT
+        or point_position.type != VEC3
         or point_position.count != expected_point_count
         or point_color.count != expected_point_count
         or point_indices.count != expected_point_count
-        or point_color.componentType != 5121
-        or point_color.type != "VEC4"
+        or point_color.componentType != UNSIGNED_BYTE
+        or point_color.type != VEC4
         or point_color.normalized is not True
         or point_base_color != [1.0, 1.0, 1.0, 1.0]
     ):
