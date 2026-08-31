@@ -38,7 +38,6 @@ final class Colorbar {
     private static final double LABEL_HEIGHT = 0.017;
     private static final double MARGIN = 0.010;
     private static final double SLOT_GAP = 0.004;
-    private static final int GRADIENT_STEPS = 128;
     private static final double LABEL_PAD = 3;
     private static final float MIN_LABEL_SCALE = 0.45f;
 
@@ -203,12 +202,15 @@ final class Colorbar {
 
     /** Continuous LUT: a smooth ramp across the full width. */
     private void buildGradient(int[] argb, boolean inverted, double x0, double x1, double yBar, double yTop) {
-        double w = (x1 - x0) / GRADIENT_STEPS;
-        for (int i = 0; i < GRADIENT_STEPS; i++) {
-            double frac = i / (double) (GRADIENT_STEPS - 1);
-            int idx = (int) Math.round(frac * (argb.length - 1));
-            quad(x0 + i * w, yBar, x0 + (i + 1) * w, yTop, color(argb, idx, inverted));
-        }
+        // One segment per pair of adjacent LUT entries, coloured at its ends so the GPU
+        // interpolates across it: the same piecewise-linear ramp the image shader's LINEAR LUT
+        // sampling produces. Flat single-colour steps read as banding on the deep canvas, which
+        // renders the staircase honestly instead of blurring it into the screen's quantization.
+        int n = argb.length;
+        double w = (x1 - x0) / (n - 1);
+        for (int i = 0; i < n - 1; i++)
+            gradientQuad(x0 + i * w, yBar, x0 + (i + 1) * w, yTop,
+                    color(argb, i, inverted), color(argb, i + 1, inverted));
     }
 
     /**
@@ -287,6 +289,17 @@ final class Colorbar {
         int i = Math.clamp(inverted ? argb.length - 1 - index : index, 0, argb.length - 1);
         int p = argb[i];
         return Colors.bytes((p >> 16) & 0xFF, (p >> 8) & 0xFF, p & 0xFF);
+    }
+
+    /** A quad whose left and right edges carry different colours, interpolated across. */
+    private void gradientQuad(double ax, double ay, double bx, double by, byte[] left, byte[] right) {
+        vex.putVertex((float) ax, (float) ay, 0, 1, left);
+        vex.putVertex((float) bx, (float) ay, 0, 1, right);
+        vex.putVertex((float) bx, (float) by, 0, 1, right);
+
+        vex.putVertex((float) ax, (float) ay, 0, 1, left);
+        vex.putVertex((float) bx, (float) by, 0, 1, right);
+        vex.putVertex((float) ax, (float) by, 0, 1, left);
     }
 
     private void quad(double ax, double ay, double bx, double by, byte[] col) {
