@@ -5,13 +5,16 @@ import java.nio.IntBuffer;
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.Platform;
 import org.helioviewer.jhv.astronomy.Position;
+import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.opengl.GL;
 import org.helioviewer.jhv.opengl.GLRenderer;
 
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.egl.EGL;
+import org.lwjgl.egl.EGL12;
 import org.lwjgl.egl.EGL15;
 import org.lwjgl.opengles.GLES;
+import org.lwjgl.opengles.GLES20;
 import org.lwjgl.system.JNI;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
@@ -73,11 +76,32 @@ public final class AngleRenderer {
     private static final int EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE = 0x3489;
     private static final int EGL_PLATFORM_ANGLE_TYPE_OPENGL_ANGLE = 0x320D;
     private static final int EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE = 0x3450;
+    // EGL_ANGLE_iosurface_client_buffer, plus the EGL 1.1 render-to-texture attributes it reuses.
+    private static final int EGL_IOSURFACE_ANGLE = 0x3454;
+    private static final int EGL_IOSURFACE_PLANE_ANGLE = 0x345A;
+    private static final int EGL_TEXTURE_TYPE_ANGLE = 0x345C;
+    private static final int EGL_TEXTURE_INTERNAL_FORMAT_ANGLE = 0x345D;
+    private static final int EGL_IOSURFACE_USAGE_HINT_ANGLE = 0x348A;
+    private static final int EGL_TEXTURE_FORMAT = 0x3080;
+    private static final int EGL_TEXTURE_TARGET = 0x3081;
+    private static final int EGL_TEXTURE_RGBA = 0x305E;
+    private static final int EGL_TEXTURE_2D = 0x305F;
+    private static final int GL_RGB10_A2 = 0x8059;
+    private static final int GL_UNSIGNED_INT_2_10_10_10_REV = 0x8368;
+
     private final long display;
     private final long context;
-    private final long surface;
+    private final long config;
     private final boolean swapBuffers;
     private final Backend backend;
+    private long surface;
+    // Deep-colour canvas state: when deepLayer is set, `surface` is an RGB10_A2 IOSurface-backed
+    // pbuffer instead of an EGL window surface, and frames reach the screen through
+    // MacAngleBridge.presentDeep rather than eglSwapBuffers.
+    private long deepLayer;
+    private long deepCanvas;
+    private int deepWidth;
+    private int deepHeight;
 
     // Front-load LWJGL/ANGLE library setup and EGL capability discovery before the first real renderer is created.
     public static void prewarm() {
@@ -95,14 +119,14 @@ public final class AngleRenderer {
     /**
      * Build a renderer, dropping back to an 8-bit canvas if a deeper one cannot be presented.
      *
-     * <p>Ten bits per channel is worth asking for: the whole render path is 8-bit today, so a
-     * smooth gradient is rounded to 256 levels on its way to a display that can show more, and
-     * that rounding is the one kind of banding the dither is fighting. Four times the levels
-     * removes most of the need for it.
-     *
-     * <p>Asked for rather than assumed, because whether a 10-bit window surface exists is a
-     * property of the driver, the backend and the display, none of which this code can know. The
-     * chosen format is logged either way, so what actually happened is on the record.
+     * <p>Deep colour is worth having: an 8-bit canvas rounds a smooth gradient to 256 levels on
+     * its way to a display that can show more, and that rounding is the one kind of banding the
+     * dither is fighting. On macOS ANGLE's Metal backend enumerates only 8-bit window configs, so
+     * the deep path does not use a window surface at all: it renders into an RGB10_A2 IOSurface
+     * wrapped as an EGL pbuffer (EGL_ANGLE_iosurface_client_buffer takes its format from the
+     * pbuffer attributes, not from the config list) and presents it with a native Metal blit into
+     * a 10-bit CAMetalLayer. On other platforms the config ladder still asks for RGB10_A2 first.
+     * Either way the outcome is logged, so what actually happened is on the record.
      */
     private static AngleRenderer create(SurfaceKind kind, long nativeWindowHandle, int width, int height) {
         try {
@@ -149,23 +173,43 @@ public final class AngleRenderer {
             if (!EGL15.eglBindAPI(EGL15.EGL_OPENGL_ES_API))
                 throw eglError("eglBindAPI");
 
+            // The window surface caps the canvas at the 8 bits the config list offers, so the deep
+            // path does not use one: it renders into an RGBA16F IOSurface pbuffer (whose format
+            // comes from the pbuffer attributes, not the config) and presents it natively.
+            boolean deepSurfacePlanned = deepColor && surfaceKind == SurfaceKind.WINDOW && Platform.isMacOS();
+
             int samples = GL.SAMPLES > 1 ? GL.SAMPLES : 0;
-            long config = chooseConfig(stack, newDisplay, samples, surfaceKind.eglBit);
-            if (config == 0L)
+            long newConfig = chooseConfig(stack, newDisplay, samples, surfaceKind.eglBit);
+            if (newConfig == 0L)
                 throw eglError("eglChooseConfig");
-            logChosenConfig(stack, config);
+            config = newConfig;
+            logChosenConfig(stack, newConfig, deepSurfacePlanned);
 
             IntBuffer contextAttrs = stack.ints(EGL15.EGL_CONTEXT_CLIENT_VERSION, 3, EGL15.EGL_NONE);
-            newContext = EGL15.eglCreateContext(newDisplay, config, EGL15.EGL_NO_CONTEXT, contextAttrs);
+            newContext = EGL15.eglCreateContext(newDisplay, newConfig, EGL15.EGL_NO_CONTEXT, contextAttrs);
             if (newContext == EGL15.EGL_NO_CONTEXT)
                 throw eglError("eglCreateContext");
 
             if (surfaceKind == SurfaceKind.WINDOW) {
-                newSurface = EGL15.eglCreateWindowSurface(newDisplay, config, nativeWindowHandle, stack.ints(EGL15.EGL_NONE));
-                if (newSurface == EGL15.EGL_NO_SURFACE)
-                    throw eglError("eglCreateWindowSurface");
+                if (deepSurfacePlanned && MacAngleBridge.prepareDeepLayer(nativeWindowHandle)) {
+                    deepLayer = nativeWindowHandle;
+                    newSurface = createDeepSurface(stack, Math.max(1, Display.getCanvasWidth()), Math.max(1, Display.getCanvasHeight()));
+                    Display.deepCanvas = true;
+                    Log.info("Deep-colour canvas: RGB10_A2 IOSurface pbuffer presented by Metal blit;"
+                            + " CAMetalLayer pixelFormat=BGR10A2Unorm, colorspace unmanaged as before");
+                } else {
+                    if (Platform.isMacOS()) {
+                        Display.deepCanvas = false;
+                        // A failed deep attempt may have left the layer flipped for the blit path;
+                        // ANGLE's window surface does its own flip, so undo ours.
+                        MacAngleBridge.resetDeepLayer(nativeWindowHandle);
+                    }
+                    newSurface = EGL15.eglCreateWindowSurface(newDisplay, newConfig, nativeWindowHandle, stack.ints(EGL15.EGL_NONE));
+                    if (newSurface == EGL15.EGL_NO_SURFACE)
+                        throw eglError("eglCreateWindowSurface");
+                }
             } else {
-                newSurface = EGL15.eglCreatePbufferSurface(newDisplay, config, stack.ints(
+                newSurface = EGL15.eglCreatePbufferSurface(newDisplay, newConfig, stack.ints(
                         EGL15.EGL_WIDTH, pbufferWidth,
                         EGL15.EGL_HEIGHT, pbufferHeight,
                         EGL15.EGL_NONE));
@@ -190,6 +234,10 @@ public final class AngleRenderer {
                     EGL15.eglDestroyContext(newDisplay, newContext);
                 EGL15.eglTerminate(newDisplay);
             }
+            if (deepCanvas != 0L) {
+                MacAngleBridge.deepCanvasRelease(deepCanvas);
+                deepCanvas = 0L;
+            }
             throw e;
         }
 
@@ -198,11 +246,73 @@ public final class AngleRenderer {
     }
 
     public void render(Position viewpoint) {
+        if (deepLayer != 0L)
+            ensureDeepSurface();
         if (!EGL15.eglMakeCurrent(display, surface, surface, context))
             throw eglError("eglMakeCurrent");
         GLRenderer.display(viewpoint);
-        if (swapBuffers && !EGL15.eglSwapBuffers(display, surface))
+        if (deepLayer != 0L) {
+            GLES20.glFinish(); // the Metal blit below reads the IOSurface; the GL writes must be done
+            if (!MacAngleBridge.presentDeep(deepLayer, deepCanvas, deepWidth, deepHeight))
+                Log.warn("Deep-colour present failed for a frame");
+        } else if (swapBuffers && !EGL15.eglSwapBuffers(display, surface))
             throw eglError("eglSwapBuffers");
+    }
+
+    // Wrap a freshly created RGB10_A2 IOSurface of the given size as the EGL draw surface.
+    // On success, deepCanvas/deepWidth/deepHeight describe the new canvas.
+    private long createDeepSurface(MemoryStack stack, int width, int height) {
+        long ioSurface = MacAngleBridge.deepCanvasCreate(width, height);
+        if (ioSurface == 0L)
+            throw new RuntimeException("IOSurface creation failed for deep-colour canvas " + width + "x" + height);
+
+        IntBuffer attrs = stack.ints(
+                EGL15.EGL_WIDTH, width,
+                EGL15.EGL_HEIGHT, height,
+                EGL_IOSURFACE_PLANE_ANGLE, 0,
+                EGL_TEXTURE_TARGET, EGL_TEXTURE_2D,
+                EGL_TEXTURE_INTERNAL_FORMAT_ANGLE, GL_RGB10_A2,
+                EGL_TEXTURE_FORMAT, EGL_TEXTURE_RGBA,
+                EGL_TEXTURE_TYPE_ANGLE, GL_UNSIGNED_INT_2_10_10_10_REV,
+                EGL_IOSURFACE_USAGE_HINT_ANGLE, 3, // read | write
+                EGL15.EGL_NONE);
+        long newSurface = EGL12.eglCreatePbufferFromClientBuffer(display, EGL_IOSURFACE_ANGLE, ioSurface, config, attrs);
+        if (newSurface == EGL15.EGL_NO_SURFACE) {
+            MacAngleBridge.deepCanvasRelease(ioSurface);
+            throw eglError("eglCreatePbufferFromClientBuffer");
+        }
+        deepCanvas = ioSurface;
+        deepWidth = width;
+        deepHeight = height;
+        return newSurface;
+    }
+
+    // The window surface tracked the layer's size by itself; the IOSurface canvas has to be
+    // recreated when the canvas size changes. Cheap (one texture allocation) and rare.
+    private void ensureDeepSurface() {
+        int width = Math.max(1, Display.getCanvasWidth());
+        int height = Math.max(1, Display.getCanvasHeight());
+        if (width == deepWidth && height == deepHeight)
+            return;
+
+        long oldSurface = surface;
+        long oldCanvas = deepCanvas;
+        int oldWidth = deepWidth;
+        int oldHeight = deepHeight;
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            long newSurface = createDeepSurface(stack, width, height);
+            if (!EGL15.eglMakeCurrent(display, newSurface, newSurface, context)) {
+                EGL15.eglDestroySurface(display, newSurface);
+                MacAngleBridge.deepCanvasRelease(deepCanvas);
+                deepCanvas = oldCanvas;
+                deepWidth = oldWidth;
+                deepHeight = oldHeight;
+                throw eglError("eglMakeCurrent");
+            }
+            surface = newSurface;
+            EGL15.eglDestroySurface(display, oldSurface);
+            MacAngleBridge.deepCanvasRelease(oldCanvas);
+        }
     }
 
     public void destroy() {
@@ -223,6 +333,10 @@ public final class AngleRenderer {
             EGL15.eglDestroySurface(display, surface);
             EGL15.eglDestroyContext(display, context);
             EGL15.eglTerminate(display);
+            if (deepCanvas != 0L) {
+                MacAngleBridge.deepCanvasRelease(deepCanvas);
+                deepCanvas = 0L;
+            }
         }
     }
 
@@ -289,7 +403,7 @@ public final class AngleRenderer {
         return configOut.get(0);
     }
 
-    private void logChosenConfig(MemoryStack stack, long config) {
+    private void logChosenConfig(MemoryStack stack, long config, boolean deepSurfacePlanned) {
         IntBuffer attribValue = stack.mallocInt(1);
         int red = configAttrib(attribValue, config, EGL15.EGL_RED_SIZE);
         int green = configAttrib(attribValue, config, EGL15.EGL_GREEN_SIZE);
@@ -306,10 +420,14 @@ public final class AngleRenderer {
                 + " stencil=" + stencil
                 + " sampleBuffers=" + sampleBuffers
                 + " samples=" + samples
-                // Worth stating outright rather than leaving to be read off the numbers: it is the
-                // reason a smooth gradient is rounded to 256 levels on a display that can show
-                // more, and the reason the dither exists at all.
-                + (red >= 10 ? " (deep colour)" : deepColor ? " (deep colour asked for, not offered)" : ""));
+                // Worth stating outright rather than leaving to be read off the numbers: an 8-bit
+                // canvas is the reason a smooth gradient is rounded to 256 levels on a display
+                // that can show more, and the reason the dither exists at all. When the deep
+                // IOSurface canvas is about to be attempted, the config only supplies the context
+                // and depth buffer, so its channel sizes do not describe the canvas.
+                + (deepSurfacePlanned ? " (config for context only; deep canvas attempt follows)"
+                        : red >= 10 ? " (deep colour)"
+                        : deepColor ? " (deep colour asked for, not offered)" : ""));
     }
 
     private int configAttrib(IntBuffer value, long config, int attribute) {

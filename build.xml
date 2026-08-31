@@ -42,6 +42,8 @@
             <arg value="QuartzCore"/>
             <arg value="-framework"/>
             <arg value="Metal"/>
+            <arg value="-framework"/>
+            <arg value="IOSurface"/>
             <arg value="-o"/>
             <arg value="lib/natives-macos/libjhvmetalhost.dylib"/>
             <arg value="native/macos/jhv_metal_host.m"/>

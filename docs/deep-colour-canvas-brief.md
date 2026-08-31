@@ -209,3 +209,46 @@ tried, what each one returned, and the measured evidence. If the answer turns ou
 plus ANGLE cannot present more than 8 bits per channel without replacing the renderer, that is a
 legitimate result, but it needs the probe output that proves it, not an inference from the config
 list already in this brief.
+
+## Outcome (2026-08-31)
+
+The wall is broken. The canvas now renders into an RGB10_A2 IOSurface wrapped as an EGL pbuffer
+and reaches the screen through a native Metal blit into a BGR10A2Unorm CAMetalLayer. Startup logs:
+
+```
+ANGLE EGL config: backend=Metal rgba=8/8/8/8 depth=24 stencil=0 sampleBuffers=0 samples=0 (config for context only; deep canvas attempt follows)
+Deep-colour canvas: RGB10_A2 IOSurface pbuffer presented by Metal blit; CAMetalLayer pixelFormat=BGR10A2Unorm, colorspace unmanaged as before
+```
+
+What each approach returned:
+
+- **A (Metal texture client buffer): does not exist as a surface path in this ANGLE.** In the
+  vendored build (2.1.27045, 1c0f91aaa60a) `EGL_ANGLE_metal_texture_client_buffer` is EGLImage-only;
+  `createPbufferFromClientBuffer` accepts `EGL_IOSURFACE_ANGLE` and nothing else. Confirmed in
+  `DisplayMtl.mm` at that commit.
+- **B (IOSurface client buffer): works, and is the shipped mechanism.** The pbuffer takes its format
+  from the ATTRIBUTES, not the config, so the 8-bit config list is irrelevant. It can be made
+  CURRENT as the draw surface (framebuffer 0 stays framebuffer 0). `IOSurfacePbufferProbe`
+  measures the round trip: RGBA16F max error 7.3e-5, RGB10A2 2.4e-4, versus 1.57e-3 for 8-bit.
+- **C (16F FBO + final blit): not needed;** B gives the deep default framebuffer directly.
+- **D (native renderer): not needed.**
+- **E (newer ANGLE): not tried;** B removed the reason.
+
+Two traps found and handled:
+
+- **The y-flip.** ANGLE's window surface flips GL's bottom-left rows during its own present; a raw
+  blit does not, and the scene appeared upside down. Fixed at composite time with
+  `layer.transform = CATransform3DMakeScale(1, -1, 1)`, undone when falling back to the window
+  surface.
+- **Untagged float layers are colour-managed.** The first build presented RGBA16F, and the
+  compositor brightened everything: on identical scenes the legend bar differed from the 8-bit
+  baseline by a mean of 40/255 counts (greys followed an sRGB-encode curve, saturated colours
+  something gamut-shaped). Untagged UNORM passes through: with BGR10A2Unorm the same comparison
+  gives max 2 counts, all within the dither the 8-bit run still had on. RGBA16F presentation
+  needs real colour management and is left as follow-up; 10 bits matches the panel pipe anyway.
+
+`display.deepColorCanvas=false` still selects the old 8-bit window surface (verified by log and by
+the same screenshot comparison). The shader dither is skipped on the deep canvas
+(`Display.deepCanvas`), for the same reason `highBitDepthCapture` skips it. Movie export is
+untouched: it renders into its own FBO and rebinds framebuffer 0 after. The by-eye gradient check
+on the XDR panel remains: `extra/test/make_gradient_fits.py` writes the test layer.

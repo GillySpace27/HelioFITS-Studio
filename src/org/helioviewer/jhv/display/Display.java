@@ -396,6 +396,16 @@ public final class Display {
     public static boolean highBitDepthCapture;
 
     /**
+     * Set once at startup when the canvas comes up as a deep-colour (RGB10_A2 IOSurface) target
+     * rather than the 8-bit window surface; see AngleRenderer.
+     *
+     * <p>Read below for the same reason as {@link #highBitDepthCapture}: the dither exists solely
+     * to break up the 8-bit screen's banding, so on a deep canvas it would be adding noise the
+     * target can actually store.
+     */
+    public static boolean deepCanvas;
+
+    /**
      * Add a dither before the colour-table lookup, to break up banding.
      *
      * <p>On by default, because it has always been on and turning it off changes every layer.
@@ -427,8 +437,9 @@ public final class Display {
      */
     public static boolean skipDither() {
         // A capture into a 16-bit target would be recording the noise into a file that did not
-        // need it, which is the case this flag was originally added for.
-        return highBitDepthCapture || !ditherEnabled;
+        // need it, which is the case this flag was originally added for. A deep-colour canvas is
+        // the same situation on screen: the target stores the ramp the dither was faking.
+        return highBitDepthCapture || deepCanvas || !ditherEnabled;
     }
 
     /**

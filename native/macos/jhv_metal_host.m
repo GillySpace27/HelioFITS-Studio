@@ -1,7 +1,9 @@
 #import <AppKit/AppKit.h>
 #import <dispatch/dispatch.h>
 #import <jawt_md.h>
+#import <IOSurface/IOSurfaceRef.h>
 #import <Metal/Metal.h>
+#import <objc/runtime.h>
 #import <QuartzCore/CATransaction.h>
 #import <QuartzCore/CAMetalLayer.h>
 
@@ -221,6 +223,174 @@ void *jhv_metal_host_get_layer(void *boxPtr) {
 
     JHVMetalHostBox *box = (__bridge JHVMetalHostBox *)boxPtr;
     return (__bridge void *)box.metalLayer;
+}
+
+// --- Deep-colour presentation ---------------------------------------------------------------
+//
+// The EGL window surface caps the canvas at 8 bits per channel because ANGLE's Metal backend
+// only enumerates 8-bit configs. The route around it: the scene is rendered into a 10-bit
+// IOSurface wrapped as an EGL pbuffer (EGL_ANGLE_iosurface_client_buffer, whose format comes
+// from the pbuffer attributes rather than the config), and these functions carry that IOSurface
+// to the screen: the layer is switched to a 10-bit pixel format and each frame is blitted from
+// the IOSurface into the layer's drawable.
+//
+// Why BGR10A2Unorm and not RGBA16Float: the layer's colorspace is nil, as it has always been
+// for the 8-bit path, and for an untagged UNORM layer the compositor passes pixel values
+// through unchanged, so the image looks exactly as before with four times the levels. An
+// untagged FLOAT layer is different: the compositor treats its values as linear and re-encodes
+// them for the display (measured on this machine: greys and primaries brightened along an sRGB
+// encode curve, saturated colours handled by some further gamut/EDR logic). Half-float
+// presentation therefore needs real colour management first, and 10 bits matches what the
+// panel's pipe carries anyway.
+
+@interface JHVDeepPresenter : NSObject
+@property(nonatomic, strong) id<MTLCommandQueue> queue;
+@property(nonatomic, strong) id<MTLTexture> wrapped;      // MTLTexture view of the canvas IOSurface
+@property(nonatomic, assign) IOSurfaceRef wrappedSurface; // cache key only, not retained here
+@end
+
+@implementation JHVDeepPresenter
+@end
+
+static char jhv_deep_presenter_key;
+
+// Switch the layer to 10 bits per channel so the compositor receives more than 8.
+// Returns 1 on success. Main-thread: the layer is in a live tree.
+//
+// The vertical flip: GL's framebuffer origin is bottom-left, Metal's top-left. ANGLE's window
+// surface reconciles the two during its own present; the deep path blits raw rows, so the layer
+// is flipped at composite time instead. Free (the compositor applies it), and it must be undone
+// if the deep path is abandoned, because ANGLE's window surface would then flip twice.
+int jhv_metal_host_prepare_deep(void *layerPtr) {
+    if (layerPtr == NULL)
+        return 0;
+
+    __block int ok = 0;
+    jhv_run_on_main_sync(^{
+        @autoreleasepool {
+            CAMetalLayer *layer = (__bridge CAMetalLayer *)layerPtr;
+            jhv_run_without_actions(^{
+                layer.pixelFormat = MTLPixelFormatBGR10A2Unorm;
+                layer.transform = CATransform3DMakeScale(1, -1, 1);
+            });
+            ok = 1;
+        }
+    });
+    return ok;
+}
+
+// Undo prepare_deep's layer flip before ANGLE takes the layer back as an 8-bit window surface
+// (ANGLE resets the pixel format itself, but not the transform).
+void jhv_metal_host_reset_deep(void *layerPtr) {
+    if (layerPtr == NULL)
+        return;
+
+    jhv_run_on_main_sync(^{
+        @autoreleasepool {
+            CAMetalLayer *layer = (__bridge CAMetalLayer *)layerPtr;
+            jhv_run_without_actions(^{
+                layer.transform = CATransform3DIdentity;
+            });
+        }
+    });
+}
+
+// A 10-bit BGR10A2 IOSurface ('l10r') for the canvas. Returned retained; release with
+// jhv_deep_canvas_release.
+void *jhv_deep_canvas_create(int width, int height) {
+    if (width <= 0 || height <= 0)
+        return NULL;
+
+    int bytesPerElement = 4; // packed 2-10-10-10
+    size_t bpr = IOSurfaceAlignProperty(kIOSurfaceBytesPerRow, (size_t)width * bytesPerElement);
+    size_t allocSize = IOSurfaceAlignProperty(kIOSurfaceAllocSize, bpr * height);
+    int64_t values[] = {width, height, 'l10r', bytesPerElement, (int64_t)bpr, (int64_t)allocSize};
+    CFStringRef keys[] = {kIOSurfaceWidth, kIOSurfaceHeight, kIOSurfacePixelFormat,
+                          kIOSurfaceBytesPerElement, kIOSurfaceBytesPerRow, kIOSurfaceAllocSize};
+    CFMutableDictionaryRef props = CFDictionaryCreateMutable(NULL, 6,
+            &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    for (size_t i = 0; i < 6; i++) {
+        CFNumberRef number = CFNumberCreate(NULL, kCFNumberSInt64Type, &values[i]);
+        CFDictionarySetValue(props, keys[i], number);
+        CFRelease(number);
+    }
+    IOSurfaceRef surf = IOSurfaceCreate(props);
+    CFRelease(props);
+    return surf;
+}
+
+void jhv_deep_canvas_release(void *surfPtr) {
+    if (surfPtr != NULL)
+        CFRelease((IOSurfaceRef)surfPtr);
+}
+
+// Copy the rendered IOSurface into the layer's next drawable and present it. Called on the
+// render thread after the GL work has finished (glFinish), and returns only after the blit has
+// completed, so the caller may immediately render the next frame into the same IOSurface.
+// ponytail: fully synchronous single-buffer present; ping-pong IOSurfaces + MTLSharedEvent if
+// the wait ever shows up in a profile.
+int jhv_metal_host_present_deep(void *layerPtr, void *surfPtr, int width, int height) {
+    if (layerPtr == NULL || surfPtr == NULL || width <= 0 || height <= 0)
+        return 0;
+
+    @autoreleasepool {
+        CAMetalLayer *layer = (__bridge CAMetalLayer *)layerPtr;
+        IOSurfaceRef surf = (IOSurfaceRef)surfPtr;
+        JHVDeepPresenter *presenter = objc_getAssociatedObject(layer, &jhv_deep_presenter_key);
+        if (presenter == nil) {
+            presenter = [JHVDeepPresenter new];
+            presenter.queue = [layer.device newCommandQueue];
+            objc_setAssociatedObject(layer, &jhv_deep_presenter_key, presenter, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        if (presenter.queue == nil)
+            return 0;
+
+        // Pointer AND size: a fresh IOSurface can reuse a released one's address.
+        if (presenter.wrapped == nil || presenter.wrappedSurface != surf
+                || presenter.wrapped.width != (NSUInteger)width || presenter.wrapped.height != (NSUInteger)height) {
+            MTLTextureDescriptor *desc = [MTLTextureDescriptor
+                    texture2DDescriptorWithPixelFormat:MTLPixelFormatBGR10A2Unorm
+                                                 width:width height:height mipmapped:NO];
+            desc.usage = MTLTextureUsageShaderRead;
+            // IOSurface-backed textures must be Shared on unified memory, Managed on discrete.
+            desc.storageMode = layer.device.hasUnifiedMemory ? MTLStorageModeShared : MTLStorageModeManaged;
+            presenter.wrapped = [layer.device newTextureWithDescriptor:desc iosurface:surf plane:0];
+            presenter.wrappedSurface = surf;
+            if (presenter.wrapped == nil)
+                return 0;
+        }
+
+        id<CAMetalDrawable> drawable = [layer nextDrawable];
+        if (drawable == nil)
+            return 0;
+
+        id<MTLTexture> dst = drawable.texture;
+        NSUInteger w = MIN((NSUInteger)width, dst.width);
+        NSUInteger h = MIN((NSUInteger)height, dst.height);
+        id<MTLCommandBuffer> commands = [presenter.queue commandBuffer];
+        if (w != dst.width || h != dst.height) {
+            // Mid-resize the canvas and the drawable disagree for a frame; clear the drawable so
+            // the uncovered border is black rather than stale memory.
+            MTLRenderPassDescriptor *pass = [MTLRenderPassDescriptor renderPassDescriptor];
+            pass.colorAttachments[0].texture = dst;
+            pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+            pass.colorAttachments[0].storeAction = MTLStoreActionStore;
+            pass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
+            [[commands renderCommandEncoderWithDescriptor:pass] endEncoding];
+        }
+        id<MTLBlitCommandEncoder> blit = [commands blitCommandEncoder];
+        [blit copyFromTexture:presenter.wrapped
+                  sourceSlice:0 sourceLevel:0
+                 sourceOrigin:MTLOriginMake(0, 0, 0) sourceSize:MTLSizeMake(w, h, 1)
+                    toTexture:dst
+             destinationSlice:0 destinationLevel:0
+            destinationOrigin:MTLOriginMake(0, 0, 0)];
+        [blit endEncoding];
+        [commands presentDrawable:drawable];
+        [commands commit];
+        [commands waitUntilCompleted];
+        return 1;
+    }
 }
 
 void jhv_metal_host_destroy(void *boxPtr) {

@@ -35,6 +35,17 @@ public final class MacAngleBridge {
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
     private static final MethodHandle DEVICE_INFO = downcall("jhv_metal_device_info",
             FunctionDescriptor.of(ValueLayout.ADDRESS));
+    private static final MethodHandle PREPARE_DEEP = downcall("jhv_metal_host_prepare_deep",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+    private static final MethodHandle RESET_DEEP = downcall("jhv_metal_host_reset_deep",
+            FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
+    private static final MethodHandle DEEP_CANVAS_CREATE = downcall("jhv_deep_canvas_create",
+            FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+    private static final MethodHandle DEEP_CANVAS_RELEASE = downcall("jhv_deep_canvas_release",
+            FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
+    private static final MethodHandle PRESENT_DEEP = downcall("jhv_metal_host_present_deep",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                    ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
 
     public static void prewarm() {
         // Force class initialization and native symbol resolution before the first canvas attach.
@@ -108,6 +119,53 @@ public final class MacAngleBridge {
             DESTROY.invokeExact(metalHost);
         } catch (Throwable t) {
             throw new RuntimeException("Failed to destroy Metal host layer", t);
+        }
+    }
+
+    // Switch the CAMetalLayer to a half-float pixel format for the deep-colour canvas.
+    public static boolean prepareDeepLayer(long layer) {
+        try {
+            return (int) PREPARE_DEEP.invokeExact(MemorySegment.ofAddress(layer)) != 0;
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to prepare deep-colour layer", t);
+        }
+    }
+
+    // Undo prepareDeepLayer's flip before ANGLE takes the layer back as a window surface.
+    public static void resetDeepLayer(long layer) {
+        try {
+            RESET_DEEP.invokeExact(MemorySegment.ofAddress(layer));
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to reset deep-colour layer", t);
+        }
+    }
+
+    // An RGB10_A2 IOSurface for the canvas; 0 on failure. Release with deepCanvasRelease.
+    public static long deepCanvasCreate(int width, int height) {
+        try {
+            return ((MemorySegment) DEEP_CANVAS_CREATE.invokeExact(width, height)).address();
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to create deep-colour canvas IOSurface", t);
+        }
+    }
+
+    public static void deepCanvasRelease(long ioSurface) {
+        if (ioSurface == 0L)
+            return;
+        try {
+            DEEP_CANVAS_RELEASE.invokeExact(MemorySegment.ofAddress(ioSurface));
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to release deep-colour canvas IOSurface", t);
+        }
+    }
+
+    // Blit the rendered IOSurface into the layer's drawable and present it. Call after glFinish.
+    public static boolean presentDeep(long layer, long ioSurface, int width, int height) {
+        try {
+            return (int) PRESENT_DEEP.invokeExact(MemorySegment.ofAddress(layer),
+                    MemorySegment.ofAddress(ioSurface), width, height) != 0;
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to present deep-colour canvas", t);
         }
     }
 
