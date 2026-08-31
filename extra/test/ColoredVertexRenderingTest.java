@@ -82,7 +82,7 @@ public final class ColoredVertexRenderingTest {
     }
 
     private static void drawTriangles(GLSLShape shape) {
-        BufVertex vertices = new BufVertex(0);
+        BufVertex vertices = new BufVertex();
         vertices.putVertex(-1.75f, 0.7f, 0, 1, Colors.Red.bytes());
         vertices.putVertex(-1.05f, 0.7f, 0, 1, Colors.Red.bytes());
         vertices.putVertex(-1.4f, 1.4f, 0, 1, Colors.Red.bytes());

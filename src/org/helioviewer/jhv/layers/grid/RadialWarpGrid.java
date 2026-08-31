@@ -22,7 +22,7 @@ public final class RadialWarpGrid {
     private static final double[] RING_FACTORS = {1, 2, 5};
 
     private final GLSLLine line = new GLSLLine(true);
-    private final BufVertex vexBuf = new BufVertex(0);
+    private final BufVertex vexBuf = new BufVertex();
     private final double[] rings = new double[MAX_RINGS];
     private final String[] ringLabels = new String[MAX_RINGS];
 

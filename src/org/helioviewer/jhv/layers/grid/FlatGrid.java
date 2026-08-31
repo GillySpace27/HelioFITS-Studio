@@ -26,7 +26,7 @@ public class FlatGrid {
     private static final double AXIS_EPSILON = 1e-9;
 
     private final GLSLShape shape = new GLSLShape(true);
-    private final BufVertex vexBuf = new BufVertex(0);
+    private final BufVertex vexBuf = new BufVertex();
     private final Axis xAxis = new Axis();
     private final Axis yAxis = new Axis();
 

@@ -33,11 +33,11 @@ public final class Annotations {
 
     private static final ArrayList<Annotateable> annotations = new ArrayList<>();
     private static final GLSLLine annotationsLine = new GLSLLine(true);
-    private static final BufVertex annotationsBuf = new BufVertex(3276); // pre-allocate 64kB
+    private static final BufVertex annotationsBuf = new BufVertex();
     private static final GLSLLine transformedLine = new GLSLLine(true);
-    private static final BufVertex transformedBuf = new BufVertex(512); // pre-allocate 5 FOV
+    private static final BufVertex transformedBuf = new BufVertex();
     private static final GLSLShape center = new GLSLShape(true);
-    private static final BufVertex centerBuf = new BufVertex(8);
+    private static final BufVertex centerBuf = new BufVertex(1);
 
     private static Annotateable pending;
     private static int activeIndex = -1;

@@ -64,15 +64,22 @@ final class ViewpointOrbitWorker {
         @Nonnull
         @Override
         public Prepared call() {
-            BufVertex orbitBuf = new BufVertex(3276); // pre-allocate 64k
-            BufVertex planetBuf = new BufVertex(Math.max(parameters.entries.size(), 1));
-            float[] currentPoint = {0, 0, 0, 1};
-
             ArrayList<PositionLoad> positionLoads = new ArrayList<>(parameters.entries.size());
+            ArrayList<ViewpointOrbitTrail> trails = new ArrayList<>(parameters.entries.size());
+            int orbitVertexCount = 0;
             for (Entry entry : parameters.entries) {
                 positionLoads.add(entry.positionLoad);
                 ViewpointOrbitTrail trail = orbitTrails.get(entry.positionLoad, entry.response, parameters.start, parameters.end);
-                trail.putVertices(orbitBuf, currentPoint, entry.color, parameters.time);
+                trails.add(trail);
+                orbitVertexCount = Math.addExact(orbitVertexCount, trail.vertexCount(parameters.time));
+            }
+
+            BufVertex orbitBuf = new BufVertex(orbitVertexCount);
+            BufVertex planetBuf = new BufVertex(parameters.entries.size());
+            float[] currentPoint = {0, 0, 0, 1};
+            for (int i = 0; i < parameters.entries.size(); i++) {
+                Entry entry = parameters.entries.get(i);
+                trails.get(i).putVertices(orbitBuf, currentPoint, entry.color, parameters.time);
                 planetBuf.putVertex(currentPoint[0], currentPoint[1], currentPoint[2], SIZE_PLANET, entry.color);
             }
             orbitTrails.prune(positionLoads);

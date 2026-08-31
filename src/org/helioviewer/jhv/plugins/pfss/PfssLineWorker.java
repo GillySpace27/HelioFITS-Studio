@@ -36,7 +36,7 @@ final class PfssLineWorker {
         @Nonnull
         @Override
         public Line call() {
-            BufVertex lineBuf = new BufVertex(3276); // pre-allocate 64k
+            BufVertex lineBuf = new BufVertex(PfssLine.vertexCount(parameters.data, parameters.detail));
             PfssLine.calculatePositions(parameters.data, parameters.detail, parameters.fixedColor, parameters.radius, parameters.whiteBackground, lineBuf);
             return new Line(parameters, new DirectBufVertex(lineBuf));
         }

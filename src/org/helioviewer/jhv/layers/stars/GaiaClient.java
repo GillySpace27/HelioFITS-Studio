@@ -97,7 +97,7 @@ public final class GaiaClient {
     }
 
     private static BufVertex computePoints(Position viewpoint, List<Star> stars) throws SpiceErrorException {
-        BufVertex vexBuf = new BufVertex(500);
+        BufVertex vexBuf = new BufVertex(stars.size() + 3);
         JHVTime time = viewpoint.time;
         double[] sc = {viewpoint.distance, -viewpoint.lon, viewpoint.lat}; // lon was negated
         double[] theta = new double[2];
@@ -121,7 +121,7 @@ public final class GaiaClient {
     }
 
     private static BufVertex computePointsPrecise(String location, JHVTime time, List<Star> stars) throws SpiceErrorException {
-        BufVertex vexBuf = new BufVertex(500);
+        BufVertex vexBuf = new BufVertex(stars.size() + 3);
         double[] sc = SpiceMath.recrad(Spice.getPosition(location, "SUN", "SOLO_IAU_SUN_2009", time));
         double[] theta = new double[2];
 

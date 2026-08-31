@@ -25,6 +25,10 @@ public class BufVertex {
     private ByteBuffer colorBuffer;
     private byte[] arrayColor;
 
+    public BufVertex() {
+        this(0);
+    }
+
     public BufVertex(int capacity) {
         arrayVertx = new byte[Math.multiplyExact(capacity, VERTEX_BYTES)];
         vertxBuffer = ByteBuffer.wrap(arrayVertx);

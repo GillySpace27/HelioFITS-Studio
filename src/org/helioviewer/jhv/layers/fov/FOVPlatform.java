@@ -16,7 +16,6 @@ import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.display.ViewportMath;
 import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.opengl.BufVertex;
-import org.helioviewer.jhv.opengl.FOVShape;
 import org.helioviewer.jhv.opengl.GLHelper;
 import org.helioviewer.jhv.opengl.GLSLLine;
 import org.helioviewer.jhv.opengl.GLSLShape;
@@ -39,8 +38,8 @@ class FOVPlatform extends DefaultMutableTreeNode {
     private final GLSLLine hemiLine = new GLSLLine(false);
     private final GLSLLine instrumentLines = new GLSLLine(true);
     private final GLSLShape instrumentCenters = new GLSLShape(true);
-    private final BufVertex lineBuf = new BufVertex(8 * (4 * (FOVShape.RECT_SUBDIVS + 1) + 2));
-    private final BufVertex centerBuf = new BufVertex(8);
+    private final BufVertex lineBuf = new BufVertex();
+    private final BufVertex centerBuf = new BufVertex();
 
     private final String name;
     private final String observer;

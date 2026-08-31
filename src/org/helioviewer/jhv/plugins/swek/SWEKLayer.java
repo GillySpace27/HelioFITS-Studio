@@ -61,9 +61,9 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
     private boolean icons = true;
 
     private final GLSLLine lineEvent = new GLSLLine(true);
-    private final BufVertex bufEvent = new BufVertex(512); // pre-allocate
+    private final BufVertex bufEvent = new BufVertex();
     private final GLSLLine lineThick = new GLSLLine(true);
-    private final BufVertex bufThick = new BufVertex(64); // pre-allocate
+    private final BufVertex bufThick = new BufVertex();
 
     private final GLSLTexture glslTexture = new GLSLTexture();
     private final BufCoord texBuf = new BufCoord(4 * 8);

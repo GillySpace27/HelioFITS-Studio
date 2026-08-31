@@ -64,6 +64,12 @@ final class ViewpointOrbitTrail {
         return response == _response && start == _start && end == _end;
     }
 
+    int vertexCount(long time) {
+        sampleThrough(time);
+        int count = upperBound(time);
+        return count + 2 + (points.get(count - 1).time == time ? 0 : 1);
+    }
+
     void putVertices(BufVertex orbitBuf, float[] currentPoint, byte[] color, long time) {
         sampleThrough(time);
         int count = upperBound(time);
