@@ -457,8 +457,14 @@ public final class GridLayer extends AbstractLayer {
             eclipticBuiltColor = color;
             eclipticBuiltDensity = eclipticDensity;
         }
-        // No rotation: buildEcliptic already works in the frame Sun.getEarth reports, which is the
-        // frame the Earth marker is placed in, so the plane passes through that marker by design.
+        // No rotation: buildEcliptic already emits display-frame geometry, having carried the
+        // inertial Earth directions across with the same angle the planet markers use. So the plane
+        // passes through the observer marker by construction rather than by coincidence.
+        //
+        // One consequence worth naming: with "planets follow solar rotation" turned off, the planet
+        // markers move to a frozen layout that is deliberately not registered to solar longitude,
+        // and the Earth marker then sits off this plane. The plane is the physical one and stays
+        // registered; it is the layout that has been detached.
         eclipticLine.renderLine(vp, LINEWIDTH * eclipticLineScale);
     }
 

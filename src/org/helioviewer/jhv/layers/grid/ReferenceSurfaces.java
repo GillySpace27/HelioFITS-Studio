@@ -1,7 +1,6 @@
 package org.helioviewer.jhv.layers.grid;
 
-import org.helioviewer.jhv.astronomy.Position;
-import org.helioviewer.jhv.astronomy.Sun;
+import org.helioviewer.jhv.astronomy.SpaceObject;
 import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.display.SurfaceModel;
 import org.helioviewer.jhv.math.Vec3;
@@ -103,20 +102,39 @@ public final class ReferenceSurfaces {
      *
      * <p>Its orientation is taken from Earth's own orbit rather than from a tabulated inclination:
      * the ecliptic IS the plane of that orbit, so two Earth positions a quarter year apart span it
-     * exactly, in whatever frame {@link Sun#getEarth} already reports. That keeps this consistent
-     * with the Earth marker beside it by construction, which a hard-coded 7.25 degrees would not.
+     * exactly. Deriving it keeps it consistent with the Earth marker beside it by construction,
+     * which a hard-coded 7.25 degrees would not.
      *
-     * <p>Drawn in the display frame, so unlike the Thomson sphere the caller rotates into nothing.
+     * <p><b>The positions must be INERTIAL.</b> This was first written with {@code Sun.getEarth},
+     * which reports Carrington longitude, and Carrington rotates. Two directions sampled in a
+     * rotating frame are separated mostly by the Sun's spin rather than by Earth's orbit, so the
+     * plane they span is not the ecliptic and it drifts as the Sun turns. Measured against the
+     * shipped ephemeris over one solar rotation, the normal built that way left the solar pole by
+     * 7.482 degrees and arrived at 6.094, sliding the whole way; built in HCI it reads 7.252
+     * degrees at every epoch, which is the known inclination of the solar equator to the ecliptic
+     * and is the check that this is now the right plane. Same class of error as the one that made
+     * the planets orbit at the Sun's rotation rate; see PlanetMarkers.
+     *
+     * <p>Drawn in the display frame. The caller supplies the angle that carries an inertial
+     * direction into it, so the ecliptic, the planets and the observer marker are all placed by
+     * one convention.
      */
     public static void buildEcliptic(GLSLLine line, JHVTime time, double outerRadius, byte[] color, double density) {
         if (outerRadius <= 0) {
             line.setVertex(new BufVertex(0));
             return;
         }
-        Vec3 u = earthDirection(time);
+        // One offset for both samples: it is the frame conversion, not a per-epoch correction, and
+        // evaluating it twice would fold a quarter turn of the Sun into the plane's orientation.
+        double offset = PlanetMarkers.frameOffset(time);
+        Vec3 u = earthDirection(time, offset);
         // A quarter orbit later, so the two directions are near-orthogonal and their cross product
         // is well conditioned. Any separation would span the plane; 90 degrees is just the steadiest.
-        Vec3 w = earthDirection(new JHVTime(time.milli + 91 * 86400_000L));
+        Vec3 w = earthDirection(new JHVTime(time.milli + 91 * 86400_000L), offset);
+        if (u.length() == 0 || w.length() == 0) { // no ephemeris: draw nothing rather than a guess
+            line.setVertex(new BufVertex(0));
+            return;
+        }
 
         Vec3 normal = Vec3.cross(u, w);
         if (normal.length() < 1e-9) { // degenerate: fall back to the solar equator rather than draw nonsense
@@ -160,13 +178,16 @@ public final class ReferenceSurfaces {
             buf.putVertex(x, y, z, 1, Colors.Null);
     }
 
-    /** Unit vector from the Sun to Earth, in the same frame the Earth marker is placed in. */
-    private static Vec3 earthDirection(JHVTime time) {
-        Position p = Sun.getEarth(time);
-        double cosLat = Math.cos(p.lat);
-        // Matches Position.toQuat's convention: the Earth marker is placed by rotating (0,0,d)
-        // into this direction, so building it directly here puts the plane through that marker.
-        return unit(new Vec3(cosLat * Math.sin(p.lon), Math.sin(p.lat), cosLat * Math.cos(p.lon)));
+    /**
+     * Unit vector from the Sun to Earth, taken inertially and carried into the display frame.
+     *
+     * <p>The same two steps the planet markers use, and for the same reason: the ephemeris is
+     * asked in HCI, where Earth moves at its own rate, and one angle brings the answer into the
+     * frame everything is drawn in. Returns a zero vector when the ephemeris cannot place Earth.
+     */
+    private static Vec3 earthDirection(JHVTime time, double offset) {
+        double[] v = PlanetMarkers.hci(SpaceObject.get("Earth"), time);
+        return v == null ? new Vec3(0, 0, 0) : unit(PlanetMarkers.toDisplay(v, offset));
     }
 
     // Vec3.normalize is commented out upstream, so keep it local rather than reviving it here.

@@ -87,7 +87,7 @@ public final class PlanetMarkers {
 
     /** Rectangular HCI position in solar radii, or null when the ephemeris cannot place it. */
     @Nullable
-    private static double[] hci(SpaceObject body, JHVTime time) {
+    static double[] hci(SpaceObject body, JHVTime time) {
         try {
             double[] v = Spice.getPosition("SUN", body.getSpiceName(), INERTIAL, time);
             return v[0] == 0 && v[1] == 0 && v[2] == 0 ? null : v;
@@ -105,7 +105,7 @@ public final class PlanetMarkers {
      * latitudes identical. One angle therefore moves every body, which is what lets an orbit be
      * built inertially and then placed rigidly.
      */
-    private static double frameOffset(JHVTime time) {
+    static double frameOffset(JHVTime time) {
         Position carr = Spice.getCarrington("EARTH", time);
         double[] v = hci(SpaceObject.get("Earth"), time);
         if (carr == null || v == null)
@@ -150,7 +150,7 @@ public final class PlanetMarkers {
     }
 
     /** An HCI vector placed in the display frame, using an offset the caller holds fixed. */
-    private static Vec3 toDisplay(double[] v, double offset) {
+    static Vec3 toDisplay(double[] v, double offset) {
         double r = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
         if (r <= 0)
             return new Vec3(0, 0, 0);
