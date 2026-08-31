@@ -149,6 +149,22 @@ public enum MapMode {
         return this == Orthographic || (this == Helioradial && Display.isHelioradial3D());
     }
 
+    /**
+     * Whether the surface model reaches the picture at all.
+     *
+     * <p>True in exactly one place: the {@code surfaceModel} uniform exists only in
+     * warpSurface.vert, which is bound only by renderWarpSurface, which runs only for the
+     * helioradial surface mesh. In every other projection the imagery is reconstructed per
+     * fragment from a full-screen quad and the choice of surface is not consulted at all.
+     *
+     * <p>Stated here rather than re-derived in the toolbar, because a control that is offered
+     * where it does nothing is worse than one that is absent: it invites the conclusion that the
+     * data does not care where the brightness is placed, which is the opposite of the point.
+     */
+    public boolean usesSurfaceModel() {
+        return this == Helioradial && Display.isHelioradial3D();
+    }
+
     public boolean usesWarpLambda() {
         return this == Helioradial || this == HelioradialUnrolled;
     }

@@ -586,9 +586,11 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         // windowActivated was tried and is not enough -- that only fires when the frame becomes
         // active, so any other route to the front left the palette buried. This states the
         // requirement directly instead of re-deriving it from window events.
-        // Cost, accepted deliberately: alwaysOnTop is not scoped to one application, so the
-        // palette also floats above other apps while it is open. Closing it (the toolbar
-        // button, or the palette's own close box) puts that back.
+        // alwaysOnTop is not scoped to one application, so on its own this also floats the palette
+        // above every OTHER app. That is not a cost worth paying: a tool palette for a viewer has
+        // no business sitting over a terminal the viewer is not even in front of. The flag is
+        // therefore lifted whenever this application is not the active one; see the activeWindow
+        // listener below, which is what scopes it.
         palette.setAlwaysOnTop(true);
         // Deliberately NOT Window.Type.UTILITY. That maps to an NSPanel, and macOS orders utility
         // panels out whenever the owning app deactivates, which is what made the palette vanish
@@ -679,6 +681,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         content.add(createSkyPanel());
         content.add(createHelioradial3DPanel());
         setSkyPanelEnabled(ViewState.getProjection() == MapMode.ObserverSky);
+        surfaceModelToggle.setEnabled(ViewState.getProjection().usesSurfaceModel());
         warpLambdaSlider.setEnabled(ViewState.getProjection().usesWarpLambda());
         // The disk scale is a multiplier on the Box-Cox limb anchor, so it has nothing to act on
         // wherever the warp itself does not: same condition, not a similar one.
@@ -696,6 +699,21 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         // on nudging a disposed window while the live one sat unmanaged.
         if (!paletteFrameListenersAdded) {
             paletteFrameListenersAdded = true;
+            // Scope alwaysOnTop to this application. The focus manager reports a null active
+            // window exactly when no window of ours is active, which is the moment the palette
+            // should stop being above everyone else's, and reports one of ours when we come back.
+            // Cheaper and more reliable than window listeners on every frame we might own, and it
+            // covers the palette itself for free: it is non-focusable, so it never becomes active
+            // and never mistakes itself for the app being in front.
+            java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager()
+                    .addPropertyChangeListener("activeWindow", event -> {
+                        JDialog current2 = current == null ? null : current.projectionPalette;
+                        if (current2 == null)
+                            return;
+                        boolean appActive = event.getNewValue() != null;
+                        if (current2.isAlwaysOnTop() != appActive)
+                            current2.setAlwaysOnTop(appActive);
+                    });
             java.awt.event.ComponentAdapter follow = new java.awt.event.ComponentAdapter() {
                 @Override
                 public void componentMoved(java.awt.event.ComponentEvent e) {
@@ -862,6 +880,20 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private void syncSurfaceModelToggle() {
         if (surfaceModelToggle == null)
             return;
+        // Ridden on the tick rather than wired to a listener because two independent things enable
+        // it, the projection and the 3D checkbox, and the checkbox changes it with no projection
+        // change to hang a listener on.
+        boolean acts = ViewState.getProjection().usesSurfaceModel();
+        if (surfaceModelToggle.isEnabled() != acts)
+            surfaceModelToggle.setEnabled(acts);
+        if (!acts) {
+            surfaceModelToggle.setText(Display.getSurfaceModel().toString());
+            surfaceModelToggle.setToolTipText("Where wide-field brightness is placed in depth. Only "
+                    + "Helioradial with \"Render in 3D\" draws the imagery on a surface; every other "
+                    + "projection reconstructs it per pixel and never consults this.");
+            return;
+        }
+
         SurfaceModel current = Display.getSurfaceModel();
         // Something else can move this: a restored session, or the exclusivity rule dropping back
         // to plane of sky when the viewpoint moves inside the field.
