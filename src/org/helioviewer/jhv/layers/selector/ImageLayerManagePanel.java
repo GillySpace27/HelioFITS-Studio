@@ -240,6 +240,8 @@ final class ImageLayerManagePanel extends JPanel {
     // view may have been swapped (layerUpdated) so a same-count/different-range layer refreshes.
     void forceReadoutRefresh() {
         lastReadoutSig = Long.MIN_VALUE;
+        lastReadoutText = null;
+        lastCacheStat = 0; // a swapped view means different files on disk
         updateReadout();
     }
 
@@ -256,24 +258,112 @@ final class ImageLayerManagePanel extends JPanel {
         boolean downloading = layer.isDownloading();
         int done = downloading ? view.getCompleteFrameCount() : total;
 
-        // timeUpdated fires per displayed frame; rebuild only when something shown actually
-        // changed. While downloading, `done` climbs so the signature advances each new frame;
-        // during plain playback total/done are stable so we skip the O(n log n) median sort.
+        // timeUpdated fires per displayed frame, and the median spacing is an O(n log n) sort, so
+        // that one number is memoized on a signature of what could change it. The rest of the
+        // readout is rebuilt every time and compared: the decoded resolution moves with the zoom
+        // and the cache grows on its own clock, neither of which the frame counts would report.
         long sig = ((long) total << 21) ^ ((long) done << 1) ^ (downloading ? 1 : 0);
-        if (sig == lastReadoutSig)
-            return;
-        lastReadoutSig = sig;
+        if (sig != lastReadoutSig) {
+            lastReadoutSig = sig;
+            cadenceText = total > 1 ? formatSeconds(medianSpacingSec(view, max)) : "—";
+        }
 
         long start = view.getFirstTime().milli;
         long end = view.getLastTime().milli;
-        String cadence = total > 1 ? formatSeconds(medianSpacingSec(view, max)) : "—";
+        String cadence = cadenceText;
         String frames = downloading
                 ? (max == 0 ? "0/0 frames" : done + "/" + total + " frames") // scope not yet known
                 : total + (total == 1 ? " frame" : " frames");
         String duration = TimeUtils.formatDurationSig(end - start);
-        readout.setText(String.format("<html>%s – %s<br>cadence %s · %s · %s total</html>",
-                TimeUtils.format(start), TimeUtils.format(end), cadence, frames, duration));
+        String text = String.format("<html>%s – %s<br>cadence %s · %s · %s total<br>%s<br>%s</html>",
+                TimeUtils.format(start), TimeUtils.format(end), cadence, frames, duration,
+                describeData(view), describeCache());
+        if (!text.equals(lastReadoutText)) {
+            lastReadoutText = text;
+            readout.setText(text);
+        }
     }
+
+    private String cadenceText = "—";
+    private String lastReadoutText;
+
+    /**
+     * What this layer's pixels actually are: format, size, sample depth, plate scale.
+     *
+     * <p>Worth stating rather than leaving to the layer name, because the two things a name cannot
+     * tell you are exactly the two that decide what an analysis is allowed to conclude. A JP2
+     * browse product and the calibrated FITS of the same instrument carry the same name and are
+     * 8-bit and 16-bit respectively.
+     */
+    private String describeData(View view) {
+        StringBuilder sb = new StringBuilder();
+        String format = CellRenderer.formatName(layer);
+        sb.append(format == null ? "unknown format" : format);
+
+        View.ImageData data = layer.getImageData();
+        int[] nativeSize = view.getNativeSize();
+        if (nativeSize != null) {
+            sb.append(" · ").append(nativeSize[0]).append(" × ").append(nativeSize[1]);
+            // A JPEG 2000 view decodes whichever resolution level the current zoom asked for, so
+            // what is on screen is regularly smaller than what is on the server. Saying so is the
+            // difference between "this instrument is low resolution" and "you are zoomed out".
+            if (data != null && (data.imageBuffer().width != nativeSize[0] || data.imageBuffer().height != nativeSize[1]))
+                sb.append(" (showing ").append(data.imageBuffer().width).append(" × ")
+                        .append(data.imageBuffer().height).append(')');
+        } else if (data != null) {
+            // No resolution ladder: the format arrives whole, so the decoded frame IS the native.
+            sb.append(" · ").append(data.imageBuffer().width).append(" × ").append(data.imageBuffer().height);
+        }
+
+        if (data != null)
+            sb.append(" · ").append(depthName(data.imageBuffer().format));
+
+        // Absent for a surface map and for a pixel-based product, which have no plate scale to
+        // report; see MetaData.getArcsecPerPixel for why that is a 0 rather than a division here.
+        double arcsecPerPixel = layer.getMetaData().getArcsecPerPixel();
+        if (arcsecPerPixel > 0)
+            sb.append(String.format(arcsecPerPixel < 10 ? " · %.2f\u2033/px" : " · %.1f\u2033/px", arcsecPerPixel));
+        return sb.toString();
+    }
+
+    // What the decoder produced, which is not always what the file holds: a JP2 codestream can be
+    // 8 or 16 bit and lands in whichever buffer the decoder chose. This reports the buffer, since
+    // that is what every later stage of the pipeline actually sees.
+    private static String depthName(org.helioviewer.jhv.image.ImageBuffer.Format format) {
+        return switch (format) {
+            case Gray8 -> "8-bit";
+            case Gray16F -> "16-bit";
+            case RGBA32 -> "RGBA";
+        };
+    }
+
+    /**
+     * What this layer has on disk, throttled.
+     *
+     * <p>The count is one filesystem stat per frame URI, and a 262-frame layer is 262 of them. The
+     * readout rebuilds on every frame that lands while a download runs, so this must not be part of
+     * that rebuild; it is refreshed on its own slow clock and the last answer is reused between.
+     */
+    private String describeCache() {
+        long now = System.currentTimeMillis();
+        if (cachedSummary == null || now - lastCacheStat > CACHE_STAT_INTERVAL_MS) {
+            lastCacheStat = now;
+            java.util.List<java.io.File> found = cachedFiles();
+            if (found.isEmpty())
+                cachedSummary = "not cached on disk";
+            else {
+                long bytes = 0;
+                for (java.io.File f : found)
+                    bytes += f.length();
+                cachedSummary = "cached " + found.size() + (found.size() == 1 ? " file · " : " files · ") + humanSize(bytes);
+            }
+        }
+        return cachedSummary;
+    }
+
+    private static final long CACHE_STAT_INTERVAL_MS = 5000;
+    private String cachedSummary;
+    private long lastCacheStat;
 
     private static long medianSpacingSec(View view, int max) {
         long[] gaps = new long[max];

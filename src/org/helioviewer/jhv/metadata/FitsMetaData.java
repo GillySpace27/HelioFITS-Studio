@@ -26,6 +26,8 @@ public final class FitsMetaData extends CommonMetaData {
 
     private double referenceX = 0;
     private double referenceY = 0;
+    // 0 until a real angular WCS sets it: a surface map and a pixel-based product both have none.
+    private double arcsecPerPixel;
 
     // ptmc_compo pipeline: ORIGIN prefix match detected in identifyObservation, but NAXIS/CDELT
     // aren't in scope until retrievePixelParameters -- see the full-sphere span check there, which
@@ -331,6 +333,10 @@ public final class FitsMetaData extends CommonMetaData {
                 wcsPlaneUnitsPerRad = (float) (unitPerArcsec * 180. * 3600. / Math.PI);
                 unitPerPixelX = Math.abs(wcs.arcsecPerPixelX() * unitPerArcsec);
                 unitPerPixelY = Math.abs(wcs.arcsecPerPixelY() * unitPerArcsec);
+                // Kept as the header's own number. Everything else here is converted into solar
+                // radii, and converting back to report it would be a round trip through the
+                // observer distance for a quantity the file stated directly.
+                arcsecPerPixel = Math.abs(wcs.arcsecPerPixelY());
             }
 
             // Pixel center: FITS = integer from 1, OpenGL = half-integer from 0
@@ -366,6 +372,11 @@ public final class FitsMetaData extends CommonMetaData {
 
     private static boolean withinTolerance(double value, double target) {
         return Math.abs(value - target) <= target * SPHERE_SPAN_TOLERANCE;
+    }
+
+    @Override
+    public double getArcsecPerPixel() {
+        return arcsecPerPixel;
     }
 
     private double getSolarRadiusFactor() {

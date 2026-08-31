@@ -18,6 +18,19 @@ public interface MetaData {
 
     double getUnitPerArcsec();
 
+    /**
+     * Arcseconds per pixel as the header gave it, or 0 when this metadata has no plate scale.
+     *
+     * <p>Separate from {@link #getUnitPerPixelY} over {@link #getUnitPerArcsec}, which looks like
+     * the same quantity and is not always: for a surface map that ratio is a longitude step
+     * divided by radians-per-arcsec, and for a pixel-based product both sides are placeholders.
+     * Both cases produce a plausible number that means nothing, so the ones that have no plate
+     * scale say 0 rather than leaving a caller to divide and believe the result.
+     */
+    default double getArcsecPerPixel() {
+        return 0;
+    }
+
     float getResponseFactor();
 
     @Nonnull

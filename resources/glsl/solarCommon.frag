@@ -81,7 +81,7 @@ layout(std140) uniform DisplayBlock {
     // Non-zero while capturing to a high-bit-depth destination. Dither exists to hide 8-bit
     // banding; writing it into a 16-bit file would just be recording the noise. Occupies one of
     // the three trailing floats that were std140 rounding, so the block size is unchanged.
-    float highBitDepth;
+    float skipDither;
     // Non-zero to paint clipped pixels in flag colours instead of their LUT colour.
     float showClipping;
 } display;
@@ -183,7 +183,7 @@ vec4 getColor(const vec2 texcoord, const vec2 difftexcoord, const float factor) 
 
     // Dither breaks up banding in continuous ramps, but on a categorical LUT a +/-1/255 nudge
     // lands on a neighbouring legend entry, turning flat regions into salt-and-pepper noise.
-    if (display.indexed == 0. && display.highBitDepth == 0.)
+    if (display.indexed == 0. && display.skipDither == 0.)
         value += dither(texcoord);
 
     return texture(lut, vec2(value, 0.5)) * display.color;

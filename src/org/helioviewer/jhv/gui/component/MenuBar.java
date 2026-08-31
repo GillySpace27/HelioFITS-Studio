@@ -103,6 +103,15 @@ public final class MenuBar extends JMenuBar {
         });
         viewMenu.add(clipping);
 
+        JCheckBoxMenuItem dither = new JCheckBoxMenuItem("Dither Colour Banding", Display.isDitherEnabled());
+        dither.setToolTipText("Add one screen level of noise before the colour table, to break up banding. "
+                + "Worth the most on 8-bit browse products, which band twice: once in the data, once on the display.");
+        dither.addItemListener(e -> {
+            Display.setDitherEnabled(dither.getState());
+            DisplayController.display();
+        });
+        viewMenu.add(dither);
+
 
         viewMenu.addSeparator();
         viewMenu.add(new Actions.TogglePresentationMode());

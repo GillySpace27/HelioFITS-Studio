@@ -396,6 +396,42 @@ public final class Display {
     public static boolean highBitDepthCapture;
 
     /**
+     * Add a dither before the colour-table lookup, to break up banding.
+     *
+     * <p>On by default, because it has always been on and turning it off changes every layer.
+     *
+     * <p>Worth being precise about what it protects against, since the obvious guess is wrong. The
+     * amplitude is 1/255, which is one step of the SCREEN, not of the source: the LUT is sampled
+     * LINEAR for continuous tables, so a 16-bit FITS layer already arrives at the framebuffer as a
+     * continuous ramp and the banding that remains is the 8-bit display quantizing it. That is why
+     * this is not gated on the layer's own bit depth. An 8-bit browse product gains the most from
+     * it, having both sources of banding, but it is not the only layer that gains.
+     *
+     * <p>Categorical layers are never dithered, here or anywhere: their value selects a legend
+     * entry rather than sitting on a ramp, so a nudge of 1/255 is a different category.
+     */
+    private static boolean ditherEnabled = !"false".equals(Settings.getProperty("display.dither"));
+
+    public static boolean isDitherEnabled() {
+        return ditherEnabled;
+    }
+
+    public static void setDitherEnabled(boolean enabled) {
+        ditherEnabled = enabled;
+        Settings.setProperty("display.dither", Boolean.toString(enabled));
+    }
+
+    /**
+     * Whether the shader should skip the dither. Deliberately takes no layer: see above for why
+     * the source's bit depth is not what this protects against.
+     */
+    public static boolean skipDither() {
+        // A capture into a 16-bit target would be recording the noise into a file that did not
+        // need it, which is the case this flag was originally added for.
+        return highBitDepthCapture || !ditherEnabled;
+    }
+
+    /**
      * Paint clipped pixels in flag colours: magenta at or above the top of the display range,
      * green at or below the bottom.
      *

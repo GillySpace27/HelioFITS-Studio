@@ -365,4 +365,17 @@ public class J2KView extends BaseView {
         return source.resolutionSet(frame).getLevel(level);
     }
 
+    // Level 0 is the undiscarded codestream, which is the image as it exists on the server
+    // regardless of what the current zoom has been decoding.
+    @Override
+    @javax.annotation.Nullable
+    public int[] getNativeSize() {
+        try {
+            ResolutionSet.Level level = getResolutionLevel(getCurrentFrameNumber(), 0);
+            return level == null ? null : new int[]{level.width(), level.height()};
+        } catch (Exception e) { // a frame whose resolution set has not arrived yet
+            return null;
+        }
+    }
+
 }

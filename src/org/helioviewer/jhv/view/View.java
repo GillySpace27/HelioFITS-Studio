@@ -62,6 +62,19 @@ public interface View {
         return null;
     }
 
+    /**
+     * The source image's full pixel dimensions as {x, y}, or null when the view cannot say.
+     *
+     * <p>Only the JPEG 2000 views can, and only they need to: they decode at whichever resolution
+     * level the current zoom asked for, so the frame in memory is routinely smaller than the image
+     * on the server. For a format that arrives whole (FITS, PNG) the decoded frame IS the native
+     * one, and a caller with the frame in hand already has the answer.
+     */
+    @Nullable
+    default int[] getNativeSize() {
+        return null;
+    }
+
     @Nullable
     default LUT getDefaultLUT() {
         return null;

@@ -125,7 +125,7 @@ public class GLImage {
                 (float) slitLeft, (float) slitRight,
                 (float) (rhefActive ? upsilonLow : 1), (float) (rhefActive ? upsilonHigh : 1),
                 LUTLabels.isCategorical(lut) ? 1 : 0,
-                Display.highBitDepthCapture ? 1 : 0,
+                Display.skipDither() ? 1 : 0,
                 Display.showClipping ? 1 : 0);
 
         applyLUT();
