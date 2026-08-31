@@ -29,16 +29,10 @@ public final class GLSLModel {
     private static final Comparator<RenderMesh> BACK_TO_FRONT = Comparator.comparingDouble(RenderMesh::depth);
 
     private final List<ModelTexture> textureData;
-    private final ModelMaterial[] meshMaterials;
-    private final int[] meshMaterialIndices;
-    private final GLSLMesh[] triangleMeshes;
-    private final GLSLLine[] lineMeshes;
-    private final GLSLShape[] pointMeshes;
-    private final DirectBufVertex[] lineVertices;
-    private final DirectBufVertex[] pointVertices;
+    private final ArrayList<RenderMesh> meshes;
     private final GLSLMeshMaterial[] materialBuffers;
     private final boolean hasTriangles;
-    private final ArrayList<Integer> opaqueMeshes = new ArrayList<>();
+    private final ArrayList<RenderMesh> opaqueMeshes = new ArrayList<>();
     private final ArrayList<RenderMesh> transparentMeshes = new ArrayList<>();
 
     private final Matrix4f viewRotation = new Matrix4f();
@@ -49,42 +43,25 @@ public final class GLSLModel {
 
     public GLSLModel(ModelScene scene) {
         textureData = scene.textures();
-        int meshCount = scene.meshes().size();
-        meshMaterials = new ModelMaterial[meshCount];
-        meshMaterialIndices = new int[meshCount];
-        triangleMeshes = new GLSLMesh[meshCount];
-        lineMeshes = new GLSLLine[meshCount];
-        pointMeshes = new GLSLShape[meshCount];
-        lineVertices = new DirectBufVertex[meshCount];
-        pointVertices = new DirectBufVertex[meshCount];
+        meshes = new ArrayList<>(scene.meshes().size());
         materialBuffers = new GLSLMeshMaterial[scene.materials().size()];
         boolean triangles = false;
 
-        for (int i = 0; i < meshCount; i++) {
-            ModelMesh mesh = scene.meshes().get(i);
-            ModelMaterial material = scene.materials().get(mesh.materialIndex());
-            meshMaterials[i] = material;
-            meshMaterialIndices[i] = mesh.materialIndex();
-            switch (mesh.primitive()) {
-                case TRIANGLES -> {
-                    triangles = true;
-                    triangleMeshes[i] = new GLSLMesh(mesh);
-                    if (materialBuffers[mesh.materialIndex()] == null)
-                        materialBuffers[mesh.materialIndex()] = new GLSLMeshMaterial(material);
-                }
-                case LINES -> {
-                    lineMeshes[i] = new GLSLLine(false);
-                    lineVertices[i] = createLineVertices(mesh, material);
-                }
-                case POINTS -> {
-                    pointMeshes[i] = new GLSLShape(false);
-                    pointVertices[i] = createPointVertices(mesh, material);
-                }
+        for (ModelMesh data : scene.meshes()) {
+            ModelMaterial material = scene.materials().get(data.materialIndex());
+            GLSLMeshMaterial materialBuffer = null;
+            if (data.primitive() == ModelMesh.Primitive.TRIANGLES) {
+                triangles = true;
+                if (materialBuffers[data.materialIndex()] == null)
+                    materialBuffers[data.materialIndex()] = new GLSLMeshMaterial(material);
+                materialBuffer = materialBuffers[data.materialIndex()];
             }
-            if (mesh.primitive() != ModelMesh.Primitive.TRIANGLES || material.alphaMode() == ModelMaterial.AlphaMode.BLEND)
-                transparentMeshes.add(new RenderMesh(i, mesh.positions()));
+            RenderMesh mesh = new RenderMesh(data, material, materialBuffer);
+            meshes.add(mesh);
+            if (mesh.isTransparent())
+                transparentMeshes.add(mesh);
             else
-                opaqueMeshes.add(i);
+                opaqueMeshes.add(mesh);
         }
         hasTriangles = triangles;
     }
@@ -99,18 +76,8 @@ public final class GLSLModel {
                 if (material != null)
                     material.init();
             }
-            for (int i = 0; i < triangleMeshes.length; i++) {
-                if (triangleMeshes[i] != null)
-                    triangleMeshes[i].init();
-                if (lineMeshes[i] != null) {
-                    lineMeshes[i].init();
-                    lineMeshes[i].setVertexRepeatable(lineVertices[i]);
-                }
-                if (pointMeshes[i] != null) {
-                    pointMeshes[i].init();
-                    pointMeshes[i].setVertexRepeatable(pointVertices[i]);
-                }
-            }
+            for (RenderMesh mesh : meshes)
+                mesh.init();
         } catch (RuntimeException | Error e) {
             dispose();
             throw e;
@@ -141,8 +108,8 @@ public final class GLSLModel {
         if (hasTriangles)
             GLSLMeshShader.bindFrame(worldToClip, viewRotation.m02(), viewRotation.m12(), viewRotation.m22());
 
-        for (int meshIndex : opaqueMeshes)
-            renderTriangle(meshIndex);
+        for (RenderMesh mesh : opaqueMeshes)
+            renderTriangle(mesh);
 
         for (RenderMesh mesh : transparentMeshes)
             mesh.updateDepth(viewRotation);
@@ -150,37 +117,36 @@ public final class GLSLModel {
 
         double pointFactor = ViewportMath.getPixelFactor(vp, mv.cameraWidth(vp));
         for (RenderMesh mesh : transparentMeshes) {
-            if (triangleMeshes[mesh.meshIndex] != null) {
+            if (mesh.triangle != null) {
                 GL.glDepthMask(false);
                 try {
-                    renderTriangle(mesh.meshIndex);
+                    renderTriangle(mesh);
                 } finally {
                     GL.glDepthMask(true);
                 }
             } else
-                renderDrawing(mesh.meshIndex, vp, pointFactor, worldToClip);
+                renderDrawing(mesh, vp, pointFactor, worldToClip);
         }
     }
 
-    private void renderDrawing(int meshIndex, Viewport vp, double pointFactor, FloatBuffer worldToClip) {
-        GLSLLine line = lineMeshes[meshIndex];
-        if (line != null)
-            line.renderLine(vp, DEFAULT_LINE_WIDTH, worldToClip);
+    private void renderDrawing(RenderMesh mesh, Viewport vp, double pointFactor, FloatBuffer worldToClip) {
+        if (mesh.line != null)
+            mesh.line.renderLine(vp, DEFAULT_LINE_WIDTH, worldToClip);
         else
-            pointMeshes[meshIndex].renderPoints(pointFactor, worldToClip);
+            mesh.points.renderPoints(pointFactor, worldToClip);
     }
 
-    private void renderTriangle(int meshIndex) {
-        ModelMaterial material = meshMaterials[meshIndex];
+    private void renderTriangle(RenderMesh mesh) {
+        ModelMaterial material = mesh.material;
         if (material.doubleSided())
             GL.glDisable(GL.CULL_FACE);
 
         try {
             GLSLMeshShader.mesh.use();
-            materialBuffers[meshMaterialIndices[meshIndex]].bind();
+            mesh.materialBuffer.bind();
             if (material.baseColorTexture() != ModelMaterial.NO_TEXTURE)
                 textures[material.baseColorTexture()].bind();
-            triangleMeshes[meshIndex].render();
+            mesh.triangle.render();
         } finally {
             if (material.doubleSided())
                 GL.glEnable(GL.CULL_FACE);
@@ -192,18 +158,8 @@ public final class GLSLModel {
             return;
         initialized = false;
 
-        for (GLSLMesh mesh : triangleMeshes) {
-            if (mesh != null)
-                mesh.dispose();
-        }
-        for (GLSLLine line : lineMeshes) {
-            if (line != null)
-                line.dispose();
-        }
-        for (GLSLShape points : pointMeshes) {
-            if (points != null)
-                points.dispose();
-        }
+        for (RenderMesh mesh : meshes)
+            mesh.dispose();
         for (GLSLMeshMaterial material : materialBuffers) {
             if (material != null)
                 material.dispose();
@@ -309,14 +265,45 @@ public final class GLSLModel {
     }
 
     private static final class RenderMesh {
-        final int meshIndex;
+        final ModelMaterial material;
+        final GLSLMeshMaterial materialBuffer;
+        final GLSLMesh triangle;
+        final GLSLLine line;
+        final GLSLShape points;
+        final DirectBufVertex drawingVertices;
         final float centerX;
         final float centerY;
         final float centerZ;
         private float depth;
 
-        RenderMesh(int _meshIndex, FloatBuffer positions) {
-            meshIndex = _meshIndex;
+        RenderMesh(ModelMesh mesh, ModelMaterial _material, GLSLMeshMaterial _materialBuffer) {
+            material = _material;
+            materialBuffer = _materialBuffer;
+            GLSLMesh _triangle = null;
+            GLSLLine _line = null;
+            GLSLShape _points = null;
+            DirectBufVertex _drawingVertices = null;
+            switch (mesh.primitive()) {
+                case TRIANGLES -> _triangle = new GLSLMesh(mesh);
+                case LINES -> {
+                    _line = new GLSLLine(false);
+                    _drawingVertices = createLineVertices(mesh, material);
+                }
+                case POINTS -> {
+                    _points = new GLSLShape(false);
+                    _drawingVertices = createPointVertices(mesh, material);
+                }
+            }
+            triangle = _triangle;
+            line = _line;
+            points = _points;
+            drawingVertices = _drawingVertices;
+            if (!isTransparent()) {
+                centerX = centerY = centerZ = 0;
+                return;
+            }
+
+            FloatBuffer positions = mesh.positions();
             float minX = Float.POSITIVE_INFINITY, minY = Float.POSITIVE_INFINITY, minZ = Float.POSITIVE_INFINITY;
             float maxX = Float.NEGATIVE_INFINITY, maxY = Float.NEGATIVE_INFINITY, maxZ = Float.NEGATIVE_INFINITY;
             while (positions.hasRemaining()) {
@@ -333,6 +320,31 @@ public final class GLSLModel {
             centerX = 0.5f * (minX + maxX);
             centerY = 0.5f * (minY + maxY);
             centerZ = 0.5f * (minZ + maxZ);
+        }
+
+        boolean isTransparent() {
+            return triangle == null || material.alphaMode() == ModelMaterial.AlphaMode.BLEND;
+        }
+
+        void init() {
+            if (triangle != null) {
+                triangle.init();
+            } else if (line != null) {
+                line.init();
+                line.setVertexRepeatable(drawingVertices);
+            } else {
+                points.init();
+                points.setVertexRepeatable(drawingVertices);
+            }
+        }
+
+        void dispose() {
+            if (triangle != null)
+                triangle.dispose();
+            else if (line != null)
+                line.dispose();
+            else
+                points.dispose();
         }
 
         void updateDepth(Matrix4fc view) {
