@@ -175,7 +175,7 @@ public final class GLSLModel {
 
     private static DirectBufVertex createPointVertices(ModelMesh mesh, ModelMaterial material) {
         IntBuffer indices = mesh.indices();
-        BufVertex vertices = new BufVertex(Math.multiplyExact(indices.remaining(), GLSLShape.stride));
+        BufVertex vertices = new BufVertex(indices.remaining());
         FloatBuffer positions = mesh.positions();
         ByteBuffer colors = mesh.colors();
         byte[] color = new byte[4];
@@ -192,7 +192,7 @@ public final class GLSLModel {
         IntBuffer offsets = mesh.lineOffsets();
         int lineCount = offsets.remaining() - 1;
         int vertexCount = Math.addExact(indices.remaining(), Math.multiplyExact(2, lineCount));
-        BufVertex vertices = new BufVertex(Math.multiplyExact(vertexCount, GLSLLine.stride));
+        BufVertex vertices = new BufVertex(vertexCount);
         FloatBuffer positions = mesh.positions();
         ByteBuffer colors = mesh.colors();
         byte[] color = new byte[4];
@@ -331,10 +331,10 @@ public final class GLSLModel {
                 triangle.init();
             } else if (line != null) {
                 line.init();
-                line.setVertexRepeatable(drawingVertices);
+                line.upload(drawingVertices);
             } else {
                 points.init();
-                points.setVertexRepeatable(drawingVertices);
+                points.upload(drawingVertices);
             }
         }
 

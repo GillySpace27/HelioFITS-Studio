@@ -4,6 +4,7 @@ import java.awt.image.BufferedImage;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Locale;
 import java.util.TimeZone;
 
@@ -81,44 +82,46 @@ public final class ColoredVertexRenderingTest {
     }
 
     private static void drawTriangles(GLSLShape shape) {
-        BufVertex vertices = new BufVertex(3 * GLSLShape.stride);
+        BufVertex vertices = new BufVertex(0);
         vertices.putVertex(-1.75f, 0.7f, 0, 1, Colors.Red.bytes());
         vertices.putVertex(-1.05f, 0.7f, 0, 1, Colors.Red.bytes());
         vertices.putVertex(-1.4f, 1.4f, 0, 1, Colors.Red.bytes());
-        shape.setVertex(vertices);
+        shape.uploadAndClear(vertices);
         shape.renderShape(GL.TRIANGLES);
 
         vertices.putVertex(1.05f, 0.7f, 0, 1, Colors.Green.bytes());
         vertices.putVertex(1.75f, 0.7f, 0, 1, Colors.Green.bytes());
         vertices.putVertex(1.4f, 1.4f, 0, 1, Colors.Green.bytes());
-        shape.setVertex(vertices);
+        shape.uploadAndClear(vertices);
         shape.renderShape(GL.TRIANGLES);
     }
 
     private static void drawPoints(GLSLShape shape) {
-        BufVertex vertices = new BufVertex(2 * GLSLShape.stride);
+        BufVertex vertices = new BufVertex(2);
         vertices.putVertex(-1.4f, -1.35f, 0, 16, Colors.Cyan.bytes());
         vertices.putVertex(1.4f, -1.35f, 0, 16, Colors.Magenta.bytes());
-        shape.setVertex(vertices);
+        shape.uploadAndClear(vertices);
         shape.renderPoints(1);
     }
 
     private static void drawLines(GLSLLine line, Viewport vp) {
-        BufVertex vertices = new BufVertex(13 * GLSLLine.stride);
-        putPolyline(vertices, Colors.Yellow.bytes(), -1.65f, 0.2f, -0.9f, -0.15f, -0.2f, 0.2f);
-        putPolyline(vertices, Colors.Blue.bytes(), 0.2f, 0.25f, 0.7f, -0.25f);
-        putPolyline(vertices, Colors.Blue.bytes(), 1.1f, -0.25f, 1.6f, 0.25f);
-        line.setVertex(vertices);
+        BufVertex vertices = BufVertex.join(List.of(
+                polyline(Colors.Yellow.bytes(), -1.65f, 0.2f, -0.9f, -0.15f, -0.2f, 0.2f),
+                polyline(Colors.Blue.bytes(), 0.2f, 0.25f, 0.7f, -0.25f),
+                polyline(Colors.Blue.bytes(), 1.1f, -0.25f, 1.6f, 0.25f)));
+        line.upload(new DirectBufVertex(vertices));
         line.renderLine(vp, 0.025);
     }
 
-    private static void putPolyline(BufVertex vertices, byte[] color, float... coordinates) {
+    private static BufVertex polyline(byte[] color, float... coordinates) {
+        BufVertex vertices = new BufVertex(coordinates.length / 2 + 2);
         int last = coordinates.length - 2;
         vertices.putVertex(coordinates[0], coordinates[1], 0, 1, Colors.Null);
         vertices.repeatVertex(color);
         for (int i = 2; i < coordinates.length; i += 2)
             vertices.putVertex(coordinates[i], coordinates[i + 1], 0, 1, color);
         vertices.putVertex(coordinates[last], coordinates[last + 1], 0, 1, Colors.Null);
+        return vertices;
     }
 
     private static ByteBuffer readPixels() {

@@ -7,7 +7,6 @@ public class GLSLShape extends VAO implements GLSLVertexReceiver {
 
     private static final int size0 = 4;
     private static final int size1 = 4;
-    public static final int stride = 4 * size0 + size1;
 
     private int count;
 
@@ -16,22 +15,22 @@ public class GLSLShape extends VAO implements GLSLVertexReceiver {
     }
 
     @Override
-    public void setVertexRepeatable(BufVertex vexBuf) {
+    public void upload(BufVertex vexBuf) {
         count = vexBuf.getCount();
-        setVertexRepeatable(vexBuf.toVertexBuffer(), vexBuf.toColorBuffer());
+        upload(vexBuf.toVertexBuffer(), vexBuf.toColorBuffer());
     }
 
     @Override
-    public void setVertexRepeatable(DirectBufVertex vexBuf) {
+    public void upload(DirectBufVertex vexBuf) {
         count = vexBuf.count();
-        setVertexRepeatable(vexBuf.vertexBuffer(), vexBuf.colorBuffer());
+        upload(vexBuf.vertexBuffer(), vexBuf.colorBuffer());
     }
 
-    private void setVertexRepeatable(ByteBuffer vertexBuffer, ByteBuffer colorBuffer) {
+    private void upload(ByteBuffer vertexBuffer, ByteBuffer colorBuffer) {
         if (count == 0)
             return;
-        vbo[0].setBufferData(vertexBuffer.capacity(), vertexBuffer);
-        vbo[1].setBufferData(colorBuffer.capacity(), colorBuffer);
+        vbo[0].setBufferData(vertexBuffer.remaining(), vertexBuffer);
+        vbo[1].setBufferData(colorBuffer.remaining(), colorBuffer);
     }
 
     public void renderPoints(double factor) {

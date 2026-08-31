@@ -17,7 +17,6 @@ import org.helioviewer.jhv.io.NetClient;
 import org.helioviewer.jhv.io.UriTemplate;
 import org.helioviewer.jhv.math.MathUtils;
 import org.helioviewer.jhv.opengl.BufVertex;
-import org.helioviewer.jhv.opengl.GLSLShape;
 import org.helioviewer.jhv.thread.Task;
 import org.helioviewer.jhv.time.JHVTime;
 
@@ -98,7 +97,7 @@ public final class GaiaClient {
     }
 
     private static BufVertex computePoints(Position viewpoint, List<Star> stars) throws SpiceErrorException {
-        BufVertex vexBuf = new BufVertex(500 * GLSLShape.stride);
+        BufVertex vexBuf = new BufVertex(500);
         JHVTime time = viewpoint.time;
         double[] sc = {viewpoint.distance, -viewpoint.lon, viewpoint.lat}; // lon was negated
         double[] theta = new double[2];
@@ -122,7 +121,7 @@ public final class GaiaClient {
     }
 
     private static BufVertex computePointsPrecise(String location, JHVTime time, List<Star> stars) throws SpiceErrorException {
-        BufVertex vexBuf = new BufVertex(500 * GLSLShape.stride);
+        BufVertex vexBuf = new BufVertex(500);
         double[] sc = SpiceMath.recrad(Spice.getPosition(location, "SUN", "SOLO_IAU_SUN_2009", time));
         double[] theta = new double[2];
 

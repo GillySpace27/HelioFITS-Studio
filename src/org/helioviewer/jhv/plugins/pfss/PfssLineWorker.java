@@ -7,7 +7,6 @@ import javax.annotation.Nonnull;
 
 import org.helioviewer.jhv.opengl.BufVertex;
 import org.helioviewer.jhv.opengl.DirectBufVertex;
-import org.helioviewer.jhv.opengl.GLSLLine;
 import org.helioviewer.jhv.thread.LatestWorker;
 
 final class PfssLineWorker {
@@ -37,7 +36,7 @@ final class PfssLineWorker {
         @Nonnull
         @Override
         public Line call() {
-            BufVertex lineBuf = new BufVertex(3276 * GLSLLine.stride); // pre-allocate 64k
+            BufVertex lineBuf = new BufVertex(3276); // pre-allocate 64k
             PfssLine.calculatePositions(parameters.data, parameters.detail, parameters.fixedColor, parameters.radius, parameters.whiteBackground, lineBuf);
             return new Line(parameters, new DirectBufVertex(lineBuf));
         }

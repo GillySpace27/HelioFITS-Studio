@@ -64,8 +64,8 @@ final class ViewpointOrbitWorker {
         @Nonnull
         @Override
         public Prepared call() {
-            BufVertex orbitBuf = new BufVertex(3276 * GLSLLine.stride); // pre-allocate 64k
-            BufVertex planetBuf = new BufVertex(Math.max(parameters.entries.size(), 1) * GLSLShape.stride);
+            BufVertex orbitBuf = new BufVertex(3276); // pre-allocate 64k
+            BufVertex planetBuf = new BufVertex(Math.max(parameters.entries.size(), 1));
             float[] currentPoint = {0, 0, 0, 1};
 
             ArrayList<PositionLoad> positionLoads = new ArrayList<>(parameters.entries.size());

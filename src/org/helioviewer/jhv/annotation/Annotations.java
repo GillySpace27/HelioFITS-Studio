@@ -33,11 +33,11 @@ public final class Annotations {
 
     private static final ArrayList<Annotateable> annotations = new ArrayList<>();
     private static final GLSLLine annotationsLine = new GLSLLine(true);
-    private static final BufVertex annotationsBuf = new BufVertex(3276 * GLSLLine.stride); // pre-allocate 64kB
+    private static final BufVertex annotationsBuf = new BufVertex(3276); // pre-allocate 64kB
     private static final GLSLLine transformedLine = new GLSLLine(true);
-    private static final BufVertex transformedBuf = new BufVertex(512 * GLSLLine.stride); // pre-allocate 5 FOV
+    private static final BufVertex transformedBuf = new BufVertex(512); // pre-allocate 5 FOV
     private static final GLSLShape center = new GLSLShape(true);
-    private static final BufVertex centerBuf = new BufVertex(8 * GLSLShape.stride);
+    private static final BufVertex centerBuf = new BufVertex(8);
 
     private static Annotateable pending;
     private static int activeIndex = -1;
@@ -140,16 +140,16 @@ public final class Annotations {
     private static void renderAnnotation(MapView mv, Viewport vp, Annotateable annotation, boolean active) {
         double lineThickness = annotation.thickness(active);
         annotation.draw(mv, vp, annotationsBuf);
-        annotationsLine.setVertex(annotationsBuf);
+        annotationsLine.uploadAndClear(annotationsBuf);
         annotationsLine.renderLine(vp, lineThickness);
     }
 
     private static void renderTransformedAnnotation(MapView mv, Viewport vp, double pixFactor, Annotateable annotation, boolean active) {
         double lineThickness = annotation.thickness(active);
         annotation.drawTransformed(mv, lineThickness, transformedBuf, centerBuf);
-        transformedLine.setVertex(transformedBuf);
+        transformedLine.uploadAndClear(transformedBuf);
         transformedLine.renderLine(vp, lineThickness);
-        center.setVertex(centerBuf);
+        center.uploadAndClear(centerBuf);
         center.renderPoints(pixFactor);
     }
 

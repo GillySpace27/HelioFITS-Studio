@@ -76,7 +76,7 @@ public class PfssLayer extends AbstractLayer implements TimeListener.Range { // 
             return;
 
         if (readyLine.parameters().equals(parameters)) {
-            glslLine.setVertexRepeatable(readyLine.vertices());
+            glslLine.upload(readyLine.vertices());
             uploadedParameters = readyLine.parameters();
             pfssTime = uploadedParameters.data().dateObs();
             Layers.fireTimeUpdated(this);

@@ -37,15 +37,15 @@ public final class ConnectionLayer extends AbstractLayer implements LoadConnecti
     private final byte[] fswColor = Colors.bytes(74, 136, 92);
     private final byte[] mColor = Colors.bytes(240, 145, 53);
     private final GLSLShape connectivityCenter = new GLSLShape(true);
-    private final BufVertex connectivityBuf = new BufVertex(96 * GLSLShape.stride);
+    private final BufVertex connectivityBuf = new BufVertex(96);
 
     private final byte[] hcsColor = Colors.bytes(223, 62, 48);
     private final GLSLLine hcsLine = new GLSLLine(true); // TBD
-    private final BufVertex hcsBuf = new BufVertex(512 * GLSLLine.stride);
+    private final BufVertex hcsBuf = new BufVertex(512);
 
     private final byte[] footpointColor = Colors.White.bytes();
     private final GLSLLine footpointLine = new GLSLLine(true);
-    private final BufVertex footpointBuf = new BufVertex(12 * GLSLLine.stride);
+    private final BufVertex footpointBuf = new BufVertex(12);
 
     private final GLSLLine geometryLine = new GLSLLine(true);
     private final GLSLShape geometryPoint = new GLSLShape(true);
@@ -97,7 +97,7 @@ public final class ConnectionLayer extends AbstractLayer implements LoadConnecti
         mv.emitMapPoints(vp, connectivity.FSW, SIZE_POINT, ORTHO_RADIUS, fswColor, connectivityBuf);
         mv.emitMapPoints(vp, connectivity.M, SIZE_POINT, ORTHO_RADIUS, mColor, connectivityBuf);
 
-        connectivityCenter.setVertex(connectivityBuf);
+        connectivityCenter.uploadAndClear(connectivityBuf);
         connectivityCenter.renderPoints(ViewportMath.getPixelFactor(vp, mv.cameraWidth(vp)));
     }
 
@@ -106,7 +106,7 @@ public final class ConnectionLayer extends AbstractLayer implements LoadConnecti
             return;
         mv.emitMapLine(vp, hcs, ORTHO_RADIUS, hcsColor, hcsBuf);
 
-        hcsLine.setVertex(hcsBuf);
+        hcsLine.uploadAndClear(hcsBuf);
         hcsLine.renderLine(vp, LINEWIDTH);
     }
 
@@ -127,7 +127,7 @@ public final class ConnectionLayer extends AbstractLayer implements LoadConnecti
 
         SphericalPoint point = interpolateToSpherical(time.milli, footpointMap.lowerValue(time), footpointMap.higherValue(time));
         Annotations.drawCross(mv, vp, point.longitude(), point.latitude(), footpointColor, footpointBuf);
-        footpointLine.setVertex(footpointBuf);
+        footpointLine.uploadAndClear(footpointBuf);
         footpointLine.renderLine(vp, LINEWIDTH);
     }
 

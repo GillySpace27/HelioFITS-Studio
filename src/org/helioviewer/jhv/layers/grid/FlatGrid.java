@@ -111,7 +111,7 @@ public class FlatGrid {
             byte[] color = position == 0 ? AXIS_COLOR : gridColor;
             RasterLine.putHorizontal(vp, width, mv.cameraTranslationY(), -0.5 * vp.aspect, 0.5 * vp.aspect, position, thickness, color, vexBuf);
         }
-        shape.setVertex(vexBuf);
+        shape.uploadAndClear(vexBuf);
     }
 
     private static void updateAxis(Axis axis, boolean angularStep, double start, double stop, int pixels) {

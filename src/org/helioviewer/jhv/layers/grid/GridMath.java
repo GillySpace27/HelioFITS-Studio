@@ -33,7 +33,7 @@ public class GridMath {
     private static final int START_RADIUS = 2;
 
     public static void initAxes(GLSLLine axesLine) {
-        BufVertex vexBuf = new BufVertex(8 * GLSLLine.stride);
+        BufVertex vexBuf = new BufVertex(8);
 
         vexBuf.putVertex(0, -AXIS_STOP, 0, 1, Colors.Null);
         vexBuf.repeatVertex(axisSouthColor);
@@ -45,29 +45,29 @@ public class GridMath {
         vexBuf.putVertex(0, AXIS_STOP, 0, 1, axisNorthColor);
         vexBuf.repeatVertex(Colors.Null);
 
-        axesLine.setVertex(vexBuf);
+        axesLine.uploadAndClear(vexBuf);
     }
 
     public static void initEarthPoint(GLSLShape earthPoint) {
-        BufVertex vexBuf = new BufVertex(GLSLShape.stride);
+        BufVertex vexBuf = new BufVertex(1);
         vexBuf.putVertex(0, 0, (float) EARTH_CIRCLE_RADIUS, earthPointSize, earthLineColor);
-        earthPoint.setVertex(vexBuf);
+        earthPoint.uploadAndClear(vexBuf);
     }
 
     public static void initEarthCircles(GLSLLine earthCircleLine) {
         int no_points = 2 * (SUBDIVISIONS + 3);
-        BufVertex vexBuf = new BufVertex(no_points * GLSLLine.stride);
+        BufVertex vexBuf = new BufVertex(no_points);
         GLHelper.emitCircle(EARTH_CIRCLE_RADIUS, SUBDIVISIONS, 0, SUBDIVISIONS, Quat.X90, earthLineColor, earthLineColor, vexBuf);
         GLHelper.emitCircle(EARTH_CIRCLE_RADIUS, SUBDIVISIONS, 0, SUBDIVISIONS, Quat.Y90, earthLineColor, earthLineColor, vexBuf);
-        earthCircleLine.setVertex(vexBuf);
+        earthCircleLine.uploadAndClear(vexBuf);
     }
 
     public static void initRadialCircles(GLSLLine radialCircleLine, GLSLLine radialThickLine, double unit, double step) {
         int no_lines = (int) Math.ceil(360 / step);
         int no_points = (END_RADIUS - START_RADIUS + 1 - TENS_RADIUS) * (SUBDIVISIONS + 3) + (LINEAR_STEPS + 3) * no_lines;
-        BufVertex circleBuf = new BufVertex(no_points * GLSLLine.stride);
+        BufVertex circleBuf = new BufVertex(no_points);
         int no_points_thick = TENS_RADIUS * (SUBDIVISIONS + 3);
-        BufVertex thickBuf = new BufVertex(no_points_thick * GLSLLine.stride);
+        BufVertex thickBuf = new BufVertex(no_points_thick);
 
         for (int i = START_RADIUS; i <= END_RADIUS; i++) {
             BufVertex targetBuf = i % 10 == 0 ? thickBuf : circleBuf;
@@ -106,8 +106,8 @@ public class GridMath {
             }
         }
 
-        radialCircleLine.setVertex(circleBuf);
-        radialThickLine.setVertex(thickBuf);
+        radialCircleLine.uploadAndClear(circleBuf);
+        radialThickLine.uploadAndClear(thickBuf);
     }
 
     public static void initGrid(GLSLLine gridLine, double lonstepDegrees, double latstepDegrees, byte[] color) {
@@ -115,7 +115,7 @@ public class GridMath {
         int no_lat_steps = ((int) Math.ceil(180 / latstepDegrees)) / 2;
         int HALFDIVISIONS = SUBDIVISIONS / 2;
         int no_points = 2 * (no_lat_steps + no_lon_steps) * (HALFDIVISIONS + 3);
-        BufVertex vexBuf = new BufVertex(no_points * GLSLLine.stride);
+        BufVertex vexBuf = new BufVertex(no_points);
 
         double rotation;
         for (int j = 0; j < no_lon_steps; j++) {
@@ -159,7 +159,7 @@ public class GridMath {
             }
         }
 
-        gridLine.setVertex(vexBuf);
+        gridLine.uploadAndClear(vexBuf);
     }
 
 }

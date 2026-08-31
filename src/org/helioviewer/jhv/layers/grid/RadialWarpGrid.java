@@ -100,7 +100,7 @@ public final class RadialWarpGrid {
             vexBuf.putVertex(x, y, 0, 1, color);
             vexBuf.repeatVertex(Colors.Null);
         }
-        line.setVertex(vexBuf);
+        line.uploadAndClear(vexBuf);
     }
 
     private void drawLabels(MapView mv, Viewport vp, MapScale scale, int ringCount, float[] color, double labelSize, double labelAngle) {

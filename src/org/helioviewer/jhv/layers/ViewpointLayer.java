@@ -48,7 +48,7 @@ public class ViewpointLayer extends AbstractLayer {
     private ViewpointOrbitWorker.Prepared readyOrbits;
 
     private final GLSLLine spiral = new GLSLLine(true);
-    private final BufVertex spiralBuf = new BufVertex(SPIRAL_ARMS * (2 * SPIRAL_DIVISIONS + 1 + 2) * GLSLLine.stride);
+    private final BufVertex spiralBuf = new BufVertex(SPIRAL_ARMS * (2 * SPIRAL_DIVISIONS + 1 + 2));
     private final byte[] spiralColor = Colors.ReducedGreen.bytes();
 
     private final double[] lati = new double[3];
@@ -334,8 +334,8 @@ public class ViewpointLayer extends AbstractLayer {
             return;
 
         if (parameters.compatibleWith(readyOrbits.parameters())) {
-            orbits.setVertexRepeatable(readyOrbits.orbitVertices());
-            planets.setVertexRepeatable(readyOrbits.planetVertices());
+            orbits.upload(readyOrbits.orbitVertices());
+            planets.upload(readyOrbits.planetVertices());
             uploadedParameters = readyOrbits.parameters();
         }
         readyOrbits = null;
@@ -391,7 +391,7 @@ public class ViewpointLayer extends AbstractLayer {
             spiralBuf.repeatVertex(Colors.Null);
         }
 
-        spiral.setVertex(spiralBuf);
+        spiral.uploadAndClear(spiralBuf);
         spiral.renderLine(vp, LINEWIDTH_SPIRAL);
     }
 }

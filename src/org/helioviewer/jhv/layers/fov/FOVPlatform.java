@@ -39,8 +39,8 @@ class FOVPlatform extends DefaultMutableTreeNode {
     private final GLSLLine hemiLine = new GLSLLine(false);
     private final GLSLLine instrumentLines = new GLSLLine(true);
     private final GLSLShape instrumentCenters = new GLSLShape(true);
-    private final BufVertex lineBuf = new BufVertex(8 * (4 * (FOVShape.RECT_SUBDIVS + 1) + 2) * GLSLLine.stride);
-    private final BufVertex centerBuf = new BufVertex(8 * GLSLShape.stride);
+    private final BufVertex lineBuf = new BufVertex(8 * (4 * (FOVShape.RECT_SUBDIVS + 1) + 2));
+    private final BufVertex centerBuf = new BufVertex(8);
 
     private final String name;
     private final String observer;
@@ -70,11 +70,11 @@ class FOVPlatform extends DefaultMutableTreeNode {
     }
 
     private void putHemiLine() {
-        BufVertex buf = new BufVertex(2 * (SUBDIVISIONS + 3) * GLSLLine.stride);
+        BufVertex buf = new BufVertex(2 * (SUBDIVISIONS + 3));
         GLHelper.emitCircle(HEMI_RADIUS, SUBDIVISIONS, 0, SUBDIVISIONS, null, color, Colors.White.bytes(), buf);
         GLHelper.emitCircle(HEMI_RADIUS, SUBDIVISIONS, 0, SUBDIVISIONS / 2, Quat.X90, color, Colors.White.bytes(), buf);
         GLHelper.emitCircle(HEMI_RADIUS, SUBDIVISIONS, SUBDIVISIONS / 4, 3 * SUBDIVISIONS / 4, Quat.Y90, color, Colors.White.bytes(), buf);
-        hemiLine.setVertex(buf);
+        hemiLine.uploadAndClear(buf);
     }
 
     void init() {
@@ -117,9 +117,9 @@ class FOVPlatform extends DefaultMutableTreeNode {
 
         children().asIterator().forEachRemaining(c -> ((FOVInstrument) c).putGeometry(obsPosition.distance, LINEWIDTH_FOV, color, renderer, lineBuf, centerBuf));
 
-        instrumentCenters.setVertex(centerBuf);
+        instrumentCenters.uploadAndClear(centerBuf);
         instrumentCenters.renderPoints(ViewportMath.getPixelFactor(vp, mv.cameraWidth(vp)));
-        instrumentLines.setVertex(lineBuf);
+        instrumentLines.uploadAndClear(lineBuf);
         instrumentLines.renderLine(vp, LINEWIDTH_FOV);
 
         renderer.setDirectPut();
