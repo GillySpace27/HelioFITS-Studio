@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.display.ViewportMath;
@@ -201,16 +200,21 @@ public final class GLSLModel {
         for (int line = 0; line < lineCount; line++) {
             int start = offsets.get(line);
             int end = offsets.get(line + 1);
-            int firstIndex = indices.get(start);
-            putVertex(positions, firstIndex, 1, Colors.Null, vertices);
-            for (int i = start; i < end; i++) {
-                int index = indices.get(i);
+            int index = indices.get(start);
+            setColor(colors, material, index, color);
+            startLine(positions, index, color, vertices);
+            for (int i = start + 1; i < end; i++) {
+                index = indices.get(i);
                 setColor(colors, material, index, color);
                 putVertex(positions, index, 1, color, vertices);
             }
-            vertices.repeatVertex(Colors.Null);
+            vertices.endLine();
         }
         return new DirectBufVertex(vertices);
+    }
+
+    private static void startLine(FloatBuffer positions, int index, byte[] color, BufVertex vertices) {
+        vertices.startLine(positions.get(3 * index), positions.get(3 * index + 1), positions.get(3 * index + 2), 1, color);
     }
 
     private static void putVertex(FloatBuffer positions, int index, float size, byte[] color, BufVertex vertices) {

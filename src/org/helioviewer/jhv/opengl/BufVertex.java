@@ -6,6 +6,7 @@ import java.nio.FloatBuffer;
 import java.util.Arrays;
 import java.util.List;
 
+import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.math.Vec3;
 
 public class BufVertex {
@@ -54,7 +55,20 @@ public class BufVertex {
         repeatVertex(color);
     }
 
-    public void repeatVertex(byte[] color) {
+    public void startLine(Vec3 v, byte[] color) {
+        startLine((float) v.x, (float) v.y, (float) v.z, 1, color);
+    }
+
+    public void startLine(float x, float y, float z, float w, byte[] color) {
+        putVertex(x, y, z, w, Colors.Null);
+        repeatVertex(color);
+    }
+
+    public void endLine() {
+        repeatVertex(Colors.Null);
+    }
+
+    private void repeatVertex(byte[] color) {
         ensureCapacity();
         int offset = count * BYTES_PER_VERTEX;
         System.arraycopy(lastPosition, 0, array, offset, POSITION_BYTES);

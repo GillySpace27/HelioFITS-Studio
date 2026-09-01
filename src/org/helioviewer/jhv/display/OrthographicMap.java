@@ -3,7 +3,6 @@ package org.helioviewer.jhv.display;
 import java.util.List;
 
 import org.helioviewer.jhv.astronomy.Position;
-import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.math.SphericalCoords;
 import org.helioviewer.jhv.math.Vec2;
@@ -21,8 +20,7 @@ final class OrthographicMap {
             return;
 
         Vec3 first = vertices.getFirst();
-        vexBuf.putVertex((float) (first.x * radius), (float) (first.y * radius), (float) (first.z * radius), 1, Colors.Null);
-        vexBuf.repeatVertex(color);
+        vexBuf.startLine((float) (first.x * radius), (float) (first.y * radius), (float) (first.z * radius), 1, color);
         for (int i = 1; i < vertices.size(); i++) {
             Vec3 vertex = vertices.get(i);
             float x = (float) (vertex.x * radius);
@@ -30,7 +28,7 @@ final class OrthographicMap {
             float z = (float) (vertex.z * radius);
             vexBuf.putVertex(x, y, z, 1, color);
         }
-        vexBuf.repeatVertex(Colors.Null);
+        vexBuf.endLine();
     }
 
     static void emitMapPoints(List<Vec3> vertices, double size, double radius, byte[] color, BufVertex vexBuf) {

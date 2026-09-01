@@ -352,11 +352,14 @@ public class ViewpointLayer extends AbstractLayer {
         orbitWorker.cancel();
     }
 
-    private void spiralPutVertex(double rad, double lon, double lat, byte[] color) {
+    private void spiralPutVertex(double rad, double lon, double lat, byte[] color, boolean startLine) {
         float x = (float) (rad * Math.cos(lat) * Math.cos(lon));
         float y = (float) (rad * Math.cos(lat) * Math.sin(lon));
         float z = (float) (rad * Math.sin(lat));
-        spiralBuf.putVertex(x, y, z, 1, color);
+        if (startLine)
+            spiralBuf.startLine(x, y, z, 1, color);
+        else
+            spiralBuf.putVertex(x, y, z, 1, color);
     }
 
     private void renderSpiral(Viewport vp, double[] spiralLati, int speed) {
@@ -373,12 +376,7 @@ public class ViewpointLayer extends AbstractLayer {
                 if (rad > SPIRAL_RADIUS)
                     break;
                 double lon = lona - (rad - rad0) / sr;
-                if (i == 0) {
-                    spiralPutVertex(rad, lon, lat0, Colors.Null);
-                    spiralBuf.repeatVertex(spiralColor);
-                } else {
-                    spiralPutVertex(rad, lon, lat0, spiralColor);
-                }
+                spiralPutVertex(rad, lon, lat0, spiralColor, i == 0);
             }
             // after control point
             for (int i = 0; i <= SPIRAL_DIVISIONS; i++) {
@@ -386,9 +384,9 @@ public class ViewpointLayer extends AbstractLayer {
                 if (rad > SPIRAL_RADIUS)
                     break;
                 double lon = lona - (rad - rad0) / sr;
-                spiralPutVertex(rad, lon, lat0, spiralColor);
+                spiralPutVertex(rad, lon, lat0, spiralColor, false);
             }
-            spiralBuf.repeatVertex(Colors.Null);
+            spiralBuf.endLine();
         }
 
         spiral.uploadAndClear(spiralBuf);

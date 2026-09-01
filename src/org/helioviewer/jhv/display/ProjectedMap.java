@@ -3,7 +3,6 @@ package org.helioviewer.jhv.display;
 import java.util.List;
 
 import org.helioviewer.jhv.astronomy.Position;
-import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.math.MathUtils;
 import org.helioviewer.jhv.math.PolarBasis;
 import org.helioviewer.jhv.math.SphericalCoords;
@@ -115,25 +114,23 @@ final class ProjectedMap {
         }
 
         Vec2 current = project(mode, viewpoint, scale, longitudeOrigin, latitudeOrigin, vertices.getFirst());
-        emitProjectedVertex(vp, current, Colors.Null, vexBuf);
-        vexBuf.repeatVertex(color);
+        startProjectedLine(vp, current, color, vexBuf);
         for (int i = 1; i < vertices.size(); i++) {
             Vec2 previous = current;
             current = project(mode, viewpoint, scale, longitudeOrigin, latitudeOrigin, vertices.get(i));
             emitWrappedVertex(vp, previous, current, color, vexBuf);
         }
-        vexBuf.repeatVertex(Colors.Null);
+        vexBuf.endLine();
     }
 
     private static void emitRadialWarpLine(Position viewpoint, MapScale scale, List<Vec3> vertices, byte[] color, BufVertex vexBuf) {
         Vec2 current = projectRadialWarp(viewpoint, scale, vertices.getFirst());
-        vexBuf.putVertex((float) current.x, (float) current.y, 0, 1, Colors.Null);
-        vexBuf.repeatVertex(color);
+        vexBuf.startLine((float) current.x, (float) current.y, 0, 1, color);
         for (int i = 1; i < vertices.size(); i++) {
             current = projectRadialWarp(viewpoint, scale, vertices.get(i));
             vexBuf.putVertex((float) current.x, (float) current.y, 0, 1, color);
         }
-        vexBuf.repeatVertex(Colors.Null);
+        vexBuf.endLine();
     }
 
     private static void emitHpcLine(Position viewpoint, MapScale scale, Viewport vp, List<Vec3> vertices, byte[] color, BufVertex vexBuf) {
@@ -144,19 +141,18 @@ final class ProjectedMap {
             Vec2 current = projectVisibleHpcSurfacePoint(viewpoint, vertices.get(i), scale);
             if (current == null) {
                 if (previous != null)
-                    vexBuf.repeatVertex(Colors.Null);
+                    vexBuf.endLine();
                 previous = null;
                 continue;
             }
 
             if (i == 0 || previous == null) {
-                emitProjectedVertex(vp, current, Colors.Null, vexBuf);
-                vexBuf.repeatVertex(color);
+                startProjectedLine(vp, current, color, vexBuf);
             } else {
                 emitProjectedVertex(vp, current, color, vexBuf);
             }
             if (i == last)
-                vexBuf.repeatVertex(Colors.Null);
+                vexBuf.endLine();
             previous = current;
         }
     }
@@ -240,18 +236,20 @@ final class ProjectedMap {
         if (current.x <= 0 && previous.x >= 0) {
             x = (float) (0.5 * vp.aspect);
             vexBuf.putVertex(x, y, 0, 1, color);
-            vexBuf.repeatVertex(Colors.Null);
+            vexBuf.endLine();
 
-            vexBuf.putVertex(-x, y, 0, 1, Colors.Null);
-            vexBuf.repeatVertex(color);
+            vexBuf.startLine(-x, y, 0, 1, color);
         } else if (current.x >= 0 && previous.x <= 0) {
             x = (float) (-0.5 * vp.aspect);
             vexBuf.putVertex(x, y, 0, 1, color);
-            vexBuf.repeatVertex(Colors.Null);
+            vexBuf.endLine();
 
-            vexBuf.putVertex(-x, y, 0, 1, Colors.Null);
-            vexBuf.repeatVertex(color);
+            vexBuf.startLine(-x, y, 0, 1, color);
         }
+    }
+
+    private static void startProjectedLine(Viewport vp, Vec2 projected, byte[] color, BufVertex vexBuf) {
+        vexBuf.startLine((float) (projected.x * vp.aspect), (float) projected.y, 0, 1, color);
     }
 
     private static void emitProjectedVertex(Viewport vp, Vec2 projected, byte[] color, BufVertex vexBuf) {

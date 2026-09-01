@@ -1,6 +1,5 @@
 package org.helioviewer.jhv.annotation;
 
-import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.math.Vec3;
@@ -23,13 +22,12 @@ final class AnnotateLine extends AbstractAnnotateable {
             double x = -bw + 2 * bw / SUBDIVISIONS * i + centerX;
             double y = -bh + 2 * bh / SUBDIVISIONS * i + centerY;
             double z = FOVShape.computeZ(x, y, flat, thickness);
-            if (i == 0) { // first
-                vexBuf.putVertex((float) x, (float) y, (float) z, 1, Colors.Null);
-            }
-            vexBuf.putVertex((float) x, (float) y, (float) z, 1, color);
-            if (i == SUBDIVISIONS) { // last
-                vexBuf.putVertex((float) x, (float) y, (float) z, 1, Colors.Null);
-            }
+            if (i == 0)
+                vexBuf.startLine((float) x, (float) y, (float) z, 1, color);
+            else
+                vexBuf.putVertex((float) x, (float) y, (float) z, 1, color);
+            if (i == SUBDIVISIONS)
+                vexBuf.endLine();
         }
     }
 

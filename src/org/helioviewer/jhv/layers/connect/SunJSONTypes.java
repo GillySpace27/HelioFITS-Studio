@@ -151,12 +151,11 @@ public class SunJSONTypes {
         BufVertex vexBuf = new BufVertex(num + 2);
 
         Vec3 v = coordinates.getFirst();
-        vexBuf.putVertex(v, Colors.Null);
-        vexBuf.repeatVertex(colors.getFirst());
+        vexBuf.startLine(v, colors.getFirst());
         for (int i = 1; i < num; i++) {
             vexBuf.putVertex(coordinates.get(i), colors.get(i));
         }
-        vexBuf.repeatVertex(Colors.Null);
+        vexBuf.endLine();
         return vexBuf;
     }
 
@@ -181,10 +180,11 @@ public class SunJSONTypes {
             double y = c.y + cost * du.y + sint * dv.y;
             double z = c.z + cost * du.z + sint * dv.z;
             if (i == 0)
-                vexBuf.putVertex((float) x, (float) y, (float) z, 1, Colors.Null);
-            vexBuf.putVertex((float) x, (float) y, (float) z, 1, color);
+                vexBuf.startLine((float) x, (float) y, (float) z, 1, color);
+            else
+                vexBuf.putVertex((float) x, (float) y, (float) z, 1, color);
         }
-        vexBuf.repeatVertex(Colors.Null);
+        vexBuf.endLine();
         return vexBuf;
     }
 

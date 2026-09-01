@@ -1,6 +1,5 @@
 package org.helioviewer.jhv.layers.grid;
 
-import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.MapScale;
 import org.helioviewer.jhv.display.MapView;
@@ -84,10 +83,11 @@ public final class RadialWarpGrid {
                 float x = (float) (rho * Math.cos(a));
                 float y = (float) (rho * Math.sin(a));
                 if (j == 0)
-                    vexBuf.putVertex(x, y, 0, 1, Colors.Null);
-                vexBuf.putVertex(x, y, 0, 1, color);
+                    vexBuf.startLine(x, y, 0, 1, color);
+                else
+                    vexBuf.putVertex(x, y, 0, 1, color);
                 if (j == SUBDIVISIONS)
-                    vexBuf.putVertex(x, y, 0, 1, Colors.Null);
+                    vexBuf.endLine();
             }
         }
 
@@ -95,10 +95,9 @@ public final class RadialWarpGrid {
             double a = Math.toRadians(s * spokeStep);
             float x = (float) (.5 * -Math.sin(a));
             float y = (float) (.5 * Math.cos(a));
-            vexBuf.putVertex(0, 0, 0, 1, Colors.Null);
-            vexBuf.repeatVertex(color);
+            vexBuf.startLine(0, 0, 0, 1, color);
             vexBuf.putVertex(x, y, 0, 1, color);
-            vexBuf.repeatVertex(Colors.Null);
+            vexBuf.endLine();
         }
         line.uploadAndClear(vexBuf);
     }

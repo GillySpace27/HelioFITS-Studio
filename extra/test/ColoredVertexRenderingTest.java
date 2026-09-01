@@ -77,21 +77,34 @@ public final class ColoredVertexRenderingTest {
         byte[] secondColor = {5, 6, 7, 8};
         BufVertex vertices = new BufVertex();
         vertices.putVertex(1.25f, -2.5f, 3.75f, 1, firstColor);
-        vertices.repeatVertex(secondColor);
+        vertices.putVertex(1.25f, -2.5f, 3.75f, 1, secondColor);
 
         ByteBuffer buffer = vertices.toBuffer().duplicate().order(ByteOrder.nativeOrder());
         check(buffer.remaining() == 2 * BufVertex.BYTES_PER_VERTEX, "Incorrect interleaved buffer size");
-        check(buffer.getFloat(0) == 1.25f && buffer.getFloat(4) == -2.5f && buffer.getFloat(8) == 3.75f && buffer.getFloat(12) == 1,
-                "Incorrect first position");
-        check(buffer.getFloat(20) == 1.25f && buffer.getFloat(24) == -2.5f && buffer.getFloat(28) == 3.75f && buffer.getFloat(32) == 1,
-                "Incorrect repeated position");
-        for (int i = 0; i < 4; i++) {
-            check(buffer.get(16 + i) == firstColor[i], "Incorrect first color");
-            check(buffer.get(36 + i) == secondColor[i], "Incorrect second color");
-        }
+        checkVertex(buffer, 0, 1.25f, -2.5f, 3.75f, 1, firstColor);
+        checkVertex(buffer, 1, 1.25f, -2.5f, 3.75f, 1, secondColor);
 
         DirectBufVertex direct = new DirectBufVertex(vertices);
         check(direct.count() == vertices.getCount() && direct.buffer().equals(vertices.toBuffer()), "Incorrect retained vertex buffer");
+
+        vertices.clear();
+        vertices.startLine(1, 2, 3, 1, firstColor);
+        vertices.putVertex(4, 5, 6, 1, secondColor);
+        vertices.endLine();
+        buffer = vertices.toBuffer().duplicate().order(ByteOrder.nativeOrder());
+        check(buffer.remaining() == 4 * BufVertex.BYTES_PER_VERTEX, "Incorrect line buffer size");
+        checkVertex(buffer, 0, 1, 2, 3, 1, Colors.Null);
+        checkVertex(buffer, 1, 1, 2, 3, 1, firstColor);
+        checkVertex(buffer, 2, 4, 5, 6, 1, secondColor);
+        checkVertex(buffer, 3, 4, 5, 6, 1, Colors.Null);
+    }
+
+    private static void checkVertex(ByteBuffer buffer, int index, float x, float y, float z, float w, byte[] color) {
+        int offset = index * BufVertex.BYTES_PER_VERTEX;
+        check(buffer.getFloat(offset) == x && buffer.getFloat(offset + 4) == y && buffer.getFloat(offset + 8) == z
+                && buffer.getFloat(offset + 12) == w, "Incorrect vertex position");
+        for (int i = 0; i < 4; i++)
+            check(buffer.get(offset + 16 + i) == color[i], "Incorrect vertex color");
     }
 
     private static void initApplication() throws Exception {
@@ -139,12 +152,10 @@ public final class ColoredVertexRenderingTest {
 
     private static BufVertex polyline(byte[] color, float... coordinates) {
         BufVertex vertices = new BufVertex(coordinates.length / 2 + 2);
-        int last = coordinates.length - 2;
-        vertices.putVertex(coordinates[0], coordinates[1], 0, 1, Colors.Null);
-        vertices.repeatVertex(color);
+        vertices.startLine(coordinates[0], coordinates[1], 0, 1, color);
         for (int i = 2; i < coordinates.length; i += 2)
             vertices.putVertex(coordinates[i], coordinates[i + 1], 0, 1, color);
-        vertices.putVertex(coordinates[last], coordinates[last + 1], 0, 1, Colors.Null);
+        vertices.endLine();
         return vertices;
     }
 

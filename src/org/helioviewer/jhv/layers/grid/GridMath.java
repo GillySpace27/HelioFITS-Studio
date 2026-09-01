@@ -35,15 +35,13 @@ public class GridMath {
     public static void initAxes(GLSLLine axesLine) {
         BufVertex vexBuf = new BufVertex(8);
 
-        vexBuf.putVertex(0, -AXIS_STOP, 0, 1, Colors.Null);
-        vexBuf.repeatVertex(axisSouthColor);
+        vexBuf.startLine(0, -AXIS_STOP, 0, 1, axisSouthColor);
         vexBuf.putVertex(0, -AXIS_START, 0, 1, axisSouthColor);
-        vexBuf.repeatVertex(Colors.Null);
+        vexBuf.endLine();
 
-        vexBuf.putVertex(0, AXIS_START, 0, 1, Colors.Null);
-        vexBuf.repeatVertex(axisNorthColor);
+        vexBuf.startLine(0, AXIS_START, 0, 1, axisNorthColor);
         vexBuf.putVertex(0, AXIS_STOP, 0, 1, axisNorthColor);
-        vexBuf.repeatVertex(Colors.Null);
+        vexBuf.endLine();
 
         axesLine.uploadAndClear(vexBuf);
     }
@@ -77,13 +75,12 @@ public class GridMath {
                 float x = (float) (i * unit * Math.cos(a));
                 float y = (float) (i * unit * Math.sin(a));
 
-                if (j == 0) {
-                    targetBuf.putVertex(x, y, 0, 1, Colors.Null);
-                }
-                targetBuf.putVertex(x, y, 0, 1, radialLineColor);
-                if (j == SUBDIVISIONS) {
-                    targetBuf.putVertex(x, y, 0, 1, Colors.Null);
-                }
+                if (j == 0)
+                    targetBuf.startLine(x, y, 0, 1, radialLineColor);
+                else
+                    targetBuf.putVertex(x, y, 0, 1, radialLineColor);
+                if (j == SUBDIVISIONS)
+                    targetBuf.endLine();
             }
         }
 
@@ -96,13 +93,12 @@ public class GridMath {
                 double radius = (START_RADIUS + k * (END_RADIUS - START_RADIUS) / (double) LINEAR_STEPS) * unit;
                 Vec3 rotv = q.rotateVector(new Vec3(radius, 0, 0));
 
-                if (k == 0) {
-                    circleBuf.putVertex(rotv, Colors.Null);
-                }
-                circleBuf.putVertex(rotv, radialLineColor);
-                if (k == LINEAR_STEPS) {
-                    circleBuf.putVertex(rotv, Colors.Null);
-                }
+                if (k == 0)
+                    circleBuf.startLine(rotv, radialLineColor);
+                else
+                    circleBuf.putVertex(rotv, radialLineColor);
+                if (k == LINEAR_STEPS)
+                    circleBuf.endLine();
             }
         }
 
@@ -126,13 +122,12 @@ public class GridMath {
                     double a = -Math.PI / 2 + Math.PI * i / HALFDIVISIONS;
                     Vec3 rotv = q.rotateVector(new Vec3(GRID_RADIUS * Math.cos(a), GRID_RADIUS * Math.sin(a), 0));
 
-                    if (i == 0) {
-                        vexBuf.putVertex(rotv, Colors.Null);
-                    }
-                    vexBuf.putVertex(rotv, color);
-                    if (i == HALFDIVISIONS) {
-                        vexBuf.putVertex(rotv, Colors.Null);
-                    }
+                    if (i == 0)
+                        vexBuf.startLine(rotv, color);
+                    else
+                        vexBuf.putVertex(rotv, color);
+                    if (i == HALFDIVISIONS)
+                        vexBuf.endLine();
                 }
             }
         }
@@ -148,13 +143,12 @@ public class GridMath {
                             GRID_RADIUS * scale,
                             GRID_RADIUS * radialScale * Math.cos(a));
 
-                    if (i == 0) {
-                        vexBuf.putVertex(v, Colors.Null);
-                    }
-                    vexBuf.putVertex(v, color);
-                    if (i == HALFDIVISIONS) {
-                        vexBuf.putVertex(v, Colors.Null);
-                    }
+                    if (i == 0)
+                        vexBuf.startLine(v, color);
+                    else
+                        vexBuf.putVertex(v, color);
+                    if (i == HALFDIVISIONS)
+                        vexBuf.endLine();
                 }
             }
         }

@@ -124,12 +124,12 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
 
             Vec3 res = q.rotateInverseVector(PolarBasis.vec3(r, theta));
 
-            if (i == 0) {
-                vexBuf.putVertex(res, Colors.Null);
-            }
-            vexBuf.putVertex(res, color);
+            if (i == 0)
+                vexBuf.startLine(res, color);
+            else
+                vexBuf.putVertex(res, color);
         }
-        vexBuf.repeatVertex(Colors.Null);
+        vexBuf.endLine();
     }
 
     private static CactusArcParams cactusArcParams(JHVEvent evt, long timestamp) {
@@ -274,10 +274,9 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
     }
 
     private static void putLineScale(BufVertex vexBuf, float x0, float y0, float x1, float y1, byte[] color) {
-        vexBuf.putVertex(x0, y0, 0, 1, Colors.Null);
-        vexBuf.repeatVertex(color);
+        vexBuf.startLine(x0, y0, 0, 1, color);
         vexBuf.putVertex(x1, y1, 0, 1, color);
-        vexBuf.repeatVertex(Colors.Null);
+        vexBuf.endLine();
     }
 
     private void drawCactusArcScale(Viewport vp, JHVRelatedEvents evtr, JHVEvent evt, long timestamp, MapScale scale) {

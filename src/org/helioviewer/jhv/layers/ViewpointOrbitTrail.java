@@ -8,7 +8,6 @@ import java.util.Map;
 import org.helioviewer.jhv.astronomy.PositionLoad;
 import org.helioviewer.jhv.astronomy.PositionResponse;
 import org.helioviewer.jhv.astronomy.Sun;
-import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.opengl.BufVertex;
 
 final class ViewpointOrbitTrail {
@@ -75,8 +74,7 @@ final class ViewpointOrbitTrail {
         int count = upperBound(time);
 
         Point first = points.getFirst();
-        orbitBuf.putVertex(first.x, first.y, first.z, 1, Colors.Null);
-        orbitBuf.repeatVertex(color);
+        orbitBuf.startLine(first.x, first.y, first.z, 1, color);
         for (int i = 1; i < count; i++) {
             Point point = points.get(i);
             orbitBuf.putVertex(point.x, point.y, point.z, 1, color);
@@ -89,7 +87,7 @@ final class ViewpointOrbitTrail {
             response.interpolateRectangular(time, start, end, currentPoint, interpolated);
             orbitBuf.putVertex(currentPoint[0], currentPoint[1], currentPoint[2], currentPoint[3], color);
         }
-        orbitBuf.repeatVertex(Colors.Null);
+        orbitBuf.endLine();
     }
 
     private void sampleThrough(long time) {

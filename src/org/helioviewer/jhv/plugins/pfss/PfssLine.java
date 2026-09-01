@@ -69,8 +69,6 @@ class PfssLine {
                     computeBrightColor(b, whiteBackground, brightColor);
 
                     if (i == 0) {
-                        vexBuf.putVertex(x, z, -y, 1, Colors.Null);
-
                         if (fixedColor) {
                             int idxLast = j * points + points - 1;
                             float xo = lineX[idxLast];
@@ -88,10 +86,13 @@ class PfssLine {
                         }
                     }
 
-                    vexBuf.putVertex(x, z, -y, 1, r > radius ? Colors.Null : (fixedColor ? oneColor : brightColor));
-                    if (i == points - 1) {
-                        vexBuf.repeatVertex(Colors.Null);
-                    }
+                    byte[] color = r > radius ? Colors.Null : (fixedColor ? oneColor : brightColor);
+                    if (i == 0)
+                        vexBuf.startLine(x, z, -y, 1, color);
+                    else
+                        vexBuf.putVertex(x, z, -y, 1, color);
+                    if (i == points - 1)
+                        vexBuf.endLine();
                 }
             }
         }

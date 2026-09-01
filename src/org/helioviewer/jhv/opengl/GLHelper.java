@@ -1,6 +1,5 @@
 package org.helioviewer.jhv.opengl;
 
-import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.math.Quat;
 
 public class GLHelper {
@@ -26,11 +25,13 @@ public class GLHelper {
                 z = 0;
             }
 
+            byte[] color = i % 2 == 0 ? evenColor : oddColor;
             if (i == startStep)
-                vexBuf.putVertex(x, y, z, 1, Colors.Null);
-            vexBuf.putVertex(x, y, z, 1, i % 2 == 0 ? evenColor : oddColor);
+                vexBuf.startLine(x, y, z, 1, color);
+            else
+                vexBuf.putVertex(x, y, z, 1, color);
             if (i == endStep)
-                vexBuf.putVertex(x, y, z, 1, Colors.Null);
+                vexBuf.endLine();
         }
     }
 
