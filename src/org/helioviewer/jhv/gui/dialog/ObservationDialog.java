@@ -21,6 +21,7 @@ import org.helioviewer.jhv.gui.time.TimeSelectorPanel;
 import org.helioviewer.jhv.io.APIRequest;
 import org.helioviewer.jhv.io.DataSourcesTree;
 import org.helioviewer.jhv.layers.ImageLayer;
+import org.helioviewer.jhv.time.TimeUtils;
 
 import com.jidesoft.dialog.ButtonPanel;
 import com.jidesoft.dialog.StandardDialog;
@@ -107,8 +108,13 @@ public class ObservationDialog extends StandardDialog implements Interfaces.Obse
             timeSelectorPanel.setTime(req.startTime(), req.endTime());
             cadencePanel.setCadence(req.cadence());
         } else {
-            // Preset the main window's time range so it does not have to be retyped.
-            timeSelectorPanel.setTime(MoviePanel.getInstance().getStartTime(), MoviePanel.getInstance().getEndTime());
+            // Preset the main window's time range so it does not have to be retyped, and derive
+            // the cadence from it the way the sidebar add-layer path does; otherwise the dialog
+            // keeps its construction-time cadence against the freshly adopted range.
+            long start = MoviePanel.getInstance().getStartTime();
+            long end = MoviePanel.getInstance().getEndTime();
+            timeSelectorPanel.setTime(start, end);
+            cadencePanel.setCadence(TimeUtils.defaultCadence(start, end));
         }
 
         if (newLayer) {
