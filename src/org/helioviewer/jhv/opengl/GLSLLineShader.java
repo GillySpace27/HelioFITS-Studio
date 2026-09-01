@@ -2,16 +2,14 @@ package org.helioviewer.jhv.opengl;
 
 import java.nio.FloatBuffer;
 
-import org.helioviewer.jhv.base.BufferUtils;
 import org.helioviewer.jhv.display.Viewport;
 
 class GLSLLineShader extends GLSLShader {
 
     static final GLSLLineShader line = new GLSLLineShader("/glsl/line.vert", "/glsl/line.frag");
 
-    private static GLBO screenBO;
-    private static final FloatBuffer screenBuf = BufferUtils.newFloatBuffer(16 + 4 + 4);
-    private static final int SCREEN_SIZE = screenBuf.capacity() * 4;
+    private static final int SCREEN_FLOATS = 24;
+    private static final GLUniformBuffer screenBuffer = new GLUniformBuffer(SCREEN_FLOATS, UBO.LINE_SCREEN, GL.STREAM_DRAW);
 
     private int opaquePassRef;
 
@@ -20,26 +18,32 @@ class GLSLLineShader extends GLSLShader {
     }
 
     public static void init() {
-        screenBO = new GLBO(GL.UNIFORM_BUFFER, GL.STREAM_DRAW);
-        line._init(false);
+        screenBuffer.init();
+        try {
+            line._init(false);
+        } catch (RuntimeException | Error e) {
+            screenBuffer.dispose();
+            throw e;
+        }
     }
 
     public static void dispose() {
         line._dispose();
-        screenBO.delete();
+        screenBuffer.dispose();
     }
 
     @Override
     protected void initUniforms(int id) {
-        setupUBO(id, "ScreenBlock", screenBO.getID(), UBO.LINE_SCREEN);
+        screenBuffer.bindBlock(id, "ScreenBlock");
         opaquePassRef = requiredUniform(id, "opaquePass");
     }
 
     void bindParams(Viewport vp, double _thickness, FloatBuffer mvp) {
-        screenBuf.clear().put(mvp.duplicate());
-        screenBuf.put(vp.glslArray).put((float) (0.5 * _thickness)); // +3 floats padding
-        screenBuf.flip();
-        screenBO.setBufferData(SCREEN_SIZE, screenBuf); // always changes
+        FloatBuffer values = screenBuffer.begin();
+        values.put(mvp.duplicate());
+        values.put(vp.glslArray).put((float) (0.5 * _thickness));
+        values.put(0).put(0).put(0); // std140 padding
+        screenBuffer.upload();
     }
 
     void bindOpaquePass(boolean opaque) {
