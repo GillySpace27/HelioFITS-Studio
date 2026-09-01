@@ -14,8 +14,13 @@ class GLSLTextureShader extends GLSLShader {
     }
 
     public static void init() {
-        texture._init(false);
-        sdf._init(false);
+        try {
+            texture._init(false);
+            sdf._init(false);
+        } catch (RuntimeException | Error e) {
+            dispose();
+            throw e;
+        }
     }
 
     public static void dispose() {
