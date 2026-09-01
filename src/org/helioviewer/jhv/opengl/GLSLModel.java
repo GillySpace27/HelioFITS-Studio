@@ -118,11 +118,8 @@ public final class GLSLModel {
         for (RenderMesh mesh : transparentMeshes) {
             if (mesh.triangle != null) {
                 GL.glDepthMask(false);
-                try {
-                    renderTriangle(mesh);
-                } finally {
-                    GL.glDepthMask(true);
-                }
+                renderTriangle(mesh);
+                GL.glDepthMask(true);
             } else
                 renderDrawing(mesh, vp, pointFactor, worldToClip);
         }
@@ -140,16 +137,14 @@ public final class GLSLModel {
         if (material.doubleSided())
             GL.glDisable(GL.CULL_FACE);
 
-        try {
-            GLSLMeshShader.mesh.use();
-            mesh.materialBuffer.bind();
-            if (material.baseColorTexture() != ModelMaterial.NO_TEXTURE)
-                textures[material.baseColorTexture()].bind();
-            mesh.triangle.render();
-        } finally {
-            if (material.doubleSided())
-                GL.glEnable(GL.CULL_FACE);
-        }
+        GLSLMeshShader.mesh.use();
+        mesh.materialBuffer.bind();
+        if (material.baseColorTexture() != ModelMaterial.NO_TEXTURE)
+            textures[material.baseColorTexture()].bind();
+        mesh.triangle.render();
+
+        if (material.doubleSided())
+            GL.glEnable(GL.CULL_FACE);
     }
 
     public void dispose() {

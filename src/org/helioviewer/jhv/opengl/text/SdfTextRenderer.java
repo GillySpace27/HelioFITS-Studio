@@ -286,17 +286,16 @@ public final class SdfTextRenderer {
         if (queuedVertices > 0) {
             if (rendering3D)
                 GL.glDepthMask(false);
-            try {
-                texture.bind();
 
-                glslTexture.init();
-                glslTexture.setCoord(coordBuf);
-                glslTexture.renderSdfTexture(GL.TRIANGLES, textColor, unitRangeX, unitRangeY, 0, queuedVertices);
-                queuedVertices = 0;
-            } finally {
-                if (rendering3D)
-                    GL.glDepthMask(true);
-            }
+            texture.bind();
+
+            glslTexture.init();
+            glslTexture.setCoord(coordBuf);
+            glslTexture.renderSdfTexture(GL.TRIANGLES, textColor, unitRangeX, unitRangeY, 0, queuedVertices);
+            queuedVertices = 0;
+
+            if (rendering3D)
+                GL.glDepthMask(true);
         }
     }
 
