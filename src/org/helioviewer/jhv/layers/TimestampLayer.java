@@ -9,8 +9,13 @@ import org.helioviewer.jhv.display.MapScale;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.math.Vec2;
+import org.helioviewer.jhv.opengl.BufVertex;
+import org.helioviewer.jhv.opengl.GL;
+import org.helioviewer.jhv.opengl.GLSLShape;
 import org.helioviewer.jhv.opengl.GLText;
+import org.helioviewer.jhv.opengl.Transform;
 import org.helioviewer.jhv.opengl.text.SdfTextRenderer;
+import org.helioviewer.jhv.time.TimeUtils;
 
 import org.json.JSONObject;
 
@@ -20,6 +25,12 @@ public final class TimestampLayer extends AbstractLayer {
 
     public static final int MIN_SCALE = 50;
     public static final int MAX_SCALE = 300;
+
+    private static final int CLOCK_SEGMENTS = 24;
+    private static final byte[] clockColor = Colors.LightGray;
+    private static final byte[] clockShadowColor = {26, 26, 26, (byte) 191}; // GLText.SHADOW_COLOR in premultiplied bytes
+
+    private final GLSLShape clock = new GLSLShape(true);
 
     private int scale = 100;
     private boolean extra = false;
@@ -87,6 +98,66 @@ public final class TimestampLayer extends AbstractLayer {
         renderer.setColor(Colors.LightGrayFloat);
         renderer.draw(text, deltaX, deltaY, 0, textScaleFactor);
         renderer.endRendering();
+
+        float radius = 0.5f * size;
+        float clockX = deltaX + renderer.measureWidth(text) * textScaleFactor + size;
+        drawClock(vp, viewpoint.time.milli, clockX, deltaY + 0.35f * size, radius);
+    }
+
+    private void drawClock(Viewport vp, long milli, float cx, float cy, float r) {
+        // observation time of the displayed frame, not wall clock
+        double dayFrac = (milli % TimeUtils.DAY_IN_MILLIS) / (double) TimeUtils.DAY_IN_MILLIS;
+        double hourFrac = (milli % 3600000L) / 3600000.;
+
+        BufVertex buf = new BufVertex(2 * (2 * (CLOCK_SEGMENTS + 1) + 12) * GLSLShape.stride);
+        emitClock(buf, cx + GLText.SHADOW_OFFSET_X, cy + GLText.SHADOW_OFFSET_Y, r, dayFrac, hourFrac, clockShadowColor);
+        emitClock(buf, cx, cy, r, dayFrac, hourFrac, clockColor);
+
+        Transform.pushProjection();
+        Transform.setOrtho2DProjection(0, vp.width, 0, vp.height);
+        Transform.pushView();
+        Transform.setIdentityView();
+        GL.glDisable(GL.DEPTH_TEST);
+
+        clock.setVertex(buf);
+        clock.renderShape(GL.TRIANGLE_STRIP);
+
+        GL.glEnable(GL.DEPTH_TEST);
+        Transform.popView();
+        Transform.popProjection();
+    }
+
+    private static void emitClock(BufVertex buf, float cx, float cy, float r, double dayFrac, double hourFrac, byte[] color) {
+        float thick = Math.max(1, 0.1f * r);
+        // dial outline as a triangle strip ring
+        bridge(buf, cx, cy + r, color);
+        for (int i = 0; i <= CLOCK_SEGMENTS; i++) {
+            double t = 2 * Math.PI * i / CLOCK_SEGMENTS;
+            float sin = (float) Math.sin(t), cos = (float) Math.cos(t);
+            buf.putVertex(cx + r * sin, cy + r * cos, 0, 1, color);
+            buf.putVertex(cx + (r - thick) * sin, cy + (r - thick) * cos, 0, 1, color);
+        }
+        // 24h dial (00:00 UTC at top, clockwise) since solar movies span days; thin hand turns once per hour
+        emitHand(buf, cx, cy, 2 * Math.PI * dayFrac, 0.55f * r, 1.2f * thick, color);
+        emitHand(buf, cx, cy, 2 * Math.PI * hourFrac, 0.85f * r, 0.6f * thick, color);
+    }
+
+    private static void emitHand(BufVertex buf, float cx, float cy, double angle, float length, float halfWidth, byte[] color) {
+        float sin = (float) Math.sin(angle), cos = (float) Math.cos(angle);
+        float px = halfWidth * cos, py = -halfWidth * sin;
+        bridge(buf, cx - px, cy - py, color);
+        buf.putVertex(cx - px, cy - py, 0, 1, color);
+        buf.putVertex(cx + px, cy + py, 0, 1, color);
+        buf.putVertex(cx + length * sin - px, cy + length * cos - py, 0, 1, color);
+        buf.putVertex(cx + length * sin + px, cy + length * cos + py, 0, 1, color);
+    }
+
+    private static void bridge(BufVertex buf, float x, float y, byte[] color) {
+        // two degenerate vertices join sub-strips; even counts keep front-face winding
+        if (buf.getCount() > 0) {
+            buf.repeatVertex(color);
+            buf.putVertex(x, y, 0, 1, color);
+        }
     }
 
     private static String formatFOV(MapView mv, Viewport vp) {
@@ -123,7 +194,9 @@ public final class TimestampLayer extends AbstractLayer {
     }
 
     @Override
-    public void init() {}
+    public void init() {
+        clock.init();
+    }
 
     @Override
     public void remove() {
@@ -136,7 +209,9 @@ public final class TimestampLayer extends AbstractLayer {
     }
 
     @Override
-    public void dispose() {}
+    public void dispose() {
+        clock.dispose();
+    }
 
     public int getScale() {
         return scale;
