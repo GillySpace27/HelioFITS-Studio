@@ -16,6 +16,7 @@ import org.helioviewer.jhv.io.DataUri;
 import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.math.Vec3;
 import org.helioviewer.jhv.metadata.HeliocentricCartesianMetaData;
+import org.helioviewer.jhv.opengl.GL;
 import org.helioviewer.jhv.time.JHVTime;
 import org.helioviewer.jhv.time.TimeUtils;
 
@@ -558,20 +559,20 @@ public final class AssimpModelLoader {
 
     private static ModelSampler.MinFilter minFilter(int filter) throws IOException {
         return switch (filter) {
-            case 9728 -> ModelSampler.MinFilter.NEAREST;
-            case 9729 -> ModelSampler.MinFilter.LINEAR;
-            case 9984 -> ModelSampler.MinFilter.NEAREST_MIPMAP_NEAREST;
-            case 9985 -> ModelSampler.MinFilter.LINEAR_MIPMAP_NEAREST;
-            case 9986 -> ModelSampler.MinFilter.NEAREST_MIPMAP_LINEAR;
-            case 9987 -> ModelSampler.MinFilter.LINEAR_MIPMAP_LINEAR;
+            case GL.NEAREST -> ModelSampler.MinFilter.NEAREST;
+            case GL.LINEAR -> ModelSampler.MinFilter.LINEAR;
+            case GL.NEAREST_MIPMAP_NEAREST -> ModelSampler.MinFilter.NEAREST_MIPMAP_NEAREST;
+            case GL.LINEAR_MIPMAP_NEAREST -> ModelSampler.MinFilter.LINEAR_MIPMAP_NEAREST;
+            case GL.NEAREST_MIPMAP_LINEAR -> ModelSampler.MinFilter.NEAREST_MIPMAP_LINEAR;
+            case GL.LINEAR_MIPMAP_LINEAR -> ModelSampler.MinFilter.LINEAR_MIPMAP_LINEAR;
             default -> throw new IOException("Unsupported texture minification filter: " + filter);
         };
     }
 
     private static ModelSampler.MagFilter magFilter(int filter) throws IOException {
         return switch (filter) {
-            case 9728 -> ModelSampler.MagFilter.NEAREST;
-            case 9729 -> ModelSampler.MagFilter.LINEAR;
+            case GL.NEAREST -> ModelSampler.MagFilter.NEAREST;
+            case GL.LINEAR -> ModelSampler.MagFilter.LINEAR;
             default -> throw new IOException("Unsupported texture magnification filter: " + filter);
         };
     }

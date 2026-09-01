@@ -61,6 +61,8 @@ public final class ModelRenderingTest {
             checkChannel(pixels, 1.5f, 0.6f, 2, 216, 232, "double-sided back face");
             checkPremultiplied(pixels, -1.5f, -1, 0, 120, 136, "blended triangle");
             checkPremultiplied(pixels, 0, 0, 1, 10, 40, "blended line");
+            checkChannel(pixels, 0, 0.6f, 0, 60, 68, "far blended triangle");
+            checkChannel(pixels, 0, 0.6f, 1, 124, 132, "near blended triangle");
             checkChannel(pixels, 1.4f, -1, 2, 240, 255, "opaque point");
 
             if (args.length == 1)
@@ -99,6 +101,8 @@ public final class ModelRenderingTest {
                 triangle("culled", -1.8f, 0.3f, -1.2f, 1.1f, 0, 0, true, true),
                 triangle("double-sided", 1.2f, 0.3f, 1.8f, 1.1f, 0, 1, true, true),
                 triangle("blended", -1.8f, -1.4f, -1.2f, -0.4f, 0, 2, false, false),
+                triangle("blend-near", -0.5f, 0.3f, 0.5f, 1.1f, 0.5f, 3, false, false),
+                triangle("blend-far", -0.5f, 0.3f, 0.5f, 1.1f, -0.5f, 2, false, false),
                 line(),
                 point()), materials, List.of());
     }
