@@ -95,13 +95,26 @@ public final class LayersSectionPanel extends JPanel implements Interfaces.Obser
     }
 
     /** The archives with their own client, each keeping its own dialog rather than being flattened. */
-    private static JPanel buildNativePanel() {
+    private void addLascoLayer(String detector) {
+        long start = getStartTime();
+        long end = getEndTime();
+        org.helioviewer.jhv.layers.ImageLayer.create(null).load(new org.helioviewer.jhv.io.FitsRequest(
+                org.helioviewer.jhv.io.FitsRequest.Archive.LASCO, "lz", detector, "",
+                1000L * org.helioviewer.jhv.time.TimeUtils.defaultCadence(start, end), start, end));
+    }
+
+    private JPanel buildNativePanel() {
         JPanel panel = new JPanel(new java.awt.GridLayout(0, 1, 0, 3));
         panel.setBorder(javax.swing.BorderFactory.createEmptyBorder(6, 8, 6, 8));
         Object[][] archives = {
                 {"PUNCH (SDAC)\u2026", (Runnable) () -> org.helioviewer.jhv.gui.dialog.PunchDialog.getInstance().showDialog()},
                 {"Solar Orbiter (SOAR)\u2026", (Runnable) () -> org.helioviewer.jhv.gui.dialog.SoarDialog.getInstance().showDialog()},
                 {"Proba-3 ASPIICS\u2026", (Runnable) () -> org.helioviewer.jhv.gui.dialog.AspiicsDialog.getInstance().showDialog()},
+                // No dialog: the master range and its default cadence are the whole question, like
+                // the VSO tree's Add button. NRL because the VSO's LASCO catalog stops in early
+                // 2025 while the LZ archive is current; see LascoClient.
+                {"LASCO C2 (NRL)", (Runnable) () -> addLascoLayer("C2")},
+                {"LASCO C3 (NRL)", (Runnable) () -> addLascoLayer("C3")},
         };
         for (Object[] a : archives) {
             javax.swing.JButton b = new javax.swing.JButton((String) a[0]);

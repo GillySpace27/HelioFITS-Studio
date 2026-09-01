@@ -37,7 +37,8 @@ public record FitsRequest(@Nonnull Archive archive, @Nonnull String level, @Nonn
      */
     public enum Archive {
         PUNCH("PUNCH (SDAC)"),
-        VSO("VSO");
+        VSO("VSO"),
+        LASCO("LASCO (NRL)");
 
         private final String label;
 

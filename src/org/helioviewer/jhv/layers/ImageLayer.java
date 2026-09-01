@@ -202,6 +202,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         switch (request.archive()) {
             case PUNCH -> org.helioviewer.jhv.io.PunchClient.submitResolve(request, receiver);
             case VSO -> org.helioviewer.jhv.io.VsoClient.submitResolve(request, receiver);
+            case LASCO -> org.helioviewer.jhv.io.LascoClient.submitResolve(request, receiver);
         }
         Layers.fireLayerUpdated(this);
     }

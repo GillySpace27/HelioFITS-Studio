@@ -34,6 +34,11 @@ import org.helioviewer.jhv.layers.ImageLayer;
  * outside that date (MDI, TRACE, SXT) are left out rather than listed untested: absence of
  * records for one hour is not evidence the name is wrong, and it is not evidence it is right.
  *
+ * <p>The VSO's LASCO catalog STOPS in early 2025 (measured 2026-08-31: 27 C2 records for six
+ * hours of 2025-01-01, zero from 2025-06-01 on), so the LASCO leaves here only serve history;
+ * recent LASCO comes from the native NRL LZ archive instead, see LascoClient and the
+ * FITS (native) card.
+ *
  * <p>SUVI was checked the same way against one hour of 2026-08-30: "suvi" answers 720 records,
  * native L1b FITS served by NOAA, six channels times two spacecraft (G18 and G19; e.g. Fe195 at
  * 105 each, Fe093 at 90 each). VSO has no wavelength filter in this client, but the fileids carry
