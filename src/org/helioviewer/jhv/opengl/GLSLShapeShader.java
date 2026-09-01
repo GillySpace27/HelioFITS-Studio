@@ -17,8 +17,8 @@ class GLSLShapeShader extends GLSLShader {
 
     public static void init() {
         try {
-            point._init(false);
-            shape._init(false);
+            point._init();
+            shape._init();
         } catch (RuntimeException | Error e) {
             dispose();
             throw e;

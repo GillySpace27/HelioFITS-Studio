@@ -4,8 +4,6 @@ import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.io.FileUtils;
 
 abstract class GLSLShader {
-    private static final String COMMON_FRAGMENT = "/glsl/solarCommon.frag";
-
     protected static final class UBO {
         static final int IMAGE = 0;
         static final int SOLAR_SCREEN = 1;
@@ -41,21 +39,21 @@ abstract class GLSLShader {
     private int fragmentID;
 
     private final String vertex;
-    private final String fragment;
+    private final String[] fragments;
 
-    GLSLShader(String _vertex, String _fragment) {
+    GLSLShader(String _vertex, String... _fragments) {
         vertex = _vertex;
-        fragment = _fragment;
+        fragments = _fragments;
     }
 
-    protected final void _init(boolean common) {
+    protected final void _init() {
         try {
             vertexID = attachShader(GL.VERTEX_SHADER, FileUtils.readResourceString(vertex));
 
-            String fragmentText = FileUtils.readResourceString(fragment);
-            if (common)
-                fragmentText = FileUtils.readResourceString(COMMON_FRAGMENT) + fragmentText;
-            fragmentID = attachShader(GL.FRAGMENT_SHADER, fragmentText);
+            StringBuilder fragmentText = new StringBuilder();
+            for (String fragment : fragments)
+                fragmentText.append(FileUtils.readResourceString(fragment));
+            fragmentID = attachShader(GL.FRAGMENT_SHADER, fragmentText.toString());
 
             progID = initializeProgram();
             use();

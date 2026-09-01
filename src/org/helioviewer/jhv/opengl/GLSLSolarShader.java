@@ -13,26 +13,22 @@ import org.helioviewer.jhv.wcs.WcsHeader;
 
 public final class GLSLSolarShader extends GLSLShader {
 
-    private enum Kind {
-        SPHERE, IMAGE
-    }
+    private static final String VERTEX = "/glsl/solar.vert";
+    private static final String COMMON_FRAGMENT = "/glsl/solarCommon.frag";
 
-    private static final GLSLSolarShader sphere = new GLSLSolarShader("/glsl/solarSphere.frag", Kind.SPHERE);
-    private static final GLSLSolarShader ortho = new GLSLSolarShader("/glsl/solarOrtho.frag", Kind.IMAGE);
-    private static final GLSLSolarShader hpc = new GLSLSolarShader("/glsl/solarHpc.frag", Kind.IMAGE);
-    private static final GLSLSolarShader lati = new GLSLSolarShader("/glsl/solarLati.frag", Kind.IMAGE);
-    private static final GLSLSolarShader radialWarp = new GLSLSolarShader("/glsl/solarRadialWarp.frag", Kind.IMAGE);
-    private static final GLSLSolarShader rectWarp = new GLSLSolarShader("/glsl/solarRectWarp.frag", Kind.IMAGE);
-    private static final GLSLSolarShader[] programs = {sphere, ortho, hpc, lati, radialWarp, rectWarp};
-
-    private final Kind kind;
+    private static final SphereShader sphere = new SphereShader();
+    private static final GLSLSolarShader ortho = new GLSLSolarShader("/glsl/solarOrtho.frag");
+    private static final GLSLSolarShader hpc = new GLSLSolarShader("/glsl/solarHpc.frag");
+    private static final GLSLSolarShader lati = new GLSLSolarShader("/glsl/solarLati.frag");
+    private static final GLSLSolarShader radialWarp = new GLSLSolarShader("/glsl/solarRadialWarp.frag");
+    private static final GLSLSolarShader rectWarp = new GLSLSolarShader("/glsl/solarRectWarp.frag");
+    private static final GLSLSolarShader[] imagePrograms = {ortho, hpc, lati, radialWarp, rectWarp};
 
     private int pv0Ref;
     private int pv1Ref;
 
-    private GLSLSolarShader(String fragment, Kind _kind) {
-        super("/glsl/solar.vert", fragment);
-        kind = _kind;
+    private GLSLSolarShader(String fragment) {
+        super(VERTEX, COMMON_FRAGMENT, fragment);
     }
 
     private static final int IMAGE_FLOATS = 48;
@@ -49,8 +45,9 @@ public final class GLSLSolarShader extends GLSLShader {
             imageBuffer.init();
             screenBuffer.init();
             displayBuffer.init();
-            for (GLSLSolarShader program : programs)
-                program._init(program.kind == Kind.IMAGE);
+            sphere._init();
+            for (GLSLSolarShader program : imagePrograms)
+                program._init();
         } catch (RuntimeException | Error e) {
             dispose();
             throw e;
@@ -65,20 +62,18 @@ public final class GLSLSolarShader extends GLSLShader {
 
     @Override
     protected void initUniforms(int id) {
-        if (kind == Kind.IMAGE) {
-            pv0Ref = requiredUniform(id, "pv0");
-            pv1Ref = requiredUniform(id, "pv1");
-            setupImageBlocks(id);
-            setTextureUnit(id, "image", GLTexture.Unit.ZERO);
-            setTextureUnit(id, "lut", GLTexture.Unit.ONE);
-            setTextureUnit(id, "diffImage", GLTexture.Unit.TWO);
-            setTextureUnit(id, "mask", GLTexture.Unit.THREE);
-        } else
-            screenBuffer.bindBlock(id, "ScreenBlock");
+        pv0Ref = requiredUniform(id, "pv0");
+        pv1Ref = requiredUniform(id, "pv1");
+        setupImageBlocks(id);
+        setTextureUnit(id, "image", GLTexture.Unit.ZERO);
+        setTextureUnit(id, "lut", GLTexture.Unit.ONE);
+        setTextureUnit(id, "diffImage", GLTexture.Unit.TWO);
+        setTextureUnit(id, "mask", GLTexture.Unit.THREE);
     }
 
     static void dispose() {
-        for (GLSLSolarShader program : programs)
+        sphere._dispose();
+        for (GLSLSolarShader program : imagePrograms)
             program._dispose();
         imageBuffer.dispose();
         screenBuffer.dispose();
@@ -157,5 +152,16 @@ public final class GLSLSolarShader extends GLSLShader {
     private void bindPV(float[] pv0, float[] pv1) {
         GL.glUniform1fv(pv0Ref, pv0);
         GL.glUniform1fv(pv1Ref, pv1);
+    }
+
+    private static final class SphereShader extends GLSLShader {
+        private SphereShader() {
+            super(VERTEX, "/glsl/solarSphere.frag");
+        }
+
+        @Override
+        protected void initUniforms(int id) {
+            screenBuffer.bindBlock(id, "ScreenBlock");
+        }
     }
 }

@@ -17,7 +17,7 @@ final class GLSLMeshShader extends GLSLShader {
     static void init() {
         frameBuffer.init();
         try {
-            mesh._init(false);
+            mesh._init();
         } catch (RuntimeException | Error e) {
             frameBuffer.dispose();
             throw e;

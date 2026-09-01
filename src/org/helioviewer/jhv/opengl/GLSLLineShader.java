@@ -20,7 +20,7 @@ class GLSLLineShader extends GLSLShader {
     public static void init() {
         screenBuffer.init();
         try {
-            line._init(false);
+            line._init();
         } catch (RuntimeException | Error e) {
             screenBuffer.dispose();
             throw e;
