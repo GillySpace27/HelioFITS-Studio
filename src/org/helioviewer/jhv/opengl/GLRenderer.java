@@ -75,14 +75,20 @@ public final class GLRenderer {
         GL.glClearColor(0, 0, 0, 0);
         GL.glClear(GL.COLOR_BUFFER_BIT | GL.DEPTH_BUFFER_BIT);
 
-        GLSLSolar.quad.init();
-        GLSLSolarShader.init();
-        GLSLLineShader.init();
-        GLSLMeshShader.init();
-        GLSLShapeShader.init();
-        GLSLTextureShader.init();
-
-        Annotations.init();
+        try {
+            GLSLSolar.quad.init();
+            GLSLSolarShader.init();
+            GLSLLineShader.init();
+            GLSLMeshShader.init();
+            GLSLShapeShader.init();
+            GLSLTextureShader.init();
+            Annotations.init();
+        } catch (RuntimeException | Error e) {
+            Annotations.dispose();
+            GLSLSolar.quad.dispose();
+            disposeShaders();
+            throw e;
+        }
     }
 
     public static void reshape(int glWidth, int glHeight) {
@@ -120,14 +126,18 @@ public final class GLRenderer {
         GLText.dispose();
 
         GLSLSolar.quad.dispose();
+        disposeShaders();
+        GLBO.releaseUploadBuffer();
+
+        GLException.checkErrors("GLRenderer.dispose()");
+    }
+
+    private static void disposeShaders() {
         GLSLSolarShader.dispose();
         GLSLLineShader.dispose();
         GLSLMeshShader.dispose();
         GLSLShapeShader.dispose();
         GLSLTextureShader.dispose();
-        GLBO.releaseUploadBuffer();
-
-        GLException.checkErrors("GLRenderer.dispose()");
     }
 
     static void renderScene() {
