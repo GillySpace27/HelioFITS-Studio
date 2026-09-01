@@ -111,7 +111,10 @@
         </javac>
     </target>
 
-    <target name="jar" depends="compile">
+    <!-- build-metal-host too: `ant clean jar` without it ships a jar whose Metal bridge dies at
+         startup, and only `ant run` used to pull the dylib in. Harmless off macOS (the exec is
+         failonerror=false and xcrun simply is not there). -->
+    <target name="jar" depends="compile,build-metal-host">
         <delete file="${jarfile}"/>
         <copy file="version.properties" tofile="${bin}/version.properties"/>
         <replace file="${bin}/version.properties" token="@@VERSION" value="${version}"/>
