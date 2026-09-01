@@ -97,6 +97,23 @@ public final class ColoredVertexRenderingTest {
         checkVertex(buffer, 1, 1, 2, 3, 1, firstColor);
         checkVertex(buffer, 2, 4, 5, 6, 1, secondColor);
         checkVertex(buffer, 3, 4, 5, 6, 1, Colors.Null);
+
+        BufVertex grown = new BufVertex(64);
+        for (int i = 0; i <= 64; i++)
+            grown.putVertex(i, -i, i / 2f, 1, firstColor);
+        buffer = grown.toBuffer().duplicate().order(ByteOrder.nativeOrder());
+        check(buffer.remaining() == 65 * BufVertex.BYTES_PER_VERTEX, "Incorrect grown buffer size");
+        checkVertex(buffer, 0, 0, 0, 0, 1, firstColor);
+        checkVertex(buffer, 64, 64, -64, 32, 1, firstColor);
+
+        check(BufVertex.join(List.of(grown)) == grown, "Single buffer join made a copy");
+        boolean emptyJoinRejected = false;
+        try {
+            BufVertex.join(List.of());
+        } catch (IllegalArgumentException e) {
+            emptyJoinRejected = true;
+        }
+        check(emptyJoinRejected, "Empty buffer join was accepted");
     }
 
     private static void checkVertex(ByteBuffer buffer, int index, float x, float y, float z, float w, byte[] color) {

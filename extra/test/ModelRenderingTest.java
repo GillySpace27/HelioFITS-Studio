@@ -64,6 +64,10 @@ public final class ModelRenderingTest {
             checkChannel(pixels, 0, 0.6f, 0, 60, 68, "far blended triangle");
             checkChannel(pixels, 0, 0.6f, 1, 124, 132, "near blended triangle");
             checkChannel(pixels, 1.4f, -1, 2, 240, 255, "opaque point");
+            checkBlack(pixels, -0.6f, -0.6f, "line below mask cutoff");
+            checkChannel(pixels, 0.6f, -0.6f, 1, 1, 255, "line above mask cutoff");
+            checkBlack(pixels, -0.6f, -1.2f, "point below mask cutoff");
+            checkChannel(pixels, 0.6f, -1.2f, 1, 240, 255, "point above mask cutoff");
 
             if (args.length == 1)
                 writeImage(pixels, Path.of(args[0]));
@@ -96,15 +100,21 @@ public final class ModelRenderingTest {
                 material(0, 0, 1, 1, ModelMaterial.AlphaMode.OPAQUE, true, false),
                 material(1, 0, 0, 0.5f, ModelMaterial.AlphaMode.BLEND, true, true),
                 material(0, 1, 0, 0.5f, ModelMaterial.AlphaMode.BLEND, true, true),
-                material(0, 0, 1, 0.5f, ModelMaterial.AlphaMode.OPAQUE, true, true));
+                material(0, 0, 1, 0.5f, ModelMaterial.AlphaMode.OPAQUE, true, true),
+                material(1, 0, 0, 0.4f, ModelMaterial.AlphaMode.MASK, true, true),
+                material(0, 1, 0, 0.6f, ModelMaterial.AlphaMode.MASK, true, true));
         return new ModelScene("rendering-test", TimeUtils.START, List.of(
                 triangle("culled", -1.8f, 0.3f, -1.2f, 1.1f, 0, 0, true, true),
                 triangle("double-sided", 1.2f, 0.3f, 1.8f, 1.1f, 0, 1, true, true),
                 triangle("blended", -1.8f, -1.4f, -1.2f, -0.4f, 0, 2, false, false),
                 triangle("blend-near", -0.5f, 0.3f, 0.5f, 1.1f, 0.5f, 3, false, false),
                 triangle("blend-far", -0.5f, 0.3f, 0.5f, 1.1f, -0.5f, 2, false, false),
-                line(),
-                point()), materials, List.of());
+                line("line", -0.5f, 0, 0.5f, 3),
+                point("point", 1.4f, -1, 1, 4),
+                line("masked-out-line", -0.9f, -0.6f, -0.3f, 5),
+                line("masked-in-line", 0.3f, -0.6f, 0.9f, 6),
+                point("masked-out-point", -0.6f, -1.2f, 0, 5),
+                point("masked-in-point", 0.6f, -1.2f, 0, 6)), materials, List.of());
     }
 
     private static ModelScene backgroundScene() {
@@ -127,13 +137,14 @@ public final class ModelRenderingTest {
         return new ModelMesh(name, ModelMesh.Primitive.TRIANGLES, positions, normals, white(3), null, indices, ints(), materialIndex);
     }
 
-    private static ModelMesh line() {
-        return new ModelMesh("line", ModelMesh.Primitive.LINES, floats(-0.5f, 0, 0, 0.5f, 0, 0), null, white(2), null,
-                ints(0, 1), ints(0, 2), 3);
+    private static ModelMesh line(String name, float start, float y, float end, int materialIndex) {
+        return new ModelMesh(name, ModelMesh.Primitive.LINES, floats(start, y, 0, end, y, 0), null, white(2), null,
+                ints(0, 1), ints(0, 2), materialIndex);
     }
 
-    private static ModelMesh point() {
-        return new ModelMesh("point", ModelMesh.Primitive.POINTS, floats(1.4f, -1, 1), null, white(1), null, ints(0), ints(), 4);
+    private static ModelMesh point(String name, float x, float y, float z, int materialIndex) {
+        return new ModelMesh(name, ModelMesh.Primitive.POINTS, floats(x, y, z), null, white(1), null,
+                ints(0), ints(), materialIndex);
     }
 
     private static FloatBuffer floats(float... values) {
