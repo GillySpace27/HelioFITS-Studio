@@ -51,6 +51,31 @@ class ExportWriter {
         allIntra = _allIntra;
     }
 
+    ExportFormat format() {
+        return format;
+    }
+
+    int fps() {
+        return fps;
+    }
+
+    private int exrFrames;
+
+    /** A layered EXR frame is its own file: nothing for ffmpeg to do at close. */
+    void encodeExr(ExrWriter frame) throws Exception {
+        frame.write(new File(seriesDir(), String.format("frame%04d.exr", ++exrFrames)));
+    }
+
+    // A frame-per-file format gets its own directory. Numbering them into Exports/ alongside
+    // everything else turned one recording into hundreds of loose files interleaved with every
+    // other export.
+    private File seriesDir() throws Exception {
+        File dir = new File(prefix);
+        if (!dir.isDirectory() && !dir.mkdirs())
+            throw new Exception("Could not create the frame directory: " + prefix);
+        return dir;
+    }
+
     void encode(BufferedImage mainImage, BufferedImage eveImage, int movieLinePosition, int _bytesPerPixel) throws Exception {
         bytesPerPixel = _bytesPerPixel;
         if (tempFile == null) {
@@ -122,19 +147,15 @@ class ExportWriter {
 
     @Nullable
     String close() throws Exception {
+        if (format == ExportFormat.EXR)
+            return exrFrames == 0 ? null : new File(prefix, "frame" + format.extension).getPath();
         if (tempFile == null) // unlikely reach here on encode error
             return null;
 
         try {
-            // A frame-per-file format gets its own directory. Numbering them into Exports/
-            // alongside everything else turned one recording into hundreds of loose files
-            // interleaved with every other export.
             String outPath;
             if (format.isSeries()) {
-                File dir = new File(prefix);
-                if (!dir.isDirectory() && !dir.mkdirs())
-                    throw new Exception("Could not create the frame directory: " + prefix);
-                outPath = new File(dir, "frame" + format.extension).getPath();
+                outPath = new File(seriesDir(), "frame" + format.extension).getPath();
             } else {
                 outPath = prefix + format.extension;
             }

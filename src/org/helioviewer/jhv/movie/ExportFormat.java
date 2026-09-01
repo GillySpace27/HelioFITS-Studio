@@ -40,15 +40,17 @@ public enum ExportFormat {
     FFV1("FFV1 (lossless)", ".mkv", List.of("-c:v", "ffv1", "-level", "3"), null, null),
     PNG("PNG series (16-bit, lossless)", "%04d.png", List.of("-r", "1"), null, null),
     /**
-     * OpenEXR frames, captured at 16 bits per channel (RGBA16F target, read back as rgb48le,
-     * written by ffmpeg as float). Falls back to 8-bit if the driver cannot render to RGBA16F.
+     * Layered OpenEXR frames, written by JHV itself (ExrWriter, ExrCapture) rather than ffmpeg.
+     * R,G,B,A carry the on-screen composite, linearized, so any viewer shows the picture; each
+     * enabled layer then sits under its own prefix, image layers as grey data (.Y, the decoded
+     * value before any slider; .V, the value the colour table was indexed with; .A, footprint)
+     * with the colour table and every display setting in the header, overlays as premultiplied
+     * RGBA. Half float, ZIP: a quarter the size of the float files ffmpeg wrote, and readable by
+     * macOS, which refused those for their missing pixelAspectRatio attribute.
      *
-     * <p>Still the RENDERED view: the colour table and enhancement have been applied, so the
-     * numbers are display-referred and not radiances. Right for a compositing or dome pipeline
-     * that wants EXR as its interchange format; wrong for photometry, where the FITS is what
-     * you want.
+     * <p>Falls back to 8-bit capture if the driver cannot render to RGBA16F.
      */
-    EXR("EXR series (16-bit)", "%04d.exr", List.of("-c:v", "exr", "-r", "1"), null, null);
+    EXR("EXR series (layered, half float)", "%04d.exr", List.of(), null, null);
 
     /** Bits per channel of the encoded output. Not the capture depth, which is 16 or 8. */
     public enum Depth {

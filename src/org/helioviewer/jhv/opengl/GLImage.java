@@ -21,6 +21,21 @@ public class GLImage {
         None, Running, Base
     }
 
+    /**
+     * What an export pass wants from this layer instead of its on-screen colour. DISPLAY is the
+     * value the colour table was indexed with (Levels, radial gain, sharpen and upsilon applied),
+     * so colour = lut[V] reproduces the screen; DATA is the decoded value with every slider left
+     * to the file's metadata, only the difference mode surviving because it changes what is being
+     * shown rather than how.
+     */
+    public enum Capture {
+        NONE, DISPLAY, DATA
+    }
+
+    // ponytail: a process-wide flag rather than a parameter threaded through five render
+    // signatures. Only the export sets it, on the GL thread, and resets it in a finally.
+    public static Capture capture = Capture.NONE;
+
     public static final int MIN_DCROTA = -15;
     public static final int MAX_DCROTA = 15;
     public static final int MIN_DCRVAL = -180;
@@ -107,26 +122,30 @@ public class GLImage {
         // corner data — a discontinuity between "full image" and "cropped to the nearest edge".
         double maskRef = ImageBounds.radial(metaData);
         // shader.bindSector(gl, -Math.max(Math.abs(metaData.getSector0()), Math.abs(sector0)), Math.max(metaData.getSector1(), sector1));
-        color[0] = (float) (opacity * red); // https://amindforeverprogramming.blogspot.com/2013/07/why-alpha-premultiplied-colour-blending.html
-        color[1] = (float) (opacity * green);
-        color[2] = (float) (opacity * blue);
-        color[3] = (float) (opacity * blend);
+        boolean raw = capture != Capture.NONE, data = capture == Capture.DATA;
+        // Opacity, blend and the channel toggles are compositing parameters: a layer written on
+        // its own carries them in its metadata, not in its pixels.
+        color[0] = raw ? 1 : (float) (opacity * red); // https://amindforeverprogramming.blogspot.com/2013/07/why-alpha-premultiplied-colour-blending.html
+        color[1] = raw ? 1 : (float) (opacity * green);
+        color[2] = raw ? 1 : (float) (opacity * blue);
+        color[3] = raw ? 1 : (float) (opacity * blend);
         GLSLSolarShader.bindDisplay(color,
-                1f / uploadedImageData.imageBuffer().width, 1f / uploadedImageData.imageBuffer().height, (float) (-2 * sharpen), diffMode.ordinal(),
-                metaData.getSector0(), metaData.getSector1(), (float) enhanced,
+                1f / uploadedImageData.imageBuffer().width, 1f / uploadedImageData.imageBuffer().height, data ? 0 : (float) (-2 * sharpen), diffMode.ordinal(),
+                metaData.getSector0(), metaData.getSector1(), data ? 0 : (float) enhanced,
                 metaData.getCutOffX(), metaData.getCutOffY(), metaData.getCutOffValue(), metaData.getCalculateDepth() ? 1 : 0,
                 // RHEF output is already a normalized rank in [0, 1]; the raw-DN response
                 // factor must NOT rescale it (that pushes the uniform upper half past 1 and
                 // clamps it to white). The user's Levels (brightOffset/brightScale) still
                 // apply as a black/white-point control on the equalized output.
-                (float) brightOffset, (float) (brightScale * (rhefActive ? 1 : metaData.getResponseFactor())),
+                data ? 0 : (float) brightOffset, data ? 1 : (float) (brightScale * (rhefActive ? 1 : metaData.getResponseFactor())),
                 Math.max(metaData.getInnerRadius(), (float) (innerMask * maskRef)),
                 Display.getShowCorona() ? (outerMask < 1 ? (float) (outerMask * maskRef) : metaData.getOuterRadius()) : 1,
                 (float) slitLeft, (float) slitRight,
-                (float) (rhefActive ? upsilonLow : 1), (float) (rhefActive ? upsilonHigh : 1),
+                (float) (rhefActive && !data ? upsilonLow : 1), (float) (rhefActive && !data ? upsilonHigh : 1),
                 LUTLabels.isCategorical(lut) ? 1 : 0,
                 Display.skipDither() ? 1 : 0,
-                Display.showClipping ? 1 : 0);
+                Display.showClipping && !raw ? 1 : 0,
+                raw ? 1 : 0);
 
         applyLUT();
         applyMask(metaData.getDetectorMask());

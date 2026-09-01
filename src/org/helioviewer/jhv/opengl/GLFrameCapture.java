@@ -149,7 +149,7 @@ final class GLFrameCapture {
         GL.glBindFramebuffer(GL.FRAMEBUFFER, drawFramebuffer);
     }
 
-    void readPixels(ByteBuffer buffer) {
+    private void resolveAndRead() {
         if (samples > 0) {
             GL.glBindFramebuffer(GL.READ_FRAMEBUFFER, drawFramebuffer);
             GL.glBindFramebuffer(GL.DRAW_FRAMEBUFFER, resolveFramebuffer);
@@ -163,6 +163,36 @@ final class GLFrameCapture {
         readback.clear();
         GL.glReadPixels(0, 0, width, height, GL.RGBA, readType, readback);
         readback.limit(readback.capacity());
+    }
+
+    /**
+     * RGBA as floats, top row first (GL reads bottom-up, image files go top-down), and exactly
+     * what the target holds: no clamp, no quantization. On an RGBA16F target that is the half
+     * value itself, so writing it back out as half is lossless.
+     */
+    float[] readFloats() {
+        resolveAndRead();
+        int comp = readType == GL.UNSIGNED_BYTE ? 1 : readType == GL.HALF_FLOAT ? 2 : 4;
+        float[] out = new float[width * height * 4];
+        for (int y = 0; y < height; y++) {
+            readback.get(readbackRow);
+            int dst = (height - 1 - y) * width * 4;
+            for (int i = 0; i < width * 4; i++) {
+                int off = i * comp;
+                out[dst + i] = switch (comp) {
+                    case 1 -> (readbackRow[off] & 0xFF) / 255f;
+                    case 2 -> Float.float16ToFloat((short) ((readbackRow[off] & 0xFF) | (readbackRow[off + 1] << 8)));
+                    default -> Float.intBitsToFloat((readbackRow[off] & 0xFF) | ((readbackRow[off + 1] & 0xFF) << 8)
+                            | ((readbackRow[off + 2] & 0xFF) << 16) | (readbackRow[off + 3] << 24));
+                };
+            }
+        }
+        GL.glBindFramebuffer(GL.FRAMEBUFFER, 0);
+        return out;
+    }
+
+    void readPixels(ByteBuffer buffer) {
+        resolveAndRead();
 
         buffer.clear();
         for (int y = 0; y < height; y++) {

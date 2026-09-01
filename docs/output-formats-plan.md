@@ -46,7 +46,10 @@ depth, or someone will eventually publish a number read off a rendered pixel.
 
 ## Phases
 
-### Phase 1 — Float capture (unblocks everything else)  **[NOT STARTED]**
+### Phase 1 — Float capture (unblocks everything else)  **[DONE 2026-09-01, for EXR]**
+
+Outcome: `GLFrameCapture.readFloats()` reads the RGBA16F target back as floats, unclamped; the
+video and PNG paths keep their clamped rgb48le read, since they are integer downstream anyway.
 
 Render the offscreen capture into a floating-point FBO (`RGBA16F`, with `RGBA32F` behind a
 setting) and read that back, rather than 8-bit RGBA. Contained to `GLFrameCapture` and
@@ -91,7 +94,14 @@ before the capture fails rather than after.
 16-bit PNG, and TIFF support is in the JDK. Wire them into the existing recording modes as
 alternatives to the video encoder.
 
-### Phase 4 — EXR
+### Phase 4 — EXR  **[DONE 2026-09-01]**
+
+Outcome: option 2, `movie/ExrWriter.java` (single-part scanline, half, ZIP, 31-byte names,
+sorted channels) and `movie/ExrCapture.java` (one pass for the composite, then one per layer,
+image layers twice). The ffmpeg path was dropped: besides having no layers, its files omitted
+the required `pixelAspectRatio` attribute, which is why macOS refused to open them. Live run:
+104 frames of 1024x821 with two LASCO layers, grid and timestamp (18 channels) in 18 s, 1.2 MB
+each, every frame accepted by ImageIO.
 
 There is no EXR writer in the tree and no pure-Java one among the dependencies. Two options:
 
@@ -107,7 +117,13 @@ Multi-layer EXR, one image layer per EXR layer, requires rendering each layer to
 instead of compositing them, so N passes per frame. It fits naturally once float capture exists,
 and it is the piece Thor is most specifically asking for.
 
-### Phase 5 — Science data channel (optional, and separate)
+### Phase 5 — Science data channel (optional, and separate)  **[DONE 2026-09-01]**
+
+Outcome: `<layer>.Y`, the decoded value with every slider left to the header (`<layer>.meta`
+carries Levels, LUT, filter, physical min/max and the stretch formula), beside `<layer>.V`, the
+value the colour table was indexed with, so the screen is reproducible from V and the DN from Y.
+Half float: 11 significant bits, so a 13-bit linear range loses 2 bits in its top octave; the
+format allows FLOAT per channel if that ever matters.
 
 Emit calibrated values from before the display pipeline as an additional float channel, so a
 frame carries both what it looked like and what it measured. This is the only part of the work

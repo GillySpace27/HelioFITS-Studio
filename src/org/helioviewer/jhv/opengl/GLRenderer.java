@@ -294,13 +294,22 @@ public final class GLRenderer {
             // units, which stops being the limb once the radial warp moves it.
             if (mv.isOrthographic()) {
                 RenderGuard.run("solar disk", () -> {
+                    // An isolated export pass keeps the disk's occlusion (the far side of the
+                    // grid must still hide) but not its black: a layer written on its own must
+                    // not carry an opaque disk into its alpha.
+                    boolean depthOnly = Layers.captureOnly != null;
+                    if (depthOnly)
+                        GL.glColorMask(false, false, false, false);
                     GLSLSolarShader.sphere.use();
                     GLSLSolar.quad.render();
+                    if (depthOnly)
+                        GL.glColorMask(true, true, true, true);
                 });
             }
 
             Layers.render(mv, vp);
-            RenderGuard.run("annotations", () -> Annotations.render(mv, vp));
+            if (Layers.captureOnly == null) // hand-drawn annotations are part of the composite only
+                RenderGuard.run("annotations", () -> Annotations.render(mv, vp));
             // Screen-space HUD (the colour-table legend), drawn in PIXEL coordinates. The warp
             // is a vertex-stage transform on raw vertex values (shape.vert -> warpWorld), so
             // leaving it enabled fed pixel positions to a mapping that expects solar radii and
@@ -355,7 +364,8 @@ public final class GLRenderer {
             GLSLSolarShader.bindScreen(vp, scale);
 
             Layers.renderScale(mv, vp);
-            RenderGuard.run("annotations", () -> Annotations.render(mv, vp));
+            if (Layers.captureOnly == null)
+                RenderGuard.run("annotations", () -> Annotations.render(mv, vp));
             Layers.renderFloat(mv, vp);
         }
     }

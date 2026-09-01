@@ -1,9 +1,14 @@
 package org.helioviewer.jhv.opengl;
 
 import java.nio.ByteBuffer;
+import java.util.function.Supplier;
+
+import javax.annotation.Nullable;
 
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.display.Display;
+import org.helioviewer.jhv.layers.Layer;
+import org.helioviewer.jhv.layers.Layers;
 
 public class GLGrab {
 
@@ -49,6 +54,48 @@ public class GLGrab {
     }
 
     public void renderFrame(ByteBuffer buffer) {
+        inCaptureState(() -> {
+            renderScene();
+            capture.readPixels(buffer);
+            return null;
+        });
+    }
+
+    /**
+     * One offscreen render of the whole scene, or of a single layer on transparent black, as
+     * RGBA floats top row first and unclamped. The layered EXR export is a sequence of these.
+     * mode says what an image layer writes instead of its colour; overlays ignore it.
+     */
+    public float[] renderPass(@Nullable Layer only, GLImage.Capture mode) {
+        return inCaptureState(() -> {
+            Layers.captureOnly = only;
+            GLImage.capture = mode;
+            try {
+                if (only != null) // a layer on its own sits on transparent black, whatever the screen shows behind it
+                    GL.glClearColor(0, 0, 0, 0);
+                renderScene();
+                return capture.readFloats();
+            } finally {
+                Layers.captureOnly = null;
+                GLImage.capture = GLImage.Capture.NONE;
+                if (only != null) { // what display() had set
+                    float bg = Display.whiteBackground ? 1 : 0;
+                    GL.glClearColor(bg, bg, bg, 0);
+                }
+            }
+        });
+    }
+
+    private static void renderScene() {
+        GL.glClear(GL.COLOR_BUFFER_BIT | GL.DEPTH_BUFFER_BIT);
+        if (GLRenderer.getMapView().rendersIn3D()) { // must match display()'s fork, or export takes the wrong path
+            GLRenderer.renderScene();
+        } else {
+            GLRenderer.renderSceneScale();
+        }
+    }
+
+    private <T> T inCaptureState(Supplier<T> render) {
         if (capture == null)
             init();
 
@@ -70,13 +117,7 @@ public class GLGrab {
             Display.reshapeAll();
 
             capture.bindForRender();
-            GL.glClear(GL.COLOR_BUFFER_BIT | GL.DEPTH_BUFFER_BIT);
-            if (GLRenderer.getMapView().rendersIn3D()) { // must match display()'s fork, or export takes the wrong path
-                GLRenderer.renderScene();
-            } else {
-                GLRenderer.renderSceneScale();
-            }
-            capture.readPixels(buffer);
+            return render.get();
         } finally {
             Display.highBitDepthCapture = _high;
             Display.outputFitSuppressed = _suppressed;

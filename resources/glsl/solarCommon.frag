@@ -84,6 +84,10 @@ layout(std140) uniform DisplayBlock {
     float skipDither;
     // Non-zero to paint clipped pixels in flag colours instead of their LUT colour.
     float showClipping;
+    // Non-zero while the export reads a layer as numbers: the value that would index the colour
+    // table is written out as is, grey, alpha 1. Takes the last padding float, so the block
+    // size is unchanged.
+    float rawOutput;
 } display;
 
 uniform sampler2D image;
@@ -167,6 +171,12 @@ vec4 getColor(const vec2 texcoord, const vec2 difftexcoord, const float factor) 
         value = clamp(value, 0., 1.);
         value = value < .5 ? .5 * pow(2. * value, display.upsilonLow) : 1. - .5 * pow(2. - 2. * value, display.upsilonHigh);
     }
+
+    // A data export wants the number, not the colour table's 8-bit rendering of it (LINEAR
+    // sampling of 256 entries at texel-edge coordinates is an affine map with a 0.4 percent
+    // gain, which is fine for a picture and a defect in a data channel).
+    if (display.rawOutput != 0.)
+        return vec4(value, value, value, 1.);
 
     // Clipping flags, tested BEFORE the dither so a +/-1/255 nudge is never reported as
     // clipping. This is the only place the transfer function's range is knowable: fetch()

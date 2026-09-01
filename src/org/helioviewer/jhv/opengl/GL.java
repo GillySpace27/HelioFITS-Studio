@@ -171,6 +171,10 @@ public final class GL {
         GLES30.glClearColor(red, green, blue, alpha);
     }
 
+    public static void glColorMask(boolean red, boolean green, boolean blue, boolean alpha) {
+        GLES30.glColorMask(red, green, blue, alpha);
+    }
+
     public static void glCompileShader(int shader) {
         GLES30.glCompileShader(shader);
     }

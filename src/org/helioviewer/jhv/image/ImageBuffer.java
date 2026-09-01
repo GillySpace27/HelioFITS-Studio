@@ -16,7 +16,8 @@ public final class ImageBuffer {
     // the physical (BZERO/BSCALE-corrected) pixel value before it gets stretched and squashed into
     // the [0,1] texture. Server-backed layers (JPX/JPIP movies) never carry this: the server bakes
     // in its own stretch before the client ever sees a pixel, so there is nothing to invert.
-    public record PhysicalScale(float min, float max, DoubleUnaryOperator inverseStretch) {
+    /** stretch is the forward map in words, for a file header: Y = f(t), t = (physical - min) / (max - min). */
+    public record PhysicalScale(float min, float max, DoubleUnaryOperator inverseStretch, String stretch) {
         // displayFraction: the normalized [0,1] value that was fed into the LUT lookup, i.e. after
         // this buffer's own stretch but before any layer-level Levels/response adjustment -- the
         // caller is responsible for undoing those first.

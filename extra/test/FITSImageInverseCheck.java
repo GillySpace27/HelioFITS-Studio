@@ -25,7 +25,7 @@ public final class FITSImageInverseCheck {
         // The colorbar hover math (Colorbar.physicalValueText / ImageBuffer.PhysicalScale) also
         // depends on this outer layer: normalized-domain x -> physical min..max.
         float min = -50, max = 450;
-        var scale = new ImageBuffer.PhysicalScale(min, max, y -> y); // identity inverse for this check
+        var scale = new ImageBuffer.PhysicalScale(min, max, y -> y, "Y = t"); // identity inverse for this check
         assertClose("PhysicalScale at 0", min, scale.toPhysical(0), 1e-6);
         assertClose("PhysicalScale at 1", max, scale.toPhysical(1), 1e-6);
         assertClose("PhysicalScale at 0.5", (min + max) / 2, scale.toPhysical(0.5), 1e-6);

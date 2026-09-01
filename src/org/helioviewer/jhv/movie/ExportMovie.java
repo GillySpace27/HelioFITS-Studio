@@ -59,11 +59,28 @@ public final class ExportMovie implements Player.Listener {
             grabber.dispose();
     }
 
+    private static int frameIndex;
+
     public static void handleMovieExport() {
         BufferedImage screen = null;
         BufferedImage eve = null;
         boolean submitted = false;
         try {
+            if (exporter.format() == ExportFormat.EXR) {
+                // Rendered layer by layer on this (GL) thread; only the file write is deferred.
+                // The EVE strip is a movie decoration and has no place in a data export.
+                ExportWriter writer = exporter;
+                ExrWriter frame = ExrCapture.frame(grabber, writer.fps(), ++frameIndex);
+                encodeExecutor.execute(() -> {
+                    try {
+                        writer.encodeExr(frame);
+                    } catch (Exception e) {
+                        Log.error(e);
+                    }
+                });
+                submitted = true;
+                return;
+            }
             // Sized to the capture's stride: 6 bytes per pixel once the target is RGBA16F.
             // createRGBImage allocates 3, so a 16-bit frame needs twice the width's worth of
             // bytes, which is what asking for 2w gives without a new factory method.
@@ -80,12 +97,11 @@ public final class ExportMovie implements Player.Listener {
                 NativeImageFactory.free(eve);
                 MappedImageFactory.free(screen);
             }
-        }
-        Player.grabDone();
-
-        if (shallStop) {
-            grabber.dispose();
-            stop();
+            Player.grabDone();
+            if (shallStop) {
+                grabber.dispose();
+                stop();
+            }
         }
     }
 
@@ -124,6 +140,7 @@ public final class ExportMovie implements Player.Listener {
 
     private static void startRecording(ViewState.RecordingData recordingData, int fps) {
         shallStop = false;
+        frameIndex = 0;
 
         int scrw = 1;
         int scrh = 0;

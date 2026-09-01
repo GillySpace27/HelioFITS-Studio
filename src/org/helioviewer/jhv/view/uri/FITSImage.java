@@ -215,6 +215,15 @@ public final class FITSImage implements URIImageReader {
     // Inverse of normalizedMapping, for recovering a physical value from a displayed one (colorbar
     // hover). y is the stretched [0,1] value; the result is the pre-stretch normalized (v-min)/range
     // that produced it. Mirrors each case above algebraically -- keep the two in sync.
+    // The forward map inverseMapping undoes, written for a reader of the export's header.
+    static String stretchName(FITSViewState.Data state, float range) {
+        return switch (state.scalingMode()) {
+            case Gamma -> state.gamma() == 1 ? "Y = t" : "Y = t^" + state.gamma();
+            case Beta -> "Y = asinh(k t) / asinh(k), k = " + (range * state.beta());
+            case Alpha -> "Y = log1p(a t) / log1p(a), a = " + state.alpha();
+        };
+    }
+
     static DoubleUnaryOperator inverseMapping(FITSViewState.Data state, float range) { // package-private: same reason
         return switch (state.scalingMode()) {
             case Gamma -> {
@@ -457,7 +466,7 @@ public final class FITSImage implements URIImageReader {
         ImageBuffer result = outBuffer.finish();
         // min/max are already BZERO/BSCALE-corrected physical values (see sampleImage/rawShortToHalfFloat
         // above), so no further un-baking is needed once the stretch itself is inverted.
-        result.setPhysicalScale(new ImageBuffer.PhysicalScale(min, max, inverseMapping(state, max - min)));
+        result.setPhysicalScale(new ImageBuffer.PhysicalScale(min, max, inverseMapping(state, max - min), stretchName(state, max - min)));
         return result;
     }
 

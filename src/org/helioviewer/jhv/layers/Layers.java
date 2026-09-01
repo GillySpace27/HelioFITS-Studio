@@ -240,20 +240,46 @@ public final class Layers {
         reapImageBuffers();
     }
 
+    /**
+     * While the export writes a layered frame it renders the scene once per layer, and this names
+     * the one layer that pass may draw. Null, the normal state, draws everything. Set and reset by
+     * GLGrab on the GL thread only.
+     */
+    @Nullable
+    public static Layer captureOnly;
+
+    private static boolean shown(Layer layer) {
+        return captureOnly == null || layer == captureOnly;
+    }
+
     public static void render(MapView mv, Viewport vp) {
-        layers.forEach(layer -> RenderGuard.run(layer.getName(), () -> layer.render(mv, vp)));
+        layers.forEach(layer -> {
+            if (shown(layer))
+                RenderGuard.run(layer.getName(), () -> layer.render(mv, vp));
+        });
     }
 
     public static void renderScale(MapView mv, Viewport vp) {
-        layers.forEach(layer -> RenderGuard.run(layer.getName(), () -> layer.renderScale(mv, vp)));
+        layers.forEach(layer -> {
+            if (shown(layer))
+                RenderGuard.run(layer.getName(), () -> layer.renderScale(mv, vp));
+        });
     }
 
     public static void renderFloat(MapView mv, Viewport vp) {
-        layers.forEach(layer -> RenderGuard.run(layer.getName() + " (float)", () -> layer.renderFloat(mv, vp)));
+        layers.forEach(layer -> {
+            // An image layer's float pass is its colour legend, a HUD element that belongs to the
+            // composite: isolated, it would be burned into the layer's data channel.
+            if (shown(layer) && !(captureOnly != null && layer instanceof ImageLayer))
+                RenderGuard.run(layer.getName() + " (float)", () -> layer.renderFloat(mv, vp));
+        });
     }
 
     public static void renderFullFloat(Viewport vp) {
-        layers.forEach(layer -> RenderGuard.run(layer.getName() + " (overlay)", () -> layer.renderFullFloat(vp)));
+        layers.forEach(layer -> {
+            if (shown(layer))
+                RenderGuard.run(layer.getName() + " (overlay)", () -> layer.renderFullFloat(vp));
+        });
     }
 
     public static void renderMiniview(MapView mv, Viewport vp) {
