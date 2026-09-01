@@ -37,7 +37,7 @@ class PfssLine {
             if (included(line, detail))
                 selectedLines++;
         }
-        return Math.multiplyExact(selectedLines, points + 2);
+        return selectedLines * (points + 2);
     }
 
     private static boolean included(int line, int detail) {

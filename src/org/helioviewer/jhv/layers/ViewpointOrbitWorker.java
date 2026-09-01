@@ -71,7 +71,7 @@ final class ViewpointOrbitWorker {
                 positionLoads.add(entry.positionLoad);
                 ViewpointOrbitTrail trail = orbitTrails.get(entry.positionLoad, entry.response, parameters.start, parameters.end);
                 trails.add(trail);
-                orbitVertexCount = Math.addExact(orbitVertexCount, trail.vertexCount(parameters.time));
+                orbitVertexCount += trail.vertexCount(parameters.time);
             }
 
             BufVertex orbitBuf = new BufVertex(orbitVertexCount);

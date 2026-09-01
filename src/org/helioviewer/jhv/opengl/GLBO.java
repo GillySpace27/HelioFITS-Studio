@@ -51,9 +51,9 @@ class GLBO {
 
         int size = switch (buffer) {
             case ByteBuffer byteBuffer -> byteBuffer.remaining();
-            case FloatBuffer floatBuffer -> Math.multiplyExact(floatBuffer.remaining(), Float.BYTES);
-            case IntBuffer intBuffer -> Math.multiplyExact(intBuffer.remaining(), Integer.BYTES);
-            case ShortBuffer shortBuffer -> Math.multiplyExact(shortBuffer.remaining(), Short.BYTES);
+            case FloatBuffer floatBuffer -> floatBuffer.remaining() * Float.BYTES;
+            case IntBuffer intBuffer -> intBuffer.remaining() * Integer.BYTES;
+            case ShortBuffer shortBuffer -> shortBuffer.remaining() * Short.BYTES;
             default -> throw new IllegalArgumentException("Unsupported buffer type: " + buffer.getClass().getName());
         };
         setBufferData(size, buffer);

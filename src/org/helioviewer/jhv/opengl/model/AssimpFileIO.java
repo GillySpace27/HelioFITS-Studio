@@ -102,9 +102,9 @@ final class AssimpFileIO implements AutoCloseable {
 
         ByteBuffer data = openFile.data();
         long actualCount = Math.min(count, data.remaining() / size);
-        long byteCount = actualCount * size;
+        int byteCount = (int) (actualCount * size); // bounded by data.remaining()
         MemoryUtil.memCopy(MemoryUtil.memAddress(data), destination, byteCount);
-        data.position(Math.toIntExact(data.position() + byteCount));
+        data.position(data.position() + byteCount);
         return actualCount;
     }
 

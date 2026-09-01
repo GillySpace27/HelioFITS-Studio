@@ -228,7 +228,7 @@ public final class AssimpModelLoader {
             throw new IOException("Could not decode texture " + name + ": " + STBImage.stbi_failure_reason());
         try {
             ByteBuffer rgba = BufferUtils.newByteBuffer(decoded.remaining());
-            int rowSize = Math.multiplyExact(width[0], 4);
+            int rowSize = width[0] * 4;
             for (int y = height[0] - 1; y >= 0; y--)
                 BufferUtils.putRange(rgba, decoded, y * rowSize, rowSize);
             return new ModelTexture(name, width[0], height[0], rgba.flip(), sampler);

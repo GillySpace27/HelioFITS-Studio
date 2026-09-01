@@ -13,15 +13,15 @@ public class BufferUtils {
     }
 
     public static ShortBuffer newShortBuffer(int len) {
-        return newByteBuffer(2 * len).asShortBuffer();
+        return newByteBuffer(Math.multiplyExact(Short.BYTES, len)).asShortBuffer();
     }
 
     public static IntBuffer newIntBuffer(int len) {
-        return newByteBuffer(4 * len).asIntBuffer();
+        return newByteBuffer(Math.multiplyExact(Integer.BYTES, len)).asIntBuffer();
     }
 
     public static FloatBuffer newFloatBuffer(int len) {
-        return newByteBuffer(4 * len).asFloatBuffer();
+        return newByteBuffer(Math.multiplyExact(Float.BYTES, len)).asFloatBuffer();
     }
 
     public static ByteBuffer putRemaining(ByteBuffer destination, ByteBuffer source) {

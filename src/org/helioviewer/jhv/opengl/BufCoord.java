@@ -20,7 +20,7 @@ public class BufCoord {
         if (buffer.remaining() >= FLOATS_PER_VERTEX)
             return;
 
-        int newCapacity = Math.max(1, Math.multiplyExact(count, 2));
+        int newCapacity = Math.max(1, count * 2);
         FloatBuffer newBuffer = BufferUtils.newFloatBuffer(Math.multiplyExact(newCapacity, FLOATS_PER_VERTEX));
         buffer.flip();
         newBuffer.put(buffer);

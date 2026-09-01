@@ -16,7 +16,7 @@ final class GLUniformBuffer {
     GLUniformBuffer(int floatCount, int _binding, int _usage) {
         binding = _binding;
         usage = _usage;
-        byteSize = Math.multiplyExact(floatCount, Float.BYTES);
+        byteSize = floatCount * Float.BYTES;
         values = BufferUtils.newFloatBuffer(floatCount);
     }
 

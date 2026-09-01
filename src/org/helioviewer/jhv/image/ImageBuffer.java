@@ -112,7 +112,7 @@ public final class ImageBuffer {
             } else if (inputFormat == Format.Gray16F) {
                 directBuffer = null;
                 byteArray = null;
-                shortArray = new short[width * height];
+                shortArray = new short[Math.multiplyExact(width, height)];
                 writeBuffer = ShortBuffer.wrap(shortArray);
             } else {
                 directBuffer = null;
@@ -191,7 +191,7 @@ public final class ImageBuffer {
     }
 
     private static int byteSize(int width, int height, Format format) {
-        return width * height * format.bytes;
+        return Math.multiplyExact(Math.multiplyExact(width, height), format.bytes);
     }
 
 }

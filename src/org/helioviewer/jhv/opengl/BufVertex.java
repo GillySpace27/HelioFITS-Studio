@@ -41,7 +41,7 @@ public class BufVertex {
         if (count < capacity)
             return;
 
-        int newCapacity = Math.max(MIN_CAPACITY, Math.multiplyExact(capacity, 2));
+        int newCapacity = Math.max(MIN_CAPACITY, capacity * 2);
         array = Arrays.copyOf(array, Math.multiplyExact(newCapacity, BYTES_PER_VERTEX));
         buffer = ByteBuffer.wrap(array);
     }

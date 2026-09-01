@@ -183,9 +183,9 @@ public final class AssimpModelLoaderTest {
         check(document.contains(buffer), "GLB buffer insertion point");
         byte[] json = document.replace(buffer, "\"buffers\": [{\"byteLength\": 124}]")
                 .getBytes(StandardCharsets.UTF_8);
-        int jsonLength = Math.addExact(json.length, 3) & ~3;
-        int binaryLength = Math.addExact(binary.length, 3) & ~3;
-        int totalLength = Math.addExact(28, Math.addExact(jsonLength, binaryLength));
+        int jsonLength = json.length + 3 & ~3;
+        int binaryLength = binary.length + 3 & ~3;
+        int totalLength = 28 + jsonLength + binaryLength;
         ByteBuffer glb = ByteBuffer.allocate(totalLength).order(ByteOrder.LITTLE_ENDIAN);
         glb.putInt(0x46546c67).putInt(2).putInt(totalLength);
         glb.putInt(jsonLength).putInt(0x4e4f534a).put(json);
