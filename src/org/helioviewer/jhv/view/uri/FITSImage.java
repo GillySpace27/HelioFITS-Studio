@@ -15,6 +15,7 @@ import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.math.MathUtils;
 import org.helioviewer.jhv.thread.ParallelRange;
+import org.helioviewer.jhv.time.TimeUtils;
 
 import com.google.common.escape.Escaper;
 import com.google.common.xml.XmlEscapers;
@@ -395,6 +396,19 @@ public final class FITSImage implements URIImageReader {
         double bscale = header.getDoubleValue(Standard.BSCALE, 1);
         if (!Double.isFinite(bzero) || !Double.isFinite(bscale))
             throw new Exception("Invalid FITS BZERO/BSCALE");
+
+        // The background comes off here, in DN and before anything is normalized, because that is
+        // the only place the numbers still mean what the instrument measured. Doing it later, on
+        // display values each frame scaled to its own min and max, would subtract a different
+        // quantity from every frame. The result is DN per second, so the frames of a movie are
+        // also finally on one photometric footing.
+        Object subtracted = subtractBackground(header, pixels, width * height, hasBlank, blank, bzero, bscale);
+        if (subtracted != null) {
+            pixels = subtracted;
+            hasBlank = false; // blank pixels already carry the BAD_PIXEL sentinel
+            bzero = 0;
+            bscale = 1;
+        }
         FITSViewState.Data state = FITSViewState.data();
 
         float min;
@@ -445,6 +459,65 @@ public final class FITSImage implements URIImageReader {
         // above), so no further un-baking is needed once the stretch itself is inverted.
         result.setPhysicalScale(new ImageBuffer.PhysicalScale(min, max, inverseMapping(state, max - min)));
         return result;
+    }
+
+    /**
+     * LASCO frame minus its monthly background, in DN per second, or null to leave the frame alone.
+     *
+     * <p>Returns a float array so the existing float path does the sampling and normalization: the
+     * background is a per-pixel offset in physical units, which is exactly what BZERO and BSCALE
+     * have already been applied to produce.
+     */
+    @Nullable
+    private static Object subtractBackground(Header header, Object pixels, int count,
+                                             boolean hasBlank, long blank, double bzero, double bscale) {
+        String telescope = header.getStringValue("TELESCOP");
+        if (telescope == null || !telescope.trim().equalsIgnoreCase("SOHO"))
+            return null;
+        String detector = header.getStringValue("DETECTOR");
+        String filter = header.getStringValue("FILTER");
+        String polar = header.getStringValue("POLAR");
+        double exposure = header.getDoubleValue("EXPTIME", 0);
+        if (detector == null || filter == null || polar == null || !(exposure > 0))
+            return null;
+
+        // LASCO splits the observation time across DATE-OBS and TIME-OBS and writes the date with
+        // slashes, the same form FitsMetaData reassembles for its own use.
+        String date = header.getStringValue("DATE-OBS");
+        String time = header.getStringValue("TIME-OBS");
+        if (date == null || time == null)
+            return null;
+        long milli;
+        try {
+            String hms = time.trim();
+            milli = TimeUtils.parse(date.trim().replace('/', '-') + 'T' + (hms.length() > 8 ? hms.substring(0, 8) : hms));
+        } catch (RuntimeException e) {
+            return null;
+        }
+        float[] background = org.helioviewer.jhv.io.LascoBackground.perSecond(detector, filter, polar, milli, count);
+        if (background == null)
+            return null;
+
+        float[] out = new float[count];
+        for (int i = 0; i < count; i++) {
+            double raw = rawAt(pixels, i);
+            if (Double.isNaN(raw) || (hasBlank && raw == blank)) {
+                out[i] = BAD_PIXEL;
+                continue;
+            }
+            out[i] = (float) ((bzero + raw * bscale) / exposure - background[i]);
+        }
+        return out;
+    }
+
+    private static double rawAt(Object pixels, int i) {
+        return switch (pixels) {
+            case short[] p -> p[i];
+            case int[] p -> p[i];
+            case float[] p -> p[i];
+            case double[] p -> p[i];
+            default -> Double.NaN;
+        };
     }
 
     private static final String nl = System.lineSeparator();
