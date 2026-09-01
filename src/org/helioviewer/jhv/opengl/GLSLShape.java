@@ -9,9 +9,8 @@ public class GLSLShape extends VAO implements GLSLVertexReceiver {
 
     public GLSLShape(boolean _dynamic) {
         super(_dynamic,
-                new VertexAttribute[]{
-                        VertexAttribute.floats(0, BufVertex.POSITION_COMPONENTS, BufVertex.BYTES_PER_VERTEX, 0),
-                        VertexAttribute.normalizedUnsignedBytes(1, BufVertex.COLOR_COMPONENTS, BufVertex.BYTES_PER_VERTEX, BufVertex.POSITION_BYTES)});
+                VertexAttribute.floats(0, BufVertex.POSITION_COMPONENTS, BufVertex.BYTES_PER_VERTEX, 0),
+                VertexAttribute.normalizedUnsignedBytes(1, BufVertex.COLOR_COMPONENTS, BufVertex.BYTES_PER_VERTEX, BufVertex.POSITION_BYTES));
     }
 
     @Override
@@ -29,7 +28,7 @@ public class GLSLShape extends VAO implements GLSLVertexReceiver {
     private void upload(ByteBuffer vertices) {
         if (count == 0)
             return;
-        uploadVertexBuffer(0, vertices);
+        uploadVertexBuffer(vertices);
     }
 
     public void renderPoints(double factor) {

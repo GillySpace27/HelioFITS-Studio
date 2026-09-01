@@ -11,7 +11,7 @@ public class GLSLSolar extends VAO {
     private static final FloatBuffer vertx = BufferUtils.newFloatBuffer(16).put(new float[]{-1, -1, 0, 1, 1, -1, 0, 1, -1, 1, 0, 1, 1, 1, 0, 1}).flip();
 
     GLSLSolar() {
-        super(false, new VertexAttribute[]{VertexAttribute.floats(0, 4, 0, 0)});
+        super(false, VertexAttribute.floats(0, 4, 0, 0));
     }
 
     public void render() {
@@ -22,7 +22,7 @@ public class GLSLSolar extends VAO {
     @Override
     public void init() {
         super.init();
-        uploadVertexBuffer(0, vertx);
+        uploadVertexBuffer(vertx);
     }
 
 }

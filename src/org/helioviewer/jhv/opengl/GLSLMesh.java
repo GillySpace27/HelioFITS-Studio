@@ -52,7 +52,7 @@ final class GLSLMesh extends VAO {
 
         super.init();
         try {
-            uploadVertexBuffer(0, interleaveVertices());
+            uploadVertexBuffer(interleaveVertices());
             bind();
             indexBuffer = new GLBO(GL.ELEMENT_ARRAY_BUFFER, GL.STATIC_DRAW);
             indexBuffer.setBufferData(data.indices());

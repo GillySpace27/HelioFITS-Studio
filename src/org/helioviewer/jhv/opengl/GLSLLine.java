@@ -14,11 +14,10 @@ public class GLSLLine extends VAO implements GLSLVertexReceiver {
 
     public GLSLLine(boolean _dynamic) {
         super(_dynamic,
-                new VertexAttribute[]{
-                        positionAttribute(0, 0), colorAttribute(1, 0),
-                        positionAttribute(2, 1), colorAttribute(3, 1),
-                        positionAttribute(4, 2), colorAttribute(5, 2),
-                        positionAttribute(6, 3), colorAttribute(7, 3)});
+                positionAttribute(0, 0), colorAttribute(1, 0),
+                positionAttribute(2, 1), colorAttribute(3, 1),
+                positionAttribute(4, 2), colorAttribute(5, 2),
+                positionAttribute(6, 3), colorAttribute(7, 3));
     }
 
     private static VertexAttribute positionAttribute(int index, int vertex) {
@@ -45,7 +44,7 @@ public class GLSLLine extends VAO implements GLSLVertexReceiver {
     private void upload(ByteBuffer vertices) {
         if (count == 0)
             return;
-        uploadVertexBuffer(0, vertices);
+        uploadVertexBuffer(vertices);
         if (count < 4) {
             Log.warn("GLSLLine requires at least two visible vertices padded by transparent sentinels; count=" + count + ", emitter=" + getEmitter());
             count = 0;

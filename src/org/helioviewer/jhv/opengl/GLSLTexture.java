@@ -10,9 +10,9 @@ public class GLSLTexture extends VAO {
     private int count;
 
     public GLSLTexture() {
-        super(true, new VertexAttribute[]{
+        super(true,
                 VertexAttribute.floats(0, POSITION_COMPONENTS, STRIDE, 0),
-                VertexAttribute.floats(1, TEX_COORD_COMPONENTS, STRIDE, POSITION_BYTES)});
+                VertexAttribute.floats(1, TEX_COORD_COMPONENTS, STRIDE, POSITION_BYTES));
     }
 
     public void setCoord(BufCoord buf) {
@@ -20,7 +20,7 @@ public class GLSLTexture extends VAO {
         if (count == 0)
             return;
 
-        uploadVertexBuffer(0, buf.toBuffer());
+        uploadVertexBuffer(buf.toBuffer());
         buf.clear();
     }
 

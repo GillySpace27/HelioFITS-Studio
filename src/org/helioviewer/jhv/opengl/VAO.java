@@ -4,16 +4,15 @@ import java.nio.Buffer;
 
 class VAO {
 
-    private final VertexAttribute[][] attributesByBuffer;
-    private final GLBO[] vertexBuffers;
+    private final VertexAttribute[] attributes;
     private final int usage;
 
+    private GLBO vertexBuffer;
     private int vaoID = -1;
     private boolean inited;
 
-    VAO(boolean dynamic, VertexAttribute[]... _attributesByBuffer) {
-        attributesByBuffer = _attributesByBuffer;
-        vertexBuffers = new GLBO[attributesByBuffer.length];
+    VAO(boolean dynamic, VertexAttribute... _attributes) {
+        attributes = _attributes;
         usage = dynamic ? GL.DYNAMIC_DRAW : GL.STATIC_DRAW;
     }
 
@@ -22,15 +21,12 @@ class VAO {
             inited = true;
 
             vaoID = GL.glGenVertexArray();
-            for (int i = 0; i < vertexBuffers.length; i++)
-                vertexBuffers[i] = new GLBO(GL.ARRAY_BUFFER, usage);
+            vertexBuffer = new GLBO(GL.ARRAY_BUFFER, usage);
 
             GL.glBindVertexArray(vaoID);
-            for (int i = 0; i < vertexBuffers.length; i++) {
-                vertexBuffers[i].bind();
-                for (VertexAttribute attribute : attributesByBuffer[i])
-                    attribute.enable();
-            }
+            vertexBuffer.bind();
+            for (VertexAttribute attribute : attributes)
+                attribute.enable();
         }
     }
 
@@ -40,15 +36,13 @@ class VAO {
             GL.glDeleteVertexArray(vaoID);
             vaoID = -1;
 
-            for (int i = 0; i < vertexBuffers.length; i++) {
-                vertexBuffers[i].delete();
-                vertexBuffers[i] = null;
-            }
+            vertexBuffer.delete();
+            vertexBuffer = null;
         }
     }
 
-    protected void uploadVertexBuffer(int bufferIndex, Buffer buffer) {
-        vertexBuffers[bufferIndex].setBufferData(buffer);
+    protected void uploadVertexBuffer(Buffer buffer) {
+        vertexBuffer.setBufferData(buffer);
     }
 
     protected void bind() {
