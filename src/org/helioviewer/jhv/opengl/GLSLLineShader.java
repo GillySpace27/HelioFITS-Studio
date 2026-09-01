@@ -39,8 +39,7 @@ class GLSLLineShader extends GLSLShader {
     }
 
     void bindParams(Viewport vp, double _thickness, FloatBuffer mvp) {
-        FloatBuffer values = screenBuffer.begin();
-        values.put(mvp.duplicate());
+        FloatBuffer values = screenBuffer.begin(mvp);
         values.put(vp.glslArray).put((float) (0.5 * _thickness));
         values.put(0).put(0).put(0); // std140 padding
         screenBuffer.upload();

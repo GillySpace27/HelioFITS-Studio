@@ -111,10 +111,7 @@ public class GLSLSolarShader extends GLSLShader {
 
     public static void bindScreen(MapView mv, Viewport vp) {
         MapScale scale = mv.scale(vp);
-        FloatBuffer values = screenBuffer.begin();
-        FloatBuffer inverse = Transform.getInverse();
-        values.put(inverse);
-        inverse.flip();
+        FloatBuffer values = screenBuffer.begin(Transform.getInverse());
         values.put((float) scale.toMapX(0)).put((float) scale.toMapX(1));
         values.put((float) scale.toMapY(0)).put((float) scale.toMapY(1));
         values.put((float) mv.latiLongitudeOrigin()).put((float) mv.latiLatitudeOrigin());

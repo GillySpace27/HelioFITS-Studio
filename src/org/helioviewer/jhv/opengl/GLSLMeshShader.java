@@ -37,8 +37,7 @@ final class GLSLMeshShader extends GLSLShader {
     }
 
     static void bindFrame(FloatBuffer worldToClip, float lightX, float lightY, float lightZ) {
-        FloatBuffer values = frameBuffer.begin();
-        values.put(worldToClip.duplicate());
+        FloatBuffer values = frameBuffer.begin(worldToClip);
         values.put(lightX).put(lightY).put(lightZ).put(0);
         frameBuffer.uploadIfChanged();
     }
