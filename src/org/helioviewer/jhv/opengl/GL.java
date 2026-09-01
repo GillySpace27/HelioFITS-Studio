@@ -59,7 +59,6 @@ public final class GL {
     public static final int ONE = GLES30.GL_ONE;
     public static final int ONE_MINUS_SRC_ALPHA = GLES30.GL_ONE_MINUS_SRC_ALPHA;
     public static final int OUT_OF_MEMORY = GLES30.GL_OUT_OF_MEMORY;
-    public static final int PACK_ALIGNMENT = GLES30.GL_PACK_ALIGNMENT;
     public static final int PIXEL_UNPACK_BUFFER = GLES30.GL_PIXEL_UNPACK_BUFFER;
     public static final int POINTS = GLES30.GL_POINTS;
     public static final int R8 = GLES30.GL_R8;
@@ -396,10 +395,6 @@ public final class GL {
         GLES30.glTexParameteri(target, pname, value);
     }
 
-    public static void glTexSubImage2D(int target, int level, int x, int y, int width, int height, int inputFormat, int inputType, ByteBuffer buffer) {
-        GLES30.glTexSubImage2D(target, level, x, y, width, height, inputFormat, inputType, buffer);
-    }
-
     public static void glTexSubImage2D(int target, int level, int x, int y, int width, int height, int inputFormat, int inputType, long offset) {
         GLES30.glTexSubImage2D(target, level, x, y, width, height, inputFormat, inputType, offset);
     }
@@ -418,10 +413,6 @@ public final class GL {
 
     public static void glUniform2f(int location, float v0, float v1) {
         GLES30.glUniform2f(location, v0, v1);
-    }
-
-    public static void glUniform3fv(int location, float[] values) {
-        GLES30.glUniform3fv(location, values);
     }
 
     public static void glUniform4fv(int location, float[] values) {

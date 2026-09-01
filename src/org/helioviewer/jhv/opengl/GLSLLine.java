@@ -21,12 +21,12 @@ public class GLSLLine extends VAO implements GLSLVertexReceiver {
     }
 
     private static VertexAttribute positionAttribute(int index, int vertex) {
-        return VertexAttribute.instancedFloats(index, BufVertex.POSITION_COMPONENTS, BufVertex.BYTES_PER_VERTEX, vertex * BufVertex.BYTES_PER_VERTEX);
+        return VertexAttribute.instancedFloats(index, BufVertex.POSITION_COMPONENTS, BufVertex.BYTES_PER_VERTEX, vertex * (long) BufVertex.BYTES_PER_VERTEX);
     }
 
     private static VertexAttribute colorAttribute(int index, int vertex) {
         return VertexAttribute.instancedNormalizedUnsignedBytes(index, BufVertex.COLOR_COMPONENTS, BufVertex.BYTES_PER_VERTEX,
-                vertex * BufVertex.BYTES_PER_VERTEX + BufVertex.POSITION_BYTES);
+                vertex * (long) BufVertex.BYTES_PER_VERTEX + BufVertex.POSITION_BYTES);
     }
 
     @Override

@@ -5,13 +5,9 @@ import org.helioviewer.jhv.display.Viewport;
 public class RasterLine {
 
     // Example:
-    // BufVertex vexBuf = new BufVertex(RasterLine.vertexCount(2));
+    // BufVertex vexBuf = new BufVertex();
     // RasterLine.putVertical(vp, width, tx, targetX, y0, y1, 1.5, Colors.Green.bytes(), vexBuf);
     // RasterLine.putHorizontal(vp, width, ty, x0, x1, targetY, 1.5, Colors.Green.bytes(), vexBuf);
-
-    public static int vertexCount(int lineCount) {
-        return 6 * lineCount;
-    }
 
     public static double snapVertical(Viewport vp, double width, double tx, double x) {
         return snapVerticalCenter(vp, width, tx, vp.aspect * x) / vp.aspect;
