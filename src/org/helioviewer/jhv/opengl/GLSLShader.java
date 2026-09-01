@@ -18,12 +18,15 @@ abstract class GLSLShader {
         }
     }
 
-    protected static void setupUBO(int programID, String blockName, int uboID, int binding) {
+    protected static void setupUniformBlock(int programID, String blockName, int binding, int bufferSize) {
         int blockIndex = GL.glGetUniformBlockIndex(programID, blockName);
         if (blockIndex < 0)
             throw new GLException("Required uniform block not found: " + blockName);
+        int blockSize = GL.glGetActiveUniformBlocki(programID, blockIndex, GL.UNIFORM_BLOCK_DATA_SIZE);
+        // A program may use only a prefix of a buffer shared with another program, as the solar sphere does.
+        if (blockSize > bufferSize)
+            throw new GLException("Uniform block " + blockName + " requires " + blockSize + " bytes, buffer has " + bufferSize);
         GL.glUniformBlockBinding(programID, blockIndex, binding);
-        GL.glBindBufferBase(GL.UNIFORM_BUFFER, binding, uboID);
     }
 
     protected static int requiredUniform(int programID, String name) {

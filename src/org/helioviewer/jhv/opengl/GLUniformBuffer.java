@@ -26,7 +26,8 @@ final class GLUniformBuffer {
     }
 
     void bindBlock(int programID, String name) {
-        GLSLShader.setupUBO(programID, name, buffer.getID(), binding);
+        GLSLShader.setupUniformBlock(programID, name, binding, byteSize);
+        bind();
     }
 
     FloatBuffer begin() {

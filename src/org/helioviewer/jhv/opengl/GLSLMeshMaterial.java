@@ -6,8 +6,6 @@ import org.helioviewer.jhv.opengl.model.ModelMaterial;
 
 final class GLSLMeshMaterial {
 
-    private static final int MATERIAL_FLOATS = 8;
-
     // Keep one immutable buffer per material so changing draw order only changes the binding.
     private final ModelMaterial data;
     private GLUniformBuffer buffer;
@@ -20,7 +18,7 @@ final class GLSLMeshMaterial {
         if (buffer != null)
             return;
 
-        GLUniformBuffer newBuffer = new GLUniformBuffer(MATERIAL_FLOATS, GLSLShader.UBO.MESH_MATERIAL, GL.STATIC_DRAW);
+        GLUniformBuffer newBuffer = new GLUniformBuffer(GLSLMeshShader.MATERIAL_FLOATS, GLSLShader.UBO.MESH_MATERIAL, GL.STATIC_DRAW);
         newBuffer.init();
         try {
             FloatBuffer values = newBuffer.begin();

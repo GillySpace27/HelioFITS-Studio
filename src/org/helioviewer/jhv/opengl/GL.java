@@ -85,6 +85,7 @@ public final class GL {
     public static final int TEXTURE_WRAP_T = GLES30.GL_TEXTURE_WRAP_T;
     public static final int TRIANGLES = GLES30.GL_TRIANGLES;
     public static final int TRIANGLE_STRIP = GLES30.GL_TRIANGLE_STRIP;
+    public static final int UNIFORM_BLOCK_DATA_SIZE = GLES30.GL_UNIFORM_BLOCK_DATA_SIZE;
     public static final int UNIFORM_BUFFER = GLES30.GL_UNIFORM_BUFFER;
     public static final int UNPACK_ALIGNMENT = GLES30.GL_UNPACK_ALIGNMENT;
     public static final int UNPACK_ROW_LENGTH = GLES30.GL_UNPACK_ROW_LENGTH;
@@ -315,6 +316,12 @@ public final class GL {
 
     public static void glGenerateMipmap(int target) {
         GLES30.glGenerateMipmap(target);
+    }
+
+    public static int glGetActiveUniformBlocki(int program, int blockIndex, int pname) {
+        int[] value = new int[1];
+        GLES30.glGetActiveUniformBlockiv(program, blockIndex, pname, value);
+        return value[0];
     }
 
     public static int glGetError() {
