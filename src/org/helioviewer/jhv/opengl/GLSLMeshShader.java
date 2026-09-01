@@ -42,8 +42,4 @@ final class GLSLMeshShader extends GLSLShader {
         frameBuffer.uploadIfChanged();
     }
 
-    static void bindMaterial(int bufferID) {
-        GL.glBindBufferBase(GL.UNIFORM_BUFFER, UBO.MESH_MATERIAL, bufferID);
-    }
-
 }

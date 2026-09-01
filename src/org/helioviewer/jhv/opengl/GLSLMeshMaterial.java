@@ -2,7 +2,6 @@ package org.helioviewer.jhv.opengl;
 
 import java.nio.FloatBuffer;
 
-import org.helioviewer.jhv.base.BufferUtils;
 import org.helioviewer.jhv.opengl.model.ModelMaterial;
 
 final class GLSLMeshMaterial {
@@ -11,7 +10,7 @@ final class GLSLMeshMaterial {
 
     // Keep one immutable buffer per material so changing draw order only changes the binding.
     private final ModelMaterial data;
-    private GLBO buffer;
+    private GLUniformBuffer buffer;
 
     GLSLMeshMaterial(ModelMaterial _data) {
         data = _data;
@@ -21,29 +20,29 @@ final class GLSLMeshMaterial {
         if (buffer != null)
             return;
 
-        FloatBuffer values = BufferUtils.newFloatBuffer(MATERIAL_FLOATS);
-        values.put(data.red()).put(data.green()).put(data.blue()).put(data.alpha());
-        values.put(data.alphaCutoff()).put(alphaMode(data.alphaMode()));
-        values.put(data.baseColorTexture() == ModelMaterial.NO_TEXTURE ? 0 : 1).put(data.unlit() ? 1 : 0).flip();
-
-        GLBO newBuffer = new GLBO(GL.UNIFORM_BUFFER, GL.STATIC_DRAW);
+        GLUniformBuffer newBuffer = new GLUniformBuffer(MATERIAL_FLOATS, GLSLShader.UBO.MESH_MATERIAL, GL.STATIC_DRAW);
+        newBuffer.init();
         try {
-            newBuffer.setBufferData(values);
+            FloatBuffer values = newBuffer.begin();
+            values.put(data.red()).put(data.green()).put(data.blue()).put(data.alpha());
+            values.put(data.alphaCutoff()).put(alphaMode(data.alphaMode()));
+            values.put(data.baseColorTexture() == ModelMaterial.NO_TEXTURE ? 0 : 1).put(data.unlit() ? 1 : 0);
+            newBuffer.upload();
             buffer = newBuffer;
         } catch (RuntimeException | Error e) {
-            newBuffer.delete();
+            newBuffer.dispose();
             throw e;
         }
     }
 
     void bind() {
-        GLSLMeshShader.bindMaterial(buffer.getID());
+        buffer.bind();
     }
 
     void dispose() {
         if (buffer == null)
             return;
-        buffer.delete();
+        buffer.dispose();
         buffer = null;
     }
 

@@ -33,11 +33,24 @@ final class GLUniformBuffer {
         return values.clear();
     }
 
+    void upload() {
+        prepare();
+        buffer.setBufferData(values);
+    }
+
     void uploadIfChanged() {
+        prepare();
+        buffer.setBufferDataIfChanged(byteSize, values);
+    }
+
+    private void prepare() {
         if (values.position() != values.capacity())
             throw new IllegalStateException("Uniform block contains " + values.position() + " of " + values.capacity() + " floats");
         values.flip();
-        buffer.setBufferDataIfChanged(byteSize, values);
+    }
+
+    void bind() {
+        GL.glBindBufferBase(GL.UNIFORM_BUFFER, binding, buffer.getID());
     }
 
     void dispose() {
