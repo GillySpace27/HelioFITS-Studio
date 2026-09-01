@@ -56,6 +56,82 @@ public final class ImageBuffer {
 
     private final Cleaner.Cleanable cleanable;
     private volatile boolean explicitFreeProtected;
+    private int measuredLevels = -1; // lazily counted once, then reused
+
+    // Every 8th pixel of a 1024 square, which is far more than enough: the question is whether the
+    // values sit on a 256-step lattice, and a sample cannot invent levels the data does not have.
+    private static final int MAX_SAMPLES = 1 << 17;
+    // The sample walks the image by this prime rather than by a constant stride. A stride divides
+    // into the row width and then visits the same few columns in every row: a synthetic 4096-wide
+    // ramp of 65536 distinct values reported 256 of them, indistinguishable from an 8-bit source.
+    // A step coprime with the pixel count cannot lock onto row structure.
+    private static final int SAMPLE_STEP = 104729;
+
+    /**
+     * How many distinct sample values this frame actually holds.
+     *
+     * <p>The container's depth cannot answer that. A JP2 browse product byte-scaled at ingest and
+     * the calibrated FITS of the same instrument both arrive here as Gray16F, and only one of them
+     * carries more than 256 levels. Counting the values present is the one statement about
+     * quantization that does not take a header's word for it.
+     *
+     * <p>Sampled rather than exhaustive, so it is cheap enough to run on every displayed frame. A
+     * sample can only ever undercount, which is the safe direction: a frame reported as having
+     * more than 256 levels certainly has them.
+     */
+    public int measuredLevels() {
+        if (measuredLevels < 0)
+            measuredLevels = countLevels();
+        return measuredLevels;
+    }
+
+    private int countLevels() {
+        switch (format) {
+            case Gray16F -> {
+                ShortBuffer shorts = (ShortBuffer) buffer;
+                int limit = Math.min(width * height, shorts.limit());
+                boolean[] seen = new boolean[1 << 16]; // half-float bit patterns, so exact and small
+                int distinct = 0;
+                for (int i = 0, at = 0, n = sampleCount(limit); i < n; i++, at = nextSample(at, limit)) {
+                    int bits = shorts.get(at) & 0xFFFF;
+                    if (!seen[bits]) {
+                        seen[bits] = true;
+                        distinct++;
+                    }
+                }
+                return distinct;
+            }
+            case Gray8 -> {
+                ByteBuffer bytes = (ByteBuffer) buffer;
+                int limit = Math.min(width * height, bytes.limit());
+                boolean[] seen = new boolean[1 << 8];
+                int distinct = 0;
+                for (int i = 0, at = 0, n = sampleCount(limit); i < n; i++, at = nextSample(at, limit)) {
+                    int v = bytes.get(at) & 0xFF;
+                    if (!seen[v]) {
+                        seen[v] = true;
+                        distinct++;
+                    }
+                }
+                return distinct;
+            }
+            // Colour is three interleaved channels of its own depth; one number would not mean anything.
+            default -> {
+                return 0;
+            }
+        }
+    }
+
+    private static int sampleCount(int limit) {
+        return Math.max(0, Math.min(limit, MAX_SAMPLES));
+    }
+
+    private static int nextSample(int at, int limit) {
+        // Coprime with limit except when limit is a multiple of the prime, where the walk would
+        // revisit one index forever; a contiguous run is the honest fallback there.
+        int step = limit % SAMPLE_STEP == 0 ? 1 : SAMPLE_STEP % limit;
+        return (at + step) % limit;
+    }
 
     public static ImageBuffer fromBytes(int width, int height, Format format, byte[] data) {
         return fromBytes(width, height, format, data, ImageFilter.NONE);

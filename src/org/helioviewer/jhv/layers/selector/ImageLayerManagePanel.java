@@ -315,8 +315,10 @@ final class ImageLayerManagePanel extends JPanel {
             sb.append(" · ").append(data.imageBuffer().width).append(" × ").append(data.imageBuffer().height);
         }
 
-        if (data != null)
+        if (data != null) {
             sb.append(" · ").append(depthName(data.imageBuffer().format));
+            sb.append(measuredDepth(data.imageBuffer()));
+        }
 
         // Absent for a surface map and for a pixel-based product, which have no plate scale to
         // report; see MetaData.getArcsecPerPixel for why that is a 0 rather than a division here.
@@ -324,6 +326,26 @@ final class ImageLayerManagePanel extends JPanel {
         if (arcsecPerPixel > 0)
             sb.append(String.format(arcsecPerPixel < 10 ? " · %.2f\u2033/px" : " · %.1f\u2033/px", arcsecPerPixel));
         return sb.toString();
+    }
+
+    /**
+     * The depth measured from the pixels, beside the depth claimed by the container.
+     *
+     * <p>The container is not evidence: a JP2 byte-scaled at ingest and the calibrated FITS of the
+     * same instrument both reach the pipeline as Gray16F, and only one carries more than 256
+     * levels. This counts the distinct values actually present, so a browse product that was 8-bit
+     * upstream says so however wide the buffer holding it.
+     *
+     * <p>Half float is itself the ceiling near the top of the range (an 11-bit mantissa), so a
+     * genuine 16-bit source reads as roughly 12 to 14 bits rather than 16. The number that matters
+     * is the one that separates 256 from thousands.
+     */
+    private static String measuredDepth(org.helioviewer.jhv.image.ImageBuffer buffer) {
+        int levels = buffer.measuredLevels();
+        if (levels <= 0) // colour, where a single depth would not mean anything
+            return "";
+        String verdict = levels <= 256 ? ", 8-bit data" : String.format(", ≈%.1f bit", Math.log(levels) / Math.log(2));
+        return " (measured " + levels + " levels" + verdict + ")";
     }
 
     // What the decoder produced, which is not always what the file holds: a JP2 codestream can be
