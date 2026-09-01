@@ -23,6 +23,7 @@ import org.joml.Quaternionf;
 
 public final class GLSLModel {
 
+    // glTF defines line and point primitives, but not their displayed width or size.
     private static final float DEFAULT_POINT_SIZE = 0.02f;
     private static final double DEFAULT_LINE_WIDTH = GLSLLine.LINEWIDTH_BASIC;
     private static final Comparator<RenderMesh> BACK_TO_FRONT = Comparator.comparingDouble(RenderMesh::depth);
@@ -32,7 +33,7 @@ public final class GLSLModel {
     private final GLSLMeshMaterial[] materialBuffers;
     private final boolean hasTriangles;
     private final ArrayList<RenderMesh> opaqueMeshes = new ArrayList<>();
-    private final ArrayList<RenderMesh> transparentMeshes = new ArrayList<>();
+    private final ArrayList<RenderMesh> sortedMeshes = new ArrayList<>();
 
     private final Matrix4f viewRotation = new Matrix4f();
     private final Quaternionf quaternion = new Quaternionf();
@@ -57,8 +58,8 @@ public final class GLSLModel {
             }
             RenderMesh mesh = new RenderMesh(data, material, materialBuffer);
             meshes.add(mesh);
-            if (mesh.isTransparent())
-                transparentMeshes.add(mesh);
+            if (mesh.needsSorting())
+                sortedMeshes.add(mesh);
             else
                 opaqueMeshes.add(mesh);
         }
@@ -104,18 +105,23 @@ public final class GLSLModel {
         FloatBuffer worldToClip = Transform.get();
         Quat rotation = mv.viewRotation();
         viewRotation.rotation(quaternion.set((float) rotation.x, (float) rotation.y, (float) rotation.z, (float) rotation.w));
-        if (hasTriangles)
+        if (hasTriangles) {
+            // Keep the light fixed at the viewer while the scene rotates.
             GLSLMeshShader.bindFrame(worldToClip, viewRotation.m02(), viewRotation.m12(), viewRotation.m22());
+        }
 
+        // Opaque and masked triangles populate the depth buffer first. Blended triangles, lines, and points
+        // are then sorted back-to-front. Blended triangles do not write depth, while line and point renderers
+        // write depth for opaque cores before blending their antialiased fringes.
         for (RenderMesh mesh : opaqueMeshes)
             renderTriangle(mesh);
 
-        for (RenderMesh mesh : transparentMeshes)
+        for (RenderMesh mesh : sortedMeshes)
             mesh.updateDepth(viewRotation);
-        transparentMeshes.sort(BACK_TO_FRONT);
+        sortedMeshes.sort(BACK_TO_FRONT);
 
         double pointFactor = ViewportMath.getPixelFactor(vp, mv.cameraWidth(vp));
-        for (RenderMesh mesh : transparentMeshes) {
+        for (RenderMesh mesh : sortedMeshes) {
             switch (mesh.primitive) {
                 case TRIANGLES -> {
                     GL.glDepthMask(false);
@@ -163,6 +169,8 @@ public final class GLSLModel {
         }
     }
 
+    // Triangle shaders apply materials directly. Lines and points use the shared drawing shaders,
+    // so their materials are baked into premultiplied vertex colors here.
     private static DirectBufVertex createPointVertices(ModelMesh mesh, ModelMaterial material) {
         IntBuffer indices = mesh.indices();
         BufVertex vertices = new BufVertex(indices.remaining());
@@ -295,7 +303,7 @@ public final class GLSLModel {
             line = _line;
             points = _points;
             drawingVertices = _drawingVertices;
-            if (!isTransparent()) {
+            if (!needsSorting()) {
                 centerX = centerY = centerZ = 0;
                 return;
             }
@@ -319,7 +327,7 @@ public final class GLSLModel {
             centerZ = 0.5f * (minZ + maxZ);
         }
 
-        boolean isTransparent() {
+        boolean needsSorting() {
             return primitive != ModelMesh.Primitive.TRIANGLES || material.alphaMode() == ModelMaterial.AlphaMode.BLEND;
         }
 

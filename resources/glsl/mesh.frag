@@ -24,6 +24,8 @@ uniform sampler2D baseColorTexture;
 
 const float ALPHA_OPAQUE = 0.;
 const float ALPHA_MASK = 1.;
+const float AMBIENT_LIGHT = 0.3;
+const float DIFFUSE_LIGHT = 0.7;
 
 void main(void) {
     vec4 color = material.baseColor * vertexColor;
@@ -34,7 +36,7 @@ void main(void) {
         vec3 normal = normalize(worldNormal);
         if (!gl_FrontFacing)
             normal = -normal;
-        color.rgb *= 0.3 + 0.7 * max(dot(normal, frame.lightDirection), 0.);
+        color.rgb *= AMBIENT_LIGHT + DIFFUSE_LIGHT * max(dot(normal, frame.lightDirection), 0.);
     }
 
     if (material.alphaMode == ALPHA_OPAQUE) {
