@@ -12,6 +12,7 @@ import org.helioviewer.jhv.io.Directories;
 import org.helioviewer.jhv.io.FileUtils;
 
 import org.ehcache.Cache;
+import org.ehcache.CacheManager;
 import org.ehcache.PersistentCacheManager;
 import org.ehcache.config.builders.CacheConfigurationBuilder;
 import org.ehcache.config.builders.CacheManagerBuilder;
@@ -30,8 +31,8 @@ public class JPIPCacheManager {
     private static final Path levelCacheDir = Path.of(Directories.CACHE.getPath(), "JPIPLevel-4");
     private static final Path streamCacheDir = Path.of(Directories.CACHE.getPath(), "JPIPStream-4");
 
-    private static PersistentCacheManager levelManager;
-    private static PersistentCacheManager streamManager;
+    private static CacheManager levelManager;
+    private static CacheManager streamManager;
     private static Cache<String, Integer> levelCache;
     private static Cache<String, JPIPStream> streamCache;
     private static Thread hook;
@@ -41,23 +42,42 @@ public class JPIPCacheManager {
 
         ExpiryPolicy<Object, Object> expiryPolicy = ExpiryPolicyBuilder.timeToIdleExpiration(Duration.ofDays(7));
 
-        levelManager = CacheManagerBuilder.newCacheManagerBuilder()
-                .with(CacheManagerBuilder.persistence(levelCacheDir.toString()))
-                .withCache("JPIPLevel", CacheConfigurationBuilder
-                        .newCacheConfigurationBuilder(String.class, Integer.class,
-                                ResourcePoolsBuilder.newResourcePoolsBuilder()
-                                        .heap(10000, EntryUnit.ENTRIES)
-                                        .disk(10, MemoryUnit.MB, true))
-                        .withExpiry(expiryPolicy))
-                .build(true);
-        streamManager = CacheManagerBuilder.newCacheManagerBuilder()
-                .with(CacheManagerBuilder.persistence(streamCacheDir.toString()))
-                .withCache("JPIPStream", CacheConfigurationBuilder
-                        .newCacheConfigurationBuilder(String.class, JPIPStream.class,
-                                ResourcePoolsBuilder.newResourcePoolsBuilder()
-                                        .disk(8, MemoryUnit.GB, true))
-                        .withExpiry(expiryPolicy))
-                .build(true);
+        try {
+            levelManager = CacheManagerBuilder.newCacheManagerBuilder()
+                    .with(CacheManagerBuilder.persistence(levelCacheDir.toString()))
+                    .withCache("JPIPLevel", CacheConfigurationBuilder
+                            .newCacheConfigurationBuilder(String.class, Integer.class,
+                                    ResourcePoolsBuilder.newResourcePoolsBuilder()
+                                            .heap(10000, EntryUnit.ENTRIES)
+                                            .disk(10, MemoryUnit.MB, true))
+                            .withExpiry(expiryPolicy))
+                    .build(true);
+            streamManager = CacheManagerBuilder.newCacheManagerBuilder()
+                    .with(CacheManagerBuilder.persistence(streamCacheDir.toString()))
+                    .withCache("JPIPStream", CacheConfigurationBuilder
+                            .newCacheConfigurationBuilder(String.class, JPIPStream.class,
+                                    ResourcePoolsBuilder.newResourcePoolsBuilder()
+                                            .disk(8, MemoryUnit.GB, true))
+                            .withExpiry(expiryPolicy))
+                    .build(true);
+        } catch (Exception e) { // disk cache locked by another running instance
+            Log.warn("JPIP disk cache is in use by another JHelioviewer instance, using a memory-only cache for this session", e);
+            close();
+            levelManager = CacheManagerBuilder.newCacheManagerBuilder()
+                    .withCache("JPIPLevel", CacheConfigurationBuilder
+                            .newCacheConfigurationBuilder(String.class, Integer.class,
+                                    ResourcePoolsBuilder.newResourcePoolsBuilder()
+                                            .heap(10000, EntryUnit.ENTRIES))
+                            .withExpiry(expiryPolicy))
+                    .build(true);
+            streamManager = CacheManagerBuilder.newCacheManagerBuilder()
+                    .withCache("JPIPStream", CacheConfigurationBuilder
+                            .newCacheConfigurationBuilder(String.class, JPIPStream.class,
+                                    ResourcePoolsBuilder.newResourcePoolsBuilder()
+                                            .heap(256, EntryUnit.ENTRIES)) // entries, not bytes: streams are too large to size-of
+                            .withExpiry(expiryPolicy))
+                    .build(true);
+        }
 
         if (hook == null) {
             hook = new Thread(JPIPCacheManager::close);
@@ -70,6 +90,8 @@ public class JPIPCacheManager {
 
     @Nullable
     public static JPIPStream get(@Nonnull String key, int level) {
+        if (levelCache == null)
+            return null;
         try {
             Integer clevel = levelCache.get(key);
             if (clevel != null && clevel <= level)
@@ -81,6 +103,8 @@ public class JPIPCacheManager {
     }
 
     public static void put(@Nonnull String key, int level, @Nonnull JPIPStream stream) {
+        if (levelCache == null)
+            return;
         try {
             Integer clevel = levelCache.get(key);
             if (clevel == null || clevel > level) {
@@ -102,8 +126,10 @@ public class JPIPCacheManager {
 
     private static void close() {
         try {
-            levelManager.close();
-            streamManager.close();
+            if (levelManager != null)
+                levelManager.close();
+            if (streamManager != null)
+                streamManager.close();
         } catch (Exception e) {
             Log.error(e);
         }
@@ -112,8 +138,10 @@ public class JPIPCacheManager {
     public static void clear() {
         close();
         try {
-            levelManager.destroy();
-            streamManager.destroy();
+            if (levelManager instanceof PersistentCacheManager persistent)
+                persistent.destroy();
+            if (streamManager instanceof PersistentCacheManager persistent)
+                persistent.destroy();
         } catch (Exception e) {
             Log.error(e);
         }
