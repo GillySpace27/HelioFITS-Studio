@@ -58,7 +58,10 @@ public final class LascoBackground {
      * through a new pair every week; a movie needs only the two bracketing whatever frame is
      * being decoded, and playback revisits them constantly, so a handful is plenty.
      */
-    private static final int MAX_CACHED = 4;
+    // Eight, not four: C2 and C3 in one movie bracket up to six files across a week boundary,
+    // and with four slots the two detectors' frames evicted each other's pair on every decode
+    // (99 loads of 6 files for one short movie, measured 2026-09-01).
+    private static final int MAX_CACHED = 8;
     private static final Map<String, float[]> images = new LinkedHashMap<>(8, .75f, true) {
         @Override
         protected boolean removeEldestEntry(Map.Entry<String, float[]> eldest) {
@@ -83,7 +86,36 @@ public final class LascoBackground {
         String key = productKey(detector, filter, polar);
         if (key == null)
             return null;
-        try {
+        // Two attempts. The decoders share the common pool with work that gets cancelled, and a
+        // cancellation's interrupt flag can be left set on the worker that picks up a live frame
+        // next, which then fails its first read with an InterruptedIOException. Clearing the flag
+        // and trying once more keeps that frame from being quietly written without its background.
+        for (int attempt = 0; ; attempt++) {
+            try {
+                return blend(key, milli, pixels);
+            } catch (Exception e) {
+                boolean interrupted = Thread.interrupted() | wasInterrupted(e);
+                if (interrupted && attempt == 0)
+                    continue;
+                // A background that cannot be fetched is not a reason to fail the frame: the layer
+                // still shows, uncorrected, which is what it did before this existed.
+                Log.warn("LASCO background unavailable for " + detector + " " + TimeUtils.format(milli), e);
+                return null;
+            }
+        }
+    }
+
+    private static boolean wasInterrupted(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause())
+            if (t instanceof InterruptedException || t instanceof java.io.InterruptedIOException
+                    || t instanceof java.nio.channels.ClosedByInterruptException)
+                return true;
+        return false;
+    }
+
+    @Nullable
+    private static float[] blend(String key, long milli, int pixels) throws Exception {
+        {
             NavigableMap<Long, String> catalog = catalog(key);
             if (catalog.isEmpty())
                 return null;
@@ -112,11 +144,6 @@ public final class LascoBackground {
             for (int i = 0; i < pixels; i++)
                 out[i] = (float) (first[i] * (1 - w) + second[i] * w);
             return out;
-        } catch (Exception e) {
-            // A background that cannot be fetched is not a reason to fail the frame: the layer
-            // still shows, uncorrected, which is what it did before this existed.
-            Log.warn("LASCO background unavailable for " + detector + " " + TimeUtils.format(milli), e);
-            return null;
         }
     }
 
@@ -186,7 +213,7 @@ public final class LascoBackground {
         }
     }
 
-    /** Background pixels divided by their own exposure, so a frame can subtract per second. */
+    /** Background pixels divided by their own exposure, so a frame can subtract per second. Called under perSecond's lock. */
     @Nullable
     private static float[] image(String name, int pixels) throws Exception {
         float[] cached = images.get(name);

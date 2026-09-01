@@ -19,7 +19,10 @@ public class TimeUtils {
     private static final DateTimeFormatter milliFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS");
     public static final DateTimeFormatter sqlTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    private static final ZoneId zoneId = ZoneId.of(System.getProperty("user.timezone"));
+    // systemDefault, not the user.timezone property: the JVM leaves that property unset until
+    // something first asks for the default zone, so a bare check that touched this class before
+    // anything else died in the static initializer.
+    private static final ZoneId zoneId = ZoneId.systemDefault();
     private static final DateTimeFormatter fileFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH.mm.ss").withZone(zoneId); //! local time
     private static final DateTimeFormatter logFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS").withZone(zoneId); //! local time
 
