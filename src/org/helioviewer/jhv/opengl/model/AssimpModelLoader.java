@@ -230,7 +230,7 @@ public final class AssimpModelLoader {
             ByteBuffer rgba = BufferUtils.newByteBuffer(decoded.remaining());
             int rowSize = Math.multiplyExact(width[0], 4);
             for (int y = height[0] - 1; y >= 0; y--)
-                rgba.put(decoded.slice(y * rowSize, rowSize));
+                BufferUtils.putRange(rgba, decoded, y * rowSize, rowSize);
             return new ModelTexture(name, width[0], height[0], rgba.flip(), sampler);
         } finally {
             STBImage.stbi_image_free(decoded);

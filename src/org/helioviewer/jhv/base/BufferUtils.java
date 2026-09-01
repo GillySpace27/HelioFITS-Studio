@@ -25,9 +25,12 @@ public class BufferUtils {
     }
 
     public static ByteBuffer putRemaining(ByteBuffer destination, ByteBuffer source) {
+        return putRange(destination, source, source.position(), source.remaining());
+    }
+
+    public static ByteBuffer putRange(ByteBuffer destination, ByteBuffer source, int sourcePosition, int count) {
         int position = destination.position();
-        return destination.put(position, source, source.position(), source.remaining())
-                .position(position + source.remaining());
+        return destination.put(position, source, sourcePosition, count).position(position + count);
     }
 
     public static ShortBuffer putRemaining(ShortBuffer destination, ShortBuffer source) {
