@@ -159,7 +159,9 @@ final class Colorbar {
         String text;
         if (groups == null) {
             String physical = physicalValueText(frac, glImage, imageData, rhefActive);
-            text = physical != null ? physical + " · " + lut.name() : String.format("%.0f%% · %s", frac * 100, lut.name());
+            // "|" and not the typographic middle dot: the SDF atlas has no U+B7 and renders it
+            // as "?" (regenerating needs msdf-atlas-gen, absent on this machine).
+            text = physical != null ? physical + " | " + lut.name() : String.format("%.0f%% | %s", frac * 100, lut.name());
         } else {
             double blockW = (x1 - x0) / groups.size();
             int g = Math.clamp((int) (frac * groups.size()), 0, groups.size() - 1);
@@ -171,7 +173,7 @@ final class Colorbar {
             // Block position comes from group order (lut-labels.json), never from the colortable,
             // so it names the same raw index regardless of "inverted" -- that flag only changes
             // which colour color() looks up for it, not which data value this screen slot is.
-            text = "idx " + indices[s] + " · " + group.label();
+            text = "idx " + indices[s] + " | " + group.label(); // "|": U+B7 is not in the SDF atlas
         }
         hoverText.clear();
         hoverText.add(text);

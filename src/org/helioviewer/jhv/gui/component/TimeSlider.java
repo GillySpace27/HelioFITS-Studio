@@ -378,12 +378,14 @@ public final class TimeSlider extends JSlider implements Interfaces.LazyComponen
         }
 
         // Video position as elapsed / total real-time, consistent with the frame count above it.
+        // Units bind to their number ("5.08s"), duration-style, so the " / " stays the only gap.
         private String computeTimeText() {
             if (maximum < 1)
                 return "";
             double total = ViewState.estimateVideoSeconds(maximum + 1, Player.getEndTime() - Player.getStartTime());
             double elapsed = total * (frame + 1) / (maximum + 1);
-            return TimeUtils.formatDurationSig(Math.round(elapsed * 1000)) + " / " + TimeUtils.formatDurationSig(Math.round(total * 1000));
+            return TimeUtils.formatDurationSig(Math.round(elapsed * 1000)).replace(" ", "")
+                    + " / " + TimeUtils.formatDurationSig(Math.round(total * 1000)).replace(" ", "");
         }
 
         @Override
