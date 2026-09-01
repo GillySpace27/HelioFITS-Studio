@@ -7,8 +7,8 @@ import javax.swing.JLabel;
 
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.component.JHVSlider;
+import org.helioviewer.jhv.image.ImageDisplaySettings;
 import org.helioviewer.jhv.layers.ImageLayer;
-import org.helioviewer.jhv.opengl.GLImage;
 
 public final class SliderFilterPanel {
 
@@ -16,33 +16,40 @@ public final class SliderFilterPanel {
     }
 
     public static FilterDetails blend(ImageLayer layer) {
-        return create("Blend ", 0, 100, (int) (layer.getGLImage().getBlend() * 100),
-                SliderFilterPanel::formatPercent, value -> layer.getGLImage().setBlend(value / 100.));
+        ImageDisplaySettings settings = layer.getDisplaySettings();
+        return create("Blend ", 0, 100, (int) (settings.getBlend() * 100),
+                SliderFilterPanel::formatPercent, value -> settings.setBlend(value / 100.));
     }
 
     public static FilterDetails deltaCROTA(ImageLayer layer) {
-        return create("δCROTA", GLImage.MIN_DCROTA * 10, GLImage.MAX_DCROTA * 10, (int) (layer.getGLImage().getDeltaCROTA() * 10),
-                value -> formatDegree(value / 10.0), value -> layer.getGLImage().setDeltaCROTA(value / 10.0));
+        ImageDisplaySettings settings = layer.getDisplaySettings();
+        return create("δCROTA", ImageDisplaySettings.MIN_DCROTA * 10, ImageDisplaySettings.MAX_DCROTA * 10,
+                (int) (settings.getDeltaCROTA() * 10),
+                value -> formatDegree(value / 10.0), value -> settings.setDeltaCROTA(value / 10.0));
     }
 
     public static FilterDetails deltaCRVAL1(ImageLayer layer) {
-        return create("δCRVAL1", GLImage.MIN_DCRVAL, GLImage.MAX_DCRVAL, layer.getGLImage().getDeltaCRVAL1(),
-                SliderFilterPanel::formatArcsec, layer.getGLImage()::setDeltaCRVAL1);
+        ImageDisplaySettings settings = layer.getDisplaySettings();
+        return create("δCRVAL1", ImageDisplaySettings.MIN_DCRVAL, ImageDisplaySettings.MAX_DCRVAL,
+                settings.getDeltaCRVAL1(), SliderFilterPanel::formatArcsec, settings::setDeltaCRVAL1);
     }
 
     public static FilterDetails deltaCRVAL2(ImageLayer layer) {
-        return create("δCRVAL2", GLImage.MIN_DCRVAL, GLImage.MAX_DCRVAL, layer.getGLImage().getDeltaCRVAL2(),
-                SliderFilterPanel::formatArcsec, layer.getGLImage()::setDeltaCRVAL2);
+        ImageDisplaySettings settings = layer.getDisplaySettings();
+        return create("δCRVAL2", ImageDisplaySettings.MIN_DCRVAL, ImageDisplaySettings.MAX_DCRVAL,
+                settings.getDeltaCRVAL2(), SliderFilterPanel::formatArcsec, settings::setDeltaCRVAL2);
     }
 
     public static FilterDetails opacity(ImageLayer layer) {
-        return create("Opacity ", 0, 100, (int) (layer.getGLImage().getOpacity() * 100),
-                SliderFilterPanel::formatPercent, value -> layer.getGLImage().setOpacity(value / 100.));
+        ImageDisplaySettings settings = layer.getDisplaySettings();
+        return create("Opacity ", 0, 100, (int) (settings.getOpacity() * 100),
+                SliderFilterPanel::formatPercent, value -> settings.setOpacity(value / 100.));
     }
 
     public static FilterDetails sharpen(ImageLayer layer) {
-        return create("Sharpen ", -100, 100, (int) (layer.getGLImage().getSharpen() * 100),
-                SliderFilterPanel::formatPercent, value -> layer.getGLImage().setSharpen(value / 100.));
+        ImageDisplaySettings settings = layer.getDisplaySettings();
+        return create("Sharpen ", -100, 100, (int) (settings.getSharpen() * 100),
+                SliderFilterPanel::formatPercent, value -> settings.setSharpen(value / 100.));
     }
 
     private static String formatDegree(double value) {

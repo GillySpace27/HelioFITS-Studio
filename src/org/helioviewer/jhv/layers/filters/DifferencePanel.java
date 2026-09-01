@@ -12,8 +12,8 @@ import javax.swing.JRadioButton;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.component.MoviePanel;
+import org.helioviewer.jhv.image.ImageDisplaySettings;
 import org.helioviewer.jhv.layers.ImageLayer;
-import org.helioviewer.jhv.opengl.GLImage;
 
 import com.jidesoft.swing.JideButton;
 
@@ -24,13 +24,14 @@ public final class DifferencePanel implements FilterDetails {
     private final JLabel title = new JLabel(" Difference ", JLabel.RIGHT);
 
     public DifferencePanel(ImageLayer layer) {
+        ImageDisplaySettings settings = layer.getDisplaySettings();
         ButtonGroup modeGroup = new ButtonGroup();
-        for (GLImage.DifferenceMode mode : GLImage.DifferenceMode.values()) {
+        for (ImageDisplaySettings.DifferenceMode mode : ImageDisplaySettings.DifferenceMode.values()) {
             JRadioButton item = new JRadioButton(mode.toString());
-            if (mode == layer.getGLImage().getDifferenceMode())
+            if (mode == settings.getDifferenceMode())
                 item.setSelected(true);
             item.addActionListener(e -> {
-                layer.getGLImage().setDifferenceMode(mode);
+                settings.setDifferenceMode(mode);
                 DisplayController.display();
             });
             modeGroup.add(item);

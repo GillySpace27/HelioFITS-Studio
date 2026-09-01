@@ -4,8 +4,8 @@ import javax.swing.JLabel;
 
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.component.JHVRangeSlider;
+import org.helioviewer.jhv.image.ImageDisplaySettings;
 import org.helioviewer.jhv.layers.ImageLayer;
-import org.helioviewer.jhv.opengl.GLImage;
 
 public final class RangeSliderFilterPanel {
 
@@ -13,27 +13,29 @@ public final class RangeSliderFilterPanel {
     }
 
     public static FilterDetails levels(ImageLayer layer) {
-        double offset = layer.getGLImage().getBrightOffset();
-        double scale = layer.getGLImage().getBrightScale();
+        ImageDisplaySettings settings = layer.getDisplaySettings();
+        double offset = settings.getBrightOffset();
+        double scale = settings.getBrightScale();
         return create("Levels ", -101, 201, (int) (offset * 100), (int) ((offset + scale) * 100),
                 RangeSliderFilterPanel::formatPercent,
-                (low, high) -> layer.getGLImage().setBrightness(low / 100., (high - low) / 100.));
+                (low, high) -> settings.setBrightness(low / 100., (high - low) / 100.));
     }
 
     public static FilterDetails mask(ImageLayer layer) {
-        GLImage image = layer.getGLImage();
-        int maximum = GLImage.MAX_MASK * 100;
-        int outer = Double.isFinite(image.getOuterMask()) ? (int) (image.getOuterMask() * 100) : maximum;
-        return create("Mask ", 0, maximum, (int) (image.getInnerMask() * 100), outer,
+        ImageDisplaySettings settings = layer.getDisplaySettings();
+        int maximum = ImageDisplaySettings.MAX_MASK * 100;
+        int outer = Double.isFinite(settings.getOuterMask()) ? (int) (settings.getOuterMask() * 100) : maximum;
+        return create("Mask ", 0, maximum, (int) (settings.getInnerMask() * 100), outer,
                 (low, high) -> formatMask(low, high, maximum),
-                (low, high) -> image.setMask(low / 100., high == maximum ? Double.POSITIVE_INFINITY : high / 100.));
+                (low, high) -> settings.setMask(low / 100., high == maximum ? Double.POSITIVE_INFINITY : high / 100.));
     }
 
     public static FilterDetails slit(ImageLayer layer) {
+        ImageDisplaySettings settings = layer.getDisplaySettings();
         return create("Slit ", 0, 100,
-                (int) (layer.getGLImage().getSlitLeft() * 100), (int) (layer.getGLImage().getSlitRight() * 100),
+                (int) (settings.getSlitLeft() * 100), (int) (settings.getSlitRight() * 100),
                 RangeSliderFilterPanel::formatPercent,
-                (low, high) -> layer.getGLImage().setSlit(low / 100., high / 100.));
+                (low, high) -> settings.setSlit(low / 100., high / 100.));
     }
 
     private static FilterDetails create(

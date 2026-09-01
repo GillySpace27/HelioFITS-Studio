@@ -14,6 +14,8 @@ import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.image.ImageBuffer;
+import org.helioviewer.jhv.image.ImageDisplaySettings;
+import org.helioviewer.jhv.image.ImageDisplaySettings.DifferenceMode;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.io.APIRequest;
 import org.helioviewer.jhv.io.DownloadLayer;
@@ -21,7 +23,6 @@ import org.helioviewer.jhv.math.Mat2;
 import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.metadata.MetaData;
 import org.helioviewer.jhv.opengl.GLImage;
-import org.helioviewer.jhv.opengl.GLImage.DifferenceMode;
 import org.helioviewer.jhv.opengl.GLSLSolar;
 import org.helioviewer.jhv.opengl.GLSLSolarShader;
 import org.helioviewer.jhv.view.BaseView;
@@ -32,6 +33,7 @@ import org.json.JSONObject;
 
 public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
+    private final ImageDisplaySettings displaySettings = new ImageDisplaySettings();
     private final GLImage glImage;
     private final ImageLayerLoader loader;
 
@@ -54,7 +56,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         APIRequest apiRequest = view.getAPIRequest();
         if (apiRequest != null) {
             jo.put("APIRequest", apiRequest.toJson());
-            jo.put("imageParams", glImage.toJson());
+            jo.put("imageParams", displaySettings.toJson());
         }
     }
 
@@ -72,7 +74,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             e.printStackTrace();
         }
 
-        glImage = new GLImage();
+        glImage = new GLImage(displaySettings);
         loader = new ImageLayerLoader(this::setView, this::unload);
 
         if (jo != null) {
@@ -86,7 +88,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
     public void applyImageParams(@Nullable JSONObject imageParams) {
         if (imageParams != null)
-            glImage.fromJson(imageParams);
+            displaySettings.fromJson(imageParams);
     }
 
     public void load(APIRequest req) {
@@ -144,7 +146,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     }
 
     private void activateView() {
-        glImage.setLUT(view.getDefaultLUT(), glImage.getInvertLUT());
+        displaySettings.setLUT(view.getDefaultLUT(), displaySettings.getInvertLUT());
         setEnabled(true);
 
         DisplayController.zoomMiniToFit();
@@ -213,7 +215,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
         MetaData meta0 = imageData.metaData();
         Position metaViewpoint0 = meta0.getViewpoint();
-        View.ImageData imageDataDiff = glImage.getDifferenceMode() == DifferenceMode.Base ? baseImageData : prevImageData;
+        View.ImageData imageDataDiff = displaySettings.getDifferenceMode() == DifferenceMode.Base ? baseImageData : prevImageData;
         MetaData meta1 = imageDataDiff.metaData();
         Position metaViewpoint1 = meta1.getViewpoint();
         WcsHeader wcs0 = meta0.getWcsHeader();
@@ -225,7 +227,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
         Mat2 planeToImage0 = wcs0.planeToImage;
         Mat2 planeToImage1 = wcs1.planeToImage;
-        double deltaCROTA = glImage.getDeltaCROTA();
+        double deltaCROTA = displaySettings.getDeltaCROTA();
         if (deltaCROTA != 0) {
             // The user rotation follows the metadata image-to-plane transform,
             // so it precedes that transform's inverse in plane-to-image order.
@@ -234,7 +236,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             planeToImage1 = Mat2.multiply(planeToImage1, inverseAdjustment);
         }
 
-        int deltaCRVAL1 = glImage.getDeltaCRVAL1();
+        int deltaCRVAL1 = displaySettings.getDeltaCRVAL1();
         if (deltaCRVAL1 == 0) {
             crval0[0] = (float) wcs0.crval.x;
             crval1[0] = (float) wcs1.crval.x;
@@ -243,7 +245,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             crval1[0] = (float) (wcs1.crval.x + deltaCRVAL1 * meta1.getUnitPerArcsec());
         }
 
-        int deltaCRVAL2 = glImage.getDeltaCRVAL2();
+        int deltaCRVAL2 = displaySettings.getDeltaCRVAL2();
         if (deltaCRVAL2 == 0) {
             crval0[1] = (float) wcs0.crval.y;
             crval1[1] = (float) wcs1.crval.y;
@@ -360,8 +362,8 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     }
 
     @Nonnull
-    public GLImage getGLImage() {
-        return glImage;
+    public ImageDisplaySettings getDisplaySettings() {
+        return displaySettings;
     }
 
     @Nonnull

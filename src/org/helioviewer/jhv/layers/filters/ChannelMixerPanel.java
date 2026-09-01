@@ -9,6 +9,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 
 import org.helioviewer.jhv.display.DisplayController;
+import org.helioviewer.jhv.image.ImageDisplaySettings;
 import org.helioviewer.jhv.layers.ImageLayer;
 
 public final class ChannelMixerPanel implements FilterDetails {
@@ -18,20 +19,21 @@ public final class ChannelMixerPanel implements FilterDetails {
     private final JLabel title = new JLabel("Channels ", JLabel.RIGHT);
 
     public ChannelMixerPanel(ImageLayer layer) {
-        JCheckBox redCheckBox = new JCheckBox("Red", layer.getGLImage().getRed());
+        ImageDisplaySettings settings = layer.getDisplaySettings();
+        JCheckBox redCheckBox = new JCheckBox("Red", settings.getRed());
         redCheckBox.setToolTipText("Toggle red channel");
         boxPanel.add(redCheckBox);
 
-        JCheckBox greenCheckBox = new JCheckBox("Green", layer.getGLImage().getGreen());
+        JCheckBox greenCheckBox = new JCheckBox("Green", settings.getGreen());
         greenCheckBox.setToolTipText("Toggle green channel");
         boxPanel.add(greenCheckBox);
 
-        JCheckBox blueCheckBox = new JCheckBox("Blue", layer.getGLImage().getBlue());
+        JCheckBox blueCheckBox = new JCheckBox("Blue", settings.getBlue());
         blueCheckBox.setToolTipText("Toggle blue channel");
         boxPanel.add(blueCheckBox);
 
         ActionListener listener = e -> {
-            layer.getGLImage().setColor(redCheckBox.isSelected() ? 1 : 0,
+            settings.setColor(redCheckBox.isSelected() ? 1 : 0,
                     greenCheckBox.isSelected() ? 1 : 0,
                     blueCheckBox.isSelected() ? 1 : 0);
             DisplayController.display();

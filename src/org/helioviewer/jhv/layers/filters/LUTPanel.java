@@ -9,6 +9,7 @@ import javax.swing.JPanel;
 
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.component.Buttons;
+import org.helioviewer.jhv.image.ImageDisplaySettings;
 import org.helioviewer.jhv.image.lut.LUT;
 import org.helioviewer.jhv.image.lut.LUTComboBox;
 import org.helioviewer.jhv.layers.ImageLayer;
@@ -22,12 +23,13 @@ public final class LUTPanel implements FilterDetails {
     private final JLabel title = new JLabel("Color ", JLabel.RIGHT);
 
     public LUTPanel(ImageLayer layer) {
+        ImageDisplaySettings settings = layer.getDisplaySettings();
         lutCombo = new LUTComboBox();
-        JideToggleButton invertButton = new JideToggleButton(Buttons.invert, layer.getGLImage().getInvertLUT());
+        JideToggleButton invertButton = new JideToggleButton(Buttons.invert, settings.getInvertLUT());
         invertButton.setToolTipText("Invert color table");
 
         ActionListener listener = e -> {
-            layer.getGLImage().setLUT(lutCombo.getLUT(), invertButton.isSelected());
+            settings.setLUT(lutCombo.getLUT(), invertButton.isSelected());
             DisplayController.display();
         };
         lutCombo.addActionListener(listener);

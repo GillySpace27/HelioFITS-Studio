@@ -11,6 +11,7 @@ import javax.swing.JPanel;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.component.JHVSlider;
+import org.helioviewer.jhv.image.ImageDisplaySettings;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.layers.ImageLayer;
 
@@ -39,12 +40,13 @@ public final class ImageFilterPanel implements FilterDetails {
     }
 
     private static JPanel createEnhancePanel(ImageLayer layer) {
-        JHVSlider slider = new JHVSlider(0, 30, (int) (layer.getGLImage().getEnhanced() * 10));
+        ImageDisplaySettings settings = layer.getDisplaySettings();
+        JHVSlider slider = new JHVSlider(0, 30, (int) (settings.getEnhanced() * 10));
         JLabel label = new JLabel(formatLabel(slider.getValue() / 10.), JLabel.RIGHT);
         label.setToolTipText("<html><body>pixel⋅R<sup>v");
         slider.addChangeListener(e -> {
             double value = slider.getValue() / 10.;
-            layer.getGLImage().setEnhanced(value);
+            settings.setEnhanced(value);
             label.setText(formatLabel(value));
             DisplayController.display();
         });
@@ -55,6 +57,7 @@ public final class ImageFilterPanel implements FilterDetails {
     }
 
     public ImageFilterPanel(ImageLayer layer) {
+        ImageDisplaySettings settings = layer.getDisplaySettings();
         JComboBox<ImageFilter.Type> filterCombo = new JComboBox<>(ImageFilter.Type.values());
         filterCombo.setSelectedItem(layer.getView().getFilter());
         filterCombo.setToolTipText(layer.getView().getFilter().description);
@@ -65,19 +68,19 @@ public final class ImageFilterPanel implements FilterDetails {
         enhanceButton.setAlwaysDropdown(true);
         enhanceButton.add(enhancePanel);
 
-        JHVSlider upsilonLowSlider = new JHVSlider(5, 100, (int) (layer.getGLImage().getUpsilonLow() * 100));
+        JHVSlider upsilonLowSlider = new JHVSlider(5, 100, (int) (settings.getUpsilonLow() * 100));
         JLabel upsilonLowLabel = new JLabel(formatUpsilon(upsilonLowSlider.getValue() / 100.), JLabel.RIGHT);
         upsilonLowSlider.addChangeListener(e -> {
             double value = upsilonLowSlider.getValue() / 100.;
-            layer.getGLImage().setUpsilon(value, layer.getGLImage().getUpsilonHigh());
+            settings.setUpsilon(value, settings.getUpsilonHigh());
             upsilonLowLabel.setText(formatUpsilon(value));
             DisplayController.display();
         });
-        JHVSlider upsilonHighSlider = new JHVSlider(5, 100, (int) (layer.getGLImage().getUpsilonHigh() * 100));
+        JHVSlider upsilonHighSlider = new JHVSlider(5, 100, (int) (settings.getUpsilonHigh() * 100));
         JLabel upsilonHighLabel = new JLabel(formatUpsilon(upsilonHighSlider.getValue() / 100.), JLabel.RIGHT);
         upsilonHighSlider.addChangeListener(e -> {
             double value = upsilonHighSlider.getValue() / 100.;
-            layer.getGLImage().setUpsilon(layer.getGLImage().getUpsilonLow(), value);
+            settings.setUpsilon(settings.getUpsilonLow(), value);
             upsilonHighLabel.setText(formatUpsilon(value));
             DisplayController.display();
         });
