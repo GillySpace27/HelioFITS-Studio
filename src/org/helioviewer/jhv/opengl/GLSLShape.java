@@ -5,15 +5,12 @@ import java.nio.FloatBuffer;
 
 public class GLSLShape extends VAO implements GLSLVertexReceiver {
 
-    private static final int size0 = 4;
-    private static final int size1 = 4;
-
     private int count;
 
     public GLSLShape(boolean _dynamic) {
         super(_dynamic,
-                new VAA[]{new VAA(0, size0, false, 0, 0, 0)},
-                new VAA[]{new VAA(1, size1, true, 0, 0, 0)});
+                new VertexAttribute[]{VertexAttribute.floats(0, 4, 0, 0)},
+                new VertexAttribute[]{VertexAttribute.normalizedUnsignedBytes(1, 4, 0, 0)});
     }
 
     @Override

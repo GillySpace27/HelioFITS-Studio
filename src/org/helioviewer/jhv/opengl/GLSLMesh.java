@@ -28,17 +28,17 @@ final class GLSLMesh extends VAO {
         stride = stride(data.hasNormals(), data.hasTextureCoordinates());
     }
 
-    private static VAA[] attributes(boolean normals, boolean textured) {
+    private static VertexAttribute[] attributes(boolean normals, boolean textured) {
         int colorOffset = POSITION_BYTES + (normals ? NORMAL_BYTES : 0);
         int texCoordOffset = colorOffset + COLOR_BYTES;
         int stride = stride(normals, textured);
-        VAA position = new VAA(0, 3, false, stride, 0, 0);
-        VAA color = new VAA(1, 4, true, stride, colorOffset, 0);
-        VAA normal = new VAA(2, 3, false, stride, POSITION_BYTES, 0);
-        VAA texCoord = new VAA(3, 2, false, stride, texCoordOffset, 0);
+        VertexAttribute position = VertexAttribute.floats(0, 3, stride, 0);
+        VertexAttribute color = VertexAttribute.normalizedUnsignedBytes(1, 4, stride, colorOffset);
+        VertexAttribute normal = VertexAttribute.floats(2, 3, stride, POSITION_BYTES);
+        VertexAttribute texCoord = VertexAttribute.floats(3, 2, stride, texCoordOffset);
         if (normals)
-            return textured ? new VAA[]{position, color, normal, texCoord} : new VAA[]{position, color, normal};
-        return textured ? new VAA[]{position, color, texCoord} : new VAA[]{position, color};
+            return textured ? new VertexAttribute[]{position, color, normal, texCoord} : new VertexAttribute[]{position, color, normal};
+        return textured ? new VertexAttribute[]{position, color, texCoord} : new VertexAttribute[]{position, color};
     }
 
     private static int stride(boolean normals, boolean textured) {

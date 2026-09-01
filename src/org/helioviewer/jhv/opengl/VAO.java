@@ -2,14 +2,14 @@ package org.helioviewer.jhv.opengl;
 
 class VAO {
 
-    private final VAA[][] attributesByBuffer;
+    private final VertexAttribute[][] attributesByBuffer;
     private final GLBO[] vertexBuffers;
     private final int usage;
 
     private int vaoID = -1;
     private boolean inited;
 
-    VAO(boolean dynamic, VAA[]... _attributesByBuffer) {
+    VAO(boolean dynamic, VertexAttribute[]... _attributesByBuffer) {
         attributesByBuffer = _attributesByBuffer;
         vertexBuffers = new GLBO[attributesByBuffer.length];
         usage = dynamic ? GL.DYNAMIC_DRAW : GL.STATIC_DRAW;
@@ -26,7 +26,7 @@ class VAO {
             GL.glBindVertexArray(vaoID);
             for (int i = 0; i < vertexBuffers.length; i++) {
                 vertexBuffers[i].bind();
-                for (VAA attribute : attributesByBuffer[i])
+                for (VertexAttribute attribute : attributesByBuffer[i])
                     attribute.enable();
             }
         }

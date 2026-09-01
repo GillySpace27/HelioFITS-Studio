@@ -10,23 +10,25 @@ public class GLSLLine extends VAO implements GLSLVertexReceiver {
 
     public static final double LINEWIDTH_BASIC = 0.002;
 
-    private static final int size0 = 4;
-    private static final int size1 = 4;
+    private static final int POSITION_COMPONENTS = 4;
+    private static final int POSITION_BYTES = POSITION_COMPONENTS * Float.BYTES;
+    private static final int COLOR_COMPONENTS = 4;
+    private static final int COLOR_BYTES = COLOR_COMPONENTS * Byte.BYTES;
 
     private int count;
 
     public GLSLLine(boolean _dynamic) {
         super(_dynamic,
-                new VAA[]{
-                        new VAA(0, size0, false, 0, 0, 1),
-                        new VAA(2, size0, false, 0, 4 * size0, 1),
-                        new VAA(4, size0, false, 0, 8 * size0, 1),
-                        new VAA(6, size0, false, 0, 12 * size0, 1)},
-                new VAA[]{
-                        new VAA(1, size1, true, 0, 0, 1),
-                        new VAA(3, size1, true, 0, size1, 1),
-                        new VAA(5, size1, true, 0, 2 * size1, 1),
-                        new VAA(7, size1, true, 0, 3 * size1, 1)});
+                new VertexAttribute[]{
+                        VertexAttribute.instancedFloats(0, POSITION_COMPONENTS, 0, 0),
+                        VertexAttribute.instancedFloats(2, POSITION_COMPONENTS, 0, POSITION_BYTES),
+                        VertexAttribute.instancedFloats(4, POSITION_COMPONENTS, 0, 2 * POSITION_BYTES),
+                        VertexAttribute.instancedFloats(6, POSITION_COMPONENTS, 0, 3 * POSITION_BYTES)},
+                new VertexAttribute[]{
+                        VertexAttribute.instancedNormalizedUnsignedBytes(1, COLOR_COMPONENTS, 0, 0),
+                        VertexAttribute.instancedNormalizedUnsignedBytes(3, COLOR_COMPONENTS, 0, COLOR_BYTES),
+                        VertexAttribute.instancedNormalizedUnsignedBytes(5, COLOR_COMPONENTS, 0, 2 * COLOR_BYTES),
+                        VertexAttribute.instancedNormalizedUnsignedBytes(7, COLOR_COMPONENTS, 0, 3 * COLOR_BYTES)});
     }
 
     @Override

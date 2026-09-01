@@ -4,14 +4,17 @@ import java.nio.Buffer;
 
 public class GLSLTexture extends VAO {
 
-    private static final int size0 = 4;
-    private static final int size1 = 2;
-    private static final int stride = 4 * (size0 + size1);
+    private static final int POSITION_COMPONENTS = 4;
+    private static final int TEX_COORD_COMPONENTS = 2;
+    private static final int POSITION_BYTES = POSITION_COMPONENTS * Float.BYTES;
+    private static final int STRIDE = POSITION_BYTES + TEX_COORD_COMPONENTS * Float.BYTES;
 
     private int count;
 
     public GLSLTexture() {
-        super(true, new VAA[]{new VAA(0, size0, false, stride, 0, 0), new VAA(1, size1, false, stride, 4 * size0, 0)});
+        super(true, new VertexAttribute[]{
+                VertexAttribute.floats(0, POSITION_COMPONENTS, STRIDE, 0),
+                VertexAttribute.floats(1, TEX_COORD_COMPONENTS, STRIDE, POSITION_BYTES)});
     }
 
     public void setCoord(BufCoord buf) {
