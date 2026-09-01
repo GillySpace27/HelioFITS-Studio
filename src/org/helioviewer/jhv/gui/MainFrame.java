@@ -216,6 +216,8 @@ public final class MainFrame {
 
         Player.setMaster(Layers.getActiveImageLayer()); //! for nullImageLayer
 
+        FileDropHandler.attach(mainFrame.getContentPane());
+
         // Prewarm ANGLE off the EDT, then return here via attachAndRender() to attach the real render canvas.
         startAngleWarmup();
         return mainFrame;
@@ -243,6 +245,9 @@ public final class MainFrame {
         renderCanvas.addMouseMotionListener(awtInputAdapter);
         renderCanvas.addMouseWheelListener(awtInputAdapter);
         renderCanvas.addKeyListener(awtInputAdapter);
+        // The canvas is a heavyweight AWT child, so the frame's drop target does not cover it;
+        // it gets its own.
+        FileDropHandler.attach(renderCanvas);
         renderHost.attachCanvas(renderCanvas);
         // Force ANGLE surface/context creation immediately instead of waiting for the next UI event.
         renderCanvas.requestRender();
