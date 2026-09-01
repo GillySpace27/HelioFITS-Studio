@@ -25,13 +25,16 @@ glTF is a general 3D asset standard for products that need triangle surfaces, te
 hierarchy, or a combination of surfaces, lines, and points. Its Cartesian geometry can be displayed in general glTF
 viewers, while solar metadata added to the asset tells JHV how to place it.
 
-A COCONUT example later in the document demonstrates one way to create compatible products. The formats are also
-intended for heliocentric products derived from other model outputs.
+A later example uses COCONUT output to demonstrate the conversion process, but the two formats can also carry
+heliocentric products derived from other models.
 
 For products made only from points, lines, and ellipses, SunJSON is usually the more direct route. For meshed surfaces
 or products intended to remain portable outside JHV, use glTF.
 
 # SunJSON
+
+The SunJSON format definition presented here was extracted from older project documents to consolidate JHV's full
+heliocentric 3D data interface in one document.
 
 SunJSON was inspired by GeoJSON's simple organization of geometry, but it is a separate heliocentric format. Each
 file contains one timestamp and a list of geometry entries:
@@ -94,21 +97,20 @@ The geometry types interpret their coordinates as follows:
   and $V$. JHV draws the closed curve $C + (U - C)\cos(t) + (V - C)\sin(t)$ for $0 \le t \le 2\pi$. Here, $C$ is
   the center, while the offsets $U - C$ and $V - C$ define the curve's two Cartesian directions and lengths.
 
-Each color is straight, non-premultiplied RGBA, with integer components from 0 through 255. JHV clamps
+Colors are specified as straight, non-premultiplied RGBA values, with integer components from 0 through 255. JHV clamps
 values outside that range and converts the result to its premultiplied representation. When fewer colors than
 coordinates are supplied, the last color is repeated. Extra colors are ignored, and an ellipse uses only its first
 color. The `colors` field must be present, although an empty array may be used to select JHV's default green.
 
-`thickness` is a JHV display parameter, not a physical width measured in solar radii. JHV currently clamps it to the
-range `0.00001` through `0.1` and uses the same field to control point size for a `point` entry. The relationship
-between this value and the resulting on-screen width or size is implementation-dependent, so producers should check
-that the chosen value gives a suitable result in JHV.
+`thickness` is a JHV display parameter, not a physical width measured in solar radii. For a `point` entry, it controls
+point size instead of line thickness. Its mapping to screen width or point size is implementation-dependent, so
+producers should check the resulting appearance in JHV.
 
 ## Loading and time selection
 
 JHV loads SunJSON from local files and HTTP URIs. Dragging a local `.json` file or an HTTP URI ending in
 `.json` into JHV selects the SunJSON loader. A SAMP client can instead send `jhv.load.sunjson` with either a `url`
-parameter or a `value` parameter containing the complete JSON text. The data is stored in the Connection layer and
+parameter or a `value` parameter containing the complete JSON text. The data is loaded into the Connection layer and
 drawn only when that layer is enabled.
 
 Each file represents one timestamp. When several files are loaded, JHV treats them as a time sequence and displays
@@ -118,6 +120,12 @@ SunJSON deliberately has a narrow scope: it has no triangle surfaces, textures, 
 portable definition of its display sizes. Use glTF when a product needs those features.
 
 # glTF
+
+glTF 2.0 is an open standard maintained by Khronos for exchanging 3D assets. A glTF asset can combine geometry,
+colors, materials, textures, and a hierarchy of objects in a form understood by many 3D tools and viewers.
+
+JHV supports the subset defined in this section. Heliocentric products add scene metadata so that JHV can
+orient and place their Cartesian geometry in the Carrington frame.
 
 ## glTF and GLB
 
@@ -137,22 +145,22 @@ lowers memory use after loading and the amount of work needed to render the asse
 
 ## Heliocentric Cartesian coordinates
 
-A glTF `POSITION` attribute always contains Cartesian `x`, `y`, and `z` components. Storing spherical tuples such as
-`[radius, longitude, latitude]` in this attribute would therefore distort the asset in standard viewers. Producers
-whose source data is spherical must convert it to Cartesian positions before export.
+A glTF `POSITION` attribute always contains Cartesian `x`, `y`, and `z` components. Standard viewers would interpret
+spherical tuples such as `[radius, longitude, latitude]` as Cartesian coordinates and place the vertices incorrectly.
+Producers whose source data is spherical must convert it to Cartesian positions before export.
 
-The local Cartesian axes follow the heliocentric convention described by Thompson (2006):
+The Cartesian axes used by the product follow the heliocentric convention described by Thompson (2006):
 
 - `SOLX` points toward solar west in the observer's image plane;
 - `SOLY` points toward solar north in the observer's image plane;
 - `SOLZ` points from Sun center toward the observer.
 
-The coordinate origin is the center of the Sun. `CRLN_OBS` and `CRLT_OBS` give the Carrington direction of the
-`SOLZ` axis, as specified in Scene metadata. For a physical observation this is the direction of the observer, while a
-model product that is not tied to a viewpoint may use a reference direction matching its native axes. At
+The coordinate origin is the center of the Sun. In the scene metadata, `CRLN_OBS` and `CRLT_OBS` give the Carrington
+direction of the `SOLZ` axis. For a physical observation this is the direction of the observer, while a model product
+that is not tied to a viewpoint may use a reference direction matching its native axes. At
 `CRLN_OBS = 0` and `CRLT_OBS = 0`, `SOLZ` points toward Carrington longitude zero in the solar equatorial plane,
 `SOLX` points toward Carrington longitude 90 degrees, and `SOLY` points north. Other products may declare a non-zero
-direction, which JHV uses to rotate their local coordinates into its Carrington world frame.
+direction, which JHV uses to rotate the product's Cartesian coordinates into its Carrington world frame.
 
 JHV's glTF profile requires positions in solar radii and uses a physical solar radius of 695700000 meters. The
 three glTF position components therefore have the following fixed declaration:
@@ -196,32 +204,33 @@ default glTF scene:
 seconds. JHV assumes UTC and does not accept timezone designators or numeric offsets. Every heliocentric glTF product
 must include `DATE-OBS`, which identifies its place in a model time sequence.
 
-`CRLN_OBS` and `CRLT_OBS` give the Carrington longitude and latitude of the local `SOLZ` direction at `DATE-OBS`, in
-degrees, and thereby define the orientation of all three Cartesian axes. They may describe a physical observer or a
-reference direction chosen for a model product. In either case, the positions must be expressed in the corresponding
-`SOLX`, `SOLY`, and `SOLZ` frame. Latitude must be between -90 and 90 degrees.
+`CRLN_OBS` and `CRLT_OBS` give, in degrees, the Carrington longitude and latitude of the `SOLZ` direction at
+`DATE-OBS`. Together they define the orientation of all three Cartesian axes. They may describe a physical observer
+or a reference direction chosen for a model product. In either case, the positions must be expressed in the
+corresponding `SOLX`, `SOLY`, and `SOLZ` frame. Latitude must be between -90 and 90 degrees.
 
 `DSUN_OBS` gives the distance of the observer or reference point from Sun center in meters. A model product using only
 a reference direction may omit it or supply a conventional positive distance. JHV validates the value when it is
 present but does not currently use it to place the geometry.
 
-A file either supplies the complete JHV scene metadata or none of it. `WCSNAME` identifies the declaration to JHV.
-When it is present, JHV requires and validates `DATE-OBS`, `CTYPE1` through `CTYPE3`, `CUNIT1` through `CUNIT3`,
+A file either supplies the complete JHV scene metadata or none of it. The presence of `WCSNAME` identifies the
+declaration to JHV. JHV then requires and validates `DATE-OBS`, `CTYPE1` through `CTYPE3`, `CUNIT1` through `CUNIT3`,
 `RSUN_REF`, `CRLN_OBS`, and `CRLT_OBS`, together with optional `DSUN_OBS`. Without `WCSNAME`, an ordinary glTF asset
 instead receives default metadata: JHV treats its positions as world coordinates and assigns the application-start
 time, as it does for an image without metadata. This fallback lies outside the heliocentric interface defined here.
 
 JHV applies this placement to triangles, lines, and points. Rotating the JHV view changes the camera, not the
-product's coordinates, whereas other glTF viewers ignore the solar metadata and display the local Cartesian geometry.
+product's coordinates. Other glTF viewers do not interpret the solar metadata and display the Cartesian geometry
+without Carrington placement.
 
 ## Supported glTF content
 
-JHV uses Assimp, the Open Asset Import Library, to read both glTF file forms, but glTF can describe more than JHV can
-display. This section summarizes the geometry and appearance that JHV supports.
+JHV uses Assimp, the Open Asset Import Library, to read both glTF file forms. glTF includes features that JHV does not
+support, so the following paragraphs define the supported subset.
 
 **Geometry and scene structure.** JHV renders open or closed triangle surfaces, connected lines and polylines, and
-point sets. It applies the translations, rotations, and scales from the static node hierarchy, including each use of a
-mesh referenced by more than one node, before placing the resulting geometry in the solar scene. Animations, skins,
+point sets. It applies the translations, rotations, and scales from the static node hierarchy before placing the
+resulting geometry in the solar scene, including when a mesh is referenced by more than one node. Animations, skins,
 and morph targets are not supported.
 
 Because glTF does not define a portable line width or point size, JHV uses fixed values for both. SunJSON is the
@@ -237,12 +246,12 @@ premultiplied representation used by its renderer. JHV supports opaque (`OPAQUE`
 points JHV applies the cutoff to vertex colors before rendering, making transitions along a line segment only
 approximate. Additive blending, separate opacity textures, and transformed texture coordinates are not supported.
 
-**Lighting and surfaces.** `KHR_materials_unlit` is the signal JHV uses to distinguish unlit from lit triangle
-materials. Without it, JHV treats a triangle material as lit and requires vertex normals. JHV uses a simple
-viewer-facing light: a surface facing the viewer retains its full color, while surfaces angled away become darker but
-retain 30 percent ambient brightness. The light follows the view as the scene is rotated. Because shading reveals
-surface shape by changing the apparent brightness of its colors, materials whose colors encode values that must remain
-unchanged should be marked as unlit.
+**Lighting and surfaces.** The Khronos glTF extension `KHR_materials_unlit` tells renderers to display a material
+without lighting. JHV follows this rule for triangle materials. Without the extension, it lights them and requires
+vertex normals. JHV uses a simple viewer-facing light: a surface facing the viewer retains its full color, while
+surfaces angled away become darker but retain 30 percent ambient brightness. The light follows the view as the scene
+is rotated. Because shading reveals surface shape by changing the apparent brightness of its colors, materials whose
+colors encode values that must remain unchanged should be marked as unlit.
 
 Lit triangle meshes must include vertex normals that describe the intended surface. JHV does not generate missing
 normals because doing so could smooth edges that were meant to remain sharp. Unlit triangle meshes do not need
@@ -270,16 +279,16 @@ Before distributing a product, inspect it from several viewpoints in JHV, includ
 sphere and other layers, and open the same asset in an independent glTF viewer. These checks can reveal placement,
 surface orientation, transparency, and portability problems that structural validation alone cannot find.
 
-The capabilities described here reflect the products considered so far and provide a practical starting point. As
-new real-world products require additional ways to represent or display their data, JHV's glTF support can be
-expanded where feasible.
+This profile covers the products considered so far. If new real-world products need other ways to represent or
+display their data, JHV's glTF support can be expanded where feasible.
 
 ## COCONUT example
 
-`extra/test/create_coconut_scene.py` demonstrates the supported glTF capabilities and provides a starting point for
-using Qorona, PyVista/VTK, and pygltflib to produce a JHV-compatible asset from model output. It is tailored to the
-supplied COCONUT sample CFmesh and is not intended as a general COCONUT exporter. The resulting
-`coconut-corona-scene.glb` contains:
+### Overview
+
+`extra/test/create_coconut_scene.py` shows how Qorona, PyVista/VTK, and pygltflib can be combined to produce a glTF
+asset using the features JHV supports. It is a starting point for model-specific converters, not a general COCONUT
+exporter, and is tailored to the supplied COCONUT sample CFmesh. The resulting `coconut-corona-scene.glb` contains:
 
 - unlit magnetic field lines colored by polarity;
 - an unlit triangulated `B_r=0` current-sheet surface colored by radial plasma velocity;
@@ -292,12 +301,14 @@ demonstrate a construction that could be adapted to visualize model-derived flux
 
 The current sheet is unlit because its color map represents radial plasma velocity. Shading it would change the
 brightness according to surface orientation, making the same velocity appear as different colors across the mesh.
-The field-line and boundary-point materials are also marked as unlit because their colors identify magnetic polarity,
-although JHV does not shade line or point primitives. The tubes, in contrast, have a constant illustrative color and
-remain lit so that their round cross-section and three-dimensional shape are visible.
+The field-line and boundary-point materials are also marked as unlit so that general glTF viewers preserve their
+polarity colors. JHV does not shade line or point primitives in either case. The tubes, in contrast, have a constant
+illustrative color and remain lit so that their round cross-section and three-dimensional shape are visible.
 
-Qorona can export field lines directly as SunJSON, whereas this example uses glTF to combine lines, surfaces, and
-points in one asset that general glTF viewers can also display.
+Qorona can already export field lines as SunJSON. This example uses glTF to combine lines, surfaces, and points in one
+asset that general glTF viewers can also display.
+
+### Running the converter
 
 Run the converter from the repository root in an environment containing Qorona 0.4.0, PyVista/VTK, Matplotlib, and
 pygltflib:
@@ -309,8 +320,10 @@ python extra/test/create_coconut_scene.py \
     --output extra/test/data/coconut-corona-scene.glb
 ```
 
-The CFmesh file does not identify its observation time or coordinate frame. The converter therefore uses the
-following assumptions and settings:
+### Assumptions and processing
+
+The CFmesh file does not identify its observation time or coordinate frame. For a reproducible conversion, the script
+uses the following assumptions and settings:
 
 - for this CFmesh, the Qorona Cartesian coordinates are assumed to be Carrington-aligned, with `+x` at Carrington
   longitude zero, `+y` at Carrington longitude 90 degrees, and `+z` toward solar north;
@@ -330,32 +343,31 @@ following assumptions and settings:
 - the current sheet is extracted as the `B_r=0` isosurface of the reconstructed magnetic field, matching the
   geometric definition used by Guo et al. (2024, Fig. 1d), with the periodic longitude seam closed before meshing;
 - the model velocity is interpolated at each surface vertex, converted with the COOLFluiD `corona` normalization
-  `v0 = 480 km/s`, and projected onto the local radial direction;
-- the extracted current-sheet mesh is reduced by a target of 50 percent with scalar-aware quadric decimation, using
-  radial velocity in the decimation error metric. Vertex colors are generated from the resulting scalar values after
-  this step; and
+  `v0 = 480 km/s`, and projected onto the radial direction at that vertex;
+- the extracted current-sheet mesh undergoes scalar-aware quadric decimation with a target reduction of 50 percent,
+  using radial velocity in the decimation error metric. Vertex colors are generated from the resulting scalar values
+  after this step; and
 - radial velocity is mapped through the `turbo` color map over -30 to 300 km/s, with a common surface alpha of 0.35.
 
+### Output and validation
+
 The default scene's `extras` object records the source name and SHA-256 digest, Qorona version, processing parameters,
-surface definition, velocity mapping, and geometry counts before and after display-geometry post-processing. Polyline
-simplification and current-sheet decimation reduce file size without reducing the reconstruction-grid resolution or
-changing the field-line tracing tolerances.
+surface definition, velocity mapping, and geometry counts before and after polyline simplification and current-sheet
+decimation. These operations reduce file size without reducing the reconstruction-grid resolution or changing the
+field-line tracing tolerances.
 
-\newpage
-
-PyVista and VTK create the geometry and return a glTF document in memory. The script adds the solar metadata and uses
-pygltflib to package it directly as GLB. Colors are normalized unsigned-byte straight RGBA values, and the current
-sheet is double-sided and alpha-blended. The field-line, current-sheet, and point materials are marked with
-`KHR_materials_unlit`, while the tube material remains lit and includes one smooth normal per vertex.
-
-### Validation
+The script uses PyVista and VTK to create the geometry and obtain a glTF document in memory. It adds the solar metadata
+and uses pygltflib to package the document directly as GLB. Colors are stored as straight RGBA values in normalized
+unsigned-byte attributes, and the current sheet is double-sided and alpha-blended. The field-line, current-sheet, and
+point materials are marked with `KHR_materials_unlit`, while the tube material remains lit and includes one smooth
+normal per vertex.
 
 The converter checks its input arrays before export, then reopens the completed GLB and verifies its structure and
-content. The checks cover the default scene and exact metadata, the single embedded binary buffer, the expected line,
-triangle, and point primitives, and their accessor and index counts. They also confirm finite float32 positions,
-non-degenerate adjacent line segments, normalized RGBA attributes, the intended lit and unlit materials, a complete
-normal for every tube vertex, the current sheet's colors, alpha, and double-sided material, and boundary points at both
-model limits in both polarity colors.
+content. Structural checks cover the default scene and exact metadata, the single embedded binary buffer, the expected
+line, triangle, and point primitives, and their accessor and index counts. Data checks confirm finite float32
+positions, non-degenerate adjacent line segments, normalized RGBA attributes, the intended lit and unlit materials,
+one normal for every tube vertex, the current sheet's colors, alpha, and double-sided material, and boundary points at
+both model limits in both polarity colors.
 
 # References
 
