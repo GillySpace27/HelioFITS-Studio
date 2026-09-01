@@ -8,7 +8,12 @@ with File > Open Image, set a linear display range, and turn the dither off
 on the deep canvas (RGBA16F IOSurface; check the log for "Deep-colour canvas")
 the steps should be invisible on a deep-capable panel.
 
-Usage: python3 extra/test/make_gradient_fits.py [out.fits]
+Usage: python3 extra/test/make_gradient_fits.py [out.fits [lo hi]]
+
+The optional lo/hi (default 0 1) narrow the ramp's data span while the display range stays
+pinned to [0, 1]: a slice of the greyscale stretched across the whole width. That is the
+sharper bit-depth test: a 0.30..0.40 ramp shows ~26 fat bands on an 8-bit canvas and ~102
+bands four times narrower on a 10-bit one, so the readout is band width, not smooth-or-not.
 """
 
 import sys
@@ -17,7 +22,9 @@ import numpy as np
 from astropy.io import fits
 
 out = sys.argv[1] if len(sys.argv) > 1 else "gradient_test.fits"
-ramp = np.linspace(0.0, 1.0, 4096, dtype=np.float32)
+lo = float(sys.argv[2]) if len(sys.argv) > 3 else 0.0
+hi = float(sys.argv[3]) if len(sys.argv) > 3 else 1.0
+ramp = np.linspace(lo, hi, 4096, dtype=np.float32)
 data = np.tile(ramp, (1024, 1))
 hdu = fits.PrimaryHDU(data)
 hdu.header["TELESCOP"] = "JHV-TEST"
