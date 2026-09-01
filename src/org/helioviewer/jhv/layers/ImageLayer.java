@@ -184,8 +184,20 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             return;
         fitsRequest = request;
         java.util.function.Consumer<List<URI>> receiver = uris -> {
-            if (!removed && !uris.isEmpty())
-                load(uris);
+            if (removed)
+                return;
+            if (uris.isEmpty()) {
+                // An empty answer used to leave a "Loading..." layer forever, with nothing in
+                // the log; the archive genuinely holding no files for a range is a normal
+                // outcome (the VSO's LASCO catalog stops in 2025) and must say so.
+                org.helioviewer.jhv.app.Log.warn("No " + request.archive() + " files in range for " + request.product());
+                org.helioviewer.jhv.app.Message.warn("No data in range",
+                        request.archive() + " answered with no files for " + request.product()
+                                + " in the selected time range.");
+                Layers.remove(this);
+                return;
+            }
+            load(uris);
         };
         switch (request.archive()) {
             case PUNCH -> org.helioviewer.jhv.io.PunchClient.submitResolve(request, receiver);

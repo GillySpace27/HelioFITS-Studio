@@ -110,9 +110,14 @@ public final class VsoSelectorPanel extends JPanel {
                 return;
             // The request goes onto the layer before any file is resolved, which is what lets the
             // time-range sync re-issue it later. Detector rides in the level field, the fileid
-            // token in the version field; see FitsRequest and VsoClient.filterRecords.
+            // token in the version field; see FitsRequest and VsoClient.filterRecords. Cadence is
+            // the span's default, never 0: "every frame" over a two-week master range is tens of
+            // thousands of FITS downloads presenting as a layer that loads forever.
+            long start = startTime.getAsLong();
+            long end = endTime.getAsLong();
             ImageLayer.create(null).load(new FitsRequest(FitsRequest.Archive.VSO,
-                    source.detector, source.instrument, source.fileidToken, 0, startTime.getAsLong(), endTime.getAsLong()));
+                    source.detector, source.instrument, source.fileidToken,
+                    1000L * org.helioviewer.jhv.time.TimeUtils.defaultCadence(start, end), start, end));
         });
         tree.addTreeSelectionListener(e -> add.setEnabled(getSelected() != null));
 
