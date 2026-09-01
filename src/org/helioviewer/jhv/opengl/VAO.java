@@ -9,7 +9,6 @@ class VAO {
 
     private GLBO vertexBuffer;
     private int vaoID = -1;
-    private boolean inited;
 
     VAO(boolean dynamic, VertexAttribute... _attributes) {
         attributes = _attributes;
@@ -17,28 +16,36 @@ class VAO {
     }
 
     public void init() {
-        if (!inited) {
-            inited = true;
+        if (vertexBuffer != null)
+            return;
 
-            vaoID = GL.glGenVertexArray();
-            vertexBuffer = new GLBO(GL.ARRAY_BUFFER, usage);
-
-            GL.glBindVertexArray(vaoID);
-            vertexBuffer.bind();
+        GLBO newVertexBuffer = new GLBO(GL.ARRAY_BUFFER, usage);
+        int newVaoID = -1;
+        try {
+            newVaoID = GL.glGenVertexArray();
+            GL.glBindVertexArray(newVaoID);
+            newVertexBuffer.bind();
             for (VertexAttribute attribute : attributes)
                 attribute.enable();
+        } catch (RuntimeException | Error e) {
+            if (newVaoID != -1)
+                GL.glDeleteVertexArray(newVaoID);
+            newVertexBuffer.delete();
+            throw e;
         }
+
+        vertexBuffer = newVertexBuffer;
+        vaoID = newVaoID;
     }
 
     public void dispose() {
-        if (inited) {
-            inited = false;
-            GL.glDeleteVertexArray(vaoID);
-            vaoID = -1;
+        if (vertexBuffer == null)
+            return;
 
-            vertexBuffer.delete();
-            vertexBuffer = null;
-        }
+        GL.glDeleteVertexArray(vaoID);
+        vaoID = -1;
+        vertexBuffer.delete();
+        vertexBuffer = null;
     }
 
     protected void uploadVertexBuffer(Buffer buffer) {
