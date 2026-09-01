@@ -18,6 +18,7 @@ import javax.imageio.stream.FileImageInputStream;
 import javax.imageio.stream.ImageInputStream;
 
 import org.helioviewer.jhv.app.Log;
+import org.helioviewer.jhv.base.BufferUtils;
 import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.image.lut.LUT;
@@ -120,10 +121,9 @@ final class GenericImage implements URIImageReader {
                     } finally {
                         g.dispose();
                     }
-                    // avoidable native -> heap -> native copy.
-                    byte[] buffer = new byte[w * h * 4];
-                    NativeImageFactory.getByteBuffer(conv).get(buffer);
-                    return ImageBuffer.fromBytes(w, h, ImageBuffer.Format.RGBA32, buffer);
+                    ImageBuffer.WriteBuffer output = ImageBuffer.createWriteBuffer(w, h, ImageBuffer.Format.RGBA32, filter);
+                    BufferUtils.putRemaining(output.byteBuffer(), NativeImageFactory.getByteBuffer(conv)).flip();
+                    return output.finish();
                 } finally {
                     NativeImageFactory.free(conv);
                 }
