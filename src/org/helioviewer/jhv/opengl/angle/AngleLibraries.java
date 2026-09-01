@@ -49,6 +49,18 @@ final class AngleLibraries {
             Path path = MACOS_NATIVE_DIR.resolve(fileName).toAbsolutePath();
             if (Files.exists(path))
                 return path;
+            // The path above is cwd-relative and a launch from elsewhere (java -jar with an
+            // absolute path, the zip's launchers) never finds it: ANGLE warmup then dies with
+            // nothing to say. The dylib sits beside the jar in the repo and in the zip, so ask
+            // where this class was loaded from. The notarized .app needs neither branch: its
+            // dylib is injected into the jar and the resource fallback below serves it.
+            try {
+                Path code = Path.of(AngleLibraries.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+                Path byJar = code.getParent().resolve(MACOS_NATIVE_DIR).resolve(fileName);
+                if (Files.isRegularFile(byJar))
+                    return byJar;
+            } catch (Exception ignore) {
+            }
         }
 
         String resourcePath = Platform.getResourceDir() + fileName;
