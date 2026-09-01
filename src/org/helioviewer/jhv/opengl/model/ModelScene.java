@@ -24,8 +24,12 @@ public record ModelScene(String name, JHVTime time, List<ModelMesh> meshes, List
             if (mesh.materialIndex() >= materials.size())
                 throw new IllegalArgumentException("Invalid material index: " + mesh.materialIndex());
             ModelMaterial material = materials.get(mesh.materialIndex());
-            if (material.baseColorTexture() != ModelMaterial.NO_TEXTURE && !mesh.hasTextureCoordinates())
-                throw new IllegalArgumentException("Textured mesh has no texture coordinates: " + mesh.name());
+            if (material.baseColorTexture() != ModelMaterial.NO_TEXTURE) {
+                if (mesh.primitive() != ModelMesh.Primitive.TRIANGLES)
+                    throw new IllegalArgumentException("Only triangle meshes can have textures: " + mesh.name());
+                if (!mesh.hasTextureCoordinates())
+                    throw new IllegalArgumentException("Textured mesh has no texture coordinates: " + mesh.name());
+            }
             if (mesh.primitive() == ModelMesh.Primitive.TRIANGLES) {
                 if (material.unlit() && mesh.hasNormals())
                     throw new IllegalArgumentException("Unlit triangle mesh contains normals: " + mesh.name());
