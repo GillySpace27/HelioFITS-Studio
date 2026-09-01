@@ -1,6 +1,5 @@
 package org.helioviewer.jhv.opengl;
 
-import java.nio.Buffer;
 import java.nio.FloatBuffer;
 
 import org.helioviewer.jhv.base.BufferUtils;
@@ -8,40 +7,29 @@ import org.helioviewer.jhv.math.Vec3;
 
 public class BufCoord {
 
-    private static final int chunk = 6 * 4 * 8;
+    private static final int FLOATS_PER_VERTEX = 6;
 
     private int count;
-    private int length;
-    private int capacity;
     private FloatBuffer buffer;
 
-    public BufCoord(int size) {
-        capacity = size * 6;
-        buffer = BufferUtils.newFloatBuffer(capacity);
+    public BufCoord(int capacity) {
+        buffer = BufferUtils.newFloatBuffer(Math.multiplyExact(capacity, FLOATS_PER_VERTEX));
     }
 
-    private void ensure(int delta) {
-        if (length + delta <= capacity)
+    private void ensureCapacity() {
+        if (buffer.remaining() >= FLOATS_PER_VERTEX)
             return;
 
-        FloatBuffer oldBuffer = buffer;
-        oldBuffer.position(0);
-        oldBuffer.limit(length);
-
-        capacity = Math.max(length + delta, capacity + chunk);
-        buffer = BufferUtils.newFloatBuffer(capacity);
-        buffer.put(oldBuffer);
-        buffer.clear();
+        int newCapacity = Math.max(1, Math.multiplyExact(count, 2));
+        FloatBuffer newBuffer = BufferUtils.newFloatBuffer(Math.multiplyExact(newCapacity, FLOATS_PER_VERTEX));
+        buffer.flip();
+        newBuffer.put(buffer);
+        buffer = newBuffer;
     }
 
     public void putCoord(float x, float y, float z, float w, float c0, float c1) {
-        ensure(6);
-        buffer.put(length++, x);
-        buffer.put(length++, y);
-        buffer.put(length++, z);
-        buffer.put(length++, w);
-        buffer.put(length++, c0);
-        buffer.put(length++, c1);
+        ensureCapacity();
+        buffer.put(x).put(y).put(z).put(w).put(c0).put(c1);
 
         count++;
     }
@@ -59,14 +47,12 @@ public class BufCoord {
     }
 
     public void clear() {
-        length = 0;
         count = 0;
         buffer.clear();
     }
 
-    public Buffer toBuffer() { // Call clear() before appending again.
-        buffer.position(0);
-        return buffer.limit(length);
+    public FloatBuffer toBuffer() { // Call clear() before appending again.
+        return buffer.flip();
     }
 
 }
