@@ -84,7 +84,7 @@ abstract class GLSLShader {
         }
     }
 
-    public final void use() {
+    final void use() {
         GL.glUseProgram(progID);
     }
 

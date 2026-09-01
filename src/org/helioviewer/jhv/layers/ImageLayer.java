@@ -209,8 +209,6 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         if (!isVisible[vp.idx])
             return;
 
-        GLSLSolarShader shader = mv.mode().shader;
-        shader.use();
         glImage.applyFilters(view.getFilter() == ImageFilter.Type.RHEF);
 
         MetaData meta0 = imageData.metaData();
@@ -269,9 +267,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
                 (float) metaViewpoint0.distance, deltaT0, cameraDiff0, sourceView0,
                 imageDataDiff.region(), planeToImage1, crval1, wcs1,
                 (float) metaViewpoint1.distance, deltaT1, cameraDiff1, sourceView1);
-        shader.bindPV(wcs0.pv2, wcs1.pv2);
-
-        GLSLSolar.render();
+        GLSLSolar.renderImage(mv.mode(), wcs0.pv2, wcs1.pv2);
     }
 
     @Override

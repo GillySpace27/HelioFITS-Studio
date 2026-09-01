@@ -2,6 +2,7 @@ package org.helioviewer.jhv.opengl;
 
 import java.nio.FloatBuffer;
 
+import org.helioviewer.jhv.display.MapMode;
 import org.helioviewer.jhv.display.MapScale;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
@@ -10,23 +11,28 @@ import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.metadata.Region;
 import org.helioviewer.jhv.wcs.WcsHeader;
 
-public class GLSLSolarShader extends GLSLShader {
+public final class GLSLSolarShader extends GLSLShader {
 
-    public static final GLSLSolarShader sphere = new GLSLSolarShader("/glsl/solar.vert", "/glsl/solarSphere.frag", false);
-    public static final GLSLSolarShader ortho = new GLSLSolarShader("/glsl/solar.vert", "/glsl/solarOrtho.frag", true);
-    public static final GLSLSolarShader hpc = new GLSLSolarShader("/glsl/solar.vert", "/glsl/solarHpc.frag", true);
-    public static final GLSLSolarShader lati = new GLSLSolarShader("/glsl/solar.vert", "/glsl/solarLati.frag", true);
-    public static final GLSLSolarShader radialWarp = new GLSLSolarShader("/glsl/solar.vert", "/glsl/solarRadialWarp.frag", true);
-    public static final GLSLSolarShader rectWarp = new GLSLSolarShader("/glsl/solar.vert", "/glsl/solarRectWarp.frag", true);
+    private enum Kind {
+        SPHERE, IMAGE
+    }
 
-    private final boolean hasCommon;
+    private static final GLSLSolarShader sphere = new GLSLSolarShader("/glsl/solarSphere.frag", Kind.SPHERE);
+    private static final GLSLSolarShader ortho = new GLSLSolarShader("/glsl/solarOrtho.frag", Kind.IMAGE);
+    private static final GLSLSolarShader hpc = new GLSLSolarShader("/glsl/solarHpc.frag", Kind.IMAGE);
+    private static final GLSLSolarShader lati = new GLSLSolarShader("/glsl/solarLati.frag", Kind.IMAGE);
+    private static final GLSLSolarShader radialWarp = new GLSLSolarShader("/glsl/solarRadialWarp.frag", Kind.IMAGE);
+    private static final GLSLSolarShader rectWarp = new GLSLSolarShader("/glsl/solarRectWarp.frag", Kind.IMAGE);
+    private static final GLSLSolarShader[] programs = {sphere, ortho, hpc, lati, radialWarp, rectWarp};
+
+    private final Kind kind;
 
     private int pv0Ref;
     private int pv1Ref;
 
-    private GLSLSolarShader(String vertex, String fragment, boolean _hasCommon) {
-        super(vertex, fragment);
-        hasCommon = _hasCommon;
+    private GLSLSolarShader(String fragment, Kind _kind) {
+        super("/glsl/solar.vert", fragment);
+        kind = _kind;
     }
 
     private static final int IMAGE_FLOATS = 48;
@@ -38,24 +44,20 @@ public class GLSLSolarShader extends GLSLShader {
     private static final int DISPLAY_FLOATS = 28;
     private static final GLUniformBuffer displayBuffer = new GLUniformBuffer(DISPLAY_FLOATS, UBO.DISPLAY, GL.STREAM_DRAW);
 
-    public static void init() {
+    static void init() {
         try {
             imageBuffer.init();
             screenBuffer.init();
             displayBuffer.init();
-            sphere._init(sphere.hasCommon);
-            ortho._init(ortho.hasCommon);
-            hpc._init(hpc.hasCommon);
-            lati._init(lati.hasCommon);
-            radialWarp._init(radialWarp.hasCommon);
-            rectWarp._init(rectWarp.hasCommon);
+            for (GLSLSolarShader program : programs)
+                program._init(program.kind == Kind.IMAGE);
         } catch (RuntimeException | Error e) {
             dispose();
             throw e;
         }
     }
 
-    private static void setupCommonBlocks(int programID) {
+    private static void setupImageBlocks(int programID) {
         imageBuffer.bindBlock(programID, "ImageBlock");
         screenBuffer.bindBlock(programID, "ScreenBlock");
         displayBuffer.bindBlock(programID, "DisplayBlock");
@@ -63,10 +65,10 @@ public class GLSLSolarShader extends GLSLShader {
 
     @Override
     protected void initUniforms(int id) {
-        if (hasCommon) {
+        if (kind == Kind.IMAGE) {
             pv0Ref = requiredUniform(id, "pv0");
             pv1Ref = requiredUniform(id, "pv1");
-            setupCommonBlocks(id);
+            setupImageBlocks(id);
             setTextureUnit(id, "image", GLTexture.Unit.ZERO);
             setTextureUnit(id, "lut", GLTexture.Unit.ONE);
             setTextureUnit(id, "diffImage", GLTexture.Unit.TWO);
@@ -75,13 +77,9 @@ public class GLSLSolarShader extends GLSLShader {
             screenBuffer.bindBlock(id, "ScreenBlock");
     }
 
-    public static void dispose() {
-        sphere._dispose();
-        ortho._dispose();
-        hpc._dispose();
-        lati._dispose();
-        radialWarp._dispose();
-        rectWarp._dispose();
+    static void dispose() {
+        for (GLSLSolarShader program : programs)
+            program._dispose();
         imageBuffer.dispose();
         screenBuffer.dispose();
         displayBuffer.dispose();
@@ -109,7 +107,7 @@ public class GLSLSolarShader extends GLSLShader {
         sourceView.setFloatBuffer(values);
     }
 
-    public static void bindScreen(MapView mv, Viewport vp) {
+    static void bindScreen(MapView mv, Viewport vp) {
         MapScale scale = mv.scale(vp);
         FloatBuffer values = screenBuffer.begin(Transform.getInverse());
         values.put((float) scale.toMapX(0)).put((float) scale.toMapX(1));
@@ -140,7 +138,23 @@ public class GLSLSolarShader extends GLSLShader {
         displayBuffer.uploadIfChanged();
     }
 
-    public void bindPV(float[] pv0, float[] pv1) {
+    static void useSphere() {
+        sphere.use();
+    }
+
+    static void useImage(MapMode mode, float[] pv0, float[] pv1) {
+        GLSLSolarShader shader = switch (mode) {
+            case Orthographic -> ortho;
+            case HPC -> hpc;
+            case Latitudinal -> lati;
+            case RadialWarp -> radialWarp;
+            case RectWarp -> rectWarp;
+        };
+        shader.use();
+        shader.bindPV(pv0, pv1);
+    }
+
+    private void bindPV(float[] pv0, float[] pv1) {
         GL.glUniform1fv(pv0Ref, pv0);
         GL.glUniform1fv(pv1Ref, pv1);
     }

@@ -3,6 +3,7 @@ package org.helioviewer.jhv.opengl;
 import java.nio.FloatBuffer;
 
 import org.helioviewer.jhv.base.BufferUtils;
+import org.helioviewer.jhv.display.MapMode;
 
 public final class GLSLSolar {
 
@@ -19,13 +20,18 @@ public final class GLSLSolar {
         quad.dispose();
     }
 
-    public static void render() {
+    private static void render() {
         quad.bind();
         GL.glDrawArrays(GL.TRIANGLE_STRIP, 0, 4);
     }
 
     static void renderSphere() {
-        GLSLSolarShader.sphere.use();
+        GLSLSolarShader.useSphere();
+        render();
+    }
+
+    public static void renderImage(MapMode mode, float[] pv0, float[] pv1) {
+        GLSLSolarShader.useImage(mode, pv0, pv1);
         render();
     }
 
