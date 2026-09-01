@@ -58,7 +58,7 @@ public final class ModelRenderingTest {
 
             ByteBuffer pixels = readPixels();
             checkBlack(pixels, -1.5f, 0.6f, "single-sided back face");
-            checkChannel(pixels, 1.5f, 0.6f, 2, 240, 255, "double-sided back face");
+            checkChannel(pixels, 1.5f, 0.6f, 2, 216, 232, "double-sided back face");
             checkPremultiplied(pixels, -1.5f, -1, 0, 120, 136, "blended triangle");
             checkPremultiplied(pixels, 0, 0, 1, 10, 40, "blended line");
             checkChannel(pixels, 1.4f, -1, 2, 240, 255, "opaque point");

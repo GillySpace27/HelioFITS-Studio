@@ -25,7 +25,7 @@ public class GLSLTexture extends VAO {
     }
 
     public void renderTexture(int mode, float[] color, int first, int toDraw) {
-        if (count == 0 || toDraw > count)
+        if (count == 0 || first + toDraw > count)
             return;
 
         GLSLTextureShader shader = GLSLTextureShader.texture;
@@ -38,7 +38,7 @@ public class GLSLTexture extends VAO {
     }
 
     public void renderSdfTexture(int mode, float[] color, float unitRangeX, float unitRangeY, int first, int toDraw) {
-        if (count == 0 || toDraw > count)
+        if (count == 0 || first + toDraw > count)
             return;
 
         GLSLTextureShader shader = GLSLTextureShader.sdf;

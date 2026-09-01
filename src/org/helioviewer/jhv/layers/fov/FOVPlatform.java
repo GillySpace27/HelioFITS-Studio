@@ -69,7 +69,9 @@ class FOVPlatform extends DefaultMutableTreeNode {
     }
 
     private void putHemiLine() {
-        BufVertex buf = new BufVertex(2 * (SUBDIVISIONS + 3));
+        int fullCircleVertices = SUBDIVISIONS + 3;
+        int halfCircleVertices = SUBDIVISIONS / 2 + 3;
+        BufVertex buf = new BufVertex(fullCircleVertices + 2 * halfCircleVertices);
         GLHelper.emitCircle(HEMI_RADIUS, SUBDIVISIONS, 0, SUBDIVISIONS, null, color, Colors.White.bytes(), buf);
         GLHelper.emitCircle(HEMI_RADIUS, SUBDIVISIONS, 0, SUBDIVISIONS / 2, Quat.X90, color, Colors.White.bytes(), buf);
         GLHelper.emitCircle(HEMI_RADIUS, SUBDIVISIONS, SUBDIVISIONS / 4, 3 * SUBDIVISIONS / 4, Quat.Y90, color, Colors.White.bytes(), buf);
