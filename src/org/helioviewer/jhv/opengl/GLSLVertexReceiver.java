@@ -2,13 +2,13 @@ package org.helioviewer.jhv.opengl;
 
 interface GLSLVertexReceiver {
 
-    void upload(BufVertex vexBuf);
+    void upload(BufVertex vertices);
 
-    void upload(DirectBufVertex vexBuf);
+    void upload(DirectBufVertex vertices);
 
-    default void uploadAndClear(BufVertex vexBuf) {
-        upload(vexBuf);
-        vexBuf.clear();
+    default void uploadAndClear(BufVertex vertices) {
+        upload(vertices);
+        vertices.clear();
     }
 
 }

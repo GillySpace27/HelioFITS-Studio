@@ -10,44 +10,42 @@ public class GLSLLine extends VAO implements GLSLVertexReceiver {
 
     public static final double LINEWIDTH_BASIC = 0.002;
 
-    private static final int POSITION_COMPONENTS = 4;
-    private static final int POSITION_BYTES = POSITION_COMPONENTS * Float.BYTES;
-    private static final int COLOR_COMPONENTS = 4;
-    private static final int COLOR_BYTES = COLOR_COMPONENTS * Byte.BYTES;
-
     private int count;
 
     public GLSLLine(boolean _dynamic) {
         super(_dynamic,
                 new VertexAttribute[]{
-                        VertexAttribute.instancedFloats(0, POSITION_COMPONENTS, 0, 0),
-                        VertexAttribute.instancedFloats(2, POSITION_COMPONENTS, 0, POSITION_BYTES),
-                        VertexAttribute.instancedFloats(4, POSITION_COMPONENTS, 0, 2 * POSITION_BYTES),
-                        VertexAttribute.instancedFloats(6, POSITION_COMPONENTS, 0, 3 * POSITION_BYTES)},
-                new VertexAttribute[]{
-                        VertexAttribute.instancedNormalizedUnsignedBytes(1, COLOR_COMPONENTS, 0, 0),
-                        VertexAttribute.instancedNormalizedUnsignedBytes(3, COLOR_COMPONENTS, 0, COLOR_BYTES),
-                        VertexAttribute.instancedNormalizedUnsignedBytes(5, COLOR_COMPONENTS, 0, 2 * COLOR_BYTES),
-                        VertexAttribute.instancedNormalizedUnsignedBytes(7, COLOR_COMPONENTS, 0, 3 * COLOR_BYTES)});
+                        positionAttribute(0, 0), colorAttribute(1, 0),
+                        positionAttribute(2, 1), colorAttribute(3, 1),
+                        positionAttribute(4, 2), colorAttribute(5, 2),
+                        positionAttribute(6, 3), colorAttribute(7, 3)});
+    }
+
+    private static VertexAttribute positionAttribute(int index, int vertex) {
+        return VertexAttribute.instancedFloats(index, BufVertex.POSITION_COMPONENTS, BufVertex.BYTES_PER_VERTEX, vertex * BufVertex.BYTES_PER_VERTEX);
+    }
+
+    private static VertexAttribute colorAttribute(int index, int vertex) {
+        return VertexAttribute.instancedNormalizedUnsignedBytes(index, BufVertex.COLOR_COMPONENTS, BufVertex.BYTES_PER_VERTEX,
+                vertex * BufVertex.BYTES_PER_VERTEX + BufVertex.POSITION_BYTES);
     }
 
     @Override
-    public void upload(BufVertex vexBuf) {
-        count = vexBuf.getCount();
-        upload(vexBuf.toVertexBuffer(), vexBuf.toColorBuffer());
+    public void upload(BufVertex vertices) {
+        count = vertices.getCount();
+        upload(vertices.toBuffer());
     }
 
     @Override
-    public void upload(DirectBufVertex vexBuf) {
-        count = vexBuf.count();
-        upload(vexBuf.vertexBuffer(), vexBuf.colorBuffer());
+    public void upload(DirectBufVertex vertices) {
+        count = vertices.count();
+        upload(vertices.buffer());
     }
 
-    private void upload(ByteBuffer vertices, ByteBuffer colors) {
+    private void upload(ByteBuffer vertices) {
         if (count == 0)
             return;
         uploadVertexBuffer(0, vertices);
-        uploadVertexBuffer(1, colors);
         if (count < 4) {
             Log.warn("GLSLLine requires at least two visible vertices padded by transparent sentinels; count=" + count + ", emitter=" + getEmitter());
             count = 0;

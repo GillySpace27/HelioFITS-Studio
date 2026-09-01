@@ -2,6 +2,7 @@ package org.helioviewer.jhv.opengl;
 
 import java.awt.image.BufferedImage;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -30,6 +31,7 @@ public final class ColoredVertexRenderingTest {
         if (args.length > 1)
             throw new IllegalArgumentException("usage: ColoredVertexRenderingTest [output.png]");
 
+        checkVertexData();
         initApplication();
         AngleRenderer renderer = AngleRenderer.pbuffer(SIZE, SIZE);
         GLSLLine line = new GLSLLine(true);
@@ -68,6 +70,28 @@ public final class ColoredVertexRenderingTest {
             renderer.destroy();
         }
         System.out.println("ColoredVertexRenderingTest passed");
+    }
+
+    private static void checkVertexData() {
+        byte[] firstColor = {1, 2, 3, 4};
+        byte[] secondColor = {5, 6, 7, 8};
+        BufVertex vertices = new BufVertex();
+        vertices.putVertex(1.25f, -2.5f, 3.75f, 1, firstColor);
+        vertices.repeatVertex(secondColor);
+
+        ByteBuffer buffer = vertices.toBuffer().duplicate().order(ByteOrder.nativeOrder());
+        check(buffer.remaining() == 2 * BufVertex.BYTES_PER_VERTEX, "Incorrect interleaved buffer size");
+        check(buffer.getFloat(0) == 1.25f && buffer.getFloat(4) == -2.5f && buffer.getFloat(8) == 3.75f && buffer.getFloat(12) == 1,
+                "Incorrect first position");
+        check(buffer.getFloat(20) == 1.25f && buffer.getFloat(24) == -2.5f && buffer.getFloat(28) == 3.75f && buffer.getFloat(32) == 1,
+                "Incorrect repeated position");
+        for (int i = 0; i < 4; i++) {
+            check(buffer.get(16 + i) == firstColor[i], "Incorrect first color");
+            check(buffer.get(36 + i) == secondColor[i], "Incorrect second color");
+        }
+
+        DirectBufVertex direct = new DirectBufVertex(vertices);
+        check(direct.count() == vertices.getCount() && direct.buffer().equals(vertices.toBuffer()), "Incorrect retained vertex buffer");
     }
 
     private static void initApplication() throws Exception {
