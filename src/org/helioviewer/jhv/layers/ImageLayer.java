@@ -271,7 +271,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
                 (float) metaViewpoint1.distance, deltaT1, cameraDiff1, sourceView1);
         shader.bindPV(wcs0.pv2, wcs1.pv2);
 
-        GLSLSolar.quad.render();
+        GLSLSolar.render();
     }
 
     @Override

@@ -76,7 +76,7 @@ public final class GLRenderer {
         GL.glClear(GL.COLOR_BUFFER_BIT | GL.DEPTH_BUFFER_BIT);
 
         try {
-            GLSLSolar.quad.init();
+            GLSLSolar.init();
             GLSLSolarShader.init();
             GLSLLineShader.init();
             GLSLMeshShader.init();
@@ -85,7 +85,7 @@ public final class GLRenderer {
             Annotations.init();
         } catch (RuntimeException | Error e) {
             Annotations.dispose();
-            GLSLSolar.quad.dispose();
+            GLSLSolar.dispose();
             disposeShaders();
             throw e;
         }
@@ -125,7 +125,7 @@ public final class GLRenderer {
         ExportMovie.dispose();
         GLText.dispose();
 
-        GLSLSolar.quad.dispose();
+        GLSLSolar.dispose();
         disposeShaders();
         GLBO.releaseUploadBuffer();
 
@@ -147,8 +147,7 @@ public final class GLRenderer {
             Transform.ortho(vp.aspect, mv.cameraWidth(vp), mv.cameraTranslationX(), mv.cameraTranslationY(), mv.viewRotation());
             GLSLSolarShader.bindScreen(mv, vp);
 
-            GLSLSolarShader.sphere.use();
-            GLSLSolar.quad.render();
+            GLSLSolar.renderSphere();
 
             Layers.render(mv, vp);
             Annotations.render(mv, vp);

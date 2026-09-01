@@ -4,25 +4,31 @@ import java.nio.FloatBuffer;
 
 import org.helioviewer.jhv.base.BufferUtils;
 
-public class GLSLSolar extends VAO {
+public final class GLSLSolar {
 
-    public static final GLSLSolar quad = new GLSLSolar();
+    private static final VAO quad = new VAO(false, VertexAttribute.floats(0, 4, 0, 0));
 
-    private static final FloatBuffer vertx = BufferUtils.newFloatBuffer(16).put(new float[]{-1, -1, 0, 1, 1, -1, 0, 1, -1, 1, 0, 1, 1, 1, 0, 1}).flip();
+    private static final FloatBuffer vertices = BufferUtils.newFloatBuffer(16).put(new float[]{-1, -1, 0, 1, 1, -1, 0, 1, -1, 1, 0, 1, 1, 1, 0, 1}).flip();
 
-    GLSLSolar() {
-        super(false, VertexAttribute.floats(0, 4, 0, 0));
+    static void init() {
+        quad.init();
+        quad.uploadVertexBuffer(vertices);
     }
 
-    public void render() {
-        bind();
+    static void dispose() {
+        quad.dispose();
+    }
+
+    public static void render() {
+        quad.bind();
         GL.glDrawArrays(GL.TRIANGLE_STRIP, 0, 4);
     }
 
-    @Override
-    public void init() {
-        super.init();
-        uploadVertexBuffer(vertx);
+    static void renderSphere() {
+        GLSLSolarShader.sphere.use();
+        render();
     }
 
+    private GLSLSolar() {
+    }
 }
