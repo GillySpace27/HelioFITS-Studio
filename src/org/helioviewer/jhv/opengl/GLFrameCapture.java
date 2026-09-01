@@ -114,37 +114,43 @@ final class GLFrameCapture {
     }
 
     void readPixels(ByteBuffer buffer) {
-        if (samples > 0) {
-            GL.glBindFramebuffer(GL.READ_FRAMEBUFFER, drawFramebuffer);
-            GL.glBindFramebuffer(GL.DRAW_FRAMEBUFFER, resolveFramebuffer);
-            GL.glBlitFramebuffer(0, 0, width, height,
-                    0, 0, width, height,
-                    GL.COLOR_BUFFER_BIT, GL.NEAREST);
-        }
+        try {
+            int outputSize = width * height * 3;
+            if (buffer.capacity() < outputSize)
+                throw new IllegalArgumentException("Buffer capacity " + buffer.capacity() + " is less than " + outputSize);
 
-        GL.glBindFramebuffer(GL.READ_FRAMEBUFFER, resolveFramebuffer);
-        GL.glPixelStorei(GL.PACK_ALIGNMENT, 1);
-        rgbaReadback.clear();
-        GL.glReadPixels(0, 0, width, height, GL.RGBA, GL.UNSIGNED_BYTE, rgbaReadback);
-        rgbaReadback.limit(width * height * 4);
-
-        buffer.clear();
-        for (int y = 0; y < height; y++) {
-            rgbaReadback.get(rgbaRow);
-
-            int src = 0;
-            int dst = 0;
-            for (int x = 0; x < width; x++) {
-                rgbRow[dst++] = rgbaRow[src++];
-                rgbRow[dst++] = rgbaRow[src++];
-                rgbRow[dst++] = rgbaRow[src++];
-                src++;
+            if (samples > 0) {
+                GL.glBindFramebuffer(GL.READ_FRAMEBUFFER, drawFramebuffer);
+                GL.glBindFramebuffer(GL.DRAW_FRAMEBUFFER, resolveFramebuffer);
+                GL.glBlitFramebuffer(0, 0, width, height,
+                        0, 0, width, height,
+                        GL.COLOR_BUFFER_BIT, GL.NEAREST);
             }
 
-            buffer.put(rgbRow);
+            GL.glBindFramebuffer(GL.READ_FRAMEBUFFER, resolveFramebuffer);
+            rgbaReadback.clear();
+            GL.glReadPixels(0, 0, width, height, GL.RGBA, GL.UNSIGNED_BYTE, rgbaReadback);
+            rgbaReadback.limit(width * height * 4);
+
+            buffer.clear();
+            for (int y = 0; y < height; y++) {
+                rgbaReadback.get(rgbaRow);
+
+                int src = 0;
+                int dst = 0;
+                for (int x = 0; x < width; x++) {
+                    rgbRow[dst++] = rgbaRow[src++];
+                    rgbRow[dst++] = rgbaRow[src++];
+                    rgbRow[dst++] = rgbaRow[src++];
+                    src++;
+                }
+
+                buffer.put(rgbRow);
+            }
+            buffer.flip();
+        } finally {
+            GL.glBindFramebuffer(GL.FRAMEBUFFER, 0);
         }
-        buffer.flip();
-        GL.glBindFramebuffer(GL.FRAMEBUFFER, 0);
     }
 
     void dispose() {
