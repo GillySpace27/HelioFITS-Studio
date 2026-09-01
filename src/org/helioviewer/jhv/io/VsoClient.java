@@ -8,6 +8,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -74,10 +78,57 @@ public final class VsoClient {
     private record Resolve(FitsRequest request) implements Callable<List<URI>> {
         @Override
         public List<URI> call() throws Exception {
-            List<Record> records = filterRecords(query(request), request.version());
+            List<Record> records = filterRecords(queryChunked(request), request.version());
             if (records.isEmpty())
                 return List.of();
             return getData(records, request.cadence());
+        }
+    }
+
+    private static final int QUERY_THREADS = 4;
+
+    /**
+     * One query per day, run a few at a time, thinned as each lands.
+     *
+     * <p>The VSO answers a whole span in one response and takes about as long as that span is
+     * wide: even narrowed to a single SUVI channel a day costs 8 s, so a fortnight in one request
+     * is two minutes of apparent hang. Days are independent questions, so they overlap.
+     *
+     * <p>Each day's records come back whole rather than thinned to cadence, which is tempting and
+     * wrong: the satellite choice in {@link #filterRecords} is a decision about the whole range and
+     * runs afterwards, so thinning first hands it an already-sparse list and it halves that again.
+     * Thinning per day cost a third of the frames before cadence was ever applied.
+     *
+     * <p>A day that fails is a gap rather than a failed load: the rest of the range is still worth
+     * showing, and the log says which day was lost.
+     */
+    private static List<Record> queryChunked(FitsRequest request) throws Exception {
+        long start = request.startTime();
+        long end = request.endTime();
+        if (end - start <= TimeUtils.DAY_IN_MILLIS)
+            return query(request);
+
+        List<FitsRequest> days = new ArrayList<>();
+        for (long day = start; day < end; day += TimeUtils.DAY_IN_MILLIS)
+            days.add(request.withSpan(day, Math.min(end, day + TimeUtils.DAY_IN_MILLIS)));
+
+        ExecutorService pool = Executors.newFixedThreadPool(QUERY_THREADS);
+        try {
+            List<Future<List<Record>>> futures = new ArrayList<>(days.size());
+            for (FitsRequest day : days)
+                futures.add(pool.submit(() -> query(day)));
+            List<Record> all = new ArrayList<>();
+            for (int i = 0; i < futures.size(); i++) {
+                try {
+                    all.addAll(futures.get(i).get());
+                } catch (ExecutionException e) {
+                    Log.warn("VSO query failed for " + TimeUtils.format(days.get(i).startTime()), e.getCause());
+                }
+            }
+            all.sort(java.util.Comparator.comparingLong(Record::milli));
+            return all;
+        } finally {
+            pool.shutdown();
         }
     }
 
@@ -101,6 +152,13 @@ public final class VsoClient {
         for (Record r : records)
             if (r.fileid().toLowerCase(java.util.Locale.US).contains(needle))
                 kept.add(r);
+        // The token also narrows the query by wavelength at the server, so an archive that names
+        // its files some other way has already been filtered and matching none of them here means
+        // the token was never about the fileid. Emptying the layer would be the wrong conclusion.
+        if (kept.isEmpty() && !records.isEmpty()) {
+            Log.info("VSO token " + token + " matched no fileid; keeping the " + records.size() + " records as queried");
+            return records;
+        }
 
         java.util.Map<String, Integer> perSatellite = new java.util.HashMap<>();
         for (Record r : kept) {
@@ -129,9 +187,33 @@ public final class VsoClient {
         block.append("<instrument>").append(xml(request.product())).append("</instrument>");
         if (!request.level().isBlank())
             block.append("<detector>").append(xml(request.level())).append("</detector>");
+        // Narrow at the server when the channel is known. SUVI answers about 17000 records a day
+        // across six channels and two spacecraft, and asking for all of them to keep one twelfth
+        // took 23 s for a single day and scaled linearly: a week-long range simply looked hung.
+        int wave = waveFromToken(request.version());
+        if (wave > 0)
+            block.append("<wave><wavemin>").append(wave - WAVE_SLOP).append("</wavemin><wavemax>")
+                    .append(wave + WAVE_SLOP).append("</wavemax><waveunit>Angstrom</waveunit></wave>");
 
         String body = envelope("Query", "<body><block>" + block + "</block></body>");
         return parseRecords(post(body));
+    }
+
+    // Wide enough to cover a channel named for its line and catalogued at its rounded wavelength:
+    // the 9.4 nm channel is "Fe093" in the filename and 94 in the catalog, 30.4 is "He303" and 304.
+    private static final int WAVE_SLOP = 6;
+    private static final Pattern TOKEN_DIGITS = Pattern.compile("(\\d{2,4})$");
+
+    /** Angstroms from a channel token like "Fe195", or 0 when the token names no channel. */
+    static int waveFromToken(String token) {
+        Matcher m = TOKEN_DIGITS.matcher(token.trim());
+        if (!m.find())
+            return 0;
+        try {
+            return Integer.parseInt(m.group(1));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     /** Split out from the network call so extra/test can exercise it against a canned response. */

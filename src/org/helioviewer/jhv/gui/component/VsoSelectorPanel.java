@@ -78,8 +78,19 @@ public final class VsoSelectorPanel extends JPanel {
                 new Source("LASCO C2", "lasco", "C2"),
                 new Source("LASCO C3", "lasco", "C3"),
                 new Source("EIT", "eit", "")));
+        // AIA per channel, because "aia" unqualified answers about 2400 records an hour across all
+        // of them and the query time follows the record count: a multi-day range of every channel
+        // is a minutes-long wait for data that is then thrown away. The token narrows the query at
+        // the server; see VsoClient.waveFromToken.
         root.add(observatory("SDO",
-                new Source("AIA", "aia", ""),
+                new Source("AIA 94", "aia", "", "94"),
+                new Source("AIA 131", "aia", "", "131"),
+                new Source("AIA 171", "aia", "", "171"),
+                new Source("AIA 193", "aia", "", "193"),
+                new Source("AIA 211", "aia", "", "211"),
+                new Source("AIA 304", "aia", "", "304"),
+                new Source("AIA 335", "aia", "", "335"),
+                new Source("AIA 1600", "aia", "", "1600"),
                 new Source("HMI", "hmi", "")));
         root.add(observatory("STEREO",
                 new Source("SECCHI COR1", "secchi", "COR1"),
