@@ -25,8 +25,8 @@ glTF is a general 3D asset standard for products that need triangle surfaces, te
 hierarchy, or a combination of surfaces, lines, and points. Its Cartesian geometry can be displayed in general glTF
 viewers, while solar metadata added to the asset tells JHV how to place it.
 
-To show how the interfaces can be used in practice, the document includes a practical example based on COCONUT
-output. The same interfaces are intended for suitable products from other models.
+A COCONUT example later in the document demonstrates one way to create compatible products. The formats are also
+intended for heliocentric products derived from other model outputs.
 
 For products made only from points, lines, and ellipses, SunJSON is usually the more direct route. For meshed surfaces
 or products intended to remain portable outside JHV, use glTF.
@@ -147,8 +147,8 @@ The local Cartesian axes follow the heliocentric convention described by Thompso
 - `SOLY` points toward solar north in the observer's image plane;
 - `SOLZ` points from Sun center toward the observer.
 
-The coordinate origin is the center of the Sun. `CRLN_OBS` and `CRLT_OBS`, described below, give the Carrington
-direction that defines the local axes. For a physical observation this is the direction of the observer, while a
+The coordinate origin is the center of the Sun. `CRLN_OBS` and `CRLT_OBS` give the Carrington direction of the
+`SOLZ` axis, as specified in Scene metadata. For a physical observation this is the direction of the observer, while a
 model product that is not tied to a viewpoint may use a reference direction matching its native axes. At
 `CRLN_OBS = 0` and `CRLT_OBS = 0`, `SOLZ` points toward Carrington longitude zero in the solar equatorial plane,
 `SOLX` points toward Carrington longitude 90 degrees, and `SOLY` points north. Other products may declare a non-zero
@@ -263,8 +263,8 @@ including the quantity, units, value range, and color map.
 
 When accuracy allows, dense lines should be simplified and dense triangle meshes decimated before export, using a
 recorded geometric or data-aware error criterion that preserves important boundaries and attributes. Comparing the
-reduced product with the full result then confirms that the reduction is acceptable, while careful reduction can
-substantially reduce file size, transfer time, and rendering cost.
+reduced product with the full result helps determine whether it preserves the necessary geometry and attributes.
+Careful geometry reduction can substantially decrease file size, transfer time, and rendering cost.
 
 Before distributing a product, inspect it from several viewpoints in JHV, including its interaction with the solar
 sphere and other layers, and open the same asset in an independent glTF viewer. These checks can reveal placement,
@@ -298,8 +298,6 @@ remain lit so that their round cross-section and three-dimensional shape are vis
 
 Qorona can export field lines directly as SunJSON, whereas this example uses glTF to combine lines, surfaces, and
 points in one asset that general glTF viewers can also display.
-
-\newpage
 
 Run the converter from the repository root in an environment containing Qorona 0.4.0, PyVista/VTK, Matplotlib, and
 pygltflib:
@@ -338,9 +336,10 @@ following assumptions and settings:
   this step; and
 - radial velocity is mapped through the `turbo` color map over -30 to 300 km/s, with a common surface alpha of 0.35.
 
-The default scene's `extras` records the source name and SHA-256 digest, Qorona version, processing parameters,
-surface definition, velocity mapping, and geometry counts before and after display-geometry post-processing. These
-steps reduce the product size without lowering the reconstruction grid or changing the field-line tracing tolerances.
+The default scene's `extras` object records the source name and SHA-256 digest, Qorona version, processing parameters,
+surface definition, velocity mapping, and geometry counts before and after display-geometry post-processing. Polyline
+simplification and current-sheet decimation reduce file size without reducing the reconstruction-grid resolution or
+changing the field-line tracing tolerances.
 
 \newpage
 
@@ -371,3 +370,222 @@ model limits in both polarity colors.
 - [Open Asset Import Library (Assimp)](https://www.assimp.org/)
 - [VTK `vtkGLTFExporter`](https://vtk.org/doc/nightly/html/classvtkGLTFExporter.html)
 - [pygltflib](https://github.com/avaturn/pygltflib)
+
+# Changelog
+
+The edition shared on 19 August 2026 covered SunJSON, an initial glTF profile, and an experimental FITS volume
+proposal. This revision retains the two geometry interfaces, defines them more precisely, and withdraws the volume
+proposal because it did not yet specify an unambiguous scientific visualization. The table records every change that
+affects a producer or receiver, followed by changes to the COCONUT demonstration used to exercise the interface.
+
++-----------------------------+------------------------------------------------------------------------------------------+
+| Area                        | What changed and why                                                                     |
++=============================+==========================================================================================+
+| Document status             | The working note has become a versioned interface document, separating supported         |
+|                             | interchange behavior from the experimental implementation work that led to it.           |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Scope                       | The experimental FITS scalar-volume profile has been removed. Its appearance depended on |
+|                             | unresolved choices about scaling, clipping, opacity, and rendering, so a producer could  |
+|                             | not determine unambiguously what JHV would display. Volume support is set aside until a  |
+|                             | scientifically meaningful visualization contract can be defined.                         |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Qorona context              | The detailed account of Qorona's existing 2D FITS products has been removed with the     |
+|                             | volume proposal. Those products remain valid, but this document is limited to            |
+|                             | heliocentric 3D geometry and shows how Qorona's field-line output can use the interface. |
++-----------------------------+------------------------------------------------------------------------------------------+
+| SunJSON specification       | SunJSON is fully specified instead of being mentioned only as an existing Qorona export. |
+|                             | Because JHV already supports it, including the format here gives producers one document  |
+|                             | for both supported heliocentric geometry interfaces.                                     |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Choice of format            | The roles of SunJSON and glTF are stated directly. SunJSON suits JHV-oriented points,    |
+|                             | lines, and ellipses whose display size matters. glTF suits triangle surfaces, materials, |
+|                             | textures, mixed geometry, and assets intended for other 3D viewers.                      |
++-----------------------------+------------------------------------------------------------------------------------------+
+| SunJSON timestamp           | The required `time` field allows optional fractional seconds. JHV assumes UTC and does   |
+|                             | not accept timezone designators or numeric offsets. This gives each file an unambiguous  |
+|                             | position in a model time sequence.                                                       |
++-----------------------------+------------------------------------------------------------------------------------------+
+| SunJSON geometry            | The document specifies coordinate order and units, minimum coordinate counts,            |
+|                             | connected-line construction, and the three-point definition of an ellipse. Coordinates   |
+|                             | below one solar radius are accepted with a warning, so producers can predict how JHV     |
+|                             | treats them.                                                                             |
++-----------------------------+------------------------------------------------------------------------------------------+
+| SunJSON colors              | Straight integer RGBA input, clamping, reuse of the last color, ignored surplus colors,  |
+|                             | the first-color rule for ellipses, and the JHV green default for an empty array are all  |
+|                             | defined. The result is unambiguous even when the color and coordinate counts differ.     |
++-----------------------------+------------------------------------------------------------------------------------------+
+| SunJSON display size        | The permitted thickness range and its use as point size are specified. Thickness is a    |
+|                             | renderer-specific display value, not a physical width, and should be chosen by checking  |
+|                             | whether the resulting rendering is suitable in JHV.                                      |
++-----------------------------+------------------------------------------------------------------------------------------+
+| SunJSON loading             | Local file, HTTP, and SAMP loading are documented. SunJSON is held by the Connection     |
+|                             | layer and is drawn only while that layer is enabled.                                     |
++-----------------------------+------------------------------------------------------------------------------------------+
+| SunJSON time sequence       | When several SunJSON files are loaded, JHV treats them as a sequence and displays the    |
+|                             | file whose timestamp is nearest to the current JHV time.                                 |
++-----------------------------+------------------------------------------------------------------------------------------+
+| glTF and GLB                | The document introduces `.gltf` and `.glb` as two forms of the same standard. GLB keeps  |
+|                             | JSON and binary resources in one file and avoids Base64 expansion, while glTF may keep   |
+|                             | binary resources external. Producers can therefore choose packaging without treating the |
+|                             | forms as different scene formats.                                                        |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Compressed glTF             | JHV accepts `.gltf.gz`, `.glb.gz`, and HTTP `Content-Encoding: gzip`. Compression        |
+|                             | reduces storage and transfer size, but not decoded memory use or rendering work, so      |
+|                             | careful geometry reduction remains useful.                                               |
++-----------------------------+------------------------------------------------------------------------------------------+
+| glTF coordinates            | The profile requires Cartesian `POSITION` values. Spherical `[radius, longitude,         |
+|                             | latitude]` tuples must be converted before export because standard glTF viewers          |
+|                             | interpret positions as Cartesian coordinates.                                            |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Axes and scale              | The profile fixes the axes as `SOLX`, `SOLY`, and `SOLZ`, the unit as solar radii,       |
+|                             | `RSUN_REF` as `695700000.0`, and `WCSNAME` as `Heliocentric-cartesian`. Removing the     |
+|                             | former choice of units makes scenes easier to validate and combine.                      |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Reference direction         | `CRLN_OBS` and `CRLT_OBS` give the Carrington longitude and latitude of local `SOLZ`.    |
+|                             | They may describe a physical observer or simply the reference direction that aligns the  |
+|                             | asset's local axes with the model, without imposing an observer interpretation on        |
+|                             | viewpoint-independent output.                                                            |
++-----------------------------+------------------------------------------------------------------------------------------+
+| glTF timestamp              | Every conforming heliocentric glTF product requires `DATE-OBS` with the same syntax as   |
+|                             | SunJSON. JHV assumes UTC and does not accept timezone designators or numeric offsets.    |
+|                             | `DATE-AVG`, underscore aliases, and precedence rules are not part of this new-product    |
+|                             | interface.                                                                               |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Solar metadata              | The heliocentric declaration has one Carrington form based on `DATE-OBS`, `CRLN_OBS`,    |
+|                             | `CRLT_OBS`, `CTYPE1..3`, `CUNIT1..3`, `RSUN_REF`, and `WCSNAME`. Stonyhurst alternatives |
+|                             | and legacy FITS spelling variants are unnecessary because producers can emit this form   |
+|                             | directly.                                                                                |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Reference distance          | `DSUN_OBS` is optional. It may describe a physical observer or conventional reference    |
+|                             | point, but JHV needs only the reference direction to place Sun-centered geometry, so it  |
+|                             | validates the distance without using it.                                                 |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Complete metadata           | An asset supplies either the complete JHV heliocentric declaration or none of it.        |
+|                             | Partial metadata is rejected rather than allowing an apparently meaningful but ambiguous |
+|                             | time, scale, or orientation.                                                             |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Ordinary glTF fallback      | A glTF asset without `WCSNAME` still opens with default world placement and the          |
+|                             | application-start time. This convenience behavior is distinct from the heliocentric      |
+|                             | interface, whose complete declaration is mandatory.                                      |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Scene geometry              | JHV supports static triangle surfaces, connected lines and polylines, and point sets. It |
+|                             | applies node translations, rotations, scales, and repeated mesh references before        |
+|                             | placing the scene in the solar coordinate system.                                        |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Line and point sizes        | glTF provides no portable line width or point size, so JHV assigns fixed values. SunJSON |
+|                             | remains preferable when JHV-specific display size is part of the product.                |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Colors and textures         | All primitive types may combine a material base color with straight RGBA vertex colors.  |
+|                             | Triangle materials may additionally use one base-color texture. Textures on lines and    |
+|                             | points are not supported.                                                                |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Alpha modes                 | Support for `OPAQUE`, `MASK`, and `BLEND` is defined more precisely. `MASK` is evaluated |
+|                             | per fragment on triangles, but for lines and points it is applied to vertex colors       |
+|                             | before interpolation, making transitions along a line approximate.                       |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Lighting                    | `KHR_materials_unlit` selects unlit triangle materials. Other triangle materials receive |
+|                             | JHV's simple viewer-facing lighting with 30 percent ambient brightness, which reveals    |
+|                             | solid form while allowing producers to keep scientific colors independent of orientation |
+|                             | by choosing unlit materials.                                                             |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Normals                     | Lit triangle meshes must provide normals that preserve their intended smooth and sharp   |
+|                             | regions. JHV does not generate them because doing so could alter the intended surface.   |
+|                             | Normals are unnecessary and discarded for unlit meshes, saving file and memory space.    |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Unsupported glTF            | The documented limits now cover animation, skins, morph targets, physically based        |
+|                             | material properties beyond base color, normal maps, emissive materials, asset cameras    |
+|                             | and lights, additive blending, separate opacity textures, and transformed texture        |
+|                             | coordinates. Producers can therefore see the supported subset in one place.              |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Sidedness and depth         | Single- and double-sided surfaces and normal depth-buffer behavior are explained so      |
+|                             | producers can choose whether a surface remains visible from the back and understand how  |
+|                             | it interacts with the solar sphere and other JHV layers.                                 |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Transparency                | JHV sorts translucent mesh primitives by their centers rather than sorting individual    |
+|                             | triangles. Spatially separate translucent components should therefore be exported as     |
+|                             | separate mesh primitives when practical. Intersecting or self-overlapping translucent    |
+|                             | surfaces can still depend on draw order.                                                 |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Scientific colors           | The producer selects the quantity to display, maps it to vertex colors or a base-color   |
+|                             | texture, and records the quantity, units, range, and color map in scene extras. JHV does |
+|                             | not turn arbitrary glTF vertex attributes into selectable scientific channels.           |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Product inspection          | The document recommends viewing a product from several directions in JHV, including its  |
+|                             | interaction with the solar sphere and other layers, and opening it in an independent     |
+|                             | glTF viewer. These checks can reveal placement, orientation, transparency, and           |
+|                             | portability problems that structural validation misses.                                  |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Future extensions           | The former list of speculative features has been removed. When real products need        |
+|                             | capabilities beyond this profile, JHV's glTF support may be extended where doing so is   |
+|                             | feasible.                                                                                |
++-----------------------------+------------------------------------------------------------------------------------------+
+| COCONUT tool                | The scene-only `create_coconut_scene.py` replaces `create_coconut_samples.py`, which     |
+|                             | also produced a FITS volume. The script is a capability demonstration and a starting     |
+|                             | point for using Qorona, PyVista/VTK, Matplotlib, and pygltflib, not a general COCONUT    |
+|                             | exporter.                                                                                |
++-----------------------------+------------------------------------------------------------------------------------------+
+| COCONUT output              | The demonstration produces one scene containing polarity-colored field lines, a          |
+|                             | velocity-colored current sheet, open-field boundary points, and lit yellow tubes. It     |
+|                             | replaces the earlier combination of a scene and an experimental FITS volume.             |
++-----------------------------+------------------------------------------------------------------------------------------+
+| COCONUT orientation         | The demonstration uses `CRLN_OBS = 0` and `CRLT_OBS = 0`, with `(SOLX, SOLY, SOLZ) = (y, |
+|                             | z, x)`, because the supplied COCONUT coordinates are treated as Carrington-aligned. The  |
+|                             | previous Earth-based rotation was unnecessary. Other products may declare a non-zero     |
+|                             | reference direction when required by their native axes.                                  |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Reconstruction and tracing  | The recorded quality settings include a `192 x 180 x 360` logarithmic spherical          |
+|                             | reconstruction grid from 1 to 6 solar radii, degree-1 moving-least-squares               |
+|                             | reconstruction, an `18 x 36` seed grid, and float64 DOPRI5 tracing tolerances. Recording |
+|                             | them makes the demonstration reproducible.                                               |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Line reduction              | Traced paths and tube centerlines are simplified afterward with a Ramer-Douglas-Peucker  |
+|                             | tolerance of `10^-5` solar radii. This bounds the introduced geometric deviation without |
+|                             | changing the field-line tracing calculation.                                             |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Boundary points             | The demonstration and its validation retain both boundary endpoints of every complete    |
+|                             | open field line, using the corresponding polarity color. The point primitive therefore   |
+|                             | represents extracted model geometry rather than an arbitrary marker test.                |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Current sheet               | The `B_r = 0` current-sheet surface is described more precisely, including closure of    |
+|                             | the periodic longitude seam and its relation to the geometric definition used by Guo et  |
+|                             | al. This identifies what the surface represents instead of presenting it merely as a     |
+|                             | sample mesh.                                                                             |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Velocity colors             | For each current-sheet vertex, the script interpolates model velocity, applies the       |
+|                             | COOLFluiD `corona` normalization, projects the result radially, and maps -30 to 300 km/s |
+|                             | through `turbo` with alpha 0.35. The displayed quantity and mapping are therefore        |
+|                             | reproducible.                                                                            |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Illustrative tubes          | Eleven selected closed field lines become 4 Mm-radius, 16-sided tubes with smooth        |
+|                             | normals. Their selection and solid representation are explicitly artificial. They        |
+|                             | demonstrate lighting and show how traced paths can be turned into tubes for possible     |
+|                             | model-derived flux-rope visualizations.                                                  |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Material choices            | Field lines, points, and the current sheet are unlit because their colors encode         |
+|                             | polarity or velocity. The constant-color tubes are lit to reveal their round shape. This |
+|                             | mixed treatment preserves quantitative colors while making the tube geometry easier to   |
+|                             | see.                                                                                     |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Surface decimation          | Before colors are generated, the current sheet receives a target reduction of 50 percent |
+|                             | using scalar-aware quadric decimation. Treating this as a separate post-processing step  |
+|                             | demonstrates geometry reduction that includes radial velocity in its error criterion.    |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Scene provenance            | Scene extras record the source name and digest, Qorona version, processing parameters,   |
+|                             | surface definition, velocity mapping, and geometry counts before and after reduction. A  |
+|                             | receiver can use this information to identify and reproduce the conversion.              |
++-----------------------------+------------------------------------------------------------------------------------------+
+| GLB construction            | PyVista and VTK first build an in-memory glTF document. The script then adds solar       |
+|                             | metadata and uses pygltflib to package it directly as GLB. It also supplies normalized   |
+|                             | unsigned-byte straight RGBA colors, a double-sided blended current sheet, and the        |
+|                             | intended lit and unlit materials.                                                        |
++-----------------------------+------------------------------------------------------------------------------------------+
+| Validation                  | The script validates its input arrays, then reopens the completed GLB and checks its     |
+|                             | metadata, embedded buffer, primitive modes, accessor and index counts, positions, line   |
+|                             | segments, RGBA values, lighting modes, tube normals, current-sheet appearance, and       |
+|                             | boundary points. Validation therefore covers the delivered asset as well as the exporter |
+|                             | inputs.                                                                                  |
++-----------------------------+------------------------------------------------------------------------------------------+
+| References                  | References associated only with the FITS volume proposal have been removed. The          |
+|                             | remaining sources cover heliocentric coordinates, Qorona field lines and SunJSON, glTF,  |
+|                             | Assimp, VTK, pygltflib, and the COCONUT current-sheet and flux-rope context.             |
++-----------------------------+------------------------------------------------------------------------------------------+
