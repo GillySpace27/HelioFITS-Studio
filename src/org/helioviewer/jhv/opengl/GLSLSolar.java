@@ -22,7 +22,7 @@ public class GLSLSolar extends VAO {
     @Override
     public void init() {
         super.init();
-        vertexBuffer(0).setBufferData(4 * 16, vertx);
+        uploadVertexBuffer(0, vertx);
     }
 
 }

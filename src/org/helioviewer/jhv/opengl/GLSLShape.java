@@ -28,8 +28,8 @@ public class GLSLShape extends VAO implements GLSLVertexReceiver {
     private void upload(ByteBuffer vertices, ByteBuffer colors) {
         if (count == 0)
             return;
-        vertexBuffer(0).setBufferData(vertices.remaining(), vertices);
-        vertexBuffer(1).setBufferData(colors.remaining(), colors);
+        uploadVertexBuffer(0, vertices);
+        uploadVertexBuffer(1, colors);
     }
 
     public void renderPoints(double factor) {

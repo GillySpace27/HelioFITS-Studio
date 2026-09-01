@@ -34,9 +34,20 @@ class GLBO {
         GL.glBindBuffer(target, bufferID);
     }
 
-    void setBufferData(int capacity, Buffer buffer) {
+    void setBufferData(Buffer buffer) {
+        int size = switch (buffer) {
+            case ByteBuffer byteBuffer -> byteBuffer.remaining();
+            case FloatBuffer floatBuffer -> Math.multiplyExact(floatBuffer.remaining(), Float.BYTES);
+            case IntBuffer intBuffer -> Math.multiplyExact(intBuffer.remaining(), Integer.BYTES);
+            case ShortBuffer shortBuffer -> Math.multiplyExact(shortBuffer.remaining(), Short.BYTES);
+            default -> throw new IllegalArgumentException("Unsupported buffer type: " + buffer.getClass().getName());
+        };
+        setBufferData(size, buffer);
+    }
+
+    void setBufferData(int size, Buffer buffer) {
         GL.glBindBuffer(target, bufferID);
-        GL.glBufferData(target, capacity, usage); // orphan, https://www.khronos.org/opengl/wiki/Buffer_Object_Streaming#Buffer_re-specification
+        GL.glBufferData(target, size, usage); // orphan, https://www.khronos.org/opengl/wiki/Buffer_Object_Streaming#Buffer_re-specification
         switch (buffer) {
             case ByteBuffer byteBuffer -> GL.glBufferSubData(target, 0, BufferUtils.directByteBuffer(byteBuffer));
             case FloatBuffer floatBuffer -> GL.glBufferSubData(target, 0, BufferUtils.directFloatBuffer(floatBuffer));
@@ -46,12 +57,12 @@ class GLBO {
         }
     }
 
-    void setBufferDataIfChanged(int capacity, FloatBuffer buffer) {
+    void setBufferDataIfChanged(int size, FloatBuffer buffer) {
         int count = buffer.remaining();
         if (lastFloatData != null && lastFloatData.length == count && floatDataMatches(buffer, count))
             return;
 
-        setBufferData(capacity, buffer);
+        setBufferData(size, buffer);
 
         if (lastFloatData == null || lastFloatData.length != count)
             lastFloatData = new float[count];

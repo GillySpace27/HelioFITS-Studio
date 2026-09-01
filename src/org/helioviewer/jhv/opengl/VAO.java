@@ -1,5 +1,7 @@
 package org.helioviewer.jhv.opengl;
 
+import java.nio.Buffer;
+
 class VAO {
 
     private final VertexAttribute[][] attributesByBuffer;
@@ -45,8 +47,8 @@ class VAO {
         }
     }
 
-    protected GLBO vertexBuffer(int index) {
-        return vertexBuffers[index];
+    protected void uploadVertexBuffer(int bufferIndex, Buffer buffer) {
+        vertexBuffers[bufferIndex].setBufferData(buffer);
     }
 
     protected void bind() {

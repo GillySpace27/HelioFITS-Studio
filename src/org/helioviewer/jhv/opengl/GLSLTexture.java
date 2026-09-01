@@ -1,7 +1,5 @@
 package org.helioviewer.jhv.opengl;
 
-import java.nio.Buffer;
-
 public class GLSLTexture extends VAO {
 
     private static final int POSITION_COMPONENTS = 4;
@@ -22,8 +20,7 @@ public class GLSLTexture extends VAO {
         if (count == 0)
             return;
 
-        Buffer buffer = buf.toBuffer();
-        vertexBuffer(0).setBufferData(4 * buffer.capacity(), buffer);
+        uploadVertexBuffer(0, buf.toBuffer());
         buf.clear();
     }
 
