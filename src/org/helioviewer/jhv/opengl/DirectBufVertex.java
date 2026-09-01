@@ -16,8 +16,7 @@ public final class DirectBufVertex {
 
     private static ByteBuffer copy(ByteBuffer buffer) {
         ByteBuffer ret = BufferUtils.newByteBuffer(buffer.remaining());
-        ret.put(buffer.duplicate());
-        return ret.flip();
+        return BufferUtils.putRemaining(ret, buffer).flip();
     }
 
     ByteBuffer buffer() {

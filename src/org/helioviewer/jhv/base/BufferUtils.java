@@ -24,13 +24,36 @@ public class BufferUtils {
         return newByteBuffer(4 * len).asFloatBuffer();
     }
 
+    public static ByteBuffer putRemaining(ByteBuffer destination, ByteBuffer source) {
+        int position = destination.position();
+        return destination.put(position, source, source.position(), source.remaining())
+                .position(position + source.remaining());
+    }
+
+    public static ShortBuffer putRemaining(ShortBuffer destination, ShortBuffer source) {
+        int position = destination.position();
+        return destination.put(position, source, source.position(), source.remaining())
+                .position(position + source.remaining());
+    }
+
+    public static IntBuffer putRemaining(IntBuffer destination, IntBuffer source) {
+        int position = destination.position();
+        return destination.put(position, source, source.position(), source.remaining())
+                .position(position + source.remaining());
+    }
+
+    public static FloatBuffer putRemaining(FloatBuffer destination, FloatBuffer source) {
+        int position = destination.position();
+        return destination.put(position, source, source.position(), source.remaining())
+                .position(position + source.remaining());
+    }
+
     public static ByteBuffer directByteBuffer(ByteBuffer buffer) {
         if (buffer.isDirect())
             return buffer;
 
         ByteBuffer copy = newByteBuffer(buffer.remaining());
-        copy.put(buffer.duplicate());
-        return copy.flip();
+        return putRemaining(copy, buffer).flip();
     }
 
     public static ShortBuffer directShortBuffer(ShortBuffer buffer) {
@@ -38,8 +61,7 @@ public class BufferUtils {
             return buffer;
 
         ShortBuffer copy = newShortBuffer(buffer.remaining());
-        copy.put(buffer.duplicate());
-        return copy.flip();
+        return putRemaining(copy, buffer).flip();
     }
 
     public static IntBuffer directIntBuffer(IntBuffer buffer) {
@@ -47,8 +69,7 @@ public class BufferUtils {
             return buffer;
 
         IntBuffer copy = newIntBuffer(buffer.remaining());
-        copy.put(buffer.duplicate());
-        return copy.flip();
+        return putRemaining(copy, buffer).flip();
     }
 
     public static FloatBuffer directFloatBuffer(FloatBuffer buffer) {
@@ -56,8 +77,7 @@ public class BufferUtils {
             return buffer;
 
         FloatBuffer copy = newFloatBuffer(buffer.remaining());
-        copy.put(buffer.duplicate());
-        return copy.flip();
+        return putRemaining(copy, buffer).flip();
     }
 
 }

@@ -35,9 +35,7 @@ final class GLUniformBuffer {
     }
 
     FloatBuffer begin(FloatBuffer source) {
-        int count = source.remaining();
-        values.clear().put(0, source, source.position(), count);
-        return values.position(count);
+        return BufferUtils.putRemaining(values.clear(), source);
     }
 
     void upload() {

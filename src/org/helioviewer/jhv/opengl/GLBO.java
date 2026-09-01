@@ -78,8 +78,7 @@ class GLBO {
         int size = buffer.remaining();
         if (uploadBuffer == null || uploadBuffer.capacity() < size)
             uploadBuffer = BufferUtils.newByteBuffer(size);
-        uploadBuffer.clear().put(buffer.duplicate()).flip();
-        return uploadBuffer;
+        return BufferUtils.putRemaining(uploadBuffer.clear(), buffer).flip();
     }
 
     static void releaseUploadBuffer() {
@@ -95,12 +94,13 @@ class GLBO {
 
         if (lastFloatData == null || lastFloatData.length != count)
             lastFloatData = new float[count];
-        buffer.get(0, lastFloatData);
+        buffer.get(buffer.position(), lastFloatData);
     }
 
     private boolean floatDataMatches(FloatBuffer buffer, int count) {
+        int position = buffer.position();
         for (int i = 0; i < count; i++) {
-            if (Float.floatToRawIntBits(lastFloatData[i]) != Float.floatToRawIntBits(buffer.get(i)))
+            if (Float.floatToRawIntBits(lastFloatData[i]) != Float.floatToRawIntBits(buffer.get(position + i)))
                 return false;
         }
         return true;
