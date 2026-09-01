@@ -111,7 +111,7 @@ class RadioJ2KData implements View.DataHandler {
 
     private static BufferedImage createIndexedImage(ByteBuffer byteBuffer, int width, int height, IndexColorModel colorModel) {
         byte[] pixels = new byte[byteBuffer.remaining()];
-        byteBuffer.slice().get(pixels);
+        byteBuffer.get(byteBuffer.position(), pixels);
 
         BufferedImage sample = new BufferedImage(1, 1, BufferedImage.TYPE_BYTE_INDEXED, colorModel);
         SampleModel sampleModel = sample.getSampleModel().createCompatibleSampleModel(width, height);
