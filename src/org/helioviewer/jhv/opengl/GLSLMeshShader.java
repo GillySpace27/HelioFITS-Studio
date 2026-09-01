@@ -2,43 +2,44 @@ package org.helioviewer.jhv.opengl;
 
 import java.nio.FloatBuffer;
 
-import org.helioviewer.jhv.base.BufferUtils;
-
 final class GLSLMeshShader extends GLSLShader {
 
     static final GLSLMeshShader mesh = new GLSLMeshShader();
 
     private static final int FRAME_FLOATS = 20;
-    private static final int FRAME_SIZE = FRAME_FLOATS * Float.BYTES;
-    private static final FloatBuffer frameBuf = BufferUtils.newFloatBuffer(FRAME_FLOATS);
-
-    private static GLBO frameBO;
+    private static final GLUniformBuffer frameBuffer = new GLUniformBuffer(FRAME_FLOATS, UBO.MESH_FRAME, GL.STREAM_DRAW);
 
     private GLSLMeshShader() {
         super("/glsl/mesh.vert", "/glsl/mesh.frag");
     }
 
     static void init() {
-        frameBO = new GLBO(GL.UNIFORM_BUFFER, GL.STREAM_DRAW);
-        mesh._init(false);
+        frameBuffer.init();
+        try {
+            mesh._init(false);
+        } catch (RuntimeException | Error e) {
+            frameBuffer.dispose();
+            throw e;
+        }
     }
 
     static void dispose() {
         mesh._dispose();
-        frameBO.delete();
+        frameBuffer.dispose();
     }
 
     @Override
     protected void initUniforms(int id) {
-        setupUBO(id, "FrameBlock", frameBO.getID(), UBO.MESH_FRAME);
+        frameBuffer.bindBlock(id, "FrameBlock");
         setupUBO(id, "MaterialBlock", 0, UBO.MESH_MATERIAL);
         setTextureUnit(id, "baseColorTexture", GLTexture.Unit.THREE);
     }
 
     static void bindFrame(FloatBuffer worldToClip, float lightX, float lightY, float lightZ) {
-        frameBuf.clear().put(worldToClip.duplicate());
-        frameBuf.put(lightX).put(lightY).put(lightZ).put(0).flip();
-        frameBO.setBufferDataIfChanged(FRAME_SIZE, frameBuf);
+        FloatBuffer values = frameBuffer.begin();
+        values.put(worldToClip.duplicate());
+        values.put(lightX).put(lightY).put(lightZ).put(0);
+        frameBuffer.uploadIfChanged();
     }
 
     static void bindMaterial(int bufferID) {
