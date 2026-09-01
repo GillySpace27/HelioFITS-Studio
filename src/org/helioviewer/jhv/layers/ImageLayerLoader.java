@@ -1,6 +1,7 @@
 package org.helioviewer.jhv.layers;
 
 import java.net.SocketTimeoutException;
+import java.awt.EventQueue;
 import java.net.URI;
 import java.util.List;
 import java.util.Objects;
@@ -70,9 +71,27 @@ final class ImageLayerLoader {
         cancelLoad();
         onFailedUris.accept(List.of()); // clear any stale failures from a previous load
         int gen = ++loadGeneration;
-        loadFuture = Task.submit(uriList.toString(), () -> loadUri(uriList),
+        loadFuture = Task.submit(uriList.toString(),
+                () -> loadUri(uriList, view -> EventQueue.invokeLater(() -> onPreview(view, gen))),
                 result -> onSuccess(result, gen),
                 (logContext, t) -> onFailure(t, gen));
+    }
+
+    /**
+     * Put the first frame on screen while the rest are still arriving.
+     *
+     * <p>Deliberately not the status text: the load is still running and still counting frames.
+     * The preview is a view of its own rather than a frame borrowed from the movie being built,
+     * because installing a view abolishes the one it replaces, and a ManyView abolishes every
+     * frame it holds; sharing one would destroy a frame the finished movie still needs. Loading
+     * that frame a second time costs a cache hit and one decode.
+     */
+    private void onPreview(View preview, int gen) {
+        if (gen != loadGeneration) { // superseded while it was in flight
+            preview.abolish();
+            return;
+        }
+        onViewLoaded.accept(preview);
     }
 
     boolean isLoading() {
@@ -139,7 +158,7 @@ final class ImageLayerLoader {
         Message.err("Error getting the data", t.getMessage());
     }
 
-    private View loadUri(List<URI> uriList) throws Exception {
+    private View loadUri(List<URI> uriList, Consumer<View> preview) throws Exception {
         int total = uriList.size();
         if (total == 1) {
             statusSink.accept("Connecting\u2026");
@@ -147,6 +166,13 @@ final class ImageLayerLoader {
         } else {
             // ponytail: frame-count granularity only; per-file byte progress needs NetFileCache changes
             statusSink.accept("Connecting \u2014 0/" + total + " frames\u2026");
+            // One frame is enough to stop the canvas being empty for the length of the download,
+            // which for a hundred coronagraph frames is a couple of hundred megabytes. Failure
+            // here is not worth reporting: the same URI is about to be tried again in the batch.
+            try {
+                preview.accept(createView(null, uriList.getFirst()));
+            } catch (Exception ignore) {
+            }
             java.util.concurrent.atomic.AtomicInteger done = new java.util.concurrent.atomic.AtomicInteger();
             List<URI> failed = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
             List<View> views = uriList.parallelStream().map(uri -> {
@@ -179,7 +205,9 @@ final class ImageLayerLoader {
 
     private View loadZip(URI uriZip) throws Exception {
         List<URI> uriList = FileUtils.unZip(uriZip);
-        return loadUri(uriList);
+        // No preview: a zip is already on disk, so there is no download to wait through, and this
+        // runs inside a createView that is itself building someone else's view.
+        return loadUri(uriList, view -> view.abolish());
     }
 
     @Nullable
