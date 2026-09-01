@@ -26,6 +26,8 @@ public final class ColoredVertexRenderingTest {
 
     private static final int SIZE = 256;
     private static final float VIEW_WIDTH = 4;
+    private static final float POINT_SIZE = 32;
+    private static final float POINT_CORNER_OFFSET = 15 * VIEW_WIDTH / SIZE;
 
     public static void main(String[] args) throws Exception {
         if (args.length > 1)
@@ -57,6 +59,7 @@ public final class ColoredVertexRenderingTest {
             checkColor(pixels, 1.4f, 1.05f, Colors.Green.bytes(), "triangle after replacement upload");
             checkColor(pixels, -1.4f, -1.35f, Colors.Cyan.bytes(), "cyan point");
             checkColor(pixels, 1.4f, -1.35f, Colors.Magenta.bytes(), "magenta point");
+            checkBlack(pixels, -1.4f + POINT_CORNER_OFFSET, -1.35f + POINT_CORNER_OFFSET, "point bounding-box corner");
             checkColor(pixels, -0.9f, -0.15f, Colors.Yellow.bytes(), "joined polyline");
             checkColor(pixels, 0.45f, 0, Colors.Blue.bytes(), "first disconnected segment");
             checkColor(pixels, 1.35f, 0, Colors.Blue.bytes(), "second disconnected segment");
@@ -91,6 +94,11 @@ public final class ColoredVertexRenderingTest {
         vertices.startLine(1, 2, 3, 1, firstColor);
         vertices.putVertex(4, 5, 6, 1, secondColor);
         vertices.endLine();
+
+        ByteBuffer retained = direct.buffer().duplicate().order(ByteOrder.nativeOrder());
+        checkVertex(retained, 0, 1.25f, -2.5f, 3.75f, 1, firstColor);
+        checkVertex(retained, 1, 1.25f, -2.5f, 3.75f, 1, secondColor);
+
         buffer = vertices.toBuffer().duplicate().order(ByteOrder.nativeOrder());
         check(buffer.remaining() == 4 * BufVertex.BYTES_PER_VERTEX, "Incorrect line buffer size");
         checkVertex(buffer, 0, 1, 2, 3, 1, Colors.Null);
@@ -152,8 +160,8 @@ public final class ColoredVertexRenderingTest {
 
     private static void drawPoints(GLSLShape shape) {
         BufVertex vertices = new BufVertex(2);
-        vertices.putVertex(-1.4f, -1.35f, 0, 16, Colors.Cyan.bytes());
-        vertices.putVertex(1.4f, -1.35f, 0, 16, Colors.Magenta.bytes());
+        vertices.putVertex(-1.4f, -1.35f, 0, POINT_SIZE, Colors.Cyan.bytes());
+        vertices.putVertex(1.4f, -1.35f, 0, POINT_SIZE, Colors.Magenta.bytes());
         shape.uploadAndClear(vertices);
         shape.renderPoints(1);
     }

@@ -15,8 +15,12 @@ import javax.imageio.ImageIO;
 import org.helioviewer.jhv.app.AppInit;
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.Platform;
+import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.base.BufferUtils;
 import org.helioviewer.jhv.display.Display;
+import org.helioviewer.jhv.display.GridType;
+import org.helioviewer.jhv.display.MapMode;
+import org.helioviewer.jhv.display.MapScale;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.io.Directories;
@@ -46,7 +50,8 @@ public final class ModelRenderingTest {
             background.init();
 
             Viewport vp = Display.getViewport(0);
-            MapView mv = GLRenderer.getMapView();
+            MapView mv = MapView.create(Display.getCamera(), new Position(TimeUtils.START, 1, 0, 0), MapMode.Orthographic,
+                    GridType.Viewpoint, new MapScale[]{MapScale.ortho});
             // At the default test scale the point is entirely antialiased fringe, so enlarge it to exercise its depth-writing core.
             vp.zoom = 0.25;
             GL.glViewport(vp.x, vp.yGL, vp.width, vp.height);
@@ -58,7 +63,7 @@ public final class ModelRenderingTest {
 
             ByteBuffer pixels = readPixels();
             checkBlack(pixels, -1.5f, 0.6f, "single-sided back face");
-            checkChannel(pixels, 1.5f, 0.6f, 2, 216, 232, "double-sided back face");
+            checkChannel(pixels, 1.5f, 0.6f, 2, 195, 210, "double-sided back face");
             checkPremultiplied(pixels, -1.5f, -1, 0, 120, 136, "blended triangle");
             checkPremultiplied(pixels, 0, 0, 1, 10, 40, "blended line");
             checkChannel(pixels, 0, 0.6f, 0, 60, 68, "far blended triangle");
@@ -68,13 +73,21 @@ public final class ModelRenderingTest {
             checkChannel(pixels, 0.6f, -0.6f, 1, 1, 255, "line above mask cutoff");
             checkBlack(pixels, -0.6f, -1.2f, "point below mask cutoff");
             checkChannel(pixels, 0.6f, -1.2f, 1, 240, 255, "point above mask cutoff");
+            int pointFringe = findPartialPixel(pixels, 1.4f, -1, 2, "point fringe");
+            check(Math.abs(channel(pixels, pointFringe, 2) - channel(pixels, pointFringe, 3)) <= 1,
+                    "point fringe is not premultiplied");
 
             if (args.length == 1)
                 writeImage(pixels, Path.of(args[0]));
 
             background.render(mv, vp);
             GLException.checkErrors("ModelRenderingTest.depth");
-            checkChannel(readPixels(), 1.4f, -1, 2, 240, 255, "point depth");
+            ByteBuffer depthPixels = readPixels();
+            checkChannel(depthPixels, 1.4f, -1, 2, 240, 255, "point core depth");
+            checkChannel(depthPixels, -1.5f, -1, 1, 240, 255, "blended triangle depth");
+            checkPixelChannel(depthPixels, pointFringe, 0, 240, 255, "point fringe depth");
+            checkPixelChannel(depthPixels, pointFringe, 1, 240, 255, "point fringe depth");
+            checkPixelChannel(depthPixels, pointFringe, 2, 0, 10, "point fringe depth");
         } finally {
             background.dispose();
             model.dispose();
@@ -104,11 +117,11 @@ public final class ModelRenderingTest {
                 material(1, 0, 0, 0.4f, ModelMaterial.AlphaMode.MASK, true, true),
                 material(0, 1, 0, 0.6f, ModelMaterial.AlphaMode.MASK, true, true));
         return new ModelScene("rendering-test", TimeUtils.START, List.of(
-                triangle("culled", -1.8f, 0.3f, -1.2f, 1.1f, 0, 0, true, true),
-                triangle("double-sided", 1.2f, 0.3f, 1.8f, 1.1f, 0, 1, true, true),
-                triangle("blended", -1.8f, -1.4f, -1.2f, -0.4f, 0, 2, false, false),
-                triangle("blend-near", -0.5f, 0.3f, 0.5f, 1.1f, 0.5f, 3, false, false),
-                triangle("blend-far", -0.5f, 0.3f, 0.5f, 1.1f, -0.5f, 2, false, false),
+                litTriangle("culled", -1.8f, 0.3f, -1.2f, 1.1f, 0, 0, true),
+                litTriangle("double-sided", 1.2f, 0.3f, 1.8f, 1.1f, 0, 1, true),
+                triangle("blended", -1.8f, -1.4f, -1.2f, -0.4f, 0, 2, false),
+                triangle("blend-near", -0.5f, 0.3f, 0.5f, 1.1f, 0.5f, 3, false),
+                triangle("blend-far", -0.5f, 0.3f, 0.5f, 1.1f, -0.5f, 2, false),
                 line("line", -0.5f, 0, 0.5f, 3),
                 point("point", 1.4f, -1, 1, 4),
                 line("masked-out-line", -0.9f, -0.6f, -0.3f, 5),
@@ -119,8 +132,9 @@ public final class ModelRenderingTest {
 
     private static ModelScene backgroundScene() {
         ModelMaterial material = material(1, 1, 0, 1, ModelMaterial.AlphaMode.OPAQUE, true, true);
-        ModelMesh mesh = triangle("background", 1.05f, -1.3f, 1.75f, -0.6f, 0, 0, false, false);
-        return new ModelScene("background", TimeUtils.START, List.of(mesh), List.of(material), List.of());
+        return new ModelScene("background", TimeUtils.START, List.of(
+                triangle("point-background", 1.05f, -1.3f, 1.75f, -0.6f, 0, 0, false),
+                triangle("blend-background", -1.8f, -1.4f, -1.2f, -0.4f, -1, 0, false)), List.of(material), List.of());
     }
 
     private static ModelMaterial material(float red, float green, float blue, float alpha, ModelMaterial.AlphaMode alphaMode,
@@ -128,13 +142,21 @@ public final class ModelRenderingTest {
         return new ModelMaterial(red, green, blue, alpha, ModelMaterial.NO_TEXTURE, alphaMode, 0.5f, doubleSided, unlit);
     }
 
-    private static ModelMesh triangle(String name, float left, float bottom, float right, float top, float z, int materialIndex,
-                                      boolean reverseWinding, boolean withNormals) {
+    private static ModelMesh litTriangle(String name, float left, float bottom, float right, float top, float z, int materialIndex,
+                                         boolean reverseWinding) {
         FloatBuffer positions = floats(left, bottom, z, right, bottom, z, (left + right) / 2, top, z);
-        float normalZ = reverseWinding ? -1 : 1;
-        FloatBuffer normals = withNormals ? floats(0, 0, normalZ, 0, 0, normalZ, 0, 0, normalZ) : null;
+        // A tilted normal distinguishes the lit result from both unlit output and an unflipped back-face normal.
+        float normal = reverseWinding ? -1 : 1;
+        FloatBuffer normals = floats(normal, 0, normal, normal, 0, normal, normal, 0, normal);
         IntBuffer indices = reverseWinding ? ints(0, 2, 1) : ints(0, 1, 2);
         return new ModelMesh(name, ModelMesh.Primitive.TRIANGLES, positions, normals, white(3), null, indices, ints(), materialIndex);
+    }
+
+    private static ModelMesh triangle(String name, float left, float bottom, float right, float top, float z, int materialIndex,
+                                      boolean reverseWinding) {
+        FloatBuffer positions = floats(left, bottom, z, right, bottom, z, (left + right) / 2, top, z);
+        IntBuffer indices = reverseWinding ? ints(0, 2, 1) : ints(0, 1, 2);
+        return new ModelMesh(name, ModelMesh.Primitive.TRIANGLES, positions, null, white(3), null, indices, ints(), materialIndex);
     }
 
     private static ModelMesh line(String name, float start, float y, float end, int materialIndex) {
@@ -178,6 +200,11 @@ public final class ModelRenderingTest {
         check(value >= minimum && value <= maximum, label + " channel is " + value);
     }
 
+    private static void checkPixelChannel(ByteBuffer pixels, int offset, int channel, int minimum, int maximum, String label) {
+        int value = channel(pixels, offset, channel);
+        check(value >= minimum && value <= maximum, label + " channel is " + value);
+    }
+
     private static void checkPremultiplied(ByteBuffer pixels, float x, float y, int channel, int minimum, int maximum, String label) {
         int color = maxChannel(pixels, x, y, channel);
         int alpha = maxChannel(pixels, x, y, 3);
@@ -194,6 +221,24 @@ public final class ModelRenderingTest {
                 maximum = Math.max(maximum, pixels.get(4 * (py * SIZE + px) + channel) & 0xff);
         }
         return maximum;
+    }
+
+    private static int findPartialPixel(ByteBuffer pixels, float x, float y, int channel, String label) {
+        int centerX = Math.round(SIZE * (0.5f + x / VIEW_WIDTH));
+        int centerY = Math.round(SIZE * (0.5f + y / VIEW_WIDTH));
+        for (int py = centerY - 6; py <= centerY + 6; py++) {
+            for (int px = centerX - 6; px <= centerX + 6; px++) {
+                int offset = 4 * (py * SIZE + px);
+                int value = channel(pixels, offset, channel);
+                if (value > 0 && value < 240)
+                    return offset;
+            }
+        }
+        throw new AssertionError(label + " not found");
+    }
+
+    private static int channel(ByteBuffer pixels, int offset, int channel) {
+        return pixels.get(offset + channel) & 0xff;
     }
 
     private static void writeImage(ByteBuffer pixels, Path output) throws Exception {
