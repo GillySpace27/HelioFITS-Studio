@@ -8,8 +8,8 @@ class GLSLShapeShader extends GLSLShader {
     static final GLSLShapeShader shape = new GLSLShapeShader("/glsl/shape.vert", "/glsl/shape.frag");
 
     private int refModelViewProjectionMatrix;
-    private int factorRef;
-    private int opaquePassRef;
+    private int factorRef = -1;
+    private int opaquePassRef = -1;
 
     private GLSLShapeShader(String vertex, String fragment) {
         super(vertex, fragment);
@@ -27,9 +27,11 @@ class GLSLShapeShader extends GLSLShader {
 
     @Override
     protected void initUniforms(int id) {
-        refModelViewProjectionMatrix = GL.glGetUniformLocation(id, "ModelViewProjectionMatrix");
-        factorRef = GL.glGetUniformLocation(id, "factor");
-        opaquePassRef = GL.glGetUniformLocation(id, "opaquePass");
+        refModelViewProjectionMatrix = requiredUniform(id, "ModelViewProjectionMatrix");
+        if (this == point) {
+            factorRef = requiredUniform(id, "factor");
+            opaquePassRef = requiredUniform(id, "opaquePass");
+        }
     }
 
     void bindParams(double _factor) {

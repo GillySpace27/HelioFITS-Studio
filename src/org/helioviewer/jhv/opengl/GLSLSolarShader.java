@@ -66,17 +66,16 @@ public class GLSLSolarShader extends GLSLShader {
 
     @Override
     protected void initUniforms(int id) {
-        pv0Ref = GL.glGetUniformLocation(id, "pv0");
-        pv1Ref = GL.glGetUniformLocation(id, "pv1");
-
-        setupCommonBlocks(id);
-
         if (hasCommon) {
+            pv0Ref = requiredUniform(id, "pv0");
+            pv1Ref = requiredUniform(id, "pv1");
+            setupCommonBlocks(id);
             setTextureUnit(id, "image", GLTexture.Unit.ZERO);
             setTextureUnit(id, "lut", GLTexture.Unit.ONE);
             setTextureUnit(id, "diffImage", GLTexture.Unit.TWO);
             setTextureUnit(id, "mask", GLTexture.Unit.THREE);
-        }
+        } else
+            setupUBO(id, "ScreenBlock", screenBO.getID(), UBO.SOLAR_SCREEN);
     }
 
     public static void dispose() {

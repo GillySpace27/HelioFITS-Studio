@@ -21,9 +21,16 @@ abstract class GLSLShader {
     protected static void setupUBO(int programID, String blockName, int uboID, int binding) {
         int blockIndex = GL.glGetUniformBlockIndex(programID, blockName);
         if (blockIndex < 0)
-            return;
+            throw new GLException("Required uniform block not found: " + blockName);
         GL.glUniformBlockBinding(programID, blockIndex, binding);
         GL.glBindBufferBase(GL.UNIFORM_BUFFER, binding, uboID);
+    }
+
+    protected static int requiredUniform(int programID, String name) {
+        int location = GL.glGetUniformLocation(programID, name);
+        if (location < 0)
+            throw new GLException("Required uniform not found: " + name);
+        return location;
     }
 
     private int progID;
@@ -81,11 +88,7 @@ abstract class GLSLShader {
     protected abstract void initUniforms(int id);
 
     protected static void setTextureUnit(int id, String texname, GLTexture.Unit unit) {
-        int loc = GL.glGetUniformLocation(id, texname);
-        if (loc != -1)
-            GL.glUniform1i(loc, unit.ordinal());
-        else
-            Log.error("Invalid texture " + texname);
+        GL.glUniform1i(requiredUniform(id, texname), unit.ordinal());
     }
 
     private static int attachShader(int shaderType, String text) {

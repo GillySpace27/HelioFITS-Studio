@@ -32,7 +32,7 @@ class GLSLLineShader extends GLSLShader {
     @Override
     protected void initUniforms(int id) {
         setupUBO(id, "ScreenBlock", screenBO.getID(), UBO.LINE_SCREEN);
-        opaquePassRef = GL.glGetUniformLocation(id, "opaquePass");
+        opaquePassRef = requiredUniform(id, "opaquePass");
     }
 
     void bindParams(Viewport vp, double _thickness, FloatBuffer mvp) {
