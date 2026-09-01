@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -81,8 +82,124 @@ public final class VsoClient {
             List<Record> records = filterRecords(queryChunked(request), request.version());
             if (records.isEmpty())
                 return List.of();
-            return getData(records, request.cadence());
+
+            long cadence = request.cadence();
+            if (cadence <= 0)
+                return getData(records, 0);
+
+            // Ask for more frames than the cadence needs, so that a frame thrown out below has a
+            // neighbour ready to stand in for it rather than leaving a hole. Three quarters of the
+            // cadence puts the stand-in a few minutes from the moment that was wanted.
+            List<URI> generous = getData(records, cadence * 3 / 4);
+            return rejectDarkFrames(generous, cadence);
         }
+    }
+
+    private static final int PROBE_THREADS = 6;
+    /** A frame carrying this little of the usual spread has no image in it. */
+    private static final double SIGNAL_FLOOR = .1;
+
+    /**
+     * Drop the frames that contain no picture, then thin what is left to the cadence asked for.
+     *
+     * <p>SUVI writes an occasional frame with nothing in it, a dark or a shutter that did not
+     * open, and it arrives looking like uniform noise stretched across the whole display range
+     * because the decoder scales every frame to its own extremes. Its own header says so: on
+     * 2025-09-20 the two frames at 05:03 and 05:23 carry IMG_SDEV near 0.015 against 2.3 to 4.6
+     * for every other frame that day, and IMG_MEAN of 0.0004 against 1.15.
+     *
+     * <p>Judged against the median of the frames actually asked for rather than a fixed number,
+     * so it travels across channels, exposure times and missions instead of encoding one day of
+     * SUVI. A frame whose header will not read, or an archive that publishes no such statistic,
+     * is kept: neither is evidence of a bad frame.
+     */
+    private static List<URI> rejectDarkFrames(List<URI> uris, long cadence) throws Exception {
+        if (uris.size() < 4) // too few to have a median worth trusting
+            return uris;
+
+        List<Probe> probes;
+        ExecutorService pool = Executors.newFixedThreadPool(PROBE_THREADS);
+        try {
+            List<Future<Probe>> futures = new ArrayList<>(uris.size());
+            for (URI uri : uris)
+                futures.add(pool.submit(() -> probe(uri)));
+            probes = new ArrayList<>(uris.size());
+            for (Future<Probe> f : futures)
+                probes.add(f.get());
+        } finally {
+            pool.shutdown();
+        }
+
+        double[] signals = probes.stream().mapToDouble(Probe::signal).filter(s -> s > 0).sorted().toArray();
+        if (signals.length < 4)
+            return pickOnGrid(probes, cadence); // nothing to compare against; just honour the cadence
+        double floor = signals[signals.length / 2] * SIGNAL_FLOOR;
+
+        List<Probe> kept = new ArrayList<>(probes.size());
+        int dropped = 0;
+        for (Probe p : probes) {
+            if (Double.isNaN(p.signal()) || p.signal() >= floor)
+                kept.add(p);
+            else
+                dropped++;
+        }
+        if (dropped > 0)
+            Log.info("VSO dropped " + dropped + " frame(s) with no image, keeping " + kept.size());
+        return pickOnGrid(kept, cadence);
+    }
+
+    /** A candidate frame and what its own header says about whether there is a picture in it. */
+    private record Probe(URI uri, long milli, double signal) {}
+
+    private static Probe probe(URI uri) {
+        String path = uri.getPath() == null ? "" : uri.getPath();
+        Map<String, String> header = FitsHeaders.read(uri, path.toLowerCase(java.util.Locale.US).endsWith(".gz"));
+        if (header == null)
+            return new Probe(uri, 0, Double.NaN);
+        long milli = 0;
+        String date = header.get("DATE-OBS");
+        if (date != null) {
+            try {
+                milli = TimeUtils.parse(date.length() > 19 ? date.substring(0, 19) : date);
+            } catch (RuntimeException ignore) {
+            }
+        }
+        return new Probe(uri, milli, FitsHeaders.number(header, "IMG_SDEV"));
+    }
+
+    /**
+     * The frame nearest each wanted moment, which is what substitution means.
+     *
+     * <p>Not a minimum-gap walk. The candidates arrive spaced more finely than the cadence so that
+     * a rejected frame has a neighbour, and walking that list keeping anything at least a cadence
+     * apart lands on every second candidate instead: asking for 96 frames a day at 15 minutes
+     * returned 59, an accidental 22-minute cadence. Choosing the closest frame to each point on
+     * the wanted grid keeps the count and the spacing that were asked for, and where a frame was
+     * thrown out it quietly takes the next one along, a few minutes either side.
+     */
+    private static List<URI> pickOnGrid(List<Probe> probes, long cadence) {
+        List<Probe> timed = probes.stream().filter(p -> p.milli() > 0)
+                .sorted(java.util.Comparator.comparingLong(Probe::milli)).toList();
+        if (timed.isEmpty()) // no usable times: hand back what there is rather than nothing
+            return probes.stream().map(Probe::uri).toList();
+
+        long first = timed.getFirst().milli();
+        long last = timed.getLast().milli();
+        Set<URI> used = new LinkedHashSet<>();
+        for (long want = first; want <= last; want += cadence) {
+            Probe best = null;
+            long bestGap = Long.MAX_VALUE;
+            for (Probe p : timed) {
+                long gap = Math.abs(p.milli() - want);
+                if (gap < bestGap && !used.contains(p.uri())) {
+                    bestGap = gap;
+                    best = p;
+                }
+            }
+            if (best != null)
+                used.add(best.uri());
+        }
+        return List.copyOf(used);
     }
 
     private static final int QUERY_THREADS = 4;
