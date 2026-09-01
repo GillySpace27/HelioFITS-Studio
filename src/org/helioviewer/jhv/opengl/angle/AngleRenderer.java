@@ -63,7 +63,7 @@ public final class AngleRenderer {
     }
 
     private static boolean lwjglConfigured;
-    private static boolean rendererInitialized;
+    private static AngleRenderer activeRenderer;
 
     private static final int[] DEPTH_PREFERENCES = {32, 24};
     private static final int EGL_OPENGL_ES3_BIT = 0x00000040;
@@ -96,6 +96,9 @@ public final class AngleRenderer {
         backend = selectBackend(surfaceKind);
         swapBuffers = surfaceKind.swapBuffers;
         ensureLwjglAngleConfigured();
+        if (activeRenderer != null)
+            throw new IllegalStateException("Only one AngleRenderer may be active");
+        activeRenderer = this;
 
         long newDisplay = EGL15.EGL_NO_DISPLAY;
         long newContext = EGL15.EGL_NO_CONTEXT;
@@ -148,17 +151,21 @@ public final class AngleRenderer {
             glesInitialized = true;
             GL.initInfo();
             Log.info("OpenGL context: " + GL.contextDescription());
-            initRenderer();
+            GLRenderer.init();
         } catch (RuntimeException | Error e) {
-            if (glesInitialized)
-                GLES.setCapabilities(null);
-            if (newDisplay != EGL15.EGL_NO_DISPLAY) {
-                EGL15.eglMakeCurrent(newDisplay, EGL15.EGL_NO_SURFACE, EGL15.EGL_NO_SURFACE, EGL15.EGL_NO_CONTEXT);
-                if (newSurface != EGL15.EGL_NO_SURFACE)
-                    EGL15.eglDestroySurface(newDisplay, newSurface);
-                if (newContext != EGL15.EGL_NO_CONTEXT)
-                    EGL15.eglDestroyContext(newDisplay, newContext);
-                EGL15.eglTerminate(newDisplay);
+            try {
+                if (glesInitialized)
+                    GLES.setCapabilities(null);
+                if (newDisplay != EGL15.EGL_NO_DISPLAY) {
+                    EGL15.eglMakeCurrent(newDisplay, EGL15.EGL_NO_SURFACE, EGL15.EGL_NO_SURFACE, EGL15.EGL_NO_CONTEXT);
+                    if (newSurface != EGL15.EGL_NO_SURFACE)
+                        EGL15.eglDestroySurface(newDisplay, newSurface);
+                    if (newContext != EGL15.EGL_NO_CONTEXT)
+                        EGL15.eglDestroyContext(newDisplay, newContext);
+                    EGL15.eglTerminate(newDisplay);
+                }
+            } finally {
+                activeRenderer = null;
             }
             throw e;
         }
@@ -176,34 +183,27 @@ public final class AngleRenderer {
     }
 
     public void destroy() {
+        if (activeRenderer != this)
+            throw new IllegalStateException("AngleRenderer is not active");
         if (!EGL15.eglMakeCurrent(display, surface, surface, context))
             throw eglError("eglMakeCurrent");
 
         try {
-            if (rendererInitialized) {
-                try {
-                    GLRenderer.dispose();
-                } finally {
-                    rendererInitialized = false;
-                }
-            }
+            GLRenderer.dispose();
         } finally {
-            GLES.setCapabilities(null);
-            EGL15.eglMakeCurrent(display, EGL15.EGL_NO_SURFACE, EGL15.EGL_NO_SURFACE, EGL15.EGL_NO_CONTEXT);
-            EGL15.eglDestroySurface(display, surface);
-            EGL15.eglDestroyContext(display, context);
-            EGL15.eglTerminate(display);
+            try {
+                GLES.setCapabilities(null);
+                EGL15.eglMakeCurrent(display, EGL15.EGL_NO_SURFACE, EGL15.EGL_NO_SURFACE, EGL15.EGL_NO_CONTEXT);
+                EGL15.eglDestroySurface(display, surface);
+                EGL15.eglDestroyContext(display, context);
+                EGL15.eglTerminate(display);
+            } finally {
+                activeRenderer = null;
+            }
         }
     }
 
-    private static void initRenderer() {
-        if (rendererInitialized)
-            return;
-        GLRenderer.init();
-        rendererInitialized = true;
-    }
-
-    private static synchronized void ensureLwjglAngleConfigured() {
+    private static void ensureLwjglAngleConfigured() {
         if (lwjglConfigured)
             return;
         AngleLibraries.configureLwjglAngleLibraries();
