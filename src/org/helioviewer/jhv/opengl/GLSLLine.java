@@ -42,14 +42,14 @@ public class GLSLLine extends VAO implements GLSLVertexReceiver {
     }
 
     private void upload(ByteBuffer vertices) {
-        if (count == 0)
-            return;
-        uploadVertexBuffer(vertices);
         if (count < 4) {
-            Log.warn("GLSLLine requires at least two visible vertices padded by transparent sentinels; count=" + count + ", emitter=" + getEmitter());
+            if (count != 0)
+                Log.warn("GLSLLine requires at least two visible vertices padded by transparent sentinels; count=" + count + ", emitter=" + getEmitter());
             count = 0;
-        } else
+        } else {
+            uploadVertexBuffer(vertices);
             count -= 3;
+        }
     }
 
     private static String getEmitter() {
