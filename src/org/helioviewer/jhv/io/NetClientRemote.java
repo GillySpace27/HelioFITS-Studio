@@ -53,15 +53,24 @@ class NetClientRemote implements NetClient {
     private final boolean isSuccessful;
 
     NetClientRemote(URI uri, boolean allowError, NetCache cache) throws IOException {
-        this(uri, null, null, allowError, cache);
+        this(uri, null, null, allowError, cache, 0);
     }
 
     NetClientRemote(URI uri, String contentType, byte[] body, boolean allowError, NetCache cache) throws IOException {
+        this(uri, contentType, body, allowError, cache, 0);
+    }
+
+    NetClientRemote(URI uri, String contentType, byte[] body, boolean allowError, NetCache cache, long prefixBytes) throws IOException {
         HttpUrl url = HttpUrl.get(uri);
         if (url == null)
             throw new IOException("Could not parse " + uri);
 
         Request.Builder builder = new Request.Builder().header("User-Agent", AppInfo.userAgent).url(url);
+        // Reading a prefix and closing does NOT save the transfer: the body arrives anyway, and a
+        // header probe then costs two thirds of the whole file. Range asks the server for the
+        // prefix instead. A server that ignores it answers 200 with everything, which still parses.
+        if (prefixBytes > 0)
+            builder.header("Range", "bytes=0-" + (prefixBytes - 1));
         if (cache == NetCache.NETWORK)
             builder.cacheControl(CacheControl.FORCE_NETWORK);
         else if (cache == NetCache.BYPASS)

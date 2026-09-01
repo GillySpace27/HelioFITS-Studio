@@ -48,6 +48,22 @@ public interface NetClient extends AutoCloseable {
         return "file".equals(uri.getScheme()) ? new NetClientLocal(uri) : new NetClientRemote(uri, allowError, cache);
     }
 
+    /**
+     * The first {@code prefixBytes} of a resource, asked for over HTTP Range.
+     *
+     * <p>For reading a file's header without its body: closing early does not avoid the transfer,
+     * so a probe that does that costs nearly as much as the download it was meant to replace.
+     * Local files ignore the limit, since there is no transfer to save.
+     */
+    static NetClient prefix(URI uri, long prefixBytes) throws IOException {
+        if (EventQueue.isDispatchThread())
+            throw new IOException("Don't do that");
+
+        return "file".equals(uri.getScheme())
+                ? new NetClientLocal(uri)
+                : new NetClientRemote(uri, null, null, true, NetCache.NETWORK, prefixBytes);
+    }
+
     static NetClient post(URI uri, String contentType, byte[] body, boolean allowError, NetCache cache) throws IOException {
         if (EventQueue.isDispatchThread())
             throw new IOException("Don't do that");
