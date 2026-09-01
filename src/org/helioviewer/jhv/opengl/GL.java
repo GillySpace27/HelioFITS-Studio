@@ -161,6 +161,22 @@ public final class GL {
         GLES30.glBufferData(target, size, usage);
     }
 
+    public static void glBufferData(int target, ByteBuffer buffer, int usage) {
+        GLES30.glBufferData(target, buffer, usage);
+    }
+
+    public static void glBufferData(int target, FloatBuffer buffer, int usage) {
+        GLES30.glBufferData(target, buffer, usage);
+    }
+
+    public static void glBufferData(int target, IntBuffer buffer, int usage) {
+        GLES30.glBufferData(target, buffer, usage);
+    }
+
+    public static void glBufferData(int target, ShortBuffer buffer, int usage) {
+        GLES30.glBufferData(target, buffer, usage);
+    }
+
     public static void glBufferSubData(int target, long offset, ByteBuffer buffer) {
         GLES30.glBufferSubData(target, offset, buffer);
     }

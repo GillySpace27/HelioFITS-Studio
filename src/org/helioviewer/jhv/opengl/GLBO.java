@@ -35,6 +35,18 @@ class GLBO {
     }
 
     void setBufferData(Buffer buffer) {
+        if (usage == GL.STATIC_DRAW) {
+            GL.glBindBuffer(target, bufferID);
+            switch (buffer) {
+                case ByteBuffer byteBuffer -> GL.glBufferData(target, BufferUtils.directByteBuffer(byteBuffer), usage);
+                case FloatBuffer floatBuffer -> GL.glBufferData(target, BufferUtils.directFloatBuffer(floatBuffer), usage);
+                case IntBuffer intBuffer -> GL.glBufferData(target, BufferUtils.directIntBuffer(intBuffer), usage);
+                case ShortBuffer shortBuffer -> GL.glBufferData(target, BufferUtils.directShortBuffer(shortBuffer), usage);
+                default -> throw new IllegalArgumentException("Unsupported buffer type: " + buffer.getClass().getName());
+            }
+            return;
+        }
+
         int size = switch (buffer) {
             case ByteBuffer byteBuffer -> byteBuffer.remaining();
             case FloatBuffer floatBuffer -> Math.multiplyExact(floatBuffer.remaining(), Float.BYTES);
