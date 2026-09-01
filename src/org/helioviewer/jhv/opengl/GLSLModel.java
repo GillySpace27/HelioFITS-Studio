@@ -116,20 +116,16 @@ public final class GLSLModel {
 
         double pointFactor = ViewportMath.getPixelFactor(vp, mv.cameraWidth(vp));
         for (RenderMesh mesh : transparentMeshes) {
-            if (mesh.triangle != null) {
-                GL.glDepthMask(false);
-                renderTriangle(mesh);
-                GL.glDepthMask(true);
-            } else
-                renderDrawing(mesh, vp, pointFactor, worldToClip);
+            switch (mesh.primitive) {
+                case TRIANGLES -> {
+                    GL.glDepthMask(false);
+                    renderTriangle(mesh);
+                    GL.glDepthMask(true);
+                }
+                case LINES -> mesh.line.renderLine(vp, DEFAULT_LINE_WIDTH, worldToClip);
+                case POINTS -> mesh.points.renderPoints(pointFactor, worldToClip);
+            }
         }
-    }
-
-    private void renderDrawing(RenderMesh mesh, Viewport vp, double pointFactor, FloatBuffer worldToClip) {
-        if (mesh.line != null)
-            mesh.line.renderLine(vp, DEFAULT_LINE_WIDTH, worldToClip);
-        else
-            mesh.points.renderPoints(pointFactor, worldToClip);
     }
 
     private void renderTriangle(RenderMesh mesh) {
@@ -264,6 +260,7 @@ public final class GLSLModel {
     }
 
     private static final class RenderMesh {
+        final ModelMesh.Primitive primitive;
         final ModelMaterial material;
         final GLSLMeshMaterial materialBuffer;
         final GLSLMesh triangle;
@@ -276,13 +273,14 @@ public final class GLSLModel {
         private float depth;
 
         RenderMesh(ModelMesh mesh, ModelMaterial _material, GLSLMeshMaterial _materialBuffer) {
+            primitive = mesh.primitive();
             material = _material;
             materialBuffer = _materialBuffer;
             GLSLMesh _triangle = null;
             GLSLLine _line = null;
             GLSLShape _points = null;
             DirectBufVertex _drawingVertices = null;
-            switch (mesh.primitive()) {
+            switch (primitive) {
                 case TRIANGLES -> _triangle = new GLSLMesh(mesh);
                 case LINES -> {
                     _line = new GLSLLine(false);
@@ -322,28 +320,29 @@ public final class GLSLModel {
         }
 
         boolean isTransparent() {
-            return triangle == null || material.alphaMode() == ModelMaterial.AlphaMode.BLEND;
+            return primitive != ModelMesh.Primitive.TRIANGLES || material.alphaMode() == ModelMaterial.AlphaMode.BLEND;
         }
 
         void init() {
-            if (triangle != null) {
-                triangle.init();
-            } else if (line != null) {
-                line.init();
-                line.upload(drawingVertices);
-            } else {
-                points.init();
-                points.upload(drawingVertices);
+            switch (primitive) {
+                case TRIANGLES -> triangle.init();
+                case LINES -> {
+                    line.init();
+                    line.upload(drawingVertices);
+                }
+                case POINTS -> {
+                    points.init();
+                    points.upload(drawingVertices);
+                }
             }
         }
 
         void dispose() {
-            if (triangle != null)
-                triangle.dispose();
-            else if (line != null)
-                line.dispose();
-            else
-                points.dispose();
+            switch (primitive) {
+                case TRIANGLES -> triangle.dispose();
+                case LINES -> line.dispose();
+                case POINTS -> points.dispose();
+            }
         }
 
         void updateDepth(Matrix4fc view) {
