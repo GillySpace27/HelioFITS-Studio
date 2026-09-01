@@ -137,16 +137,23 @@ public class GLImage {
     }
 
     public void init() {
-        tex = new GLStreamingTexture2D(GLTexture.Unit.ZERO);
-        lutTex = new GLTexture(GL.TEXTURE_2D, GLTexture.Unit.ONE);
-        diffTex = new GLStreamingTexture2D(GLTexture.Unit.TWO);
-        maskTex = new GLStreamingTexture2D(GLTexture.Unit.THREE);
-        // Texture objects were recreated, so their corresponding upload bookkeeping must start fresh.
-        uploadedImageData = null;
-        lutChanged = true;
+        if (tex != null)
+            return;
+        try {
+            tex = new GLStreamingTexture2D(GLTexture.Unit.ZERO);
+            lutTex = new GLTexture(GL.TEXTURE_2D, GLTexture.Unit.ONE);
+            diffTex = new GLStreamingTexture2D(GLTexture.Unit.TWO);
+            maskTex = new GLStreamingTexture2D(GLTexture.Unit.THREE);
+            // Texture objects were recreated, so their corresponding upload bookkeeping must start fresh.
+            uploadedImageData = null;
+            lutChanged = true;
 
-        uploadedMask = DetectorMask.NONE;
-        maskTex.upload(uploadedMask.getImageBuffer(), GL.NEAREST);
+            uploadedMask = DetectorMask.NONE;
+            maskTex.upload(uploadedMask.getImageBuffer(), GL.NEAREST);
+        } catch (RuntimeException | Error e) {
+            dispose();
+            throw e;
+        }
     }
 
     public void dispose() {
@@ -158,6 +165,10 @@ public class GLImage {
             diffTex.delete();
         if (maskTex != null)
             maskTex.delete();
+        tex = null;
+        lutTex = null;
+        diffTex = null;
+        maskTex = null;
     }
 
     private void applyMask(DetectorMask detectorMask) {
