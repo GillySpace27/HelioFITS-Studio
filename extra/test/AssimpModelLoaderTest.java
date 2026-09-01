@@ -11,7 +11,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.zip.GZIPOutputStream;
 
 import javax.imageio.ImageIO;
@@ -35,6 +37,7 @@ public final class AssimpModelLoaderTest {
             writeTexture(directory.resolve("texture.png"));
 
             checkScene(AssimpModelLoader.load(NetFileCache.get(model.toUri())));
+            checkLineReconstruction(directory);
             checkTexturedDrawingsRejected(directory, document);
             checkLitNormalsRequired(directory, document);
             checkUnlitNormalsDiscarded(directory, document);
@@ -52,6 +55,66 @@ public final class AssimpModelLoaderTest {
                     Files.delete(path);
             }
         }
+    }
+
+    private static void checkLineReconstruction(Path directory) throws Exception {
+        Path binary = directory.resolve("line-graph.bin");
+        ByteBuffer data = ByteBuffer.allocate(108).order(ByteOrder.LITTLE_ENDIAN);
+        for (int vertex = 0; vertex < 7; vertex++)
+            data.putFloat(vertex).putFloat(0).putFloat(0);
+        for (int index : new int[]{0, 1, 1, 2, 2, 0, 3, 4, 4, 5, 4, 6})
+            data.putShort((short) index);
+        Files.write(binary, data.array());
+
+        Path model = directory.resolve("line-graph.gltf");
+        Files.writeString(model, """
+                {
+                  "asset": {"version": "2.0"},
+                  "scene": 0,
+                  "scenes": [{"nodes": [0]}],
+                  "nodes": [{"mesh": 0}],
+                  "buffers": [{"byteLength": 108, "uri": "line-graph.bin"}],
+                  "bufferViews": [
+                    {"buffer": 0, "byteOffset": 0, "byteLength": 84, "target": 34962},
+                    {"buffer": 0, "byteOffset": 84, "byteLength": 24, "target": 34963}
+                  ],
+                  "accessors": [
+                    {"bufferView": 0, "componentType": 5126, "count": 7, "type": "VEC3",
+                     "min": [0, 0, 0], "max": [6, 0, 0]},
+                    {"bufferView": 1, "componentType": 5123, "count": 12, "type": "SCALAR"}
+                  ],
+                  "materials": [{}],
+                  "meshes": [{"primitives": [
+                    {"attributes": {"POSITION": 0}, "indices": 1, "material": 0, "mode": 1}
+                  ]}]
+                }
+                """);
+
+        ModelMesh lines = meshes(AssimpModelLoader.load(NetFileCache.get(model.toUri())), ModelMesh.Primitive.LINES).getFirst();
+        IntBuffer indices = lines.indices();
+        IntBuffer offsets = lines.lineOffsets();
+        check(offsets.remaining() == 5, "loop and branch path count");
+
+        Set<Long> edges = new HashSet<>();
+        int closedPaths = 0;
+        for (int path = 0; path < offsets.remaining() - 1; path++) {
+            int start = offsets.get(path);
+            int end = offsets.get(path + 1);
+            if (indices.get(start) == indices.get(end - 1))
+                closedPaths++;
+            for (int i = start + 1; i < end; i++) {
+                int first = indices.get(i - 1);
+                int second = indices.get(i);
+                check(edges.add(undirectedEdge(first, second)), "duplicate reconstructed edge");
+            }
+        }
+        check(closedPaths == 1, "closed loop reconstruction");
+        check(edges.equals(Set.of(undirectedEdge(0, 1), undirectedEdge(1, 2), undirectedEdge(2, 0),
+                undirectedEdge(3, 4), undirectedEdge(4, 5), undirectedEdge(4, 6))), "reconstructed line edges");
+    }
+
+    private static long undirectedEdge(int first, int second) {
+        return (long) Math.min(first, second) << 32 | Integer.toUnsignedLong(Math.max(first, second));
     }
 
     private static void checkPositionMetadata(Path directory, String document) throws Exception {
