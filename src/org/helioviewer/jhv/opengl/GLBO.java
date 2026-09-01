@@ -10,6 +10,8 @@ import org.helioviewer.jhv.base.BufferUtils;
 
 class GLBO {
 
+    private static ByteBuffer uploadBuffer;
+
     private final int target;
     private final int usage;
 
@@ -61,12 +63,27 @@ class GLBO {
         GL.glBindBuffer(target, bufferID);
         GL.glBufferData(target, size, usage); // orphan, https://www.khronos.org/opengl/wiki/Buffer_Object_Streaming#Buffer_re-specification
         switch (buffer) {
-            case ByteBuffer byteBuffer -> GL.glBufferSubData(target, 0, BufferUtils.directByteBuffer(byteBuffer));
+            case ByteBuffer byteBuffer -> GL.glBufferSubData(target, 0, stage(byteBuffer));
             case FloatBuffer floatBuffer -> GL.glBufferSubData(target, 0, BufferUtils.directFloatBuffer(floatBuffer));
             case IntBuffer intBuffer -> GL.glBufferSubData(target, 0, BufferUtils.directIntBuffer(intBuffer));
             case ShortBuffer shortBuffer -> GL.glBufferSubData(target, 0, BufferUtils.directShortBuffer(shortBuffer));
             default -> throw new IllegalArgumentException("Unsupported buffer type: " + buffer.getClass().getName());
         }
+    }
+
+    private static ByteBuffer stage(ByteBuffer buffer) {
+        if (buffer.isDirect())
+            return buffer;
+
+        int size = buffer.remaining();
+        if (uploadBuffer == null || uploadBuffer.capacity() < size)
+            uploadBuffer = BufferUtils.newByteBuffer(size);
+        uploadBuffer.clear().put(buffer.duplicate()).flip();
+        return uploadBuffer;
+    }
+
+    static void releaseUploadBuffer() {
+        uploadBuffer = null;
     }
 
     void setBufferDataIfChanged(int size, FloatBuffer buffer) {

@@ -125,6 +125,7 @@ public final class GLRenderer {
         GLSLMeshShader.dispose();
         GLSLShapeShader.dispose();
         GLSLTextureShader.dispose();
+        GLBO.releaseUploadBuffer();
 
         GLException.checkErrors("GLRenderer.dispose()");
     }
