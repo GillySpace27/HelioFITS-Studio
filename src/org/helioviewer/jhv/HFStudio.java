@@ -33,11 +33,11 @@ import org.helioviewer.jhv.plugins.pointcloud.PointCloudPlugin;
 import org.helioviewer.jhv.plugins.swek.SWEKPlugin;
 import org.helioviewer.jhv.thread.Task;
 
-public class JHelioviewer {
+public class HFStudio {
 
     static void main(String[] args) throws Exception {
         System.setProperty("apple.awt.application.appearance", "NSAppearanceNameDarkAqua");
-        System.setProperty("apple.awt.application.name", "JHelioviewer");
+        System.setProperty("apple.awt.application.name", "HFStudio");
         System.setProperty("apple.laf.useScreenMenuBar", "true");
         System.setProperty("sun.awt.noerasebackground", "true");
         //System.setProperty("org.lwjgl.util.NoChecks", "true");
@@ -61,7 +61,7 @@ public class JHelioviewer {
         // Create transient cache directories after logging is available. On Windows this may need an ASCII-safe path.
         Directories.createCacheDirs();
         // Information log message
-        Log.info("JHelioviewer started with command-line options: " + String.join(" ", args));
+        Log.info("HFStudio started with command-line options: " + String.join(" ", args));
 
         // Read the version and revision from the JAR metafile
         AppInfo.loadVersion();
@@ -109,7 +109,7 @@ public class JHelioviewer {
             UITimer.start();
             org.helioviewer.jhv.app.Session.init(); // session dirty-tracking + autosave timer
 
-            Task.submit("init", new Init(true), JHelioviewer::onSuccessInit, JHelioviewer::onFailureInit);
+            Task.submit("init", new Init(true), HFStudio::onSuccessInit, HFStudio::onFailureInit);
         });
     }
 
@@ -121,7 +121,7 @@ public class JHelioviewer {
 
             loadPlugins(false);
 
-            Task.submit("init", new Init(false), JHelioviewer::onSuccessInit, JHelioviewer::onFailureInit);
+            Task.submit("init", new Init(false), HFStudio::onSuccessInit, HFStudio::onFailureInit);
         });
     }
 

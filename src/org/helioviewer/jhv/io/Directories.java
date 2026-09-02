@@ -8,13 +8,24 @@ import org.helioviewer.jhv.app.Platform;
 // An enum containing all the directories mapped in a system independent way. If
 // a new directory is required, just add it here, and it will be created at startup.
 public enum Directories {
-    // The home directory
+
+    /**
+     * The folder everything persistent lives in, and the one name in this file worth arguing about.
+     *
+     * <p>HFStudio keeps its own rather than sharing JHelioviewer's. Sharing sounds like a kindness
+     * (one file cache, no re-downloading) and is a trap: the two applications have already diverged
+     * on settings keys and on what a saved session contains, so a shared folder means each one
+     * quietly rewriting state the other wrote. Two folders cost disk; one folder costs correctness.
+     *
+     * <p>{@link #migrateLegacyHome} copies the old folder across once, so an existing install does
+     * not start from nothing.
+     */
     HOME {
         private final String path = System.getProperty("user.home");
 
         @Override
         public String getPath() {
-            return path + File.separator + "JHelioviewer-SWHV" + File.separator;
+            return path + File.separator + NAME + File.separator;
         }
     },
     CACHE {
@@ -105,6 +116,9 @@ public enum Directories {
     }
 
     public static void createPersistentDirs() {
+        // Before anything is created, so the check for "does the new folder exist yet" is still
+        // answerable. Creating the tree first would make every launch look like a migrated one.
+        migrateLegacyHome();
         for (Directories dir : Directories.values()) {
             if (dir == Directories.CACHE || dir == Directories.DOWNLOADS)
                 continue;
@@ -176,7 +190,60 @@ public enum Directories {
     private static String appendJHV(String path) {
         if (path == null)
             return null;
-        return path + File.separator + "JHelioviewer-SWHV" + File.separator;
+        return path + File.separator + NAME + File.separator;
+    }
+
+    /** The folder name, in one place, so the two call sites above cannot drift apart. */
+    private static final String NAME = "HFStudio";
+
+    /** What the folder was called before the rename, and is still called by a stock install. */
+    private static final String LEGACY_NAME = "JHelioviewer-SWHV";
+
+    /**
+     * Copy a JHelioviewer install's settings and sessions across, once.
+     *
+     * <p>Copy rather than move, because the old folder may belong to a JHelioviewer that is still
+     * installed and still being used. Taking its settings away would be a rename reaching outside
+     * its own application.
+     *
+     * <p>Only the small, portable state: settings, saved sessions, exports. Deliberately NOT the
+     * caches, which are large, are content-addressed, and cost nothing to rebuild except time.
+     * Runs only when the new folder does not exist yet, so it happens exactly once and never
+     * overwrites anything the user has done since.
+     */
+    public static void migrateLegacyHome() {
+        java.nio.file.Path home = java.nio.file.Path.of(System.getProperty("user.home"));
+        java.nio.file.Path target = home.resolve(NAME);
+        java.nio.file.Path legacy = home.resolve(LEGACY_NAME);
+        if (java.nio.file.Files.exists(target) || !java.nio.file.Files.isDirectory(legacy))
+            return;
+
+        String[] carry = {"Settings", "States", "Exports"};
+        try {
+            java.nio.file.Files.createDirectories(target);
+            int copied = 0;
+            for (String name : carry) {
+                java.nio.file.Path from = legacy.resolve(name);
+                if (!java.nio.file.Files.isDirectory(from))
+                    continue;
+                try (java.util.stream.Stream<java.nio.file.Path> walk = java.nio.file.Files.walk(from)) {
+                    for (java.nio.file.Path source : walk.toList()) {
+                        java.nio.file.Path dest = target.resolve(legacy.relativize(source));
+                        if (java.nio.file.Files.isDirectory(source))
+                            java.nio.file.Files.createDirectories(dest);
+                        else {
+                            java.nio.file.Files.createDirectories(dest.getParent());
+                            java.nio.file.Files.copy(source, dest);
+                            copied++;
+                        }
+                    }
+                }
+            }
+            org.helioviewer.jhv.app.Log.info("Carried " + copied + " file(s) over from " + legacy);
+        } catch (Exception e) {
+            // Not fatal: a fresh folder is a working folder. Say so and carry on.
+            org.helioviewer.jhv.app.Log.warn("Could not carry settings over from " + legacy, e);
+        }
     }
 
 }

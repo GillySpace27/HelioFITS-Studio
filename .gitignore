@@ -4,7 +4,7 @@ bin
 cov-int
 release/install4j/builds
 gradle
-JHelioviewer.jar
+HFStudio.jar
 *.iml
 .DS_Store
 # Compiled self-checks; javac output, not source.
