@@ -25,7 +25,7 @@ public class GridMath {
     private static final float AXIS_STOP = (float) (1.2 * Sun.Radius);
 
     public static final double LINEWIDTH = GLSLLine.LINEWIDTH_BASIC;
-    private static final double GRID_RADIUS = Sun.Radius + LINEWIDTH; // avoid intersecting solar surface
+    private static final double GRID_RADIUS = Sun.Radius + 2 * LINEWIDTH; // avoid intersecting solar surface
     private static final double EARTH_CIRCLE_RADIUS = GRID_RADIUS * 1.006;
 
     private static final int TENS_RADIUS = 3;
