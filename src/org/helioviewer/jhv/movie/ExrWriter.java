@@ -9,10 +9,10 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.IntStream;
 import java.util.zip.Deflater;
 
 /**
@@ -47,7 +47,9 @@ final class ExrWriter {
 
     final int width;
     final int height;
-    private final Map<String, float[]> channels = new TreeMap<>(); // sorted: strcmp order, for ASCII names
+    // Half bits, sorted by name (strcmp order, for ASCII names). Held as half from the moment a
+    // channel arrives: at 4096x4096 a float channel is 67 MB and a frame has two dozen of them.
+    private final Map<String, short[]> channels = new TreeMap<>();
     private final ByteArrayOutputStream attributes = new ByteArrayOutputStream();
 
     ExrWriter(int _width, int _height) {
@@ -57,11 +59,19 @@ final class ExrWriter {
         height = _height;
     }
 
-    /** A channel of width*height values, top row first. Stored as half float: 11 significant bits. */
+    /** A channel of width*height values, top row first, already as half-float bits. */
+    void channel(String name, short[] half) {
+        if (half.length != width * height)
+            throw new IllegalArgumentException(name + ": " + half.length + " values for " + width + 'x' + height);
+        channels.put(checkName(name), half);
+    }
+
+    /** A channel of width*height floats, top row first, rounded to half: 11 significant bits. */
     void channel(String name, float[] values) {
-        if (values.length != width * height)
-            throw new IllegalArgumentException(name + ": " + values.length + " values for " + width + 'x' + height);
-        channels.put(checkName(name), values);
+        short[] half = new short[values.length];
+        for (int i = 0; i < values.length; i++)
+            half[i] = Float.floatToFloat16(values[i]);
+        channel(name, half);
     }
 
     void attribute(String name, String value) {
@@ -100,19 +110,18 @@ final class ExrWriter {
         return name;
     }
 
+    /**
+     * Chunks are independent, so they are compressed on every core at once; what is held in
+     * memory before writing is the compressed chunks, which is the file itself (15 MB for a
+     * 4096x4096 frame of two dozen channels), never the raw pixels.
+     */
     void write(File file) throws IOException {
         if (channels.isEmpty())
             throw new IOException("EXR with no channels");
 
         int chunkCount = (height + LINES_PER_CHUNK - 1) / LINES_PER_CHUNK;
-        List<byte[]> chunks = new ArrayList<>(chunkCount);
-        Deflater deflater = new Deflater();
-        try {
-            for (int c = 0; c < chunkCount; c++)
-                chunks.add(chunk(c * LINES_PER_CHUNK, deflater));
-        } finally {
-            deflater.end();
-        }
+        List<byte[]> chunks = IntStream.range(0, chunkCount).parallel()
+                .mapToObj(c -> chunk(c * LINES_PER_CHUNK)).toList();
 
         byte[] header = header();
         long offset = header.length + 8L * chunkCount;
@@ -121,7 +130,6 @@ final class ExrWriter {
             table.putLong(offset);
             offset += chunk.length;
         }
-
         try (OutputStream out = new BufferedOutputStream(new FileOutputStream(file), 1 << 16)) {
             out.write(header);
             out.write(table.array());
@@ -157,22 +165,22 @@ final class ExrWriter {
         return h.toByteArray();
     }
 
-    private byte[] chunk(int y0, Deflater deflater) {
+    private byte[] chunk(int y0) {
         int lines = Math.min(LINES_PER_CHUNK, height - y0);
         byte[] raw = new byte[lines * channels.size() * 2 * width];
         int p = 0;
         for (int y = y0; y < y0 + lines; y++) {
             int base = y * width;
-            for (float[] values : channels.values()) {
+            for (short[] values : channels.values()) {
                 for (int x = 0; x < width; x++) {
-                    short half = Float.floatToFloat16(values[base + x]);
+                    short half = values[base + x];
                     raw[p++] = (byte) half;
                     raw[p++] = (byte) (half >>> 8);
                 }
             }
         }
 
-        byte[] packed = deflate(predict(raw), deflater);
+        byte[] packed = deflate(predict(raw));
         byte[] body = packed.length < raw.length ? packed : raw; // a chunk that did not shrink is stored raw
         ByteBuffer out = le(8 + body.length).putInt(y0).putInt(body.length);
         out.put(body);
@@ -203,17 +211,21 @@ final class ExrWriter {
         return t;
     }
 
-    private static byte[] deflate(byte[] data, Deflater deflater) {
-        deflater.reset();
-        deflater.setInput(data);
-        deflater.finish();
-        ByteArrayOutputStream out = new ByteArrayOutputStream(data.length / 2);
-        byte[] buf = new byte[1 << 14];
-        while (!deflater.finished()) {
-            int n = deflater.deflate(buf);
-            out.write(buf, 0, n);
+    private static byte[] deflate(byte[] data) {
+        Deflater deflater = new Deflater();
+        try {
+            deflater.setInput(data);
+            deflater.finish();
+            ByteArrayOutputStream out = new ByteArrayOutputStream(data.length / 2);
+            byte[] buf = new byte[1 << 14];
+            while (!deflater.finished()) {
+                int n = deflater.deflate(buf);
+                out.write(buf, 0, n);
+            }
+            return out.toByteArray();
+        } finally {
+            deflater.end();
         }
-        return out.toByteArray();
     }
 
     private static ByteBuffer le(int bytes) {

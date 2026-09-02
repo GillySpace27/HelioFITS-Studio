@@ -60,6 +60,11 @@ public final class ExportMovie implements Player.Listener {
     }
 
     private static int frameIndex;
+    // At most this many layered EXR frames alive at once (one being written, one waiting). A
+    // frame is hundreds of megabytes at 4K and the writer is slower than the renderer, so an
+    // unbounded queue filled a 30 GB heap in a dozen frames. The GL thread waits instead.
+    private static final int EXR_IN_FLIGHT = 2;
+    private static java.util.concurrent.Semaphore exrPermits = new java.util.concurrent.Semaphore(EXR_IN_FLIGHT);
 
     public static void handleMovieExport() {
         BufferedImage screen = null;
@@ -70,14 +75,23 @@ public final class ExportMovie implements Player.Listener {
                 // Rendered layer by layer on this (GL) thread; only the file write is deferred.
                 // The EVE strip is a movie decoration and has no place in a data export.
                 ExportWriter writer = exporter;
-                ExrWriter frame = ExrCapture.frame(grabber, writer.fps(), ++frameIndex);
-                encodeExecutor.execute(() -> {
-                    try {
-                        writer.encodeExr(frame);
-                    } catch (Exception e) {
-                        Log.error(e);
-                    }
-                });
+                java.util.concurrent.Semaphore permits = exrPermits;
+                permits.acquireUninterruptibly();
+                try {
+                    ExrWriter frame = ExrCapture.frame(grabber, writer.fps(), ++frameIndex);
+                    encodeExecutor.execute(() -> {
+                        try {
+                            writer.encodeExr(frame);
+                        } catch (Exception e) {
+                            Log.error(e);
+                        } finally {
+                            permits.release();
+                        }
+                    });
+                } catch (RuntimeException | Error e) {
+                    permits.release(); // the task that would have released it never got queued
+                    throw e;
+                }
                 submitted = true;
                 return;
             }
@@ -141,6 +155,7 @@ public final class ExportMovie implements Player.Listener {
     private static void startRecording(ViewState.RecordingData recordingData, int fps) {
         shallStop = false;
         frameIndex = 0;
+        exrPermits = new java.util.concurrent.Semaphore(EXR_IN_FLIGHT); // fresh per recording: a cancelled one never releases
 
         int scrw = 1;
         int scrh = 0;

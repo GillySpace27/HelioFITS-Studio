@@ -65,6 +65,9 @@ public class GLGrab {
      * One offscreen render of the whole scene, or of a single layer on transparent black, as
      * RGBA floats top row first and unclamped. The layered EXR export is a sequence of these.
      * mode says what an image layer writes instead of its colour; overlays ignore it.
+     *
+     * <p>The returned array is reused by the next pass (it is 268 MB at 4K), so a caller takes
+     * its channels out before rendering again.
      */
     public float[] renderPass(@Nullable Layer only, GLImage.Capture mode) {
         return inCaptureState(() -> {

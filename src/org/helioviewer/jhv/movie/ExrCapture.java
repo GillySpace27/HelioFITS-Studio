@@ -56,13 +56,17 @@ final class ExrCapture {
         ExrWriter exr = new ExrWriter(grabber.w, grabber.h);
         MapView mv = GLRenderer.getMapView();
 
+        // Every pass returns the grabber's one reusable buffer (268 MB at 4K), so each pass's
+        // channels are taken out, as half, before the next pass overwrites it. Nothing here
+        // holds a float per pixel beyond that buffer.
+
         // 1. What the screen shows. A white background is opaque on screen, so it is here too.
         float[] rgba = grabber.renderPass(null, GLImage.Capture.NONE);
         boolean opaque = Display.whiteBackground;
         exr.channel("R", linear(rgba, 0, opaque));
         exr.channel("G", linear(rgba, 1, opaque));
         exr.channel("B", linear(rgba, 2, opaque));
-        exr.channel("A", opaque ? ones(rgba.length / 4) : clamp01(pick(rgba, 3)));
+        exr.channel("A", opaque ? ones(rgba.length / 4) : pick(rgba, 3, true));
 
         // 2. Each layer on its own.
         Set<String> used = new HashSet<>();
@@ -77,10 +81,10 @@ final class ExrCapture {
                 float[] data = grabber.renderPass(layer, GLImage.Capture.DATA);
                 if (empty(data))
                     continue;
-                float[] display = grabber.renderPass(layer, GLImage.Capture.DISPLAY);
-                exr.channel(prefix + ".Y", pick(data, 0));
-                exr.channel(prefix + ".V", pick(display, 0));
-                exr.channel(prefix + ".A", pick(data, 3));
+                exr.channel(prefix + ".Y", pick(data, 0, false));
+                exr.channel(prefix + ".A", pick(data, 3, false));
+                float[] display = grabber.renderPass(layer, GLImage.Capture.DISPLAY); // same buffer as data: Y and A are already out
+                exr.channel(prefix + ".V", pick(display, 0, false));
                 exr.attribute(prefix + ".meta", imageMeta(imageLayer).toString());
                 exr.attribute(prefix + ".lut", lutHex(imageLayer.getGLImage()));
             } else {
@@ -90,7 +94,7 @@ final class ExrCapture {
                 exr.channel(prefix + ".R", linear(over, 0, false));
                 exr.channel(prefix + ".G", linear(over, 1, false));
                 exr.channel(prefix + ".B", linear(over, 2, false));
-                exr.channel(prefix + ".A", pick(over, 3));
+                exr.channel(prefix + ".A", pick(over, 3, false));
                 exr.attribute(prefix + ".meta", new JSONObject()
                         .put("name", layer.getName())
                         .put("kind", layer.getClass().getSimpleName())
@@ -205,22 +209,19 @@ final class ExrCapture {
         return candidate;
     }
 
-    private static float[] pick(float[] rgba, int ch) {
-        float[] out = new float[rgba.length / 4];
-        for (int i = 0; i < out.length; i++)
-            out[i] = rgba[i * 4 + ch];
+    // One channel out of the pass buffer, as half bits.
+    private static short[] pick(float[] rgba, int ch, boolean clamp01) {
+        short[] out = new short[rgba.length / 4];
+        for (int i = 0; i < out.length; i++) {
+            float v = rgba[i * 4 + ch];
+            out[i] = Float.floatToFloat16(clamp01 ? Math.clamp(v, 0, 1) : v);
+        }
         return out;
     }
 
-    private static float[] clamp01(float[] v) {
-        for (int i = 0; i < v.length; i++)
-            v[i] = Math.clamp(v[i], 0, 1);
-        return v;
-    }
-
-    private static float[] ones(int n) {
-        float[] out = new float[n];
-        java.util.Arrays.fill(out, 1);
+    private static short[] ones(int n) {
+        short[] out = new short[n];
+        java.util.Arrays.fill(out, Float.floatToFloat16(1));
         return out;
     }
 
@@ -228,12 +229,12 @@ final class ExrCapture {
     // premultiply. forceOpaque treats alpha as 1 (the opaque white background). Clamped to 1
     // first: layers blend additively into the float target, so a sum can pass 1 there, but the
     // screen clips it, and the composite is a record of the screen.
-    private static float[] linear(float[] rgba, int ch, boolean forceOpaque) {
-        float[] out = new float[rgba.length / 4];
+    private static short[] linear(float[] rgba, int ch, boolean forceOpaque) {
+        short[] out = new short[rgba.length / 4];
         for (int i = 0; i < out.length; i++) {
             float c = rgba[i * 4 + ch];
             float a = forceOpaque ? 1 : Math.min(1, rgba[i * 4 + 3]);
-            out[i] = a <= 0 ? 0 : eotf(Math.min(1, c / a)) * a;
+            out[i] = Float.floatToFloat16(a <= 0 ? 0 : eotf(Math.min(1, c / a)) * a);
         }
         return out;
     }

@@ -165,15 +165,22 @@ final class GLFrameCapture {
         readback.limit(readback.capacity());
     }
 
+    private float[] floats; // one buffer, reused by every readFloats: 268 MB at 4096x4096
+
     /**
      * RGBA as floats, top row first (GL reads bottom-up, image files go top-down), and exactly
      * what the target holds: no clamp, no quantization. On an RGBA16F target that is the half
      * value itself, so writing it back out as half is lossless.
+     *
+     * <p>The array is owned by this capture and overwritten by the next read: take what is
+     * needed out of it before rendering again.
      */
     float[] readFloats() {
         resolveAndRead();
         int comp = readType == GL.UNSIGNED_BYTE ? 1 : readType == GL.HALF_FLOAT ? 2 : 4;
-        float[] out = new float[width * height * 4];
+        if (floats == null)
+            floats = new float[width * height * 4];
+        float[] out = floats;
         for (int y = 0; y < height; y++) {
             readback.get(readbackRow);
             int dst = (height - 1 - y) * width * 4;
@@ -251,6 +258,7 @@ final class GLFrameCapture {
             GL.glDeleteFramebuffer(resolveFramebuffer);
         if (readback != null)
             MemoryUtil.memFree(readback);
+        floats = null;
     }
 
     private static void checkFramebufferComplete(String label) {
