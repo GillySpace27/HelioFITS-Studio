@@ -162,6 +162,8 @@ final class ExrCapture {
                         .put("slitLeft", g.getSlitLeft()).put("slitRight", g.getSlitRight()));
         if (rhef)
             o.put("upsilon", new JSONObject().put("low", g.getUpsilonLow()).put("high", g.getUpsilonHigh()));
+        if (layer.getSequence() != null)
+            o.put("sequence", layer.getSequence().toJson());
         if (meta instanceof FitsMetaData fits)
             o.put("observatory", fits.getObservatory())
                     .put("instrument", fits.getInstrument())

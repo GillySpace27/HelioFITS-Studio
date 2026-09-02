@@ -466,7 +466,7 @@ public final class FITSImage implements URIImageReader {
         ImageBuffer result = outBuffer.finish();
         // min/max are already BZERO/BSCALE-corrected physical values (see sampleImage/rawShortToHalfFloat
         // above), so no further un-baking is needed once the stretch itself is inverted.
-        result.setPhysicalScale(new ImageBuffer.PhysicalScale(min, max, inverseMapping(state, max - min), stretchName(state, max - min)));
+        result.setPhysicalScale(new ImageBuffer.PhysicalScale(min, max, inverseMapping(state, max - min), stretchName(state, max - min), normalizedMapping(state, max - min)));
         return result;
     }
 

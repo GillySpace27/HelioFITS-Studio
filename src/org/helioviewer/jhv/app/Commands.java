@@ -133,6 +133,28 @@ public final class Commands {
         ViewState.applyRecordingUpdateRaw(mode, size);
     }
 
+    /** A sequence filter (velocity filter or noise gate) on a named image layer (the active one when null), from its JSON, or off. */
+    public static void setSequenceRaw(@Nullable String layerName, @Nullable String json) {
+        org.helioviewer.jhv.layers.ImageLayer layer = org.helioviewer.jhv.layers.Layers.getActiveImageLayer();
+        if (layerName != null && !layerName.isBlank()) {
+            layer = null;
+            for (org.helioviewer.jhv.layers.ImageLayer il : org.helioviewer.jhv.layers.Layers.getImageLayers())
+                if (il.getName().equals(layerName) || il.getName().startsWith(layerName)) {
+                    layer = il;
+                    break;
+                }
+            if (layer == null) {
+                Log.warn("jhv.sequence.set: no image layer named " + layerName);
+                return;
+            }
+        }
+        if (layer == null)
+            return;
+        org.helioviewer.jhv.image.fourier.SequenceParams params = json == null || "off".equalsIgnoreCase(json.strip())
+                ? null : org.helioviewer.jhv.image.fourier.SequenceParams.fromJson(new org.json.JSONObject(json));
+        layer.setSequence(params);
+    }
+
     public static void recordStart(@Nullable OperationContext context, @Nullable RecordStartInput input) {
         ExportMovie.start(context, input);
     }

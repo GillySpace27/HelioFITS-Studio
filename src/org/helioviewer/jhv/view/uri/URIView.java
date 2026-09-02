@@ -5,6 +5,7 @@ import java.io.File;
 import java.util.concurrent.Callable;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.astronomy.Position;
@@ -78,6 +79,28 @@ public final class URIView extends BaseView {
             return;
         }
         executor.submit(new Decoder(dataUri.file(), reader, createFilter(filterType), imageRegion, fixedRange), new Callback(key, viewpoint));
+    }
+
+    /**
+     * The unfiltered frame for a sequence filter, on the caller's (job) thread. A fresh key rather
+     * than decodeKey(): that one caches into fields the EDT also writes. A miss is the normal case
+     * after any filter switch, since clearCache() drops every key for this file, None included.
+     */
+    @Nullable
+    @Override
+    public DecodedImage frameImage(int frame) {
+        URIDecodeKey key = new URIDecodeKey(dataUri, ImageFilter.Type.None);
+        DecodedImage image = ImageBufferCache.get(key);
+        if (image != null)
+            return image;
+        try {
+            image = new Decoder(dataUri.file(), reader, createFilter(ImageFilter.Type.None), imageRegion, fixedRange).call();
+        } catch (Exception e) {
+            Log.warn("Could not re-read " + dataUri.baseName(), e);
+            return null;
+        }
+        ImageBufferCache.put(key, image);
+        return image;
     }
 
     private ImageFilter createFilter(ImageFilter.Type type) {

@@ -20,6 +20,14 @@ final class ViewHandlers {
             EventQueue.invokeLater(() -> Commands.setViewStateRaw(projection, annotationMode, multiview, tracking,
                     refresh, showCorona, differentialRotation));
         }));
+        // A sequence filter for an image layer: value is the JSON SequenceParams (see
+        // ImageLayer.serialize's "sequence" block) or "off"; layer names the layer (exact or
+        // prefix match on its display name), the active layer when absent.
+        client.addMessageHandler(SampHandlers.create("jhv.sequence.set", (senderId, sender, msg) -> {
+            String value = SampHandlers.optionalString(msg, "value");
+            String layer = SampHandlers.optionalString(msg, "layer");
+            EventQueue.invokeLater(() -> Commands.setSequenceRaw(layer, value));
+        }));
         client.addMessageHandler(SampHandlers.create("jhv.view.fits.set", (senderId, sender, msg) -> {
             String value = SampHandlers.optionalString(msg, "value");
             if (value != null) {

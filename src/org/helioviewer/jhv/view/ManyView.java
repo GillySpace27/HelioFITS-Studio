@@ -125,6 +125,13 @@ public class ManyView implements View {
         return frameInfo.view.getFrameCompletion(frameInfo.idxView);
     }
 
+    @Nullable
+    @Override
+    public org.helioviewer.jhv.image.DecodedImage frameImage(int frame) {
+        FrameInfo frameInfo = frameMap.indexedValue(frame);
+        return frameInfo.view.frameImage(frameInfo.idxView);
+    }
+
     @Override
     public JHVTime getFrameTime(int frame) {
         return frameMap.key(frame);

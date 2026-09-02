@@ -19,6 +19,7 @@ import org.helioviewer.jhv.layers.filters.FilterDetails;
 import org.helioviewer.jhv.layers.filters.ImageFilterPanel;
 import org.helioviewer.jhv.layers.filters.LUTPanel;
 import org.helioviewer.jhv.layers.filters.LevelsPanel;
+import org.helioviewer.jhv.layers.filters.SequencePanel;
 import org.helioviewer.jhv.layers.filters.SliderFilterPanel;
 
 // Rendering controls for the selected image layer: difference, opacity, blend, sharpen,
@@ -37,7 +38,8 @@ final class ImageLayerRenderingPanel extends JPanel {
     private final FilterDetails sharpenPanel;
     private final DifferencePanel differencePanel;
     private final FilterDetails channelMixerPanel;
-    private final FilterDetails imageFilterPanel;
+    private final ImageFilterPanel imageFilterPanel;
+    private final SequencePanel sequencePanel;
 
     ImageLayerRenderingPanel(ImageLayer layer) {
         differencePanel = new DifferencePanel(layer);
@@ -52,6 +54,7 @@ final class ImageLayerRenderingPanel extends JPanel {
         levelsPanel = new LevelsPanel(layer);
         sharpenPanel = new SliderFilterPanel.Sharpen(layer);
         imageFilterPanel = new ImageFilterPanel(layer);
+        sequencePanel = new SequencePanel(layer);
 
         setLayout(new GridBagLayout());
         setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
@@ -80,6 +83,8 @@ final class ImageLayerRenderingPanel extends JPanel {
         FilterRowLayout.addFilterRow(this, c, channelMixerPanel);
         c.gridy++;
         FilterRowLayout.addFilterRow(this, c, imageFilterPanel);
+        c.gridy++;
+        FilterRowLayout.addFilterRow(this, c, sequencePanel);
 
         // Usually refreshed through ImageLayer activation; initialize here too in case that activation already happened before panel creation.
         refresh(layer);
@@ -96,6 +101,14 @@ final class ImageLayerRenderingPanel extends JPanel {
             refreshForSelection(selection);
         else
             applyIndexedGating(imageLayer);
+        sequencePanel.refresh(imageLayer);
+        // A computed sequence is built from the unfiltered frames and shown as it is: the per-frame
+        // filter is forced to None while one is installed, and the combo says so.
+        if (imageLayer.getSequence() != null) {
+            imageFilterPanel.syncFromLayer(imageLayer);
+            setInteractable(false, "Per-frame filters are not applied on top of a sequence filter; switch it off first",
+                    imageFilterPanel.getFirst(), imageFilterPanel.getSecond(), imageFilterPanel.getThird());
+        }
     }
 
     // Gate on the LUT currently in use, not the FITS product: the same indexed data reads fine
@@ -125,7 +138,7 @@ final class ImageLayerRenderingPanel extends JPanel {
                         ? "Disabled: one of the selected layers uses a fixed category legend, not a value range to adjust"
                         : "Disabled: this layer's colours are a fixed category legend, not a value range to adjust")
                 : null;
-        for (FilterDetails details : List.of(levelsPanel, sharpenPanel, channelMixerPanel, imageFilterPanel))
+        for (FilterDetails details : List.of(levelsPanel, sharpenPanel, channelMixerPanel, imageFilterPanel, sequencePanel))
             setInteractable(!indexed, reason, details.getFirst(), details.getSecond(), details.getThird());
         // differencePanel's third column is the sync-time-span button, unrelated to pixel-value
         // remapping (it only aligns other layers' movie interval to this one's) -- grey only the

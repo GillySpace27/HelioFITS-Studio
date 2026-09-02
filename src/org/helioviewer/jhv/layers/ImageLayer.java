@@ -11,12 +11,15 @@ import javax.annotation.Nullable;
 
 import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.display.Display;
+import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.GridType;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.ImageFilter;
+import org.helioviewer.jhv.image.fourier.SequenceParams;
+import org.helioviewer.jhv.io.DataUri;
 import org.helioviewer.jhv.io.APIRequest;
 import org.helioviewer.jhv.io.FitsRequest;
 import org.helioviewer.jhv.io.DownloadLayer;
@@ -28,6 +31,7 @@ import org.helioviewer.jhv.opengl.GLSLSolar;
 import org.helioviewer.jhv.opengl.GLSLSolarShader;
 import org.helioviewer.jhv.opengl.Transform;
 import org.helioviewer.jhv.view.BaseView;
+import org.helioviewer.jhv.view.ComputedView;
 import org.helioviewer.jhv.view.View;
 import org.helioviewer.jhv.wcs.WcsHeader;
 
@@ -45,6 +49,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     @Nullable private List<URI> sourceUris; // remote URIs for a direct-URI layer (no APIRequest), for state persistence
     @Nullable private APIRequest pendingRequest; // the request we asked for, before the view carries it
     @Nullable private FitsRequest fitsRequest;   // the re-issuable query behind a native-FITS layer
+    @Nullable private SequenceParams sequenceParams; // a velocity filter or noise gate computed over every frame; pending until the movie is in
     private List<URI> failedUris = List.of(); // URIs that failed during the last load — missing, but retryable
     protected View view;
 
@@ -87,6 +92,8 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             jo.put("imageParams", glImage.toJson());
             if (fixedRange != null) // keep the shared FITS range so a restored PUNCH movie does not strobe
                 jo.put("fixedRange", new JSONArray().put(fixedRange[0]).put(fixedRange[1]));
+            if (sequenceParams != null)
+                jo.put("sequence", sequenceParams.toJson());
         }
     }
 
@@ -109,6 +116,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
         if (jo != null) {
             applyImageParams(jo.optJSONObject("imageParams"));
+            sequenceParams = SequenceParams.fromJson(jo.optJSONObject("sequence")); // applied once the full movie arrives
 
             JSONObject apiRequest = jo.optJSONObject("APIRequest");
             if (apiRequest != null) {
@@ -182,6 +190,15 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     public void load(FitsRequest request) {
         if (removed)
             return;
+        // The same query again is not a reload. The locked timeline re-syncs every layer to its
+        // selection whenever it is nudged, and a re-issued identical query used to replace the
+        // view: a running sequence filter was cancelled and restarted each time, and never
+        // finished. Within a session the archive's answer to the same query does not change;
+        // the refresh button is the explicit way to ask again.
+        if (request.equals(fitsRequest) && viewLoaded && !loader.isLoading() && failedUris.isEmpty()) {
+            Log.info("Same query, keeping the loaded view: " + getName());
+            return;
+        }
         fitsRequest = request;
         java.util.function.Consumer<List<URI>> receiver = uris -> {
             if (removed)
@@ -245,6 +262,69 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         if (fixedRange != null) // re-apply a pending shared display range to the freshly loaded view
             _view.setRange(fixedRange[0], fixedRange[1]);
         activateView();
+        if (sequenceParams != null) // the one-frame preview fails the frame gate inside; the full movie passes it
+            setSequence(sequenceParams);
+    }
+
+    // ---- sequence filters --------------------------------------------------------------------
+    // A velocity filter or the noise gate is a computation over every frame whose output is a new
+    // sequence. It is not an ImageFilter (those are per frame) and it must not go through setView
+    // (replaceView abolishes the view it replaces, which is the one being wrapped): the computed
+    // view wraps the current one and is swapped in with the wiring intact, like fixedRange.
+
+    private static final int SEQUENCE_MIN_FRAMES = 8;
+
+    public void setSequence(@Nullable SequenceParams params) {
+        sequenceParams = params;
+        if (view instanceof ComputedView computed) {
+            computed.dispose();
+            swapView(computed.wrapped());
+        }
+        if (params != null) {
+            int frames = view.getMaximumFrameNumber() + 1;
+            if (!viewLoaded || frames < SEQUENCE_MIN_FRAMES || !sourceHasFrames()) {
+                Log.info("Sequence filter pending on " + getName() + ": " + (!viewLoaded ? "no view yet" : frames < SEQUENCE_MIN_FRAMES
+                        ? frames + " frame(s) loaded so far" : "source format " + view.getFormat() + " cannot hand over frames"));
+            } else {
+                if (view.getFilter() != ImageFilter.Type.None) { // per-frame filters are not applied on top of a computed sequence
+                    view.clearCache();
+                    view.setFilter(ImageFilter.Type.None);
+                }
+                ComputedView computed = new ComputedView(view, params, this::setLoadStatus);
+                swapView(computed);
+                computed.start();
+            }
+        }
+        DisplayController.render(1);
+        Layers.fireLayerUpdated(this);
+    }
+
+    @Nullable
+    public SequenceParams getSequence() {
+        return sequenceParams;
+    }
+
+    @Nullable
+    public ComputedView getComputedView() {
+        return view instanceof ComputedView computed ? computed : null;
+    }
+
+    /** Whether the view can hand a sequence filter whole frames (FITS, PNG, JPEG); a JPEG 2000 stream cannot. */
+    public boolean sourceHasFrames() {
+        DataUri.Format format = view.getFormat();
+        return format == DataUri.Format.Image.FITS || format == DataUri.Format.Image.PNG || format == DataUri.Format.Image.JPEG;
+    }
+
+    public boolean canFilterSequence() {
+        return viewLoaded && isViewLoadFinished() && view.getMaximumFrameNumber() + 1 >= SEQUENCE_MIN_FRAMES && sourceHasFrames();
+    }
+
+    // The view keeps its data handler wiring and its filter; nothing is abolished and the three
+    // held frames stay (they are valid frames of the same time base; the next render replaces them).
+    private void swapView(View newView) {
+        view.setDataHandler(null);
+        view = newView;
+        view.setDataHandler(this);
     }
 
     private double[] fixedRange; // optional shared FITS display range applied to all the layer's frames
