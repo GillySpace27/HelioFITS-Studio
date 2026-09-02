@@ -41,7 +41,7 @@ public final class Task {
 
     private static void defaultOnFailure(String logContext, Throwable t, String errorMessage) {
         Log.error(logContext, t);
-        Message.err(errorMessage, t.getMessage());
+        Message.err(errorMessage, t.getMessage(), t);
     }
 
     private Task() {}
