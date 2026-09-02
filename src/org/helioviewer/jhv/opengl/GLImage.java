@@ -36,9 +36,10 @@ public class GLImage {
             tex.upload(imageBuffer);
             uploadedImageBuffer = imageBuffer;
         }
-        if (differenceBuffer != null && uploadedDiffBuffer != differenceBuffer)
+        if (differenceBuffer != null && uploadedDiffBuffer != differenceBuffer) {
             diffTex.upload(differenceBuffer);
-        uploadedDiffBuffer = differenceBuffer;
+            uploadedDiffBuffer = differenceBuffer;
+        }
     }
 
     private final float[] color = new float[4];

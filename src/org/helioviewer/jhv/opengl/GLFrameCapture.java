@@ -106,7 +106,7 @@ final class GLFrameCapture {
         int depthFormat = chosenDepthFormat;
         Log.info("GLFrameCapture config: size=" + width + "x" + height
                 + " samples=" + samples
-                + " depth=" + depthBits(depthFormat));
+                + " depth=" + depthFormatName(depthFormat));
     }
 
     void bindForRender() {
@@ -190,11 +190,11 @@ final class GLFrameCapture {
         return 0;
     }
 
-    private static int depthBits(int depthFormat) {
+    private static String depthFormatName(int depthFormat) {
         return switch (depthFormat) {
-            case GL.DEPTH_COMPONENT32F -> 32;
-            case GL.DEPTH_COMPONENT24 -> 24;
-            default -> 16;
+            case GL.DEPTH_COMPONENT32F -> "32F";
+            case GL.DEPTH_COMPONENT24 -> "24";
+            default -> "16";
         };
     }
 
