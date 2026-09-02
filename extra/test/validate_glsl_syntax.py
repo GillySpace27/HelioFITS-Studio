@@ -14,13 +14,13 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent.parent
 GLSL_DIR = REPO_ROOT / "resources" / "glsl"
 
-COMMON_FRAGMENT = GLSL_DIR / "solarCommon.frag"
-COMMON_SOLAR_FRAGMENTS = (
-    "solarOrtho.frag",
-    "solarHpc.frag",
-    "solarLati.frag",
-    "solarRadialWarp.frag",
-    "solarRectWarp.frag",
+COMMON_FRAGMENT = GLSL_DIR / "imageCommon.frag"
+IMAGE_FRAGMENTS = (
+    "imageOrtho.frag",
+    "imageHpc.frag",
+    "imageLati.frag",
+    "imageRadialWarp.frag",
+    "imageRectWarp.frag",
 )
 
 
@@ -75,10 +75,10 @@ def validate_program(glslang: str, label: str, vertex: Path, fragment: Path) -> 
     return False
 
 
-def write_combined_solar_fragments(temp_dir: Path) -> list[Path]:
+def write_combined_image_fragments(temp_dir: Path) -> list[Path]:
     common = COMMON_FRAGMENT.read_text()
     combined: list[Path] = []
-    for fragment in COMMON_SOLAR_FRAGMENTS:
+    for fragment in IMAGE_FRAGMENTS:
         source = GLSL_DIR / fragment
         target = temp_dir / fragment
         target.write_text(common + source.read_text())
@@ -87,10 +87,10 @@ def write_combined_solar_fragments(temp_dir: Path) -> list[Path]:
 
 
 def build_shader_list(temp_dir: Path) -> list[Path]:
-    common_solar = {GLSL_DIR / fragment for fragment in COMMON_SOLAR_FRAGMENTS}
-    ignored = common_solar | {COMMON_FRAGMENT}
+    image_fragments = {GLSL_DIR / fragment for fragment in IMAGE_FRAGMENTS}
+    ignored = image_fragments | {COMMON_FRAGMENT}
     standalone = sorted(path for path in GLSL_DIR.iterdir() if path.suffix in {".frag", ".vert"} and path not in ignored)
-    return standalone + write_combined_solar_fragments(temp_dir)
+    return standalone + write_combined_image_fragments(temp_dir)
 
 
 def main() -> int:
@@ -116,11 +116,11 @@ def main() -> int:
             ("shape", GLSL_DIR / "shape.vert", GLSL_DIR / "shape.frag"),
             ("texture", GLSL_DIR / "texture.vert", GLSL_DIR / "texture.frag"),
             ("SDF texture", GLSL_DIR / "texture.vert", GLSL_DIR / "textureSdf.frag"),
-            ("solar sphere", GLSL_DIR / "solar.vert", GLSL_DIR / "solarSphere.frag"),
+            ("solar sphere", GLSL_DIR / "solarScreen.vert", GLSL_DIR / "solarSphere.frag"),
         ]
         programs.extend(
-            (Path(fragment).stem, GLSL_DIR / "solar.vert", by_name[fragment])
-            for fragment in COMMON_SOLAR_FRAGMENTS
+            (Path(fragment).stem, GLSL_DIR / "solarScreen.vert", by_name[fragment])
+            for fragment in IMAGE_FRAGMENTS
         )
         for label, vertex, fragment in programs:
             ok = validate_program(glslang, label, vertex, fragment) and ok

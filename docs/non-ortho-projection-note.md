@@ -31,14 +31,14 @@ Java display geometry is organized as follows:
 
 Image reprojection is split across:
 
-- `resources/glsl/solarCommon.frag`
-- `resources/glsl/solarOrtho.frag`
-- `resources/glsl/solarHpc.frag`
-- `resources/glsl/solarLati.frag`
-- `resources/glsl/solarRadialWarp.frag`
-- `resources/glsl/solarRectWarp.frag`
+- `resources/glsl/imageCommon.frag`
+- `resources/glsl/imageOrtho.frag`
+- `resources/glsl/imageHpc.frag`
+- `resources/glsl/imageLati.frag`
+- `resources/glsl/imageRadialWarp.frag`
+- `resources/glsl/imageRectWarp.frag`
 
-`solarCommon.frag` owns the shared observer geometry, WCS projections, image-coordinate conversion, masks, texture
+`imageCommon.frag` owns the shared observer geometry, WCS projections, image-coordinate conversion, masks, texture
 sampling, and the common HPC-derived sampling path used by `HPC`, `RadialWarp`, and `RectWarp`.
 
 ## Coordinate spaces

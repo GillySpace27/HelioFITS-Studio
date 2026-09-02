@@ -467,15 +467,15 @@ void main(void) {
 
 function productionFragment(job, commonSource) {
   if (job.mode === "hpc")
-    return `${commonSource}\n${fs.readFileSync(path.join(job.repoRoot, "resources/glsl/solarHpc.frag"), "utf8")}`;
+    return `${commonSource}\n${fs.readFileSync(path.join(job.repoRoot, "resources/glsl/imageHpc.frag"), "utf8")}`;
   if (job.mode === "ortho")
-    return `${commonSource}\n${fs.readFileSync(path.join(job.repoRoot, "resources/glsl/solarOrtho.frag"), "utf8")}`;
+    return `${commonSource}\n${fs.readFileSync(path.join(job.repoRoot, "resources/glsl/imageOrtho.frag"), "utf8")}`;
   if (job.mode === "lati_zenithal")
-    return `${commonSource}\n${fs.readFileSync(path.join(job.repoRoot, "resources/glsl/solarLati.frag"), "utf8")}`;
+    return `${commonSource}\n${fs.readFileSync(path.join(job.repoRoot, "resources/glsl/imageLati.frag"), "utf8")}`;
   if (job.mode === "radial_warp")
-    return `${commonSource}\n${fs.readFileSync(path.join(job.repoRoot, "resources/glsl/solarRadialWarp.frag"), "utf8")}`;
+    return `${commonSource}\n${fs.readFileSync(path.join(job.repoRoot, "resources/glsl/imageRadialWarp.frag"), "utf8")}`;
   if (job.mode === "rect_warp")
-    return `${commonSource}\n${fs.readFileSync(path.join(job.repoRoot, "resources/glsl/solarRectWarp.frag"), "utf8")}`;
+    return `${commonSource}\n${fs.readFileSync(path.join(job.repoRoot, "resources/glsl/imageRectWarp.frag"), "utf8")}`;
   throw new Error(`Unsupported mode: ${job.mode}`);
 }
 
@@ -575,19 +575,19 @@ function diagnosticFragment(job, commonSource) {
   if (job.colorSmoke || job.colorDiffSmoke)
     return productionFragment(job, commonSource);
   if (job.mode === "hpc") {
-    const hpcSource = fs.readFileSync(path.join(job.repoRoot, "resources/glsl/solarHpc.frag"), "utf8");
+    const hpcSource = fs.readFileSync(path.join(job.repoRoot, "resources/glsl/imageHpc.frag"), "utf8");
     return job.diffSelfcheck ? hpcDiffSelfcheckDiagnostic(commonSource, hpcSource) : hpcDiagnostic(commonSource, hpcSource);
   }
   if (job.mode === "ortho")
     return job.diffSelfcheck
-        ? orthoDiffSelfcheckDiagnostic(commonSource, fs.readFileSync(path.join(job.repoRoot, "resources/glsl/solarOrtho.frag"), "utf8"))
-        : orthoDiagnostic(commonSource, fs.readFileSync(path.join(job.repoRoot, "resources/glsl/solarOrtho.frag"), "utf8"));
+        ? orthoDiffSelfcheckDiagnostic(commonSource, fs.readFileSync(path.join(job.repoRoot, "resources/glsl/imageOrtho.frag"), "utf8"))
+        : orthoDiagnostic(commonSource, fs.readFileSync(path.join(job.repoRoot, "resources/glsl/imageOrtho.frag"), "utf8"));
   if (job.mode === "lati_zenithal")
     return job.diffSelfcheck
-        ? latiDiffSelfcheckDiagnostic(commonSource, fs.readFileSync(path.join(job.repoRoot, "resources/glsl/solarLati.frag"), "utf8"), job.latiDiffSelfcheckMode || "normal")
-        : latiDiagnostic(commonSource, fs.readFileSync(path.join(job.repoRoot, "resources/glsl/solarLati.frag"), "utf8"));
+        ? latiDiffSelfcheckDiagnostic(commonSource, fs.readFileSync(path.join(job.repoRoot, "resources/glsl/imageLati.frag"), "utf8"), job.latiDiffSelfcheckMode || "normal")
+        : latiDiagnostic(commonSource, fs.readFileSync(path.join(job.repoRoot, "resources/glsl/imageLati.frag"), "utf8"));
   if (job.mode === "radial_warp" || job.mode === "rect_warp") {
-    const warpShader = job.mode === "radial_warp" ? "solarRadialWarp.frag" : "solarRectWarp.frag";
+    const warpShader = job.mode === "radial_warp" ? "imageRadialWarp.frag" : "imageRectWarp.frag";
     const warpSource = fs.readFileSync(path.join(job.repoRoot, "resources/glsl", warpShader), "utf8");
     return job.diffSelfcheck ? warpDiffSelfcheckDiagnostic(commonSource, warpSource) : warpDiagnostic(commonSource, warpSource);
   }
@@ -725,8 +725,8 @@ async function main() {
 
   const quadVao = prepareFullscreenQuad(gl);
 
-  const commonSource = fs.readFileSync(path.join(jobs[0].repoRoot, "resources/glsl/solarCommon.frag"), "utf8");
-  const vertexSource = fs.readFileSync(path.join(jobs[0].repoRoot, "resources/glsl/solar.vert"), "utf8");
+  const commonSource = fs.readFileSync(path.join(jobs[0].repoRoot, "resources/glsl/imageCommon.frag"), "utf8");
+  const vertexSource = fs.readFileSync(path.join(jobs[0].repoRoot, "resources/glsl/solarScreen.vert"), "utf8");
   const results = [];
   for (const job of jobs)
     results.push(renderJob(gl, commonSource, vertexSource, renderer, quadVao, job));

@@ -23,8 +23,7 @@ import org.helioviewer.jhv.math.Mat2;
 import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.metadata.MetaData;
 import org.helioviewer.jhv.opengl.GLSLImage;
-import org.helioviewer.jhv.opengl.GLSLSolar;
-import org.helioviewer.jhv.opengl.GLSLSolarShader;
+import org.helioviewer.jhv.opengl.GLSLImageShader;
 import org.helioviewer.jhv.view.BaseView;
 import org.helioviewer.jhv.view.View;
 import org.helioviewer.jhv.wcs.WcsHeader;
@@ -265,12 +264,12 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         Quat sourceView0 = wcs0.projection.isSurfaceMap() ? q : metaViewpoint0.toQuat();
         Quat sourceView1 = wcs1.projection.isSurfaceMap() ? q : metaViewpoint1.toQuat();
 
-        GLSLSolarShader.bindImages(
+        GLSLImageShader.bindImages(
                 imageData.region(), planeToImage0, crval0, wcs0,
                 (float) metaViewpoint0.distance, deltaT0, cameraDiff0, sourceView0,
                 imageDataDiff.region(), planeToImage1, crval1, wcs1,
                 (float) metaViewpoint1.distance, deltaT1, cameraDiff1, sourceView1);
-        GLSLSolar.renderImage(mv.mode(), wcs0.pv2, wcs1.pv2);
+        glImage.render(mv.mode(), wcs0.pv2, wcs1.pv2);
     }
 
     private View.ImageData comparisonImageData() {

@@ -3,14 +3,13 @@ package org.helioviewer.jhv.opengl;
 import java.nio.FloatBuffer;
 
 import org.helioviewer.jhv.base.BufferUtils;
-import org.helioviewer.jhv.display.MapMode;
 import org.helioviewer.jhv.display.MapScale;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 
 public final class GLSLSolar {
 
-    private static final String VERTEX = "/glsl/solar.vert";
+    private static final String VERTEX = "/glsl/solarScreen.vert";
 
     private static final VertexArrayObject quad = new VertexArrayObject(false, VertexAttribute.floats(0, 4, 0, 0));
     private static final SphereShader sphere = new SphereShader();
@@ -43,19 +42,14 @@ public final class GLSLSolar {
         screenBuffer.upload();
     }
 
-    private static void render() {
+    static void renderScreen() {
         quad.bind();
         GL.glDrawArrays(GL.TRIANGLE_STRIP, 0, 4);
     }
 
     static void renderSphere() {
         sphere.use();
-        render();
-    }
-
-    public static void renderImage(MapMode mode, float[] pv0, float[] pv1) {
-        GLSLSolarShader.useImage(mode, pv0, pv1);
-        render();
+        renderScreen();
     }
 
     private static final class SphereShader extends GLSLShader {

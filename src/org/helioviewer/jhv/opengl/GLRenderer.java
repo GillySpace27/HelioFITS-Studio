@@ -77,7 +77,7 @@ public final class GLRenderer {
 
         try {
             GLSLSolar.init();
-            GLSLSolarShader.init();
+            GLSLImageShader.init();
             GLSLLineShader.init();
             GLSLMeshShader.init();
             GLSLShapeShader.init();
@@ -133,7 +133,7 @@ public final class GLRenderer {
     }
 
     private static void disposeShaders() {
-        GLSLSolarShader.dispose();
+        GLSLImageShader.dispose();
         GLSLLineShader.dispose();
         GLSLMeshShader.dispose();
         GLSLShapeShader.dispose();

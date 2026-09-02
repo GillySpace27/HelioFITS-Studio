@@ -8,22 +8,22 @@ import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.metadata.Region;
 import org.helioviewer.jhv.wcs.WcsHeader;
 
-public final class GLSLSolarShader extends GLSLShader {
+public final class GLSLImageShader extends GLSLShader {
 
-    private static final String VERTEX = "/glsl/solar.vert";
-    private static final String COMMON_FRAGMENT = "/glsl/solarCommon.frag";
+    private static final String VERTEX = "/glsl/solarScreen.vert";
+    private static final String COMMON_FRAGMENT = "/glsl/imageCommon.frag";
 
-    private static final GLSLSolarShader ortho = new GLSLSolarShader("/glsl/solarOrtho.frag");
-    private static final GLSLSolarShader hpc = new GLSLSolarShader("/glsl/solarHpc.frag");
-    private static final GLSLSolarShader lati = new GLSLSolarShader("/glsl/solarLati.frag");
-    private static final GLSLSolarShader radialWarp = new GLSLSolarShader("/glsl/solarRadialWarp.frag");
-    private static final GLSLSolarShader rectWarp = new GLSLSolarShader("/glsl/solarRectWarp.frag");
-    private static final GLSLSolarShader[] imagePrograms = {ortho, hpc, lati, radialWarp, rectWarp};
+    private static final GLSLImageShader ortho = new GLSLImageShader("/glsl/imageOrtho.frag");
+    private static final GLSLImageShader hpc = new GLSLImageShader("/glsl/imageHpc.frag");
+    private static final GLSLImageShader lati = new GLSLImageShader("/glsl/imageLati.frag");
+    private static final GLSLImageShader radialWarp = new GLSLImageShader("/glsl/imageRadialWarp.frag");
+    private static final GLSLImageShader rectWarp = new GLSLImageShader("/glsl/imageRectWarp.frag");
+    private static final GLSLImageShader[] imagePrograms = {ortho, hpc, lati, radialWarp, rectWarp};
 
     private int pv0Ref;
     private int pv1Ref;
 
-    private GLSLSolarShader(String fragment) {
+    private GLSLImageShader(String fragment) {
         super(VERTEX, COMMON_FRAGMENT, fragment);
     }
 
@@ -36,7 +36,7 @@ public final class GLSLSolarShader extends GLSLShader {
             displayBuffer.init();
             imageBuffer.bind();
             displayBuffer.bind();
-            for (GLSLSolarShader program : imagePrograms)
+            for (GLSLImageShader program : imagePrograms)
                 program._init();
         } catch (RuntimeException | Error e) {
             dispose();
@@ -62,7 +62,7 @@ public final class GLSLSolarShader extends GLSLShader {
     }
 
     static void dispose() {
-        for (GLSLSolarShader program : imagePrograms)
+        for (GLSLImageShader program : imagePrograms)
             program._dispose();
         imageBuffer.dispose();
         displayBuffer.dispose();
@@ -111,7 +111,7 @@ public final class GLSLSolarShader extends GLSLShader {
     }
 
     static void useImage(MapMode mode, float[] pv0, float[] pv1) {
-        GLSLSolarShader shader = switch (mode) {
+        GLSLImageShader shader = switch (mode) {
             case Orthographic -> ortho;
             case HPC -> hpc;
             case Latitudinal -> lati;

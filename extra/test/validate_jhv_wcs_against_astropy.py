@@ -375,7 +375,7 @@ def quat_rotate_vector_inverse(quat: tuple[float, float, float, float], vec: tup
     )
 
 
-# CPU mirror of the shared GLSL helpers in solarCommon.frag.
+# CPU mirror of the shared GLSL helpers in imageCommon.frag.
 def wrapDeltaLongitude(lon: float, lon0: float) -> float:
     return wrap_delta_lon_rad(lon, lon0)
 
@@ -1275,7 +1275,7 @@ def hpc_screen_to_world_rad(scrpos: tuple[float, float], bounds_deg: tuple[float
     )
 
 
-# CPU mirror of solarHpc.frag.
+# CPU mirror of imageHpc.frag.
 def screenToHelioprojective(scrpos: tuple[float, float], bounds_deg: tuple[float, float, float, float]) -> tuple[float, float]:
     return hpc_screen_to_world_rad(scrpos, bounds_deg)
 
@@ -1393,7 +1393,7 @@ def sampleHpcTexcoord(
     return wcsPlaneToTexcoord(plane, meta, image2d), enhancement_factor
 
 
-# solarHpc.frag mirror.
+# imageHpc.frag mirror.
 
 def renderHpcTexcoords(
     scrpos: tuple[float, float],
@@ -1670,7 +1670,7 @@ def renderHpcTexcoordsFloat32(
     return texcoord, enhancement_factor, helioprojective, hpc_xy
 
 
-# solarLati.frag mirror.
+# imageLati.frag mirror.
 
 def latitudinalWorld(
     scrpos: tuple[float, float],
@@ -1796,7 +1796,7 @@ def renderLatitudinalPixel(
     return texcoord
 
 
-# solarOrtho.frag mirror.
+# imageOrtho.frag mirror.
 
 def ortho_screen_to_world(screen_xy: tuple[float, float]) -> tuple[float, float, float]:
     x, y = screen_xy
@@ -1808,7 +1808,7 @@ def texcoord_to_pixel_center(texcoord: tuple[float, float], width: int, height: 
     return (texcoord[0] * width, texcoord[1] * height)
 
 
-# CPU mirror of the on-disk source sampling logic in solarOrtho.frag.
+# CPU mirror of the on-disk source sampling logic in imageOrtho.frag.
 def sampleOrthoTexcoord(
     world_xyz: tuple[float, float, float],
     meta: JHVMeta,
@@ -3008,10 +3008,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--inverse-cea", action="store_true", help="Validate the CEA inverse plane->world mapping")
     parser.add_argument("--hpc-render-compare", action="store_true", help="Render a bounded HPC screen through JHV and Astropy mappings and write diagnostic PNGs")
     parser.add_argument("--hpc-bounds-compare", action="store_true", help="Report the raw and centered HPC bounds used by the current JHV display logic")
-    parser.add_argument("--latitudinal-render", action="store_true", help="Render the CAR/CEA latitudinal surface-map path mirrored from solarLati.frag")
+    parser.add_argument("--latitudinal-render", action="store_true", help="Render the CAR/CEA latitudinal surface-map path mirrored from imageLati.frag")
     parser.add_argument("--surface-map-render-compare", action="store_true", help="Render CAR/CEA surface maps through JHV and Astropy over a dense lon/lat grid and write diagnostic PNGs")
-    parser.add_argument("--latitudinal-zenithal-render", action="store_true", help="Render the legacy zenithal latitudinal path mirrored from solarLati.frag")
-    parser.add_argument("--orthographic-render", action="store_true", help="Render the orthographic path mirrored from solarOrtho.frag")
+    parser.add_argument("--latitudinal-zenithal-render", action="store_true", help="Render the legacy zenithal latitudinal path mirrored from imageLati.frag")
+    parser.add_argument("--orthographic-render", action="store_true", help="Render the orthographic path mirrored from imageOrtho.frag")
     parser.add_argument("--hpc-diff-selfcheck", action="store_true", help="Exercise the mirrored HPC diff branch with identical source/meta on both sides")
     parser.add_argument("--latitudinal-diff-selfcheck", action="store_true", help="Exercise the mirrored Latitudinal diff branch with identical source/meta on both sides")
     parser.add_argument("--orthographic-diff-selfcheck", action="store_true", help="Exercise the mirrored Orthographic diff branch with identical source/meta on both sides")
