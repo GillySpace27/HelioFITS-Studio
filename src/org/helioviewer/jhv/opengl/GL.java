@@ -27,8 +27,7 @@ public final class GL {
     public static final int DEPTH_BUFFER_BIT = GLES30.GL_DEPTH_BUFFER_BIT;
     public static final int DEPTH_COMPONENT16 = GLES30.GL_DEPTH_COMPONENT16;
     public static final int DEPTH_COMPONENT24 = GLES30.GL_DEPTH_COMPONENT24;
-    // Keep the 32-bit integer depth format candidate for renderbuffer allocation because it seems to work on ANGLE.
-    public static final int DEPTH_COMPONENT32 = 0x81A7;
+    public static final int DEPTH_COMPONENT32F = GLES30.GL_DEPTH_COMPONENT32F;
     public static final int DEPTH_TEST = GLES30.GL_DEPTH_TEST;
     public static final int DRAW_FRAMEBUFFER = GLES30.GL_DRAW_FRAMEBUFFER;
     public static final int DYNAMIC_DRAW = GLES30.GL_DYNAMIC_DRAW;
@@ -71,6 +70,7 @@ public final class GL {
     public static final int RGB = GLES30.GL_RGB;
     public static final int RGB8 = GLES30.GL_RGB8;
     public static final int RGBA = GLES30.GL_RGBA;
+    public static final int RGBA8 = GLES30.GL_RGBA8;
     public static final int SHADING_LANGUAGE_VERSION = GLES30.GL_SHADING_LANGUAGE_VERSION;
     public static final int STATIC_DRAW = GLES30.GL_STATIC_DRAW;
     public static final int STREAM_DRAW = GLES30.GL_STREAM_DRAW;
@@ -95,7 +95,9 @@ public final class GL {
     public static final int VERTEX_SHADER = GLES30.GL_VERTEX_SHADER;
 
     private static String formatVersionString(String version) {
-        return version != null && version.startsWith("OpenGL ") ? version : "OpenGL " + version;
+        if (version == null)
+            return "";
+        return version.startsWith("OpenGL ") ? version : "OpenGL " + version;
     }
 
     public static void initInfo() {

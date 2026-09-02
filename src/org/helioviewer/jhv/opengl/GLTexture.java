@@ -16,7 +16,7 @@ public final class GLTexture {
     public enum Format {
         R8(GL.R8, GL.RED, GL.UNSIGNED_BYTE, 1),
         R16F(GL.R16F, GL.RED, GL.HALF_FLOAT, 2),
-        RGBA8(GL.RGBA, GL.RGBA, GL.UNSIGNED_BYTE, 4);
+        RGBA8(GL.RGBA8, GL.RGBA, GL.UNSIGNED_BYTE, 4);
 
         final int internalFormat;
         final int inputFormat;

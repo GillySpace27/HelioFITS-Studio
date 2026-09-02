@@ -7,7 +7,7 @@ import org.helioviewer.jhv.app.Log;
 import org.lwjgl.system.MemoryUtil;
 
 final class GLFrameCapture {
-    private static final int[] DEPTH_FORMATS = {GL.DEPTH_COMPONENT32, GL.DEPTH_COMPONENT24, GL.DEPTH_COMPONENT16};
+    private static final int[] DEPTH_FORMATS = {GL.DEPTH_COMPONENT32F, GL.DEPTH_COMPONENT24, GL.DEPTH_COMPONENT16};
     private static final int EXPORT_SAMPLES = 4;
 
     private final int width;
@@ -192,7 +192,7 @@ final class GLFrameCapture {
 
     private static int depthBits(int depthFormat) {
         return switch (depthFormat) {
-            case GL.DEPTH_COMPONENT32 -> 32;
+            case GL.DEPTH_COMPONENT32F -> 32;
             case GL.DEPTH_COMPONENT24 -> 24;
             default -> 16;
         };
