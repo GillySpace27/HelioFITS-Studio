@@ -33,11 +33,11 @@ public class GLImage {
 
     public void streamImages(ImageBuffer imageBuffer, @Nullable ImageBuffer differenceBuffer) {
         if (uploadedImageBuffer != imageBuffer) {
-            tex.upload(imageBuffer, GL.LINEAR);
+            tex.upload(imageBuffer);
             uploadedImageBuffer = imageBuffer;
         }
         if (differenceBuffer != null && uploadedDiffBuffer != differenceBuffer)
-            diffTex.upload(differenceBuffer, GL.LINEAR);
+            diffTex.upload(differenceBuffer);
         uploadedDiffBuffer = differenceBuffer;
     }
 
@@ -98,11 +98,11 @@ public class GLImage {
         if (tex != null)
             return;
         try {
-            tex = new GLStreamingTexture2D(GLTexture.Unit.ZERO);
+            tex = new GLStreamingTexture2D(GLTexture.Unit.ZERO, GL.LINEAR);
             lutTex = new GLTexture(GL.TEXTURE_2D, GLTexture.Unit.ONE);
-            diffTex = new GLStreamingTexture2D(GLTexture.Unit.TWO);
-            maskTex = new GLStreamingTexture2D(GLTexture.Unit.THREE);
-            maskTex.upload(uploadedMask.getImageBuffer(), GL.NEAREST);
+            diffTex = new GLStreamingTexture2D(GLTexture.Unit.TWO, GL.LINEAR);
+            maskTex = new GLStreamingTexture2D(GLTexture.Unit.THREE, GL.NEAREST);
+            maskTex.upload(uploadedMask.getImageBuffer());
         } catch (RuntimeException | Error e) {
             dispose();
             throw e;
@@ -131,7 +131,7 @@ public class GLImage {
     private void applyMask(DetectorMask detectorMask) {
         if (uploadedMask == detectorMask)
             return;
-        maskTex.upload(detectorMask.getImageBuffer(), GL.NEAREST);
+        maskTex.upload(detectorMask.getImageBuffer());
         uploadedMask = detectorMask;
     }
 
