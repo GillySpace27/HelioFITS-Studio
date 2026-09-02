@@ -8,6 +8,11 @@ That file is the Mozilla Public License 2.0 and it governs JHelioviewer's own so
 nothing about the 64 jars and 21 native binaries under `lib/`, three of which restrict
 redistribution far more tightly than the MPL does.
 
+Two further licences ship with the application and are not visible from the repository root at all,
+because they live inside a jar: `licenses/Kakadu.txt` and `licenses/EULA.txt` in
+`lib/jhv/jhv-resources.jar`. Both are quoted below. The application does surface them, through the
+About dialog, so this is a discoverability problem rather than a compliance one.
+
 **Scope.** Everything below concerns *redistribution*. Running the software you built yourself, for
 your own research, raises none of it.
 
@@ -19,7 +24,7 @@ Generated against `9474f0aa` (2026-09-01), nearest tag `v5.6d-coronal-research`.
 
 ## Start here: the three that gate redistribution
 
-### 1. Kakadu is proprietary, and the licence is not ours
+### 1. Kakadu is proprietary, under a non-commercial licence that cannot be transferred
 
 | Where | What |
 | --- | --- |
@@ -28,19 +33,54 @@ Generated against `9474f0aa` (2026-09-01), nearest tag `v5.6d-coronal-research`.
 | `lib/jhv/jhv-natives-macos.jar` | `libkdu_jni.dylib` |
 | `lib/jhv/jhv-natives-macos-arm64.jar` | `libkdu_jni.dylib` |
 | `lib/jhv/jhv-natives-windows.jar` | `kdu_jni.dll`, `kdu_v7AR.dll` |
+| **`lib/jhv/jhv-resources.jar`** | **`licenses/Kakadu.txt`, the agreement itself** |
 
-Kakadu is the JPEG 2000 codec, from Kakadu Software Pty Ltd. It is commercial, closed-source
-software under a paid licence. It is what decodes every JP2/JPX/JPIP layer, so it is not optional
-to the application's function.
+Kakadu is the JPEG 2000 codec, from NewSouth Innovations Ltd. It decodes every JP2, JPX and JPIP
+layer, so it is not optional to the application's function.
 
-The JHelioviewer project ships it under a licence negotiated for JHelioviewer, funded through ESA
-and NASA. **That licence does not automatically extend to a third party redistributing a fork.**
-Nothing in `LICENSE`, the MPL, grants any right to redistribute Kakadu, because the MPL only ever
-covered code the contributors owned.
+The agreement is bundled and readable, which makes this specific rather than a matter of guessing:
 
-This is the first question to settle before publishing any binary build, including one behind a
-conference QR code. It is a question for the JHelioviewer maintainers and for Kakadu Software, and
-it is worth putting to NWRA contracts before it is put to either.
+```bash
+unzip -p lib/jhv/jhv-resources.jar licenses/Kakadu.txt
+```
+
+It is headed **"Non-Commercial License Agreement"**. The clauses that decide what a fork may do:
+
+- **§1.3** defines the Licensee as "the individual person who has **purchased** the Kakadu software
+  and is granted the non-commercial license". That is the JHelioviewer project, through its ESA and
+  NASA funding. A fork's maintainer is a Third Party under §1.4.
+- **§10: "The license is not transferable to a Third Party and may not be sub-licensed to any other
+  person."** This is the decisive clause. The JHelioviewer project's Kakadu licence does not reach
+  anyone else by virtue of them having a copy of the repository.
+- **§4** lets the Licensee distribute the libraries to a Third Party only if "the Third Party
+  possesses a license to use the Kakadu software", and only with no financial return.
+- **§3** permits Deployment, meaning distribution of built Applications to Third Parties, "provided
+  that such Deployment does not result in any direct or indirect financial return to the Licensee
+  or any other Third Party which further supplies or otherwise uses such Applications."
+
+Two things follow, and they point in opposite directions, which is why this needs a person and not
+a document. The non-commercial terms are a comfortable fit for publicly funded research software
+given away at no charge. But §10 means the right to redistribute is the JHelioviewer project's to
+exercise, not a fork's, and "indirect financial return" in §3 is a phrase carrying real weight for
+anything attached to a funded deliverable or a paid engagement.
+
+**§3 also requires that "all copies of Applications shall contain notification that they were
+developed using the Kakadu software."** JHelioviewer complies: `AboutDialog.java:44` credits Kakadu
+and links to the bundled licence. Any fork must keep that intact, which MPL §3.4 independently
+requires.
+
+The practical route for a fork that wants to distribute binaries is to ask the JHelioviewer
+maintainers to publish the build, or to hold a Kakadu licence of one's own. Worth putting to NWRA
+contracts before either.
+
+### 1b. An ESA end-user agreement is also bundled
+
+`licenses/EULA.txt` in the same jar is an ESTEC/ESA end-user agreement covering "your use of
+JHelioviewer and related software components". It is a disclaimer-and-privacy instrument rather
+than a grant: liability, third-party links, and a clause on collecting IP addresses and usage
+telemetry for internal analysis. It does not restrict redistribution, but it is a document a fork
+inherits and should either carry forward or consciously replace, particularly the privacy section,
+which describes data collection a fork may not actually perform.
 
 ### 2. One bundled ffmpeg build is not redistributable at all
 
@@ -103,6 +143,12 @@ Everything under `lib/jhv/jhv-natives-*.jar` and `lib/natives-macos/`.
 | `libJNISpice.*`, `JNISpice.dll`, `lib/jnispice.jar` | NAIF SPICE toolkit | Permissive with attribution, per NAIF | Upstream project, not stated in the artifact |
 | `libEGL.*`, `libGLESv2.*` | ANGLE | BSD-style, per the ANGLE project | Upstream project, not stated in the artifact |
 | `lib/natives-macos/libjhvmetalhost.dylib` | This repository's own Metal host | MPL 2.0 with the rest | Built here from `native/macos/jhv_metal_host.m` |
+
+`lib/jhv/jhv-resources.jar` holds no code: 27 PNGs, one GIF, the Material Design Icons webfont
+(`fonts/materialdesignicons-webfont.ttf`), and the three licence texts discussed above. The icon
+font is distributed by its project under SIL OFL 1.1 with Apache 2.0 code, neither of which is
+asserted by anything inside this jar. The event icons carry no attribution at all and their
+provenance is unrecorded.
 
 ## Java libraries
 
@@ -170,8 +216,9 @@ for j in lib/jhv/jhv-natives-*.jar; do echo "--- $j"; unzip -l "$j"; done
 
 ## What to do with this
 
-1. **Settle Kakadu before distributing any binary.** It is the only component whose licence this
-   project has no visible grant for.
+1. **Settle Kakadu before distributing any binary.** The bundled agreement is non-commercial and,
+   by its §10, neither transferable nor sub-licensable, so the right to redistribute belongs to the
+   JHelioviewer project rather than to a fork.
 2. **Do not ship `jhv-natives-macos.jar` as it stands.** Replace that ffmpeg with a build that has
    no `--enable-nonfree`, matching the Apple Silicon one already in the tree.
 3. **Offer ffmpeg's source** alongside the other three platform builds, or link to it.
