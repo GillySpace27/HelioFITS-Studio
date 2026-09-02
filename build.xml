@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<project name="JHelioviewer" default="all" xmlns:if="ant:if">
+<project name="HFStudio" default="all" xmlns:if="ant:if">
     <property environment="env"/>
     <property name="src" location="src"/>
     <property name="bin" location="bin"/>
     <property name="resources" location="resources"/>
-    <property name="jarfile" location= "JHelioviewer.jar"/>
+    <property name="jarfile" location= "HFStudio.jar"/>
 
     <fileset id="libfiles" dir="./">
         <include name="lib/**/*.jar"/>
@@ -144,7 +144,7 @@
             <manifest>
                 <attribute name="Automatic-Module-Name" value="org.helioviewer.jhv"/>
                 <attribute name="Add-Exports" value="java.desktop/sun.awt java.desktop/sun.swing"/>
-                <attribute name="Main-Class" value="org.helioviewer.jhv.JHelioviewer"/>
+                <attribute name="Main-Class" value="org.helioviewer.jhv.HFStudio"/>
                 <attribute name="Class-Path" value="${manifest_cp}"/>
                 <attribute name="version" value="${version}"/>
                 <attribute name="revision" value="${revision}"/>
