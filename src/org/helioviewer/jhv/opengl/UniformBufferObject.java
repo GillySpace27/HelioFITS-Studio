@@ -24,11 +24,6 @@ final class UniformBufferObject {
             buffer = new BufferObject(GL.UNIFORM_BUFFER, usage);
     }
 
-    void bindBlock(int programID) {
-        GLSLShader.setupUniformBlock(programID, block);
-        bind();
-    }
-
     FloatBuffer begin() {
         return values.clear();
     }

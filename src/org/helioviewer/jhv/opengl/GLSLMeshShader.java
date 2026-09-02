@@ -15,6 +15,7 @@ final class GLSLMeshShader extends GLSLShader {
     static void init() {
         frameBuffer.init();
         try {
+            frameBuffer.bind();
             mesh._init();
         } catch (RuntimeException | Error e) {
             frameBuffer.dispose();
@@ -29,7 +30,7 @@ final class GLSLMeshShader extends GLSLShader {
 
     @Override
     protected void initUniforms(int id) {
-        frameBuffer.bindBlock(id);
+        setupUniformBlock(id, UniformBlockLayout.MESH_FRAME);
         setupUniformBlock(id, UniformBlockLayout.MESH_MATERIAL);
         setTextureUnit(id, "baseColorTexture", GLTexture.Unit.THREE);
     }

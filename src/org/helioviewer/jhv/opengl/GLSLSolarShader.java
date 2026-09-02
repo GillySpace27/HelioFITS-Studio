@@ -3,9 +3,6 @@ package org.helioviewer.jhv.opengl;
 import java.nio.FloatBuffer;
 
 import org.helioviewer.jhv.display.MapMode;
-import org.helioviewer.jhv.display.MapScale;
-import org.helioviewer.jhv.display.MapView;
-import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.math.Mat2;
 import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.metadata.Region;
@@ -16,7 +13,6 @@ public final class GLSLSolarShader extends GLSLShader {
     private static final String VERTEX = "/glsl/solar.vert";
     private static final String COMMON_FRAGMENT = "/glsl/solarCommon.frag";
 
-    private static final SphereShader sphere = new SphereShader();
     private static final GLSLSolarShader ortho = new GLSLSolarShader("/glsl/solarOrtho.frag");
     private static final GLSLSolarShader hpc = new GLSLSolarShader("/glsl/solarHpc.frag");
     private static final GLSLSolarShader lati = new GLSLSolarShader("/glsl/solarLati.frag");
@@ -32,15 +28,14 @@ public final class GLSLSolarShader extends GLSLShader {
     }
 
     private static final UniformBufferObject imageBuffer = new UniformBufferObject(UniformBlockLayout.IMAGE, GL.STREAM_DRAW);
-    private static final UniformBufferObject screenBuffer = new UniformBufferObject(UniformBlockLayout.SOLAR_SCREEN, GL.STREAM_DRAW);
     private static final UniformBufferObject displayBuffer = new UniformBufferObject(UniformBlockLayout.DISPLAY, GL.STREAM_DRAW);
 
     static void init() {
         try {
             imageBuffer.init();
-            screenBuffer.init();
             displayBuffer.init();
-            sphere._init();
+            imageBuffer.bind();
+            displayBuffer.bind();
             for (GLSLSolarShader program : imagePrograms)
                 program._init();
         } catch (RuntimeException | Error e) {
@@ -50,9 +45,9 @@ public final class GLSLSolarShader extends GLSLShader {
     }
 
     private static void setupImageBlocks(int programID) {
-        imageBuffer.bindBlock(programID);
-        screenBuffer.bindBlock(programID);
-        displayBuffer.bindBlock(programID);
+        setupUniformBlock(programID, UniformBlockLayout.IMAGE);
+        setupUniformBlock(programID, UniformBlockLayout.SOLAR_SCREEN);
+        setupUniformBlock(programID, UniformBlockLayout.DISPLAY);
     }
 
     @Override
@@ -67,11 +62,9 @@ public final class GLSLSolarShader extends GLSLShader {
     }
 
     static void dispose() {
-        sphere._dispose();
         for (GLSLSolarShader program : imagePrograms)
             program._dispose();
         imageBuffer.dispose();
-        screenBuffer.dispose();
         displayBuffer.dispose();
     }
 
@@ -97,17 +90,6 @@ public final class GLSLSolarShader extends GLSLShader {
         sourceView.setFloatBuffer(values);
     }
 
-    static void bindScreen(MapView mv, Viewport vp) {
-        MapScale scale = mv.scale(vp);
-        FloatBuffer values = screenBuffer.begin(Transform.getInverse());
-        values.put((float) scale.toMapX(0)).put((float) scale.toMapX(1));
-        values.put((float) scale.toMapY(0)).put((float) scale.toMapY(1));
-        values.put((float) mv.latiLongitudeOrigin()).put((float) mv.latiLatitudeOrigin());
-        values.put((float) (1 / vp.aspect));
-        values.put((float) scale.warpLambda());
-        screenBuffer.upload();
-    }
-
     static void bindDisplay(float[] color,
                             float shWidth, float shHeight, float shWeight, int isDiff,
                             float bOffset, float bScale,
@@ -128,10 +110,6 @@ public final class GLSLSolarShader extends GLSLShader {
         displayBuffer.uploadIfChanged();
     }
 
-    static void useSphere() {
-        sphere.use();
-    }
-
     static void useImage(MapMode mode, float[] pv0, float[] pv1) {
         GLSLSolarShader shader = switch (mode) {
             case Orthographic -> ortho;
@@ -149,14 +127,4 @@ public final class GLSLSolarShader extends GLSLShader {
         GL.glUniform1fv(pv1Ref, pv1);
     }
 
-    private static final class SphereShader extends GLSLShader {
-        private SphereShader() {
-            super(VERTEX, "/glsl/solarSphere.frag");
-        }
-
-        @Override
-        protected void initUniforms(int id) {
-            screenBuffer.bindBlock(id);
-        }
-    }
 }

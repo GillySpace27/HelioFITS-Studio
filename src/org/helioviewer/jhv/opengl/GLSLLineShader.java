@@ -19,6 +19,7 @@ class GLSLLineShader extends GLSLShader {
     public static void init() {
         screenBuffer.init();
         try {
+            screenBuffer.bind();
             line._init();
         } catch (RuntimeException | Error e) {
             screenBuffer.dispose();
@@ -33,7 +34,7 @@ class GLSLLineShader extends GLSLShader {
 
     @Override
     protected void initUniforms(int id) {
-        screenBuffer.bindBlock(id);
+        setupUniformBlock(id, UniformBlockLayout.LINE_SCREEN);
         opaquePassRef = requiredUniform(id, "opaquePass");
     }
 
