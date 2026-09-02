@@ -117,7 +117,6 @@ public final class AngleRenderer {
             IntBuffer minor = stack.mallocInt(1);
             if (!EGL15.eglInitialize(newDisplay, major, minor))
                 throw eglError("eglInitialize");
-            EGL.createDisplayCapabilities(newDisplay, major.get(0), minor.get(0));
             if (!EGL15.eglBindAPI(EGL15.EGL_OPENGL_ES_API))
                 throw eglError("eglBindAPI");
 

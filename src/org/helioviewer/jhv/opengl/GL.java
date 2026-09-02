@@ -7,6 +7,7 @@ import java.nio.ShortBuffer;
 
 import org.lwjgl.opengles.GLES30;
 
+// Application-facing OpenGL ES 3.0 API, keeping LWJGL calls in one place.
 public final class GL {
     public static final int SAMPLES = 0; // values greater than 1 request MSAA.
     public static String renderer = "";
