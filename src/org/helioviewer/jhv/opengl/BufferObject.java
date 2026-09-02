@@ -8,7 +8,7 @@ import java.nio.ShortBuffer;
 
 import org.helioviewer.jhv.base.BufferUtils;
 
-class GLBO {
+class BufferObject {
 
     private static ByteBuffer uploadBuffer;
 
@@ -17,7 +17,7 @@ class GLBO {
 
     private int bufferID;
 
-    GLBO(int _target, int _usage) {
+    BufferObject(int _target, int _usage) {
         target = _target;
         bufferID = GL.glGenBuffer();
         usage = _usage;

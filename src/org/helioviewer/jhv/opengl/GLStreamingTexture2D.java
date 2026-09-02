@@ -9,7 +9,7 @@ final class GLStreamingTexture2D {
 
     private final GLTexture texture;
     private final int filter;
-    private final GLBO pbo;
+    private final BufferObject pbo;
 
     private int previousWidth = -1;
     private int previousHeight = -1;
@@ -18,7 +18,7 @@ final class GLStreamingTexture2D {
     GLStreamingTexture2D(GLTexture.Unit _unit, int _filter) {
         texture = new GLTexture(GL.TEXTURE_2D, _unit);
         filter = _filter;
-        pbo = new GLBO(GL.PIXEL_UNPACK_BUFFER, GL.STREAM_DRAW);
+        pbo = new BufferObject(GL.PIXEL_UNPACK_BUFFER, GL.STREAM_DRAW);
     }
 
     void bind() {

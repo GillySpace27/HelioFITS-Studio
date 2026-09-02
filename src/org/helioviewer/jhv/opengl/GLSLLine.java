@@ -6,7 +6,7 @@ import java.nio.FloatBuffer;
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.display.Viewport;
 
-public class GLSLLine extends VAO implements GLSLVertexReceiver {
+public class GLSLLine extends VertexArrayObject implements GLSLVertexReceiver {
 
     public static final double LINEWIDTH_BASIC = 0.002;
 

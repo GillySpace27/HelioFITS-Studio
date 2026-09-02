@@ -4,30 +4,28 @@ import java.nio.FloatBuffer;
 
 import org.helioviewer.jhv.base.BufferUtils;
 
-final class GLUniformBuffer {
+final class UniformBufferObject {
 
-    private final int binding;
+    private final UniformBlockLayout block;
     private final int usage;
-    private final int byteSize;
     private final FloatBuffer values;
 
-    private GLBO buffer;
+    private BufferObject buffer;
     private float[] uploadedValues;
 
-    GLUniformBuffer(int floatCount, int _binding, int _usage) {
-        binding = _binding;
+    UniformBufferObject(UniformBlockLayout _block, int _usage) {
+        block = _block;
         usage = _usage;
-        byteSize = floatCount * Float.BYTES;
-        values = BufferUtils.newFloatBuffer(floatCount);
+        values = BufferUtils.newFloatBuffer(block.floatCount);
     }
 
     void init() {
         if (buffer == null)
-            buffer = new GLBO(GL.UNIFORM_BUFFER, usage);
+            buffer = new BufferObject(GL.UNIFORM_BUFFER, usage);
     }
 
-    void bindBlock(int programID, String name) {
-        GLSLShader.setupUniformBlock(programID, name, binding, byteSize);
+    void bindBlock(int programID) {
+        GLSLShader.setupUniformBlock(programID, block);
         bind();
     }
 
@@ -72,7 +70,7 @@ final class GLUniformBuffer {
     }
 
     void bind() {
-        GL.glBindBufferBase(GL.UNIFORM_BUFFER, binding, buffer.getID());
+        GL.glBindBufferBase(GL.UNIFORM_BUFFER, block.binding, buffer.getID());
     }
 
     void dispose() {

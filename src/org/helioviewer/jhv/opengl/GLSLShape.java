@@ -3,7 +3,7 @@ package org.helioviewer.jhv.opengl;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 
-public class GLSLShape extends VAO implements GLSLVertexReceiver {
+public class GLSLShape extends VertexArrayObject implements GLSLVertexReceiver {
 
     private int count;
 

@@ -31,14 +31,9 @@ public final class GLSLSolarShader extends GLSLShader {
         super(VERTEX, COMMON_FRAGMENT, fragment);
     }
 
-    private static final int IMAGE_FLOATS = 48;
-    private static final GLUniformBuffer imageBuffer = new GLUniformBuffer(IMAGE_FLOATS, UBO.IMAGE, GL.STREAM_DRAW);
-
-    private static final int SCREEN_FLOATS = 24;
-    private static final GLUniformBuffer screenBuffer = new GLUniformBuffer(SCREEN_FLOATS, UBO.SOLAR_SCREEN, GL.STREAM_DRAW);
-
-    private static final int DISPLAY_FLOATS = 28;
-    private static final GLUniformBuffer displayBuffer = new GLUniformBuffer(DISPLAY_FLOATS, UBO.DISPLAY, GL.STREAM_DRAW);
+    private static final UniformBufferObject imageBuffer = new UniformBufferObject(UniformBlockLayout.IMAGE, GL.STREAM_DRAW);
+    private static final UniformBufferObject screenBuffer = new UniformBufferObject(UniformBlockLayout.SOLAR_SCREEN, GL.STREAM_DRAW);
+    private static final UniformBufferObject displayBuffer = new UniformBufferObject(UniformBlockLayout.DISPLAY, GL.STREAM_DRAW);
 
     static void init() {
         try {
@@ -55,9 +50,9 @@ public final class GLSLSolarShader extends GLSLShader {
     }
 
     private static void setupImageBlocks(int programID) {
-        imageBuffer.bindBlock(programID, "ImageBlock");
-        screenBuffer.bindBlock(programID, "ScreenBlock");
-        displayBuffer.bindBlock(programID, "DisplayBlock");
+        imageBuffer.bindBlock(programID);
+        screenBuffer.bindBlock(programID);
+        displayBuffer.bindBlock(programID);
     }
 
     @Override
@@ -161,7 +156,7 @@ public final class GLSLSolarShader extends GLSLShader {
 
         @Override
         protected void initUniforms(int id) {
-            screenBuffer.bindBlock(id, "ScreenBlock");
+            screenBuffer.bindBlock(id);
         }
     }
 }

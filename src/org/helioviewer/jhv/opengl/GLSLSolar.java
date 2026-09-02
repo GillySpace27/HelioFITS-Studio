@@ -7,7 +7,7 @@ import org.helioviewer.jhv.display.MapMode;
 
 public final class GLSLSolar {
 
-    private static final VAO quad = new VAO(false, VertexAttribute.floats(0, 4, 0, 0));
+    private static final VertexArrayObject quad = new VertexArrayObject(false, VertexAttribute.floats(0, 4, 0, 0));
 
     private static final FloatBuffer vertices = BufferUtils.newFloatBuffer(16).put(new float[]{-1, -1, 0, 1, 1, -1, 0, 1, -1, 1, 0, 1, 1, 1, 0, 1}).flip();
 

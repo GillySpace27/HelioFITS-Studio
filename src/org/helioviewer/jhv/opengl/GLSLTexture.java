@@ -1,6 +1,6 @@
 package org.helioviewer.jhv.opengl;
 
-public class GLSLTexture extends VAO {
+public class GLSLTexture extends VertexArrayObject {
 
     private static final int POSITION_COMPONENTS = 4;
     private static final int TEX_COORD_COMPONENTS = 2;

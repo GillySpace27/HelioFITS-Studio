@@ -3,15 +3,15 @@ package org.helioviewer.jhv.opengl;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 
-class VAO {
+class VertexArrayObject {
 
     private final VertexAttribute[] attributes;
     private final int usage;
 
-    private GLBO vertexBuffer;
+    private BufferObject vertexBuffer;
     private int vaoID = -1;
 
-    VAO(boolean dynamic, VertexAttribute... _attributes) {
+    VertexArrayObject(boolean dynamic, VertexAttribute... _attributes) {
         attributes = _attributes;
         usage = dynamic ? GL.DYNAMIC_DRAW : GL.STATIC_DRAW;
     }
@@ -20,7 +20,7 @@ class VAO {
         if (vertexBuffer != null)
             return;
 
-        GLBO newVertexBuffer = new GLBO(GL.ARRAY_BUFFER, usage);
+        BufferObject newVertexBuffer = new BufferObject(GL.ARRAY_BUFFER, usage);
         int newVaoID = -1;
         try {
             newVaoID = GL.glGenVertexArray();

@@ -8,7 +8,7 @@ final class GLSLMeshMaterial {
 
     // Keep one immutable buffer per material so changing draw order only changes the binding.
     private final ModelMaterial data;
-    private GLUniformBuffer buffer;
+    private UniformBufferObject buffer;
 
     GLSLMeshMaterial(ModelMaterial _data) {
         data = _data;
@@ -18,7 +18,7 @@ final class GLSLMeshMaterial {
         if (buffer != null)
             return;
 
-        GLUniformBuffer newBuffer = new GLUniformBuffer(GLSLMeshShader.MATERIAL_FLOATS, GLSLShader.UBO.MESH_MATERIAL, GL.STATIC_DRAW);
+        UniformBufferObject newBuffer = new UniformBufferObject(UniformBlockLayout.MESH_MATERIAL, GL.STATIC_DRAW);
         newBuffer.init();
         try {
             FloatBuffer values = newBuffer.begin();

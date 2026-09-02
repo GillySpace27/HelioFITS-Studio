@@ -6,9 +6,7 @@ final class GLSLMeshShader extends GLSLShader {
 
     static final GLSLMeshShader mesh = new GLSLMeshShader();
 
-    private static final int FRAME_FLOATS = 20;
-    static final int MATERIAL_FLOATS = 8;
-    private static final GLUniformBuffer frameBuffer = new GLUniformBuffer(FRAME_FLOATS, UBO.MESH_FRAME, GL.STREAM_DRAW);
+    private static final UniformBufferObject frameBuffer = new UniformBufferObject(UniformBlockLayout.MESH_FRAME, GL.STREAM_DRAW);
 
     private GLSLMeshShader() {
         super("/glsl/mesh.vert", "/glsl/mesh.frag");
@@ -31,8 +29,8 @@ final class GLSLMeshShader extends GLSLShader {
 
     @Override
     protected void initUniforms(int id) {
-        frameBuffer.bindBlock(id, "FrameBlock");
-        setupUniformBlock(id, "MaterialBlock", UBO.MESH_MATERIAL, MATERIAL_FLOATS * Float.BYTES);
+        frameBuffer.bindBlock(id);
+        setupUniformBlock(id, UniformBlockLayout.MESH_MATERIAL);
         setTextureUnit(id, "baseColorTexture", GLTexture.Unit.THREE);
     }
 

@@ -127,7 +127,7 @@ public final class GLRenderer {
 
         GLSLSolar.dispose();
         disposeShaders();
-        GLBO.releaseUploadBuffer();
+        BufferObject.releaseUploadBuffer();
 
         GLException.checkErrors("GLRenderer.dispose()");
     }

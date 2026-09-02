@@ -4,27 +4,15 @@ import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.io.FileUtils;
 
 abstract class GLSLShader {
-    protected static final class UBO {
-        static final int IMAGE = 0;
-        static final int SOLAR_SCREEN = 1;
-        static final int DISPLAY = 2;
-        static final int LINE_SCREEN = 3;
-        static final int MESH_MATERIAL = 4;
-        static final int MESH_FRAME = 5;
-
-        private UBO() {
-        }
-    }
-
-    protected static void setupUniformBlock(int programID, String blockName, int binding, int bufferSize) {
-        int blockIndex = GL.glGetUniformBlockIndex(programID, blockName);
+    protected static void setupUniformBlock(int programID, UniformBlockLayout block) {
+        int blockIndex = GL.glGetUniformBlockIndex(programID, block.glslName);
         if (blockIndex < 0)
-            throw new GLException("Required uniform block not found: " + blockName);
+            throw new GLException("Required uniform block not found: " + block.glslName);
         int blockSize = GL.glGetActiveUniformBlocki(programID, blockIndex, GL.UNIFORM_BLOCK_DATA_SIZE);
         // A program may use only a prefix of a buffer shared with another program, as the solar sphere does.
-        if (blockSize > bufferSize)
-            throw new GLException("Uniform block " + blockName + " requires " + blockSize + " bytes, buffer has " + bufferSize);
-        GL.glUniformBlockBinding(programID, blockIndex, binding);
+        if (blockSize > block.byteSize())
+            throw new GLException("Uniform block " + block.glslName + " requires " + blockSize + " bytes, buffer has " + block.byteSize());
+        GL.glUniformBlockBinding(programID, blockIndex, block.binding);
     }
 
     protected static int requiredUniform(int programID, String name) {
