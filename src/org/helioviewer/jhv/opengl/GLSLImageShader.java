@@ -10,7 +10,7 @@ import org.helioviewer.jhv.wcs.WcsHeader;
 
 public final class GLSLImageShader extends GLSLShader {
 
-    private static final String VERTEX = "/glsl/solarScreen.vert";
+    private static final String VERTEX = "/glsl/screen.vert";
     private static final String COMMON_FRAGMENT = "/glsl/imageCommon.frag";
 
     private static final GLSLImageShader ortho = new GLSLImageShader("/glsl/imageOrtho.frag");
@@ -46,7 +46,7 @@ public final class GLSLImageShader extends GLSLShader {
 
     private static void setupImageBlocks(int programID) {
         setupUniformBlock(programID, UniformBlockLayout.IMAGE);
-        setupUniformBlock(programID, UniformBlockLayout.SOLAR_SCREEN);
+        setupUniformBlock(programID, UniformBlockLayout.SCREEN);
         setupUniformBlock(programID, UniformBlockLayout.DISPLAY);
     }
 

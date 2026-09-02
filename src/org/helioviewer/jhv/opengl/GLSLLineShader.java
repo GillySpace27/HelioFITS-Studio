@@ -8,7 +8,7 @@ class GLSLLineShader extends GLSLShader {
 
     static final GLSLLineShader line = new GLSLLineShader("/glsl/line.vert", "/glsl/line.frag");
 
-    private static final UniformBufferObject screenBuffer = new UniformBufferObject(UniformBlockLayout.LINE_SCREEN, GL.STREAM_DRAW);
+    private static final UniformBufferObject screenBuffer = new UniformBufferObject(UniformBlockLayout.LINE, GL.STREAM_DRAW);
 
     private int opaquePassRef;
 
@@ -34,7 +34,7 @@ class GLSLLineShader extends GLSLShader {
 
     @Override
     protected void initUniforms(int id) {
-        setupUniformBlock(id, UniformBlockLayout.LINE_SCREEN);
+        setupUniformBlock(id, UniformBlockLayout.LINE);
         opaquePassRef = requiredUniform(id, "opaquePass");
     }
 

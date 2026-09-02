@@ -116,10 +116,10 @@ def main() -> int:
             ("shape", GLSL_DIR / "shape.vert", GLSL_DIR / "shape.frag"),
             ("texture", GLSL_DIR / "texture.vert", GLSL_DIR / "texture.frag"),
             ("SDF texture", GLSL_DIR / "texture.vert", GLSL_DIR / "textureSdf.frag"),
-            ("solar sphere", GLSL_DIR / "solarScreen.vert", GLSL_DIR / "solarSphere.frag"),
+            ("solar sphere", GLSL_DIR / "screen.vert", GLSL_DIR / "sphere.frag"),
         ]
         programs.extend(
-            (Path(fragment).stem, GLSL_DIR / "solarScreen.vert", by_name[fragment])
+            (Path(fragment).stem, GLSL_DIR / "screen.vert", by_name[fragment])
             for fragment in IMAGE_FRAGMENTS
         )
         for label, vertex, fragment in programs:

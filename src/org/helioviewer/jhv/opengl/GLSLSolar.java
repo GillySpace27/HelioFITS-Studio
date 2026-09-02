@@ -9,11 +9,11 @@ import org.helioviewer.jhv.display.Viewport;
 
 public final class GLSLSolar {
 
-    private static final String VERTEX = "/glsl/solarScreen.vert";
+    private static final String VERTEX = "/glsl/screen.vert";
 
     private static final VertexArrayObject quad = new VertexArrayObject(false, VertexAttribute.floats(0, 4, 0, 0));
     private static final SphereShader sphere = new SphereShader();
-    private static final UniformBufferObject screenBuffer = new UniformBufferObject(UniformBlockLayout.SOLAR_SCREEN, GL.STREAM_DRAW);
+    private static final UniformBufferObject screenBuffer = new UniformBufferObject(UniformBlockLayout.SCREEN, GL.STREAM_DRAW);
 
     private static final FloatBuffer vertices = BufferUtils.newFloatBuffer(16).put(new float[]{-1, -1, 0, 1, 1, -1, 0, 1, -1, 1, 0, 1, 1, 1, 0, 1}).flip();
 
@@ -54,12 +54,12 @@ public final class GLSLSolar {
 
     private static final class SphereShader extends GLSLShader {
         private SphereShader() {
-            super(VERTEX, "/glsl/solarSphere.frag");
+            super(VERTEX, "/glsl/sphere.frag");
         }
 
         @Override
         protected void initUniforms(int id) {
-            setupUniformBlock(id, UniformBlockLayout.SOLAR_SCREEN);
+            setupUniformBlock(id, UniformBlockLayout.SCREEN);
         }
     }
 

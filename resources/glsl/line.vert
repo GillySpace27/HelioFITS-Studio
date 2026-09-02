@@ -16,7 +16,7 @@ flat out float hasPrev;
 flat out float hasFollow;
 flat out float halfWidthPixels;
 
-layout(std140) uniform ScreenBlock {
+layout(std140) uniform LineBlock {
     mat4 mvp;
     vec4 viewport;
     float thickness;

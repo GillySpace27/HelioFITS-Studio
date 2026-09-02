@@ -145,10 +145,10 @@ public final class GLRenderer {
         for (Viewport vp : Display.getViewports()) {
             GL.glViewport(vp.x, vp.yGL, vp.width, vp.height);
             Transform.ortho(vp.aspect, mv.cameraWidth(vp), mv.cameraTranslationX(), mv.cameraTranslationY(), mv.viewRotation());
+
             GLSLSolar.bindScreen(mv, vp);
 
             GLSLSolar.renderSphere();
-
             Layers.render(mv, vp);
             Annotations.render(mv, vp);
             Layers.renderFloat(mv, vp);
@@ -167,6 +167,7 @@ public final class GLRenderer {
 
         GL.glViewport(vp.x, vp.yGL, vp.width, vp.height);
         Transform.ortho2D(vp.aspect, mv.cameraWidth(vp), mv.cameraTranslationX(), mv.cameraTranslationY());
+
         GLSLSolar.bindScreen(mv, vp);
 
         GL.glDisable(GL.DEPTH_TEST);
@@ -180,6 +181,7 @@ public final class GLRenderer {
         for (Viewport vp : Display.getViewports()) {
             GL.glViewport(vp.x, vp.yGL, vp.width, vp.height);
             Transform.ortho2D(vp.aspect, mv.cameraWidth(vp), mv.cameraTranslationX(), mv.cameraTranslationY());
+
             GLSLSolar.bindScreen(mv, vp);
 
             Layers.renderScale(mv, vp);

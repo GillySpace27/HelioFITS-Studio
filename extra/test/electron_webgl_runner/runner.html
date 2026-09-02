@@ -726,7 +726,7 @@ async function main() {
   const quadVao = prepareFullscreenQuad(gl);
 
   const commonSource = fs.readFileSync(path.join(jobs[0].repoRoot, "resources/glsl/imageCommon.frag"), "utf8");
-  const vertexSource = fs.readFileSync(path.join(jobs[0].repoRoot, "resources/glsl/solarScreen.vert"), "utf8");
+  const vertexSource = fs.readFileSync(path.join(jobs[0].repoRoot, "resources/glsl/screen.vert"), "utf8");
   const results = [];
   for (const job of jobs)
     results.push(renderJob(gl, commonSource, vertexSource, renderer, quadVao, job));
