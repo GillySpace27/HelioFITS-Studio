@@ -7,6 +7,7 @@ import java.util.function.DoubleConsumer;
 import org.helioviewer.jhv.image.DecodedImage;
 import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.ImageFilter;
+import org.helioviewer.jhv.metadata.Region;
 import org.helioviewer.jhv.view.View;
 
 /**
@@ -51,6 +52,7 @@ final class NoiseGateJob implements SequenceJob {
         int n = params.n();
         NoiseGate.Setup setup = NoiseGate.setup(n, nFrames);
         int nt = setup.nt();
+        int halo = NoiseGate.halo(setup);
         int tile = Math.min(TILE, Math.max(w, h));
         int tilesX = (w + tile - 1) / tile, tilesY = (h + tile - 1) / tile, tiles = tilesX * tilesY;
         status.accept(String.format("Noise gate: %d frames, %d x %d x %d neighbourhoods, %d tiles", nFrames, n, n, nt, tiles));
@@ -60,8 +62,20 @@ final class NoiseGateJob implements SequenceJob {
         for (int k = 0; k < nFrames; k++)
             outputs[k] = ImageBuffer.createWriteBuffer(w, h, ImageBuffer.Format.Gray16F, ImageFilter.of(ImageFilter.Type.None, frames[k].decoded().region(), frames[k].meta()));
 
+        // Radial bands in pixel coordinates of the frame: the Sun from the first frame's region.
+        NoiseGate.Radial radialFrame = null;
+        if (params.radialBands() > 0) {
+            Region sc = frames[0].sunCentred();
+            double pixX = sc.width / w, pixY = sc.height / h;
+            double cx = -sc.llx / pixX - .5, cy = -sc.lly / pixY - .5;
+            double rMax = 0;
+            for (double[] corner : new double[][]{{0, 0}, {w, 0}, {0, h}, {w, h}})
+                rMax = Math.max(rMax, Math.hypot(corner[0] - cx, corner[1] - cy));
+            radialFrame = new NoiseGate.Radial(cx, cy, rMax, params.radialBands());
+        }
+
         // Pass 1: the noise spectrum from a coarse lattice over every tile.
-        NoiseGate.Estimator estimator = new NoiseGate.Estimator(setup, params.model() == NoiseGateParams.Model.SHOT, RESERVOIR);
+        NoiseGate.Estimator estimator = new NoiseGate.Estimator(setup, params.model() == NoiseGateParams.Model.SHOT, RESERVOIR, params.radialBands());
         int tW = 0, tH = 0;
         long tVolume = 0, tEstimate = 0, tGate = 0, tWrite = 0, mark;
         for (int ty = 0; ty < tilesY; ty++)
@@ -72,16 +86,16 @@ final class NoiseGateJob implements SequenceJob {
                 tW = Math.min(tile, w - x0);
                 tH = Math.min(tile, h - y0);
                 mark = System.nanoTime();
-                float[] vol = volume(frames, x0, y0, tW, tH);
+                float[] vol = volume(frames, x0 - halo, y0 - halo, tW + 2 * halo, tH + 2 * halo);
                 tVolume += System.nanoTime() - mark;
                 mark = System.nanoTime();
-                NoiseGate.estimateTile(vol, tW, tH, nFrames, setup, estimator);
+                NoiseGate.estimateTile(vol, tW + 2 * halo, tH + 2 * halo, nFrames, setup, estimator, halo, tileRadial(radialFrame, x0 - halo, y0 - halo));
                 tEstimate += System.nanoTime() - mark;
                 int done = ty * tilesX + tx + 1;
                 status.accept("Noise gate: estimating noise, tile " + done + "/" + tiles);
                 progress.accept(0.25 * done / tiles);
             }
-        float[] noise = estimator.noise(params.percentile());
+        float[][] noise = estimator.noise(params.percentile());
 
         // Pass 2: gate every tile and write it out.
         for (int ty = 0; ty < tilesY; ty++)
@@ -92,10 +106,11 @@ final class NoiseGateJob implements SequenceJob {
                 tW = Math.min(tile, w - x0);
                 tH = Math.min(tile, h - y0);
                 mark = System.nanoTime();
-                float[] vol = volume(frames, x0, y0, tW, tH);
+                float[] haloed = volume(frames, x0 - halo, y0 - halo, tW + 2 * halo, tH + 2 * halo);
                 tVolume += System.nanoTime() - mark;
                 mark = System.nanoTime();
-                float[] gated = NoiseGate.gateTile(vol, tW, tH, nFrames, setup, noise, params);
+                float[] gated = NoiseGate.gateTile(haloed, tW + 2 * halo, tH + 2 * halo, nFrames, setup, noise, params, halo, tileRadial(radialFrame, x0 - halo, y0 - halo));
+                float[] vol = interior(haloed, tW + 2 * halo, tH + 2 * halo, nFrames, halo);
                 tGate += System.nanoTime() - mark;
                 if (Thread.currentThread().isInterrupted())
                     throw new InterruptedException();
@@ -150,15 +165,43 @@ final class NoiseGateJob implements SequenceJob {
         return out;
     }
 
-    // The tile's frames in physical units, [frame][y][x], NaN where missing or outside the frame.
+    // The tile's frames in physical units, [frame][y][x], NaN where missing; outside the frame the
+    // image is reflected pixel by pixel, so a halo is real data wherever real data exists.
     private static float[] volume(FrameStack.Frame[] frames, int x0, int y0, int tw, int th) {
         float[] vol = new float[frames.length * tw * th];
         float[] tmp = new float[tw * th];
+        float[] one = new float[1];
+        int w = frames[0].width(), h = frames[0].height();
         for (int k = 0; k < frames.length; k++) {
             FrameStack.physical(frames[k], x0, y0, tw, th, tmp);
+            for (int y = 0; y < th; y++) {
+                int sy = y0 + y;
+                for (int x = 0; x < tw; x++) {
+                    int sx = x0 + x;
+                    if (sx >= 0 && sx < w && sy >= 0 && sy < h)
+                        continue;
+                    FrameStack.physical(frames[k], NoiseGate.reflect(sx, w), NoiseGate.reflect(sy, h), 1, 1, one);
+                    tmp[y * tw + x] = one[0];
+                }
+            }
             System.arraycopy(tmp, 0, vol, k * tw * th, tw * th);
         }
         return vol;
+    }
+
+    // The tile without its halo, for the residual and the missing-pixel mask.
+    private static float[] interior(float[] haloed, int W, int H, int d, int halo) {
+        int w = W - 2 * halo, h = H - 2 * halo;
+        float[] out = new float[w * h * d];
+        for (int z = 0; z < d; z++)
+            for (int y = 0; y < h; y++)
+                System.arraycopy(haloed, (z * H + y + halo) * W + halo, out, (z * h + y) * w, w);
+        return out;
+    }
+
+    @javax.annotation.Nullable
+    private static NoiseGate.Radial tileRadial(@javax.annotation.Nullable NoiseGate.Radial frame, int x0, int y0) {
+        return frame == null ? null : new NoiseGate.Radial(frame.cx() - x0, frame.cy() - y0, frame.rMax(), frame.bands());
     }
 
 }

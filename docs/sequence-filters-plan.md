@@ -106,26 +106,49 @@ pattern alone. The rate spectrum peaks at 293 km/s and 97.5 min. The check also 
 that the rate grid at wavenumber a is (radial span) / (time span) / a, so a feature's lowest
 wavenumber is unresolvable against 0 and 2v: the readout states the resolvable range.
 
-### Phase 5: noise gate  **[DONE 2026-09-01]**
+### Phase 5: noise gate  **[DONE 2026-09-02]**
 
-Outcome: `NoiseGate` (window, mirror pad, background, estimator with a bounded reservoir per
-component, hard and Wiener gates, phase-ordered parallel overlap-add) and `NoiseGateJob` (spatial
-tiles of 256 with an n halo over all frames, two passes, output written straight into off-heap
-buffers). Check: `NoiseGateCheck`. Gamma 0 reproduces the input to 6e-7 (the identity that a
-wrong overlap constant or edge pad would fail while looking fine); on drifting blobs with shot
-noise the estimated spectrum is flat to 34 percent, the residual against the truth drops from
-12.8 to 3.7, blob integrals hold to 0.2 percent, the removed part correlates with the truth at
-0.069; the additive hard gate takes 20.0 to 4.3 and the Wiener gate to 9.7 (the paper says it
-admits more noise); the 2D fallback on 8 frames takes 12.9 to 5.4.
+Outcome: `NoiseGate` (window, mirror pad at the image edge only, background, estimator with a
+bounded reservoir per component and per radial band, hard and Wiener gates, phase-ordered
+parallel overlap-add) and `NoiseGateJob` (spatial tiles of 256 with a halo of 2n real pixels
+over all frames, two passes, output written straight into off-heap buffers). The halo is 2n
+because a neighbourhood touching an interior pixel reaches n beyond it and its background box
+reaches n beyond that; with a halo of n the outer ring of neighbourhoods saw a clamped
+background and every tile edge was a faint seam. The estimate samples only neighbourhoods
+centred on real pixels: mirror padding is a fold, which is structure, and a tile's halo is also
+its neighbour's, so each real neighbourhood counts once. The noise level is estimated in radial
+bands about the Sun (eight by default) and interpolated in radius, which is what the paper calls
+an obvious extension and what a coronagraph, darker and noisier outward, needs.
 
-### Phase 6: UI  **[DONE 2026-09-01]**
+Check: `NoiseGateCheck`, eleven assertions. Gamma 0 reproduces the input to 6e-7 (the identity
+that a wrong overlap constant or edge pad would fail while looking fine). On drifting blobs with
+shot noise the estimated spectrum is flat to 5 percent, the residual against the truth drops
+from 12.1 to 1.0, blob integrals hold to 0.1 percent, and the removed part correlates with the
+truth at 0.004; the additive hard gate takes 20.0 to 1.4 and the Wiener gate to 7.1; the 2D
+fallback on 8 frames takes 12.1 to 1.7; two haloed tiles equal the whole to 2e-7; with noise
+growing threefold outward the banded estimate tracks it (1.98 against 1.9 expected between two
+band centres) and banded gating beats one level (residual 1.5 against 3.4).
+
+Two lessons from getting there. The first version of this check passed on a 96-pixel frame
+where a third of the estimate's neighbourhoods held a blob: the median at low wavenumber was
+signal-dominated and the gate over-closed, and it only looked fine because 40 percent of the
+samples were mirrored background. The paper's condition, that most samples be noise-dominated
+at every component, is real; the frame is now 160 pixels and the percentile control exists for
+structured data. And annuli are the right unit for the noise level but the wrong unit for the
+neighbourhoods: resampling to polar correlates independent noise samples, the same reason the
+gate never interpolates in time.
+
+### Phase 6: UI  **[DONE 2026-09-02]**
 
 Outcome: `layers/filters/SequencePanel`, one row after the filter combo: kind combo (Off,
 Radial velocity, Angular velocity, Noise gate), a popup whose card follows the kind, a readout
 (frames, cadence, largest gap, resolvable range or neighbourhood size, memory), Apply with the
 circular progress bar that cancels on a click, and a Spectrum dialog drawing power against rate
-with the band shaded and a click setting its centre. The per-frame filter combo is greyed while a
-sequence is installed. `jhv.sequence.set` over SAMP takes the JSON or "off" for the active layer.
+with the band shaded and a click setting its centre. The noise gate card has "Noise level varies
+with radius" on by default. The per-frame filter combo stays live while a sequence is installed:
+`ComputedView` applies it to the computed frames off the EDT the way `URIView` applies it to a
+decoded one, so RHEF can follow a noise gate or a notch. `jhv.sequence.set` over SAMP takes the
+JSON or "off" for a named layer or the active one.
 
 ### Phase 7: live runs  **[DONE 2026-09-02, LASCO; PUNCH pending]**
 
@@ -145,8 +168,14 @@ locked timeline re-issues every layer's query whenever its selection is nudged, 
 the view and cancelled any running job. An identical re-query is now a no-op in
 `ImageLayer.load(FitsRequest)`, which also spares a locked session a reload on every nudge.
 
-Pending: the PUNCH orbital notch on a mosaic movie (the archive did not serve one in time) and a
-session save and restore with a filter on.
+Rerun after the halo and the radial bands (2026-09-02 16:05): radial pass 3.5 s; noise gate with
+eight radial bands 75.4 s (frames 1.0 s, estimate 7.0 s, gate 62.9 s, write 2.5 s; the halo of
+2n makes a tile 320 pixels wide instead of 288, which is the extra quarter); off restores the
+original with no network lines. 47 checks green.
+
+Pending: the PUNCH orbital notch on a mosaic movie (the archive did not serve one in time), a
+session save and restore with a filter on, and RHEF on top of a gated movie seen on screen (the
+code path is `URIView`'s, but no SAMP command sets the per-frame filter).
 
 ## Files
 

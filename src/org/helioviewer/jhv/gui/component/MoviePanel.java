@@ -283,7 +283,7 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         });
         allIntraCheckBox.setEnabled(!storedFormat().isSeries());
 
-        c.gridy = 2;
+        c.gridy = 3;
         c.gridx = 2;
         recordPanel.add(new JLabel("Preset ", JLabel.RIGHT), c);
 
@@ -316,7 +316,7 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         c.gridx = 3;
         recordPanel.add(presetPanel, c);
 
-        c.gridy = 3;
+        c.gridy = 4;
         c.gridx = 2;
         recordPanel.add(new JLabel("Format ", JLabel.RIGHT), c);
 
@@ -354,7 +354,7 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
                 Settings.setProperty("video.depth", sel.name());
         });
 
-        c.gridy = 4;
+        c.gridy = 5;
         c.gridx = 2;
         recordPanel.add(new JLabel("Colour ", JLabel.RIGHT), c);
         JPanel pixelPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
@@ -363,11 +363,11 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         c.gridx = 3;
         recordPanel.add(pixelPanel, c);
 
-        c.gridy = 5;
+        c.gridy = 6;
         c.gridx = 3;
         recordPanel.add(allIntraCheckBox, c);
 
-        c.gridy = 6;
+        c.gridy = 7;
         c.gridx = 3;
         recordDerivedLabel = new JLabel();
         recordDerivedLabel.setFont(UIGlobals.uiFontSmall);

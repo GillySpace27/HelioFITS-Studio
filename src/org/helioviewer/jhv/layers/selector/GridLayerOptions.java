@@ -50,6 +50,7 @@ final class GridLayerOptions extends JPanel {
 
         add(new CollapsiblePane("Grid", gridSection(layer), true, true));
         add(new CollapsiblePane("Thomson sphere", thomsonSection(layer), false, true));
+        add(new CollapsiblePane("Celestial sphere", celestialSection(layer), false, true));
         add(new CollapsiblePane("Ecliptic plane", eclipticSection(layer), false, true));
         add(new CollapsiblePane("Planets", planetSection(layer), false, true));
     }
@@ -115,6 +116,16 @@ final class GridLayerOptions extends JPanel {
                 createScaleSlider(layer.getThomsonLineScale(), layer::setThomsonLineScale),
                 createScaleSlider(layer.getThomsonDensity(), layer::setThomsonDensity));
         return panel;
+    }
+
+    private JPanel celestialSection(GridLayer layer) {
+        JCheckBox toggle = createToggle("Show", layer.isShowCelestial(), layer::setShowCelestial);
+        toggle.setToolTipText("Wireframe of the celestial sphere: twice the Thomson sphere's radius, sharing its pole at the Sun but centred on the observer instead of the Sun-observer midpoint, with its far pole twice as far beyond the Sun.");
+        return surfacePanel(toggle,
+                createSurfaceColorBox(layer.getCelestialColor(), layer::setCelestialColor),
+                createOpacitySlider(layer.getCelestialAlpha(), layer::setCelestialAlpha),
+                createScaleSlider(layer.getCelestialLineScale(), layer::setCelestialLineScale),
+                createScaleSlider(layer.getCelestialDensity(), layer::setCelestialDensity));
     }
 
     private JPanel eclipticSection(GridLayer layer) {

@@ -102,13 +102,7 @@ final class ImageLayerRenderingPanel extends JPanel {
         else
             applyIndexedGating(imageLayer);
         sequencePanel.refresh(imageLayer);
-        // A computed sequence is built from the unfiltered frames and shown as it is: the per-frame
-        // filter is forced to None while one is installed, and the combo says so.
-        if (imageLayer.getSequence() != null) {
-            imageFilterPanel.syncFromLayer(imageLayer);
-            setInteractable(false, "Per-frame filters are not applied on top of a sequence filter; switch it off first",
-                    imageFilterPanel.getFirst(), imageFilterPanel.getSecond(), imageFilterPanel.getThird());
-        }
+        imageFilterPanel.syncFromLayer(imageLayer); // a computed sequence takes the per-frame filter on top, like a raw frame
     }
 
     // Gate on the LUT currently in use, not the FITS product: the same indexed data reads fine
