@@ -29,7 +29,7 @@ import com.jidesoft.dialog.StandardDialog;
 public final class AboutDialog extends StandardDialog implements Interfaces.ShowableDialog, HyperlinkListener {
 
     public AboutDialog() {
-        super(MainFrame.get(), "About JHelioviewer", true);
+        super(MainFrame.get(), "About HFStudio", true);
         setResizable(false);
     }
 
@@ -40,7 +40,7 @@ public final class AboutDialog extends StandardDialog implements Interfaces.Show
 
     @Override
     public JComponent createContentPanel() {
-        String text = "<center>This software was built using several components including:</center><ul>" +
+        String text = "<center>HFStudio is built on <a href=\"https://github.com/Helioviewer-Project/JHelioviewer-SWHV\">" + "JHelioviewer</a>, and on several further components:</center><ul>" +
                 "<li><a href=\"https://kakadusoftware.com\">Kakadu</a> JPEG2000 Toolkit, © 2015, <a href='/licenses/Kakadu.txt'>licensed</a> from NewSouth Innovations Ltd.</li>" +
                 "<li><a href=\"https://www.lwjgl.org\">LWJGL</a> Java 3D graphics libraries and <a href=\"https://chromium.googlesource.com/angle/angle\">ANGLE</a> cross-platform GLES translation layer.</li>" +
                 "<li><a href=\"https://github.com/JOML-CI/JOML\">JOML</a>, a Java math library for GL rendering calculations.</li>" +
@@ -70,17 +70,20 @@ public final class AboutDialog extends StandardDialog implements Interfaces.Show
         int delta = 3;
         int fontSize = UIGlobals.uiFont.getSize();
         String text = "<center><b><span style='font-size:" + (fontSize + delta) + "pt'>" +
-                "<a href='https://www.jhelioviewer.org'>" + AppInfo.programName + "</a></span><br/>" +
+                AppInfo.programName + "</span><br/>" +
                 "Version " + AppInfo.version + '.' + AppInfo.revision + "</b><br/>" +
                 "<span style='font-size:" + (fontSize - delta) + "pt'>" + AppInfo.versionDetail + "<br/>" + GL.version + "</span><br/><br/>" +
-                "© 2026 <a href='https://www.jhelioviewer.org/about.html'>ESA JHelioviewer Team</a><br/>" +
-                "Part of the ESA/NASA Helioviewer Project<br/>" +
-                "Enhanced at ROB/SIDC (ESA Contract No. 4000107325/12/NL/AK)<br/><br/>" +
-                "JHelioviewer is released under the<br/>" +
-                "<a href='/licenses/JHelioviewer.txt'>Mozilla Public License Version 2.0</a><br/>" +
-                "and its use is governed by the<br/>" +
-                "<a href='/licenses/EULA.txt'>End-User License Agreement</a><br/><br/>" +
-                "Contact: <a href='mailto:Daniel.Mueller@esa.int'>Daniel.Mueller@esa.int</a>";
+                "A fork of <a href='https://www.jhelioviewer.org'>JHelioviewer</a>, carrying its own<br/>" +
+                "changes to projection, filtering and export.<br/><br/>" +
+                "JHelioviewer is © 2026 the <a href='https://www.jhelioviewer.org/about.html'>ESA JHelioviewer Team</a>,<br/>" +
+                "part of the ESA/NASA Helioviewer Project,<br/>" +
+                "enhanced at ROB/SIDC (ESA Contract No. 4000107325/12/NL/AK).<br/>" +
+                "Upstream contact: <a href='mailto:Daniel.Mueller@esa.int'>Daniel.Mueller@esa.int</a><br/><br/>" +
+                "Released, like JHelioviewer, under the<br/>" +
+                "<a href='/licenses/JHelioviewer.txt'>Mozilla Public License Version 2.0</a>.<br/>" +
+                "The bundled JHelioviewer components remain subject to the<br/>" +
+                "<a href='/licenses/EULA.txt'>ESA End-User License Agreement</a>.<br/><br/>" +
+                "Report a problem with this build: <a href='" + AppInfo.bugURL + "'>issue tracker</a>";
 
         HTMLPane pane = new HTMLPane();
         pane.setText(text);

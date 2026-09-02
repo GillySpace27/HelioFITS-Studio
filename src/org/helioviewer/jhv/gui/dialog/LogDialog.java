@@ -53,7 +53,7 @@ public class LogDialog implements Interfaces.ShowableDialog {
         optionPane.setMessage(new Object[]{report, copyToClipboard, new JSeparator(), scrollPane});
         optionPane.setMessageType(JOptionPane.INFORMATION_MESSAGE);
         optionPane.setOptions(new String[]{"Close"});
-        optionPane.createDialog(MainFrame.get(), "JHelioviewer Log").setVisible(true);
+        optionPane.createDialog(MainFrame.get(), "HFStudio Log").setVisible(true);
     }
 
 }

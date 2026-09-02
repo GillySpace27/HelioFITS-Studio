@@ -184,7 +184,7 @@ public final class MenuBar extends JMenuBar {
         JMenu helpMenu = new JMenu("Help");
         helpMenu.setMnemonic(KeyEvent.VK_H);
 
-        Actions.ShowDialog aboutAction = new Actions.ShowDialog("About JHelioviewer...", new AboutDialog());
+        Actions.ShowDialog aboutAction = new Actions.ShowDialog("About HFStudio...", new AboutDialog());
         if (Platform.isMacOS()) {
             DesktopIntegration.setAboutHandler(e -> aboutAction.actionPerformed(null));
         } else {
@@ -193,7 +193,7 @@ public final class MenuBar extends JMenuBar {
 
         helpMenu.add(new Actions.OpenURLinBrowser("Open User Manual", AppInfo.documentationURL));
         helpMenu.add(new Actions.OpenURLinBrowser("Open Website", "https://www.jhelioviewer.org"));
-        helpMenu.add(new Actions.OpenURLinBrowser("Open Change Log", "https://github.com/Helioviewer-Project/JHelioviewer-SWHV/blob/master/changelog.md"));
+        helpMenu.add(new Actions.OpenURLinBrowser("Open Change Log", "https://github.com/GillySpace27/JHelioviewer-SWHV/blob/thomson-warp/changelog.md"));
         helpMenu.add(new Actions.CheckForUpdates());
         helpMenu.addSeparator();
         helpMenu.add(new Actions.ShowDialog("Show Log...", new LogDialog()));

@@ -17,7 +17,7 @@ public class Platform {
         else if (arch.contains("aarch64"))
             jhvArch = "aarch64";
         else
-            throw new IllegalStateException("Please install Java 64-bit to run JHelioviewer.");
+            throw new IllegalStateException("Please install Java 64-bit to run HFStudio.");
 
         if (os.contains("windows"))
             isWindows = true;
