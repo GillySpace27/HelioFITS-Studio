@@ -144,4 +144,14 @@ public interface View {
         return EMPTY_METAXML;
     }
 
+    /**
+     * One frame's unfiltered decode, synchronously, for a sequence filter that needs every frame
+     * at once. Null when the view cannot provide it: a JPEG 2000 stream decodes on demand at the
+     * zoom's resolution level, and there is no whole frame to hand over. Called off the EDT.
+     */
+    @Nullable
+    default org.helioviewer.jhv.image.DecodedImage frameImage(int frame) {
+        return null;
+    }
+
 }

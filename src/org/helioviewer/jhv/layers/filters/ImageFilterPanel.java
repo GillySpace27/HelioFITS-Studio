@@ -22,6 +22,13 @@ public class ImageFilterPanel implements FilterDetails {
     private final JPanel filterPanel = new JPanel(new BorderLayout());
     private final JPanel buttonPanel = new JPanel(new BorderLayout());
     private final JLabel title = new JLabel("Filter ", JLabel.RIGHT);
+    private JComboBox<ImageFilter.Type> filterCombo;
+
+    /** Mirrors the view's filter in the combo (a sequence filter forces it to None); the listener no-ops on an equal value. */
+    public void syncFromLayer(ImageLayer layer) {
+        if (filterCombo != null && filterCombo.getSelectedItem() != layer.getView().getFilter())
+            filterCombo.setSelectedItem(layer.getView().getFilter());
+    }
 
     private static String formatLabel(double value) {
         return String.format("%.1f", value);
@@ -56,7 +63,7 @@ public class ImageFilterPanel implements FilterDetails {
     }
 
     public ImageFilterPanel(ImageLayer layer) {
-        JComboBox<ImageFilter.Type> filterCombo = new JComboBox<>(ImageFilter.Type.values());
+        filterCombo = new JComboBox<>(ImageFilter.Type.values());
         filterCombo.setSelectedItem(layer.getView().getFilter());
         filterCombo.setToolTipText(layer.getView().getFilter().description);
 

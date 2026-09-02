@@ -16,13 +16,27 @@ public final class ImageBuffer {
     // the physical (BZERO/BSCALE-corrected) pixel value before it gets stretched and squashed into
     // the [0,1] texture. Server-backed layers (JPX/JPIP movies) never carry this: the server bakes
     // in its own stretch before the client ever sees a pixel, so there is nothing to invert.
-    /** stretch is the forward map in words, for a file header: Y = f(t), t = (physical - min) / (max - min). */
-    public record PhysicalScale(float min, float max, DoubleUnaryOperator inverseStretch, String stretch) {
+    /**
+     * stretch is the forward map in words, for a file header: Y = f(t), t = (physical - min) / (max - min);
+     * forwardStretch is that map as code, so a sequence filter can put a physical value back the way
+     * the decoder stored it (identity when a caller does not have it).
+     */
+    public record PhysicalScale(float min, float max, DoubleUnaryOperator inverseStretch, String stretch, DoubleUnaryOperator forwardStretch) {
+        public PhysicalScale(float min, float max, DoubleUnaryOperator inverseStretch, String stretch) {
+            this(min, max, inverseStretch, stretch, x -> x);
+        }
+
         // displayFraction: the normalized [0,1] value that was fed into the LUT lookup, i.e. after
         // this buffer's own stretch but before any layer-level Levels/response adjustment -- the
         // caller is responsible for undoing those first.
         public double toPhysical(double displayFraction) {
             return min + inverseStretch.applyAsDouble(Math.clamp(displayFraction, 0, 1)) * (max - min);
+        }
+
+        /** The inverse of toPhysical: a physical value to the display fraction the decoder would have stored. */
+        public double toDisplay(double physical) {
+            double t = (physical - min) / (max - min);
+            return forwardStretch.applyAsDouble(Math.clamp(t, 0, 1));
         }
     }
 
