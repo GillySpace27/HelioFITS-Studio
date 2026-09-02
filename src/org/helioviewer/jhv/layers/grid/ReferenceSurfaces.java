@@ -47,51 +47,88 @@ public final class ReferenceSurfaces {
         // Past D/sqrt(2) the surface folds back toward the axis and the rings shrink again. That
         // is real geometry, not an artefact, so it is drawn; it is simply capped at D, where the
         // sphere closes on the observer and rho reaches zero.
-        double maxRadius = Math.min(outerRadius, observerDistance);
+        buildSphere(line, observerDistance, polarAngle(Math.min(outerRadius, observerDistance), observerDistance), color, density);
+    }
 
-        int rings = ringCount(maxRadius, density);
+    /**
+     * Both reference spheres pass through the Sun with the Sun-observer line as their axis, so one
+     * sweep draws either: a sphere of diameter L centred at L/2 has {@code z = (L/2)(1 - cos t)}
+     * and {@code rho = (L/2) sin t} at polar angle t from the Sun, which is the same surface
+     * {@link SurfaceModel.ThomsonSphere#depth} describes by heliocentric radius
+     * ({@code r = L sin(t/2)}, so {@code z = r^2 / L}) and is simply swept by angle instead.
+     *
+     * <p>Sweeping by angle rather than by radius is what lets the caller ask for a hemisphere, and
+     * it spaces the rings evenly over the surface. Spacing them evenly in r instead is the same
+     * thing while the field is small, and crowds them near the fold once it is not.
+     *
+     * @param thetaMax how much of the sphere to draw, as a polar angle from the Sun in radians;
+     *                 pi is the whole sphere, and for the celestial sphere the angle is elongation
+     */
+    private static void buildSphere(GLSLLine line, double diameter, double thetaMax, byte[] color, double density) {
+        line.setVertex(sphereVertices(diameter, thetaMax, color, density));
+    }
+
+    /** The wireframe itself, separated from the GL upload so extra/test/ReferenceSurfacesCheck can read the vertices. */
+    static BufVertex sphereVertices(double diameter, double thetaMax, byte[] color, double density) {
+        double sweep = Math.clamp(thetaMax, 0, Math.PI);
+        if (diameter <= 0 || sweep <= 0)
+            return new BufVertex(0);
+        double radius = diameter / 2;
+        // Ring count from the heliocentric extent actually drawn, so density means the same thing
+        // whether the sweep was set by a field of view or by an angle.
+        int rings = ringCount(diameter * Math.sin(sweep / 2), density);
         int vertices = rings * (RING_SUBDIVISIONS + 3) + SPOKE_COUNT * (SPOKE_STEPS + 3);
         BufVertex buf = new BufVertex(vertices * GLSLLine.stride);
 
         for (int i = 1; i <= rings; i++) {
-            double r = maxRadius * i / rings;
+            double theta = sweep * i / rings;
+            double z = radius * (1 - Math.cos(theta)), rho = radius * Math.sin(theta);
             for (int j = 0; j <= RING_SUBDIVISIONS; j++) {
                 double pa = 2 * Math.PI * j / RING_SUBDIVISIONS;
-                putSurfacePoint(buf, r, pa, observerDistance, color, j == 0, j == RING_SUBDIVISIONS);
+                putSurfacePoint(buf, rho, z, pa, color, j == 0, j == RING_SUBDIVISIONS);
             }
         }
 
         for (int s = 0; s < SPOKE_COUNT; s++) {
             double pa = 2 * Math.PI * s / SPOKE_COUNT;
             for (int j = 0; j <= SPOKE_STEPS; j++) {
-                double r = maxRadius * j / SPOKE_STEPS;
-                putSurfacePoint(buf, r, pa, observerDistance, color, j == 0, j == SPOKE_STEPS);
+                double theta = sweep * j / SPOKE_STEPS;
+                putSurfacePoint(buf, radius * Math.sin(theta), radius * (1 - Math.cos(theta)), pa, color, j == 0, j == SPOKE_STEPS);
             }
         }
 
-        line.setVertex(buf);
+        return buf;
+    }
+
+    /** The polar angle from the Sun at which a sphere of the given diameter reaches heliocentric radius r. */
+    static double polarAngle(double r, double diameter) { // package-private: exercised directly by extra/test/ReferenceSurfacesCheck.java
+        return 2 * Math.asin(Math.clamp(r / diameter, 0, 1));
     }
 
     /**
      * The celestial sphere: centred on the observer rather than the Sun-observer midpoint, sharing
      * the Thomson sphere's pole at the Sun and reaching exactly twice as far.
      *
-     * <p>Not new geometry. A Thomson sphere's diameter is the Sun-observer distance D, so evaluating
-     * {@link #buildThomsonSphere} as if the observer stood at 2D keeps the near pole at the Sun
-     * (both surfaces are zero at r = 0) while moving the centre from D/2 out to D -- the observer's
-     * own position -- and the far pole from the observer out to 2D beyond the Sun. That far pole is
-     * where the sphere closes on itself, the same way the Thomson sphere closes on the observer.
+     * <p>Not new geometry. A Thomson sphere's diameter is the Sun-observer distance D, so a sphere
+     * of diameter 2D keeps the near pole at the Sun (both surfaces are zero at r = 0) while moving
+     * the centre from D/2 out to D, the observer's own position, and the far pole from the observer
+     * out to 2D beyond the Sun. That far pole is where the sphere closes on itself, the same way
+     * the Thomson sphere closes on the observer.
      *
-     * @param outerRadius the largest heliocentric radius to draw, in solar radii
+     * <p>Because the centre IS the observer, the polar angle from the Sun is the elongation of the
+     * point as the observer sees it: 90 degrees is the hemisphere of sky centred on the Sun, 180
+     * the whole sky out to the anti-solar direction. So the extent is given as an angle rather than
+     * as a radius. A field of view cannot stand in for it: at Earth the sphere reaches 430 solar
+     * radii, so clipping it to a coronagraph's field left a small cap near the Sun and nothing else.
+     *
+     * @param extentDegrees the largest elongation to draw, 90 for a hemisphere
      */
-    public static void buildCelestialSphere(GLSLLine line, double observerDistance, double outerRadius, byte[] color, double density) {
-        buildThomsonSphere(line, 2 * observerDistance, outerRadius, color, density);
+    public static void buildCelestialSphere(GLSLLine line, double observerDistance, double extentDegrees, byte[] color, double density) {
+        buildSphere(line, 2 * observerDistance, Math.toRadians(extentDegrees), color, density);
     }
 
-    private static void putSurfacePoint(BufVertex buf, double r, double positionAngle, double observerDistance,
+    private static void putSurfacePoint(BufVertex buf, double rho, double z, double positionAngle,
                                         byte[] color, boolean first, boolean last) {
-        double z = SurfaceModel.ThomsonSphere.depth(r, observerDistance);
-        double rho = Math.sqrt(Math.max(0, r * r - z * z));
         // Polar basis: 0 at north, increasing anti-clockwise. Matches warpSurface.vert.
         float x = (float) (-rho * Math.sin(positionAngle));
         float y = (float) (rho * Math.cos(positionAngle));

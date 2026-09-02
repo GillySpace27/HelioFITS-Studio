@@ -1,6 +1,11 @@
 package org.helioviewer.jhv.layers.grid;
 
+import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
+
+import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.display.SurfaceModel;
+import org.helioviewer.jhv.opengl.BufVertex;
 
 /**
  * The Thomson sphere wireframe has to be the same surface the imagery is placed on, not a
@@ -11,6 +16,12 @@ import org.helioviewer.jhv.display.SurfaceModel;
  * Thomson sphere satisfies x^2 + y^2 + z^2 = D*z, which is Thales' theorem for the sphere of
  * diameter D through the Sun and the observer. That is the definition, so it holds independently
  * of how SurfaceModel happens to be written, and it fails if the depth law drifts.
+ *
+ * <p>The wireframes are swept by polar angle rather than by radius, so the sweep is checked
+ * against that same identity: every vertex a builder emits must satisfy it, or the drawn mesh has
+ * left the surface it annotates. And because the celestial sphere is centred on the observer, its
+ * extent control is an elongation, which is a claim worth pinning: a dome of the wrong opening
+ * angle looks exactly as convincing as the right one.
  *
  * <p>Run: java -cp bin:extra/test-classes org.helioviewer.jhv.layers.grid.ReferenceSurfacesCheck
  */
@@ -57,9 +68,92 @@ public final class ReferenceSurfacesCheck {
         // A bigger field earns more rings, or a wide view reads as a handful of stray circles.
         expect(rings(245, 1) > rings(4, 1), "a wider field gets a denser mesh");
 
+        sweptVertices();
+
         if (failures != 0)
             throw new AssertionError(failures + " reference-surface failure(s)");
         System.out.println("ReferenceSurfacesCheck: PASS");
+    }
+
+    private static final double EARTH = 215; // solar radii
+
+    /**
+     * The vertices the builders actually emit: on the surface, and reaching exactly the extent
+     * asked for. The extent is an elongation measured at the observer, which for the celestial
+     * sphere is its own centre, so 90 degrees has to be the hemisphere of sky facing the Sun.
+     */
+    private static void sweptVertices() {
+        byte[] color = Colors.Blue;
+
+        for (double diameter : new double[]{EARTH, 2 * EARTH}) {
+            double worst = 0;
+            for (float[] p : vertices(ReferenceSurfaces.sphereVertices(diameter, Math.PI, color, 1))) {
+                double r = Math.sqrt(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]);
+                worst = Math.max(worst, Math.abs(p[2] - SurfaceModel.ThomsonSphere.depth(r, diameter)) / diameter);
+            }
+            expect(worst < 1e-6, String.format("swept vertices sit on z = r^2/L at L=%.0f (worst %.1e)", diameter, worst));
+        }
+
+        for (double extent : new double[]{30, 45, 90, 180}) {
+            double maxElong = 0, maxR = 0, maxRho = 0;
+            for (float[] p : vertices(ReferenceSurfaces.sphereVertices(2 * EARTH, Math.toRadians(extent), color, 1))) {
+                maxElong = Math.max(maxElong, Math.toDegrees(elongation(p)));
+                maxR = Math.max(maxR, Math.sqrt(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]));
+                maxRho = Math.max(maxRho, Math.hypot(p[0], p[1]));
+            }
+            expect(Math.abs(maxElong - extent) < 0.01,
+                    String.format("extent %.0f deg is that elongation at the observer, got %.3f", extent, maxElong));
+            double expectedR = 2 * EARTH * Math.sin(Math.toRadians(extent) / 2); // r = L sin(t/2)
+            expect(Math.abs(maxR - expectedR) < 0.01 * EARTH,
+                    String.format("extent %.0f deg reaches r = %.1f, got %.1f", extent, expectedR, maxR));
+            if (extent == 90) {
+                expect(Math.abs(maxRho - EARTH) < 0.01 * EARTH,
+                        String.format("a hemisphere is widest at the observer's own distance, got %.1f", maxRho));
+                expect(Math.abs(maxR - Math.sqrt(2) * EARTH) < 0.01 * EARTH,
+                        String.format("a hemisphere reaches sqrt(2) D, got %.1f", maxR));
+            }
+            if (extent == 180)
+                expect(Math.abs(maxR - 2 * EARTH) < 0.01 * EARTH,
+                        String.format("the whole sky closes at the anti-solar point r = 2D, got %.1f", maxR));
+        }
+
+        // The Thomson sphere still stops where its field does, and closes on the observer beyond it.
+        double maxNear = 0;
+        for (float[] p : vertices(ReferenceSurfaces.sphereVertices(EARTH, ReferenceSurfaces.polarAngle(30, EARTH), color, 1)))
+            maxNear = Math.max(maxNear, Math.sqrt(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]));
+        expect(Math.abs(maxNear - 30) < 0.05, String.format("a 30 Rsun field draws out to 30, got %.2f", maxNear));
+
+        double maxFull = 0, rhoAtEnd = 0;
+        for (float[] p : vertices(ReferenceSurfaces.sphereVertices(EARTH, ReferenceSurfaces.polarAngle(EARTH, EARTH), color, 1))) {
+            double r = Math.sqrt(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]);
+            if (r > maxFull) {
+                maxFull = r;
+                rhoAtEnd = Math.hypot(p[0], p[1]);
+            }
+        }
+        expect(Math.abs(maxFull - EARTH) < 0.01 * EARTH && rhoAtEnd < 0.01 * EARTH,
+                String.format("the whole Thomson sphere closes on the observer, r %.1f rho %.2f", maxFull, rhoAtEnd));
+
+        expect(ReferenceSurfaces.sphereVertices(2 * EARTH, 0, color, 1).getCount() == 0, "zero extent draws nothing");
+    }
+
+    /** The angle at the observer, at (0, 0, D), between the Sun and the point: its elongation. */
+    private static double elongation(float[] p) {
+        double x = p[0], y = p[1], z = p[2] - EARTH;
+        double len = Math.sqrt(x * x + y * y + z * z);
+        return len == 0 ? 0 : Math.acos(Math.clamp(-z / len, -1, 1)); // the Sun lies at -z from the observer
+    }
+
+    private static float[][] vertices(BufVertex buf) {
+        FloatBuffer floats = buf.toVertexBuffer().duplicate().order(ByteOrder.nativeOrder()).asFloatBuffer();
+        int n = buf.getCount();
+        float[][] out = new float[n][3];
+        for (int i = 0; i < n; i++) {
+            out[i][0] = floats.get(4 * i);
+            out[i][1] = floats.get(4 * i + 1);
+            out[i][2] = floats.get(4 * i + 2);
+        }
+        return out;
     }
 
     private static int rings(double field, double density) {
