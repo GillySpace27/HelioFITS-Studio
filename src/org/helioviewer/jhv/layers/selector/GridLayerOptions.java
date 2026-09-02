@@ -121,11 +121,14 @@ final class GridLayerOptions extends JPanel {
     private JPanel celestialSection(GridLayer layer) {
         JCheckBox toggle = createToggle("Show", layer.isShowCelestial(), layer::setShowCelestial);
         toggle.setToolTipText("Wireframe of the celestial sphere: twice the Thomson sphere's radius, sharing its pole at the Sun but centred on the observer instead of the Sun-observer midpoint, with its far pole twice as far beyond the Sun.");
+        JHVSlider extent = createExtentSlider(layer.getCelestialExtent(), layer::setCelestialExtent);
+        extent.setToolTipText("How far around the sky to draw, as an elongation from the Sun: 90 degrees is the hemisphere facing the Sun, 180 the whole sky out to the anti-solar point. PUNCH's WFI reaches 45.");
         return surfacePanel(toggle,
                 createSurfaceColorBox(layer.getCelestialColor(), layer::setCelestialColor),
                 createOpacitySlider(layer.getCelestialAlpha(), layer::setCelestialAlpha),
                 createScaleSlider(layer.getCelestialLineScale(), layer::setCelestialLineScale),
-                createScaleSlider(layer.getCelestialDensity(), layer::setCelestialDensity));
+                createScaleSlider(layer.getCelestialDensity(), layer::setCelestialDensity),
+                "Extent ", extent);
     }
 
     private JPanel eclipticSection(GridLayer layer) {
@@ -138,9 +141,15 @@ final class GridLayerOptions extends JPanel {
                 createScaleSlider(layer.getEclipticDensity(), layer::setEclipticDensity));
     }
 
-    /** The same four controls for either reference surface, so the two sections read alike. */
+    /** The same four controls for every reference surface, so the sections read alike. */
     private static JPanel surfacePanel(JCheckBox toggle, Component color, Component opacity,
                                        Component lineWidth, Component density) {
+        return surfacePanel(toggle, color, opacity, lineWidth, density, null, null);
+    }
+
+    /** The four, plus one control only one surface has (the celestial sphere's extent). */
+    private static JPanel surfacePanel(JCheckBox toggle, Component color, Component opacity,
+                                       Component lineWidth, Component density, String extraLabel, Component extra) {
         JPanel panel = new JPanel(new GridBagLayout());
         GridBagConstraints c = new GridBagConstraints();
         c.fill = GridBagConstraints.HORIZONTAL;
@@ -158,6 +167,8 @@ final class GridLayerOptions extends JPanel {
         addAdjustmentRow(rows, "Opacity ", opacity, 0);
         addAdjustmentRow(rows, "Line width ", lineWidth, 1);
         addAdjustmentRow(rows, "Density ", density, 2);
+        if (extra != null)
+            addAdjustmentRow(rows, extraLabel, extra, 3);
 
         c.gridy = 1;
         c.gridx = 0;
@@ -260,6 +271,14 @@ final class GridLayerOptions extends JPanel {
     private static JHVSlider createScaleSlider(double initialValue, DoubleConsumer valueSetter) {
         JHVSlider slider = new JHVSlider(25, 400, (int) Math.round(initialValue * 100));
         slider.addChangeListener(e -> valueSetter.accept(slider.getValue() / 100.));
+        return slider;
+    }
+
+    /** Degrees of elongation for the celestial sphere, whose extent is an angle on the sky rather than a radius. */
+    private static JHVSlider createExtentSlider(double initialDegrees, DoubleConsumer valueSetter) {
+        JHVSlider slider = new JHVSlider((int) GridLayer.CELESTIAL_EXTENT_MIN, (int) GridLayer.CELESTIAL_EXTENT_MAX,
+                (int) Math.round(initialDegrees));
+        slider.addChangeListener(e -> valueSetter.accept(slider.getValue()));
         return slider;
     }
 

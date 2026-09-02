@@ -104,6 +104,13 @@ public final class GridLayer extends AbstractLayer {
     private double thomsonDensity = 1;
     private double eclipticDensity = 1;
     private double celestialDensity = 1;
+    /**
+     * How much of the celestial sphere to draw, as a maximum elongation in degrees: 90 is the
+     * hemisphere of sky centred on the Sun, 180 the whole sky. Not a field of view: the sphere
+     * reaches 430 solar radii at Earth, so clipping it to the imagery's field (which is what this
+     * used to do) left a cap of a few degrees and nothing else.
+     */
+    private double celestialExtent = CELESTIAL_EXTENT_DEFAULT;
 
     private Colors.NamedColor gridColor = Colors.NamedColor.ReducedGreen;
     private double gridAlpha = 0.47;
@@ -159,9 +166,9 @@ public final class GridLayer extends AbstractLayer {
     private double eclipticBuiltOuter = -1;
     private byte[] eclipticBuiltColor;
     private double eclipticBuiltDensity = -1;
-    private double celestialBuiltDistance = -1, celestialBuiltOuter = -1;
+    private double celestialBuiltDistance = -1;
     private byte[] celestialBuiltColor;
-    private double celestialBuiltDensity = -1;
+    private double celestialBuiltDensity = -1, celestialBuiltExtent = -1;
 
     private final GLSLLine axesLine = new GLSLLine(false);
     private final GLSLLine earthCircleLine = new GLSLLine(false);
@@ -213,6 +220,7 @@ public final class GridLayer extends AbstractLayer {
         jo.put("thomsonDensity", thomsonDensity);
         jo.put("eclipticDensity", eclipticDensity);
         jo.put("celestialDensity", celestialDensity);
+        jo.put("celestialExtent", celestialExtent);
     }
 
     private void deserialize(JSONObject jo) {
@@ -254,6 +262,7 @@ public final class GridLayer extends AbstractLayer {
         thomsonDensity = Math.clamp(jo.optDouble("thomsonDensity", thomsonDensity), 0.25, 4);
         eclipticDensity = Math.clamp(jo.optDouble("eclipticDensity", eclipticDensity), 0.25, 4);
         celestialDensity = Math.clamp(jo.optDouble("celestialDensity", celestialDensity), 0.25, 4);
+        celestialExtent = Math.clamp(jo.optDouble("celestialExtent", celestialExtent), CELESTIAL_EXTENT_MIN, CELESTIAL_EXTENT_MAX);
     }
 
     public GridLayer(JSONObject jo) {
@@ -467,13 +476,14 @@ public final class GridLayer extends AbstractLayer {
     }
 
     private void drawCelestialSphere(MapView mv, Viewport vp, Position viewpoint) {
-        double outer = referenceOuterRadius(mv, vp);
+        // No field-of-view term: the extent is an angle on the sky, so the sphere is the same
+        // whatever the camera is looking at, and zooming does not silently reshape it.
         byte[] color = Colors.bytes(celestialColor.awtColor(), celestialAlpha);
-        if (viewpoint.distance != celestialBuiltDistance || outer != celestialBuiltOuter
+        if (viewpoint.distance != celestialBuiltDistance || celestialExtent != celestialBuiltExtent
                 || !java.util.Arrays.equals(color, celestialBuiltColor) || celestialDensity != celestialBuiltDensity) {
-            ReferenceSurfaces.buildCelestialSphere(celestialLine, viewpoint.distance, outer, color, celestialDensity);
+            ReferenceSurfaces.buildCelestialSphere(celestialLine, viewpoint.distance, celestialExtent, color, celestialDensity);
             celestialBuiltDistance = viewpoint.distance;
-            celestialBuiltOuter = outer;
+            celestialBuiltExtent = celestialExtent;
             celestialBuiltColor = color;
             celestialBuiltDensity = celestialDensity;
         }
@@ -925,6 +935,19 @@ public final class GridLayer extends AbstractLayer {
 
     public void setCelestialDensity(double v) {
         celestialDensity = v;
+        DisplayController.display();
+    }
+
+    public static final double CELESTIAL_EXTENT_MIN = 5;
+    public static final double CELESTIAL_EXTENT_MAX = 180;
+    public static final double CELESTIAL_EXTENT_DEFAULT = 90; // a hemisphere: the sky centred on the Sun
+
+    public double getCelestialExtent() {
+        return celestialExtent;
+    }
+
+    public void setCelestialExtent(double degrees) {
+        celestialExtent = Math.clamp(degrees, CELESTIAL_EXTENT_MIN, CELESTIAL_EXTENT_MAX);
         DisplayController.display();
     }
 
