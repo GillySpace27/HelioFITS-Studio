@@ -72,6 +72,22 @@ public final class ReferenceSurfaces {
         line.setVertex(buf);
     }
 
+    /**
+     * The celestial sphere: centred on the observer rather than the Sun-observer midpoint, sharing
+     * the Thomson sphere's pole at the Sun and reaching exactly twice as far.
+     *
+     * <p>Not new geometry. A Thomson sphere's diameter is the Sun-observer distance D, so evaluating
+     * {@link #buildThomsonSphere} as if the observer stood at 2D keeps the near pole at the Sun
+     * (both surfaces are zero at r = 0) while moving the centre from D/2 out to D -- the observer's
+     * own position -- and the far pole from the observer out to 2D beyond the Sun. That far pole is
+     * where the sphere closes on itself, the same way the Thomson sphere closes on the observer.
+     *
+     * @param outerRadius the largest heliocentric radius to draw, in solar radii
+     */
+    public static void buildCelestialSphere(GLSLLine line, double observerDistance, double outerRadius, byte[] color, double density) {
+        buildThomsonSphere(line, 2 * observerDistance, outerRadius, color, density);
+    }
+
     private static void putSurfacePoint(BufVertex buf, double r, double positionAngle, double observerDistance,
                                         byte[] color, boolean first, boolean last) {
         double z = SurfaceModel.ThomsonSphere.depth(r, observerDistance);

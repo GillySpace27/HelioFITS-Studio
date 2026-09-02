@@ -95,6 +95,7 @@ public class SequencePanel implements FilterDetails {
     private final JLabel percentileLabel = new JLabel("50", JLabel.RIGHT);
     private final JComboBox<Integer> nCombo = new JComboBox<>(new Integer[]{8, 16});
     private final JCheckBox residualBox = new JCheckBox("Show the residual (what was removed)");
+    private final JCheckBox radialBox = new JCheckBox("Noise level varies with radius", true);
 
     public SequencePanel(ImageLayer _layer) {
         layer = _layer;
@@ -151,6 +152,8 @@ public class SequencePanel implements FilterDetails {
         gate.add(row("Gamma ", gammaSlider, gammaLabel));
         gate.add(row("Percentile ", percentileSlider, percentileLabel));
         gate.add(row("Size ", nCombo));
+        radialBox.setToolTipText("Estimate the noise in radial bands (interpolated in radius) instead of one level for the whole image; right for a coronagraph, which gets darker and noisier outward");
+        gate.add(radialBox);
         gate.add(residualBox);
         gate.add(caveat);
 
@@ -263,7 +266,8 @@ public class SequencePanel implements FilterDetails {
         try {
             if (GATE.equals(kind))
                 return new NoiseGateParams((NoiseGateParams.Model) modelCombo.getSelectedItem(), (NoiseGateParams.Gate) gateCombo.getSelectedItem(),
-                        gammaSlider.getValue() / 10., percentileSlider.getValue(), (Integer) nCombo.getSelectedItem(), residualBox.isSelected());
+                        gammaSlider.getValue() / 10., percentileSlider.getValue(), (Integer) nCombo.getSelectedItem(), residualBox.isSelected(),
+                        radialBox.isSelected() ? NoiseGateParams.DEFAULT_BANDS : 0);
             boolean angular = ANGULAR.equals(kind);
             double lo = ((Number) loField.getValue()).doubleValue(), hi = ((Number) hiField.getValue()).doubleValue();
             if (angular) {
@@ -423,6 +427,7 @@ public class SequencePanel implements FilterDetails {
             percentileSlider.setValue(g.percentile());
             nCombo.setSelectedItem(g.n());
             residualBox.setSelected(g.residual());
+            radialBox.setSelected(g.radialBands() > 0);
         } else if (params instanceof FourierParams f) {
             boolean angular = f.kind() == FourierParams.Kind.ANGULAR;
             kindCombo.setSelectedItem(angular ? ANGULAR : RADIAL);

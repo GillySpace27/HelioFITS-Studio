@@ -13,9 +13,10 @@ import org.json.JSONObject;
  * Eq. 12 (3 is the paper's solar default); percentile is the one taken across neighbourhoods to
  * estimate the noise spectrum (50, the median, unless the data is highly structured); n is the
  * neighbourhood side in pixels and frames (8 or 16: the transform is radix-2); residual shows
- * what was removed instead of what was kept.
+ * what was removed instead of what was kept; radialBands is how many radial bands the noise
+ * level is estimated in (0: one level everywhere), interpolated in radius so nothing steps.
  */
-public record NoiseGateParams(Model model, Gate gate, double gamma, int percentile, int n, boolean residual)
+public record NoiseGateParams(Model model, Gate gate, double gamma, int percentile, int n, boolean residual, int radialBands)
         implements SequenceParams {
 
     public enum Model {
@@ -35,10 +36,18 @@ public record NoiseGateParams(Model model, Gate gate, double gamma, int percenti
             throw new IllegalArgumentException("percentile in 1..99");
         if (n != 8 && n != 16)
             throw new IllegalArgumentException("n must be 8 or 16");
+        if (radialBands < 0 || radialBands > 64)
+            throw new IllegalArgumentException("radialBands in 0..64");
+    }
+
+    public static final int DEFAULT_BANDS = 8;
+
+    public NoiseGateParams(Model model, Gate gate, double gamma, int percentile, int n, boolean residual) {
+        this(model, gate, gamma, percentile, n, residual, DEFAULT_BANDS);
     }
 
     public static NoiseGateParams defaults() {
-        return new NoiseGateParams(Model.SHOT, Gate.HARD, 3, 50, 16, false);
+        return new NoiseGateParams(Model.SHOT, Gate.HARD, 3, 50, 16, false, DEFAULT_BANDS);
     }
 
     @Override
@@ -54,7 +63,7 @@ public record NoiseGateParams(Model model, Gate gate, double gamma, int percenti
     @Override
     public String describe() {
         return "noise gate " + model.name().toLowerCase() + ' ' + gate.name().toLowerCase()
-                + String.format(" gamma %.1f n %d", gamma, n) + (residual ? " (residual)" : "");
+                + String.format(" gamma %.1f n %d", gamma, n) + (radialBands > 0 ? " " + radialBands + " radial bands" : "") + (residual ? " (residual)" : "");
     }
 
     @Override
@@ -66,7 +75,8 @@ public record NoiseGateParams(Model model, Gate gate, double gamma, int percenti
                 .put("gamma", gamma)
                 .put("percentile", percentile)
                 .put("n", n)
-                .put("residual", residual);
+                .put("residual", residual)
+                .put("radialBands", radialBands);
     }
 
     @Nullable
@@ -78,7 +88,8 @@ public record NoiseGateParams(Model model, Gate gate, double gamma, int percenti
                     jo.optDouble("gamma", 3),
                     jo.optInt("percentile", 50),
                     jo.optInt("n", 16),
-                    jo.optBoolean("residual", false));
+                    jo.optBoolean("residual", false),
+                    jo.optInt("radialBands", DEFAULT_BANDS));
         } catch (Exception e) {
             return null;
         }

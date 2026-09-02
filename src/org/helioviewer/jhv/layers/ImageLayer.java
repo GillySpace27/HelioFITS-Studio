@@ -286,10 +286,8 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
                 Log.info("Sequence filter pending on " + getName() + ": " + (!viewLoaded ? "no view yet" : frames < SEQUENCE_MIN_FRAMES
                         ? frames + " frame(s) loaded so far" : "source format " + view.getFormat() + " cannot hand over frames"));
             } else {
-                if (view.getFilter() != ImageFilter.Type.None) { // per-frame filters are not applied on top of a computed sequence
-                    view.clearCache();
-                    view.setFilter(ImageFilter.Type.None);
-                }
+                // The per-frame filter stays: ComputedView applies it to the computed frames, so RHEF can
+                // follow a noise gate or a notch the way it follows a raw frame.
                 ComputedView computed = new ComputedView(view, params, this::setLoadStatus);
                 swapView(computed);
                 computed.start();

@@ -67,15 +67,19 @@ public final class GridLayer extends AbstractLayer {
     // the picture, and drawing them unasked would clutter every ordinary view.
     private boolean showThomson = false;
     private boolean showEcliptic = false;
+    private boolean showCelestial = false;
     private Colors.NamedColor thomsonColor = Colors.NamedColor.Cyan;
     private Colors.NamedColor eclipticColor = Colors.NamedColor.Yellow;
+    private Colors.NamedColor celestialColor = Colors.NamedColor.Magenta;
     // Same affordances the grid itself has, per surface: with two wireframes and a grid overlaid
     // on the imagery, colour alone does not separate them -- opacity is what stops a dense mesh
     // burying the data, and width is what keeps a sparse one visible over bright corona.
     private double thomsonAlpha = 0.7;
     private double eclipticAlpha = 0.7;
+    private double celestialAlpha = 0.7;
     private double thomsonLineScale = 1;
     private double eclipticLineScale = 1;
+    private double celestialLineScale = 1;
     // Planets, drawn here beside the Earth marker rather than by ViewpointLayer, which only
     // renders them in its Heliosphere camera mode and so charges a camera for the privilege.
     private boolean showPlanets = false;
@@ -99,6 +103,7 @@ public final class GridLayer extends AbstractLayer {
 
     private double thomsonDensity = 1;
     private double eclipticDensity = 1;
+    private double celestialDensity = 1;
 
     private Colors.NamedColor gridColor = Colors.NamedColor.ReducedGreen;
     private double gridAlpha = 0.47;
@@ -146,6 +151,7 @@ public final class GridLayer extends AbstractLayer {
 
     private final GLSLLine thomsonLine = new GLSLLine(false);
     private final GLSLLine eclipticLine = new GLSLLine(false);
+    private final GLSLLine celestialLine = new GLSLLine(false);
     private double thomsonBuiltDistance = -1, thomsonBuiltOuter = -1;
     private byte[] thomsonBuiltColor;
     private double thomsonBuiltDensity = -1;
@@ -153,6 +159,9 @@ public final class GridLayer extends AbstractLayer {
     private double eclipticBuiltOuter = -1;
     private byte[] eclipticBuiltColor;
     private double eclipticBuiltDensity = -1;
+    private double celestialBuiltDistance = -1, celestialBuiltOuter = -1;
+    private byte[] celestialBuiltColor;
+    private double celestialBuiltDensity = -1;
 
     private final GLSLLine axesLine = new GLSLLine(false);
     private final GLSLLine earthCircleLine = new GLSLLine(false);
@@ -186,12 +195,16 @@ public final class GridLayer extends AbstractLayer {
         jo.put("labelAngle", gridLabelAngle);
         jo.put("showThomson", showThomson);
         jo.put("showEcliptic", showEcliptic);
+        jo.put("showCelestial", showCelestial);
         jo.put("thomsonColor", thomsonColor.name());
         jo.put("eclipticColor", eclipticColor.name());
+        jo.put("celestialColor", celestialColor.name());
         jo.put("thomsonAlpha", thomsonAlpha);
         jo.put("eclipticAlpha", eclipticAlpha);
+        jo.put("celestialAlpha", celestialAlpha);
         jo.put("thomsonLineScale", thomsonLineScale);
         jo.put("eclipticLineScale", eclipticLineScale);
+        jo.put("celestialLineScale", celestialLineScale);
         jo.put("showPlanets", showPlanets);
         jo.put("showPlanetOrbits", showPlanetOrbits);
         jo.put("showPlanetNames", showPlanetNames);
@@ -199,6 +212,7 @@ public final class GridLayer extends AbstractLayer {
         jo.put("planetsFollowRotation", planetsFollowRotation);
         jo.put("thomsonDensity", thomsonDensity);
         jo.put("eclipticDensity", eclipticDensity);
+        jo.put("celestialDensity", celestialDensity);
     }
 
     private void deserialize(JSONObject jo) {
@@ -222,12 +236,16 @@ public final class GridLayer extends AbstractLayer {
         } catch (Exception ignore) {}
         showThomson = jo.optBoolean("showThomson", showThomson);
         showEcliptic = jo.optBoolean("showEcliptic", showEcliptic);
+        showCelestial = jo.optBoolean("showCelestial", showCelestial);
         thomsonColor = Colors.NamedColor.parse(jo.optString("thomsonColor", thomsonColor.name()), thomsonColor);
         eclipticColor = Colors.NamedColor.parse(jo.optString("eclipticColor", eclipticColor.name()), eclipticColor);
+        celestialColor = Colors.NamedColor.parse(jo.optString("celestialColor", celestialColor.name()), celestialColor);
         thomsonAlpha = Math.clamp(jo.optDouble("thomsonAlpha", thomsonAlpha), 0, 1);
         eclipticAlpha = Math.clamp(jo.optDouble("eclipticAlpha", eclipticAlpha), 0, 1);
+        celestialAlpha = Math.clamp(jo.optDouble("celestialAlpha", celestialAlpha), 0, 1);
         thomsonLineScale = Math.clamp(jo.optDouble("thomsonLineScale", thomsonLineScale), 0.25, 4);
         eclipticLineScale = Math.clamp(jo.optDouble("eclipticLineScale", eclipticLineScale), 0.25, 4);
+        celestialLineScale = Math.clamp(jo.optDouble("celestialLineScale", celestialLineScale), 0.25, 4);
         showPlanets = jo.optBoolean("showPlanets", showPlanets);
         showPlanetOrbits = jo.optBoolean("showPlanetOrbits", showPlanetOrbits);
         showPlanetNames = jo.optBoolean("showPlanetNames", showPlanetNames);
@@ -235,6 +253,7 @@ public final class GridLayer extends AbstractLayer {
         planetsFollowRotation = jo.optBoolean("planetsFollowRotation", planetsFollowRotation);
         thomsonDensity = Math.clamp(jo.optDouble("thomsonDensity", thomsonDensity), 0.25, 4);
         eclipticDensity = Math.clamp(jo.optDouble("eclipticDensity", eclipticDensity), 0.25, 4);
+        celestialDensity = Math.clamp(jo.optDouble("celestialDensity", celestialDensity), 0.25, 4);
     }
 
     public GridLayer(JSONObject jo) {
@@ -278,6 +297,8 @@ public final class GridLayer extends AbstractLayer {
             drawPlanets(vp, pixFactor, viewpoint, mv.cameraWidth(vp));
         if (showThomson)
             drawThomsonSphere(mv, vp, viewpoint);
+        if (showCelestial)
+            drawCelestialSphere(mv, vp, viewpoint);
         if (showEcliptic)
             drawEcliptic(mv, vp, viewpoint);
 
@@ -445,6 +466,25 @@ public final class GridLayer extends AbstractLayer {
         Transform.popView();
     }
 
+    private void drawCelestialSphere(MapView mv, Viewport vp, Position viewpoint) {
+        double outer = referenceOuterRadius(mv, vp);
+        byte[] color = Colors.bytes(celestialColor.awtColor(), celestialAlpha);
+        if (viewpoint.distance != celestialBuiltDistance || outer != celestialBuiltOuter
+                || !java.util.Arrays.equals(color, celestialBuiltColor) || celestialDensity != celestialBuiltDensity) {
+            ReferenceSurfaces.buildCelestialSphere(celestialLine, viewpoint.distance, outer, color, celestialDensity);
+            celestialBuiltDistance = viewpoint.distance;
+            celestialBuiltOuter = outer;
+            celestialBuiltColor = color;
+            celestialBuiltDensity = celestialDensity;
+        }
+        // Same frame as the Thomson sphere: both surfaces are defined relative to the observer, so
+        // both swing with it rather than sitting fixed in Carrington.
+        Transform.pushView();
+        Transform.rotateViewInverse(viewpoint.toQuat());
+        celestialLine.renderLine(vp, LINEWIDTH * celestialLineScale);
+        Transform.popView();
+    }
+
     private void drawEcliptic(MapView mv, Viewport vp, Position viewpoint) {
         double outer = referenceOuterRadius(mv, vp);
         byte[] color = Colors.bytes(eclipticColor.awtColor(), eclipticAlpha);
@@ -549,6 +589,7 @@ public final class GridLayer extends AbstractLayer {
         planetOrbitLine.init();
         thomsonLine.init();
         eclipticLine.init();
+        celestialLine.init();
         GridMath.initEarthPoint(earthPoint);
 
         radialCircleLine.init();
@@ -574,6 +615,7 @@ public final class GridLayer extends AbstractLayer {
         planetOrbitLine.dispose();
         thomsonLine.dispose();
         eclipticLine.dispose();
+        celestialLine.dispose();
         radialCircleLine.dispose();
         radialThickLine.dispose();
         radialCircleLineFar.dispose();
@@ -724,6 +766,15 @@ public final class GridLayer extends AbstractLayer {
         DisplayController.display();
     }
 
+    public boolean isShowCelestial() {
+        return showCelestial;
+    }
+
+    public void setShowCelestial(boolean v) {
+        showCelestial = v;
+        DisplayController.display();
+    }
+
     public Colors.NamedColor getThomsonColor() {
         return thomsonColor;
     }
@@ -739,6 +790,15 @@ public final class GridLayer extends AbstractLayer {
 
     public void setEclipticColor(Colors.NamedColor c) {
         eclipticColor = c;
+        DisplayController.display();
+    }
+
+    public Colors.NamedColor getCelestialColor() {
+        return celestialColor;
+    }
+
+    public void setCelestialColor(Colors.NamedColor c) {
+        celestialColor = c;
         DisplayController.display();
     }
 
@@ -805,6 +865,15 @@ public final class GridLayer extends AbstractLayer {
         DisplayController.display();
     }
 
+    public double getCelestialAlpha() {
+        return celestialAlpha;
+    }
+
+    public void setCelestialAlpha(double v) {
+        celestialAlpha = v;
+        DisplayController.display();
+    }
+
     public double getThomsonLineScale() {
         return thomsonLineScale;
     }
@@ -823,6 +892,15 @@ public final class GridLayer extends AbstractLayer {
         DisplayController.display();
     }
 
+    public double getCelestialLineScale() {
+        return celestialLineScale;
+    }
+
+    public void setCelestialLineScale(double v) {
+        celestialLineScale = v;
+        DisplayController.display();
+    }
+
     public double getThomsonDensity() {
         return thomsonDensity;
     }
@@ -838,6 +916,15 @@ public final class GridLayer extends AbstractLayer {
 
     public void setEclipticDensity(double v) {
         eclipticDensity = v;
+        DisplayController.display();
+    }
+
+    public double getCelestialDensity() {
+        return celestialDensity;
+    }
+
+    public void setCelestialDensity(double v) {
+        celestialDensity = v;
         DisplayController.display();
     }
 

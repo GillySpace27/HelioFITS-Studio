@@ -182,7 +182,7 @@ public final class ComputedViewCheck {
 
         view.dispose();
         expect("dispose drops the computed frames and never abolishes the wrapped view",
-                !view.isReady() && ImageBufferCache.get(new ComputedView.ComputedKey(view, 3)) == null && stub.abolishCalls == 0 && view.frameImage(3) == stub.frames[3]);
+                !view.isReady() && ImageBufferCache.get(new ComputedView.ComputedKey(view, 3, ImageFilter.Type.None)) == null && stub.abolishCalls == 0 && view.frameImage(3) == stub.frames[3]);
         received.set(null);
         view.decode(new Position(stub.getFrameTime(7), 1, 0, 0), 1, 1);
         expect("after dispose decode passes through to the source", stub.decodeCalls == 1);

@@ -12,7 +12,10 @@ import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.display.DisplayController;
+import java.nio.ShortBuffer;
+
 import org.helioviewer.jhv.image.DecodedImage;
+import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.ImageBufferCache;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.image.fourier.FourierFilter;
@@ -46,7 +49,8 @@ import org.helioviewer.jhv.time.JHVTime;
  */
 public final class ComputedView implements View {
 
-    public record ComputedKey(ComputedView view, int frame) {}
+    /** filter is the per-frame filter applied on top; None is the job's own output. */
+    public record ComputedKey(ComputedView view, int frame, ImageFilter.Type filter) {}
 
     private final View wrapped;
     private final SequenceParams params;
@@ -122,7 +126,7 @@ public final class ComputedView implements View {
         running = false;
         for (int i = 0; i < frames.length; i++)
             if (frames[i] != null)
-                ImageBufferCache.put(new ComputedKey(this, i), frames[i]);
+                ImageBufferCache.put(new ComputedKey(this, i, ImageFilter.Type.None), frames[i]);
         ready = true;
         evictionReported = false;
         status.accept(null);
@@ -141,16 +145,27 @@ public final class ComputedView implements View {
     public void decode(Position viewpoint, double pixFactor, float factor) {
         int frame = wrapped.getCurrentFrameNumber();
         if (ready) {
-            DecodedImage image = ImageBufferCache.get(new ComputedKey(this, frame));
+            ImageFilter.Type filter = wrapped.getFilter();
+            DecodedImage image = ImageBufferCache.get(new ComputedKey(this, frame, filter));
+            if (image == null && filter != ImageFilter.Type.None) {
+                // The per-frame filter on top of the computed frame, the way URIView applies it to a
+                // decoded one: off the EDT, the plain computed frame shown meanwhile.
+                DecodedImage plain = ImageBufferCache.get(new ComputedKey(this, frame, ImageFilter.Type.None));
+                if (plain != null) {
+                    MetaData meta = wrapped.getMetaData(wrapped.getFrameTime(frame));
+                    Task.submit("sequence filter " + filter, () -> filtered(plain, filter, meta),
+                            result -> {
+                                if (wrapped.getFilter() == filter) { // not changed in flight
+                                    ImageBufferCache.put(new ComputedKey(this, frame, filter), result);
+                                    DisplayController.render(1);
+                                }
+                            },
+                            (ctx, t) -> Log.error(t));
+                    image = plain;
+                }
+            }
             if (image != null) {
-                image.imageBuffer().protectFromExplicitFree();
-                ImageData data = new ImageData(image.imageBuffer(), wrapped.getMetaData(wrapped.getFrameTime(frame)), image.region(), viewpoint);
-                EventQueue.invokeLater(() -> {
-                    if (dataHandler != null)
-                        dataHandler.handleData(data);
-                    else
-                        image.imageBuffer().allowExplicitFree();
-                });
+                publish(image, frame, viewpoint);
                 return;
             }
             if (!evictionReported) {
@@ -161,11 +176,35 @@ public final class ComputedView implements View {
         wrapped.decode(viewpoint, pixFactor, factor);
     }
 
+    private void publish(DecodedImage image, int frame, Position viewpoint) {
+        image.imageBuffer().protectFromExplicitFree();
+        ImageData data = new ImageData(image.imageBuffer(), wrapped.getMetaData(wrapped.getFrameTime(frame)), image.region(), viewpoint);
+        EventQueue.invokeLater(() -> {
+            if (dataHandler != null)
+                dataHandler.handleData(data);
+            else
+                image.imageBuffer().allowExplicitFree();
+        });
+    }
+
+    // A computed frame through a per-frame filter: the same ImageFilter the decoders use.
+    private static DecodedImage filtered(DecodedImage plain, ImageFilter.Type filter, MetaData meta) {
+        ImageBuffer src = plain.imageBuffer();
+        if (src.format != ImageBuffer.Format.Gray16F)
+            return plain;
+        short[] data = new short[src.width * src.height];
+        ((ShortBuffer) src.buffer).get(0, data);
+        ImageBuffer out = ImageBuffer.fromShorts(src.width, src.height, ImageBuffer.Format.Gray16F, data, ImageFilter.of(filter, plain.region(), meta));
+        out.setPhysicalScale(src.physicalScale());
+        return new DecodedImage(out, plain.region());
+    }
+
+    /** The job's own output (no per-frame filter), so a second computed view can build on it. */
     @Nullable
     @Override
     public DecodedImage frameImage(int frame) {
         if (ready) {
-            DecodedImage image = ImageBufferCache.get(new ComputedKey(this, frame));
+            DecodedImage image = ImageBufferCache.get(new ComputedKey(this, frame, ImageFilter.Type.None));
             if (image != null)
                 return image;
         }

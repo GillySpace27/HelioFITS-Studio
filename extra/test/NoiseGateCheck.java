@@ -10,7 +10,10 @@ import java.util.Random;
  * flat, the residual against the known clean field must drop by a factor of at least three, the
  * blobs' integrals must survive, and the removed part must not correlate with the truth (the
  * paper's "no structure in the difference"). The same for additive noise, and for the 2D
- * fallback on a short sequence.
+ * fallback on a short sequence. Two more: gating a volume whole and gating it in two tiles with
+ * real halos must give the same pixels (a tile seam is a failure that shows only as a faint line
+ * every 256 px), and with noise that grows with radius the banded estimate must track it and
+ * beat the single-level estimate.
  *
  * <p>Run: java -cp bin:extra/test-classes org.helioviewer.jhv.image.fourier.NoiseGateCheck
  */
@@ -19,14 +22,16 @@ public final class NoiseGateCheck {
     private static int failures;
 
     public static void main(String[] args) {
-        int w = 96, h = 96, d = 32;
+        // 160 pixels, not 96: the estimate needs most of its neighbourhoods noise-dominated at every
+        // component (the paper's condition), and on 96 pixels the four blobs touch a third of them.
+        int w = 160, h = 160, d = 32;
         Random rnd = new Random(3);
         float[] truth = blobs(w, h, d, 60, 240); // background 60, blob peaks 240 above it
 
         // (a) identity: gamma 0 opens every gate, so the doubly windowed overlap-add must reproduce the input, edges included
         {
             float[] noisy = truth.clone();
-            NoiseGateParams p = new NoiseGateParams(NoiseGateParams.Model.SHOT, NoiseGateParams.Gate.HARD, 0, 50, 16, false);
+            NoiseGateParams p = new NoiseGateParams(NoiseGateParams.Model.SHOT, NoiseGateParams.Gate.HARD, 0, 50, 16, false, 0);
             float[] out = run(noisy, w, h, d, p, null);
             expect(String.format("gamma 0 reproduces the input to 1e-4 (max rel err %.2e)", maxRelErr(noisy, out)), maxRelErr(noisy, out) < 1e-4);
         }
@@ -36,7 +41,7 @@ public final class NoiseGateCheck {
             float[] noisy = new float[truth.length];
             for (int i = 0; i < noisy.length; i++)
                 noisy[i] = truth[i] + (float) (1.5 * Math.sqrt(truth[i]) * rnd.nextGaussian());
-            NoiseGateParams p = new NoiseGateParams(NoiseGateParams.Model.SHOT, NoiseGateParams.Gate.HARD, 3, 50, 16, false);
+            NoiseGateParams p = new NoiseGateParams(NoiseGateParams.Model.SHOT, NoiseGateParams.Gate.HARD, 3, 50, 16, false, 0);
             float[][] noiseOut = new float[1][];
             float[] out = run(noisy, w, h, d, p, noiseOut);
             double flat = flatness(noiseOut[0], 16 * 16 * 16);
@@ -54,11 +59,11 @@ public final class NoiseGateCheck {
             float[] noisy = new float[truth.length];
             for (int i = 0; i < noisy.length; i++)
                 noisy[i] = truth[i] + (float) (20 * rnd.nextGaussian());
-            NoiseGateParams hard = new NoiseGateParams(NoiseGateParams.Model.ADDITIVE, NoiseGateParams.Gate.HARD, 3, 50, 16, false);
+            NoiseGateParams hard = new NoiseGateParams(NoiseGateParams.Model.ADDITIVE, NoiseGateParams.Gate.HARD, 3, 50, 16, false, 0);
             float[] out = run(noisy, w, h, d, hard, null);
             double before = rms(noisy, truth, w, h, d), after = rms(out, truth, w, h, d);
             expect(String.format("additive hard gate cuts the residual by 3x or more (%.1f -> %.1f)", before, after), after < before / 3);
-            NoiseGateParams wiener = new NoiseGateParams(NoiseGateParams.Model.ADDITIVE, NoiseGateParams.Gate.WIENER, 3, 50, 16, false);
+            NoiseGateParams wiener = new NoiseGateParams(NoiseGateParams.Model.ADDITIVE, NoiseGateParams.Gate.WIENER, 3, 50, 16, false, 0);
             double afterW = rms(run(noisy, w, h, d, wiener, null), truth, w, h, d);
             expect(String.format("additive Wiener gate cuts the residual by 1.5x or more (%.1f -> %.1f)", before, afterW), afterW < before / 1.5);
         }
@@ -70,11 +75,72 @@ public final class NoiseGateCheck {
             float[] noisy = new float[t2.length];
             for (int i = 0; i < noisy.length; i++)
                 noisy[i] = t2[i] + (float) (1.5 * Math.sqrt(t2[i]) * rnd.nextGaussian());
-            NoiseGateParams p = new NoiseGateParams(NoiseGateParams.Model.SHOT, NoiseGateParams.Gate.HARD, 3, 50, 16, false);
+            NoiseGateParams p = new NoiseGateParams(NoiseGateParams.Model.SHOT, NoiseGateParams.Gate.HARD, 3, 50, 16, false, 0);
             NoiseGate.Setup s = NoiseGate.setup(16, d2);
             float[] out = run(noisy, w, h, d2, p, null);
             double before = rms(noisy, t2, w, h, d2), after = rms(out, t2, w, h, d2);
             expect(String.format("2D fallback (nt = %d) runs and improves the residual (%.1f -> %.1f)", s.nt(), before, after), s.nt() == 1 && after < before / 1.5);
+        }
+
+        // (f) tiles with real halos are invisible: whole == tiles, same noise spectrum, to float precision
+        {
+            float[] noisy = new float[truth.length];
+            for (int i = 0; i < noisy.length; i++)
+                noisy[i] = truth[i] + (float) (1.5 * Math.sqrt(truth[i]) * rnd.nextGaussian());
+            NoiseGateParams p = new NoiseGateParams(NoiseGateParams.Model.SHOT, NoiseGateParams.Gate.HARD, 3, 50, 16, false, 0);
+            NoiseGate.Setup s = NoiseGate.setup(16, d);
+            int halo = NoiseGate.halo(s);
+            NoiseGate.Estimator est = new NoiseGate.Estimator(s, true, 2048, 0);
+            NoiseGate.estimateTile(noisy, w, h, d, s, est, 0, null);
+            float[][] noise = est.noise(50);
+            float[] whole = NoiseGate.gateTile(noisy, w, h, d, s, noise, p, 0, null);
+            // two tiles of 80 columns, each with a halo of real (or, at the image edge, reflected) data
+            float[] tiled = new float[whole.length];
+            for (int tx = 0; tx < 2; tx++) {
+                int x0 = tx * 80, tw = 80 + 2 * halo, th = h + 2 * halo;
+                float[] vol = new float[tw * th * d];
+                for (int z = 0; z < d; z++)
+                    for (int y = 0; y < th; y++)
+                        for (int x = 0; x < tw; x++)
+                            vol[(z * th + y) * tw + x] = noisy[(z * h + NoiseGate.reflect(y - halo, h)) * w + NoiseGate.reflect(x0 + x - halo, w)];
+                float[] out = NoiseGate.gateTile(vol, tw, th, d, s, noise, p, halo, null);
+                for (int z = 0; z < d; z++)
+                    for (int y = 0; y < h; y++)
+                        System.arraycopy(out, (z * h + y) * 80, tiled, (z * h + y) * w + x0, 80);
+            }
+            expect(String.format("two haloed tiles equal the whole (max rel diff %.1e)", maxRelErr(whole, tiled)), maxRelErr(whole, tiled) < 1e-4);
+        }
+
+        // (g) noise growing with radius on a frame big enough for four bands to hold hundreds of
+        // neighbourhoods each: the banded estimate follows it, and gating with bands does better than one level
+        {
+            int gw = 192, gh = 192;
+            float[] gt = blobs(gw, gh, d, 60, 240); // the blobs sit in the top-left quadrant: the inner bands are noise only
+            double cx = gw / 2., cy = gh / 2., rMax = Math.hypot(cx, cy);
+            float[] noisy = new float[gt.length];
+            for (int z = 0; z < d; z++)
+                for (int y = 0; y < gh; y++)
+                    for (int x = 0; x < gw; x++) {
+                        int i = (z * gh + y) * gw + x;
+                        double sigma = 5 + 25 * Math.hypot(x - cx, y - cy) / rMax; // 5 at the centre, 30 at the corner
+                        noisy[i] = gt[i] + (float) (sigma * rnd.nextGaussian());
+                    }
+            NoiseGate.Setup s = NoiseGate.setup(16, d);
+            NoiseGate.Radial radial = new NoiseGate.Radial(cx, cy, rMax, 4);
+            NoiseGate.Estimator est = new NoiseGate.Estimator(s, false, 2048, 4);
+            NoiseGate.estimateTile(noisy, gw, gh, d, s, est, 0, radial);
+            float[][] noise = est.noise(50);
+            // band 0 is four lattice positions on this frame and falls back to the global level; bands 1 and 3
+            // have hundreds, and their centres sit where the noise differs by 1.9
+            double inner = median(noise[1]), outer = median(noise[3]);
+            expect(String.format("banded estimate grows outward (band 3 / band 1 = %.2f, expected about 1.9)", outer / inner), outer / inner > 1.5 && outer / inner < 2.4);
+            NoiseGateParams banded = new NoiseGateParams(NoiseGateParams.Model.ADDITIVE, NoiseGateParams.Gate.HARD, 3, 50, 16, false, 4);
+            NoiseGateParams flat = new NoiseGateParams(NoiseGateParams.Model.ADDITIVE, NoiseGateParams.Gate.HARD, 3, 50, 16, false, 0);
+            float[] withBands = NoiseGate.gateTile(noisy, gw, gh, d, s, noise, banded, 0, radial);
+            float[][] one = {noise[4]};
+            float[] oneLevel = NoiseGate.gateTile(noisy, gw, gh, d, s, one, flat, 0, null);
+            double rb = rms(withBands, gt, gw, gh, d), ro = rms(oneLevel, gt, gw, gh, d), before = rms(noisy, gt, gw, gh, d);
+            expect(String.format("radial bands beat one level (%.1f -> %.1f banded, %.1f one level)", before, rb, ro), rb < ro && rb < before / 2);
         }
 
         System.out.println(failures == 0 ? "NoiseGateCheck: PASS" : "NoiseGateCheck: " + failures + " FAILED");
@@ -84,12 +150,18 @@ public final class NoiseGateCheck {
     // The whole pipeline on one volume, exactly as NoiseGateJob runs it on a tile.
     private static float[] run(float[] vol, int w, int h, int d, NoiseGateParams p, float[][] noiseOut) {
         NoiseGate.Setup s = NoiseGate.setup(p.n(), d);
-        NoiseGate.Estimator est = new NoiseGate.Estimator(s, p.model() == NoiseGateParams.Model.SHOT, 2048);
-        NoiseGate.estimateTile(vol, w, h, d, s, est);
-        float[] noise = est.noise(p.percentile());
+        NoiseGate.Estimator est = new NoiseGate.Estimator(s, p.model() == NoiseGateParams.Model.SHOT, 2048, 0);
+        NoiseGate.estimateTile(vol, w, h, d, s, est, 0, null);
+        float[][] noise = est.noise(p.percentile());
         if (noiseOut != null)
-            noiseOut[0] = noise;
-        return NoiseGate.gateTile(vol, w, h, d, s, noise, p);
+            noiseOut[0] = noise[0];
+        return NoiseGate.gateTile(vol, w, h, d, s, noise, p, 0, null);
+    }
+
+    private static double median(float[] a) {
+        float[] c = java.util.Arrays.copyOfRange(a, 1, a.length); // skip the DC component
+        java.util.Arrays.sort(c);
+        return c[c.length / 2];
     }
 
     // Gaussian blobs drifting through the volume over a flat background.
