@@ -76,7 +76,8 @@ public final class GLRenderer {
         GL.glClear(GL.COLOR_BUFFER_BIT | GL.DEPTH_BUFFER_BIT);
 
         try {
-            GLSLSolar.init();
+            GLSLScreenShader.init();
+            GLSLSphereShader.init();
             GLSLImageShader.init();
             GLSLLineShader.init();
             GLSLMeshShader.init();
@@ -85,7 +86,6 @@ public final class GLRenderer {
             Annotations.init();
         } catch (RuntimeException | Error e) {
             Annotations.dispose();
-            GLSLSolar.dispose();
             disposeShaders();
             throw e;
         }
@@ -125,7 +125,6 @@ public final class GLRenderer {
         ExportMovie.dispose();
         GLText.dispose();
 
-        GLSLSolar.dispose();
         disposeShaders();
         BufferObject.releaseUploadBuffer();
 
@@ -133,11 +132,13 @@ public final class GLRenderer {
     }
 
     private static void disposeShaders() {
-        GLSLImageShader.dispose();
-        GLSLLineShader.dispose();
-        GLSLMeshShader.dispose();
-        GLSLShapeShader.dispose();
         GLSLTextureShader.dispose();
+        GLSLShapeShader.dispose();
+        GLSLMeshShader.dispose();
+        GLSLLineShader.dispose();
+        GLSLImageShader.dispose();
+        GLSLSphereShader.dispose();
+        GLSLScreenShader.dispose();
     }
 
     static void renderScene() {
@@ -146,9 +147,9 @@ public final class GLRenderer {
             GL.glViewport(vp.x, vp.yGL, vp.width, vp.height);
             Transform.ortho(vp.aspect, mv.cameraWidth(vp), mv.cameraTranslationX(), mv.cameraTranslationY(), mv.viewRotation());
 
-            GLSLSolar.bindScreen(mv, vp);
+            GLSLScreenShader.setView(mv, vp);
+            GLSLSphereShader.render();
 
-            GLSLSolar.renderSphere();
             Layers.render(mv, vp);
             Annotations.render(mv, vp);
             Layers.renderFloat(mv, vp);
@@ -168,7 +169,7 @@ public final class GLRenderer {
         GL.glViewport(vp.x, vp.yGL, vp.width, vp.height);
         Transform.ortho2D(vp.aspect, mv.cameraWidth(vp), mv.cameraTranslationX(), mv.cameraTranslationY());
 
-        GLSLSolar.bindScreen(mv, vp);
+        GLSLScreenShader.setView(mv, vp);
 
         GL.glDisable(GL.DEPTH_TEST);
         miniview.renderBackground();
@@ -182,7 +183,7 @@ public final class GLRenderer {
             GL.glViewport(vp.x, vp.yGL, vp.width, vp.height);
             Transform.ortho2D(vp.aspect, mv.cameraWidth(vp), mv.cameraTranslationX(), mv.cameraTranslationY());
 
-            GLSLSolar.bindScreen(mv, vp);
+            GLSLScreenShader.setView(mv, vp);
 
             Layers.renderScale(mv, vp);
             Annotations.render(mv, vp);

@@ -7,31 +7,35 @@ import org.helioviewer.jhv.display.MapScale;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 
-public final class GLSLSolar {
-
-    private static final String VERTEX = "/glsl/screen.vert";
+abstract class GLSLScreenShader extends GLSLShader {
 
     private static final VertexArrayObject quad = new VertexArrayObject(false, VertexAttribute.floats(0, 4, 0, 0));
-    private static final SphereShader sphere = new SphereShader();
     private static final UniformBufferObject screenBuffer = new UniformBufferObject(UniformBlockLayout.SCREEN, GL.STREAM_DRAW);
 
     private static final FloatBuffer vertices = BufferUtils.newFloatBuffer(16).put(new float[]{-1, -1, 0, 1, 1, -1, 0, 1, -1, 1, 0, 1, 1, 1, 0, 1}).flip();
+
+    GLSLScreenShader(String... _fragments) {
+        super("/glsl/screen.vert", _fragments);
+    }
 
     static void init() {
         screenBuffer.init();
         screenBuffer.bind();
         quad.init();
         quad.uploadVertexBuffer(vertices);
-        sphere._init();
     }
 
     static void dispose() {
-        sphere._dispose();
         quad.dispose();
         screenBuffer.dispose();
     }
 
-    static void bindScreen(MapView mv, Viewport vp) {
+    @Override
+    protected void initUniforms(int id) {
+        setupUniformBlock(id, UniformBlockLayout.SCREEN);
+    }
+
+    static void setView(MapView mv, Viewport vp) {
         MapScale scale = mv.scale(vp);
         FloatBuffer values = screenBuffer.begin(Transform.getInverse());
         values.put((float) scale.toMapX(0)).put((float) scale.toMapX(1));
@@ -42,27 +46,9 @@ public final class GLSLSolar {
         screenBuffer.upload();
     }
 
-    static void renderScreen() {
+    final void draw() {
         quad.bind();
         GL.glDrawArrays(GL.TRIANGLE_STRIP, 0, 4);
     }
 
-    static void renderSphere() {
-        sphere.use();
-        renderScreen();
-    }
-
-    private static final class SphereShader extends GLSLShader {
-        private SphereShader() {
-            super(VERTEX, "/glsl/sphere.frag");
-        }
-
-        @Override
-        protected void initUniforms(int id) {
-            setupUniformBlock(id, UniformBlockLayout.SCREEN);
-        }
-    }
-
-    private GLSLSolar() {
-    }
 }

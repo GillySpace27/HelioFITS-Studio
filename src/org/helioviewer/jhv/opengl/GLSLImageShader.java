@@ -8,9 +8,8 @@ import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.metadata.Region;
 import org.helioviewer.jhv.wcs.WcsHeader;
 
-public final class GLSLImageShader extends GLSLShader {
+public final class GLSLImageShader extends GLSLScreenShader {
 
-    private static final String VERTEX = "/glsl/screen.vert";
     private static final String COMMON_FRAGMENT = "/glsl/imageCommon.frag";
 
     private static final GLSLImageShader ortho = new GLSLImageShader("/glsl/imageOrtho.frag");
@@ -24,7 +23,7 @@ public final class GLSLImageShader extends GLSLShader {
     private int pv1Ref;
 
     private GLSLImageShader(String fragment) {
-        super(VERTEX, COMMON_FRAGMENT, fragment);
+        super(COMMON_FRAGMENT, fragment);
     }
 
     private static final UniformBufferObject imageBuffer = new UniformBufferObject(UniformBlockLayout.IMAGE, GL.STREAM_DRAW);
@@ -44,17 +43,13 @@ public final class GLSLImageShader extends GLSLShader {
         }
     }
 
-    private static void setupImageBlocks(int programID) {
-        setupUniformBlock(programID, UniformBlockLayout.IMAGE);
-        setupUniformBlock(programID, UniformBlockLayout.SCREEN);
-        setupUniformBlock(programID, UniformBlockLayout.DISPLAY);
-    }
-
     @Override
     protected void initUniforms(int id) {
+        super.initUniforms(id);
         pv0Ref = requiredUniform(id, "pv0");
         pv1Ref = requiredUniform(id, "pv1");
-        setupImageBlocks(id);
+        setupUniformBlock(id, UniformBlockLayout.IMAGE);
+        setupUniformBlock(id, UniformBlockLayout.DISPLAY);
         setTextureUnit(id, "image", GLTexture.Unit.ZERO);
         setTextureUnit(id, "lut", GLTexture.Unit.ONE);
         setTextureUnit(id, "diffImage", GLTexture.Unit.TWO);
@@ -110,7 +105,7 @@ public final class GLSLImageShader extends GLSLShader {
         displayBuffer.uploadIfChanged();
     }
 
-    static void useImage(MapMode mode, float[] pv0, float[] pv1) {
+    public static void render(MapMode mode, float[] pv0, float[] pv1) {
         GLSLImageShader shader = switch (mode) {
             case Orthographic -> ortho;
             case HPC -> hpc;
@@ -120,6 +115,7 @@ public final class GLSLImageShader extends GLSLShader {
         };
         shader.use();
         shader.bindPV(pv0, pv1);
+        shader.draw();
     }
 
     private void bindPV(float[] pv0, float[] pv1) {

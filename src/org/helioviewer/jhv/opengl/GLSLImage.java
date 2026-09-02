@@ -5,7 +5,6 @@ import java.nio.ByteBuffer;
 import javax.annotation.Nullable;
 
 import org.helioviewer.jhv.display.Display;
-import org.helioviewer.jhv.display.MapMode;
 import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.ImageDisplaySettings;
 import org.helioviewer.jhv.image.ImageDisplaySettings.DifferenceMode;
@@ -30,11 +29,6 @@ public class GLSLImage {
 
     public GLSLImage(ImageDisplaySettings _settings) {
         settings = _settings;
-    }
-
-    public void render(MapMode mode, float[] pv0, float[] pv1) {
-        GLSLImageShader.useImage(mode, pv0, pv1);
-        GLSLSolar.renderScreen();
     }
 
     public void streamImages(ImageBuffer imageBuffer, @Nullable ImageBuffer differenceBuffer) {
