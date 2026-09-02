@@ -185,7 +185,10 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         if (imageData == null) {
             return;
         }
-        glImage.streamImage(imageData, prevImageData, baseImageData);
+        View.ImageData comparisonData = comparisonImageData();
+        ImageBuffer differenceBuffer = displaySettings.getDifferenceMode() == DifferenceMode.None || comparisonData == null
+                ? null : comparisonData.imageBuffer();
+        glImage.streamImages(imageData.imageBuffer(), differenceBuffer);
     }
 
     @Override
@@ -209,11 +212,11 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         if (!isVisible[vp.idx])
             return;
 
-        glImage.applyFilters(view.getFilter() == ImageFilter.Type.RHEF);
-
         MetaData meta0 = imageData.metaData();
+        glImage.applyFilters(imageData.imageBuffer(), meta0, view.getFilter() == ImageFilter.Type.RHEF);
+
         Position metaViewpoint0 = meta0.getViewpoint();
-        View.ImageData imageDataDiff = displaySettings.getDifferenceMode() == DifferenceMode.Base ? baseImageData : prevImageData;
+        View.ImageData imageDataDiff = comparisonImageData();
         MetaData meta1 = imageDataDiff.metaData();
         Position metaViewpoint1 = meta1.getViewpoint();
         WcsHeader wcs0 = meta0.getWcsHeader();
@@ -270,6 +273,10 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         GLSLSolar.renderImage(mv.mode(), wcs0.pv2, wcs1.pv2);
     }
 
+    private View.ImageData comparisonImageData() {
+        return displaySettings.getDifferenceMode() == DifferenceMode.Base ? baseImageData : prevImageData;
+    }
+
     @Override
     public String getName() {
         return imageData == null ? "Loading..." : imageData.metaData().getDisplayName();
@@ -322,8 +329,6 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             retained.add(prevImageData.imageBuffer());
         if (baseImageData != null)
             retained.add(baseImageData.imageBuffer());
-        if (glImage != null)
-            glImage.collectImageBuffers(retained);
     }
 
     @Nonnull

@@ -1,7 +1,8 @@
 package org.helioviewer.jhv.opengl;
 
 import java.nio.ByteBuffer;
-import java.util.Set;
+
+import javax.annotation.Nullable;
 
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.image.ImageBuffer;
@@ -10,7 +11,6 @@ import org.helioviewer.jhv.image.ImageDisplaySettings.DifferenceMode;
 import org.helioviewer.jhv.image.lut.LUT;
 import org.helioviewer.jhv.metadata.DetectorMask;
 import org.helioviewer.jhv.metadata.MetaData;
-import org.helioviewer.jhv.view.View;
 
 public class GLImage {
 
@@ -24,33 +24,26 @@ public class GLImage {
     private LUT lastLut;
     private boolean lastInverted;
     private DetectorMask uploadedMask = DetectorMask.NONE;
-    private View.ImageData uploadedImageData;
+    private ImageBuffer uploadedImageBuffer;
+    private ImageBuffer uploadedDiffBuffer;
 
     public GLImage(ImageDisplaySettings _settings) {
         settings = _settings;
     }
 
-    public void streamImage(View.ImageData imageData, View.ImageData prevImageData, View.ImageData baseImageData) {
-        if (uploadedImageData != imageData) {
-            tex.upload(imageData.imageBuffer(), GL.LINEAR);
-            uploadedImageData = imageData;
+    public void streamImages(ImageBuffer imageBuffer, @Nullable ImageBuffer differenceBuffer) {
+        if (uploadedImageBuffer != imageBuffer) {
+            tex.upload(imageBuffer, GL.LINEAR);
+            uploadedImageBuffer = imageBuffer;
         }
-
-        DifferenceMode differenceMode = settings.getDifferenceMode();
-        View.ImageData prevFrame = differenceMode == DifferenceMode.Base ? baseImageData : prevImageData;
-        if (differenceMode != DifferenceMode.None && prevFrame != null)
-            diffTex.upload(prevFrame.imageBuffer(), GL.LINEAR);
-    }
-
-    public void collectImageBuffers(Set<ImageBuffer> retained) {
-        if (uploadedImageData != null)
-            retained.add(uploadedImageData.imageBuffer());
+        if (differenceBuffer != null && uploadedDiffBuffer != differenceBuffer)
+            diffTex.upload(differenceBuffer, GL.LINEAR);
+        uploadedDiffBuffer = differenceBuffer;
     }
 
     private final float[] color = new float[4];
 
-    public void applyFilters(boolean rhefActive) {
-        MetaData metaData = uploadedImageData.metaData();
+    public void applyFilters(ImageBuffer imageBuffer, MetaData metaData, boolean rhefActive) {
         float userSectorCenter = 0;
         float userSectorHalfWidth = 0;
         if (settings.getSectorWidth() != 0) {
@@ -65,7 +58,7 @@ public class GLImage {
         color[2] = (float) (settings.getOpacity() * settings.getBlueScale());
         color[3] = (float) (settings.getOpacity() * settings.getBlend());
         GLSLSolarShader.bindDisplay(color,
-                1f / uploadedImageData.imageBuffer().width, 1f / uploadedImageData.imageBuffer().height,
+                1f / imageBuffer.width, 1f / imageBuffer.height,
                 (float) (-2 * settings.getSharpen()), settings.getDifferenceMode().ordinal(),
                 // RHEF output is already a normalized rank in [0, 1]; the raw-DN response
                 // factor must NOT rescale it (that pushes the uniform upper half past 1 and
@@ -109,11 +102,6 @@ public class GLImage {
             lutTex = new GLTexture(GL.TEXTURE_2D, GLTexture.Unit.ONE);
             diffTex = new GLStreamingTexture2D(GLTexture.Unit.TWO);
             maskTex = new GLStreamingTexture2D(GLTexture.Unit.THREE);
-            // Texture objects were recreated, so their corresponding upload bookkeeping must start fresh.
-            uploadedImageData = null;
-            lastLut = null;
-
-            uploadedMask = DetectorMask.NONE;
             maskTex.upload(uploadedMask.getImageBuffer(), GL.NEAREST);
         } catch (RuntimeException | Error e) {
             dispose();
@@ -134,6 +122,9 @@ public class GLImage {
         lutTex = null;
         diffTex = null;
         maskTex = null;
+        uploadedImageBuffer = null;
+        uploadedDiffBuffer = null;
+        uploadedMask = DetectorMask.NONE;
         lastLut = null;
     }
 
