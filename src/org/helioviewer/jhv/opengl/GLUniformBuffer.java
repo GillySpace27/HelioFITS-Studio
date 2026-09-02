@@ -12,6 +12,7 @@ final class GLUniformBuffer {
     private final FloatBuffer values;
 
     private GLBO buffer;
+    private float[] uploadedValues;
 
     GLUniformBuffer(int floatCount, int _binding, int _usage) {
         binding = _binding;
@@ -41,11 +42,27 @@ final class GLUniformBuffer {
     void upload() {
         prepare();
         buffer.setBufferData(values);
+        uploadedValues = null;
     }
 
     void uploadIfChanged() {
         prepare();
-        buffer.setBufferDataIfChanged(byteSize, values);
+        if (uploadedValues != null && valuesMatch())
+            return;
+
+        buffer.setBufferData(values);
+        if (uploadedValues == null)
+            uploadedValues = new float[values.capacity()];
+        values.get(values.position(), uploadedValues);
+    }
+
+    private boolean valuesMatch() {
+        int position = values.position();
+        for (int i = 0; i < uploadedValues.length; i++) {
+            if (Float.floatToRawIntBits(uploadedValues[i]) != Float.floatToRawIntBits(values.get(position + i)))
+                return false;
+        }
+        return true;
     }
 
     private void prepare() {
@@ -59,10 +76,11 @@ final class GLUniformBuffer {
     }
 
     void dispose() {
-        if (buffer == null)
-            return;
-        buffer.delete();
-        buffer = null;
+        if (buffer != null) {
+            buffer.delete();
+            buffer = null;
+        }
+        uploadedValues = null;
     }
 
 }

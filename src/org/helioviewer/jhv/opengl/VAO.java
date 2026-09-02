@@ -1,6 +1,7 @@
 package org.helioviewer.jhv.opengl;
 
-import java.nio.Buffer;
+import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
 
 class VAO {
 
@@ -48,7 +49,11 @@ class VAO {
         vertexBuffer = null;
     }
 
-    protected void uploadVertexBuffer(Buffer buffer) {
+    protected void uploadVertexBuffer(ByteBuffer buffer) {
+        vertexBuffer.setBufferData(buffer);
+    }
+
+    protected void uploadVertexBuffer(FloatBuffer buffer) {
         vertexBuffer.setBufferData(buffer);
     }
 

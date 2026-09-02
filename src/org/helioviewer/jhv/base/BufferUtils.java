@@ -67,20 +67,4 @@ public class BufferUtils {
         return putRemaining(copy, buffer).flip();
     }
 
-    public static IntBuffer directIntBuffer(IntBuffer buffer) {
-        if (buffer.isDirect())
-            return buffer;
-
-        IntBuffer copy = newIntBuffer(buffer.remaining());
-        return putRemaining(copy, buffer).flip();
-    }
-
-    public static FloatBuffer directFloatBuffer(FloatBuffer buffer) {
-        if (buffer.isDirect())
-            return buffer;
-
-        FloatBuffer copy = newFloatBuffer(buffer.remaining());
-        return putRemaining(copy, buffer).flip();
-    }
-
 }

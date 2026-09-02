@@ -1,5 +1,8 @@
 package org.helioviewer.jhv.opengl;
 
+import java.nio.ByteBuffer;
+import java.nio.ShortBuffer;
+
 import org.helioviewer.jhv.image.ImageBuffer;
 
 final class GLStreamingTexture2D {
@@ -45,7 +48,10 @@ final class GLStreamingTexture2D {
 
         GL.glPixelStorei(GL.UNPACK_ALIGNMENT, format.alignment);
         GL.glPixelStorei(GL.UNPACK_ROW_LENGTH, width);
-        pbo.setBufferData(image.byteSize(), image.buffer);
+        switch (image.format) {
+            case Gray8, RGBA32 -> pbo.setBufferData((ByteBuffer) image.buffer);
+            case Gray16F -> pbo.setBufferData((ShortBuffer) image.buffer);
+        }
         GL.glTexSubImage2D(GL.TEXTURE_2D, 0, 0, 0, width, height, format.inputFormat, format.inputType, 0L);
         GL.glBindBuffer(GL.PIXEL_UNPACK_BUFFER, 0);
     }

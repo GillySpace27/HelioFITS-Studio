@@ -16,7 +16,6 @@ class GLBO {
     private final int usage;
 
     private int bufferID;
-    private float[] lastFloatData;
 
     GLBO(int _target, int _usage) {
         target = _target;
@@ -29,46 +28,58 @@ class GLBO {
             return;
         GL.glDeleteBuffer(bufferID);
         bufferID = -1;
-        lastFloatData = null;
     }
 
     void bind() {
         GL.glBindBuffer(target, bufferID);
     }
 
-    void setBufferData(Buffer buffer) {
+    void setBufferData(ByteBuffer buffer) {
+        ByteBuffer data = stage(buffer);
+        setBufferData(data.remaining(), data);
+    }
+
+    void setBufferData(FloatBuffer buffer) {
+        requireDirect(buffer);
+        setBufferData(buffer.remaining() * Float.BYTES, buffer);
+    }
+
+    void setBufferData(IntBuffer buffer) {
+        requireDirect(buffer);
+        setBufferData(buffer.remaining() * Integer.BYTES, buffer);
+    }
+
+    void setBufferData(ShortBuffer buffer) {
+        requireDirect(buffer);
+        setBufferData(buffer.remaining() * Short.BYTES, buffer);
+    }
+
+    private void setBufferData(int size, Buffer buffer) {
+        GL.glBindBuffer(target, bufferID);
         if (usage == GL.STATIC_DRAW) {
-            GL.glBindBuffer(target, bufferID);
             switch (buffer) {
-                case ByteBuffer byteBuffer -> GL.glBufferData(target, BufferUtils.directByteBuffer(byteBuffer), usage);
-                case FloatBuffer floatBuffer -> GL.glBufferData(target, BufferUtils.directFloatBuffer(floatBuffer), usage);
-                case IntBuffer intBuffer -> GL.glBufferData(target, BufferUtils.directIntBuffer(intBuffer), usage);
-                case ShortBuffer shortBuffer -> GL.glBufferData(target, BufferUtils.directShortBuffer(shortBuffer), usage);
-                default -> throw new IllegalArgumentException("Unsupported buffer type: " + buffer.getClass().getName());
+                case ByteBuffer data -> GL.glBufferData(target, data, usage);
+                case FloatBuffer data -> GL.glBufferData(target, data, usage);
+                case IntBuffer data -> GL.glBufferData(target, data, usage);
+                case ShortBuffer data -> GL.glBufferData(target, data, usage);
+                default -> throw new AssertionError();
             }
             return;
         }
 
-        int size = switch (buffer) {
-            case ByteBuffer byteBuffer -> byteBuffer.remaining();
-            case FloatBuffer floatBuffer -> floatBuffer.remaining() * Float.BYTES;
-            case IntBuffer intBuffer -> intBuffer.remaining() * Integer.BYTES;
-            case ShortBuffer shortBuffer -> shortBuffer.remaining() * Short.BYTES;
-            default -> throw new IllegalArgumentException("Unsupported buffer type: " + buffer.getClass().getName());
-        };
-        setBufferData(size, buffer);
-    }
-
-    void setBufferData(int size, Buffer buffer) {
-        GL.glBindBuffer(target, bufferID);
         GL.glBufferData(target, size, usage); // orphan, https://www.khronos.org/opengl/wiki/Buffer_Object_Streaming#Buffer_re-specification
         switch (buffer) {
-            case ByteBuffer byteBuffer -> GL.glBufferSubData(target, 0, stage(byteBuffer));
-            case FloatBuffer floatBuffer -> GL.glBufferSubData(target, 0, BufferUtils.directFloatBuffer(floatBuffer));
-            case IntBuffer intBuffer -> GL.glBufferSubData(target, 0, BufferUtils.directIntBuffer(intBuffer));
-            case ShortBuffer shortBuffer -> GL.glBufferSubData(target, 0, BufferUtils.directShortBuffer(shortBuffer));
-            default -> throw new IllegalArgumentException("Unsupported buffer type: " + buffer.getClass().getName());
+            case ByteBuffer data -> GL.glBufferSubData(target, 0, data);
+            case FloatBuffer data -> GL.glBufferSubData(target, 0, data);
+            case IntBuffer data -> GL.glBufferSubData(target, 0, data);
+            case ShortBuffer data -> GL.glBufferSubData(target, 0, data);
+            default -> throw new AssertionError();
         }
+    }
+
+    private static void requireDirect(Buffer buffer) {
+        if (!buffer.isDirect())
+            throw new IllegalArgumentException("Buffer must be direct");
     }
 
     private static ByteBuffer stage(ByteBuffer buffer) {
@@ -83,27 +94,6 @@ class GLBO {
 
     static void releaseUploadBuffer() {
         uploadBuffer = null;
-    }
-
-    void setBufferDataIfChanged(int size, FloatBuffer buffer) {
-        int count = buffer.remaining();
-        if (lastFloatData != null && lastFloatData.length == count && floatDataMatches(buffer, count))
-            return;
-
-        setBufferData(size, buffer);
-
-        if (lastFloatData == null || lastFloatData.length != count)
-            lastFloatData = new float[count];
-        buffer.get(buffer.position(), lastFloatData);
-    }
-
-    private boolean floatDataMatches(FloatBuffer buffer, int count) {
-        int position = buffer.position();
-        for (int i = 0; i < count; i++) {
-            if (Float.floatToRawIntBits(lastFloatData[i]) != Float.floatToRawIntBits(buffer.get(position + i)))
-                return false;
-        }
-        return true;
     }
 
     int getID() {
