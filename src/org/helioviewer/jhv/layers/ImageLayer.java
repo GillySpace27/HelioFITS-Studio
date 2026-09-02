@@ -338,11 +338,11 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
     @Override
     public void handleData(View.ImageData newImageData) {
+        newImageData.imageBuffer().allowExplicitFree();
         if (removed)
             return;
         String oldName = getName();
 
-        newImageData.imageBuffer().allowExplicitFree();
         setImageData(newImageData);
 
         if (!Objects.equals(oldName, getName()))
