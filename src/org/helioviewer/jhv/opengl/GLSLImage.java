@@ -12,14 +12,14 @@ import org.helioviewer.jhv.image.lut.LUT;
 import org.helioviewer.jhv.metadata.DetectorMask;
 import org.helioviewer.jhv.metadata.MetaData;
 
-public class GLImage {
+public class GLSLImage {
 
     private final ImageDisplaySettings settings;
 
     private GLStreamingTexture2D tex;
-    private GLTexture lutTex;
     private GLStreamingTexture2D diffTex;
     private GLStreamingTexture2D maskTex;
+    private GLTexture lutTex;
 
     private LUT lastLut;
     private boolean lastInverted;
@@ -27,7 +27,7 @@ public class GLImage {
     private ImageBuffer uploadedImageBuffer;
     private ImageBuffer uploadedDiffBuffer;
 
-    public GLImage(ImageDisplaySettings _settings) {
+    public GLSLImage(ImageDisplaySettings _settings) {
         settings = _settings;
     }
 

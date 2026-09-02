@@ -22,7 +22,7 @@ import org.helioviewer.jhv.io.DownloadLayer;
 import org.helioviewer.jhv.math.Mat2;
 import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.metadata.MetaData;
-import org.helioviewer.jhv.opengl.GLImage;
+import org.helioviewer.jhv.opengl.GLSLImage;
 import org.helioviewer.jhv.opengl.GLSLSolar;
 import org.helioviewer.jhv.opengl.GLSLSolarShader;
 import org.helioviewer.jhv.view.BaseView;
@@ -34,7 +34,7 @@ import org.json.JSONObject;
 public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
     private final ImageDisplaySettings displaySettings = new ImageDisplaySettings();
-    private final GLImage glImage;
+    private final GLSLImage glImage;
     private final ImageLayerLoader loader;
 
     private boolean removed;
@@ -74,7 +74,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             e.printStackTrace();
         }
 
-        glImage = new GLImage(displaySettings);
+        glImage = new GLSLImage(displaySettings);
         loader = new ImageLayerLoader(this::setView, this::unload);
 
         if (jo != null) {
