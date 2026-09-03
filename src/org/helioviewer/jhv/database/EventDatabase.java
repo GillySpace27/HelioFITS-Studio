@@ -483,9 +483,10 @@ public class EventDatabase {
             pstatement.setInt(1, typeId);
             try (ResultSet rs = pstatement.executeQuery()) {
                 while (rs.next()) {
-                    long beginDate = Math.min(invalidationDate, rs.getLong(1));
+                    long beginDate = rs.getLong(1);
                     long endDate = Math.min(invalidationDate, rs.getLong(2));
-                    typedCache.adaptRequestCache(beginDate, endDate);
+                    if (beginDate < endDate)
+                        typedCache.adaptRequestCache(beginDate, endDate);
                 }
             }
         }
