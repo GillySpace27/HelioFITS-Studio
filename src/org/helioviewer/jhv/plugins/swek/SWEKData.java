@@ -3,10 +3,13 @@ package org.helioviewer.jhv.plugins.swek;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.helioviewer.jhv.astronomy.Sun;
 import org.helioviewer.jhv.event.JHVEvent;
 import org.helioviewer.jhv.event.JHVEventParameter;
 
 class SWEKData {
+
+    static final double CACTUS_START_RADIUS = 2.4;
 
     static List<String> visibleParameterLines(JHVEvent evt) {
         List<String> lines = new ArrayList<>();
@@ -21,6 +24,10 @@ class SWEKData {
 
     static double readCMESpeed(JHVEvent evt) {
         return readDouble(evt, "cme_radiallinvel", 500);
+    }
+
+    static double cactusDistance(JHVEvent evt, long timestamp) {
+        return CACTUS_START_RADIUS + readCMESpeed(evt) * (timestamp - evt.start) / Sun.RadiusMeter;
     }
 
     static double readCMEPrincipalAngleDegree(JHVEvent evt) {

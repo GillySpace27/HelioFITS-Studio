@@ -48,7 +48,6 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
     private static final double LINEWIDTH = GLSLLine.LINEWIDTH_BASIC;
     private static final double LINEWIDTH_HIGHLIGHT = 2 * LINEWIDTH;
     private static final double POLYGON_RADIUS = Sun.Radius * 1.01;
-    private static final double DIST_SUN_BEGIN = 2.4;
 
     private static final HashMap<String, GLTexture> iconCacheId = new HashMap<>();
     private static final double ICON_ALPHA = 0.7;
@@ -135,8 +134,7 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
     private static CactusArcParams cactusArcParams(JHVEvent evt, long timestamp) {
         double angularWidthDegree = SWEKData.readCMEAngularWidthDegree(evt);
         double principalAngleDegree = SWEKData.readCMEPrincipalAngleDegree(evt);
-        double speed = SWEKData.readCMESpeed(evt);
-        double distSun = DIST_SUN_BEGIN + speed * (timestamp - evt.start) / Sun.RadiusMeter;
+        double distSun = SWEKData.cactusDistance(evt, timestamp);
         return new CactusArcParams(angularWidthDegree, principalAngleDegree, distSun);
     }
 
@@ -159,9 +157,9 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
 
         drawInterpolated(angularResolution, distSun, distSun, thetaStart, principalAngle, q, color, vexBuf);
         drawInterpolated(angularResolution, distSun, distSun, principalAngle, thetaEnd, q, color, vexBuf);
-        drawInterpolated(lineResolution, DIST_SUN_BEGIN, distSun + 0.05, thetaStart, thetaStart, q, color, vexBuf);
-        drawInterpolated(lineResolution, DIST_SUN_BEGIN, distSun + 0.05, principalAngle, principalAngle, q, color, vexBuf);
-        drawInterpolated(lineResolution, DIST_SUN_BEGIN, distSun + 0.05, thetaEnd, thetaEnd, q, color, vexBuf);
+        drawInterpolated(lineResolution, SWEKData.CACTUS_START_RADIUS, distSun + 0.05, thetaStart, thetaStart, q, color, vexBuf);
+        drawInterpolated(lineResolution, SWEKData.CACTUS_START_RADIUS, distSun + 0.05, principalAngle, principalAngle, q, color, vexBuf);
+        drawInterpolated(lineResolution, SWEKData.CACTUS_START_RADIUS, distSun + 0.05, thetaEnd, thetaEnd, q, color, vexBuf);
 
         if (icons) {
             double sz = evtr.isHighlighted() ? ICON_SIZE_HIGHLIGHTED : ICON_SIZE;
@@ -292,15 +290,15 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         byte[] color = Colors.bytes(evtr.getColor());
 
         float x = (float) ((scale.toUnitX(thetaStart) - 0.5) * vp.aspect);
-        float y = (float) (scale.toUnitY(DIST_SUN_BEGIN) - 0.5);
+        float y = (float) (scale.toUnitY(SWEKData.CACTUS_START_RADIUS) - 0.5);
         putLineScale(vexBuf, x, y, x, (float) (scale.toUnitY(distSun + 0.05) - 0.5), color);
 
         x = (float) ((scale.toUnitX(principalAngleDegree) - 0.5) * vp.aspect);
-        y = (float) (scale.toUnitY(DIST_SUN_BEGIN) - 0.5);
+        y = (float) (scale.toUnitY(SWEKData.CACTUS_START_RADIUS) - 0.5);
         putLineScale(vexBuf, x, y, x, (float) (scale.toUnitY(distSun + 0.05) - 0.5), color);
 
         x = (float) ((scale.toUnitX(thetaEnd) - 0.5) * vp.aspect);
-        y = (float) (scale.toUnitY(DIST_SUN_BEGIN) - 0.5);
+        y = (float) (scale.toUnitY(SWEKData.CACTUS_START_RADIUS) - 0.5);
         putLineScale(vexBuf, x, y, x, (float) (scale.toUnitY(distSun + 0.05) - 0.5), color);
 
         y = (float) (scale.toUnitY(distSun) - 0.5);

@@ -6,7 +6,6 @@ import java.awt.Point;
 import java.util.List;
 
 import org.helioviewer.jhv.astronomy.Position;
-import org.helioviewer.jhv.astronomy.Sun;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.MapScale;
 import org.helioviewer.jhv.display.MapView;
@@ -146,13 +145,6 @@ class SWEKPopupController implements InputPointerListener, InputPointerMotionLis
         component().setCursor(lastCursor != null ? lastCursor : Cursor.getDefaultCursor());
     }
 
-    private static double computeDistSun(JHVEvent evt, long currentTime) {
-        double speed = SWEKData.readCMESpeed(evt);
-        double distSun = 2.4;
-        distSun += speed * (currentTime - evt.start) / Sun.RadiusMeter;
-        return distSun;
-    }
-
     @Override
     public void mouseMoved(PointerEvent e) {
         Position viewpoint = GLRenderer.getDisplayedViewpoint();
@@ -196,7 +188,7 @@ class SWEKPopupController implements InputPointerListener, InputPointerMotionLis
             Vec3 hitpoint, pt;
             if (evt.isCactus()) {
                 double principalAngle = Math.toRadians(SWEKData.readCMEPrincipalAngleDegree(evt));
-                double distSun = computeDistSun(evt, currentTime);
+                double distSun = SWEKData.cactusDistance(evt, currentTime);
                 Quat q = pi.getEarth().toQuat();
                 pt = q.rotateInverseVector(PolarBasis.vec3(distSun, principalAngle));
                 hitpoint = planeHitpoint == null ? null : q.rotateInverseVector(planeHitpoint);
@@ -227,7 +219,7 @@ class SWEKPopupController implements InputPointerListener, InputPointerMotionLis
             Vec2 tf = null;
             if (mv.isRectWarp() && evt.isCactus()) {
                 double principalAngle = SWEKData.readCMEPrincipalAngleDegree(evt);
-                double distSun = computeDistSun(evt, currentTime);
+                double distSun = SWEKData.cactusDistance(evt, currentTime);
                 tf = new Vec2((scale.toUnitX(principalAngle) - 0.5) * vp.aspect, scale.toUnitY(distSun) - 0.5);
             } else {
                 Vec3 pt = pi.centralPoint();
