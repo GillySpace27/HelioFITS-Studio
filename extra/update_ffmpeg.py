@@ -336,7 +336,7 @@ def replace_entry(jar, candidate, target, binary):
 
 
 def update(root, manifest, check=False):
-    notice = root / "resources/licenses/FFmpeg.txt"
+    notice = root / "resources/licenses/FFmpeg-Notices.txt"
     if not notice.with_name("FFmpeg-GPL.txt").is_file():
         raise ValueError("Bundled FFmpeg-GPL.txt license is missing")
     pending = []
@@ -357,7 +357,7 @@ def update(root, manifest, check=False):
         if not notice.exists() or notice.read_bytes() != notice_text(manifest).encode(
             "utf-8"
         ):
-            mismatches.append("FFmpeg.txt")
+            mismatches.append("FFmpeg-Notices.txt")
         if mismatches:
             raise ValueError("Does not match manifest: " + ", ".join(mismatches))
         print("Manifest check passed.")

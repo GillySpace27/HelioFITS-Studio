@@ -8,7 +8,7 @@ python3 extra/update_ffmpeg.py
 
 The script discovers the current stable prebuilt releases, obtains the providers'
 checksums, and updates the four native JARs. It generates `extra/ffmpeg.json` and
-the About-dialog notice in `resources/licenses/FFmpeg.txt` with the selected
+the About-dialog notice in `resources/licenses/FFmpeg-Notices.txt` with the selected
 versions, download URLs, hashes, and source links. **Do not prepare or edit the
 JSON file before updating.** It is the record of what was installed.
 Commit it and the generated notice together with the updated native JARs, so

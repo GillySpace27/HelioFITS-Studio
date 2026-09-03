@@ -33,7 +33,7 @@ class UpdateFFmpegTest(unittest.TestCase):
         (self.root / "lib/jhv").mkdir(parents=True)
         (self.root / "extra").mkdir()
         self.record = self.root / "extra/ffmpeg.json"
-        self.notice = self.root / "resources/licenses/FFmpeg.txt"
+        self.notice = self.root / "resources/licenses/FFmpeg-Notices.txt"
         self.notice.parent.mkdir(parents=True)
         self.notice.write_text("old notice\n")
         self.license = self.notice.with_name("FFmpeg-GPL.txt")
@@ -210,7 +210,7 @@ class UpdateFFmpegTest(unittest.TestCase):
         self.urlopen.reset_mock()
         updater.update(self.root, self.manifest, check=True)
         self.notice.write_text("stale")
-        with self.assertRaisesRegex(ValueError, "FFmpeg.txt"):
+        with self.assertRaisesRegex(ValueError, r"FFmpeg-Notices\.txt"):
             updater.update(self.root, self.manifest, check=True)
         self.urlopen.assert_not_called()
         self.assertEqual(self.notice.read_text(), "stale")
