@@ -45,7 +45,8 @@ public final class AboutDialog extends StandardDialog implements Interfaces.Show
                 "<li><a href=\"https://www.lwjgl.org\">LWJGL</a> Java 3D graphics libraries and <a href=\"https://chromium.googlesource.com/angle/angle\">ANGLE</a> cross-platform GLES translation layer.</li>" +
                 "<li><a href=\"https://github.com/JOML-CI/JOML\">JOML</a>, a Java math library for GL rendering calculations.</li>" +
                 "<li><a href=\"https://naif.jpl.nasa.gov/naif/\">SPICE</a>, the observation geometry system for space science missions.</li>" +
-                "<li><a href=\"https://ffmpeg.org\">FFmpeg</a>, the leading multimedia framework.</li>" +
+                "<li><a href=\"https://ffmpeg.org\">FFmpeg</a> for movie and PNG export " +
+                "(<a href='/licenses/FFmpeg-GPL.txt'>license</a>, <a href='/licenses/FFmpeg.txt'>build details</a>).</li>" +
                 "<li><a href=\"https://github.com/square/okio\">Okio</a> and <a href=\"https://github.com/square/okhttp\">OkHttp</a> libraries by Square, Inc.</li>" +
                 "<li><a href=\"https://github.com/google/guava\">Guava</a>, Google core libraries for Java.</li>" +
                 "<li><a href=\"https://github.com/ben-manes/caffeine\">Caffeine</a> and <a href=\"https://www.ehcache.org\">Ehcache</a> caching libraries.</li>" +
