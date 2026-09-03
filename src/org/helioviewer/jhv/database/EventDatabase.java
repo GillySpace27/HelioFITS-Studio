@@ -46,7 +46,7 @@ public class EventDatabase {
     private static final String SELECT_EVENT_ID_FROM_UID = "SELECT id FROM events WHERE uid=?";
     private static final String SELECT_LAST_INSERT = "SELECT last_insert_rowid()";
     private static final String UPDATE_EVENT = "UPDATE events SET type_id=?, uid=?, start=?, end=?, archiv=?, data=? WHERE id=?";
-    private static final String DELETE_DATERANGE = "DELETE FROM date_range where type_id=?";
+    private static final String DELETE_DATERANGES = "DELETE FROM date_range WHERE type_id=?";
     private static final String INSERT_DATERANGE = "INSERT INTO date_range(type_id,  start, end) VALUES(?,?,?)";
     private static final String SELECT_DATERANGE = "SELECT start, end FROM date_range where type_id=? order by start, end ";
     private static final String SELECT_LAST_EVENT = "SELECT end FROM events WHERE type_id=? order by end DESC LIMIT 1";
@@ -58,7 +58,7 @@ public class EventDatabase {
     private static final String SELECT_EVENT_BY_ID = "SELECT e.id, e.start, e.end, e.data, event_type.supplier FROM events AS e LEFT JOIN event_type ON e.type_id = event_type.id WHERE e.id=?";
 
     private static final HashMap<String, PreparedStatement> statements = new HashMap<>();
-    private static final HashMap<SWEKSupplier, RequestCache> downloadedCache = new HashMap<>();
+    private static final HashMap<SWEKSupplier, RequestCache> storedIntervals = new HashMap<>();
 
     private static PreparedStatement getPreparedStatement(String statement) throws Exception {
         PreparedStatement pstat = statements.get(statement);
@@ -405,76 +405,91 @@ public class EventDatabase {
         }
     }
 
-    public static void addDaterange2db(long start, long end, SWEKSupplier type) {
-        executor.invokeLater(new AddDateRange2db(start, end, type));
+    public static boolean addStoredInterval(long start, long end, SWEKSupplier type) {
+        try {
+            executor.invokeAndWait(new AddStoredInterval(start, end, type));
+            return true;
+        } catch (Exception e) {
+            Log.error("Could not store event date range", e);
+            return false;
+        }
     }
 
-    private record AddDateRange2db(long start, long end, SWEKSupplier type) implements Runnable {
+    private record AddStoredInterval(long start, long end, SWEKSupplier type) implements Callable<Void> {
         @Override
-        public void run() {
-            RequestCache typedCache = downloadedCache.get(type);
-            if (typedCache == null) {
-                return;
-            }
-
+        public Void call() throws Exception {
+            RequestCache typedCache = getStoredIntervals(type);
+            int typeId = getEventTypeId(type);
+            Connection connection = EventDatabaseThread.getConnection();
             typedCache.adaptRequestCache(start, end);
             try {
-                int typeId = getEventTypeId(type);
-                PreparedStatement dstatement = getPreparedStatement(DELETE_DATERANGE);
-                dstatement.setInt(1, typeId);
-                dstatement.executeUpdate();
+                PreparedStatement delete = getPreparedStatement(DELETE_DATERANGES);
+                delete.setInt(1, typeId);
+                delete.executeUpdate();
+
+                PreparedStatement pstatement = getPreparedStatement(INSERT_DATERANGE);
                 for (Interval interval : typedCache.getAllRequestIntervals()) {
-                    if (typeId != -1) {
-                        PreparedStatement pstatement = getPreparedStatement(INSERT_DATERANGE);
-                        pstatement.setInt(1, typeId);
-                        pstatement.setLong(2, interval.start());
-                        pstatement.setLong(3, interval.end());
-                        pstatement.executeUpdate();
-                    }
+                    pstatement.setInt(1, typeId);
+                    pstatement.setLong(2, interval.start());
+                    pstatement.setLong(3, interval.end());
+                    pstatement.executeUpdate();
                 }
-                dstatement.getConnection().commit();
+                connection.commit();
             } catch (Exception e) {
-                Log.error("Could not serialize date_range to database", e);
+                connection.rollback();
+                storedIntervals.remove(type);
+                throw e;
             }
+            return null;
         }
     }
 
-    public static List<Interval> db2daterange(SWEKSupplier type) {
+    public static boolean isStored(long start, long end, SWEKSupplier type) {
         try {
-            return executor.invokeAndWait(new Db2DateRange(type));
+            return executor.invokeAndWait(new IsStored(start, end, type));
         } catch (Exception e) {
             Log.error(e);
+            return false;
         }
-        return Collections.emptyList();
     }
 
-    private record Db2DateRange(SWEKSupplier type) implements Callable<List<Interval>> {
+    private record IsStored(long start, long end, SWEKSupplier type) implements Callable<Boolean> {
         @Override
-        public List<Interval> call() throws Exception {
-            RequestCache typedCache = downloadedCache.get(type);
-            if (typedCache == null) {
-                typedCache = new RequestCache();
-                long last_timestamp = getLastEvent(type);
-                long lastEvent = last_timestamp == Long.MIN_VALUE ? Long.MAX_VALUE : Math.min(System.currentTimeMillis(), last_timestamp);
-                long invalidationDate = lastEvent - ONEWEEK * 2;
-                downloadedCache.put(type, typedCache);
+        public Boolean call() throws Exception {
+            for (Interval interval : getStoredIntervals(type).getAllRequestIntervals()) {
+                if (interval.start() > start)
+                    return false;
+                if (interval.end() >= end)
+                    return true;
+            }
+            return false;
+        }
+    }
 
-                int typeId = getEventTypeId(type);
-                if (typeId != -1) {
-                    PreparedStatement pstatement = getPreparedStatement(SELECT_DATERANGE);
-                    pstatement.setInt(1, typeId);
-                    try (ResultSet rs = pstatement.executeQuery()) {
-                        while (rs.next()) {
-                            long beginDate = Math.min(invalidationDate, rs.getLong(1));
-                            long endDate = Math.min(invalidationDate, rs.getLong(2));
-                            typedCache.adaptRequestCache(beginDate, endDate);
-                        }
-                    }
+    private static RequestCache getStoredIntervals(SWEKSupplier type) throws Exception {
+        RequestCache typedCache = storedIntervals.get(type);
+        if (typedCache != null)
+            return typedCache;
+
+        typedCache = new RequestCache();
+        long last_timestamp = getLastEvent(type);
+        long lastEvent = last_timestamp == Long.MIN_VALUE ? Long.MAX_VALUE : Math.min(System.currentTimeMillis(), last_timestamp);
+        long invalidationDate = lastEvent - ONEWEEK * 2;
+        storedIntervals.put(type, typedCache);
+
+        int typeId = getEventTypeId(type);
+        if (typeId != -1) {
+            PreparedStatement pstatement = getPreparedStatement(SELECT_DATERANGE);
+            pstatement.setInt(1, typeId);
+            try (ResultSet rs = pstatement.executeQuery()) {
+                while (rs.next()) {
+                    long beginDate = Math.min(invalidationDate, rs.getLong(1));
+                    long endDate = Math.min(invalidationDate, rs.getLong(2));
+                    typedCache.adaptRequestCache(beginDate, endDate);
                 }
             }
-            /* for usage in other thread return full copy! */
-            return new ArrayList<>(typedCache.getAllRequestIntervals());
         }
+        return typedCache;
     }
 
     private static long getLastEvent(SWEKSupplier type) throws Exception {

@@ -18,6 +18,7 @@ import org.helioviewer.jhv.time.TimeUtils;
 public class JHVEventCache {
 
     private static final double FACTOR = 0.2;
+    private static final long FUTURE_REQUEST_MARGIN = 6 * 60 * 60 * 1000L;
     private static final long MAX_EVENT_DURATION = TimeUtils.DAY_IN_MILLIS * 14;
 
     private static final Set<JHVEventListener.Handle> cacheEventHandlers = new HashSet<>();
@@ -25,7 +26,7 @@ public class JHVEventCache {
     private static final Map<SWEKSupplier, NavigableMap<Long, List<JHVRelatedEvents>>> events = new HashMap<>();
     private static final Map<Integer, JHVRelatedEvents> relatedEventsById = new HashMap<>();
     private static final Set<SWEKSupplier> activeEventTypes = new HashSet<>();
-    private static final Map<SWEKSupplier, RequestCache> downloadedCache = new HashMap<>();
+    private static final Map<SWEKSupplier, RequestCache> requestedIntervals = new HashMap<>();
     private static final Map<Integer, Set<JHVEvent.Link>> pendingAssocs = new HashMap<>();
 
     private static JHVRelatedEvents lastHighlighted = null;
@@ -47,8 +48,8 @@ public class JHVEventCache {
         cacheEventHandlers.forEach(JHVEventListener.Handle::cacheUpdated);
     }
 
-    static void intervalNotDownloaded(SWEKSupplier eventType, long start, long end) {
-        RequestCache cache = downloadedCache.get(eventType);
+    static void requestFailed(SWEKSupplier eventType, long start, long end) {
+        RequestCache cache = requestedIntervals.get(eventType);
         if (cache != null)
             cache.removeRequestedInterval(start, end);
     }
@@ -60,7 +61,7 @@ public class JHVEventCache {
     public static void setSupplierActive(SWEKSupplier supplier, boolean active) {
         if (active) {
             activeEventTypes.add(supplier);
-            downloadedCache.computeIfAbsent(supplier, k -> new RequestCache());
+            requestedIntervals.computeIfAbsent(supplier, _ -> new RequestCache());
             fireEventCacheChanged();
         } else {
             SWEKDownloader.stopDownloadSupplier(supplier, false);
@@ -197,18 +198,21 @@ public class JHVEventCache {
     private static void downloadMissingIntervals(long start, long end) {
         long deltaT = Math.max((long) ((end - start) * FACTOR), TimeUtils.DAY_IN_MILLIS);
         for (SWEKSupplier supplier : activeEventTypes) {
-            RequestCache rc = downloadedCache.get(supplier);
+            RequestCache rc = requestedIntervals.get(supplier);
             if (rc != null) {
                 List<Interval> missing = rc.getMissingIntervals(start, end);
                 if (!missing.isEmpty()) {
-                    SWEKDownloader.startDownloadSupplier(supplier, rc.adaptRequestCache(start - deltaT, end + deltaT));
+                    long requestStart = start - deltaT;
+                    long requestEnd = Math.min(end + deltaT, System.currentTimeMillis() + FUTURE_REQUEST_MARGIN);
+                    if (requestStart < requestEnd)
+                        SWEKDownloader.startDownloadSupplier(supplier, rc.adaptRequestCache(requestStart, requestEnd));
                 }
             }
         }
     }
 
     static void removeSupplier(SWEKSupplier supplier, boolean keepActive) {
-        downloadedCache.put(supplier, new RequestCache());
+        requestedIntervals.put(supplier, new RequestCache());
         events.remove(supplier);
         relatedEventsById.entrySet().removeIf(entry -> removeEventIfFromSupplier(entry, supplier));
         if (!keepActive) activeEventTypes.remove(supplier);
@@ -222,8 +226,4 @@ public class JHVEventCache {
         return true;
     }
 
-    public static List<Interval> getAllRequestIntervals(SWEKSupplier eventType) {
-        RequestCache rc = downloadedCache.get(eventType);
-        return (rc != null) ? rc.getAllRequestIntervals() : Collections.emptyList();
-    }
 }

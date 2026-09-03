@@ -19,7 +19,6 @@ import com.google.common.collect.ArrayListMultimap;
 public class SWEKDownloader {
 
     private static final int NUMBER_THREADS = 8;
-    private static final long SIXHOURS = 1000 * 60 * 60 * 6;
     private static Consumer<SWEKGroup> groupChanged = _ -> {};
     private static final ThreadPoolExecutor downloadPool = new ThreadPoolExecutor(
             NUMBER_THREADS, NUMBER_THREADS, 10000L, TimeUnit.MILLISECONDS,
@@ -27,7 +26,7 @@ public class SWEKDownloader {
             new AppThread.NamedThreadFactory("SWEK Download"),
             new ThreadPoolExecutor.DiscardPolicy());
 
-    private record LoadedEvents(List<JHVEvent.Link> associations, List<JHVEvent> events) {}
+    private record LoadedEvents(List<JHVEvent> events, List<JHVEvent.Link> associations) {}
 
     private static final class Worker implements Runnable, Comparable<Worker> {
         private final SWEKSupplier supplier;
@@ -51,10 +50,12 @@ public class SWEKDownloader {
                     finishFailure(null);
                     return;
                 }
+                if (cancelled)
+                    return;
 
                 LoadedEvents events = new LoadedEvents(
-                        EventDatabase.associations2Program(start, end, supplier),
-                        EventDatabase.events2Program(start, end, supplier, params));
+                        EventDatabase.events2Program(start, end, supplier, params),
+                        EventDatabase.associations2Program(start, end, supplier));
                 finishSuccess(events);
             } catch (Throwable t) {
                 finishFailure(t);
@@ -85,15 +86,19 @@ public class SWEKDownloader {
         }
 
         private void publish(LoadedEvents events) {
-            events.associations().forEach(JHVEventCache::addAssociation);
             events.events().forEach(JHVEventCache::addEvent);
-            EventDatabase.addDaterange2db(start, end, supplier);
+            events.associations().forEach(JHVEventCache::addAssociation);
             JHVEventCache.fireEventCacheChanged();
             workerFinished(this);
         }
 
         private boolean ensureStored() throws Exception {
-            return isDownloaded() || fetchAndStoreRemote();
+            if (EventDatabase.isStored(start, end, supplier))
+                return true;
+            if (!fetchAndStoreRemote())
+                return false;
+
+            return EventDatabase.addStoredInterval(start, end, supplier);
         }
 
         private boolean fetchAndStoreRemote() throws Exception {
@@ -115,16 +120,6 @@ public class SWEKDownloader {
 
             return EventDatabase.storeAssociations(associations) != -1;
         }
-
-        private boolean isDownloaded() {
-            for (Interval interval : EventDatabase.db2daterange(supplier)) {
-                if (interval.start() <= start && interval.end() >= end) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
         void stopWorker() {
             cancelled = true;
             downloadPool.remove(this);
@@ -163,17 +158,15 @@ public class SWEKDownloader {
     }
 
     static void stopDownloadSupplier(SWEKSupplier supplier, boolean keepActive) {
-        for (Worker worker : workerMap.get(supplier)) {
+        for (Worker worker : workerMap.get(supplier))
             worker.stopWorker();
-            JHVEventCache.intervalNotDownloaded(supplier, worker.start, worker.end);
-        }
         workerMap.removeAll(supplier);
         JHVEventCache.removeSupplier(supplier, keepActive);
         updateGroupBusy(supplier.group());
     }
 
     private static void workerFailed(Worker worker) {
-        JHVEventCache.intervalNotDownloaded(worker.supplier, worker.start, worker.end);
+        JHVEventCache.requestFailed(worker.supplier, worker.start, worker.end);
         workerFinished(worker);
     }
 
@@ -184,9 +177,6 @@ public class SWEKDownloader {
 
     private static void filtersChanged(SWEKSupplier supplier) {
         stopDownloadSupplier(supplier, true);
-        if (JHVEventCache.isSupplierActive(supplier)) {
-            startDownloadSupplier(supplier, JHVEventCache.getAllRequestIntervals(supplier));
-        }
     }
 
     private static List<SWEK.Param> defineParameters(SWEKSupplier supplier) {
@@ -198,16 +188,16 @@ public class SWEKDownloader {
     static void startDownloadSupplier(SWEKSupplier supplier, List<Interval> intervals) {
         List<SWEK.Param> params = defineParameters(supplier);
         SWEKGroup group = supplier.group();
-        long latestStart = System.currentTimeMillis() + SIXHOURS;
+        boolean started = false;
         for (Interval interval : intervals) {
             for (Interval intt : Interval.splitInterval(interval, 2)) {
-                if (intt.start() < latestStart) {
-                    Worker worker = new Worker(supplier, params, intt.start(), intt.end());
-                    downloadPool.execute(worker);
-                    workerMap.put(supplier, worker);
-                    updateGroupBusy(group);
-                }
+                Worker worker = new Worker(supplier, params, intt.start(), intt.end());
+                downloadPool.execute(worker);
+                workerMap.put(supplier, worker);
+                started = true;
             }
         }
+        if (started)
+            updateGroupBusy(group);
     }
 }
