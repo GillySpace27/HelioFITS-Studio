@@ -24,7 +24,6 @@ public class JHVEventCache {
     private static final Set<JHVEventListener.Highlight> highlightListeners = new HashSet<>();
     private static final NavigableMap<Long, List<JHVRelatedEvents>> events = new TreeMap<>();
     private static final Map<Integer, JHVRelatedEvents> relatedEventsById = new HashMap<>();
-    private static final Set<SWEKSupplier> activeEventTypes = new HashSet<>();
     private static final Map<SWEKSupplier, RequestCache> requestedIntervals = new HashMap<>();
     private static final Map<Integer, Set<JHVEvent.Link>> pendingAssocs = new HashMap<>();
 
@@ -54,12 +53,11 @@ public class JHVEventCache {
     }
 
     public static boolean isSupplierActive(SWEKSupplier supplier) {
-        return activeEventTypes.contains(supplier);
+        return requestedIntervals.containsKey(supplier);
     }
 
     public static void setSupplierActive(SWEKSupplier supplier, boolean active) {
         if (active) {
-            activeEventTypes.add(supplier);
             requestedIntervals.computeIfAbsent(supplier, _ -> new RequestCache());
             fireEventCacheChanged();
         } else {
@@ -182,16 +180,14 @@ public class JHVEventCache {
 
     private static void downloadMissingIntervals(long start, long end) {
         long deltaT = Math.max((long) ((end - start) * FACTOR), TimeUtils.DAY_IN_MILLIS);
-        for (SWEKSupplier supplier : activeEventTypes) {
-            RequestCache rc = requestedIntervals.get(supplier);
-            if (rc != null) {
-                List<Interval> missing = rc.getMissingIntervals(start, end);
-                if (!missing.isEmpty()) {
-                    long requestStart = start - deltaT;
-                    long requestEnd = Math.min(end + deltaT, System.currentTimeMillis() + FUTURE_REQUEST_MARGIN);
-                    if (requestStart < requestEnd)
-                        SWEKDownloader.startDownloadSupplier(supplier, rc.adaptRequestCache(requestStart, requestEnd));
-                }
+        for (Map.Entry<SWEKSupplier, RequestCache> entry : requestedIntervals.entrySet()) {
+            RequestCache cache = entry.getValue();
+            List<Interval> missing = cache.getMissingIntervals(start, end);
+            if (!missing.isEmpty()) {
+                long requestStart = start - deltaT;
+                long requestEnd = Math.min(end + deltaT, System.currentTimeMillis() + FUTURE_REQUEST_MARGIN);
+                if (requestStart < requestEnd)
+                    SWEKDownloader.startDownloadSupplier(entry.getKey(), cache.adaptRequestCache(requestStart, requestEnd));
             }
         }
     }
@@ -199,10 +195,8 @@ public class JHVEventCache {
     static void removeSupplier(SWEKSupplier supplier, boolean keepActive) {
         if (keepActive)
             requestedIntervals.put(supplier, new RequestCache());
-        else {
+        else
             requestedIntervals.remove(supplier);
-            activeEventTypes.remove(supplier);
-        }
         removeSupplierEvents(supplier);
         fireEventCacheChanged();
     }

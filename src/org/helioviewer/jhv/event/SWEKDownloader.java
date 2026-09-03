@@ -176,7 +176,8 @@ public class SWEKDownloader {
     }
 
     private static void filtersChanged(SWEKSupplier supplier) {
-        stopDownloadSupplier(supplier, true);
+        if (JHVEventCache.isSupplierActive(supplier))
+            stopDownloadSupplier(supplier, true);
     }
 
     private static List<SWEK.Param> defineParameters(SWEKSupplier supplier) {
