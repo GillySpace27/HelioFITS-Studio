@@ -88,19 +88,13 @@ public class JHVEvent {
     }
 
     public void addParameter(String key, String value, boolean full) {
-        SWEK.Parameter p = parameterFromList(key, supplier.getParameterList());
-        if (p == null) p = parameterFromList(key, supplier.source().generalParameters());
+        SWEK.Parameter p = supplier.findParameter(key);
 
         boolean visible = (p != null) && p.visible();
         boolean configured = (p != null);
         String displayName = (p != null) ? p.displayName() : key.replace("_", " ").trim();
 
         addParameter(new JHVEventParameter(key, displayName, value), visible, configured, full);
-    }
-
-    private static SWEK.Parameter parameterFromList(String name, List<SWEK.Parameter> list) {
-        for (SWEK.Parameter p : list) if (p.name().equalsIgnoreCase(name)) return p;
-        return null;
     }
 
     public void finishParams() {

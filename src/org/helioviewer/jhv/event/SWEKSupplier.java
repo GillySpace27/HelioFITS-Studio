@@ -1,6 +1,9 @@
 package org.helioviewer.jhv.event;
 
+import java.util.HashMap;
 import java.util.List;
+
+import javax.annotation.Nullable;
 
 public final class SWEKSupplier {
 
@@ -11,6 +14,7 @@ public final class SWEKSupplier {
     private final String dbName;
     private final boolean isCactus;
     private final List<SWEK.Parameter> parameterList;
+    private final HashMap<String, SWEK.Parameter> parametersByName;
     private final boolean containsParameterFilter;
 
     public SWEKSupplier(SWEKGroup _group, String _supplierName, String _displayName, SWEK.Source _source, String _dbName, List<SWEK.Parameter> _parameterList) {
@@ -21,6 +25,7 @@ public final class SWEKSupplier {
         dbName = _dbName;
         isCactus = displayName == "CACTus" && "HEK".equals(source.name());
         parameterList = _parameterList;
+        parametersByName = indexParameters(parameterList, source.generalParameters());
         containsParameterFilter = checkFilters(parameterList);
     }
 
@@ -30,6 +35,21 @@ public final class SWEKSupplier {
 
     public boolean containsFilter() {
         return containsParameterFilter;
+    }
+
+    @Nullable
+    SWEK.Parameter findParameter(String name) {
+        return parametersByName.get(name.toLowerCase());
+    }
+
+    private static HashMap<String, SWEK.Parameter> indexParameters(List<SWEK.Parameter> parameters,
+                                                                   List<SWEK.Parameter> generalParameters) {
+        HashMap<String, SWEK.Parameter> byName = new HashMap<>();
+        for (SWEK.Parameter parameter : parameters)
+            byName.putIfAbsent(parameter.name().toLowerCase(), parameter);
+        for (SWEK.Parameter parameter : generalParameters)
+            byName.putIfAbsent(parameter.name().toLowerCase(), parameter);
+        return byName;
     }
 
     private static boolean checkFilters(List<SWEK.Parameter> parameters) {
