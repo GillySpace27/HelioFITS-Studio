@@ -1,0 +1,1036 @@
+{
+  "generated_by": "extra/sync_licenses.py",
+  "description": "Installed artifacts and sources of notices. Supplemental texts are not automatically verified against new builds.",
+  "shared_licenses": [
+    "resources/licenses/Apache-2.0.txt",
+    "resources/licenses/CC-BY-2.5.txt",
+    "resources/licenses/GPL-2.0-with-Classpath-Exception.txt",
+    "resources/licenses/GPL-3.0.txt",
+    "resources/licenses/LGPL-2.1.txt",
+    "resources/licenses/LGPL-3.0.txt",
+    "resources/licenses/MIT.txt"
+  ],
+  "artifacts": [
+    {
+      "path": "lib/annotations-3.0.1.jar",
+      "sha256": "6b47ff0a6de0ce17cbedc3abb0828ca5bce3009d53ea47b3723ff023c4742f79",
+      "embedded_notices": [],
+      "declarations": [
+        {
+          "source": "lib/annotations-3.0.1.jar!META-INF/maven/com.google.code.findbugs/annotations/pom.xml",
+          "name": "GNU Lesser Public License",
+          "url": "http://www.gnu.org/licenses/lgpl.html"
+        },
+        {
+          "source": "lib/annotations-3.0.1.jar!META-INF/maven/com.google.code.findbugs/jsr305/pom.xml",
+          "name": "The Apache Software License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ],
+      "supplemental_notices": [
+        "extra/licenses/Annotations.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/caffeine-3.2.4.jar",
+      "sha256": "9d9d2cfd681fd9272ded3d27c9930db12f89f732345975aa113ebc223bbf1224",
+      "embedded_notices": [
+        "lib/caffeine-3.2.4.jar!META-INF/LICENSE"
+      ],
+      "declarations": [],
+      "supplemental_notices": [],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/ehcache-3.12.0.jar",
+      "sha256": "b8313aeff14294dac6cd0f7d18d2797afb23b1cc7fba452fa2e30369bd9791cf",
+      "embedded_notices": [],
+      "declarations": [
+        {
+          "source": "lib/ehcache-3.12.0.jar!META-INF/maven/org.ehcache.modules/ehcache-107/pom.xml",
+          "name": "The Apache Software License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        },
+        {
+          "source": "lib/ehcache-3.12.0.jar!META-INF/maven/org.ehcache.modules/ehcache-api/pom.xml",
+          "name": "The Apache Software License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        },
+        {
+          "source": "lib/ehcache-3.12.0.jar!META-INF/maven/org.ehcache.modules/ehcache-core/pom.xml",
+          "name": "The Apache Software License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        },
+        {
+          "source": "lib/ehcache-3.12.0.jar!META-INF/maven/org.ehcache.modules/ehcache-impl/pom.xml",
+          "name": "The Apache Software License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        },
+        {
+          "source": "lib/ehcache-3.12.0.jar!META-INF/maven/org.ehcache.modules/ehcache-xml-spi/pom.xml",
+          "name": "The Apache Software License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        },
+        {
+          "source": "lib/ehcache-3.12.0.jar!META-INF/maven/org.ehcache.modules/ehcache-xml/pom.xml",
+          "name": "The Apache Software License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        },
+        {
+          "source": "lib/ehcache-3.12.0.jar!META-INF/maven/org.ehcache/sizeof/pom.xml",
+          "name": "The Apache Software License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        },
+        {
+          "source": "lib/ehcache-3.12.0.jar!META-INF/maven/org.terracotta/offheap-store/pom.xml",
+          "name": "The Apache License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        },
+        {
+          "source": "lib/ehcache-3.12.0.jar!META-INF/maven/org.terracotta/statistics/pom.xml",
+          "name": "The Apache License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        },
+        {
+          "source": "lib/ehcache-3.12.0.jar!META-INF/maven/org.terracotta/terracotta-utilities-tools/pom.xml",
+          "name": "The Apache License, Version 2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ],
+      "supplemental_notices": [
+        "extra/licenses/Ehcache.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/error_prone_annotations-2.50.0.jar",
+      "sha256": "4667724877f1d37a689202da191e23efa7657c62eef93ccdac406eccfe5cdd0a",
+      "embedded_notices": [],
+      "declarations": [
+        {
+          "source": "lib/error_prone_annotations-2.50.0.jar!META-INF/maven/com.google.errorprone/error_prone_annotations/pom.xml",
+          "name": "Apache 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ],
+      "supplemental_notices": [],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/failureaccess-1.0.3.jar",
+      "sha256": "cbfc3906b19b8f55dd7cfd6dfe0aa4532e834250d7f080bd8d211a3e246b59cb",
+      "embedded_notices": [
+        "lib/failureaccess-1.0.3.jar!META-INF/LICENSE"
+      ],
+      "declarations": [],
+      "supplemental_notices": [],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/formats/commons-compress-1.28.0.jar",
+      "sha256": "e1522945218456f3649a39bc4afd70ce4bd466221519dba7d378f2141a4642ca",
+      "embedded_notices": [
+        "lib/formats/commons-compress-1.28.0.jar!META-INF/LICENSE.txt",
+        "lib/formats/commons-compress-1.28.0.jar!META-INF/NOTICE.txt"
+      ],
+      "declarations": [],
+      "supplemental_notices": [],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/formats/commons-io-2.22.0.jar",
+      "sha256": "2b9a7b1f726fb86216dbd2c8321eabe0221dbd5b1be81c18e1cb53811b104758",
+      "embedded_notices": [
+        "lib/formats/commons-io-2.22.0.jar!META-INF/LICENSE.txt",
+        "lib/formats/commons-io-2.22.0.jar!META-INF/NOTICE.txt"
+      ],
+      "declarations": [],
+      "supplemental_notices": [],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/formats/commons-validator-1.11.0.jar",
+      "sha256": "b7e1dcdc60d581de82934f4600e25af9ad9366730af1704ddcbf459e4dcc85e5",
+      "embedded_notices": [
+        "lib/formats/commons-validator-1.11.0.jar!META-INF/LICENSE.txt",
+        "lib/formats/commons-validator-1.11.0.jar!META-INF/NOTICE.txt"
+      ],
+      "declarations": [],
+      "supplemental_notices": [],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/formats/everit-json-schema-1.14.6.jar",
+      "sha256": "3ecc895427629c6bfd34e3af85ad9af66a618a7155e2d8797e652c33a3f2bc28",
+      "embedded_notices": [],
+      "declarations": [
+        {
+          "source": "lib/formats/everit-json-schema-1.14.6.jar!META-INF/maven/com.github.erosb/everit-json-schema/pom.xml",
+          "name": "Apache License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ],
+      "supplemental_notices": [],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/formats/fastjson2-2.0.61.jar",
+      "sha256": "f3ad16c4cd2529d542b7cb7b91284e3001d1494c8391f3fab235804877bc8fa5",
+      "embedded_notices": [],
+      "declarations": [
+        {
+          "source": "lib/formats/fastjson2-2.0.61.jar!META-INF/maven/com.alibaba.fastjson2/fastjson2/pom.xml",
+          "name": "Apache 2",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ],
+      "supplemental_notices": [],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/formats/handy-uri-templates-2.1.8.jar",
+      "sha256": "6b83846f2ff61d0aaa66997b64b883ec7b65cf13b50a4d7f58250996d429be2e",
+      "embedded_notices": [],
+      "declarations": [
+        {
+          "source": "lib/formats/handy-uri-templates-2.1.8.jar!META-INF/maven/com.damnhandy/handy-uri-templates/pom.xml",
+          "name": "The Apache Software License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ],
+      "supplemental_notices": [],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/formats/json-20260719.jar",
+      "sha256": "c243f45f9590c12694a4142ed3f07fc70dfb71e4daebd05ae234bf92a2da92a6",
+      "embedded_notices": [],
+      "declarations": [
+        {
+          "source": "lib/formats/json-20260719.jar!META-INF/maven/org.json/json/pom.xml",
+          "name": "Public Domain",
+          "url": "https://github.com/stleary/JSON-java/blob/master/LICENSE"
+        }
+      ],
+      "supplemental_notices": [
+        "extra/licenses/JSON.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/formats/kdu_jni.jar",
+      "sha256": "4551012a086eb34dd7ab7aeab982429cd968de403db3ecd4291317358680d4b3",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [],
+      "external_notices": [
+        "resources/licenses/Kakadu.txt"
+      ],
+      "native_members": []
+    },
+    {
+      "path": "lib/formats/nom-tam-fits-1.22.0.jar",
+      "sha256": "d87b502a067b4d3d0dbe6870c82d402cdd250fa3b804bda9b299159a06fad0ea",
+      "embedded_notices": [
+        "lib/formats/nom-tam-fits-1.22.0.jar!LICENSE.txt"
+      ],
+      "declarations": [
+        {
+          "source": "lib/formats/nom-tam-fits-1.22.0.jar!META-INF/maven/gov.nasa.gsfc.heasarc/nom-tam-fits/pom.xml",
+          "name": "Public Domain",
+          "url": "file://${project.basedir}/src/license/publicdomain/license.txt"
+        }
+      ],
+      "supplemental_notices": [],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/formats/prettytime-nlp-4.0.6.Final.jar",
+      "sha256": "5ad9587e392725ac98b0da52aba0d4f4ec3490324552783a42d8ece42b88f0fb",
+      "embedded_notices": [
+        "lib/formats/prettytime-nlp-4.0.6.Final.jar!META-INF/LICENSE",
+        "lib/formats/prettytime-nlp-4.0.6.Final.jar!META-INF/LICENSE.txt",
+        "lib/formats/prettytime-nlp-4.0.6.Final.jar!META-INF/NOTICE",
+        "lib/formats/prettytime-nlp-4.0.6.Final.jar!META-INF/NOTICE.txt"
+      ],
+      "declarations": [
+        {
+          "source": "lib/formats/prettytime-nlp-4.0.6.Final.jar!META-INF/maven/com.joestelmach/natty/pom.xml",
+          "name": "MIT License",
+          "url": "LICENSE"
+        },
+        {
+          "source": "lib/formats/prettytime-nlp-4.0.6.Final.jar!META-INF/maven/org.mnode.ical4j/ical4j/pom.xml",
+          "name": "iCal4j - License",
+          "url": "LICENSE"
+        }
+      ],
+      "supplemental_notices": [
+        "extra/licenses/PrettyTime.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/formats/stil/auth.jar",
+      "sha256": "db533ee2fdf7403ec9db6271b98c1da8b8d2b1db6890b6ce8c1fbaf22c6b6bb0",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/STIL.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/formats/stil/fits.jar",
+      "sha256": "3ca4063ec683b9ecf1a811e895c234af9acb0bfa319a53f5998d60edaccf6bd6",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/STIL.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/formats/stil/hapi.jar",
+      "sha256": "70e49b2ba427757a5add7ea426744e9cb0331b865e7312ecc5990e6938db504d",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/STIL.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/formats/stil/jcdf.jar",
+      "sha256": "dbc567fbbfd80383a18b72fd39802a69095bded2eacf5fc48e1fc15b17bd4c99",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/JCDF.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/formats/stil/table.jar",
+      "sha256": "7fe6131c27f5661d1c480910f302c562844a7d8fc88f3ae27ebaaa0d1387ef0d",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/STIL.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/formats/stil/util.jar",
+      "sha256": "e7e37e0d4707e7b2c021738d80e544d142ca2becd0721305f7b49d421c0ee632",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/STIL.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/formats/stil/votable.jar",
+      "sha256": "926e4b01228fdc856b1958f9d6efe2fdc50e01b2a3f3f70f3494a18369f38496",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/STIL.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/formats/tika-core-4.0.0.jar",
+      "sha256": "8f1b63d40e598f8222fe2ace4550ead02fb9576ec70deecf7900f3e6cd783017",
+      "embedded_notices": [
+        "lib/formats/tika-core-4.0.0.jar!META-INF/LICENSE",
+        "lib/formats/tika-core-4.0.0.jar!META-INF/NOTICE"
+      ],
+      "declarations": [],
+      "supplemental_notices": [],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/guava-33.6.0-jre.jar",
+      "sha256": "dc573e1fca4fd5454f4a5fd3d7da2df03002876a4175bafc14a95980dd7713b3",
+      "embedded_notices": [
+        "lib/guava-33.6.0-jre.jar!META-INF/LICENSE"
+      ],
+      "declarations": [],
+      "supplemental_notices": [],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/jhv/jhv-natives-linux.jar",
+      "sha256": "d0150f11fdd358c8c6b47ed3e8db11a57b895602f0966ac28b2fee523c211ae3",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/ANGLE.txt",
+        "extra/licenses/SPICE.txt"
+      ],
+      "external_notices": [
+        "resources/licenses/FFmpeg-Notices.txt",
+        "resources/licenses/Kakadu.txt"
+      ],
+      "native_members": [
+        "lib/jhv/jhv-natives-linux.jar!jhv/linux-amd64/ffmpeg",
+        "lib/jhv/jhv-natives-linux.jar!jhv/linux-amd64/libEGL.so",
+        "lib/jhv/jhv-natives-linux.jar!jhv/linux-amd64/libGLESv2.so",
+        "lib/jhv/jhv-natives-linux.jar!jhv/linux-amd64/libJNISpice.so",
+        "lib/jhv/jhv-natives-linux.jar!jhv/linux-amd64/libkdu_jni.so"
+      ]
+    },
+    {
+      "path": "lib/jhv/jhv-natives-macos-arm64.jar",
+      "sha256": "31473f747eeb7f05ad4a7fa442d790c343caca7d51382507fafa0f4be887e5ba",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/ANGLE.txt",
+        "extra/licenses/SPICE.txt"
+      ],
+      "external_notices": [
+        "resources/licenses/FFmpeg-Notices.txt",
+        "resources/licenses/Kakadu.txt"
+      ],
+      "native_members": [
+        "lib/jhv/jhv-natives-macos-arm64.jar!jhv/macos-arm64/ffmpeg",
+        "lib/jhv/jhv-natives-macos-arm64.jar!jhv/macos-arm64/libEGL.dylib",
+        "lib/jhv/jhv-natives-macos-arm64.jar!jhv/macos-arm64/libGLESv2.dylib",
+        "lib/jhv/jhv-natives-macos-arm64.jar!jhv/macos-arm64/libJNISpice.dylib",
+        "lib/jhv/jhv-natives-macos-arm64.jar!jhv/macos-arm64/libkdu_jni.dylib"
+      ]
+    },
+    {
+      "path": "lib/jhv/jhv-natives-macos.jar",
+      "sha256": "43e61f25936e5e2b2583b9945751c24babd4eec97d3369e4f2eecbfbb1ca0db2",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/ANGLE.txt",
+        "extra/licenses/SPICE.txt"
+      ],
+      "external_notices": [
+        "resources/licenses/FFmpeg-Notices.txt",
+        "resources/licenses/Kakadu.txt"
+      ],
+      "native_members": [
+        "lib/jhv/jhv-natives-macos.jar!jhv/macos-amd64/ffmpeg",
+        "lib/jhv/jhv-natives-macos.jar!jhv/macos-amd64/libEGL.dylib",
+        "lib/jhv/jhv-natives-macos.jar!jhv/macos-amd64/libGLESv2.dylib",
+        "lib/jhv/jhv-natives-macos.jar!jhv/macos-amd64/libJNISpice.dylib",
+        "lib/jhv/jhv-natives-macos.jar!jhv/macos-amd64/libkdu_jni.dylib"
+      ]
+    },
+    {
+      "path": "lib/jhv/jhv-natives-windows.jar",
+      "sha256": "e77eedb18d9f004aa3fdb93c6ea7f3fac947783c486d6bdaaf1ac88a44c6b57c",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/ANGLE.txt",
+        "extra/licenses/SPICE.txt"
+      ],
+      "external_notices": [
+        "resources/licenses/FFmpeg-Notices.txt",
+        "resources/licenses/Kakadu.txt"
+      ],
+      "native_members": [
+        "lib/jhv/jhv-natives-windows.jar!jhv/windows-amd64/JNISpice.dll",
+        "lib/jhv/jhv-natives-windows.jar!jhv/windows-amd64/ffmpeg",
+        "lib/jhv/jhv-natives-windows.jar!jhv/windows-amd64/kdu_jni.dll",
+        "lib/jhv/jhv-natives-windows.jar!jhv/windows-amd64/kdu_v7AR.dll",
+        "lib/jhv/jhv-natives-windows.jar!jhv/windows-amd64/libEGL.dll",
+        "lib/jhv/jhv-natives-windows.jar!jhv/windows-amd64/libGLESv2.dll"
+      ]
+    },
+    {
+      "path": "lib/jnispice.jar",
+      "sha256": "06aeadaaaafd66aeedcb0badb8b1aa028c3727b4684f5c053ddf51d0232d006d",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/SPICE.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/joml-1.10.9.jar",
+      "sha256": "feca4db853371704338621c120acc5cc32300d8af635fa42414b6213301e216b",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/JOML.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/jsamp-1.3.9.jar",
+      "sha256": "a0bdf59e4e253484dfca6d527378aff5460cf7f6d375ab762c5afb32b6c12a0e",
+      "embedded_notices": [],
+      "declarations": [
+        {
+          "source": "lib/jsamp-1.3.9.jar!META-INF/maven/uk.ac.starlink/jsamp/pom.xml",
+          "name": "The Apache License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ],
+      "supplemental_notices": [],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/jsofa-20231011.jar",
+      "sha256": "35ced3bb3303c769aedc6e8f502754fdaf8808d630ce0978df5d2d0684433435",
+      "embedded_notices": [],
+      "declarations": [
+        {
+          "source": "lib/jsofa-20231011.jar!META-INF/maven/org.javastro/jsofa/pom.xml",
+          "name": "Modified SOFA Licence",
+          "url": "${basedir}/LICENSE.txt"
+        }
+      ],
+      "supplemental_notices": [
+        "extra/licenses/JSOFA.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/log/slf4j-api-1.7.36.jar",
+      "sha256": "d3ef575e3e4979678dc01bf1dcce51021493b4d11fb7f1be8ad982877c16a1c0",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/SLF4J.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/log/slf4j-jdk14-1.7.36.jar",
+      "sha256": "5bf64690af4e59876b8902bb0db3dd39c686a40abfed97d3837eeeec7a2922ac",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/SLF4J.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/lwjgl/lwjgl-3.4.3-natives-linux.jar",
+      "sha256": "d719e545a6db4ea87eb64d55630ba628755572bb5b56d51a1548347b5354cadb",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/LWJGL.txt",
+        "extra/licenses/libffi.txt"
+      ],
+      "external_notices": [],
+      "native_members": [
+        "lib/lwjgl/lwjgl-3.4.3-natives-linux.jar!linux/x64/org/lwjgl/liblwjgl.so"
+      ]
+    },
+    {
+      "path": "lib/lwjgl/lwjgl-3.4.3-natives-macos-arm64.jar",
+      "sha256": "0cf1eac3c360395846320ec47a5e0da313fbb5ee92414ce09ba7e7cc11274509",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/LWJGL.txt",
+        "extra/licenses/libffi.txt"
+      ],
+      "external_notices": [],
+      "native_members": [
+        "lib/lwjgl/lwjgl-3.4.3-natives-macos-arm64.jar!macos/arm64/org/lwjgl/liblwjgl.dylib"
+      ]
+    },
+    {
+      "path": "lib/lwjgl/lwjgl-3.4.3-natives-macos.jar",
+      "sha256": "77422addd5bedbbe9679b5b37b18d942233f2c22c5b34dac9143d8f3d4bc11f2",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/LWJGL.txt",
+        "extra/licenses/libffi.txt"
+      ],
+      "external_notices": [],
+      "native_members": [
+        "lib/lwjgl/lwjgl-3.4.3-natives-macos.jar!macos/x64/org/lwjgl/liblwjgl.dylib"
+      ]
+    },
+    {
+      "path": "lib/lwjgl/lwjgl-3.4.3-natives-windows.jar",
+      "sha256": "19949bca7b780f55e5d2db12ac061a7657a4c1b7c860c30607f5406e7017aa2b",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/LWJGL.txt",
+        "extra/licenses/libffi.txt"
+      ],
+      "external_notices": [],
+      "native_members": [
+        "lib/lwjgl/lwjgl-3.4.3-natives-windows.jar!windows/x64/org/lwjgl/lwjgl.dll"
+      ]
+    },
+    {
+      "path": "lib/lwjgl/lwjgl-3.4.3.jar",
+      "sha256": "46eeca5471833c3cf5da3c1da015b41e3bb3eb16dd3da03f366886da10096751",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/LWJGL.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/lwjgl/lwjgl-assimp-3.4.3-natives-linux.jar",
+      "sha256": "ff98e95ad6b881278a716bc26db90876f7abe941fe442d36d40bf7391698582f",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/Assimp.txt",
+        "extra/licenses/Draco.txt",
+        "extra/licenses/LWJGL.txt"
+      ],
+      "external_notices": [],
+      "native_members": [
+        "lib/lwjgl/lwjgl-assimp-3.4.3-natives-linux.jar!linux/x64/org/lwjgl/assimp/libassimp.so",
+        "lib/lwjgl/lwjgl-assimp-3.4.3-natives-linux.jar!linux/x64/org/lwjgl/assimp/libdraco.so"
+      ]
+    },
+    {
+      "path": "lib/lwjgl/lwjgl-assimp-3.4.3-natives-macos-arm64.jar",
+      "sha256": "80e8c9d3ebaac3b5584075ea328a138ea5bea95fa655a527e9532e7c4d4f2d84",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/Assimp.txt",
+        "extra/licenses/Draco.txt",
+        "extra/licenses/LWJGL.txt"
+      ],
+      "external_notices": [],
+      "native_members": [
+        "lib/lwjgl/lwjgl-assimp-3.4.3-natives-macos-arm64.jar!macos/arm64/org/lwjgl/assimp/libassimp.dylib",
+        "lib/lwjgl/lwjgl-assimp-3.4.3-natives-macos-arm64.jar!macos/arm64/org/lwjgl/assimp/libdraco.dylib"
+      ]
+    },
+    {
+      "path": "lib/lwjgl/lwjgl-assimp-3.4.3-natives-macos.jar",
+      "sha256": "36dd22a9ac67bd6839fc141a56ab24575d11bf62e063a8340a404da1a28662f6",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/Assimp.txt",
+        "extra/licenses/Draco.txt",
+        "extra/licenses/LWJGL.txt"
+      ],
+      "external_notices": [],
+      "native_members": [
+        "lib/lwjgl/lwjgl-assimp-3.4.3-natives-macos.jar!macos/x64/org/lwjgl/assimp/libassimp.dylib",
+        "lib/lwjgl/lwjgl-assimp-3.4.3-natives-macos.jar!macos/x64/org/lwjgl/assimp/libdraco.dylib"
+      ]
+    },
+    {
+      "path": "lib/lwjgl/lwjgl-assimp-3.4.3-natives-windows.jar",
+      "sha256": "459c624bb6947469e7081acdec6089580b9c8f42c357adeb1ae83bc76267a0e4",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/Assimp.txt",
+        "extra/licenses/Draco.txt",
+        "extra/licenses/LWJGL.txt"
+      ],
+      "external_notices": [],
+      "native_members": [
+        "lib/lwjgl/lwjgl-assimp-3.4.3-natives-windows.jar!windows/x64/org/lwjgl/assimp/assimp.dll",
+        "lib/lwjgl/lwjgl-assimp-3.4.3-natives-windows.jar!windows/x64/org/lwjgl/assimp/draco.dll"
+      ]
+    },
+    {
+      "path": "lib/lwjgl/lwjgl-assimp-3.4.3.jar",
+      "sha256": "6e42be582e5215a0d94a7fe098076426a988cc1c039287ba4eed8a73c4a78a5c",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/LWJGL.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/lwjgl/lwjgl-egl-3.4.3.jar",
+      "sha256": "a5736907eaae84cca2a20881bc81c32463538dbb1ba5a0d0161a24f3d8399213",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/LWJGL.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/lwjgl/lwjgl-jawt-3.4.3.jar",
+      "sha256": "b8f2d00ecb2793881240cd911cf3253814ebe3488d8c159813202bdbd73cd264",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/LWJGL.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/lwjgl/lwjgl-opengles-3.4.3-natives-linux.jar",
+      "sha256": "90430b8e22535f24744bad907c9dbaa86ac1122daa43d642c7bcb32e18ea8255",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/LWJGL.txt"
+      ],
+      "external_notices": [],
+      "native_members": [
+        "lib/lwjgl/lwjgl-opengles-3.4.3-natives-linux.jar!linux/x64/org/lwjgl/opengles/liblwjgl_opengles.so"
+      ]
+    },
+    {
+      "path": "lib/lwjgl/lwjgl-opengles-3.4.3-natives-macos-arm64.jar",
+      "sha256": "f576554e82bf123ae94ba6b1a43f8d2504e801880c1f96f2aaf909d0d62ada2e",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/LWJGL.txt"
+      ],
+      "external_notices": [],
+      "native_members": [
+        "lib/lwjgl/lwjgl-opengles-3.4.3-natives-macos-arm64.jar!macos/arm64/org/lwjgl/opengles/liblwjgl_opengles.dylib"
+      ]
+    },
+    {
+      "path": "lib/lwjgl/lwjgl-opengles-3.4.3-natives-macos.jar",
+      "sha256": "dfe5b4007519e5b607f22cd911801f60a50d63263d50a0ca2b246841d408cc8a",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/LWJGL.txt"
+      ],
+      "external_notices": [],
+      "native_members": [
+        "lib/lwjgl/lwjgl-opengles-3.4.3-natives-macos.jar!macos/x64/org/lwjgl/opengles/liblwjgl_opengles.dylib"
+      ]
+    },
+    {
+      "path": "lib/lwjgl/lwjgl-opengles-3.4.3-natives-windows.jar",
+      "sha256": "84fa0ea73084f8b06db39632019f0a382dec36926caec1aaf0dfc467799445bb",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/LWJGL.txt"
+      ],
+      "external_notices": [],
+      "native_members": [
+        "lib/lwjgl/lwjgl-opengles-3.4.3-natives-windows.jar!windows/x64/org/lwjgl/opengles/lwjgl_opengles.dll"
+      ]
+    },
+    {
+      "path": "lib/lwjgl/lwjgl-opengles-3.4.3.jar",
+      "sha256": "b04d19ca16c17f9a9083294a398aef904e69ca9fc41ffaa1087f5d1b2c5e4318",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/LWJGL.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/lwjgl/lwjgl-stb-3.4.3-natives-linux.jar",
+      "sha256": "5c66a2f11b18062b62ef9c6433f753720f7bdad44b18ab4078a0a6404a64a720",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/LWJGL.txt",
+        "extra/licenses/stb.txt"
+      ],
+      "external_notices": [],
+      "native_members": [
+        "lib/lwjgl/lwjgl-stb-3.4.3-natives-linux.jar!linux/x64/org/lwjgl/stb/liblwjgl_stb.so"
+      ]
+    },
+    {
+      "path": "lib/lwjgl/lwjgl-stb-3.4.3-natives-macos-arm64.jar",
+      "sha256": "c038b8f586214fe762eb0876890103ffc77869c96c94572f13b1428b384df034",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/LWJGL.txt",
+        "extra/licenses/stb.txt"
+      ],
+      "external_notices": [],
+      "native_members": [
+        "lib/lwjgl/lwjgl-stb-3.4.3-natives-macos-arm64.jar!macos/arm64/org/lwjgl/stb/liblwjgl_stb.dylib"
+      ]
+    },
+    {
+      "path": "lib/lwjgl/lwjgl-stb-3.4.3-natives-macos.jar",
+      "sha256": "d9df3af9177a9bd2123975b559048f190ef86fe4972bf0942f4cd8c06c74e0f4",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/LWJGL.txt",
+        "extra/licenses/stb.txt"
+      ],
+      "external_notices": [],
+      "native_members": [
+        "lib/lwjgl/lwjgl-stb-3.4.3-natives-macos.jar!macos/x64/org/lwjgl/stb/liblwjgl_stb.dylib"
+      ]
+    },
+    {
+      "path": "lib/lwjgl/lwjgl-stb-3.4.3-natives-windows.jar",
+      "sha256": "28dc585f78f577c9773078bd7545d3e97700dfaa2f440c2e31f286321e26063d",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/LWJGL.txt",
+        "extra/licenses/stb.txt"
+      ],
+      "external_notices": [],
+      "native_members": [
+        "lib/lwjgl/lwjgl-stb-3.4.3-natives-windows.jar!windows/x64/org/lwjgl/stb/lwjgl_stb.dll"
+      ]
+    },
+    {
+      "path": "lib/lwjgl/lwjgl-stb-3.4.3.jar",
+      "sha256": "544753f5e49c53580949b9f1fc341f0e434991303c93d5a428fbaafaacc2cd69",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/LWJGL.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/sqlite/sqlite-jdbc-3.53.0.0-natives-linux.jar",
+      "sha256": "f9f8ea7d00b93d45ff71bcca752579518043533cad99aa9dc281f7b7f7e7cbb7",
+      "embedded_notices": [],
+      "declarations": [
+        {
+          "source": "lib/sqlite/sqlite-jdbc-3.53.0.0-natives-linux.jar!META-INF/maven/org.xerial/sqlite-jdbc/pom.xml",
+          "name": "The Apache Software License, Version 2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ],
+      "supplemental_notices": [
+        "extra/licenses/SQLite.txt"
+      ],
+      "external_notices": [],
+      "native_members": [
+        "lib/sqlite/sqlite-jdbc-3.53.0.0-natives-linux.jar!org/sqlite/native/Linux/x86_64/libsqlitejdbc.so"
+      ]
+    },
+    {
+      "path": "lib/sqlite/sqlite-jdbc-3.53.0.0-natives-macos.jar",
+      "sha256": "739db1a8557b45444a17446848030f67e05f5e1e33d9f9a104a32a7ea982cbd8",
+      "embedded_notices": [],
+      "declarations": [
+        {
+          "source": "lib/sqlite/sqlite-jdbc-3.53.0.0-natives-macos.jar!META-INF/maven/org.xerial/sqlite-jdbc/pom.xml",
+          "name": "The Apache Software License, Version 2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ],
+      "supplemental_notices": [
+        "extra/licenses/SQLite.txt"
+      ],
+      "external_notices": [],
+      "native_members": [
+        "lib/sqlite/sqlite-jdbc-3.53.0.0-natives-macos.jar!org/sqlite/native/Mac/aarch64/libsqlitejdbc.dylib",
+        "lib/sqlite/sqlite-jdbc-3.53.0.0-natives-macos.jar!org/sqlite/native/Mac/x86_64/libsqlitejdbc.dylib"
+      ]
+    },
+    {
+      "path": "lib/sqlite/sqlite-jdbc-3.53.0.0-natives-windows.jar",
+      "sha256": "e2d146773f9cacbf92d1d1ef89df9142e425ab7d35864d2ef88b8f92033ebb93",
+      "embedded_notices": [],
+      "declarations": [
+        {
+          "source": "lib/sqlite/sqlite-jdbc-3.53.0.0-natives-windows.jar!META-INF/maven/org.xerial/sqlite-jdbc/pom.xml",
+          "name": "The Apache Software License, Version 2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ],
+      "supplemental_notices": [
+        "extra/licenses/SQLite.txt"
+      ],
+      "external_notices": [],
+      "native_members": [
+        "lib/sqlite/sqlite-jdbc-3.53.0.0-natives-windows.jar!org/sqlite/native/Windows/x86_64/sqlitejdbc.dll"
+      ]
+    },
+    {
+      "path": "lib/sqlite/sqlite-jdbc-3.53.0.0-without-natives.jar",
+      "sha256": "8098b34191dd832a112934e12087e0d430b7e9ae93aee7c155e06f82866b1b2b",
+      "embedded_notices": [
+        "lib/sqlite/sqlite-jdbc-3.53.0.0-without-natives.jar!META-INF/maven/org.xerial/sqlite-jdbc/LICENSE",
+        "lib/sqlite/sqlite-jdbc-3.53.0.0-without-natives.jar!META-INF/maven/org.xerial/sqlite-jdbc/LICENSE.zentus"
+      ],
+      "declarations": [
+        {
+          "source": "lib/sqlite/sqlite-jdbc-3.53.0.0-without-natives.jar!META-INF/maven/org.xerial/sqlite-jdbc/pom.xml",
+          "name": "The Apache Software License, Version 2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ],
+      "supplemental_notices": [],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/square/kotlin-stdlib-2.4.10.jar",
+      "sha256": "4ec0293bc3751423b203f1d8493251c57c42e73eb6377a6b8560d0974ff0a6df",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/Kotlin.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/square/logging-interceptor-5.4.0.jar",
+      "sha256": "44abfdb49fb13ac012ae4a36bfb734eba9ad5479cb09361b84f053b6b809ee47",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/OkHttp.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/square/okhttp-jvm-5.4.0.jar",
+      "sha256": "b15e605ca0a4b12c62ea7f657dad413c236c947e875854767349cdbe20df473c",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/OkHttp.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/square/okio-jvm-3.18.1.jar",
+      "sha256": "b97b640557a650d15411f2be29aef558c4e422a83653cb18ba494311dbed18be",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/Okio.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/ui/flatlaf-3.7.2.jar",
+      "sha256": "20033bb3038ad24ce251adaf008e8dcc7c05d45f6fcc76569357917eace4489a",
+      "embedded_notices": [
+        "lib/ui/flatlaf-3.7.2.jar!META-INF/LICENSE"
+      ],
+      "declarations": [],
+      "supplemental_notices": [],
+      "external_notices": [],
+      "native_members": [
+        "lib/ui/flatlaf-3.7.2.jar!com/formdev/flatlaf/natives/flatlaf-windows-x86_64.dll",
+        "lib/ui/flatlaf-3.7.2.jar!com/formdev/flatlaf/natives/libflatlaf-linux-x86_64.so",
+        "lib/ui/flatlaf-3.7.2.jar!com/formdev/flatlaf/natives/libflatlaf-macos-arm64.dylib",
+        "lib/ui/flatlaf-3.7.2.jar!com/formdev/flatlaf/natives/libflatlaf-macos-x86_64.dylib"
+      ]
+    },
+    {
+      "path": "lib/ui/flatlaf-intellij-themes-3.7.2.jar",
+      "sha256": "454169f6f3300b97ce9bc3319f6364cce0b938ad28cdb22b1974de39bf7528dd",
+      "embedded_notices": [
+        "lib/ui/flatlaf-intellij-themes-3.7.2.jar!META-INF/LICENSE",
+        "lib/ui/flatlaf-intellij-themes-3.7.2.jar!com/formdev/flatlaf/intellijthemes/themes/Carbon.LICENSE.txt",
+        "lib/ui/flatlaf-intellij-themes-3.7.2.jar!com/formdev/flatlaf/intellijthemes/themes/Cobalt_2.LICENSE.txt",
+        "lib/ui/flatlaf-intellij-themes-3.7.2.jar!com/formdev/flatlaf/intellijthemes/themes/Cyan.LICENSE.txt",
+        "lib/ui/flatlaf-intellij-themes-3.7.2.jar!com/formdev/flatlaf/intellijthemes/themes/DarkFlatTheme.LICENSE.txt",
+        "lib/ui/flatlaf-intellij-themes-3.7.2.jar!com/formdev/flatlaf/intellijthemes/themes/DarkPurple.LICENSE.txt",
+        "lib/ui/flatlaf-intellij-themes-3.7.2.jar!com/formdev/flatlaf/intellijthemes/themes/Dracula.LICENSE.txt",
+        "lib/ui/flatlaf-intellij-themes-3.7.2.jar!com/formdev/flatlaf/intellijthemes/themes/Gradianto.LICENSE.txt",
+        "lib/ui/flatlaf-intellij-themes-3.7.2.jar!com/formdev/flatlaf/intellijthemes/themes/Gray.LICENSE.txt",
+        "lib/ui/flatlaf-intellij-themes-3.7.2.jar!com/formdev/flatlaf/intellijthemes/themes/Hiberbee.LICENSE.txt",
+        "lib/ui/flatlaf-intellij-themes-3.7.2.jar!com/formdev/flatlaf/intellijthemes/themes/HighContrast.LICENSE.txt",
+        "lib/ui/flatlaf-intellij-themes-3.7.2.jar!com/formdev/flatlaf/intellijthemes/themes/LightFlatTheme.LICENSE.txt",
+        "lib/ui/flatlaf-intellij-themes-3.7.2.jar!com/formdev/flatlaf/intellijthemes/themes/MaterialTheme.LICENSE.txt",
+        "lib/ui/flatlaf-intellij-themes-3.7.2.jar!com/formdev/flatlaf/intellijthemes/themes/Monocai.LICENSE.txt",
+        "lib/ui/flatlaf-intellij-themes-3.7.2.jar!com/formdev/flatlaf/intellijthemes/themes/Monokai_Pro.LICENSE.txt",
+        "lib/ui/flatlaf-intellij-themes-3.7.2.jar!com/formdev/flatlaf/intellijthemes/themes/Solarized.LICENSE.txt",
+        "lib/ui/flatlaf-intellij-themes-3.7.2.jar!com/formdev/flatlaf/intellijthemes/themes/Spacegray.LICENSE.txt",
+        "lib/ui/flatlaf-intellij-themes-3.7.2.jar!com/formdev/flatlaf/intellijthemes/themes/Xcode-Dark.LICENSE.txt",
+        "lib/ui/flatlaf-intellij-themes-3.7.2.jar!com/formdev/flatlaf/intellijthemes/themes/arc-themes.LICENSE.txt",
+        "lib/ui/flatlaf-intellij-themes-3.7.2.jar!com/formdev/flatlaf/intellijthemes/themes/gruvbox_theme.LICENSE.txt",
+        "lib/ui/flatlaf-intellij-themes-3.7.2.jar!com/formdev/flatlaf/intellijthemes/themes/material-theme-ui-lite/Material Theme UI Lite.LICENSE.txt",
+        "lib/ui/flatlaf-intellij-themes-3.7.2.jar!com/formdev/flatlaf/intellijthemes/themes/nord.LICENSE.txt",
+        "lib/ui/flatlaf-intellij-themes-3.7.2.jar!com/formdev/flatlaf/intellijthemes/themes/one_dark.LICENSE.txt",
+        "lib/ui/flatlaf-intellij-themes-3.7.2.jar!com/formdev/flatlaf/intellijthemes/themes/vuesion_theme.LICENSE.txt"
+      ],
+      "declarations": [],
+      "supplemental_notices": [],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/ui/flatlaf-jide-oss-3.7.2.jar",
+      "sha256": "76d1eb85fc2c82afa79251d78c83512ffa3d1abd0a555c5447a49bbca924b577",
+      "embedded_notices": [
+        "lib/ui/flatlaf-jide-oss-3.7.2.jar!META-INF/LICENSE"
+      ],
+      "declarations": [],
+      "supplemental_notices": [],
+      "external_notices": [],
+      "native_members": []
+    },
+    {
+      "path": "lib/ui/jide-oss-3.7.15.jar",
+      "sha256": "df06d5de14eb82fa63df36c5cd360ac9662c1444b79279f176377ed7a4298935",
+      "embedded_notices": [],
+      "declarations": [],
+      "supplemental_notices": [
+        "extra/licenses/JIDE.txt"
+      ],
+      "external_notices": [],
+      "native_members": []
+    }
+  ]
+}

@@ -9,7 +9,7 @@ https://ffmpeg.org/
 JHelioviewer uses an unmodified, separately executed FFmpeg binary for movie
 and PNG export. These builds include libx264 and libx265 and are licensed
 under the GNU General Public License, version 3 or later. The license is
-included in FFmpeg-GPL.txt and is available from JHelioviewer's About dialog.
+included in GPL-3.0.txt and is available from JHelioviewer's About dialog.
 FFmpeg is supplied without warranty, including any implied warranty of
 merchantability or fitness for a particular purpose.
 

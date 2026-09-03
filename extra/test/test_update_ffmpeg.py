@@ -36,7 +36,7 @@ class UpdateFFmpegTest(unittest.TestCase):
         self.notice = self.root / "resources/licenses/FFmpeg-Notices.txt"
         self.notice.parent.mkdir(parents=True)
         self.notice.write_text("old notice\n")
-        self.license = self.notice.with_name("FFmpeg-GPL.txt")
+        self.license = self.notice.with_name("GPL-3.0.txt")
         self.license.write_text("license retained unchanged\n")
         self.manifest = {"copyright_year": 2026, "builds": {}}
         self.archives = {}
@@ -124,10 +124,18 @@ class UpdateFFmpegTest(unittest.TestCase):
                                 getattr(before.getinfo(name), attribute),
                             )
         self.assertEqual(self.notice.read_text(), updater.notice_text(self.manifest))
+        self.assertIn("included in GPL-3.0.txt", self.notice.read_text())
         self.assertEqual(json.loads(self.record.read_text()), self.manifest)
         self.assertEqual(self.license.read_text(), "license retained unchanged\n")
         self.assertFalse((self.root / "must-not-be-extracted").exists())
         self.assertEqual(list(self.root.glob(".ffmpeg-update-*")), [])
+
+    def test_missing_shared_license_changes_nothing(self):
+        self.license.unlink()
+        with self.assertRaisesRegex(ValueError, r"Bundled GPL-3\.0\.txt license is missing"):
+            updater.update(self.root, self.manifest)
+        self.urlopen.assert_not_called()
+        self.assert_unchanged()
 
     def test_repeat_update_is_byte_identical_and_offline(self):
         updater.update(self.root, self.manifest)

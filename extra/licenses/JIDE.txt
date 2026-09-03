@@ -1,0 +1,22 @@
+JIDE Common Layer 3.7.15
+=======================
+
+The upstream licensing options are reproduced below. The GPLv2 with
+Classpath Exception text is included in GPL-2.0-with-Classpath-Exception.txt.
+
+Upstream licensing statement
+============================
+
+Source: https://raw.githubusercontent.com/jidesoft/jide-oss/master/LICENSE.txt
+
+(Please enable word-wrap when viewing this file)
+
+JIDE Common Layer is a dual-licensed. The two licenses are GPL with classpath exception and free commercial license.
+
+The first license is GPL with classpath exception. This is the same license under which the Java platform is released. You can read the license agreement from the link below.
+
+GPL v2 with Classpath Exception: http://openjdk.java.net/legal/gplv2+ce.html
+
+The second license is the original commercial license under which all other JIDE products are released, except it is free of charge in this case. You can read the license agreement from the link below.
+
+Commercial License: http://www.jidesoft.com/purchase/SLA.htm

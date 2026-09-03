@@ -234,7 +234,7 @@ https://ffmpeg.org/
 JHelioviewer uses an unmodified, separately executed FFmpeg binary for movie
 and PNG export. These builds include libx264 and libx265 and are licensed
 under the GNU General Public License, version 3 or later. The license is
-included in FFmpeg-GPL.txt and is available from JHelioviewer's About dialog.
+included in GPL-3.0.txt and is available from JHelioviewer's About dialog.
 FFmpeg is supplied without warranty, including any implied warranty of
 merchantability or fitness for a particular purpose.
 
@@ -337,8 +337,8 @@ def replace_entry(jar, candidate, target, binary):
 
 def update(root, manifest, check=False):
     notice = root / "resources/licenses/FFmpeg-Notices.txt"
-    if not notice.with_name("FFmpeg-GPL.txt").is_file():
-        raise ValueError("Bundled FFmpeg-GPL.txt license is missing")
+    if not notice.with_name("GPL-3.0.txt").is_file():
+        raise ValueError("Bundled GPL-3.0.txt license is missing")
     pending = []
     for platform, filename in JARS.items():
         build = manifest["builds"][platform]

@@ -1,0 +1,12 @@
+JCDF 1.2-5
+==========
+
+JCDF is licensed under the GNU Lesser General Public License, version 3.
+The full texts are included in LGPL-3.0.txt and GPL-3.0.txt.
+
+Project and source code:
+https://www.star.bristol.ac.uk/mbt/jcdf/
+https://github.com/mbtaylor/jcdf
+
+The published Maven artifact uses version 1.2.5 and declares GNU LGPLv3:
+https://repo.maven.apache.org/maven2/uk/ac/starlink/jcdf/1.2.5/jcdf-1.2.5.pom

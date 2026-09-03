@@ -1,0 +1,8 @@
+JOML 1.10.9
+===========
+
+Source: https://raw.githubusercontent.com/JOML-CI/JOML/1.10.9/LICENSE
+
+Copyright (c) 2015-2026 JOML
+
+Licensed under the MIT License, included in MIT.txt.

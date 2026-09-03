@@ -1,0 +1,9 @@
+SLF4J 1.7.36
+============
+
+Source: https://raw.githubusercontent.com/qos-ch/slf4j/v_1.7.36/LICENSE.txt
+
+Copyright (c) 2004-2022 QOS.ch Sarl (Switzerland)
+All rights reserved.
+
+Licensed under the MIT License, included in MIT.txt.
