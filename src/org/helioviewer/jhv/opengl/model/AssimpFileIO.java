@@ -9,7 +9,6 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
@@ -182,7 +181,7 @@ final class AssimpFileIO implements AutoCloseable {
 
     private static boolean hasGzipSuffix(URI uri) {
         String path = uri.getPath();
-        return path != null && path.toLowerCase(Locale.ROOT).endsWith(".gz");
+        return path != null && path.toLowerCase().endsWith(".gz");
     }
 
     private static String fileName(URI uri) {
@@ -191,7 +190,7 @@ final class AssimpFileIO implements AutoCloseable {
         String name = slash < 0 ? path : path.substring(slash + 1);
         if (name == null || name.isEmpty())
             name = "model.gltf";
-        if (name.toLowerCase(Locale.ROOT).endsWith(".gz"))
+        if (name.toLowerCase().endsWith(".gz"))
             name = name.substring(0, name.length() - 3);
         return name;
     }
