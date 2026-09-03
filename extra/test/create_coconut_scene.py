@@ -15,14 +15,16 @@ SOLY, and SOLZ components are therefore the solution's y, z, and x components re
 is a fixed change of Cartesian axis order, not a rotation to Earth's position at the solution time.
 
 The constants and validation checks below are tailored to that solution.  They specify one
-high-quality example conversion, not requirements of the JHV interface.  The script reopens and
-validates the finished GLB.  Bounded polyline simplification and scalar-aware surface decimation
-reduce only the geometry prepared for display; they do not lower the reconstruction or tracing
-quality.
+high-quality example conversion, not requirements of the JHV interface.  Reconstruction and
+tracing are followed by display-geometry reduction, color assignment, and export.  Bounded
+polyline simplification and scalar-aware surface decimation reduce the exported geometry without
+changing the reconstruction or tracing settings.  The finished GLB is reopened to check its
+metadata, geometry counts, attribute formats, and materials, not to compare every stored value.
 
 Requires Qorona 0.4.0, PyVista/VTK, and pygltflib.  Qorona's standard installation supplies
 NumPy, SciPy, and Matplotlib, which the script also imports.  Numba is not used directly; Qorona
-uses it to accelerate the moving-least-squares resampling when it is available.
+uses it to accelerate the moving-least-squares resampling when it is available.  Tracing here
+uses Qorona's NumPy CPU path because the complete field-line paths are retained for export.
 """
 
 from __future__ import annotations
@@ -31,7 +33,7 @@ import argparse
 import hashlib
 import json
 import re
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -101,7 +103,6 @@ def main() -> None:
     args = arguments()
     args.output.parent.mkdir(parents=True, exist_ok=True)
 
-    timestamp = args.timestamp
     source_sha256 = sha256(args.input)
     solution = CFmeshReader().read(args.input, show_progress=True)
     resampler = KnnMlsResampler()
@@ -125,13 +126,7 @@ def main() -> None:
         "gltfPositionComponents": ["solution y", "solution z", "solution x"],
     }
 
-    write_scene(
-        field,
-        velocity,
-        timestamp,
-        processing,
-        args.output,
-    )
+    write_scene(field, velocity, args.timestamp, processing, args.output)
 
     print(f"Wrote and validated {args.output}")
 
@@ -169,9 +164,7 @@ def normalized_utc_timestamp(value: str) -> str:
             "without a timezone designator or offset"
         )
     try:
-        time = datetime.strptime(match.group("date"), "%Y-%m-%dT%H:%M:%S").replace(
-            tzinfo=timezone.utc
-        )
+        time = datetime.strptime(match.group("date"), "%Y-%m-%dT%H:%M:%S")
     except ValueError as error:
         raise argparse.ArgumentTypeError(
             f"invalid observation time {value!r}"
@@ -191,6 +184,7 @@ def sha256(path: Path) -> str:
 def build_field(
     solution, resampler: KnnMlsResampler
 ) -> tuple[SampledField, np.ndarray]:
+    """Reconstruct magnetic field and velocity together on the same spherical grid."""
     grid = SphericalGrid(
         spacing=LogarithmicSpacing(inner=1.0, outer=MODEL_OUTER_RADIUS),
         n_r=FIELD_N_R,
@@ -370,6 +364,7 @@ def write_scene(
 
 
 def prepare_polyline(points: np.ndarray) -> np.ndarray:
+    """Simplify in model coordinates, then convert to the exported float32 SOL frame."""
     points = simplify_polyline(points, POLYLINE_MAX_DEVIATION_RSUN)
     points = (points @ SOLUTION_TO_SOL.T).astype(np.float32)
     if len(points) < 2:
@@ -490,6 +485,7 @@ def create_field_tubes(field: SampledField) -> tuple[pv.PolyData, int, int]:
 
 
 def extract_current_sheet(field: SampledField, velocity: np.ndarray) -> pv.PolyData:
+    """Mesh B_r=0 and attach radial velocity before decimation and color assignment."""
     grid = field.grid
     if velocity.shape != (grid.n_r, grid.n_theta, grid.n_phi, 3):
         raise ValueError(
@@ -573,8 +569,8 @@ def extract_current_sheet(field: SampledField, velocity: np.ndarray) -> pv.PolyD
     return surface
 
 
-# Display-geometry post-processing: triangle decimation
 def decimate_current_sheet(surface: pv.PolyData) -> pv.PolyData:
+    """Reduce triangles using both geometry and radial velocity in the error criterion."""
     surface.set_active_scalars("radialVelocity", preference="point")
     decimated = surface.decimate(
         CURRENT_SHEET_TARGET_REDUCTION,
@@ -736,36 +732,31 @@ def write_scene_glb(
     scene["name"] = "COCONUT corona"
     scene["extras"] = metadata
 
+    # Identify the four objects by their geometry and attributes, not VTK's export order.
+    meshes = document.get("meshes", [])
     line_meshes = []
-    surface_meshes = []
-    point_meshes = []
-    for mesh_index, exported_mesh in enumerate(document.get("meshes", [])):
-        modes = {
-            primitive.get("mode", TRIANGLES)
-            for primitive in exported_mesh["primitives"]
-        }
-        if modes == {LINES}:
-            line_meshes.append(mesh_index)
-        elif modes == {TRIANGLES}:
-            surface_meshes.append(mesh_index)
-        elif modes == {POINTS}:
-            point_meshes.append(mesh_index)
     sheet_meshes = []
     tube_meshes = []
-    for mesh_index in surface_meshes:
-        primitives = document["meshes"][mesh_index]["primitives"]
+    point_meshes = []
+    for mesh_index, exported_mesh in enumerate(meshes):
+        primitives = exported_mesh["primitives"]
         if len(primitives) != 1:
             continue
-        attributes = primitives[0].get("attributes", {})
-        has_colors = "COLOR_0" in attributes
-        has_normals = "NORMAL" in attributes
-        if has_colors and not has_normals:
-            sheet_meshes.append(mesh_index)
-        elif has_normals and not has_colors:
-            tube_meshes.append(mesh_index)
+        primitive = primitives[0]
+        mode = primitive.get("mode", TRIANGLES)
+        attributes = primitive.get("attributes", {})
+        if mode == LINES:
+            line_meshes.append(mesh_index)
+        elif mode == POINTS:
+            point_meshes.append(mesh_index)
+        elif mode == TRIANGLES:
+            if "COLOR_0" in attributes and "NORMAL" not in attributes:
+                sheet_meshes.append(mesh_index)
+            elif "NORMAL" in attributes and "COLOR_0" not in attributes:
+                tube_meshes.append(mesh_index)
     if (
-        len(line_meshes) != 1
-        or len(surface_meshes) != 2
+        len(meshes) != 4
+        or len(line_meshes) != 1
         or len(sheet_meshes) != 1
         or len(tube_meshes) != 1
         or len(point_meshes) != 1
@@ -785,36 +776,32 @@ def write_scene_glb(
         point_mesh: "Open-field-line boundary endpoints",
     }
     for mesh_index, name in mesh_names.items():
-        document["meshes"][mesh_index]["name"] = name
+        meshes[mesh_index]["name"] = name
     for node in document.get("nodes", []):
         if node.get("mesh") in mesh_names:
             node["name"] = mesh_names[node["mesh"]]
 
     materials = document.get("materials", [])
-    unlit_material_indices = set()
-    for mesh_index in (line_mesh, surface_mesh, point_mesh):
-        name = mesh_names[mesh_index]
-        for primitive in document["meshes"][mesh_index]["primitives"]:
-            material_index = primitive.get("material")
-            if material_index is None or not 0 <= material_index < len(materials):
-                raise RuntimeError(f"VTK mesh {name} has no valid material")
-            unlit_material_indices.add(material_index)
+    for mesh_index, name in mesh_names.items():
+        material_index = meshes[mesh_index]["primitives"][0].get("material")
+        if material_index is None or not 0 <= material_index < len(materials):
+            raise RuntimeError(f"VTK mesh {name} has no valid material")
 
-    tube_primitive = document["meshes"][tube_mesh]["primitives"][0]
-    tube_material_index = tube_primitive.get("material")
-    if (
-        tube_material_index is None
-        or not 0 <= tube_material_index < len(materials)
-        or tube_material_index in unlit_material_indices
-    ):
+    line_material_index = meshes[line_mesh]["primitives"][0]["material"]
+    surface_material_index = meshes[surface_mesh]["primitives"][0]["material"]
+    tube_material_index = meshes[tube_mesh]["primitives"][0]["material"]
+    point_material_index = meshes[point_mesh]["primitives"][0]["material"]
+    unlit_material_indices = {
+        line_material_index,
+        surface_material_index,
+        point_material_index,
+    }
+    if tube_material_index in unlit_material_indices:
         raise RuntimeError("VTK field tubes do not have an independent lit material")
-
-    surface_primitive = document["meshes"][surface_mesh]["primitives"][0]
-    surface_material_index = surface_primitive["material"]
-    if any(
-        primitive["material"] == surface_material_index
-        for mesh_index in (line_mesh, tube_mesh, point_mesh)
-        for primitive in document["meshes"][mesh_index]["primitives"]
+    if surface_material_index in (
+        line_material_index,
+        tube_material_index,
+        point_material_index,
     ):
         raise RuntimeError("VTK current sheet does not have an independent material")
     surface_material = materials[surface_material_index]
@@ -833,7 +820,7 @@ def write_scene_glb(
     # Package VTK's in-memory glTF document as one GLB.
     GLTF2.gltf_from_json(json.dumps(document)).save_binary(output)
 
-    # Reopen the file to validate the packaged GLB.
+    # Check the packaged file as well as the arrays prepared above.
     validate_scene_glb(
         output,
         len(positions),
@@ -858,6 +845,7 @@ def validate_scene_glb(
     expected_point_count: int,
     expected_metadata: dict[str, object],
 ) -> None:
+    """Check this example's metadata and export structure, not individual binary values."""
     document = GLTF2().load(path)
     scene_index = document.scene if document.scene is not None else 0
     if document.asset is None or document.asset.version != "2.0":
