@@ -18,7 +18,6 @@ import javax.swing.WindowConstants;
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.database.EventDatabase;
 import org.helioviewer.jhv.event.JHVEvent;
-import org.helioviewer.jhv.event.JHVEventCache;
 import org.helioviewer.jhv.event.JHVRelatedEvents;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.thread.Task;
@@ -32,8 +31,7 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
 
     private DataCollapsiblePanel standardParameters;
     private DataCollapsiblePanel allParameters;
-    private DataCollapsiblePanel precedingEventsPanel;
-    private DataCollapsiblePanel followingEventsPanel;
+    private DataCollapsiblePanel relatedEventsPanel;
     private DataCollapsiblePanel otherRelatedEventsPanel;
 
     private final JHVEvent event;
@@ -42,7 +40,7 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
     private final DataCollapsiblePanelModel model;
 
     public SWEKEventInformationDialog(JHVRelatedEvents revent, JHVEvent _event) {
-        super(MainFrame.get(), revent.getSupplier().group().getName());
+        super(MainFrame.get(), _event.getSupplier().group().getName());
         setType(Window.Type.UTILITY); // avoids tab on macOS when Prefer tabs is always
         setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
 
@@ -89,17 +87,11 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
     }
 
     private void onSuccessDatabase(@Nonnull List<JHVEvent> result) {
-        result.forEach(JHVEventCache::addEvent);
-
         List<JHVRelatedEvents> rEvents = new ArrayList<>();
         int id = event.getUniqueID();
         for (JHVEvent jhvEvent : result) {
-            int jid = jhvEvent.getUniqueID();
-            //if (jid == id)
-            //    event = jhvEvent;
-            //else
-            if (jid != id)
-                rEvents.add(JHVEventCache.getRelatedEvents(jid));
+            if (jhvEvent.getUniqueID() != id)
+                rEvents.add(new JHVRelatedEvents(jhvEvent));
         }
 
         if (!rEvents.isEmpty())
@@ -128,15 +120,9 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
         ParameterTablePanel allEventsPanel = new ParameterTablePanel(event.getAllEventParameters());
         allParameters = new DataCollapsiblePanel("All Parameters", allEventsPanel, false, model);
 
-        List<JHVEvent> precedingEvents = rEvent.getPreviousEvents(event);
-        if (!precedingEvents.isEmpty()) {
-            precedingEventsPanel = createRelatedEventsCollapsiblePane("Preceding Events", rEvent, precedingEvents);
-        }
-
-        List<JHVEvent> nextEvents = rEvent.getNextEvents(event);
-        if (!nextEvents.isEmpty()) {
-            followingEventsPanel = createRelatedEventsCollapsiblePane("Following Events", rEvent, nextEvents);
-        }
+        List<JHVEvent> relatedEvents = rEvent.getAssociatedEvents(event);
+        if (!relatedEvents.isEmpty())
+            relatedEventsPanel = createRelatedEventsCollapsiblePane("Related Events", rEvent, relatedEvents);
     }
 
     private void setCollapsiblePanels() {
@@ -155,17 +141,10 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
 
         int gridYPosition = 2;
 
-        if (precedingEventsPanel != null) {
+        if (relatedEventsPanel != null) {
             gc.gridy = gridYPosition;
-            gc.weighty = precedingEventsPanel.isExpanded() ? 1 : 0;
-            allTablePanel.add(precedingEventsPanel, gc);
-            gridYPosition++;
-        }
-
-        if (followingEventsPanel != null) {
-            gc.gridy = gridYPosition;
-            gc.weighty = followingEventsPanel.isExpanded() ? 1 : 0;
-            allTablePanel.add(followingEventsPanel, gc);
+            gc.weighty = relatedEventsPanel.isExpanded() ? 1 : 0;
+            allTablePanel.add(relatedEventsPanel, gc);
             gridYPosition++;
         }
 

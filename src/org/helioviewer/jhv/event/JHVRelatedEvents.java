@@ -5,8 +5,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-import javax.annotation.Nonnull;
-
 import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.time.Interval;
 
@@ -17,14 +15,12 @@ public class JHVRelatedEvents {
     private final ArrayList<JHVEvent> events = new ArrayList<>();
     private final HashMap<Integer, JHVEvent> eventsById = new HashMap<>();
     private final List<JHVEvent.Link> associations = new ArrayList<>();
-    private final SWEKSupplier supplier;
     private final Color color;
 
     private Interval interval;
     private boolean highlighted;
 
-    JHVRelatedEvents(JHVEvent event) {
-        supplier = event.getSupplier();
+    public JHVRelatedEvents(JHVEvent event) {
         color = eventColors.getNextColor();
         addEvent(event);
         interval = new Interval(event.start, event.end);
@@ -46,17 +42,8 @@ public class JHVRelatedEvents {
         return color;
     }
 
-    public SWEKSupplier getSupplier() {
-        return supplier;
-    }
-
     public boolean isHighlighted() {
         return highlighted;
-    }
-
-    @Nonnull
-    public SWEKGroup getGroup() {
-        return supplier.group();
     }
 
     boolean highlight(boolean isHighlighted) {
@@ -73,30 +60,32 @@ public class JHVRelatedEvents {
         return events.isEmpty() ? null : events.getFirst();
     }
 
-    public List<JHVEvent> getNextEvents(JHVEvent event) {
-        return getAssociatedEvents(event.getUniqueID(), true);
-    }
-
-    public List<JHVEvent> getPreviousEvents(JHVEvent event) {
-        return getAssociatedEvents(event.getUniqueID(), false);
-    }
-
-    private List<JHVEvent> getAssociatedEvents(int id, boolean next) {
+    public List<JHVEvent> getAssociatedEvents(JHVEvent event) {
+        int id = event.getUniqueID();
         List<JHVEvent> result = new ArrayList<>();
         for (JHVEvent.Link link : associations) {
-            int source = next ? link.leftId() : link.rightId();
-            if (source == id) {
-                int target = next ? link.rightId() : link.leftId();
-                JHVEvent found = eventsById.get(target);
-                if (found != null)
-                    result.add(found);
-            }
+            int target;
+            if (link.firstId() == id)
+                target = link.secondId();
+            else if (link.secondId() == id)
+                target = link.firstId();
+            else
+                continue;
+
+            JHVEvent found = eventsById.get(target);
+            if (found != null)
+                result.add(found);
         }
         return result;
     }
 
     void addAssociation(JHVEvent.Link link) {
-        associations.add(link);
+        if (!associations.contains(link))
+            associations.add(link);
+    }
+
+    List<JHVEvent.Link> getAssociations() {
+        return associations;
     }
 
     private void addEvent(JHVEvent event) {
@@ -119,7 +108,7 @@ public class JHVRelatedEvents {
     void merge(JHVRelatedEvents found) {
         events.addAll(found.events);
         eventsById.putAll(found.eventsById);
-        associations.addAll(found.associations);
+        found.associations.forEach(this::addAssociation);
         interval = new Interval(Math.min(interval.start(), found.interval.start()), Math.max(interval.end(), found.interval.end()));
     }
 

@@ -19,17 +19,17 @@ public class JHVEventCache {
 
     private static final double FACTOR = 0.2;
     private static final long FUTURE_REQUEST_MARGIN = 6 * 60 * 60 * 1000L;
-    private static final long MAX_EVENT_DURATION = TimeUtils.DAY_IN_MILLIS * 14;
 
     private static final Set<JHVEventListener.Handle> cacheEventHandlers = new HashSet<>();
     private static final Set<JHVEventListener.Highlight> highlightListeners = new HashSet<>();
-    private static final Map<SWEKSupplier, NavigableMap<Long, List<JHVRelatedEvents>>> events = new HashMap<>();
+    private static final NavigableMap<Long, List<JHVRelatedEvents>> events = new TreeMap<>();
     private static final Map<Integer, JHVRelatedEvents> relatedEventsById = new HashMap<>();
     private static final Set<SWEKSupplier> activeEventTypes = new HashSet<>();
     private static final Map<SWEKSupplier, RequestCache> requestedIntervals = new HashMap<>();
     private static final Map<Integer, Set<JHVEvent.Link>> pendingAssocs = new HashMap<>();
 
     private static JHVRelatedEvents lastHighlighted = null;
+    private static long maximumGroupDuration;
 
     public static void registerHandler(JHVEventListener.Handle handler) {
         cacheEventHandlers.add(handler);
@@ -93,7 +93,7 @@ public class JHVEventCache {
         DisplayController.display();
     }
 
-    public static void addEvent(JHVEvent event) {
+    static void addEvent(JHVEvent event) {
         Integer id = event.getUniqueID();
         JHVRelatedEvents relatedEvents = relatedEventsById.get(id);
         if (relatedEvents != null) {
@@ -134,38 +134,32 @@ public class JHVEventCache {
     }
 
     private static void addToIndex(JHVRelatedEvents event) {
-        events.computeIfAbsent(event.getSupplier(), _ -> new TreeMap<>())
-                .computeIfAbsent(event.getStart(), _ -> new ArrayList<>())
-                .add(event);
+        events.computeIfAbsent(event.getStart(), _ -> new ArrayList<>()).add(event);
+        maximumGroupDuration = Math.max(maximumGroupDuration, event.getEnd() - event.getStart());
     }
 
     private static void removeFromIndex(JHVRelatedEvents event) {
-        NavigableMap<Long, List<JHVRelatedEvents>> supplierEvents = events.get(event.getSupplier());
-        if (supplierEvents == null)
-            return;
-
-        List<JHVRelatedEvents> list = supplierEvents.get(event.getStart());
+        List<JHVRelatedEvents> list = events.get(event.getStart());
         if (list == null)
             return;
 
         list.remove(event);
         if (list.isEmpty())
-            supplierEvents.remove(event.getStart());
+            events.remove(event.getStart());
     }
 
     static void addAssociation(JHVEvent.Link link) {
-        JHVRelatedEvents left = relatedEventsById.get(link.leftId());
-        JHVRelatedEvents right = relatedEventsById.get(link.rightId());
-        if (left != null && right != null) {
-            if (left != right) {
-                merge(left, right);
-                left.addAssociation(link);
-            }
+        JHVRelatedEvents first = relatedEventsById.get(link.firstId());
+        JHVRelatedEvents second = relatedEventsById.get(link.secondId());
+        if (first != null && second != null) {
+            if (first != second)
+                merge(first, second);
+            first.addAssociation(link);
         } else {
-            if (left == null)
-                addPendingAssociation(link.leftId(), link);
-            if (right == null)
-                addPendingAssociation(link.rightId(), link);
+            if (first == null)
+                addPendingAssociation(link.firstId(), link);
+            if (second == null)
+                addPendingAssociation(link.secondId(), link);
         }
     }
 
@@ -174,22 +168,14 @@ public class JHVEventCache {
     }
 
     public static List<JHVRelatedEvents> getEvents(long start, long end) {
-        if (activeEventTypes.isEmpty()) return Collections.emptyList();
+        if (events.isEmpty()) return Collections.emptyList();
         List<JHVRelatedEvents> result = new ArrayList<>();
-        for (SWEKSupplier evt : activeEventTypes) {
-            NavigableMap<Long, List<JHVRelatedEvents>> supplierMap = events.get(evt);
-            if (supplierMap != null) {
-                // Find all events that can overlap the requested range.
-                NavigableMap<Long, List<JHVRelatedEvents>> relevantRange =
-                        supplierMap.subMap(start - MAX_EVENT_DURATION, true, end, true);
-
-                for (List<JHVRelatedEvents> list : relevantRange.values()) {
-                    for (JHVRelatedEvents event : list) {
-                        if (event.getStart() <= end && event.getEnd() >= start) {
-                            result.add(event);
-                        }
-                    }
-                }
+        NavigableMap<Long, List<JHVRelatedEvents>> relevantRange =
+                events.subMap(start - maximumGroupDuration, true, end, true);
+        for (List<JHVRelatedEvents> list : relevantRange.values()) {
+            for (JHVRelatedEvents event : list) {
+                if (event.getEnd() >= start)
+                    result.add(event);
             }
         }
         return result;
@@ -212,18 +198,63 @@ public class JHVEventCache {
     }
 
     static void removeSupplier(SWEKSupplier supplier, boolean keepActive) {
-        requestedIntervals.put(supplier, new RequestCache());
-        events.remove(supplier);
-        relatedEventsById.entrySet().removeIf(entry -> removeEventIfFromSupplier(entry, supplier));
-        if (!keepActive) activeEventTypes.remove(supplier);
+        if (keepActive)
+            requestedIntervals.put(supplier, new RequestCache());
+        else {
+            requestedIntervals.remove(supplier);
+            activeEventTypes.remove(supplier);
+        }
+        removeSupplierEvents(supplier);
         fireEventCacheChanged();
     }
 
-    private static boolean removeEventIfFromSupplier(Map.Entry<Integer, JHVRelatedEvents> entry, SWEKSupplier supplier) {
-        if (entry.getValue().getSupplier() != supplier)
-            return false;
-        pendingAssocs.remove(entry.getKey());
-        return true;
+    private static void removeSupplierEvents(SWEKSupplier supplier) {
+        Set<JHVRelatedEvents> affectedGroups = new HashSet<>();
+        Set<Integer> removedIds = new HashSet<>();
+        for (List<JHVRelatedEvents> groups : events.values()) {
+            for (JHVRelatedEvents group : groups) {
+                for (JHVEvent event : group.getEvents()) {
+                    if (event.getSupplier() == supplier) {
+                        affectedGroups.add(group);
+                        removedIds.add(event.getUniqueID());
+                    }
+                }
+            }
+        }
+
+        if (affectedGroups.isEmpty())
+            return;
+
+        pendingAssocs.values().forEach(links -> links.removeIf(link ->
+                removedIds.contains(link.firstId()) || removedIds.contains(link.secondId())));
+        pendingAssocs.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+
+        if (affectedGroups.contains(lastHighlighted))
+            highlight(null);
+
+        for (JHVRelatedEvents group : affectedGroups)
+            rebuildWithout(group, supplier);
+
+        maximumGroupDuration = 0;
+        for (List<JHVRelatedEvents> groups : events.values()) {
+            for (JHVRelatedEvents group : groups)
+                maximumGroupDuration = Math.max(maximumGroupDuration, group.getEnd() - group.getStart());
+        }
+    }
+
+    private static void rebuildWithout(JHVRelatedEvents group, SWEKSupplier supplier) {
+        removeFromIndex(group);
+        for (JHVEvent event : group.getEvents())
+            relatedEventsById.remove(event.getUniqueID());
+
+        for (JHVEvent event : group.getEvents()) {
+            if (event.getSupplier() != supplier)
+                addEvent(event);
+        }
+        for (JHVEvent.Link link : group.getAssociations()) {
+            if (relatedEventsById.containsKey(link.firstId()) && relatedEventsById.containsKey(link.secondId()))
+                addAssociation(link);
+        }
     }
 
 }

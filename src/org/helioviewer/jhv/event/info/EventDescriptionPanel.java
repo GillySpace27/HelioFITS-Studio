@@ -22,7 +22,7 @@ import org.helioviewer.jhv.time.TimeUtils;
 class EventDescriptionPanel extends JPanel {
 
     EventDescriptionPanel(JHVRelatedEvents revent, JHVEvent event) {
-        ImageIcon icon = SWEKIconBank.getIcon(revent.getGroup().getIconKey());
+        ImageIcon icon = SWEKIconBank.getIcon(event.getSupplier().group().getIconKey());
         JLabel labelIcon = new JLabel(icon);
 
         JTextArea textStartTime = new JTextArea(TimeUtils.formatShort(event.start));

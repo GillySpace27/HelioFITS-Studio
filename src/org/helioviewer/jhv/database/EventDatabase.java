@@ -151,8 +151,8 @@ public class EventDatabase {
     private static void storeAssociationIds(List<JHVEvent.Link> links) throws Exception {
         PreparedStatement pstatement = getPreparedStatement(INSERT_LINK);
         for (JHVEvent.Link link : links) {
-            int id0 = link.leftId();
-            int id1 = link.rightId();
+            int id0 = link.firstId();
+            int id1 = link.secondId();
 
             if (id0 == -1 || id1 == -1) {
                 Log.error("Could not add association to database");
@@ -189,8 +189,8 @@ public class EventDatabase {
             PreparedStatement pstatement = getPreparedStatement(INSERT_LINK);
 
             for (JHVEvent.LinkRef link : links) {
-                int id0 = getIdFromUID(link.leftUid());
-                int id1 = getIdFromUID(link.rightUid());
+                int id0 = getIdFromUID(link.firstUid());
+                int id1 = getIdFromUID(link.secondUid());
                 if (id0 != -1 && id1 != -1) {
                     insertAssociation(pstatement, id0, id1);
                 } else {

@@ -12,6 +12,7 @@ import javax.annotation.Nullable;
 import javax.swing.ImageIcon;
 import javax.swing.JPanel;
 
+import org.helioviewer.jhv.event.JHVEvent;
 import org.helioviewer.jhv.event.JHVEventCache;
 import org.helioviewer.jhv.event.JHVEventListener;
 import org.helioviewer.jhv.event.JHVRelatedEvents;
@@ -196,7 +197,8 @@ public final class EventTimelineLayer extends TimelineLayer implements JHVEventL
         g.setColor(event.getColor());
         g.fillRect(x0, y, w, spacePerLine);
 
-        ImageIcon icon = SWEKIconBank.getIcon(event.getGroup().getIconKey());
+        long middle = event.getStart() + (event.getEnd() - event.getStart()) / 2;
+        ImageIcon icon = SWEKIconBank.getIcon(event.getClosestTo(middle).getSupplier().group().getIconKey());
         g.drawImage(icon.getImage(), x0 + w / 2 - sz / 2, y + h / 2 - sz / 2, x0 + w / 2 + sz / 2, y + h / 2 + sz / 2, 0, 0, icon.getIconWidth(), icon.getIconHeight(), null);
 
         if (hl && mousePosition != null) {
@@ -208,7 +210,8 @@ public final class EventTimelineLayer extends TimelineLayer implements JHVEventL
 
     private static void drawText(Rectangle graphArea, Graphics2D g, JHVRelatedEvents event, int y, int mouseX) {
         long ts = DrawController.selectedAxis.mapper(graphArea.x, graphArea.width).toValue(mouseX);
-        List<String> txts = SWEKData.visibleParameterLines(event.getClosestTo(ts));
+        JHVEvent closestEvent = event.getClosestTo(ts);
+        List<String> txts = SWEKData.visibleParameterLines(closestEvent);
         int width = 1;
         for (String text : txts) {
             width = Math.max(width, g.getFontMetrics().stringWidth(text));
@@ -218,7 +221,7 @@ public final class EventTimelineLayer extends TimelineLayer implements JHVEventL
         g.setColor(UIGlobals.TL_TEXT_COLOR);
 
         y += 5;
-        ImageIcon icon = SWEKIconBank.getIcon(event.getGroup().getIconKey());
+        ImageIcon icon = SWEKIconBank.getIcon(closestEvent.getSupplier().group().getIconKey());
         g.drawImage(icon.getImage(), mouseX + 8, y - 2, mouseX + 24, y + 14, 0, 0, icon.getIconWidth(), icon.getIconHeight(), null);
 
         for (String txt : txts) {

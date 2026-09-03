@@ -9,9 +9,9 @@ import org.apache.commons.validator.routines.UrlValidator;
 
 public class JHVEvent {
 
-    public record Link(int leftId, int rightId) {}
+    public record Link(int firstId, int secondId) {}
 
-    public record LinkRef(String leftUid, String rightUid) {}
+    public record LinkRef(String firstUid, String secondUid) {}
 
     public final long start;
     public final long end;
