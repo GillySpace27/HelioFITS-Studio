@@ -35,9 +35,8 @@ public class JHVEventCache {
         cacheEventHandlers.add(handler);
     }
 
-    public static void requestForInterval(long start, long end, JHVEventListener.Handle handler) {
+    public static void requestForInterval(long start, long end) {
         downloadMissingIntervals(start, end);
-        handler.newEventsReceived();
     }
 
     public static void unregisterHandler(JHVEventListener.Handle handler) {

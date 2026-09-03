@@ -469,7 +469,7 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         if (force || start < startTime || end > endTime) {
             startTime = start;
             endTime = end;
-            JHVEventCache.requestForInterval(start, end, this);
+            JHVEventCache.requestForInterval(start, end);
         }
     }
 
@@ -480,19 +480,12 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
     }
 
     @Override
-    public void newEventsReceived() {
-        if (enabled) {
-            invalidateActiveEvents();
-            DisplayController.display();
-        }
-    }
-
-    @Override
     public void cacheUpdated() {
         if (!enabled)
             return;
         invalidateActiveEvents();
         requestEvents(true, Player.getStartTime(), Player.getEndTime());
+        DisplayController.display();
     }
 
     boolean isIcons() {

@@ -48,13 +48,7 @@ public final class EventTimelineLayer extends TimelineLayer implements JHVEventL
     @Override
     public void fetchData(TimeAxis selectedAxis) {
         visibleEvents = JHVEventCache.getEvents(selectedAxis.start(), selectedAxis.end());
-        JHVEventCache.requestForInterval(selectedAxis.start(), selectedAxis.end(), this);
-    }
-
-    @Override
-    public void newEventsReceived() {
-        if (enabled)
-            DrawController.drawRequest();
+        JHVEventCache.requestForInterval(selectedAxis.start(), selectedAxis.end());
     }
 
     @Override
@@ -78,9 +72,8 @@ public final class EventTimelineLayer extends TimelineLayer implements JHVEventL
         if (!enabled) return;
         TimeAxis xAxis = DrawController.selectedAxis;
         visibleEvents = JHVEventCache.getEvents(xAxis.start(), xAxis.end());
-        JHVEventCache.requestForInterval(xAxis.start(), xAxis.end(), this);
-        if (enabled)
-            DrawController.drawRequest();
+        JHVEventCache.requestForInterval(xAxis.start(), xAxis.end());
+        DrawController.drawRequest();
     }
 
     @Override
