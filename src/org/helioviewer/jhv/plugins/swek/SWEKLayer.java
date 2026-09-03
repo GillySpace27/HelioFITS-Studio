@@ -340,7 +340,7 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         }
     }
 
-    private List<JHVRelatedEvents> activeEvents(long time) {
+    List<JHVRelatedEvents> activeEvents(long time) {
         long start = Player.getStartTime();
         long end = Player.getEndTime();
         if (time != cachedEventsTime || start != cachedEventsStart || end != cachedEventsEnd) {
