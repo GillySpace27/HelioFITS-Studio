@@ -321,9 +321,7 @@ public final class GL {
     }
 
     public static int glGetActiveUniformBlocki(int program, int blockIndex, int pname) {
-        int[] value = new int[1];
-        GLES30.glGetActiveUniformBlockiv(program, blockIndex, pname, value);
-        return value[0];
+        return GLES30.glGetActiveUniformBlocki(program, blockIndex, pname);
     }
 
     public static int glGetError() {

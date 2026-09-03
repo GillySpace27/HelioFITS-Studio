@@ -39,7 +39,8 @@ final class VertexAttribute {
     void enable() {
         GL.glEnableVertexAttribArray(index);
         GL.glVertexAttribPointer(index, components, type, normalized, stride, offset);
-        GL.glVertexAttribDivisor(index, divisor);
+        if (divisor != 0)
+            GL.glVertexAttribDivisor(index, divisor);
     }
 
 }
