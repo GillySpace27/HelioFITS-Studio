@@ -82,7 +82,7 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
     private record DatabaseCallable(JHVEvent qEvent) implements Callable<List<JHVEvent>> {
         @Override
         public List<JHVEvent> call() throws Exception {
-            return EventDatabase.getOtherRelations(qEvent.getUniqueID(), qEvent.getSupplier(), false, true);
+            return EventDatabase.getOtherRelations(qEvent.getUniqueID(), qEvent.getSupplier());
         }
     }
 

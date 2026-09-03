@@ -148,21 +148,6 @@ public class EventDatabase {
         pstatement.executeUpdate();
     }
 
-    private static void storeAssociationIds(List<JHVEvent.Link> links) throws Exception {
-        PreparedStatement pstatement = getPreparedStatement(INSERT_LINK);
-        for (JHVEvent.Link link : links) {
-            int id0 = link.firstId();
-            int id1 = link.secondId();
-
-            if (id0 == -1 || id1 == -1) {
-                Log.error("Could not add association to database");
-                break;
-            }
-            insertAssociation(pstatement, id0, id1);
-        }
-        pstatement.getConnection().commit();
-    }
-
     private static void insertAssociation(PreparedStatement statement, int id0, int id1) throws SQLException {
         if (id0 == id1)
             return;
@@ -306,19 +291,35 @@ public class EventDatabase {
                 inserted_ids[i] = generatedKey;
             }
             insertFullEvent.getConnection().commit();
-
-            ArrayList<JHVEvent.Link> links = new ArrayList<>();
-            for (int id : inserted_ids) {
-                if (id == -1) {
-                    Log.error("Failed to store event");
-                    continue;
-                }
-                List<JHVEvent> rels = parseJSON(collectRelationEvents(id, type, true, true), false);
-                rels.forEach(rel -> links.add(new JHVEvent.Link(id, rel.getUniqueID())));
-            }
-            storeAssociationIds(links);
+            storeRelatedEventLinks(inserted_ids, type);
             return null;
         }
+    }
+
+    private static void storeRelatedEventLinks(int[] eventIds, SWEKSupplier type) throws Exception {
+        String table = type.dbName();
+        SWEKGroup group = type.group();
+        Connection connection = EventDatabaseThread.getConnection();
+        for (SWEK.RelatedEvents relation : SWEKCatalog.getRelatedEvents()) {
+            if (relation.group() != group || relation.relatedWith() != group)
+                continue;
+
+            for (SWEK.RelatedOn relatedOn : relation.relatedOnList()) {
+                String sql = "INSERT INTO event_link(left_id, right_id) " +
+                        "SELECT DISTINCT min(a.event_id, b.event_id), max(a.event_id, b.event_id) " +
+                        "FROM " + table + " AS a JOIN " + table + " AS b ON a." + relatedOn.parameterFrom() + "=b." + relatedOn.parameterWith() + ' ' +
+                        "WHERE a.event_id!=b.event_id AND (a.event_id=? OR b.event_id=?)";
+                PreparedStatement statement = getPreparedStatement(sql);
+                for (int eventId : eventIds) {
+                    if (eventId == -1)
+                        continue;
+                    statement.setInt(1, eventId);
+                    statement.setInt(2, eventId);
+                    statement.executeUpdate();
+                }
+            }
+        }
+        connection.commit();
     }
 
     private static JHVEvent parseJSON(JsonEvent jsonEvent, boolean full) throws Exception {
@@ -345,14 +346,14 @@ public class EventDatabase {
         return events;
     }
 
-    public static List<JHVEvent> getOtherRelations(int id, SWEKSupplier jhvEventType, boolean similartype, boolean full) throws Exception {
-        return parseJSON(executor.invokeAndWait(new CollectRelationEvents(id, jhvEventType, similartype)), full);
+    public static List<JHVEvent> getOtherRelations(int id, SWEKSupplier type) throws Exception {
+        return parseJSON(executor.invokeAndWait(new CollectRelationEvents(id, type)), true);
     }
 
-    private record CollectRelationEvents(int id, SWEKSupplier type, boolean similarType) implements Callable<List<JsonEvent>> {
+    private record CollectRelationEvents(int id, SWEKSupplier type) implements Callable<List<JsonEvent>> {
         @Override
         public List<JsonEvent> call() throws Exception {
-            List<JsonEvent> jsonEvents = collectRelationEvents(id, type, similarType, false);
+            List<JsonEvent> jsonEvents = collectRelationEvents(id, type);
             try {
                 JsonEvent ev = event2Program(id);
                 if (ev != null)
@@ -364,22 +365,22 @@ public class EventDatabase {
         }
     }
 
-    private static List<JsonEvent> collectRelationEvents(int id, SWEKSupplier jhvEventType, boolean similartype, boolean failOnError) throws Exception {
-        SWEKGroup group = jhvEventType.group();
+    private static List<JsonEvent> collectRelationEvents(int id, SWEKSupplier type) {
+        SWEKGroup group = type.group();
         List<JsonEvent> jsonEvents = new ArrayList<>();
 
         for (SWEK.RelatedEvents re : SWEKCatalog.getRelatedEvents()) {
             if (re.group() == group) {
                 for (SWEK.RelatedOn swon : re.relatedOnList()) {
-                    addRelationEvents(jsonEvents, id, jhvEventType, similartype, re.relatedWith(),
-                            swon.parameterFrom(), swon.parameterWith(), true, failOnError);
+                    addRelationEvents(jsonEvents, id, type, re.relatedWith(),
+                            swon.parameterFrom(), swon.parameterWith(), true);
                 }
             }
 
             if (re.relatedWith() == group) {
                 for (SWEK.RelatedOn swon : re.relatedOnList()) {
-                    addRelationEvents(jsonEvents, id, jhvEventType, similartype, re.group(),
-                            swon.parameterFrom(), swon.parameterWith(), false, failOnError);
+                    addRelationEvents(jsonEvents, id, type, re.group(),
+                            swon.parameterFrom(), swon.parameterWith(), false);
                 }
             }
         }
@@ -387,20 +388,19 @@ public class EventDatabase {
         return jsonEvents;
     }
 
-    private static void addRelationEvents(List<JsonEvent> jsonEvents, int id, SWEKSupplier eventType, boolean similarType,
+    private static void addRelationEvents(List<JsonEvent> jsonEvents, int id, SWEKSupplier eventType,
                                           SWEKGroup otherGroup, String leftParameter, String rightParameter,
-                                          boolean eventTypeIsLeft, boolean failOnError) throws Exception {
+                                          boolean eventTypeIsLeft) {
         for (SWEKSupplier supplier : SWEKCatalog.getSuppliers(otherGroup)) {
-            if (similarType == (supplier == eventType)) {
-                SWEKSupplier leftType = eventTypeIsLeft ? eventType : supplier;
-                SWEKSupplier rightType = eventTypeIsLeft ? supplier : eventType;
-                try {
-                    jsonEvents.addAll(queryRelationEvents(id, leftType, rightType, leftParameter, rightParameter));
-                } catch (Exception e) {
-                    if (failOnError)
-                        throw e;
-                    Log.error(e);
-                }
+            if (supplier == eventType)
+                continue;
+
+            SWEKSupplier leftType = eventTypeIsLeft ? eventType : supplier;
+            SWEKSupplier rightType = eventTypeIsLeft ? supplier : eventType;
+            try {
+                jsonEvents.addAll(queryRelationEvents(id, leftType, rightType, leftParameter, rightParameter));
+            } catch (Exception e) {
+                Log.error(e);
             }
         }
     }
