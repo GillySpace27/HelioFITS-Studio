@@ -308,7 +308,10 @@ def build_jhv_meta(header) -> JHVMeta:
     if str(header.get("INSTRUME", "")) == "LASCO":
         image_to_plane = (1.0, 0.0, 0.0, 1.0)
     plane_to_image = invert_mat2(image_to_plane)
-    pv2 = [float(np.float32(header.get(f"PV2_{i}", 0.0))) for i in range(6)]
+    pv2 = (
+        [float(np.float32(header.get(f"PV2_{i}", 0.0))) for i in range(6)]
+        if projection in PV2_PROJECTIONS else [0.0] * 6
+    )
     if projection == "CEA":
         pv2[1] = float(np.float32(header.get("PV2_1", 1.0)))
 
