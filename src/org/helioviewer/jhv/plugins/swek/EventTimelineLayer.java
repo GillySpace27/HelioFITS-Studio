@@ -17,7 +17,6 @@ import org.helioviewer.jhv.event.JHVEventListener;
 import org.helioviewer.jhv.event.JHVRelatedEvents;
 import org.helioviewer.jhv.event.info.SWEKEventInformationDialog;
 import org.helioviewer.jhv.gui.UIGlobals;
-import org.helioviewer.jhv.time.TimeUtils;
 import org.helioviewer.jhv.timelines.TimelineLayer;
 import org.helioviewer.jhv.timelines.draw.ClickableDrawable;
 import org.helioviewer.jhv.timelines.draw.DrawConstants;
@@ -47,7 +46,7 @@ public final class EventTimelineLayer extends TimelineLayer implements JHVEventL
     @Override
     public void fetchData(TimeAxis selectedAxis) {
         visibleEvents = JHVEventCache.getEvents(selectedAxis.start(), selectedAxis.end());
-        JHVEventCache.requestForInterval(selectedAxis.start() - TimeUtils.DAY_IN_MILLIS * 3, selectedAxis.end(), this);
+        JHVEventCache.requestForInterval(selectedAxis.start(), selectedAxis.end(), this);
     }
 
     @Override

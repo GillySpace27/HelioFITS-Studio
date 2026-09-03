@@ -45,12 +45,16 @@ public class EventDatabase {
     private static final String INSERT_LINK = "INSERT INTO event_link(left_id, right_id) VALUES(?,?)";
     private static final String SELECT_EVENT_ID_FROM_UID = "SELECT id FROM events WHERE uid=?";
     private static final String SELECT_LAST_INSERT = "SELECT last_insert_rowid()";
-    private static final String UPDATE_EVENT = "UPDATE events SET type_id=?, uid=?,  start=?, end=?, data=? WHERE id=?";
+    private static final String UPDATE_EVENT = "UPDATE events SET type_id=?, uid=?, start=?, end=?, archiv=?, data=? WHERE id=?";
     private static final String DELETE_DATERANGE = "DELETE FROM date_range where type_id=?";
     private static final String INSERT_DATERANGE = "INSERT INTO date_range(type_id,  start, end) VALUES(?,?,?)";
     private static final String SELECT_DATERANGE = "SELECT start, end FROM date_range where type_id=? order by start, end ";
     private static final String SELECT_LAST_EVENT = "SELECT end FROM events WHERE type_id=? order by end DESC LIMIT 1";
-    private static final String SELECT_ASSOCIATIONS = "SELECT left_events.id, right_events.id FROM event_link " + "LEFT JOIN events AS left_events ON left_events.id=event_link.left_id " + "LEFT JOIN events AS right_events ON right_events.id=event_link.right_id " + "WHERE left_events.start BETWEEN ? AND ? and left_events.type_id=? order by left_events.start, left_events.end ";
+    private static final String SELECT_ASSOCIATIONS =
+            "SELECT event_link.left_id, event_link.right_id FROM events JOIN event_link ON events.id=event_link.left_id " +
+                    "WHERE events.type_id=? AND events.start<=? AND events.end>=? UNION " +
+                    "SELECT event_link.left_id, event_link.right_id FROM events JOIN event_link ON events.id=event_link.right_id " +
+                    "WHERE events.type_id=? AND events.start<=? AND events.end>=?";
     private static final String SELECT_EVENT_BY_ID = "SELECT e.id, e.start, e.end, e.data, event_type.supplier FROM events AS e LEFT JOIN event_type ON e.type_id = event_type.id WHERE e.id=?";
 
     private static final HashMap<String, PreparedStatement> statements = new HashMap<>();
@@ -95,9 +99,11 @@ public class EventDatabase {
         pstatement.setString(2, SWEKCatalog.key(eventType));
         pstatement.executeUpdate();
 
-        StringBuilder createtbl = new StringBuilder("CREATE TABLE ").append(eventType.dbName()).append(" (");
-        SWEKCatalog.databaseFields(eventType).forEach((key, value) -> createtbl.append(key).append(' ').append(value).append(" DEFAULT NULL,"));
-        createtbl.append("event_id INTEGER, id INTEGER PRIMARY KEY AUTOINCREMENT, FOREIGN KEY(event_id) REFERENCES events(id), UNIQUE(event_id) ON CONFLICT REPLACE )");
+        StringBuilder createtbl = new StringBuilder("CREATE TABLE ").append(eventType.dbName())
+                .append(" (event_id INTEGER PRIMARY KEY ON CONFLICT REPLACE");
+        SWEKCatalog.databaseFields(eventType).forEach((key, value) ->
+                createtbl.append(',').append(key).append(' ').append(value));
+        createtbl.append(", FOREIGN KEY(event_id) REFERENCES events(id))");
 
         Connection connection = pstatement.getConnection();
         try (Statement statement = connection.createStatement()) {
@@ -110,7 +116,7 @@ public class EventDatabase {
 
     private static void createEventTableIndexes(Statement statement, SWEKSupplier eventType) throws Exception {
         String tableName = eventType.dbName();
-        for (String field : SWEKCatalog.relationDatabaseFields(eventType.group()).keySet())
+        for (String field : SWEKCatalog.databaseFields(eventType).keySet())
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS " + tableName + '_' + field + " ON " + tableName + " (" + field + ")");
     }
 
@@ -148,22 +154,22 @@ public class EventDatabase {
             int id0 = link.leftId();
             int id1 = link.rightId();
 
-            if (id0 != -1 && id1 != -1 && id0 != id1) {
-                /* Avoid circular insertions by pre-ordering events */
-                if (id0 < id1) {
-                    pstatement.setInt(1, id0);
-                    pstatement.setInt(2, id1);
-                } else {
-                    pstatement.setInt(1, id1);
-                    pstatement.setInt(2, id0);
-                }
-                pstatement.executeUpdate();
-            } else if (id0 != id1) {
+            if (id0 == -1 || id1 == -1) {
                 Log.error("Could not add association to database");
                 break;
             }
+            insertAssociation(pstatement, id0, id1);
         }
         pstatement.getConnection().commit();
+    }
+
+    private static void insertAssociation(PreparedStatement statement, int id0, int id1) throws SQLException {
+        if (id0 == id1)
+            return;
+
+        statement.setInt(1, Math.min(id0, id1));
+        statement.setInt(2, Math.max(id0, id1));
+        statement.executeUpdate();
     }
 
     public static int storeAssociations(List<JHVEvent.LinkRef> links) {
@@ -186,9 +192,7 @@ public class EventDatabase {
                 int id0 = getIdFromUID(link.leftUid());
                 int id1 = getIdFromUID(link.rightUid());
                 if (id0 != -1 && id1 != -1) {
-                    pstatement.setInt(1, id0);
-                    pstatement.setInt(2, id1);
-                    pstatement.executeUpdate();
+                    insertAssociation(pstatement, id0, id1);
                 } else {
                     errorcode = -1;
                     Log.error("Could not add association to database");
@@ -273,8 +277,9 @@ public class EventDatabase {
                         updateEvent.setString(2, event2db.uid());
                         updateEvent.setLong(3, event2db.start());
                         updateEvent.setLong(4, event2db.end());
-                        updateEvent.setBinaryStream(5, new ByteArrayInputStream(event2db.compressedJson()), event2db.compressedJson().length);
-                        updateEvent.setInt(6, generatedKey);
+                        updateEvent.setLong(5, event2db.archiv());
+                        updateEvent.setBinaryStream(6, new ByteArrayInputStream(event2db.compressedJson()), event2db.compressedJson().length);
+                        updateEvent.setInt(7, generatedKey);
                         updateEvent.executeUpdate();
                     }
                     {
@@ -510,11 +515,12 @@ public class EventDatabase {
                 for (SWEK.Param p : params) {
                     and.append("AND tp.").append(p.name()).append(p.operand().representation).append(p.value()).append(' ');
                 }
-                String sqlt = "SELECT e.id, e.start, e.end, e.data FROM events AS e " + join + " WHERE e.start BETWEEN ? AND ? and e.type_id=? " + and + " order by e.start, e.end ";
+                String sqlt = "SELECT e.id, e.start, e.end, e.data FROM events AS e " + join +
+                        " WHERE e.type_id=? AND e.start<=? AND e.end>=? " + and + " order by e.start, e.end ";
                 PreparedStatement pstatement = getPreparedStatement(sqlt);
-                pstatement.setLong(1, start);
+                pstatement.setInt(1, typeId);
                 pstatement.setLong(2, end);
-                pstatement.setInt(3, typeId);
+                pstatement.setLong(3, start);
 
                 try (ResultSet rs = pstatement.executeQuery()) {
                     while (rs.next()) {
@@ -551,9 +557,12 @@ public class EventDatabase {
             int typeId = getEventTypeId(type);
             if (typeId != -1) {
                 PreparedStatement pstatement = getPreparedStatement(SELECT_ASSOCIATIONS);
-                pstatement.setLong(1, start);
+                pstatement.setInt(1, typeId);
                 pstatement.setLong(2, end);
-                pstatement.setInt(3, typeId);
+                pstatement.setLong(3, start);
+                pstatement.setInt(4, typeId);
+                pstatement.setLong(5, end);
+                pstatement.setLong(6, start);
 
                 try (ResultSet rs = pstatement.executeQuery()) {
                     while (rs.next()) {
