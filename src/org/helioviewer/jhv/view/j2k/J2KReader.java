@@ -99,8 +99,8 @@ class J2KReader implements Runnable {
             if (stream == null) {
                 JPIPResponse res = socket.request(query, cache, frame);
                 if (res.isResponseComplete()) {
-                    if (key != null && (stream = cache.get(frame)) != null)
-                        JPIPCacheManager.put(key, level, stream);
+                    if (key != null)
+                        JPIPCacheManager.store(key, level, cache, frame);
                     return true;
                 }
                 return false;
