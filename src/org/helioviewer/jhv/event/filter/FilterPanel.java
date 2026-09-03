@@ -57,8 +57,8 @@ class FilterPanel extends JPanel {
     void addFilter() {
         if (enabled) {
             Object oval = spinner.getValue();
-            String pval = oval instanceof String str ? String.valueOf(GOESLevel.getFloatValue(str)) : String.valueOf(oval);
-            SWEK.Param param = new SWEK.Param(parameter.name(), pval, operand);
+            double value = oval instanceof String str ? GOESLevel.getFloatValue(str) : ((Number) oval).doubleValue();
+            SWEK.Param param = new SWEK.Param(parameter.name(), value, operand);
             FilterManager.addFilter(supplier, parameter, param);
         }
     }

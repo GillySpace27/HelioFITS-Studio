@@ -526,16 +526,19 @@ public class EventDatabase {
             int typeId = getEventTypeId(type);
             if (typeId != -1) {
                 String join = "LEFT JOIN " + type.dbName() + " AS tp ON tp.event_id=e.id";
-                StringBuilder and = new StringBuilder();
+                StringBuilder filters = new StringBuilder();
                 for (SWEK.Param p : params) {
-                    and.append("AND tp.").append(p.name()).append(p.operand().representation).append(p.value()).append(' ');
+                    filters.append("AND tp.").append(p.name()).append(p.operand().representation).append("? ");
                 }
                 String sqlt = "SELECT e.id, e.start, e.end, e.data FROM events AS e " + join +
-                        " WHERE e.type_id=? AND e.start<=? AND e.end>=? " + and + " order by e.start, e.end ";
+                        " WHERE e.type_id=? AND e.start<=? AND e.end>=? " + filters + " order by e.start, e.end ";
                 PreparedStatement pstatement = getPreparedStatement(sqlt);
                 pstatement.setInt(1, typeId);
                 pstatement.setLong(2, end);
                 pstatement.setLong(3, start);
+                int parameterIndex = 4;
+                for (SWEK.Param param : params)
+                    pstatement.setDouble(parameterIndex++, param.value());
 
                 try (ResultSet rs = pstatement.executeQuery()) {
                     while (rs.next()) {

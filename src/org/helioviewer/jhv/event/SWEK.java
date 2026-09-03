@@ -19,7 +19,7 @@ public class SWEK {
     public record ParameterFilter(String type, Double min, Double max, Double startValue, Double stepSize, String units,
                                   String dbType) {}
 
-    public record Param(String name, String value, Operand operand) {}
+    public record Param(String name, double value, Operand operand) {}
 
     public record Parameter(String name, String displayName, ParameterFilter filter, boolean visible) {}
 
