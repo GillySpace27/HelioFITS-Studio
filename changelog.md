@@ -1,7 +1,7 @@
 
 # Revision history for JHelioviewer
 
-## JHelioviewer 5.6.0 (pending)
+## JHelioviewer 5.10.0 (pending)
 
 ### Display and rendering
 - Add annotation color and line-thickness controls, and draw the active annotation thicker instead of forcing it to red (fixes #156)
@@ -44,7 +44,7 @@
 - Offload and cache viewpoint orbit-trail preparation, and offload PFSS
   coordinate preparation, from the rendering thread
 - Reduce allocations in status panels, grid labels, FITS scaling, time maps, and interpolation paths
-- Update bundled libraries, SPICE kernels, and supporting build tools
+- Update bundled libraries, FFmpeg (9.0.1), SPICE kernels, and supporting build tools
 
 ### Technical
 - Reorganize core packages and simplify application, GUI, event, image, movie, thread, and metadata internals
