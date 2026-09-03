@@ -1,9 +1,11 @@
 package org.helioviewer.jhv.plugins.swek.sources;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.DateTimeException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -37,41 +39,53 @@ public class HEKHandler extends SWEKHandler {
         List<SWEKHandler.RemoteEvent> event2dbList = new ArrayList<>(len);
         Set<String> acceptedUids = new HashSet<>();
         for (int i = 0; i < len; i++) {
-            JSONObject result = results.getJSONObject(i);
-            if (!isSupplierEvent(result, supplier))
-                continue;
+            try {
+                JSONObject result = results.getJSONObject(i);
+                if (!isSupplierEvent(result, supplier))
+                    continue;
 
-            addGoesValue(result);
-
-            long start = TimeUtils.parse(result.getString("event_starttime"));
-            long end = TimeUtils.parse(result.getString("event_endtime"));
-            if (end < start) {
-                Log.warn("Event end before start: " + result);
-                continue;
-            }
-
-            long archiv = TimeUtils.parse(result.getString("kb_archivdate"));
-            String uid = result.getString("kb_archivid");
-            acceptedUids.add(uid);
-
-            ArrayList<SWEKHandler.RemoteParameter> paramList = new ArrayList<>();
-            for (Map.Entry<String, String> fieldEntry : SWEKCatalog.databaseFields(supplier).entrySet()) {
-                String dbType = fieldEntry.getValue();
-                String fieldName = fieldEntry.getKey();
-                String lfieldName = fieldName.toLowerCase();
-                if (!result.isNull(lfieldName)) {
-                    switch (dbType) {
-                        case "INTEGER" -> paramList.add(new SWEKHandler.RemoteParameter(fieldName, result.getInt(lfieldName)));
-                        case "TEXT" -> paramList.add(new SWEKHandler.RemoteParameter(fieldName, result.getString(lfieldName)));
-                        case "REAL" -> paramList.add(new SWEKHandler.RemoteParameter(fieldName, result.getDouble(lfieldName)));
-                    }
+                SWEKHandler.RemoteEvent event = parseRemoteEvent(result, supplier);
+                if (event != null) {
+                    event2dbList.add(event);
+                    acceptedUids.add(event.uid());
                 }
-            }
-            try (ByteArrayOutputStream baos = JSONUtils.compressJSON(result)) {
-                event2dbList.add(new SWEKHandler.RemoteEvent(baos.toByteArray(), start, end, archiv, uid, paramList));
+            } catch (JSONException | DateTimeException e) {
+                Log.warn("Skipping malformed HEK event at result index " + i, e);
             }
         }
         return new RemotePage(eventJSON.optBoolean("overmax", false), event2dbList, parseAssociations(eventJSON, acceptedUids));
+    }
+
+    private static SWEKHandler.RemoteEvent parseRemoteEvent(JSONObject result, SWEKSupplier supplier) throws IOException {
+        addGoesValue(result);
+
+        long start = TimeUtils.parse(result.getString("event_starttime"));
+        long end = TimeUtils.parse(result.getString("event_endtime"));
+        if (end < start) {
+            Log.warn("Event end before start: " + result);
+            return null;
+        }
+
+        String archiveDate = result.optString("kb_archivdate");
+        long archiv = archiveDate.isBlank() ? start : TimeUtils.parse(archiveDate);
+        String uid = result.getString("kb_archivid");
+
+        ArrayList<SWEKHandler.RemoteParameter> paramList = new ArrayList<>();
+        for (Map.Entry<String, String> fieldEntry : SWEKCatalog.databaseFields(supplier).entrySet()) {
+            String dbType = fieldEntry.getValue();
+            String fieldName = fieldEntry.getKey();
+            String lfieldName = fieldName.toLowerCase();
+            if (!result.isNull(lfieldName)) {
+                switch (dbType) {
+                    case "INTEGER" -> paramList.add(new SWEKHandler.RemoteParameter(fieldName, result.getInt(lfieldName)));
+                    case "TEXT" -> paramList.add(new SWEKHandler.RemoteParameter(fieldName, result.getString(lfieldName)));
+                    case "REAL" -> paramList.add(new SWEKHandler.RemoteParameter(fieldName, result.getDouble(lfieldName)));
+                }
+            }
+        }
+        try (ByteArrayOutputStream baos = JSONUtils.compressJSON(result)) {
+            return new SWEKHandler.RemoteEvent(baos.toByteArray(), start, end, archiv, uid, paramList);
+        }
     }
 
     private static List<JHVEvent.LinkRef> parseAssociations(JSONObject eventJSON, Set<String> acceptedUids) {
@@ -82,11 +96,15 @@ public class HEKHandler extends SWEKHandler {
         int len = associations.length();
         List<JHVEvent.LinkRef> links = new ArrayList<>(len);
         for (int i = 0; i < len; i++) {
-            JSONObject asobj = associations.getJSONObject(i);
-            String first = asobj.getString("first_ivorn");
-            String second = asobj.getString("second_ivorn");
-            if (acceptedUids.contains(first) || acceptedUids.contains(second))
-                links.add(new JHVEvent.LinkRef(first, second));
+            try {
+                JSONObject asobj = associations.getJSONObject(i);
+                String first = asobj.getString("first_ivorn");
+                String second = asobj.getString("second_ivorn");
+                if (acceptedUids.contains(first) || acceptedUids.contains(second))
+                    links.add(new JHVEvent.LinkRef(first, second));
+            } catch (JSONException e) {
+                Log.warn("Skipping malformed HEK association at index " + i, e);
+            }
         }
         return links;
     }
