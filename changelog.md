@@ -1,6 +1,18 @@
 
 # Revision history for JHelioviewer
 
+## JHelioviewer 5.11.0 (pending)
+
+### Display and rendering
+- Add glTF/GLB model layers with surfaces, lines, points, textures, transparency, and lighting
+- Improve rendering quality, performance, and memory handling
+
+### Technical
+- Document the heliocentric 3D data interface and add a COCONUT conversion example
+- Expand rendering regression tests and WCS validation coverage
+- Update bundled libraries
+- Various bug fixes, cleanups, and internal refactoring
+
 ## JHelioviewer 5.10.0 (pending)
 
 ### Display and rendering
