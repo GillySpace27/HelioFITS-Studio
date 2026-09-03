@@ -186,6 +186,8 @@ function screenBlock(job) {
   block[5] = inverseScale;    // inverseMVP[1][1]
   block[10] = 1;              // inverseMVP[2][2]
   block[15] = 1;              // inverseMVP[3][3]
+  if (job.inverseMVP)
+    block.set(job.inverseMVP, 0);
   block[16] = job.boundsDeg[0];
   block[17] = job.boundsDeg[1];
   block[18] = job.boundsDeg[2];
@@ -200,13 +202,9 @@ function screenBlock(job) {
 function displayBlock(job) {
   const block = new Float32Array(28);
   const radii = job.radii || [0, 1e30];
-  block[0] = 1;      // color.r
-  block[1] = 1;      // color.g
-  block[2] = 1;      // color.b
-  block[3] = 1;      // color.a
-  block[7] = job.diffSelfcheck || job.colorDiffSmoke ? 1 : 0; // isDiff
-  block[8] = 0;      // brightness.x
-  block[9] = 1;      // brightness.y
+  block.set(job.color || [1, 1, 1, 1], 0);
+  block[7] = job.diffSelfcheck || job.colorDiffSmoke || job.difference ? 1 : 0;
+  block.set(job.brightness || [0, 1], 8);
   block[10] = 1;     // upsilon.x
   block[11] = 1;     // upsilon.y
   putVec4(block, 12, [...(job.userSector || [0, 0]), ...(job.metadataSector || [0, 0])]);
@@ -482,11 +480,19 @@ function productionFragment(job, commonSource) {
 function bindSyntheticSourceTexture(gl, job, errors) {
   const width = job.textureWidth;
   const height = job.textureHeight;
-  const data = new Uint16Array(width * height);
+  let data = new Uint16Array(width * height);
   const scale = 1 / (width + 2 * height);
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++)
       data[y * width + x] = floatToHalf((x + 2 * y) * scale);
+  }
+  const bytes = job.sourceTexture ? fs.readFileSync(job.sourceTexture.path) : null;
+  const byteTexture = job.sourceTexture?.format === "R8";
+  if (bytes) {
+    const storage = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+    data = byteTexture ? new Uint8Array(storage) : new Uint16Array(storage);
+    if (data.length !== width * height)
+      throw new Error("Source texture dimensions do not match its data");
   }
 
   const texture = gl.createTexture();
@@ -501,12 +507,17 @@ function bindSyntheticSourceTexture(gl, job, errors) {
   errors.sourceWrapS = gl.getError();
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   errors.sourceWrapT = gl.getError();
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16F, width, height, 0, gl.RED, gl.HALF_FLOAT, data);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.texImage2D(gl.TEXTURE_2D, 0, byteTexture ? gl.R8 : gl.R16F, width, height, 0,
+      gl.RED, byteTexture ? gl.UNSIGNED_BYTE : gl.HALF_FLOAT, data);
   errors.sourceImage = gl.getError();
+  // A second source upload must not overwrite errors from the first one.
+  if (Object.values(errors).some(value => value !== gl.NO_ERROR))
+    throw new Error(`Source texture setup failed: ${JSON.stringify(errors)}`);
   return texture;
 }
 
-function bindIdentityLutTexture(gl, errors) {
+function bindLutTexture(gl, job, errors) {
   const width = 256;
   const data = new Uint8Array(width * 4);
   for (let x = 0; x < width; x++) {
@@ -515,12 +526,17 @@ function bindIdentityLutTexture(gl, errors) {
     data[4 * x + 2] = x;
     data[4 * x + 3] = 255;
   }
+  if (job.lutData) {
+    if (job.lutData.length !== data.length)
+      throw new Error("LUT must contain 256 RGBA entries");
+    data.set(job.lutData);
+  }
 
   const texture = gl.createTexture();
   gl.activeTexture(gl.TEXTURE2);
   gl.bindTexture(gl.TEXTURE_2D, texture);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
@@ -572,6 +588,20 @@ function floatToHalf(value) {
 }
 
 function diagnosticFragment(job, commonSource) {
+  if (job.productionCoordinates) {
+    // Keep the production main, including sphere/plane selection and discards.
+    // Replace only the color calculation to expose its selected source pixels.
+    const signature = "vec4 getColor(";
+    if (!commonSource.includes(signature))
+      throw new Error("Production getColor signature not found");
+    const source = commonSource.replace(signature,
+        "vec4 getColor(vec2 uv, vec2 diffUV, float factor);\nvec4 unusedGetColor(");
+    const output = job.difference ? "vec4(uv, diffUV)" : "vec4(uv, texture(image, uv).r, 1.)";
+    return productionFragment(job, `${source}\nvec4 getColor(vec2 uv, vec2 diffUV, float factor) {
+      if (texture(mask, uv).r == 0.) discard;
+      return ${output};
+    }`);
+  }
   if (job.colorSmoke || job.colorDiffSmoke)
     return productionFragment(job, commonSource);
   if (job.mode === "hpc") {
@@ -630,15 +660,18 @@ function renderJob(gl, commonSource, vertexSource, renderer, quadVao, job) {
   setUniformInt(gl, program, "diffImage", 1);
   setUniformInt(gl, program, "lut", 2);
   setUniformInt(gl, program, "mask", 3);
+  errors.uniforms = gl.getError();
   let sourceTexture = null;
-  if (job.sampleTexture || job.colorSmoke || job.colorDiffSmoke) {
+  if (job.sampleTexture || job.colorSmoke || job.colorDiffSmoke || job.sourceTexture) {
     sourceTexture = bindSyntheticSourceTexture(gl, job, errors);
     errors.sourceTexture = gl.getError();
   } else {
     sourceTexture = bindDummySourceTexture(gl);
     errors.sourceTexture = gl.getError();
   }
-  const lutTexture = bindIdentityLutTexture(gl, errors);
+  const diffSourceTexture = job.diffSourceTexture
+      ? bindSyntheticSourceTexture(gl, {...job, sourceTexture: job.diffSourceTexture}, errors) : sourceTexture;
+  const lutTexture = bindLutTexture(gl, job, errors);
   const maskTexture = bindWhiteMaskTexture(gl, errors);
 
   const tex = gl.createTexture();
@@ -653,6 +686,17 @@ function renderJob(gl, commonSource, vertexSource, renderer, quadVao, job) {
   const framebuffer = gl.createFramebuffer();
   gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+  let depthBuffer = null;
+  if (job.depthProbe !== undefined) {
+    depthBuffer = gl.createRenderbuffer();
+    gl.bindRenderbuffer(gl.RENDERBUFFER, depthBuffer);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, job.width, job.height);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthBuffer);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+  } else {
+    gl.disable(gl.DEPTH_TEST);
+  }
   if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
     fail("Framebuffer incomplete", { renderer });
     return;
@@ -661,7 +705,7 @@ function renderJob(gl, commonSource, vertexSource, renderer, quadVao, job) {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
     gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
+    gl.bindTexture(gl.TEXTURE_2D, diffSourceTexture);
     errors.rebindSource = gl.getError();
   }
   gl.activeTexture(gl.TEXTURE2);
@@ -671,10 +715,30 @@ function renderJob(gl, commonSource, vertexSource, renderer, quadVao, job) {
 
   gl.viewport(0, 0, job.width, job.height);
   gl.clearColor(0., 0., 0., 0.);
-  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.clearDepth(1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   const clearError = gl.getError();
+  if (job.solarSphere) {
+    const sphere = createProgram(gl, vertexSource, fs.readFileSync(path.join(job.repoRoot, "resources/glsl/sphere.frag"), "utf8"));
+    gl.useProgram(sphere);
+    bindUniformBlock(gl, sphere, "ScreenBlock", 1, screenBlock(job));
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    errors.sphere = gl.getError();
+    gl.deleteProgram(sphere);
+    gl.useProgram(program);
+  }
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   const drawError = gl.getError();
+  if (job.depthProbe !== undefined) {
+    const probe = createProgram(gl, vertexSource, `#version 300 es
+      precision highp float;
+      out vec4 outColor;
+      void main() { gl_FragDepth = ${Number(job.depthProbe).toFixed(9)}; outColor = vec4(1, 0, 1, 1); }`);
+    gl.useProgram(probe);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    errors.depthProbe = gl.getError();
+    gl.deleteProgram(probe);
+  }
 
   const pixels = new Float32Array(job.width * job.height * 4);
   gl.readPixels(0, 0, job.width, job.height, gl.RGBA, gl.FLOAT, pixels);
@@ -685,11 +749,19 @@ function renderJob(gl, commonSource, vertexSource, renderer, quadVao, job) {
   gl.deleteTexture(tex);
   if (sourceTexture != null)
     gl.deleteTexture(sourceTexture);
+  if (diffSourceTexture !== sourceTexture)
+    gl.deleteTexture(diffSourceTexture);
+  if (depthBuffer)
+    gl.deleteRenderbuffer(depthBuffer);
   gl.deleteTexture(lutTexture);
   gl.deleteTexture(maskTexture);
   gl.deleteFramebuffer(framebuffer);
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.bindTexture(gl.TEXTURE_2D, null);
+
+  const failures = {...errors, clearError, drawError, readError, cleanup: gl.getError()};
+  if (Object.values(failures).some(value => value !== gl.NO_ERROR))
+    throw new Error(`WebGL errors in ${job.name}: ${JSON.stringify(failures)}`);
 
   return {
     ok: true,

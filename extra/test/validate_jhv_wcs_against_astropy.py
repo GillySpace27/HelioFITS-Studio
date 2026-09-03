@@ -2225,6 +2225,10 @@ def run_surface_map_render_compare(
     astro_px_raw = pixel_wcs.wcs_world2pix(world_deg, 1)
     astro_px = fits_pixel_to_texture_pixel(astro_px_raw, meta)
 
+    if not np.array_equal(np.isfinite(jhv_px).all(axis=1), np.isfinite(astro_px).all(axis=1)):
+        print("FAILED: JHV/Astropy surface-map coordinate validity differs")
+        return 1
+
     jhv_samples = sample_source_linear_array(image_data, jhv_px[:, 0], jhv_px[:, 1], meta)
     astro_samples = sample_source_linear_array(image_data, astro_px[:, 0], astro_px[:, 1], meta)
 
@@ -2420,15 +2424,20 @@ def run_hpc_render_compare(
     max_px_err = 0.0
     sum_px_err2 = 0.0
     count = 0
+    validity_mismatches = 0
 
     for iy in range(render_size):
         sy = 1.0 - (iy / (render_size - 1) if render_size > 1 else 0.5)
         row_texcoord = np.full((render_size, 2), np.nan, dtype=np.float64)
         row_jhv_px = np.full((render_size, 2), np.nan, dtype=np.float64)
         row_world_deg = np.full((render_size, 2), np.nan, dtype=np.float64)
+        row_geometry_valid = np.zeros(render_size, dtype=bool)
         for ix in range(render_size):
             sx = ix / (render_size - 1) if render_size > 1 else 0.5
-            texcoord, _, _, _, helioprojective, _ = renderHpcTexcoords((sx, sy), bounds_deg, meta, image_data)
+            helioprojective = screenToHelioprojective((sx, sy), bounds_deg)
+            row_world_deg[ix] = np.degrees(helioprojective)
+            row_geometry_valid[ix] = clipHpcGeometry(helioprojectiveToHpcXY(helioprojective, meta.observer_distance))
+            texcoord = renderHpcTexcoords((sx, sy), bounds_deg, meta, image_data)[0]
             if not math.isfinite(texcoord[0]) or not math.isfinite(texcoord[1]):
                 diff_px[iy, ix] = math.nan
                 continue
@@ -2440,7 +2449,6 @@ def run_hpc_render_compare(
                 continue
             row_texcoord[ix] = texcoord
             row_jhv_px[ix] = jhv_px
-            row_world_deg[ix] = (math.degrees(helioprojective[0]), math.degrees(helioprojective[1]))
 
         world_mask = np.isfinite(row_world_deg[:, 0]) & np.isfinite(row_world_deg[:, 1])
         row_astro_px = np.full((render_size, 2), np.nan, dtype=np.float64)
@@ -2448,10 +2456,14 @@ def run_hpc_render_compare(
             astro_px_raw = pixel_wcs.wcs_world2pix(row_world_deg[world_mask], 1)
             row_astro_px[world_mask] = fits_pixel_to_texture_pixel(astro_px_raw, meta)
 
-        finite_mask = (
-            np.isfinite(row_jhv_px[:, 0]) & np.isfinite(row_jhv_px[:, 1]) &
-            np.isfinite(row_astro_px[:, 0]) & np.isfinite(row_astro_px[:, 1])
+        reference_valid = (
+            row_geometry_valid & np.isfinite(row_astro_px).all(axis=1) &
+            (row_astro_px[:, 0] >= 0) & (row_astro_px[:, 0] <= meta.pixel_width) &
+            (row_astro_px[:, 1] >= 0) & (row_astro_px[:, 1] <= meta.pixel_height)
         )
+        jhv_valid = np.isfinite(row_jhv_px).all(axis=1)
+        validity_mismatches += int(np.count_nonzero(jhv_valid != reference_valid))
+        finite_mask = jhv_valid & reference_valid
         if np.any(finite_mask):
             row_err = np.maximum(
                 np.abs(row_jhv_px[finite_mask, 0] - row_astro_px[finite_mask, 0]),
@@ -2475,6 +2487,7 @@ def run_hpc_render_compare(
 
     print(f"file={fits_file}")
     print(f"mode=hpc_render_compare size={render_size}")
+    print(f"validity_mismatches={validity_mismatches}")
     print(f"raw_bounds_deg=({raw_bounds_deg[0]:.12f}, {raw_bounds_deg[1]:.12f}, {raw_bounds_deg[2]:.12f}, {raw_bounds_deg[3]:.12f})")
     print(f"bounds_deg=({bounds_deg[0]:.12f}, {bounds_deg[1]:.12f}, {bounds_deg[2]:.12f}, {bounds_deg[3]:.12f})")
     print(f"pixel_center_max_error_px={max_px_err:.6e}")
@@ -2482,8 +2495,8 @@ def run_hpc_render_compare(
     print(f"jhv_png={jhv_path}")
     print(f"astropy_png={astro_path}")
     print(f"diff_png={diff_path}")
-    if count == 0 or max_px_err > max_error_px:
-        print(f"FAILED: pixel_center_max_error_px exceeds {max_error_px:.6e}")
+    if count == 0 or validity_mismatches or max_px_err > max_error_px:
+        print(f"FAILED: invalid coverage or pixel_center_max_error_px exceeds {max_error_px:.6e}")
         return 1
     return 0
 
@@ -2741,6 +2754,7 @@ def run_inverse_validation(
     inverse_arc: bool,
     inverse_car: bool,
     inverse_cea: bool,
+    max_error_deg: float = 1e-7,
 ) -> int:
     inverse_mode_count = sum(1 for enabled in (inverse_tan, inverse_arc, inverse_azp, inverse_zpn, inverse_car, inverse_cea) if enabled)
     if inverse_mode_count > 1:
@@ -2780,12 +2794,12 @@ def run_inverse_validation(
     actual_sample_count = len(inverse_samples)
 
     for world_rad in inverse_samples:
-        try:
-            plane_internal = project_world_to_plane_internal(world_rad, meta)
-        except ValueError:
+        # Establish valid inputs independently of the implementation under test.
+        plane_deg = projection_wcs.wcs_world2pix([np.degrees(world_rad)], 0)[0]
+        if not np.all(np.isfinite(plane_deg)):
             skipped_inverse_samples += 1
             continue
-
+        plane_internal = tuple(np.radians(plane_deg) * meta.plane_units_per_rad)
         inverse_world_rad = project_plane_internal_to_world(plane_internal, meta)
         inverse_world_deg = (math.degrees(inverse_world_rad[0]), math.degrees(inverse_world_rad[1]))
 
@@ -2794,6 +2808,9 @@ def run_inverse_validation(
             math.degrees(plane_internal[1] / meta.plane_units_per_rad),
         )
         astro_world_deg = projection_wcs.wcs_pix2world([plane_deg], 0)[0]
+        if not np.all(np.isfinite([*inverse_world_deg, *astro_world_deg])):
+            print("FAILED: non-finite inverse coordinates for a valid reference point")
+            return 1
         inverse_err_deg = max(
             wrap_angle_diff_deg(inverse_world_deg[0], float(astro_world_deg[0])),
             abs(inverse_world_deg[1] - astro_world_deg[1]),
@@ -2801,6 +2818,9 @@ def run_inverse_validation(
         inverse_err_max_deg = max(inverse_err_max_deg, inverse_err_deg)
 
         roundtrip_plane_internal = project_world_to_plane_internal(inverse_world_rad, meta)
+        if not np.all(np.isfinite(roundtrip_plane_internal)):
+            print("FAILED: non-finite inverse round-trip coordinates")
+            return 1
         roundtrip_err_internal = max(
             abs(roundtrip_plane_internal[0] - plane_internal[0]),
             abs(roundtrip_plane_internal[1] - plane_internal[1]),
@@ -2828,6 +2848,11 @@ def run_inverse_validation(
             f"  err={inverse_err_deg:.6e} plane_internal={plane_internal!r} "
             f"inverse={inverse_world_deg!r} astropy={astro_world_deg!r}"
         )
+    # Express the plane residual in degrees, matching the projection-only WCS.
+    roundtrip_error_deg = math.degrees(roundtrip_err_max_internal / meta.plane_units_per_rad)
+    if valid_inverse_samples == 0 or max(inverse_err_max_deg, roundtrip_error_deg) > max_error_deg:
+        print(f"FAILED: inverse or round-trip error exceeds {max_error_deg:.6e} deg, or no samples")
+        return 1
     return 0
 
 
@@ -2922,18 +2947,15 @@ def run_forward_validation(
     for world_rad in world_samples:
         world_deg = [math.degrees(world_rad[0]), math.degrees(world_rad[1])]
 
-        try:
-            jhv_plane_internal = mirrored_world_to_plane_internal(world_rad, meta)
-        except ValueError:
-            skipped_samples += 1
-            continue
-
-        jhv_pixel_center = mirrored_world_to_pixel_center(world_rad, meta)
-
         astro_plane_deg = projection_wcs.wcs_world2pix([world_deg], 0)[0]
         if not np.all(np.isfinite(astro_plane_deg)):
             skipped_samples += 1
             continue
+        jhv_plane_internal = mirrored_world_to_plane_internal(world_rad, meta)
+        jhv_pixel_center = mirrored_world_to_pixel_center(world_rad, meta)
+        if not np.all(np.isfinite([*jhv_plane_internal, *jhv_pixel_center])):
+            print("FAILED: JHV produced non-finite coordinates for a valid Astropy point")
+            return 1
         astro_plane_internal = (
             astro_plane_deg[0] * meta.plane_units_per_rad / (180.0 / math.pi),
             astro_plane_deg[1] * meta.plane_units_per_rad / (180.0 / math.pi),
@@ -2999,6 +3021,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=0, help="Random seed")
     parser.add_argument("--report-worst", type=int, default=5, help="How many worst samples to print")
     parser.add_argument("--max-error-px", type=float, default=0.5, help="Maximum Astropy pixel-coordinate error for correctness comparisons")
+    parser.add_argument("--max-inverse-error-deg", type=float, default=1e-7, help="Maximum inverse and plane round-trip error in degrees")
     parser.add_argument("--all-pixels", action="store_true", help="Validate all pixel centers instead of random 3D samples")
     parser.add_argument("--inverse-tan", action="store_true", help="Validate the TAN inverse plane->world mapping")
     parser.add_argument("--inverse-arc", action="store_true", help="Validate the ARC inverse plane->world mapping")
@@ -3125,6 +3148,7 @@ def main() -> int:
             args.inverse_arc,
             args.inverse_car,
             args.inverse_cea,
+            args.max_inverse_error_deg,
         )
 
     return run_forward_validation(

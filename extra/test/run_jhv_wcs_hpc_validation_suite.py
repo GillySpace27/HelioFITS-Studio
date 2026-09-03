@@ -18,6 +18,15 @@ class ValidationRun:
     args: tuple[str, ...]
     validator: str = "wcs"
 
+    @property
+    def diagnostic(self) -> bool:
+        return bool(set(self.args) & {
+            "--hpc-bounds-compare", "--latitudinal-render", "--latitudinal-zenithal-render",
+            "--orthographic-render", "--ortho-vs-hpc-screen-compare",
+            "--compare-initial-tan-image-frame", "--compare-initial-tan-vs-hpc",
+            "--report-validity-mismatches",
+        })
+
 
 @dataclass(frozen=True)
 class ValidationResult:
@@ -40,6 +49,12 @@ DATA = SCRIPT_DIR / "data"
 # the documented mode examples and the representative result cases quoted in the
 # Results section.
 RUNS: tuple[ValidationRun, ...] = (
+    ValidationRun("validator_failure_paths", (), "failure_paths"),
+    ValidationRun(
+        "electron_wcs_reference",
+        (),
+        "electron_reference",
+    ),
     ValidationRun(
         "glsl_syntax",
         (),
@@ -85,6 +100,11 @@ RUNS: tuple[ValidationRun, ...] = (
     ValidationRun(
         "inverse_zpn",
         (str(DATA / "psp_L3_wispr_20231227T150704_V1_2222.fits"), "--inverse-zpn"),
+    ),
+    ValidationRun(
+        "inverse_zpn_ccor2",
+        # Float32 PV coefficients introduce 2.36e-7 degrees of error here.
+        (str(DATA / "CCOR2_1A_20260902T211514_V00_NC.fits"), "--hdu", "1", "--inverse-zpn", "--max-inverse-error-deg", "1e-6"),
     ),
     ValidationRun(
         "all_pixels_zpn_wispr_1211",
@@ -229,6 +249,17 @@ RUNS: tuple[ValidationRun, ...] = (
 )
 
 ELECTRON_RUNS: tuple[ValidationRun, ...] = (
+    ValidationRun("electron_default_production_fragments", ("--backend", "default"), "production_fragments"),
+    ValidationRun(
+        "electron_default_ccor2_ortho",
+        (str(DATA / "CCOR2_1A_20260902T211514_V00_NC.fits"), "--hdu", "1", "--mode", "ortho", "--sample-texture", "--render-size", "256", "--backend", "default"),
+        "electron",
+    ),
+    ValidationRun(
+        "electron_default_ccor2_hpc",
+        (str(DATA / "CCOR2_1A_20260902T211514_V00_NC.fits"), "--hdu", "1", "--mode", "hpc", "--sample-texture", "--render-size", "256", "--backend", "default"),
+        "electron",
+    ),
     ValidationRun(
         "electron_default_all_modes",
         (str(DATA / "sample.171.fits"), "--hdu", "1", "--render-size", "256", "--all-modes", "--backend", "default"),
@@ -389,6 +420,11 @@ BACKEND_COMPARISON_RUNS: tuple[ValidationRun, ...] = (
 # running every historical diagnostic. The complete catalog remains available
 # through --extended or --only.
 CORE_RUN_NAMES = {
+    "validator_failure_paths",
+    "inverse_tan", "inverse_arc_punch", "inverse_azp", "inverse_zpn",
+    "inverse_zpn_ccor2",
+    "inverse_car_sunerf", "inverse_car_hmi", "inverse_car_aia", "inverse_cea",
+    "electron_wcs_reference",
     "glsl_syntax",
     "java_metadata",
     "hpc_render_compare",
@@ -401,6 +437,8 @@ CORE_RUN_NAMES = {
 }
 
 CORE_ELECTRON_RUN_NAMES = {
+    "electron_default_production_fragments",
+    "electron_default_ccor2_ortho", "electron_default_ccor2_hpc",
     "electron_default_all_modes_sample_texture",
     "electron_default_all_modes_color_smoke",
     "electron_default_all_modes_color_diff_smoke",
@@ -411,6 +449,8 @@ CORE_ELECTRON_RUN_NAMES = {
 }
 
 SWIFTSHADER_CORE_SOURCE_NAMES = {
+    "electron_default_production_fragments",
+    "electron_default_ccor2_ortho", "electron_default_ccor2_hpc",
     "electron_default_differential_rotation",
     "electron_default_distinct_wcs_slots",
     "electron_default_planar_masks",
@@ -439,7 +479,13 @@ def reduced_cpu_variant(run: ValidationRun) -> ValidationRun:
 
 
 def swiftshader_variant(run: ValidationRun) -> ValidationRun:
-    args = tuple("swiftshader" if arg == "default" else arg for arg in run.args) + ("--report-validity-mismatches",)
+    args = tuple("swiftshader" if arg == "default" else arg for arg in run.args)
+    if run.name == "electron_default_differential_rotation":
+        # Existing SwiftShader latitude/trigonometry error is about 0.81 source
+        # pixel here. Declare the allowance in the command, not the evaluator.
+        args += ("--max-error-px", "1.0")
+    if run.name in SWIFTSHADER_DIAGNOSTIC_SOURCE_NAMES:
+        args += ("--report-validity-mismatches",)
     return ValidationRun(run.name.replace("electron_default_", "electron_swiftshader_"), args, run.validator)
 
 
@@ -530,6 +576,12 @@ def selected_runs(runs: list[ValidationRun], only: list[str] | None) -> list[Val
 
 
 def validator_for(run: ValidationRun) -> Path:
+    if run.validator == "failure_paths":
+        return SCRIPT_DIR / "test_wcs_validation.py"
+    if run.validator == "production_fragments":
+        return SCRIPT_DIR / "test_wcs_rendering.py"
+    if run.validator == "electron_reference":
+        return SCRIPT_DIR / "test_electron_wcs_reference.py"
     if run.validator == "glsl":
         return GLSL_VALIDATOR
     if run.validator == "electron":
@@ -543,7 +595,7 @@ def run_case(run: ValidationRun) -> ValidationResult:
     validator = validator_for(run)
     cmd = [sys.executable, str(validator), *run.args]
     artifact_dir: Path | None = None
-    if run.validator in ("electron", "wcs"):
+    if run.validator in ("electron", "wcs", "production_fragments"):
         artifact_dir = Path(tempfile.mkdtemp(prefix=f"jhv-{run.name}-"))
         cmd.extend(("--output-dir", str(artifact_dir)))
     completed = subprocess.run(
@@ -570,6 +622,8 @@ def print_result(result: ValidationResult) -> None:
     validator = validator_for(result.run)
     cmd = [sys.executable, str(validator), *result.run.args]
     print(f"\n== {result.run.name} ==")
+    if result.run.diagnostic:
+        print("DIAGNOSTIC: successful execution is not a correctness assertion")
     print(" ".join(cmd))
     if result.stdout:
         print(result.stdout, end="" if result.stdout.endswith("\n") else "\n")
@@ -625,7 +679,7 @@ def run_parallel(runs: list[ValidationRun], keep_going: bool, jobs: int) -> list
     for run in runs:
         result = results_by_name.get(run.name)
         if result is None:
-            break
+            continue
         print_result(result)
         ordered_results.append(result)
         if result.returncode != 0 and not keep_going:
@@ -657,7 +711,10 @@ def main() -> int:
             print(f"- {name}")
         return 1
 
-    print(f"\nAll {len(results)} validation run(s) passed.")
+    diagnostics = sum(result.run.diagnostic for result in results)
+    print(f"\nAll {len(results) - diagnostics} correctness run(s) passed.")
+    if diagnostics:
+        print(f"{diagnostics} diagnostic run(s) completed (not correctness assertions).")
     return 0
 
 

@@ -28,7 +28,6 @@ from validate_jhv_wcs_against_astropy import (
     is_surface_map_projection,
     load_validation_context,
     pixel_center_error_px,
-    projectHelioprojectiveToWcsPlane,
     renderHpcTexcoordsFloat32,
     renderHpcTexcoords,
     renderLatitudinalTexcoords,
@@ -57,11 +56,11 @@ WARP_MODES = ("radial_warp", "rect_warp")
 WARP_LAMBDAS = (-1.0, -0.5, 0.0, 0.5, 1.0)
 DEFAULT_WARP_LAMBDA = 0.0
 HPC_PROJECTION_CASES = (
-    ("arc_punch", "PUNCH_L3_CAM_20260425001600_v0k.fits", 1, 0.3),
-    ("azp_hi1", "20250622_000831_s4h1A.fts", None, 0.2),
-    ("azp_hi2", "20250622_000851_s4h2A.fts", None, 0.2),
-    ("zpn_wispr_1211", "psp_L3_wispr_20231227T150508_V1_1211.fits", None, 0.2),
-    ("zpn_wispr_2222", "psp_L3_wispr_20231227T150704_V1_2222.fits", None, 0.2),
+    ("arc_punch", "PUNCH_L3_CAM_20260425001600_v0k.fits", 1),
+    ("azp_hi1", "20250622_000831_s4h1A.fts", None),
+    ("azp_hi2", "20250622_000851_s4h2A.fts", None),
+    ("zpn_wispr_1211", "psp_L3_wispr_20231227T150508_V1_1211.fits", None),
+    ("zpn_wispr_2222", "psp_L3_wispr_20231227T150704_V1_2222.fits", None),
 )
 
 PROJECTION_CODES = {
@@ -74,7 +73,7 @@ PROJECTION_CODES = {
 }
 
 HPC_RENDER_CASES = (
-    ("tan_cor2", "20241224_194245_d4c2A.fts", None, 0.3),
+    ("tan_cor2", "20241224_194245_d4c2A.fts", None),
     *HPC_PROJECTION_CASES,
 )
 
@@ -162,6 +161,8 @@ def run_electron(electron: Path, job_path: Path, backend: str) -> dict:
             f"result={json.dumps(result, indent=2)}\n"
             f"stderr={completed.stderr}"
         )
+    for item in result.get("results", [result]):
+        check_gl_errors(item)
     return result
 
 
@@ -242,6 +243,8 @@ def read_job_pixels(job: dict) -> np.ndarray:
     expected = job["width"] * job["height"] * 4
     if pixels.size != expected:
         raise RuntimeError(f"Expected {expected} float values from Electron WebGL, got {pixels.size}")
+    if not np.all(np.isfinite(pixels)):
+        raise ValueError("Non-finite GPU readback values")
     return pixels.reshape((job["height"], job["width"], 4))
 
 
@@ -263,6 +266,15 @@ def is_source_pixel_in_image(pixel: np.ndarray, width: int, height: int) -> bool
         bool(np.all(np.isfinite(pixel)))
         and 0.0 <= pixel[0] <= width
         and 0.0 <= pixel[1] <= height
+    )
+
+
+def near_image_edge(pixel, width: int, height: int, tolerance: float) -> bool:
+    x, y = pixel
+    return (
+        math.isfinite(x) and math.isfinite(y)
+        and -tolerance <= x <= width + tolerance and -tolerance <= y <= height + tolerance
+        and min(abs(x), abs(x - width), abs(y), abs(y - height)) <= tolerance
     )
 
 
@@ -290,6 +302,11 @@ class SampleMetrics:
         jointly_valid: bool,
         interpolation_sample: float | None,
     ) -> None:
+        values = [shader_sample, reference_sample]
+        if interpolation_sample is not None:
+            values.append(interpolation_sample)
+        if not all(math.isfinite(value) for value in values):
+            raise ValueError("Non-finite intensity in GPU sample comparison")
         error = abs(shader_sample - reference_sample)
         self.frame_max = max(self.frame_max, error)
         self.frame_sum2 += error * error
@@ -319,10 +336,13 @@ class SampleMetrics:
         )
 
 
-def print_gl_setup_errors(result: dict) -> None:
+def check_gl_errors(result: dict, pixels: np.ndarray | None = None) -> None:
     errors = {key: value for key, value in result.get("errors", {}).items() if value}
+    errors.update({key: result[key] for key in ("clearError", "drawError", "readError") if result.get(key)})
     if errors:
-        print(f"gl_setup_errors={errors}")
+        raise RuntimeError(f"WebGL errors: {errors}")
+    if pixels is not None and not np.all(np.isfinite(pixels)):
+        raise ValueError("Non-finite GPU readback values")
 
 
 def compare_hpc_shader_to_astropy(
@@ -396,6 +416,7 @@ def evaluate_hpc_shader_to_astropy(
     skipped = 0
     shader_only = 0
     reference_only = 0
+    boundary_mismatches = 0
     mismatch_locations: list[dict[str, object]] = []
 
     for iy in range(render_size):
@@ -429,6 +450,7 @@ def evaluate_hpc_shader_to_astropy(
                     interpolation_sample,
                 )
             if shader_valid != reference_valid:
+                boundary_mismatches += int(near_image_edge(astro_px[ix], meta.pixel_width, meta.pixel_height, max_error_px))
                 if shader_valid:
                     shader_only += 1
                     mismatch = "shader-only"
@@ -483,12 +505,13 @@ def evaluate_hpc_shader_to_astropy(
     print(f"mode=electron_hpc_{'sample' if sample_texture else 'render'}_compare size={render_size}")
     print(f"renderer={result['renderer']}")
     print(f"gl_errors=(clear={result.get('clearError')}, draw={result.get('drawError')}, read={result.get('readError')})")
-    print_gl_setup_errors(result)
+    check_gl_errors(result, pixels)
     print(f"bounds_deg=({bounds_deg[0]:.12f}, {bounds_deg[1]:.12f}, {bounds_deg[2]:.12f}, {bounds_deg[3]:.12f})")
     print(f"valid_samples={count}")
     print(f"skipped_samples={skipped}")
     print(f"shader_only_samples={shader_only}")
     print(f"reference_only_samples={reference_only}")
+    print(f"boundary_mismatches={boundary_mismatches}")
     if mismatch_locations:
         print(f"first_validity_mismatches={mismatch_locations}")
     print(f"pixel_center_max_error_px={max_px_err:.6e}")
@@ -509,7 +532,10 @@ def evaluate_hpc_shader_to_astropy(
     if count == 0:
         print("FAILED: no valid Electron WebGL samples")
         return 1
-    if (shader_only or reference_only) and not report_validity_mismatches:
+    # A subpixel coordinate error may move an edge sample across the image crop.
+    # Permit only that narrow band, and never more than 0.1% of the viewport.
+    mismatches = shader_only + reference_only
+    if (mismatches != boundary_mismatches or mismatches > max(1, render_size * render_size // 1000)) and not report_validity_mismatches:
         print("FAILED: shader and production-bounded Astropy validity differ")
         return 1
     if max_px_err > max_error_px:
@@ -592,12 +618,13 @@ def warp_hpc_xy(mode: str, sx: float, sy: float, outer_radius: float, warp_lambd
     raise ValueError(f"Unsupported warp mode: {mode}")
 
 
-def expected_plane_internal_for_mode(
+def expected_world_deg_for_mode(
     mode: str,
     sx: float,
     sy: float,
     meta,
     job: dict,
+    projection_wcs,
 ) -> tuple[float, float]:
     if mode == "ortho":
         x = 2.0 * sx - 1.0
@@ -605,7 +632,19 @@ def expected_plane_internal_for_mode(
         radius2 = x * x + y * y
         if radius2 > 1.0:
             return (math.nan, math.nan)
-        return (x - meta.crval_internal_x, y - meta.crval_internal_y)
+        world = (x, y, math.sqrt(1.0 - radius2))
+        if job.get("deltaT", 0.0) != 0.0:
+            world = differential(job["deltaT"], world)
+        if meta.projection == "TAN":
+            # Only TAN uses the shader's planar shortcut. Invert that plane
+            # with Astropy so the caller can use the original image WCS.
+            plane_deg = (
+                math.degrees((world[0] - meta.crval_internal_x) / meta.plane_units_per_rad),
+                math.degrees((world[1] - meta.crval_internal_y) / meta.plane_units_per_rad),
+            )
+            return tuple(projection_wcs.wcs_pix2world([plane_deg], 0)[0])
+        helioprojective = worldToHelioprojective(world, meta.observer_distance)
+        return (math.degrees(helioprojective[0]), math.degrees(helioprojective[1]))
 
     if mode == "lati_zenithal":
         world = latitudinalWorld(
@@ -618,7 +657,7 @@ def expected_plane_internal_for_mode(
         if source_world[2] < 0.0:
             return (math.nan, math.nan)
         helioprojective = worldToHelioprojective(source_world, meta.observer_distance)
-        return projectHelioprojectiveToWcsPlane(helioprojective, meta)
+        return (math.degrees(helioprojective[0]), math.degrees(helioprojective[1]))
 
     return (math.nan, math.nan)
 
@@ -741,7 +780,7 @@ def compare_differential_rotation(
     backend: str,
 ) -> int:
     fits_file = SCRIPT_DIR / "data" / "sample.171.fits"
-    image_data, meta, _, _ = load_validation_context(fits_file, 1)
+    image_data, meta, projection_wcs, pixel_wcs = load_validation_context(fits_file, 1)
     # ImageLayer converts an elapsed millisecond interval to the shader's time
     # unit with a factor of 1e-9.
     delta_t = 12.0 * 60.0 * 60.0 * 1000.0 * 1e-9
@@ -776,14 +815,9 @@ def compare_differential_rotation(
     failed = False
     for job, result in zip(jobs, results, strict=True):
         pixels = read_job_pixels(job)
-        mode_error = (
-            1.0
-            if backend == "swiftshader" and job["mode"] == "lati_zenithal"
-            else max_error_px
-        )
         code = evaluate_shader_to_cpu(
-            job["mode"], fits_file, render_size, mode_error, max_sample_error,
-            True, image_data, meta, None, None, job, result, pixels)
+            job["mode"], fits_file, render_size, max_error_px, max_sample_error,
+            True, image_data, meta, projection_wcs, pixel_wcs, job, result, pixels)
         failed = failed or code != 0
     return 1 if failed else 0
 
@@ -1034,13 +1068,8 @@ def evaluate_shader_to_cpu(
             max_px_err = max(max_px_err, float(err))
             sum_px_err2 += float(err * err)
             if projection_wcs is not None and pixel_wcs is not None:
-                expected_plane_internal = expected_plane_internal_for_mode(mode, sx, sy, meta, job)
-                if math.isfinite(expected_plane_internal[0]) and math.isfinite(expected_plane_internal[1]):
-                    expected_plane_deg = (
-                        math.degrees(expected_plane_internal[0] / meta.plane_units_per_rad),
-                        math.degrees(expected_plane_internal[1] / meta.plane_units_per_rad),
-                    )
-                    expected_world_deg = projection_wcs.wcs_pix2world([expected_plane_deg], 0)[0]
+                expected_world_deg = expected_world_deg_for_mode(mode, sx, sy, meta, job, projection_wcs)
+                if math.isfinite(expected_world_deg[0]) and math.isfinite(expected_world_deg[1]):
                     astro_px = pixel_wcs.wcs_world2pix([expected_world_deg], 1)[0]
                     if np.all(np.isfinite(astro_px)):
                         shader_px = texcoord_to_pixel_center(shader_texcoord, meta.pixel_width, meta.pixel_height)
@@ -1055,16 +1084,20 @@ def evaluate_shader_to_cpu(
     print(f"mode=electron_{mode}_{'sample' if sample_texture else 'texcoord'}_compare size={render_size}")
     print(f"renderer={result['renderer']}")
     print(f"gl_errors=(clear={result.get('clearError')}, draw={result.get('drawError')}, read={result.get('readError')})")
-    print_gl_setup_errors(result)
+    check_gl_errors(result, pixels)
     print(f"valid_samples={count}")
     print(f"skipped_samples={skipped}")
     print(f"shader_only_samples={shader_only}")
     print(f"cpu_only_samples={cpu_only}")
     print(f"shader_vs_cpu_max_error_px={max_px_err:.6e}")
     print(f"shader_vs_cpu_rms_error_px={math.sqrt(sum_px_err2 / count):.6e}" if count > 0 else "shader_vs_cpu_rms_error_px=nan")
-    print(f"shader_vs_astropy_samples={astropy_count}")
-    print(f"shader_vs_astropy_max_error_px={max_shader_astropy_px_err:.6e}")
-    print(f"shader_vs_astropy_rms_error_px={math.sqrt(sum_shader_astropy_px_err2 / astropy_count):.6e}" if astropy_count > 0 else "shader_vs_astropy_rms_error_px=nan")
+    uses_astropy = mode in ("ortho", "lati_zenithal") and projection_wcs is not None and pixel_wcs is not None
+    if uses_astropy:
+        print(f"shader_vs_astropy_samples={astropy_count}")
+        print(f"shader_vs_astropy_max_error_px={max_shader_astropy_px_err:.6e}")
+        print(f"shader_vs_astropy_rms_error_px={math.sqrt(sum_shader_astropy_px_err2 / astropy_count):.6e}" if astropy_count > 0 else "shader_vs_astropy_rms_error_px=nan")
+    else:
+        print("astropy_reference=not_checked (CPU geometry comparison only)")
     if sample_texture:
         sample_metrics.print(render_size * render_size)
     print(f"electron_rgba32f={job['outputPath']}")
@@ -1077,8 +1110,8 @@ def evaluate_shader_to_cpu(
     if max_px_err > max_error_px:
         print(f"FAILED: shader_vs_cpu_max_error_px exceeds {max_error_px:.6e}")
         return 1
-    if astropy_count > 0 and max_shader_astropy_px_err > max_error_px:
-        print(f"FAILED: shader_vs_astropy_max_error_px exceeds {max_error_px:.6e}")
+    if uses_astropy and (astropy_count != count or max_shader_astropy_px_err > max_error_px):
+        print(f"FAILED: missing Astropy comparisons or error exceeds {max_error_px:.6e} px")
         return 1
     if sample_texture and sample_metrics.joint_max > max_sample_error:
         print(f"FAILED: joint_sample_max_error exceeds {max_sample_error:.6e}")
@@ -1156,12 +1189,11 @@ def compare_batch(
                 report_validity_mismatches,
             )
         else:
-            mode_max_error = 1.0 if backend == "swiftshader" and mode == "lati_zenithal" else max_error_px
             code = evaluate_shader_to_cpu(
                 mode,
                 fits_file,
                 render_size,
-                mode_max_error,
+                max_error_px,
                 max_sample_error,
                 sample_texture,
                 image_data,
@@ -1248,12 +1280,11 @@ def compare_tan_all_modes_case_batch(
                 report_validity_mismatches,
             )
         else:
-            mode_max_error = 1.0 if backend == "swiftshader" and mode == "lati_zenithal" else max_error_px
             code = evaluate_shader_to_cpu(
                 mode,
                 info["fits_file"],
                 render_size,
-                mode_max_error,
+                max_error_px,
                 max_sample_error,
                 sample_texture,
                 info["image_data"],
@@ -1325,7 +1356,7 @@ def compare_tan_all_modes_color_smoke_batch(
     failed = False
     for job, info, result in zip(jobs, metadata, results, strict=True):
         pixels = read_job_pixels(job)
-        failed = failed or evaluate_color_smoke(info["fits_file"], render_size, job, result, pixels) != 0
+        failed = evaluate_color_smoke(info["fits_file"], render_size, job, result, pixels) != 0 or failed
 
     return 1 if failed else 0
 
@@ -1472,7 +1503,7 @@ def compare_tan_screen_color_smoke_batch(
     failed = False
     for job, info, result in zip(jobs, metadata, results, strict=True):
         pixels = read_job_pixels(job)
-        failed = failed or evaluate_color_smoke(info["fits_file"], render_size, job, result, pixels) != 0
+        failed = evaluate_color_smoke(info["fits_file"], render_size, job, result, pixels) != 0 or failed
 
     return 1 if failed else 0
 
@@ -1497,7 +1528,7 @@ def compare_hpc_projection_batch(
         code = evaluate_hpc_shader_to_astropy(
             info["fits_file"],
             render_size,
-            max(max_error_px, info["max_error_px"]),
+            max_error_px,
             max_sample_error,
             sample_texture,
             info["image_data"],
@@ -1522,7 +1553,7 @@ def hpc_projection_jobs(
 ) -> tuple[list[dict], list[dict]]:
     jobs: list[dict] = []
     metadata: list[dict] = []
-    for name, filename, hdu, case_max_error_px in HPC_PROJECTION_CASES:
+    for name, filename, hdu in HPC_PROJECTION_CASES:
         fits_file = SCRIPT_DIR / "data" / filename
         image_data, meta, _projection_wcs, pixel_wcs = load_validation_context(fits_file, hdu)
         if meta.projection not in PROJECTION_CODES:
@@ -1536,7 +1567,6 @@ def hpc_projection_jobs(
             "meta": meta,
             "pixel_wcs": pixel_wcs,
             "bounds": bounds,
-            "max_error_px": case_max_error_px,
         })
     return jobs, metadata
 
@@ -1563,14 +1593,14 @@ def compare_hpc_projection_backends(
         swift_pixels = read_job_pixels(swift_job)
 
         failed = evaluate_hpc_shader_to_astropy(
-            info["fits_file"], render_size, max(max_error_px, info["max_error_px"]), max_sample_error,
+            info["fits_file"], render_size, max_error_px, max_sample_error,
             True, info["image_data"], info["meta"], info["pixel_wcs"], info["bounds"],
             metal_job, metal_result, metal_pixels,
         ) != 0 or failed
         failed = evaluate_hpc_shader_to_astropy(
-            info["fits_file"], render_size, max(max_error_px, info["max_error_px"]), max_sample_error,
+            info["fits_file"], render_size, max_error_px, max_sample_error,
             True, info["image_data"], info["meta"], info["pixel_wcs"], info["bounds"],
-            swift_job, swift_result, swift_pixels, True,
+            swift_job, swift_result, swift_pixels,
         ) != 0 or failed
 
         metal_valid = (metal_pixels[:, :, 3] > 0.5) & np.isfinite(metal_pixels[:, :, :2]).all(axis=2)
@@ -1593,6 +1623,12 @@ def compare_hpc_projection_backends(
         metal_frame = np.where(metal_valid, metal_pixels[:, :, 2], 0.0)
         swift_frame = np.where(swift_valid, swift_pixels[:, :, 2], 0.0)
         frame_sample_max = float(np.max(np.abs(metal_frame - swift_frame)))
+        frame_sample_mean = float(np.mean(np.abs(metal_frame - swift_frame)))
+        edge_only = True
+        for iy, ix in np.argwhere(metal_valid != swift_valid):
+            uv = metal_pixels[iy, ix, :2] if metal_valid[iy, ix] else swift_pixels[iy, ix, :2]
+            pixel = uv * [info["meta"].pixel_width, info["meta"].pixel_height]
+            edge_only &= near_image_edge(pixel, info["meta"].pixel_width, info["meta"].pixel_height, max_error_px)
 
         print(f"mode=electron_hpc_backend_compare case={info['name']} size={render_size}")
         print(f"metal_renderer={metal_result['renderer']}")
@@ -1602,12 +1638,13 @@ def compare_hpc_projection_backends(
         print(f"coordinate_max_error_px={coordinate_max:.6e}")
         print(f"joint_sample_max_error={joint_sample_max:.6e}")
         print(f"frame_sample_max_error={frame_sample_max:.6e}")
+        print(f"frame_sample_mean_error={frame_sample_mean:.6e}")
 
-        if coordinate_max > max(max_error_px, info["max_error_px"]):
-            print("FAILED: Metal/SwiftShader coordinate difference exceeds the case threshold")
+        if not edge_only or validity_mismatches > max(1, render_size * render_size // 1000) or not math.isfinite(coordinate_max) or coordinate_max > max_error_px:
+            print("FAILED: Metal/SwiftShader validity differs or coordinate error exceeds the threshold")
             failed = True
-        if joint_sample_max > max_sample_error:
-            print("FAILED: Metal/SwiftShader jointly valid sample difference exceeds the threshold")
+        if not math.isfinite(joint_sample_max) or joint_sample_max > max_sample_error or frame_sample_mean > max_sample_error + 0.001:
+            print("FAILED: Metal/SwiftShader sample error exceeds the interior or full-frame threshold")
             failed = True
 
     return 1 if failed else 0
@@ -1627,7 +1664,7 @@ def compare_hpc_render_case_batch(
 
     jobs: list[dict] = []
     metadata: list[dict] = []
-    for name, filename, hdu, case_max_error_px in HPC_RENDER_CASES:
+    for name, filename, hdu in HPC_RENDER_CASES:
         fits_file = SCRIPT_DIR / "data" / filename
         image_data, meta, _projection_wcs, pixel_wcs = load_validation_context(fits_file, hdu)
         if meta.projection not in PROJECTION_CODES:
@@ -1641,7 +1678,6 @@ def compare_hpc_render_case_batch(
             "meta": meta,
             "pixel_wcs": pixel_wcs,
             "bounds": bounds,
-            "max_error_px": case_max_error_px,
         })
 
     results = run_electron_jobs(electron, jobs, backend)
@@ -1651,7 +1687,7 @@ def compare_hpc_render_case_batch(
         code = evaluate_hpc_shader_to_astropy(
             info["fits_file"],
             render_size,
-            max(max_error_px, info["max_error_px"]),
+            max_error_px,
             max_sample_error,
             sample_texture,
             info["image_data"],
@@ -1751,7 +1787,7 @@ def evaluate_surface_map_shader_to_cpu(
     print(f"mode=electron_surface_map_{'sample' if sample_texture else 'texcoord'}_compare size={render_size}")
     print(f"renderer={result['renderer']}")
     print(f"gl_errors=(clear={result.get('clearError')}, draw={result.get('drawError')}, read={result.get('readError')})")
-    print_gl_setup_errors(result)
+    check_gl_errors(result, pixels)
     print(f"valid_samples={count}")
     print(f"skipped_samples={skipped}")
     print(f"shader_only_samples={shader_only}")
@@ -1773,7 +1809,7 @@ def evaluate_surface_map_shader_to_cpu(
     if max_px_err > max_error_px:
         print(f"FAILED: shader_vs_cpu_max_error_px exceeds {max_error_px:.6e}")
         return 1
-    if astropy_count > 0 and max_shader_astropy_px_err > max_error_px:
+    if astropy_count != count or max_shader_astropy_px_err > max_error_px:
         print(f"FAILED: shader_vs_astropy_max_error_px exceeds {max_error_px:.6e}")
         return 1
     if sample_texture and sample_metrics.joint_max > max_sample_error:
@@ -1868,7 +1904,7 @@ def compare_surface_map_color_smoke_batch(
     failed = False
     for job, info, result in zip(jobs, metadata, results, strict=True):
         pixels = read_job_pixels(job)
-        failed = failed or evaluate_color_smoke(info["fits_file"], render_size, job, result, pixels) != 0
+        failed = evaluate_color_smoke(info["fits_file"], render_size, job, result, pixels) != 0 or failed
 
     return 1 if failed else 0
 
@@ -1946,12 +1982,32 @@ def evaluate_hpc_diff_selfcheck(
     sum_sample_err2 = 0.0
     count = 0
     skipped = 0
+    validity_mismatches = 0
+    boundary_mismatches = 0
+    image_shape = np.empty((1, 1))  # Coordinate helpers do not read image samples.
 
     for iy in range(render_size):
         for ix in range(render_size):
+            sx, sy = (ix + 0.5) / render_size, (iy + 0.5) / render_size
+            if job["mode"] == "hpc":
+                reference = renderHpcTexcoords((sx, sy), tuple(job["boundsDeg"]), meta, image_shape)[0]
+            elif job["mode"] == "ortho":
+                reference = renderOrthographicTexcoords((2 * sx - 1, 2 * sy - 1), meta, image_shape, simple_tan=True)[0]
+            elif job["mode"] == "lati_zenithal":
+                reference = renderLatitudinalTexcoords((sx, sy), tuple(job["boundsDeg"]), meta, image_shape)[0]
+            else:
+                reference = cpu_texcoord_for_mode(job["mode"], sx, sy, meta, image_shape, job["boundsDeg"][3], job["warpLambda"])
             texcoord = (float(pixels[iy, ix, 0]), float(pixels[iy, ix, 1]))
             diff_texcoord = (float(pixels[iy, ix, 2]), float(pixels[iy, ix, 3]))
             valid = is_finite_texcoord(texcoord) and is_finite_texcoord(diff_texcoord) and any(pixels[iy, ix] != 0.0)
+            if valid != is_finite_texcoord(reference):
+                validity_mismatches += 1
+                # The valid side supplies the coordinate when the other side
+                # discarded it. Only subpixel crop disagreements are tolerated.
+                edge_coord = reference if is_finite_texcoord(reference) else texcoord
+                boundary_mismatches += int(near_image_edge(
+                    np.asarray(edge_coord) * [meta.pixel_width, meta.pixel_height],
+                    meta.pixel_width, meta.pixel_height, max_error_px))
             if not valid:
                 skipped += 1
                 continue
@@ -1966,9 +2022,11 @@ def evaluate_hpc_diff_selfcheck(
 
     print(f"file={fits_file}")
     print(f"mode=electron_{job['mode']}_diff_selfcheck size={render_size}")
+    print(f"validity_mismatches={validity_mismatches}")
+    print(f"boundary_mismatches={boundary_mismatches}")
     print(f"renderer={result['renderer']}")
     print(f"gl_errors=(clear={result.get('clearError')}, draw={result.get('drawError')}, read={result.get('readError')})")
-    print_gl_setup_errors(result)
+    check_gl_errors(result, pixels)
     print(f"valid_samples={count}")
     print(f"skipped_samples={skipped}")
     print(f"diff_texcoord_max_error_px={max_px_err:.6e}")
@@ -1976,8 +2034,8 @@ def evaluate_hpc_diff_selfcheck(
     print(f"diff_sample_max_error={max_sample_err:.6e}")
     print(f"diff_sample_rms_error={math.sqrt(sum_sample_err2 / count):.6e}" if count > 0 else "diff_sample_rms_error=nan")
     print(f"electron_rgba32f={job['outputPath']}")
-    if count == 0:
-        print("FAILED: no valid Electron WebGL diff samples")
+    if count == 0 or validity_mismatches != boundary_mismatches or validity_mismatches > max(1, render_size * render_size // 1000):
+        print("FAILED: missing diff samples or incorrect validity mask")
         return 1
     if max_px_err > max_error_px:
         print(f"FAILED: diff_texcoord_max_error_px exceeds {max_error_px:.6e}")
@@ -2021,7 +2079,7 @@ def compare_hpc_projection_diff_selfcheck_batch(
 
     jobs: list[dict] = []
     metadata: list[dict] = []
-    for name, filename, hdu, _case_max_error_px in HPC_PROJECTION_CASES:
+    for name, filename, hdu in HPC_PROJECTION_CASES:
         fits_file = SCRIPT_DIR / "data" / filename
         _image_data, meta, _projection_wcs, _pixel_wcs = load_validation_context(fits_file, hdu)
         if meta.projection not in PROJECTION_CODES:
@@ -2064,7 +2122,7 @@ def compare_hpc_projection_color_smoke_batch(
 
     jobs: list[dict] = []
     metadata: list[dict] = []
-    for name, filename, hdu, _case_max_error_px in HPC_PROJECTION_CASES:
+    for name, filename, hdu in HPC_PROJECTION_CASES:
         fits_file = SCRIPT_DIR / "data" / filename
         _image_data, meta, _projection_wcs, _pixel_wcs = load_validation_context(fits_file, hdu)
         if meta.projection not in PROJECTION_CODES:
@@ -2091,7 +2149,7 @@ def compare_hpc_projection_color_smoke_batch(
     failed = False
     for job, info, result in zip(jobs, metadata, results, strict=True):
         pixels = read_job_pixels(job)
-        failed = failed or evaluate_color_smoke(info["fits_file"], render_size, job, result, pixels) != 0
+        failed = evaluate_color_smoke(info["fits_file"], render_size, job, result, pixels) != 0 or failed
 
     return 1 if failed else 0
 
@@ -2160,7 +2218,7 @@ def evaluate_color_smoke(
     print(f"mode=electron_{job['mode']}_{mode_suffix} size={render_size}")
     print(f"renderer={result['renderer']}")
     print(f"gl_errors=(clear={result.get('clearError')}, draw={result.get('drawError')}, read={result.get('readError')})")
-    print_gl_setup_errors(result)
+    check_gl_errors(result, pixels)
     print(f"rendered_pixels={count}")
     print(f"skipped_pixels={skipped}")
     print(f"finite_pixels={finite}")
@@ -2229,7 +2287,7 @@ def compare_all_modes_color_smoke(
     failed = False
     for job, result in zip(jobs, results, strict=True):
         pixels = read_job_pixels(job)
-        failed = failed or evaluate_color_smoke(fits_file, render_size, job, result, pixels) != 0
+        failed = evaluate_color_smoke(fits_file, render_size, job, result, pixels) != 0 or failed
 
     return 1 if failed else 0
 
