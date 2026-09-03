@@ -30,6 +30,7 @@ import org.json.JSONObject;
 public final class EventTimelineLayer extends TimelineLayer implements JHVEventListener.Handle {
 
     private EventPlotConfiguration eventUnderMouse;
+    private final List<EventPlotConfiguration> eventPlots = new ArrayList<>();
     private List<JHVRelatedEvents> visibleEvents = Collections.emptyList();
 
     EventTimelineLayer() {
@@ -88,6 +89,7 @@ public final class EventTimelineLayer extends TimelineLayer implements JHVEventL
             return;
 
         eventUnderMouse = null;
+        eventPlots.clear();
         List<JHVRelatedEvents> events = visibleEvents;
         if (events.isEmpty()) {
             if (mousePosition != null) {
@@ -117,15 +119,16 @@ public final class EventTimelineLayer extends TimelineLayer implements JHVEventL
 
             int x0 = xMapper.toPixel(eventStart);
             int x1 = xMapper.toPixel(eventEnd);
-            JHVRelatedEvents rEvent = drawEvent(graphArea, event, x0, x1, eventPosition, g, mousePosition);
-            if (rEvent != null) {
-                eventUnderMouse = new EventPlotConfiguration(rEvent, x0, x1, eventPosition);
-            }
+            EventPlotConfiguration plot = createEventPlot(graphArea, event, x0, x1, eventPosition);
+            eventPlots.add(plot);
+            drawEvent(graphArea, plot, g, mousePosition);
+            if (plot.contains(mousePosition))
+                eventUnderMouse = plot;
         }
 
         if (mousePosition != null) {
             if (eventUnderMouse != null) {
-                drawEvent(graphArea, eventUnderMouse.event, eventUnderMouse.x0, eventUnderMouse.x1, eventUnderMouse.yPosition, g, mousePosition);
+                drawEvent(graphArea, eventUnderMouse, g, mousePosition);
                 JHVEventCache.highlight(eventUnderMouse.event);
             } else {
                 JHVEventCache.highlight(null);
@@ -170,20 +173,30 @@ public final class EventTimelineLayer extends TimelineLayer implements JHVEventL
         return false;
     }
 
-    private record EventPlotConfiguration(JHVRelatedEvents event, int x0, int x1, int yPosition) {}
+    private record EventPlotConfiguration(JHVRelatedEvents event, int x, int y, int width, int height) {
+        boolean contains(Point point) {
+            return containsPoint(point, x - 1, y - 1, width + 2, height + 2);
+        }
+    }
 
-    @Nullable
-    private static JHVRelatedEvents drawEvent(Rectangle graphArea, JHVRelatedEvents event, int x0, int x1, int yPosition, Graphics2D g, Point mousePosition) {
-        int spacePerLine = 3;
-        int y = graphArea.y + spacePerLine * 2 * yPosition + DrawConstants.EVENT_OFFSET;
+    private static EventPlotConfiguration createEventPlot(Rectangle graphArea, JHVRelatedEvents event, int x0, int x1, int yPosition) {
         int w = Math.max(x1 - x0, 1);
-        int h = spacePerLine;
         if (w < 5) {
             x0 -= 5 / w;
             w = 5;
         }
+        int y = graphArea.y + 6 * yPosition + DrawConstants.EVENT_OFFSET;
+        return new EventPlotConfiguration(event, x0, y, w, 3);
+    }
 
-        boolean containsMouse = containsPoint(mousePosition, x0 - 1, y - 1, w + 2, h + 2);
+    private static void drawEvent(Rectangle graphArea, EventPlotConfiguration plot, Graphics2D g, Point mousePosition) {
+        JHVRelatedEvents event = plot.event;
+        int x0 = plot.x;
+        int y = plot.y;
+        int w = plot.width;
+        int h = plot.height;
+        int spacePerLine = h;
+        boolean containsMouse = plot.contains(mousePosition);
         boolean hl = event.isHighlighted() && (mousePosition == null || containsMouse); // null mousePosition from image canvas
         int sz = Math.min(w, 8);
         if (hl) {
@@ -204,8 +217,6 @@ public final class EventTimelineLayer extends TimelineLayer implements JHVEventL
         if (hl && mousePosition != null) {
             drawText(graphArea, g, event, y, mousePosition.x);
         }
-
-        return containsMouse ? event : null;
     }
 
     private static void drawText(Rectangle graphArea, Graphics2D g, JHVRelatedEvents event, int y, int mouseX) {
@@ -237,9 +248,18 @@ public final class EventTimelineLayer extends TimelineLayer implements JHVEventL
     public boolean highlightChanged(Point p) {
         if (!enabled)
             return false;
-        if (eventUnderMouse == null)
-            return true;
-        return !(eventUnderMouse.x0 <= p.x && p.x <= eventUnderMouse.x1 && eventUnderMouse.yPosition - 4 <= p.y && p.y <= eventUnderMouse.yPosition + 5);
+
+        EventPlotConfiguration current = null;
+        for (EventPlotConfiguration plot : eventPlots) {
+            if (plot.contains(p))
+                current = plot;
+        }
+
+        boolean changed = current != eventUnderMouse;
+        eventUnderMouse = current;
+        JHVEventCache.highlight(current == null ? null : current.event);
+        // Event details depend on the time beneath the pointer.
+        return changed || current != null;
     }
 
     @Nullable

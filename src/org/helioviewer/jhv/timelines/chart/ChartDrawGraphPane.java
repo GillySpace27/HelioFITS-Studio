@@ -274,6 +274,7 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
     @Override
     public void mouseMoved(MouseEvent e) {
         mousePosition = e.getPoint();
+        boolean eventHighlightChanged = highlightChanged(mousePosition);
 
         GraphGeometry geometry = DrawController.getGeometry();
         if (overMovieLine(mousePosition)) {
@@ -288,7 +289,6 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
 
         boolean axisHighlightChanged = !geometry.isStacked()
                 && DrawController.setYAxisHighlight(geometry.yAxisHit(mousePosition));
-        boolean eventHighlightChanged = highlightChanged(mousePosition);
         if (axisHighlightChanged || eventHighlightChanged)
             drawRequest();
         else
