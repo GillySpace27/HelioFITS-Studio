@@ -73,28 +73,28 @@ public class JHVEvent {
         return null;
     }
 
-    public void addParameter(JHVEventParameter parameter, boolean visible, boolean configured, boolean full) {
+    public void addParameter(String key, String displayName, String value, boolean visible, boolean full) {
         if (allParametersArray == null)
             throw new IllegalStateException("Cannot add parameters after finishParams");
 
-        String key = parameter.getParameterName();
         if (!visible && !full) {
-            if (key != "cme_radiallinvel" && key != "event_coord1" && key != "cme_angularwidth") {
+            if (!key.equals("cme_radiallinvel") && !key.equals("event_coord1") && !key.equals("cme_angularwidth")) {
                 return;
             }
         }
+        JHVEventParameter parameter = new JHVEventParameter(key,
+                displayName != null ? displayName : key.replace("_", " ").trim(), value);
         allParametersArray.add(parameter);
-        if (configured && visible) visibleParametersArray.add(parameter);
+        if (visible) visibleParametersArray.add(parameter);
     }
 
     public void addParameter(String key, String value, boolean full) {
         SWEK.Parameter p = supplier.findParameter(key);
 
         boolean visible = (p != null) && p.visible();
-        boolean configured = (p != null);
-        String displayName = (p != null) ? p.displayName() : key.replace("_", " ").trim();
+        String displayName = (p != null) ? p.displayName() : null;
 
-        addParameter(new JHVEventParameter(key, displayName, value), visible, configured, full);
+        addParameter(key, displayName, value, visible, full);
     }
 
     public void finishParams() {

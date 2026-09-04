@@ -13,7 +13,6 @@ import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.astronomy.Sun;
 import org.helioviewer.jhv.base.Regex;
 import org.helioviewer.jhv.event.JHVEvent;
-import org.helioviewer.jhv.event.JHVEventParameter;
 import org.helioviewer.jhv.event.JHVPositionInformation;
 import org.helioviewer.jhv.event.SWEK;
 import org.helioviewer.jhv.math.MathUtils;
@@ -139,7 +138,7 @@ class HEKParser {
             }
         }
         if (ok) {
-            currentEvent.addParameter(new JHVEventParameter(type, type, url), true, true, true);
+            currentEvent.addParameter(type, type, url, true, true);
         }
     }
 
