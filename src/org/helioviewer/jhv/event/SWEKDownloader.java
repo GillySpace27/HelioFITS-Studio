@@ -147,7 +147,7 @@ public class SWEKDownloader {
 
     public static boolean isGroupBusy(SWEKGroup group) {
         for (SWEKSupplier supplier : workerMap.keySet()) {
-            if (supplier.group() == group && !workerMap.get(supplier).isEmpty())
+            if (supplier.group() == group)
                 return true;
         }
         return false;

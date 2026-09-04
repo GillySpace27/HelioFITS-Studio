@@ -93,22 +93,20 @@ public final class EventTimelineLayer extends TimelineLayer implements JHVEventL
 
         ArrayList<Long> endDates = new ArrayList<>();
         TimeAxis.Mapper xMapper = xAxis.mapper(graphArea.x, graphArea.width);
-        int nrLines = 0;
 
         for (JHVRelatedEvents event : events) {
             long eventStart = event.getStart();
             long eventEnd = event.getEnd();
             int i = 0;
-            while (i < nrLines && endDates.get(i) >= eventStart) {
+            while (i < endDates.size() && endDates.get(i) >= eventStart) {
                 i++;
             }
-            if (i == nrLines) {
+            if (i == endDates.size()) {
                 endDates.add(eventEnd);
             } else {
                 endDates.set(i, eventEnd);
             }
             int eventPosition = i;
-            nrLines = Math.max(nrLines, endDates.size());
 
             int x0 = xMapper.toPixel(eventStart);
             int x1 = xMapper.toPixel(eventEnd);

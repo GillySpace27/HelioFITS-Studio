@@ -68,8 +68,6 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
     private final BufCoord texBuf = new BufCoord(4 * 8);
 
     private long cachedEventsTime = Long.MIN_VALUE;
-    private long cachedEventsStart = Long.MIN_VALUE;
-    private long cachedEventsEnd = Long.MIN_VALUE;
     private List<JHVRelatedEvents> cachedActiveEvents = List.of();
 
     public SWEKLayer(JSONObject jo) {
@@ -339,12 +337,8 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
     }
 
     List<JHVRelatedEvents> activeEvents(long time) {
-        long start = Player.getStartTime();
-        long end = Player.getEndTime();
-        if (time != cachedEventsTime || start != cachedEventsStart || end != cachedEventsEnd) {
+        if (time != cachedEventsTime) {
             cachedEventsTime = time;
-            cachedEventsStart = start;
-            cachedEventsEnd = end;
             cachedActiveEvents = JHVEventCache.getEvents(time, time);
         }
         return cachedActiveEvents;
