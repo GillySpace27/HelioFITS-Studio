@@ -5,6 +5,8 @@ v that indexed the colour table, the gain G and the knee k. Run: python3 extra/t
 def expansion(mode, v, G, k):
     if mode == 0:
         return G
+    if mode == 3:
+        return min(max(v, 1), G)   # beyond range: v is the physical ratio to the range's top
     t = min(max((min(max(v, 0), 1) - k) / (1 - k), 0), 1)
     return 1 + t * (G - 1) if mode == 1 else 1 + (G - 1) * t * t
 G, k, eps = 2.0, 0.75, 1e-6
@@ -22,4 +24,6 @@ lin = (0.05, 0.10, 0.90); Y = 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2
 E = expansion(2, 1.0, G, k); w = (E - 1) / (G - 1)
 out = tuple((1 - w) * c * E + w * Y * E for c in lin)
 assert max(out) - min(out) < eps, f"fully rolled to white at the top, got {out}"
+assert expansion(3, 0.9, G, k) == 1 and expansion(3, 1.0, G, k) == 1, "inside the range nothing moves"
+assert expansion(3, 1.5, G, k) == 1.5 and expansion(3, 9.0, G, k) == G, "above it, in proportion, up to the gain"
 print("hdr_curve_check: PASS")

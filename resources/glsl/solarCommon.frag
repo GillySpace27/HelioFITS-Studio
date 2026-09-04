@@ -101,7 +101,11 @@ layout(std140) uniform DisplayBlock {
     //   1  hard knee: unchanged up to hdrKnee of the data range, then expansion rising on a
     //                 straight line to the gain at the top;
     //   2  soft knee: as 1 with a curve that leaves the knee flat, and the colour rolling
-    //                 toward white as it climbs, which is what bright light looks like.
+    //                 toward white as it climbs, which is what bright light looks like;
+    //   3  beyond range: the display range is the SDR picture, untouched; data ABOVE its top
+    //                 (the texture keeps them, linear in physical units past 1) shine over
+    //                 white in proportion, rolling to white. Nothing inside the range moves,
+    //                 and what used to be a flat plateau is graded again.
     float hdrMode;
     float hdrKnee;
 } display;
@@ -222,12 +226,14 @@ vec4 getColor(const vec2 texcoord, const vec2 difftexcoord, const float factor) 
     vec3 lin = mix(colour.rgb / 12.92, pow((colour.rgb + 0.055) / 1.055, vec3(2.4)), step(0.04045, colour.rgb));
     float G = display.hdrGain, k = display.hdrKnee;
     float E = G; // expansion, a multiple of SDR white in light
-    if (display.hdrMode != 0.) {
+    if (display.hdrMode == 3.)
+        E = clamp(value, 1., G);
+    else if (display.hdrMode != 0.) {
         float t = clamp((clamp(value, 0., 1.) - k) / (1. - k), 0., 1.);
         E = display.hdrMode == 1. ? 1. + t * (G - 1.) : 1. + (G - 1.) * t * t;
     }
     lin *= E;
-    if (display.hdrMode == 2.) {
+    if (display.hdrMode >= 2.) {
         // Roll to white: the further over SDR white, the closer to a neutral of the same
         // luminance. Without this a saturated table colour at 4x is neon, not bright.
         float Y = dot(lin, vec3(0.2126, 0.7152, 0.0722));
