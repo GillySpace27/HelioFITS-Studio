@@ -19,9 +19,9 @@ public final class HdrGain {
 
     /** How the gain is applied; the shader's hdrMode is the ordinal. */
     public enum Mode {
-        Linear("Linear (everything scaled)"),
-        HardKnee("Hard knee (highlights only, straight)"),
-        SoftKnee("Soft knee (highlights only, rolled up)");
+        Linear("Linear (whole image scaled)"),
+        HardKnee("Hard knee (brightest data only, straight)"),
+        SoftKnee("Soft knee (brightest data only, rolls to white)");
 
         public final String label;
 
@@ -52,13 +52,15 @@ public final class HdrGain {
         try {
             return (float) Math.clamp(Double.parseDouble(stored), 0.05, 0.95);
         } catch (NumberFormatException | NullPointerException e) {
-            return 0.5f;
+            return 0.75f;
         }
     }
 
+    // One stop over white by default. The panel can do far more, and "auto" (the display's
+    // maximum) is still offered, but a full-headroom default is a demo, not a picture.
     private static String defaultSetting() {
         String stored = Settings.getProperty(KEY_GAIN);
-        return stored == null || stored.isBlank() ? "auto" : stored.trim();
+        return stored == null || stored.isBlank() ? "2" : stored.trim();
     }
 
     /** The gain the shader should apply now: 1 while capturing or without an EDR canvas. */
@@ -68,18 +70,19 @@ public final class HdrGain {
 
     /**
      * Pure: the gain for a setting, the screen's current and potential headroom, and whether the
-     * target is SDR (a capture, or no EDR canvas).
+     * target is SDR (a capture, or no EDR canvas). A fixed stop is never more than the screen can
+     * show: past the headroom the compositor clips to peak white, which is the blown-out look.
      */
     static float resolve(String _setting, double headroom, double potential, boolean sdr) {
         if (sdr)
             return 1;
-        float auto = headroom > 1 ? (float) headroom : potential > 1 ? BOOTSTRAP : 1;
+        float available = headroom > 1 ? (float) headroom : potential > 1 ? BOOTSTRAP : 1;
         if (_setting == null || "auto".equals(_setting))
-            return auto;
+            return available;
         try {
-            return (float) Math.clamp(Double.parseDouble(_setting), 1, MAX);
+            return Math.min((float) Math.clamp(Double.parseDouble(_setting), 1, MAX), available);
         } catch (NumberFormatException e) {
-            return auto;
+            return available;
         }
     }
 
@@ -96,7 +99,7 @@ public final class HdrGain {
         Settings.setProperty(KEY_MODE, mode.name());
     }
 
-    /** Where the knee sits, as a fraction of white in linear light; ignored by Linear. */
+    /** Where the knee sits, as a fraction of the data range feeding the colour table; ignored by Linear. */
     public static float knee() {
         return knee;
     }

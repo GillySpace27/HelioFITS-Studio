@@ -178,3 +178,22 @@ hue is kept, with a knee (View > HDR Knee: 25, 50, 75 % of white in linear light
 `extra/test/hdr_curve_check.py` pins the properties (identity below the knee, headroom at
 white, continuity, slope 1 for soft, monotonic). Measured on the AIA 171 frame with the
 headroom at 6.2: linear puts 158,411 canvas pixels above white, soft knee 4,583.
+
+## Revision 2, 2026-09-04, after Gilly looked
+
+Blown out, oversaturated, unnatural. Three causes, all in the design rather than the pipeline:
+
+1. The knee was judged on the colour's brightness. A table that lives near white (PUNCH's
+   tan) put most of its field over the knee, so most of the image went over white. The knee
+   is now on the **data value** that indexed the colour table: only the brightest data expands,
+   whatever colour the table gave it. Knee stops: top 50, 25 (default), 10 % of the data.
+2. Saturated colours at 6x are neon, not bright. The soft knee now **rolls to white**: as the
+   expansion climbs, the colour blends toward a neutral of the same luminance, fully neutral at
+   the top of the data. Linear and hard knee keep the table's colour.
+3. "Auto = the panel's full headroom" is a demo setting. Brightness is now in photographic
+   stops, default **+1 stop (2x)**, and a fixed stop never exceeds what the screen offers
+   (past the headroom the compositor clips to peak white, which was part of the blown look).
+   "Display maximum" is still there for anyone who wants the demo.
+
+Measured at the new defaults on the AIA 171 frame: gain resolves to 2.0, 30 canvas pixels
+above white. Screenshots cannot show any of this; the acceptance test remains Gilly's eyes.

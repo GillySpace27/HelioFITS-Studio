@@ -93,11 +93,15 @@ layout(std140) uniform DisplayBlock {
     // std140 16-byte row (the previous rounding floats were all taken), so the Java buffer grows
     // by four floats.
     float hdrGain;
-    // How the gain is applied, on the brightest linear channel so hue is kept:
-    //   0  linear:    every value scaled by the gain;
-    //   1  hard knee: unchanged up to hdrKnee, then a straight line to the gain at white;
-    //   2  soft knee: unchanged up to hdrKnee, then a curve that leaves the knee at slope 1
-    //                 and reaches the gain at white (highlight roll-up, no visible break).
+    // How the gain is applied. The knee modes are driven by the DATA value that indexed the
+    // colour table, not by how bright the table's colour happens to be: a table that lives
+    // near white (PUNCH) would otherwise put most of its field over white, and a saturated one
+    // (LASCO blue) would go neon. Only the brightest data gets the headroom.
+    //   0  linear:    every pixel's colour scaled by the gain;
+    //   1  hard knee: unchanged up to hdrKnee of the data range, then expansion rising on a
+    //                 straight line to the gain at the top;
+    //   2  soft knee: as 1 with a curve that leaves the knee flat, and the colour rolling
+    //                 toward white as it climbs, which is what bright light looks like.
     float hdrMode;
     float hdrKnee;
 } display;
@@ -209,23 +213,26 @@ vec4 getColor(const vec2 texcoord, const vec2 difftexcoord, const float factor) 
         value += dither(texcoord);
 
     vec4 colour = texture(lut, vec2(value, 0.5)) * display.color;
-    if (display.hdrGain == 1.)
+    if (display.hdrGain == 1. || display.indexed != 0.)
         return colour;
     // The gain is a multiple of SDR white in LIGHT, so it is applied to linear values: the colour
     // table is sRGB-encoded, and multiplying the encoded value by 6 would be 6^2.2 in light, which
     // clips the whole top of the image at the panel's peak. Decode, scale, re-encode with the
     // curve extended past 1.0 (monotonic there), which the Metal presenter inverts exactly.
     vec3 lin = mix(colour.rgb / 12.92, pow((colour.rgb + 0.055) / 1.055, vec3(2.4)), step(0.04045, colour.rgb));
-    float m = max(lin.r, max(lin.g, lin.b));
-    float H = display.hdrGain, k = display.hdrKnee;
-    float mapped;
-    if (display.hdrMode == 0. || m <= k)
-        mapped = display.hdrMode == 0. ? m * H : m;
-    else {
-        float t = (m - k) / (1. - k);
-        mapped = display.hdrMode == 1. ? k + t * (H - k) : k + (1. - k) * t + (H - 1.) * t * t;
+    float G = display.hdrGain, k = display.hdrKnee;
+    float E = G; // expansion, a multiple of SDR white in light
+    if (display.hdrMode != 0.) {
+        float t = clamp((clamp(value, 0., 1.) - k) / (1. - k), 0., 1.);
+        E = display.hdrMode == 1. ? 1. + t * (G - 1.) : 1. + (G - 1.) * t * t;
     }
-    lin *= m > 0. ? mapped / m : 1.;
+    lin *= E;
+    if (display.hdrMode == 2.) {
+        // Roll to white: the further over SDR white, the closer to a neutral of the same
+        // luminance. Without this a saturated table colour at 4x is neon, not bright.
+        float Y = dot(lin, vec3(0.2126, 0.7152, 0.0722));
+        lin = mix(lin, vec3(Y), (E - 1.) / max(G - 1., 1e-4));
+    }
     vec3 enc = mix(lin * 12.92, 1.055 * pow(lin, vec3(1. / 2.4)) - 0.055, step(0.0031308, lin));
     return vec4(enc, colour.a);
 }
