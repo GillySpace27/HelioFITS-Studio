@@ -209,3 +209,19 @@ bottom-left corner while the screen reports no headroom and the panel could offe
 drops it the moment the reading rises. The Java-side 1.5x bootstrap frame is gone; the gain is
 simply capped by what the screen reports. Verified at defaults: screen 1.0 -> 3.8 -> 4.0 within
 two seconds, gain setting 2 -> 2.0.
+
+## Revision 4, 2026-09-04: the plateau, and what HDR is actually for
+
+Gilly: the PUNCH data are hard clipped in the bright areas. They were, and always had been:
+`FITSImage.mapNormalizedToHalfFloat` clamped everything above the display range's top to 1 at
+upload, so every such pixel took the colour table's top colour, and the knee then lifted that
+flat region as one. The texture is half float, so the clamp is gone: above 1 the texture holds
+the physical ratio to the range's top (continuous with the stretched value at 1, capped at 16),
+`ImageBuffer.PhysicalScale.toPhysical` reads it back, and the layered EXR's `.Y` carries it.
+The colour table still clamps, so the SDR picture and the 10-bit canvas are unchanged.
+
+New mapping, now the default: **Beyond the display range**. Inside the range nothing moves;
+data above its top shine over white in proportion to how far over they are, up to the gain,
+rolling to white. The display range is the SDR picture and the headroom is the data the range
+could not hold. That is the honest use of the panel, and it is what un-flattens the plateau.
+Linear and the two knees remain for anyone who wants brightness rather than data.

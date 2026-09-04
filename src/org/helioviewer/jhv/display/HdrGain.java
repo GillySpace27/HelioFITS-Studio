@@ -21,7 +21,8 @@ public final class HdrGain {
     public enum Mode {
         Linear("Linear (whole image scaled)"),
         HardKnee("Hard knee (brightest data only, straight)"),
-        SoftKnee("Soft knee (brightest data only, rolls to white)");
+        SoftKnee("Soft knee (brightest data only, rolls to white)"),
+        BeyondRange("Beyond the display range (data above the range shine over white)");
 
         public final String label;
 
@@ -33,7 +34,7 @@ public final class HdrGain {
             for (Mode m : values())
                 if (m.name().equalsIgnoreCase(name))
                     return m;
-            return SoftKnee;
+            return BeyondRange;
         }
     }
 

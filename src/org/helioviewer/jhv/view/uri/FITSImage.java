@@ -171,13 +171,21 @@ public final class FITSImage implements URIImageReader {
     private static final short HALF_FLOAT_ZERO = Float.floatToFloat16(0f);
     private static final short HALF_FLOAT_ONE = Float.floatToFloat16(1f);
 
+    // Data above the display range used to be clamped to 1 here, which is the hard plateau every
+    // bright region shows at the top of the range. The texture is half float, so the value is
+    // kept instead: above 1 it is the physical ratio to the range's top (continuous with the
+    // stretched value at 1), capped where no panel can follow. The colour table still clamps, so
+    // the SDR picture is unchanged; the EDR canvas can show what lies beyond.
+    private static final float OVER_RANGE_CEILING = 16;
+
     private record NormalizedLookup(short[] values) {
         private short mapIndex(double index) {
             if (!(index > 0)) {
                 return HALF_FLOAT_ZERO;
             }
             if (index >= SCALE_LOOKUP_SIZE) {
-                return HALF_FLOAT_ONE;
+                return Double.isInfinite(index) ? HALF_FLOAT_ONE
+                        : Float.floatToFloat16((float) Math.min(index / SCALE_LOOKUP_SIZE, OVER_RANGE_CEILING));
             }
             return values[(int) index];
         }
@@ -248,7 +256,7 @@ public final class FITSImage implements URIImageReader {
             return HALF_FLOAT_ZERO;
         }
         if (x >= 1) {
-            return HALF_FLOAT_ONE;
+            return Double.isInfinite(x) ? HALF_FLOAT_ONE : Float.floatToFloat16((float) Math.min(x, OVER_RANGE_CEILING));
         }
         return Float.floatToFloat16((float) Math.clamp(mapping.applyAsDouble(x), 0, 1));
     }
