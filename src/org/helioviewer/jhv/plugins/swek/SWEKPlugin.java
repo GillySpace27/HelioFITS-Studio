@@ -2,6 +2,7 @@ package org.helioviewer.jhv.plugins.swek;
 
 import javax.annotation.Nullable;
 
+import org.helioviewer.jhv.event.SWEKDownloader;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.layers.selector.LayerOptions;
@@ -38,6 +39,7 @@ public class SWEKPlugin extends Plugin {
 
     @Override
     public void installGUI() {
+        SWEKDownloader.installFilterListener();
         etl = new EventTimelineLayer();
         swekPanel = new SWEKTreePane(SWEKConfig.load());
         popupController = new SWEKPopupController();
@@ -53,6 +55,7 @@ public class SWEKPlugin extends Plugin {
 
     @Override
     public void uninstallGUI() {
+        SWEKDownloader.removeFilterListener();
         Timelines.getLayers().remove(etl);
         popupController.uninstall();
         popupController.setLayer(null);

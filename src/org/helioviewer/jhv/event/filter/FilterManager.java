@@ -22,6 +22,10 @@ public class FilterManager {
             listeners.add(listener);
     }
 
+    public static void removeListener(Listener listener) {
+        listeners.remove(listener);
+    }
+
     static void addFilter(SWEKSupplier supplier, SWEK.Parameter parameter, SWEK.Param filter) {
         Map<SWEK.Parameter, List<SWEK.Param>> filteredParameter = filters.computeIfAbsent(supplier, _ -> new HashMap<>());
         filteredParameter.computeIfAbsent(parameter, k -> new ArrayList<>()).add(filter);

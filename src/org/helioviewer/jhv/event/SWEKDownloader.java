@@ -19,6 +19,7 @@ import com.google.common.collect.ArrayListMultimap;
 public class SWEKDownloader {
 
     private static final int NUMBER_THREADS = 8;
+    private static final FilterManager.Listener filterListener = SWEKDownloader::filtersChanged;
     private static Consumer<SWEKGroup> groupChanged = _ -> {};
     private static final ThreadPoolExecutor downloadPool = new ThreadPoolExecutor(
             NUMBER_THREADS, NUMBER_THREADS, 10000L, TimeUnit.MILLISECONDS,
@@ -133,8 +134,12 @@ public class SWEKDownloader {
 
     private static final ArrayListMultimap<SWEKSupplier, Worker> workerMap = ArrayListMultimap.create();
 
-    static {
-        FilterManager.addListener(SWEKDownloader::filtersChanged);
+    public static void installFilterListener() {
+        FilterManager.addListener(filterListener);
+    }
+
+    public static void removeFilterListener() {
+        FilterManager.removeListener(filterListener);
     }
 
     public static void setGroupChangedCallback(Consumer<SWEKGroup> callback) {
