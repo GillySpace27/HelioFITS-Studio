@@ -17,12 +17,44 @@ import org.helioviewer.jhv.app.Settings;
  */
 public final class HdrGain {
 
+    /** How the gain is applied; the shader's hdrMode is the ordinal. */
+    public enum Mode {
+        Linear("Linear (everything scaled)"),
+        HardKnee("Hard knee (highlights only, straight)"),
+        SoftKnee("Soft knee (highlights only, rolled up)");
+
+        public final String label;
+
+        Mode(String _label) {
+            label = _label;
+        }
+
+        static Mode fromName(String name) {
+            for (Mode m : values())
+                if (m.name().equalsIgnoreCase(name))
+                    return m;
+            return SoftKnee;
+        }
+    }
+
     private static final String KEY_GAIN = "display.hdrGain";
+    private static final String KEY_MODE = "display.hdrMode";
+    private static final String KEY_KNEE = "display.hdrKnee";
     private static final String KEY_CANVAS = "display.edrCanvas";
     private static final float MAX = 16;
     static final float BOOTSTRAP = 1.5f;
 
     private static String setting = defaultSetting();
+    private static Mode mode = Mode.fromName(String.valueOf(Settings.getProperty(KEY_MODE)));
+    private static float knee = parseKnee(Settings.getProperty(KEY_KNEE));
+
+    private static float parseKnee(String stored) {
+        try {
+            return (float) Math.clamp(Double.parseDouble(stored), 0.05, 0.95);
+        } catch (NumberFormatException | NullPointerException e) {
+            return 0.5f;
+        }
+    }
 
     private static String defaultSetting() {
         String stored = Settings.getProperty(KEY_GAIN);
@@ -53,6 +85,25 @@ public final class HdrGain {
 
     public static String setting() {
         return setting;
+    }
+
+    public static Mode mode() {
+        return mode;
+    }
+
+    public static void setMode(Mode _mode) {
+        mode = _mode;
+        Settings.setProperty(KEY_MODE, mode.name());
+    }
+
+    /** Where the knee sits, as a fraction of white in linear light; ignored by Linear. */
+    public static float knee() {
+        return knee;
+    }
+
+    public static void setKnee(double _knee) {
+        knee = (float) Math.clamp(_knee, 0.05, 0.95);
+        Settings.setProperty(KEY_KNEE, Float.toString(knee));
     }
 
     public static void setSetting(String _setting) {

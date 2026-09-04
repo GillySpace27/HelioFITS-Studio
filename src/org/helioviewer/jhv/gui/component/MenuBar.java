@@ -136,6 +136,35 @@ public final class MenuBar extends JMenuBar {
         }
         viewMenu.add(hdrBrightness);
 
+        JMenu hdrMapping = new JMenu("HDR Mapping");
+        hdrMapping.setToolTipText("Linear scales the whole image into the headroom. The knee modes leave everything "
+                + "below the knee as it is and expand only the highlights; soft rolls into it without a visible break.");
+        ButtonGroup modeGroup = new ButtonGroup();
+        for (HdrGain.Mode mode : HdrGain.Mode.values()) {
+            JRadioButtonMenuItem item = new JRadioButtonMenuItem(mode.label, mode == HdrGain.mode());
+            item.addActionListener(e -> {
+                HdrGain.setMode(mode);
+                DisplayController.display();
+            });
+            modeGroup.add(item);
+            hdrMapping.add(item);
+        }
+        viewMenu.add(hdrMapping);
+
+        JMenu hdrKnee = new JMenu("HDR Knee");
+        hdrKnee.setToolTipText("Where the knee modes start expanding, as a fraction of white in linear light.");
+        ButtonGroup kneeGroup = new ButtonGroup();
+        for (double k : new double[]{0.25, 0.5, 0.75}) {
+            JRadioButtonMenuItem item = new JRadioButtonMenuItem(Math.round(k * 100) + "% of white", Math.abs(k - HdrGain.knee()) < 1e-3);
+            item.addActionListener(e -> {
+                HdrGain.setKnee(k);
+                DisplayController.display();
+            });
+            kneeGroup.add(item);
+            hdrKnee.add(item);
+        }
+        viewMenu.add(hdrKnee);
+
 
         viewMenu.addSeparator();
         viewMenu.add(new Actions.TogglePresentationMode());
