@@ -560,36 +560,24 @@ public class EventDatabase {
         }
     }
 
-    private static List<JsonEvent> queryRelationEvents(int event_id, SWEKSupplier type_left, SWEKSupplier type_right, String param_left, String param_right) throws Exception {
+    private static List<JsonEvent> queryRelationEvents(int eventId, SWEKSupplier leftType, SWEKSupplier rightType,
+                                                       String leftParameter, String rightParameter) throws Exception {
         List<JsonEvent> ret = new ArrayList<>();
-        if (findEventTypeId(type_left) == -1 || findEventTypeId(type_right) == -1)
+        if (findEventTypeId(leftType) == -1 || findEventTypeId(rightType) == -1)
             return ret;
 
-        String table_left_name = type_left.dbName();
-        String table_right_name = type_right.dbName();
+        String sql = "SELECT e.id, e.start, e.end, e.data, event_type.supplier FROM events AS e " +
+                "LEFT JOIN event_type ON e.type_id=event_type.id WHERE e.id IN (" +
+                "SELECT CASE WHEN tl.event_id=? THEN tr.event_id ELSE tl.event_id END " +
+                "FROM " + leftType.dbName() + " AS tl " +
+                "JOIN " + rightType.dbName() + " AS tr ON tl." + leftParameter + "=tr." + rightParameter + ' ' +
+                "WHERE tl.event_id!=tr.event_id AND (tl.event_id=? OR tr.event_id=?))";
+        PreparedStatement statement = getPreparedStatement(sql);
+        statement.setInt(1, eventId);
+        statement.setInt(2, eventId);
+        statement.setInt(3, eventId);
 
-        String sqlt = "SELECT tl.event_id, tr.event_id FROM " + table_left_name + " AS tl," + table_right_name + " AS tr" + " WHERE tl." + param_left + "=tr." + param_right + " AND tl.event_id!=tr.event_id AND (tl.event_id=? OR tr.event_id=?)";
-        PreparedStatement pstatement = getPreparedStatement(sqlt);
-        pstatement.setLong(1, event_id);
-        pstatement.setLong(2, event_id);
-
-        StringBuilder idList = new StringBuilder();
-        try (ResultSet rs = pstatement.executeQuery()) {
-            boolean next = rs.next();
-            while (next) {
-                idList.append(rs.getInt(1)).append(',').append(rs.getInt(2));
-                next = rs.next();
-                if (next) {
-                    idList.append(',');
-                }
-            }
-        }
-        if (idList.isEmpty())
-            return ret;
-
-        String query = "SELECT distinct events.id, events.start, events.end, events.data, event_type.supplier FROM events LEFT JOIN event_type ON events.type_id = event_type.id WHERE events.id IN ( " + idList + ") AND events.id != " + event_id;
-        try (Statement statement = pstatement.getConnection().createStatement();
-             ResultSet rs = statement.executeQuery(query)) {
+        try (ResultSet rs = statement.executeQuery()) {
             while (rs.next()) {
                 int id = rs.getInt(1);
                 long start = rs.getLong(2);
