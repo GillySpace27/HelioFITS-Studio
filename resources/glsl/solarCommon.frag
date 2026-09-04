@@ -202,7 +202,16 @@ vec4 getColor(const vec2 texcoord, const vec2 difftexcoord, const float factor) 
         value += dither(texcoord);
 
     vec4 colour = texture(lut, vec2(value, 0.5)) * display.color;
-    return vec4(colour.rgb * display.hdrGain, colour.a);
+    if (display.hdrGain == 1.)
+        return colour;
+    // The gain is a multiple of SDR white in LIGHT, so it is applied to linear values: the colour
+    // table is sRGB-encoded, and multiplying the encoded value by 6 would be 6^2.2 in light, which
+    // clips the whole top of the image at the panel's peak. Decode, scale, re-encode with the
+    // curve extended past 1.0 (monotonic there), which the Metal presenter inverts exactly.
+    vec3 lin = mix(colour.rgb / 12.92, pow((colour.rgb + 0.055) / 1.055, vec3(2.4)), step(0.04045, colour.rgb));
+    lin *= display.hdrGain;
+    vec3 enc = mix(lin * 12.92, 1.055 * pow(lin, vec3(1. / 2.4)) - 0.055, step(0.0031308, lin));
+    return vec4(enc, colour.a);
 }
 
 void clamp_texture(const vec2 texcoord) {

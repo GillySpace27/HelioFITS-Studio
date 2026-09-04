@@ -280,17 +280,24 @@ public final class AngleRenderer {
                 Log.warn("Deep-colour present failed for a frame");
             else if (edr) {
                 pollHeadroom();
-                // The compositor reports the headroom a moment after a frame above white is on
-                // screen, and the app renders only on demand; without this the first EDR frame
-                // would sit at the bootstrap gain until something else caused a repaint.
+                // The compositor ramps the headroom up over one to two seconds after a frame above
+                // white is on screen, and the app renders only on demand; without this the first
+                // EDR frame would sit at the bootstrap gain until something else caused a repaint.
+                recheckTicks = 0;
                 headroomRecheck.restart();
             }
         } else if (swapBuffers && !EGL15.eglSwapBuffers(display, surface))
             throw eglError("eglSwapBuffers");
     }
 
-    private final javax.swing.Timer headroomRecheck = new javax.swing.Timer(150, e -> pollHeadroom());
-    { headroomRecheck.setRepeats(false); }
+    // Polls every 250 ms for four seconds after the last present, then stops; a change repaints,
+    // which presents, which starts the four seconds again.
+    private int recheckTicks;
+    private final javax.swing.Timer headroomRecheck = new javax.swing.Timer(250, e -> {
+        pollHeadroom();
+        if (++recheckTicks >= 16)
+            ((javax.swing.Timer) e.getSource()).stop();
+    });
 
     // Publish the screen's headroom readings and repaint when they change, so the gain follows
     // the display (brightness slider, window moved to another screen) within a frame or two.
@@ -305,7 +312,8 @@ public final class AngleRenderer {
         // step repaints, but only a real change is worth a line in the log.
         if (Math.abs(headroom - loggedHeadroom) > 0.25 * loggedHeadroom) {
             loggedHeadroom = headroom;
-            Log.info("EDR headroom now " + headroom + " of a potential " + potential + " SDR whites");
+            Log.info("EDR headroom now " + headroom + " of a potential " + potential + " SDR whites; gain setting "
+                    + org.helioviewer.jhv.display.HdrGain.setting() + " -> " + org.helioviewer.jhv.display.HdrGain.current(false));
         }
         DisplayController.display();
     }
