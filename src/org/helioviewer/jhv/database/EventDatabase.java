@@ -223,7 +223,7 @@ public class EventDatabase {
             statement.setLong(3, event2db.start());
             statement.setLong(4, event2db.end());
             statement.setLong(5, event2db.archiv());
-            statement.setBinaryStream(6, new ByteArrayInputStream(event2db.compressedJson()), event2db.compressedJson().length);
+            statement.setBytes(6, event2db.compressedJson());
             if (eventId != -1)
                 statement.setInt(7, eventId);
             statement.executeUpdate();
