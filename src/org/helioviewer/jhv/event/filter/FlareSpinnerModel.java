@@ -27,7 +27,9 @@ class FlareSpinnerModel extends AbstractSpinnerModel {
     @Override
     public void setValue(Object value) {
         String stringValue = value.toString();
-        GOESLevel.getFloatValue(stringValue);
+        double numericValue = GOESLevel.getFloatValue(stringValue);
+        if (numericValue < min || numericValue > max)
+            throw new IllegalArgumentException("GOES class outside filter range: " + stringValue);
         curval = stringValue;
         fireStateChanged();
     }
