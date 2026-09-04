@@ -16,7 +16,7 @@ public class SWEK {
 
     }
 
-    public record ParameterFilter(String type, Double min, Double max, Double startValue, Double stepSize, String units,
+    public record ParameterFilter(String type, double min, double max, double startValue, double stepSize, String units,
                                   String dbType) {}
 
     public record Param(String name, double value, Operand operand) {}

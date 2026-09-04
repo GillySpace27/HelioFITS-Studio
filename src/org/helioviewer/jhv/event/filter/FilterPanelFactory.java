@@ -28,24 +28,18 @@ class FilterPanelFactory {
 
     private static JHVSpinner generateFlareSpinner(FilterDialog filterDialog, SWEK.Parameter parameter) {
         SWEK.ParameterFilter filter = parameter.filter();
-        double min = filter.min() == null ? 1e-8 : filter.min();
-        double max = filter.max() == null ? 1e-3 : filter.max();
-        double start = filter.startValue() == null ? 1e-5 : filter.startValue();
-        double step = filter.stepSize() == null ? 0.5 : filter.stepSize();
-
-        JHVSpinner spinner = new JHVSpinner(new FlareSpinnerModel(start, min, max, step));
+        JHVSpinner spinner = new JHVSpinner(new FlareSpinnerModel(
+                filter.startValue(), filter.min(), filter.max(), filter.stepSize()));
         spinner.addChangeListener(e -> filterDialog.filterParameterChanged());
         return spinner;
     }
 
     private static JHVSpinner generateMinOrMaxSpinner(FilterDialog filterDialog, SWEK.Parameter parameter) {
         SWEK.ParameterFilter filter = parameter.filter();
-        double min = filter.min() == null ? Double.MIN_VALUE : filter.min();
-        double max = filter.max() == null ? Double.MAX_VALUE : filter.max();
-        double start = filter.startValue() == null ? (max - min) * 0.5 : filter.startValue();
-        double step = filter.stepSize() == null ? (max - min) * 0.01 : filter.stepSize();
+        double min = filter.min();
+        double max = filter.max();
 
-        JHVSpinner spinner = new JHVSpinner(start, min, max, step);
+        JHVSpinner spinner = new JHVSpinner(filter.startValue(), min, max, filter.stepSize());
         spinner.setEditor(new JHVSpinner.NumberEditor(spinner, getSpinnerFormat(min, max)));
         spinner.addChangeListener(e -> filterDialog.filterParameterChanged());
         return spinner;
