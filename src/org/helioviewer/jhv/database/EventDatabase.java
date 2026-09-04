@@ -433,12 +433,17 @@ public class EventDatabase {
             return typedCache;
 
         typedCache = new RequestCache();
-        long last_timestamp = getLastEvent(type);
+        int typeId = findEventTypeId(type);
+        if (typeId == -1) {
+            storedIntervals.put(type, typedCache);
+            return typedCache;
+        }
+
+        long last_timestamp = getLastEvent(typeId);
         long lastEvent = last_timestamp == Long.MIN_VALUE ? Long.MAX_VALUE : Math.min(System.currentTimeMillis(), last_timestamp);
         long invalidationDate = lastEvent - ONEWEEK * 2;
         storedIntervals.put(type, typedCache);
 
-        int typeId = findOrInsertEventTypeId(type);
         PreparedStatement pstatement = getPreparedStatement(SELECT_DATERANGE);
         pstatement.setInt(1, typeId);
         try (ResultSet rs = pstatement.executeQuery()) {
@@ -452,8 +457,7 @@ public class EventDatabase {
         return typedCache;
     }
 
-    private static long getLastEvent(SWEKSupplier type) throws Exception {
-        int typeId = findOrInsertEventTypeId(type);
+    private static long getLastEvent(int typeId) throws Exception {
         long last_timestamp = Long.MIN_VALUE;
         PreparedStatement pstatement = getPreparedStatement(SELECT_LAST_EVENT);
         pstatement.setInt(1, typeId);
@@ -485,7 +489,10 @@ public class EventDatabase {
         @Override
         public List<JHVEvent> call() throws Exception {
             List<JHVEvent> eventList = new ArrayList<>();
-            int typeId = findOrInsertEventTypeId(type);
+            int typeId = findEventTypeId(type);
+            if (typeId == -1)
+                return eventList;
+
             String join = "LEFT JOIN " + type.dbName() + " AS tp ON tp.event_id=e.id";
             StringBuilder filters = new StringBuilder();
             for (SWEK.Param p : params) {
@@ -532,7 +539,10 @@ public class EventDatabase {
         @Override
         public List<JHVEvent.Link> call() throws Exception {
             List<JHVEvent.Link> assocList = new ArrayList<>();
-            int typeId = findOrInsertEventTypeId(type);
+            int typeId = findEventTypeId(type);
+            if (typeId == -1)
+                return assocList;
+
             PreparedStatement pstatement = getPreparedStatement(SELECT_ASSOCIATIONS);
             pstatement.setInt(1, typeId);
             pstatement.setLong(2, end);
@@ -551,8 +561,9 @@ public class EventDatabase {
     }
 
     private static List<JsonEvent> queryRelationEvents(int event_id, SWEKSupplier type_left, SWEKSupplier type_right, String param_left, String param_right) throws Exception {
-        findOrInsertEventTypeId(type_left);
-        findOrInsertEventTypeId(type_right);
+        List<JsonEvent> ret = new ArrayList<>();
+        if (findEventTypeId(type_left) == -1 || findEventTypeId(type_right) == -1)
+            return ret;
 
         String table_left_name = type_left.dbName();
         String table_right_name = type_right.dbName();
@@ -573,7 +584,6 @@ public class EventDatabase {
                 }
             }
         }
-        List<JsonEvent> ret = new ArrayList<>();
         if (idList.isEmpty())
             return ret;
 
