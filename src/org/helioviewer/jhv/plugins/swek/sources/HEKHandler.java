@@ -75,12 +75,17 @@ public class HEKHandler extends SWEKHandler {
             String dbType = fieldEntry.getValue();
             String fieldName = fieldEntry.getKey();
             String lfieldName = fieldName.toLowerCase();
-            if (!result.isNull(lfieldName)) {
+            if (result.isNull(lfieldName))
+                continue;
+
+            try {
                 switch (dbType) {
                     case "INTEGER" -> paramList.add(new SWEKHandler.RemoteParameter(fieldName, result.getInt(lfieldName)));
                     case "TEXT" -> paramList.add(new SWEKHandler.RemoteParameter(fieldName, result.getString(lfieldName)));
                     case "REAL" -> paramList.add(new SWEKHandler.RemoteParameter(fieldName, result.getDouble(lfieldName)));
                 }
+            } catch (JSONException e) {
+                Log.warn("Ignoring malformed HEK field " + fieldName + " in " + uid, e);
             }
         }
         try (ByteArrayOutputStream baos = JSONUtils.compressJSON(result)) {
