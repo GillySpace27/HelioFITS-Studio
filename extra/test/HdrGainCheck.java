@@ -11,9 +11,9 @@ public final class HdrGainCheck {
         assertEq("capturing, fixed", 1f, HdrGain.resolve("4", 10.85, 16, true));
         // Auto tracks the display once it reports a headroom.
         assertEq("auto", 10.85f, HdrGain.resolve("auto", 10.85, 16, false));
-        // Before the compositor has engaged, auto bootstraps past white on a screen that could
-        // offer more, and stays at 1 on one that cannot.
-        assertEq("auto, bootstrap", HdrGain.BOOTSTRAP, HdrGain.resolve("auto", 1.0, 16, false));
+        // Before the compositor has engaged (the presenter's corner patch takes care of that) the
+        // screen reports 1 and so does the gain, whatever the potential.
+        assertEq("auto, not yet engaged", 1f, HdrGain.resolve("auto", 1.0, 16, false));
         assertEq("auto, SDR display", 1f, HdrGain.resolve("auto", 1.0, 1.0, false));
         assertEq("auto, absurd", 1f, HdrGain.resolve("auto", 0.0, 0.0, false));
         // Fixed stops are clamped to [1, 16], never exceed what the screen shows, and fall back to
@@ -22,7 +22,7 @@ public final class HdrGainCheck {
         assertEq("fixed, too low", 1f, HdrGain.resolve("0.5", 10.85, 16, false));
         assertEq("fixed, too high", 10.85f, HdrGain.resolve("64", 10.85, 16, false));
         assertEq("fixed, screen offers less", 2f, HdrGain.resolve("4", 2.0, 16, false));
-        assertEq("fixed, before engagement", HdrGain.BOOTSTRAP, HdrGain.resolve("4", 1.0, 16, false));
+        assertEq("fixed, before engagement", 1f, HdrGain.resolve("4", 1.0, 16, false));
         assertEq("fixed, SDR display", 1f, HdrGain.resolve("4", 1.0, 1.0, false));
         assertEq("garbage", 10.85f, HdrGain.resolve("bright", 10.85, 16, false));
         assertEq("null", 10.85f, HdrGain.resolve(null, 10.85, 16, false));

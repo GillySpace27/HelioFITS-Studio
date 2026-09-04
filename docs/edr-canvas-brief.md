@@ -197,3 +197,15 @@ Blown out, oversaturated, unnatural. Three causes, all in the design rather than
 
 Measured at the new defaults on the AIA 171 frame: gain resolves to 2.0, 30 canvas pixels
 above white. Screenshots cannot show any of this; the acceptance test remains Gilly's eyes.
+
+## Revision 3, 2026-09-04: engagement made deterministic
+
+With the knee on the data and one stop of gain, the canvas can stay under the compositor's
+1.25 threshold for good, so the screen never engages and the gain stays capped at 1: HDR
+"completely absent". Measured: a 2x2 patch at 1.5 engages, 1x1 does not; CAEDRMetadata is no
+substitute (HDR10 metadata does nothing, HLG engages at a fixed 4.0 but declares the pixels
+HLG-encoded, which they are not). So the presenter's pass draws a 3x3 patch at 1.5 in the
+bottom-left corner while the screen reports no headroom and the panel could offer some, and
+drops it the moment the reading rises. The Java-side 1.5x bootstrap frame is gone; the gain is
+simply capped by what the screen reports. Verified at defaults: screen 1.0 -> 3.8 -> 4.0 within
+two seconds, gain setting 2 -> 2.0.
