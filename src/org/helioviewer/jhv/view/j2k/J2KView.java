@@ -27,7 +27,6 @@ import org.helioviewer.jhv.thread.LatestWorker;
 import org.helioviewer.jhv.time.JHVTime;
 import org.helioviewer.jhv.time.TimeMap;
 import org.helioviewer.jhv.view.BaseView;
-import org.helioviewer.jhv.view.View;
 
 import kdu_jni.KduException;
 
@@ -328,19 +327,6 @@ public class J2KView extends BaseView {
             Log.errorStack(t);
         }
 
-    }
-
-    private void sendDataToHandler(int frame, Position viewpoint, DecodedImage image) {
-        image.imageBuffer().protectFromExplicitFree();
-        MetaData m = metaData[frame];
-
-        View.ImageData data = new View.ImageData(image.imageBuffer(), m, image.region(), viewpoint);
-        EventQueue.invokeLater(() -> {
-            if (dataHandler != null)
-                dataHandler.handleData(data);
-            else
-                image.imageBuffer().allowExplicitFree();
-        });
     }
 
     @Nullable

@@ -1,6 +1,5 @@
 package org.helioviewer.jhv.view.uri;
 
-import java.awt.EventQueue;
 import java.io.File;
 import java.util.concurrent.Callable;
 
@@ -21,7 +20,6 @@ import org.helioviewer.jhv.metadata.Region;
 import org.helioviewer.jhv.metadata.XMLMetaDataContainer;
 import org.helioviewer.jhv.thread.LatestWorker;
 import org.helioviewer.jhv.view.BaseView;
-import org.helioviewer.jhv.view.View;
 
 public final class URIView extends BaseView {
 
@@ -74,7 +72,7 @@ public final class URIView extends BaseView {
         if (image != null) {
             // Mark running decodes stale before publishing this cached result.
             executor.cancel();
-            sendDataToHandler(image, viewpoint);
+            sendDataToHandler(0, viewpoint, image);
             return;
         }
         executor.submit(new Decoder(dataUri.file(), reader, createFilter(filterType), imageRegion), new Callback(key, viewpoint));
@@ -123,7 +121,7 @@ public final class URIView extends BaseView {
             ImageBufferCache.put(key, result);
             // This decode was superseded after it started; do not publish it to the layer.
             if (!fresh) return;
-            sendDataToHandler(result, viewpoint);
+            sendDataToHandler(0, viewpoint, result);
         }
 
         @Override
@@ -131,17 +129,6 @@ public final class URIView extends BaseView {
             Log.errorStack(t);
         }
 
-    }
-
-    private void sendDataToHandler(DecodedImage image, Position viewpoint) {
-        image.imageBuffer().protectFromExplicitFree();
-        View.ImageData data = new View.ImageData(image.imageBuffer(), metaData[0], image.region(), viewpoint);
-        EventQueue.invokeLater(() -> {
-            if (dataHandler != null)
-                dataHandler.handleData(data);
-            else
-                image.imageBuffer().allowExplicitFree();
-        });
     }
 
     @Nonnull

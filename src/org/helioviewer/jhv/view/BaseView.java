@@ -1,7 +1,10 @@
 package org.helioviewer.jhv.view;
 
+import java.awt.EventQueue;
+
 import javax.annotation.Nullable;
 
+import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.image.DecodedImage;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.image.lut.LUT;
@@ -86,6 +89,19 @@ public class BaseView implements View {
     @Override
     public void setDataHandler(View.DataHandler _dataHandler) {
         dataHandler = _dataHandler;
+    }
+
+    protected final void sendDataToHandler(int frame, Position viewpoint, DecodedImage image) {
+        image.imageBuffer().protectFromExplicitFree();
+        MetaData m = metaData[frame];
+
+        View.ImageData data = new View.ImageData(image.imageBuffer(), m, image.region(), viewpoint);
+        EventQueue.invokeLater(() -> {
+            if (dataHandler != null)
+                dataHandler.handleData(data);
+            else
+                image.imageBuffer().allowExplicitFree();
+        });
     }
 
     @Override
