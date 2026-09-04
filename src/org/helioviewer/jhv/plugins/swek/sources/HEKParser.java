@@ -241,8 +241,13 @@ class HEKParser {
         Position p = Sun.getEarth(new JHVTime(currentEvent.start));
         double elon = p.lon;
 
-        List<Vec3> jhvBoundary = new ArrayList<>(boundary.size());
-        boundary.forEach(point -> jhvBoundary.add(hgsToJhv(point, elon)));
+        float[] jhvBoundary = new float[3 * boundary.size()];
+        for (int i = 0; i < boundary.size(); i++) {
+            Vec3 point = hgsToJhv(boundary.get(i), elon);
+            jhvBoundary[3 * i] = (float) point.x;
+            jhvBoundary[3 * i + 1] = (float) point.y;
+            jhvBoundary[3 * i + 2] = (float) point.z;
+        }
 
         Vec3 jhvCentralPoint = centralPoint != null ? hgsToJhv(centralPoint, elon) : null;
         currentEvent.addPositionInformation(new JHVPositionInformation(jhvCentralPoint, jhvBoundary,
