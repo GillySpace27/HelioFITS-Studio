@@ -186,21 +186,18 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         byte[] color = Colors.bytes(evtr.getColor());
 
         // draw bounds
-        float[] oldBoundaryPoint3d = new float[0];
         int plen = points.length / 3;
-        for (int i = 0; i < plen; i++) {
-            if (oldBoundaryPoint3d.length != 0) {
-                for (int j = 0; j <= DIVPOINTS; j++) {
-                    double alpha = 1. - j / (double) DIVPOINTS;
-                    double xnew = alpha * oldBoundaryPoint3d[0] + (1 - alpha) * points[3 * i];
-                    double ynew = alpha * oldBoundaryPoint3d[1] + (1 - alpha) * points[3 * i + 1];
-                    double znew = alpha * oldBoundaryPoint3d[2] + (1 - alpha) * points[3 * i + 2];
-                    double r = Math.sqrt(xnew * xnew + ynew * ynew + znew * znew);
-                    vertices.set(j, new Vec3(xnew / r, ynew / r, znew / r));
-                }
-                mv.emitMapLine(vp, vertices, POLYGON_RADIUS, color, vexBuf);
+        for (int i = 1; i < plen; i++) {
+            int previous = 3 * (i - 1), current = 3 * i;
+            for (int j = 0; j <= DIVPOINTS; j++) {
+                double alpha = 1. - j / (double) DIVPOINTS;
+                double xnew = alpha * points[previous] + (1 - alpha) * points[current];
+                double ynew = alpha * points[previous + 1] + (1 - alpha) * points[current + 1];
+                double znew = alpha * points[previous + 2] + (1 - alpha) * points[current + 2];
+                double r = Math.sqrt(xnew * xnew + ynew * ynew + znew * znew);
+                vertices.set(j, new Vec3(xnew / r, ynew / r, znew / r));
             }
-            oldBoundaryPoint3d = new float[]{points[3 * i], points[3 * i + 1], points[3 * i + 2]};
+            mv.emitMapLine(vp, vertices, POLYGON_RADIUS, color, vexBuf);
         }
     }
 
