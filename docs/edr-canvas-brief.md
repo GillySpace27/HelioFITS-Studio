@@ -115,3 +115,51 @@ maximum) and fixed stops 1x, 2x, 4x, 8x. A slider is not worth a dialog for five
 Tone mapping, reference-white modes, HDR export formats, external displays without EDR
 (they get today's path via the ladder), Windows and Linux (no CAMetalLayer; the ladder stops
 at their existing configs).
+
+## Outcome, 2026-09-04
+
+Built and measured on the M4 Max, macOS 26.6.1, revision 13309 on `edr-canvas`.
+
+**It works.** Startup logs `EDR canvas: RGBA16F IOSurface pbuffer, CAMetalLayer RGBA16Float
+tagged extended linear sRGB`; with an AIA 171 layer and the gain on Auto the log then reads
+`EDR headroom now 5.60 of a potential 16.0 SDR whites; gain setting auto -> 5.6048427`, the
+canvas readback shows thousands of pixels above 1.0, and the screen reports 6.23 (it peaked at
+16.0 for a moment during one run). At gain 1 the canvas never leaves [0, 1] and the screen
+stays at 1.0.
+
+**Three things the brief did not know, all found by measurement:**
+
+1. *The compositor engages EDR on content, not on request.* A linear-tagged layer with values
+   at or below 1.0 leaves the screen at 1.0; 1.1 does not engage, 1.25 does. So `auto` has to
+   bootstrap: on a screen whose potential headroom is above 1, the first frame renders at
+   1.5x, the compositor ramps the headroom up over one to two seconds, and the renderer polls
+   the reading every 250 ms for four seconds after each present, repainting on change. Without
+   the polling the app, which renders on demand, sat at the bootstrap gain forever.
+2. *The gain is a multiple of SDR white in light, not in encoded value.* The first cut multiplied
+   the sRGB-encoded colour, which for a headroom of 6 is 6^2.2 in light and clips the top of the
+   image at the panel's peak. The shader now decodes to linear, scales, and re-encodes with the
+   curve extended past 1.0; the presenter's pass inverts that exactly.
+3. *A half-float canvas keeps what a UNORM canvas silently repaired.* The pass now maps NaN and
+   Inf to 0 and clamps alpha to [0, 1]. No such values were ever observed on this canvas (the
+   env-gated readback `JHV_EDR_DEBUG=1` scans every frame for them), but the cost is nothing
+   and the failure would be a screen-wide artefact.
+
+**SDR fidelity: passed, by a cleaner test than planned.** `extra/test/native/edr_fidelity_probe.m`
+shows the same sRGB image on an untagged BGR10A2 layer and on a linear-tagged RGBA16Float layer
+with the EOTF applied, in one window, captured in one screenshot: mean difference on lit pixels
+0.48 counts, p99 2, max 19, median ratio 1.0000, with and without EDR engaged. The in-app
+comparison in `extra/test/edr_sdr_fidelity.sh` is kept but its verdict is weaker: the state
+restore and the fit-on-load race for the camera, so two runs of the same state land on
+different views, and the miniview it falls back to draws that camera's field as a rectangle.
+Its 5-count difference is that rectangle, not the pipeline.
+
+**Export fidelity:** by construction and by unit test (`HdrGainCheck`): every capture pass
+receives gain 1. No export was produced from this build; the movie-export code is untouched.
+
+**Not settled:** the screen's headroom reading sometimes rises with the app at gain 1 and the
+canvas verified at or below 1.0 for every frame. It is harmless (values at or below 1 display
+as SDR either way) and it is not this app's content; it looks like the compositor keeping a
+screen in EDR mode for a while after any EDR content has been shown.
+
+**To run it:** `HFStudio (edr).app` on the Desktop builds and launches this worktree; `HFStudio
+(dev).app` still builds `jhv-demo`. View menu: HDR Canvas, HDR Brightness.

@@ -293,6 +293,11 @@ static NSString *const jhv_edr_shader_source = @
     "fragment float4 jhv_edr_fragment(V in [[stage_in]], texture2d<float> src [[texture(0)]]) {\n"
     "    constexpr sampler s(coord::normalized, filter::nearest, address::clamp_to_edge);\n"
     "    float4 c = src.sample(s, in.uv);\n"
+    // A UNORM canvas turned a shader NaN into 0 and an overshoot into 1; a half-float canvas keeps
+    // both, and the compositor treats either as EDR content (measured 2026-09-04: EDR engaged with
+    // no RGB above 1.0). Sanitize here, once, rather than in every overlay shader.
+    "    c = select(c, float4(0.0), isnan(c) || isinf(c));\n"
+    "    c = clamp(c, float4(0.0), float4(16.0, 16.0, 16.0, 1.0));\n"
     // sRGB EOTF, extended past 1.0 by applying it to the magnitude (how Apple's extended
     // spaces are defined). The canvas is premultiplied over an opaque black layer, so its RGB
     // is already the final colour and linearizing it directly is exact.
@@ -499,6 +504,35 @@ int jhv_metal_host_present_deep(void *layerPtr, void *surfPtr, int width, int he
         [commands presentDrawable:drawable];
         [commands commit];
         [commands waitUntilCompleted];
+
+        // JHV_EDR_DEBUG=1: every 30th frame, scan the canvas for its brightest component and say
+        // where it is. This is how "what exceeds white when the gain is 1" gets answered.
+        static int debugFrame = 0;
+        if (edr && getenv("JHV_EDR_DEBUG") != NULL && (debugFrame < 600 || (debugFrame % 30) == 0)) {
+            debugFrame++;
+            NSUInteger bpr = (NSUInteger)width * 8;
+            uint16_t *buf = malloc(bpr * height);
+            [presenter.wrapped getBytes:buf bytesPerRow:bpr fromRegion:MTLRegionMake2D(0, 0, width, height) mipmapLevel:0];
+            float best = -1; NSUInteger bx = 0, by = 0; int bc = 0; NSUInteger over = 0, bad = 0, alphaOver = 0;
+            for (NSUInteger y = 0; y < (NSUInteger)height; y++)
+                for (NSUInteger x = 0; x < (NSUInteger)width; x++) {
+                    uint16_t *px = buf + (y * width + x) * 4;
+                    float m = 0;
+                    for (int c = 0; c < 4; c++) {
+                        __fp16 h; memcpy(&h, &px[c], 2);
+                        float v = (float)h;
+                        if (!isfinite(v)) { bad++; continue; }
+                        if (c == 3) { if (v > 1.0f) alphaOver++; continue; }
+                        if (v > m) m = v;
+                        if (v > best) { best = v; bx = x; by = y; bc = c; }
+                    }
+                    if (m > 1.0f) over++;
+                }
+            free(buf);
+            if (over > 0 || bad > 0 || alphaOver > 0 || debugFrame == 1 || (debugFrame % 30) == 0)
+                NSLog(@"jhv_metal_host EDR debug: frame %d canvas max %.4f (channel %d) at (%lu, %lu) of %dx%d, %lu pixels above 1.0, %lu non-finite components, %lu alpha above 1",
+                      debugFrame, best, bc, (unsigned long)bx, (unsigned long)by, width, height, (unsigned long)over, (unsigned long)bad, (unsigned long)alphaOver);
+        }
 
         if (edr) {
             jhv_run_on_main_async(^{
