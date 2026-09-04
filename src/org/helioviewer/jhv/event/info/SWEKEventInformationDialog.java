@@ -15,6 +15,7 @@ import javax.swing.JScrollPane;
 import javax.swing.WindowConstants;
 
 import org.helioviewer.jhv.app.Log;
+import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.database.EventDatabase;
 import org.helioviewer.jhv.event.JHVEvent;
 import org.helioviewer.jhv.event.JHVRelatedEvents;
@@ -158,8 +159,9 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
     private DataCollapsiblePanel createOtherRelatedEventsCollapsiblePane(String relation, List<JHVEvent> events) {
         JPanel allPrecedingEvents = new JPanel();
         allPrecedingEvents.setLayout(new BoxLayout(allPrecedingEvents, BoxLayout.PAGE_AXIS));
+        Colors.Data colors = new Colors.Data();
         for (JHVEvent relatedEvent : events) {
-            JHVRelatedEvents relatedEvents = new JHVRelatedEvents(relatedEvent);
+            JHVRelatedEvents relatedEvents = new JHVRelatedEvents(relatedEvent, colors.getNextColor());
             allPrecedingEvents.add(createEventPanel(relatedEvents, relatedEvent));
         }
         return new DataCollapsiblePanel(relation, new JScrollPane(allPrecedingEvents), false, model);

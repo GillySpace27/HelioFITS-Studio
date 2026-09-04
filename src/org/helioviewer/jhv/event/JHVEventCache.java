@@ -98,7 +98,7 @@ public class JHVEventCache {
             relatedEvents.swapEvent(event);
             addToIndex(relatedEvents);
         } else {
-            createNewRelatedEvent(event);
+            addNewRelatedEvent(event);
         }
         resolvePendingAssociations(id);
     }
@@ -109,10 +109,13 @@ public class JHVEventCache {
             pending.forEach(JHVEventCache::addAssociation);
     }
 
-    private static void createNewRelatedEvent(JHVEvent event) {
-        JHVRelatedEvents revent = new JHVRelatedEvents(event);
-        addToIndex(revent);
-        relatedEventsById.put(event.getUniqueID(), revent);
+    private static void addNewRelatedEvent(JHVEvent event) {
+        addNewRelatedEvent(event, new JHVRelatedEvents(event));
+    }
+
+    private static void addNewRelatedEvent(JHVEvent event, JHVRelatedEvents relatedEvents) {
+        addToIndex(relatedEvents);
+        relatedEventsById.put(event.getUniqueID(), relatedEvents);
     }
 
     private static void merge(JHVRelatedEvents current, JHVRelatedEvents found) {
@@ -241,7 +244,7 @@ public class JHVEventCache {
 
         for (JHVEvent event : group.getEvents()) {
             if (event.getSupplier() != supplier)
-                addEvent(event);
+                addNewRelatedEvent(event, new JHVRelatedEvents(event, group.getColor()));
         }
         for (JHVEvent.Link link : group.getAssociations()) {
             if (relatedEventsById.containsKey(link.firstId()) && relatedEventsById.containsKey(link.secondId()))

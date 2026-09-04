@@ -21,7 +21,11 @@ public class JHVRelatedEvents {
     private boolean highlighted;
 
     public JHVRelatedEvents(JHVEvent event) {
-        color = eventColors.getNextColor();
+        this(event, eventColors.getNextColor());
+    }
+
+    public JHVRelatedEvents(JHVEvent event, Color _color) {
+        color = _color;
         addEvent(event);
         interval = new Interval(event.start, event.end);
     }
