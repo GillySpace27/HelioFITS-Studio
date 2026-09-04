@@ -123,14 +123,7 @@ public final class ViewState {
     private static final ArrayList<RecordingConfigListener> recordingConfigListeners = new ArrayList<>();
     private static boolean suppressModeNotifications;
 
-    private static MapMode projection = Display.mode;
     private static AnnotationMode annotationMode = AnnotationMode.Cross;
-    private static boolean multiview = Display.multiview;
-    private static boolean tracking = DisplayController.getTrackingMode();
-    private static boolean refresh = ImageLayers.getRefreshMode();
-    private static boolean showCorona = Display.getShowCorona();
-    private static boolean differentialRotation = ImageLayers.getDiffRotationMode();
-    private static double warpLambda = Display.getWarpLambda();
     public static final int PLAYBACK_SPEED_MIN = 1;
     public static final int PLAYBACK_SPEED_MAX = 120;
     private static Player.AdvanceMode playbackAdvanceMode = Player.AdvanceMode.Loop;
@@ -142,7 +135,7 @@ public final class ViewState {
     private static RecordingSize recordingSize = RecordingSize.ORIGINAL;
 
     public static ModeData modeData() {
-        return new ModeData(projection, warpLambda, getAnnotationMode(), multiview, tracking, refresh, showCorona, differentialRotation);
+        return new ModeData(getProjection(), getWarpLambda(), getAnnotationMode(), isMultiview(), isTracking(), isRefresh(), isShowCorona(), isDifferentialRotation());
     }
 
     public static PlaybackData playbackData() {
@@ -206,14 +199,14 @@ public final class ViewState {
     }
 
     public static void applyMode(ModeData data) {
-        boolean changed = projection != data.projection()
-                || warpLambda != data.warpLambda()
+        boolean changed = getProjection() != data.projection()
+                || getWarpLambda() != data.warpLambda()
                 || annotationMode != data.annotationMode()
-                || multiview != data.multiview()
-                || tracking != data.tracking()
-                || refresh != data.refresh()
-                || showCorona != data.showCorona()
-                || differentialRotation != data.differentialRotation();
+                || isMultiview() != data.multiview()
+                || isTracking() != data.tracking()
+                || isRefresh() != data.refresh()
+                || isShowCorona() != data.showCorona()
+                || isDifferentialRotation() != data.differentialRotation();
 
         if (!changed)
             return;
@@ -274,28 +267,26 @@ public final class ViewState {
     }
 
     public static MapMode getProjection() {
-        return projection;
+        return Display.mode;
     }
 
     public static void setProjection(MapMode newProjection) {
-        if (projection == newProjection)
+        if (getProjection() == newProjection)
             return;
 
-        projection = newProjection;
         Display.setMapMode(newProjection);
         notifyModeListeners();
     }
 
     public static double getWarpLambda() {
-        return warpLambda;
+        return Display.getWarpLambda();
     }
 
     public static void setWarpLambda(double newWarpLambda) {
         newWarpLambda = Math.clamp(newWarpLambda, -1, 1);
-        if (warpLambda == newWarpLambda)
+        if (getWarpLambda() == newWarpLambda)
             return;
 
-        warpLambda = newWarpLambda;
         Display.setWarpLambda(newWarpLambda);
         DisplayController.display();
         notifyModeListeners();
@@ -314,68 +305,63 @@ public final class ViewState {
     }
 
     public static boolean isMultiview() {
-        return multiview;
+        return Display.multiview;
     }
 
     public static void setMultiview(boolean newMultiview) {
-        if (multiview == newMultiview)
+        if (isMultiview() == newMultiview)
             return;
 
-        multiview = newMultiview;
         Display.multiview = newMultiview;
         ImageLayers.arrangeMultiView(newMultiview);
         notifyModeListeners();
     }
 
     public static boolean isTracking() {
-        return tracking;
+        return DisplayController.getTrackingMode();
     }
 
     public static void setTracking(boolean newTracking) {
-        if (tracking == newTracking)
+        if (isTracking() == newTracking)
             return;
 
-        tracking = newTracking;
         DisplayController.setTrackingMode(newTracking);
         notifyModeListeners();
     }
 
     public static boolean isRefresh() {
-        return refresh;
+        return ImageLayers.getRefreshMode();
     }
 
     public static void setRefresh(boolean newRefresh) {
-        if (refresh == newRefresh)
+        if (isRefresh() == newRefresh)
             return;
 
-        refresh = newRefresh;
         ImageLayers.setRefreshMode(newRefresh);
         notifyModeListeners();
     }
 
     public static boolean isShowCorona() {
-        return showCorona;
+        return Display.getShowCorona();
     }
 
     public static void setShowCorona(boolean newShowCorona) {
-        if (showCorona == newShowCorona)
+        if (isShowCorona() == newShowCorona)
             return;
 
-        showCorona = newShowCorona;
         Display.setShowCorona(newShowCorona);
         DisplayController.display();
         notifyModeListeners();
     }
 
     public static boolean isDifferentialRotation() {
-        return differentialRotation;
+        return ImageLayers.getDiffRotationMode();
     }
 
     public static void setDifferentialRotation(boolean newDifferentialRotation) {
-        if (differentialRotation == newDifferentialRotation)
+        if (isDifferentialRotation() == newDifferentialRotation)
             return;
 
-        differentialRotation = newDifferentialRotation;
         ImageLayers.setDiffRotationMode(newDifferentialRotation);
         DisplayController.display();
         notifyModeListeners();
