@@ -121,10 +121,11 @@ public final class MenuBar extends JMenuBar {
         viewMenu.add(hdrCanvas);
 
         JMenu hdrBrightness = new JMenu("HDR Brightness");
-        hdrBrightness.setToolTipText("How far image layers go into the display's headroom. Auto uses whatever the "
-                + "display offers at its current brightness setting.");
+        hdrBrightness.setToolTipText("How far over the interface white the brightest data goes, in photographic stops. "
+                + "Never more than the display offers at its current brightness; Maximum uses all of it.");
         ButtonGroup gainGroup = new ButtonGroup();
-        String[][] stops = {{"Auto (display maximum)", "auto"}, {"1x (no HDR)", "1"}, {"2x", "2"}, {"4x", "4"}, {"8x", "8"}};
+        String[][] stops = {{"Off (1x)", "1"}, {"+1/2 stop (1.4x)", "1.41"}, {"+1 stop (2x)", "2"}, {"+1 1/2 stops (2.8x)", "2.83"},
+                {"+2 stops (4x)", "4"}, {"Display maximum", "auto"}};
         for (String[] stop : stops) {
             JRadioButtonMenuItem item = new JRadioButtonMenuItem(stop[0], stop[1].equals(HdrGain.setting()));
             item.addActionListener(e -> {
@@ -152,10 +153,10 @@ public final class MenuBar extends JMenuBar {
         viewMenu.add(hdrMapping);
 
         JMenu hdrKnee = new JMenu("HDR Knee");
-        hdrKnee.setToolTipText("Where the knee modes start expanding, as a fraction of white in linear light.");
+        hdrKnee.setToolTipText("Where the knee modes start expanding, as a fraction of the data range that feeds the colour table.");
         ButtonGroup kneeGroup = new ButtonGroup();
-        for (double k : new double[]{0.25, 0.5, 0.75}) {
-            JRadioButtonMenuItem item = new JRadioButtonMenuItem(Math.round(k * 100) + "% of white", Math.abs(k - HdrGain.knee()) < 1e-3);
+        for (double k : new double[]{0.5, 0.75, 0.9}) {
+            JRadioButtonMenuItem item = new JRadioButtonMenuItem("top " + Math.round((1 - k) * 100) + "% of the data", Math.abs(k - HdrGain.knee()) < 1e-3);
             item.addActionListener(e -> {
                 HdrGain.setKnee(k);
                 DisplayController.display();
