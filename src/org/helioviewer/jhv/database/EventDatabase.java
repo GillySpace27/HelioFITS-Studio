@@ -441,7 +441,6 @@ public class EventDatabase {
         long last_timestamp = getLastEvent(typeId);
         long lastEvent = last_timestamp == Long.MIN_VALUE ? Long.MAX_VALUE : Math.min(System.currentTimeMillis(), last_timestamp);
         long invalidationDate = lastEvent - ONEWEEK * 2;
-        storedIntervals.put(type, typedCache);
 
         PreparedStatement pstatement = getPreparedStatement(SELECT_DATERANGE);
         pstatement.setInt(1, typeId);
@@ -453,6 +452,7 @@ public class EventDatabase {
                     typedCache.adaptRequestCache(beginDate, endDate);
             }
         }
+        storedIntervals.put(type, typedCache);
         return typedCache;
     }
 
