@@ -34,10 +34,6 @@ public class JHVEventCache {
         cacheEventHandlers.add(handler);
     }
 
-    public static void requestForInterval(long start, long end) {
-        downloadMissingIntervals(start, end);
-    }
-
     public static void unregisterHandler(JHVEventListener.Handle handler) {
         cacheEventHandlers.remove(handler);
     }
@@ -177,7 +173,7 @@ public class JHVEventCache {
         return result;
     }
 
-    private static void downloadMissingIntervals(long start, long end) {
+    public static void requestForInterval(long start, long end) {
         long now = System.currentTimeMillis();
         long requestHorizon = now / REQUEST_REFRESH_INTERVAL * REQUEST_REFRESH_INTERVAL + FUTURE_REQUEST_MARGIN;
         long visibleEnd = Math.min(end, requestHorizon);
