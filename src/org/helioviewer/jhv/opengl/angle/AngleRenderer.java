@@ -6,6 +6,7 @@ import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.Platform;
 import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.display.Display;
+import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.opengl.GL;
 import org.helioviewer.jhv.opengl.GLRenderer;
 
@@ -87,6 +88,8 @@ public final class AngleRenderer {
     private static final int EGL_TEXTURE_RGBA = 0x305E;
     private static final int EGL_TEXTURE_2D = 0x305F;
     private static final int GL_RGB10_A2 = 0x8059;
+    private static final int GL_RGBA = 0x1908;
+    private static final int GL_HALF_FLOAT = 0x140B;
     private static final int GL_UNSIGNED_INT_2_10_10_10_REV = 0x8368;
 
     private final long display;
@@ -132,6 +135,11 @@ public final class AngleRenderer {
         try {
             return new AngleRenderer(kind, nativeWindowHandle, width, height);
         } catch (RuntimeException e) {
+            if (edrColor && deepColor) {
+                Log.warn("EDR canvas failed, falling back to 10 bits per channel", e);
+                edrColor = false;
+                return create(kind, nativeWindowHandle, width, height);
+            }
             if (!deepColor)
                 throw e;
             // Deep colour is the only thing asked for here that a driver might refuse, so it is
@@ -146,6 +154,13 @@ public final class AngleRenderer {
     // anyone whose driver accepts a 10-bit surface and then presents it wrongly.
     private static boolean deepColor =
             !"false".equals(org.helioviewer.jhv.app.Settings.getProperty("display.deepColorCanvas"));
+
+    // EDR is the rung above deep colour: same IOSurface route, half-float canvas, layer tagged
+    // linear with EDR requested, so image layers can exceed the interface white. Off leaves the
+    // 10-bit canvas exactly as it was.
+    private static boolean edrColor =
+            !"false".equals(org.helioviewer.jhv.app.Settings.getProperty("display.edrCanvas"));
+    private boolean edr; // this renderer's canvas is the EDR rung
 
     private AngleRenderer(SurfaceKind surfaceKind, long nativeWindowHandle, int pbufferWidth, int pbufferHeight) {
         backend = selectBackend(surfaceKind);
@@ -191,15 +206,23 @@ public final class AngleRenderer {
                 throw eglError("eglCreateContext");
 
             if (surfaceKind == SurfaceKind.WINDOW) {
-                if (deepSurfacePlanned && MacAngleBridge.prepareDeepLayer(nativeWindowHandle)) {
+                boolean edrPlanned = deepSurfacePlanned && edrColor;
+                if (deepSurfacePlanned && MacAngleBridge.prepareDeepLayer(nativeWindowHandle, edrPlanned)) {
                     deepLayer = nativeWindowHandle;
+                    edr = edrPlanned;
                     newSurface = createDeepSurface(stack, Math.max(1, Display.getCanvasWidth()), Math.max(1, Display.getCanvasHeight()));
                     Display.deepCanvas = true;
-                    Log.info("Deep-colour canvas: RGB10_A2 IOSurface pbuffer presented by Metal blit;"
-                            + " CAMetalLayer pixelFormat=BGR10A2Unorm, colorspace unmanaged as before");
+                    Display.edrCanvas = edr;
+                    if (edr)
+                        Log.info("EDR canvas: RGBA16F IOSurface pbuffer, CAMetalLayer RGBA16Float tagged extended linear sRGB,"
+                                + " EDR content requested; headroom is logged after the first frame");
+                    else
+                        Log.info("Deep-colour canvas: RGB10_A2 IOSurface pbuffer presented by Metal blit;"
+                                + " CAMetalLayer pixelFormat=BGR10A2Unorm, colorspace unmanaged as before");
                 } else {
                     if (Platform.isMacOS()) {
                         Display.deepCanvas = false;
+                        Display.edrCanvas = false;
                         // A failed deep attempt may have left the layer flipped for the blit path;
                         // ANGLE's window surface does its own flip, so undo ours.
                         MacAngleBridge.resetDeepLayer(nativeWindowHandle);
@@ -252,17 +275,40 @@ public final class AngleRenderer {
             throw eglError("eglMakeCurrent");
         GLRenderer.display(viewpoint);
         if (deepLayer != 0L) {
-            GLES20.glFinish(); // the Metal blit below reads the IOSurface; the GL writes must be done
-            if (!MacAngleBridge.presentDeep(deepLayer, deepCanvas, deepWidth, deepHeight))
+            GLES20.glFinish(); // the Metal pass below reads the IOSurface; the GL writes must be done
+            if (!MacAngleBridge.presentDeep(deepLayer, deepCanvas, deepWidth, deepHeight, edr))
                 Log.warn("Deep-colour present failed for a frame");
+            else if (edr) {
+                pollHeadroom();
+                // The compositor reports the headroom a moment after a frame above white is on
+                // screen, and the app renders only on demand; without this the first EDR frame
+                // would sit at the bootstrap gain until something else caused a repaint.
+                headroomRecheck.restart();
+            }
         } else if (swapBuffers && !EGL15.eglSwapBuffers(display, surface))
             throw eglError("eglSwapBuffers");
+    }
+
+    private final javax.swing.Timer headroomRecheck = new javax.swing.Timer(150, e -> pollHeadroom());
+    { headroomRecheck.setRepeats(false); }
+
+    // Publish the screen's headroom readings and repaint when they change, so the gain follows
+    // the display (brightness slider, window moved to another screen) within a frame or two.
+    private void pollHeadroom() {
+        double headroom = MacAngleBridge.edrHeadroom(deepLayer);
+        double potential = MacAngleBridge.edrPotential(deepLayer);
+        if (headroom == Display.edrHeadroom && potential == Display.edrPotential)
+            return;
+        Display.edrHeadroom = headroom;
+        Display.edrPotential = potential;
+        Log.info("EDR headroom now " + headroom + " of a potential " + potential + " SDR whites");
+        DisplayController.display();
     }
 
     // Wrap a freshly created RGB10_A2 IOSurface of the given size as the EGL draw surface.
     // On success, deepCanvas/deepWidth/deepHeight describe the new canvas.
     private long createDeepSurface(MemoryStack stack, int width, int height) {
-        long ioSurface = MacAngleBridge.deepCanvasCreate(width, height);
+        long ioSurface = MacAngleBridge.deepCanvasCreate(width, height, edr);
         if (ioSurface == 0L)
             throw new RuntimeException("IOSurface creation failed for deep-colour canvas " + width + "x" + height);
 
@@ -271,9 +317,9 @@ public final class AngleRenderer {
                 EGL15.EGL_HEIGHT, height,
                 EGL_IOSURFACE_PLANE_ANGLE, 0,
                 EGL_TEXTURE_TARGET, EGL_TEXTURE_2D,
-                EGL_TEXTURE_INTERNAL_FORMAT_ANGLE, GL_RGB10_A2,
+                EGL_TEXTURE_INTERNAL_FORMAT_ANGLE, edr ? GL_RGBA : GL_RGB10_A2,
                 EGL_TEXTURE_FORMAT, EGL_TEXTURE_RGBA,
-                EGL_TEXTURE_TYPE_ANGLE, GL_UNSIGNED_INT_2_10_10_10_REV,
+                EGL_TEXTURE_TYPE_ANGLE, edr ? GL_HALF_FLOAT : GL_UNSIGNED_INT_2_10_10_10_REV,
                 EGL_IOSURFACE_USAGE_HINT_ANGLE, 3, // read | write
                 EGL15.EGL_NONE);
         long newSurface = EGL12.eglCreatePbufferFromClientBuffer(display, EGL_IOSURFACE_ANGLE, ioSurface, config, attrs);

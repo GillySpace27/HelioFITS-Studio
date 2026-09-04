@@ -48,6 +48,8 @@ public final class MacAngleBridge {
                     ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
     private static final MethodHandle EDR_HEADROOM = downcall("jhv_metal_host_edr_headroom",
             FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.ADDRESS));
+    private static final MethodHandle EDR_POTENTIAL = downcall("jhv_metal_host_edr_potential",
+            FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.ADDRESS));
 
     public static void prewarm() {
         // Force class initialization and native symbol resolution before the first canvas attach.
@@ -178,6 +180,15 @@ public final class MacAngleBridge {
             return (double) EDR_HEADROOM.invokeExact(MemorySegment.ofAddress(layer));
         } catch (Throwable t) {
             throw new RuntimeException("Failed to read EDR headroom", t);
+        }
+    }
+
+    // What the screen could offer once EDR content is on it; 1 on a display without EDR.
+    public static double edrPotential(long layer) {
+        try {
+            return (double) EDR_POTENTIAL.invokeExact(MemorySegment.ofAddress(layer));
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to read EDR potential headroom", t);
         }
     }
 
