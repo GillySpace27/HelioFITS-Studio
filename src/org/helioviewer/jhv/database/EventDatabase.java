@@ -8,7 +8,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -75,6 +74,8 @@ public class EventDatabase {
             insertEventTypeIfNotExist(supplier);
             typeId = findEventTypeId(supplier);
         }
+        if (typeId == -1)
+            throw new SQLException("Could not create event type " + SWEKCatalog.key(supplier));
         return typeId;
     }
 
@@ -125,6 +126,8 @@ public class EventDatabase {
             insertVoidEvent(uid);
             id = findEventId(uid);
         }
+        if (id == -1)
+            throw new SQLException("Could not create event " + uid);
         return id;
     }
 
@@ -168,23 +171,15 @@ public class EventDatabase {
     private record StoreAssociations(List<JHVEvent.LinkRef> links) implements Callable<Integer> {
         @Override
         public Integer call() throws Exception {
-            int errorcode = 0;
-
             PreparedStatement pstatement = getPreparedStatement(INSERT_LINK);
 
             for (JHVEvent.LinkRef link : links) {
                 int id0 = findOrInsertEventId(link.firstUid());
                 int id1 = findOrInsertEventId(link.secondUid());
-                if (id0 != -1 && id1 != -1) {
-                    insertAssociation(pstatement, id0, id1);
-                } else {
-                    errorcode = -1;
-                    Log.error("Could not add association to database");
-                    break;
-                }
+                insertAssociation(pstatement, id0, id1);
             }
             pstatement.getConnection().commit();
-            return errorcode;
+            return 0;
         }
     }
 
@@ -210,7 +205,6 @@ public class EventDatabase {
         @Override
         public Void call() throws Exception {
             int[] eventIds = new int[remoteEvents.size()];
-            Arrays.fill(eventIds, -1);
             int typeId = findOrInsertEventTypeId(supplier);
 
             PreparedStatement insertFullEvent = getPreparedStatement(INSERT_FULL_EVENT);
@@ -219,56 +213,50 @@ public class EventDatabase {
 
             for (int i = 0; i < remoteEvents.size(); i++) {
                 SWEKHandler.RemoteEvent event2db = remoteEvents.get(i);
-                int generatedKey = -1;
-                if (typeId != -1) {
-                    generatedKey = findEventId(event2db.uid());
+                int eventId = findEventId(event2db.uid());
 
-                    if (generatedKey == -1) {
-                        insertFullEvent.setInt(1, typeId);
-                        insertFullEvent.setString(2, event2db.uid());
-                        insertFullEvent.setLong(3, event2db.start());
-                        insertFullEvent.setLong(4, event2db.end());
-                        insertFullEvent.setLong(5, event2db.archiv());
-                        insertFullEvent.setBinaryStream(6, new ByteArrayInputStream(event2db.compressedJson()), event2db.compressedJson().length);
-                        insertFullEvent.executeUpdate();
+                if (eventId == -1) {
+                    insertFullEvent.setInt(1, typeId);
+                    insertFullEvent.setString(2, event2db.uid());
+                    insertFullEvent.setLong(3, event2db.start());
+                    insertFullEvent.setLong(4, event2db.end());
+                    insertFullEvent.setLong(5, event2db.archiv());
+                    insertFullEvent.setBinaryStream(6, new ByteArrayInputStream(event2db.compressedJson()), event2db.compressedJson().length);
+                    insertFullEvent.executeUpdate();
 
-                        try (ResultSet rs = selectLastInsert.executeQuery()) {
-                            if (rs.next()) {
-                                generatedKey = rs.getInt(1);
-                            }
-                        }
-                    } else {
-                        updateEvent.setInt(1, typeId);
-                        updateEvent.setString(2, event2db.uid());
-                        updateEvent.setLong(3, event2db.start());
-                        updateEvent.setLong(4, event2db.end());
-                        updateEvent.setLong(5, event2db.archiv());
-                        updateEvent.setBinaryStream(6, new ByteArrayInputStream(event2db.compressedJson()), event2db.compressedJson().length);
-                        updateEvent.setInt(7, generatedKey);
-                        updateEvent.executeUpdate();
-                    }
-                    {
-                        StringBuilder fieldString = new StringBuilder();
-                        StringBuilder varString = new StringBuilder();
-                        for (SWEKHandler.RemoteParameter p : event2db.paramList()) {
-                            fieldString.append(',').append(p.name());
-                            varString.append(",?");
-                        }
-                        String full_statement = "INSERT INTO " + supplier.dbName() + "(event_id" + fieldString + ") VALUES(?" + varString + ')';
-                        PreparedStatement pstatement = getPreparedStatement(full_statement);
-                        pstatement.setInt(1, generatedKey);
-
-                        int index = 2;
-                        for (SWEKHandler.RemoteParameter p : event2db.paramList()) {
-                            bindRemoteParameter(pstatement, index, p);
-                            index++;
-                        }
-                        pstatement.executeUpdate();
+                    try (ResultSet rs = selectLastInsert.executeQuery()) {
+                        if (!rs.next())
+                            throw new SQLException("Could not create event " + event2db.uid());
+                        eventId = rs.getInt(1);
                     }
                 } else {
-                    Log.error("Failed to insert event");
+                    updateEvent.setInt(1, typeId);
+                    updateEvent.setString(2, event2db.uid());
+                    updateEvent.setLong(3, event2db.start());
+                    updateEvent.setLong(4, event2db.end());
+                    updateEvent.setLong(5, event2db.archiv());
+                    updateEvent.setBinaryStream(6, new ByteArrayInputStream(event2db.compressedJson()), event2db.compressedJson().length);
+                    updateEvent.setInt(7, eventId);
+                    updateEvent.executeUpdate();
                 }
-                eventIds[i] = generatedKey;
+
+                StringBuilder fieldString = new StringBuilder();
+                StringBuilder varString = new StringBuilder();
+                for (SWEKHandler.RemoteParameter p : event2db.paramList()) {
+                    fieldString.append(',').append(p.name());
+                    varString.append(",?");
+                }
+                String full_statement = "INSERT INTO " + supplier.dbName() + "(event_id" + fieldString + ") VALUES(?" + varString + ')';
+                PreparedStatement pstatement = getPreparedStatement(full_statement);
+                pstatement.setInt(1, eventId);
+
+                int index = 2;
+                for (SWEKHandler.RemoteParameter p : event2db.paramList()) {
+                    bindRemoteParameter(pstatement, index, p);
+                    index++;
+                }
+                pstatement.executeUpdate();
+                eventIds[i] = eventId;
             }
             insertFullEvent.getConnection().commit();
             storeRelatedEventLinks(eventIds, supplier);
@@ -291,8 +279,6 @@ public class EventDatabase {
                         "WHERE a.event_id!=b.event_id AND (a.event_id=? OR b.event_id=?)";
                 PreparedStatement statement = getPreparedStatement(sql);
                 for (int eventId : eventIds) {
-                    if (eventId == -1)
-                        continue;
                     statement.setInt(1, eventId);
                     statement.setInt(2, eventId);
                     statement.executeUpdate();
@@ -456,16 +442,14 @@ public class EventDatabase {
         storedIntervals.put(type, typedCache);
 
         int typeId = findOrInsertEventTypeId(type);
-        if (typeId != -1) {
-            PreparedStatement pstatement = getPreparedStatement(SELECT_DATERANGE);
-            pstatement.setInt(1, typeId);
-            try (ResultSet rs = pstatement.executeQuery()) {
-                while (rs.next()) {
-                    long beginDate = rs.getLong(1);
-                    long endDate = Math.min(invalidationDate, rs.getLong(2));
-                    if (beginDate < endDate)
-                        typedCache.adaptRequestCache(beginDate, endDate);
-                }
+        PreparedStatement pstatement = getPreparedStatement(SELECT_DATERANGE);
+        pstatement.setInt(1, typeId);
+        try (ResultSet rs = pstatement.executeQuery()) {
+            while (rs.next()) {
+                long beginDate = rs.getLong(1);
+                long endDate = Math.min(invalidationDate, rs.getLong(2));
+                if (beginDate < endDate)
+                    typedCache.adaptRequestCache(beginDate, endDate);
             }
         }
         return typedCache;
@@ -474,13 +458,11 @@ public class EventDatabase {
     private static long getLastEvent(SWEKSupplier type) throws Exception {
         int typeId = findOrInsertEventTypeId(type);
         long last_timestamp = Long.MIN_VALUE;
-        if (typeId != -1) {
-            PreparedStatement pstatement = getPreparedStatement(SELECT_LAST_EVENT);
-            pstatement.setInt(1, typeId);
-            try (ResultSet rs = pstatement.executeQuery()) {
-                if (rs.next()) {
-                    last_timestamp = rs.getLong(1);
-                }
+        PreparedStatement pstatement = getPreparedStatement(SELECT_LAST_EVENT);
+        pstatement.setInt(1, typeId);
+        try (ResultSet rs = pstatement.executeQuery()) {
+            if (rs.next()) {
+                last_timestamp = rs.getLong(1);
             }
         }
         return last_timestamp;
@@ -507,33 +489,31 @@ public class EventDatabase {
         public List<JHVEvent> call() throws Exception {
             List<JHVEvent> eventList = new ArrayList<>();
             int typeId = findOrInsertEventTypeId(type);
-            if (typeId != -1) {
-                String join = "LEFT JOIN " + type.dbName() + " AS tp ON tp.event_id=e.id";
-                StringBuilder filters = new StringBuilder();
-                for (SWEK.Param p : params) {
-                    filters.append("AND tp.").append(p.name()).append(p.operand().representation).append("? ");
-                }
-                String sqlt = "SELECT e.id, e.start, e.end, e.data FROM events AS e " + join +
-                        " WHERE e.type_id=? AND e.start<=? AND e.end>=? " + filters + " order by e.start, e.end ";
-                PreparedStatement pstatement = getPreparedStatement(sqlt);
-                pstatement.setInt(1, typeId);
-                pstatement.setLong(2, end);
-                pstatement.setLong(3, start);
-                int parameterIndex = 4;
-                for (SWEK.Param param : params)
-                    pstatement.setDouble(parameterIndex++, param.value());
+            String join = "LEFT JOIN " + type.dbName() + " AS tp ON tp.event_id=e.id";
+            StringBuilder filters = new StringBuilder();
+            for (SWEK.Param p : params) {
+                filters.append("AND tp.").append(p.name()).append(p.operand().representation).append("? ");
+            }
+            String sqlt = "SELECT e.id, e.start, e.end, e.data FROM events AS e " + join +
+                    " WHERE e.type_id=? AND e.start<=? AND e.end>=? " + filters + " order by e.start, e.end ";
+            PreparedStatement pstatement = getPreparedStatement(sqlt);
+            pstatement.setInt(1, typeId);
+            pstatement.setLong(2, end);
+            pstatement.setLong(3, start);
+            int parameterIndex = 4;
+            for (SWEK.Param param : params)
+                pstatement.setDouble(parameterIndex++, param.value());
 
-                try (ResultSet rs = pstatement.executeQuery()) {
-                    while (rs.next()) {
-                        int id = rs.getInt(1);
-                        long _start = rs.getLong(2);
-                        long _end = rs.getLong(3);
-                        byte[] json = rs.getBytes(4);
-                        try {
-                            eventList.add(parseJSON(new JsonEvent(json, type, id, _start, _end), false));
-                        } catch (Exception e) {
-                            Log.error(e);
-                        }
+            try (ResultSet rs = pstatement.executeQuery()) {
+                while (rs.next()) {
+                    int id = rs.getInt(1);
+                    long _start = rs.getLong(2);
+                    long _end = rs.getLong(3);
+                    byte[] json = rs.getBytes(4);
+                    try {
+                        eventList.add(parseJSON(new JsonEvent(json, type, id, _start, _end), false));
+                    } catch (Exception e) {
+                        Log.error(e);
                     }
                 }
             }
@@ -556,19 +536,17 @@ public class EventDatabase {
         public List<JHVEvent.Link> call() throws Exception {
             List<JHVEvent.Link> assocList = new ArrayList<>();
             int typeId = findOrInsertEventTypeId(type);
-            if (typeId != -1) {
-                PreparedStatement pstatement = getPreparedStatement(SELECT_ASSOCIATIONS);
-                pstatement.setInt(1, typeId);
-                pstatement.setLong(2, end);
-                pstatement.setLong(3, start);
-                pstatement.setInt(4, typeId);
-                pstatement.setLong(5, end);
-                pstatement.setLong(6, start);
+            PreparedStatement pstatement = getPreparedStatement(SELECT_ASSOCIATIONS);
+            pstatement.setInt(1, typeId);
+            pstatement.setLong(2, end);
+            pstatement.setLong(3, start);
+            pstatement.setInt(4, typeId);
+            pstatement.setLong(5, end);
+            pstatement.setLong(6, start);
 
-                try (ResultSet rs = pstatement.executeQuery()) {
-                    while (rs.next()) {
-                        assocList.add(new JHVEvent.Link(rs.getInt(1), rs.getInt(2)));
-                    }
+            try (ResultSet rs = pstatement.executeQuery()) {
+                while (rs.next()) {
+                    assocList.add(new JHVEvent.Link(rs.getInt(1), rs.getInt(2)));
                 }
             }
             return assocList;
@@ -576,47 +554,44 @@ public class EventDatabase {
     }
 
     private static List<JsonEvent> queryRelationEvents(int event_id, SWEKSupplier type_left, SWEKSupplier type_right, String param_left, String param_right) throws Exception {
-        int type_left_id = findOrInsertEventTypeId(type_left);
-        int type_right_id = findOrInsertEventTypeId(type_right);
+        findOrInsertEventTypeId(type_left);
+        findOrInsertEventTypeId(type_right);
 
-        if (type_left_id != -1 && type_right_id != -1) {
-            String table_left_name = type_left.dbName();
-            String table_right_name = type_right.dbName();
+        String table_left_name = type_left.dbName();
+        String table_right_name = type_right.dbName();
 
-            String sqlt = "SELECT tl.event_id, tr.event_id FROM " + table_left_name + " AS tl," + table_right_name + " AS tr" + " WHERE tl." + param_left + "=tr." + param_right + " AND tl.event_id!=tr.event_id AND (tl.event_id=? OR tr.event_id=?)";
-            PreparedStatement pstatement = getPreparedStatement(sqlt);
-            pstatement.setLong(1, event_id);
-            pstatement.setLong(2, event_id);
+        String sqlt = "SELECT tl.event_id, tr.event_id FROM " + table_left_name + " AS tl," + table_right_name + " AS tr" + " WHERE tl." + param_left + "=tr." + param_right + " AND tl.event_id!=tr.event_id AND (tl.event_id=? OR tr.event_id=?)";
+        PreparedStatement pstatement = getPreparedStatement(sqlt);
+        pstatement.setLong(1, event_id);
+        pstatement.setLong(2, event_id);
 
-            StringBuilder idList = new StringBuilder();
-            try (ResultSet rs = pstatement.executeQuery()) {
-                boolean next = rs.next();
-                while (next) {
-                    idList.append(rs.getInt(1)).append(',').append(rs.getInt(2));
-                    next = rs.next();
-                    if (next) {
-                        idList.append(',');
-                    }
+        StringBuilder idList = new StringBuilder();
+        try (ResultSet rs = pstatement.executeQuery()) {
+            boolean next = rs.next();
+            while (next) {
+                idList.append(rs.getInt(1)).append(',').append(rs.getInt(2));
+                next = rs.next();
+                if (next) {
+                    idList.append(',');
                 }
             }
-            if (idList.isEmpty())
-                return Collections.emptyList();
-
-            String query = "SELECT distinct events.id, events.start, events.end, events.data, event_type.supplier FROM events LEFT JOIN event_type ON events.type_id = event_type.id WHERE events.id IN ( " + idList + ") AND events.id != " + event_id;
-            List<JsonEvent> ret = new ArrayList<>();
-            try (Statement statement = pstatement.getConnection().createStatement();
-                 ResultSet rs = statement.executeQuery(query)) {
-                while (rs.next()) {
-                    int id = rs.getInt(1);
-                    long start = rs.getLong(2);
-                    long end = rs.getLong(3);
-                    byte[] json = rs.getBytes(4);
-                    ret.add(new JsonEvent(json, SWEKCatalog.getSupplier(rs.getString(5)), id, start, end));
-                }
-            }
-            return ret;
         }
-        return Collections.emptyList();
+        List<JsonEvent> ret = new ArrayList<>();
+        if (idList.isEmpty())
+            return ret;
+
+        String query = "SELECT distinct events.id, events.start, events.end, events.data, event_type.supplier FROM events LEFT JOIN event_type ON events.type_id = event_type.id WHERE events.id IN ( " + idList + ") AND events.id != " + event_id;
+        try (Statement statement = pstatement.getConnection().createStatement();
+             ResultSet rs = statement.executeQuery(query)) {
+            while (rs.next()) {
+                int id = rs.getInt(1);
+                long start = rs.getLong(2);
+                long end = rs.getLong(3);
+                byte[] json = rs.getBytes(4);
+                ret.add(new JsonEvent(json, SWEKCatalog.getSupplier(rs.getString(5)), id, start, end));
+            }
+        }
+        return ret;
     }
 
 }
