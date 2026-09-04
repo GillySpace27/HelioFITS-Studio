@@ -88,6 +88,11 @@ layout(std140) uniform DisplayBlock {
     // table is written out as is, grey, alpha 1. Takes the last padding float, so the block
     // size is unchanged.
     float rawOutput;
+    // Multiplies an image layer's RGB after the colour table, on the EDR canvas: 1 means
+    // interface white, the screen's headroom means its peak. Alpha is never scaled. Starts a new
+    // std140 16-byte row (the previous rounding floats were all taken), so the Java buffer grows
+    // by four floats.
+    float hdrGain;
 } display;
 
 uniform sampler2D image;
@@ -196,7 +201,8 @@ vec4 getColor(const vec2 texcoord, const vec2 difftexcoord, const float factor) 
     if (display.indexed == 0. && display.skipDither == 0.)
         value += dither(texcoord);
 
-    return texture(lut, vec2(value, 0.5)) * display.color;
+    vec4 colour = texture(lut, vec2(value, 0.5)) * display.color;
+    return vec4(colour.rgb * display.hdrGain, colour.a);
 }
 
 void clamp_texture(const vec2 texcoord) {
