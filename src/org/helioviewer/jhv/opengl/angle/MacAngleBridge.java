@@ -36,16 +36,18 @@ public final class MacAngleBridge {
     private static final MethodHandle DEVICE_INFO = downcall("jhv_metal_device_info",
             FunctionDescriptor.of(ValueLayout.ADDRESS));
     private static final MethodHandle PREPARE_DEEP = downcall("jhv_metal_host_prepare_deep",
-            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
     private static final MethodHandle RESET_DEEP = downcall("jhv_metal_host_reset_deep",
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
     private static final MethodHandle DEEP_CANVAS_CREATE = downcall("jhv_deep_canvas_create",
-            FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+            FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
     private static final MethodHandle DEEP_CANVAS_RELEASE = downcall("jhv_deep_canvas_release",
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
     private static final MethodHandle PRESENT_DEEP = downcall("jhv_metal_host_present_deep",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
-                    ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+                    ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+    private static final MethodHandle EDR_HEADROOM = downcall("jhv_metal_host_edr_headroom",
+            FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.ADDRESS));
 
     public static void prewarm() {
         // Force class initialization and native symbol resolution before the first canvas attach.
@@ -122,10 +124,11 @@ public final class MacAngleBridge {
         }
     }
 
-    // Switch the CAMetalLayer to a half-float pixel format for the deep-colour canvas.
-    public static boolean prepareDeepLayer(long layer) {
+    // Switch the CAMetalLayer to the deep format: 10-bit unorm, or RGBA16Float tagged linear with
+    // EDR requested.
+    public static boolean prepareDeepLayer(long layer, boolean edr) {
         try {
-            return (int) PREPARE_DEEP.invokeExact(MemorySegment.ofAddress(layer)) != 0;
+            return (int) PREPARE_DEEP.invokeExact(MemorySegment.ofAddress(layer), edr ? 1 : 0) != 0;
         } catch (Throwable t) {
             throw new RuntimeException("Failed to prepare deep-colour layer", t);
         }
@@ -140,10 +143,10 @@ public final class MacAngleBridge {
         }
     }
 
-    // An RGB10_A2 IOSurface for the canvas; 0 on failure. Release with deepCanvasRelease.
-    public static long deepCanvasCreate(int width, int height) {
+    // An RGB10_A2 (or, for EDR, RGBA16F) IOSurface for the canvas; 0 on failure. Release with deepCanvasRelease.
+    public static long deepCanvasCreate(int width, int height, boolean edr) {
         try {
-            return ((MemorySegment) DEEP_CANVAS_CREATE.invokeExact(width, height)).address();
+            return ((MemorySegment) DEEP_CANVAS_CREATE.invokeExact(width, height, edr ? 1 : 0)).address();
         } catch (Throwable t) {
             throw new RuntimeException("Failed to create deep-colour canvas IOSurface", t);
         }
@@ -159,13 +162,22 @@ public final class MacAngleBridge {
         }
     }
 
-    // Blit the rendered IOSurface into the layer's drawable and present it. Call after glFinish.
-    public static boolean presentDeep(long layer, long ioSurface, int width, int height) {
+    // Carry the rendered IOSurface into the layer's drawable and present it. Call after glFinish.
+    public static boolean presentDeep(long layer, long ioSurface, int width, int height, boolean edr) {
         try {
             return (int) PRESENT_DEEP.invokeExact(MemorySegment.ofAddress(layer),
-                    MemorySegment.ofAddress(ioSurface), width, height) != 0;
+                    MemorySegment.ofAddress(ioSurface), width, height, edr ? 1 : 0) != 0;
         } catch (Throwable t) {
             throw new RuntimeException("Failed to present deep-colour canvas", t);
+        }
+    }
+
+    // The screen's EDR headroom in SDR whites, as of the last EDR present (1 before any).
+    public static double edrHeadroom(long layer) {
+        try {
+            return (double) EDR_HEADROOM.invokeExact(MemorySegment.ofAddress(layer));
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to read EDR headroom", t);
         }
     }
 
