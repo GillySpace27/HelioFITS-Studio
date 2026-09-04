@@ -30,7 +30,7 @@ public class JHVRelatedEvents {
         interval = new Interval(event.start, event.end);
     }
 
-    public List<JHVEvent> getEvents() {
+    List<JHVEvent> getEvents() {
         return events;
     }
 
@@ -61,7 +61,7 @@ public class JHVRelatedEvents {
         for (JHVEvent event : events) {
             if (event.start <= timestamp && timestamp <= event.end) return event;
         }
-        return events.isEmpty() ? null : events.getFirst();
+        return events.getFirst();
     }
 
     public List<JHVEvent> getAssociatedEvents(JHVEvent event) {
