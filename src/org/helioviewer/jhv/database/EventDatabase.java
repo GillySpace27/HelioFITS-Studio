@@ -326,22 +326,24 @@ public class EventDatabase {
         }
     }
 
-    private static List<JsonEvent> collectRelationEvents(int id, SWEKSupplier type) {
-        SWEKGroup group = type.group();
+    private static List<JsonEvent> collectRelationEvents(int id, SWEKSupplier supplier) {
+        SWEKGroup group = supplier.group();
         List<JsonEvent> jsonEvents = new ArrayList<>();
 
         for (SWEK.RelatedEvents re : SWEKCatalog.getRelatedEvents()) {
             if (re.group() == group) {
                 for (SWEK.RelatedOn swon : re.relatedOnList()) {
-                    addRelationEvents(jsonEvents, id, type, re.relatedWith(),
-                            swon.parameterFrom(), swon.parameterWith(), true);
+                    addRelationEvents(jsonEvents, id, supplier, re.relatedWith(),
+                            swon.parameterFrom(), swon.parameterWith());
                 }
             }
 
             if (re.relatedWith() == group) {
                 for (SWEK.RelatedOn swon : re.relatedOnList()) {
-                    addRelationEvents(jsonEvents, id, type, re.group(),
-                            swon.parameterFrom(), swon.parameterWith(), false);
+                    if (re.group() == group && swon.parameterFrom().equals(swon.parameterWith()))
+                        continue;
+                    addRelationEvents(jsonEvents, id, supplier, re.group(),
+                            swon.parameterWith(), swon.parameterFrom());
                 }
             }
         }
@@ -349,17 +351,14 @@ public class EventDatabase {
         return jsonEvents;
     }
 
-    private static void addRelationEvents(List<JsonEvent> jsonEvents, int id, SWEKSupplier eventType,
-                                          SWEKGroup otherGroup, String leftParameter, String rightParameter,
-                                          boolean eventTypeIsLeft) {
-        for (SWEKSupplier supplier : SWEKCatalog.getSuppliers(otherGroup)) {
-            if (supplier == eventType)
+    private static void addRelationEvents(List<JsonEvent> jsonEvents, int id, SWEKSupplier supplier,
+                                          SWEKGroup relatedGroup, String eventParameter, String relatedParameter) {
+        for (SWEKSupplier relatedSupplier : SWEKCatalog.getSuppliers(relatedGroup)) {
+            if (relatedSupplier == supplier)
                 continue;
 
-            SWEKSupplier leftType = eventTypeIsLeft ? eventType : supplier;
-            SWEKSupplier rightType = eventTypeIsLeft ? supplier : eventType;
             try {
-                jsonEvents.addAll(queryRelationEvents(id, leftType, rightType, leftParameter, rightParameter));
+                jsonEvents.addAll(queryRelationEvents(id, supplier, relatedSupplier, eventParameter, relatedParameter));
             } catch (Exception e) {
                 Log.error(e);
             }

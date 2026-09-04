@@ -46,7 +46,7 @@ public final class SWEKCatalog {
         return relatedEvents;
     }
 
-    public static Map<String, String> relationDatabaseFields(SWEKGroup group) {
+    private static Map<String, String> relationDatabaseFields(SWEKGroup group) {
         return relationDatabaseFieldsByGroup.getOrDefault(group, Map.of());
     }
 
