@@ -291,7 +291,7 @@ public class EventDatabase {
         }
     }
 
-    private static List<JHVEvent> parseJSON(List<JsonEvent> jsonEvents, boolean full) {
+    private static List<JHVEvent> parseFullJSON(List<JsonEvent> jsonEvents) {
         HashSet<Integer> ids = new HashSet<>();
         List<JHVEvent> events = new ArrayList<>();
         for (int i = 0; i < jsonEvents.size(); i++) {
@@ -301,7 +301,7 @@ public class EventDatabase {
                 continue;
 
             try {
-                events.add(parseJSON(jsonEvent, full));
+                events.add(parseJSON(jsonEvent, true));
             } catch (Exception e) {
                 Log.error(e);
             }
@@ -312,7 +312,7 @@ public class EventDatabase {
     public static EventDetails getEventDetails(int id, SWEKSupplier supplier) throws Exception {
         JsonEventDetails details = executor.invokeAndWait(() ->
                 new JsonEventDetails(queryEvent(id), collectRelationEvents(id, supplier)));
-        return new EventDetails(parseJSON(details.event(), true), parseJSON(details.relatedEvents(), true));
+        return new EventDetails(parseJSON(details.event(), true), parseFullJSON(details.relatedEvents()));
     }
 
     private static JsonEvent queryEvent(int id) throws Exception {
