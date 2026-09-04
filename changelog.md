@@ -7,6 +7,9 @@
 - Add glTF/GLB model layers with surfaces, lines, points, textures, transparency, and lighting
 - Improve rendering quality, performance, and memory handling
 
+### Timeline and events
+- Correct SWEK handling of long-duration events and related events from multiple suppliers, and improve filtering, cache refresh, event details, and timeline interaction
+
 ### Technical
 - Document the heliocentric 3D data interface and add a COCONUT conversion example
 - Expand rendering regression tests and WCS validation coverage

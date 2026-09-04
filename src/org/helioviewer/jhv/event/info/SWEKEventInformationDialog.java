@@ -90,7 +90,7 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
         event = details.event();
         List<JHVEvent> relatedEvents = details.relatedEvents();
         if (!relatedEvents.isEmpty())
-            otherRelatedEventsPanel = createOtherRelatedEventsCollapsiblePane("Other Related Events", relatedEvents);
+            otherRelatedEventsPanel = createOtherRelatedEventsCollapsiblePane(relatedEvents);
 
         allTablePanel.removeAll();
         initParameterCollapsiblePanels();
@@ -117,7 +117,7 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
 
         List<JHVEvent> relatedEvents = rEvent.getAssociatedEvents(event);
         if (!relatedEvents.isEmpty())
-            relatedEventsPanel = createRelatedEventsCollapsiblePane("Related Events", rEvent, relatedEvents);
+            relatedEventsPanel = createRelatedEventsCollapsiblePane(rEvent, relatedEvents);
     }
 
     private void setCollapsiblePanels() {
@@ -151,22 +151,22 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
         }
     }
 
-    private DataCollapsiblePanel createRelatedEventsCollapsiblePane(String relation, JHVRelatedEvents rEvents, List<JHVEvent> relations) {
-        JPanel allPrecedingEvents = new JPanel();
-        allPrecedingEvents.setLayout(new BoxLayout(allPrecedingEvents, BoxLayout.PAGE_AXIS));
-        relations.forEach(ev -> allPrecedingEvents.add(createEventPanel(rEvents, ev)));
-        return new DataCollapsiblePanel(relation, new JScrollPane(allPrecedingEvents), false, model);
+    private DataCollapsiblePanel createRelatedEventsCollapsiblePane(JHVRelatedEvents rEvents, List<JHVEvent> relations) {
+        JPanel eventPanels = new JPanel();
+        eventPanels.setLayout(new BoxLayout(eventPanels, BoxLayout.PAGE_AXIS));
+        relations.forEach(ev -> eventPanels.add(createEventPanel(rEvents, ev)));
+        return new DataCollapsiblePanel("Related Events", new JScrollPane(eventPanels), false, model);
     }
 
-    private DataCollapsiblePanel createOtherRelatedEventsCollapsiblePane(String relation, List<JHVEvent> events) {
-        JPanel allPrecedingEvents = new JPanel();
-        allPrecedingEvents.setLayout(new BoxLayout(allPrecedingEvents, BoxLayout.PAGE_AXIS));
+    private DataCollapsiblePanel createOtherRelatedEventsCollapsiblePane(List<JHVEvent> events) {
+        JPanel eventPanels = new JPanel();
+        eventPanels.setLayout(new BoxLayout(eventPanels, BoxLayout.PAGE_AXIS));
         Colors.Data colors = new Colors.Data();
         for (JHVEvent relatedEvent : events) {
             JHVRelatedEvents relatedEvents = new JHVRelatedEvents(relatedEvent, colors.getNextColor());
-            allPrecedingEvents.add(createEventPanel(relatedEvents, relatedEvent));
+            eventPanels.add(createEventPanel(relatedEvents, relatedEvent));
         }
-        return new DataCollapsiblePanel(relation, new JScrollPane(allPrecedingEvents), false, model);
+        return new DataCollapsiblePanel("Other Related Events", new JScrollPane(eventPanels), false, model);
     }
 
     private static JPanel createEventPanel(JHVRelatedEvents rEvents, JHVEvent event) {
