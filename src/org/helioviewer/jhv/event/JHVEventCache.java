@@ -11,14 +11,14 @@ import java.util.Set;
 import java.util.TreeMap;
 
 import org.helioviewer.jhv.display.DisplayController;
-import org.helioviewer.jhv.time.Interval;
 import org.helioviewer.jhv.time.RequestCache;
 import org.helioviewer.jhv.time.TimeUtils;
 
 public class JHVEventCache {
 
     private static final double FACTOR = 0.2;
-    private static final long FUTURE_REQUEST_MARGIN = 6 * 60 * 60 * 1000L;
+    private static final long REQUEST_REFRESH_INTERVAL = 60 * 60 * 1000L;
+    private static final long FUTURE_REQUEST_MARGIN = 6 * REQUEST_REFRESH_INTERVAL;
 
     private static final Set<JHVEventListener.Handle> cacheEventHandlers = new HashSet<>();
     private static final Set<JHVEventListener.Highlight> highlightListeners = new HashSet<>();
@@ -175,16 +175,19 @@ public class JHVEventCache {
     }
 
     private static void downloadMissingIntervals(long start, long end) {
-        long deltaT = Math.max((long) ((end - start) * FACTOR), TimeUtils.DAY_IN_MILLIS);
+        long now = System.currentTimeMillis();
+        long requestHorizon = now / REQUEST_REFRESH_INTERVAL * REQUEST_REFRESH_INTERVAL + FUTURE_REQUEST_MARGIN;
+        long visibleEnd = Math.min(end, requestHorizon);
+        if (start >= visibleEnd)
+            return;
+
+        long deltaT = Math.max((long) ((visibleEnd - start) * FACTOR), TimeUtils.DAY_IN_MILLIS);
+        long requestStart = start - deltaT;
+        long requestEnd = Math.min(visibleEnd + deltaT, requestHorizon);
         for (Map.Entry<SWEKSupplier, RequestCache> entry : requestedIntervals.entrySet()) {
             RequestCache cache = entry.getValue();
-            List<Interval> missing = cache.getMissingIntervals(start, end);
-            if (!missing.isEmpty()) {
-                long requestStart = start - deltaT;
-                long requestEnd = Math.min(end + deltaT, System.currentTimeMillis() + FUTURE_REQUEST_MARGIN);
-                if (requestStart < requestEnd)
-                    SWEKDownloader.startDownloadSupplier(entry.getKey(), cache.adaptRequestCache(requestStart, requestEnd));
-            }
+            if (!cache.getMissingIntervals(start, visibleEnd).isEmpty())
+                SWEKDownloader.startDownloadSupplier(entry.getKey(), cache.adaptRequestCache(requestStart, requestEnd));
         }
     }
 
