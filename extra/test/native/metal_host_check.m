@@ -11,7 +11,8 @@ int main(int argc, const char *argv[]) {
     void *(*create)(int, int, int) = dlsym(lib, "jhv_deep_canvas_create");
     void (*release)(void *) = dlsym(lib, "jhv_deep_canvas_release");
     double (*headroom)(void *) = dlsym(lib, "jhv_metal_host_edr_headroom");
-    if (!create || !release || !headroom) { printf("FAIL missing symbol\n"); return 1; }
+    double (*potential)(void *) = dlsym(lib, "jhv_metal_host_edr_potential");
+    if (!create || !release || !headroom || !potential) { printf("FAIL missing symbol\n"); return 1; }
     int fails = 0;
     IOSurfaceRef ten = create(64, 64, 0), edr = create(64, 64, 1);
     if (IOSurfaceGetPixelFormat(ten) != 'l10r' || IOSurfaceGetBytesPerElement(ten) != 4) { printf("FAIL 10-bit canvas format\n"); fails++; }
@@ -19,6 +20,7 @@ int main(int argc, const char *argv[]) {
     release(ten); release(edr);
     double h = headroom(NULL);
     if (!(h >= 1.0)) { printf("FAIL headroom(NULL) = %f\n", h); fails++; }
+    if (!(potential(NULL) >= 1.0)) { printf("FAIL potential(NULL)\n"); fails++; }
     printf("%s (headroom with no layer = %.2f)\n", fails ? "FAIL" : "metal_host_check: PASS", h);
     return fails ? 1 : 0;
 }

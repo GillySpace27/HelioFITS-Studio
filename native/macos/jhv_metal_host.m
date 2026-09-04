@@ -263,6 +263,11 @@ static char jhv_deep_presenter_key;
 // Screen headroom, read on the main thread after each EDR present and served from here, so the
 // render thread never touches AppKit. 1.0 until the first EDR frame has been on screen.
 static double jhv_edr_headroom_cached = 1.0;
+// What the screen could offer if EDR content were present (16 on the XDR panel, 1 on an SDR
+// one). Read when the layer is prepared, so the first frame already knows whether to bootstrap.
+// Measured 2026-09-04: the compositor engages EDR only once content exceeds roughly 1.1 to
+// 1.25, so a canvas that never goes past white never sees a headroom above 1.
+static double jhv_edr_potential_cached = 1.0;
 
 static NSScreen *jhv_screen_of_layer(CALayer *layer) {
     CALayer *root = layer;
@@ -331,6 +336,8 @@ int jhv_metal_host_prepare_deep(void *layerPtr, int edr) {
                     layer.colorspace = linear;
                     CGColorSpaceRelease(linear);
                     layer.transform = CATransform3DIdentity; // the pass samples upright
+                    NSScreen *screen = jhv_screen_of_layer(layer);
+                    jhv_edr_potential_cached = screen != nil ? screen.maximumPotentialExtendedDynamicRangeColorComponentValue : 1.0;
                 } else {
                     layer.pixelFormat = MTLPixelFormatBGR10A2Unorm;
                     layer.wantsExtendedDynamicRangeContent = NO;
@@ -397,6 +404,13 @@ void jhv_deep_canvas_release(void *surfPtr) {
 double jhv_metal_host_edr_headroom(void *layerPtr) {
     (void)layerPtr;
     return jhv_edr_headroom_cached;
+}
+
+// The screen's potential EDR headroom (what it can offer once EDR content is on it); 1.0 on a
+// display without EDR. Safe from any thread.
+double jhv_metal_host_edr_potential(void *layerPtr) {
+    (void)layerPtr;
+    return jhv_edr_potential_cached;
 }
 
 // Carry the rendered IOSurface into the layer's next drawable and present it. Called on the
@@ -491,6 +505,7 @@ int jhv_metal_host_present_deep(void *layerPtr, void *surfPtr, int width, int he
                 @autoreleasepool {
                     NSScreen *screen = jhv_screen_of_layer(layer);
                     jhv_edr_headroom_cached = screen != nil ? screen.maximumExtendedDynamicRangeColorComponentValue : 1.0;
+                    jhv_edr_potential_cached = screen != nil ? screen.maximumPotentialExtendedDynamicRangeColorComponentValue : 1.0;
                 }
             });
         }
