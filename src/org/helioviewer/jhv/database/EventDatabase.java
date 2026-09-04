@@ -217,29 +217,23 @@ public class EventDatabase {
             SWEKHandler.RemoteEvent event2db = remoteEvents.get(i);
             int eventId = findEventId(event2db.uid());
 
-            if (eventId == -1) {
-                insertFullEvent.setInt(1, typeId);
-                insertFullEvent.setString(2, event2db.uid());
-                insertFullEvent.setLong(3, event2db.start());
-                insertFullEvent.setLong(4, event2db.end());
-                insertFullEvent.setLong(5, event2db.archiv());
-                insertFullEvent.setBinaryStream(6, new ByteArrayInputStream(event2db.compressedJson()), event2db.compressedJson().length);
-                insertFullEvent.executeUpdate();
+            PreparedStatement statement = eventId == -1 ? insertFullEvent : updateEvent;
+            statement.setInt(1, typeId);
+            statement.setString(2, event2db.uid());
+            statement.setLong(3, event2db.start());
+            statement.setLong(4, event2db.end());
+            statement.setLong(5, event2db.archiv());
+            statement.setBinaryStream(6, new ByteArrayInputStream(event2db.compressedJson()), event2db.compressedJson().length);
+            if (eventId != -1)
+                statement.setInt(7, eventId);
+            statement.executeUpdate();
 
+            if (eventId == -1) {
                 try (ResultSet rs = selectLastInsert.executeQuery()) {
                     if (!rs.next())
                         throw new SQLException("Could not create event " + event2db.uid());
                     eventId = rs.getInt(1);
                 }
-            } else {
-                updateEvent.setInt(1, typeId);
-                updateEvent.setString(2, event2db.uid());
-                updateEvent.setLong(3, event2db.start());
-                updateEvent.setLong(4, event2db.end());
-                updateEvent.setLong(5, event2db.archiv());
-                updateEvent.setBinaryStream(6, new ByteArrayInputStream(event2db.compressedJson()), event2db.compressedJson().length);
-                updateEvent.setInt(7, eventId);
-                updateEvent.executeUpdate();
             }
 
             StringBuilder fieldString = new StringBuilder();
