@@ -26,7 +26,7 @@ class FilterPanel extends JPanel {
     private final FilterDialog filterDialog;
     private final SWEK.Operand operand;
 
-    FilterPanel(SWEKSupplier _supplier, SWEK.Parameter _parameter, JHVSpinner _spinner, FilterDialog _filterDialog, SWEK.Operand _operand, boolean _enabled) {
+    FilterPanel(SWEKSupplier _supplier, SWEK.Parameter _parameter, JHVSpinner _spinner, FilterDialog _filterDialog, SWEK.Operand _operand) {
         operand = _operand;
         filterDialog = _filterDialog;
         spinner = _spinner;
@@ -38,9 +38,6 @@ class FilterPanel extends JPanel {
         label = new JLabel(parameter.displayName() + ' ' + operand.representation);
         spinner.setEnabled(enabled);
         label.setEnabled(enabled);
-
-        if (_enabled)
-            enableButton.doClick();
 
         setLayout(new GridBagLayout());
         GridBagConstraints c = new GridBagConstraints();
