@@ -103,10 +103,6 @@ public class JHVEventCache {
         resolvePendingAssociations(id);
     }
 
-    public static JHVRelatedEvents getRelatedEvents(int id) {
-        return relatedEventsById.get(id);
-    }
-
     private static void resolvePendingAssociations(Integer id) {
         Set<JHVEvent.Link> pending = pendingAssocs.remove(id);
         if (pending != null)

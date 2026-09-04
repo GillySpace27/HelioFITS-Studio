@@ -3,7 +3,6 @@ package org.helioviewer.jhv.event.info;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Window;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 
@@ -82,20 +81,13 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
     private record DatabaseCallable(JHVEvent qEvent) implements Callable<List<JHVEvent>> {
         @Override
         public List<JHVEvent> call() throws Exception {
-            return EventDatabase.getOtherRelations(qEvent.getUniqueID(), qEvent.getSupplier());
+            return EventDatabase.getRelatedEvents(qEvent.getUniqueID(), qEvent.getSupplier());
         }
     }
 
-    private void onSuccessDatabase(@Nonnull List<JHVEvent> result) {
-        List<JHVRelatedEvents> rEvents = new ArrayList<>();
-        int id = event.getUniqueID();
-        for (JHVEvent jhvEvent : result) {
-            if (jhvEvent.getUniqueID() != id)
-                rEvents.add(new JHVRelatedEvents(jhvEvent));
-        }
-
-        if (!rEvents.isEmpty())
-            otherRelatedEventsPanel = createOtherRelatedEventsCollapsiblePane("Other Related Events", rEvents);
+    private void onSuccessDatabase(@Nonnull List<JHVEvent> relatedEvents) {
+        if (!relatedEvents.isEmpty())
+            otherRelatedEventsPanel = createOtherRelatedEventsCollapsiblePane("Other Related Events", relatedEvents);
 
         allTablePanel.removeAll();
         initParameterCollapsiblePanels();
@@ -163,14 +155,12 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
         return new DataCollapsiblePanel(relation, new JScrollPane(allPrecedingEvents), false, model);
     }
 
-    private DataCollapsiblePanel createOtherRelatedEventsCollapsiblePane(String relation, List<JHVRelatedEvents> rEvents) {
+    private DataCollapsiblePanel createOtherRelatedEventsCollapsiblePane(String relation, List<JHVEvent> events) {
         JPanel allPrecedingEvents = new JPanel();
         allPrecedingEvents.setLayout(new BoxLayout(allPrecedingEvents, BoxLayout.PAGE_AXIS));
-        for (JHVRelatedEvents rev : rEvents) {
-            List<JHVEvent> evs = rev.getEvents();
-            if (!evs.isEmpty()) {
-                allPrecedingEvents.add(createEventPanel(rev, evs.getFirst()));
-            }
+        for (JHVEvent relatedEvent : events) {
+            JHVRelatedEvents relatedEvents = new JHVRelatedEvents(relatedEvent);
+            allPrecedingEvents.add(createEventPanel(relatedEvents, relatedEvent));
         }
         return new DataCollapsiblePanel(relation, new JScrollPane(allPrecedingEvents), false, model);
     }

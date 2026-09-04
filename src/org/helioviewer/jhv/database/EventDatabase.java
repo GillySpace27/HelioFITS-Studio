@@ -16,8 +16,6 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.zip.GZIPInputStream;
 
-import javax.annotation.Nullable;
-
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.event.JHVEvent;
 import org.helioviewer.jhv.event.SWEK;
@@ -55,8 +53,6 @@ public class EventDatabase {
                     "WHERE events.type_id=? AND events.start<=? AND events.end>=? UNION " +
                     "SELECT event_link.left_id, event_link.right_id FROM events JOIN event_link ON events.id=event_link.right_id " +
                     "WHERE events.type_id=? AND events.start<=? AND events.end>=?";
-    private static final String SELECT_EVENT_BY_ID = "SELECT e.id, e.start, e.end, e.data, event_type.supplier FROM events AS e LEFT JOIN event_type ON e.type_id = event_type.id WHERE e.id=?";
-
     private static final HashMap<String, PreparedStatement> statements = new HashMap<>();
     private static final HashMap<SWEKSupplier, RequestCache> storedIntervals = new HashMap<>();
 
@@ -327,23 +323,8 @@ public class EventDatabase {
         return events;
     }
 
-    public static List<JHVEvent> getOtherRelations(int id, SWEKSupplier type) throws Exception {
-        return parseJSON(executor.invokeAndWait(new CollectRelationEvents(id, type)), true);
-    }
-
-    private record CollectRelationEvents(int id, SWEKSupplier type) implements Callable<List<JsonEvent>> {
-        @Override
-        public List<JsonEvent> call() throws Exception {
-            List<JsonEvent> jsonEvents = collectRelationEvents(id, type);
-            try {
-                JsonEvent ev = event2Program(id);
-                if (ev != null)
-                    jsonEvents.add(ev);
-            } catch (Exception e) {
-                Log.error(e);
-            }
-            return jsonEvents;
-        }
+    public static List<JHVEvent> getRelatedEvents(int id, SWEKSupplier supplier) throws Exception {
+        return parseJSON(executor.invokeAndWait(() -> collectRelationEvents(id, supplier)), true);
     }
 
     private static List<JsonEvent> collectRelationEvents(int id, SWEKSupplier type) {
@@ -616,23 +597,6 @@ public class EventDatabase {
             return ret;
         }
         return Collections.emptyList();
-    }
-
-    @Nullable
-    private static JsonEvent event2Program(int event_id) throws Exception {
-        PreparedStatement ps = getPreparedStatement(SELECT_EVENT_BY_ID);
-        ps.setLong(1, event_id);
-
-        try (ResultSet rs = ps.executeQuery()) {
-            if (rs.next()) {
-                int id = rs.getInt(1);
-                long start = rs.getLong(2);
-                long end = rs.getLong(3);
-                byte[] json = rs.getBytes(4);
-                return new JsonEvent(json, SWEKCatalog.getSupplier(rs.getString(5)), id, start, end);
-            }
-        }
-        return null;
     }
 
 }
