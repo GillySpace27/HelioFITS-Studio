@@ -163,3 +163,18 @@ screen in EDR mode for a while after any EDR content has been shown.
 
 **To run it:** `HFStudio (edr).app` on the Desktop builds and launches this worktree; `HFStudio
 (dev).app` still builds `jhv-demo`. View menu: HDR Canvas, HDR Brightness.
+
+## Revision, 2026-09-04 evening: three mappings
+
+Gilly looked at the flat gain and did not love squinting at the whole image. The decision is
+now three mappings, chosen in View > HDR Mapping, all applied on the brightest linear channel so
+hue is kept, with a knee (View > HDR Knee: 25, 50, 75 % of white in linear light):
+
+- **Linear**: every value times the gain (the original option A).
+- **Hard knee**: identity up to the knee, then a straight line reaching the gain at white.
+- **Soft knee** (default, knee 50 %): identity up to the knee, then a curve that leaves the knee
+  at slope 1 and reaches the gain at white: highlight roll-up, no visible break.
+
+`extra/test/hdr_curve_check.py` pins the properties (identity below the knee, headroom at
+white, continuity, slope 1 for soft, monotonic). Measured on the AIA 171 frame with the
+headroom at 6.2: linear puts 158,411 canvas pixels above white, soft knee 4,583.

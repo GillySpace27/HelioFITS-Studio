@@ -93,6 +93,13 @@ layout(std140) uniform DisplayBlock {
     // std140 16-byte row (the previous rounding floats were all taken), so the Java buffer grows
     // by four floats.
     float hdrGain;
+    // How the gain is applied, on the brightest linear channel so hue is kept:
+    //   0  linear:    every value scaled by the gain;
+    //   1  hard knee: unchanged up to hdrKnee, then a straight line to the gain at white;
+    //   2  soft knee: unchanged up to hdrKnee, then a curve that leaves the knee at slope 1
+    //                 and reaches the gain at white (highlight roll-up, no visible break).
+    float hdrMode;
+    float hdrKnee;
 } display;
 
 uniform sampler2D image;
@@ -209,7 +216,16 @@ vec4 getColor(const vec2 texcoord, const vec2 difftexcoord, const float factor) 
     // clips the whole top of the image at the panel's peak. Decode, scale, re-encode with the
     // curve extended past 1.0 (monotonic there), which the Metal presenter inverts exactly.
     vec3 lin = mix(colour.rgb / 12.92, pow((colour.rgb + 0.055) / 1.055, vec3(2.4)), step(0.04045, colour.rgb));
-    lin *= display.hdrGain;
+    float m = max(lin.r, max(lin.g, lin.b));
+    float H = display.hdrGain, k = display.hdrKnee;
+    float mapped;
+    if (display.hdrMode == 0. || m <= k)
+        mapped = display.hdrMode == 0. ? m * H : m;
+    else {
+        float t = (m - k) / (1. - k);
+        mapped = display.hdrMode == 1. ? k + t * (H - k) : k + (1. - k) * t + (H - 1.) * t * t;
+    }
+    lin *= m > 0. ? mapped / m : 1.;
     vec3 enc = mix(lin * 12.92, 1.055 * pow(lin, vec3(1. / 2.4)) - 0.055, step(0.0031308, lin));
     return vec4(enc, colour.a);
 }

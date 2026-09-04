@@ -147,7 +147,7 @@ public class GLImage {
                 Display.skipDither() ? 1 : 0,
                 Display.showClipping && !raw ? 1 : 0,
                 raw ? 1 : 0,
-                HdrGain.current(raw));
+                HdrGain.current(raw), HdrGain.mode().ordinal(), HdrGain.knee());
 
         applyLUT();
         applyMask(metaData.getDetectorMask());
