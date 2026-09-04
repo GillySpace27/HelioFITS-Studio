@@ -232,8 +232,8 @@ class HEKParser {
         if (hgsBoundedBox == null && hgsCentralPoint == null && (hgsLongitudeDeg == null || hgsLatitudeDeg == null) && hgsBoundCC == null)
             return;
 
-        List<HgsPoint> boundedBox = hgsBoundedBox == null ? List.of() : hgsBoundedBox;
-        List<HgsPoint> boundCC = hgsBoundCC == null ? List.of() : hgsBoundCC;
+        List<HgsPoint> boundary = hgsBoundCC != null && !hgsBoundCC.isEmpty() ? hgsBoundCC : hgsBoundedBox;
+        if (boundary == null) boundary = List.of();
         HgsPoint centralPoint = hgsCentralPoint;
         if (centralPoint == null && hgsLongitudeDeg != null && hgsLatitudeDeg != null)
             centralPoint = new HgsPoint(hgsLongitudeDeg, hgsLatitudeDeg);
@@ -241,14 +241,11 @@ class HEKParser {
         Position p = Sun.getEarth(new JHVTime(currentEvent.start));
         double elon = p.lon;
 
-        List<Vec3> jhvBoundedBox = new ArrayList<>(boundedBox.size());
-        boundedBox.forEach(point -> jhvBoundedBox.add(hgsToJhv(point, elon)));
-
-        List<Vec3> jhvBoundCC = new ArrayList<>(boundCC.size());
-        boundCC.forEach(point -> jhvBoundCC.add(hgsToJhv(point, elon)));
+        List<Vec3> jhvBoundary = new ArrayList<>(boundary.size());
+        boundary.forEach(point -> jhvBoundary.add(hgsToJhv(point, elon)));
 
         Vec3 jhvCentralPoint = centralPoint != null ? hgsToJhv(centralPoint, elon) : null;
-        currentEvent.addPositionInformation(new JHVPositionInformation(jhvCentralPoint, jhvBoundedBox, jhvBoundCC,
+        currentEvent.addPositionInformation(new JHVPositionInformation(jhvCentralPoint, jhvBoundary,
                 currentEvent.isCactus() ? p : null)); // reduce memory usage
     }
 
