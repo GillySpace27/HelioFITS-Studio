@@ -117,6 +117,7 @@ public class SWEKDownloader {
             }
             return !cancelled;
         }
+
         void stopWorker() {
             cancelled = true;
             downloadPool.remove(this);

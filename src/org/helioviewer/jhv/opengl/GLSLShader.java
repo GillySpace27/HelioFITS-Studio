@@ -1,6 +1,7 @@
 package org.helioviewer.jhv.opengl;
 
-import org.helioviewer.jhv.app.Log;
+import java.io.IOException;
+
 import org.helioviewer.jhv.io.FileUtils;
 
 abstract class GLSLShader {
@@ -36,19 +37,27 @@ abstract class GLSLShader {
 
     protected final void _init() {
         try {
-            vertexID = attachShader(GL.VERTEX_SHADER, FileUtils.readResourceString(vertex));
+            vertexID = attachShader(GL.VERTEX_SHADER, "vertex shader " + vertex, readSource(vertex));
 
             StringBuilder fragmentText = new StringBuilder();
             for (String fragment : fragments)
-                fragmentText.append(FileUtils.readResourceString(fragment));
-            fragmentID = attachShader(GL.FRAGMENT_SHADER, fragmentText.toString());
+                fragmentText.append(readSource(fragment));
+            fragmentID = attachShader(GL.FRAGMENT_SHADER, "fragment shader " + String.join(", ", fragments), fragmentText.toString());
 
             progID = initializeProgram();
             use();
             initUniforms(progID);
-        } catch (Exception e) {
+        } catch (RuntimeException | Error e) {
             _dispose();
-            throw new GLException("Cannot load shader", e);
+            throw e;
+        }
+    }
+
+    private static String readSource(String resource) {
+        try {
+            return FileUtils.readResourceString(resource);
+        } catch (IOException e) {
+            throw new GLException("Cannot read shader resource " + resource, e);
         }
     }
 
@@ -80,7 +89,7 @@ abstract class GLSLShader {
         GL.glUniform1i(requiredUniform(id, texname), unit.ordinal());
     }
 
-    private static int attachShader(int shaderType, String text) {
+    private static int attachShader(int shaderType, String description, String text) {
         int id = GL.glCreateShader(shaderType);
         try {
             GL.glShaderSource(id, text);
@@ -88,17 +97,12 @@ abstract class GLSLShader {
 
             int compileStatus = GL.glGetShaderi(id, GL.COMPILE_STATUS);
             if (compileStatus != 1) {
-                Log.error("Shader compile status: " + compileStatus);
                 int infoLogLength = GL.glGetShaderi(id, GL.INFO_LOG_LENGTH);
-                if (infoLogLength > 0) {
-                    String log = GL.glGetShaderInfoLog(id, infoLogLength);
-                    Log.error(log);
-                    throw new GLException("Cannot compile shader: " + log);
-                } else
-                    throw new GLException("Cannot compile shader: unknown reason");
+                String log = infoLogLength > 0 ? GL.glGetShaderInfoLog(id, infoLogLength) : "unknown reason";
+                throw new GLException("Cannot compile " + description + ": " + log);
             }
             return id;
-        } catch (Exception e) {
+        } catch (RuntimeException | Error e) {
             GL.glDeleteShader(id);
             throw e;
         }
@@ -113,14 +117,9 @@ abstract class GLSLShader {
 
             int linkStatus = GL.glGetProgrami(id, GL.LINK_STATUS);
             if (linkStatus != 1) {
-                Log.error("Shader link status: " + linkStatus);
                 int infoLogLength = GL.glGetProgrami(id, GL.INFO_LOG_LENGTH);
-                if (infoLogLength > 0) {
-                    String log = GL.glGetProgramInfoLog(id, infoLogLength);
-                    Log.error(log);
-                    throw new GLException("Cannot link shader: " + log);
-                } else
-                    throw new GLException("Cannot link shader: unknown reason");
+                String log = infoLogLength > 0 ? GL.glGetProgramInfoLog(id, infoLogLength) : "unknown reason";
+                throw new GLException("Cannot link shader program " + vertex + " + " + String.join(" + ", fragments) + ": " + log);
             }
 
             GL.glDetachShader(id, vertexID);
@@ -130,7 +129,7 @@ abstract class GLSLShader {
             GL.glDeleteShader(fragmentID);
             fragmentID = 0;
             return id;
-        } catch (Exception e) {
+        } catch (RuntimeException | Error e) {
             GL.glDeleteProgram(id);
             throw e;
         }

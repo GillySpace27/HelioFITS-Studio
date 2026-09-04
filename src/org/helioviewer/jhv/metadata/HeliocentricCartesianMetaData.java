@@ -10,8 +10,11 @@ public final class HeliocentricCartesianMetaData {
 
     public interface Source {
         boolean contains(String key);
+
         String getString(String key) throws IOException;
+
         double getDouble(String key) throws IOException;
+
         IOException error(String message);
     }
 
