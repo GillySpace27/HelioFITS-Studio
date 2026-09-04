@@ -34,7 +34,7 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
     private DataCollapsiblePanel relatedEventsPanel;
     private DataCollapsiblePanel otherRelatedEventsPanel;
 
-    private final JHVEvent event;
+    private JHVEvent event;
     private final JHVRelatedEvents rEvent;
 
     private final DataCollapsiblePanelModel model;
@@ -79,14 +79,16 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
         Task.submit("event-info", new DatabaseCallable(event), this::onSuccessDatabase, SWEKEventInformationDialog::onFailureDatabase);
     }
 
-    private record DatabaseCallable(JHVEvent qEvent) implements Callable<List<JHVEvent>> {
+    private record DatabaseCallable(JHVEvent qEvent) implements Callable<EventDatabase.EventDetails> {
         @Override
-        public List<JHVEvent> call() throws Exception {
-            return EventDatabase.getRelatedEvents(qEvent.getUniqueID(), qEvent.getSupplier());
+        public EventDatabase.EventDetails call() throws Exception {
+            return EventDatabase.getEventDetails(qEvent.getUniqueID(), qEvent.getSupplier());
         }
     }
 
-    private void onSuccessDatabase(@Nonnull List<JHVEvent> relatedEvents) {
+    private void onSuccessDatabase(@Nonnull EventDatabase.EventDetails details) {
+        event = details.event();
+        List<JHVEvent> relatedEvents = details.relatedEvents();
         if (!relatedEvents.isEmpty())
             otherRelatedEventsPanel = createOtherRelatedEventsCollapsiblePane("Other Related Events", relatedEvents);
 

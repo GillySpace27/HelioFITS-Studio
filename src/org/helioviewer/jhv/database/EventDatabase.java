@@ -53,6 +53,9 @@ public class EventDatabase {
                     "WHERE events.type_id=? AND events.start<=? AND events.end>=? UNION " +
                     "SELECT event_link.left_id, event_link.right_id FROM events JOIN event_link ON events.id=event_link.right_id " +
                     "WHERE events.type_id=? AND events.start<=? AND events.end>=?";
+    private static final String SELECT_EVENT =
+            "SELECT e.id, e.start, e.end, e.data, event_type.supplier FROM events AS e " +
+                    "LEFT JOIN event_type ON e.type_id=event_type.id WHERE e.id=?";
     private static final HashMap<String, PreparedStatement> statements = new HashMap<>();
     private static final HashMap<SWEKSupplier, RequestCache> storedIntervals = new HashMap<>();
 
@@ -323,8 +326,21 @@ public class EventDatabase {
         return events;
     }
 
-    public static List<JHVEvent> getRelatedEvents(int id, SWEKSupplier supplier) throws Exception {
-        return parseJSON(executor.invokeAndWait(() -> collectRelationEvents(id, supplier)), true);
+    public static EventDetails getEventDetails(int id, SWEKSupplier supplier) throws Exception {
+        JsonEventDetails details = executor.invokeAndWait(() ->
+                new JsonEventDetails(queryEvent(id), collectRelationEvents(id, supplier)));
+        return new EventDetails(parseJSON(details.event(), true), parseJSON(details.relatedEvents(), true));
+    }
+
+    private static JsonEvent queryEvent(int id) throws Exception {
+        PreparedStatement statement = getPreparedStatement(SELECT_EVENT);
+        statement.setInt(1, id);
+        try (ResultSet result = statement.executeQuery()) {
+            if (!result.next())
+                throw new SQLException("Event not found: " + id);
+            return new JsonEvent(result.getBytes(4), SWEKCatalog.getSupplier(result.getString(5)),
+                    result.getInt(1), result.getLong(2), result.getLong(3));
+        }
     }
 
     private static List<JsonEvent> collectRelationEvents(int id, SWEKSupplier type) {
@@ -470,7 +486,11 @@ public class EventDatabase {
         return last_timestamp;
     }
 
+    public record EventDetails(JHVEvent event, List<JHVEvent> relatedEvents) {}
+
     private record JsonEvent(byte[] json, SWEKSupplier type, int id, long start, long end) {}
+
+    private record JsonEventDetails(JsonEvent event, List<JsonEvent> relatedEvents) {}
 
     public static List<JHVEvent> events2Program(long start, long end, SWEKSupplier type, List<SWEK.Param> params) {
         try {
