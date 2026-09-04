@@ -8,7 +8,6 @@ import java.util.List;
 
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.event.JHVEvent;
-import org.helioviewer.jhv.event.SWEK;
 import org.helioviewer.jhv.event.SWEKHandler;
 import org.helioviewer.jhv.event.SWEKSupplier;
 import org.helioviewer.jhv.io.JSONUtils;
@@ -63,7 +62,7 @@ public class ComesepHandler extends SWEKHandler {
     }
 
     @Override
-    protected URI createURI(SWEKSupplier supplier, long start, long end, List<SWEK.Param> params, int page) throws Exception {
+    protected URI createURI(SWEKSupplier supplier, long start, long end, int page) throws Exception {
         return new URI(BASE_URL + "model=" + supplier.supplierName() + "&startdate=" + TimeUtils.format(start) + "&enddate=" + TimeUtils.format(end));
     }
 

@@ -15,7 +15,6 @@ import java.util.Set;
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.event.GOESLevel;
 import org.helioviewer.jhv.event.JHVEvent;
-import org.helioviewer.jhv.event.SWEK;
 import org.helioviewer.jhv.event.SWEKCatalog;
 import org.helioviewer.jhv.event.SWEKHandler;
 import org.helioviewer.jhv.event.SWEKSupplier;
@@ -128,7 +127,7 @@ public class HEKHandler extends SWEKHandler {
     }
 
     @Override
-    protected URI createURI(SWEKSupplier supplier, long start, long end, List<SWEK.Param> params, int page) throws Exception {
+    protected URI createURI(SWEKSupplier supplier, long start, long end, int page) throws Exception {
         StringBuilder baseURL = new StringBuilder(BASE_URL + "cmd=search&type=column");
         baseURL.append("&event_type=").append(getEventAbbreviation(supplier.group().getName()));
         baseURL.append("&event_coordsys=helioprojective&x1=-3600&x2=3600&y1=-3600&y2=3600&cosec=2");

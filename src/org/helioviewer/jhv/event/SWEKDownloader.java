@@ -108,7 +108,7 @@ public class SWEKDownloader {
                 if (cancelled)
                     return false;
 
-                SWEKHandler.RemotePage remotePage = supplier.source().handler().fetchPage(supplier, start, end, params, page);
+                SWEKHandler.RemotePage remotePage = supplier.source().handler().fetchPage(supplier, start, end, page);
                 if (!EventDatabase.storeRemotePage(remotePage, supplier))
                     return false;
                 overmax = remotePage.overmax();
