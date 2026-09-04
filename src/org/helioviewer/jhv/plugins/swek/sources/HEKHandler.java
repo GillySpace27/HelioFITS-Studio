@@ -120,8 +120,11 @@ public class HEKHandler extends SWEKHandler {
 
     private static void addGoesValue(JSONObject result) {
         String goesClass = result.optString("fl_goescls").trim();
-        if (!goesClass.isEmpty())
+        if (goesClass.isEmpty())
+            return;
+        try {
             result.put("jhv_goesflux", GOESLevel.getFloatValue(goesClass));
+        } catch (IllegalArgumentException ignore) {}
     }
 
     @Override

@@ -26,7 +26,9 @@ class FlareSpinnerModel extends AbstractSpinnerModel {
 
     @Override
     public void setValue(Object value) {
-        curval = value.toString();
+        String stringValue = value.toString();
+        GOESLevel.getFloatValue(stringValue);
+        curval = stringValue;
         fireStateChanged();
     }
 

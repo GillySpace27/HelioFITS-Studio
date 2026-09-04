@@ -25,21 +25,22 @@ public class GOESLevel {
     }
 
     public static double getFloatValue(String s) {
-        if (s.length() >= 2) {
-            try {
-                double val = Double.parseDouble(s.substring(1));
-                char v = s.charAt(0);
-                return switch (v) {
-                    case 'A' -> 1e-8 * val;
-                    case 'B' -> 1e-7 * val;
-                    case 'C' -> 1e-6 * val;
-                    case 'M' -> 1e-5 * val;
-                    case 'X' -> 1e-4 * val;
-                    default -> 1.0;
-                };
-            } catch (Exception ignore) {}
-        }
-        return 1; // for log
+        String value = s.trim();
+        if (value.length() < 2)
+            throw new IllegalArgumentException("Invalid GOES class: " + s);
+
+        double scale = switch (Character.toUpperCase(value.charAt(0))) {
+            case 'A' -> 1e-8;
+            case 'B' -> 1e-7;
+            case 'C' -> 1e-6;
+            case 'M' -> 1e-5;
+            case 'X' -> 1e-4;
+            default -> throw new IllegalArgumentException("Invalid GOES class: " + s);
+        };
+        double magnitude = Double.parseDouble(value.substring(1));
+        if (!Double.isFinite(magnitude) || magnitude < 0)
+            throw new IllegalArgumentException("Invalid GOES class: " + s);
+        return scale * magnitude;
     }
 
 }
