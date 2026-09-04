@@ -70,20 +70,20 @@ public class EventDatabase {
         return pstat;
     }
 
-    private static int getEventTypeId(SWEKSupplier eventType) throws Exception {
-        int typeId = _getEventTypeId(eventType);
+    private static int findOrInsertEventTypeId(SWEKSupplier supplier) throws Exception {
+        int typeId = findEventTypeId(supplier);
         if (typeId == -1) {
-            insertEventTypeIfNotExist(eventType);
-            typeId = _getEventTypeId(eventType);
+            insertEventTypeIfNotExist(supplier);
+            typeId = findEventTypeId(supplier);
         }
         return typeId;
     }
 
-    private static int _getEventTypeId(SWEKSupplier event) throws Exception {
+    private static int findEventTypeId(SWEKSupplier supplier) throws Exception {
         int typeId = -1;
         PreparedStatement pstatement = getPreparedStatement(SELECT_EVENT_TYPE);
-        pstatement.setString(1, event.group().getName());
-        pstatement.setString(2, SWEKCatalog.key(event));
+        pstatement.setString(1, supplier.group().getName());
+        pstatement.setString(2, SWEKCatalog.key(supplier));
 
         try (ResultSet rs = pstatement.executeQuery()) {
             if (rs.next()) {
@@ -120,16 +120,16 @@ public class EventDatabase {
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS " + tableName + '_' + field + " ON " + tableName + " (" + field + ")");
     }
 
-    private static int getIdFromUID(String uid) throws Exception {
-        int id = _getIdFromUID(uid);
+    private static int findOrInsertEventId(String uid) throws Exception {
+        int id = findEventId(uid);
         if (id == -1) {
             insertVoidEvent(uid);
-            id = _getIdFromUID(uid);
+            id = findEventId(uid);
         }
         return id;
     }
 
-    private static int _getIdFromUID(String uid) throws Exception {
+    private static int findEventId(String uid) throws Exception {
         int id = -1;
         PreparedStatement pstatement = getPreparedStatement(SELECT_EVENT_ID_FROM_UID);
         pstatement.setString(1, uid);
@@ -174,8 +174,8 @@ public class EventDatabase {
             PreparedStatement pstatement = getPreparedStatement(INSERT_LINK);
 
             for (JHVEvent.LinkRef link : links) {
-                int id0 = getIdFromUID(link.firstUid());
-                int id1 = getIdFromUID(link.secondUid());
+                int id0 = findOrInsertEventId(link.firstUid());
+                int id1 = findOrInsertEventId(link.secondUid());
                 if (id0 != -1 && id1 != -1) {
                     insertAssociation(pstatement, id0, id1);
                 } else {
@@ -189,25 +189,6 @@ public class EventDatabase {
         }
     }
 
-    private static int getEventId(String uid) throws Exception {
-        int generatedKey = -1;
-        PreparedStatement pstatement = getPreparedStatement(SELECT_EVENT_ID_FROM_UID);
-        pstatement.setString(1, uid);
-
-        try (ResultSet rs = pstatement.executeQuery()) {
-            if (rs.next()) {
-                generatedKey = rs.getInt(1);
-            }
-        }
-        return generatedKey;
-    }
-
-    private static int[] get_id_init_list(int sz) {
-        int[] inserted_ids = new int[sz];
-        Arrays.fill(inserted_ids, -1);
-        return inserted_ids;
-    }
-
     private static void bindRemoteParameter(PreparedStatement statement, int index, SWEKHandler.RemoteParameter parameter) throws SQLException {
         switch (parameter.value()) {
             case Integer i -> statement.setInt(index, i);
@@ -217,31 +198,31 @@ public class EventDatabase {
         }
     }
 
-    public static void storeEvents(List<SWEKHandler.RemoteEvent> event2db_list, SWEKSupplier type) {
+    public static void storeEvents(List<SWEKHandler.RemoteEvent> remoteEvents, SWEKSupplier supplier) {
         try {
-            executor.invokeAndWait(new StoreEvents(event2db_list, type));
+            executor.invokeAndWait(new StoreEvents(remoteEvents, supplier));
         } catch (Exception e) {
             Log.error(e);
         }
     }
 
-    private record StoreEvents(List<SWEKHandler.RemoteEvent> event2db_list,
-                               SWEKSupplier type) implements Callable<Void> {
+    private record StoreEvents(List<SWEKHandler.RemoteEvent> remoteEvents,
+                               SWEKSupplier supplier) implements Callable<Void> {
         @Override
         public Void call() throws Exception {
-            int[] inserted_ids = get_id_init_list(event2db_list.size());
-            int typeId = getEventTypeId(type);
-            int llen = event2db_list.size();
+            int[] eventIds = new int[remoteEvents.size()];
+            Arrays.fill(eventIds, -1);
+            int typeId = findOrInsertEventTypeId(supplier);
 
             PreparedStatement insertFullEvent = getPreparedStatement(INSERT_FULL_EVENT);
             PreparedStatement selectLastInsert = getPreparedStatement(SELECT_LAST_INSERT);
             PreparedStatement updateEvent = getPreparedStatement(UPDATE_EVENT);
 
-            for (int i = 0; i < llen; i++) {
-                SWEKHandler.RemoteEvent event2db = event2db_list.get(i);
+            for (int i = 0; i < remoteEvents.size(); i++) {
+                SWEKHandler.RemoteEvent event2db = remoteEvents.get(i);
                 int generatedKey = -1;
                 if (typeId != -1) {
-                    generatedKey = getEventId(event2db.uid());
+                    generatedKey = findEventId(event2db.uid());
 
                     if (generatedKey == -1) {
                         insertFullEvent.setInt(1, typeId);
@@ -274,7 +255,7 @@ public class EventDatabase {
                             fieldString.append(',').append(p.name());
                             varString.append(",?");
                         }
-                        String full_statement = "INSERT INTO " + type.dbName() + "(event_id" + fieldString + ") VALUES(?" + varString + ')';
+                        String full_statement = "INSERT INTO " + supplier.dbName() + "(event_id" + fieldString + ") VALUES(?" + varString + ')';
                         PreparedStatement pstatement = getPreparedStatement(full_statement);
                         pstatement.setInt(1, generatedKey);
 
@@ -288,10 +269,10 @@ public class EventDatabase {
                 } else {
                     Log.error("Failed to insert event");
                 }
-                inserted_ids[i] = generatedKey;
+                eventIds[i] = generatedKey;
             }
             insertFullEvent.getConnection().commit();
-            storeRelatedEventLinks(inserted_ids, type);
+            storeRelatedEventLinks(eventIds, supplier);
             return null;
         }
     }
@@ -419,7 +400,7 @@ public class EventDatabase {
         @Override
         public Void call() throws Exception {
             RequestCache typedCache = getStoredIntervals(type);
-            int typeId = getEventTypeId(type);
+            int typeId = findOrInsertEventTypeId(type);
             Connection connection = EventDatabaseThread.getConnection();
             typedCache.adaptRequestCache(start, end);
             try {
@@ -477,7 +458,7 @@ public class EventDatabase {
         long invalidationDate = lastEvent - ONEWEEK * 2;
         storedIntervals.put(type, typedCache);
 
-        int typeId = getEventTypeId(type);
+        int typeId = findOrInsertEventTypeId(type);
         if (typeId != -1) {
             PreparedStatement pstatement = getPreparedStatement(SELECT_DATERANGE);
             pstatement.setInt(1, typeId);
@@ -494,7 +475,7 @@ public class EventDatabase {
     }
 
     private static long getLastEvent(SWEKSupplier type) throws Exception {
-        int typeId = getEventTypeId(type);
+        int typeId = findOrInsertEventTypeId(type);
         long last_timestamp = Long.MIN_VALUE;
         if (typeId != -1) {
             PreparedStatement pstatement = getPreparedStatement(SELECT_LAST_EVENT);
@@ -524,7 +505,7 @@ public class EventDatabase {
         @Override
         public List<JHVEvent> call() throws Exception {
             List<JHVEvent> eventList = new ArrayList<>();
-            int typeId = getEventTypeId(type);
+            int typeId = findOrInsertEventTypeId(type);
             if (typeId != -1) {
                 String join = "LEFT JOIN " + type.dbName() + " AS tp ON tp.event_id=e.id";
                 StringBuilder filters = new StringBuilder();
@@ -573,7 +554,7 @@ public class EventDatabase {
         @Override
         public List<JHVEvent.Link> call() throws Exception {
             List<JHVEvent.Link> assocList = new ArrayList<>();
-            int typeId = getEventTypeId(type);
+            int typeId = findOrInsertEventTypeId(type);
             if (typeId != -1) {
                 PreparedStatement pstatement = getPreparedStatement(SELECT_ASSOCIATIONS);
                 pstatement.setInt(1, typeId);
@@ -594,8 +575,8 @@ public class EventDatabase {
     }
 
     private static List<JsonEvent> queryRelationEvents(int event_id, SWEKSupplier type_left, SWEKSupplier type_right, String param_left, String param_right) throws Exception {
-        int type_left_id = getEventTypeId(type_left);
-        int type_right_id = getEventTypeId(type_right);
+        int type_left_id = findOrInsertEventTypeId(type_left);
+        int type_right_id = findOrInsertEventTypeId(type_right);
 
         if (type_left_id != -1 && type_right_id != -1) {
             String table_left_name = type_left.dbName();
