@@ -18,8 +18,7 @@ import org.helioviewer.jhv.event.info.SWEKEventInformationDialog;
 import org.helioviewer.jhv.gui.AwtInputAdapter;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.input.InputController;
-import org.helioviewer.jhv.input.InputPointerListener;
-import org.helioviewer.jhv.input.InputPointerMotionListener;
+import org.helioviewer.jhv.input.InputMouseListener;
 import org.helioviewer.jhv.input.PointerEvent;
 import org.helioviewer.jhv.math.PolarBasis;
 import org.helioviewer.jhv.math.Quat;
@@ -27,7 +26,7 @@ import org.helioviewer.jhv.math.Vec2;
 import org.helioviewer.jhv.math.Vec3;
 import org.helioviewer.jhv.opengl.GLRenderer;
 
-class SWEKPopupController implements InputPointerListener, InputPointerMotionListener {
+class SWEKPopupController implements InputMouseListener {
 
     private static final Cursor helpCursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR);
     private static final int xOffset = 12;

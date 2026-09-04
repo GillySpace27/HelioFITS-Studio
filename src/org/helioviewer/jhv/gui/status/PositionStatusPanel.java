@@ -12,8 +12,7 @@ import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.gui.TransferAccess;
 import org.helioviewer.jhv.gui.component.StatusPanel;
-import org.helioviewer.jhv.input.InputPointerListener;
-import org.helioviewer.jhv.input.InputPointerMotionListener;
+import org.helioviewer.jhv.input.InputMouseListener;
 import org.helioviewer.jhv.input.PointerEvent;
 import org.helioviewer.jhv.math.FastFormat;
 import org.helioviewer.jhv.math.MathUtils;
@@ -22,7 +21,7 @@ import org.helioviewer.jhv.math.Vec3;
 import org.helioviewer.jhv.opengl.GLRenderer;
 
 @SuppressWarnings("serial")
-public final class PositionStatusPanel extends StatusPanel.StatusPlugin implements InputPointerListener, InputPointerMotionListener {
+public final class PositionStatusPanel extends StatusPanel.StatusPlugin implements InputMouseListener {
 
     private static final int FIELD_WIDTH = 7;
     private static final String MISSING = String.format("%" + FIELD_WIDTH + "s", "--");

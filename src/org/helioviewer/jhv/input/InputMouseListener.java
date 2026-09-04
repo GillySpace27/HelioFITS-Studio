@@ -1,6 +1,6 @@
 package org.helioviewer.jhv.input;
 
-public interface InputPointerListener {
+public interface InputMouseListener {
     default void mouseClicked(PointerEvent e) {}
 
     default void mouseExited(PointerEvent e) {}
@@ -8,4 +8,8 @@ public interface InputPointerListener {
     default void mousePressed(PointerEvent e) {}
 
     default void mouseReleased(PointerEvent e) {}
+
+    default void mouseDragged(PointerEvent e) {}
+
+    default void mouseMoved(PointerEvent e) {}
 }

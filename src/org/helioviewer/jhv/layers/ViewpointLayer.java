@@ -17,8 +17,7 @@ import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.display.ViewportMath;
 import org.helioviewer.jhv.input.InputController;
-import org.helioviewer.jhv.input.InputPointerListener;
-import org.helioviewer.jhv.input.InputPointerMotionListener;
+import org.helioviewer.jhv.input.InputMouseListener;
 import org.helioviewer.jhv.input.PointerEvent;
 import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.movie.Player;
@@ -60,7 +59,7 @@ public class ViewpointLayer extends AbstractLayer {
     private final ViewpointLayerOptions options;
     private final HoverListener hoverListener = new HoverListener();
 
-    private final class HoverListener implements InputPointerListener, InputPointerMotionListener {
+    private final class HoverListener implements InputMouseListener {
         @Override
         public void mouseMoved(PointerEvent e) {
             handleMouseMoved(e);
