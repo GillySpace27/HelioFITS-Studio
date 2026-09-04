@@ -2,7 +2,8 @@ package org.helioviewer.jhv.event;
 
 import java.awt.Color;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 
 import org.helioviewer.jhv.base.Colors;
@@ -12,8 +13,7 @@ public class JHVRelatedEvents {
 
     private static final Colors.Data eventColors = new Colors.Data();
 
-    private final ArrayList<JHVEvent> events = new ArrayList<>();
-    private final HashMap<Integer, JHVEvent> eventsById = new HashMap<>();
+    private final LinkedHashMap<Integer, JHVEvent> events = new LinkedHashMap<>();
     private final List<JHVEvent.Link> associations = new ArrayList<>();
     private final Color color;
 
@@ -26,12 +26,12 @@ public class JHVRelatedEvents {
 
     public JHVRelatedEvents(JHVEvent event, Color _color) {
         color = _color;
-        addEvent(event);
+        events.put(event.getUniqueID(), event);
         interval = new Interval(event.start, event.end);
     }
 
-    List<JHVEvent> getEvents() {
-        return events;
+    Collection<JHVEvent> getEvents() {
+        return events.values();
     }
 
     public long getEnd() {
@@ -58,10 +58,10 @@ public class JHVRelatedEvents {
     }
 
     public JHVEvent getClosestTo(long timestamp) {
-        for (JHVEvent event : events) {
+        for (JHVEvent event : events.values()) {
             if (event.start <= timestamp && timestamp <= event.end) return event;
         }
-        return events.getFirst();
+        return events.sequencedValues().getFirst();
     }
 
     public List<JHVEvent> getAssociatedEvents(JHVEvent event) {
@@ -76,7 +76,7 @@ public class JHVRelatedEvents {
             else
                 continue;
 
-            JHVEvent found = eventsById.get(target);
+            JHVEvent found = events.get(target);
             if (found != null)
                 result.add(found);
         }
@@ -92,17 +92,10 @@ public class JHVRelatedEvents {
         return associations;
     }
 
-    private void addEvent(JHVEvent event) {
-        events.add(event);
-        eventsById.put(event.getUniqueID(), event);
-    }
-
     void swapEvent(JHVEvent event) {
-        events.removeIf(e -> e.getUniqueID() == event.getUniqueID());
-        eventsById.put(event.getUniqueID(), event);
-        events.add(event);
+        events.putLast(event.getUniqueID(), event);
         long start = Long.MAX_VALUE, end = Long.MIN_VALUE;
-        for (JHVEvent evt : events) {
+        for (JHVEvent evt : events.values()) {
             start = Math.min(start, evt.start);
             end = Math.max(end, evt.end);
         }
@@ -110,8 +103,7 @@ public class JHVRelatedEvents {
     }
 
     void merge(JHVRelatedEvents found) {
-        events.addAll(found.events);
-        eventsById.putAll(found.eventsById);
+        events.putAll(found.events);
         found.associations.forEach(this::addAssociation);
         interval = new Interval(Math.min(interval.start(), found.interval.start()), Math.max(interval.end(), found.interval.end()));
     }
