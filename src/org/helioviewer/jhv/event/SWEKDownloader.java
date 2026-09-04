@@ -103,7 +103,6 @@ public class SWEKDownloader {
         }
 
         private boolean fetchAndStoreRemote() throws Exception {
-            List<JHVEvent.LinkRef> associations = new ArrayList<>();
             int page = 0;
             boolean overmax = true;
             while (overmax) {
@@ -111,15 +110,12 @@ public class SWEKDownloader {
                     return false;
 
                 SWEKHandler.RemotePage remotePage = supplier.source().handler().fetchPage(supplier, start, end, params, page);
-                EventDatabase.storeEvents(remotePage.events(), supplier);
-                associations.addAll(remotePage.associations());
+                if (!EventDatabase.storeRemotePage(remotePage, supplier))
+                    return false;
                 overmax = remotePage.overmax();
                 page++;
             }
-            if (cancelled)
-                return false;
-
-            return EventDatabase.storeAssociations(associations) != -1;
+            return !cancelled;
         }
         void stopWorker() {
             cancelled = true;

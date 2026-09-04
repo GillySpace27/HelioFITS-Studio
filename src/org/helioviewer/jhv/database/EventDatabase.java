@@ -159,27 +159,40 @@ public class EventDatabase {
         statement.executeUpdate();
     }
 
-    public static int storeAssociations(List<JHVEvent.LinkRef> links) {
+    public static boolean storeRemotePage(SWEKHandler.RemotePage remotePage, SWEKSupplier supplier) {
         try {
-            return executor.invokeAndWait(new StoreAssociations(links));
+            executor.invokeAndWait(new StoreRemotePage(remotePage, supplier));
+            return true;
         } catch (Exception e) {
-            Log.error(e);
+            Log.error("Could not store event page", e);
+            return false;
         }
-        return -1;
     }
 
-    private record StoreAssociations(List<JHVEvent.LinkRef> links) implements Callable<Integer> {
+    private record StoreRemotePage(SWEKHandler.RemotePage remotePage,
+                                   SWEKSupplier supplier) implements Callable<Void> {
         @Override
-        public Integer call() throws Exception {
-            PreparedStatement pstatement = getPreparedStatement(INSERT_LINK);
-
-            for (JHVEvent.LinkRef link : links) {
-                int id0 = findOrInsertEventId(link.firstUid());
-                int id1 = findOrInsertEventId(link.secondUid());
-                insertAssociation(pstatement, id0, id1);
+        public Void call() throws Exception {
+            Connection connection = EventDatabaseThread.getConnection();
+            try {
+                storeEvents(remotePage.events(), supplier);
+                storeAssociations(remotePage.associations());
+                connection.commit();
+            } catch (Exception e) {
+                connection.rollback();
+                throw e;
             }
-            pstatement.getConnection().commit();
-            return 0;
+            return null;
+        }
+    }
+
+    private static void storeAssociations(List<JHVEvent.LinkRef> links) throws Exception {
+        PreparedStatement pstatement = getPreparedStatement(INSERT_LINK);
+
+        for (JHVEvent.LinkRef link : links) {
+            int id0 = findOrInsertEventId(link.firstUid());
+            int id1 = findOrInsertEventId(link.secondUid());
+            insertAssociation(pstatement, id0, id1);
         }
     }
 
@@ -192,82 +205,67 @@ public class EventDatabase {
         }
     }
 
-    public static void storeEvents(List<SWEKHandler.RemoteEvent> remoteEvents, SWEKSupplier supplier) {
-        try {
-            executor.invokeAndWait(new StoreEvents(remoteEvents, supplier));
-        } catch (Exception e) {
-            Log.error(e);
-        }
-    }
+    private static void storeEvents(List<SWEKHandler.RemoteEvent> remoteEvents, SWEKSupplier supplier) throws Exception {
+        int[] eventIds = new int[remoteEvents.size()];
+        int typeId = findOrInsertEventTypeId(supplier);
 
-    private record StoreEvents(List<SWEKHandler.RemoteEvent> remoteEvents,
-                               SWEKSupplier supplier) implements Callable<Void> {
-        @Override
-        public Void call() throws Exception {
-            int[] eventIds = new int[remoteEvents.size()];
-            int typeId = findOrInsertEventTypeId(supplier);
+        PreparedStatement insertFullEvent = getPreparedStatement(INSERT_FULL_EVENT);
+        PreparedStatement selectLastInsert = getPreparedStatement(SELECT_LAST_INSERT);
+        PreparedStatement updateEvent = getPreparedStatement(UPDATE_EVENT);
 
-            PreparedStatement insertFullEvent = getPreparedStatement(INSERT_FULL_EVENT);
-            PreparedStatement selectLastInsert = getPreparedStatement(SELECT_LAST_INSERT);
-            PreparedStatement updateEvent = getPreparedStatement(UPDATE_EVENT);
+        for (int i = 0; i < remoteEvents.size(); i++) {
+            SWEKHandler.RemoteEvent event2db = remoteEvents.get(i);
+            int eventId = findEventId(event2db.uid());
 
-            for (int i = 0; i < remoteEvents.size(); i++) {
-                SWEKHandler.RemoteEvent event2db = remoteEvents.get(i);
-                int eventId = findEventId(event2db.uid());
+            if (eventId == -1) {
+                insertFullEvent.setInt(1, typeId);
+                insertFullEvent.setString(2, event2db.uid());
+                insertFullEvent.setLong(3, event2db.start());
+                insertFullEvent.setLong(4, event2db.end());
+                insertFullEvent.setLong(5, event2db.archiv());
+                insertFullEvent.setBinaryStream(6, new ByteArrayInputStream(event2db.compressedJson()), event2db.compressedJson().length);
+                insertFullEvent.executeUpdate();
 
-                if (eventId == -1) {
-                    insertFullEvent.setInt(1, typeId);
-                    insertFullEvent.setString(2, event2db.uid());
-                    insertFullEvent.setLong(3, event2db.start());
-                    insertFullEvent.setLong(4, event2db.end());
-                    insertFullEvent.setLong(5, event2db.archiv());
-                    insertFullEvent.setBinaryStream(6, new ByteArrayInputStream(event2db.compressedJson()), event2db.compressedJson().length);
-                    insertFullEvent.executeUpdate();
-
-                    try (ResultSet rs = selectLastInsert.executeQuery()) {
-                        if (!rs.next())
-                            throw new SQLException("Could not create event " + event2db.uid());
-                        eventId = rs.getInt(1);
-                    }
-                } else {
-                    updateEvent.setInt(1, typeId);
-                    updateEvent.setString(2, event2db.uid());
-                    updateEvent.setLong(3, event2db.start());
-                    updateEvent.setLong(4, event2db.end());
-                    updateEvent.setLong(5, event2db.archiv());
-                    updateEvent.setBinaryStream(6, new ByteArrayInputStream(event2db.compressedJson()), event2db.compressedJson().length);
-                    updateEvent.setInt(7, eventId);
-                    updateEvent.executeUpdate();
+                try (ResultSet rs = selectLastInsert.executeQuery()) {
+                    if (!rs.next())
+                        throw new SQLException("Could not create event " + event2db.uid());
+                    eventId = rs.getInt(1);
                 }
-
-                StringBuilder fieldString = new StringBuilder();
-                StringBuilder varString = new StringBuilder();
-                for (SWEKHandler.RemoteParameter p : event2db.paramList()) {
-                    fieldString.append(',').append(p.name());
-                    varString.append(",?");
-                }
-                String full_statement = "INSERT INTO " + supplier.dbName() + "(event_id" + fieldString + ") VALUES(?" + varString + ')';
-                PreparedStatement pstatement = getPreparedStatement(full_statement);
-                pstatement.setInt(1, eventId);
-
-                int index = 2;
-                for (SWEKHandler.RemoteParameter p : event2db.paramList()) {
-                    bindRemoteParameter(pstatement, index, p);
-                    index++;
-                }
-                pstatement.executeUpdate();
-                eventIds[i] = eventId;
+            } else {
+                updateEvent.setInt(1, typeId);
+                updateEvent.setString(2, event2db.uid());
+                updateEvent.setLong(3, event2db.start());
+                updateEvent.setLong(4, event2db.end());
+                updateEvent.setLong(5, event2db.archiv());
+                updateEvent.setBinaryStream(6, new ByteArrayInputStream(event2db.compressedJson()), event2db.compressedJson().length);
+                updateEvent.setInt(7, eventId);
+                updateEvent.executeUpdate();
             }
-            insertFullEvent.getConnection().commit();
-            storeRelatedEventLinks(eventIds, supplier);
-            return null;
+
+            StringBuilder fieldString = new StringBuilder();
+            StringBuilder varString = new StringBuilder();
+            for (SWEKHandler.RemoteParameter p : event2db.paramList()) {
+                fieldString.append(',').append(p.name());
+                varString.append(",?");
+            }
+            String full_statement = "INSERT INTO " + supplier.dbName() + "(event_id" + fieldString + ") VALUES(?" + varString + ')';
+            PreparedStatement pstatement = getPreparedStatement(full_statement);
+            pstatement.setInt(1, eventId);
+
+            int index = 2;
+            for (SWEKHandler.RemoteParameter p : event2db.paramList()) {
+                bindRemoteParameter(pstatement, index, p);
+                index++;
+            }
+            pstatement.executeUpdate();
+            eventIds[i] = eventId;
         }
+        storeRelatedEventLinks(eventIds, supplier);
     }
 
     private static void storeRelatedEventLinks(int[] eventIds, SWEKSupplier type) throws Exception {
         String table = type.dbName();
         SWEKGroup group = type.group();
-        Connection connection = EventDatabaseThread.getConnection();
         for (SWEK.RelatedEvents relation : SWEKCatalog.getRelatedEvents()) {
             if (relation.group() != group || relation.relatedWith() != group)
                 continue;
@@ -285,7 +283,6 @@ public class EventDatabase {
                 }
             }
         }
-        connection.commit();
     }
 
     private static JHVEvent parseJSON(JsonEvent jsonEvent, boolean full) throws Exception {
