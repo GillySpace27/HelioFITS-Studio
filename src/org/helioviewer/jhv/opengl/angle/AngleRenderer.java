@@ -301,9 +301,15 @@ public final class AngleRenderer {
             return;
         Display.edrHeadroom = headroom;
         Display.edrPotential = potential;
-        Log.info("EDR headroom now " + headroom + " of a potential " + potential + " SDR whites");
+        // The compositor ramps the headroom up over about a second in forty small steps; every
+        // step repaints, but only a real change is worth a line in the log.
+        if (Math.abs(headroom - loggedHeadroom) > 0.25 * loggedHeadroom) {
+            loggedHeadroom = headroom;
+            Log.info("EDR headroom now " + headroom + " of a potential " + potential + " SDR whites");
+        }
         DisplayController.display();
     }
+    private double loggedHeadroom = 1;
 
     // Wrap a freshly created RGB10_A2 IOSurface of the given size as the EGL draw surface.
     // On success, deepCanvas/deepWidth/deepHeight describe the new canvas.

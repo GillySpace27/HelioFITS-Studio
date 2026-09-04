@@ -12,6 +12,7 @@ import org.helioviewer.jhv.app.AppInfo;
 import org.helioviewer.jhv.app.Platform;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
+import org.helioviewer.jhv.display.HdrGain;
 import org.helioviewer.jhv.gui.Actions;
 import org.helioviewer.jhv.gui.DesktopIntegration;
 import org.helioviewer.jhv.gui.PresentationMode;
@@ -112,6 +113,28 @@ public final class MenuBar extends JMenuBar {
             DisplayController.display();
         });
         viewMenu.add(dither);
+
+        JCheckBoxMenuItem hdrCanvas = new JCheckBoxMenuItem("HDR Canvas", HdrGain.canvasEnabled());
+        hdrCanvas.setToolTipText("Render image layers into the display's extended range, so the corona can be "
+                + "brighter than the window. Needs an EDR display; takes effect the next time JHelioviewer starts.");
+        hdrCanvas.addItemListener(e -> HdrGain.setCanvasEnabled(hdrCanvas.getState()));
+        viewMenu.add(hdrCanvas);
+
+        JMenu hdrBrightness = new JMenu("HDR Brightness");
+        hdrBrightness.setToolTipText("How far image layers go into the display's headroom. Auto uses whatever the "
+                + "display offers at its current brightness setting.");
+        ButtonGroup gainGroup = new ButtonGroup();
+        String[][] stops = {{"Auto (display maximum)", "auto"}, {"1x (no HDR)", "1"}, {"2x", "2"}, {"4x", "4"}, {"8x", "8"}};
+        for (String[] stop : stops) {
+            JRadioButtonMenuItem item = new JRadioButtonMenuItem(stop[0], stop[1].equals(HdrGain.setting()));
+            item.addActionListener(e -> {
+                HdrGain.setSetting(stop[1]);
+                DisplayController.display();
+            });
+            gainGroup.add(item);
+            hdrBrightness.add(item);
+        }
+        viewMenu.add(hdrBrightness);
 
 
         viewMenu.addSeparator();
