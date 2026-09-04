@@ -10,10 +10,10 @@ import org.helioviewer.jhv.app.Settings;
  * scales with it; a number is a fixed multiple of SDR white. Overlays never see it, and neither
  * does any capture path: what is exported is exactly what the 10-bit canvas would have shown.
  *
- * <p>The compositor engages EDR only once content exceeds roughly 1.25 (measured 2026-09-04,
- * extra/test/native/edr_present_probe.m), and reports a headroom of 1 until then. So on a screen
- * that could offer more, auto starts one frame at {@link #BOOTSTRAP}, the renderer repaints when
- * the reading rises, and from then on auto tracks the real value.
+ * <p>The compositor engages EDR only once something on screen exceeds roughly 1.25 (measured
+ * 2026-09-04, extra/test/native/edr_present_probe.m) and reports a headroom of 1 until then. The
+ * Metal presenter draws a 3x3 patch above white in a corner until that happens, the renderer
+ * repaints when the reading rises, and the gain here is simply capped by what the screen reports.
  */
 public final class HdrGain {
 
@@ -42,7 +42,6 @@ public final class HdrGain {
     private static final String KEY_KNEE = "display.hdrKnee";
     private static final String KEY_CANVAS = "display.edrCanvas";
     private static final float MAX = 16;
-    static final float BOOTSTRAP = 1.5f;
 
     private static String setting = defaultSetting();
     private static Mode mode = Mode.fromName(String.valueOf(Settings.getProperty(KEY_MODE)));
@@ -76,7 +75,7 @@ public final class HdrGain {
     static float resolve(String _setting, double headroom, double potential, boolean sdr) {
         if (sdr)
             return 1;
-        float available = headroom > 1 ? (float) headroom : potential > 1 ? BOOTSTRAP : 1;
+        float available = headroom > 1 ? (float) headroom : 1;
         if (_setting == null || "auto".equals(_setting))
             return available;
         try {

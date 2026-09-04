@@ -290,9 +290,14 @@ static NSString *const jhv_edr_shader_source = @
     "    o.uv = (p[vid] + 1.0) * 0.5;\n"
     "    return o;\n"
     "}\n"
-    "fragment float4 jhv_edr_fragment(V in [[stage_in]], texture2d<float> src [[texture(0)]]) {\n"
+    "struct Boot { float on; float height; };\n"
+    "fragment float4 jhv_edr_fragment(V in [[stage_in]], texture2d<float> src [[texture(0)]], constant Boot &boot [[buffer(0)]]) {\n"
     "    constexpr sampler s(coord::normalized, filter::nearest, address::clamp_to_edge);\n"
     "    float4 c = src.sample(s, in.uv);\n"
+    // The compositor engages EDR only once something on screen exceeds about 1.25, and a 2x2
+    // patch is enough (measured 2026-09-04; 1x1 is not). Until the screen reports headroom, a
+    // 3x3 patch at 1.5 sits in the bottom-left corner, under the timestamp; then it is gone.
+    "    if (boot.on > 0.5 && in.pos.x < 3.0 && in.pos.y > boot.height - 3.0) c = float4(1.5, 1.5, 1.5, 1.0);\n"
     // A UNORM canvas turned a shader NaN into 0 and an overshoot into 1; a half-float canvas keeps
     // both, and the compositor treats either as EDR content (measured 2026-09-04: EDR engaged with
     // no RGB above 1.0). Sanitize here, once, rather than in every overlay shader.
@@ -479,6 +484,8 @@ int jhv_metal_host_present_deep(void *layerPtr, void *surfPtr, int width, int he
             // Viewport covers exactly the canvas-sized region; the source is sampled 1:1 over it.
             [encoder setViewport:(MTLViewport){0, 0, (double)w, (double)h, 0, 1}];
             [encoder setFragmentTexture:presenter.wrapped atIndex:0];
+            float boot[2] = { (jhv_edr_headroom_cached <= 1.0 && jhv_edr_potential_cached > 1.0) ? 1.0f : 0.0f, (float)h };
+            [encoder setFragmentBytes:boot length:sizeof boot atIndex:0];
             [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
             [encoder endEncoding];
         } else {
