@@ -55,19 +55,23 @@ public class TimeMap<V> extends TreeMap<JHVTime, V> {
     }
 
     public JHVTime nearestKey(JHVTime time) {
+        return timeArray[nearestIndex(time)];
+    }
+
+    public int nearestIndex(JHVTime time) {
         int idx = Arrays.binarySearch(timeArray, time);
         if (idx >= 0)
-            return timeArray[idx];
+            return idx;
 
         int ip = -idx - 1;
         if (ip == 0)
-            return timeArray[0];
+            return 0;
         if (ip > maxIdx)
-            return timeArray[maxIdx];
+            return maxIdx;
 
         JHVTime f = timeArray[ip - 1];
         JHVTime c = timeArray[ip];
-        return time.milli - f.milli < c.milli - time.milli ? f : c;
+        return time.milli - f.milli < c.milli - time.milli ? ip - 1 : ip;
     }
 
     public V nearestValue(JHVTime time) {

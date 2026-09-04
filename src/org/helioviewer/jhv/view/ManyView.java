@@ -16,18 +16,7 @@ import org.helioviewer.jhv.time.TimeMap;
 
 public class ManyView implements View {
 
-    private static class FrameInfo {
-        final View view;
-        final JHVTime timeView;
-        final int idxView;
-        int idxMany;
-
-        FrameInfo(View _view, JHVTime _timeView, int _idxView) {
-            view = _view;
-            timeView = _timeView;
-            idxView = _idxView;
-        }
-    }
+    private record FrameInfo(View view, JHVTime timeView, int idxView) {}
 
     private final TimeMap<FrameInfo> frameMap = new TimeMap<>();
     private int targetFrame;
@@ -38,9 +27,6 @@ public class ManyView implements View {
 
         views.forEach(this::putDates);
         frameMap.buildIndex();
-        for (int i = 0; i <= frameMap.maxIndex(); i++) {
-            frameMap.indexedValue(i).idxMany = i;
-        }
         // unused J2KViews should be abolished by their reaper
     }
 
@@ -127,9 +113,10 @@ public class ManyView implements View {
 
     @Override
     public boolean setNearestFrame(JHVTime time) {
-        FrameInfo frameInfo = frameMap.nearestValue(time);
+        int frame = frameMap.nearestIndex(time);
+        FrameInfo frameInfo = frameMap.indexedValue(frame);
         if (frameInfo.view.setNearestFrame(frameInfo.timeView)) {
-            targetFrame = frameInfo.idxMany;
+            targetFrame = frame;
             return true;
         }
         return false;
