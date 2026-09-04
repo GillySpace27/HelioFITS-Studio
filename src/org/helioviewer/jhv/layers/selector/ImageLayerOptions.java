@@ -197,7 +197,7 @@ final class ImageLayerOptions extends JPanel {
     public void refresh(Layer layer) {
         ImageLayer imageLayer = (ImageLayer) layer;
         downloadButton.setVisible(!imageLayer.isLocal());
-        lutPanel.setLUT(imageLayer.getView().getDefaultLUT());
+        lutPanel.refresh();
     }
 
     private void downloadProgress(int value) {

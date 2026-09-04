@@ -18,18 +18,24 @@ import com.jidesoft.swing.JideToggleButton;
 
 public final class LUTPanel implements FilterDetails {
 
+    private final ImageDisplaySettings settings;
     private final LUTComboBox lutCombo;
+    private final JideToggleButton invertButton;
     private final JPanel buttonPanel = new JPanel(new BorderLayout());
     private final JLabel title = new JLabel("Color ", JLabel.RIGHT);
 
     public LUTPanel(ImageLayer layer) {
-        ImageDisplaySettings settings = layer.getDisplaySettings();
+        settings = layer.getDisplaySettings();
         lutCombo = new LUTComboBox();
-        JideToggleButton invertButton = new JideToggleButton(Buttons.invert, settings.getInvertLUT());
+        invertButton = new JideToggleButton(Buttons.invert, settings.getInvertLUT());
         invertButton.setToolTipText("Invert color table");
 
         ActionListener listener = e -> {
-            settings.setLUT(lutCombo.getLUT(), invertButton.isSelected());
+            LUT lut = lutCombo.getLUT();
+            boolean inverted = invertButton.isSelected();
+            if (lut.equals(settings.getLUT()) && inverted == settings.getInvertLUT())
+                return;
+            settings.setLUT(lut, inverted);
             DisplayController.display();
         };
         lutCombo.addActionListener(listener);
@@ -37,8 +43,9 @@ public final class LUTPanel implements FilterDetails {
         buttonPanel.add(invertButton, BorderLayout.LINE_END);
     }
 
-    public void setLUT(LUT lut) {
-        lutCombo.setLUT(lut);
+    public void refresh() {
+        invertButton.setSelected(settings.getInvertLUT());
+        lutCombo.selectLUT(settings.getLUT());
     }
 
     @Override
