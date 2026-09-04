@@ -10,7 +10,6 @@ import javax.annotation.Nullable;
 
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.astronomy.Position;
-import org.helioviewer.jhv.base.Regex;
 import org.helioviewer.jhv.io.NetClient;
 import org.helioviewer.jhv.thread.Task;
 import org.helioviewer.jhv.time.JHVTime;
@@ -39,7 +38,7 @@ public class LoadFootpoint {
 
                 String line;
                 while ((line = br.readLine()) != null) {
-                    String[] values = Regex.Comma.split(line);
+                    String[] values = line.split(",");
                     if (values.length > 8) {
                         try {
                             JHVTime time = new JHVTime(parseTime(values[6]));

@@ -14,7 +14,6 @@ import java.util.TreeMap;
 
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.base.NaturalSort;
-import org.helioviewer.jhv.base.Regex;
 import org.helioviewer.jhv.io.FileUtils;
 
 final class LUTReader {
@@ -165,7 +164,7 @@ final class LUTReader {
     }
 
     private static void parseDataLine(String line, List<Integer> data, int lineNo) throws IOException {
-        String[] parts = Regex.Comma.split(line);
+        String[] parts = line.split(",");
         for (String part : parts) {
             String value = part.trim();
             if (value.isEmpty())

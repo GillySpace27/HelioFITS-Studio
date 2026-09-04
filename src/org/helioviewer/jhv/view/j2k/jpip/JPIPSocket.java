@@ -6,7 +6,6 @@ import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.helioviewer.jhv.base.Regex;
 import org.helioviewer.jhv.view.j2k.jpip.http.HTTPSocket;
 
 import kdu_jni.KduException;
@@ -42,7 +41,7 @@ public final class JPIPSocket extends HTTPSocket {
                 throw new IOException("The header 'JPIP-cnew' was not sent by the server");
 
             Map<String, String> map = new HashMap<>();
-            for (String part : Regex.Comma.split(cnew))
+            for (String part : cnew.split(","))
                 for (String cnewParam : cnewParams)
                     if (part.startsWith(cnewParam + '='))
                         map.put(cnewParam, part.substring(cnewParam.length() + 1));

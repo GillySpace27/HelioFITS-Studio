@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.helioviewer.jhv.base.Regex;
 import org.helioviewer.jhv.io.NetFileCache;
 import org.helioviewer.jhv.time.TimeUtils;
 import org.helioviewer.jhv.timelines.draw.YAxis;
@@ -47,7 +46,7 @@ public class BandReaderCdf {
                     descriptors.add(entry.toString());
         }
         String descriptor = String.join(" ", descriptors).trim();
-        String[] descriptorParts = Regex.GT.split(descriptor);
+        String[] descriptorParts = descriptor.split(">");
         if (descriptorParts.length == 0 || descriptorParts[0].isBlank()) {
             throw new IOException("Missing or invalid Descriptor global attribute: " + uri);
         }
