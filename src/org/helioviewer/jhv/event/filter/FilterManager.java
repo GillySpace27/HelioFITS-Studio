@@ -14,7 +14,7 @@ public class FilterManager {
         void filtersChanged(SWEKSupplier supplier);
     }
 
-    private static final Map<SWEKSupplier, Map<SWEK.Parameter, List<SWEK.Param>>> filters = new HashMap<>();
+    private static final Map<SWEKSupplier, List<SWEK.Param>> filters = new HashMap<>();
     private static final ArrayList<Listener> listeners = new ArrayList<>();
 
     public static void addListener(Listener listener) {
@@ -26,9 +26,8 @@ public class FilterManager {
         listeners.remove(listener);
     }
 
-    static void addFilter(SWEKSupplier supplier, SWEK.Parameter parameter, SWEK.Param filter) {
-        Map<SWEK.Parameter, List<SWEK.Param>> filteredParameter = filters.computeIfAbsent(supplier, _ -> new HashMap<>());
-        filteredParameter.computeIfAbsent(parameter, k -> new ArrayList<>()).add(filter);
+    static void addFilter(SWEKSupplier supplier, SWEK.Param filter) {
+        filters.computeIfAbsent(supplier, _ -> new ArrayList<>()).add(filter);
     }
 
     static void removeFilters(SWEKSupplier supplier) {
@@ -39,7 +38,7 @@ public class FilterManager {
         listeners.forEach(listener -> listener.filtersChanged(supplier));
     }
 
-    public static Map<SWEK.Parameter, List<SWEK.Param>> getFilters(SWEKSupplier supplier) {
-        return filters.getOrDefault(supplier, Map.of());
+    public static List<SWEK.Param> getFilters(SWEKSupplier supplier) {
+        return List.copyOf(filters.getOrDefault(supplier, List.of()));
     }
 }

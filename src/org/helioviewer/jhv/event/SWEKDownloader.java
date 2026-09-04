@@ -1,7 +1,6 @@
 package org.helioviewer.jhv.event;
 
 import java.awt.EventQueue;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -182,14 +181,8 @@ public class SWEKDownloader {
             stopDownloadSupplier(supplier, true);
     }
 
-    private static List<SWEK.Param> defineParameters(SWEKSupplier supplier) {
-        List<SWEK.Param> params = new ArrayList<>();
-        FilterManager.getFilters(supplier).values().forEach(params::addAll);
-        return params;
-    }
-
     static void startDownloadSupplier(SWEKSupplier supplier, List<Interval> intervals) {
-        List<SWEK.Param> params = defineParameters(supplier);
+        List<SWEK.Param> params = FilterManager.getFilters(supplier);
         SWEKGroup group = supplier.group();
         boolean started = false;
         for (Interval interval : intervals) {
