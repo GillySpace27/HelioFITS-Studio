@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Scanner;
 
 import javax.annotation.Nullable;
 
@@ -155,13 +154,10 @@ class HEKParser {
             String coordinatesString = value.substring(value.indexOf('(') + 1, value.lastIndexOf(')'));
             String coordinates = coordinatesString.substring(coordinatesString.indexOf('(') + 1, coordinatesString.lastIndexOf(')'));
 
-            try (Scanner s = new Scanner(coordinates)) {
-                s.useDelimiter(",");
-                while (s.hasNext()) {
-                    HgsPoint tempPoint = parseCoordinates(s.next());
-                    if (tempPoint != null) {
-                        polygonPoints.add(tempPoint);
-                    }
+            for (String coordinate : coordinates.split(",")) {
+                HgsPoint tempPoint = parseCoordinates(coordinate);
+                if (tempPoint != null) {
+                    polygonPoints.add(tempPoint);
                 }
             }
         }
