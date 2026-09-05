@@ -176,7 +176,7 @@ final class ExrCapture {
                     .put("stretch", scale.stretch())
                     .put("t", "(physical - min) / (max - min)"));
         o.put("channels", new JSONObject()
-                .put("Y", "decoded value in [0,1]" + (scale != null ? " (see physical)" : "") + (rhef ? ", RHEF rank" : "")
+                .put("Y", "decoded value, [0,1] inside the display range; above 1 the physical ratio to the range's top, capped at 16" + (scale != null ? " (see physical)" : "") + (rhef ? ", RHEF rank" : "")
                         + (diff ? ", difference of two frames" : "") + "; no slider applied")
                 .put("V", "value the colour table was indexed with on screen: V = levels.offset + Y*levels.scale*levels.responseFactor,"
                         + " then radial gain, sharpen and upsilon; colour = lut[V]")

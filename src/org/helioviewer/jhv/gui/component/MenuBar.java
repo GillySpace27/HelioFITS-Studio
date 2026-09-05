@@ -12,6 +12,7 @@ import org.helioviewer.jhv.app.AppInfo;
 import org.helioviewer.jhv.app.Platform;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
+import org.helioviewer.jhv.display.HdrGain;
 import org.helioviewer.jhv.gui.Actions;
 import org.helioviewer.jhv.gui.DesktopIntegration;
 import org.helioviewer.jhv.gui.PresentationMode;
@@ -112,6 +113,58 @@ public final class MenuBar extends JMenuBar {
             DisplayController.display();
         });
         viewMenu.add(dither);
+
+        JCheckBoxMenuItem hdrCanvas = new JCheckBoxMenuItem("HDR Canvas", HdrGain.canvasEnabled());
+        hdrCanvas.setToolTipText("Render image layers into the display's extended range, so the corona can be "
+                + "brighter than the window. Needs an EDR display; takes effect the next time JHelioviewer starts.");
+        hdrCanvas.addItemListener(e -> HdrGain.setCanvasEnabled(hdrCanvas.getState()));
+        viewMenu.add(hdrCanvas);
+
+        JMenu hdrBrightness = new JMenu("HDR Brightness");
+        hdrBrightness.setToolTipText("How far over the interface white the brightest data goes, in photographic stops. "
+                + "Never more than the display offers at its current brightness; Maximum uses all of it.");
+        ButtonGroup gainGroup = new ButtonGroup();
+        String[][] stops = {{"Off (1x)", "1"}, {"+1/2 stop (1.4x)", "1.41"}, {"+1 stop (2x)", "2"}, {"+1 1/2 stops (2.8x)", "2.83"},
+                {"+2 stops (4x)", "4"}, {"Display maximum", "auto"}};
+        for (String[] stop : stops) {
+            JRadioButtonMenuItem item = new JRadioButtonMenuItem(stop[0], stop[1].equals(HdrGain.setting()));
+            item.addActionListener(e -> {
+                HdrGain.setSetting(stop[1]);
+                DisplayController.display();
+            });
+            gainGroup.add(item);
+            hdrBrightness.add(item);
+        }
+        viewMenu.add(hdrBrightness);
+
+        JMenu hdrMapping = new JMenu("HDR Mapping");
+        hdrMapping.setToolTipText("Linear scales the whole image into the headroom. The knee modes leave everything "
+                + "below the knee as it is and expand only the highlights; soft rolls into it without a visible break.");
+        ButtonGroup modeGroup = new ButtonGroup();
+        for (HdrGain.Mode mode : HdrGain.Mode.values()) {
+            JRadioButtonMenuItem item = new JRadioButtonMenuItem(mode.label, mode == HdrGain.mode());
+            item.addActionListener(e -> {
+                HdrGain.setMode(mode);
+                DisplayController.display();
+            });
+            modeGroup.add(item);
+            hdrMapping.add(item);
+        }
+        viewMenu.add(hdrMapping);
+
+        JMenu hdrKnee = new JMenu("HDR Knee");
+        hdrKnee.setToolTipText("Where the knee modes start expanding, as a fraction of the data range that feeds the colour table.");
+        ButtonGroup kneeGroup = new ButtonGroup();
+        for (double k : new double[]{0.5, 0.75, 0.9}) {
+            JRadioButtonMenuItem item = new JRadioButtonMenuItem("top " + Math.round((1 - k) * 100) + "% of the data", Math.abs(k - HdrGain.knee()) < 1e-3);
+            item.addActionListener(e -> {
+                HdrGain.setKnee(k);
+                DisplayController.display();
+            });
+            kneeGroup.add(item);
+            hdrKnee.add(item);
+        }
+        viewMenu.add(hdrKnee);
 
 
         viewMenu.addSeparator();

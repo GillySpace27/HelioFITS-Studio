@@ -225,28 +225,34 @@ void *jhv_metal_host_get_layer(void *boxPtr) {
     return (__bridge void *)box.metalLayer;
 }
 
-// --- Deep-colour presentation ---------------------------------------------------------------
+// --- Deep-colour and EDR presentation --------------------------------------------------------
 //
 // The EGL window surface caps the canvas at 8 bits per channel because ANGLE's Metal backend
-// only enumerates 8-bit configs. The route around it: the scene is rendered into a 10-bit
-// IOSurface wrapped as an EGL pbuffer (EGL_ANGLE_iosurface_client_buffer, whose format comes
-// from the pbuffer attributes rather than the config), and these functions carry that IOSurface
-// to the screen: the layer is switched to a 10-bit pixel format and each frame is blitted from
-// the IOSurface into the layer's drawable.
+// only enumerates 8-bit configs. The route around it: the scene is rendered into an IOSurface
+// wrapped as an EGL pbuffer (EGL_ANGLE_iosurface_client_buffer, whose format comes from the
+// pbuffer attributes rather than the config), and these functions carry that IOSurface to the
+// screen.
 //
-// Why BGR10A2Unorm and not RGBA16Float: the layer's colorspace is nil, as it has always been
-// for the 8-bit path, and for an untagged UNORM layer the compositor passes pixel values
-// through unchanged, so the image looks exactly as before with four times the levels. An
-// untagged FLOAT layer is different: the compositor treats its values as linear and re-encodes
-// them for the display (measured on this machine: greys and primaries brightened along an sRGB
-// encode curve, saturated colours handled by some further gamut/EDR logic). Half-float
-// presentation therefore needs real colour management first, and 10 bits matches what the
-// panel's pipe carries anyway.
+// Two modes, chosen by the caller:
+//   edr = 0: 10-bit. BGR10A2 IOSurface, BGR10A2Unorm layer, colorspace nil, plain blit. The
+//            compositor passes UNORM values through unchanged, so the image looks exactly as
+//            the 8-bit path did with four times the levels.
+//   edr = 1: RGBA16F IOSurface, RGBA16Float layer tagged extended linear sRGB with EDR content
+//            requested, presented by a render pass that applies the sRGB EOTF (extended past
+//            1.0). Measured 2026-09-04 (extra/test/native/edr_present_probe.m): tagging the layer
+//            extended *sRGB* never engages EDR, extended *linear* sRGB does, so the conversion
+//            to linear has to happen here. The canvas keeps the sRGB-encoded values every
+//            shader and colour table assumes; only the last step changes.
+//
+// The vertical flip: GL's framebuffer origin is bottom-left, Metal's top-left. The 10-bit blit
+// copies raw rows and flips the layer with a transform; the EDR pass samples row 0 at the
+// bottom of the screen instead, so the layer transform is identity in that mode.
 
 @interface JHVDeepPresenter : NSObject
 @property(nonatomic, strong) id<MTLCommandQueue> queue;
 @property(nonatomic, strong) id<MTLTexture> wrapped;      // MTLTexture view of the canvas IOSurface
 @property(nonatomic, assign) IOSurfaceRef wrappedSurface; // cache key only, not retained here
+@property(nonatomic, strong) id<MTLRenderPipelineState> edrPipeline;
 @end
 
 @implementation JHVDeepPresenter
@@ -254,14 +260,77 @@ void *jhv_metal_host_get_layer(void *boxPtr) {
 
 static char jhv_deep_presenter_key;
 
-// Switch the layer to 10 bits per channel so the compositor receives more than 8.
-// Returns 1 on success. Main-thread: the layer is in a live tree.
-//
-// The vertical flip: GL's framebuffer origin is bottom-left, Metal's top-left. ANGLE's window
-// surface reconciles the two during its own present; the deep path blits raw rows, so the layer
-// is flipped at composite time instead. Free (the compositor applies it), and it must be undone
-// if the deep path is abandoned, because ANGLE's window surface would then flip twice.
-int jhv_metal_host_prepare_deep(void *layerPtr) {
+// Screen headroom, read on the main thread after each EDR present and served from here, so the
+// render thread never touches AppKit. 1.0 until the first EDR frame has been on screen.
+static double jhv_edr_headroom_cached = 1.0;
+// What the screen could offer if EDR content were present (16 on the XDR panel, 1 on an SDR
+// one). Read when the layer is prepared, so the first frame already knows whether to bootstrap.
+// Measured 2026-09-04: the compositor engages EDR only once content exceeds roughly 1.1 to
+// 1.25, so a canvas that never goes past white never sees a headroom above 1.
+static double jhv_edr_potential_cached = 1.0;
+
+static NSScreen *jhv_screen_of_layer(CALayer *layer) {
+    CALayer *root = layer;
+    while (root.superlayer != nil)
+        root = root.superlayer;
+    id delegate = root.delegate;
+    NSScreen *screen = [delegate isKindOfClass:NSView.class] ? ((NSView *)delegate).window.screen : nil;
+    return screen != nil ? screen : NSScreen.mainScreen;
+}
+
+static NSString *const jhv_edr_shader_source = @
+    "#include <metal_stdlib>\n"
+    "using namespace metal;\n"
+    "struct V { float4 pos [[position]]; float2 uv; };\n"
+    "vertex V jhv_edr_vertex(uint vid [[vertex_id]]) {\n"
+    "    float2 p[3] = { float2(-1, -1), float2(3, -1), float2(-1, 3) };\n"
+    "    V o; o.pos = float4(p[vid], 0, 1);\n"
+    // GL wrote row 0 as the bottom of the image; Metal's v = 0 is row 0. Mapping NDC y = -1
+    // (screen bottom) to v = 0 therefore shows the image upright with no explicit flip.
+    "    o.uv = (p[vid] + 1.0) * 0.5;\n"
+    "    return o;\n"
+    "}\n"
+    "struct Boot { float on; float height; };\n"
+    "fragment float4 jhv_edr_fragment(V in [[stage_in]], texture2d<float> src [[texture(0)]], constant Boot &boot [[buffer(0)]]) {\n"
+    "    constexpr sampler s(coord::normalized, filter::nearest, address::clamp_to_edge);\n"
+    "    float4 c = src.sample(s, in.uv);\n"
+    // The compositor engages EDR only once something on screen exceeds about 1.25, and a 2x2
+    // patch is enough (measured 2026-09-04; 1x1 is not). Until the screen reports headroom, a
+    // 3x3 patch at 1.5 sits in the bottom-left corner, under the timestamp; then it is gone.
+    "    if (boot.on > 0.5 && in.pos.x < 3.0 && in.pos.y > boot.height - 3.0) c = float4(1.5, 1.5, 1.5, 1.0);\n"
+    // A UNORM canvas turned a shader NaN into 0 and an overshoot into 1; a half-float canvas keeps
+    // both, and the compositor treats either as EDR content (measured 2026-09-04: EDR engaged with
+    // no RGB above 1.0). Sanitize here, once, rather than in every overlay shader.
+    "    c = select(c, float4(0.0), isnan(c) || isinf(c));\n"
+    "    c = clamp(c, float4(0.0), float4(16.0, 16.0, 16.0, 1.0));\n"
+    // sRGB EOTF, extended past 1.0 by applying it to the magnitude (how Apple's extended
+    // spaces are defined). The canvas is premultiplied over an opaque black layer, so its RGB
+    // is already the final colour and linearizing it directly is exact.
+    "    float3 a = abs(c.rgb);\n"
+    "    float3 lin = select(pow((a + 0.055) / 1.055, 2.4), a / 12.92, a <= 0.04045);\n"
+    "    return float4(sign(c.rgb) * lin, c.a);\n"
+    "}\n";
+
+static id<MTLRenderPipelineState> jhv_edr_pipeline(id<MTLDevice> device) {
+    NSError *error = nil;
+    id<MTLLibrary> library = [device newLibraryWithSource:jhv_edr_shader_source options:nil error:&error];
+    if (library == nil) {
+        NSLog(@"jhv_metal_host: EDR shader failed to compile: %@", error);
+        return nil;
+    }
+    MTLRenderPipelineDescriptor *desc = [MTLRenderPipelineDescriptor new];
+    desc.vertexFunction = [library newFunctionWithName:@"jhv_edr_vertex"];
+    desc.fragmentFunction = [library newFunctionWithName:@"jhv_edr_fragment"];
+    desc.colorAttachments[0].pixelFormat = MTLPixelFormatRGBA16Float;
+    id<MTLRenderPipelineState> pipeline = [device newRenderPipelineStateWithDescriptor:desc error:&error];
+    if (pipeline == nil)
+        NSLog(@"jhv_metal_host: EDR pipeline failed: %@", error);
+    return pipeline;
+}
+
+// Switch the layer to the deep format for the mode. Returns 1 on success. Main-thread: the
+// layer is in a live tree.
+int jhv_metal_host_prepare_deep(void *layerPtr, int edr) {
     if (layerPtr == NULL)
         return 0;
 
@@ -270,8 +339,21 @@ int jhv_metal_host_prepare_deep(void *layerPtr) {
         @autoreleasepool {
             CAMetalLayer *layer = (__bridge CAMetalLayer *)layerPtr;
             jhv_run_without_actions(^{
-                layer.pixelFormat = MTLPixelFormatBGR10A2Unorm;
-                layer.transform = CATransform3DMakeScale(1, -1, 1);
+                if (edr) {
+                    layer.pixelFormat = MTLPixelFormatRGBA16Float;
+                    layer.wantsExtendedDynamicRangeContent = YES;
+                    CGColorSpaceRef linear = CGColorSpaceCreateWithName(kCGColorSpaceExtendedLinearSRGB);
+                    layer.colorspace = linear;
+                    CGColorSpaceRelease(linear);
+                    layer.transform = CATransform3DIdentity; // the pass samples upright
+                    NSScreen *screen = jhv_screen_of_layer(layer);
+                    jhv_edr_potential_cached = screen != nil ? screen.maximumPotentialExtendedDynamicRangeColorComponentValue : 1.0;
+                } else {
+                    layer.pixelFormat = MTLPixelFormatBGR10A2Unorm;
+                    layer.wantsExtendedDynamicRangeContent = NO;
+                    layer.colorspace = nil;
+                    layer.transform = CATransform3DMakeScale(1, -1, 1);
+                }
             });
             ok = 1;
         }
@@ -279,8 +361,8 @@ int jhv_metal_host_prepare_deep(void *layerPtr) {
     return ok;
 }
 
-// Undo prepare_deep's layer flip before ANGLE takes the layer back as an 8-bit window surface
-// (ANGLE resets the pixel format itself, but not the transform).
+// Undo prepare_deep before ANGLE takes the layer back as an 8-bit window surface (ANGLE resets
+// the pixel format itself, but not the transform, the colorspace or the EDR request).
 void jhv_metal_host_reset_deep(void *layerPtr) {
     if (layerPtr == NULL)
         return;
@@ -290,21 +372,24 @@ void jhv_metal_host_reset_deep(void *layerPtr) {
             CAMetalLayer *layer = (__bridge CAMetalLayer *)layerPtr;
             jhv_run_without_actions(^{
                 layer.transform = CATransform3DIdentity;
+                layer.wantsExtendedDynamicRangeContent = NO;
+                layer.colorspace = nil;
             });
         }
     });
 }
 
-// A 10-bit BGR10A2 IOSurface ('l10r') for the canvas. Returned retained; release with
-// jhv_deep_canvas_release.
-void *jhv_deep_canvas_create(int width, int height) {
+// The canvas IOSurface: 'l10r' (BGR10A2, 4 bytes) for 10-bit, 'RGhA' (RGBA16F, 8 bytes) for
+// EDR. Returned retained; release with jhv_deep_canvas_release.
+void *jhv_deep_canvas_create(int width, int height, int edr) {
     if (width <= 0 || height <= 0)
         return NULL;
 
-    int bytesPerElement = 4; // packed 2-10-10-10
+    int bytesPerElement = edr ? 8 : 4;
+    int64_t pixelFormat = edr ? 'RGhA' : 'l10r';
     size_t bpr = IOSurfaceAlignProperty(kIOSurfaceBytesPerRow, (size_t)width * bytesPerElement);
     size_t allocSize = IOSurfaceAlignProperty(kIOSurfaceAllocSize, bpr * height);
-    int64_t values[] = {width, height, 'l10r', bytesPerElement, (int64_t)bpr, (int64_t)allocSize};
+    int64_t values[] = {width, height, pixelFormat, bytesPerElement, (int64_t)bpr, (int64_t)allocSize};
     CFStringRef keys[] = {kIOSurfaceWidth, kIOSurfaceHeight, kIOSurfacePixelFormat,
                           kIOSurfaceBytesPerElement, kIOSurfaceBytesPerRow, kIOSurfaceAllocSize};
     CFMutableDictionaryRef props = CFDictionaryCreateMutable(NULL, 6,
@@ -324,12 +409,26 @@ void jhv_deep_canvas_release(void *surfPtr) {
         CFRelease((IOSurfaceRef)surfPtr);
 }
 
-// Copy the rendered IOSurface into the layer's next drawable and present it. Called on the
-// render thread after the GL work has finished (glFinish), and returns only after the blit has
-// completed, so the caller may immediately render the next frame into the same IOSurface.
+// The screen's current EDR headroom in units of SDR white, as of the last EDR present; 1.0
+// before any (and always 1.0 when EDR is not engaged). Safe from any thread.
+double jhv_metal_host_edr_headroom(void *layerPtr) {
+    (void)layerPtr;
+    return jhv_edr_headroom_cached;
+}
+
+// The screen's potential EDR headroom (what it can offer once EDR content is on it); 1.0 on a
+// display without EDR. Safe from any thread.
+double jhv_metal_host_edr_potential(void *layerPtr) {
+    (void)layerPtr;
+    return jhv_edr_potential_cached;
+}
+
+// Carry the rendered IOSurface into the layer's next drawable and present it. Called on the
+// render thread after the GL work has finished (glFinish), and returns only after the GPU work
+// has completed, so the caller may immediately render the next frame into the same IOSurface.
 // ponytail: fully synchronous single-buffer present; ping-pong IOSurfaces + MTLSharedEvent if
 // the wait ever shows up in a profile.
-int jhv_metal_host_present_deep(void *layerPtr, void *surfPtr, int width, int height) {
+int jhv_metal_host_present_deep(void *layerPtr, void *surfPtr, int width, int height, int edr) {
     if (layerPtr == NULL || surfPtr == NULL || width <= 0 || height <= 0)
         return 0;
 
@@ -344,12 +443,18 @@ int jhv_metal_host_present_deep(void *layerPtr, void *surfPtr, int width, int he
         }
         if (presenter.queue == nil)
             return 0;
+        if (edr && presenter.edrPipeline == nil) {
+            presenter.edrPipeline = jhv_edr_pipeline(layer.device);
+            if (presenter.edrPipeline == nil)
+                return 0;
+        }
 
-        // Pointer AND size: a fresh IOSurface can reuse a released one's address.
-        if (presenter.wrapped == nil || presenter.wrappedSurface != surf
+        MTLPixelFormat canvasFormat = edr ? MTLPixelFormatRGBA16Float : MTLPixelFormatBGR10A2Unorm;
+        // Pointer AND size AND format: a fresh IOSurface can reuse a released one's address.
+        if (presenter.wrapped == nil || presenter.wrappedSurface != surf || presenter.wrapped.pixelFormat != canvasFormat
                 || presenter.wrapped.width != (NSUInteger)width || presenter.wrapped.height != (NSUInteger)height) {
             MTLTextureDescriptor *desc = [MTLTextureDescriptor
-                    texture2DDescriptorWithPixelFormat:MTLPixelFormatBGR10A2Unorm
+                    texture2DDescriptorWithPixelFormat:canvasFormat
                                                  width:width height:height mipmapped:NO];
             desc.usage = MTLTextureUsageShaderRead;
             // IOSurface-backed textures must be Shared on unified memory, Managed on discrete.
@@ -368,27 +473,83 @@ int jhv_metal_host_present_deep(void *layerPtr, void *surfPtr, int width, int he
         NSUInteger w = MIN((NSUInteger)width, dst.width);
         NSUInteger h = MIN((NSUInteger)height, dst.height);
         id<MTLCommandBuffer> commands = [presenter.queue commandBuffer];
-        if (w != dst.width || h != dst.height) {
-            // Mid-resize the canvas and the drawable disagree for a frame; clear the drawable so
-            // the uncovered border is black rather than stale memory.
+        if (edr) {
             MTLRenderPassDescriptor *pass = [MTLRenderPassDescriptor renderPassDescriptor];
             pass.colorAttachments[0].texture = dst;
-            pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+            pass.colorAttachments[0].loadAction = MTLLoadActionClear; // mid-resize border is black, not stale memory
             pass.colorAttachments[0].storeAction = MTLStoreActionStore;
             pass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
-            [[commands renderCommandEncoderWithDescriptor:pass] endEncoding];
+            id<MTLRenderCommandEncoder> encoder = [commands renderCommandEncoderWithDescriptor:pass];
+            [encoder setRenderPipelineState:presenter.edrPipeline];
+            // Viewport covers exactly the canvas-sized region; the source is sampled 1:1 over it.
+            [encoder setViewport:(MTLViewport){0, 0, (double)w, (double)h, 0, 1}];
+            [encoder setFragmentTexture:presenter.wrapped atIndex:0];
+            float boot[2] = { (jhv_edr_headroom_cached <= 1.0 && jhv_edr_potential_cached > 1.0) ? 1.0f : 0.0f, (float)h };
+            [encoder setFragmentBytes:boot length:sizeof boot atIndex:0];
+            [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
+            [encoder endEncoding];
+        } else {
+            if (w != dst.width || h != dst.height) {
+                // Mid-resize the canvas and the drawable disagree for a frame; clear the drawable so
+                // the uncovered border is black rather than stale memory.
+                MTLRenderPassDescriptor *pass = [MTLRenderPassDescriptor renderPassDescriptor];
+                pass.colorAttachments[0].texture = dst;
+                pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+                pass.colorAttachments[0].storeAction = MTLStoreActionStore;
+                pass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
+                [[commands renderCommandEncoderWithDescriptor:pass] endEncoding];
+            }
+            id<MTLBlitCommandEncoder> blit = [commands blitCommandEncoder];
+            [blit copyFromTexture:presenter.wrapped
+                      sourceSlice:0 sourceLevel:0
+                     sourceOrigin:MTLOriginMake(0, 0, 0) sourceSize:MTLSizeMake(w, h, 1)
+                        toTexture:dst
+                 destinationSlice:0 destinationLevel:0
+                destinationOrigin:MTLOriginMake(0, 0, 0)];
+            [blit endEncoding];
         }
-        id<MTLBlitCommandEncoder> blit = [commands blitCommandEncoder];
-        [blit copyFromTexture:presenter.wrapped
-                  sourceSlice:0 sourceLevel:0
-                 sourceOrigin:MTLOriginMake(0, 0, 0) sourceSize:MTLSizeMake(w, h, 1)
-                    toTexture:dst
-             destinationSlice:0 destinationLevel:0
-            destinationOrigin:MTLOriginMake(0, 0, 0)];
-        [blit endEncoding];
         [commands presentDrawable:drawable];
         [commands commit];
         [commands waitUntilCompleted];
+
+        // JHV_EDR_DEBUG=1: every 30th frame, scan the canvas for its brightest component and say
+        // where it is. This is how "what exceeds white when the gain is 1" gets answered.
+        static int debugFrame = 0;
+        if (edr && getenv("JHV_EDR_DEBUG") != NULL && (debugFrame < 600 || (debugFrame % 30) == 0)) {
+            debugFrame++;
+            NSUInteger bpr = (NSUInteger)width * 8;
+            uint16_t *buf = malloc(bpr * height);
+            [presenter.wrapped getBytes:buf bytesPerRow:bpr fromRegion:MTLRegionMake2D(0, 0, width, height) mipmapLevel:0];
+            float best = -1; NSUInteger bx = 0, by = 0; int bc = 0; NSUInteger over = 0, bad = 0, alphaOver = 0;
+            for (NSUInteger y = 0; y < (NSUInteger)height; y++)
+                for (NSUInteger x = 0; x < (NSUInteger)width; x++) {
+                    uint16_t *px = buf + (y * width + x) * 4;
+                    float m = 0;
+                    for (int c = 0; c < 4; c++) {
+                        __fp16 h; memcpy(&h, &px[c], 2);
+                        float v = (float)h;
+                        if (!isfinite(v)) { bad++; continue; }
+                        if (c == 3) { if (v > 1.0f) alphaOver++; continue; }
+                        if (v > m) m = v;
+                        if (v > best) { best = v; bx = x; by = y; bc = c; }
+                    }
+                    if (m > 1.0f) over++;
+                }
+            free(buf);
+            if (over > 0 || bad > 0 || alphaOver > 0 || debugFrame == 1 || (debugFrame % 30) == 0)
+                NSLog(@"jhv_metal_host EDR debug: frame %d canvas max %.4f (channel %d) at (%lu, %lu) of %dx%d, %lu pixels above 1.0, %lu non-finite components, %lu alpha above 1",
+                      debugFrame, best, bc, (unsigned long)bx, (unsigned long)by, width, height, (unsigned long)over, (unsigned long)bad, (unsigned long)alphaOver);
+        }
+
+        if (edr) {
+            jhv_run_on_main_async(^{
+                @autoreleasepool {
+                    NSScreen *screen = jhv_screen_of_layer(layer);
+                    jhv_edr_headroom_cached = screen != nil ? screen.maximumExtendedDynamicRangeColorComponentValue : 1.0;
+                    jhv_edr_potential_cached = screen != nil ? screen.maximumPotentialExtendedDynamicRangeColorComponentValue : 1.0;
+                }
+            });
+        }
         return 1;
     }
 }

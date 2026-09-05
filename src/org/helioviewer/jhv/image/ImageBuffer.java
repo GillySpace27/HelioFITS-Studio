@@ -31,6 +31,10 @@ public final class ImageBuffer {
         // this buffer's own stretch but before any layer-level Levels/response adjustment -- the
         // caller is responsible for undoing those first.
         public double toPhysical(double displayFraction) {
+            // Above 1 the decoder stored the physical ratio itself (FITSImage.OVER_RANGE_CEILING),
+            // so the readout keeps counting past the top of the range instead of pinning to it.
+            if (displayFraction > 1)
+                return min + displayFraction * (max - min);
             return min + inverseStretch.applyAsDouble(Math.clamp(displayFraction, 0, 1)) * (max - min);
         }
 

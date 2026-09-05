@@ -183,6 +183,11 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         return fitsRequest;
     }
 
+    /** True while frames of the current query are still arriving. */
+    public boolean isLoadingView() {
+        return loader.isLoading();
+    }
+
     /**
      * Run a native-FITS query and load whatever it returns. Recording the request before the
      * results arrive is deliberate: it is what a save taken mid-load persists, and what the
@@ -196,8 +201,12 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         // view: a running sequence filter was cancelled and restarted each time, and never
         // finished. Within a session the archive's answer to the same query does not change;
         // the refresh button is the explicit way to ask again.
-        if (request.equals(fitsRequest) && viewLoaded && !loader.isLoading() && failedUris.isEmpty()) {
-            Log.info("Same query, keeping the loaded view: " + getName());
+        // A same query while the previous answer is still loading is not a reload either: the
+        // timeline snaps and re-syncs every layer whenever the master's range moves, which is
+        // exactly when a movie has just arrived, so restarting here abolished every full view
+        // moments after it landed and the transport never got past 1/1.
+        if (request.equals(fitsRequest) && (loader.isLoading() || (viewLoaded && failedUris.isEmpty()))) {
+            Log.info("Same query, keeping the " + (loader.isLoading() ? "load in flight" : "loaded view") + ": " + getName());
             return;
         }
         fitsRequest = request;
@@ -368,12 +377,15 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         view.setDataHandler(this);
     }
 
+    private boolean viewActivatedBefore; // the first view of a layer may claim the clock; later ones only keep it
+
     private void activateView() {
         glImage.setLUT(view.getDefaultLUT(), glImage.getInvertLUT());
         setEnabled(true);
 
         DisplayController.zoomMiniToFit();
-        Layers.setActiveImageLayer(this);
+        Layers.viewActivated(this, !viewActivatedBefore);
+        viewActivatedBefore = true;
 
         if (Display.multiview) {
             ImageLayers.arrangeMultiView(true);

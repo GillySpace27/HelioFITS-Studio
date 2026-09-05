@@ -193,7 +193,10 @@ public final class ImageLayers {
             // layers never followed the date while JP2 layers did. Its own query re-issues over
             // the new span instead.
             FitsRequest fits = layer.getFitsRequest();
-            if (fits != null)
+            // A layer still receiving frames keeps receiving them; a narrower or shifted span
+            // is picked up by the next sync once it has landed. Interrupting it here restarted
+            // the load on every snap of the timeline.
+            if (fits != null && !layer.isLoadingView())
                 layer.load(fits.withSpan(startTime, endTime));
         }
     }
