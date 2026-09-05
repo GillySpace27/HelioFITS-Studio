@@ -31,6 +31,13 @@ public record FourierParams(Kind kind, Mode mode, double lo, double hi, Directio
 
     static final String TYPE = "fourier";
 
+    /**
+     * The gain is applied as a contrast about mid-grey through the layer's Levels, value' = 0.5 +
+     * g (value - 0.5), and GLImage.setBrightness clamps the offset at -1 and the scale at 2 minus
+     * the offset. Both bind at exactly g = 3, so that is the most the display can express.
+     */
+    public static final double MAX_GAIN = 3;
+
     /** ~96 min, assumed; verify against the spectrum of a real PUNCH movie before trusting a notch set from it. */
     public static final double PUNCH_ORBIT_MINUTES_ASSUMED = 96;
 
@@ -39,8 +46,8 @@ public record FourierParams(Kind kind, Mode mode, double lo, double hi, Directio
     public FourierParams {
         if (!(lo >= 0) || !(hi > lo))
             throw new IllegalArgumentException("band must satisfy 0 <= lo < hi: " + lo + ", " + hi);
-        if (!(gain > 0))
-            throw new IllegalArgumentException("gain must be positive");
+        if (!(gain > 0) || gain > MAX_GAIN)
+            throw new IllegalArgumentException("gain must be in (0, " + MAX_GAIN + "]");
         if (nR < 16 || nPhi < 16 || Integer.bitCount(nPhi) != 1)
             throw new IllegalArgumentException("nR >= 16 and nPhi a power of two >= 16: " + nR + ", " + nPhi);
     }
@@ -74,10 +81,9 @@ public record FourierParams(Kind kind, Mode mode, double lo, double hi, Directio
         String band = kind == Kind.RADIAL
                 ? String.format("%.0f to %.0f km/s", lo, hi)
                 : String.format("%.2f to %.2f deg/h", Math.toDegrees(lo) * 3600, Math.toDegrees(hi) * 3600);
-        // The gain is named because it is the setting that decides how much of a Pass output
-        // saturates, and a log line reading "radial pass 200 to 800 km/s" hid the 2.7 that did.
-        String contrast = mode == Mode.PASS && gain != 1 ? String.format(", gain %.1f", gain) : "";
-        return (kind == Kind.RADIAL ? "radial " : "angular ") + (mode == Mode.PASS ? "pass " : "notch ") + band + contrast;
+        // No gain here: it is a display contrast on the layer's Levels and does not change what the
+        // job computes, so it has no place in a description of the job.
+        return (kind == Kind.RADIAL ? "radial " : "angular ") + (mode == Mode.PASS ? "pass " : "notch ") + band;
     }
 
     @Override
@@ -103,7 +109,7 @@ public record FourierParams(Kind kind, Mode mode, double lo, double hi, Directio
                     jo.getDouble("lo"),
                     jo.getDouble("hi"),
                     Direction.valueOf(jo.optString("direction", Direction.BOTH.name())),
-                    jo.optDouble("gain", 1),
+                    Math.clamp(jo.optDouble("gain", 1), 0.1, MAX_GAIN), // sessions saved before the cap may carry more
                     jo.optInt("nR", 1024),
                     jo.optInt("nPhi", 512));
         } catch (Exception e) {

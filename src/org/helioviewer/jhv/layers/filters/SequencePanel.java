@@ -87,7 +87,8 @@ public class SequencePanel implements FilterDetails {
     private final JFormattedTextField periodField = new JFormattedTextField(new TerminatedFormatterFactory("%.1f", " min", 1, 1e6));
     private final JLabel periodLabel = new JLabel("Period ");
     private final JComboBox<String> directionCombo = new JComboBox<>();
-    private final JHVSlider gainSlider = new JHVSlider(1, 100, 10);
+    private final JHVSlider gainSlider = new JHVSlider(1, (int) Math.round(10 * FourierParams.MAX_GAIN), 10); // tenths, 0.1 to 3.0
+    private boolean gainLevelsApplied; // the layer's Levels currently carry this slider's contrast
     private final JLabel gainLabel = new JLabel("1.0", JLabel.RIGHT);
     private final JComboBox<Integer> nRCombo = new JComboBox<>(new Integer[]{512, 1024, 2048});
     private final JComboBox<Integer> nPhiCombo = new JComboBox<>(new Integer[]{256, 512, 1024});
@@ -129,10 +130,19 @@ public class SequencePanel implements FilterDetails {
             hiField.setValue(omega * 1.15 * DEG_PER_HOUR);
             syncing = false;
         });
-        gainSlider.addChangeListener(e -> gainLabel.setText(String.format("%.1f", gainSlider.getValue() / 10.)));
-        gainSlider.setToolTipText("Contrast of a Pass output about zero. At 1.0 the 99.5th percentile of the fluctuation reaches "
-                + "white and black; at 2.7 everything past 37% of that saturates, which reads as clipping and is. "
-                + "Changing it re-runs the filter. Turn on \"Show clipped pixels\" to see exactly what saturates.");
+        gainSlider.addChangeListener(e -> {
+            gainLabel.setText(String.format("%.1f", gainSlider.getValue() / 10.));
+            // Live, through the layer's Levels, while a Pass output is what the layer shows. Nothing
+            // is recomputed: the frames are packed at the pass scale and this only moves the black
+            // and white points about mid-grey, which is what a contrast is.
+            if (!syncing && layer.getSequence() instanceof FourierParams f && f.mode() == FourierParams.Mode.PASS)
+                applyGainLevels(gainSlider.getValue() / 10.);
+        });
+        gainSlider.setToolTipText("Contrast of a Pass output about zero, applied live through the layer's Levels. At 1.0 the "
+                + "99.5th percentile of the fluctuation reaches white and black; anything higher saturates more of the "
+                + "field, which \"Show clipped pixels\" marks. 3x is the most Levels can express.");
+        passButton.addActionListener(e -> gainSlider.setEnabled(true));
+        notchButton.addActionListener(e -> gainSlider.setEnabled(false)); // a notch is re-encoded like the original; it has no pass scale
         nRCombo.setSelectedItem(1024);
         nPhiCombo.setSelectedItem(512);
         spectrumButton.setEnabled(false);
@@ -184,6 +194,7 @@ public class SequencePanel implements FilterDetails {
             showCard(kind);
             if (OFF.equals(kind)) {
                 Layers.applyToSelectedLayers(layer, il -> il.setSequence(null));
+                resetGainLevels();
                 DisplayController.render(1);
             }
             updateReadout();
@@ -194,6 +205,7 @@ public class SequencePanel implements FilterDetails {
             ComputedView running = layer.getComputedView();
             if (running != null && running.isRunning()) {
                 Layers.applyToSelectedLayers(layer, il -> il.setSequence(null));
+                resetGainLevels();
                 syncing = true;
                 kindCombo.setSelectedItem(OFF);
                 syncing = false;
@@ -332,8 +344,36 @@ public class SequencePanel implements FilterDetails {
                 "Fourier filter", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION)
             return;
         Layers.applyToSelectedLayers(layer, il -> il.setSequence(params));
+        if (params instanceof FourierParams f && f.mode() == FourierParams.Mode.PASS)
+            applyGainLevels(f.gain());
+        else
+            resetGainLevels();
         DisplayController.render(1);
         updateReadout();
+    }
+
+    /**
+     * value' = 0.5 + g (value - 0.5): a contrast about the pass scale's zero, as Levels.
+     *
+     * <p>Levels belong to the layer, so this is visible in the Levels row too, and a user who drags
+     * that row instead is doing the same thing by hand. GLImage clamps the offset at -1 and the
+     * scale at 2 - offset; both bind at g = 3, which is where the slider stops.
+     */
+    private void applyGainLevels(double g) {
+        Layers.applyToSelected(layer, gl -> gl.setBrightness(0.5 * (1 - g), g));
+        gainLevelsApplied = true;
+        Layers.fireLayerUpdated(layer);
+        DisplayController.display();
+    }
+
+    /** The pass output is gone, so the contrast that went with it goes too; a user's own Levels are left alone. */
+    private void resetGainLevels() {
+        if (!gainLevelsApplied)
+            return;
+        gainLevelsApplied = false;
+        Layers.applyToSelected(layer, gl -> gl.setBrightness(0, 1));
+        Layers.fireLayerUpdated(layer);
+        DisplayController.display();
     }
 
     /** What the finished movie occupies off-heap, which is what the layer then holds. */
@@ -452,6 +492,8 @@ public class SequencePanel implements FilterDetails {
         boolean running = view != null && view.isRunning();
         applyButton.setEnabled(can || running);
         setRunning(running);
+        if (gainLevelsApplied && !(imageLayer.getSequence() instanceof FourierParams f && f.mode() == FourierParams.Mode.PASS) && !running)
+            resetGainLevels(); // switched off or replaced from somewhere other than this panel
         for (JProgressBar bar : new JProgressBar[]{spinner, paletteSpinner}) {
             bar.setVisible(running);
             if (running) {
@@ -534,7 +576,9 @@ public class SequencePanel implements FilterDetails {
                 case NEGATIVE -> 2;
                 default -> 0;
             });
-            gainSlider.setValue((int) Math.round(f.gain() * 10));
+            gainSlider.setValue((int) Math.round(Math.min(f.gain(), FourierParams.MAX_GAIN) * 10));
+            gainSlider.setEnabled(f.mode() == FourierParams.Mode.PASS);
+            gainLevelsApplied = f.mode() == FourierParams.Mode.PASS; // a restored session's Levels already carry it
             nRCombo.setSelectedItem(f.nR());
             nPhiCombo.setSelectedItem(f.nPhi());
         }

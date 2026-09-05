@@ -33,10 +33,32 @@ public class LevelsPanel implements FilterDetails {
         slider.addChangeListener(e -> {
             int lo = slider.getLowValue();
             int hi = slider.getHighValue();
-            Layers.applyToSelected(layer, gl -> gl.setBrightness(lo / 100., (hi - lo) / 100.));
             label.setText(formatPercent(lo, hi));
+            if (syncing)
+                return; // mirroring the layer, not editing it
+            Layers.applyToSelected(layer, gl -> gl.setBrightness(lo / 100., (hi - lo) / 100.));
             DisplayController.display();
         });
+    }
+
+    private boolean syncing;
+
+    /**
+     * Mirror the layer's Levels into the slider. They can move without this row: the Fourier
+     * palette's gain is a contrast applied through Levels, and a restored session brings its own.
+     * Before this the row was read once, at construction, and then described whatever it had
+     * last been dragged to.
+     */
+    public void refresh(ImageLayer layer) {
+        double offset = layer.getGLImage().getBrightOffset();
+        double scale = layer.getGLImage().getBrightScale();
+        int lo = (int) Math.round(offset * 100), hi = (int) Math.round((offset + scale) * 100);
+        if (slider.getLowValue() == lo && slider.getHighValue() == hi)
+            return;
+        syncing = true;
+        slider.setLowValue(lo);
+        slider.setHighValue(hi);
+        syncing = false;
     }
 
     @Override
