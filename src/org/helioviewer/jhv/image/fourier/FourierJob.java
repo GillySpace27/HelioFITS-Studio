@@ -80,7 +80,7 @@ final class FourierJob implements SequenceJob {
         }
         double dr = (rOut - rIn) / nR;
         PolarCube cube = new PolarCube(params.kind(), nR, nPhi, nU, rIn, dr);
-        status.accept(String.format("Sequence filter: %d frames, cadence %.0f s, grid %d x %d x %d", n, dt, nR, nPhi, nU));
+        status.accept(String.format("Fourier filter: %d frames, cadence %.0f s, grid %d x %d x %d", n, dt, nR, nPhi, nU));
 
         // 3. Read and resample onto the uniform grid, two frames in hand at a time.
         int kA = -1, kB = -1;
@@ -127,7 +127,7 @@ final class FourierJob implements SequenceJob {
             }
             cube.put(j, sample, frameA.width(), frameA.height(), frameA.sunCentred());
             if (j % 4 == 0) {
-                status.accept("Sequence filter: reading " + (j + 1) + "/" + nU);
+                status.accept("Fourier filter: reading " + (j + 1) + "/" + nU);
                 progress.accept(0.4 * (j + 1) / nU);
             }
         }
@@ -135,7 +135,7 @@ final class FourierJob implements SequenceJob {
         cube.finish();
 
         // 4. Transform, mask, invert.
-        status.accept("Sequence filter: transforming " + nR + " x " + nPhi + " x " + nU);
+        status.accept("Fourier filter: transforming " + nR + " x " + nPhi + " x " + nU);
         double dInner = dr * FourierParams.KM_PER_RSUN;
         spectrum = FourierFilter.filterCube(cube, params, dInner, dt);
         if (Thread.currentThread().isInterrupted())
@@ -164,7 +164,7 @@ final class FourierJob implements SequenceJob {
             ImageBuffer buffer = notch ? FrameStack.packLike(f, values) : FrameStack.packSigned(f, values, amplitude / params.gain());
             out[k] = new DecodedImage(buffer, f.decoded().region());
             if (k % 4 == 0) {
-                status.accept("Sequence filter: writing " + (k + 1) + "/" + n);
+                status.accept("Fourier filter: writing " + (k + 1) + "/" + n);
                 progress.accept(0.8 + 0.2 * (k + 1) / n);
             }
         }

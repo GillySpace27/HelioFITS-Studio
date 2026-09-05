@@ -5,6 +5,7 @@ import java.util.Set;
 
 import org.helioviewer.jhv.base.BufferUtils;
 import org.helioviewer.jhv.display.Display;
+import org.helioviewer.jhv.display.Interpolation;
 import org.helioviewer.jhv.display.HdrGain;
 import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.lut.LUT;
@@ -91,13 +92,16 @@ public class GLImage {
     private View.ImageData uploadedImageData;
 
     public void streamImage(View.ImageData imageData, View.ImageData prevImageData, View.ImageData baseImageData) {
-        if (uploadedImageData != imageData) {
+        // The filter is a texture parameter set at upload, so a changed interpolation setting has
+        // to force one: without this, switching it did nothing until the frame changed.
+        int wanted = Interpolation.glFilter(LUTLabels.isCategorical(lut));
+        if (uploadedImageData != imageData || uploadedFilter != wanted) {
+            uploadedFilter = wanted;
             tex.bind();
             // NEAREST so a categorical LUT never samples a blended half-index between two category
             // IDs; gated on the LUT in use, not the FITS product, so a continuous LUT over the same
             // data gets the ordinary smooth LINEAR treatment. Mirrors applyFilters()'s dither gate.
-            int filter = LUTLabels.isCategorical(lut) ? GL.NEAREST : GL.LINEAR;
-            tex.copyImageBuffer(imageData.imageBuffer(), filter);
+            tex.copyImageBuffer(imageData.imageBuffer(), wanted);
             uploadedImageData = imageData;
         }
 
@@ -107,6 +111,8 @@ public class GLImage {
             diffTex.copyImageBuffer(prevFrame.imageBuffer(), GL.LINEAR);
         }
     }
+
+    private int uploadedFilter = -1; // the filter the current texture was uploaded with
 
     public void collectImageBuffers(Set<ImageBuffer> retained) {
         if (uploadedImageData != null)
@@ -183,7 +189,7 @@ public class GLImage {
             // Half-entry note: sampling at `value` rather than at the texel centre shifts the
             // ramp by 1/512 under LINEAR. Left alone deliberately -- it is invisible on a ramp,
             // and correcting it would change which entry a categorical lookup lands on.
-            int filter = LUTLabels.isCategorical(currlut) ? GL.NEAREST : GL.LINEAR;
+            int filter = Interpolation.glFilter(LUTLabels.isCategorical(currlut));
             GLTexture.copyByteImage(lutBuffer.remaining() / 4, 1, filter, lutBuffer);
         }
         lutChanged = false;

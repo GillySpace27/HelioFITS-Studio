@@ -317,7 +317,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         if (params != null) {
             String blocker = sequenceBlocker();
             if (blocker != null) {
-                Log.info("Sequence filter pending on " + getName() + ": " + blocker);
+                Log.info("Fourier filter pending on " + getName() + ": " + blocker);
             } else {
                 // The per-frame filter stays: ComputedView applies it to the computed frames, so RHEF can
                 // follow a noise gate or a notch the way it follows a raw frame.

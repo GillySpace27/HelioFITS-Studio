@@ -76,7 +76,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private final ButtonText OFFDISK = new ButtonText(Buttons.offDisk, "Corona", "Toggle off-disk corona");
     private final ButtonText PAN = new ButtonText(Buttons.pan, "Pan", "Pan");
     private final ButtonText PROJECTION = new ButtonText(Buttons.projection, "Projection", "Projection");
-    private final ButtonText SEQUENCE = new ButtonText(Buttons.sequenceFilter, "Sequence", "Sequence filter (whole-movie): velocity band-pass and the noise gate");
+    private final ButtonText SEQUENCE = new ButtonText(Buttons.sequenceFilter, "Fourier", "Fourier filter over the whole movie: velocity band-pass and the noise gate");
+    private final ButtonText COLOUR = new ButtonText(Buttons.colourSettings, "Colour", "Colour settings for the whole view: HDR headroom, mapping, knee, interpolation");
     private final ButtonText PRESENTATION = new ButtonText(Buttons.presentation, "Present", "Presentation mode: output only, fullscreen (Esc to leave)");
     private final ButtonText REFRESH = new ButtonText(Buttons.refresh, "Refresh", "Automatic refresh");
     private final ButtonText RESETCAMERA = new ButtonText(Buttons.resetCamera, "Reset View", "Reset view to default");
@@ -277,9 +278,15 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         // worth watching while the view plays. It acts on the active image layer.
         JideToggleButton sequenceButton = toolToggleButton(SEQUENCE);
         if (sequencePalette == null)
-            sequencePalette = new Palette("Sequence filter", SequencePaletteContent::build, SequencePaletteContent::refresh);
+            sequencePalette = new Palette("Fourier filter", SequencePaletteContent::build, SequencePaletteContent::refresh);
         sequencePalette.bind(sequenceButton);
         addButton(sequenceButton);
+
+        // Colour settings are per view, not per layer: they decide how every frame of every movie
+        // is shown, so they belong beside Projection rather than inside a layer's own row.
+        JideToggleButton colourButton = toolToggleButton(COLOUR);
+        colourPalette.bind(colourButton);
+        addButton(colourButton);
 
         JideToggleButton presentationButton = toolToggleButton(PRESENTATION);
         presentationToggle = presentationButton;
@@ -481,6 +488,14 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             new Palette("Projection", ToolBar::projectionContent, () -> {});
 
     private static Palette sequencePalette;
+
+    private static final Palette colourPalette =
+            new Palette("Colour", ColourPaletteContent::build, ColourPaletteContent::refresh);
+
+    /** Toggle the colour palette (used by View > Colour Settings). */
+    public static void toggleColourPalette() {
+        colourPalette.toggle();
+    }
 
     // Toggle the projection palette exactly as the toolbar button does (used by View > Projection).
     public static void toggleProjectionPalette() {
