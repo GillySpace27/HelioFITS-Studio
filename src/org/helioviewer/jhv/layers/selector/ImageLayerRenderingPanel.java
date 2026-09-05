@@ -34,7 +34,7 @@ final class ImageLayerRenderingPanel extends JPanel {
     // deliberately not in this list: they scale the whole premultiplied colour uniformly (see
     // GLImage's color[]), so they fade a swatch but never turn it into a different one.
     private final LUTPanel lutPanel;
-    private final FilterDetails levelsPanel;
+    private final LevelsPanel levelsPanel;
     private final FilterDetails sharpenPanel;
     private final DifferencePanel differencePanel;
     private final FilterDetails channelMixerPanel;
@@ -102,6 +102,7 @@ final class ImageLayerRenderingPanel extends JPanel {
         else
             applyIndexedGating(imageLayer);
         sequencePanel.refresh(imageLayer);
+        levelsPanel.refresh(imageLayer); // the Fourier gain moves Levels from outside this row
         imageFilterPanel.syncFromLayer(imageLayer); // a computed sequence takes the per-frame filter on top, like a raw frame
     }
 

@@ -142,15 +142,13 @@ final class FourierJob implements SequenceJob {
             throw new InterruptedException();
         progress.accept(0.8);
 
-        // 5. Amplitude from the untapered interior, for the PASS scale, and what the gain does to it.
-        Amplitude scale = amplitude(cube, params.gain());
-        double amplitude = scale.value;
+        // 5. Amplitude from the untapered interior, for the PASS scale. The frames are packed at
+        // this scale and no other: the gain is a display contrast applied through the layer's
+        // Levels, live, so changing it costs nothing and cannot re-run this job. Packing the gain in
+        // was what made 2.7 saturate a third of the field and made every nudge a 17-second wait.
+        double amplitude = amplitude(cube);
         if (params.mode() == FourierParams.Mode.PASS)
-            // Said out loud because it is the thing that looks like a bug and is not: the gain is a
-            // contrast about zero, and everything past the 99.5th percentile divided by it saturates
-            // to white or black. At gain 2.7 that was a third of the field.
-            org.helioviewer.jhv.app.Log.info(String.format("Fourier filter: gain %.1f saturates %.0f%% of the valid field (99.5th percentile of |v| = %.3g)",
-                    params.gain(), 100 * scale.saturated, amplitude));
+            org.helioviewer.jhv.app.Log.info(String.format("Fourier filter: 99.5th percentile of |v| = %.3g, the pass scale's white and black", amplitude));
 
         // 6. Back to each original frame.
         DecodedImage[] out = new DecodedImage[n];
@@ -168,7 +166,7 @@ final class FourierJob implements SequenceJob {
             for (int i = 0; i < values.length; i++)
                 if (Float.isNaN(original[i]))
                     values[i] = Float.NaN; // the source's own mask wins
-            ImageBuffer buffer = notch ? FrameStack.packLike(f, values) : FrameStack.packSigned(f, values, amplitude / params.gain());
+            ImageBuffer buffer = notch ? FrameStack.packLike(f, values) : FrameStack.packSigned(f, values, amplitude);
             out[k] = new DecodedImage(buffer, f.decoded().region());
             if (k % 4 == 0) {
                 status.accept("Fourier filter: writing " + (k + 1) + "/" + n);
@@ -178,11 +176,8 @@ final class FourierJob implements SequenceJob {
         return out;
     }
 
-    /** The PASS scale, and the fraction of the sample that a given gain pushes past it. */
-    private record Amplitude(double value, double saturated) {}
-
     // 99.5th percentile of |value| over a prime-stride sample of the valid, untapered interior.
-    private static Amplitude amplitude(PolarCube cube, double gain) {
+    private static double amplitude(PolarCube cube) {
         int nT = cube.nT, nInner = cube.nInner;
         int t0 = (int) (nT * FourierFilter.TUKEY_ALPHA / 2), t1 = nT - t0;
         float[] sample = new float[MAX_SAMPLES];
@@ -198,15 +193,9 @@ final class FourierJob implements SequenceJob {
             sample[count++] = Math.abs(cube.data[s][rem]);
         }
         if (count == 0)
-            return new Amplitude(1, 0);
+            return 1;
         float a = ArrayUtils.selectKth(sample, 0, count - 1, (int) (AMPLITUDE_PERCENTILE * (count - 1)));
-        double amplitude = a > 0 ? a : 1;
-        double limit = amplitude / gain;
-        int over = 0;
-        for (int i = 0; i < count; i++)
-            if (sample[i] > limit)
-                over++;
-        return new Amplitude(amplitude, over / (double) count);
+        return a > 0 ? a : 1;
     }
 
 }
