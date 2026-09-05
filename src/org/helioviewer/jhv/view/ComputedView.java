@@ -79,6 +79,10 @@ public final class ComputedView implements View {
     @Nullable
     private DecodedImage[] computed;
 
+    /** Frames whose per-frame filter pass is in flight; see decode() for why this is bounded. */
+    private final java.util.Set<Integer> filtering = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private static final int MAX_FILTERING = 2;
+
     public ComputedView(View _wrapped, SequenceParams _params, Consumer<String> _status) {
         wrapped = _wrapped;
         params = _params;
@@ -171,16 +175,34 @@ public final class ComputedView implements View {
             if (image == null) {
                 // The per-frame filter on top of the computed frame, the way URIView applies it to a
                 // decoded one: off the EDT, the plain computed frame shown meanwhile.
+                //
+                // Bounded, and one per frame. A filter pass over a 4096 x 4096 frame allocates some
+                // 300 MB of heap for its working arrays, and this used to submit a fresh task on
+                // every decode that missed the cache. Playing a 245-frame movie with RHEF on top,
+                // whose filtered variants the 8 GiB cache cannot hold beside the sources, missed on
+                // every frame, and a few seconds of playback had dozens of those passes in flight
+                // at once: java.lang.OutOfMemoryError, Java heap space, on 2026-09-05. A frame that
+                // cannot be filtered right now is shown plain and asked for again next time round.
                 DecodedImage plain = frames[frame];
-                MetaData meta = wrapped.getMetaData(wrapped.getFrameTime(frame));
-                Task.submit("sequence filter " + filter, () -> filtered(plain, filter, meta),
-                        result -> {
-                            if (wrapped.getFilter() == filter) { // not changed in flight
-                                ImageBufferCache.put(new ComputedKey(this, frame, filter), result);
-                                DisplayController.render(1);
-                            }
-                        },
-                        (ctx, t) -> Log.error(t));
+                if (filtering.add(frame)) {
+                    if (filtering.size() > MAX_FILTERING) {
+                        filtering.remove(frame);
+                    } else {
+                        MetaData meta = wrapped.getMetaData(wrapped.getFrameTime(frame));
+                        Task.submit("sequence filter " + filter, () -> filtered(plain, filter, meta),
+                                result -> {
+                                    filtering.remove(frame);
+                                    if (wrapped.getFilter() == filter) { // not changed in flight
+                                        ImageBufferCache.put(new ComputedKey(this, frame, filter), result);
+                                        DisplayController.render(1);
+                                    }
+                                },
+                                (ctx, t) -> {
+                                    filtering.remove(frame);
+                                    Log.error(t);
+                                });
+                    }
+                }
                 image = plain;
             }
             publish(image, frame, viewpoint);
