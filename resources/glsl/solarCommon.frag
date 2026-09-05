@@ -289,33 +289,45 @@ float unwarpRadius(float normalizedRadius) {
 }
 
 // Twin of display/SurfaceModel.java. Where a line of sight is taken to have originated:
-// the plane of sky (r = D tan e, z = 0), or the Thomson sphere of 90-degree scattering
-// (r = D sin e, z = r^2 / D). A placement model, not a measured depth. Keep the two in
+// the plane of sky (r = D tan e, z = 0), the Thomson sphere of 90-degree scattering
+// (r = D sin e, z = r^2 / D), or the celestial sphere centred on the observer
+// (r = 2D sin(e/2), z = r^2 / 2D). The model value is the family parameter k = D / L for the
+// sphere of diameter L through the Sun. A placement model, not a measured depth. Keep the two in
 // step -- the mesh is built in Java and sampled here, so a divergence shows up as imagery
 // sliding off its own geometry.
 #define SURFACE_PLANE_OF_SKY 0.
 #define SURFACE_THOMSON_SPHERE 1.
+#define SURFACE_CELESTIAL_SPHERE .5
 // Both models degenerate at 90 degrees; clamp rather than divide. Matches
 // SurfaceModel.MAX_ELONGATION.
 #define MAX_ELONGATION 1.5533431
 
 float surfaceHeliocentricRadius(const float elongation, const float observerDistance, const float model) {
     float e = clamp(elongation, 0., MAX_ELONGATION);
-    return observerDistance * (model == SURFACE_THOMSON_SPHERE ? sin(e) : tan(e));
+    if (model == SURFACE_THOMSON_SPHERE)
+        return observerDistance * sin(e);
+    if (model == SURFACE_CELESTIAL_SPHERE)
+        return observerDistance * 2. * sin(.5 * e);
+    return observerDistance * tan(e);
 }
 
 float surfaceDepth(const float heliocentricRadius, const float observerDistance, const float model) {
-    if (model != SURFACE_THOMSON_SPHERE || observerDistance <= 0.)
+    if (model <= 0. || observerDistance <= 0.)
         return 0.;
-    float r = min(heliocentricRadius, observerDistance);
-    return r * r / observerDistance;
+    float reach = observerDistance / model; // the sphere's diameter L = D / k
+    float r = min(heliocentricRadius, reach);
+    return r * r / reach;
 }
 
 float surfaceElongation(const float heliocentricRadius, const float observerDistance, const float model) {
     if (observerDistance <= 0.)
         return 0.;
     float ratio = heliocentricRadius / observerDistance;
-    return model == SURFACE_THOMSON_SPHERE ? asin(clamp(ratio, -1., 1.)) : atan(ratio);
+    if (model == SURFACE_THOMSON_SPHERE)
+        return asin(clamp(ratio, -1., 1.));
+    if (model == SURFACE_CELESTIAL_SPHERE)
+        return 2. * asin(clamp(.5 * ratio, -1., 1.));
+    return atan(ratio);
 }
 
 vec3 rotate_vector_inverse(const vec4 quat, const vec3 vec) {

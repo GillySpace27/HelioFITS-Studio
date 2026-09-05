@@ -59,6 +59,34 @@ public final class SurfaceModelCheck {
             failures++;
         }
 
+        // --- the celestial sphere is centred on the observer -------------------------------
+        // Every point must be at distance D from (0, 0, D): that is the definition, the sphere of
+        // the observer's sky drawn at the Sun's distance. It is also, by construction, the sphere
+        // of diameter 2D through the Sun, so it must satisfy |p|^2 = 2D p.z as well: two statements
+        // of one surface, and both are checked because the code uses the second to compute the first.
+        for (double deg : new double[]{1, 10, 30, 45, 60, 80}) {
+            for (double pa : new double[]{0, 90, 180, 270}) {
+                Vec3 p = SurfaceModel.CelestialSphere.surfacePoint(Math.toRadians(pa), Math.toRadians(deg), D);
+                double fromObserver = Math.sqrt(p.x * p.x + p.y * p.y + (p.z - D) * (p.z - D));
+                near(fromObserver, D, "celestial sphere is D from the observer at e=" + deg + " pa=" + pa);
+                near(p.x * p.x + p.y * p.y + p.z * p.z, 2 * D * p.z, "celestial sphere identity |p|^2 = 2D z at e=" + deg + " pa=" + pa);
+            }
+            double e = Math.toRadians(deg);
+            near(SurfaceModel.CelestialSphere.heliocentricRadius(e, D), 2 * D * Math.sin(e / 2), "celestial r = 2D sin(e/2) at " + deg + " deg");
+        }
+        // The family parameter the shader morphs on, and the reach that pins each sphere's depth.
+        near(SurfaceModel.PlaneOfSky.depthFactor(), 0, "plane of sky k");
+        near(SurfaceModel.ThomsonSphere.depthFactor(), 1, "Thomson k");
+        near(SurfaceModel.CelestialSphere.depthFactor(), 0.5, "celestial k");
+        near(SurfaceModel.ThomsonSphere.reach(D), D, "Thomson reaches the observer");
+        near(SurfaceModel.CelestialSphere.reach(D), 2 * D, "celestial reaches the anti-Sun");
+        expect(SurfaceModel.PlaneOfSky.reach(D) == Double.POSITIVE_INFINITY, "the plane has no reach");
+        // A PUNCH-scale field: 173 R_sun of half-width seen from 1 au fits on the celestial sphere
+        // and does not fit on the Thomson sphere. That contrast is the reason the third state exists.
+        expect(SurfaceModel.CelestialSphere.canDescribe(215, 173), "PUNCH's field fits on the celestial sphere");
+        expect(SurfaceModel.CelestialSphere.canDescribe(215, 430), "the celestial sphere reaches exactly 2D");
+        expect(!SurfaceModel.CelestialSphere.canDescribe(215, 431), "and not past it");
+
         // Plane of sky must stay in the plane.
         for (double deg : new double[]{1, 10, 45, 80}) {
             Vec3 p = SurfaceModel.PlaneOfSky.surfacePoint(0, Math.toRadians(deg), D);

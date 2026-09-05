@@ -26,7 +26,19 @@ import org.helioviewer.jhv.math.Vec3;
  * <li><b>Thomson sphere</b>: the locus of 90-degree scattering, which by Thales is the sphere
  *     having the Sun-observer line as its diameter. There {@code r = D sin e} and
  *     {@code z = r^2 / D}.
+ * <li><b>Celestial sphere</b>: the sphere of radius D centred on the observer, which is the
+ *     observer's sky drawn at the Sun's distance. It passes through the Sun, so it is also the
+ *     sphere of diameter 2D through the Sun tangent to the plane of sky there, which is why it
+ *     shares the Thomson depth law with D replaced by 2D: {@code r = 2D sin(e/2)} and
+ *     {@code z = r^2 / (2D)}. It is not a scattering model at all. It is where a planetarium
+ *     puts everything, and it is what the Thomson-sphere brightness looks like projected back out
+ *     along each line of sight onto the sky, which is the comparison it exists to make.
  * </ul>
+ *
+ * <p>All three are members of one family, the spheres of diameter L through the Sun tangent to the
+ * plane of sky, with {@code z = r^2 / L}: L = D is Thomson, L = 2D is celestial, and L infinite is
+ * the plane. The shader takes the family parameter {@code k = D / L} ({@link #depthFactor}),
+ * which is what lets one uniform morph between any two of them along each line of sight.
  *
  * <p>The two agree to first order and diverge fast: at 10 degrees elongation plane-of-sky places
  * material 1.5% further out, at 30 degrees 15%, at 45 degrees 41%. That is the reason this is
@@ -39,7 +51,8 @@ import org.helioviewer.jhv.math.Vec3;
 public enum SurfaceModel {
 
     PlaneOfSky("Plane of sky"),
-    ThomsonSphere("Thomson sphere");
+    ThomsonSphere("Thomson sphere"),
+    CelestialSphere("Celestial sphere");
 
     /**
      * Both models degenerate at 90 degrees: plane-of-sky sends {@code tan e} to infinity, and the
@@ -77,13 +90,38 @@ public enum SurfaceModel {
      * the undescribable part away instead and this reports whether anything is being lost.
      */
     public boolean canDescribe(double observerDistance, double outerRadius) {
-        return this != ThomsonSphere || (observerDistance > 0 && outerRadius <= observerDistance);
+        return switch (this) {
+            case PlaneOfSky -> true;
+            case ThomsonSphere -> observerDistance > 0 && outerRadius <= observerDistance;
+            case CelestialSphere -> observerDistance > 0 && outerRadius <= 2 * observerDistance; // its far point is the anti-Sun, r = 2D
+        };
+    }
+
+    /**
+     * The family parameter the shader morphs on: {@code k = D / L} for the sphere of diameter L
+     * through the Sun, so depth is {@code k r^2 / D}. Plane of sky 0, Thomson 1, celestial 1/2.
+     */
+    public double depthFactor() {
+        return switch (this) {
+            case PlaneOfSky -> 0;
+            case ThomsonSphere -> 1;
+            case CelestialSphere -> 0.5;
+        };
+    }
+
+    /** The far extent of the surface: the sphere's diameter, or unbounded for the plane. */
+    public double reach(double observerDistance) {
+        return this == PlaneOfSky ? Double.POSITIVE_INFINITY : observerDistance / depthFactor();
     }
 
     /** Heliocentric distance, in the same units as {@code observerDistance}, of the surface point. */
     public double heliocentricRadius(double elongation, double observerDistance) {
         double e = Math.clamp(elongation, 0, MAX_ELONGATION);
-        return observerDistance * (this == ThomsonSphere ? Math.sin(e) : Math.tan(e));
+        return observerDistance * switch (this) {
+            case PlaneOfSky -> Math.tan(e);
+            case ThomsonSphere -> Math.sin(e);
+            case CelestialSphere -> 2 * Math.sin(e / 2); // chord of the observer-centred sphere
+        };
     }
 
     /**
@@ -92,11 +130,13 @@ public enum SurfaceModel {
      * because that is what the caller already has once the warp has been inverted.
      */
     public double depth(double heliocentricRadius, double observerDistance) {
-        if (this != ThomsonSphere || observerDistance <= 0)
+        if (this == PlaneOfSky || observerDistance <= 0)
             return 0;
-        // z = D sin^2 e = r^2 / D on the Thomson sphere, from |p|^2 = D * p.z.
-        double r = Math.min(heliocentricRadius, observerDistance);
-        return r * r / observerDistance;
+        // z = r^2 / L on the sphere of diameter L through the Sun, from |p|^2 = L * p.z: L = D for
+        // Thomson, 2D for celestial. Pinned at the sphere's far point, which is where it ends.
+        double reach = reach(observerDistance);
+        double r = Math.min(heliocentricRadius, reach);
+        return r * r / reach;
     }
 
     /** The elongation whose surface point sits at this heliocentric radius. Inverse of {@link #heliocentricRadius}. */
@@ -104,7 +144,11 @@ public enum SurfaceModel {
         if (observerDistance <= 0)
             return 0;
         double ratio = heliocentricRadius / observerDistance;
-        return this == ThomsonSphere ? Math.asin(Math.clamp(ratio, -1, 1)) : Math.atan(ratio);
+        return switch (this) {
+            case PlaneOfSky -> Math.atan(ratio);
+            case ThomsonSphere -> Math.asin(Math.clamp(ratio, -1, 1));
+            case CelestialSphere -> 2 * Math.asin(Math.clamp(ratio / 2, -1, 1));
+        };
     }
 
     /**

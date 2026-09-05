@@ -80,7 +80,13 @@ void main(void) {
     // The crop travels with the morph: the Thomson model has no surface past r = D, so the field
     // has to shrink from the full loaded extent to D as the surface curves in. Snapping it at
     // either end would put a hard pop into an otherwise continuous movement.
-    float surfaceLimit = mix(outerRadius, observerDistance, surfaceModel);
+    // surfaceModel is the family parameter k = D / L: the surface is the sphere of diameter L
+    // through the Sun (0 plane of sky, 1 Thomson, 1/2 celestial) and has nothing past r = L. The
+    // limit is the smaller of the loaded field and that reach, which is continuous through a
+    // morph: as k rises from 0 the reach falls from infinity and takes over from the field only
+    // once it is the tighter of the two.
+    float surfaceReach = surfaceModel > 0. ? observerDistance / surfaceModel : outerRadius;
+    float surfaceLimit = min(outerRadius, surfaceReach);
     vSurfaceExcess = (surfaceModel > 0. && observerDistance > 0. && surfaceLimit > 0.)
             ? radius / surfaceLimit : 0.;
     vCropExcess = cropRadius > 0. ? radius / cropRadius : 0.;
@@ -108,8 +114,11 @@ void main(void) {
         // that depth by the blend walks each vertex along its OWN line of sight between the two,
         // so every frame of the morph is a real surface rather than a dissolve between pictures.
         float depth = 0.;
-        if (surfaceModel > 0. && observerDistance > 0.)
-            depth = surfaceModel * min(radius, observerDistance) * min(radius, observerDistance) / observerDistance;
+        if (surfaceModel > 0. && observerDistance > 0.) {
+            // z = r^2 / L, pinned at the sphere's far point. Written as k r^2 / D with k = D / L.
+            float r = min(radius, surfaceReach);
+            depth = surfaceModel * r * r / observerDistance;
+        }
         // rho^2 = r^2 - z^2: the in-plane radius shrinks as the surface curves away from the plane.
         float rho = sqrt(max(0., radius * radius - depth * depth));
 
