@@ -14,6 +14,7 @@ import java.awt.event.MouseEvent;
 
 import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
@@ -70,6 +71,7 @@ public class SequencePanel implements FilterDetails {
     private final CardLayout cards = new CardLayout();
     private final JPanel cardPanel = new JPanel(cards);
     private final JLabel readout = new JLabel();
+    private final JPanel settings = new JPanel(new BorderLayout()); // the card stack plus the readout
     private boolean syncing;
 
     // velocity settings
@@ -160,13 +162,12 @@ public class SequencePanel implements FilterDetails {
 
         cardPanel.add(velocity, RADIAL);
         cardPanel.add(gate, GATE);
-        JPanel popup = new JPanel(new BorderLayout());
-        popup.add(cardPanel, BorderLayout.CENTER);
+        settings.add(cardPanel, BorderLayout.CENTER);
         readout.setBorder(BorderFactory.createEmptyBorder(4, 2, 2, 2));
-        popup.add(readout, BorderLayout.PAGE_END);
+        settings.add(readout, BorderLayout.PAGE_END);
         settingsButton.setAlwaysDropdown(true);
         settingsButton.setToolTipText("Settings of the sequence filter");
-        settingsButton.add(popup);
+        settingsButton.add(settings);
 
         kindCombo.addActionListener(e -> {
             if (syncing)
@@ -470,6 +471,24 @@ public class SequencePanel implements FilterDetails {
         showCard((String) kindCombo.getSelectedItem());
         syncing = false;
         updateReadout();
+    }
+
+    /**
+     * The same controls laid out for a palette: the kind, the settings inline rather than behind
+     * the dropdown, and Apply. Moves `settings` out of the split button, so one SequencePanel
+     * serves either the layer row or the palette, never both at once.
+     */
+    public JComponent getPaletteContent() {
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.PAGE_AXIS));
+        content.setOpaque(false);
+        settingsButton.remove(settings);
+        settingsButton.setVisible(false);
+        for (JComponent c : new JComponent[]{kindCombo, settings, applyButton}) {
+            c.setAlignmentX(Component.LEFT_ALIGNMENT);
+            content.add(c);
+        }
+        return content;
     }
 
     @Override

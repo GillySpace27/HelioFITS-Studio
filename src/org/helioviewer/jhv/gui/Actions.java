@@ -116,6 +116,17 @@ public final class Actions {
         }
     }
 
+    public static class ShowSequencePalette extends AbstractAction {
+        public ShowSequencePalette() {
+            super("Sequence Filter\u2026");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            org.helioviewer.jhv.gui.component.ToolBar.toggleSequencePalette();
+        }
+    }
+
     // Output-only fullscreen, the same toggle as the toolbar Presentation button.
     public static class TogglePresentationMode extends AbstractKeyAction {
         public TogglePresentationMode() {
