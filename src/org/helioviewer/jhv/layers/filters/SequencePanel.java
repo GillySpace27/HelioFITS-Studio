@@ -31,8 +31,10 @@ import javax.swing.SwingUtilities;
 import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.ComponentUtils;
+import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.component.CircularProgressUI;
 import org.helioviewer.jhv.gui.component.JHVSlider;
+import org.helioviewer.jhv.gui.component.Palette;
 import org.helioviewer.jhv.gui.component.TerminatedFormatterFactory;
 import org.helioviewer.jhv.image.fourier.FourierFilter;
 import org.helioviewer.jhv.image.fourier.FourierParams;
@@ -67,7 +69,6 @@ public class SequencePanel implements FilterDetails {
     private final JComboBox<String> kindCombo = new JComboBox<>(new String[]{OFF, RADIAL, ANGULAR, GATE});
     private final JideSplitButton settingsButton = new JideSplitButton("…");
     private final JideButton applyButton = new JideButton("Apply");
-    private final JProgressBar spinner = new JProgressBar(0, 100);
     private final CardLayout cards = new CardLayout();
     private final JPanel cardPanel = new JPanel(cards);
     private final JLabel readout = new JLabel();
@@ -181,10 +182,7 @@ public class SequencePanel implements FilterDetails {
             updateReadout();
         });
 
-        spinner.setUI(new CircularProgressUI());
-        spinner.setPreferredSize(new Dimension(20, 20));
-        spinner.setVisible(false);
-        applyButton.setToolTipText("Compute the filter over every frame (or cancel a running one)");
+        setRunning(false);
         applyButton.addActionListener(e -> {
             ComputedView running = layer.getComputedView();
             if (running != null && running.isRunning()) {
@@ -371,6 +369,10 @@ public class SequencePanel implements FilterDetails {
         if (data != null)
             sb.append(String.format("<br>output %d MB", 2L * frames * data.imageBuffer().width * data.imageBuffer().height >> 20));
         readout.setText(sb.append("</html>").toString());
+        // Choosing a kind adds two lines to this readout. In the palette that is a window that has
+        // to grow, and nothing in Swing grows one on its own: without this the last line and the
+        // run button below it were simply outside the window, which is how the palette shipped.
+        Palette.repackAll();
     }
 
     private static String fmt(double seconds) {
@@ -412,7 +414,7 @@ public class SequencePanel implements FilterDetails {
         syncing = false;
     }
 
-    /** Called on every layer update: gates the row, mirrors the layer's state, animates the spinner. */
+    /** Called on every layer update: gates the row, mirrors the layer's state, sets run or stop. */
     public void refresh(ImageLayer imageLayer) {
         String blocker = imageLayer.sequenceBlocker();
         boolean can = blocker == null;
@@ -424,41 +426,34 @@ public class SequencePanel implements FilterDetails {
         ComputedView view = imageLayer.getComputedView();
         boolean running = view != null && view.isRunning();
         applyButton.setEnabled(can || running);
-        showSpinner(running);
-        if (running) {
-            spinner.setIndeterminate(view.progress() <= 0);
-            spinner.setValue((int) Math.round(100 * view.progress()));
-        }
+        setRunning(running);
         spectrumButton.setEnabled(view != null && view.spectrum() != null);
         syncFromLayer();
     }
 
     /**
-     * The progress spinner lives in the button only while a job runs.
+     * Run and stop are the same button, which is what a transport control is.
      *
-     * <p>Adding a component to a button makes it a container, and its preferred size then comes
-     * from that child instead of from its own text. Parking the spinner there at construction
-     * therefore shrank Apply to a 20-pixel square for the whole life of the row: the third column
-     * of a filter row takes the component's preferred size, so the label had nowhere to go and the
-     * button read as an unlabelled box.
+     * <p>It was the word "Apply" with a progress spinner parked inside it. Adding a component to
+     * a button makes it a container, so its preferred size came from that 20-pixel child instead
+     * of from its own text, and a filter row's third column takes the preferred size: the label
+     * had nowhere to go and the row showed an unlabelled box. A glyph needs no room it does not
+     * have, and play-then-stop says what the click will do without a word of explanation. The
+     * progress itself goes to the layer's status line, where there is space to write it.
      */
-    private void showSpinner(boolean running) {
-        if (running == spinnerShown)
+    private void setRunning(boolean running) {
+        if (running == showingStop)
             return;
-        spinnerShown = running;
-        if (running) {
-            applyButton.setText(null);
-            applyButton.add(spinner);
-        } else {
-            applyButton.remove(spinner);
-            applyButton.setText("Apply");
-        }
-        spinner.setVisible(running);
+        showingStop = running;
+        applyButton.setText(running ? Buttons.stopFilter : Buttons.runFilter);
+        applyButton.setToolTipText(running
+                ? "Stop the filter that is running on this layer"
+                : "Compute the filter over every frame of this layer");
         applyButton.revalidate();
         applyButton.repaint();
     }
 
-    private boolean spinnerShown;
+    private boolean showingStop = true; // so the first setRunning(false) actually paints
 
     private void syncFromLayer() {
         SequenceParams params = layer.getSequence();

@@ -2,7 +2,6 @@ package org.helioviewer.jhv.gui.component;
 
 import java.awt.BorderLayout;
 import java.awt.Component;
-import java.awt.Dimension;
 
 import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
@@ -61,17 +60,19 @@ final class SequencePaletteContent {
             if (sequencePanel != null)
                 panel.remove(sequencePanel.getPaletteContent());
             sequencePanel = active == null ? null : new SequencePanel(active);
-            if (sequencePanel != null) {
-                Component content = sequencePanel.getPaletteContent();
-                content.setPreferredSize(new Dimension(340, content.getPreferredSize().height));
-                panel.add(content, BorderLayout.CENTER);
-            }
+            // Deliberately no setPreferredSize here. Pinning the height froze the palette at
+            // whatever the readout said when it was built, and the readout gains two lines the
+            // moment a kind is chosen: the last line and the run button under it ended up outside
+            // the window. The content sizes itself and the window is repacked when it changes.
+            if (sequencePanel != null)
+                panel.add(sequencePanel.getPaletteContent(), BorderLayout.CENTER);
             panel.revalidate();
             panel.repaint();
         }
         layerLabel.setText(active == null ? "No image layer" : "Layer: " + active.getName());
         if (sequencePanel != null && boundLayer != null)
             sequencePanel.refresh(boundLayer);
+        Palette.repackAll(); // the readout gains and loses lines; the window has to follow
     }
 
     static {
