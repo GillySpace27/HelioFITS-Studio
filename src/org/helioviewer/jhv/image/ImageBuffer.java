@@ -222,6 +222,21 @@ public final class ImageBuffer {
         return byteSize(width, height, format);
     }
 
+    private volatile boolean provisional;
+
+    /**
+     * Decoded without a correction it should have had (a LASCO frame whose background could not be
+     * fetched), so it is fit to show but not to keep: the next request for this frame must decode
+     * it again rather than find this one in the cache.
+     */
+    public void markProvisional() {
+        provisional = true;
+    }
+
+    public boolean isProvisional() {
+        return provisional;
+    }
+
     public void protectFromExplicitFree() {
         explicitFreeProtected = true;
     }

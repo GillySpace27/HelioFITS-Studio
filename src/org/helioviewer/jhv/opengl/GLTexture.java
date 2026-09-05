@@ -101,6 +101,17 @@ public class GLTexture {
         GL.glBindBuffer(GL.PIXEL_UNPACK_BUFFER, 0);
     }
 
+    /** A half-float single-channel image from a ShortBuffer of IEEE 754 binary16 bit patterns. */
+    public static void copyHalfImage(int w, int h, int glFilter, ShortBuffer source) {
+        if (w < 1 || h < 1 || w > GL.maxTextureSize || h > GL.maxTextureSize) {
+            Log.warn("w= " + w + " h=" + h);
+            return;
+        }
+        GL.glPixelStorei(GL.UNPACK_ALIGNMENT, 2);
+        GL.glPixelStorei(GL.UNPACK_ROW_LENGTH, w);
+        genTexture2D(GL.R16F, w, h, GL.RED, GL.HALF_FLOAT, glFilter, source);
+    }
+
     public static void copyByteImage(int w, int h, int glFilter, ByteBuffer source) {
         if (w < 1 || h < 1 || w > GL.maxTextureSize || h > GL.maxTextureSize) {
             Log.warn("w= " + w + " h=" + h);

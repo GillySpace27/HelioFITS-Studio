@@ -58,7 +58,8 @@ public final class URIView extends BaseView {
 
             imageRegion = m.roiToRegion(0, 0, buffer.width, buffer.height, 1, 1);
             metaData[0] = m;
-            ImageBufferCache.put(decodeKey(ImageFilter.Type.None), new DecodedImage(buffer, imageRegion));
+            if (!buffer.isProvisional())
+                ImageBufferCache.put(decodeKey(ImageFilter.Type.None), new DecodedImage(buffer, imageRegion));
 
             LUT lut = image.lut();
             if (lut != null)
@@ -99,7 +100,8 @@ public final class URIView extends BaseView {
             Log.warn("Could not re-read " + dataUri.baseName(), e);
             return null;
         }
-        ImageBufferCache.put(key, image);
+        if (!image.imageBuffer().isProvisional())
+            ImageBufferCache.put(key, image);
         return image;
     }
 
@@ -154,7 +156,10 @@ public final class URIView extends BaseView {
         public void onSuccess(DecodedImage result, boolean fresh) {
             if (key.filter() != filterType) return; // filter changed in-flight
 
-            ImageBufferCache.put(key, result);
+            // A provisional frame (its LASCO background could not be fetched) is shown but not kept,
+            // so the next request decodes it again and gets the correction once the server is back.
+            if (!result.imageBuffer().isProvisional())
+                ImageBufferCache.put(key, result);
             // This decode was superseded after it started; do not publish it to the layer.
             if (!fresh) return;
             sendDataToHandler(result, viewpoint);

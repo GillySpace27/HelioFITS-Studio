@@ -22,6 +22,9 @@ public class GLSLSolarShader extends GLSLShader {
     // Draws a mesh rather than a full-screen quad: the warp is geometry here, so the scene can
     // be rotated and overlays can be registered against it. See warpSurface.vert.
     public static final GLSLSolarShader warpSurface = new GLSLSolarShader("/glsl/warpSurface.vert", "/glsl/warpSurface.frag", true);
+    // The colour-table legend: getColor() over a one-row ramp, so the bar is drawn by the code
+    // that draws the picture and cannot disagree with it. See solarLegend.frag.
+    public static final GLSLSolarShader legend = new GLSLSolarShader("/glsl/solar.vert", "/glsl/solarLegend.frag", true);
 
     private final boolean hasCommon;
 
@@ -74,6 +77,7 @@ public class GLSLSolarShader extends GLSLShader {
         radialWarp._init(radialWarp.hasCommon);
         rectWarp._init(rectWarp.hasCommon);
         warpSurface._init(warpSurface.hasCommon);
+        legend._init(legend.hasCommon);
         WarpSurfaceMesh.mesh.init();
     }
 
@@ -137,6 +141,7 @@ public class GLSLSolarShader extends GLSLShader {
         radialWarp._dispose();
         rectWarp._dispose();
         warpSurface._dispose();
+        legend._dispose();
         WarpSurfaceMesh.mesh.dispose();
         wcsBO.delete();
         projectionBO.delete();
