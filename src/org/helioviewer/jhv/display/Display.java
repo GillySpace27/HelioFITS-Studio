@@ -406,6 +406,22 @@ public final class Display {
     public static boolean deepCanvas;
 
     /**
+     * True when the canvas is the EDR rung: RGBA16F IOSurface, RGBA16Float layer tagged linear.
+     * Image layers may then be scaled past 1.0 by {@link HdrGain}.
+     */
+    public static boolean edrCanvas;
+
+    /** The screen's EDR headroom in SDR whites, refreshed after each presented frame; 1 otherwise. */
+    public static volatile double edrHeadroom = 1;
+
+    /**
+     * What the screen could offer once EDR content is on it; 1 on a display without EDR. The
+     * compositor engages EDR only for content above roughly 1.25, so with this above 1 and
+     * {@link #edrHeadroom} still at 1 the gain bootstraps a frame slightly past white.
+     */
+    public static volatile double edrPotential = 1;
+
+    /**
      * Add a dither before the colour-table lookup, to break up banding.
      *
      * <p>On by default, because it has always been on and turning it off changes every layer.

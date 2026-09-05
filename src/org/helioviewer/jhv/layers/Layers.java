@@ -100,10 +100,33 @@ public final class Layers {
         Player.setMaster(nullImageLayer);
     }
 
+    // True once the clock was handed to a layer on purpose (a click in the panel, a restored
+    // state), so a layer that merely finished loading a frame does not take it. Upstream gave the
+    // clock to every newly activated view, which was harmless when a layer arrived whole; the
+    // FITS loaders here activate a view per arrival, so every frame of every layer stole the
+    // master, often as a one-frame view, and the transport read 1/1 whatever was selected.
+    private static boolean masterChosen;
+
     public static void setActiveImageLayer(ImageLayer layer) {
+        masterChosen = layer != null;
         masterTimelineSource = null; // a real image layer takes the clock back
         activeLayer = layer == null ? nullImageLayer : layer;
         Player.setMaster(activeLayer);
+    }
+
+    /**
+     * A layer just got a view. It takes the clock if it already holds it (its frames grew and the
+     * player must learn), if no image layer holds it and no timeline source was claimed, or if it
+     * is brand new and nobody has chosen a master. Otherwise the clock stays where it was.
+     */
+    public static void viewActivated(ImageLayer layer, boolean firstView) {
+        boolean holds = activeLayer == layer;
+        boolean vacant = activeLayer == nullImageLayer && masterTimelineSource == null;
+        if (holds || vacant || (firstView && !masterChosen)) {
+            masterTimelineSource = null;
+            activeLayer = layer;
+            Player.setMaster(layer);
+        }
     }
 
     // The non-image layer the user has handed the clock to, or null when imagery owns it.
@@ -222,6 +245,7 @@ public final class Layers {
 
         if (layer == activeLayer) {
             setActiveImageLayer(imageLayersCount == 0 ? null : (ImageLayer) layers.get(imageLayersCount - 1));
+            masterChosen = false; // a fallback, not a choice: the next arriving layer may take it
         }
 
         listeners.forEach(listener -> listener.layerRemoved(row, layer));

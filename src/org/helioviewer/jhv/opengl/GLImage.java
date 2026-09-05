@@ -5,6 +5,7 @@ import java.util.Set;
 
 import org.helioviewer.jhv.base.BufferUtils;
 import org.helioviewer.jhv.display.Display;
+import org.helioviewer.jhv.display.HdrGain;
 import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.lut.LUT;
 import org.helioviewer.jhv.image.lut.LUTLabels;
@@ -145,7 +146,8 @@ public class GLImage {
                 LUTLabels.isCategorical(lut) ? 1 : 0,
                 Display.skipDither() ? 1 : 0,
                 Display.showClipping && !raw ? 1 : 0,
-                raw ? 1 : 0);
+                raw ? 1 : 0,
+                HdrGain.current(raw), HdrGain.mode().ordinal(), HdrGain.knee());
 
         applyLUT();
         applyMask(metaData.getDetectorMask());
