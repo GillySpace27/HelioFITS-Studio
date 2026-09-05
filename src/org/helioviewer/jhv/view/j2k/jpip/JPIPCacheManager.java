@@ -61,7 +61,7 @@ public class JPIPCacheManager {
                             .withExpiry(expiryPolicy))
                     .build(true);
         } catch (Exception e) { // disk cache locked by another running instance
-            Log.warn("JPIP disk cache is in use by another HFStudio instance, using a memory-only cache for this session", e);
+            Log.warn("JPIP disk cache is in use by another HelioFITS Studio instance, using a memory-only cache for this session", e);
             close();
             levelManager = CacheManagerBuilder.newCacheManagerBuilder()
                     .withCache("JPIPLevel", CacheConfigurationBuilder

@@ -108,7 +108,7 @@ final class ExrCapture {
         Position viewpoint = mv.viewpoint();
         Viewport[] viewports = Display.getViewports();
         JSONObject frame = new JSONObject()
-                .put("writer", "HFStudio " + AppInfo.version + '.' + AppInfo.revision)
+                .put("writer", "HelioFITS Studio " + AppInfo.version + '.' + AppInfo.revision)
                 .put("frame", index)
                 .put("time", viewpoint.time.toString())
                 .put("projection", Display.mode.toString())
@@ -130,7 +130,7 @@ final class ExrCapture {
         exr.attribute("capDate", TimeUtils.format(CAP_DATE, viewpoint.time.milli));
         exr.attribute("utcOffset", 0f);
         exr.rational("framesPerSecond", fps, 1);
-        exr.attribute("comments", "HFStudio layered export. Composite in R,G,B,A; each layer under its own prefix: "
+        exr.attribute("comments", "HelioFITS Studio layered export. Composite in R,G,B,A; each layer under its own prefix: "
                 + "<prefix>.Y decoded data, .V value the colour table was indexed with, .A footprint, .meta JSON, .lut hex RGB table. See jhv.");
         return exr;
     }

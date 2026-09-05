@@ -242,7 +242,7 @@ public final class PresentationMode {
     // Swing panels, so moving them between windows is just a reparent -- the expensive
     // component, the canvas, stays exactly where it is.
     private static JFrame buildPresenterWindow(GraphicsDevice on) {
-        JFrame window = new JFrame("HFStudio — Presenter", on.getDefaultConfiguration());
+        JFrame window = new JFrame("HelioFITS Studio: Presenter", on.getDefaultConfiguration());
         window.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE); // closing it would strand the chrome
         // Toolbar and transport stack at the top at their natural height; the sidebar takes
         // everything left over. BorderLayout.NORTH is what enforces "natural height" here -- a

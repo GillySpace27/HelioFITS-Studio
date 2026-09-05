@@ -442,7 +442,7 @@ public final class Actions {
         }
     }
 
-    // Opens another HFStudio window as a separate process ("jhv.secondary"), so the user can
+    // Opens another HelioFITS Studio window as a separate process ("jhv.secondary"), so the user can
     // start a new session without closing the current one — like opening a second Excel window.
     // Extra windows are scratch sessions (no autosave/restore); only the primary keeps continuity.
     // The persistent FileCache is shared across processes, so no dataset is re-downloaded.

@@ -547,7 +547,7 @@ public final class MainFrame {
         if (sessionNameLabel != null)
             sessionNameLabel.setText(shown);
         if (mainFrame != null)
-            mainFrame.setTitle(shown + " — " + AppInfo.programName);
+            mainFrame.setTitle(shown + " : " + AppInfo.programName);
     }
 
     public static void toFront() {

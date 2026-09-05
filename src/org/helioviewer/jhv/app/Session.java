@@ -276,7 +276,7 @@ public final class Session {
             int choice = JOptionPane.showOptionDialog(MainFrame.get(),
                     "Save \"" + displayName() + "\" as a project before closing?\n\n" +
                             "It is auto-restored on the next launch either way.",
-                    "HFStudio", JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE,
+                    "HelioFITS Studio", JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE,
                     null, options, options[0]);
             if (choice == JOptionPane.CANCEL_OPTION || choice == JOptionPane.CLOSED_OPTION) {
                 if (autosaveTimer != null)
