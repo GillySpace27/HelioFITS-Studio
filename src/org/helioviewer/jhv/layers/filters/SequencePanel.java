@@ -87,9 +87,6 @@ public class SequencePanel implements FilterDetails {
     private final JFormattedTextField periodField = new JFormattedTextField(new TerminatedFormatterFactory("%.1f", " min", 1, 1e6));
     private final JLabel periodLabel = new JLabel("Period ");
     private final JComboBox<String> directionCombo = new JComboBox<>();
-    private final JHVSlider gainSlider = new JHVSlider(1, (int) Math.round(10 * FourierParams.MAX_GAIN), 10); // tenths, 0.1 to 3.0
-    private boolean gainLevelsApplied; // the layer's Levels currently carry this slider's contrast
-    private final JLabel gainLabel = new JLabel("1.0", JLabel.RIGHT);
     private final JComboBox<Integer> nRCombo = new JComboBox<>(new Integer[]{512, 1024, 2048});
     private final JComboBox<Integer> nPhiCombo = new JComboBox<>(new Integer[]{256, 512, 1024});
     private final JideButton spectrumButton = new JideButton("Spectrum…");
@@ -130,19 +127,6 @@ public class SequencePanel implements FilterDetails {
             hiField.setValue(omega * 1.15 * DEG_PER_HOUR);
             syncing = false;
         });
-        gainSlider.addChangeListener(e -> {
-            gainLabel.setText(String.format("%.1f", gainSlider.getValue() / 10.));
-            // Live, through the layer's Levels, while a Pass output is what the layer shows. Nothing
-            // is recomputed: the frames are packed at the pass scale and this only moves the black
-            // and white points about mid-grey, which is what a contrast is.
-            if (!syncing && layer.getSequence() instanceof FourierParams f && f.mode() == FourierParams.Mode.PASS)
-                applyGainLevels(gainSlider.getValue() / 10.);
-        });
-        gainSlider.setToolTipText("Contrast of a Pass output about zero, applied live through the layer's Levels. At 1.0 the "
-                + "99.5th percentile of the fluctuation reaches white and black; anything higher saturates more of the "
-                + "field, which \"Show clipped pixels\" marks. 3x is the most Levels can express.");
-        passButton.addActionListener(e -> gainSlider.setEnabled(true));
-        notchButton.addActionListener(e -> gainSlider.setEnabled(false)); // a notch is re-encoded like the original; it has no pass scale
         nRCombo.setSelectedItem(1024);
         nPhiCombo.setSelectedItem(512);
         spectrumButton.setEnabled(false);
@@ -154,7 +138,6 @@ public class SequencePanel implements FilterDetails {
         velocity.add(row("To ", hiField));
         velocity.add(row(periodLabel, periodField));
         velocity.add(row("Direction ", directionCombo));
-        velocity.add(row("Gain ", gainSlider, gainLabel));
         velocity.add(row("Radial bins ", nRCombo));
         velocity.add(row("Angular bins ", nPhiCombo));
         velocity.add(spectrumButton);
@@ -194,7 +177,6 @@ public class SequencePanel implements FilterDetails {
             showCard(kind);
             if (OFF.equals(kind)) {
                 Layers.applyToSelectedLayers(layer, il -> il.setSequence(null));
-                resetGainLevels();
                 DisplayController.render(1);
             }
             updateReadout();
@@ -205,7 +187,6 @@ public class SequencePanel implements FilterDetails {
             ComputedView running = layer.getComputedView();
             if (running != null && running.isRunning()) {
                 Layers.applyToSelectedLayers(layer, il -> il.setSequence(null));
-                resetGainLevels();
                 syncing = true;
                 kindCombo.setSelectedItem(OFF);
                 syncing = false;
@@ -317,7 +298,7 @@ public class SequencePanel implements FilterDetails {
             };
             return new FourierParams(angular ? FourierParams.Kind.ANGULAR : FourierParams.Kind.RADIAL,
                     passButton.isSelected() ? FourierParams.Mode.PASS : FourierParams.Mode.NOTCH,
-                    lo, hi, direction, gainSlider.getValue() / 10., (Integer) nRCombo.getSelectedItem(), (Integer) nPhiCombo.getSelectedItem());
+                    lo, hi, direction, 1, (Integer) nRCombo.getSelectedItem(), (Integer) nPhiCombo.getSelectedItem()); // contrast is the layer's Contrast row now
         } catch (Exception e) {
             Message.warn("Fourier filter", "Check the settings: " + e.getMessage());
             return null;
@@ -344,10 +325,103 @@ public class SequencePanel implements FilterDetails {
                 "Fourier filter", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION)
             return;
         Layers.applyToSelectedLayers(layer, il -> il.setSequence(params));
-        if (params instanceof FourierParams f && f.mode() == FourierParams.Mode.PASS)
-            applyGainLevels(f.gain());
-        else
-            resetGainLevels();
+        DisplayController.render(1);
+        updateReadout();
+    }
+
+    /** What the row says the filter is, without opening anything. */
+    private String describeCurrent() {
+        SequenceParams params = layer.getSequence();
+        return params == null ? "Off\u2026" : params.describe() + '\u2026';
+    }
+
+    private void showCard(String kind) {
+        cards.show(cardPanel, GATE.equals(kind) ? GATE : RADIAL);
+        boolean angular = ANGULAR.equals(kind);
+        periodLabel.setVisible(angular);
+        periodField.setVisible(angular);
+        if (!OFF.equals(kind) && !GATE.equals(kind))
+            setVelocityFormats(angular ? FourierParams.Kind.ANGULAR : FourierParams.Kind.RADIAL);
+    }
+
+    private FourierParams.Kind currentVelocityKind;
+
+    private void setVelocityFormats(FourierParams.Kind kind) {
+        if (kind == currentVelocityKind)
+            return;
+        currentVelocityKind = kind;
+        boolean angular = kind == FourierParams.Kind.ANGULAR;
+        syncing = true;
+        Object lo = loField.getValue(), hi = hiField.getValue();
+        loField.setFormatterFactory(new TerminatedFormatterFactory(angular ? "%.2f" : "%.0f", angular ? " °/h" : " km/s", 0, 1e7));
+        hiField.setFormatterFactory(new TerminatedFormatterFactory(angular ? "%.2f" : "%.0f", angular ? " °/h" : " km/s", 0, 1e7));
+        directionCombo.removeAllItems();
+        for (String s : angular ? new String[]{"Both", "Prograde", "Retrograde"} : new String[]{"Both", "Outward", "Inward"})
+            directionCombo.addItem(s);
+        directionCombo.setSelectedIndex(angular ? 0 : 1);
+        if (angular) {
+            double omega = 2 * Math.PI / (FourierParams.PUNCH_ORBIT_MINUTES_ASSUMED * 60);
+            loField.setValue(omega * 0.85 * DEG_PER_HOUR);
+            hiField.setValue(omega * 1.15 * DEG_PER_HOUR);
+            notchButton.setSelected(true);
+        } else {
+            loField.setValue(lo instanceof Number ? 200. : 200.);
+            hiField.setValue(hi instanceof Number ? 800. : 800.);
+            passButton.setSelected(true);
+        }
+        syncing = false;
+    }
+
+    @Nullable
+    private SequenceParams paramsFromWidgets() {
+        String kind = (String) kindCombo.getSelectedItem();
+        if (OFF.equals(kind) || kind == null)
+            return null;
+        try {
+            if (GATE.equals(kind))
+                return new NoiseGateParams((NoiseGateParams.Model) modelCombo.getSelectedItem(), (NoiseGateParams.Gate) gateCombo.getSelectedItem(),
+                        gammaSlider.getValue() / 10., percentileSlider.getValue(), (Integer) nCombo.getSelectedItem(), residualBox.isSelected(),
+                        radialBox.isSelected() ? NoiseGateParams.DEFAULT_BANDS : 0);
+            boolean angular = ANGULAR.equals(kind);
+            double lo = ((Number) loField.getValue()).doubleValue(), hi = ((Number) hiField.getValue()).doubleValue();
+            if (angular) {
+                lo /= DEG_PER_HOUR;
+                hi /= DEG_PER_HOUR;
+            }
+            FourierParams.Direction direction = switch (directionCombo.getSelectedIndex()) {
+                case 1 -> FourierParams.Direction.POSITIVE;
+                case 2 -> FourierParams.Direction.NEGATIVE;
+                default -> FourierParams.Direction.BOTH;
+            };
+            return new FourierParams(angular ? FourierParams.Kind.ANGULAR : FourierParams.Kind.RADIAL,
+                    passButton.isSelected() ? FourierParams.Mode.PASS : FourierParams.Mode.NOTCH,
+                    lo, hi, direction, 1, (Integer) nRCombo.getSelectedItem(), (Integer) nPhiCombo.getSelectedItem()); // contrast is the layer's Contrast row now
+        } catch (Exception e) {
+            Message.warn("Fourier filter", "Check the settings: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private void apply() {
+        SequenceParams params = paramsFromWidgets();
+        if (params == null)
+            return;
+        long budget = estimateBytes(params);
+        Runtime rt = Runtime.getRuntime();
+        long free = rt.maxMemory() - rt.totalMemory() + rt.freeMemory();
+        if (budget > 0.6 * free) {
+            Message.warn("Fourier filter", String.format("This would need about %d MB of working memory and %d MB are free. Shorten the time range or lower the grid size.", budget >> 20, free >> 20));
+            return;
+        }
+        // The output is off-heap and the view holds all of it at once, so the heap check above
+        // says nothing about it. A full-resolution PUNCH mosaic movie is 33 MB a frame: the run
+        // that prompted this check produced 8.2 GB of output from 245 of them.
+        long output = outputBytes();
+        if (output > (2L << 30) && JOptionPane.showConfirmDialog(second,
+                String.format("This will hold about %.1f GB of filtered frames in memory for as long as the filter is on.\nShorten the time range to reduce it.\n\nContinue?", output / (double) (1L << 30)),
+                "Fourier filter", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION)
+            return;
+        Layers.applyToSelectedLayers(layer, il -> il.setSequence(params));
         DisplayController.render(1);
         updateReadout();
     }
@@ -492,8 +566,6 @@ public class SequencePanel implements FilterDetails {
         boolean running = view != null && view.isRunning();
         applyButton.setEnabled(can || running);
         setRunning(running);
-        if (gainLevelsApplied && !(imageLayer.getSequence() instanceof FourierParams f && f.mode() == FourierParams.Mode.PASS) && !running)
-            resetGainLevels(); // switched off or replaced from somewhere other than this panel
         for (JProgressBar bar : new JProgressBar[]{spinner, paletteSpinner}) {
             bar.setVisible(running);
             if (running) {
@@ -576,9 +648,6 @@ public class SequencePanel implements FilterDetails {
                 case NEGATIVE -> 2;
                 default -> 0;
             });
-            gainSlider.setValue((int) Math.round(Math.min(f.gain(), FourierParams.MAX_GAIN) * 10));
-            gainSlider.setEnabled(f.mode() == FourierParams.Mode.PASS);
-            gainLevelsApplied = f.mode() == FourierParams.Mode.PASS; // a restored session's Levels already carry it
             nRCombo.setSelectedItem(f.nR());
             nPhiCombo.setSelectedItem(f.nPhi());
         }

@@ -32,9 +32,10 @@ public record FourierParams(Kind kind, Mode mode, double lo, double hi, Directio
     static final String TYPE = "fourier";
 
     /**
-     * The gain is applied as a contrast about mid-grey through the layer's Levels, value' = 0.5 +
-     * g (value - 0.5), and GLImage.setBrightness clamps the offset at -1 and the scale at 2 minus
-     * the offset. Both bind at exactly g = 3, so that is the most the display can express.
+     * gain is legacy: it used to be baked into a Pass output's frames, then briefly drove the
+     * layer's Levels from this palette. Contrast is the layer's own Contrast row now, beside
+     * Levels, and this field is read only so that older sessions still parse. New params carry 1.
+     * The cap is kept for the same reason: sessions saved with more are clamped on reading.
      */
     public static final double MAX_GAIN = 3;
 
