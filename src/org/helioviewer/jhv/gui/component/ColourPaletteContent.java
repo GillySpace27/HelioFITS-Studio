@@ -102,8 +102,13 @@ final class ColourPaletteContent {
 
         JCheckBox canvas = new JCheckBox("HDR canvas", HdrGain.canvasEnabled());
         canvas.setToolTipText("Render image layers into the display's extended range, so the corona can be brighter "
-                + "than the window. Needs an EDR display; takes effect at the next start.");
-        canvas.addActionListener(e -> HdrGain.setCanvasEnabled(canvas.isSelected()));
+                + "than the window. Needs an EDR display; the canvas itself is created at the next start, but "
+                + "turning this off takes the brightness to 1x now, and turning it on brings the old brightness back.");
+        canvas.addActionListener(e -> {
+            HdrGain.setCanvasEnabled(canvas.isSelected()); // also parks the brightness at 1x, or restores it
+            DisplayController.display();
+            refresh();
+        });
 
         headroom = new JLabel();
         headroom.setFont(headroom.getFont().deriveFont(Font.PLAIN, headroom.getFont().getSize2D() - 1));

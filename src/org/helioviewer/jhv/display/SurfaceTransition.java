@@ -29,8 +29,8 @@ public final class SurfaceTransition {
 
     private static boolean animateEnabled = !"false".equals(Settings.getProperty("display.animateSurfaceChanges"));
 
-    /** Where the morph is now: 0 is plane of sky, 1 is the Thomson sphere. */
-    private static double blend = SurfaceModel.PlaneOfSky == Display.getSurfaceModel() ? 0 : 1;
+    /** Where the morph is now, as the family parameter: 0 plane of sky, 1 Thomson, 1/2 celestial. */
+    private static double blend = Display.getSurfaceModel().depthFactor();
     private static double from;
     private static double to;
     private static long startMilli;
@@ -64,7 +64,7 @@ public final class SurfaceTransition {
      * back to plane of sky when the viewpoint moves inside the field.
      */
     public static void requestSurface(SurfaceModel target) {
-        double want = target == SurfaceModel.ThomsonSphere ? 1 : 0;
+        double want = target.depthFactor();
         if (!animateEnabled) {
             blend = want;
             active = false;

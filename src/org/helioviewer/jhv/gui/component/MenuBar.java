@@ -117,7 +117,10 @@ public final class MenuBar extends JMenuBar {
         JCheckBoxMenuItem hdrCanvas = new JCheckBoxMenuItem("HDR Canvas", HdrGain.canvasEnabled());
         hdrCanvas.setToolTipText("Render image layers into the display's extended range, so the corona can be "
                 + "brighter than the window. Needs an EDR display; takes effect the next time JHelioviewer starts.");
-        hdrCanvas.addItemListener(e -> HdrGain.setCanvasEnabled(hdrCanvas.getState()));
+        hdrCanvas.addItemListener(e -> {
+            HdrGain.setCanvasEnabled(hdrCanvas.getState()); // also parks the brightness at 1x, or restores it
+            DisplayController.display();
+        });
         viewMenu.add(hdrCanvas);
 
         JMenu hdrBrightness = new JMenu("HDR Brightness");

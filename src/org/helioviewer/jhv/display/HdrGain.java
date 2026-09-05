@@ -119,9 +119,31 @@ public final class HdrGain {
         return !"false".equals(Settings.getProperty(KEY_CANVAS));
     }
 
+    /**
+     * Turning the canvas off also takes the brightness to 1x, and turning it back on restores what
+     * it was.
+     *
+     * <p>The canvas itself is created at startup, so on its own the flag did nothing until the next
+     * launch and read as broken. The gain, by contrast, is a uniform and changes the picture now.
+     * Forcing it to 1x is the belt to the flag's suspenders: with both, "HDR off" is visibly off at
+     * once, and the remembered brightness comes back with the canvas rather than being lost.
+     */
     public static void setCanvasEnabled(boolean enabled) {
+        boolean was = canvasEnabled();
         Settings.setProperty(KEY_CANVAS, Boolean.toString(enabled));
+        if (enabled == was)
+            return;
+        if (!enabled) {
+            Settings.setProperty(KEY_GAIN_BEFORE_OFF, setting);
+            setSetting("1");
+        } else {
+            Object remembered = Settings.getProperty(KEY_GAIN_BEFORE_OFF);
+            if (remembered != null && !"1".equals(String.valueOf(remembered)))
+                setSetting(String.valueOf(remembered));
+        }
     }
+
+    private static final String KEY_GAIN_BEFORE_OFF = "display.hdrGainBeforeOff";
 
     private HdrGain() {}
 }
