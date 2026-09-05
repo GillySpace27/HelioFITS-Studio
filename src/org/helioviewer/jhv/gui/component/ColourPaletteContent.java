@@ -13,10 +13,10 @@ import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 
+import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.HdrGain;
 import org.helioviewer.jhv.display.Interpolation;
-import org.helioviewer.jhv.layers.Colorbar;
 
 /**
  * The controls that decide how every frame is coloured, in one palette.
@@ -92,11 +92,15 @@ final class ColourPaletteContent {
             DisplayController.display();
         });
 
-        clipping = new JCheckBox("Mark data above the display range");
-        clipping.setToolTipText("Outline the colorbar's over-range section, so it is obvious when the picture "
-                + "contains values the colour table cannot show and the HDR headroom is carrying them.");
+        // The same switch as View > Show Clipped Pixels, not a second one beside it. The colorbar's
+        // over-range section is not optional and is not this: it shows whenever the display carries
+        // headroom, because a legend that stops at 1 misrepresents an image that does not.
+        clipping = new JCheckBox("Show clipped pixels");
+        clipping.setToolTipText("Magenta where the display range is exceeded, green where it bottoms out. "
+                + "Flat regions that stay unflagged were already flat in the data.");
         clipping.addActionListener(e -> {
-            Colorbar.setShowOverRange(clipping.isSelected());
+            Display.showClipping = clipping.isSelected();
+            MenuBar.syncClippingItem();
             DisplayController.display();
         });
 
@@ -155,7 +159,7 @@ final class ColourPaletteContent {
             if (Math.abs(KNEES[i] - HdrGain.knee()) < 1e-3)
                 kneeCombo.setSelectedIndex(i);
         interpCombo.setSelectedItem(Interpolation.get());
-        clipping.setSelected(Colorbar.showOverRange());
+        clipping.setSelected(Display.showClipping);
         kneeCombo.setEnabled(HdrGain.mode() == HdrGain.Mode.HardKnee || HdrGain.mode() == HdrGain.Mode.SoftKnee);
 
         float gain = HdrGain.current(false);
