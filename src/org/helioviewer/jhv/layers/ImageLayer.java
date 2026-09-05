@@ -102,7 +102,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     protected ImageLayer(View _view) {
         view = _view;
         glImage = null;
-        loader = new ImageLayerLoader(v -> {}, () -> {}, st -> {}, failed -> {});
+        loader = new ImageLayerLoader(v -> {}, v -> {}, () -> {}, st -> {}, failed -> {});
     }
 
     private ImageLayer(JSONObject jo) {
@@ -113,7 +113,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         }
 
         glImage = new GLImage();
-        loader = new ImageLayerLoader(this::setView, this::unload, this::setLoadStatus, this::setFailedUris);
+        loader = new ImageLayerLoader(this::setView, this::setPreviewView, this::unload, this::setLoadStatus, this::setFailedUris);
 
         if (jo != null) {
             applyImageParams(jo.optJSONObject("imageParams"));
@@ -262,6 +262,28 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         if (Display.multiview) {
             ImageLayers.arrangeMultiView(true);
         }
+    }
+
+    /**
+     * The first frame, put on screen while the rest of the movie is still arriving.
+     *
+     * <p>Deliberately not setView. That one declares the load finished, and for a preview every
+     * part of that is false: the layer then reported "1 frame" in the readout and to the sequence
+     * filter's gate, isDownloading() went quiet so the transport stopped counting, a re-issued
+     * identical query was skipped as already-loaded, and a LOOP recording ended after one file.
+     * A 245-frame PUNCH movie restored from a session showed exactly this for the whole minute it
+     * took to load: one frame, no cadence, zero duration, beside 245 cached files on disk.
+     */
+    void setPreviewView(View _view) {
+        if (removed) //!
+            return;
+
+        view.setDataHandler(null);
+        view = _view;
+        view.setDataHandler(this);
+        if (fixedRange != null)
+            _view.setRange(fixedRange[0], fixedRange[1]);
+        activateView();
     }
 
     void setView(View _view) {
