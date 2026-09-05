@@ -18,6 +18,7 @@ enum MaterialDesign {
     CONTENT_SAVE("mdi-content-save", '\uf193'),
     CONTENT_SAVE_ALL("mdi-content-save-all", '\uf194'),
     FOLDER_OPEN("mdi-folder-open", '\uf24b'),
+    FILTER("mdi-filter", '\uf232'), // a funnel; rasterized to check before use
     CROP_LANDSCAPE("mdi-crop-landscape", '\uf1a0'),
     CROSSHAIRS_GPS("mdi-crosshairs-gps", '\uf1a4'),
     CUBE_OUTLINE("mdi-cube-outline", '\uf1a7'),

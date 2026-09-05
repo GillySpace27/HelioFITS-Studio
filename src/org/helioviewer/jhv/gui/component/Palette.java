@@ -86,6 +86,13 @@ public final class Palette {
         button.addActionListener(e -> setOpen(button.isSelected()));
     }
 
+    /** Open the palette with this title if it is not already open. Used by the layer row. */
+    public static void open(String title) {
+        for (Palette p : palettes)
+            if (p.title.equals(title) && !p.isOpen())
+                p.toggle();
+    }
+
     /** Toggle exactly as the toolbar button does, so the View menu and the button stay in step. */
     public void toggle() {
         if (toggle != null)

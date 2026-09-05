@@ -89,7 +89,8 @@ public class Buttons {
     public static final String offDisk = toolBar(MaterialDesign.WEATHER_SUNNY);
     public static final String pan = toolBar(MaterialDesign.CURSOR_MOVE);
     public static final String projection = toolBar(MaterialDesign.CUBE_OUTLINE);
-    public static final String sequenceFilter = toolBar(MaterialDesign.VECTOR_CIRCLE_VARIANT);
+    public static final String sequenceFilter = toolBar(MaterialDesign.FILTER); // NOT cutOut's vector-circle
+    public static final String openSequence = button(MaterialDesign.FILTER);
     public static final String presentation = toolBar(MaterialDesign.PROJECTOR_SCREEN);
     public static final String overflow = toolBar(MaterialDesign.CHEVRON_DOWN);
     public static final String refresh = toolBar(MaterialDesign.REFRESH);
