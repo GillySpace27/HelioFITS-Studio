@@ -397,10 +397,13 @@ public class SequencePanel implements FilterDetails {
 
     /** Called on every layer update: gates the row, mirrors the layer's state, animates the spinner. */
     public void refresh(ImageLayer imageLayer) {
-        boolean can = imageLayer.canFilterSequence();
+        String blocker = imageLayer.sequenceBlocker();
+        boolean can = blocker == null;
         ComponentUtils.setEnabled(kindCombo, can);
         ComponentUtils.setEnabled(settingsButton, can);
-        title.setToolTipText(can ? null : "Needs a fully loaded FITS/PNG movie of at least 8 frames (JPEG 2000 streams cannot be filtered)");
+        // The reason, not a menu of four: "1 frame(s) loaded so far" and "JPX frames cannot be
+        // handed over whole" call for entirely different things from the person reading it.
+        title.setToolTipText(can ? null : "No sequence filter yet: " + blocker);
         ComputedView view = imageLayer.getComputedView();
         boolean running = view != null && view.isRunning();
         applyButton.setEnabled(can || running);

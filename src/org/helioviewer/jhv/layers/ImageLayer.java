@@ -282,10 +282,9 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             swapView(computed.wrapped());
         }
         if (params != null) {
-            int frames = view.getMaximumFrameNumber() + 1;
-            if (!viewLoaded || frames < SEQUENCE_MIN_FRAMES || !sourceHasFrames()) {
-                Log.info("Sequence filter pending on " + getName() + ": " + (!viewLoaded ? "no view yet" : frames < SEQUENCE_MIN_FRAMES
-                        ? frames + " frame(s) loaded so far" : "source format " + view.getFormat() + " cannot hand over frames"));
+            String blocker = sequenceBlocker();
+            if (blocker != null) {
+                Log.info("Sequence filter pending on " + getName() + ": " + blocker);
             } else {
                 // The per-frame filter stays: ComputedView applies it to the computed frames, so RHEF can
                 // follow a noise gate or a notch the way it follows a raw frame.
@@ -314,8 +313,31 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         return format == DataUri.Format.Image.FITS || format == DataUri.Format.Image.PNG || format == DataUri.Format.Image.JPEG;
     }
 
+    /**
+     * Why a sequence filter cannot run on this layer, in words, or null when it can.
+     *
+     * <p>One gate, used both by the UI to grey the row and by setSequence to say what it is
+     * waiting for. They used to be two conditions that disagreed: the row also demanded
+     * isViewLoadFinished(), which is false while a stale load future hangs around after a partial
+     * URI failure, so a fully populated movie could be greyed out although the filter would have
+     * run on it. And a single tooltip for four causes told you nothing about which one you hit.
+     */
+    @Nullable
+    public String sequenceBlocker() {
+        if (!viewLoaded)
+            return "no frames loaded yet";
+        int frames = view.getMaximumFrameNumber() + 1;
+        if (frames < SEQUENCE_MIN_FRAMES)
+            return frames + " frame(s) loaded so far, " + SEQUENCE_MIN_FRAMES + " needed";
+        if (!sourceHasFrames()) {
+            DataUri.Format format = view.getFormat();
+            return (format == null ? "this source" : format + " frames") + " cannot be handed over whole";
+        }
+        return null;
+    }
+
     public boolean canFilterSequence() {
-        return viewLoaded && isViewLoadFinished() && view.getMaximumFrameNumber() + 1 >= SEQUENCE_MIN_FRAMES && sourceHasFrames();
+        return sequenceBlocker() == null;
     }
 
     // The view keeps its data handler wiring and its filter; nothing is abolished and the three
