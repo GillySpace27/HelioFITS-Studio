@@ -96,12 +96,14 @@ public final class MenuBar extends JMenuBar {
         });
         viewMenu.add(white);
 
-        JCheckBoxMenuItem clipping = new JCheckBoxMenuItem("Show Clipped Pixels");
+        JCheckBoxMenuItem clipping = new JCheckBoxMenuItem("Show Clipped Pixels", Display.showClipping);
         clipping.setToolTipText("Magenta where the display range is exceeded, green where it bottoms out. Flat regions that stay unflagged were already flat in the data.");
         clipping.addItemListener(e -> {
             Display.showClipping = clipping.getState();
+            ColourPaletteContent.refresh(); // the Colour palette carries the same switch
             DisplayController.display();
         });
+        clippingItem = clipping;
         viewMenu.add(clipping);
 
         JCheckBoxMenuItem dither = new JCheckBoxMenuItem("Dither Colour Banding", Display.isDitherEnabled());
@@ -338,5 +340,13 @@ public final class MenuBar extends JMenuBar {
         return menu;
     }
 
+
+    private static JCheckBoxMenuItem clippingItem;
+
+    /** The palette changed Display.showClipping; make the menu say so too. */
+    static void syncClippingItem() {
+        if (clippingItem != null && clippingItem.getState() != Display.showClipping)
+            clippingItem.setState(Display.showClipping);
+    }
 
 }

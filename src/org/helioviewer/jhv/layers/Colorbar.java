@@ -129,12 +129,14 @@ public final class Colorbar {
         if (yTop > vp.height) // out of room; drop this legend rather than draw over the image
             return;
 
-        // The bar is split when the HDR canvas is carrying headroom: the left part is the colour
+        // The bar is split whenever the HDR canvas is carrying headroom: the left part is the colour
         // table's 0 to 1, the right part is what lies above the top of the range, which is what
-        // the display is actually showing as brighter-than-white. Without it the bar stops at 1
-        // and every over-range pixel in the picture is unrepresented on the legend beside it.
+        // the display is actually showing as brighter-than-white. Not optional, because it is not
+        // a decoration: without it the bar stops at 1 and every over-range pixel in the picture is
+        // unrepresented on the legend beside it. Marking clipped pixels in the PICTURE is the View
+        // menu's "show clipped pixels", which is a separate question and stays a separate switch.
         float gain = HdrGain.current(false);
-        boolean headroom = showOverRange && gain > 1 && groups == null;
+        boolean headroom = gain > 1 && groups == null;
         double xSplit = headroom ? x0 + (x1 - x0) / OVER_RANGE_SPAN : x1;
 
         // Depth testing is on for the whole frame (GLRenderer sets it up once, for the 3D scene),
@@ -223,17 +225,6 @@ public final class Colorbar {
     // Levels (brightOffset/brightScale) and, for AIA, its instrument response-factor correction --
     // see GLImage.applyFilters. Undo that first to get back to the decoder's raw [0,1] texture
     // value, then hand it to ImageBuffer.PhysicalScale to undo the stretch and min/max normalize.
-    private static boolean showOverRange = true;
-
-    /** Whether the bar draws (and outlines) the section above the display range. */
-    public static boolean showOverRange() {
-        return showOverRange;
-    }
-
-    public static void setShowOverRange(boolean show) {
-        showOverRange = show;
-    }
-
     @Nullable
     private static String physicalValueText(double frac, GLImage glImage, View.ImageData imageData, boolean rhefActive) {
         if (rhefActive || glImage.getDifferenceMode() != GLImage.DifferenceMode.None)
