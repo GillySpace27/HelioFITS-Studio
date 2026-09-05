@@ -197,7 +197,6 @@ public class SequencePanel implements FilterDetails {
             }
             apply();
         });
-        applyButton.add(spinner);
 
         second.add(kindCombo, BorderLayout.CENTER);
         second.add(settingsButton, BorderLayout.LINE_END);
@@ -425,8 +424,7 @@ public class SequencePanel implements FilterDetails {
         ComputedView view = imageLayer.getComputedView();
         boolean running = view != null && view.isRunning();
         applyButton.setEnabled(can || running);
-        applyButton.setText(running ? null : "Apply");
-        spinner.setVisible(running);
+        showSpinner(running);
         if (running) {
             spinner.setIndeterminate(view.progress() <= 0);
             spinner.setValue((int) Math.round(100 * view.progress()));
@@ -434,6 +432,33 @@ public class SequencePanel implements FilterDetails {
         spectrumButton.setEnabled(view != null && view.spectrum() != null);
         syncFromLayer();
     }
+
+    /**
+     * The progress spinner lives in the button only while a job runs.
+     *
+     * <p>Adding a component to a button makes it a container, and its preferred size then comes
+     * from that child instead of from its own text. Parking the spinner there at construction
+     * therefore shrank Apply to a 20-pixel square for the whole life of the row: the third column
+     * of a filter row takes the component's preferred size, so the label had nowhere to go and the
+     * button read as an unlabelled box.
+     */
+    private void showSpinner(boolean running) {
+        if (running == spinnerShown)
+            return;
+        spinnerShown = running;
+        if (running) {
+            applyButton.setText(null);
+            applyButton.add(spinner);
+        } else {
+            applyButton.remove(spinner);
+            applyButton.setText("Apply");
+        }
+        spinner.setVisible(running);
+        applyButton.revalidate();
+        applyButton.repaint();
+    }
+
+    private boolean spinnerShown;
 
     private void syncFromLayer() {
         SequenceParams params = layer.getSequence();
