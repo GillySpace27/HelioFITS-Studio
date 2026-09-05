@@ -130,6 +130,9 @@ public class SequencePanel implements FilterDetails {
             syncing = false;
         });
         gainSlider.addChangeListener(e -> gainLabel.setText(String.format("%.1f", gainSlider.getValue() / 10.)));
+        gainSlider.setToolTipText("Contrast of a Pass output about zero. At 1.0 the 99.5th percentile of the fluctuation reaches "
+                + "white and black; at 2.7 everything past 37% of that saturates, which reads as clipping and is. "
+                + "Changing it re-runs the filter. Turn on \"Show clipped pixels\" to see exactly what saturates.");
         nRCombo.setSelectedItem(1024);
         nPhiCombo.setSelectedItem(512);
         spectrumButton.setEnabled(false);

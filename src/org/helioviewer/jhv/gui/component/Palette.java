@@ -60,6 +60,7 @@ public final class Palette {
     private final String title;
     private final Supplier<Component> contentSupplier;
     private final Runnable onShow;
+    private final boolean focusable;
 
     @Nullable
     private JDialog dialog;
@@ -73,9 +74,24 @@ public final class Palette {
      * @param onShow          run just before the palette becomes visible, to refresh its state
      */
     public Palette(String title, Supplier<Component> contentSupplier, Runnable onShow) {
+        this(title, contentSupplier, onShow, false);
+    }
+
+    /**
+     * @param focusable whether the window may take keyboard focus. A palette of sliders and
+     *                  buttons should not: it works against the view and must not take the
+     *                  keyboard away from it. A palette with text fields must, or nothing can be
+     *                  typed into them: a non-focusable window's fields can be clicked, and the
+     *                  caret can even be placed, and every keystroke goes elsewhere. That is how
+     *                  the Fourier palette's speeds came to be uneditable. Focus is still never
+     *                  taken on showing, only on a click inside, and the view takes it back when
+     *                  the pointer re-enters it.
+     */
+    public Palette(String title, Supplier<Component> contentSupplier, Runnable onShow, boolean focusable) {
         this.title = title;
         this.contentSupplier = contentSupplier;
         this.onShow = onShow;
+        this.focusable = focusable;
         palettes.add(this);
     }
 
@@ -242,7 +258,7 @@ public final class Palette {
     private JDialog create() {
         JDialog palette = new JDialog(owner(), Dialog.ModalityType.MODELESS);
         palette.setUndecorated(true); // no OS chrome: a docked tool palette, not a window
-        palette.setFocusableWindowState(false); // don't steal keyboard focus from the view
+        palette.setFocusableWindowState(focusable); // see the constructor: only a palette with text fields
         palette.setAutoRequestFocus(false);
         // Being owned by the main frame is supposed to keep a dialog above it, but a non-focusable
         // owned window does not hold its place in the stacking order here: click anywhere in the

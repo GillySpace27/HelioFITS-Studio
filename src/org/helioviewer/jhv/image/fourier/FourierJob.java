@@ -142,8 +142,15 @@ final class FourierJob implements SequenceJob {
             throw new InterruptedException();
         progress.accept(0.8);
 
-        // 5. Amplitude from the untapered interior, for the PASS scale.
-        double amplitude = amplitude(cube);
+        // 5. Amplitude from the untapered interior, for the PASS scale, and what the gain does to it.
+        Amplitude scale = amplitude(cube, params.gain());
+        double amplitude = scale.value;
+        if (params.mode() == FourierParams.Mode.PASS)
+            // Said out loud because it is the thing that looks like a bug and is not: the gain is a
+            // contrast about zero, and everything past the 99.5th percentile divided by it saturates
+            // to white or black. At gain 2.7 that was a third of the field.
+            org.helioviewer.jhv.app.Log.info(String.format("Fourier filter: gain %.1f saturates %.0f%% of the valid field (99.5th percentile of |v| = %.3g)",
+                    params.gain(), 100 * scale.saturated, amplitude));
 
         // 6. Back to each original frame.
         DecodedImage[] out = new DecodedImage[n];
@@ -171,8 +178,11 @@ final class FourierJob implements SequenceJob {
         return out;
     }
 
+    /** The PASS scale, and the fraction of the sample that a given gain pushes past it. */
+    private record Amplitude(double value, double saturated) {}
+
     // 99.5th percentile of |value| over a prime-stride sample of the valid, untapered interior.
-    private static double amplitude(PolarCube cube) {
+    private static Amplitude amplitude(PolarCube cube, double gain) {
         int nT = cube.nT, nInner = cube.nInner;
         int t0 = (int) (nT * FourierFilter.TUKEY_ALPHA / 2), t1 = nT - t0;
         float[] sample = new float[MAX_SAMPLES];
@@ -188,9 +198,15 @@ final class FourierJob implements SequenceJob {
             sample[count++] = Math.abs(cube.data[s][rem]);
         }
         if (count == 0)
-            return 1;
+            return new Amplitude(1, 0);
         float a = ArrayUtils.selectKth(sample, 0, count - 1, (int) (AMPLITUDE_PERCENTILE * (count - 1)));
-        return a > 0 ? a : 1;
+        double amplitude = a > 0 ? a : 1;
+        double limit = amplitude / gain;
+        int over = 0;
+        for (int i = 0; i < count; i++)
+            if (sample[i] > limit)
+                over++;
+        return new Amplitude(amplitude, over / (double) count);
     }
 
 }
