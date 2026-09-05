@@ -74,7 +74,10 @@ public record FourierParams(Kind kind, Mode mode, double lo, double hi, Directio
         String band = kind == Kind.RADIAL
                 ? String.format("%.0f to %.0f km/s", lo, hi)
                 : String.format("%.2f to %.2f deg/h", Math.toDegrees(lo) * 3600, Math.toDegrees(hi) * 3600);
-        return (kind == Kind.RADIAL ? "radial " : "angular ") + (mode == Mode.PASS ? "pass " : "notch ") + band;
+        // The gain is named because it is the setting that decides how much of a Pass output
+        // saturates, and a log line reading "radial pass 200 to 800 km/s" hid the 2.7 that did.
+        String contrast = mode == Mode.PASS && gain != 1 ? String.format(", gain %.1f", gain) : "";
+        return (kind == Kind.RADIAL ? "radial " : "angular ") + (mode == Mode.PASS ? "pass " : "notch ") + band + contrast;
     }
 
     @Override

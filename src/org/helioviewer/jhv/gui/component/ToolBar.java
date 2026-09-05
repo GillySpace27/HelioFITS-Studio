@@ -301,7 +301,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         // worth watching while the view plays. It acts on the active image layer.
         JideToggleButton sequenceButton = toolToggleButton(SEQUENCE);
         if (sequencePalette == null)
-            sequencePalette = new Palette("Fourier filter", SequencePaletteContent::build, SequencePaletteContent::refresh);
+            sequencePalette = new Palette("Fourier filter", SequencePaletteContent::build, SequencePaletteContent::refresh, true); // has text fields
         sequencePalette.bind(sequenceButton);
         addButton(sequenceButton);
 
