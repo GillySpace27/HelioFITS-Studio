@@ -237,12 +237,35 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         addButton(axis);
         addSeparator(dim);
 
+        if (interactionMode == Interaction.Mode.ZOOM) // only ever momentary; never a remembered choice
+            interactionMode = Interaction.Mode.ROTATE;
         switch (interactionMode) {
             case PAN -> pan.setSelected(true);
             case AXIS -> axis.setSelected(true);
             case ROTATE -> rotate.setSelected(true);
+            case ZOOM -> {}
         }
         InputController.setMode(interactionMode);
+
+        // The mode in effect, momentary ones included, shows in the toggles and in the pointer:
+        // holding Option should look like having pressed Rotate, and letting go should look like
+        // letting go. Registered from the toolbar because the toolbar owns the toggles.
+        InputController.setModeListener(effective -> {
+            switch (effective) {
+                case PAN -> pan.setSelected(true);
+                case ROTATE -> rotate.setSelected(true);
+                case AXIS -> axis.setSelected(true);
+                case ZOOM -> group.clearSelection();
+            }
+            java.awt.Component view = org.helioviewer.jhv.gui.MainFrame.getRenderComponent();
+            if (view != null)
+                view.setCursor(java.awt.Cursor.getPredefinedCursor(switch (effective) {
+                    case PAN -> java.awt.Cursor.MOVE_CURSOR;
+                    case ROTATE -> java.awt.Cursor.DEFAULT_CURSOR;
+                    case AXIS -> java.awt.Cursor.CROSSHAIR_CURSOR;
+                    case ZOOM -> java.awt.Cursor.N_RESIZE_CURSOR;
+                }));
+        });
 
         trackingButton = toolToggleButton(TRACK);
         trackingButton.setSelected(ViewState.isTracking());

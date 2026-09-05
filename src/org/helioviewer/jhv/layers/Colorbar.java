@@ -1,10 +1,12 @@
 package org.helioviewer.jhv.layers;
 
+import java.nio.ShortBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
 import javax.annotation.Nullable;
 
+import org.helioviewer.jhv.base.BufferUtils;
 import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.HdrGain;
@@ -16,10 +18,14 @@ import org.helioviewer.jhv.input.InputController;
 import org.helioviewer.jhv.input.InputPointerListener;
 import org.helioviewer.jhv.input.InputPointerMotionListener;
 import org.helioviewer.jhv.input.PointerEvent;
+import org.helioviewer.jhv.metadata.DetectorMask;
 import org.helioviewer.jhv.opengl.BufVertex;
 import org.helioviewer.jhv.opengl.GL;
 import org.helioviewer.jhv.opengl.GLImage;
 import org.helioviewer.jhv.opengl.GLSLShape;
+import org.helioviewer.jhv.opengl.GLSLSolar;
+import org.helioviewer.jhv.opengl.GLSLSolarShader;
+import org.helioviewer.jhv.opengl.GLTexture;
 import org.helioviewer.jhv.opengl.GLText;
 import org.helioviewer.jhv.opengl.Transform;
 import org.helioviewer.jhv.opengl.text.SdfTextRenderer;
@@ -65,6 +71,18 @@ public final class Colorbar {
 
     private final GLSLShape quads = new GLSLShape(true);
     private final BufVertex vex = new BufVertex(8 * 1024 * GLSLShape.stride);
+
+    // The continuous bar is not painted from the table's 256 entries any more. It is a one-row
+    // half-float texture of the VALUES the bar stands for, drawn through GLSLSolarShader.legend,
+    // which is getColor() and nothing else: Levels, response, the colour table, the HDR gain, its
+    // mode and its knee are all applied by the same code that applies them to the picture. That is
+    // what lets the bar be brighter than interface white on the EDR canvas, and what makes the
+    // knee's expansion visible on it, and it is why there is no curve to keep in step here.
+    private static final int RAMP_TEXELS = 1024;
+    private GLTexture rampTex;
+    private GLTexture blankMask; // getColor discards where the mask is zero; the legend has no occulter
+    private final ShortBuffer ramp = BufferUtils.newShortBuffer(RAMP_TEXELS);
+    private double rampOffset = Double.NaN, rampScale = Double.NaN, rampGain = Double.NaN, rampSplit = Double.NaN;
     private final List<String> hoverText = new ArrayList<>();
     // AWT/mouse convention (origin top-left); -1 sentinel keeps Viewport.contains() false until
     // the first real mouseMoved arrives.
@@ -111,43 +129,47 @@ public final class Colorbar {
         if (yTop > vp.height) // out of room; drop this legend rather than draw over the image
             return;
 
-        vex.clear();
-        // Full width, but confined to this slot's own band top and bottom -- see the comment on
-        // PANEL_BG above for why it must not reach past that into a neighbouring slot's territory.
-        quad(0, Math.max(0, slotBottom - PANEL_PAD), vp.width, yTop + PANEL_PAD, PANEL_BG);
         // The bar is split when the HDR canvas is carrying headroom: the left part is the colour
-        // table as before, the right part is what lies above the top of the range, which is what
+        // table's 0 to 1, the right part is what lies above the top of the range, which is what
         // the display is actually showing as brighter-than-white. Without it the bar stops at 1
         // and every over-range pixel in the picture is unrepresented on the legend beside it.
         float gain = HdrGain.current(false);
         boolean headroom = showOverRange && gain > 1 && groups == null;
         double xSplit = headroom ? x0 + (x1 - x0) / OVER_RANGE_SPAN : x1;
-        if (groups == null)
-            buildGradient(argb, inverted, x0, xSplit, yBar, yTop);
-        else
-            buildBlocks(argb, inverted, groups, x0, x1, yBar, yTop);
-        if (headroom)
-            buildHeadroom(argb, inverted, xSplit, x1, yBar, yTop, gain);
-        if (groups == null)
-            buildKneeMark(x0, xSplit, yBar, yTop);
 
-        Transform.pushProjection();
-        Transform.setOrtho2DProjection(0, vp.width, 0, vp.height);
-        Transform.pushView();
-        Transform.setIdentityView();
-        quads.setVertexRepeatable(vex);
         // Depth testing is on for the whole frame (GLRenderer sets it up once, for the 3D scene),
         // and is still active here: this is a flat screen-space overlay drawn after the sphere,
         // but at whatever pixels the sphere's curved surface happens to sit closer in the depth
         // buffer than this quad, the depth test discards this fragment and the sphere shows
         // through anyway -- inconsistently, following the sphere's curvature rather than draw
         // order. SdfTextRenderer already disables depth testing around itself for the same reason
-        // (see its beginRendering/endRendering); this quad pass needs the same treatment.
+        // (see its beginRendering/endRendering); these passes need the same treatment.
         GL.glDisable(GL.DEPTH_TEST);
-        quads.renderShape(GL.TRIANGLES);
+
+        // 1. The backing panel, and a categorical table's blocks, as flat quads.
+        vex.clear();
+        // Full width, but confined to this slot's own band top and bottom -- see the comment on
+        // PANEL_BG above for why it must not reach past that into a neighbouring slot's territory.
+        quad(0, Math.max(0, slotBottom - PANEL_PAD), vp.width, yTop + PANEL_PAD, PANEL_BG);
+        if (groups != null)
+            buildBlocks(argb, inverted, groups, x0, x1, yBar, yTop);
+        drawQuads(vp);
+
+        // 2. A continuous table's ramp, through the picture's own pipeline.
+        if (groups == null)
+            drawRamp(vp, glImage, imageData, rhefActive, x0, xSplit, x1, yBar, yTop, headroom ? gain : 1);
+
+        // 3. The marks on top: the knee, and the edge of the headroom section.
+        if (groups == null) {
+            vex.clear();
+            buildKneeMark(x0, xSplit, yBar, yTop);
+            if (headroom) {
+                double t = Math.max(1, (yTop - yBar) * 0.06);
+                quad(xSplit - t / 2, yBar, xSplit + t / 2, yTop, OVER_RANGE_EDGE);
+            }
+            drawQuads(vp);
+        }
         GL.glEnable(GL.DEPTH_TEST);
-        Transform.popView();
-        Transform.popProjection();
 
         drawLabels(vp, lut, groups, x0, x1, yBar, labelH);
         updateHover(vp, lut, groups, glImage, imageData, rhefActive, x0, xSplit, x1, yBar, yTop, labelH, headroom ? gain : 1);
@@ -242,49 +264,66 @@ public final class Colorbar {
      */
     private static final double OVER_RANGE_SPAN = 1.35;
 
+    private void drawQuads(Viewport vp) {
+        if (vex.getCount() == 0)
+            return;
+        Transform.pushProjection();
+        Transform.setOrtho2DProjection(0, vp.width, 0, vp.height);
+        Transform.pushView();
+        Transform.setIdentityView();
+        quads.setVertexRepeatable(vex);
+        quads.renderShape(GL.TRIANGLES);
+        Transform.popView();
+        Transform.popProjection();
+    }
+
     /**
-     * The section above the top of the colour table, drawn at the brightness the shader gives it.
+     * The ramp, drawn by getColor() over a texture of the values the bar stands for.
      *
-     * <p>The expansion curve here is the one in solarCommon.frag: linear applies the gain flat,
-     * the knee modes leave everything below the knee alone and rise from there, and BeyondRange
-     * lights only what is over the range. It is duplicated rather than shared because one is GLSL
-     * and one is Java; if the shader's curve changes, this has to change with it or the legend
-     * starts describing a picture nobody is looking at.
+     * <p>The bar's horizontal axis is the value the colour table is indexed by, after Levels:
+     * 0 to 1 across the table's part and 1 to the gain across the headroom. The shader applies
+     * Levels itself, so what the texture holds is the value BEFORE them, worked back through the
+     * same offset and scale GLImage binds. Then the bar and the picture disagree only if
+     * getColor() disagrees with itself.
+     *
+     * <p>The full-screen strip is drawn into a viewport set to the bar's own rectangle, which is
+     * how a quad in clip space becomes a bar in pixels without a second vertex buffer.
      */
-    private void buildHeadroom(int[] argb, boolean inverted, double x0, double x1, double yBar, double yTop, float gain) {
-        int steps = 48;
-        int top = argb.length - 1;
-        for (int i = 0; i < steps; i++) {
-            double a = i / (double) steps, b = (i + 1) / (double) steps;
-            byte[] ca = overRangeColour(argb, inverted, top, 1 + a * (gain - 1), gain);
-            byte[] cb = overRangeColour(argb, inverted, top, 1 + b * (gain - 1), gain);
-            gradientQuad(x0 + a * (x1 - x0), yBar, x0 + b * (x1 - x0), yTop, ca, cb);
+    private void drawRamp(Viewport vp, GLImage glImage, View.ImageData imageData, boolean rhefActive,
+                          double x0, double xSplit, double x1, double yBar, double yTop, float gain) {
+        double offset = glImage.getBrightOffset();
+        double scale = glImage.getBrightScale() * (rhefActive ? 1 : imageData.metaData().getResponseFactor());
+        if (scale == 0)
+            return;
+        double split = (xSplit - x0) / (x1 - x0);
+        if (offset != rampOffset || scale != rampScale || gain != rampGain || split != rampSplit) {
+            rampOffset = offset;
+            rampScale = scale;
+            rampGain = gain;
+            rampSplit = split;
+            ramp.clear();
+            for (int i = 0; i < RAMP_TEXELS; i++) {
+                double p = (i + .5) / RAMP_TEXELS;
+                double indexed = p <= split ? p / split : 1 + (p - split) / (1 - split) * (gain - 1);
+                ramp.put(Float.floatToFloat16((float) ((indexed - offset) / scale)));
+            }
+            ramp.flip();
+            rampTex.bind();
+            GLTexture.copyHalfImage(RAMP_TEXELS, 1, GL.LINEAR, ramp);
         }
-        // An outline, so the section reads as a different quantity rather than as more colour table.
-        double t = (yTop - yBar) * 0.06;
-        quad(x0, yTop - t, x1, yTop, OVER_RANGE_EDGE);
-        quad(x0, yBar, x1, yBar + t, OVER_RANGE_EDGE);
-        quad(x0, yBar, x0 + t, yTop, OVER_RANGE_EDGE);
-    }
 
-    /** The colour table's top entry, scaled the way the shader scales a value of `value`. */
-    private static byte[] overRangeColour(int[] argb, boolean inverted, int top, double value, float gain) {
-        byte[] base = color(argb, top, inverted);
-        double e = switch (HdrGain.mode()) {
-            case Linear -> gain;
-            case BeyondRange -> Math.clamp(value, 1, gain);
-            case HardKnee, SoftKnee -> gain; // above the range the knee is fully open either way
-        };
-        // The bar is an overlay and overlays are not given the gain, so the brightness has to be
-        // shown rather than emitted: a value at 2x reads as the top colour at half intensity of
-        // the one at 4x. It is a proportion, not a photometric match, and cannot be: the swatch
-        // has no way to be brighter than the window it is drawn in.
-        double f = Math.clamp(e / Math.max(gain, 1e-4), 0, 1);
-        return new byte[]{scale(base[0], f), scale(base[1], f), scale(base[2], f), base[3]};
-    }
+        GLSLSolarShader.legend.use();
+        glImage.applyFilters(rhefActive, true); // display block and colour table; not its image or mask
+        rampTex.bind();
+        blankMask.bind();
 
-    private static byte scale(byte v, double f) {
-        return (byte) Math.clamp((int) Math.round((v & 0xFF) * f), 0, 255);
+        int px = vp.x + (int) Math.round(x0), py = vp.yGL + (int) Math.round(yBar);
+        int pw = (int) Math.round(x1 - x0), ph = (int) Math.round(yTop - yBar);
+        if (pw < 1 || ph < 1)
+            return;
+        GL.glViewport(px, py, pw, ph);
+        GLSLSolar.quad.render();
+        GL.glViewport(vp.x, vp.yGL, vp.width, vp.height);
     }
 
     /**
@@ -301,19 +340,6 @@ public final class Colorbar {
         double x = x0 + HdrGain.knee() * (x1 - x0);
         double w = Math.max(1, (yTop - yBar) * 0.05);
         quad(x - w / 2, yBar, x + w / 2, yTop, KNEE_MARK);
-    }
-
-    /** Continuous LUT: a smooth ramp across the full width. */
-    private void buildGradient(int[] argb, boolean inverted, double x0, double x1, double yBar, double yTop) {
-        // One segment per pair of adjacent LUT entries, coloured at its ends so the GPU
-        // interpolates across it: the same piecewise-linear ramp the image shader's LINEAR LUT
-        // sampling produces. Flat single-colour steps read as banding on the deep canvas, which
-        // renders the staircase honestly instead of blurring it into the screen's quantization.
-        int n = argb.length;
-        double w = (x1 - x0) / (n - 1);
-        for (int i = 0; i < n - 1; i++)
-            gradientQuad(x0 + i * w, yBar, x0 + (i + 1) * w, yTop,
-                    color(argb, i, inverted), color(argb, i + 1, inverted));
     }
 
     /**
@@ -394,17 +420,6 @@ public final class Colorbar {
         return Colors.bytes((p >> 16) & 0xFF, (p >> 8) & 0xFF, p & 0xFF);
     }
 
-    /** A quad whose left and right edges carry different colours, interpolated across. */
-    private void gradientQuad(double ax, double ay, double bx, double by, byte[] left, byte[] right) {
-        vex.putVertex((float) ax, (float) ay, 0, 1, left);
-        vex.putVertex((float) bx, (float) ay, 0, 1, right);
-        vex.putVertex((float) bx, (float) by, 0, 1, right);
-
-        vex.putVertex((float) ax, (float) ay, 0, 1, left);
-        vex.putVertex((float) bx, (float) by, 0, 1, right);
-        vex.putVertex((float) ax, (float) by, 0, 1, left);
-    }
-
     private void quad(double ax, double ay, double bx, double by, byte[] col) {
         vex.putVertex((float) ax, (float) ay, 0, 1, col);
         vex.putVertex((float) bx, (float) ay, 0, 1, col);
@@ -417,11 +432,20 @@ public final class Colorbar {
 
     void init() {
         quads.init();
+        rampTex = new GLTexture(GL.TEXTURE_2D, GLTexture.Unit.ZERO);
+        blankMask = new GLTexture(GL.TEXTURE_2D, GLTexture.Unit.THREE);
+        blankMask.bind();
+        blankMask.copyImageBuffer(DetectorMask.NONE.getImageBuffer(), GL.NEAREST);
+        rampOffset = rampScale = rampGain = rampSplit = Double.NaN; // texture objects are new: upload again
         InputController.addListener(hoverListener);
     }
 
     void dispose() {
         quads.dispose();
+        if (rampTex != null)
+            rampTex.delete();
+        if (blankMask != null)
+            blankMask.delete();
         InputController.removeListener(hoverListener);
     }
 }

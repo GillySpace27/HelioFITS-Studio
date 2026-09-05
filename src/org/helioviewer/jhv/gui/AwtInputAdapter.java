@@ -23,7 +23,8 @@ public final class AwtInputAdapter extends MouseAdapter implements KeyListener {
                 e.getButton(),
                 e.getClickCount(),
                 e.isShiftDown(),
-                e.isPopupTrigger());
+                e.isPopupTrigger(),
+                e.isMetaDown(), e.isAltDown(), e.isControlDown());
     }
 
     public static Point toAwtPoint(PointerEvent e) {
@@ -37,7 +38,7 @@ public final class AwtInputAdapter extends MouseAdapter implements KeyListener {
             case KeyEvent.VK_N -> KeyInputEvent.Key.N;
             case KeyEvent.VK_P -> KeyInputEvent.Key.P;
             default -> KeyInputEvent.Key.OTHER;
-        }, e.isShiftDown());
+        }, e.isShiftDown(), e.isMetaDown(), e.isAltDown(), e.isControlDown());
     }
 
     @Override
@@ -69,6 +70,14 @@ public final class AwtInputAdapter extends MouseAdapter implements KeyListener {
     @Override
     public void mouseMoved(MouseEvent e) {
         InputController.mouseMoved(synthesizePointer(e));
+    }
+
+    @Override
+    public void mouseEntered(MouseEvent e) {
+        // Take the keyboard when the pointer arrives, so a modifier held over the view is seen as
+        // a key event even before anything is clicked. Focus is what makes the momentary modes
+        // work for a touchpad user who never presses a button until the drag itself.
+        ((Component) e.getSource()).requestFocusInWindow();
     }
 
     @Override

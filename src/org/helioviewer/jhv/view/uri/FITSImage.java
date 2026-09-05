@@ -419,12 +419,19 @@ public final class FITSImage implements URIImageReader {
         // display values each frame scaled to its own min and max, would subtract a different
         // quantity from every frame. The result is DN per second, so the frames of a movie are
         // also finally on one photometric footing.
-        Object subtracted = subtractBackground(header, pixels, width * height, hasBlank, blank, bzero, bscale);
-        if (subtracted != null) {
-            pixels = subtracted;
-            hasBlank = false; // blank pixels already carry the BAD_PIXEL sentinel
-            bzero = 0;
-            bscale = 1;
+        boolean provisional = false;
+        try {
+            Object subtracted = subtractBackground(header, pixels, width * height, hasBlank, blank, bzero, bscale);
+            if (subtracted != null) {
+                pixels = subtracted;
+                hasBlank = false; // blank pixels already carry the BAD_PIXEL sentinel
+                bzero = 0;
+                bscale = 1;
+            }
+        } catch (org.helioviewer.jhv.io.LascoBackground.Unavailable e) {
+            // Decode the frame as it is so the layer keeps showing, but say so on the buffer: a
+            // frame missing a correction it should have had must not be cached as finished.
+            provisional = true;
         }
         FITSViewState.Data state = FITSViewState.data();
 
@@ -475,6 +482,8 @@ public final class FITSImage implements URIImageReader {
         // min/max are already BZERO/BSCALE-corrected physical values (see sampleImage/rawShortToHalfFloat
         // above), so no further un-baking is needed once the stretch itself is inverted.
         result.setPhysicalScale(new ImageBuffer.PhysicalScale(min, max, inverseMapping(state, max - min), stretchName(state, max - min), normalizedMapping(state, max - min)));
+        if (provisional)
+            result.markProvisional();
         return result;
     }
 

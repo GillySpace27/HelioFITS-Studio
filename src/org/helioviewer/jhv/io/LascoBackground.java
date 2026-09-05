@@ -78,6 +78,27 @@ public final class LascoBackground {
      * @param milli    the frame's observation time
      * @param pixels   how many pixels the frame has, so a mismatched background is refused
      */
+    /**
+     * A background this frame should have had could not be fetched right now.
+     *
+     * <p>Distinct from the null return, which means there is nothing to subtract for this product
+     * and the frame is complete as it is. A frame decoded under this exception is missing its
+     * correction through no fault of its own, and the caller must not cache it as if it were done:
+     * that is how a two-minute network outage used to leave a whole LASCO movie unsubtracted for
+     * the rest of the session, with the server back and the log saying so.
+     */
+    public static final class Unavailable extends RuntimeException {
+        Unavailable(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
+    // After a failure, do not go back to the network for every frame of a playing movie: the
+    // decoders would each block on the same unreachable host. Fail fast for a while instead; the
+    // uncached frames retry on their own once this passes.
+    private static final long RETRY_AFTER_MILLI = 30_000;
+    private static long failedUntil;
+
     @Nullable
     public static synchronized float[] perSecond(String detector, String filter, String polar, long milli, int pixels) {
         if (!enabled())
@@ -86,6 +107,8 @@ public final class LascoBackground {
         String key = productKey(detector, filter, polar);
         if (key == null)
             return null;
+        if (System.currentTimeMillis() < failedUntil)
+            throw new Unavailable("LASCO background fetch is backing off after a failure", null);
         // Two attempts. The decoders share the common pool with work that gets cancelled, and a
         // cancellation's interrupt flag can be left set on the worker that picks up a live frame
         // next, which then fails its first read with an InterruptedIOException. Clearing the flag
@@ -98,9 +121,10 @@ public final class LascoBackground {
                 if (interrupted && attempt == 0)
                     continue;
                 // A background that cannot be fetched is not a reason to fail the frame: the layer
-                // still shows, uncorrected, which is what it did before this existed.
+                // still shows, uncorrected. But it is a reason not to remember that frame as done.
                 Log.warn("LASCO background unavailable for " + detector + " " + TimeUtils.format(milli), e);
-                return null;
+                failedUntil = System.currentTimeMillis() + RETRY_AFTER_MILLI;
+                throw new Unavailable("LASCO background unavailable for " + detector, e);
             }
         }
     }

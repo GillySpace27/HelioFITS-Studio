@@ -47,7 +47,13 @@ public final class InputController {
 
     public static void mouseMoved(PointerEvent e) {
         Display.setActiveViewport(e.x(), e.y());
+        interaction.mouseMoved(e);
         pointerMotionListeners.forEach(listener -> listener.mouseMoved(e));
+    }
+
+    /** Told whenever the mode in effect changes, including a momentary one held on a modifier key. */
+    public static void setModeListener(java.util.function.Consumer<Interaction.Mode> listener) {
+        interaction.setModeListener(listener);
     }
 
     public static void mouseWheelMoved(ScrollEvent e) {

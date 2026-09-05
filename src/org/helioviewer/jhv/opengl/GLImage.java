@@ -122,6 +122,18 @@ public class GLImage {
     private final float[] color = new float[4];
 
     public void applyFilters(boolean rhefActive) {
+        applyFilters(rhefActive, false);
+    }
+
+    /**
+     * @param legend bind this layer's display state for the colour-table legend rather than for
+     *               the picture: no sharpen (its taps assume the image's pixel pitch), no dither
+     *               (a legend is not banded and should not be noisy), no clipping flags (they
+     *               would paint the bar's ends, which are the very values the bar is there to
+     *               name). Everything else, Levels, response, HDR gain, mode and knee, is exactly
+     *               the picture's, which is the point. The caller binds its own image and mask.
+     */
+    public void applyFilters(boolean rhefActive, boolean legend) {
         MetaData metaData = uploadedImageData.metaData();
         // Radial mask scale: the layer's corner (outermost) radius, so the mask handle at 1.0
         // sits at the far corner of a square-cornered FOV (e.g. PUNCH). Referencing the inscribed
@@ -132,12 +144,15 @@ public class GLImage {
         boolean raw = capture != Capture.NONE, data = capture == Capture.DATA;
         // Opacity, blend and the channel toggles are compositing parameters: a layer written on
         // its own carries them in its metadata, not in its pixels.
-        color[0] = raw ? 1 : (float) (opacity * red); // https://amindforeverprogramming.blogspot.com/2013/07/why-alpha-premultiplied-colour-blending.html
-        color[1] = raw ? 1 : (float) (opacity * green);
-        color[2] = raw ? 1 : (float) (opacity * blue);
-        color[3] = raw ? 1 : (float) (opacity * blend);
+        // The legend is drawn at full opacity whatever the layer's own: opacity and blend are how
+        // the picture is composited over what lies beneath it, not part of what a value means.
+        boolean plain = raw || legend;
+        color[0] = plain ? 1 : (float) (opacity * red); // https://amindforeverprogramming.blogspot.com/2013/07/why-alpha-premultiplied-colour-blending.html
+        color[1] = plain ? 1 : (float) (opacity * green);
+        color[2] = plain ? 1 : (float) (opacity * blue);
+        color[3] = plain ? 1 : (float) (opacity * blend);
         GLSLSolarShader.bindDisplay(color,
-                1f / uploadedImageData.imageBuffer().width, 1f / uploadedImageData.imageBuffer().height, data ? 0 : (float) (-2 * sharpen), diffMode.ordinal(),
+                1f / uploadedImageData.imageBuffer().width, 1f / uploadedImageData.imageBuffer().height, data || legend ? 0 : (float) (-2 * sharpen), diffMode.ordinal(),
                 metaData.getSector0(), metaData.getSector1(), data ? 0 : (float) enhanced,
                 metaData.getCutOffX(), metaData.getCutOffY(), metaData.getCutOffValue(), metaData.getCalculateDepth() ? 1 : 0,
                 // RHEF output is already a normalized rank in [0, 1]; the raw-DN response
@@ -150,12 +165,14 @@ public class GLImage {
                 (float) slitLeft, (float) slitRight,
                 (float) (rhefActive && !data ? upsilonLow : 1), (float) (rhefActive && !data ? upsilonHigh : 1),
                 LUTLabels.isCategorical(lut) ? 1 : 0,
-                Display.skipDither() ? 1 : 0,
-                Display.showClipping && !raw ? 1 : 0,
+                Display.skipDither() || legend ? 1 : 0,
+                Display.showClipping && !raw && !legend ? 1 : 0,
                 raw ? 1 : 0,
                 HdrGain.current(raw), HdrGain.mode().ordinal(), HdrGain.knee());
 
         applyLUT();
+        if (legend)
+            return; // the legend binds its own ramp on unit ZERO and a blank mask on unit THREE
         applyMask(metaData.getDetectorMask());
         maskTex.bind();
         tex.bind();
