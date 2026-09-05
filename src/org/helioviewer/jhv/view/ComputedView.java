@@ -62,7 +62,22 @@ public final class ComputedView implements View {
     private volatile boolean running;
     private volatile boolean ready;
     private volatile double progress;
-    private boolean evictionReported;
+
+    /**
+     * The job's output, owned here rather than left in ImageBufferCache.
+     *
+     * <p>The cache is a fixed 8 GiB shared by every layer, and it already holds the source frames
+     * this was computed from. A 245-frame PUNCH mosaic movie is 245 x 4096 x 4096 x 2 B = 8.2 GB
+     * of output on its own, so putting it in there evicted it while the job was still writing it:
+     * the filter finished, reported success, and had nothing left to show. Nothing about that is
+     * transient, so "Apply again" could never fix it.
+     *
+     * <p>These are off-heap buffers with a Cleaner registered, so dropping this array is what
+     * frees them. The cache still holds the per-frame-filtered variants, which are derived and
+     * cost one pass to rebuild when they are evicted.
+     */
+    @Nullable
+    private DecodedImage[] computed;
 
     public ComputedView(View _wrapped, SequenceParams _params, Consumer<String> _status) {
         wrapped = _wrapped;
@@ -124,11 +139,8 @@ public final class ComputedView implements View {
     /** The job's result becomes what decode() serves. Package-private so a check can install frames without a worker. */
     void install(DecodedImage[] frames) {
         running = false;
-        for (int i = 0; i < frames.length; i++)
-            if (frames[i] != null)
-                ImageBufferCache.put(new ComputedKey(this, i, ImageFilter.Type.None), frames[i]);
+        computed = frames;
         ready = true;
-        evictionReported = false;
         status.accept(null);
     }
 
@@ -138,40 +150,35 @@ public final class ComputedView implements View {
             future.cancel(true);
         running = false;
         ready = false;
+        computed = null; // the Cleaner on each buffer reclaims the native memory
         ImageBufferCache.invalidateIf(k -> k instanceof ComputedKey ck && ck.view() == this);
     }
 
     @Override
     public void decode(Position viewpoint, double pixFactor, float factor) {
         int frame = wrapped.getCurrentFrameNumber();
-        if (ready) {
+        DecodedImage[] frames = computed;
+        if (ready && frames != null && frame < frames.length && frames[frame] != null) {
             ImageFilter.Type filter = wrapped.getFilter();
-            DecodedImage image = ImageBufferCache.get(new ComputedKey(this, frame, filter));
-            if (image == null && filter != ImageFilter.Type.None) {
+            DecodedImage image = filter == ImageFilter.Type.None
+                    ? frames[frame] : ImageBufferCache.get(new ComputedKey(this, frame, filter));
+            if (image == null) {
                 // The per-frame filter on top of the computed frame, the way URIView applies it to a
                 // decoded one: off the EDT, the plain computed frame shown meanwhile.
-                DecodedImage plain = ImageBufferCache.get(new ComputedKey(this, frame, ImageFilter.Type.None));
-                if (plain != null) {
-                    MetaData meta = wrapped.getMetaData(wrapped.getFrameTime(frame));
-                    Task.submit("sequence filter " + filter, () -> filtered(plain, filter, meta),
-                            result -> {
-                                if (wrapped.getFilter() == filter) { // not changed in flight
-                                    ImageBufferCache.put(new ComputedKey(this, frame, filter), result);
-                                    DisplayController.render(1);
-                                }
-                            },
-                            (ctx, t) -> Log.error(t));
-                    image = plain;
-                }
+                DecodedImage plain = frames[frame];
+                MetaData meta = wrapped.getMetaData(wrapped.getFrameTime(frame));
+                Task.submit("sequence filter " + filter, () -> filtered(plain, filter, meta),
+                        result -> {
+                            if (wrapped.getFilter() == filter) { // not changed in flight
+                                ImageBufferCache.put(new ComputedKey(this, frame, filter), result);
+                                DisplayController.render(1);
+                            }
+                        },
+                        (ctx, t) -> Log.error(t));
+                image = plain;
             }
-            if (image != null) {
-                publish(image, frame, viewpoint);
-                return;
-            }
-            if (!evictionReported) {
-                evictionReported = true;
-                status.accept("Sequence filter output evicted from cache: Apply again");
-            }
+            publish(image, frame, viewpoint);
+            return;
         }
         wrapped.decode(viewpoint, pixFactor, factor);
     }
@@ -203,11 +210,9 @@ public final class ComputedView implements View {
     @Nullable
     @Override
     public DecodedImage frameImage(int frame) {
-        if (ready) {
-            DecodedImage image = ImageBufferCache.get(new ComputedKey(this, frame, ImageFilter.Type.None));
-            if (image != null)
-                return image;
-        }
+        DecodedImage[] frames = computed;
+        if (ready && frames != null && frame < frames.length && frames[frame] != null)
+            return frames[frame];
         return wrapped.frameImage(frame);
     }
 
