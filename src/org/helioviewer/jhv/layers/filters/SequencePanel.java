@@ -21,6 +21,7 @@ import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JFormattedTextField;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 import javax.swing.JRadioButton;
@@ -299,9 +300,25 @@ public class SequencePanel implements FilterDetails {
             Message.warn("Sequence filter", String.format("This would need about %d MB of working memory and %d MB are free. Shorten the time range or lower the grid size.", budget >> 20, free >> 20));
             return;
         }
+        // The output is off-heap and the view holds all of it at once, so the heap check above
+        // says nothing about it. A full-resolution PUNCH mosaic movie is 33 MB a frame: the run
+        // that prompted this check produced 8.2 GB of output from 245 of them.
+        long output = outputBytes();
+        if (output > (2L << 30) && JOptionPane.showConfirmDialog(second,
+                String.format("This will hold about %.1f GB of filtered frames in memory for as long as the filter is on.\nShorten the time range to reduce it.\n\nContinue?", output / (double) (1L << 30)),
+                "Sequence filter", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION)
+            return;
         Layers.applyToSelectedLayers(layer, il -> il.setSequence(params));
         DisplayController.render(1);
         updateReadout();
+    }
+
+    /** What the finished movie occupies off-heap, which is what the layer then holds. */
+    private long outputBytes() {
+        View.ImageData data = layer.getImageData();
+        if (data == null)
+            return 0;
+        return 2L * (layer.getView().getMaximumFrameNumber() + 1) * data.imageBuffer().width * data.imageBuffer().height;
     }
 
     // Working set of the job on this layer, in bytes, for the budget check and the readout.
