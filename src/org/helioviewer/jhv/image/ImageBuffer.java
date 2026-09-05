@@ -99,6 +99,32 @@ public final class ImageBuffer {
      * sample can only ever undercount, which is the safe direction: a frame reported as having
      * more than 256 levels certainly has them.
      */
+    /**
+     * The stored display fraction at one pixel, or NaN where there is nothing to read.
+     *
+     * <p>The fraction is what the decoder wrote: after its own stretch, before any layer-level
+     * Levels or response adjustment. Feed it to PhysicalScale.toPhysical to get a number in the
+     * data's own units.
+     */
+    public double sampleAt(int x, int y) {
+        if (x < 0 || y < 0 || x >= width || y >= height)
+            return Double.NaN;
+        int i = y * width + x;
+        switch (format) {
+            case Gray16F -> {
+                ShortBuffer shorts = (ShortBuffer) buffer;
+                return i < shorts.limit() ? Float.float16ToFloat(shorts.get(i)) : Double.NaN;
+            }
+            case Gray8 -> {
+                ByteBuffer bytes = (ByteBuffer) buffer;
+                return i < bytes.limit() ? (bytes.get(i) & 0xFF) / 255. : Double.NaN;
+            }
+            default -> {
+                return Double.NaN; // a colour buffer has no one value to report
+            }
+        }
+    }
+
     public int measuredLevels() {
         if (measuredLevels < 0)
             measuredLevels = countLevels();

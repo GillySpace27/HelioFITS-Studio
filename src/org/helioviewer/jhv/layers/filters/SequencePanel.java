@@ -5,6 +5,7 @@ import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
@@ -69,6 +70,9 @@ public class SequencePanel implements FilterDetails {
     private final JComboBox<String> kindCombo = new JComboBox<>(new String[]{OFF, RADIAL, ANGULAR, GATE});
     private final JideSplitButton settingsButton = new JideSplitButton("…");
     private final JideButton applyButton = new JideButton("Apply");
+    private final JideButton openButton = new JideButton("Off\u2026");
+    private final JProgressBar spinner = new JProgressBar(0, 100);        // the row's
+    private final JProgressBar paletteSpinner = new JProgressBar(0, 100); // the palette's
     private final CardLayout cards = new CardLayout();
     private final JPanel cardPanel = new JPanel(cards);
     private final JLabel readout = new JLabel();
@@ -196,9 +200,21 @@ public class SequencePanel implements FilterDetails {
             apply();
         });
 
-        second.add(kindCombo, BorderLayout.CENTER);
-        second.add(settingsButton, BorderLayout.LINE_END);
-        third.add(applyButton, BorderLayout.CENTER);
+        // The row does not carry the settings: they are in the palette, and two copies of a
+        // control that edit the same layer are two chances to disagree. What the row keeps is what
+        // a row is for: what the filter currently is, a way to open the palette, and run/stop.
+        openButton.setToolTipText("Open the sequence filter palette for this layer");
+        openButton.addActionListener(e -> Palette.open("Sequence filter"));
+        second.add(openButton, BorderLayout.CENTER);
+
+        spinner.setUI(new CircularProgressUI());
+        spinner.setPreferredSize(new Dimension(18, 18));
+        spinner.setVisible(false);
+        JPanel run = new JPanel(new FlowLayout(FlowLayout.TRAILING, 2, 0));
+        run.setOpaque(false);
+        run.add(spinner);
+        run.add(applyButton);
+        third.add(run, BorderLayout.CENTER);
 
         syncFromLayer();
     }
@@ -218,6 +234,12 @@ public class SequencePanel implements FilterDetails {
         JPanel p = row(label, c);
         p.add(readout, BorderLayout.LINE_END);
         return p;
+    }
+
+    /** What the row says the filter is, without opening anything. */
+    private String describeCurrent() {
+        SequenceParams params = layer.getSequence();
+        return params == null ? "Off\u2026" : params.describe() + '\u2026';
     }
 
     private void showCard(String kind) {
@@ -427,6 +449,14 @@ public class SequencePanel implements FilterDetails {
         boolean running = view != null && view.isRunning();
         applyButton.setEnabled(can || running);
         setRunning(running);
+        for (JProgressBar bar : new JProgressBar[]{spinner, paletteSpinner}) {
+            bar.setVisible(running);
+            if (running) {
+                bar.setIndeterminate(view.progress() <= 0);
+                bar.setValue((int) Math.round(100 * view.progress()));
+            }
+        }
+        openButton.setText(describeCurrent());
         spectrumButton.setEnabled(view != null && view.spectrum() != null);
         syncFromLayer();
     }
@@ -455,8 +485,25 @@ public class SequencePanel implements FilterDetails {
 
     private boolean showingStop = true; // so the first setRunning(false) actually paints
 
+    @Nullable
+    private SequenceParams syncedParams;
+    private boolean synced;
+
+    /**
+     * Mirror the layer's applied filter into the widgets, but only when the layer's filter has
+     * actually changed.
+     *
+     * <p>This used to run unconditionally on every refresh, which is every layer update: choosing
+     * a kind and typing a speed only survived until the next frame arrived, when the combo was put
+     * back to Off and the fields to their defaults. The widgets are a pending edit, not a view of
+     * the layer, so the layer only gets to overwrite them when it has something new to say.
+     */
     private void syncFromLayer() {
         SequenceParams params = layer.getSequence();
+        if (synced && java.util.Objects.equals(params, syncedParams))
+            return;
+        synced = true;
+        syncedParams = params;
         syncing = true;
         if (params == null)
             kindCombo.setSelectedItem(OFF);
@@ -504,7 +551,11 @@ public class SequencePanel implements FilterDetails {
         content.setOpaque(false);
         settingsButton.remove(settings);
         settingsButton.setVisible(false);
-        for (JComponent c : new JComponent[]{kindCombo, settings, applyButton}) {
+        JPanel run = new JPanel(new FlowLayout(FlowLayout.CENTER, 4, 0));
+        run.setOpaque(false);
+        run.add(paletteSpinner);
+        run.add(applyButton);
+        for (JComponent c : new JComponent[]{kindCombo, settings, run}) {
             c.setAlignmentX(Component.LEFT_ALIGNMENT);
             content.add(c);
         }

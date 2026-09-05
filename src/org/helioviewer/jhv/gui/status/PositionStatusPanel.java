@@ -15,6 +15,9 @@ import org.helioviewer.jhv.gui.component.StatusPanel;
 import org.helioviewer.jhv.input.InputPointerListener;
 import org.helioviewer.jhv.input.InputPointerMotionListener;
 import org.helioviewer.jhv.input.PointerEvent;
+import org.helioviewer.jhv.layers.ImageLayer;
+import org.helioviewer.jhv.layers.Layers;
+import javax.annotation.Nullable;
 import org.helioviewer.jhv.math.FastFormat;
 import org.helioviewer.jhv.math.MathUtils;
 import org.helioviewer.jhv.math.Vec2;
@@ -40,6 +43,7 @@ public final class PositionStatusPanel extends StatusPanel.StatusPlugin implemen
         Viewport vp = Display.getActiveViewport();
         MapView mv = GLRenderer.getMapView();
         Vec2 coord = mv.mouseToMap(vp, x, y);
+        value = valueUnderPointer(vp, mv, x, y);
 
         if (mv.isHpc()) {
             setText(formatHpc(coord));
@@ -72,6 +76,30 @@ public final class PositionStatusPanel extends StatusPanel.StatusPlugin implemen
                 setText(annStr.isEmpty() ? ortho : annStr + " | " + ortho);
             }
         }
+    }
+
+    /**
+     * What the active image layer holds under the pointer, appended to the coordinates.
+     *
+     * <p>Read off the decoded frame, so it is the number behind the pixel being looked at, filters
+     * and all, rather than the file's own value. Null whenever there is nothing to report: no
+     * image layer, the pointer off the data, or a colour buffer, which has no single value.
+     */
+    @Nullable
+    private static String valueUnderPointer(Viewport vp, MapView mv, int x, int y) {
+        ImageLayer layer = Layers.getActiveImageLayer();
+        if (layer == null)
+            return null;
+        Vec3 sky = mv.mouseToSky(vp, x, y);
+        return sky == null ? null : layer.valueAt(sky.x, sky.y);
+    }
+
+    @Nullable
+    private String value;
+
+    @Override
+    public void setText(String text) {
+        super.setText(value == null ? text : text + " | " + value);
     }
 
     private static StringBuilder appendXY(StringBuilder sb, double p) {

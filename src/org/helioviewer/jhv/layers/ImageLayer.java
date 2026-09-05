@@ -17,6 +17,8 @@ import org.helioviewer.jhv.display.GridType;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.image.ImageBuffer;
+import org.helioviewer.jhv.metadata.Region;
+import org.helioviewer.jhv.math.Vec2;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.image.fourier.SequenceParams;
 import org.helioviewer.jhv.io.DataUri;
@@ -642,6 +644,51 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     @Nullable
     public View.ImageData getImageData() {
         return imageData;
+    }
+
+    /**
+     * The data value under a point given in sun-centred solar radii, as text, or null when this
+     * layer has nothing to say there.
+     *
+     * <p>Reads the decoded frame rather than the file: what is on screen is what gets reported, so
+     * a sequence filter or a per-frame filter is included, and the number is in whatever units the
+     * decoder's PhysicalScale carries. A pixel stored as exactly zero reads as "--" because that
+     * is how a bad or missing FITS pixel is stored, and the rest of the application already treats
+     * it that way.
+     */
+    @Nullable
+    public String valueAt(double sunX, double sunY) {
+        View.ImageData data = imageData;
+        if (data == null)
+            return null;
+        return sampleText(data.imageBuffer(), data.region(), data.metaData().getSunShift(), sunX, sunY);
+    }
+
+    /**
+     * The mapping itself, static so a check can pin it without a GL context.
+     *
+     * <p>The region is the image's own frame in solar radii and the buffer's rows run top-down,
+     * which is the pair of facts a value readout gets wrong silently: a vertical flip still
+     * produces plausible numbers everywhere.
+     */
+    @Nullable
+    public static String sampleText(ImageBuffer buffer, Region region, Vec2 shift, double sunX, double sunY) {
+        double u = (sunX - (region.llx - shift.x)) / region.width;
+        double v = (sunY - (region.lly - shift.y)) / region.height;
+        if (!(u >= 0) || u >= 1 || !(v >= 0) || v >= 1)
+            return null;
+        double fraction = buffer.sampleAt((int) (u * buffer.width), (int) ((1 - v) * buffer.height));
+        if (Double.isNaN(fraction))
+            return null;
+        if (fraction == 0)
+            return "--";
+        ImageBuffer.PhysicalScale scale = buffer.physicalScale();
+        if (scale == null)
+            return String.format("%.3f", fraction); // no calibration: the stored fraction itself
+        double physical = scale.toPhysical(fraction);
+        double magnitude = Math.abs(physical);
+        return magnitude != 0 && (magnitude < 1e-3 || magnitude >= 1e5)
+                ? String.format("%.3e", physical) : String.format("%.4g", physical);
     }
 
     void collectImageBuffers(Set<ImageBuffer> retained) {
