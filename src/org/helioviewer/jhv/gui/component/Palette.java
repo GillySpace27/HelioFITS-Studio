@@ -114,6 +114,10 @@ public final class Palette {
         onShow.run();
         dock();
         dialog.setVisible(true);
+        // Everyone re-docks, not just this one: a palette registered later than this one but
+        // opened earlier was stacked without knowing this one would arrive above it, and without
+        // this the two land on the same spot. Seen with Fourier under Colour.
+        dockOpen();
     }
 
     private void dispose() {
