@@ -5,12 +5,12 @@ import java.util.Properties;
 
 public final class AppInfo {
 
-    public static final String programName = "HFStudio";
+    public static final String programName = "HelioFITS Studio";
 
     /**
      * Where a user of THIS build should go, which is not where a user of JHelioviewer should go.
      *
-     * <p>HFStudio is a fork. Its bugs are almost all its own, and sending them to the upstream
+     * <p>HelioFITS Studio is a fork. Its bugs are almost all its own, and sending them to the upstream
      * tracker spends the time of people who cannot reproduce them and did not write the code in
      * question. The download and documentation links stay pointed at SWHV until this build has
      * somewhere of its own to point at; they describe the shared ancestry accurately enough.

@@ -37,7 +37,7 @@ public class HFStudio {
 
     static void main(String[] args) throws Exception {
         System.setProperty("apple.awt.application.appearance", "NSAppearanceNameDarkAqua");
-        System.setProperty("apple.awt.application.name", "HFStudio");
+        System.setProperty("apple.awt.application.name", "HelioFITS Studio");
         System.setProperty("apple.laf.useScreenMenuBar", "true");
         System.setProperty("sun.awt.noerasebackground", "true");
         //System.setProperty("org.lwjgl.util.NoChecks", "true");
@@ -61,7 +61,7 @@ public class HFStudio {
         // Create transient cache directories after logging is available. On Windows this may need an ASCII-safe path.
         Directories.createCacheDirs();
         // Information log message
-        Log.info("HFStudio started with command-line options: " + String.join(" ", args));
+        Log.info("HelioFITS Studio started with command-line options: " + String.join(" ", args));
 
         // Read the version and revision from the JAR metafile
         AppInfo.loadVersion();

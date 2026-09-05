@@ -71,11 +71,11 @@ public class NewVersionDialog extends TextDialog {
     }
 
     private static String updateAvailableMessage(String version, String runningVersion) {
-        return "HFStudio " + version + " is now available (you have " + runningVersion + ").";
+        return "HelioFITS Studio " + version + " is now available (you have " + runningVersion + ").";
     }
 
     private static String upToDateMessage(String runningVersion) {
-        return "You are running the latest HFStudio version (" + runningVersion + ')';
+        return "You are running the latest HelioFITS Studio version (" + runningVersion + ')';
     }
 
     private static String failedMessage(Exception e) {

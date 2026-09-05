@@ -12,7 +12,7 @@ public enum Directories {
     /**
      * The folder everything persistent lives in, and the one name in this file worth arguing about.
      *
-     * <p>HFStudio keeps its own rather than sharing JHelioviewer's. Sharing sounds like a kindness
+     * <p>HelioFITS Studio keeps its own rather than sharing JHelioviewer's. Sharing sounds like a kindness
      * (one file cache, no re-downloading) and is a trap: the two applications have already diverged
      * on settings keys and on what a saved session contains, so a shared folder means each one
      * quietly rewriting state the other wrote. Two folders cost disk; one folder costs correctness.
@@ -206,10 +206,12 @@ public enum Directories {
      * installed and still being used. Taking its settings away would be a rename reaching outside
      * its own application.
      *
-     * <p>Only the small, portable state: settings, saved sessions, exports. Deliberately NOT the
-     * caches, which are large, are content-addressed, and cost nothing to rebuild except time.
-     * Runs only when the new folder does not exist yet, so it happens exactly once and never
-     * overwrites anything the user has done since.
+     * <p>Only the small, portable state: settings and saved sessions. Deliberately NOT the
+     * caches, which are large, are content-addressed, and cost nothing to rebuild except time,
+     * and deliberately NOT the exports, which are the user's own output and ran to 45 GB on the
+     * machine this was written on: a folder rename is not a reason to write a second copy of
+     * them. Runs only when the new folder does not exist yet, so it happens exactly once and
+     * never overwrites anything the user has done since.
      */
     public static void migrateLegacyHome() {
         java.nio.file.Path home = java.nio.file.Path.of(System.getProperty("user.home"));
@@ -218,7 +220,7 @@ public enum Directories {
         if (java.nio.file.Files.exists(target) || !java.nio.file.Files.isDirectory(legacy))
             return;
 
-        String[] carry = {"Settings", "States", "Exports"};
+        String[] carry = {"Settings", "States"};
         try {
             java.nio.file.Files.createDirectories(target);
             int copied = 0;

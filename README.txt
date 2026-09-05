@@ -1,7 +1,7 @@
-HFStudio - PUNCH & Coronagraph Preview Build
+HelioFITS Studio - PUNCH & Coronagraph Preview Build
 ================================================
 
-HFStudio is a fork of JHelioviewer (JHV), the open-source solar
+HelioFITS Studio is a fork of JHelioviewer (JHV), the open-source solar
 image browser from the Helioviewer Project. It adds features being contributed
 back upstream and currently in review: NASA PUNCH mission data, PROBA-3/ASPIICS,
 a Sun-centered coronagraph view (RadialWarp), the RectWarp unwrap, the RHEF
@@ -11,10 +11,10 @@ radial enhancement filter, CME tracking, and grid styling.
 
 
 ON APPLE SILICON, THE EASIER OPTION IS THE .dmg
-  If you are on an Apple Silicon Mac, download  HFStudio-PUNCH-preview.dmg
+  If you are on an Apple Silicon Mac, download  JHelioviewer-PUNCH-preview.dmg
   instead of this zip. It is signed and notarized (so it opens with no security
   warning) and carries its own Java runtime, so you do not need to install Java.
-  Open the .dmg, drag HFStudio to Applications, and double-click.
+  Open the .dmg, drag JHelioviewer to Applications, and double-click.
 
   This zip is the path for Intel Macs, or if you prefer to run from your own Java.
 
@@ -44,7 +44,7 @@ HOW TO RUN
 
 ABOUT
   Based on JHelioviewer 5.6.0; licensed under MPL 2.0, the same as JHV itself.
-  HFStudio is not affiliated with or endorsed by the ESA/NASA Helioviewer Project.
+  HelioFITS Studio is not affiliated with or endorsed by the ESA/NASA Helioviewer Project.
   Unofficial and lightly tested. Please send problems to Chris Gilly (NWRA), not
   to the JHV team. The features are in review upstream as pull requests at
   github.com/Helioviewer-Project/JHelioviewer-SWHV.

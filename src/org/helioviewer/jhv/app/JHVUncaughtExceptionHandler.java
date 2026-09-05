@@ -89,10 +89,10 @@ public final class JHVUncaughtExceptionHandler {
             JOptionPane optionPane = new JOptionPane();
             optionPane.setMessage(objects);
             optionPane.setMessageType(JOptionPane.ERROR_MESSAGE);
-            optionPane.setOptions(new String[]{"Quit HFStudio", "Continue"});
-            optionPane.createDialog("HFStudio: Fatal Error").setVisible(true);
+            optionPane.setOptions(new String[]{"Quit HelioFITS Studio", "Continue"});
+            optionPane.createDialog("HelioFITS Studio: Fatal Error").setVisible(true);
 
-            if ("Quit HFStudio".equals(optionPane.getValue()))
+            if ("Quit HelioFITS Studio".equals(optionPane.getValue()))
                 System.exit(1);
         }
     }

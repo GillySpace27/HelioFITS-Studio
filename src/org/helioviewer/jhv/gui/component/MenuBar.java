@@ -184,7 +184,7 @@ public final class MenuBar extends JMenuBar {
         JMenu helpMenu = new JMenu("Help");
         helpMenu.setMnemonic(KeyEvent.VK_H);
 
-        Actions.ShowDialog aboutAction = new Actions.ShowDialog("About HFStudio...", new AboutDialog());
+        Actions.ShowDialog aboutAction = new Actions.ShowDialog("About HelioFITS Studio...", new AboutDialog());
         if (Platform.isMacOS()) {
             DesktopIntegration.setAboutHandler(e -> aboutAction.actionPerformed(null));
         } else {

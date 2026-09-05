@@ -68,12 +68,12 @@ public final class SampClient extends HubConnector {
         super(_profile);
 
         Map<String, String> meta = new HashMap<>();
-        meta.put("samp.name", "HFStudio");
+        meta.put("samp.name", "HelioFITS Studio");
         meta.put("samp.description.text", AppInfo.userAgent);
         meta.put("samp.icon.url", "https://swhv.oma.be/user_manual/hvImage_160x160.png");
         meta.put("samp.documentation.url", AppInfo.documentationURL);
         meta.put("author.mail", AppInfo.emailAddress);
-        meta.put("author.name", "HFStudio, built on JHelioviewer");
+        meta.put("author.name", "HelioFITS Studio, built on JHelioviewer");
         declareMetadata(Metadata.asMetadata(meta));
 
         LoadHandlers.register(this);
