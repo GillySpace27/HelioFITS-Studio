@@ -120,7 +120,13 @@ public final class ComputedView implements View {
         status.accept("Sequence filter: starting");
         long started = System.currentTimeMillis();
         Log.info("Sequence filter started: " + params.describe());
-        future = Task.submit("sequence filter", () -> job.run(wrapped, status, p -> progress = p),
+        // The progress goes to the layer's status line rather than into a widget: the button is a
+        // glyph now, with no room to write a number in, and the status line is already the place
+        // this layer says what it is busy with.
+        future = Task.submit("sequence filter", () -> job.run(wrapped, status, p -> {
+                    progress = p;
+                    status.accept(String.format("Sequence filter %.0f%%", 100 * p));
+                }),
                 frames -> {
                     install(frames);
                     Log.info(String.format("Sequence filter ready: %d frames in %.1f s, %s", frames.length, (System.currentTimeMillis() - started) / 1000., params.describe()));

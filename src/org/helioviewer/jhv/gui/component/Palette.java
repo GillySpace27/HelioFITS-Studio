@@ -179,6 +179,27 @@ public final class Palette {
         }
     }
 
+    /**
+     * Grow the window when its contents grew.
+     *
+     * <p>A palette is packed when it is built, and its content is not fixed afterwards: the
+     * sequence filter's readout gains and loses lines as the layer and the settings change. Once
+     * the readout went from two lines to four, the last line and the button under it were simply
+     * outside the window. Nothing in Swing repacks a window on its own, so this is asked for
+     * whenever the content is refreshed, and does nothing when the size already fits.
+     */
+    public static void repackAll() {
+        for (Palette p : palettes) {
+            if (p.dialog == null || !p.dialog.isVisible())
+                continue;
+            java.awt.Container content = p.dialog.getContentPane();
+            if (!content.getPreferredSize().equals(content.getSize())) {
+                p.dialog.pack();
+                p.dock();
+            }
+        }
+    }
+
     private static void dockOpen() {
         for (Palette p : palettes)
             if (p.isOpen())

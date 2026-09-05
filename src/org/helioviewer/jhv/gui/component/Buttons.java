@@ -48,6 +48,8 @@ public class Buttons {
             MaterialDesign.LOCK_OPEN + "</font>&nbsp;";
 
     public static final String sync = button(MaterialDesign.SYNC);
+    public static final String runFilter = button(MaterialDesign.PLAY);
+    public static final String stopFilter = button(MaterialDesign.STOP);
     public static final String info = button(MaterialDesign.INFORMATION_VARIANT);
     public static final String save = button(MaterialDesign.CONTENT_SAVE);
     public static final String load = button(MaterialDesign.FOLDER_OPEN);

@@ -49,6 +49,7 @@ enum MaterialDesign {
     // SLACK("mdi-slack", '\uf4b1'),
     STEP_BACKWARD("mdi-step-backward", '\uf4d5'),
     STEP_FORWARD("mdi-step-forward", '\uf4d7'),
+    STOP("mdi-stop", '\uf4db'), // verified by rasterizing the glyph: a filled square
     SYNC("mdi-sync", '\uf4e6'),
     // UPLOAD("mdi-upload", '\uf552'),
     VECTOR_CIRCLE_VARIANT("mdi-vector-circle-variant", '\uf557'),
