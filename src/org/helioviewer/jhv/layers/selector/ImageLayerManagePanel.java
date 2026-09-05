@@ -236,7 +236,7 @@ final class ImageLayerManagePanel extends JPanel {
                             + "They are named by a hash of their source URL, so sort by Date Added to see them together.");
     }
 
-    // Force a recompute even if the signature is unchanged — used when the layer's
+    // Force a recompute even if the signature is unchanged: used when the layer's
     // view may have been swapped (layerUpdated) so a same-count/different-range layer refreshes.
     void forceReadoutRefresh() {
         lastReadoutSig = Long.MIN_VALUE;
@@ -265,7 +265,7 @@ final class ImageLayerManagePanel extends JPanel {
         long sig = ((long) total << 21) ^ ((long) done << 1) ^ (downloading ? 1 : 0);
         if (sig != lastReadoutSig) {
             lastReadoutSig = sig;
-            cadenceText = total > 1 ? formatSeconds(medianSpacingSec(view, max)) : "—";
+            cadenceText = total > 1 ? formatSeconds(medianSpacingSec(view, max)) : "n/a";
         }
 
         long start = view.getFirstTime().milli;
@@ -284,7 +284,7 @@ final class ImageLayerManagePanel extends JPanel {
         }
     }
 
-    private String cadenceText = "—";
+    private String cadenceText = "n/a";
     private String lastReadoutText;
 
     /**

@@ -36,6 +36,7 @@ final class ImageLayerLoader {
 
     private final LatestWorker<DecodedImage> executor = new LatestWorker<>("View-Decoder");
     private final Consumer<View> onViewLoaded;
+    private final Consumer<View> onPreviewLoaded; // the first frame, while the rest are still arriving
     private final Runnable onUnload;
     private final Consumer<String> statusSink; // load-stage readout; null clears
     private final Consumer<List<URI>> onFailedUris; // URIs that failed during a multi-frame load
@@ -44,9 +45,10 @@ final class ImageLayerLoader {
     private Future<?> downloadFuture;
     private int loadGeneration;
 
-    ImageLayerLoader(@Nonnull Consumer<View> _onViewLoaded, @Nonnull Runnable _onUnload, @Nonnull Consumer<String> _statusSink,
-                      @Nonnull Consumer<List<URI>> _onFailedUris) {
+    ImageLayerLoader(@Nonnull Consumer<View> _onViewLoaded, @Nonnull Consumer<View> _onPreviewLoaded, @Nonnull Runnable _onUnload,
+                      @Nonnull Consumer<String> _statusSink, @Nonnull Consumer<List<URI>> _onFailedUris) {
         onViewLoaded = _onViewLoaded;
+        onPreviewLoaded = _onPreviewLoaded;
         onUnload = _onUnload;
         statusSink = _statusSink;
         onFailedUris = _onFailedUris;
@@ -91,7 +93,7 @@ final class ImageLayerLoader {
             preview.abolish();
             return;
         }
-        onViewLoaded.accept(preview);
+        onPreviewLoaded.accept(preview);
     }
 
     boolean isLoading() {
