@@ -18,6 +18,7 @@ import org.helioviewer.jhv.layers.filters.DifferencePanel;
 import org.helioviewer.jhv.layers.filters.FilterDetails;
 import org.helioviewer.jhv.layers.filters.ImageFilterPanel;
 import org.helioviewer.jhv.layers.filters.LUTPanel;
+import org.helioviewer.jhv.layers.filters.ContrastPanel;
 import org.helioviewer.jhv.layers.filters.LevelsPanel;
 import org.helioviewer.jhv.layers.filters.SequencePanel;
 import org.helioviewer.jhv.layers.filters.SliderFilterPanel;
@@ -35,6 +36,7 @@ final class ImageLayerRenderingPanel extends JPanel {
     // GLImage's color[]), so they fade a swatch but never turn it into a different one.
     private final LUTPanel lutPanel;
     private final LevelsPanel levelsPanel;
+    private final ContrastPanel contrastPanel;
     private final FilterDetails sharpenPanel;
     private final DifferencePanel differencePanel;
     private final FilterDetails channelMixerPanel;
@@ -52,6 +54,7 @@ final class ImageLayerRenderingPanel extends JPanel {
         // through FlatLaf's caret code, itself just a bystander walking an already-huge stack).
         lutPanel = new LUTPanel(layer, () -> applyIndexedGating(layer));
         levelsPanel = new LevelsPanel(layer);
+        contrastPanel = new ContrastPanel(layer);
         sharpenPanel = new SliderFilterPanel.Sharpen(layer);
         imageFilterPanel = new ImageFilterPanel(layer);
         sequencePanel = new SequencePanel(layer);
@@ -78,6 +81,8 @@ final class ImageLayerRenderingPanel extends JPanel {
         c.gridy++;
         FilterRowLayout.addFilterRow(this, c, levelsPanel);
         c.gridy++;
+        FilterRowLayout.addFilterRow(this, c, contrastPanel);
+        c.gridy++;
         FilterRowLayout.addFilterRow(this, c, lutPanel);
         c.gridy++;
         FilterRowLayout.addFilterRow(this, c, channelMixerPanel);
@@ -102,7 +107,8 @@ final class ImageLayerRenderingPanel extends JPanel {
         else
             applyIndexedGating(imageLayer);
         sequencePanel.refresh(imageLayer);
-        levelsPanel.refresh(imageLayer); // the Fourier gain moves Levels from outside this row
+        levelsPanel.refresh(imageLayer); // Levels move from outside this row: Contrast, a restored session
+        contrastPanel.refresh(imageLayer);
         imageFilterPanel.syncFromLayer(imageLayer); // a computed sequence takes the per-frame filter on top, like a raw frame
     }
 
@@ -133,7 +139,7 @@ final class ImageLayerRenderingPanel extends JPanel {
                         ? "Disabled: one of the selected layers uses a fixed category legend, not a value range to adjust"
                         : "Disabled: this layer's colours are a fixed category legend, not a value range to adjust")
                 : null;
-        for (FilterDetails details : List.of(levelsPanel, sharpenPanel, channelMixerPanel, imageFilterPanel, sequencePanel))
+        for (FilterDetails details : List.of(levelsPanel, contrastPanel, sharpenPanel, channelMixerPanel, imageFilterPanel, sequencePanel))
             setInteractable(!indexed, reason, details.getFirst(), details.getSecond(), details.getThird());
         // differencePanel's third column is the sync-time-span button, unrelated to pixel-value
         // remapping (it only aligns other layers' movie interval to this one's) -- grey only the
