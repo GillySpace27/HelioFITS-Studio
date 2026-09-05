@@ -76,6 +76,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private final ButtonText OFFDISK = new ButtonText(Buttons.offDisk, "Corona", "Toggle off-disk corona");
     private final ButtonText PAN = new ButtonText(Buttons.pan, "Pan", "Pan");
     private final ButtonText PROJECTION = new ButtonText(Buttons.projection, "Projection", "Projection");
+    private final ButtonText SEQUENCE = new ButtonText(Buttons.sequenceFilter, "Sequence", "Sequence filter (whole-movie): velocity band-pass and the noise gate");
     private final ButtonText PRESENTATION = new ButtonText(Buttons.presentation, "Present", "Presentation mode: output only, fullscreen (Esc to leave)");
     private final ButtonText REFRESH = new ButtonText(Buttons.refresh, "Refresh", "Automatic refresh");
     private final ButtonText RESETCAMERA = new ButtonText(Buttons.resetCamera, "Reset View", "Reset view to default");
@@ -268,21 +269,17 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         // focus loss (so the sliders can be worked against the view) and only collapses when
         // the toolbar button is toggled again or its window is closed.
         JideToggleButton projectionButton = toolToggleButton(PROJECTION);
-        projectionToggle = projectionButton; // so the View menu can toggle the same palette
-        if (projectionPalette != null) {
-            projectionPalette.dispose(); // toolbar is recreated on display-mode change
-            projectionPalette = null;
-        }
-        projectionButton.addActionListener(e -> {
-            if (projectionPalette == null)
-                projectionPalette = createProjectionPalette(projectionButton);
-            if (projectionButton.isSelected()) {
-                dockPalette();
-                projectionPalette.setVisible(true);
-            } else
-                projectionPalette.setVisible(false);
-        });
+        projectionPalette.bind(projectionButton);
         addButton(projectionButton);
+
+        // The sequence filter is a whole-movie computation with a lot of settings, so it gets a
+        // palette too rather than a dropdown inside a layer row: the readout and the progress are
+        // worth watching while the view plays. It acts on the active image layer.
+        JideToggleButton sequenceButton = toolToggleButton(SEQUENCE);
+        if (sequencePalette == null)
+            sequencePalette = new Palette("Sequence filter", SequencePaletteContent::build, SequencePaletteContent::refresh);
+        sequencePalette.bind(sequenceButton);
+        addButton(sequenceButton);
 
         JideToggleButton presentationButton = toolToggleButton(PRESENTATION);
         presentationToggle = presentationButton;
@@ -477,21 +474,30 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         annotationButton.add(panel);
     }
 
-    private JDialog projectionPalette;
-    private boolean palettePinned = true; // pinned: docks to the corner + follows; unpinned: free-floating
-    private static JideToggleButton projectionToggle; // current toolbar's projection button, for the View menu
+    // The projection controls live in a persistent palette, not a dropdown: it survives focus
+    // loss (so the sliders can be worked against the view) and only collapses when its toolbar
+    // button is toggled again. Palette holds the window behaviour; this supplies the controls.
+    private static final Palette projectionPalette =
+            new Palette("Projection", ToolBar::projectionContent, () -> {});
 
-    // Toggle the projection palette exactly as the toolbar button does (used by View ▸ Projection).
+    private static Palette sequencePalette;
+
+    // Toggle the projection palette exactly as the toolbar button does (used by View > Projection).
     public static void toggleProjectionPalette() {
-        if (projectionToggle != null)
-            projectionToggle.doClick();
+        projectionPalette.toggle();
+    }
+
+    // Toggle the sequence-filter palette the same way (used by View > Sequence Filter).
+    public static void toggleSequencePalette() {
+        if (sequencePalette != null)
+            sequencePalette.toggle();
     }
 
     private static JideToggleButton presentationToggle; // current toolbar's presentation button
 
-    // Toggle presentation mode exactly as the toolbar button does (used by View ▸ Presentation Mode
-    // and by Escape). Falls through to the mode directly if the toolbar is mid-recreate, so the
-    // Escape route can never be dead.
+    // Toggle presentation mode exactly as the toolbar button does (used by View > Presentation
+    // Mode and by Escape). Falls through to the mode directly if the toolbar is mid-recreate, so
+    // the Escape route can never be dead.
     public static void togglePresentationMode() {
         if (presentationToggle != null)
             presentationToggle.doClick();
@@ -506,157 +512,22 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             presentationToggle.setSelected(org.helioviewer.jhv.gui.PresentationMode.isActive());
     }
 
-    // Pin the palette to the top-right corner of the render canvas; it follows the window.
-    private void dockPalette() {
-        if (!palettePinned || projectionPalette == null)
-            return;
-        // In presenter view the render canvas is on the projector, so docking to it would park
-        // the palette on top of the output the audience is watching. The palette is a control,
-        // so it belongs with the rest of the chrome on the presenter's screen.
-        java.awt.Window chrome = org.helioviewer.jhv.gui.PresentationMode.chromeWindow();
-        if (chrome != null && chrome.isShowing()) {
-            projectionPalette.setLocation(
-                    chrome.getX() + chrome.getWidth() - projectionPalette.getWidth() - 12,
-                    chrome.getY() + 12);
-            return;
-        }
-        java.awt.Component rc = org.helioviewer.jhv.gui.MainFrame.getRenderComponent();
-        if (rc == null || !rc.isShowing())
-            return;
-        java.awt.Point loc = rc.getLocationOnScreen();
-        projectionPalette.setLocation(loc.x + rc.getWidth() - projectionPalette.getWidth() - 12, loc.y + 12);
+    // Presentation mode moves the chrome to another screen, and a JDialog cannot be re-owned, so
+    // every open palette is rebuilt under the new owner.
+    public static void redockProjectionPalette() {
+        Palette.rebuildAll();
     }
 
-    // Presentation mode moves the chrome to another screen, so the palette has to be re-docked
-    // when it enters or leaves. The toolbar instance is per-window and gets rebuilt on display
-    // mode changes, so route through the live one.
+    /** The projection controls themselves, with no window around them. */
+    private static JPanel projectionContent() {
+        return current == null ? new JPanel() : current.buildProjectionContent();
+    }
+
     private static ToolBar current;
 
-    public static void redockProjectionPalette() {
-        if (current != null)
-            current.rebuildPalette();
-    }
-
-    private static boolean paletteFrameListenersAdded;
-
-    private static void redockIfOpen() {
-        if (current != null && current.projectionPalette != null && current.projectionPalette.isVisible())
-            current.dockPalette();
-    }
-
-    private static java.awt.Window paletteOwner() {
-        java.awt.Window chrome = org.helioviewer.jhv.gui.PresentationMode.chromeWindow();
-        return chrome != null ? chrome : org.helioviewer.jhv.gui.MainFrame.get();
-    }
-
-    // Recreate the palette under the current owner, preserving whether it was open. Called when
-    // presentation mode moves the controls to another window.
-    private void rebuildPalette() {
-        if (projectionPalette == null) {
-            dockPalette();
-            return;
-        }
-        boolean wasVisible = projectionPalette.isVisible();
-        projectionPalette.dispose();
-        projectionPalette = null;
-        if (wasVisible && projectionToggle != null) {
-            projectionPalette = createProjectionPalette(projectionToggle);
-            dockPalette();
-            projectionPalette.setVisible(true);
-        }
-    }
-
-    private JDialog createProjectionPalette(JideToggleButton toggle) {
-        // Owned by whichever window is carrying the controls. Ownership, not position, is what
-        // decides the screen here: macOS makes an owned window a child of its parent, so a
-        // palette owned by the main frame is dragged onto the projector with it no matter where
-        // it was told to sit. Re-owning is the only way to keep it with the controls, and a
-        // JDialog's owner is fixed at construction -- hence rebuildPalette() below.
-        JDialog palette = new JDialog(paletteOwner(), java.awt.Dialog.ModalityType.MODELESS);
-        palette.setUndecorated(true); // no OS chrome: a docked tool palette, not a window
-        palette.setFocusableWindowState(false); // don't steal keyboard focus from the view
-        // The watchdog in paletteTick can re-show this at any moment; without this, each such
-        // re-show would be entitled to pull focus, so a palette restored while you were typing
-        // elsewhere would take the keyboard with it.
-        palette.setAutoRequestFocus(false);
-        // Being owned by the main frame is supposed to keep a dialog above it, but a
-        // non-focusable owned window does not hold its place in the stacking order here: click
-        // anywhere in the view and the frame comes up over the palette, which is a control you
-        // are meant to be working WHILE watching that view. Raising it again on the frame's
-        // windowActivated was tried and is not enough -- that only fires when the frame becomes
-        // active, so any other route to the front left the palette buried. This states the
-        // requirement directly instead of re-deriving it from window events.
-        // alwaysOnTop is not scoped to one application, so on its own this also floats the palette
-        // above every OTHER app. That is not a cost worth paying: a tool palette for a viewer has
-        // no business sitting over a terminal the viewer is not even in front of. The flag is
-        // therefore lifted whenever this application is not the active one; see the activeWindow
-        // listener below, which is what scopes it.
-        palette.setAlwaysOnTop(true);
-        // Deliberately NOT Window.Type.UTILITY. That maps to an NSPanel, and macOS orders utility
-        // panels out whenever the owning app deactivates, which is what made the palette vanish
-        // on any click away -- a windowActivated listener could put it back, but only once the
-        // main frame came forward again, so anything else taking focus left it gone. UTILITY was
-        // adopted to stop a stale invisible cursor over a never-key window; the explicit
-        // content.setCursor below was added alongside it for the same reason and fixes that on
-        // its own, so the panel type is the half that can go.
-
+    private JPanel buildProjectionContent() {
         JPanel content = new JPanel();
-        // Belt and braces with the UTILITY type above: state the cursor this panel wants, so
-        // entering it always restores a visible arrow instead of inheriting a stale one.
-        content.setCursor(java.awt.Cursor.getDefaultCursor());
         content.setLayout(new javax.swing.BoxLayout(content, javax.swing.BoxLayout.PAGE_AXIS));
-        content.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(content.getBackground().brighter()),
-                BorderFactory.createEmptyBorder(4, 8, 6, 8)));
-
-        JPanel header = new JPanel(new BorderLayout());
-        header.setOpaque(false);
-        JLabel title = new JLabel("Projection");
-        title.setFont(title.getFont().deriveFont(java.awt.Font.BOLD));
-        title.setToolTipText("Drag to move (undocks); use the pin to re-dock to the corner");
-        header.add(title, BorderLayout.CENTER);
-
-        // Drag the header to float the palette anywhere (this undocks it).
-        java.awt.event.MouseAdapter dragger = new java.awt.event.MouseAdapter() {
-            private java.awt.Point grab;
-
-            @Override
-            public void mousePressed(java.awt.event.MouseEvent e) {
-                grab = e.getPoint();
-            }
-
-            @Override
-            public void mouseDragged(java.awt.event.MouseEvent e) {
-                palettePinned = false; // dragging floats it
-                java.awt.Point on = e.getLocationOnScreen();
-                palette.setLocation(on.x - grab.x, on.y - grab.y);
-            }
-        };
-        title.addMouseListener(dragger);
-        title.addMouseMotionListener(dragger);
-
-        JPanel headerButtons = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.TRAILING, 0, 0));
-        headerButtons.setOpaque(false);
-        JideToggleButton pin = new JideToggleButton("\u25f1"); // dock-to-corner glyph
-        pin.setSelected(palettePinned);
-        pin.setToolTipText("Dock to the top-right corner (unpin to float freely)");
-        pin.addActionListener(e -> {
-            palettePinned = pin.isSelected();
-            if (palettePinned)
-                dockPalette();
-        });
-        JideButton close = new JideButton("\u2715");
-        close.setToolTipText("Collapse (the toolbar Projection button reopens it)");
-        close.addActionListener(e -> {
-            toggle.setSelected(false);
-            palette.setVisible(false);
-        });
-        headerButtons.add(pin);
-        headerButtons.add(close);
-        header.add(headerButtons, BorderLayout.LINE_END);
-        content.add(header);
-        content.add(new javax.swing.JSeparator());
-
         ButtonGroup projectionGroup = new ButtonGroup();
         for (MapMode el : MapMode.values()) {
             javax.swing.JRadioButton item = new javax.swing.JRadioButton(el.toString());
@@ -690,66 +561,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         helioradial3DBox.setEnabled(ViewState.getProjection() == MapMode.Helioradial);
         CMETracker.addSolveListener(this::syncWarpSlidersFromTracker); // follow the tracked knob
 
-        palette.setContentPane(content);
-        palette.pack();
-
-        // These two are registered once for the lifetime of the app, and deliberately act on
-        // the projectionPalette FIELD rather than on the palette local: rebuildPalette() can
-        // construct the palette many times, so a listener that captured one instance would go
-        // on nudging a disposed window while the live one sat unmanaged.
-        if (!paletteFrameListenersAdded) {
-            paletteFrameListenersAdded = true;
-            // Scope alwaysOnTop to this application. The focus manager reports a null active
-            // window exactly when no window of ours is active, which is the moment the palette
-            // should stop being above everyone else's, and reports one of ours when we come back.
-            // Cheaper and more reliable than window listeners on every frame we might own, and it
-            // covers the palette itself for free: it is non-focusable, so it never becomes active
-            // and never mistakes itself for the app being in front.
-            java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager()
-                    .addPropertyChangeListener("activeWindow", event -> {
-                        JDialog current2 = current == null ? null : current.projectionPalette;
-                        if (current2 == null)
-                            return;
-                        boolean appActive = event.getNewValue() != null;
-                        if (current2.isAlwaysOnTop() != appActive)
-                            current2.setAlwaysOnTop(appActive);
-                    });
-            java.awt.event.ComponentAdapter follow = new java.awt.event.ComponentAdapter() {
-                @Override
-                public void componentMoved(java.awt.event.ComponentEvent e) {
-                    redockIfOpen();
-                }
-
-                @Override
-                public void componentResized(java.awt.event.ComponentEvent e) {
-                    redockIfOpen();
-                }
-            };
-            org.helioviewer.jhv.gui.MainFrame.get().addComponentListener(follow);
-            // Backstop only. Keeping the palette above the view is now stated outright by
-            // setAlwaysOnTop where it is created, because deriving it from window events was
-            // exactly what kept failing: this fires when the frame becomes active, and the
-            // palette was going behind on routes that never make it active. Re-raising here
-            // still costs nothing and covers ordering the flag does not settle on its own.
-            org.helioviewer.jhv.gui.MainFrame.get().addWindowListener(new java.awt.event.WindowAdapter() {
-                @Override
-                public void windowActivated(java.awt.event.WindowEvent e) {
-                    if (current == null || current.projectionPalette == null)
-                        return;
-                    // Window.Type.UTILITY makes this an NSPanel, and macOS hides utility panels
-                    // when the owning application deactivates. That is what made the palette
-                    // vanish on every click away. The toggle button is the record of whether the
-                    // user wants it open, so restore from that rather than from isVisible, which
-                    // the platform has already set to false behind our back.
-                    if (projectionToggle != null && projectionToggle.isSelected()
-                            && !current.projectionPalette.isVisible())
-                        current.projectionPalette.setVisible(true);
-                    if (current.projectionPalette.isVisible())
-                        current.projectionPalette.toFront();
-                }
-            });
-        }
-        return palette;
+        return content;
     }
 
     // Mirror the knob CME tracking is animating back into its slider, so the readout matches what
@@ -1234,37 +1046,16 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private void paletteTick() {
         syncSurfaceModelToggle();
         // The aim moves by dragging in the view, which this palette never hears about.
-        if (skyAimValue != null && projectionPalette != null && projectionPalette.isVisible())
+        if (skyAimValue != null && projectionPalette.isOpen())
             skyAimValue.setText(formatSkyAim());
-        keepPaletteVisible();
+        Palette.keepVisible();
         syncZoomSliderFromDisplay();
-    }
-
-    private void keepPaletteVisible() {
-        JDialog palette = projectionPalette;
-        if (palette == null || projectionToggle == null || !projectionToggle.isSelected())
-            return; // never open, mid-rebuild, or the user genuinely closed it
-        // One hiding IS legitimate and must be left alone: a minimized or hidden owner takes its
-        // owned windows down with it, and re-showing here would float the palette over other
-        // applications while JHV itself is out of the way.
-        java.awt.Window owner = palette.getOwner();
-        if (owner != null) {
-            if (!owner.isShowing())
-                return;
-            if (owner instanceof java.awt.Frame frame && (frame.getExtendedState() & java.awt.Frame.ICONIFIED) != 0)
-                return;
-        }
-        if (!palette.isVisible()) {
-            dockPalette();
-            palette.setVisible(true);
-            palette.toFront(); // non-focusable, so this raises without taking the keyboard
-        }
     }
 
     // Off-scale zooms (the wheel is unbounded, this slider is not) park the handle at the end
     // and let the number keep telling the truth.
     private void syncZoomSliderFromDisplay() {
-        if (zoomSlider == null || projectionPalette == null || !projectionPalette.isVisible())
+        if (zoomSlider == null || !projectionPalette.isOpen())
             return;
         double zoom = Display.getActiveViewport().zoom;
         if (zoom <= 0)
