@@ -12,6 +12,7 @@ import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.math.Vec2;
 import org.helioviewer.jhv.metadata.MetaData;
 import org.helioviewer.jhv.metadata.Region;
+import org.helioviewer.jhv.thread.ParallelRange;
 import org.helioviewer.jhv.view.View;
 
 /**
@@ -51,14 +52,25 @@ public final class FrameStack {
         return out;
     }
 
-    /** A tile of the frame in physical units into out (row-major, w * h), NaN outside the frame or where missing. */
+    /**
+     * A tile of the frame in physical units into out (row-major, w * h), NaN outside the frame or
+     * where missing.
+     *
+     * <p>Rows go to the common pool: 15 ms a frame at 4096 x 4096 on one thread, and the job runs
+     * this twice per frame, which was 7 s of a 114 s movie for a loop whose rows never interact.
+     */
     public static void physical(Frame f, int x0, int y0, int w, int h, float[] out) {
+        float[] lut = f.decoded.imageBuffer().format == ImageBuffer.Format.Gray16F ? halfToPhysical(f.scale) : null;
+        ParallelRange.run(h, (from, to) -> physicalRows(f, x0, y0, w, from, to, out, lut));
+    }
+
+    private static void physicalRows(Frame f, int x0, int y0, int w, int rowFrom, int rowEnd, float[] out, @Nullable float[] lut) {
+        int h = rowEnd; // this worker's last row; the loops below start at rowFrom
         ImageBuffer buffer = f.decoded.imageBuffer();
         int fw = f.width, fh = f.height;
-        if (buffer.format == ImageBuffer.Format.Gray16F) {
-            float[] lut = halfToPhysical(f.scale);
+        if (lut != null) {
             ShortBuffer sb = (ShortBuffer) buffer.buffer;
-            for (int y = 0; y < h; y++) {
+            for (int y = rowFrom; y < h; y++) {
                 int sy = y0 + y;
                 int row = y * w;
                 if (sy < 0 || sy >= fh) {
@@ -72,7 +84,7 @@ public final class FrameStack {
             }
         } else {
             ByteBuffer bb = (ByteBuffer) buffer.buffer;
-            for (int y = 0; y < h; y++) {
+            for (int y = rowFrom; y < h; y++) {
                 int sy = y0 + y;
                 int row = y * w;
                 if (sy < 0 || sy >= fh) {
@@ -119,15 +131,19 @@ public final class FrameStack {
     public static ImageBuffer packLike(Frame f, float[] physical) {
         short[] half = new short[physical.length];
         ImageBuffer.PhysicalScale scale = f.scale;
-        for (int i = 0; i < half.length; i++) {
-            float v = physical[i];
-            if (Float.isNaN(v)) {
-                half[i] = 0;
-                continue;
+        // 29 ms a frame on one thread, and a stretch function called per pixel. Elementwise, so
+        // there is nothing to share between the workers.
+        ParallelRange.run(half.length, (from, to) -> {
+            for (int i = from; i < to; i++) {
+                float v = physical[i];
+                if (Float.isNaN(v)) {
+                    half[i] = 0;
+                    continue;
+                }
+                double d = scale == null ? Math.clamp(v, 0, 1) : scale.toDisplay(v);
+                half[i] = Float.floatToFloat16((float) Math.max(1e-6, Math.min(1, d)));
             }
-            double d = scale == null ? Math.clamp(v, 0, 1) : scale.toDisplay(v);
-            half[i] = Float.floatToFloat16((float) Math.max(1e-6, Math.min(1, d)));
-        }
+        });
         ImageBuffer buffer = ImageBuffer.fromShorts(f.width, f.height, ImageBuffer.Format.Gray16F, half, ImageFilter.of(ImageFilter.Type.None, f.decoded.region(), f.meta));
         buffer.setPhysicalScale(scale);
         return buffer;
@@ -137,10 +153,12 @@ public final class FrameStack {
     public static ImageBuffer packSigned(Frame f, float[] values, double amplitude) {
         short[] half = new short[values.length];
         double inv = 0.5 / amplitude;
-        for (int i = 0; i < half.length; i++) {
-            float v = values[i];
-            half[i] = Float.isNaN(v) ? 0 : Float.floatToFloat16((float) Math.clamp(0.5 + v * inv, 1e-6, 1));
-        }
+        ParallelRange.run(half.length, (from, to) -> { // 35 ms a frame on one thread
+            for (int i = from; i < to; i++) {
+                float v = values[i];
+                half[i] = Float.isNaN(v) ? 0 : Float.floatToFloat16((float) Math.clamp(0.5 + v * inv, 1e-6, 1));
+            }
+        });
         ImageBuffer buffer = ImageBuffer.fromShorts(f.width, f.height, ImageBuffer.Format.Gray16F, half, ImageFilter.of(ImageFilter.Type.None, f.decoded.region(), f.meta));
         buffer.setPhysicalScale(new ImageBuffer.PhysicalScale((float) -amplitude, (float) amplitude, y -> y, "Y = t", y -> y));
         return buffer;
