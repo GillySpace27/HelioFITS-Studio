@@ -8,6 +8,13 @@ import org.helioviewer.jhv.thread.ParallelRange;
 // Radial Histogram Equalizing Filter (Gilly & DeForest 2024): rank-equalizes pixel
 // values within ~1-pixel-wide annuli centered on the Sun, flattening the radial
 // brightness gradient while preserving the relative structure at each height.
+//
+// The rank comes from a histogram rather than from sorting the pixels. ImageFilter hands this
+// filter values that were half floats a moment ago, so there are at most 65536 of them and a bin
+// per bit pattern is an enumeration of the possible values rather than a quantisation of them:
+// the output is identical to the sort, not an approximation of it. What changes is the work, from
+// n log n comparisons and n long-word swaps per annulus to two linear passes and a sort over the
+// distinct values, which is the same reformulation that would let this run on a GPU one day.
 class FilterRHEF implements ImageFilter.Algorithm {
 
     // Annuli with fewer valid pixels are passed through unfiltered
@@ -77,44 +84,60 @@ class FilterRHEF implements ImageFilter.Algorithm {
 
         float[] out = data.clone();
         ParallelRange.run(numBins, (from, to) -> {
-            long[] packed = new long[0];
+            // One 65536-entry table per worker, reused across that worker's annuli and cleared
+            // only where it was touched, so the per-annulus cost is the number of DISTINCT values
+            // and never the size of the table.
+            int[] counts = new int[1 << 16];
+            float[] rankOf = new float[1 << 16];
+            int[] touched = new int[0];
             for (int b = from; b < to; b++) {
                 int lo = offset[b];
                 int hi = offset[b + 1];
                 if (hi - lo < MIN_BIN_COUNT)
                     continue;
 
-                // Pack value bits with the pixel index; non-negative float bits sort numerically.
+                if (touched.length < hi - lo)
+                    touched = new int[hi - lo];
+
                 // Zero pixels (detector padding, occulters) are excluded and stay zero.
-                int binSize = hi - lo;
-                if (packed.length < binSize) {
-                    packed = new long[binSize];
+                int n = 0, distinct = 0;
+                for (int j = lo; j < hi; j++) {
+                    float v = data[order[j]];
+                    if (!(v > 0))
+                        continue;
+                    int bits = Float.floatToFloat16(v) & 0xFFFF;
+                    if (counts[bits]++ == 0)
+                        touched[distinct++] = bits;
+                    n++;
                 }
-                int n = 0;
+                if (n < MIN_BIN_COUNT) {
+                    for (int i = 0; i < distinct; i++)
+                        counts[touched[i]] = 0;
+                    continue;
+                }
+
+                // Ascending by bit pattern is ascending by value: these are all positive halves,
+                // and for positive floating point the bit pattern orders numerically.
+                Arrays.sort(touched, 0, distinct);
+                float invRange = 1f / (n - 1);
+                int cumulative = 0;
+                for (int i = 0; i < distinct; i++) {
+                    int bits = touched[i];
+                    int c = counts[bits];
+                    // The average rank of a run of equal values, which is what ranking every
+                    // pixel and averaging the ties would give: scipy.stats.rankdata("average").
+                    rankOf[bits] = .5f * (2 * cumulative + c - 1) * invRange;
+                    cumulative += c;
+                }
+
                 for (int j = lo; j < hi; j++) {
                     int idx = order[j];
                     float v = data[idx];
                     if (v > 0)
-                        packed[n++] = (long) Float.floatToRawIntBits(v) << 32 | idx;
+                        out[idx] = rankOf[Float.floatToFloat16(v) & 0xFFFF];
                 }
-                if (n < MIN_BIN_COUNT)
-                    continue;
-
-                Arrays.sort(packed, 0, n);
-
-                // Equal values get their average rank, like scipy.stats.rankdata(method="average")
-                float invRange = 1f / (n - 1);
-                int i = 0;
-                while (i < n) {
-                    long bits = packed[i] >>> 32;
-                    int j = i;
-                    while (j + 1 < n && packed[j + 1] >>> 32 == bits)
-                        j++;
-                    float value = .5f * (i + j) * invRange;
-                    for (int k = i; k <= j; k++)
-                        out[(int) packed[k]] = value;
-                    i = j + 1;
-                }
+                for (int i = 0; i < distinct; i++)
+                    counts[touched[i]] = 0;
             }
         });
         return out;
