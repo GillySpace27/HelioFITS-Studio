@@ -7,6 +7,7 @@ import javax.annotation.Nullable;
 
 import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.display.DisplayController;
+import org.helioviewer.jhv.display.HdrGain;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.lut.LUT;
@@ -31,7 +32,7 @@ import org.helioviewer.jhv.view.View;
  * their category names; every other LUT is drawn as a continuous gradient labelled with its name.
  * Several layers can show a legend at once, so each is given a slot and they stack upward.
  */
-final class Colorbar {
+public final class Colorbar {
 
     // Fractions of viewport height.
     private static final double BAR_HEIGHT = 0.022;
@@ -47,6 +48,8 @@ final class Colorbar {
     // straddling the image; the swatches and labels alone were fully opaque but only over their
     // own narrow strip, so the globe still showed through on both sides and between rows.
     private static final byte[] PANEL_BG = Colors.bytes(18, 18, 20, 235);
+    private static final byte[] OVER_RANGE_EDGE = Colors.bytes(200, 200, 210, 235);
+    private static final byte[] KNEE_MARK = Colors.bytes(230, 230, 240, 235);
     private static final double PANEL_PAD = 4; // px of breathing room around the swatches
 
     // Each enabled layer draws its own colorbar in a separate pass (ImageLayer.renderFloat), so
@@ -112,10 +115,21 @@ final class Colorbar {
         // Full width, but confined to this slot's own band top and bottom -- see the comment on
         // PANEL_BG above for why it must not reach past that into a neighbouring slot's territory.
         quad(0, Math.max(0, slotBottom - PANEL_PAD), vp.width, yTop + PANEL_PAD, PANEL_BG);
+        // The bar is split when the HDR canvas is carrying headroom: the left part is the colour
+        // table as before, the right part is what lies above the top of the range, which is what
+        // the display is actually showing as brighter-than-white. Without it the bar stops at 1
+        // and every over-range pixel in the picture is unrepresented on the legend beside it.
+        float gain = HdrGain.current(false);
+        boolean headroom = showOverRange && gain > 1 && groups == null;
+        double xSplit = headroom ? x0 + (x1 - x0) / OVER_RANGE_SPAN : x1;
         if (groups == null)
-            buildGradient(argb, inverted, x0, x1, yBar, yTop);
+            buildGradient(argb, inverted, x0, xSplit, yBar, yTop);
         else
             buildBlocks(argb, inverted, groups, x0, x1, yBar, yTop);
+        if (headroom)
+            buildHeadroom(argb, inverted, xSplit, x1, yBar, yTop, gain);
+        if (groups == null)
+            buildKneeMark(x0, xSplit, yBar, yTop);
 
         Transform.pushProjection();
         Transform.setOrtho2DProjection(0, vp.width, 0, vp.height);
@@ -136,7 +150,7 @@ final class Colorbar {
         Transform.popProjection();
 
         drawLabels(vp, lut, groups, x0, x1, yBar, labelH);
-        updateHover(vp, lut, groups, glImage, imageData, rhefActive, x0, x1, yBar, yTop, labelH);
+        updateHover(vp, lut, groups, glImage, imageData, rhefActive, x0, xSplit, x1, yBar, yTop, labelH, headroom ? gain : 1);
     }
 
     // Hovering a categorical block exposes the raw index it covers (several pixel values can share
@@ -147,7 +161,7 @@ final class Colorbar {
     // FITS DN to begin with, or RHEF's rank transform and difference deltas have no simple inverse
     // -- it falls back to the plain display-range percentage.
     private void updateHover(Viewport vp, LUT lut, List<LUTLabels.Group> groups, GLImage glImage, View.ImageData imageData,
-                             boolean rhefActive, double x0, double x1, double yBar, double yTop, double labelH) {
+                             boolean rhefActive, double x0, double xSplit, double x1, double yBar, double yTop, double labelH, float gain) {
         if (!vp.contains(mouseX, mouseY))
             return;
         double localX = mouseX - vp.x;
@@ -155,7 +169,12 @@ final class Colorbar {
         if (localX < x0 || localX > x1 || localY < yBar - labelH || localY > yTop)
             return;
 
-        double frac = Math.clamp((localX - x0) / (x1 - x0), 0, 1);
+        // The bar is two scales when there is headroom to show: [x0, xSplit] is the colour table
+        // from 0 to 1, and [xSplit, x1] carries 1 up to the gain. The pointer has to be read on
+        // whichever it is over, or the whole right-hand section would report as 1.
+        double frac = localX <= xSplit
+                ? Math.clamp((localX - x0) / (xSplit - x0), 0, 1)
+                : 1 + (localX - xSplit) / (x1 - xSplit) * (gain - 1);
         String text;
         if (groups == null) {
             String physical = physicalValueText(frac, glImage, imageData, rhefActive);
@@ -182,6 +201,17 @@ final class Colorbar {
     // Levels (brightOffset/brightScale) and, for AIA, its instrument response-factor correction --
     // see GLImage.applyFilters. Undo that first to get back to the decoder's raw [0,1] texture
     // value, then hand it to ImageBuffer.PhysicalScale to undo the stretch and min/max normalize.
+    private static boolean showOverRange = true;
+
+    /** Whether the bar draws (and outlines) the section above the display range. */
+    public static boolean showOverRange() {
+        return showOverRange;
+    }
+
+    public static void setShowOverRange(boolean show) {
+        showOverRange = show;
+    }
+
     @Nullable
     private static String physicalValueText(double frac, GLImage glImage, View.ImageData imageData, boolean rhefActive) {
         if (rhefActive || glImage.getDifferenceMode() != GLImage.DifferenceMode.None)
@@ -194,10 +224,83 @@ final class Colorbar {
         if (denom == 0)
             return null;
         double texRaw = (frac - glImage.getBrightOffset()) / denom;
-        if (texRaw < 0 || texRaw > 1)
-            return null; // outside this layer's own Levels window -- a clipped/saturated region, not one physical value
+        if (texRaw < 0)
+            return null; // below this layer's Levels window: no one value corresponds
 
-        return String.format("%.4g", scale.toPhysical(texRaw));
+        // Above 1 there IS a value: the decoder stores the ratio to the top of the range up to
+        // FITSImage.OVER_RANGE_CEILING, and PhysicalScale.toPhysical continues past 1 on purpose.
+        // Refusing here was correct only while everything above white was clipped to white; on the
+        // HDR canvas those pixels are the ones being shown, and they were the ones with no readout.
+        String value = String.format("%.4g", scale.toPhysical(texRaw));
+        return texRaw > 1 ? String.format("%s (%.2fx range)", value, texRaw) : value;
+    }
+
+    /**
+     * How much of the bar's width the 0-to-1 range keeps when a headroom section is drawn. The
+     * rest carries 1 to the gain, compressed, because the headroom is a factor of a few while the
+     * range below it is the whole picture: giving them equal width would misrepresent both.
+     */
+    private static final double OVER_RANGE_SPAN = 1.35;
+
+    /**
+     * The section above the top of the colour table, drawn at the brightness the shader gives it.
+     *
+     * <p>The expansion curve here is the one in solarCommon.frag: linear applies the gain flat,
+     * the knee modes leave everything below the knee alone and rise from there, and BeyondRange
+     * lights only what is over the range. It is duplicated rather than shared because one is GLSL
+     * and one is Java; if the shader's curve changes, this has to change with it or the legend
+     * starts describing a picture nobody is looking at.
+     */
+    private void buildHeadroom(int[] argb, boolean inverted, double x0, double x1, double yBar, double yTop, float gain) {
+        int steps = 48;
+        int top = argb.length - 1;
+        for (int i = 0; i < steps; i++) {
+            double a = i / (double) steps, b = (i + 1) / (double) steps;
+            byte[] ca = overRangeColour(argb, inverted, top, 1 + a * (gain - 1), gain);
+            byte[] cb = overRangeColour(argb, inverted, top, 1 + b * (gain - 1), gain);
+            gradientQuad(x0 + a * (x1 - x0), yBar, x0 + b * (x1 - x0), yTop, ca, cb);
+        }
+        // An outline, so the section reads as a different quantity rather than as more colour table.
+        double t = (yTop - yBar) * 0.06;
+        quad(x0, yTop - t, x1, yTop, OVER_RANGE_EDGE);
+        quad(x0, yBar, x1, yBar + t, OVER_RANGE_EDGE);
+        quad(x0, yBar, x0 + t, yTop, OVER_RANGE_EDGE);
+    }
+
+    /** The colour table's top entry, scaled the way the shader scales a value of `value`. */
+    private static byte[] overRangeColour(int[] argb, boolean inverted, int top, double value, float gain) {
+        byte[] base = color(argb, top, inverted);
+        double e = switch (HdrGain.mode()) {
+            case Linear -> gain;
+            case BeyondRange -> Math.clamp(value, 1, gain);
+            case HardKnee, SoftKnee -> gain; // above the range the knee is fully open either way
+        };
+        // The bar is an overlay and overlays are not given the gain, so the brightness has to be
+        // shown rather than emitted: a value at 2x reads as the top colour at half intensity of
+        // the one at 4x. It is a proportion, not a photometric match, and cannot be: the swatch
+        // has no way to be brighter than the window it is drawn in.
+        double f = Math.clamp(e / Math.max(gain, 1e-4), 0, 1);
+        return new byte[]{scale(base[0], f), scale(base[1], f), scale(base[2], f), base[3]};
+    }
+
+    private static byte scale(byte v, double f) {
+        return (byte) Math.clamp((int) Math.round((v & 0xFF) * f), 0, 255);
+    }
+
+    /**
+     * A line where the knee sits, when a knee mode is in use.
+     *
+     * <p>The knee is a fraction of the data range feeding the colour table, so it is a position
+     * along the 0-to-1 part of the bar: everything to its right is what the HDR mapping expands.
+     * Marking it is the difference between "the highlights are brighter" and knowing which ones.
+     */
+    private void buildKneeMark(double x0, double x1, double yBar, double yTop) {
+        HdrGain.Mode mode = HdrGain.mode();
+        if (HdrGain.current(false) <= 1 || (mode != HdrGain.Mode.HardKnee && mode != HdrGain.Mode.SoftKnee))
+            return;
+        double x = x0 + HdrGain.knee() * (x1 - x0);
+        double w = Math.max(1, (yTop - yBar) * 0.05);
+        quad(x - w / 2, yBar, x + w / 2, yTop, KNEE_MARK);
     }
 
     /** Continuous LUT: a smooth ramp across the full width. */

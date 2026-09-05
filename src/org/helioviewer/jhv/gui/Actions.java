@@ -118,12 +118,23 @@ public final class Actions {
 
     public static class ShowSequencePalette extends AbstractAction {
         public ShowSequencePalette() {
-            super("Sequence Filter\u2026");
+            super("Fourier Filter\u2026");
         }
 
         @Override
         public void actionPerformed(ActionEvent e) {
             org.helioviewer.jhv.gui.component.ToolBar.toggleSequencePalette();
+        }
+    }
+
+    public static class ShowColourPalette extends AbstractAction {
+        public ShowColourPalette() {
+            super("Colour Settings\u2026");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            org.helioviewer.jhv.gui.component.ToolBar.toggleColourPalette();
         }
     }
 

@@ -50,7 +50,7 @@ import com.jidesoft.swing.JideButton;
 import com.jidesoft.swing.JideSplitButton;
 
 /**
- * The "Sequence" row: a filter computed over every frame of the layer (a radial or angular
+ * The "Fourier" row: a filter computed over every frame of the layer (a radial or angular
  * velocity filter, or the noise gate), chosen in the combo, set up in the popup, run with Apply.
  * Off swaps the original frames back in place at once; a kind change only edits the popup.
  *
@@ -64,7 +64,7 @@ public class SequencePanel implements FilterDetails {
     private static final double DEG_PER_HOUR = 3600 * 180 / Math.PI; // rad/s to deg/hour
 
     private final ImageLayer layer;
-    private final JLabel title = new JLabel("Sequence ", JLabel.RIGHT);
+    private final JLabel title = new JLabel("Fourier ", JLabel.RIGHT);
     private final JPanel second = new JPanel(new BorderLayout());
     private final JPanel third = new JPanel(new BorderLayout());
     private final JComboBox<String> kindCombo = new JComboBox<>(new String[]{OFF, RADIAL, ANGULAR, GATE});
@@ -204,7 +204,7 @@ public class SequencePanel implements FilterDetails {
         // control that edit the same layer are two chances to disagree. What the row keeps is what
         // a row is for: what the filter currently is, a way to open the palette, and run/stop.
         openButton.setToolTipText("Open the sequence filter palette for this layer");
-        openButton.addActionListener(e -> Palette.open("Sequence filter"));
+        openButton.addActionListener(e -> Palette.open("Fourier filter"));
         second.add(openButton, BorderLayout.CENTER);
 
         spinner.setUI(new CircularProgressUI());
@@ -304,7 +304,7 @@ public class SequencePanel implements FilterDetails {
                     passButton.isSelected() ? FourierParams.Mode.PASS : FourierParams.Mode.NOTCH,
                     lo, hi, direction, gainSlider.getValue() / 10., (Integer) nRCombo.getSelectedItem(), (Integer) nPhiCombo.getSelectedItem());
         } catch (Exception e) {
-            Message.warn("Sequence filter", "Check the settings: " + e.getMessage());
+            Message.warn("Fourier filter", "Check the settings: " + e.getMessage());
             return null;
         }
     }
@@ -317,7 +317,7 @@ public class SequencePanel implements FilterDetails {
         Runtime rt = Runtime.getRuntime();
         long free = rt.maxMemory() - rt.totalMemory() + rt.freeMemory();
         if (budget > 0.6 * free) {
-            Message.warn("Sequence filter", String.format("This would need about %d MB of working memory and %d MB are free. Shorten the time range or lower the grid size.", budget >> 20, free >> 20));
+            Message.warn("Fourier filter", String.format("This would need about %d MB of working memory and %d MB are free. Shorten the time range or lower the grid size.", budget >> 20, free >> 20));
             return;
         }
         // The output is off-heap and the view holds all of it at once, so the heap check above
@@ -326,7 +326,7 @@ public class SequencePanel implements FilterDetails {
         long output = outputBytes();
         if (output > (2L << 30) && JOptionPane.showConfirmDialog(second,
                 String.format("This will hold about %.1f GB of filtered frames in memory for as long as the filter is on.\nShorten the time range to reduce it.\n\nContinue?", output / (double) (1L << 30)),
-                "Sequence filter", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION)
+                "Fourier filter", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION)
             return;
         Layers.applyToSelectedLayers(layer, il -> il.setSequence(params));
         DisplayController.render(1);
