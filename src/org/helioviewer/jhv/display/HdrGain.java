@@ -22,7 +22,8 @@ public final class HdrGain {
         Linear("Linear (whole image scaled)"),
         HardKnee("Hard knee (brightest data only, straight)"),
         SoftKnee("Soft knee (brightest data only, rolls to white)"),
-        BeyondRange("Beyond the display range (data above the range shine over white)");
+        BeyondRange("Beyond the display range (data above the range shine over white)"),
+        Uniform("Uniform (lightness climbs evenly from black to the display's peak)");
 
         public final String label;
 

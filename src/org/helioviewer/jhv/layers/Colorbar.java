@@ -8,6 +8,7 @@ import javax.annotation.Nullable;
 
 import org.helioviewer.jhv.base.BufferUtils;
 import org.helioviewer.jhv.base.Colors;
+import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.HdrGain;
 import org.helioviewer.jhv.display.Viewport;
@@ -56,6 +57,9 @@ public final class Colorbar {
     private static final byte[] PANEL_BG = Colors.bytes(18, 18, 20, 235);
     private static final byte[] OVER_RANGE_EDGE = Colors.bytes(200, 200, 210, 235);
     private static final byte[] KNEE_MARK = Colors.bytes(230, 230, 240, 235);
+    // The picture's own clipping flags (solarCommon.frag): green below the range, magenta above it.
+    private static final byte[] CLIP_UNDER = Colors.bytes(0, 255, 0);
+    private static final byte[] CLIP_OVER = Colors.bytes(255, 0, 255);
     private static final double PANEL_PAD = 4; // px of breathing room around the swatches
 
     // Each enabled layer draws its own colorbar in a separate pass (ImageLayer.renderFloat), so
@@ -123,6 +127,15 @@ public final class Colorbar {
 
         double x0 = margin;
         double x1 = vp.width - margin;
+        // The clipped colours, as triangles pointing off each end of the bar, the way matplotlib
+        // draws an extended colorbar: green for what fell below the range, magenta for what went
+        // over it, the flags the picture itself shows. Only while "Show clipped pixels" is on,
+        // because they stand for those flags and not for the table, and only on a continuous
+        // table, where "range" means something.
+        boolean clipEnds = Display.showClipping && groups == null;
+        double clipW = clipEnds ? barH * 0.8 : 0;
+        x0 += clipW;
+        x1 -= clipW;
         double slotBottom = margin + slot * slotH; // this slot's own floor, not the viewport's
         double yBar = slotBottom + labelH; // labels sit under their swatches
         double yTop = yBar + barH;
@@ -168,6 +181,11 @@ public final class Colorbar {
             if (headroom) {
                 double t = Math.max(1, (yTop - yBar) * 0.06);
                 quad(xSplit - t / 2, yBar, xSplit + t / 2, yTop, OVER_RANGE_EDGE);
+            }
+            if (clipEnds) {
+                double ym = (yBar + yTop) / 2;
+                triangle(x0, yBar, x0, yTop, x0 - clipW, ym, CLIP_UNDER);
+                triangle(x1, yBar, x1, yTop, x1 + clipW, ym, CLIP_OVER);
             }
             drawQuads(vp);
         }
@@ -419,6 +437,12 @@ public final class Colorbar {
         vex.putVertex((float) ax, (float) ay, 0, 1, col);
         vex.putVertex((float) bx, (float) by, 0, 1, col);
         vex.putVertex((float) ax, (float) by, 0, 1, col);
+    }
+
+    private void triangle(double ax, double ay, double bx, double by, double cx, double cy, byte[] col) {
+        vex.putVertex((float) ax, (float) ay, 0, 1, col);
+        vex.putVertex((float) bx, (float) by, 0, 1, col);
+        vex.putVertex((float) cx, (float) cy, 0, 1, col);
     }
 
     void init() {

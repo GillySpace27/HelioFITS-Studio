@@ -105,7 +105,12 @@ layout(std140) uniform DisplayBlock {
     //   3  beyond range: the display range is the SDR picture, untouched; data ABOVE its top
     //                 (the texture keeps them, linear in physical units past 1) shine over
     //                 white in proportion, rolling to white. Nothing inside the range moves,
-    //                 and what used to be a flat plateau is graded again.
+    //                 and what used to be a flat plateau is graded again;
+    //   4  uniform:   CIE lightness runs in a straight line from black to the display's peak
+    //                 over the whole range, in place of the table's own lightness. A gain of 2
+    //                 in light is only ~30 L*, so the linear modes leave the top of a table
+    //                 within a few percent of white; this is the mode where the legend reads
+    //                 as one even ramp.
     float hdrMode;
     float hdrKnee;
 } display;
@@ -228,6 +233,18 @@ vec4 getColor(const vec2 texcoord, const vec2 difftexcoord, const float factor) 
     float E = G; // expansion, a multiple of SDR white in light
     if (display.hdrMode == 3.)
         E = clamp(value, 1., G);
+    else if (display.hdrMode == 4.) {
+        // Uniform: the headroom spent in LIGHTNESS rather than light. Doubling the luminance is
+        // only about 30 L* more, so a linear gain of 2 puts the whole top half of a table within
+        // a few percent of white and the legend reads as a plateau. Here CIE L* runs straight from
+        // black to the brightest the display offers (116 G^(1/3) - 16), whatever the table's own
+        // lightness did: the colour keeps its hue and is scaled to the luminance that lightness
+        // calls for. A table that is already lightness-linear (PUNCH) keeps its look below white.
+        float Lt = clamp(value, 0., 1.) * (116. * pow(G, 1. / 3.) - 16.);
+        float Yt = Lt > 8. ? pow((Lt + 16.) / 116., 3.) : Lt / 903.3;
+        float Y0 = dot(lin, vec3(0.2126, 0.7152, 0.0722));
+        E = Y0 > 1e-6 ? min(Yt / Y0, G) : 1.;
+    }
     else if (display.hdrMode != 0.) {
         float t = clamp((clamp(value, 0., 1.) - k) / (1. - k), 0., 1.);
         E = display.hdrMode == 1. ? 1. + t * (G - 1.) : 1. + (G - 1.) * t * t;
