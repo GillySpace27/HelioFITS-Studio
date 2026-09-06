@@ -229,7 +229,7 @@ public class GLSLSolarShader extends GLSLShader {
                             float slitLeft, float slitRight,
                             float upsilonLow, float upsilonHigh,
                             float indexed, float skipDither, float showClipping, float rawOutput,
-                            float hdrGain, float hdrMode, float hdrKnee) {
+                            float hdrGain, float hdrMode, float hdrKnee, float hdrInRange) {
         displayBuf.put(color);
         displayBuf.put(shWidth).put(shHeight).put(shWeight).put(isDiff);
         displayBuf.put(sector0).put(sector1).put(/*sector0 + 2 * Math.PI == sector1*/ sector0 == sector1 ? 0 : 1).put(enhanced);
@@ -238,7 +238,7 @@ public class GLSLSolarShader extends GLSLShader {
         displayBuf.put(innerRadius).put(outerRadius).put(slitLeft).put(slitRight);
         displayBuf.put(upsilonLow).put(upsilonHigh);
         displayBuf.put(indexed).put(skipDither).put(showClipping).put(rawOutput); // rawOutput took the last std140 rounding float
-        displayBuf.put(hdrGain).put(hdrMode).put(hdrKnee).put(0); // one std140 row: gain, mode, knee, rounding
+        displayBuf.put(hdrGain).put(hdrMode).put(hdrKnee).put(hdrInRange); // one std140 row, the rounding float now carrying the in-range share
 
         displayBuf.flip();
         displayBO.setBufferDataIfChanged(DISPLAY_SIZE, displayBuf);

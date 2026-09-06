@@ -36,6 +36,7 @@ final class ColourPaletteContent {
     private static JComboBox<String> gainCombo;
     private static JComboBox<HdrGain.Mode> modeCombo;
     private static JComboBox<String> kneeCombo;
+    private static JComboBox<String> inRangeCombo;
     private static JComboBox<Interpolation> interpCombo;
     private static JCheckBox clipping;
     private static JLabel headroom;
@@ -44,6 +45,7 @@ final class ColourPaletteContent {
     private static final String[][] STOPS = {{"Off (1x)", "1"}, {"+1/2 stop (1.4x)", "1.41"}, {"+1 stop (2x)", "2"},
             {"+1 1/2 stops (2.8x)", "2.83"}, {"+2 stops (4x)", "4"}, {"Display maximum", "auto"}};
     private static final double[] KNEES = {0.5, 0.75, 0.9};
+    private static final double[] IN_RANGE = {0, 0.35, 0.5, 0.75, 1};
 
     static Component build() {
         if (built) {
@@ -80,6 +82,22 @@ final class ColourPaletteContent {
                 + "the colour table. The colorbar marks it with a line, so what is expanded is visible rather than implied.");
         kneeCombo.addActionListener(e -> {
             HdrGain.setKnee(KNEES[kneeCombo.getSelectedIndex()]);
+            DisplayController.display();
+        });
+
+        String[] shares = new String[IN_RANGE.length];
+        for (int i = 0; i < IN_RANGE.length; i++)
+            shares[i] = switch ((int) Math.round(IN_RANGE[i] * 100)) {
+                case 0 -> "none: all of it above the range";
+                case 100 -> "all of it: nothing left above the range";
+                default -> Math.round(IN_RANGE[i] * 100) + "% inside the range";
+            };
+        inRangeCombo = new JComboBox<>(shares);
+        inRangeCombo.setToolTipText("Uniform only. How much of the headroom brightens the picture itself rather than "
+                + "being kept for data that exceeds the display range. None leaves the picture exactly as it is "
+                + "without headroom; all of it takes the range to the display's peak and flattens everything above it.");
+        inRangeCombo.addActionListener(e -> {
+            HdrGain.setInRange(IN_RANGE[inRangeCombo.getSelectedIndex()]);
             DisplayController.display();
         });
 
@@ -120,7 +138,7 @@ final class ColourPaletteContent {
 
         for (Component c : new Component[]{
                 row("Brightness", gainCombo), row("Mapping", modeCombo), row("Knee", kneeCombo),
-                row("Interpolation", interpCombo), clipping, canvas, headroom}) {
+                row("In range", inRangeCombo), row("Interpolation", interpCombo), clipping, canvas, headroom}) {
             ((JPanel) (c instanceof JPanel p ? p : wrap(c))).setAlignmentX(Component.LEFT_ALIGNMENT);
             panel.add(c instanceof JPanel ? c : wrap(c));
         }
@@ -161,6 +179,10 @@ final class ColourPaletteContent {
         interpCombo.setSelectedItem(Interpolation.get());
         clipping.setSelected(Display.showClipping);
         kneeCombo.setEnabled(HdrGain.mode() == HdrGain.Mode.HardKnee || HdrGain.mode() == HdrGain.Mode.SoftKnee);
+        for (int i = 0; i < IN_RANGE.length; i++)
+            if (Math.abs(IN_RANGE[i] - HdrGain.inRange()) < 1e-3)
+                inRangeCombo.setSelectedIndex(i);
+        inRangeCombo.setEnabled(HdrGain.mode() == HdrGain.Mode.Uniform);
 
         float gain = HdrGain.current(false);
         headroom.setText(gain > 1

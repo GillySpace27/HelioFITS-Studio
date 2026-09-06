@@ -169,7 +169,7 @@ public class GLImage {
                 Display.skipDither() || legend ? 1 : 0,
                 Display.showClipping && !raw && !legend ? 1 : 0,
                 raw ? 1 : 0,
-                HdrGain.current(raw), HdrGain.mode().ordinal(), HdrGain.knee());
+                HdrGain.current(raw), HdrGain.mode().ordinal(), HdrGain.knee(), HdrGain.inRange());
 
         applyLUT();
         if (legend)
