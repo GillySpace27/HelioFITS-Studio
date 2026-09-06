@@ -222,7 +222,19 @@ public final class Colorbar {
         String text;
         if (groups == null) {
             String physical = physicalValueText(frac, glImage, imageData, rhefActive);
-            text = physical != null ? physical + " · " + lut.name() : String.format("%.0f%% · %s", frac * 100, lut.name());
+            if (physical != null)
+                text = physical + " · " + lut.name();
+            else if (rhefActive) {
+                // RHEF's output IS a percentage: the pixel's rank within its annulus. Report it as
+                // that rather than as a bare "%", and undo Levels first so it is the rank the
+                // filter produced and not where the Levels window happens to put it.
+                double denom = glImage.getBrightScale();
+                double rank = denom == 0 ? frac : (frac - glImage.getBrightOffset()) / denom;
+                text = String.format("rank %.2f%% · %s", 100 * rank, lut.name());
+            } else
+                // Two decimals because one is coarser than a pixel of a bar this wide, and a
+                // readout that does not move when the pointer does reads as quantized data.
+                text = String.format("%.2f%% of range · %s", frac * 100, lut.name());
         } else {
             double blockW = (x1 - x0) / groups.size();
             int g = Math.clamp((int) (frac * groups.size()), 0, groups.size() - 1);

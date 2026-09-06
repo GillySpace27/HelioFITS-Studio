@@ -23,7 +23,7 @@ public final class HdrGain {
         HardKnee("Hard knee (brightest data only, straight)"),
         SoftKnee("Soft knee (brightest data only, rolls to white)"),
         BeyondRange("Beyond the display range (data above the range shine over white)"),
-        Uniform("Uniform (lightness climbs evenly from black to the display's peak)");
+        Uniform("Uniform lightness (even steps; the headroom goes to data above the range)");
 
         public final String label;
 
