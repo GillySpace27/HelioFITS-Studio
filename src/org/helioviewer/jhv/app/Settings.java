@@ -2,8 +2,10 @@ package org.helioviewer.jhv.app;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Properties;
 
 import org.helioviewer.jhv.io.DataSources;
@@ -46,10 +48,39 @@ public class Settings {
     public static void setProperty(String key, String val) {
         if (!val.equals(getProperty(key))) {
             settings.setProperty(key, val);
-            try (BufferedWriter writer = Files.newBufferedWriter(userPath)) {
+            write();
+        }
+    }
+
+    /**
+     * Write every setting through a temporary file and move it into place.
+     *
+     * <p>This used to open the real file directly, which truncates it before a single byte is
+     * written. Every preference in the application goes through here, and some of them are written
+     * on a timer while the window is being dragged, so the window in which the file is empty is
+     * open often. A quit, a crash or a kill landing inside it left an empty user.properties, the
+     * next launch read no settings at all, and each component then wrote its own key back into an
+     * otherwise blank file: the HDR mapping, the interpolation, the open palettes, the panel
+     * sections and the recent sessions were simply gone. Seen on 2026-09-05, 17 keys down to 10.
+     * A move is atomic, so a reader sees either the old file or the new one.
+     */
+    private static void write() {
+        Path temp = userPath.resolveSibling("user.properties.tmp");
+        try {
+            try (BufferedWriter writer = Files.newBufferedWriter(temp)) {
                 settings.store(writer, null);
-            } catch (Exception e) {
-                Log.warn(e);
+            }
+            try {
+                Files.move(temp, userPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) { // e.g. across filesystems
+                Files.move(temp, userPath, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (Exception e) {
+            Log.warn(e);
+            try {
+                Files.deleteIfExists(temp);
+            } catch (Exception ignored) {
+                // nothing useful to do; a stale temp is harmless and the next write replaces it
             }
         }
     }
