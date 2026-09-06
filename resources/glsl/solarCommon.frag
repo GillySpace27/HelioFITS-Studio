@@ -113,6 +113,9 @@ layout(std140) uniform DisplayBlock {
     //                 as one even ramp.
     float hdrMode;
     float hdrKnee;
+    // Uniform only: the share of the headroom spent inside the display range rather than above
+    // it. Takes the float that was std140 rounding on the gain's row, so the block is unchanged.
+    float hdrInRange;
 } display;
 
 uniform sampler2D image;
@@ -247,9 +250,14 @@ vec4 getColor(const vec2 texcoord, const vec2 difftexcoord, const float factor) 
         // Hue survives because this is a scale of the table's own colour in LINEAR light, which
         // moves luminance and leaves chromaticity alone. Pure black is the one colour it cannot
         // lift: there is no hue in it to scale.
+        // hdrInRange decides where the top of the display range lands on that line: 0 leaves it at
+        // SDR white and spends the whole headroom above the range, 1 takes it all the way to the
+        // display's peak and leaves nothing for over-range data. The line is continuous across
+        // v = 1 either way, so there is no step where the range ends.
         float Lmax = 116. * pow(G, 1. / 3.) - 16.;
-        float Lt = value <= 1. ? 100. * max(value, 0.)
-                               : 100. + (Lmax - 100.) * min((value - 1.) / max(G - 1., 1e-4), 1.);
+        float Lin = 100. + display.hdrInRange * (Lmax - 100.);
+        float Lt = value <= 1. ? Lin * max(value, 0.)
+                               : Lin + (Lmax - Lin) * min((value - 1.) / max(G - 1., 1e-4), 1.);
         float Yt = Lt > 8. ? pow((Lt + 16.) / 116., 3.) : Lt / 903.3;
         float Y0 = dot(lin, vec3(0.2126, 0.7152, 0.0722));
         E = Y0 > 1e-6 ? Yt / Y0 : 1.; // the target luminance is <= G by construction, so E needs no cap

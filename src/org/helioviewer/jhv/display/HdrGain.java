@@ -42,12 +42,22 @@ public final class HdrGain {
     private static final String KEY_GAIN = "display.hdrGain";
     private static final String KEY_MODE = "display.hdrMode";
     private static final String KEY_KNEE = "display.hdrKnee";
+    private static final String KEY_IN_RANGE = "display.hdrInRange";
     private static final String KEY_CANVAS = "display.edrCanvas";
     private static final float MAX = 16;
 
     private static String setting = defaultSetting();
     private static Mode mode = Mode.fromName(String.valueOf(Settings.getProperty(KEY_MODE)));
     private static float knee = parseKnee(Settings.getProperty(KEY_KNEE));
+    private static float inRange = parseInRange(Settings.getProperty(KEY_IN_RANGE));
+
+    private static float parseInRange(String stored) {
+        try {
+            return (float) Math.clamp(Double.parseDouble(stored), 0, 1);
+        } catch (NumberFormatException | NullPointerException e) {
+            return 0.35f;
+        }
+    }
 
     private static float parseKnee(String stored) {
         try {
@@ -108,6 +118,24 @@ public final class HdrGain {
     public static void setKnee(double _knee) {
         knee = (float) Math.clamp(_knee, 0.05, 0.95);
         Settings.setProperty(KEY_KNEE, Float.toString(knee));
+    }
+
+    /**
+     * How much of the headroom Uniform spends INSIDE the display range, as a fraction.
+     *
+     * <p>0 puts all of it above the range: the picture is then exactly what it is with no headroom
+     * at all, and only data that exceeds the range shines. 1 puts all of it inside: the range
+     * itself reaches the display's peak and there is nothing left over it, so over-range data goes
+     * flat again. In between, the top of the range lands at L* = 100 + s (Lmax - 100) and the rest
+     * of the climb continues above it. Ignored by every mode but Uniform.
+     */
+    public static float inRange() {
+        return inRange;
+    }
+
+    public static void setInRange(double _inRange) {
+        inRange = (float) Math.clamp(_inRange, 0, 1);
+        Settings.setProperty(KEY_IN_RANGE, Float.toString(inRange));
     }
 
     public static void setSetting(String _setting) {

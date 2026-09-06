@@ -26,6 +26,10 @@ public final class HdrMappingCheck {
 
     /** solarCommon.frag, from the sRGB decode to the last lin *= ..., in linear light. */
     private static double[] map(double[] rgb8, double value, int mode, double gain, double knee) {
+        return map(rgb8, value, mode, gain, knee, 0);
+    }
+
+    private static double[] map(double[] rgb8, double value, int mode, double gain, double knee, double inRange) {
         double[] lin = new double[3];
         for (int i = 0; i < 3; i++) {
             double c = rgb8[i] / 255.;
@@ -36,8 +40,9 @@ public final class HdrMappingCheck {
             e = Math.clamp(value, 1, gain);
         else if (mode == UNIFORM) {
             double lMax = 116 * Math.cbrt(gain) - 16;
-            double lt = value <= 1 ? 100 * Math.max(value, 0)
-                    : 100 + (lMax - 100) * Math.min((value - 1) / Math.max(gain - 1, 1e-4), 1);
+            double lIn = 100 + inRange * (lMax - 100);
+            double lt = value <= 1 ? lIn * Math.max(value, 0)
+                    : lIn + (lMax - lIn) * Math.min((value - 1) / Math.max(gain - 1, 1e-4), 1);
             double yt = lt > 8 ? Math.pow((lt + 16) / 116, 3) : lt / 903.3;
             double y0 = luminance(lin);
             e = y0 > 1e-6 ? yt / y0 : 1;
@@ -159,6 +164,28 @@ public final class HdrMappingCheck {
         expect("while Linear at the same v is gain times brighter",
                 Math.abs(luminance(map(sample(table, 0.8), 0.8, LINEAR, gain, knee))
                         / luminance(map(sample(table, 0.8), 0.8, LINEAR, 1, knee)) - gain) < 0.01);
+
+        // 5. The in-range share moves where the top of the display range lands on that line, and
+        //    leaves the line continuous either side of it. At 1 there is nothing left above the
+        //    range, which is the honest cost of spending it all on the picture.
+        double lMax = 116 * Math.cbrt(gain) - 16;
+        for (double s : new double[]{0, 0.35, 0.5, 1}) {
+            double lIn = 100 + s * (lMax - 100);
+            double top = lStar(luminance(map(sample(table, 1), 1, UNIFORM, gain, knee, s)));
+            double half = lStar(luminance(map(sample(table, 0.5), 0.5, UNIFORM, gain, knee, s)));
+            expect(String.format("in-range share %.2f puts the top of the range at L* %.1f", s, lIn),
+                    Math.abs(top - lIn) < 1.5);
+            expect(String.format("and holds the line inside the range (L* %.1f at v=0.5)", half),
+                    Math.abs(half - lIn / 2) < 1.5);
+        }
+        expect("the whole climb still ends at the display's peak with a share of 0.5",
+                Math.abs(lStar(luminance(map(sample(table, gain), gain, UNIFORM, gain, knee, 0.5))) - lMax) < 1.5);
+        double a = luminance(map(sample(table, 1), 1, UNIFORM, gain, knee, 1));
+        double b = luminance(map(sample(table, gain), gain, UNIFORM, gain, knee, 1));
+        expect("a share of 1 leaves nothing above the range, and says so by going flat there",
+                Math.abs(a - b) < 0.02);
+        expect("hue survives the in-range share too",
+                hueShift(map(saturated, 0.5, UNIFORM, gain, knee, 0.5), map(saturated, 0.5, LINEAR, 1, knee)) < 1e-9);
 
         if (failures > 0)
             throw new AssertionError(failures + " HDR mapping failure(s)");
