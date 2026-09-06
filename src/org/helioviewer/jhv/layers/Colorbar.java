@@ -184,8 +184,10 @@ public final class Colorbar {
             }
             if (clipEnds) {
                 double ym = (yBar + yTop) / 2;
+                // Counter-clockwise like quad()'s triangles: the shape pass culls back faces, and
+                // the right-hand wedge was drawn clockwise and never appeared.
                 triangle(x0, yBar, x0, yTop, x0 - clipW, ym, CLIP_UNDER);
-                triangle(x1, yBar, x1, yTop, x1 + clipW, ym, CLIP_OVER);
+                triangle(x1, yTop, x1, yBar, x1 + clipW, ym, CLIP_OVER);
             }
             drawQuads(vp);
         }
