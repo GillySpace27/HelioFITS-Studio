@@ -16,7 +16,6 @@ import javax.swing.JPanel;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.HdrGain;
-import org.helioviewer.jhv.display.Interpolation;
 
 /**
  * The controls that decide how every frame is coloured, in one palette.
@@ -37,7 +36,6 @@ final class ColourPaletteContent {
     private static JComboBox<HdrGain.Mode> modeCombo;
     private static JComboBox<String> kneeCombo;
     private static JComboBox<String> inRangeCombo;
-    private static JComboBox<Interpolation> interpCombo;
     private static JCheckBox clipping;
     private static JLabel headroom;
     private static boolean built;
@@ -101,15 +99,6 @@ final class ColourPaletteContent {
             DisplayController.display();
         });
 
-        interpCombo = new JComboBox<>(Interpolation.values());
-        interpCombo.setToolTipText("How pixels are filtered when the image is magnified. None shows the data's own "
-                + "pixels, which is the default: a smoothing filter invents values between samples, and faint "
-                + "small-scale structure is exactly what an invented value can imitate.");
-        interpCombo.addActionListener(e -> {
-            Interpolation.set((Interpolation) interpCombo.getSelectedItem());
-            DisplayController.display();
-        });
-
         // The same switch as View > Show Clipped Pixels, not a second one beside it. The colorbar's
         // over-range section is not optional and is not this: it shows whenever the display carries
         // headroom, because a legend that stops at 1 misrepresents an image that does not.
@@ -138,7 +127,7 @@ final class ColourPaletteContent {
 
         for (Component c : new Component[]{
                 row("Brightness", gainCombo), row("Mapping", modeCombo), row("Knee", kneeCombo),
-                row("In range", inRangeCombo), row("Interpolation", interpCombo), clipping, canvas, headroom}) {
+                row("In range", inRangeCombo), clipping, canvas, headroom}) {
             ((JPanel) (c instanceof JPanel p ? p : wrap(c))).setAlignmentX(Component.LEFT_ALIGNMENT);
             panel.add(c instanceof JPanel ? c : wrap(c));
         }
@@ -176,7 +165,6 @@ final class ColourPaletteContent {
         for (int i = 0; i < KNEES.length; i++)
             if (Math.abs(KNEES[i] - HdrGain.knee()) < 1e-3)
                 kneeCombo.setSelectedIndex(i);
-        interpCombo.setSelectedItem(Interpolation.get());
         clipping.setSelected(Display.showClipping);
         kneeCombo.setEnabled(HdrGain.mode() == HdrGain.Mode.HardKnee || HdrGain.mode() == HdrGain.Mode.SoftKnee);
         for (int i = 0; i < IN_RANGE.length; i++)

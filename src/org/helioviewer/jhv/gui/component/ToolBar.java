@@ -22,6 +22,8 @@ import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
+import javax.swing.JCheckBoxMenuItem;
+import javax.swing.JMenuItem;
 import javax.swing.JRadioButtonMenuItem;
 import javax.swing.JToggleButton;
 import javax.swing.JToolBar;
@@ -70,14 +72,14 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
 
     private final ButtonText ANNOTATION = new ButtonText(Buttons.annotate, "Annotation", "Annotation (Press Shift to draw)");
     private final ButtonText AXIS = new ButtonText(Buttons.axis, "Axis", "Axis");
-    private final ButtonText CUTOUT = new ButtonText(Buttons.cutOut, "SDO Cut-out", "Send layers to SDO cut-out service");
     private final ButtonText DIFFROTATION = new ButtonText(Buttons.diffRotation, "Differential", "Toggle differential rotation");
     private final ButtonText MULTIVIEW = new ButtonText(Buttons.multiview, "Multiview", "Multiview");
     private final ButtonText OFFDISK = new ButtonText(Buttons.offDisk, "Corona", "Toggle off-disk corona");
     private final ButtonText PAN = new ButtonText(Buttons.pan, "Pan", "Pan");
     private final ButtonText PROJECTION = new ButtonText(Buttons.projection, "Projection", "Projection");
     private final ButtonText SEQUENCE = new ButtonText(Buttons.sequenceFilter, "Fourier", "Fourier filter over the whole movie: velocity band-pass and the noise gate");
-    private final ButtonText COLOUR = new ButtonText(Buttons.colourSettings, "Colour", "Colour settings for the whole view: HDR headroom, mapping, knee, interpolation");
+    private final ButtonText COLOUR = new ButtonText(Buttons.colourSettings, "HDR", "How the whole view is mapped into the display's extended range: headroom, mapping, knee, in-range share, clipped pixels");
+    private final ButtonText MORE = new ButtonText(Buttons.moreSettings, "More", "Less common controls: automatic refresh, the SDO cut-out, SAMP");
     private final ButtonText PRESENTATION = new ButtonText(Buttons.presentation, "Present", "Presentation mode: output only, fullscreen (Esc to leave)");
     private final ButtonText REFRESH = new ButtonText(Buttons.refresh, "Refresh", "Automatic refresh");
     private final ButtonText RESETCAMERA = new ButtonText(Buttons.resetCamera, "Reset View", "Reset view to default");
@@ -155,7 +157,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     // values into the sliders. Guarded so that programmatic move does not look like a manual one
     // and disengage the very tracking that caused it.
     private boolean syncingFromTracker;
-    private JideToggleButton refreshButton;
+    private JCheckBoxMenuItem refreshItem;
     private JideToggleButton trackingButton;
 
     // --- overflow ----------------------------------------------------------------------------
@@ -344,22 +346,24 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
 
         addSeparator(dim);
 
-        refreshButton = toolToggleButton(REFRESH);
-        refreshButton.setSelected(ViewState.isRefresh());
-        refreshButton.addItemListener(e -> ViewState.setRefresh(refreshButton.isSelected()));
-        addButton(refreshButton);
-
-        addSeparator(dim);
-
-        JideButton cutOut = toolButton(CUTOUT);
-        cutOut.addActionListener(new Actions.SDOCutOut());
-        addButton(cutOut);
-
+        // Everything reached once a session rather than once a minute, behind one button. Three
+        // top-level buttons for automatic refresh, the SDO cut-out and SAMP spent width that the
+        // overflow chevron then had to reclaim on a narrow window; the chevron is still there for
+        // whatever does not fit, but it no longer has to start with these.
+        JideSplitButton more = toolSplitButton(MORE);
+        refreshItem = new JCheckBoxMenuItem(REFRESH.text(), ViewState.isRefresh());
+        refreshItem.setToolTipText(REFRESH.tip());
+        refreshItem.addItemListener(e -> ViewState.setRefresh(refreshItem.isSelected()));
+        more.add(refreshItem);
+        more.addSeparator();
+        more.add(new Actions.SDOCutOut());
         if (Boolean.parseBoolean(Settings.getProperty("startup.sampHub"))) {
-            JideButton samp = toolButton(SAMP);
+            JMenuItem samp = new JMenuItem(SAMP.text());
+            samp.setToolTipText(SAMP.tip());
             samp.addActionListener(e -> SampClient.notifyRequestData());
-            addButton(samp);
+            more.add(samp);
         }
+        addButton(more);
 
         addSeparator(dim);
 /*
@@ -513,9 +517,9 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private static Palette sequencePalette;
 
     private static final Palette colourPalette =
-            new Palette("Colour", ColourPaletteContent::build, ColourPaletteContent::refresh);
+            new Palette("HDR", ColourPaletteContent::build, ColourPaletteContent::refresh);
 
-    /** Toggle the colour palette (used by View > Colour Settings). */
+    /** Toggle the HDR palette (used by View > HDR Settings). */
     public static void toggleColourPalette() {
         colourPalette.toggle();
     }
@@ -1244,7 +1248,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         diffRotationButton.setSelected(ViewState.isDifferentialRotation());
         coronaButton.setSelected(ViewState.isShowCorona());
         multiviewButton.setSelected(ViewState.isMultiview());
-        refreshButton.setSelected(ViewState.isRefresh());
+        refreshItem.setSelected(ViewState.isRefresh());
         javax.swing.JRadioButton activeProjection = projectionItems.get(ViewState.getProjection());
         if (activeProjection != null)
             activeProjection.setSelected(true);

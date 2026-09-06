@@ -5,7 +5,6 @@ import java.util.Set;
 
 import org.helioviewer.jhv.base.BufferUtils;
 import org.helioviewer.jhv.display.Display;
-import org.helioviewer.jhv.display.Interpolation;
 import org.helioviewer.jhv.display.HdrGain;
 import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.lut.LUT;
@@ -93,9 +92,12 @@ public class GLImage {
     private View.ImageData uploadedImageData;
 
     public void streamImage(View.ImageData imageData, View.ImageData prevImageData, View.ImageData baseImageData) {
-        // The filter is a texture parameter set at upload, so a changed interpolation setting has
-        // to force one: without this, switching it did nothing until the frame changed.
-        int wanted = Interpolation.glFilter(LUTLabels.isCategorical(lut));
+        // Image pixels are never interpolated: what is drawn are the samples the data has. A
+        // smoothing filter invents values between them, and faint small-scale coronal structure is
+        // exactly what an invented value imitates. (There used to be a setting for this. It was
+        // asked for so that layers would be composited at their native resolution and it did not
+        // do that; it only chose the magnification filter, which is this.)
+        int wanted = GL.NEAREST;
         if (uploadedImageData != imageData || uploadedFilter != wanted) {
             uploadedFilter = wanted;
             tex.bind();
@@ -207,7 +209,12 @@ public class GLImage {
             // Half-entry note: sampling at `value` rather than at the texel centre shifts the
             // ramp by 1/512 under LINEAR. Left alone deliberately -- it is invisible on a ramp,
             // and correcting it would change which entry a categorical lookup lands on.
-            int filter = Interpolation.glFilter(LUTLabels.isCategorical(currlut));
+            // The colour TABLE is a different question from the image's own pixels: a continuous
+            // ramp is sampled LINEAR so the colours between two of its 256 entries exist at all.
+            // This used to follow the image's interpolation setting, whose default is nearest, so
+            // every continuous table was quantised to its 256 entries in the picture and on the
+            // legend beside it.
+            int filter = LUTLabels.isCategorical(currlut) ? GL.NEAREST : GL.LINEAR;
             GLTexture.copyByteImage(lutBuffer.remaining() / 4, 1, filter, lutBuffer);
         }
         lutChanged = false;

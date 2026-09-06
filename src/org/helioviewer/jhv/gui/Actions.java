@@ -129,7 +129,7 @@ public final class Actions {
 
     public static class ShowColourPalette extends AbstractAction {
         public ShowColourPalette() {
-            super("Colour Settings\u2026");
+            super("HDR Settings\u2026");
         }
 
         @Override

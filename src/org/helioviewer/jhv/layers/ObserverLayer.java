@@ -222,7 +222,7 @@ public final class ObserverLayer extends AbstractLayer implements Player.Listene
 
     @Override
     public String getName() {
-        return "Observer";
+        return "Camera";
     }
 
     @Override
