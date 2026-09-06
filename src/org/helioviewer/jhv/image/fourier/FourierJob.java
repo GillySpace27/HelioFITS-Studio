@@ -45,6 +45,64 @@ final class FourierJob implements SequenceJob {
 
     @Override
     public DecodedImage[] run(View source, Consumer<String> status, DoubleConsumer progress) throws Exception {
+        Prepared prep = build(source, params, params.nR(), params.nPhi(), status, progress, 0.4);
+        PolarCube cube = prep.cube();
+        long[] times = prep.times();
+        double dt = prep.dt(), dInner = prep.dInner();
+        int n = times.length;
+
+        // 4. Transform, mask, invert.
+        status.accept("Fourier filter: transforming " + cube.nR + " x " + cube.nPhi + " x " + cube.nT);
+        spectrum = FourierFilter.filterCube(cube, params, dInner, dt);
+        if (Thread.currentThread().isInterrupted())
+            throw new InterruptedException();
+        progress.accept(0.8);
+
+        // 5. Amplitude from the untapered interior, for the PASS scale. The frames are packed at
+        // this scale and no other: the gain is a display contrast applied through the layer's
+        // Levels, live, so changing it costs nothing and cannot re-run this job. Packing the gain in
+        // was what made 2.7 saturate a third of the field and made every nudge a 17-second wait.
+        double amplitude = amplitude(cube);
+        if (params.mode() == FourierParams.Mode.PASS)
+            org.helioviewer.jhv.app.Log.info(String.format("Fourier filter: 99.5th percentile of |v| = %.3g, the pass scale's white and black", amplitude));
+
+        // 6. Back to each original frame.
+        DecodedImage[] out = new DecodedImage[n];
+        boolean notch = params.mode() == FourierParams.Mode.NOTCH;
+        for (int k = 0; k < n; k++) {
+            if (Thread.currentThread().isInterrupted())
+                throw new InterruptedException();
+            FrameStack.Frame f = FrameStack.frame(source, k);
+            if (f == null)
+                throw new Exception("frame " + k + " unavailable");
+            float[] values = new float[f.width() * f.height()];
+            double u = (times[k] - times[0]) / 1000. / dt;
+            cube.toCartesian(values, f.width(), f.height(), f.sunCentred(), u, notch);
+            float[] original = FrameStack.physical(f);
+            for (int i = 0; i < values.length; i++)
+                if (Float.isNaN(original[i]))
+                    values[i] = Float.NaN; // the source's own mask wins
+            ImageBuffer buffer = notch ? FrameStack.packLike(f, values) : FrameStack.packSigned(f, values, amplitude);
+            out[k] = new DecodedImage(buffer, f.decoded().region());
+            if (k % 4 == 0) {
+                status.accept("Fourier filter: writing " + (k + 1) + "/" + n);
+                progress.accept(0.8 + 0.2 * (k + 1) / n);
+            }
+        }
+        return out;
+    }
+
+
+    /**
+     * The cube and the grid it stands on: the time grid, the annulus, the polar sampling and the
+     * frames resampled onto it. Shared by the full run and by the live preview, which builds the
+     * same thing on a coarser polar grid: two copies of this arithmetic would be two chances for
+     * the preview to answer a different question from the one Apply answers.
+     */
+    record Prepared(PolarCube cube, long[] times, double dt, double dInner) {}
+
+    static Prepared build(View source, FourierParams params, int maxNR, int maxNPhi,
+                          Consumer<String> status, DoubleConsumer progress, double progressSpan) throws Exception {
         int n = source.getMaximumFrameNumber() + 1;
         if (n < MIN_FRAMES)
             throw new Exception("needs at least " + MIN_FRAMES + " frames, has " + n);
@@ -68,8 +126,8 @@ final class FourierJob implements SequenceJob {
         double rOut = first.meta().getOuterRadius() > 0 ? Math.min(first.meta().getOuterRadius(), inscribed) : inscribed;
         if (!(rOut > rIn + 4 * pixX))
             throw new Exception("no annulus to filter between " + rIn + " and " + rOut + " solar radii");
-        int nR = Math.min(params.nR(), (int) Math.round((rOut - rIn) / pixX));
-        int nPhi = params.nPhi();
+        int nR = Math.min(maxNR, (int) Math.round((rOut - rIn) / pixX));
+        int nPhi = maxNPhi;
         // A cube that would not fit shrinks its polar grid before it shrinks the heap.
         long budget = (Runtime.getRuntime().maxMemory() - Runtime.getRuntime().totalMemory() + Runtime.getRuntime().freeMemory()) / 2;
         while (4L * nR * nPhi * nU > budget && (nR > 256 || nPhi > 128)) {
@@ -128,56 +186,16 @@ final class FourierJob implements SequenceJob {
             cube.put(j, sample, frameA.width(), frameA.height(), frameA.sunCentred());
             if (j % 4 == 0) {
                 status.accept("Fourier filter: reading " + (j + 1) + "/" + nU);
-                progress.accept(0.4 * (j + 1) / nU);
+                progress.accept(progressSpan * (j + 1) / nU);
             }
         }
         physA = physB = null;
         cube.finish();
-
-        // 4. Transform, mask, invert.
-        status.accept("Fourier filter: transforming " + nR + " x " + nPhi + " x " + nU);
-        double dInner = dr * FourierParams.KM_PER_RSUN;
-        spectrum = FourierFilter.filterCube(cube, params, dInner, dt);
-        if (Thread.currentThread().isInterrupted())
-            throw new InterruptedException();
-        progress.accept(0.8);
-
-        // 5. Amplitude from the untapered interior, for the PASS scale. The frames are packed at
-        // this scale and no other: the gain is a display contrast applied through the layer's
-        // Levels, live, so changing it costs nothing and cannot re-run this job. Packing the gain in
-        // was what made 2.7 saturate a third of the field and made every nudge a 17-second wait.
-        double amplitude = amplitude(cube);
-        if (params.mode() == FourierParams.Mode.PASS)
-            org.helioviewer.jhv.app.Log.info(String.format("Fourier filter: 99.5th percentile of |v| = %.3g, the pass scale's white and black", amplitude));
-
-        // 6. Back to each original frame.
-        DecodedImage[] out = new DecodedImage[n];
-        boolean notch = params.mode() == FourierParams.Mode.NOTCH;
-        for (int k = 0; k < n; k++) {
-            if (Thread.currentThread().isInterrupted())
-                throw new InterruptedException();
-            FrameStack.Frame f = FrameStack.frame(source, k);
-            if (f == null)
-                throw new Exception("frame " + k + " unavailable");
-            float[] values = new float[f.width() * f.height()];
-            double u = (times[k] - times[0]) / 1000. / dt;
-            cube.toCartesian(values, f.width(), f.height(), f.sunCentred(), u, notch);
-            float[] original = FrameStack.physical(f);
-            for (int i = 0; i < values.length; i++)
-                if (Float.isNaN(original[i]))
-                    values[i] = Float.NaN; // the source's own mask wins
-            ImageBuffer buffer = notch ? FrameStack.packLike(f, values) : FrameStack.packSigned(f, values, amplitude);
-            out[k] = new DecodedImage(buffer, f.decoded().region());
-            if (k % 4 == 0) {
-                status.accept("Fourier filter: writing " + (k + 1) + "/" + n);
-                progress.accept(0.8 + 0.2 * (k + 1) / n);
-            }
-        }
-        return out;
+        return new Prepared(cube, times, dt, dr * FourierParams.KM_PER_RSUN);
     }
 
     // 99.5th percentile of |value| over a prime-stride sample of the valid, untapered interior.
-    private static double amplitude(PolarCube cube) {
+    static double amplitude(PolarCube cube) {
         int nT = cube.nT, nInner = cube.nInner;
         int t0 = (int) (nT * FourierFilter.TUKEY_ALPHA / 2), t1 = nT - t0;
         float[] sample = new float[MAX_SAMPLES];
