@@ -99,7 +99,7 @@ public final class MenuBar extends JMenuBar {
         JCheckBoxMenuItem clipping = new JCheckBoxMenuItem("Show Clipped Pixels", Display.showClipping);
         clipping.setToolTipText("Magenta where the display range is exceeded, green where it bottoms out. Flat regions that stay unflagged were already flat in the data.");
         clipping.addItemListener(e -> {
-            Display.showClipping = clipping.getState();
+            Display.setShowClipping(clipping.getState());
             ColourPaletteContent.refresh(); // the Colour palette carries the same switch
             DisplayController.display();
         });

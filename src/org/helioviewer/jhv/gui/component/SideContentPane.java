@@ -48,6 +48,14 @@ public final class SideContentPane extends JComponent {
         repaint();
     }
 
+    /** Each section back to how it was left, collapsed when it never was. */
+    public void restoreExpansion() {
+        for (CollapsiblePane pane : map.values())
+            pane.setExpanded(pane.remembered(false));
+        revalidate();
+        repaint();
+    }
+
     public void collapseAll() {
         for (CollapsiblePane pane : map.values())
             pane.setExpanded(false);

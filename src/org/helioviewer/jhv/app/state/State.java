@@ -33,6 +33,8 @@ import org.helioviewer.jhv.time.TimeUtils;
 import org.helioviewer.jhv.timelines.TimelineLayer;
 import org.helioviewer.jhv.timelines.TimelineLayers;
 import org.helioviewer.jhv.timelines.Timelines;
+import org.helioviewer.jhv.view.uri.FITSViewState;
+import org.helioviewer.jhv.gui.MainFrame;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -117,6 +119,13 @@ public final class State {
         main.put("masterStartTime", TimeUtils.format(MoviePanel.getInstance().getStartTime()));
         main.put("masterEndTime", TimeUtils.format(MoviePanel.getInstance().getEndTime()));
         ViewState.writeModeJson(main);
+        // Everything else a session is expected to bring back and did not: how it plays, how it
+        // records, how FITS pixels are stretched, and the cadence beside the master range.
+        main.put("playback", ViewState.playbackJson());
+        main.put("recording", ViewState.recordingJson());
+        main.put("fitsView", FITSViewState.toJson());
+        if (MainFrame.getLayersSectionPanel() != null) // absent when headless
+            main.put("masterCadence", MainFrame.getLayersSectionPanel().getCadence());
         main.put("annotations", Annotations.toJson());
 
         JSONArray ja = new JSONArray();
@@ -303,9 +312,11 @@ public final class State {
             if (ms != Long.MIN_VALUE && me != Long.MIN_VALUE && me > ms)
                 MoviePanel.getInstance().setTime(ms, me);
         }
+        if (data.has("masterCadence") && MainFrame.getLayersSectionPanel() != null)
+            MainFrame.getLayersSectionPanel().setCadence(data.optInt("masterCadence"));
 
         JHVTime time = new JHVTime(TimeUtils.optParse(data.optString("time"), Player.getTime().milli));
-        Callback callback = new Callback(context, newLayers, masterLayer, time, modeData);
+        Callback callback = new Callback(context, newLayers, masterLayer, time, modeData, data.optJSONObject("playback"));
         Task.submit(
                 new ImageLayers.WaitUntilLoaded(newLayers.keySet()),
                 callback::onSuccess,
@@ -313,11 +324,12 @@ public final class State {
     }
 
     private record Callback(@Nullable Commands.OperationContext context, Map<ImageLayer, Boolean> newLayers,
-                            @Nullable ImageLayer masterLayer, JHVTime time, ViewState.ModeData modeData) {
+                            @Nullable ImageLayer masterLayer, JHVTime time, ViewState.ModeData modeData, @Nullable JSONObject playback) {
 
         private void applyRestoredPlaybackState() {
             ViewState.applyMode(modeData); // this applies projection again
             Commands.seekTime(time);
+            ViewState.applyPlaybackJson(playback); // after the layers, so the trim frames refer to this movie
             DisplayController.refreshCamera();
         }
 
@@ -356,6 +368,10 @@ public final class State {
         try {
             ViewState.ModeData modeData = ViewState.readModeJson(jo);
             ViewState.setProjection(modeData.projection()); // to be set before viewpoint
+            JSONObject fitsView = jo.optJSONObject("fitsView");
+            if (fitsView != null)
+                FITSViewState.fromJson(fitsView); // before the layers decode
+            ViewState.applyRecordingJson(jo.optJSONObject("recording"));
 
             if (PluginManager.isActive(EVEPlugin.class))
                 loadTimelines(jo);

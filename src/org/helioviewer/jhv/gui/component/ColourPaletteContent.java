@@ -99,7 +99,7 @@ final class ColourPaletteContent {
         clipping.setToolTipText("Magenta where the display range is exceeded, green where it bottoms out. "
                 + "Flat regions that stay unflagged were already flat in the data.");
         clipping.addActionListener(e -> {
-            Display.showClipping = clipping.isSelected();
+            Display.setShowClipping(clipping.isSelected());
             MenuBar.syncClippingItem();
             DisplayController.display();
         });

@@ -6,6 +6,7 @@ import java.awt.event.ActionListener;
 
 import javax.swing.JComponent;
 
+import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.gui.ComponentUtils;
 import org.helioviewer.jhv.gui.UIGlobals;
 
@@ -28,10 +29,14 @@ public class CollapsiblePane extends JComponent implements ActionListener {
         setLayout(new BorderLayout());
 
         managed = _managed;
-        ComponentUtils.setVisible(managed, startExpanded);
+        title = _title;
+        // A section opens the way it was last left. Every launch used to open with every section
+        // collapsed, so Layer options had to be clicked open every single time.
+        boolean expanded = remembered(startExpanded);
+        ComponentUtils.setVisible(managed, expanded);
 
         toggleButton = new CollapsiblePaneButton();
-        toggleButton.setSelected(startExpanded);
+        toggleButton.setSelected(expanded);
         toggleButton.setFont(child ? UIGlobals.uiFontSmall : UIGlobals.uiFontSmallBold);
         toggleButton.addActionListener(this);
         setTitle(_title);
@@ -51,9 +56,21 @@ public class CollapsiblePane extends JComponent implements ActionListener {
         setTitle(title);
     }
 
+    /** How this section was last left by a click, or the fallback when it never was. */
+    public boolean remembered(boolean fallback) {
+        String stored = Settings.getProperty(key());
+        return stored == null ? fallback : Boolean.parseBoolean(stored);
+    }
+
+    private String key() {
+        return "ui.section." + title.replace(' ', '_');
+    }
+
     @Override
     public void actionPerformed(ActionEvent e) {
-        setExpanded(!managed.isVisible());
+        boolean expanded = !managed.isVisible();
+        setExpanded(expanded);
+        Settings.setProperty(key(), Boolean.toString(expanded)); // a click is a preference; setExpanded from code is not
     }
 
 }

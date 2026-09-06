@@ -78,6 +78,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         if (apiRequest != null) {
             jo.put("APIRequest", apiRequest.toJson());
             jo.put("imageParams", glImage.toJson());
+            jo.put("filter", view.getFilter().name());
         } else if (sourceUris != null && !sourceUris.isEmpty() || fitsRequest != null) {
             // Direct-URI layers (e.g. PUNCH FITS) have no server request; persist the remote
             // URIs so a restored session reloads them — from the persistent cache, no re-download.
@@ -93,6 +94,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             if (fitsRequest != null)
                 jo.put("fitsRequest", fitsRequest.toJson());
             jo.put("imageParams", glImage.toJson());
+            jo.put("filter", view.getFilter().name());
             if (fixedRange != null) // keep the shared FITS range so a restored PUNCH movie does not strobe
                 jo.put("fixedRange", new JSONArray().put(fixedRange[0]).put(fixedRange[1]));
             if (sequenceParams != null)
@@ -120,6 +122,11 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         if (jo != null) {
             applyImageParams(jo.optJSONObject("imageParams"));
             sequenceParams = SequenceParams.fromJson(jo.optJSONObject("sequence")); // applied once the full movie arrives
+            try {
+                restoredFilter = ImageFilter.Type.valueOf(jo.optString("filter", "None"));
+            } catch (IllegalArgumentException e) {
+                restoredFilter = null;
+            }
 
             JSONObject apiRequest = jo.optJSONObject("APIRequest");
             if (apiRequest != null) {
@@ -382,6 +389,8 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     }
 
     private double[] fixedRange; // optional shared FITS display range applied to all the layer's frames
+    @Nullable
+    private ImageFilter.Type restoredFilter; // a session's per-frame filter, applied to the first view that arrives
 
     // Pin all of this layer's frames to a fixed [min, max] display range (FITS only), so a
     // multi-frame layer (e.g. a PUNCH movie) does not strobe as each frame auto-normalizes.
@@ -392,7 +401,8 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     }
 
     private void replaceView(View newView) {
-        ImageFilter.Type filterType = view.getFilter();
+        ImageFilter.Type filterType = restoredFilter != null ? restoredFilter : view.getFilter();
+        restoredFilter = null;
         unsetView();
         view = newView;
         viewLoaded = true;
@@ -404,7 +414,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     private boolean viewActivatedBefore; // the first view of a layer may claim the clock; later ones only keep it
 
     private void activateView() {
-        glImage.setLUT(view.getDefaultLUT(), glImage.getInvertLUT());
+        glImage.setDefaultLUT(view.getDefaultLUT(), glImage.getInvertLUT());
         setEnabled(true);
 
         DisplayController.zoomMiniToFit();
