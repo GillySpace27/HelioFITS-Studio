@@ -3,6 +3,7 @@ package org.helioviewer.jhv.layers.filters;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
+import java.awt.Cursor;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -12,6 +13,9 @@ import java.awt.GridLayout;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.util.concurrent.Future;
 
 import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
@@ -29,6 +33,7 @@ import javax.swing.JProgressBar;
 import javax.swing.JRadioButton;
 import javax.swing.SwingUtilities;
 
+import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.ComponentUtils;
@@ -39,10 +44,13 @@ import org.helioviewer.jhv.gui.component.Palette;
 import org.helioviewer.jhv.gui.component.TerminatedFormatterFactory;
 import org.helioviewer.jhv.image.fourier.FourierFilter;
 import org.helioviewer.jhv.image.fourier.FourierParams;
+import org.helioviewer.jhv.image.fourier.FourierPreview;
 import org.helioviewer.jhv.image.fourier.NoiseGateParams;
 import org.helioviewer.jhv.image.fourier.SequenceParams;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layers;
+import org.helioviewer.jhv.thread.AppThread;
+import org.helioviewer.jhv.thread.Task;
 import org.helioviewer.jhv.view.ComputedView;
 import org.helioviewer.jhv.view.View;
 
@@ -91,6 +99,17 @@ public class SequencePanel implements FilterDetails {
     private final JComboBox<Integer> nPhiCombo = new JComboBox<>(new Integer[]{256, 512, 1024});
     private final JideButton spectrumButton = new JideButton("Spectrum…");
     private SpectrumDialog spectrumDialog;
+
+    // The live preview: one coarse-grid frame, recomputed while a band is dragged. Prepared when
+    // the spectrum dialog opens and dropped when it closes, because it holds a second copy of the
+    // movie's polar cube and there is no reason to carry that around the rest of the time.
+    @Nullable
+    private FourierPreview preview;
+    @Nullable
+    private Future<?> previewPrep;
+    @Nullable
+    private FourierParams pendingPreview; // the latest request; older ones are simply dropped
+    private boolean previewBusy;
 
     // noise gate settings
     private final JComboBox<NoiseGateParams.Model> modelCombo = new JComboBox<>(NoiseGateParams.Model.values());
@@ -407,6 +426,95 @@ public class SequencePanel implements FilterDetails {
         if (spectrumDialog == null)
             spectrumDialog = new SpectrumDialog();
         spectrumDialog.show(spectrum, currentBand());
+        startPreview();
+    }
+
+    /** Write a band (in the parameters' own units) into the fields the rest of the panel reads. */
+    private void setBand(double lo, double hi) {
+        boolean angular = ANGULAR.equals(kindCombo.getSelectedItem());
+        double scale = angular ? DEG_PER_HOUR : 1;
+        syncing = true;
+        loField.setValue(lo * scale);
+        hiField.setValue(hi * scale);
+        if (angular)
+            periodField.setValue(2 * Math.PI / Math.sqrt(lo * hi) / 60);
+        syncing = false;
+    }
+
+    /**
+     * Read the movie once onto a coarse polar grid, after which every band costs one frame.
+     *
+     * <p>The source is the view the computed one WRAPS: the preview filters the original movie,
+     * not the output of the filter already applied to it.
+     */
+    private void startPreview() {
+        ComputedView view = layer.getComputedView();
+        if (view == null || preview != null || previewPrep != null || !(paramsFromWidgets() instanceof FourierParams p))
+            return;
+        spectrumDialog.setStatus("Preparing the live preview\u2026");
+        previewPrep = Task.submit("fourier preview prepare",
+                () -> FourierPreview.prepare(view.wrapped(), p, st -> {}),
+                fp -> {
+                    previewPrep = null;
+                    preview = fp;
+                    spectrumDialog.setStatus("Live preview on a " + fp.grid() + " grid, this frame only");
+                    requestPreview();
+                },
+                (ctx, t) -> {
+                    previewPrep = null;
+                    spectrumDialog.setStatus("No live preview: " + t.getMessage());
+                    if (!AppThread.isInterrupted(t))
+                        Log.warn(t);
+                });
+    }
+
+    /** Ask for a preview of the band as it stands. Requests coalesce: a drag produces one queue of depth one. */
+    private void requestPreview() {
+        if (preview == null || !(paramsFromWidgets() instanceof FourierParams p))
+            return;
+        pendingPreview = p;
+        pumpPreview();
+    }
+
+    private void pumpPreview() {
+        ComputedView view = layer.getComputedView();
+        FourierPreview fp = preview;
+        FourierParams p = pendingPreview;
+        if (previewBusy || p == null || fp == null || view == null)
+            return;
+        pendingPreview = null;
+        previewBusy = true;
+        int frame = view.getCurrentFrameNumber();
+        long started = System.currentTimeMillis();
+        Task.submit("fourier preview", () -> fp.render(p, frame),
+                image -> {
+                    previewBusy = false;
+                    if (preview == fp && image != null) { // still the same preview: the dialog has not closed
+                        view.setPreview(frame, image);
+                        spectrumDialog.setStatus(String.format("Preview %.2f s on a %s grid, this frame only",
+                                (System.currentTimeMillis() - started) / 1000., fp.grid()));
+                    }
+                    pumpPreview();
+                },
+                (ctx, t) -> {
+                    previewBusy = false;
+                    if (!AppThread.isInterrupted(t))
+                        Log.warn(t);
+                    pumpPreview();
+                });
+    }
+
+    /** Drop the preview and put the real frames back. */
+    private void stopPreview() {
+        if (previewPrep != null) {
+            previewPrep.cancel(true);
+            previewPrep = null;
+        }
+        pendingPreview = null;
+        preview = null;
+        ComputedView view = layer.getComputedView();
+        if (view != null)
+            view.clearPreview();
     }
 
     private double[] currentBand() {
@@ -454,6 +562,8 @@ public class SequencePanel implements FilterDetails {
         }
         openButton.setText(describeCurrent());
         spectrumButton.setEnabled(view != null && view.spectrum() != null);
+        if (spectrumDialog != null && spectrumDialog.isOpen() && view != null && view.spectrum() != null)
+            spectrumDialog.show(view.spectrum(), currentBand()); // a finished run measures a new spectrum
         syncFromLayer();
         // The readout too: a panel built while the movie was still arriving said "No movie loaded"
         // and went on saying it after 245 frames had, because only a kind change rewrote it.
@@ -583,16 +693,65 @@ public class SequencePanel implements FilterDetails {
         private final JDialog dialog = new JDialog(SwingUtilities.getWindowAncestor(second), "Rate spectrum");
         private final Plot plot = new Plot();
 
+        private final JRadioButton dialogPass = new JRadioButton("Pass");
+        private final JRadioButton dialogNotch = new JRadioButton("Notch");
+        private final JLabel status = new JLabel(" ");
+
         SpectrumDialog() {
             dialog.setModal(false);
             dialog.add(plot);
-            dialog.setSize(640, 400);
+
+            // Pass and notch belong here as much as in the palette: which side of the band you keep
+            // is the same decision as where the band is, and it is being made while looking at this
+            // picture. Both copies drive the one pair of radio buttons the rest of the panel reads.
+            ButtonGroup group = new ButtonGroup();
+            group.add(dialogPass);
+            group.add(dialogNotch);
+            java.awt.event.ActionListener mode = e -> {
+                passButton.setSelected(dialogPass.isSelected());
+                notchButton.setSelected(dialogNotch.isSelected());
+                plot.repaint();
+                requestPreview();
+            };
+            dialogPass.addActionListener(mode);
+            dialogNotch.addActionListener(mode);
+
+            JideButton applyAll = new JideButton("Apply to the movie");
+            applyAll.setToolTipText("Run this band over every frame at full resolution. What you are watching is one frame on a coarse grid.");
+            applyAll.addActionListener(e -> apply());
+
+            JPanel controls = new JPanel(new FlowLayout(FlowLayout.LEADING, 8, 4));
+            controls.add(dialogPass);
+            controls.add(dialogNotch);
+            controls.add(applyAll);
+            controls.add(status);
+            dialog.add(controls, BorderLayout.PAGE_END);
+
+            // Closing the dialog is what says the exploring is over: drop the preview cube and put
+            // the real frames back under the layer.
+            dialog.addWindowListener(new WindowAdapter() {
+                @Override
+                public void windowClosing(WindowEvent e) {
+                    stopPreview();
+                }
+            });
+            dialog.setSize(720, 460);
             dialog.setLocationRelativeTo(second);
+        }
+
+        void setStatus(String text) {
+            status.setText(text);
+        }
+
+        boolean isOpen() {
+            return dialog.isVisible();
         }
 
         void show(FourierFilter.Spectrum spectrum, double[] band) {
             plot.spectrum = spectrum;
             plot.band = band;
+            dialogPass.setSelected(passButton.isSelected());
+            dialogNotch.setSelected(notchButton.isSelected());
             plot.repaint();
             dialog.setVisible(true);
         }
@@ -602,20 +761,87 @@ public class SequencePanel implements FilterDetails {
             double[] band;
             final int left = 60, right = 20, top = 30, bottom = 40;
 
+            private static final int GRAB = 6; // px within which an edge is taken rather than the band
+            private int drag; // 0 none, 1 the low edge, 2 the high edge, 3 the whole band
+            private double dragAnchor;
+            private double[] dragBand;
+
+            /** Which part of the band the pointer is over: the edges first, then the body. */
+            private int handleAt(int x) {
+                if (band == null)
+                    return 0;
+                if (Math.abs(x - xOf(band[0])) <= GRAB)
+                    return 1;
+                if (Math.abs(x - xOf(band[1])) <= GRAB)
+                    return 2;
+                return x > xOf(band[0]) && x < xOf(band[1]) ? 3 : 0;
+            }
+
             Plot() {
-                addMouseListener(new MouseAdapter() {
+                MouseAdapter handler = new MouseAdapter() {
+                    @Override
+                    public void mousePressed(MouseEvent e) {
+                        if (spectrum == null || band == null)
+                            return;
+                        drag = handleAt(e.getX());
+                        dragAnchor = Math.log(Math.max(rateAt(e.getX()), 1e-30));
+                        dragBand = band.clone();
+                    }
+
+                    @Override
+                    public void mouseReleased(MouseEvent e) {
+                        drag = 0;
+                    }
+
+                    @Override
+                    public void mouseDragged(MouseEvent e) {
+                        if (drag == 0 || dragBand == null)
+                            return;
+                        double r = rateAt(e.getX());
+                        if (r <= 0)
+                            return;
+                        // The axis is logarithmic, so a drag is a ratio: the band keeps its shape
+                        // when it is moved and its far edge when one edge is pulled.
+                        double f = Math.exp(Math.log(r) - dragAnchor);
+                        double lo = dragBand[0], hi = dragBand[1];
+                        switch (drag) {
+                            case 1 -> lo = Math.min(dragBand[0] * f, hi / 1.02);
+                            case 2 -> hi = Math.max(dragBand[1] * f, lo * 1.02);
+                            default -> {
+                                lo = dragBand[0] * f;
+                                hi = dragBand[1] * f;
+                            }
+                        }
+                        setBand(lo, hi);
+                        band = currentBand();
+                        repaint();
+                        requestPreview();
+                    }
+
+                    @Override
+                    public void mouseMoved(MouseEvent e) {
+                        setCursor(Cursor.getPredefinedCursor(switch (handleAt(e.getX())) {
+                            case 1, 2 -> Cursor.E_RESIZE_CURSOR;
+                            case 3 -> Cursor.MOVE_CURSOR;
+                            default -> Cursor.DEFAULT_CURSOR;
+                        }));
+                    }
+
                     @Override
                     public void mouseClicked(MouseEvent e) {
-                        if (spectrum == null)
-                            return;
+                        if (spectrum == null || handleAt(e.getX()) != 0)
+                            return; // a click on the band itself is the start of a drag, not a jump
                         double rate = rateAt(e.getX());
                         if (rate > 0) {
                             setBandCentre(rate);
                             band = currentBand();
                             repaint();
+                            requestPreview();
                         }
                     }
-                });
+                };
+                addMouseListener(handler);
+                addMouseMotionListener(handler);
             }
 
             private double logMin() {
@@ -663,6 +889,9 @@ public class SequencePanel implements FilterDetails {
                     g.setColor(new Color(255, 200, 0, 60));
                     int x0 = xOf(Math.max(band[0], spectrum.rate()[0])), x1 = xOf(Math.min(band[1], spectrum.rate()[spectrum.rate().length - 1]));
                     g.fillRect(Math.min(x0, x1), top, Math.abs(x1 - x0), plotH);
+                    g.setColor(new Color(255, 170, 0));
+                    g.fillRect(x0 - 1, top, 3, plotH); // the edges, wide enough to see and to grab
+                    g.fillRect(x1 - 1, top, 3, plotH);
                 }
                 // axes
                 g.setColor(Color.GRAY);
@@ -693,7 +922,7 @@ public class SequencePanel implements FilterDetails {
                 g.drawString(angular
                         ? String.format("peak %.2f °/h = %.1f min", pr * unit, 2 * Math.PI / pr / 60)
                         : String.format("peak %.0f km/s", pr), left + 6, h - bottom - 6);
-                g.drawString("click to centre the band", left + 6, h - 6);
+                g.drawString("drag an edge or the band; click elsewhere to centre it", left + 6, h - 6);
             }
 
             private void drawCurve(Graphics2D g, double[] power, double lpmin, double lpmax, int plotH, Color color) {

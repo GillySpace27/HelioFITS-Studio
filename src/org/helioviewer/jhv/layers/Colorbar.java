@@ -149,7 +149,13 @@ public final class Colorbar {
         // unrepresented on the legend beside it. Marking clipped pixels in the PICTURE is the View
         // menu's "show clipped pixels", which is a separate question and stays a separate switch.
         float gain = HdrGain.current(false);
-        boolean headroom = gain > 1 && groups == null;
+        // A section for data above the range is only honest when this layer can put data there.
+        // RHEF's output is a rank and tops out at 1 by construction, so with RHEF the only route
+        // over the top of the range is the Levels window itself; raw data has its own values above
+        // it (FITSImage.OVER_RANGE_CEILING) and needs no help. Without this the bar offered a
+        // headroom section that nothing in a RHEF picture could ever reach.
+        boolean canExceed = !rhefActive || glImage.getBrightOffset() + glImage.getBrightScale() > 1;
+        boolean headroom = gain > 1 && groups == null && canExceed;
         double xSplit = headroom ? x0 + (x1 - x0) / OVER_RANGE_SPAN : x1;
 
         // Depth testing is on for the whole frame (GLRenderer sets it up once, for the 3D scene),

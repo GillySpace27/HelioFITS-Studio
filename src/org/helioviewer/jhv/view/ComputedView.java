@@ -83,6 +83,31 @@ public final class ComputedView implements View {
     @Nullable
     private DecodedImage[] computed;
 
+    /**
+     * One frame from the live preview, shown in place of the computed one until the next real run.
+     *
+     * <p>Dragging a band in the spectrum dialog cannot re-run the filter over the movie, so it
+     * re-runs it over one frame on a coarse grid and puts the answer here. It is deliberately not
+     * in the frame array and not in the cache: it is an approximation of one frame, and the moment
+     * a real run lands or the dialog closes it has to be gone.
+     */
+    @Nullable
+    private volatile DecodedImage previewImage;
+    private volatile int previewFrame = -1;
+
+    /** Show this frame in place of the computed one. The per-frame filter is applied here, so it is like for like. */
+    public void setPreview(int frame, @Nullable DecodedImage image) {
+        ImageFilter.Type filter = wrapped.getFilter();
+        previewImage = image != null && filter != ImageFilter.Type.None
+                ? filtered(image, filter, wrapped.getMetaData(wrapped.getFrameTime(frame))) : image;
+        previewFrame = image == null ? -1 : frame;
+        DisplayController.render(1);
+    }
+
+    public void clearPreview() {
+        setPreview(-1, null);
+    }
+
     /** Frames whose per-frame filter pass is in flight; see decode() for why this is bounded. */
     private final java.util.Set<Integer> filtering = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private static final int MAX_FILTERING = 2;
@@ -168,6 +193,8 @@ public final class ComputedView implements View {
     /** The job's result becomes what decode() serves. Package-private so a check can install frames without a worker. */
     void install(DecodedImage[] frames) {
         running = false;
+        previewImage = null; // the real thing has landed
+        previewFrame = -1;
         computed = frames;
         ready = true;
         status.accept(null);
@@ -180,12 +207,19 @@ public final class ComputedView implements View {
         running = false;
         ready = false;
         computed = null; // the Cleaner on each buffer reclaims the native memory
+        previewImage = null;
+        previewFrame = -1;
         ImageBufferCache.invalidateIf(k -> k instanceof ComputedKey ck && ck.view() == this);
     }
 
     @Override
     public void decode(Position viewpoint, double pixFactor, float factor) {
         int frame = wrapped.getCurrentFrameNumber();
+        DecodedImage live = previewImage;
+        if (live != null && previewFrame == frame) {
+            publish(live, frame, viewpoint);
+            return;
+        }
         DecodedImage[] frames = computed;
         if (ready && frames != null && frame < frames.length && frames[frame] != null) {
             ImageFilter.Type filter = wrapped.getFilter();
