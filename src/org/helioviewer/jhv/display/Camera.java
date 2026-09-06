@@ -85,6 +85,7 @@ public final class Camera {
         jo.put("translation", translation.toJson());
         jo.put("dragRotation", dragRotation.toJson());
         jo.put("fov", fov);
+        jo.put("zoom", Display.getViewports()[0].zoom); // the wheel zoom lives on the viewport, not here, and was not saved
         return jo;
     }
 
@@ -95,6 +96,10 @@ public final class Camera {
         ja = jo.optJSONArray("dragRotation");
         if (ja != null) dragRotation = Quat.fromJson(ja);
         setFOV(jo.optDouble("fov", fov), viewpoint);
+        double zoom = jo.optDouble("zoom", Double.NaN);
+        if (zoom > 0)
+            for (Viewport vp : Display.getViewports())
+                vp.zoom = zoom;
     }
 
 }

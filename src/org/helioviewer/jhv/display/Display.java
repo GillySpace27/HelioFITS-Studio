@@ -474,7 +474,12 @@ public final class Display {
      * in the annulus and is usually a mid-tone. So flat-and-flagged means the Levels are doing
      * it; flat-and-unflagged means it arrived that way.
      */
-    public static boolean showClipping;
+    public static boolean showClipping = "true".equals(Settings.getProperty("display.showClipping"));
+
+    public static void setShowClipping(boolean show) {
+        showClipping = show;
+        Settings.setProperty("display.showClipping", Boolean.toString(show));
+    }
 
     /**
      * A multiplier on the nominal Box-Cox limb anchor, deciding how much of the radial axis the

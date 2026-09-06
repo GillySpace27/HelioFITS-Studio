@@ -291,6 +291,46 @@ public final class ViewState {
         notifyRecordingConfigListeners();
     }
 
+    /** Playback speed, unit, advance mode and trim, for the session file. */
+    public static JSONObject playbackJson() {
+        PlaybackData d = playbackData();
+        return new JSONObject().put("advanceMode", d.advanceMode().name()).put("speed", d.speed()).put("speedUnit", d.speedUnit().name())
+                .put("firstFrame", d.firstFrame()).put("lastFrame", d.lastFrame());
+    }
+
+    /** The inverse of playbackJson; each field on its own, so an unknown name spoils only itself. */
+    public static void applyPlaybackJson(@Nullable JSONObject jo) {
+        if (jo == null)
+            return;
+        try {
+            setPlaybackAdvanceMode(Player.AdvanceMode.valueOf(jo.optString("advanceMode", playbackAdvanceMode.name())));
+        } catch (IllegalArgumentException ignore) {
+        }
+        try {
+            setPlaybackSpeed(jo.optInt("speed", playbackSpeed), PlaybackSpeedUnit.valueOf(jo.optString("speedUnit", playbackSpeedUnit.name())));
+        } catch (IllegalArgumentException ignore) {
+        }
+        if (jo.has("firstFrame") && jo.has("lastFrame"))
+            setPlaybackRange(jo.optInt("firstFrame"), jo.optInt("lastFrame"));
+    }
+
+    public static JSONObject recordingJson() {
+        RecordingData d = recordingData();
+        return new JSONObject().put("mode", d.mode().name()).put("aspect", d.aspect().name()).put("longSide", d.longSide());
+    }
+
+    public static void applyRecordingJson(@Nullable JSONObject jo) {
+        if (jo == null)
+            return;
+        try {
+            setRecordingMode(RecordingMode.valueOf(jo.optString("mode", recordingMode.name())));
+            setRecordingAspect(RecordingAspect.valueOf(jo.optString("aspect", recordingAspect.name())));
+        } catch (IllegalArgumentException ignore) {
+        }
+        if (jo.has("longSide"))
+            setRecordingLongSide(jo.optInt("longSide", recordingLongSide));
+    }
+
     public static void writeModeJson(JSONObject target) {
         ModeData data = modeData();
         target.put("multiview", data.multiview());

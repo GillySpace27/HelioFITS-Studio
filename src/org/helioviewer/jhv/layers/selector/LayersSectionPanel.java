@@ -156,6 +156,10 @@ public final class LayersSectionPanel extends JPanel implements Interfaces.Obser
         return cadencePanel.getCadence();
     }
 
+    public void setCadence(int seconds) {
+        cadencePanel.setCadence(seconds);
+    }
+
     @Override
     public void setTime(long start, long end) {
         MoviePanel.getInstance().setTime(start, end);

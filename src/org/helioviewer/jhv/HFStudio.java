@@ -104,8 +104,10 @@ public class HFStudio {
 
             frame.pack();
             MainFrame.stabilizeLeftPaneWidth();
-            frame.setLocationRelativeTo(null);
+            if (!MainFrame.boundsRestored())
+                frame.setLocationRelativeTo(null);
             frame.setVisible(true);
+            MainFrame.restoreChrome();
             UITimer.start();
             org.helioviewer.jhv.app.Session.init(); // session dirty-tracking + autosave timer
 

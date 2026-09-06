@@ -81,6 +81,7 @@ public class GLImage {
     private DifferenceMode diffMode = DifferenceMode.None;
 
     private LUT lut = LUT.gray();
+    private boolean lutRestored; // a table named by a session, which the next view's default must not replace
     private LUT lastLut;
 
     private boolean invertLUT = false;
@@ -349,6 +350,19 @@ public class GLImage {
         sharpen = Math.clamp(_sharpen, -1, 1);
     }
 
+    /**
+     * The table a newly loaded view brings with it. Taken unless a session restored a chosen table
+     * for this layer, which wins once: the user's choice used to be lost on every reload because
+     * the view's default was applied after the session's table.
+     */
+    public void setDefaultLUT(LUT def, boolean invert) {
+        if (lutRestored) {
+            lutRestored = false;
+            return;
+        }
+        setLUT(def, invert);
+    }
+
     public void setLUT(LUT newLUT, boolean invert) {
         if (lut == newLUT && invertLUT == invert) {
             return;
@@ -464,6 +478,11 @@ public class GLImage {
             blue = colorObject.optBoolean("blue", getBlue()) ? 1 : 0;
         }
         invertLUT = jo.optBoolean("invert", invertLUT);
+        LUT named = LUT.get(jo.optString("lut", ""));
+        if (named != null) {
+            setLUT(named, invertLUT);
+            lutRestored = true;
+        }
         if (jo.has("colorbar")) {
             showColorbar = jo.optBoolean("colorbar", showColorbar);
             colorbarChosen = true;
@@ -494,6 +513,7 @@ public class GLImage {
         colorObject.put("blue", getBlue());
         jo.put("color", colorObject);
         jo.put("invert", invertLUT);
+        jo.put("lut", lut.name());
         jo.put("colorbar", showColorbar);
 
         return jo;

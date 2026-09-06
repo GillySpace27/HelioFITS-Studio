@@ -27,6 +27,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JSeparator;
 
+import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.gui.PresentationMode;
 
@@ -109,6 +110,17 @@ public final class Palette {
                 p.toggle();
     }
 
+    private String key() {
+        return "ui.palette." + title.replace(' ', '_');
+    }
+
+    /** Reopen the palettes that were open when the application last quit. Needs the frame on screen. */
+    public static void restoreOpen() {
+        for (Palette p : palettes)
+            if (p.toggle != null && !p.isOpen() && "true".equals(Settings.getProperty(p.key())))
+                p.toggle();
+    }
+
     /** Toggle exactly as the toolbar button does, so the View menu and the button stay in step. */
     public void toggle() {
         if (toggle != null)
@@ -120,6 +132,7 @@ public final class Palette {
     }
 
     private void setOpen(boolean open) {
+        Settings.setProperty(key(), Boolean.toString(open)); // so the next launch opens what was open
         if (!open) {
             if (dialog != null)
                 dialog.setVisible(false);

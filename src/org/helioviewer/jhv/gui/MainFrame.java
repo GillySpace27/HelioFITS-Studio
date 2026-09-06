@@ -300,11 +300,72 @@ public final class MainFrame {
         preferredWidth = Math.min(preferredWidth, maxSize.width);
         preferredHeight = Math.min(preferredHeight, maxSize.height);
         frame.setPreferredSize(new Dimension(preferredWidth, preferredHeight));
+        restoreBounds(frame, maxSize);
+        rememberBounds(frame);
 
         frame.setIconImage(IconBank.getIcon(IconBank.JHVIcon.HVLOGO_SMALL).getImage());
         setAppIcon();
 
         return frame;
+    }
+
+    private static final String KEY_BOUNDS = "ui.windowBounds";
+
+    // The window opens where and as large as it was closed. Only when the remembered rectangle
+    // still fits the screen, so a window last seen on a monitor that is gone falls back to the
+    // default; startGUI's setLocationRelativeTo(null) is skipped when this succeeds.
+    private static boolean boundsRestored;
+
+    private static void restoreBounds(JFrame frame, Dimension maxSize) {
+        String stored = org.helioviewer.jhv.app.Settings.getProperty(KEY_BOUNDS);
+        if (stored == null)
+            return;
+        try {
+            String[] p = stored.split(",");
+            java.awt.Rectangle r = new java.awt.Rectangle(Integer.parseInt(p[0]), Integer.parseInt(p[1]), Integer.parseInt(p[2]), Integer.parseInt(p[3]));
+            java.awt.Rectangle screen = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
+            if (r.width < 200 || r.height < 200 || !screen.intersects(r))
+                return;
+            r.width = Math.min(r.width, maxSize.width);
+            r.height = Math.min(r.height, maxSize.height);
+            frame.setPreferredSize(r.getSize());
+            frame.setLocation(r.getLocation());
+            boundsRestored = true;
+        } catch (RuntimeException e) {
+            Log.warn("Ignoring stored window bounds " + stored);
+        }
+    }
+
+    public static boolean boundsRestored() {
+        return boundsRestored;
+    }
+
+    private static void rememberBounds(JFrame frame) {
+        javax.swing.Timer settle = new javax.swing.Timer(500, e -> { // a drag fires dozens of events a second; Settings writes a file
+            if (!frame.isShowing() || (frame.getExtendedState() & JFrame.ICONIFIED) != 0)
+                return;
+            java.awt.Rectangle r = frame.getBounds();
+            org.helioviewer.jhv.app.Settings.setProperty(KEY_BOUNDS, r.x + "," + r.y + "," + r.width + "," + r.height);
+        });
+        settle.setRepeats(false);
+        frame.addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override
+            public void componentResized(java.awt.event.ComponentEvent e) {
+                settle.restart();
+            }
+
+            @Override
+            public void componentMoved(java.awt.event.ComponentEvent e) {
+                settle.restart();
+            }
+        });
+    }
+
+    /** Chrome that is only restorable once the frame is on screen: the folded sidebar and the open palettes. */
+    public static void restoreChrome() {
+        if ("true".equals(org.helioviewer.jhv.app.Settings.getProperty("ui.sidebarCollapsed")))
+            setSidebarCollapsed(true);
+        EventQueue.invokeLater(org.helioviewer.jhv.gui.component.Palette::restoreOpen); // after this pass of layout, so docking sees the canvas
     }
 
     private static int readSizeEnv(String name, int fallback) {
@@ -586,7 +647,7 @@ public final class MainFrame {
         // ever growing keeps the width from oscillating as layers are selected.
         UITimer.register(MainFrame::growLeftPaneToFit);
 
-        leftPane.collapseAll(); // open the sidebar at full width but with every panel collapsed
+        leftPane.restoreExpansion(); // the sidebar at full width, each section as it was last left
     }
 
     private static int fixedContentWidth;
@@ -612,6 +673,7 @@ public final class MainFrame {
         if (collapsed == sidebarCollapsed)
             return;
         sidebarCollapsed = collapsed;
+        org.helioviewer.jhv.app.Settings.setProperty("ui.sidebarCollapsed", Boolean.toString(collapsed));
 
         leftPaneHost.setVisible(!collapsed); // the handle stays; westWrap shrinks to just it
         sidebarCollapseHandle.setText(collapsed ? Buttons.collapseRight : Buttons.collapseLeft);
