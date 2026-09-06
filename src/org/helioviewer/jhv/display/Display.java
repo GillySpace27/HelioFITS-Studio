@@ -597,6 +597,31 @@ public final class Display {
         Settings.setProperty("display.skyField", String.valueOf(skyFieldDegrees));
     }
 
+    // Whether the observer's sky is drawn as a transformation ON TOP of the radial scale rather
+    // than as the sky itself. See the comment on skyWarp in solarSky.frag for what that means
+    // geometrically; here it is only a switch and the scale it hands over.
+    private static boolean skyCompose = "true".equals(Settings.getProperty("display.skyCompose"));
+
+    public static boolean isSkyCompose() {
+        return skyCompose;
+    }
+
+    public static void setSkyCompose(boolean compose) {
+        skyCompose = compose;
+        Settings.setProperty("display.skyCompose", Boolean.toString(compose));
+    }
+
+    /**
+     * The radial scale the sky is composed with, or null when it is not composing.
+     *
+     * <p>The same scale Helioradial builds for itself, so the composed sky shows that mode's
+     * picture and the Box-Cox lambda and the Edge crop reach it unchanged.
+     */
+    @javax.annotation.Nullable
+    public static MapScale skyComposeScale() {
+        return skyCompose && mode == MapMode.ObserverSky ? MapScale.boxCoxRadial(effectiveWarpOuterRadius()) : null;
+    }
+
     public static double getSkyLookLon() {
         return skyLookLon;
     }

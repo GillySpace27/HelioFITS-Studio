@@ -8,6 +8,20 @@
 // 0 gnomonic (TAN), 1 stereographic (STG), 2 azimuthal equidistant (ARC).
 uniform vec3 skyLook;
 
+// The radial scale this sky is composed with: (outer radius in solar radii, limb position,
+// Box-Cox lambda). Off when the outer radius is not positive.
+//
+// Composition means the dome shows the picture the primary mode draws, rather than the sky as it
+// is: a dome pixel's elongation is read as that mode's PAGE radius, undone through its radial
+// scale to the heliocentric radius it stands for, and turned back into the elongation whose data
+// belongs there. The field edge is the fixed point (page radius 1 is the true elongation of the
+// outer radius), so composed and uncomposed agree at the rim and differ inside, which is the warp
+// showing up as a change of angular scale. Where along the line of sight the radius is measured
+// is the surface model, so with the Thomson sphere selected this is the Thomson-sphere placement
+// drawn on the celestial sphere, which is what the sky is.
+uniform vec3 skyWarp;
+uniform float surfaceModel;
+
 vec3 skyLookRay(const float lon, const float lat) {
     float cosLat = cos(lat);
     return vec3(sin(lon) * cosLat, sin(lat), -cos(lon) * cosLat);
@@ -60,13 +74,34 @@ void main(void) {
     if (ray.z >= 0.)
         discard;
 
+    float observerDistance = projection[0].observerDistance;
+    if (skyWarp.x > 0.) {
+        // The field ends at the smaller of the loaded outer radius and the surface's own reach:
+        // a Thomson sphere only reaches the observer, so with a field wider than that there is
+        // simply no surface out there for the data to sit on. Normalising by the page position of
+        // that radius rather than by 1 is what keeps this a one-to-one map, and with a field the
+        // surface can describe it changes nothing (the page position of the outer radius is 1).
+        float reach = surfaceModel <= 0. ? 1e30 : observerDistance / surfaceModel;
+        float rMax = min(skyWarp.x, reach * 0.999);
+        float eMax = surfaceElongation(rMax, observerDistance, surfaceModel);
+        float uMax = warpUnitWith(rMax, skyWarp.x, skyWarp.y, skyWarp.z);
+        float eDome = acos(clamp(-ray.z, -1., 1.));
+        if (eMax <= 0. || eDome > eMax)
+            discard; // past the edge of the composed field
+        float r = unwarpRadiusWith(uMax * eDome / eMax, skyWarp.x, skyWarp.y, skyWarp.z);
+        float eTrue = surfaceElongation(r, observerDistance, surfaceModel);
+        vec2 perp = vec2(ray.x, ray.y);
+        float len = length(perp);
+        // The position angle about the Sun is untouched; only the elongation moves.
+        ray = len < 1e-9 ? vec3(0., 0., -1.) : vec3(perp / len * sin(eTrue), -cos(eTrue));
+    }
+
     vec2 helioprojective = vec2(atan(ray.x, -ray.z), asin(clamp(ray.y, -1., 1.)));
 
     // From here it is the HPC path exactly: helioprojective angles are what the samplers speak,
     // and this mode has only changed which part of the sky the screen is showing.
     vec4 color;
     bool diffMode = display.isDiff != NODIFFERENCE;
-    float observerDistance = projection[0].observerDistance;
     vec2 hpcXY = helioprojectiveToHpcXY(helioprojective, observerDistance);
     vec2 texCoord;
     float enhancementFactor;

@@ -162,11 +162,15 @@ public enum MapMode {
      * data does not care where the brightness is placed, which is the opposite of the point.
      */
     public boolean usesSurfaceModel() {
-        return this == Helioradial && Display.isHelioradial3D();
+        // The composed sky needs it for the same reason Helioradial in 3D does: the radial axis it
+        // is undoing is measured on the surface, so the surface decides which elongation a given
+        // radius came from. With the Thomson sphere chosen, the composed sky is the Thomson-sphere
+        // placement drawn on the celestial sphere.
+        return (this == Helioradial && Display.isHelioradial3D()) || (this == ObserverSky && Display.isSkyCompose());
     }
 
     public boolean usesWarpLambda() {
-        return this == Helioradial || this == HelioradialUnrolled;
+        return this == Helioradial || this == HelioradialUnrolled || (this == ObserverSky && Display.isSkyCompose());
     }
 
     /**
