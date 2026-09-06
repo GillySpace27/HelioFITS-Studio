@@ -259,12 +259,15 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
             dragMode = DragMode.TRIM;
             trimDraggingEnd = nearerToTrimEnd(p.x);
             setTrimAt(p.x);
-        } else if (overMovieLine(p)) {
-            // setCursor(Cursor.getPredefinedCursor(Cursor.E_RESIZE_CURSOR));
-            dragMode = DragMode.MOVIELINE;
-        } else {
+        } else if (e.isShiftDown() && !overMovieLine(p)) {
+            // Shift-drag pans the time axis, as Shift-wheel does. A plain drag used to pan, and
+            // with the axis locked to the layers every pan re-queried every dataset. The one
+            // thing a drag on a timeline is expected to do is move the playhead, so that is what
+            // it does; panning is the gesture that has to be asked for.
             setCursor(UIGlobals.closedHandCursor);
             dragMode = DragMode.CHART;
+        } else {
+            dragMode = DragMode.MOVIELINE;
         }
     }
 
@@ -349,7 +352,7 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
         } else if (TimelineLayers.getDrawableUnderMouse() != null) {
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         } else if (geometry.area().contains(mousePosition)) {
-            setCursor(UIGlobals.openHandCursor);
+            setCursor(e.isShiftDown() ? UIGlobals.openHandCursor : Cursor.getDefaultCursor()); // the hand means pan, which is Shift
         } else {
             setCursor(Cursor.getDefaultCursor());
         }
