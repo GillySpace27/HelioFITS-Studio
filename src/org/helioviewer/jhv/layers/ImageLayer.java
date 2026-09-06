@@ -576,6 +576,10 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
                 (float) org.helioviewer.jhv.display.Display.getSkyLookLon(),
                 (float) org.helioviewer.jhv.display.Display.getSkyLookLat(),
                 org.helioviewer.jhv.display.Display.getSkyProjection().shaderCode());
+        org.helioviewer.jhv.display.MapScale composed = org.helioviewer.jhv.display.Display.skyComposeScale();
+        shader.bindSkyWarp(composed == null ? 0 : (float) composed.warpOuterRadius(),
+                composed == null ? 0 : (float) composed.warpLimb(),
+                composed == null ? 0 : (float) composed.warpLambda());
 
         GLSLSolarShader.bindProjection(
                 wcs0.projection, (float) wcs0.unitsPerRad, (float) metaViewpoint0.distance, sourceView0, displayMap0,

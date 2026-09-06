@@ -899,6 +899,24 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         projectionRow.add(new JLabel("Sky"), BorderLayout.LINE_START);
         projectionRow.add(skyProjectionBox, BorderLayout.LINE_END);
 
+        // The sky as a transformation ON TOP of the radial scale rather than as the sky itself.
+        // With it on, the Box-Cox lambda and the Edge crop reach this mode, which is the point:
+        // the dome shows the warped corona instead of the corona at its true angular size.
+        javax.swing.JCheckBox compose = new javax.swing.JCheckBox("On the radial scale", Display.isSkyCompose());
+        compose.setToolTipText("Draw the sky from the picture the radial modes draw rather than from the sky itself: "
+                + "a dome angle is read as a Helioradial page radius and undone through its Box-Cox scale, so the warp "
+                + "shows up as a change of angular scale. The field edge stays where it is. Turns on the Warp and Edge "
+                + "sliders and the Surface choice, which is what decides where along each line of sight the radius is "
+                + "measured: with the Thomson sphere, this is the Thomson-sphere placement drawn on the celestial sphere.");
+        compose.addActionListener(e -> {
+            Display.setSkyCompose(compose.isSelected());
+            modeStateChanged(); // the Warp, Edge and Surface controls are gated on it
+            DisplayController.display();
+        });
+        JPanel composeRow = new JPanel(new BorderLayout());
+        composeRow.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 4));
+        composeRow.add(compose, BorderLayout.LINE_START);
+
         skyFieldSlider = new JHVSlider(0, 1000, skyFieldToSlider(Display.getSkyFieldDegrees()));
         skyFieldSlider.setToolTipText("Angular radius of the view, centre of the picture to top edge. "
                 + "180\u00b0 is the whole sky, and only azimuthal equidistant reaches it. Double-click to reset.");
@@ -944,6 +962,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         skyPanel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createTitledBorder("Observer sky"),
                 BorderFactory.createEmptyBorder(0, 4, 2, 4)));
+        skyPanel.add(composeRow);
         skyPanel.add(projectionRow);
         skyPanel.add(fieldRow);
         skyPanel.add(aimRow);

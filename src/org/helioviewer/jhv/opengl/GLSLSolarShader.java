@@ -32,12 +32,14 @@ public class GLSLSolarShader extends GLSLShader {
     private int pv1Ref;
     private int latiGridRef;
     private int skyLookRef;
+    private int skyWarpRef;
     private int mvpRef;
     private int observerDistanceRef;
     private int surfaceModelRef;
     private int cropRadiusRef;
     private static final float[] latiGridBuf = new float[6];
     private static final float[] skyLookBuf = new float[3];
+    private static final float[] skyWarpBuf = new float[3];
 
     private GLSLSolarShader(String vertex, String fragment, boolean _hasCommon) {
         super(vertex, fragment);
@@ -94,6 +96,7 @@ public class GLSLSolarShader extends GLSLShader {
         pv1Ref = GL.glGetUniformLocation(id, "pv1");
         latiGridRef = GL.glGetUniformLocation(id, "latiGrid");
         skyLookRef = GL.glGetUniformLocation(id, "skyLook");
+        skyWarpRef = GL.glGetUniformLocation(id, "skyWarp");
         mvpRef = GL.glGetUniformLocation(id, "ModelViewProjectionMatrix");
         observerDistanceRef = GL.glGetUniformLocation(id, "observerDistance");
         surfaceModelRef = GL.glGetUniformLocation(id, "surfaceModel");
@@ -194,6 +197,14 @@ public class GLSLSolarShader extends GLSLShader {
         skyLookBuf[1] = lat;
         skyLookBuf[2] = projectionCode;
         GL.glUniform3fv(skyLookRef, skyLookBuf);
+    }
+
+    /** The radial scale the observer's sky is composed with; a non-positive outer radius turns it off. */
+    public void bindSkyWarp(float outerRadius, float limb, float lambda) {
+        skyWarpBuf[0] = outerRadius;
+        skyWarpBuf[1] = limb;
+        skyWarpBuf[2] = lambda;
+        GL.glUniform3fv(skyWarpRef, skyWarpBuf);
     }
 
     public void bindLatiGrid(float[] latiGrid0, float[] latiGrid1) {

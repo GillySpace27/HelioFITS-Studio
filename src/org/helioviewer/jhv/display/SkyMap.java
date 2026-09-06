@@ -59,6 +59,71 @@ final class SkyMap {
      * must treat as a break in a line rather than as a coordinate
      */
     @Nullable
+    /**
+     * The composed sky, as a pair of maps on the elongation, twinned with solarSky.frag's skyWarp
+     * block. The overlays go through these so the grid stays on the picture: the shader's comment
+     * there is the geometry, this is the same arithmetic in the other direction.
+     *
+     * <p>Dome to data: a dome elongation is the primary mode's page radius, undone through its
+     * radial scale and turned back into the elongation whose data belongs there. NaN past the rim.
+     */
+    static double unwarpElongation(double eDome, double distance, SurfaceModel surface, MapScale warp) {
+        double rMax = composedFieldRadius(distance, surface, warp);
+        double eMax = surface.elongation(rMax, distance);
+        if (!(eMax > 0))
+            return eDome;
+        double u = warp.toUnitY(rMax) * eDome / eMax;
+        return eDome > eMax ? Double.NaN : surface.elongation(warp.toMapY(u), distance);
+    }
+
+    /** Data to dome: where on the composed page a true elongation is drawn. */
+    static double warpElongation(double eTrue, double distance, SurfaceModel surface, MapScale warp) {
+        double rMax = composedFieldRadius(distance, surface, warp);
+        double eMax = surface.elongation(rMax, distance);
+        double uMax = warp.toUnitY(rMax);
+        if (!(eMax > 0) || uMax <= 0)
+            return eTrue;
+        return warp.toUnitY(surface.heliocentricRadius(eTrue, distance)) / uMax * eMax;
+    }
+
+    /**
+     * Where the composed field ends: the smaller of the loaded outer radius and the surface's own
+     * reach. A Thomson sphere reaches only as far as the observer, so a field wider than that has
+     * no surface out there for the data to sit on, and the elongation stops being invertible.
+     * Normalising the dome by this radius rather than by the whole field is what keeps the
+     * composition one to one; when the surface can describe the field it is the field.
+     */
+    private static double composedFieldRadius(double distance, SurfaceModel surface, MapScale warp) {
+        return Math.min(warp.warpOuterRadius(), surface.reach(distance) * 0.999);
+    }
+
+    /** The same unit ray at a different elongation: the position angle about the Sun is untouched. */
+    private static Vec3 atElongation(Vec3 ray, double elongation) {
+        double len = Math.hypot(ray.x, ray.y);
+        if (len < 1e-12)
+            return new Vec3(0, 0, -1);
+        double s = Math.sin(elongation) / len;
+        return new Vec3(ray.x * s, ray.y * s, -Math.cos(elongation));
+    }
+
+    /** A ray read off the composed page, back to the data it stands for. Identity when not composing. */
+    static Vec3 composeRay(Vec3 ray, Position viewpoint) {
+        MapScale warp = Display.skyComposeScale();
+        if (warp == null || ray.z >= 0)
+            return ray;
+        double eTrue = unwarpElongation(Math.acos(Math.clamp(-ray.z, -1, 1)), viewpoint.distance, Display.getSurfaceModel(), warp);
+        return Double.isNaN(eTrue) ? ray : atElongation(ray, eTrue);
+    }
+
+    /** The inverse, for putting a world direction on the composed page. */
+    static Vec3 uncomposeRay(Vec3 ray, Position viewpoint) {
+        MapScale warp = Display.skyComposeScale();
+        if (warp == null || ray.z >= 0)
+            return ray;
+        double eDome = warpElongation(Math.acos(Math.clamp(-ray.z, -1, 1)), viewpoint.distance, Display.getSurfaceModel(), warp);
+        return atElongation(ray, eDome);
+    }
+
     static Vec2 project(Position viewpoint, MapScale scale, SkyProjection projection,
                         double lookLon, double lookLat, Vec3 world) {
         Vec3 view = viewpoint.toQuat().rotateVector(world);
@@ -71,6 +136,11 @@ final class SkyMap {
         rx /= len;
         ry /= len;
         rz /= len;
+
+        Vec3 placed = uncomposeRay(new Vec3(rx, ry, rz), viewpoint); // identity unless the sky is composed
+        rx = placed.x;
+        ry = placed.y;
+        rz = placed.z;
 
         Vec3 look = lookRay(lookLon, lookLat);
         double cosRho = Math.clamp(rx * look.x + ry * look.y + rz * look.z, -1, 1);
@@ -102,7 +172,7 @@ final class SkyMap {
      */
     static Vec3 unproject(Position viewpoint, SkyProjection projection,
                           double lookLon, double lookLat, Vec2 page) {
-        Vec3 ray = pageToRay(projection, lookLon, lookLat, page);
+        Vec3 ray = composeRay(pageToRay(projection, lookLon, lookLat, page), viewpoint);
         // Back to helioprojective angles, which is what the shared unprojection speaks.
         double lon = Math.atan2(ray.x, -ray.z);
         double lat = Math.asin(Math.clamp(ray.y, -1, 1));

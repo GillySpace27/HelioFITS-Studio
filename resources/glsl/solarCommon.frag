@@ -324,17 +324,34 @@ vec2 getNormalizedMapPos(void) {
 
 // Convert a normalized warp radius back to radial distance in solar radii.
 // The disk is linear; only distances beyond the limb use Box-Cox scaling.
-float unwarpRadius(float normalizedRadius) {
-    float outerRadius = screen.yStop;
-    float limbPosition = screen.limb > 0. ? screen.limb : 1. / outerRadius;
+float unwarpRadiusWith(float normalizedRadius, float outerRadius, float limbPosition, float lambda) {
     if (outerRadius <= 1. || normalizedRadius <= limbPosition)
         return normalizedRadius / limbPosition;
 
     float u = (normalizedRadius - limbPosition) / (1. - limbPosition);
-    float lambda = screen.lambda;
     return lambda == 0.
             ? pow(outerRadius, u)
             : pow(1. + u * (pow(outerRadius, lambda) - 1.), 1. / lambda);
+}
+
+// The forward direction, radius to normalized page position: MapScale.BoxCoxRadialScale.toUnitY.
+float warpUnitWith(float radius, float outerRadius, float limbPosition, float lambda) {
+    if (outerRadius <= 1. || radius <= 1.)
+        return radius * limbPosition;
+
+    float u = lambda == 0.
+            ? log(radius) / log(outerRadius)
+            : (pow(radius, lambda) - 1.) / (pow(outerRadius, lambda) - 1.);
+    return limbPosition + u * (1. - limbPosition);
+}
+
+// The current mode's own scale, which is what every mode but the composed sky wants. The sky
+// borrows the parameterised form above, because while it is drawing the sky its own screen block
+// carries the sky page's degrees rather than the radial scale it is composing with.
+float unwarpRadius(float normalizedRadius) {
+    float outerRadius = screen.yStop;
+    float limbPosition = screen.limb > 0. ? screen.limb : 1. / outerRadius;
+    return unwarpRadiusWith(normalizedRadius, outerRadius, limbPosition, screen.lambda);
 }
 
 // Twin of display/SurfaceModel.java. Where a line of sight is taken to have originated:
