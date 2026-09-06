@@ -77,8 +77,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private final ButtonText OFFDISK = new ButtonText(Buttons.offDisk, "Corona", "Toggle off-disk corona");
     private final ButtonText PAN = new ButtonText(Buttons.pan, "Pan", "Pan");
     private final ButtonText PROJECTION = new ButtonText(Buttons.projection, "Projection", "Projection");
-    private final ButtonText SEQUENCE = new ButtonText(Buttons.sequenceFilter, "Fourier", "Fourier filter over the whole movie: velocity band-pass and the noise gate");
     private final ButtonText COLOUR = new ButtonText(Buttons.colourSettings, "HDR", "How the whole view is mapped into the display's extended range: headroom, mapping, knee, in-range share, clipped pixels");
+    private final ButtonText SEQUENCE_HIDDEN = new ButtonText(Buttons.sequenceFilter, "Fourier", "Fourier filter over the whole movie"); // not added to the bar; see createNewToolBar
     private final ButtonText MORE = new ButtonText(Buttons.moreSettings, "More", "Less common controls: automatic refresh, the SDO cut-out, SAMP");
     private final ButtonText PRESENTATION = new ButtonText(Buttons.presentation, "Present", "Presentation mode: output only, fullscreen (Esc to leave)");
     private final ButtonText REFRESH = new ButtonText(Buttons.refresh, "Refresh", "Automatic refresh");
@@ -298,14 +298,18 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         projectionPalette.bind(projectionButton);
         addButton(projectionButton);
 
-        // The sequence filter is a whole-movie computation with a lot of settings, so it gets a
-        // palette too rather than a dropdown inside a layer row: the readout and the progress are
-        // worth watching while the view plays. It acts on the active image layer.
-        JideToggleButton sequenceButton = toolToggleButton(SEQUENCE);
+        // The sequence filter still gets a palette, because it is a whole-movie computation with a
+        // lot of settings and a readout worth watching while the view plays. It does NOT get a
+        // place on this bar: it acts on one layer, and a global button for a per-layer thing
+        // invites the reading that it is doing something to all of them. It is opened from the
+        // Fourier row of the layer whose movie it will filter, or from the View menu, and Apply
+        // reaches every SELECTED layer, which is the "all at once" this bar could not express.
+        // The toggle still exists, unparented, because it is the record of whether the palette is
+        // open that Palette.open and the keep-visible watchdog read.
+        JideToggleButton sequenceButton = toolToggleButton(SEQUENCE_HIDDEN);
         if (sequencePalette == null)
             sequencePalette = new Palette("Fourier filter", SequencePaletteContent::build, SequencePaletteContent::refresh, true); // has text fields
         sequencePalette.bind(sequenceButton);
-        addButton(sequenceButton);
 
         // Colour settings are per view, not per layer: they decide how every frame of every movie
         // is shown, so they belong beside Projection rather than inside a layer's own row.

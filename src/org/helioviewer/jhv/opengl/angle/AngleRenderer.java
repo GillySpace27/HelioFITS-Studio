@@ -304,8 +304,12 @@ public final class AngleRenderer {
     private void pollHeadroom() {
         double headroom = MacAngleBridge.edrHeadroom(deepLayer);
         double potential = MacAngleBridge.edrPotential(deepLayer);
+        if (withdrawn(headroom, potential))
+            return; // not a statement about the display; see below
         if (headroom == Display.edrHeadroom && potential == Display.edrPotential)
             return;
+        if (potential > 1)
+            grantedOn = deviceId(); // this screen really does have headroom to give
         Display.edrHeadroom = headroom;
         Display.edrPotential = potential;
         // The compositor ramps the headroom up over about a second in forty small steps; every
@@ -318,6 +322,35 @@ public final class AngleRenderer {
         DisplayController.display();
     }
     private double loggedHeadroom = 1;
+    @javax.annotation.Nullable
+    private String grantedOn; // the screen a headroom above 1 was last seen on
+
+    /**
+     * Whether a reading of 1.0 is the compositor withdrawing the grant rather than the display
+     * losing the capability.
+     *
+     * <p>macOS gives the extended range to the key window, and takes it back from one that is not:
+     * both the headroom AND the potential then read 1.0, on the same screen that was reporting 16
+     * a moment earlier. Following that down collapses the whole HDR mapping, which is visible as
+     * the highlights flattening every time a palette takes the keyboard, and the palettes are
+     * separate windows, so it happens constantly. A screen that has offered headroom has not
+     * stopped being able to; hold the last real reading until the window is somewhere else.
+     *
+     * <p>The cost of being wrong is bounded and self-correcting: values past what the compositor
+     * will actually show are clipped by it, which is what they would have been anyway, and moving
+     * to a genuinely SDR screen changes the device and the readings are believed again.
+     */
+    private boolean withdrawn(double headroom, double potential) {
+        return headroom <= 1 && potential <= 1 && Display.edrPotential > 1
+                && java.util.Objects.equals(grantedOn, deviceId());
+    }
+
+    @javax.annotation.Nullable
+    private static String deviceId() {
+        javax.swing.JFrame frame = org.helioviewer.jhv.gui.MainFrame.get();
+        java.awt.GraphicsConfiguration gc = frame == null ? null : frame.getGraphicsConfiguration();
+        return gc == null ? null : gc.getDevice().getIDstring();
+    }
 
     // Wrap a freshly created RGB10_A2 IOSurface of the given size as the EGL draw surface.
     // On success, deepCanvas/deepWidth/deepHeight describe the new canvas.
