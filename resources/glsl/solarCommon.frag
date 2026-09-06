@@ -234,25 +234,39 @@ vec4 getColor(const vec2 texcoord, const vec2 difftexcoord, const float factor) 
     if (display.hdrMode == 3.)
         E = clamp(value, 1., G);
     else if (display.hdrMode == 4.) {
-        // Uniform: the headroom spent in LIGHTNESS rather than light. Doubling the luminance is
-        // only about 30 L* more, so a linear gain of 2 puts the whole top half of a table within
-        // a few percent of white and the legend reads as a plateau. Here CIE L* runs straight from
-        // black to the brightest the display offers (116 G^(1/3) - 16), whatever the table's own
-        // lightness did: the colour keeps its hue and is scaled to the luminance that lightness
-        // calls for. A table that is already lightness-linear (PUNCH) keeps its look below white.
-        float Lt = clamp(value, 0., 1.) * (116. * pow(G, 1. / 3.) - 16.);
+        // Uniform: CIE lightness, not light, is what runs in a straight line, and it does not stop
+        // at the top of the display range.
+        //
+        // Inside the range the target is L* = 100 v: the picture keeps the brightness it has with
+        // no headroom at all, and only the table's OWN unevenness is taken out (a table already
+        // linear in L*, like PUNCH, is left exactly as it was). Above the range the same straight
+        // line carries on into the headroom, L* 100 at v = 1 up to 116 G^(1/3) - 16 at v = G. That
+        // is the half that stops the legend plateauing: every other mode maps everything at and
+        // above v = 1 to one output, so the whole over-range section is a single flat white.
+        //
+        // Hue survives because this is a scale of the table's own colour in LINEAR light, which
+        // moves luminance and leaves chromaticity alone. Pure black is the one colour it cannot
+        // lift: there is no hue in it to scale.
+        float Lmax = 116. * pow(G, 1. / 3.) - 16.;
+        float Lt = value <= 1. ? 100. * max(value, 0.)
+                               : 100. + (Lmax - 100.) * min((value - 1.) / max(G - 1., 1e-4), 1.);
         float Yt = Lt > 8. ? pow((Lt + 16.) / 116., 3.) : Lt / 903.3;
         float Y0 = dot(lin, vec3(0.2126, 0.7152, 0.0722));
-        E = Y0 > 1e-6 ? min(Yt / Y0, G) : 1.;
+        E = Y0 > 1e-6 ? Yt / Y0 : 1.; // the target luminance is <= G by construction, so E needs no cap
     }
     else if (display.hdrMode != 0.) {
         float t = clamp((clamp(value, 0., 1.) - k) / (1. - k), 0., 1.);
         E = display.hdrMode == 1. ? 1. + t * (G - 1.) : 1. + (G - 1.) * t * t;
     }
     lin *= E;
-    if (display.hdrMode >= 2.) {
+    if (display.hdrMode == 2. || display.hdrMode == 3.) {
         // Roll to white: the further over SDR white, the closer to a neutral of the same
         // luminance. Without this a saturated table colour at 4x is neon, not bright.
+        //
+        // Soft knee and beyond-range only. This used to read hdrMode >= 2, which also caught
+        // Uniform (ordinal 4), whose whole point is that it moves luminance and leaves the colour
+        // alone: its E is largest exactly where the mix factor is largest, so it desaturated
+        // hardest at the low end and came out as a grey copy of Linear.
         float Y = dot(lin, vec3(0.2126, 0.7152, 0.0722));
         lin = mix(lin, vec3(Y), (E - 1.) / max(G - 1., 1e-4));
     }
