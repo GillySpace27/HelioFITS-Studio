@@ -61,6 +61,14 @@ public final class HdrMappingCheck {
         return lin;
     }
 
+    /** solarCommon.frag's two-sided gamma, the RHEF path. */
+    private static double upsilon(double value, double low, double high) {
+        double over = Math.max(value - 1, 0), under = Math.min(value, 0);
+        double v = Math.clamp(value, 0, 1);
+        v = v < .5 ? .5 * Math.pow(2 * v, low) : 1 - .5 * Math.pow(2 - 2 * v, high);
+        return v + over + under;
+    }
+
     private static double luminance(double[] lin) {
         return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
     }
@@ -186,6 +194,18 @@ public final class HdrMappingCheck {
                 Math.abs(a - b) < 0.02);
         expect("hue survives the in-range share too",
                 hueShift(map(saturated, 0.5, UNIFORM, gain, knee, 0.5), map(saturated, 0.5, LINEAR, 1, knee)) < 1e-9);
+
+        // 6. RHEF's two-sided gamma, the other half of getColor that touches the value. It is only
+        //    defined on [0, 1]; what lies outside has to pass through, or everything above the top
+        //    of the range collapses onto it and the legend goes flat exactly where the headroom is.
+        for (double up : new double[]{0.6, 1.4}) {
+            expect(String.format("upsilon %.1f leaves the curve on [0,1] alone", up),
+                    Math.abs(upsilon(0.25, up, up) - (0.5 * Math.pow(0.5, up))) < 1e-12);
+            expect("and reaches exactly 1 at the top of the range", Math.abs(upsilon(1, up, up) - 1) < 1e-12);
+            double u1 = upsilon(1, up, up), u2 = upsilon(2, up, up), u4 = upsilon(4, up, up);
+            expect(String.format("while 1 < 2 < 4 stay apart above it (%.2f, %.2f, %.2f)", u1, u2, u4), u2 > u1 + 0.5 && u4 > u2 + 0.5);
+            expect("and below zero keeps its distance too", upsilon(-0.3, up, up) < -0.29);
+        }
 
         if (failures > 0)
             throw new AssertionError(failures + " HDR mapping failure(s)");
