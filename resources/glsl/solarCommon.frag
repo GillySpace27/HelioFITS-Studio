@@ -195,9 +195,19 @@ vec4 getColor(const vec2 texcoord, const vec2 difftexcoord, const float factor) 
 
     if (display.upsilonLow != 1. || display.upsilonHigh != 1.) {
         // Two-sided gamma about the median (Gilly & DeForest Eq. 2): upsilonLow and
-        // upsilonHigh independently set the curvature below and above I = 0.5
-        value = clamp(value, 0., 1.);
-        value = value < .5 ? .5 * pow(2. * value, display.upsilonLow) : 1. - .5 * pow(2. - 2. * value, display.upsilonHigh);
+        // upsilonHigh independently set the curvature below and above I = 0.5.
+        //
+        // The curve is only defined on [0, 1] (above 1 the second branch's base 2 - 2v goes
+        // negative and pow returns NaN), so it is applied to the part of the value that lies
+        // there and whatever lies outside keeps its distance from the end it passed. This used to
+        // clamp instead, which pinned everything at and above 1 to exactly 1: with RHEF on, the
+        // whole over-range section of the legend went flat and every over-range pixel in the
+        // picture rendered as if it were at the top of the range. The curve reaches 1 at v = 1,
+        // so adding the excess back is continuous there.
+        float over = max(value - 1., 0.), under = min(value, 0.);
+        float v = clamp(value, 0., 1.);
+        v = v < .5 ? .5 * pow(2. * v, display.upsilonLow) : 1. - .5 * pow(2. - 2. * v, display.upsilonHigh);
+        value = v + over + under;
     }
 
     // A data export wants the number, not the colour table's 8-bit rendering of it (LINEAR
