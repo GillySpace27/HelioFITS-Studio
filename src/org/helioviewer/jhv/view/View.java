@@ -149,6 +149,16 @@ public interface View {
      * at once. Null when the view cannot provide it: a JPEG 2000 stream decodes on demand at the
      * zoom's resolution level, and there is no whole frame to hand over. Called off the EDT.
      */
+    /**
+     * A stable identity for what is behind a frame (the file's URI), or null when frames have
+     * none (a stream). The computed-frame cache keys on it, so it must change whenever the pixels
+     * could.
+     */
+    @Nullable
+    default String frameKey(int frame) {
+        return null;
+    }
+
     @Nullable
     default org.helioviewer.jhv.image.DecodedImage frameImage(int frame) {
         return null;
