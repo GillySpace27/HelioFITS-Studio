@@ -515,6 +515,10 @@ public class SequencePanel implements FilterDetails {
         ComputedView view = layer.getComputedView();
         if (view != null)
             view.clearPreview();
+        // Exploring is not committing: a band dragged and not applied goes back to the one the
+        // layer is actually filtered with, so the palette never describes a filter that is not on.
+        synced = false;
+        syncFromLayer();
     }
 
     private double[] currentBand() {
