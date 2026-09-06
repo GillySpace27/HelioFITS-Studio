@@ -455,6 +455,9 @@ public class SequencePanel implements FilterDetails {
         openButton.setText(describeCurrent());
         spectrumButton.setEnabled(view != null && view.spectrum() != null);
         syncFromLayer();
+        // The readout too: a panel built while the movie was still arriving said "No movie loaded"
+        // and went on saying it after 245 frames had, because only a kind change rewrote it.
+        updateReadout();
     }
 
     /**
