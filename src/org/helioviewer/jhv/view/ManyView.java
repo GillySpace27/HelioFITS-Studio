@@ -132,6 +132,13 @@ public class ManyView implements View {
         return frameInfo.view.frameImage(frameInfo.idxView);
     }
 
+    @Nullable
+    @Override
+    public String frameKey(int frame) {
+        FrameInfo frameInfo = frameMap.indexedValue(frame);
+        return frameInfo.view.frameKey(frameInfo.idxView);
+    }
+
     @Override
     public JHVTime getFrameTime(int frame) {
         return frameMap.key(frame);

@@ -105,6 +105,11 @@ public final class URIView extends BaseView {
         return image;
     }
 
+    @Override
+    public String frameKey(int frame) {
+        return dataUri.uri().toString();
+    }
+
     private ImageFilter createFilter(ImageFilter.Type type) {
         return ImageFilter.of(type, imageRegion, metaData[0]);
     }

@@ -198,6 +198,17 @@ public final class ImageBuffer {
         return new ImageBuffer(width, height, format, allocateFrom(out));
     }
 
+    /**
+     * A buffer over memory that is not ours to free: a file mapped by the computed-frame cache.
+     * The OS pages it, and unmaps it when the mapping is collected; free() has nothing to do.
+     */
+    public static ImageBuffer mapped(int width, int height, Format format, ByteBuffer mapped) {
+        if (mapped.capacity() < byteSize(width, height, format))
+            throw new IllegalArgumentException("mapped file too small for " + width + 'x' + height);
+        Buffer view = format == Format.Gray16F ? mapped.order(java.nio.ByteOrder.nativeOrder()).asShortBuffer() : mapped;
+        return new ImageBuffer(width, height, format, view, 0);
+    }
+
     public static WriteBuffer createWriteBuffer(int width, int height, Format format, ImageFilter filter) {
         return new WriteBuffer(width, height, format, filter);
     }

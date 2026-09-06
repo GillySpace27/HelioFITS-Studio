@@ -18,6 +18,7 @@ import org.helioviewer.jhv.image.DecodedImage;
 import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.ImageBufferCache;
 import org.helioviewer.jhv.image.ImageFilter;
+import org.helioviewer.jhv.image.fourier.ComputedCache;
 import org.helioviewer.jhv.image.fourier.FourierFilter;
 import org.helioviewer.jhv.image.fourier.SequenceJob;
 import org.helioviewer.jhv.image.fourier.SequenceParams;
@@ -62,6 +63,9 @@ public final class ComputedView implements View {
     private volatile boolean running;
     private volatile boolean ready;
     private volatile double progress;
+    private volatile boolean fromCache;
+    @Nullable
+    private volatile FourierFilter.Spectrum cachedSpectrum; // a hit's spectrum; the job never ran
 
     /**
      * The job's output, owned here rather than left in ImageBufferCache.
@@ -112,7 +116,7 @@ public final class ComputedView implements View {
 
     @Nullable
     public FourierFilter.Spectrum spectrum() {
-        return job.spectrum();
+        return cachedSpectrum != null ? cachedSpectrum : job.spectrum();
     }
 
     public void start() {
@@ -127,13 +131,28 @@ public final class ComputedView implements View {
         // The progress goes to the layer's status line rather than into a widget: the button is a
         // glyph now, with no room to write a number in, and the status line is already the place
         // this layer says what it is busy with.
-        future = Task.submit("sequence filter", () -> job.run(wrapped, status, p -> {
-                    progress = p;
-                    status.accept(String.format("Fourier filter %.0f%%", 100 * p));
-                }),
-                frames -> {
+        fromCache = false;
+        future = Task.submit("sequence filter", () -> {
+                    // The same filter over the same frames has been run before: map its files
+                    // instead of computing again. See ComputedCache for what the key covers.
+                    ComputedCache.Hit hit = ComputedCache.load(wrapped, params);
+                    if (hit != null) {
+                        fromCache = true;
+                        return hit;
+                    }
+                    DecodedImage[] fresh = job.run(wrapped, status, p -> {
+                        progress = p;
+                        status.accept(String.format("Fourier filter %.0f%%", 100 * p));
+                    });
+                    status.accept("Fourier filter: caching");
+                    return ComputedCache.store(wrapped, params, fresh, job.spectrum());
+                },
+                hit -> {
+                    DecodedImage[] frames = hit.frames();
+                    cachedSpectrum = hit.spectrum();
                     install(frames);
-                    Log.info(String.format("Fourier filter ready: %d frames in %.1f s, %s", frames.length, (System.currentTimeMillis() - started) / 1000., params.describe()));
+                    Log.info(String.format("Fourier filter ready: %d frames in %.1f s%s, %s", frames.length, (System.currentTimeMillis() - started) / 1000.,
+                            fromCache ? " from the cache" : "", params.describe()));
                     DisplayController.render(1);
                 },
                 (ctx, t) -> {
@@ -242,6 +261,14 @@ public final class ComputedView implements View {
         if (ready && frames != null && frame < frames.length && frames[frame] != null)
             return frames[frame];
         return wrapped.frameImage(frame);
+    }
+
+    /** The source frame's identity plus this filter, so a filter on top of this one is keyed apart from one on the source. */
+    @Nullable
+    @Override
+    public String frameKey(int frame) {
+        String inner = wrapped.frameKey(frame);
+        return inner == null ? null : inner + '|' + params.toJson();
     }
 
     @Override
