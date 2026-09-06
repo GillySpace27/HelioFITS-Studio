@@ -10,6 +10,7 @@ enum MaterialDesign {
     CHART_GANTT("mdi-chart-gantt", '\uf66c'),
     CHECK("mdi-check", '\uf12c'),
     CHEVRON_DOWN("mdi-chevron-down", '\uf140'),
+    TUNE("mdi-tune", '\uf62e'), // sliders; probed against the shipped font before use
     CHEVRON_LEFT("mdi-chevron-left", '\uf141'),
     CHEVRON_RIGHT("mdi-chevron-right", '\uf142'),
     CHEVRON_UP("mdi-chevron-up", '\uf143'),

@@ -91,7 +91,8 @@ public class Buttons {
     public static final String projection = toolBar(MaterialDesign.CUBE_OUTLINE);
     public static final String sequenceFilter = toolBar(MaterialDesign.FILTER); // NOT cutOut's vector-circle
     public static final String openSequence = button(MaterialDesign.FILTER);
-    public static final String colourSettings = toolBar(MaterialDesign.INVERT_COLORS);
+    public static final String colourSettings = toolBar(MaterialDesign.IMAGE_FILTER_HDR);
+    public static final String moreSettings = toolBar(MaterialDesign.TUNE);
     public static final String presentation = toolBar(MaterialDesign.PROJECTOR_SCREEN);
     public static final String overflow = toolBar(MaterialDesign.CHEVRON_DOWN);
     public static final String refresh = toolBar(MaterialDesign.REFRESH);
