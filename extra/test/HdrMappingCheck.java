@@ -69,6 +69,11 @@ public final class HdrMappingCheck {
         return v + over + under;
     }
 
+    /** solarCommon.frag's clipped-pixel test: strictly outside the range. */
+    private static boolean clipped(double value) {
+        return value > 1 || value < 0;
+    }
+
     private static double luminance(double[] lin) {
         return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
     }
@@ -206,6 +211,17 @@ public final class HdrMappingCheck {
             expect(String.format("while 1 < 2 < 4 stay apart above it (%.2f, %.2f, %.2f)", u1, u2, u4), u2 > u1 + 0.5 && u4 > u2 + 0.5);
             expect("and below zero keeps its distance too", upsilon(-0.3, up, up) < -0.29);
         }
+
+        // 7. The clipped-pixel flags, the other thing getColor does to a value before the table.
+        //    They mean "pushed out of the range", and the ends of the range are not out of it:
+        //    RHEF's rank reaches exactly 0 and exactly 1 in every annulus, and missing data is
+        //    stored as exactly 0, so testing at-or-past flagged both as clipping.
+        expect("a rank of exactly 1 is at the top of the range, not past it", !clipped(1));
+        expect("and a rank of exactly 0 is not past the bottom", !clipped(0));
+        expect("missing data, stored as exactly 0, is not clipping", !clipped(0));
+        expect("a value the Levels push above the range is flagged", clipped(1.0001) && clipped(1.5));
+        expect("and one pushed below it is too", clipped(-0.0001) && clipped(-0.5));
+        expect("everything inside the range is left alone", !clipped(0.5) && !clipped(0.999));
 
         if (failures > 0)
             throw new AssertionError(failures + " HDR mapping failure(s)");

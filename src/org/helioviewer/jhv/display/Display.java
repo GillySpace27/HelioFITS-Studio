@@ -473,6 +473,11 @@ public final class Display {
      * (FilterRHEF: "Equal values get their average rank"), which lands wherever that value falls
      * in the annulus and is usually a mid-tone. So flat-and-flagged means the Levels are doing
      * it; flat-and-unflagged means it arrived that way.
+     *
+     * <p>Strictly outside the range, not merely at its ends: a pixel at the top has lost nothing.
+     * Testing at-or-past flagged the top and bottom rank of every RHEF annulus and every
+     * missing pixel (stored as exactly 0), which put green and magenta speckle across 4% of a
+     * PUNCH frame and read as corruption rather than as a diagnostic.
      */
     public static boolean showClipping = "true".equals(Settings.getProperty("display.showClipping"));
 
