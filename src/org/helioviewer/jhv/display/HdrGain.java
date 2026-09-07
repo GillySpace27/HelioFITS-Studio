@@ -116,8 +116,20 @@ public final class HdrGain {
     }
 
     public static void setKnee(double _knee) {
+        aimKnee(_knee);
+        commit();
+    }
+
+    /**
+     * Move a value without writing it to disk.
+     *
+     * <p>Settings.setProperty rewrites the whole properties file, and a dragged slider fires on
+     * every pixel of the drag, so persisting per event would put a file write between each pair of
+     * frames. The sliders aim while they are being dragged and {@link #commit} once when they are
+     * let go, the same split Display.steerSkyLook and commitSkyLook use for the same reason.
+     */
+    public static void aimKnee(double _knee) {
         knee = (float) Math.clamp(_knee, 0.05, 0.95);
-        Settings.setProperty(KEY_KNEE, Float.toString(knee));
     }
 
     /**
@@ -134,13 +146,28 @@ public final class HdrGain {
     }
 
     public static void setInRange(double _inRange) {
+        aimInRange(_inRange);
+        commit();
+    }
+
+    public static void aimInRange(double _inRange) {
         inRange = (float) Math.clamp(_inRange, 0, 1);
-        Settings.setProperty(KEY_IN_RANGE, Float.toString(inRange));
     }
 
     public static void setSetting(String _setting) {
+        aimSetting(_setting);
+        commit();
+    }
+
+    public static void aimSetting(String _setting) {
         setting = _setting == null || _setting.isBlank() ? "auto" : _setting.trim();
+    }
+
+    /** Write what the aim methods have been moving. Cheap when nothing changed: Settings skips equal values. */
+    public static void commit() {
         Settings.setProperty(KEY_GAIN, setting);
+        Settings.setProperty(KEY_KNEE, Float.toString(knee));
+        Settings.setProperty(KEY_IN_RANGE, Float.toString(inRange));
     }
 
     /** Whether the EDR rung is asked for at the next canvas attach; the renderer reads the same key. */

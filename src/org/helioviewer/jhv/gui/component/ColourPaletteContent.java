@@ -32,18 +32,27 @@ import org.helioviewer.jhv.display.HdrGain;
 final class ColourPaletteContent {
 
     private static final JPanel panel = new JPanel();
-    private static JComboBox<String> gainCombo;
+    private static JHVSlider gainSlider;
+    private static JLabel gainValue;
     private static JComboBox<HdrGain.Mode> modeCombo;
-    private static JComboBox<String> kneeCombo;
-    private static JComboBox<String> inRangeCombo;
+    private static JHVSlider kneeSlider;
+    private static JLabel kneeValue;
+    private static JHVSlider inRangeSlider;
+    private static JLabel inRangeValue;
     private static JCheckBox clipping;
     private static JLabel headroom;
     private static boolean built;
+    private static boolean syncing; // mirroring the state into the widgets, not editing it
 
-    private static final String[][] STOPS = {{"Off (1x)", "1"}, {"+1/2 stop (1.4x)", "1.41"}, {"+1 stop (2x)", "2"},
-            {"+1 1/2 stops (2.8x)", "2.83"}, {"+2 stops (4x)", "4"}, {"Display maximum", "auto"}};
-    private static final double[] KNEES = {0.5, 0.75, 0.9};
-    private static final double[] IN_RANGE = {0, 0.35, 0.5, 0.75, 1};
+    // Brightness is a slider in hundredths of a photographic stop, 0 to 4 stops, so 1x to 16x.
+    // The top is stored as "auto" rather than as 16: resolve() clamps a fixed stop to the headroom
+    // the display is offering, so a fixed 16x and "follow the display" already behave identically,
+    // and writing "auto" keeps the setting readable and keeps the old meaning exactly.
+    private static final int MAX_STOPS = 400;
+
+    private static double gainFromSlider(int v) {
+        return Math.pow(2, v / 100.);
+    }
 
     static Component build() {
         if (built) {
@@ -54,13 +63,27 @@ final class ColourPaletteContent {
         panel.setLayout(new BoxLayout(panel, BoxLayout.PAGE_AXIS));
         panel.setOpaque(false);
 
-        gainCombo = new JComboBox<>(new String[]{STOPS[0][0], STOPS[1][0], STOPS[2][0], STOPS[3][0], STOPS[4][0], STOPS[5][0]});
-        gainCombo.setToolTipText("How far over the interface white the brightest data goes, in photographic stops. "
-                + "Never more than the display offers at its current brightness; Display maximum uses all of it.");
-        gainCombo.addActionListener(e -> {
-            HdrGain.setSetting(STOPS[gainCombo.getSelectedIndex()][1]);
+        gainSlider = new JHVSlider(0, MAX_STOPS, MAX_STOPS);
+        gainValue = new JLabel();
+        gainSlider.setToolTipText("<html>How far over the interface white the brightest data is allowed to go, in "
+                + "photographic stops: each stop doubles it, so +2 stops is 4x white.<br><br>"
+                + "The display is the ceiling. Whatever you ask for, the compositor gives what it has at the "
+                + "current screen brightness, and the line at the bottom of this palette says what that is right "
+                + "now. At the far right the setting becomes \"follow the display\", which is the same thing as "
+                + "asking for more than it can give.<br><br>"
+                + "This moves the picture, not the data: nothing here changes a pixel value, only how much room "
+                + "above white it is drawn into. Double-click to return to the display maximum.</html>");
+        gainSlider.addChangeListener(e -> {
+            if (syncing)
+                return;
+            int v = gainSlider.getValue();
+            HdrGain.aimSetting(v >= MAX_STOPS ? "auto" : String.valueOf(gainFromSlider(v)));
+            gainValue.setText(gainText(v));
             DisplayController.display();
-            refresh();
+            if (!gainSlider.getValueIsAdjusting()) { // let go, or arrowed: now it is worth a file write
+                HdrGain.commit();
+                refresh();
+            }
         });
 
         modeCombo = new JComboBox<>(HdrGain.Mode.values());
@@ -72,31 +95,44 @@ final class ColourPaletteContent {
             refresh();
         });
 
-        String[] kneeLabels = new String[KNEES.length];
-        for (int i = 0; i < KNEES.length; i++)
-            kneeLabels[i] = "top " + Math.round((1 - KNEES[i]) * 100) + "% of the data";
-        kneeCombo = new JComboBox<>(kneeLabels);
-        kneeCombo.setToolTipText("Where the knee modes start expanding, as a fraction of the data range that feeds "
-                + "the colour table. The colorbar marks it with a line, so what is expanded is visible rather than implied.");
-        kneeCombo.addActionListener(e -> {
-            HdrGain.setKnee(KNEES[kneeCombo.getSelectedIndex()]);
+        kneeSlider = new JHVSlider(5, 95, 75);
+        kneeValue = new JLabel();
+        kneeSlider.setToolTipText("<html>Where the knee modes stop leaving the picture alone and start spending the "
+                + "headroom, as a position in the data range that feeds the colour table.<br><br>"
+                + "At 75 the bottom three quarters of the range are drawn exactly as they would be with no "
+                + "headroom at all and only the top quarter is expanded; drag left to expand more of the picture, "
+                + "right to reserve the headroom for the brightest structure alone. The colorbar marks the "
+                + "position with a line, so what is being expanded is visible rather than implied.<br><br>"
+                + "Hard knee and soft knee only: the other mappings do not have a knee.</html>");
+        kneeSlider.addChangeListener(e -> {
+            if (syncing)
+                return;
+            HdrGain.aimKnee(kneeSlider.getValue() / 100.);
+            kneeValue.setText("top " + (100 - kneeSlider.getValue()) + "%");
             DisplayController.display();
+            if (!kneeSlider.getValueIsAdjusting())
+                HdrGain.commit();
         });
 
-        String[] shares = new String[IN_RANGE.length];
-        for (int i = 0; i < IN_RANGE.length; i++)
-            shares[i] = switch ((int) Math.round(IN_RANGE[i] * 100)) {
-                case 0 -> "none: all of it above the range";
-                case 100 -> "all of it: nothing left above the range";
-                default -> Math.round(IN_RANGE[i] * 100) + "% inside the range";
-            };
-        inRangeCombo = new JComboBox<>(shares);
-        inRangeCombo.setToolTipText("Uniform only. How much of the headroom brightens the picture itself rather than "
-                + "being kept for data that exceeds the display range. None leaves the picture exactly as it is "
-                + "without headroom; all of it takes the range to the display's peak and flattens everything above it.");
-        inRangeCombo.addActionListener(e -> {
-            HdrGain.setInRange(IN_RANGE[inRangeCombo.getSelectedIndex()]);
+        inRangeSlider = new JHVSlider(0, 100, 35);
+        inRangeValue = new JLabel();
+        inRangeSlider.setToolTipText("<html>How much of the headroom brightens the picture itself, rather than being "
+                + "kept for data that exceeds the display range.<br><br>"
+                + "At 0 the picture is exactly what it is with no headroom at all and every bit of the extra range "
+                + "goes to over-range data, which is the honest choice when you want to see what exceeded the "
+                + "range. At 100 the top of the range reaches the display's peak and there is nothing left above "
+                + "it, so over-range data goes flat. In between, the top of the range lands part way up and the "
+                + "climb carries on above it.<br><br>"
+                + "Uniform only. With RHEF the rank never exceeds 1, so nothing can occupy the part above the "
+                + "range and this is the slider that gives a RHEF picture its brightness.</html>");
+        inRangeSlider.addChangeListener(e -> {
+            if (syncing)
+                return;
+            HdrGain.aimInRange(inRangeSlider.getValue() / 100.);
+            inRangeValue.setText(inRangeSlider.getValue() + "%");
             DisplayController.display();
+            if (!inRangeSlider.getValueIsAdjusting())
+                HdrGain.commit();
         });
 
         // The same switch as View > Show Clipped Pixels, not a second one beside it. The colorbar's
@@ -121,13 +157,16 @@ final class ColourPaletteContent {
             refresh();
         });
 
+        for (JHVSlider slider : new JHVSlider[]{gainSlider, kneeSlider, inRangeSlider})
+            slider.setPreferredSize(new Dimension(150, slider.getPreferredSize().height));
+
         headroom = new JLabel();
         headroom.setFont(headroom.getFont().deriveFont(Font.PLAIN, headroom.getFont().getSize2D() - 1));
         headroom.setBorder(BorderFactory.createEmptyBorder(4, 2, 0, 2));
 
         for (Component c : new Component[]{
-                row("Brightness", gainCombo), row("Mapping", modeCombo), row("Knee", kneeCombo),
-                row("In range", inRangeCombo), clipping, canvas, headroom}) {
+                row("Brightness", gainSlider, gainValue), row("Mapping", modeCombo), row("Knee", kneeSlider, kneeValue),
+                row("In range", inRangeSlider, inRangeValue), clipping, canvas, headroom}) {
             ((JPanel) (c instanceof JPanel p ? p : wrap(c))).setAlignmentX(Component.LEFT_ALIGNMENT);
             panel.add(c instanceof JPanel ? c : wrap(c));
         }
@@ -141,6 +180,22 @@ final class ColourPaletteContent {
         p.add(c);
         p.setAlignmentX(Component.LEFT_ALIGNMENT);
         return p;
+    }
+
+    private static JPanel row(String label, Component c, Component value) {
+        JPanel p = row(label, c);
+        value.setPreferredSize(new java.awt.Dimension(84, value.getPreferredSize().height));
+        p.add(value, BorderLayout.LINE_END);
+        return p;
+    }
+
+    /** What the brightness slider is asking for, in the words the tooltip uses. */
+    private static String gainText(int v) {
+        if (v >= MAX_STOPS)
+            return "display max";
+        if (v == 0)
+            return "off (1.0x)";
+        return String.format("+%.2f (%.2fx)", v / 100., gainFromSlider(v));
     }
 
     private static JPanel row(String label, Component c) {
@@ -158,19 +213,28 @@ final class ColourPaletteContent {
     static void refresh() {
         if (!built)
             return;
-        for (int i = 0; i < STOPS.length; i++)
-            if (STOPS[i][1].equals(HdrGain.setting()))
-                gainCombo.setSelectedIndex(i);
+        syncing = true;
+        String setting = HdrGain.setting();
+        int stops = MAX_STOPS;
+        if (setting != null && !"auto".equals(setting)) {
+            try {
+                stops = (int) Math.round(100 * Math.log(Double.parseDouble(setting)) / Math.log(2));
+            } catch (NumberFormatException ignore) {
+            }
+        }
+        gainSlider.setValue(Math.clamp(stops, 0, MAX_STOPS));
+        gainValue.setText(gainText(gainSlider.getValue()));
         modeCombo.setSelectedItem(HdrGain.mode());
-        for (int i = 0; i < KNEES.length; i++)
-            if (Math.abs(KNEES[i] - HdrGain.knee()) < 1e-3)
-                kneeCombo.setSelectedIndex(i);
+        kneeSlider.setValue((int) Math.round(HdrGain.knee() * 100));
+        kneeValue.setText("top " + (100 - kneeSlider.getValue()) + "%");
+        syncing = false;
         clipping.setSelected(Display.showClipping);
-        kneeCombo.setEnabled(HdrGain.mode() == HdrGain.Mode.HardKnee || HdrGain.mode() == HdrGain.Mode.SoftKnee);
-        for (int i = 0; i < IN_RANGE.length; i++)
-            if (Math.abs(IN_RANGE[i] - HdrGain.inRange()) < 1e-3)
-                inRangeCombo.setSelectedIndex(i);
-        inRangeCombo.setEnabled(HdrGain.mode() == HdrGain.Mode.Uniform);
+        kneeSlider.setEnabled(HdrGain.mode() == HdrGain.Mode.HardKnee || HdrGain.mode() == HdrGain.Mode.SoftKnee);
+        syncing = true;
+        inRangeSlider.setValue((int) Math.round(HdrGain.inRange() * 100));
+        inRangeValue.setText(inRangeSlider.getValue() + "%");
+        syncing = false;
+        inRangeSlider.setEnabled(HdrGain.mode() == HdrGain.Mode.Uniform);
 
         float gain = HdrGain.current(false);
         headroom.setText(gain > 1
