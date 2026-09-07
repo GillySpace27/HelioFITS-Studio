@@ -3,6 +3,7 @@ package org.helioviewer.jhv.opengl;
 import java.nio.ByteBuffer;
 
 import org.helioviewer.jhv.app.Log;
+import org.helioviewer.jhv.display.HdrTransfer;
 
 import org.lwjgl.system.MemoryUtil;
 
@@ -225,20 +226,33 @@ final class GLFrameCapture {
         }
     }
 
-    // RGBA float -> rgb48le. The scene is display-referred and already in [0, 1], so out-of-range
-    // values are clamped rather than tone-mapped: they were clipped on screen too.
+    private final double[] pixel = new double[3]; // one per capture, not one per pixel
+
+    // RGBA float -> rgb48le.
+    //
+    // For an SDR file the scene is display-referred and already in [0, 1], so out-of-range values
+    // are clamped rather than tone-mapped: they were clipped on screen too. For an HDR file they
+    // are the whole point, and HdrTransfer turns the buffer into the signal the encoder is being
+    // told it holds. Clamping here instead is what made an exported movie look blown out where the
+    // screen looked right: the gain is applied during the capture, and only this step threw the
+    // result away.
     private void packRow16(byte[] row) {
         int componentBytes = readType == GL.HALF_FLOAT ? 2 : 4;
+        HdrTransfer.Curve curve = HdrTransfer.capture;
         int dst = 0;
         for (int x = 0; x < width; x++) {
             int base = x * 4 * componentBytes;
             for (int ch = 0; ch < 3; ch++) {
                 int off = base + ch * componentBytes;
-                float v = componentBytes == 2
+                pixel[ch] = componentBytes == 2
                         ? Float.float16ToFloat((short) ((row[off] & 0xFF) | (row[off + 1] << 8)))
                         : Float.intBitsToFloat((row[off] & 0xFF) | ((row[off + 1] & 0xFF) << 8)
                                 | ((row[off + 2] & 0xFF) << 16) | (row[off + 3] << 24));
-                int q = (int) (Math.clamp(v, 0f, 1f) * 65535 + 0.5f);
+            }
+            if (curve != HdrTransfer.Curve.NONE)
+                HdrTransfer.encode(pixel, curve);
+            for (int ch = 0; ch < 3; ch++) {
+                int q = (int) (Math.clamp(pixel[ch], 0, 1) * 65535 + 0.5);
                 outputRow[dst++] = (byte) q;         // little endian, to match rgb48le
                 outputRow[dst++] = (byte) (q >>> 8);
             }
