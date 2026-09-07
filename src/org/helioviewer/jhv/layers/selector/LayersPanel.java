@@ -61,6 +61,13 @@ public final class LayersPanel extends JPanel {
 
     private final LayersTable grid;
     private final LayerOptionSections sections;
+    private final boolean images;
+
+    // Both tables show one selection between them, because there is one options section per table
+    // and a row left highlighted in the other one reads as "this is also selected" while nothing
+    // it offers is on screen. Selecting anywhere clears everywhere else.
+    private static final List<LayersPanel> panels = new ArrayList<>();
+    private static boolean crossClearing;
 
     private static class LayersTable extends JTable implements Interfaces.LazyComponent {
 
@@ -144,10 +151,13 @@ public final class LayersPanel extends JPanel {
         grid.repaint();
     }
 
-    public LayersPanel(LayerOptionSections sections) {
+    /** @param images true for the image layers, false for everything drawn over them. */
+    public LayersPanel(LayerOptionSections sections, boolean images) {
         this.sections = sections;
+        this.images = images;
+        panels.add(this);
         setLayout(new GridBagLayout());
-        LayersTableModel model = new LayersTableModel();
+        LayersTableModel model = new LayersTableModel(images);
 
         GridBagConstraints gc = new GridBagConstraints();
         gc.gridx = 0;
@@ -211,8 +221,11 @@ public final class LayersPanel extends JPanel {
 
         model.addTableModelListener(e -> {
             // Adding or removing a layer changes how tall the list wants to be, so refit unless
-            // the user has taken the height over with the drag handle.
-            if (e.getType() == TableModelEvent.INSERT || e.getType() == TableModelEvent.DELETE)
+            // the user has taken the height over with the drag handle. A wholesale reload (session
+            // restore) arrives as an UPDATE spanning every row rather than as inserts, and it
+            // changes the count just as much: without it a restored five-layer list sat at the
+            // nine-row opening floor with four rows of empty space under it.
+            if (e.getType() != TableModelEvent.UPDATE || e.getLastRow() == Integer.MAX_VALUE)
                 showAllRows();
             if (e.getType() != TableModelEvent.UPDATE || e.getColumn() == NAME_COL || e.getColumn() == TIME_COL)
                 return;
@@ -280,9 +293,13 @@ public final class LayersPanel extends JPanel {
             }
         });
 
-        grid.setDragEnabled(true);
-        grid.setDropMode(DropMode.INSERT_ROWS);
-        grid.setTransferHandler(new TableRowTransferHandler(grid));
+        // Only the image layers have an order worth dragging: it is the compositing order. The
+        // overlays draw in a fixed order that reordering the rows would not change.
+        if (images) {
+            grid.setDragEnabled(true);
+            grid.setDropMode(DropMode.INSERT_ROWS);
+            grid.setTransferHandler(new TableRowTransferHandler(grid));
+        }
 
         // Start at the fixed count only as a floor for an empty list; showAllRows takes over as
         // soon as there are layers to size to.
@@ -362,6 +379,17 @@ public final class LayersPanel extends JPanel {
     }
 
     private void refreshSelectedOptionsPanel() {
+        if (crossClearing)
+            return; // we are the table being cleared, not the one being selected
+        crossClearing = true;
+        try {
+            for (LayersPanel other : panels)
+                if (other != this)
+                    other.grid.clearSelection();
+        } finally {
+            crossClearing = false;
+        }
+
         List<Layer> picked = selectedLayers();
         Layers.setSelection(picked); // so a filter panel can fan an edit out across the selection
         sections.setSelection(picked);
