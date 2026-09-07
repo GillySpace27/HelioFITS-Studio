@@ -139,6 +139,7 @@ public final class ExportMovie implements Player.Listener {
         } catch (Exception e) {
             Log.error(e);
             recording = false;
+            org.helioviewer.jhv.display.HdrTransfer.capture = org.helioviewer.jhv.display.HdrTransfer.Curve.NONE;
             shallStop = false;
             Player.removeFrameListener(instance);
             if (grabber != null) {
@@ -198,6 +199,8 @@ public final class ExportMovie implements Player.Listener {
         } else {
             exporter = new ExportWriter(format, chroma, depth, canvasWidth, exportHeight, fps,
                     org.helioviewer.jhv.gui.component.MoviePanel.isAllIntra());
+            // What the frames are encoded into, for exactly as long as this recording lasts.
+            org.helioviewer.jhv.display.HdrTransfer.capture = format.hdrCurve();
 
             recording = true;
             notifyStatusChanged();
@@ -212,6 +215,7 @@ public final class ExportMovie implements Player.Listener {
 
     private static void stop() {
         recording = false;
+        org.helioviewer.jhv.display.HdrTransfer.capture = org.helioviewer.jhv.display.HdrTransfer.Curve.NONE;
         notifyStatusChanged();
         if (mode == ViewState.RecordingMode.LOOP) {
             Player.removeFrameListener(instance);

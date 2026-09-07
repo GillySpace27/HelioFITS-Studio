@@ -5,6 +5,8 @@ import java.util.List;
 
 import javax.annotation.Nullable;
 
+import org.helioviewer.jhv.display.HdrTransfer;
+
 /**
  * The codec/container half of an export. Pixel depth and colour sampling are separate axes,
  * because folding them in here is what produced entries like "H.265 10-bit" alongside "H.265
@@ -28,6 +30,29 @@ public enum ExportFormat {
     H265HQ("H.265 better", ".mp4",
             List.of("-c:v", "libx265", "-tag:v", "hvc1", "-crf", "22", "-preset", "medium", "-tune", "animation"),
             "-x265-params", "colorprim=bt709:transfer=bt709:colormatrix=bt709:range=full"),
+    /**
+     * The same encoder, delivering the extended range instead of throwing it away.
+     *
+     * <p>An SDR export clamps at interface white, so everything the HDR gain was carrying is lost
+     * at the last step and the file looks blown out where the screen looked right. These two carry
+     * it: the capture converts the render to absolute luminance (diffuse white at 203 cd/m2 per
+     * ITU-R BT.2408, so a gain of 4 is 812) in BT.2020 primaries, and the curve is what the file
+     * is tagged with. See display/HdrTransfer.java for the arithmetic.
+     *
+     * <p>HLG first because the ask was for something easy to play: a player that ignores the
+     * tagging still shows a sane picture, where PQ without tone mapping looks flat and dark. PQ is
+     * here for the cases where absolute nits matter more than graceful degradation, a dome master
+     * being the obvious one. Both are Main 10 in an MP4 tagged hvc1, which QuickTime, Safari, iOS
+     * and VLC play directly.
+     */
+    H265_HLG("H.265 HDR (HLG)", ".mp4",
+            List.of("-c:v", "libx265", "-tag:v", "hvc1", "-crf", "22", "-preset", "medium", "-tune", "animation",
+                    "-vf", "scale=out_color_matrix=bt2020nc:out_range=tv"),
+            "-x265-params", "colorprim=bt2020:transfer=arib-std-b67:colormatrix=bt2020nc:range=limited"),
+    H265_PQ("H.265 HDR (PQ)", ".mp4",
+            List.of("-c:v", "libx265", "-tag:v", "hvc1", "-crf", "22", "-preset", "medium", "-tune", "animation",
+                    "-vf", "scale=out_color_matrix=bt2020nc:out_range=tv"),
+            "-x265-params", "colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc:range=limited"),
     /**
      * Mathematically lossless, and at RGB 16-bit it is bit-exact with what the framebuffer handed
      * over: no colour conversion, no quantization, nothing to argue about later. Verified by
@@ -105,6 +130,15 @@ public enum ExportFormat {
         return !isSeries();
     }
 
+    /** The transfer this format delivers, and what the capture has to encode into. */
+    public HdrTransfer.Curve hdrCurve() {
+        return switch (this) {
+            case H265_HLG -> HdrTransfer.Curve.HLG;
+            case H265_PQ -> HdrTransfer.Curve.PQ;
+            default -> HdrTransfer.Curve.NONE;
+        };
+    }
+
     public boolean supports(Chroma chroma, Depth depth) {
         return switch (this) {
             // libx264 here offers 4:2:0 and 4:4:4 at 8 and 10 bits, and no planar RGB at all.
@@ -112,6 +146,9 @@ public enum ExportFormat {
             // libx265 adds 12-bit and gbrp, and stops short of 16: the standard's 16-bit intra
             // profile exists but x265 does not implement it, so nothing here can write one.
             case H265, H265HQ -> depth != Depth.SIXTEEN;
+            // HDR is carried in a YUV matrix and needs the code words: 10 or 12 bit, never RGB
+            // (which drops the matrix) and never 8, where the curves band visibly.
+            case H265_HLG, H265_PQ -> chroma != Chroma.RGB && (depth == Depth.TEN || depth == Depth.TWELVE);
             // FFV1 reaches 16, but has no 8-bit planar RGB, hence the one exclusion.
             case FFV1 -> !(chroma == Chroma.RGB && depth == Depth.EIGHT);
             // A series has exactly one answer rather than none. Reporting it lets the UI show what
@@ -200,14 +237,30 @@ public enum ExportFormat {
         // through the very matrix it exists to avoid. RGB keeps the primaries and transfer, which
         // still mean something, and drops the matrix, which does not.
         if (!isSeries()) {
-            out.addAll(List.of("-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "2"));
-            if (chroma != Chroma.RGB)
-                out.addAll(List.of("-colorspace", "bt709"));
+            if (hdrCurve() != HdrTransfer.Curve.NONE) {
+                // Limited range, because that is what every HDR decoder expects, and the frames
+                // are handed over as full-range RGB for the scaler to map.
+                out.addAll(List.of("-color_primaries", "bt2020",
+                        "-color_trc", hdrCurve() == HdrTransfer.Curve.HLG ? "arib-std-b67" : "smpte2084",
+                        "-colorspace", "bt2020nc", "-color_range", "1"));
+            } else {
+                out.addAll(List.of("-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "2"));
+                if (chroma != Chroma.RGB)
+                    out.addAll(List.of("-colorspace", "bt709"));
+            }
         }
+
+        // x265 picks its own profile, and for this configuration it picked Rext rather than
+        // Main 10: decodable in software, but Apple's hardware decoder keys on the profile, and a
+        // file that falls back to software decode is not the "easy to play" this format is for.
+        // Only 4:2:0 at 10 bits, which is what Main 10 means; the wider combinations are Rext by
+        // definition and naming Main 10 there would be a hard error rather than a downgrade.
+        if (hdrCurve() != HdrTransfer.Curve.NONE && chroma == Chroma.YUV420 && depth == Depth.TEN)
+            out.addAll(List.of("-profile:v", "main10"));
 
         if (paramFlag != null && paramBase != null) {
             String params = chroma == Chroma.RGB ? paramBase.replace(":colormatrix=bt709", "") : paramBase;
-            if ((this == H265 || this == H265HQ) && chroma == Chroma.YUV444)
+            if ((this == H265 || this == H265HQ || this == H265_HLG || this == H265_PQ) && chroma == Chroma.YUV444)
                 params += ":psy-rd=0";
             out.add(paramFlag);
             out.add(params);
