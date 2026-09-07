@@ -101,6 +101,25 @@ public final class ExportFormatCheck {
         expect(String.join(" ", ExportFormat.H265.settings(Chroma.YUV444, Depth.TEN)).contains("colorprim=bt709"),
                 "the 4:4:4 fix must not displace the colour signalling");
 
+        // The preset ladder is where most people meet the format table, and it is a separate list
+        // of combinations that nothing forces to agree with it. A rung naming a combination its
+        // format cannot take gets silently repaired to something else at record time, and a rung
+        // whose description no longer matches what it produces is worse than no description: it is
+        // the file's provenance, written down and wrong.
+        int hdrRungs = 0;
+        for (ExportPreset preset : ExportPreset.all()) {
+            if (!preset.builtIn())
+                continue; // a user's own preset is theirs to get wrong
+            expect(preset.format().supports(preset.chroma(), preset.depth()),
+                    "preset \"" + preset.name() + "\" is a combination " + preset.format() + " supports");
+            boolean hdr = preset.format().hdrCurve() != org.helioviewer.jhv.display.HdrTransfer.Curve.NONE;
+            if (hdr)
+                hdrRungs++;
+            expect(hdr == preset.description().contains("extended range"),
+                    "preset \"" + preset.name() + "\" says whether it carries the extended range");
+        }
+        expect(hdrRungs == 1, "exactly one built-in preset is HDR, the frame case being the EXR format (found " + hdrRungs + ")");
+
         if (failures != 0)
             throw new AssertionError(failures + " export-format failure(s)");
         System.out.println("ExportFormatCheck: PASS");
