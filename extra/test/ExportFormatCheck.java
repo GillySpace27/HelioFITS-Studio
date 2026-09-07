@@ -106,19 +106,25 @@ public final class ExportFormatCheck {
         // format cannot take gets silently repaired to something else at record time, and a rung
         // whose description no longer matches what it produces is worse than no description: it is
         // the file's provenance, written down and wrong.
-        int hdrRungs = 0;
+        int hdrVideoRungs = 0, extendedRungs = 0;
         for (ExportPreset preset : ExportPreset.all()) {
             if (!preset.builtIn())
                 continue; // a user's own preset is theirs to get wrong
             expect(preset.format().supports(preset.chroma(), preset.depth()),
                     "preset \"" + preset.name() + "\" is a combination " + preset.format() + " supports");
-            boolean hdr = preset.format().hdrCurve() != org.helioviewer.jhv.display.HdrTransfer.Curve.NONE;
-            if (hdr)
-                hdrRungs++;
-            expect(hdr == preset.description().contains("extended range"),
+            // Carrying the range is the property a user cares about; going through a transfer curve
+            // is only how a video does it. EXR carries it with no curve at all, so the two counts
+            // differ and the description has to follow the first, not the second.
+            if (preset.format().hdrCurve() != org.helioviewer.jhv.display.HdrTransfer.Curve.NONE)
+                hdrVideoRungs++;
+            boolean extended = preset.format().carriesExtendedRange();
+            if (extended)
+                extendedRungs++;
+            expect(extended == preset.description().contains("extended range"),
                     "preset \"" + preset.name() + "\" says whether it carries the extended range");
         }
-        expect(hdrRungs == 1, "exactly one built-in preset is HDR, the frame case being the EXR format (found " + hdrRungs + ")");
+        expect(hdrVideoRungs == 1, "exactly one built-in preset is an HDR video (found " + hdrVideoRungs + ")");
+        expect(extendedRungs == 2, "two built-in presets carry the extended range, one video and one frame series (found " + extendedRungs + ")");
 
         if (failures != 0)
             throw new AssertionError(failures + " export-format failure(s)");
