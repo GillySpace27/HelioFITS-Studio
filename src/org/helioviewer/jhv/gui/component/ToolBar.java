@@ -576,10 +576,14 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         content.setLayout(new javax.swing.BoxLayout(content, javax.swing.BoxLayout.PAGE_AXIS));
         ButtonGroup projectionGroup = new ButtonGroup();
         for (MapMode el : MapMode.values()) {
+            // The sky is not one of these. It is the checkbox at the bottom of the palette, applied
+            // last, on top of whichever of these is selected: see MapMode.hostsSky.
+            if (el == MapMode.ObserverSky)
+                continue;
             javax.swing.JRadioButton item = new javax.swing.JRadioButton(el.toString());
-            if (el == ViewState.getProjection())
+            if (el == displayedProjection())
                 item.setSelected(true);
-            item.addActionListener(e -> ViewState.setProjection(el));
+            item.addActionListener(e -> selectProjection(el));
             projectionGroup.add(item);
             // A BoxLayout positions each child by its own alignmentX, and JComponent's default is
             // centred. The rows below are panels that stretch to the full width, so only these
@@ -595,8 +599,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         content.add(createWarpEdgePanel());
         content.add(createZoomPanel());
         content.add(createDiskPanel());
-        content.add(createSkyPanel());
         content.add(createHelioradial3DPanel());
+        content.add(createSkyPanel()); // last, because it is applied last
         setSkyPanelEnabled(ViewState.getProjection() == MapMode.ObserverSky);
         surfaceModelToggle.setEnabled(ViewState.getProjection().usesSurfaceModel());
         warpLambdaSlider.setEnabled(ViewState.getProjection().usesWarpLambda());
@@ -608,6 +612,26 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         CMETracker.addSolveListener(this::syncWarpSlidersFromTracker); // follow the tracked knob
 
         return content;
+    }
+
+    /** The projection the radio buttons show: while the sky is on, the one under it. */
+    private static MapMode displayedProjection() {
+        MapMode projection = ViewState.getProjection();
+        return projection == MapMode.ObserverSky ? Display.getSkyBase() : projection;
+    }
+
+    // With the sky on, a radio changes what the sky is drawn on top of and the view stays in the
+    // sky; one that cannot host it (MapMode.hostsSky) switches the sky off. The base change is
+    // deferred through the transition like a projection switch, so the outgoing picture is still
+    // there to fade from, and the palette follows once it has been applied.
+    private void selectProjection(MapMode el) {
+        if (ViewState.getProjection() == MapMode.ObserverSky && el.hostsSky()) {
+            org.helioviewer.jhv.display.ProjectionTransition.requestChange(() -> {
+                Display.setSkyBase(el);
+                modeStateChanged(); // the Warp, Edge, Disk and Surface controls follow the base
+            });
+        } else
+            ViewState.setProjection(el);
     }
 
     // Mirror the knob CME tracking is animating back into its slider, so the readout matches what
@@ -751,8 +775,9 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         if (!acts) {
             surfaceModelToggle.setText(Display.getSurfaceModel().toString());
             surfaceModelToggle.setToolTipText("Where wide-field brightness is placed in depth. Only "
-                    + "Helioradial with \"Render in 3D\" draws the imagery on a surface; every other "
-                    + "projection reconstructs it per pixel and never consults this.");
+                    + "Helioradial with \"Render in 3D\", or the sky projected over Helioradial, places "
+                    + "the imagery on a surface; every other projection reconstructs it per pixel and "
+                    + "never consults this.");
             return;
         }
 
@@ -903,23 +928,27 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         projectionRow.add(new JLabel("Sky"), BorderLayout.LINE_START);
         projectionRow.add(skyProjectionBox, BorderLayout.LINE_END);
 
-        // The sky as a transformation ON TOP of the radial scale rather than as the sky itself.
-        // With it on, the Box-Cox lambda and the Edge crop reach this mode, which is the point:
-        // the dome shows the warped corona instead of the corona at its true angular size.
-        javax.swing.JCheckBox compose = new javax.swing.JCheckBox("On the radial scale", Display.isSkyCompose());
-        compose.setToolTipText("Draw the sky from the picture the radial modes draw rather than from the sky itself: "
-                + "a dome angle is read as a Helioradial page radius and undone through its Box-Cox scale, so the warp "
-                + "shows up as a change of angular scale. The field edge stays where it is. Turns on the Warp and Edge "
-                + "sliders and the Surface choice, which is what decides where along each line of sight the radius is "
-                + "measured: with the Thomson sphere, this is the Thomson-sphere placement drawn on the celestial sphere.");
-        compose.addActionListener(e -> {
-            Display.setSkyCompose(compose.isSelected());
-            modeStateChanged(); // the Warp, Edge and Surface controls are gated on it
-            DisplayController.display();
+        // The switch. A checkbox rather than a radio because the sky is applied LAST, on top of the
+        // projection selected above: over Orthographic or HPC it is the sky as it is, over
+        // Helioradial it is composed with that mode's radial scale, so the Warp, Edge and Disk
+        // sliders and the Surface choice all reach the dome. Unticking returns to that projection.
+        skyBox = new javax.swing.JCheckBox("Project onto the sky", ViewState.getProjection() == MapMode.ObserverSky);
+        skyBox.setToolTipText("Draw the selected projection on the observer's sky, aimed and laid flat by the controls "
+                + "below. Over Orthographic or HPC that is the sky as it is. Over Helioradial the dome shows the warped "
+                + "corona: a dome angle is read as a Helioradial page radius and undone through its Box-Cox scale, so "
+                + "the warp shows up as a change of angular scale with the field edge held still, and the Surface choice "
+                + "decides where along each line of sight the radius is measured. Not available over Helioradial "
+                + "Unrolled or Latitudinal, whose pages are not views of the sky.");
+        skyBox.addActionListener(e -> {
+            if (skyBox.isSelected()) {
+                Display.setSkyBase(ViewState.getProjection());
+                ViewState.setProjection(MapMode.ObserverSky);
+            } else
+                ViewState.setProjection(Display.getSkyBase());
         });
         JPanel composeRow = new JPanel(new BorderLayout());
         composeRow.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 4));
-        composeRow.add(compose, BorderLayout.LINE_START);
+        composeRow.add(skyBox, BorderLayout.LINE_START);
 
         skyFieldSlider = new JHVSlider(0, 1000, skyFieldToSlider(Display.getSkyFieldDegrees()));
         skyFieldSlider.setToolTipText("Angular radius of the view, centre of the picture to top edge. "
@@ -974,6 +1003,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     }
 
     private JPanel skyPanel;
+    private javax.swing.JCheckBox skyBox;
     private javax.swing.JComboBox<SkyProjection> skyProjectionBox;
     private JHVSlider skyFieldSlider;
     private JLabel skyFieldValue;
@@ -991,6 +1021,12 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             if (row instanceof java.awt.Container container)
                 for (java.awt.Component c : container.getComponents())
                     c.setEnabled(enabled);
+        }
+        // The switch itself is live wherever the sky could be put on: on top of the selected
+        // projection, or already on. Greyed only over the two pages that are not views of the sky.
+        if (skyBox != null) {
+            skyBox.setEnabled(enabled || ViewState.getProjection().hostsSky());
+            skyBox.setSelected(enabled);
         }
     }
 
@@ -1272,7 +1308,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         coronaButton.setSelected(ViewState.isShowCorona());
         multiviewButton.setSelected(ViewState.isMultiview());
         refreshItem.setSelected(ViewState.isRefresh());
-        javax.swing.JRadioButton activeProjection = projectionItems.get(ViewState.getProjection());
+        javax.swing.JRadioButton activeProjection = projectionItems.get(displayedProjection());
         if (activeProjection != null)
             activeProjection.setSelected(true);
         if (warpLambdaSlider != null) {

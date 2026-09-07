@@ -182,6 +182,21 @@ public enum MapMode {
         return usesWarpLambda() || this == Orthographic;
     }
 
+    /**
+     * Whether the observer's sky can be drawn on top of this projection.
+     *
+     * <p>The sky is applied last, to whichever Sun-centred projection is selected under it: over
+     * Orthographic or HPC it is the sky as it is, since both already show every direction at its
+     * true angle; over Helioradial it is composed with that mode's radial scale, so the warp reaches
+     * the dome. The two that are not sky views of the corona cannot host it. Helioradial Unrolled
+     * lays position angle along a screen axis, so its page has no direction on the sky for a dome
+     * pixel to stand for; Latitudinal is a map of the solar surface, not of anything seen from the
+     * observer. And the sky cannot host itself.
+     */
+    public boolean hostsSky() {
+        return this == Orthographic || this == HPC || this == Helioradial;
+    }
+
     MapMode(GLSLSolarShader _shader, String _label) {
         shader3D = _shader;
         label = _label;
