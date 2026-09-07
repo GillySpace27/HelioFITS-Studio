@@ -114,6 +114,30 @@ public final class SkyComposeCheck {
         expect("and that is not the same as half way in angle",
                 Math.abs(half - 0.5 * eMax) > 0.02);
 
+        // The sky is applied last, on top of a selected projection, and whether it composes with
+        // the radial scale is decided by WHICH projection that is, not by a separate switch. Only
+        // the Sun-centred sky views can be under it; the two that are not, and the sky itself,
+        // cannot, and asking for one of those falls back to Orthographic rather than to a lie.
+        // Only the derivation is checked here: the scale itself reads the loaded field through
+        // the layer stack, which needs SPICE and cannot be reached headless.
+        for (MapMode m : MapMode.values())
+            expect(m + (m.hostsSky() ? " hosts" : " does not host") + " the sky",
+                    m.hostsSky() == (m == MapMode.Orthographic || m == MapMode.HPC || m == MapMode.Helioradial));
+        MapMode savedBase = Display.getSkyBase();
+        Display.setSkyBase(MapMode.Helioradial);
+        expect("over Helioradial the sky composes with the radial scale", Display.isSkyCompose());
+        Display.setSkyBase(MapMode.Orthographic);
+        expect("over Orthographic it is the sky as it is", !Display.isSkyCompose());
+        Display.setSkyBase(MapMode.HPC);
+        expect("over HPC it is the sky as it is", !Display.isSkyCompose());
+        Display.setSkyBase(MapMode.HelioradialUnrolled);
+        expect("a base that cannot host the sky is refused", Display.getSkyBase() == MapMode.Orthographic);
+        Display.setSkyBase(MapMode.ObserverSky);
+        expect("the sky cannot be its own base", Display.getSkyBase() == MapMode.Orthographic);
+        Display.setSkyBase(null);
+        expect("no base at all means Orthographic", Display.getSkyBase() == MapMode.Orthographic);
+        Display.setSkyBase(savedBase);
+
         if (failures > 0)
             throw new AssertionError(failures + " composed sky failure(s)");
         System.out.println("SkyComposeCheck: PASS");

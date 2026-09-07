@@ -96,7 +96,14 @@ public final class Display {
                 double d = org.helioviewer.jhv.opengl.GLRenderer.getDisplayedViewpoint().distance;
                 if (d <= 1)
                     yield 0;
-                double limbRadius = Math.toDegrees(getSkyProjection().radiusFromAngle(Math.asin(1 / d)));
+                // Composed with the radial scale, the limb sits where that scale puts it on the
+                // dome. Read off the base directly rather than skyComposeScale(), which also
+                // asks whether the sky is the current mode: setMapMode has already flipped the
+                // mode by the time it captures the limb of the view being left.
+                double limbAngle = Math.asin(1 / d);
+                if (isSkyCompose())
+                    limbAngle = SkyMap.warpElongation(limbAngle, d, surfaceModel, MapScale.boxCoxRadial(effectiveWarpOuterRadius()));
+                double limbRadius = Math.toDegrees(getSkyProjection().radiusFromAngle(limbAngle));
                 double halfHeight = Math.toDegrees(
                         getSkyProjection().radiusFromAngle(Math.toRadians(getSkyFieldDegrees())));
                 yield limbRadius / (halfHeight * m.baseCameraWidth(getCamera()));
@@ -602,18 +609,27 @@ public final class Display {
         Settings.setProperty("display.skyField", String.valueOf(skyFieldDegrees));
     }
 
-    // Whether the observer's sky is drawn as a transformation ON TOP of the radial scale rather
-    // than as the sky itself. See the comment on skyWarp in solarSky.frag for what that means
-    // geometrically; here it is only a switch and the scale it hands over.
-    private static boolean skyCompose = "true".equals(Settings.getProperty("display.skyCompose"));
+    // The projection the observer's sky is drawn ON TOP of while the sky is on, and what the view
+    // returns to when it is switched off. The sky is not a projection chosen instead of another
+    // but a transformation applied last, to whichever Sun-centred projection is selected under
+    // it (MapMode.hostsSky): over Orthographic or HPC it is the sky as it is; over Helioradial it
+    // is composed with that mode's radial scale, see the comment on skyWarp in solarSky.frag for
+    // what that means geometrically. A setting rather than session state, like the aim and the
+    // field: how the viewer is set up, not what a saved session is of.
+    private static MapMode skyBase = MapMode.Orthographic;
 
-    public static boolean isSkyCompose() {
-        return skyCompose;
+    public static MapMode getSkyBase() {
+        return skyBase;
     }
 
-    public static void setSkyCompose(boolean compose) {
-        skyCompose = compose;
-        Settings.setProperty("display.skyCompose", Boolean.toString(compose));
+    public static void setSkyBase(MapMode base) {
+        skyBase = base != null && base.hostsSky() ? base : MapMode.Orthographic;
+        Settings.setProperty("display.skyBase", skyBase.name());
+    }
+
+    /** Whether the sky, while on, is composed with the Helioradial radial scale. */
+    public static boolean isSkyCompose() {
+        return skyBase == MapMode.Helioradial;
     }
 
     /**
@@ -624,7 +640,7 @@ public final class Display {
      */
     @javax.annotation.Nullable
     public static MapScale skyComposeScale() {
-        return skyCompose && mode == MapMode.ObserverSky ? MapScale.boxCoxRadial(effectiveWarpOuterRadius()) : null;
+        return isSkyCompose() && mode == MapMode.ObserverSky ? MapScale.boxCoxRadial(effectiveWarpOuterRadius()) : null;
     }
 
     public static double getSkyLookLon() {
@@ -672,6 +688,11 @@ public final class Display {
         SkyProjection saved = SkyProjection.fromName(String.valueOf(Settings.getProperty("display.skyProjection")));
         if (saved != null)
             skyProjection = saved;
+        MapMode savedBase = MapMode.fromName(String.valueOf(Settings.getProperty("display.skyBase")));
+        if (savedBase != null && savedBase.hostsSky())
+            skyBase = savedBase;
+        else if ("true".equals(Settings.getProperty("display.skyCompose"))) // the switch this replaced
+            skyBase = MapMode.Helioradial;
         try {
             skyFieldDegrees = Math.clamp(Double.parseDouble(Settings.getProperty("display.skyField")),
                     SKY_FIELD_MIN, SKY_FIELD_MAX);
