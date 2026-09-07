@@ -30,10 +30,16 @@ import org.json.JSONTokener;
  * <ol>
  * <li>Archive: nothing given up. Bit-exact, and enormous.
  * <li>Publication figures: the same fidelity, as stills rather than a movie.
+ * <li>HDR video: the only rung that carries the extended range out of the application.
  * <li>Dome projection: lossy, but full colour resolution and every frame independent.
  * <li>Presentation: gives up colour resolution, keeps 10-bit gradients.
  * <li>Share anywhere: gives up depth as well, and in exchange plays on anything.
  * </ol>
+ *
+ * <p>Every rung but HDR video is standard dynamic range: the picture is clamped at interface
+ * white, so whatever the HDR gain was showing above it is not in the file. There is one HDR rung
+ * rather than two because the frame-by-frame case is already covered by the EXR format, which is
+ * half float and holds the extended range by construction, layers and all.
  *
  * <p>User presets live alongside the built-ins in one JSON file under Settings/. A built-in cannot
  * be deleted, but saving over its name shadows it, which is the cheapest way to let someone keep
@@ -57,9 +63,17 @@ public record ExportPreset(String name, String description, ExportFormat format,
                     "One lossless 16-bit PNG per frame, for figures and page layout. The same fidelity as Archive, "
                             + "delivered as stills you can drop into a paper rather than as a movie.",
                     ExportFormat.PNG, ExportFormat.Chroma.RGB, ExportFormat.Depth.SIXTEEN, true, true),
+            new ExportPreset("HDR video",
+                    "Carries the extended range out: the corona stays brighter than white instead of being clamped to it. "
+                            + "HLG at 10 bits, diffuse white at 203 cd/m2, so what the HDR brightness slider was showing is "
+                            + "what the file holds. Plays in QuickTime, Safari, iOS and on an HDR television; a player that "
+                            + "ignores the tagging still shows a sane picture. Set the brightness before recording, because "
+                            + "the file is baked at the gain it was captured with.",
+                    ExportFormat.H265_HLG, ExportFormat.Chroma.YUV420, ExportFormat.Depth.TEN, false, true),
             new ExportPreset("Dome projection",
                     "Lossy, but keeps full colour resolution and makes every frame independent, which is what survives "
-                            + "a very large bright screen and frame-exact scrubbing. Large files, and decoded in software.",
+                            + "a very large bright screen and frame-exact scrubbing. Large files, and decoded in software. "
+                            + "Standard range: on a dome that can show more than white, HDR video is the one to reach for.",
                     ExportFormat.H265HQ, ExportFormat.Chroma.YUV444, ExportFormat.Depth.TEN, true, true),
             new ExportPreset("Presentation",
                     "Gives up colour resolution to halve the file, and keeps 10 bits so gradients stay free of banding "
