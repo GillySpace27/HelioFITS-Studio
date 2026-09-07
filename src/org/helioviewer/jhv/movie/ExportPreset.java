@@ -30,16 +30,16 @@ import org.json.JSONTokener;
  * <ol>
  * <li>Archive: nothing given up. Bit-exact, and enormous.
  * <li>Publication figures: the same fidelity, as stills rather than a movie.
- * <li>HDR video: the only rung that carries the extended range out of the application.
+ * <li>HDR frames: float, so the extended range is stored rather than encoded. The exact one.
+ * <li>HDR video: the extended range in something that plays.
  * <li>Dome projection: lossy, but full colour resolution and every frame independent.
  * <li>Presentation: gives up colour resolution, keeps 10-bit gradients.
  * <li>Share anywhere: gives up depth as well, and in exchange plays on anything.
  * </ol>
  *
- * <p>Every rung but HDR video is standard dynamic range: the picture is clamped at interface
- * white, so whatever the HDR gain was showing above it is not in the file. There is one HDR rung
- * rather than two because the frame-by-frame case is already covered by the EXR format, which is
- * half float and holds the extended range by construction, layers and all.
+ * <p>Two rungs carry the extended range and the rest do not. That is not a quality ranking: an
+ * integer file has no transfer function to put values above white into, so those formats clamp
+ * there, which is right for what they are and is worth saying next to a rung called "exact".
  *
  * <p>User presets live alongside the built-ins in one JSON file under Settings/. A built-in cannot
  * be deleted, but saving over its name shadows it, which is the cheapest way to let someone keep
@@ -57,12 +57,21 @@ public record ExportPreset(String name, String description, ExportFormat format,
     private static final List<ExportPreset> BUILT_IN = List.of(
             new ExportPreset("Archive (exact)",
                     "Bit-for-bit identical to what was rendered: no colour conversion, no quantization, nothing thrown away. "
-                            + "The only setting whose output can be called unaltered. Very large, and plays in VLC rather than QuickTime.",
+                            + "The only video whose output can be called unaltered. Very large, and plays in VLC rather than "
+                            + "QuickTime. Clamped at interface white, like every rung but the two HDR ones: 16 bits of the "
+                            + "range that was on screen, not the range above it.",
                     ExportFormat.FFV1, ExportFormat.Chroma.RGB, ExportFormat.Depth.SIXTEEN, true, true),
             new ExportPreset("Publication figures",
-                    "One lossless 16-bit PNG per frame, for figures and page layout. The same fidelity as Archive, "
-                            + "delivered as stills you can drop into a paper rather than as a movie.",
+                    "One lossless 16-bit PNG per frame (.png), for figures and page layout. The same fidelity as Archive, "
+                            + "delivered as stills you can drop into a paper. Clamped at interface white; for the range "
+                            + "above it use HDR frames.",
                     ExportFormat.PNG, ExportFormat.Chroma.RGB, ExportFormat.Depth.SIXTEEN, true, true),
+            new ExportPreset("HDR frames",
+                    "One layered OpenEXR per frame (.exr), half float, so the extended range is simply stored rather "
+                            + "than squeezed through a curve. Each layer is kept separately beside the composite, with "
+                            + "the colour table and every display setting in the header. The exact form of an HDR "
+                            + "capture, and the one to reach for when the numbers matter more than playing it.",
+                    ExportFormat.EXR, ExportFormat.Chroma.RGB, ExportFormat.Depth.SIXTEEN, true, true),
             new ExportPreset("HDR video",
                     "Carries the extended range out: the corona stays brighter than white instead of being clamped to it. "
                             + "HLG at 10 bits, diffuse white at 203 cd/m2, so what the HDR brightness slider was showing is "

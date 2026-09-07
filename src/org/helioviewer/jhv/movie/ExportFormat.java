@@ -87,9 +87,10 @@ public enum ExportFormat {
             bits = _bits;
         }
 
+        /** The level count, because that is the thing being chosen: 10 bits is 1024 steps, not 10 of them. */
         @Override
         public String toString() {
-            return bits + "-bit";
+            return bits + "-bit  (" + (1 << bits) + " levels)";
         }
     }
 
@@ -100,7 +101,7 @@ public enum ExportFormat {
      * photograph and fails for a colour table, where the hue IS the measurement.
      */
     public enum Chroma {
-        YUV420("4:2:0"), YUV444("4:4:4"), RGB("RGB");
+        YUV420("4:2:0 colour, half detail"), YUV444("4:4:4 full colour"), RGB("RGB, no colour conversion");
 
         private final String label;
 
@@ -287,7 +288,21 @@ public enum ExportFormat {
 
     @Override
     public String toString() {
-        return name;
+        // The extension, because "H.265 better" does not tell anyone whether they are about to get
+        // one file or a directory of two hundred, and that is the first thing they need to know.
+        return name + "  " + (isSeries() ? extension.replaceAll("^%0\\d+d", "") + " per frame" : extension);
+    }
+
+    /**
+     * Whether this format can hold what the HDR gain put above interface white.
+     *
+     * <p>True for the two HDR video formats, which encode it through a curve, and for EXR, which
+     * is half float and simply stores it. Everything else is an integer format with no transfer
+     * to carry it, so the capture clamps at white: correct for what it is, and worth saying out
+     * loud next to a format called "exact".
+     */
+    public boolean carriesExtendedRange() {
+        return hdrCurve() != HdrTransfer.Curve.NONE || this == EXR;
     }
 
 }

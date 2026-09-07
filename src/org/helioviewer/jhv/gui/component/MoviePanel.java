@@ -322,14 +322,30 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
 
         recordFormatComboBox = new JComboBox<>(ExportFormat.values());
         recordFormatComboBox.setSelectedItem(storedFormat());
-        recordFormatComboBox.setToolTipText("Container and codec. The series formats write one file per frame into their own directory.");
+        recordFormatComboBox.setToolTipText("<html>Codec and container; the extension after each name is what lands on disk.<br><br>"
+                + "A <i>series</i> writes one file per frame into its own directory rather than a single video. Only the two "
+                + "HDR entries and EXR carry the picture above interface white; the rest clamp there.</html>");
         c.gridx = 3;
         recordPanel.add(recordFormatComboBox, c);
 
         recordChromaComboBox = new JComboBox<>();
-        recordChromaComboBox.setToolTipText("How colour is sampled. 4:2:0 keeps one colour sample per 2x2 pixels and is what plays everywhere; 4:4:4 keeps one per pixel; RGB skips the colour conversion entirely. Subsampling assumes the eye resolves colour poorly, which is false for a colour table.");
+        recordChromaComboBox.setToolTipText("<html>How much colour detail is kept, relative to brightness detail.<br><br>"
+                + "<b>4:2:0</b> stores one colour sample per 2x2 pixels, a quarter of the colour resolution, and is what plays "
+                + "everywhere. <b>4:4:4</b> stores one per pixel. <b>RGB</b> skips the colour conversion altogether.<br><br>"
+                + "Subsampling rests on the eye resolving colour poorly, which is true of a photograph and false of a colour "
+                + "table, where a hue step IS the data. 4:2:0 for something to send people, 4:4:4 or RGB for something to "
+                + "measure.</html>");
         recordDepthComboBox = new JComboBox<>();
-        recordDepthComboBox.setToolTipText("Bits per channel written. Above 8 the capture is taken at 16-bit float too. More depth mainly buys smooth gradients free of banding, which barely shows in PSNR and plainly shows on a corona.");
+        recordDepthComboBox.setToolTipText("<html>Bits per channel <b>in the file</b>. The render is always captured at 16-bit float, "
+                + "so this is what survives being written, not what was drawn.<br><br>"
+                + "The lossy codecs stop where the standard does: H.264 at 10 bits, H.265 at 12. Sixteen is reachable only "
+                + "losslessly, in FFV1 or the PNG and EXR series, which is why an HDR video is 10 or 12 and not 16.<br><br>"
+                + "For HDR, 10 bits is the broadcast standard and is not the same as 10 bits of a plain ramp: the PQ and HLG "
+                + "curves spend their code words where the eye can tell them apart, so ten bits through one of those holds "
+                + "more visible steps than ten bits of linear would.<br><br>"
+                + "The EXR series is the odd one: its sixteen bits are a half float, spent as an exponent and a "
+                + "mantissa rather than as even steps, which is how it holds values above white at all.<br><br>"
+                + "Depth buys smooth gradients free of banding, which barely shows in PSNR and plainly shows on a corona.</html>");
 
         recordFormatComboBox.addActionListener(e -> {
             ExportFormat sel = (ExportFormat) recordFormatComboBox.getSelectedItem();
