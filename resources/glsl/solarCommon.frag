@@ -222,10 +222,24 @@ vec4 getColor(const vec2 texcoord, const vec2 difftexcoord, const float factor) 
     // CLAMP_TO_EDGE, so everything at or past the ends silently renders as the end colour.
     // Magenta and green because no solar colour table contains either.
     // Skipped for categorical layers, where the value is an index and "range" means nothing.
+    // Strictly outside, not merely at the end. A pixel AT the top of the range has lost nothing;
+    // a pixel pushed PAST it has. The difference is the whole diagnostic, and >= / <= got it
+    // wrong twice over:
+    //
+    //   RHEF's output is a rank, so every annulus legitimately contains a pixel at exactly 0 and
+    //   one at exactly 1. With thousands of annuli that flagged thousands of scattered pixels,
+    //   which is the green and magenta salt-and-pepper measured over 4% of an exported PUNCH
+    //   frame on 2026-09-06 and read, reasonably, as the picture being corrupt.
+    //
+    //   Missing data is stored as exactly 0 (FITSImage.convertPixels), so every masked or bad
+    //   pixel came out green. Missing is not clipped.
+    //
+    // Levels are applied without clamping before this, so anything the window genuinely pushes
+    // out of range still lands strictly outside and is still flagged.
     if (display.showClipping != 0. && display.indexed == 0.) {
-        if (value >= 1.)
+        if (value > 1.)
             return vec4(1., 0., 1., 1.) * display.color;
-        if (value <= 0.)
+        if (value < 0.)
             return vec4(0., 1., 0., 1.) * display.color;
     }
 
