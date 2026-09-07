@@ -130,6 +130,7 @@ public final class MainFrame {
     private static MainContentPanel mainContentPanel;
 
     private static LayersPanel layersPanel;
+    private static LayersPanel overlaysPanel;
     private static LayersSectionPanel layersSectionPanel;
     private static ImageLayersPane imageLayersPane;
 
@@ -151,8 +152,23 @@ public final class MainFrame {
         JPanel geometryWrapper = new JPanel(new BorderLayout());
         JPanel manageWrapper = new JPanel(new BorderLayout());
         LayerOptionSections sections = new LayerOptionSections(layerOptionsWrapper, geometryWrapper, manageWrapper);
-        layersPanel = new LayersPanel(sections);                       // table needs the controller
+        layersPanel = new LayersPanel(sections, true);                 // table needs the controller
         layersSectionPanel = new LayersSectionPanel(); // ctor calls MainFrame.getLayersPanel()
+
+        // Everything that is drawn over the observation rather than being one: the grid, the
+        // timestamps, the field-of-view boxes, the miniview. Seven of them exist before a single
+        // image is loaded, and they used to sit in the same list as the images. Same table, same
+        // controls, its own options section, so selecting the grid does not retitle the section
+        // belonging to the pictures.
+        JPanel overlayOptionsWrapper = new JPanel(new BorderLayout());
+        LayerOptionSections overlaySections = new LayerOptionSections(
+                overlayOptionsWrapper, new JPanel(new BorderLayout()), new JPanel(new BorderLayout()));
+        overlaysPanel = new LayersPanel(overlaySections, false);
+        JPanel overlaysPane = new JPanel();
+        overlaysPane.setLayout(new javax.swing.BoxLayout(overlaysPane, javax.swing.BoxLayout.PAGE_AXIS));
+        overlaysPane.setBorder(BorderFactory.createEmptyBorder(0, 12, 0, 0)); // nested, like ImageLayersPane
+        overlaysPane.add(overlaysPanel);
+        overlaysPane.add(new org.helioviewer.jhv.gui.component.CollapsiblePane("Overlay options", overlayOptionsWrapper, true, true));
         MoviePanel moviePanel = MoviePanel.getInstance();
         imageLayersPane = new ImageLayersPane(moviePanel.getTimeSelectorPanel(), layersSectionPanel, layerOptionsWrapper, geometryWrapper, manageWrapper);
         // The scrubber + playback buttons are always docked at the top (see below); the sidebar keeps
@@ -164,6 +180,7 @@ public final class MainFrame {
         // (Timeline Layers, SWEK) below.
         leftPane.add("Playback and Recording", moviePanel.getPlaybackOptions(), true);
         leftPane.add("Image Layers", imageLayersPane, true);
+        leftPane.add("Overlays", overlaysPane, true);
 
         leftScrollPane = new JScrollPane(leftPane, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         leftScrollPane.setFocusable(false);
@@ -720,6 +737,10 @@ public final class MainFrame {
 
     public static MainContentPanel getMainContentPanel() {
         return mainContentPanel;
+    }
+
+    public static LayersPanel getOverlaysPanel() {
+        return overlaysPanel;
     }
 
     public static LayersPanel getLayersPanel() {
