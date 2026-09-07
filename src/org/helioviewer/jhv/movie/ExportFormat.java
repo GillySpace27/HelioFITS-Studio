@@ -62,8 +62,8 @@ public enum ExportFormat {
      * smaller than raw. FFV1 has no inter-frame prediction at all, so it is always all-intra and
      * the keyframe checkbox is moot for it. MKV rather than MP4: FFV1 has no MP4 mapping.
      */
-    FFV1("FFV1 (lossless)", ".mkv", List.of("-c:v", "ffv1", "-level", "3"), null, null),
-    PNG("PNG series (16-bit, lossless)", "%04d.png", List.of("-r", "1"), null, null),
+    FFV1("FFV1", ".mkv", List.of("-c:v", "ffv1", "-level", "3"), null, null),
+    PNG("PNG series", "%04d.png", List.of("-r", "1"), null, null),
     /**
      * Layered OpenEXR frames, written by JHV itself (ExrWriter, ExrCapture) rather than ffmpeg.
      * R,G,B,A carry the on-screen composite, linearized, so any viewer shows the picture; each
@@ -290,7 +290,22 @@ public enum ExportFormat {
     public String toString() {
         // The extension, because "H.265 better" does not tell anyone whether they are about to get
         // one file or a directory of two hundred, and that is the first thing they need to know.
-        return name + "  " + (isSeries() ? extension.replaceAll("^%0\\d+d", "") + " per frame" : extension);
+        // Then lossy or lossless, because that is the next thing, and it was previously spelled out
+        // in two of the nine names and left to be inferred in the other seven.
+        return name + "  " + (isSeries() ? extension.replaceAll("^%0\\d+d", "") + " per frame" : extension)
+                + (isLossless() ? "  lossless" : "  lossy");
+    }
+
+    /**
+     * Whether the encoder reproduces exactly the frames it was handed.
+     *
+     * <p>Only that. The depth and colour conversions happen before the encoder sees anything, so a
+     * lossless format at 4:2:0 8-bit losslessly stores a picture that has already lost three
+     * quarters of its colour samples and all but 256 of its levels. End to end, only EXR is exact,
+     * because it is the capture format itself with no conversion in between.
+     */
+    public boolean isLossless() {
+        return this == FFV1 || this == PNG || this == EXR;
     }
 
     /**

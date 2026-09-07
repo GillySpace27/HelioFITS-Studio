@@ -31,6 +31,11 @@ public final class ExportFormatCheck {
                 expect(chromas.contains(c) == !depths.isEmpty(),
                         f + "/" + c + ": listed as available but has no depths, or vice versa");
 
+                // The depth tooltip tells people 16 bits is reachable only losslessly. If a lossy
+                // codec ever grows a 16-bit mode that sentence becomes a lie nobody re-reads.
+                expect(f.isLossless() || !depths.contains(Depth.SIXTEEN),
+                        f + "/" + c + ": a lossy format offering 16-bit contradicts the depth tooltip");
+
                 for (Depth d : depths) {
                     // -pix_fmt must come from ONE place. Listing it in the settings too leaves
                     // which one wins to ffmpeg's argument order.
