@@ -320,16 +320,20 @@ public final class Layers {
         removedLayers.clear();
     }
 
-    public static void reorderImageLayer(int fromIndex, int toIndex) {
-        if (toIndex > layers.size()) {
+    /**
+     * Move a layer to a position in this list, which is the order everything draws in.
+     *
+     * <p>The target is clamped to the layer's own half of the list. Image layers occupy the front
+     * and {@code imageLayersCount} is used as an index bound in several places, so an overlay
+     * dragged in among them would not merely look wrong, it would be read as an image layer.
+     */
+    public static void reorder(Layer toMove, int toIndex) {
+        int fromIndex = layers.indexOf(toMove);
+        if (fromIndex < 0)
             return;
-        }
-        Layer toMove = layers.get(fromIndex);
-        if (!(toMove instanceof ImageLayer)) {
-            return;
-        }
 
-        int target = Math.clamp(toIndex, 0, imageLayersCount);
+        boolean image = toMove instanceof ImageLayer;
+        int target = Math.clamp(toIndex, image ? 0 : imageLayersCount, image ? imageLayersCount : layers.size());
         if (fromIndex < target)
             target--; // adjust insertion index after removal
         if (fromIndex == target)

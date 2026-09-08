@@ -613,6 +613,11 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     }
 
     @Override
+    public Kind kind() {
+        return Kind.IMAGE;
+    }
+
+    @Override
     public String getName() {
         return imageData == null ? "Loading..." : imageData.metaData().getDisplayName();
     }

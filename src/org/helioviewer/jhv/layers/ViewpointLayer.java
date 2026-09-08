@@ -254,6 +254,14 @@ public class ViewpointLayer extends AbstractLayer {
         dispose();
     }
 
+    // It does draw (planet orbits, the Parker spiral, the hover readout), but that is the
+    // heliospheric plot it puts you inside. What it is for is choosing the frame the camera sits
+    // in, which is why it belongs beside the camera rather than among the things drawn on top.
+    @Override
+    public Kind kind() {
+        return Kind.VIEWPOINT;
+    }
+
     @Override
     public String getName() {
         return "Viewpoint";

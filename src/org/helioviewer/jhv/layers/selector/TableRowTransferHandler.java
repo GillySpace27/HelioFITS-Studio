@@ -18,8 +18,6 @@ import javax.swing.TransferHandler;
 
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.display.DisplayController;
-import org.helioviewer.jhv.layers.ImageLayer;
-
 // Handles DnD row reordering
 @SuppressWarnings("serial")
 class TableRowTransferHandler extends TransferHandler {
@@ -61,8 +59,8 @@ class TableRowTransferHandler extends TransferHandler {
         if (row == -1)
             return null;
 
-        Object el = grid.getModel().getValueAt(row, 0);
-        if (!(el instanceof ImageLayer))
+        // Any layer, not only an image one: every list is in draw order and every list drags.
+        if (!(grid.getModel().getValueAt(row, 0) instanceof org.helioviewer.jhv.layers.Layer))
             return null;
 
         createImageOfRow(row);

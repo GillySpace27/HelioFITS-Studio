@@ -131,6 +131,7 @@ public final class MainFrame {
 
     private static LayersPanel layersPanel;
     private static LayersPanel overlaysPanel;
+    private static LayersPanel cameraPanel;
     private static LayersSectionPanel layersSectionPanel;
     private static ImageLayersPane imageLayersPane;
 
@@ -152,23 +153,23 @@ public final class MainFrame {
         JPanel geometryWrapper = new JPanel(new BorderLayout());
         JPanel manageWrapper = new JPanel(new BorderLayout());
         LayerOptionSections sections = new LayerOptionSections(layerOptionsWrapper, geometryWrapper, manageWrapper);
-        layersPanel = new LayersPanel(sections, true);                 // table needs the controller
+        layersPanel = new LayersPanel(sections, Layer.Kind.IMAGE);     // table needs the controller
         layersSectionPanel = new LayersSectionPanel(); // ctor calls MainFrame.getLayersPanel()
 
-        // Everything that is drawn over the observation rather than being one: the grid, the
-        // timestamps, the field-of-view boxes, the miniview. Seven of them exist before a single
-        // image is loaded, and they used to sit in the same list as the images. Same table, same
-        // controls, its own options section, so selecting the grid does not retitle the section
-        // belonging to the pictures.
+        // Everything drawn over the observation rather than being one: the grid, the timestamps,
+        // the field-of-view boxes, the miniview. And, separately, the two that decide where the
+        // observation is seen from, which are a cause rather than an effect and were sitting among
+        // their own consequences. Each list gets its own options section, so selecting the grid
+        // does not retitle the section belonging to the pictures.
         JPanel overlayOptionsWrapper = new JPanel(new BorderLayout());
-        LayerOptionSections overlaySections = new LayerOptionSections(
-                overlayOptionsWrapper, new JPanel(new BorderLayout()), new JPanel(new BorderLayout()));
-        overlaysPanel = new LayersPanel(overlaySections, false);
-        JPanel overlaysPane = new JPanel();
-        overlaysPane.setLayout(new javax.swing.BoxLayout(overlaysPane, javax.swing.BoxLayout.PAGE_AXIS));
-        overlaysPane.setBorder(BorderFactory.createEmptyBorder(0, 12, 0, 0)); // nested, like ImageLayersPane
-        overlaysPane.add(overlaysPanel);
-        overlaysPane.add(new org.helioviewer.jhv.gui.component.CollapsiblePane("Overlay options", overlayOptionsWrapper, true, true));
+        overlaysPanel = new LayersPanel(new LayerOptionSections(
+                overlayOptionsWrapper, new JPanel(new BorderLayout()), new JPanel(new BorderLayout())), Layer.Kind.OVERLAY);
+        JPanel overlaysPane = sidePane(overlaysPanel, "Overlay options", overlayOptionsWrapper);
+
+        JPanel cameraOptionsWrapper = new JPanel(new BorderLayout());
+        cameraPanel = new LayersPanel(new LayerOptionSections(
+                cameraOptionsWrapper, new JPanel(new BorderLayout()), new JPanel(new BorderLayout())), Layer.Kind.VIEWPOINT);
+        JPanel cameraPane = sidePane(cameraPanel, "Camera options", cameraOptionsWrapper);
         MoviePanel moviePanel = MoviePanel.getInstance();
         imageLayersPane = new ImageLayersPane(moviePanel.getTimeSelectorPanel(), layersSectionPanel, layerOptionsWrapper, geometryWrapper, manageWrapper);
         // The scrubber + playback buttons are always docked at the top (see below); the sidebar keeps
@@ -181,6 +182,7 @@ public final class MainFrame {
         leftPane.add("Playback and Recording", moviePanel.getPlaybackOptions(), true);
         leftPane.add("Image Layers", imageLayersPane, true);
         leftPane.add("Overlays", overlaysPane, true);
+        leftPane.add("Camera", cameraPane, true);
 
         leftScrollPane = new JScrollPane(leftPane, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         leftScrollPane.setFocusable(false);
@@ -739,8 +741,23 @@ public final class MainFrame {
         return mainContentPanel;
     }
 
+    // A layer list with its options underneath, indented so it reads as nested under the section
+    // header, which is what ImageLayersPane assembles by hand for the images.
+    private static JPanel sidePane(LayersPanel list, String optionsTitle, JPanel optionsWrapper) {
+        JPanel pane = new JPanel();
+        pane.setLayout(new javax.swing.BoxLayout(pane, javax.swing.BoxLayout.PAGE_AXIS));
+        pane.setBorder(BorderFactory.createEmptyBorder(0, 12, 0, 0));
+        pane.add(list);
+        pane.add(new org.helioviewer.jhv.gui.component.CollapsiblePane(optionsTitle, optionsWrapper, true, true));
+        return pane;
+    }
+
     public static LayersPanel getOverlaysPanel() {
         return overlaysPanel;
+    }
+
+    public static LayersPanel getCameraPanel() {
+        return cameraPanel;
     }
 
     public static LayersPanel getLayersPanel() {
