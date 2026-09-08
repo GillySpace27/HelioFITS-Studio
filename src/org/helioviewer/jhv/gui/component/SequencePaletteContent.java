@@ -85,6 +85,13 @@ final class SequencePaletteContent {
         return panel;
     }
 
+    /** Bind to this layer, as the layer row's "Open" asks: the same as picking it in the combo. */
+    static void show(ImageLayer layer) {
+        explicitLayer = layer;
+        if (built)
+            refresh();
+    }
+
     /** Follow the active layer unless the user picked one here, and mirror its state into the widgets. */
     static void refresh() {
         if (!built)

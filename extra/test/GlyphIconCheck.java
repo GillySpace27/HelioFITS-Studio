@@ -56,6 +56,7 @@ public final class GlyphIconCheck {
         // paints it and counts ink the same way the rest of this check does, which is the cheapest
         // proof that a codepoint claimed for a specific glyph name is not landing on an empty cell.
         expect(ink(Buttons.grid, Color.RED) > 0, "the grid glyph (mdi-grid, U+F2C1) actually paints");
+        expect(ink(Buttons.camera, Color.RED) > 0, "the camera glyph (mdi-camera, U+F100) actually paints");
 
         System.out.println(failures == 0 ? "GlyphIconCheck: PASS" : "GlyphIconCheck: " + failures + " FAILURE(S)");
         if (failures != 0)

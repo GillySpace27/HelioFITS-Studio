@@ -19,7 +19,7 @@ import org.helioviewer.jhv.layers.selector.GridLayerOptions;
  * palette, next to Projection and HDR: the ONE place those settings exist.
  *
  * <p>The sidebar's Grid row keeps the master on/off checkbox and, when selected, points here
- * ({@code GridSettingsPointer}); it no longer carries a second copy of these controls. The same
+ * ({@code PalettePointer}); it no longer carries a second copy of these controls. The same
  * master toggle sits at the top of this palette, bound to the same {@link GridLayer#isEnabled()}
  * the row reads, so the palette is complete on its own: toggle plus settings, one click apart.
  * The settings stay live while the grid is off, since setting a grid up before showing it is a

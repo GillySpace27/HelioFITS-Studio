@@ -27,13 +27,17 @@ public final class LayerOptions implements Layers.Listener {
     static {
         register(ConnectionLayer.class, layer -> new ConnectionLayerOptions((ConnectionLayer) layer));
         register(FOVLayer.class, layer -> new FOVTreePane(((FOVLayer) layer).getCatalog()));
-        // The grid's settings live in the Grid palette (ToolBar), the one place they exist; the
-        // row here keeps the on/off checkbox, and selecting it offers the way there. See
-        // GridSettingsPointer for why not a second copy of the panel.
-        register(GridLayer.class, layer -> new GridSettingsPointer());
+        // The grid's and the camera's settings live in their palettes (ToolBar), the one place
+        // each exists; the rows here keep the on/off checkbox, and selecting one offers the way
+        // there. See PalettePointer for why not a second copy of the panel.
+        register(GridLayer.class, layer -> new PalettePointer("Grid settings\u2026",
+                "Also the Grid button on the toolbar, or View > Grid Settings.",
+                org.helioviewer.jhv.gui.component.ToolBar::showGridPalette));
         register(MiniviewLayer.class, layer -> new MiniviewLayerOptions((MiniviewLayer) layer));
         register(TimestampLayer.class, layer -> new TimestampLayerOptions((TimestampLayer) layer));
-        register(ViewpointLayer.class, layer -> new ViewpointLayerOptionsPanel((ViewpointLayer) layer));
+        register(ViewpointLayer.class, layer -> new PalettePointer("Camera settings\u2026",
+                "Also the Camera button on the toolbar, or View > Camera Settings.",
+                org.helioviewer.jhv.gui.component.ToolBar::showCameraPalette));
         Layers.addListener(listener);
     }
 
