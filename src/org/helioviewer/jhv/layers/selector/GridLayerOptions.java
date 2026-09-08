@@ -26,6 +26,7 @@ import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.GridType;
+import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.component.CollapsiblePane;
 import org.helioviewer.jhv.gui.component.JHVSlider;
 import org.helioviewer.jhv.gui.component.JHVSpinner;
@@ -55,11 +56,15 @@ public final class GridLayerOptions extends JPanel {
     public GridLayerOptions(GridLayer layer) {
         setLayout(new BoxLayout(this, BoxLayout.PAGE_AXIS));
 
-        add(new CollapsiblePane("Grid", gridSection(layer), true, true));
-        add(new CollapsiblePane("Thomson sphere", thomsonSection(layer), false, true));
-        add(new CollapsiblePane("Celestial sphere", celestialSection(layer), false, true));
+        // A glyph per section, taken from the icons the toolbar already uses rather than invented:
+        // the mesh for the grid, the wireframe solid and the 3-D globe for the two spheres, the
+        // position marker for the planets. The ecliptic plane gets none, because nothing in the
+        // set means a plane and a wrong glyph is worse than no glyph.
+        add(new CollapsiblePane("Grid", gridSection(layer), true, true, Buttons.grid));
+        add(new CollapsiblePane("Thomson sphere", thomsonSection(layer), false, true, Buttons.projection));
+        add(new CollapsiblePane("Celestial sphere", celestialSection(layer), false, true, Buttons.rotate));
         add(new CollapsiblePane("Ecliptic plane", eclipticSection(layer), false, true));
-        add(new CollapsiblePane("Planets", planetSection(layer), false, true));
+        add(new CollapsiblePane("Planets", planetSection(layer), false, true, Buttons.track));
     }
 
     private JPanel gridSection(GridLayer layer) {

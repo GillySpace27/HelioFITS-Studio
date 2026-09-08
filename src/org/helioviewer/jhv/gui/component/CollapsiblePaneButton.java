@@ -1,8 +1,11 @@
 package org.helioviewer.jhv.gui.component;
 
+import java.awt.Component;
 import java.awt.Graphics;
 
+import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
+import javax.swing.Icon;
 import javax.swing.JToggleButton;
 import javax.swing.SwingConstants;
 
@@ -33,6 +36,40 @@ class CollapsiblePaneButton extends JToggleButton {
         // The look-and-feel's own label colour is chosen against the panel, not against this band,
         // so the title has to be told which of the two it is sitting on.
         UIGlobals.themed(this, c -> c.setForeground(Theme.current().get(Theme.Token.HeaderText)));
+    }
+
+    /**
+     * The chevron, then the section's own glyph, both in front of the title.
+     *
+     * <p>A button has one icon slot and one text position, so the two glyphs have to arrive as a
+     * single Icon: the alternative is a nested panel, which would cost the button its own layout
+     * and its hover and selection painting. The chevron stays first because it is the control and
+     * the section glyph is a label.
+     */
+    void setIcons(Icon chevron, @Nullable Icon section) {
+        setIcon(section == null ? chevron : new Pair(chevron, section, getIconTextGap()));
+    }
+
+    /** Two icons side by side, each centred on the taller of the pair. */
+    private record Pair(Icon first, Icon second, int gap) implements Icon {
+
+        @Override
+        public int getIconWidth() {
+            return first.getIconWidth() + gap + second.getIconWidth();
+        }
+
+        @Override
+        public int getIconHeight() {
+            return Math.max(first.getIconHeight(), second.getIconHeight());
+        }
+
+        @Override
+        public void paintIcon(Component c, Graphics g, int x, int y) {
+            int h = getIconHeight();
+            first.paintIcon(c, g, x, y + (h - first.getIconHeight()) / 2);
+            second.paintIcon(c, g, x + first.getIconWidth() + gap, y + (h - second.getIconHeight()) / 2);
+        }
+
     }
 
     @Override
