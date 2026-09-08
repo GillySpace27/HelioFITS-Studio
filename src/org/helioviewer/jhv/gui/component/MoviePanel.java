@@ -118,12 +118,26 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
     private final JLabel recordLongSideLabel;
     private final JLabel presetLabel;
     private final JPanel presetRow;
-    private final CollapsiblePane encodingPane;
+    private final EncodingPane encodingPane; // the concrete type: restoreExpansion is its own
     private boolean syncingRecordSize;
 
     // Everything the "Playback and Recording" pane shows, in one grid so the label column lines up
     // and so the recording-time disable has a single container to walk.
-    private final JPanel optionsPanel = new JPanel(new GridBagLayout());
+    //
+    // setVisible is overridden because the enclosing CollapsiblePane shows this subtree with
+    // ComponentUtils.setVisible, which recurses and un-hides every descendant. Without the
+    // re-assertion, expanding the outer section undid the mode-driven hiding below and force-opened
+    // the nested encoding disclosure, whose chevron went on reading collapsed over its own contents.
+    // The recursion sets the children first and this container last, and it calls setVisible
+    // unconditionally rather than only on a change, so re-applying here always lands after it.
+    private final JPanel optionsPanel = new JPanel(new GridBagLayout()) {
+        @Override
+        public void setVisible(boolean visible) {
+            super.setVisible(visible);
+            if (visible && encodingPane != null) // null while this field initializer runs
+                applyRecordingConfig(ViewState.recordingData());
+        }
+    };
 
     private JPanel buttonPanel;
     private JComponent frameNumberPanel;
@@ -253,7 +267,6 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
             if (!syncingRecordFormat)
                 syncPresetSelection();
         });
-        allIntraCheckBox.setEnabled(takesKeyframeChoice(storedFormat()));
 
         recordPresetComboBox = new JComboBox<>();
         recordPresetComboBox.addActionListener(e -> {
@@ -269,8 +282,9 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
 
         // Save and Delete are two buttons' worth of width for something used once a month, and the
         // preset row is one of the two that set the sidebar's width. Folded into a menu they cost
-        // one glyph. The menu is a child of the pane, so the recording-time disable still reaches
-        // it and it cannot be opened mid-recording.
+        // one glyph. The menu is not in the component tree, so the recording-time disable does not
+        // reach it; the button it hangs off is, and a disabled button neither fires nor shows a
+        // popup, so it still cannot be opened mid-recording.
         JPopupMenu presetActions = new JPopupMenu();
         JMenuItem savePreset = new JMenuItem("Save\u2026");
         savePreset.setToolTipText("Name the current settings as a preset, or overwrite an existing one");
@@ -284,6 +298,10 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         JButton presetMenuButton = new JButton("\u22ef");
         presetMenuButton.setFont(UIGlobals.uiFontSmall);
         presetMenuButton.setToolTipText("Save or delete a preset");
+        // Registered as the button's popup as well as shown by hand: SwingUtilities.updateComponentTreeUI
+        // descends into a component's componentPopupMenu and nowhere else, so a menu held only in the
+        // lambda goes on painting in the previous theme after a live switch.
+        presetMenuButton.setComponentPopupMenu(presetActions);
         presetMenuButton.addActionListener(e -> presetActions.show(presetMenuButton, 0, presetMenuButton.getHeight()));
 
         presetRow = row(recordPresetComboBox, presetMenuButton);
@@ -322,8 +340,7 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
             ExportFormat sel = (ExportFormat) recordFormatComboBox.getSelectedItem();
             if (sel != null) {
                 Settings.setProperty("video.format", sel.name());
-                allIntraCheckBox.setEnabled(takesKeyframeChoice(sel));
-                syncPixelCombos();
+                syncPixelCombos(); // which also re-derives what this format leaves as a choice
             }
         });
         recordChromaComboBox.addActionListener(e -> {
@@ -420,7 +437,6 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         try {
             recordFormatComboBox.setSelectedItem(preset.format());
             allIntraCheckBox.setSelected(preset.allIntra());
-            allIntraCheckBox.setEnabled(takesKeyframeChoice(preset.format()));
         } finally {
             syncingRecordFormat = false;
         }
@@ -514,6 +530,19 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
     }
 
     /**
+     * Which of the encoding controls the current format actually offers a choice in. A series
+     * fixes sampling and depth both; leaving live combos there would imply a choice that is not
+     * offered. One method rather than three scattered setEnabled calls, because the recording-time
+     * blanket enable has to be able to put this rule back.
+     */
+    private void applyFormatEnablement(ExportFormat format) {
+        allIntraCheckBox.setEnabled(takesKeyframeChoice(format));
+        boolean configurable = format.isConfigurable();
+        recordChromaComboBox.setEnabled(configurable);
+        recordDepthComboBox.setEnabled(configurable);
+    }
+
+    /**
      * The one line the collapsed encoding disclosure carries as its header.
      *
      * <p>ExportMovie reads Settings rather than these widgets, so a hidden format still governs
@@ -557,6 +586,7 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         presetLabel.setVisible(encoding);
         presetRow.setVisible(encoding);
         encodingPane.setVisible(encoding); // plain setVisible: ComponentUtils would force the collapsed body open
+        encodingPane.restoreExpansion(); // an outer expand recursed through the body and showed it
 
         // With "On screen" the long side is not consulted at all: RecordingAspect.sizeFor returns
         // the viewport, so nothing is left invisibly in force.
@@ -592,10 +622,7 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
             syncingRecordFormat = false;
         }
 
-        // A series fixes both; leaving live combos there would imply a choice that is not offered.
-        boolean configurable = format.isConfigurable();
-        recordChromaComboBox.setEnabled(configurable);
-        recordDepthComboBox.setEnabled(configurable);
+        applyFormatEnablement(format);
 
         // Write back the clamped pair, so what is shown and what a recording will use agree even
         // when the stored setting was impossible under this codec.
@@ -696,6 +723,11 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         if (recordButton.isSelected() != recording)
             recordButton.setSelected(recording);
         ComponentUtils.setEnabled(optionsPanel, !recording); // every control of the pane lives in here
+        // The blanket enable recurses with no memory of what was deliberately disabled, so without
+        // this a finished recording hands back a live keyframe box and live pixel combos on a
+        // format that offers neither.
+        if (!recording)
+            applyFormatEnablement(storedFormat());
     }
 
     @Override
@@ -823,6 +855,18 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
             boolean expanded = !managed.isVisible();
             setExpanded(expanded);
             Settings.setProperty(KEY, Boolean.toString(expanded));
+        }
+
+        /**
+         * Put the body back where the chevron says it is.
+         *
+         * <p>An outer CollapsiblePane shows its subtree with ComponentUtils.setVisible, which
+         * recurses straight through this pane and shows the body of a section that is collapsed.
+         * The toggle button's selection is the state that survives that, because the recursion
+         * only touches visibility.
+         */
+        void restoreExpansion() {
+            setExpanded(toggleButton.isSelected());
         }
     }
 
