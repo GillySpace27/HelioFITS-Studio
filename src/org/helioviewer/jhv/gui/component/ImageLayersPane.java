@@ -28,6 +28,7 @@ public final class ImageLayersPane extends JPanel {
         // layers load into — so it sits at the very top, with the Sync button inline to its right
         // (moved off the New Layer row so that row, the widest, can shrink the sidebar).
         JButton syncButton = Buttons.flat(Buttons.syncLayers);
+        syncButton.setText("Sync");
         syncButton.setToolTipText("Synchronize time intervals of all layers to the range above");
         syncButton.addActionListener(e -> MainFrame.getLayersSectionPanel().syncLayers());
         JPanel timeRow = new JPanel(new BorderLayout());

@@ -36,6 +36,7 @@ public final class LayersSectionPanel extends JPanel implements Interfaces.Obser
         imageSelectorPanel = new ImageSelectorPanel(this);
 
         addLayerButton = new SplitButton(Buttons.newLayer);
+        addLayerButton.setText("New Layer");
         addLayerButton.setAlwaysDropdown(true);
         addLayerButton.addItem(buildSourcePanel());
         addLayerButton.getPopupMenu().addPopupMenuListener(new PopupMenuListener() {

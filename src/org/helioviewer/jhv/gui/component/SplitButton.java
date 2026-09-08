@@ -14,6 +14,7 @@ import javax.swing.JButton;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
+import javax.swing.SwingConstants;
 import javax.swing.event.PopupMenuEvent;
 import javax.swing.event.PopupMenuListener;
 
@@ -41,6 +42,11 @@ public final class SplitButton extends JPanel {
     // Pressing the button while its menu is open closes the menu first, so by the time the click
     // arrives the menu is already gone and would simply be reopened: the button would look dead.
     private long popupHiddenAt;
+
+    public SplitButton(Icon icon) {
+        this((String) null);
+        main.setIcon(icon);
+    }
 
     public SplitButton(String text) {
         setLayout(new BoxLayout(this, BoxLayout.LINE_AXIS));
@@ -134,6 +140,14 @@ public final class SplitButton extends JPanel {
 
     public void setIcon(Icon icon) {
         main.setIcon(icon);
+    }
+
+    /** The toolbar's icon-over-label arrangement, applied to the button half. */
+    void dress(Icon icon, String text) {
+        main.setIcon(icon);
+        main.setText(text);
+        main.setHorizontalTextPosition(SwingConstants.CENTER);
+        main.setVerticalTextPosition(SwingConstants.BOTTOM);
     }
 
     private static final Icon ARROW = new Icon() {

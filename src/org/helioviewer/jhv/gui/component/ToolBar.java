@@ -27,6 +27,7 @@ import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JMenuItem;
 import javax.swing.JRadioButtonMenuItem;
 import javax.swing.JToggleButton;
+import javax.swing.SwingConstants;
 import javax.swing.JToolBar;
 
 import org.helioviewer.jhv.annotation.AnnotationMode;
@@ -61,11 +62,17 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         ICONANDTEXT, ICONONLY
     }
 
-    private record ButtonText(String icon, String text, String tip) {
-        @Override
-        public String toString() {
-            return displayMode == DisplayMode.ICONONLY ? icon : icon + "<br/>" + text;
-        }
+    private record ButtonText(Icon icon, String text, String tip) {}
+
+    // Icon over label, or the icon on its own: one button either way, so the display-mode switch
+    // is now a matter of taking the text away rather than handing the button a different string
+    // of HTML with a line break in it.
+    private static void dress(AbstractButton b, ButtonText text) {
+        b.setIcon(text.icon());
+        b.setText(displayMode == DisplayMode.ICONONLY ? null : text.text());
+        b.setHorizontalTextPosition(SwingConstants.CENTER);
+        b.setVerticalTextPosition(SwingConstants.BOTTOM);
+        b.setToolTipText(text.tip());
     }
 
     private final ButtonText ANNOTATION = new ButtonText(Buttons.annotate, "Annotation", "Annotation (Press Shift to draw)");
@@ -94,21 +101,22 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
 //  private final LinkedHashMap<ButtonText, ActionListener> pluginButtons = new LinkedHashMap<>();
 
     private static JButton toolButton(ButtonText text) {
-        JButton b = Buttons.flat(text.toString());
-        b.setToolTipText(text.tip);
+        JButton b = Buttons.flat((String) null);
+        dress(b, text);
         return b;
     }
 
     private static SplitButton toolSplitButton(ButtonText text) {
-        SplitButton b = new SplitButton(text.toString());
+        SplitButton b = new SplitButton((String) null);
+        b.dress(text.icon(), displayMode == DisplayMode.ICONONLY ? null : text.text());
         b.setToolTipText(text.tip);
         b.setAlwaysDropdown(true);
         return b;
     }
 
     private static JToggleButton toolToggleButton(ButtonText text) {
-        JToggleButton b = Buttons.flatToggle(text.toString());
-        b.setToolTipText(text.tip);
+        JToggleButton b = Buttons.flatToggle((String) null);
+        dress(b, text);
         return b;
     }
 

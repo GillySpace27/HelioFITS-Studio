@@ -17,6 +17,7 @@ import javax.swing.BorderFactory;
 import javax.swing.JLabel;
 import javax.swing.SwingConstants;
 import javax.swing.JFrame;
+import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
@@ -563,16 +564,16 @@ public final class MainFrame {
 
     private static void startSpinner(JButton button, JProgressBar spinner) {
         button.setEnabled(false);
-        button.setText(null);
+        button.setIcon(null); // the glyph is an icon now, so clearing the text would leave it on screen
         button.add(spinner);
         button.revalidate();
         button.repaint();
     }
 
-    private static Runnable stopSpinner(JButton button, JProgressBar spinner, String glyph) {
+    private static Runnable stopSpinner(JButton button, JProgressBar spinner, Icon glyph) {
         return () -> EventQueue.invokeLater(() -> {
             button.remove(spinner);
-            button.setText(glyph);
+            button.setIcon(glyph);
             button.setEnabled(true);
             button.revalidate();
             button.repaint();
@@ -695,7 +696,7 @@ public final class MainFrame {
         org.helioviewer.jhv.app.Settings.setProperty("ui.sidebarCollapsed", Boolean.toString(collapsed));
 
         leftPaneHost.setVisible(!collapsed); // the handle stays; westWrap shrinks to just it
-        sidebarCollapseHandle.setText(collapsed ? Buttons.collapseRight : Buttons.collapseLeft);
+        sidebarCollapseHandle.setIcon(collapsed ? Buttons.collapseRight : Buttons.collapseLeft);
         sidebarCollapseHandle.setToolTipText(collapsed ? "Show the sidebar" : "Collapse the sidebar");
 
         // The canvas is nested deep inside a JSplitPane, so validate the whole frame to push its

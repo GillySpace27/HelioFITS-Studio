@@ -34,7 +34,7 @@ final class ImageLayerManagePanel extends JPanel {
     private final ImageLayer layer;
     private final JLabel readout = new JLabel();
     private long lastReadoutSig = Long.MIN_VALUE; // memoize: skip rebuild when nothing shown changed
-    private final JToggleButton downloadButton = Buttons.flatToggle(Buttons.download);
+    private final JToggleButton downloadButton = Buttons.flatToggle(Buttons.download, false);
     private final JButton cacheButton = Buttons.flat(Buttons.cache);
     private final JButton deleteCacheButton = Buttons.flat(Buttons.deleteCache);
     private final JProgressBar progressBar = new JProgressBar();
@@ -55,7 +55,7 @@ final class ImageLayerManagePanel extends JPanel {
                 Dimension size = downloadButton.getSize(null);
                 progressBar.setPreferredSize(new Dimension(size.width - margin.left - margin.right, size.height - margin.top - margin.bottom));
 
-                downloadButton.setText(null);
+                downloadButton.setIcon(null);
                 downloadButton.add(progressBar);
                 downloadButton.setToolTipText("Stop download");
 
@@ -119,13 +119,13 @@ final class ImageLayerManagePanel extends JPanel {
         refreshSpinner.setPreferredSize(new Dimension(20, 20));
         refreshButton.addActionListener(e -> {
             refreshButton.setEnabled(false);
-            refreshButton.setText(null);
+            refreshButton.setIcon(null);
             refreshButton.add(refreshSpinner);
             refreshSpinner.setVisible(true);
             PunchClient.submitRefresh(layer, result -> {
                 refreshSpinner.setVisible(false);
                 refreshButton.remove(refreshSpinner);
-                refreshButton.setText(Buttons.refresh);
+                refreshButton.setIcon(Buttons.refresh);
                 refreshButton.setEnabled(true);
                 Message.warn("PUNCH refresh", result.newCount() == 0
                         ? "No new frames in the archive for this layer."
@@ -419,7 +419,7 @@ final class ImageLayerManagePanel extends JPanel {
         progressBar.setIndeterminate(false);
         progressBar.setValue(0);
         downloadButton.setToolTipText("Download selected layer");
-        downloadButton.setText(Buttons.download);
+        downloadButton.setIcon(Buttons.download);
         downloadButton.setSelected(false);
     }
 

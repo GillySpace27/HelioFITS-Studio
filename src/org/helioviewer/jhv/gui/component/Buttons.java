@@ -2,6 +2,7 @@ package org.helioviewer.jhv.gui.component;
 
 import java.awt.Font;
 
+import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JToggleButton;
 
@@ -34,6 +35,12 @@ public class Buttons {
         return button;
     }
 
+    public static JButton flat(Icon icon) {
+        JButton button = flat((String) null);
+        button.setIcon(icon);
+        return button;
+    }
+
     public static JToggleButton flatToggle(String text) {
         return flatToggle(text, false);
     }
@@ -45,101 +52,92 @@ public class Buttons {
         return button;
     }
 
-    public static final String close = MaterialDesign.CLOSE.toString();
-    public static final String play = MaterialDesign.PLAY.toString();
-    public static final String pause = MaterialDesign.PAUSE.toString();
-    public static final String backward = MaterialDesign.STEP_BACKWARD.toString();
-    public static final String forward = MaterialDesign.STEP_FORWARD.toString();
-    public static final String record = MaterialDesign.RECORD.toString();
-    public static final String check = MaterialDesign.CHECK.toString();
-    public static final String collapseLeft = "<html><font face='Material Design Icons' size=4>" +
-            MaterialDesign.CHEVRON_LEFT + "</font>";
-    public static final String collapseRight = "<html><font face='Material Design Icons' size=4>" +
-            MaterialDesign.CHEVRON_RIGHT + "</font>";
-
-    public static final String chevronRight = "<html><font face='Material Design Icons' size=4>" +
-            MaterialDesign.CHEVRON_RIGHT + "</font>&nbsp;";
-    public static final String chevronDown = "<html><font face='Material Design Icons' size=4>" +
-            MaterialDesign.CHEVRON_DOWN + "</font>&nbsp;";
-
-    public static final String optionsRight = "<html>Output options<font face='Material Design Icons' size=4>" +
-            MaterialDesign.CHEVRON_RIGHT;
-    public static final String optionsDown = "<html>Output options<font face='Material Design Icons' size=4>" +
-            MaterialDesign.CHEVRON_DOWN;
-
-    public static final String adjustmentsRight = "<html>More Adjustments<font face='Material Design Icons' size=4>" +
-            MaterialDesign.CHEVRON_RIGHT;
-    public static final String adjustmentsDown = "<html>More Adjustments<font face='Material Design Icons' size=4>" +
-            MaterialDesign.CHEVRON_DOWN;
-
-    public static final String newLayer = "<html><font face='Material Design Icons' size=4>" +
-            MaterialDesign.PLUS_CIRCLE + "</font>&nbsp;New Layer";
-    public static final String syncLayers = "<html>&nbsp;<font face='Material Design Icons' size=4>" +
-            MaterialDesign.SYNC + "</font>&nbsp;Sync";
-
-    public static final String lock = "<html>&nbsp;<font face='Material Design Icons' size=4>" +
-            MaterialDesign.LOCK + "</font>&nbsp;";
-    public static final String unlock = "<html>&nbsp;<font face='Material Design Icons' size=4>" +
-            MaterialDesign.LOCK_OPEN + "</font>&nbsp;";
-
-    public static final String sync = button(MaterialDesign.SYNC);
-    public static final String runFilter = button(MaterialDesign.PLAY);
-    public static final String stopFilter = button(MaterialDesign.STOP);
-    public static final String info = button(MaterialDesign.INFORMATION_VARIANT);
-    public static final String save = button(MaterialDesign.CONTENT_SAVE);
-    public static final String load = button(MaterialDesign.FOLDER_OPEN);
-    public static final String newSession = button(MaterialDesign.PLUS);
-    public static final String revert = button(MaterialDesign.BACKUP_RESTORE);
-    public static final String saveAs = button(MaterialDesign.CONTENT_SAVE_ALL);
-    public static final String collapseAll = button(MaterialDesign.CHEVRON_UP);
-    public static final String expandAll = button(MaterialDesign.CHEVRON_DOWN);
-    public static final String download = button(MaterialDesign.DOWNLOAD);
-    public static final String cache = button(MaterialDesign.FOLDER_OPEN);
-    public static final String deleteCache = button(MaterialDesign.DELETE);
-    public static final String mgn = button(MaterialDesign.IMAGE_FILTER_HDR);
-
-    public static final String invert = button(MaterialDesign.INVERT_COLORS);
-    public static final String colorbar = button(MaterialDesign.BORDER_ALL);
-    public static final String corona = button(MaterialDesign.WHITE_BALANCE_SUNNY);
-
-    public static final String calendar = button(MaterialDesign.CALENDAR);
-    public static final String skipBack = button(MaterialDesign.SKIP_BACKWARD);
-    public static final String skipFore = button(MaterialDesign.SKIP_FORWARD);
-
-    private static String button(MaterialDesign uc) {
-        return "<html><span style='font-size:12px'>&nbsp;<font face='Material Design Icons'>" + uc + "</font>&nbsp;";
+    public static JToggleButton flatToggle(Icon icon, boolean selected) {
+        JToggleButton button = flatToggle((String) null, selected);
+        button.setIcon(icon);
+        return button;
     }
+
+    // Three sizes, and only three: the row height a glyph sits in is what decides it. Inline
+    // is a button in an options row, chevron is a disclosure or a collapse handle, and toolbar
+    // is the big glyph on the top bar. They match what the HTML asked for (font-size:12px,
+    // size=4, size=5) closely enough that nothing on screen moves.
+    private static final float INLINE = 14;
+    private static final float CHEVRON = 14;
+    private static final float TOOLBAR = 18;
+
+    // Text, not icons: these two are drawn into table cells by a renderer that sets the icon
+    // font itself and sizes the glyph off the row's own font, which an icon cannot follow.
+    public static final String close = MaterialDesign.CLOSE.toString();
+    public static final String check = MaterialDesign.CHECK.toString();
+
+    public static final GlyphIcon play = icon(MaterialDesign.PLAY, INLINE);
+    public static final GlyphIcon pause = icon(MaterialDesign.PAUSE, INLINE);
+    public static final GlyphIcon backward = icon(MaterialDesign.STEP_BACKWARD, INLINE);
+    public static final GlyphIcon forward = icon(MaterialDesign.STEP_FORWARD, INLINE);
+    public static final GlyphIcon record = icon(MaterialDesign.RECORD, INLINE);
+
+    public static final GlyphIcon collapseLeft = icon(MaterialDesign.CHEVRON_LEFT, CHEVRON);
+    public static final GlyphIcon collapseRight = icon(MaterialDesign.CHEVRON_RIGHT, CHEVRON);
+    public static final GlyphIcon chevronRight = icon(MaterialDesign.CHEVRON_RIGHT, CHEVRON);
+    public static final GlyphIcon chevronDown = icon(MaterialDesign.CHEVRON_DOWN, CHEVRON);
+
+    public static final GlyphIcon newLayer = icon(MaterialDesign.PLUS_CIRCLE, INLINE);
+    public static final GlyphIcon syncLayers = icon(MaterialDesign.SYNC, INLINE);
+    public static final GlyphIcon lock = icon(MaterialDesign.LOCK, INLINE);
+    public static final GlyphIcon unlock = icon(MaterialDesign.LOCK_OPEN, INLINE);
+
+    public static final GlyphIcon sync = icon(MaterialDesign.SYNC, INLINE);
+    public static final GlyphIcon runFilter = icon(MaterialDesign.PLAY, INLINE);
+    public static final GlyphIcon stopFilter = icon(MaterialDesign.STOP, INLINE);
+    public static final GlyphIcon info = icon(MaterialDesign.INFORMATION_VARIANT, INLINE);
+    public static final GlyphIcon save = icon(MaterialDesign.CONTENT_SAVE, INLINE);
+    public static final GlyphIcon load = icon(MaterialDesign.FOLDER_OPEN, INLINE);
+    public static final GlyphIcon newSession = icon(MaterialDesign.PLUS, INLINE);
+    public static final GlyphIcon revert = icon(MaterialDesign.BACKUP_RESTORE, INLINE);
+    public static final GlyphIcon saveAs = icon(MaterialDesign.CONTENT_SAVE_ALL, INLINE);
+    public static final GlyphIcon collapseAll = icon(MaterialDesign.CHEVRON_UP, INLINE);
+    public static final GlyphIcon expandAll = icon(MaterialDesign.CHEVRON_DOWN, INLINE);
+    public static final GlyphIcon download = icon(MaterialDesign.DOWNLOAD, INLINE);
+    public static final GlyphIcon cache = icon(MaterialDesign.FOLDER_OPEN, INLINE);
+    public static final GlyphIcon deleteCache = icon(MaterialDesign.DELETE, INLINE);
+
+    public static final GlyphIcon invert = icon(MaterialDesign.INVERT_COLORS, INLINE);
+    public static final GlyphIcon colorbar = icon(MaterialDesign.BORDER_ALL, INLINE);
+    public static final GlyphIcon corona = icon(MaterialDesign.WHITE_BALANCE_SUNNY, INLINE);
+
+    public static final GlyphIcon calendar = icon(MaterialDesign.CALENDAR, INLINE);
+    public static final GlyphIcon skipBack = icon(MaterialDesign.SKIP_BACKWARD, INLINE);
+    public static final GlyphIcon skipFore = icon(MaterialDesign.SKIP_FORWARD, INLINE);
 
     // toolbar
 
-    private static String toolBar(MaterialDesign uc) {
-        return "<html><center><font face='Material Design Icons' size=5>" + uc + "</font>";
-    }
+    public static final GlyphIcon annotate = icon(MaterialDesign.SHAPE_POLYGON_PLUS, TOOLBAR);
+    public static final GlyphIcon axis = icon(MaterialDesign.BACKUP_RESTORE, TOOLBAR);
+    public static final GlyphIcon diffRotation = icon(MaterialDesign.CHART_GANTT, TOOLBAR);
+    public static final GlyphIcon multiview = icon(MaterialDesign.BORDER_ALL, TOOLBAR);
+    public static final GlyphIcon offDisk = icon(MaterialDesign.WEATHER_SUNNY, TOOLBAR);
+    public static final GlyphIcon pan = icon(MaterialDesign.CURSOR_MOVE, TOOLBAR);
+    public static final GlyphIcon projection = icon(MaterialDesign.CUBE_OUTLINE, TOOLBAR);
+    public static final GlyphIcon sequenceFilter = icon(MaterialDesign.FILTER, TOOLBAR); // NOT a vector-circle
+    public static final GlyphIcon colourSettings = icon(MaterialDesign.IMAGE_FILTER_HDR, TOOLBAR);
+    public static final GlyphIcon moreSettings = icon(MaterialDesign.TUNE, TOOLBAR);
+    public static final GlyphIcon presentation = icon(MaterialDesign.PROJECTOR_SCREEN, TOOLBAR);
+    public static final GlyphIcon overflow = icon(MaterialDesign.CHEVRON_DOWN, TOOLBAR);
+    public static final GlyphIcon refresh = icon(MaterialDesign.REFRESH, TOOLBAR);
+    public static final GlyphIcon resetCamera = icon(MaterialDesign.IMAGE_FILTER_CENTER_FOCUS, TOOLBAR);
+    public static final GlyphIcon resetCameraAxis = icon(MaterialDesign.DEBUG_STEP_OUT, TOOLBAR);
+    public static final GlyphIcon rotate = icon(MaterialDesign.ROTATE_3D, TOOLBAR);
+    public static final GlyphIcon rotate90 = icon(MaterialDesign.ROTATE_90, TOOLBAR);
+    public static final GlyphIcon samp = icon(MaterialDesign.SHARE_VARIANT, TOOLBAR);
+    public static final GlyphIcon track = icon(MaterialDesign.CROSSHAIRS_GPS, TOOLBAR);
+    public static final GlyphIcon zoomFit = icon(MaterialDesign.CROP_LANDSCAPE, TOOLBAR);
+    public static final GlyphIcon zoomIn = icon(MaterialDesign.MAGNIFY_PLUS, TOOLBAR);
+    public static final GlyphIcon zoomOne = icon(MaterialDesign.PLUS_ONE, TOOLBAR);
+    public static final GlyphIcon zoomOut = icon(MaterialDesign.MAGNIFY_MINUS, TOOLBAR);
 
-    public static final String annotate = toolBar(MaterialDesign.SHAPE_POLYGON_PLUS);
-    public static final String axis = toolBar(MaterialDesign.BACKUP_RESTORE);
-    public static final String cutOut = toolBar(MaterialDesign.VECTOR_CIRCLE_VARIANT);
-    public static final String diffRotation = toolBar(MaterialDesign.CHART_GANTT);
-    public static final String multiview = toolBar(MaterialDesign.BORDER_ALL);
-    public static final String offDisk = toolBar(MaterialDesign.WEATHER_SUNNY);
-    public static final String pan = toolBar(MaterialDesign.CURSOR_MOVE);
-    public static final String projection = toolBar(MaterialDesign.CUBE_OUTLINE);
-    public static final String sequenceFilter = toolBar(MaterialDesign.FILTER); // NOT cutOut's vector-circle
-    public static final String openSequence = button(MaterialDesign.FILTER);
-    public static final String colourSettings = toolBar(MaterialDesign.IMAGE_FILTER_HDR);
-    public static final String moreSettings = toolBar(MaterialDesign.TUNE);
-    public static final String presentation = toolBar(MaterialDesign.PROJECTOR_SCREEN);
-    public static final String overflow = toolBar(MaterialDesign.CHEVRON_DOWN);
-    public static final String refresh = toolBar(MaterialDesign.REFRESH);
-    public static final String resetCamera = toolBar(MaterialDesign.IMAGE_FILTER_CENTER_FOCUS);
-    public static final String resetCameraAxis = toolBar(MaterialDesign.DEBUG_STEP_OUT);
-    public static final String rotate = toolBar(MaterialDesign.ROTATE_3D);
-    public static final String rotate90 = toolBar(MaterialDesign.ROTATE_90);
-    public static final String samp = toolBar(MaterialDesign.SHARE_VARIANT);
-    public static final String track = toolBar(MaterialDesign.CROSSHAIRS_GPS);
-    public static final String zoomFit = toolBar(MaterialDesign.CROP_LANDSCAPE);
-    public static final String zoomIn = toolBar(MaterialDesign.MAGNIFY_PLUS);
-    public static final String zoomOne = toolBar(MaterialDesign.PLUS_ONE);
-    public static final String zoomOut = toolBar(MaterialDesign.MAGNIFY_MINUS);
+    private static GlyphIcon icon(MaterialDesign uc, float size) {
+        return new GlyphIcon(uc, size);
+    }
 
 }

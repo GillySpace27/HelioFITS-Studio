@@ -47,7 +47,10 @@ public class CollapsiblePane extends JComponent implements ActionListener {
 
     public void setTitle(String _title) {
         title = _title;
-        toggleButton.setText((toggleButton.isSelected() ? Buttons.chevronDown : Buttons.chevronRight) + title);
+        // Icon and title, not one string: concatenating them put the chevron's HTML in front of
+        // the text and left the gap between them spelled as a non-breaking space.
+        toggleButton.setIcon(toggleButton.isSelected() ? Buttons.chevronDown : Buttons.chevronRight);
+        toggleButton.setText(title);
     }
 
     public void setExpanded(boolean expanded) {
