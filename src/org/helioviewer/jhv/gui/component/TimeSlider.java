@@ -46,7 +46,7 @@ import org.helioviewer.jhv.view.View;
 // This element provides its own look and feel. Therefore, it is independent
 // of the global look and feel.
 @SuppressWarnings("serial")
-public final class TimeSlider extends JSlider implements Interfaces.LazyComponent, MouseListener, MouseMotionListener, MouseWheelListener, KeyListener, Player.Listener, Player.StatusListener, ViewState.PlaybackRangeListener {
+public final class TimeSlider extends JSlider implements Interfaces.LazyComponent, MouseListener, MouseMotionListener, MouseWheelListener, KeyListener, Player.Listener, Player.StatusListener, ViewState.PlaybackRangeListener, ViewState.PlaybackConfigListener {
 
     private enum DragMode {
         Frame, Range, RangeStart, RangeEnd
@@ -113,6 +113,10 @@ public final class TimeSlider extends JSlider implements Interfaces.LazyComponen
         frameNumberPanel = new FrameNumberPanel(getValue(), getMaximum());
         // A plain foreground, so updateComponentTreeUI leaves it in the old theme's colour.
         UIGlobals.themed(frameNumberPanel, c -> c.setForeground(UIGlobals.foreColor));
+        // Registered after the panel exists: the video time it shows is derived from the playback
+        // speed, and nothing else recomputes it at a standing frame. lazyRepaint only recomputes
+        // when something has called repaint, and changing the speed while paused calls none.
+        ViewState.addPlaybackConfigListener(this);
     }
 
     JComponent getFrameNumberPanel() {
@@ -341,6 +345,11 @@ public final class TimeSlider extends JSlider implements Interfaces.LazyComponen
     @Override
     public void playbackRangeChanged() {
         repaint();
+    }
+
+    @Override
+    public void playbackConfigChanged() {
+        frameNumberPanel.setFrame(getValue(), getMaximum()); // the estimated video length moved under a fixed frame
     }
 
     @Override
