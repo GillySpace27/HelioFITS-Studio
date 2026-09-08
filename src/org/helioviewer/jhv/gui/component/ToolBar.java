@@ -558,6 +558,12 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             gridPalette.toggle();
     }
 
+    /** Open or raise the grid palette: the Grid row's "settings" button in the sidebar. */
+    public static void showGridPalette() {
+        if (gridPalette != null)
+            gridPalette.open();
+    }
+
     // Toggle the projection palette exactly as the toolbar button does (used by View > Projection).
     public static void toggleProjectionPalette() {
         projectionPalette.toggle();

@@ -507,6 +507,7 @@ public final class Layers {
         viewpointLayer = null;
         miniviewLayer = null;
         connectionLayer = null;
+        gridLayer = null;
 
         for (Layer layer : normalizedLayers) {
             if (layer instanceof ImageLayer) {

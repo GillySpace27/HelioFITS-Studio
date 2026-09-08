@@ -131,6 +131,14 @@ public final class Palette {
         return dialog != null && dialog.isVisible();
     }
 
+    /** Open, or if already open bring to the front: what a "settings..." button wants, where a toggle would close it. */
+    public void open() {
+        if (!isOpen())
+            toggle();
+        else if (dialog != null)
+            dialog.toFront();
+    }
+
     private void setOpen(boolean open) {
         Settings.setProperty(key(), Boolean.toString(open)); // so the next launch opens what was open
         if (!open) {

@@ -252,6 +252,7 @@ public final class LayersPanel extends JPanel {
                 if (v.col == ENABLED_COL) {
                     layer.setEnabled(!layer.isEnabled());
                     model.updateCell(v.row, v.col);
+                    Layers.fireLayerUpdated(layer); // the Grid palette mirrors this checkbox
                     DisplayController.render(1);
                 } else if (v.col == MASTER_COL && layer instanceof ImageLayer il) {
                     Layers.setActiveImageLayer(il);
