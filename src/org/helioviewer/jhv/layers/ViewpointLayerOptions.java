@@ -19,14 +19,43 @@ import org.json.JSONObject;
 
 public final class ViewpointLayerOptions implements TimeListener.Range {
 
-    public enum CameraMode {
-        ObserverAt1au("Observer at 1au"),
-        Location("Location"),
-        Heliosphere("Heliosphere");
+    /**
+     * What the camera is doing. Exactly one of these holds at a time.
+     *
+     * <p>They were two independent rows until 2026-09-08: a "Viewpoint" row with three modes and a
+     * "Camera" row that revolved. Nothing made them exclusive, so a revolving camera in Location
+     * mode was legal and the two motions added in MapView, with no control saying that was
+     * happening. Four radio buttons in one row cannot express that state at all, which is the
+     * point of the merge.
+     */
+    public enum CameraBehaviour {
+        FREE("Free"), FOLLOW("Follow"), TURNTABLE("Turntable"), OVERVIEW("Overview");
 
-        final String label;
+        private final String label;
 
-        CameraMode(String _label) {
+        CameraBehaviour(String _label) {
+            label = _label;
+        }
+
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
+
+    /**
+     * Where FREE puts the camera.
+     *
+     * <p>EARTH is the "View from Earth" button rather than a third radio, but it is still state:
+     * every timespan change re-installs the current behaviour, so a one-shot install would be
+     * silently undone by the next movie edit and the button would read as broken.
+     */
+    public enum FreeSource {
+        OBSERVER("Instrument distance"), OBSERVER_1AU("1 au"), EARTH("View from Earth");
+
+        private final String label;
+
+        FreeSource(String _label) {
             label = _label;
         }
 
@@ -38,52 +67,139 @@ public final class ViewpointLayerOptions implements TimeListener.Range {
 
     private final ViewpointLayerOptionsExpert locationOptions;
     private final ViewpointLayerOptionsExpert equatorialOptions;
+    private final Turntable turntable;
 
-    private CameraMode cameraMode;
+    private CameraBehaviour behaviour;
+    private FreeSource freeSource = FreeSource.OBSERVER_1AU;
+    private boolean layerEnabled;
 
     public ViewpointLayerOptions(JSONObject jo) {
         JSONObject joLocation = null;
         JSONObject joEquatorial = null;
+        JSONObject joTurntable = null;
         if (jo != null) {
             joLocation = jo.optJSONObject("location");
             joEquatorial = jo.optJSONObject("equatorial");
+            joTurntable = jo.optJSONObject("turntable");
         }
         locationOptions = new ViewpointLayerOptionsExpert(joLocation, SpaceObject.SUN, Frame.SOLO_IAU_SUN_2009, true);
         equatorialOptions = new ViewpointLayerOptionsExpert(joEquatorial, SpaceObject.SUN, Frame.SOLO_HCI, false);
-        locationOptions.setChangeListener(() -> optionStateChanged(CameraMode.Location));
-        equatorialOptions.setChangeListener(() -> optionStateChanged(CameraMode.Heliosphere));
+        locationOptions.setChangeListener(() -> optionStateChanged(CameraBehaviour.FOLLOW));
+        equatorialOptions.setChangeListener(() -> optionStateChanged(CameraBehaviour.OVERVIEW));
+        turntable = new Turntable(joTurntable);
 
-        // Observer at 1au, not Location: Location is the one mode that can put the camera inside
-        // the loaded field, and defaulting to it made the Thomson sphere refuse on a fresh start.
-        cameraMode = CameraMode.ObserverAt1au;
+        // A legacy Camera layer, if this session has one, is read later: it arrives after this
+        // entry and is applied by Layers.restore. See applyStashedLegacyCameraLayer.
+        behaviour = behaviourFromJson(jo, false);
         if (jo != null) {
             try {
-                cameraMode = CameraMode.valueOf(jo.optString("mode"));
-            } catch (Exception ignore) {}
+                freeSource = FreeSource.valueOf(jo.optString("freeSource"));
+            } catch (RuntimeException ignore) {}
             JSONObject jc = jo.optJSONObject("camera");
             if (jc != null)
                 DisplayController.cameraFromJson(jc);
         }
     }
 
+    /**
+     * The behaviour a saved state asks for.
+     *
+     * <p>Three generations of state have to open. Current states name the behaviour outright.
+     * States written while the camera was two rows carry this layer's {@code mode} beside a
+     * separate Camera layer, and a Camera layer that was ticked outranks the mode it sat next to,
+     * because a revolving camera is what the user was actually looking at. A state carrying no
+     * camera information at all is FREE, which is what a fresh session does.
+     *
+     * <p>FREE rather than FOLLOW as the fallback: FOLLOW is the one behaviour that can put the
+     * camera inside the loaded field, and defaulting to it made the Thomson sphere refuse on a
+     * fresh start.
+     *
+     * <p>Static and free of side effects so extra/test/CameraBehaviourCheck.java can run it.
+     */
+    public static CameraBehaviour behaviourFromJson(@Nullable JSONObject jo, boolean legacyTurntableEnabled) {
+        if (jo != null) {
+            try {
+                return CameraBehaviour.valueOf(jo.optString("behaviour"));
+            } catch (RuntimeException ignore) {}
+        }
+        if (legacyTurntableEnabled)
+            return CameraBehaviour.TURNTABLE;
+        if (jo == null)
+            return CameraBehaviour.FREE;
+        return switch (jo.optString("mode")) {
+            case "Location" -> CameraBehaviour.FOLLOW;
+            case "Heliosphere" -> CameraBehaviour.OVERVIEW;
+            default -> CameraBehaviour.FREE; // ObserverAt1au, absent, or a name from some other build
+        };
+    }
+
+    // A session written before the merge carries a separate layer entry of this class name. It is
+    // no longer a layer, so State cannot build it and hands the raw entry here instead. Stashed
+    // rather than read on the spot because it arrives AFTER this layer's own entry (DEFAULT_LAYERS
+    // puts Viewpoint first), by which time the options object already exists.
+    private static final String LEGACY_CAMERA_CLASS = "org.helioviewer.jhv.layers.ObserverLayer";
+    @Nullable private static JSONObject legacyCameraLayer;
+
+    /** @return true when this state entry was the old Camera layer and has been taken over here. */
+    public static boolean stashLegacyCameraLayer(JSONObject entry) {
+        if (!LEGACY_CAMERA_CLASS.equals(entry.optString("className")))
+            return false;
+        legacyCameraLayer = entry;
+        return true;
+    }
+
+    /** Called by Layers.restore once the whole state has been read. */
+    void applyStashedLegacyCameraLayer() {
+        JSONObject entry = legacyCameraLayer;
+        legacyCameraLayer = null;
+        if (entry == null)
+            return;
+
+        JSONObject data = entry.optJSONObject("data");
+        if (data != null)
+            turntable.deserialize(data);
+        if (entry.optBoolean("enabled", false)) // the legacy branch of behaviourFromJson
+            setBehaviour(CameraBehaviour.TURNTABLE, DisplayController.ViewpointApplyMode.KEEP_TRANSFORM);
+    }
+
     void serialize(JSONObject jo) {
-        jo.put("mode", cameraMode.name());
+        jo.put("behaviour", behaviour.name());
+        jo.put("freeSource", freeSource.name());
         jo.put("camera", DisplayController.cameraToJson());
         jo.put("location", locationOptions.toJson());
         jo.put("equatorial", equatorialOptions.toJson());
+        JSONObject joTurntable = new JSONObject();
+        turntable.serialize(joTurntable);
+        jo.put("turntable", joTurntable);
     }
 
     boolean isDownloading() {
         return locationOptions.isDownloading() || equatorialOptions.isDownloading();
     }
 
-    public CameraMode getCameraMode() {
-        return cameraMode;
+    public CameraBehaviour getBehaviour() {
+        return behaviour;
     }
 
-    public void setCameraMode(CameraMode _cameraMode, DisplayController.ViewpointApplyMode mode) {
-        cameraMode = _cameraMode;
+    public void setBehaviour(CameraBehaviour _behaviour, DisplayController.ViewpointApplyMode mode) {
+        behaviour = _behaviour;
+        enforceSurfaceExclusivity(behaviour);
+        syncTurntable();
         applyCurrentViewpoint(mode);
+    }
+
+    public FreeSource getFreeSource() {
+        return freeSource;
+    }
+
+    public void setFreeSource(FreeSource _freeSource, DisplayController.ViewpointApplyMode mode) {
+        freeSource = _freeSource;
+        applyCurrentViewpoint(mode);
+        DisplayController.render(1);
+    }
+
+    public Turntable getTurntable() {
+        return turntable;
     }
 
     public ViewpointLayerOptionsExpert getLocationOptions() {
@@ -101,19 +217,25 @@ public final class ViewpointLayerOptions implements TimeListener.Range {
     private UpdateViewpoint createViewpointUpdate() {
         long start = Player.getStartTime();
         long end = Player.getEndTime();
-        return switch (cameraMode) {
-            case ObserverAt1au -> UpdateViewpoint.observerAt1au;
-            case Location -> new UpdateViewpoint.Location(locationOptions.getHighlightedLoad(), start, end);
-            case Heliosphere ->
+        return switch (behaviour) {
+            // TURNTABLE revolves the camera about whatever FREE would have framed, so it installs
+            // the same viewpoint and adds its rotation on top of it.
+            case FREE, TURNTABLE -> switch (freeSource) {
+                case OBSERVER -> UpdateViewpoint.observer;
+                case OBSERVER_1AU -> UpdateViewpoint.observerAt1au;
+                case EARTH -> UpdateViewpoint.earthAt1au;
+            };
+            case FOLLOW -> new UpdateViewpoint.Location(locationOptions.getHighlightedLoad(), start, end);
+            case OVERVIEW ->
                     new UpdateViewpoint.Equatorial(equatorialOptions.getHighlightedLoad(), equatorialOptions.getFrame(), equatorialOptions.isRelative(),
                             start, end);
         };
     }
 
     /**
-     * Location and the Thomson sphere cannot both hold.
+     * FOLLOW and the Thomson sphere cannot both hold.
      *
-     * <p>Location puts the camera at a selected object, which for a spacecraft is routinely inside
+     * <p>FOLLOW puts the camera at a selected object, which for a spacecraft is routinely inside
      * the loaded field: Solar Orbiter at 66 solar radii against a 245 solar-radii mosaic. The
      * Thomson sphere reaches only as far as the observer, so from in there most of the picture has
      * no surface to sit on, and every strange render chased down on 2026-08-30 came back to that
@@ -124,15 +246,15 @@ public final class ViewpointLayerOptions implements TimeListener.Range {
      * the user did not touch is how the conflict stayed invisible in the first place.
      *
      * <p>Only while the Viewpoint layer is ENABLED. A disabled layer hands the camera back to
-     * UpdateViewpoint.observer (see ViewpointLayer.setEnabled), so a Location sitting unused in the
+     * UpdateViewpoint.observer (see ViewpointLayer.setEnabled), so a FOLLOW sitting unused in the
      * menu drives nothing and is no reason to withhold the Thomson sphere.
      */
-    public static void enforceSurfaceExclusivity(CameraMode chosen) {
-        if (chosen == CameraMode.Location && viewpointLayerActive()
+    public static void enforceSurfaceExclusivity(CameraBehaviour chosen) {
+        if (chosen == CameraBehaviour.FOLLOW && viewpointLayerActive()
                 && Display.getSurfaceModel() == SurfaceModel.ThomsonSphere) {
             Display.setSurfaceModel(SurfaceModel.PlaneOfSky);
             Message.warn("Viewpoint",
-                    "Switched the coronagraph surface to plane of sky. Viewing from a location puts the observer "
+                    "Switched the coronagraph surface to plane of sky. Following an object puts the observer "
                             + "inside the field, and the Thomson sphere does not reach past the observer.");
             DisplayController.display();
         }
@@ -140,7 +262,7 @@ public final class ViewpointLayerOptions implements TimeListener.Range {
 
     /** The other direction: called when the surface model is what changed. */
     public static boolean allowsThomsonSphere() {
-        return !viewpointLayerActive() || Layers.getViewpointLayer().getOptions().cameraMode != CameraMode.Location;
+        return !viewpointLayerActive() || Layers.getViewpointLayer().getOptions().behaviour != CameraBehaviour.FOLLOW;
     }
 
     /** Whether the Viewpoint layer is actually driving the camera, rather than merely configured. */
@@ -151,37 +273,79 @@ public final class ViewpointLayerOptions implements TimeListener.Range {
 
     /**
      * Re-check when the layer is switched on, because that is the other way into the conflict:
-     * the mode never changed, but it just started driving the camera.
+     * the behaviour never changed, but it just started driving the camera.
      */
     public void enforceOnActivation() {
-        enforceSurfaceExclusivity(cameraMode);
+        enforceSurfaceExclusivity(behaviour);
     }
 
-    private void optionStateChanged(CameraMode mode) {
-        enforceSurfaceExclusivity(mode);
-        if (cameraMode == mode) {
+    private void optionStateChanged(CameraBehaviour changed) {
+        enforceSurfaceExclusivity(changed);
+        if (behaviour == changed) {
             applyCurrentViewpoint(DisplayController.ViewpointApplyMode.KEEP_TRANSFORM);
             DisplayController.render(1);
         }
     }
 
+    // The turntable is armed by the behaviour, not by a tick of its own, and only while the layer
+    // is driving the camera at all. Tracked from activate/deactivate rather than read back off
+    // Layers.getViewpointLayer(), which during a restore still points at the layer being replaced.
+    private void syncTurntable() {
+        turntable.setEnabled(layerEnabled && behaviour == CameraBehaviour.TURNTABLE);
+    }
+
     void activate() {
+        layerEnabled = true;
         Player.addTimeRangeListener(this);
+        syncTurntable();
     }
 
     void deactivate() {
+        layerEnabled = false;
         Player.removeTimeRangeListener(this);
+        syncTurntable();
+    }
+
+    void dispose() {
+        turntable.dispose();
     }
 
     @Override
     public void timeRangeChanged(long start, long end) {
         locationOptions.setTimespan(start, end);
         equatorialOptions.setTimespan(start, end);
-        optionStateChanged(cameraMode);
+        optionStateChanged(behaviour);
+    }
+
+    // The panel has to grey the Turntable choice where a revolution cannot be seen, and to say so
+    // when an image layer is loaded. The projection is chosen in the toolbar and image layers
+    // arrive from the menus, neither of which raises an event a layer options panel could listen
+    // to, so the panel registers here and DisplayController and Layers poke it.
+    private static Runnable panelRefresh = () -> {};
+
+    public static void setPanelRefresh(Runnable _panelRefresh) {
+        panelRefresh = _panelRefresh;
+    }
+
+    public static void refreshPanel() {
+        panelRefresh.run();
+    }
+
+    /**
+     * The main camera's drag rotation has just been zeroed: Reset View, the behaviour radios'
+     * RESET, a projection change, the double-click reset, or a zoom to a FOV annotation.
+     *
+     * <p>The turntable folds its revolution into that same quaternion one delta at a time, so a
+     * reset it is not told about leaves it claiming an angle the camera no longer holds.
+     */
+    public static void cameraDragRotationCleared() {
+        ViewpointLayer layer = Layers.getViewpointLayer();
+        if (layer != null)
+            layer.getOptions().turntable.dragRotationCleared();
     }
 
     boolean isHeliospheric() {
-        return cameraMode == CameraMode.Heliosphere;
+        return behaviour == CameraBehaviour.OVERVIEW;
     }
 
     @Nullable

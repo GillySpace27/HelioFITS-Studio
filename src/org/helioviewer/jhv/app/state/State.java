@@ -22,6 +22,7 @@ import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.layers.Layer;
 import org.helioviewer.jhv.layers.Layers;
+import org.helioviewer.jhv.layers.ViewpointLayerOptions;
 import org.helioviewer.jhv.movie.Player;
 import org.helioviewer.jhv.plugins.PluginManager;
 import org.helioviewer.jhv.plugins.eve.EVEPlugin;
@@ -257,6 +258,10 @@ public final class State {
             for (Object o : layers) {
                 if (o instanceof JSONObject jo) {
                     try {
+                        // The old Camera layer is no longer a layer; its settings and its tick
+                        // become a behaviour of the Viewpoint layer instead.
+                        if (ViewpointLayerOptions.stashLegacyCameraLayer(jo))
+                            continue;
                         if (json2Object(jo) instanceof Layer layer) {
                             restoredLayers.add(layer);
                             layer.setEnabled(jo.optBoolean("enabled", false));
