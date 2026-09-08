@@ -23,8 +23,6 @@ import org.helioviewer.jhv.time.TimeUtils;
 
 import org.json.JSONObject;
 
-import com.jidesoft.swing.JideButton;
-
 @SuppressWarnings("serial")
 class BandOptions extends JPanel {
 
@@ -62,12 +60,12 @@ class BandOptions extends JPanel {
 
         c.gridx = 2;
         c.anchor = GridBagConstraints.LINE_END;
-        JideButton downloadButton = getDownloadButton(band);
+        JButton downloadButton = getDownloadButton(band);
         add(downloadButton, c);
     }
 
-    private static JideButton getDownloadButton(Band band) {
-        JideButton downloadButton = new JideButton(Buttons.download);
+    private static JButton getDownloadButton(Band band) {
+        JButton downloadButton = Buttons.flat(Buttons.download);
         downloadButton.setToolTipText("Download selected layer");
         downloadButton.addActionListener(e -> {
             Path path = Path.of(Directories.DOWNLOADS.getPath(),

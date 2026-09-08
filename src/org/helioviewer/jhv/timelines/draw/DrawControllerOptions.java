@@ -6,19 +6,18 @@ import java.util.Objects;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JToggleButton;
 
 import org.helioviewer.jhv.astronomy.Carrington;
 import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.movie.Player;
 import org.helioviewer.jhv.time.TimeUtils;
 
-import com.jidesoft.swing.JideToggleButton;
-
 @SuppressWarnings("serial")
 class DrawControllerOptions extends JPanel {
 
     private final JComboBox<ZoomItem> zoomCombo;
-    private final JideToggleButton lockButton;
+    private final JToggleButton lockButton;
     private final JLabel statusLabel;
 
     private enum ZOOM {
@@ -48,7 +47,7 @@ class DrawControllerOptions extends JPanel {
             zoomTo(item.zoom, item.number);
         });
 
-        lockButton = new JideToggleButton(Buttons.unlock);
+        lockButton = Buttons.flatToggle(Buttons.unlock);
         lockButton.setToolTipText("Synchronize movie with time series");
         lockButton.addActionListener(e -> {
             DrawController.setLocked(lockButton.isSelected());
@@ -58,7 +57,7 @@ class DrawControllerOptions extends JPanel {
         statusLabel = new JLabel("", JLabel.RIGHT);
 
         // Toggle: mark the movie's trim (in/out) points on the timeline.
-        JideToggleButton endpointsButton = new JideToggleButton("Trim");
+        JToggleButton endpointsButton = Buttons.flatToggle("Trim");
         endpointsButton.setToolTipText("Show the movie's trim in/out points (drag or I/O keys to trim)");
         endpointsButton.setSelected(DrawController.isShowMovieEndpoints());
         endpointsButton.addActionListener(e -> DrawController.setShowMovieEndpoints(endpointsButton.isSelected()));

@@ -11,14 +11,13 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 
+import javax.swing.JButton;
 import javax.swing.JTextField;
 import javax.swing.Popup;
 import javax.swing.PopupFactory;
 
 import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.time.TimeUtils;
-
-import com.jidesoft.swing.JideButton;
 
 @SuppressWarnings("serial")
 class TimeField extends JTextField {
@@ -27,7 +26,7 @@ class TimeField extends JTextField {
     private final Calendar calendar = new GregorianCalendar();
 
     private final CalendarPicker calendarPicker = new CalendarPicker();
-    private final JideButton calendarButton = new JideButton(Buttons.calendar);
+    private final JButton calendarButton = Buttons.flat(Buttons.calendar);
     private Popup calPopup = null;
 
     TimeField(String tip) {

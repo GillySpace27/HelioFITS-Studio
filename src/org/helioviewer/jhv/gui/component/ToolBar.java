@@ -22,6 +22,7 @@ import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
+import javax.swing.JButton;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JMenuItem;
 import javax.swing.JRadioButtonMenuItem;
@@ -47,10 +48,6 @@ import org.helioviewer.jhv.input.InputController;
 import org.helioviewer.jhv.io.samp.SampClient;
 import org.helioviewer.jhv.layers.ImageLayers;
 //import org.helioviewer.jhv.timelines.band.HapiReader;
-
-import com.jidesoft.swing.JideButton;
-import com.jidesoft.swing.JideSplitButton;
-import com.jidesoft.swing.JideToggleButton;
 
 @SuppressWarnings("serial")
 public final class ToolBar extends JToolBar implements ViewState.ModeListener {
@@ -96,21 +93,21 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
 
 //  private final LinkedHashMap<ButtonText, ActionListener> pluginButtons = new LinkedHashMap<>();
 
-    private static JideButton toolButton(ButtonText text) {
-        JideButton b = new JideButton(text.toString());
+    private static JButton toolButton(ButtonText text) {
+        JButton b = Buttons.flat(text.toString());
         b.setToolTipText(text.tip);
         return b;
     }
 
-    private static JideSplitButton toolSplitButton(ButtonText text) {
-        JideSplitButton b = new JideSplitButton(text.toString());
+    private static SplitButton toolSplitButton(ButtonText text) {
+        SplitButton b = new SplitButton(text.toString());
         b.setToolTipText(text.tip);
         b.setAlwaysDropdown(true);
         return b;
     }
 
-    private static JideToggleButton toolToggleButton(ButtonText text) {
-        JideToggleButton b = new JideToggleButton(text.toString());
+    private static JToggleButton toolToggleButton(ButtonText text) {
+        JToggleButton b = Buttons.flatToggle(text.toString());
         b.setToolTipText(text.tip);
         return b;
     }
@@ -145,9 +142,9 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         org.helioviewer.jhv.gui.UITimer.register(this::paletteTick);
     }
 
-    private JideToggleButton coronaButton;
-    private JideToggleButton diffRotationButton;
-    private JideToggleButton multiviewButton;
+    private JToggleButton coronaButton;
+    private JToggleButton diffRotationButton;
+    private JToggleButton multiviewButton;
     private final EnumMap<AnnotationMode, JRadioButtonMenuItem> annotationItems = new EnumMap<>(AnnotationMode.class);
     private final EnumMap<MapMode, javax.swing.JRadioButton> projectionItems = new EnumMap<>(MapMode.class);
     private JHVSlider warpLambdaSlider;
@@ -159,7 +156,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     // and disengage the very tracking that caused it.
     private boolean syncingFromTracker;
     private JCheckBoxMenuItem refreshItem;
-    private JideToggleButton trackingButton;
+    private JToggleButton trackingButton;
 
     // --- overflow ----------------------------------------------------------------------------
     // A toolbar narrower than its contents used to just clip whatever did not fit, with no way
@@ -168,7 +165,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     // Everything that does not fit moves into a chevron menu at the right-hand end instead.
     private final java.util.List<Component> items = new java.util.ArrayList<>();
     private final java.util.List<Component> overflowed = new java.util.ArrayList<>();
-    private JideButton overflowButton;
+    private JButton overflowButton;
     private JPopupMenu overflowPopup;
     private JPanel overflowPanel;
     // While the menu is open its buttons are parented to it rather than to the toolbar, so
@@ -191,25 +188,25 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         Dimension dim = new Dimension(32, 32);
 
         // Zoom
-        JideButton zoomIn = toolButton(ZOOMIN);
+        JButton zoomIn = toolButton(ZOOMIN);
         zoomIn.addActionListener(new Actions.ZoomIn());
         HoldRepeat.install(zoomIn, ZOOM_HOLD_REPEAT_MS);
-        JideButton zoomOut = toolButton(ZOOMOUT);
+        JButton zoomOut = toolButton(ZOOMOUT);
         zoomOut.addActionListener(new Actions.ZoomOut());
         HoldRepeat.install(zoomOut, ZOOM_HOLD_REPEAT_MS);
-        JideButton zoomFit = toolButton(ZOOMFIT);
+        JButton zoomFit = toolButton(ZOOMFIT);
         zoomFit.addActionListener(new Actions.ZoomFit());
-        JideButton zoomOne = toolButton(ZOOMONE);
+        JButton zoomOne = toolButton(ZOOMONE);
         zoomOne.addActionListener(new Actions.ZoomOneToOne());
-        JideButton resetCamera = toolButton(RESETCAMERA);
+        JButton resetCamera = toolButton(RESETCAMERA);
         resetCamera.addActionListener(new Actions.ResetCamera());
-        JideButton resetCameraAxis = toolButton(RESETCAMERAAXIS);
+        JButton resetCameraAxis = toolButton(RESETCAMERAAXIS);
         resetCameraAxis.addActionListener(new Actions.ResetCameraAxis());
 
-        JideSplitButton rotate90Button = toolSplitButton(ROTATE90);
-        rotate90Button.add(new Actions.Rotate90Camera("X Axis", "X"));
-        rotate90Button.add(new Actions.Rotate90Camera("Y Axis", "Y"));
-        rotate90Button.add(new Actions.Rotate90Camera("Z Axis", "Z"));
+        SplitButton rotate90Button = toolSplitButton(ROTATE90);
+        rotate90Button.addItem(new Actions.Rotate90Camera("X Axis", "X"));
+        rotate90Button.addItem(new Actions.Rotate90Camera("Y Axis", "Y"));
+        rotate90Button.addItem(new Actions.Rotate90Camera("Z Axis", "Z"));
 
         addButton(zoomIn);
         addButton(zoomOut);
@@ -224,11 +221,11 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         // Interaction
         ButtonGroup group = new ButtonGroup();
 
-        JideToggleButton pan = toolToggleButton(PAN);
+        JToggleButton pan = toolToggleButton(PAN);
         pan.addActionListener(e -> InputController.setMode(Interaction.Mode.PAN));
-        JideToggleButton rotate = toolToggleButton(ROTATE);
+        JToggleButton rotate = toolToggleButton(ROTATE);
         rotate.addActionListener(e -> InputController.setMode(Interaction.Mode.ROTATE));
-        JideToggleButton axis = toolToggleButton(AXIS);
+        JToggleButton axis = toolToggleButton(AXIS);
         axis.addActionListener(e -> InputController.setMode(Interaction.Mode.AXIS));
 
         group.add(pan);
@@ -295,7 +292,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         // The projection controls live in a persistent palette, not a dropdown: it survives
         // focus loss (so the sliders can be worked against the view) and only collapses when
         // the toolbar button is toggled again or its window is closed.
-        JideToggleButton projectionButton = toolToggleButton(PROJECTION);
+        JToggleButton projectionButton = toolToggleButton(PROJECTION);
         projectionPalette.bind(projectionButton);
         addButton(projectionButton);
 
@@ -307,18 +304,18 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         // reaches every SELECTED layer, which is the "all at once" this bar could not express.
         // The toggle still exists, unparented, because it is the record of whether the palette is
         // open that Palette.open and the keep-visible watchdog read.
-        JideToggleButton sequenceButton = toolToggleButton(SEQUENCE_HIDDEN);
+        JToggleButton sequenceButton = toolToggleButton(SEQUENCE_HIDDEN);
         if (sequencePalette == null)
             sequencePalette = new Palette("Fourier filter", SequencePaletteContent::build, SequencePaletteContent::refresh, true); // has text fields
         sequencePalette.bind(sequenceButton);
 
         // Colour settings are per view, not per layer: they decide how every frame of every movie
         // is shown, so they belong beside Projection rather than inside a layer's own row.
-        JideToggleButton colourButton = toolToggleButton(COLOUR);
+        JToggleButton colourButton = toolToggleButton(COLOUR);
         colourPalette.bind(colourButton);
         addButton(colourButton);
 
-        JideToggleButton presentationButton = toolToggleButton(PRESENTATION);
+        JToggleButton presentationButton = toolToggleButton(PRESENTATION);
         presentationToggle = presentationButton;
         presentationButton.setSelected(org.helioviewer.jhv.gui.PresentationMode.isActive());
         presentationButton.addActionListener(e -> {
@@ -329,7 +326,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         });
         addButton(presentationButton);
 
-        JideSplitButton annotationButton = toolSplitButton(ANNOTATION);
+        SplitButton annotationButton = toolSplitButton(ANNOTATION);
         ButtonGroup annotationGroup = new ButtonGroup();
         for (AnnotationMode mode : AnnotationMode.values()) {
             JRadioButtonMenuItem item = new JRadioButtonMenuItem(mode.toString());
@@ -337,16 +334,16 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
                 item.setSelected(true);
             item.addActionListener(e -> ViewState.setAnnotationMode(mode));
             annotationGroup.add(item);
-            annotationButton.add(item);
+            annotationButton.addItem(item);
             annotationItems.put(mode, item);
         }
-        annotationButton.addSeparator();
+        annotationButton.addItemSeparator();
         addAnnotationColorItems(annotationButton);
-        annotationButton.add(createAnnotationThicknessPanel());
-        annotationButton.addSeparator();
-        annotationButton.add(new Actions.ClearAnnotations());
-        annotationButton.addSeparator();
-        annotationButton.add(new Actions.ZoomFOVAnnotation());
+        annotationButton.addItem(createAnnotationThicknessPanel());
+        annotationButton.addItemSeparator();
+        annotationButton.addItem(new Actions.ClearAnnotations());
+        annotationButton.addItemSeparator();
+        annotationButton.addItem(new Actions.ZoomFOVAnnotation());
         addButton(annotationButton);
 
         addSeparator(dim);
@@ -355,31 +352,31 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         // top-level buttons for automatic refresh, the SDO cut-out and SAMP spent width that the
         // overflow chevron then had to reclaim on a narrow window; the chevron is still there for
         // whatever does not fit, but it no longer has to start with these.
-        JideSplitButton more = toolSplitButton(MORE);
+        SplitButton more = toolSplitButton(MORE);
         refreshItem = new JCheckBoxMenuItem(REFRESH.text(), ViewState.isRefresh());
         refreshItem.setToolTipText(REFRESH.tip());
         refreshItem.addItemListener(e -> ViewState.setRefresh(refreshItem.isSelected()));
-        more.add(refreshItem);
-        more.addSeparator();
-        more.add(new Actions.SDOCutOut());
+        more.addItem(refreshItem);
+        more.addItemSeparator();
+        more.addItem(new Actions.SDOCutOut());
         if (Boolean.parseBoolean(Settings.getProperty("startup.sampHub"))) {
             JMenuItem samp = new JMenuItem(SAMP.text());
             samp.setToolTipText(SAMP.tip());
             samp.addActionListener(e -> SampClient.notifyRequestData());
-            more.add(samp);
+            more.addItem(samp);
         }
         addButton(more);
 
         addSeparator(dim);
 /*
         ButtonText hText = new ButtonText("HAPI", "HAPI", "HAPI");
-        JideButton hButton = toolButton(hText);
+        JButton hButton = toolButton(hText);
         hButton.addActionListener(e -> HapiReader.requestCatalog());
         addButton(hButton);
 */
 /*
         for (Map.Entry<ButtonText, ActionListener> entry : pluginButtons.entrySet()) {
-            JideButton b = toolButton(entry.getKey());
+            JButton b = toolButton(entry.getKey());
             b.addActionListener(entry.getValue());
             addButton(b);
         }
@@ -392,7 +389,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         items.clear();
         java.util.Collections.addAll(items, getComponents());
 
-        overflowButton = new JideButton(Buttons.overflow);
+        overflowButton = Buttons.flat(Buttons.overflow);
         overflowButton.setToolTipText("More toolbar controls");
         overflowButton.setFocusPainted(false);
         overflowButton.addActionListener(e -> showOverflow());
@@ -491,12 +488,15 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             overflowButton.setBounds(getWidth() - in.right - chevron, in.top, chevron, rowHeight);
     }
 
-    private void addButton(AbstractButton b) {
-        b.setFocusPainted(false);
+    // Takes a JComponent rather than an AbstractButton because a split button is now a small
+    // panel of two buttons rather than one button of JIDE's.
+    private void addButton(JComponent b) {
+        if (b instanceof AbstractButton button)
+            button.setFocusPainted(false);
         add(b);
     }
 
-    private static void addAnnotationColorItems(JideSplitButton annotationButton) {
+    private static void addAnnotationColorItems(SplitButton annotationButton) {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
         panel.setBorder(BorderFactory.createEmptyBorder(0, 8, 3, 8));
         ButtonGroup colorGroup = new ButtonGroup();
@@ -510,7 +510,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             colorGroup.add(button);
             panel.add(button);
         }
-        annotationButton.add(panel);
+        annotationButton.addItem(panel);
     }
 
     // The projection controls live in a persistent palette, not a dropdown: it survives focus
@@ -540,7 +540,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             sequencePalette.toggle();
     }
 
-    private static JideToggleButton presentationToggle; // current toolbar's presentation button
+    private static JToggleButton presentationToggle; // current toolbar's presentation button
 
     // Toggle presentation mode exactly as the toolbar button does (used by View > Presentation
     // Mode and by Escape). Falls through to the mode directly if the toolbar is mid-recreate, so

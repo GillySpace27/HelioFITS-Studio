@@ -6,6 +6,7 @@ import java.awt.GridBagLayout;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 
+import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JOptionPane;
 import javax.swing.JComboBox;
@@ -19,8 +20,6 @@ import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.component.JHVSpinner;
 import org.helioviewer.jhv.image.lut.LUT;
 import org.helioviewer.jhv.thread.Task;
-
-import com.jidesoft.swing.JideButton;
 
 @SuppressWarnings("serial")
 class PointCloudOptions extends JPanel {
@@ -53,7 +52,7 @@ class PointCloudOptions extends JPanel {
 
         // Sync the movie interval to this cloud's time span, so context imagery can be loaded over
         // the same range — mirrors the image layers' sync button (DifferencePanel).
-        JideButton sync = new JideButton(Buttons.sync);
+        JButton sync = Buttons.flat(Buttons.sync);
         sync.setToolTipText("Set the movie time interval to this point cloud's time span");
         sync.addActionListener(e -> {
             if (layer.hasClouds())
@@ -139,7 +138,7 @@ class PointCloudOptions extends JPanel {
         JHVSpinner length = makeSpinner(layer.getArrowLength(), 1, 200, 1, layer::setArrowLength);
         JHVSpinner halfAngle = makeSpinner(layer.getArrowHalfAngle(), 0, 89, 1, layer::setArrowHalfAngle);
 
-        JideButton donki = new JideButton("DONKI");
+        JButton donki = Buttons.flat("DONKI");
         donki.setToolTipText("Load a CME cone fit (lon/lat/half-angle) from CCMC DONKI for this cloud's date");
         donki.addActionListener(e -> pickDonkiFit(layer, arrow, lon, lat, halfAngle, length));
         c.gridx = 3;

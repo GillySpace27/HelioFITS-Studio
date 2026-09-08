@@ -21,8 +21,6 @@ import org.helioviewer.jhv.layers.ViewpointLayerOptions;
 import org.helioviewer.jhv.layers.ViewpointLayerOptions.CameraBehaviour;
 import org.helioviewer.jhv.layers.ViewpointLayerOptions.FreeSource;
 
-import com.jidesoft.swing.JideButton;
-
 @SuppressWarnings("serial")
 final class ViewpointLayerOptionsPanel extends JPanel {
 
@@ -74,7 +72,7 @@ final class ViewpointLayerOptionsPanel extends JPanel {
         }
         turntableRadio = turntable;
 
-        JideButton info = new JideButton(Buttons.info);
+        JButton info = Buttons.flat(Buttons.info);
         info.setToolTipText("Show camera info");
         info.addActionListener(e -> new TextDialog("Camera Options Information", explanation, false).showDialog());
         radioPanel.add(info);

@@ -22,18 +22,17 @@ import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
+import javax.swing.JButton;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JSeparator;
+import javax.swing.JToggleButton;
 
 import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.gui.PresentationMode;
 import org.helioviewer.jhv.gui.UIGlobals;
-
-import com.jidesoft.swing.JideButton;
-import com.jidesoft.swing.JideToggleButton;
 
 /**
  * A persistent floating control palette: the Projection panel's window behaviour, made reusable.
@@ -67,7 +66,7 @@ public final class Palette {
     @Nullable
     private JDialog dialog;
     @Nullable
-    private JideToggleButton toggle;
+    private JToggleButton toggle;
     private boolean pinned = true; // pinned: docks to the corner and follows; unpinned: free-floating
 
     /**
@@ -98,7 +97,7 @@ public final class Palette {
     }
 
     /** Bind to the toolbar toggle that opens it. The toolbar is recreated on display-mode change. */
-    public void bind(JideToggleButton button) {
+    public void bind(JToggleButton button) {
         toggle = button;
         dispose();
         button.addActionListener(e -> setOpen(button.isSelected()));
@@ -315,7 +314,7 @@ public final class Palette {
 
         JPanel headerButtons = new JPanel(new FlowLayout(FlowLayout.TRAILING, 0, 0));
         headerButtons.setOpaque(false);
-        JideToggleButton pin = new JideToggleButton("◱"); // dock-to-corner glyph
+        JToggleButton pin = Buttons.flatToggle("◱"); // dock-to-corner glyph
         pin.setSelected(pinned);
         pin.setToolTipText("Dock to the top-right corner (unpin to float freely)");
         pin.addActionListener(e -> {
@@ -323,7 +322,7 @@ public final class Palette {
             if (pinned)
                 dockOpen();
         });
-        JideButton close = new JideButton("✕");
+        JButton close = Buttons.flat("✕");
         close.setToolTipText("Collapse (the toolbar " + title + " button reopens it)");
         close.addActionListener(e -> {
             if (toggle != null)

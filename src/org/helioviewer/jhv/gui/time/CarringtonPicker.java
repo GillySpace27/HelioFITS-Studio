@@ -7,6 +7,7 @@ import java.util.ArrayList;
 
 import javax.swing.AbstractAction;
 import javax.swing.AbstractListModel;
+import javax.swing.JButton;
 import javax.swing.JList;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
@@ -17,10 +18,10 @@ import org.helioviewer.jhv.astronomy.Carrington;
 import org.helioviewer.jhv.time.JHVTime;
 import org.helioviewer.jhv.time.TimeUtils;
 
-import com.jidesoft.swing.JideButton;
+import com.formdev.flatlaf.FlatClientProperties;
 
 @SuppressWarnings("serial")
-class CarringtonPicker extends JideButton {
+class CarringtonPicker extends JButton {
 
     private final ArrayList<CalendarListener> listeners = new ArrayList<>();
     private final JPopupMenu popup = new JPopupMenu();
@@ -41,6 +42,8 @@ class CarringtonPicker extends JideButton {
     CarringtonPicker() {
         setText("CR");
         setToolTipText("Select Carrington rotation");
+        putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON);
+        setRequestFocusEnabled(false); // as JideButton was: a click here must not steal the focus from the date fields
 
         list.setVisibleRowCount(15);
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
