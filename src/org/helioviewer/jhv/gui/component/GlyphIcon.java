@@ -76,10 +76,15 @@ public final class GlyphIcon implements Icon, FlatLaf.DisabledIconProvider {
         // the headless checks: measuring must not be the thing that throws there.
         Font base = UIGlobals.uiFontMDI;
         font = base == null ? new Font(Font.SANS_SERIF, Font.PLAIN, Math.round(size)) : base.deriveFont(size);
-        FontMetrics fm = MEASURE.createGraphics().getFontMetrics(font);
-        width = fm.stringWidth(glyph);
-        height = fm.getAscent() + fm.getDescent();
-        baseline = fm.getAscent();
+        Graphics2D g = MEASURE.createGraphics();
+        try {
+            FontMetrics fm = g.getFontMetrics(font);
+            width = fm.stringWidth(glyph);
+            height = fm.getAscent() + fm.getDescent();
+            baseline = fm.getAscent();
+        } finally {
+            g.dispose();
+        }
     }
 
     @Override
