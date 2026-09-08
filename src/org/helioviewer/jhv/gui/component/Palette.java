@@ -83,6 +83,12 @@ public final class Palette {
     private boolean pinned = true; // pinned: docks to the corner and follows; unpinned: free-floating
     @Nullable
     private Dimension userSize; // a size dragged by hand: theirs to keep, and it outranks packing
+
+    // Whether this palette lives in the right sidebar rather than in a window of its own. The two
+    // are exclusive: in the sidebar it has no dialog at all, which is what keeps the watchdogs
+    // below (keepVisible, repackAll, rebuildAll, all of which skip a null dialog) from
+    // resurrecting it as a window behind the user's back.
+    private boolean inSidebar;
     @Nullable
     private Dimension autoNatural; // the content size an auto-sized palette was last fitted to
 
@@ -117,7 +123,18 @@ public final class Palette {
     public void bind(JToggleButton button) {
         toggle = button;
         dispose();
-        button.addActionListener(e -> setOpen(button.isSelected()));
+        button.addActionListener(e -> {
+            // Docked in the sidebar there is no window to open or close, so the toolbar button
+            // means "show me this" rather than "toggle it": it opens the sidebar if it is folded
+            // away and expands the section. The button stays lit, which is true, since the
+            // palette is present either way.
+            if (inSidebar) {
+                RightSidebar.getInstance().reveal(title);
+                button.setSelected(true);
+                return;
+            }
+            setOpen(button.isSelected());
+        });
     }
 
     /** Open the palette with this title if it is not already open. Used by the layer row. */
@@ -133,6 +150,10 @@ public final class Palette {
 
     private String sizeKey() {
         return key() + ".size";
+    }
+
+    private String sidebarKey() {
+        return key() + ".sidebar";
     }
 
     /** The stored hand-set size, or null for a palette nobody has resized, which keeps packing. */
@@ -157,6 +178,11 @@ public final class Palette {
 
     /** Reopen the palettes that were open when the application last quit. Needs the frame on screen. */
     public static void restoreOpen() {
+        // Sidebar membership first: a palette that belongs there must not be opened as a window on
+        // the way past, which is what the second loop would do with the stored open flag.
+        for (Palette p : palettes)
+            if (p.toggle != null && "true".equals(Settings.getProperty(p.sidebarKey())))
+                p.setInSidebar(true);
         for (Palette p : palettes)
             if (p.toggle != null && !p.isOpen() && "true".equals(Settings.getProperty(p.key())))
                 p.toggle();
@@ -169,15 +195,52 @@ public final class Palette {
     }
 
     public boolean isOpen() {
-        return dialog != null && dialog.isVisible();
+        return inSidebar || (dialog != null && dialog.isVisible());
+    }
+
+    public boolean isInSidebar() {
+        return inSidebar;
     }
 
     /** Open, or if already open bring to the front: what a "settings..." button wants, where a toggle would close it. */
     public void open() {
+        if (inSidebar) {
+            RightSidebar.getInstance().reveal(title);
+            return;
+        }
         if (!isOpen())
             toggle();
         else if (dialog != null)
             dialog.toFront();
+    }
+
+    /**
+     * Move this palette between the right sidebar and a window of its own.
+     *
+     * <p>The content component is the same object either way, and Swing gives a component exactly
+     * one parent, so handing it to the other host is what moves it: the dialog is disposed rather
+     * than hidden on the way in, and rebuilt on the way out.
+     */
+    public void setInSidebar(boolean sidebar) {
+        if (inSidebar == sidebar)
+            return;
+        inSidebar = sidebar;
+        Settings.setProperty(sidebarKey(), Boolean.toString(sidebar));
+        if (sidebar) {
+            Settings.setProperty(key(), "false"); // not a floating window now, so do not reopen as one
+            dispose();
+            RightSidebar.getInstance().addSection(title,
+                    toggle == null ? null : toggle.getIcon(), // the same glyph as its toolbar button
+                    contentSupplier.get(), () -> setInSidebar(false));
+            onShow.run();
+            if (toggle != null)
+                toggle.setSelected(true);
+        } else {
+            RightSidebar.getInstance().removeSection(title);
+            if (toggle != null)
+                toggle.setSelected(true);
+            setOpen(true);
+        }
     }
 
     private void setOpen(boolean open) {
@@ -362,7 +425,7 @@ public final class Palette {
 
     private static void dockOpen() {
         for (Palette p : palettes)
-            if (p.isOpen())
+            if (p.dialog != null && p.isOpen()) // a sidebar palette has no window to place
                 p.dock();
     }
 
@@ -444,6 +507,9 @@ public final class Palette {
             if (pinned)
                 dockOpen();
         });
+        JButton toSidebar = Buttons.flat(Buttons.chevronRight);
+        toSidebar.setToolTipText("Dock into the right sidebar");
+        toSidebar.addActionListener(e -> setInSidebar(true));
         JButton close = Buttons.flat("✕");
         close.setToolTipText("Collapse (the toolbar " + title + " button reopens it)");
         close.addActionListener(e -> {
@@ -452,6 +518,7 @@ public final class Palette {
             palette.setVisible(false);
             dockOpen(); // whatever was stacked below this closes the gap
         });
+        headerButtons.add(toSidebar);
         headerButtons.add(pin);
         headerButtons.add(close);
         header.add(headerButtons, BorderLayout.LINE_END);
