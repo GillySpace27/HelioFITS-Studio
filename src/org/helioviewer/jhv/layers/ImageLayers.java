@@ -67,7 +67,7 @@ public final class ImageLayers {
     private static double warpMagnification(ImageLayer layer) {
         if (Display.mode != MapMode.Helioradial)
             return 1;
-        // Same extent the renderer normalizes the warp over, not the edge crop, or the
+        // Same extent the renderer normalizes the warp over, not the Crop, or the
         // magnification estimate would drift from what is actually drawn.
         double outerRadius = Display.fullWarpFieldRadius();
         if (outerRadius <= 0)

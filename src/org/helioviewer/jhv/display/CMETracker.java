@@ -13,7 +13,7 @@ import org.helioviewer.jhv.time.TimeListener;
 // the warp lambda with movie time: as the front travels outward the Box-Cox warp is
 // re-solved every frame so the front stays at a constant screen radius while the corona
 // rubber-bands around it. Works in either projection that uses lambda — Helioradial (disk)
-// and HelioradialUnrolled (unwrap) share the warp, so the same solve drives both; EDGE mode
+// and HelioradialUnrolled (unwrap) share the warp, so the same solve drives both; CROP mode
 // additionally works in Orthographic, where the crop sizes the camera. Transient, like
 // camera tracking: engaged from a CACTus event dialog, disengaged by moving the driving
 // slider or leaving the projections the current mode can act on.
@@ -27,11 +27,11 @@ public final class CMETracker implements TimeListener.Change {
                                                         // the drawn CACTus arc rides exactly at the pinned front
 
     // Which knob is animated to hold the front. WARP re-solves the Box-Cox lambda against a fixed
-    // outer radius (the corona rubber-bands around a stationary front); EDGE holds lambda and
+    // outer radius (the corona rubber-bands around a stationary front); CROP holds lambda and
     // re-solves the outer radius instead, so the field of view widens as the CME travels — the
     // linear counterpart, closer to a zoom-out that follows the front.
     public enum Mode {
-        WARP("Warp (λ)"), EDGE("Edge (crop)");
+        WARP("Warp (λ)"), CROP("Crop");
 
         private final String label;
 
@@ -147,9 +147,9 @@ public final class CMETracker implements TimeListener.Change {
         if (!tracking)
             return;
         // Disengage only when the current projection cannot show what tracking is doing: the
-        // lambda solve needs a warp mode, while the edge crop also reaches Orthographic
-        // through the camera, so edge-mode tracking survives the switch to the plain sky view.
-        boolean effective = mode == Mode.EDGE ? Display.mode.usesWarpEdge() : Display.mode.usesWarpLambda();
+        // lambda solve needs a warp mode, while the crop also reaches Orthographic
+        // through the camera, so crop-mode tracking survives the switch to the plain sky view.
+        boolean effective = mode == Mode.CROP ? Display.mode.usesWarpCrop() : Display.mode.usesWarpLambda();
         if (!effective) {
             tracking = false;
             smoother.stop();
@@ -188,8 +188,8 @@ public final class CMETracker implements TimeListener.Change {
 
     private static void solveAndSet(double milli) {
         double rCme = ONSET_RSUN + speed * (milli - onset) / Sun.RadiusMeter; // km/s * milli == m
-        if (mode == Mode.EDGE) {
-            solveEdge(rCme);
+        if (mode == Mode.CROP) {
+            solveCrop(rCme);
             fireSolved();
             return;
         }
@@ -204,10 +204,10 @@ public final class CMETracker implements TimeListener.Change {
         fireSolved();
     }
 
-    // EDGE mode: lambda is the user's, so widen/narrow the radial crop until the front sits at
+    // CROP mode: lambda is the user's, so widen/narrow the radial crop until the front sits at
     // SCREEN_FRACTION. Set through Display (not the toolbar slider) so this does not trip the
     // slider's disengage listener, exactly as the lambda path does.
-    private static void solveEdge(double rCme) {
+    private static void solveCrop(double rCme) {
         double maxOut = ImageLayers.getLargestRadialSize(); // never crop wider than the data
         if (maxOut <= 1)
             return;
@@ -256,7 +256,7 @@ public final class CMETracker implements TimeListener.Change {
         return 0.5 * (lo + hi);
     }
 
-    // Find the outer radius (the Edge crop) that lands the front at SCREEN_FRACTION for a FIXED
+    // Find the outer radius (the Crop) that lands the front at SCREEN_FRACTION for a FIXED
     // lambda: unitY(r, rOut, lambda) == SCREEN_FRACTION. unitY falls monotonically as rOut grows —
     // a wider field of view pushes a fixed physical radius inward — in both the limb anchor and the
     // Box-Cox term, and for either sign of lambda, so bisection is safe. Bracketed below by the

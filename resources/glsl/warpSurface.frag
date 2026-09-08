@@ -34,7 +34,7 @@ void main(void) {
     if (vSurfaceExcess > 1.)
         discard;
 
-    // The Edge crop: cut to a circle at the chosen radius, leaving the mapping and the camera
+    // The Crop: cut to a circle at the chosen radius, leaving the mapping and the camera
     // alone. That is the whole difference between this and the Zoom slider beside it.
     if (vCropExcess > 1.)
         discard;

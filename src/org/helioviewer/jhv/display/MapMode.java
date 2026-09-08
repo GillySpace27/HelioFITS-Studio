@@ -103,13 +103,13 @@ public enum MapMode {
 
     public double baseCameraWidth(Camera camera) {
         return switch (this) {
-            // The edge crop sizes the helioradial camera, so closing it magnifies. The warp itself
+            // The crop sizes the helioradial camera, so closing it magnifies. The warp itself
             // is normalized over the full loaded field (Display.fullWarpFieldRadius) and never
             // sees this number, so the mapping holds still while the framing tightens.
             //
             // On its own that was indistinguishable from the Zoom slider, which is the complaint
             // this addresses: both simply made everything bigger. What separates them is the
-            // fragment-stage discard at the crop radius (warpSurface.vert/.frag). The edge now
+            // fragment-stage discard at the crop radius (warpSurface.vert/.frag). The crop now
             // cuts the picture to a hard circle AND magnifies it, which is a zoom by crop; Zoom
             // magnifies with no boundary at all. Same direction, visibly different operations.
             //
@@ -123,12 +123,12 @@ public enum MapMode {
                     ? HELIORADIAL_MARGIN * 2 * Display.effectiveWarpOuterRadius()
                     : HELIORADIAL_MARGIN;
             case HelioradialUnrolled -> 1.0;
-            // The edge crop reaches Orthographic too, sizing the camera exactly as in 3D
-            // Helioradial, so edge-mode CME tracking is available in the plain sky view;
+            // The crop reaches Orthographic too, sizing the camera exactly as in 3D
+            // Helioradial, so crop-mode CME tracking is available in the plain sky view;
             // auto (no crop) keeps the camera's own framing.
             case Orthographic -> {
-                double edge = Display.getWarpOuterRadius();
-                yield edge > 0 ? HELIORADIAL_MARGIN * 2 * edge : camera.baseCameraWidth();
+                double crop = Display.getWarpOuterRadius();
+                yield crop > 0 ? HELIORADIAL_MARGIN * 2 * crop : camera.baseCameraWidth();
             }
             case HPC, Latitudinal -> camera.baseCameraWidth();
             // A fixed map filling the normalized domain, like the unrolled layout: the angular
@@ -174,11 +174,11 @@ public enum MapMode {
     }
 
     /**
-     * Whether the Edge crop (Display.warpOuterRadius) acts on this projection. The warp modes
+     * Whether the Crop (Display.warpOuterRadius) acts on this projection. The warp modes
      * crop through their scale; Orthographic crops through the camera. HPC and Latitudinal
      * have no radial coordinate a crop in solar radii could act on.
      */
-    public boolean usesWarpEdge() {
+    public boolean usesWarpCrop() {
         return usesWarpLambda() || this == Orthographic;
     }
 

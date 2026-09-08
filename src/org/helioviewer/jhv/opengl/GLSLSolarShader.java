@@ -124,7 +124,7 @@ public class GLSLSolarShader extends GLSLShader {
         // sphere, 1/2 the celestial sphere, and every value between is a real sphere through the
         // Sun, which is what makes the morph a movement rather than a dissolve (SurfaceTransition).
         GL.glUniform1f(surfaceModelRef, (float) org.helioviewer.jhv.display.SurfaceTransition.blend());
-        // The user's Edge crop, NOT the field the warp is normalized over. Zero when the edge is
+        // The user's Crop, NOT the field the warp is normalized over. Zero when the crop is
         // on auto, which is no crop at all rather than a crop at the full field.
         GL.glUniform1f(cropRadiusRef, (float) org.helioviewer.jhv.display.Display.getWarpOuterRadius());
         // The surface is single-sided but orbitable: once the camera swings past its edge the

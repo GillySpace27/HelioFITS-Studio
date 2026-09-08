@@ -26,7 +26,7 @@ public interface MapScale {
      * <p>Everything that warps must agree on this number: the imagery mesh takes it from the
      * scale, and so must the overlays, or the grid and the point clouds sit at a different
      * radius from the picture they annotate. It used to be passed to GLSLWarp separately, which
-     * is exactly how the two came apart when the edge control stopped feeding the warp.
+     * is exactly how the two came apart when the crop control stopped feeding the warp.
      * Reading it off the scale makes them impossible to desync.
      */
     default double warpOuterRadius() {

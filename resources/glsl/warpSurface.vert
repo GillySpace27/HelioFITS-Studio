@@ -22,7 +22,7 @@ out vec3 vWorld;              // the UNWARPED surface point, which is what the f
 // than refusing, which pins the depth at D while rho keeps growing and extrudes a flat sheet that
 // renders exactly like corona correctly placed on a plane. The fragment stage throws that away.
 out float vSurfaceExcess;
-// Radius as a fraction of the Edge crop, or 0 when there is no crop. Discarded past 1.
+// Radius as a fraction of the Crop, or 0 when there is no crop. Discarded past 1.
 out float vCropExcess;
 
 uniform mat4 ModelViewProjectionMatrix;
@@ -31,7 +31,7 @@ uniform float observerDistance;
 // compared against 1; making it a blend turns the same expression into an animation, because the
 // depth law is linear in it. See SurfaceTransition.
 uniform float surfaceModel;
-// The Edge crop, in solar radii, or 0 for no crop. Separate from screen.yStop, which is the full
+// The Crop, in solar radii, or 0 for no crop. Separate from screen.yStop, which is the full
 // loaded field the warp is normalized over: the crop must cut the picture WITHOUT renormalizing
 // the mapping or moving the camera, or it is a zoom rather than a crop.
 uniform float cropRadius;

@@ -23,6 +23,7 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JButton;
 import javax.swing.JCheckBoxMenuItem;
+import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JRadioButtonMenuItem;
 import javax.swing.JToggleButton;
@@ -158,9 +159,9 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private final EnumMap<AnnotationMode, JRadioButtonMenuItem> annotationItems = new EnumMap<>(AnnotationMode.class);
     private final EnumMap<MapMode, javax.swing.JRadioButton> projectionItems = new EnumMap<>(MapMode.class);
     private JHVSlider warpLambdaSlider;
-    private JHVSlider warpEdgeSlider;
+    private JHVSlider warpCropSlider;
     private JLabel warpLambdaValue;
-    private JLabel warpEdgeValue;
+    private JLabel warpCropValue;
     // CME tracking writes lambda / outer radius straight to Display; while it does, we mirror the
     // values into the sliders. Guarded so that programmatic move does not look like a manual one
     // and disengage the very tracking that caused it.
@@ -365,7 +366,14 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         // one button. Annotation used to have its own top-level button; it is a mode you set once
         // and then draw in, not a control worked against the view while watching it (the thing
         // that earns a place of its own on this bar), so it folded in here with the rest.
+        //
+        // As its own submenu, not poured into this one. Annotation is eight items, a colour strip
+        // and a slider; flattened into More they were most of the menu and the three things More
+        // is actually for sat under them. A submenu keeps More a short list of destinations.
         SplitButton more = toolSplitButton(MORE);
+        JMenu annotation = new JMenu("Annotation");
+        annotation.setIcon(Buttons.annotate);
+        annotation.setToolTipText("Annotation (Press Shift to draw)");
         ButtonGroup annotationGroup = new ButtonGroup();
         for (AnnotationMode mode : AnnotationMode.values()) {
             JRadioButtonMenuItem item = new JRadioButtonMenuItem(mode.toString());
@@ -373,16 +381,17 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
                 item.setSelected(true);
             item.addActionListener(e -> ViewState.setAnnotationMode(mode));
             annotationGroup.add(item);
-            more.addItem(item);
+            annotation.add(item);
             annotationItems.put(mode, item);
         }
-        more.addItemSeparator();
-        addAnnotationColorItems(more);
-        more.addItem(createAnnotationThicknessPanel());
-        more.addItemSeparator();
-        more.addItem(new Actions.ClearAnnotations());
-        more.addItemSeparator();
-        more.addItem(new Actions.ZoomFOVAnnotation());
+        annotation.addSeparator();
+        addAnnotationColorItems(annotation);
+        annotation.add(createAnnotationThicknessPanel());
+        annotation.addSeparator();
+        annotation.add(new Actions.ClearAnnotations());
+        annotation.addSeparator();
+        annotation.add(new Actions.ZoomFOVAnnotation());
+        more.addItem(annotation);
         more.addItemSeparator();
         refreshItem = new JCheckBoxMenuItem(REFRESH.text(), ViewState.isRefresh());
         refreshItem.setToolTipText(REFRESH.tip());
@@ -527,7 +536,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         add(b);
     }
 
-    private static void addAnnotationColorItems(SplitButton annotationButton) {
+    private static void addAnnotationColorItems(JMenu annotationMenu) {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
         panel.setBorder(BorderFactory.createEmptyBorder(0, 8, 3, 8));
         ButtonGroup colorGroup = new ButtonGroup();
@@ -541,7 +550,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             colorGroup.add(button);
             panel.add(button);
         }
-        annotationButton.addItem(panel);
+        annotationMenu.add(panel);
     }
 
     // The projection controls live in a persistent palette, not a dropdown: it survives focus
@@ -661,7 +670,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         content.add(new javax.swing.JSeparator());
         content.add(createSurfaceModelPanel());
         content.add(createWarpLambdaPanel());
-        content.add(createWarpEdgePanel());
+        content.add(createWarpCropPanel());
         content.add(createZoomPanel());
         content.add(createDiskPanel());
         content.add(createHelioradial3DPanel());
@@ -672,7 +681,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         // The disk scale is a multiplier on the Box-Cox limb anchor, so it has nothing to act on
         // wherever the warp itself does not: same condition, not a similar one.
         diskSlider.setEnabled(ViewState.getProjection().usesWarpLambda());
-        warpEdgeSlider.setEnabled(ViewState.getProjection().usesWarpEdge());
+        warpCropSlider.setEnabled(ViewState.getProjection().usesWarpCrop());
         helioradial3DBox.setEnabled(ViewState.getProjection() == MapMode.Helioradial);
         CMETracker.addSolveListener(this::syncWarpSlidersFromTracker); // follow the tracked knob
 
@@ -693,42 +702,49 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         if (ViewState.getProjection() == MapMode.ObserverSky && el.hostsSky()) {
             org.helioviewer.jhv.display.ProjectionTransition.requestChange(() -> {
                 Display.setSkyBase(el);
-                modeStateChanged(); // the Warp, Edge, Disk and Surface controls follow the base
+                modeStateChanged(); // the Warp, Crop, Disk and Surface controls follow the base
             });
         } else
             ViewState.setProjection(el);
     }
 
     // Mirror the knob CME tracking is animating back into its slider, so the readout matches what
-    // the projection is actually doing. Inverts the Edge slider's log mapping (radius = 2*(full/2)^t).
+    // the projection is actually doing. Both directions go through the same value-to-tick pair the
+    // slider itself uses, so the handle and the readout cannot disagree about which end is which.
     private void syncWarpSlidersFromTracker() {
-        if (warpLambdaSlider == null || warpEdgeSlider == null)
+        if (warpLambdaSlider == null || warpCropSlider == null)
             return;
         syncingFromTracker = true;
         try {
             if (CMETracker.getMode() == CMETracker.Mode.WARP) {
-                warpLambdaSlider.setValue((int) Math.round(Display.getWarpLambda() * 1000));
+                warpLambdaSlider.setValue(warpLambdaToSlider(Display.getWarpLambda()));
                 warpLambdaValue.setText(String.format("%.3f", Display.getWarpLambda()));
             } else {
                 double radius = Display.getWarpOuterRadius();
-                double full = Math.max(ImageLayers.getLargestRadialSize(), 2);
-                if (radius <= 0 || full <= 2) {
-                    warpEdgeSlider.setValue(1000);
-                    warpEdgeValue.setText("auto");
-                } else {
-                    double t = 1000 * Math.log(Math.max(radius, 2) / 2) / Math.log(full / 2);
-                    warpEdgeSlider.setValue((int) Math.round(Math.clamp(t, 0, 1000)));
-                    warpEdgeValue.setText(String.format("%.0f R☉", radius));
-                }
+                int t = cropRadiusToSlider(radius, Math.max(ImageLayers.getLargestRadialSize(), 2));
+                warpCropSlider.setValue(t);
+                warpCropValue.setText(t == CROP_SLIDER_AUTO ? "auto" : String.format("%.0f R☉", radius));
             }
         } finally {
             syncingFromTracker = false;
         }
     }
 
+    // Right is a stronger warp, which is right-is-bigger: lambda towards -1 stretches the inner
+    // corona outward, so structure near the Sun grows. Lambda runs the other way (1 is the exact
+    // identity), hence the sign flip here rather than in Display, which keeps storing the physical
+    // lambda so a saved session restores the same picture.
+    static double sliderToWarpLambda(int t) {
+        return -Math.clamp(t, -1000, 1000) / 1000.;
+    }
+
+    static int warpLambdaToSlider(double lambda) {
+        return (int) Math.round(-Math.clamp(lambda, -1, 1) * 1000);
+    }
+
     private JPanel createWarpLambdaPanel() {
-        warpLambdaSlider = new JHVSlider(-1000, 1000, (int) Math.round(ViewState.getWarpLambda() * 1000));
-        warpLambdaSlider.setToolTipText("Warp strength (Box-Cox lambda) for warp projections");
+        warpLambdaSlider = new JHVSlider(-1000, 1000, warpLambdaToSlider(ViewState.getWarpLambda()));
+        warpLambdaSlider.setToolTipText("Warp strength (Box-Cox lambda) for warp projections: right stretches the inner corona outward, left is the unwarped view");
         warpLambdaSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, warpLambdaSlider.getPreferredSize().height));
         JLabel label = new JLabel("Warp");
         warpLambdaValue = new JLabel(String.format("%.3f", ViewState.getWarpLambda()), JLabel.RIGHT);
@@ -736,7 +752,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         warpLambdaSlider.addChangeListener(e -> {
             if (!syncingFromTracker && CMETracker.getMode() == CMETracker.Mode.WARP)
                 CMETracker.stop(); // a manual move takes the wheel back, but only from the knob tracking drives
-            ViewState.setWarpLambda(warpLambdaSlider.getValue() / 1000.);
+            ViewState.setWarpLambda(sliderToWarpLambda(warpLambdaSlider.getValue()));
             warpLambdaValue.setText(String.format("%.3f", ViewState.getWarpLambda()));
         });
         JPanel panel = new JPanel(new BorderLayout());
@@ -748,8 +764,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     }
 
     // ponytail: session-only knob -- not persisted in ViewState; add there if it earns it.
-    // Edge: the projection's outer radius as a fraction of the loaded FOV, mapped in log
-    // space from 2 Rsun (far left) to the full FOV (far right = auto). A radial crop: a
+    // Crop: the projection's outer radius as a fraction of the loaded FOV, mapped in log
+    // space from the full FOV (far left = auto) to 2 Rsun (far right). A radial crop: a
     // linear zoom-in independent of the lambda warp, tracking layer changes when at auto.
     private javax.swing.JCheckBox helioradial3DBox;
 
@@ -870,14 +886,14 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         // setHelioradial3D does the camera reset itself, the same way a projection change does.
         helioradial3DBox.addItemListener(e -> Display.setHelioradial3D(helioradial3DBox.isSelected()));
 
-        // Puts every control in this palette back to neutral in one press: warp off, edge wide
+        // Puts every control in this palette back to neutral in one press: warp off, crop wide
         // open, magnification 1x. "Warp off" is lambda = 1, NOT the app's start-up lambda of 0
         // -- 0 is the logarithmic member of the family and warps hard; 1 is the exact identity,
         // where the projection reduces to the unwarped view. Resetting to the start-up value
         // would leave the picture visibly warped, which is not what a reset can mean here.
         javax.swing.JButton resetView = new javax.swing.JButton("Reset view");
         resetView.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_ROUND_RECT);
-        resetView.setToolTipText("Return warp, edge and zoom to their defaults");
+        resetView.setToolTipText("Return warp, crop and zoom to their defaults");
         resetView.addActionListener(e -> resetProjectionControls());
 
         JPanel panel = new JPanel(new BorderLayout());
@@ -887,7 +903,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         return panel;
     }
 
-    // Tracking animates lambda / the edge crop frame by frame, so it has to let go before the
+    // Tracking animates lambda / the crop frame by frame, so it has to let go before the
     // defaults are written or it would overwrite them on the next tick. The state is set
     // directly rather than by moving the sliders, because a slider already sitting at its
     // default fires no change event and would silently skip its half of the reset.
@@ -903,12 +919,12 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         syncingFromTracker = true; // the widgets are following state here, not driving it
         try {
             if (warpLambdaSlider != null) {
-                warpLambdaSlider.setValue(1000);
+                warpLambdaSlider.setValue(warpLambdaToSlider(1)); // the identity is the left end now
                 warpLambdaValue.setText(String.format("%.3f", 1.));
             }
-            if (warpEdgeSlider != null) {
-                warpEdgeSlider.setValue(1000);
-                warpEdgeValue.setText("auto");
+            if (warpCropSlider != null) {
+                warpCropSlider.setValue(CROP_SLIDER_AUTO);
+                warpCropValue.setText("auto");
             }
         } finally {
             syncingFromTracker = false;
@@ -928,16 +944,16 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
 
     private static final double ZOOM_LOG2_RANGE = 6; // 2^-6 .. 2^6, i.e. 1/64x .. 64x, 1x centred
 
-    // Runs the same way round as Edge, which is the other control that decides how much sky is
-    // on screen: left is a tight view, right is a wide one. Edge does that by construction
-    // (its left end is a 2 R_sun crop, its right end the full field), and zoom read the other
-    // way, so the two sliders undid each other when dragged in the same direction.
+    // Right is bigger, like every other slider in this palette: the right end magnifies, the left
+    // end pulls back. Zoom and Crop are the pair that decides how much sky is on screen and they sit
+    // one above the other, so a mismatch between them shows up at once as two sliders that undo each
+    // other when dragged the same way.
     static double zoomSliderToMagnification(int t) {
-        return Math.pow(2, (0.5 - t / 1000.) * 2 * ZOOM_LOG2_RANGE);
+        return Math.pow(2, (t / 1000. - 0.5) * 2 * ZOOM_LOG2_RANGE);
     }
 
     static int magnificationToZoomSlider(double magnification) {
-        double t = 1000 * (0.5 - Math.log(magnification) / (Math.log(2) * 2 * ZOOM_LOG2_RANGE));
+        double t = 1000 * (0.5 + Math.log(magnification) / (Math.log(2) * 2 * ZOOM_LOG2_RANGE));
         return (int) Math.round(Math.clamp(t, 0, 1000));
     }
 
@@ -954,15 +970,15 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
      * How much of the radial axis the solar disk gets, as a multiple of the nominal Box-Cox
      * anchor, separated from the warp exponent that used to decide it as a side effect.
      *
-     * <p>Runs the same way as Warp, Edge and Zoom: further left is a bigger disk, because on those
-     * three further left is a tighter field and so a larger apparent size.
+     * <p>Runs the same way as Warp, Crop and Zoom: further right is a bigger disk, because on those
+     * three further right is a tighter field and so a larger apparent size.
      *
      * <p><b>No sentinel, deliberately.</b> A discrete "auto" position adjacent to a continuous
      * range is a discontinuity by construction: one pixel of travel would jump the disk from the
      * nominal share to the top of the range. Making 1.0 an ordinary value on the scale removes the
      * jump entirely, and it costs nothing, because 1.0 IS the automatic behaviour -- the anchor is
-     * returned untouched there. Nominal therefore sits near the left rather than at it, about a
-     * fifth of the way in, which is where log-spacing puts it between 2 and 0.05.
+     * returned untouched there. Nominal therefore sits near the right rather than at it, about four
+     * fifths of the way along, which is where log-spacing puts it between 0.05 and 2.
      *
      * <p>Logarithmic for the usual reason: a multiplier's useful travel is in ratios, so a linear
      * scale would give the whole range below 1.0 a tenth of the track.
@@ -996,7 +1012,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
 
         // The switch. A checkbox rather than a radio because the sky is applied LAST, on top of the
         // projection selected above: over Orthographic or HPC it is the sky as it is, over
-        // Helioradial it is composed with that mode's radial scale, so the Warp, Edge and Disk
+        // Helioradial it is composed with that mode's radial scale, so the Warp, Crop and Disk
         // sliders and the Surface choice all reach the dome. Unticking returns to that projection.
         skyBox = new javax.swing.JCheckBox("Project onto the sky", ViewState.getProjection() == MapMode.ObserverSky);
         skyBox.setToolTipText("Draw the selected projection on the observer's sky, aimed and laid flat by the controls "
@@ -1126,7 +1142,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
 
     private JPanel createDiskPanel() {
         diskSlider = new JHVSlider(0, 1000, diskScaleToSlider(Display.getDiskScale()));
-        diskSlider.setToolTipText("Size of the solar disk as a multiple of the nominal Box-Cox warp: 1.00\u00d7 is the warp untouched, left is bigger, right is smaller. Double-click to return to nominal.");
+        diskSlider.setToolTipText("Size of the solar disk as a multiple of the nominal Box-Cox warp: 1.00\u00d7 is the warp untouched, right is bigger, left is smaller. Double-click to return to nominal.");
         diskSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, diskSlider.getPreferredSize().height));
         JLabel label = new JLabel("Disk");
         diskValue = new JLabel(formatDiskScale(Display.getDiskScale()), JLabel.RIGHT);
@@ -1160,21 +1176,21 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
                 ? "nominal" : String.format("%.2f\u00d7", scale);
     }
 
-    // Log-spaced, MAX at the left so the disk grows leftward like Edge and Zoom.
+    // Log-spaced, MAX at the right so the disk grows rightward like Warp, Crop and Zoom.
     static double sliderToDiskScale(int value) {
         double t = Math.clamp(value, 0, 1000) / 1000.;
-        return Display.DISK_SCALE_MAX * Math.pow(Display.DISK_SCALE_MIN / Display.DISK_SCALE_MAX, t);
+        return Display.DISK_SCALE_MIN * Math.pow(Display.DISK_SCALE_MAX / Display.DISK_SCALE_MIN, t);
     }
 
     static int diskScaleToSlider(double scale) {
-        double t = Math.log(Math.clamp(scale, Display.DISK_SCALE_MIN, Display.DISK_SCALE_MAX) / Display.DISK_SCALE_MAX)
-                / Math.log(Display.DISK_SCALE_MIN / Display.DISK_SCALE_MAX);
+        double t = Math.log(Math.clamp(scale, Display.DISK_SCALE_MIN, Display.DISK_SCALE_MAX) / Display.DISK_SCALE_MIN)
+                / Math.log(Display.DISK_SCALE_MAX / Display.DISK_SCALE_MIN);
         return (int) Math.round(Math.clamp(t, 0, 1) * 1000);
     }
 
     private JPanel createZoomPanel() {
         zoomSlider = new JHVSlider(0, 1000, 500);
-        zoomSlider.setToolTipText("View magnification, running the same way as Edge: left tighter, right wider. Far from 1× is where imagery softens and overlays crowd; double-click to recentre");
+        zoomSlider.setToolTipText("View magnification, running the same way as Crop: right magnifies, left pulls back. Far from 1× is where imagery softens and overlays crowd; double-click to recentre");
         zoomSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, zoomSlider.getPreferredSize().height));
         JLabel label = new JLabel("Zoom");
         zoomValue = new JLabel("1.00×", JLabel.RIGHT);
@@ -1248,33 +1264,46 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         }
     }
 
-    private JPanel createWarpEdgePanel() {
-        warpEdgeSlider = new JHVSlider(0, 1000, 1000);
-        warpEdgeSlider.setToolTipText("Circular crop, in solar radii: cuts the picture to a disc without moving the camera or changing the warp. Zoom magnifies instead; rightmost is auto, no crop.");
-        warpEdgeSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, warpEdgeSlider.getPreferredSize().height));
-        JLabel label = new JLabel("Edge");
-        warpEdgeValue = new JLabel("auto", JLabel.RIGHT);
-        JLabel value = warpEdgeValue;
+    // Auto (no crop) sits at the LEFT end, because tightening the crop magnifies and this palette
+    // runs right-is-bigger throughout. The sentinel is at the wide end of the continuous range, so
+    // the tick beside it is the full field and there is no jump across it.
+    static final int CROP_SLIDER_AUTO = 0;
+
+    /** Slider tick to crop radius in solar radii, {@code full} being the loaded field; 0 means auto. */
+    static double sliderToCropRadius(int t, double full) {
+        if (t <= CROP_SLIDER_AUTO)
+            return 0;
+        return 2 * Math.pow(full / 2, 1 - Math.clamp(t, 0, 1000) / 1000.);
+    }
+
+    /** Inverse of {@link #sliderToCropRadius}, so a radius set elsewhere lands the handle on it. */
+    static int cropRadiusToSlider(double radius, double full) {
+        if (radius <= 0 || full <= 2)
+            return CROP_SLIDER_AUTO;
+        double t = 1000 * (1 - Math.log(Math.max(radius, 2) / 2) / Math.log(full / 2));
+        return (int) Math.round(Math.clamp(t, 0, 1000));
+    }
+
+    private JPanel createWarpCropPanel() {
+        warpCropSlider = new JHVSlider(0, 1000, CROP_SLIDER_AUTO);
+        warpCropSlider.setToolTipText("Circular crop, in solar radii: cuts the picture to a disc without moving the camera or changing the warp. Zoom magnifies instead; leftmost is auto, no crop.");
+        warpCropSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, warpCropSlider.getPreferredSize().height));
+        JLabel label = new JLabel("Crop");
+        warpCropValue = new JLabel("auto", JLabel.RIGHT);
+        JLabel value = warpCropValue;
         value.setPreferredSize(new JLabel("-0.000").getPreferredSize());
-        warpEdgeSlider.addChangeListener(e -> {
-            if (!syncingFromTracker && CMETracker.getMode() == CMETracker.Mode.EDGE)
-                CMETracker.stop(); // edge-mode tracking owns this slider; a manual move takes it back
-            int t = warpEdgeSlider.getValue();
-            if (t == 1000) {
-                Display.setWarpOuterRadius(0); // auto: the full loaded FOV
-                value.setText("auto");
-            } else {
-                double full = Math.max(ImageLayers.getLargestRadialSize(), 2);
-                double radius = 2 * Math.pow(full / 2, t / 1000.);
-                Display.setWarpOuterRadius(radius);
-                value.setText(String.format("%.0f R\u2609", radius));
-            }
+        warpCropSlider.addChangeListener(e -> {
+            if (!syncingFromTracker && CMETracker.getMode() == CMETracker.Mode.CROP)
+                CMETracker.stop(); // crop-mode tracking owns this slider; a manual move takes it back
+            double radius = sliderToCropRadius(warpCropSlider.getValue(), Math.max(ImageLayers.getLargestRadialSize(), 2));
+            Display.setWarpOuterRadius(radius); // 0 is auto: the full loaded FOV
+            value.setText(radius <= 0 ? "auto" : String.format("%.0f R\u2609", radius));
             DisplayController.display();
         });
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(BorderFactory.createEmptyBorder(3, 8, 3, 8));
         panel.add(label, BorderLayout.LINE_START);
-        panel.add(warpEdgeSlider, BorderLayout.CENTER);
+        panel.add(warpCropSlider, BorderLayout.CENTER);
         panel.add(value, BorderLayout.LINE_END);
         return panel;
     }
@@ -1382,9 +1411,9 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             activeProjection.setSelected(true);
         if (warpLambdaSlider != null) {
             warpLambdaSlider.setEnabled(ViewState.getProjection().usesWarpLambda());
-            if (warpEdgeSlider != null)
-                warpEdgeSlider.setEnabled(ViewState.getProjection().usesWarpEdge());
-            warpLambdaSlider.setValue((int) Math.round(ViewState.getWarpLambda() * 1000));
+            if (warpCropSlider != null)
+                warpCropSlider.setEnabled(ViewState.getProjection().usesWarpCrop());
+            warpLambdaSlider.setValue(warpLambdaToSlider(ViewState.getWarpLambda()));
         }
         if (diskSlider != null)
             diskSlider.setEnabled(ViewState.getProjection().usesWarpLambda());

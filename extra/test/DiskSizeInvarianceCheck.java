@@ -25,14 +25,14 @@ public final class DiskSizeInvarianceCheck {
         near(Display.limbFractionAtUnitZoom(MapMode.Orthographic, vp),
                 2 / Display.getCamera().baseCameraWidth(), 1e-12, "orthographic disk against the camera");
 
-        // With an edge crop, Orthographic frames the crop (margin 1.1), so the disk fraction
-        // is 2 / (1.1 * 2 * edge) — the same camera contract EdgeScopeCheck pins.
+        // With a crop set, Orthographic frames the crop (margin 1.1), so the disk fraction
+        // is 2 / (1.1 * 2 * crop) - the same camera contract CropScopeCheck pins.
         Display.setWarpOuterRadius(6);
         near(Display.limbFractionAtUnitZoom(MapMode.Orthographic, vp),
-                2 / (1.1 * 2 * 6), 1e-12, "orthographic disk under an edge crop");
+                2 / (1.1 * 2 * 6), 1e-12, "orthographic disk under a crop");
 
         // Flat Helioradial at lambda = 1 with a 6 Rsun field: the Box-Cox limb anchor is 1/6
-        // of the unit map, inside the fixed 1.1-margin disk. (Edge kept at 6 so the scale is
+        // of the unit map, inside the fixed 1.1-margin disk. (Crop kept at 6 so the scale is
         // pinned without consulting the loaded layers, which a headless run cannot.)
         Display.setWarpLambda(1);
         near(Display.limbFractionAtUnitZoom(MapMode.Helioradial, vp),
