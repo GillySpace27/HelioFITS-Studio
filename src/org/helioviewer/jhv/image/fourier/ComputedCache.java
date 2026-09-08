@@ -50,7 +50,7 @@ import org.lwjgl.system.MemoryUtil;
  */
 public final class ComputedCache {
 
-    private static final int VERSION = 1;
+    private static final int VERSION = 2; // 2: the spectrum is mean power per cell, not a sum
     // ponytail: one fixed cap, oldest entry first; a setting if disks get tight
     private static final long CAP_BYTES = 32L << 30;
     private static final String META = "meta.json";

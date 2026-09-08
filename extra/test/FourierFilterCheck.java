@@ -62,6 +62,19 @@ public final class FourierFilterCheck {
         FourierFilter.filterCube(cube, passIn, drKm, dt);
         expect("PASS inward keeps the inward feature, not the outward one",
                 projection(cube, inward, nR, nT) > 0.9 && projection(cube, outward, nR, nT) < 0.1);
+
+        // White noise has the same expected power in every (k, omega) cell, so its rate spectrum
+        // must come out flat. A sum over the cells in each bin would not: the cells are a lattice
+        // whose density in a log bin rises to one sample per frame and falls beyond, drawing a hump
+        // and a comb that a real movie's readout was mistaking for structure.
+        java.util.Random rng = new java.util.Random(7);
+        float[][] noise = component(nR, nT, (r, t) -> rng.nextGaussian());
+        cube = cube(nR, 16, nT, noise);
+        cube.finish();
+        sp = FourierFilter.filterCube(cube, pass, drKm, dt);
+        double[] filled = java.util.Arrays.stream(sp.powerPositive()).filter(x -> x > 0).sorted().toArray();
+        double spread = filled[(int) (0.9 * filled.length)] / filled[(int) (0.1 * filled.length)];
+        expect(String.format("white noise gives a flat rate spectrum (10th to 90th percentile spread %.2f)", spread), spread < 3);
     }
 
     private static void angular() {
