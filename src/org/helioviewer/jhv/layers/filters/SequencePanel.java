@@ -56,6 +56,8 @@ import org.helioviewer.jhv.thread.Task;
 import org.helioviewer.jhv.view.ComputedView;
 import org.helioviewer.jhv.view.View;
 
+import com.formdev.flatlaf.FlatClientProperties;
+
 /**
  * The "Fourier" row: a filter computed over every frame of the layer (a radial or angular
  * velocity filter, or the noise gate), chosen in the combo, set up in the popup, run with Apply.
@@ -149,6 +151,10 @@ public class SequencePanel implements FilterDetails {
         nPhiCombo.setSelectedItem(512);
         spectrumButton.setEnabled(false);
         spectrumButton.addActionListener(e -> showSpectrum());
+
+        loField.addPropertyChangeListener("value", e -> markBand());
+        hiField.addPropertyChangeListener("value", e -> markBand());
+        markBand();
 
         JPanel velocity = new JPanel(new GridLayout(0, 1));
         velocity.add(modeRow);
@@ -294,6 +300,27 @@ public class SequencePanel implements FilterDetails {
     }
 
     @Nullable
+    /**
+     * Outline From and To when they do not make a band.
+     *
+     * <p>FourierParams refuses anything but 0 <= lo < hi, and until now that refusal only arrived
+     * as a warning dialog on Apply, after the settings had been filled in and the button pressed.
+     * An error outline says it while the pair is being typed. It is an error rather than a
+     * warning because the filter genuinely cannot run with it.
+     */
+    private void markBand() {
+        boolean bad = loField.getValue() instanceof Number lo && hiField.getValue() instanceof Number hi
+                && badBand(lo.doubleValue(), hi.doubleValue());
+        Object outline = bad ? FlatClientProperties.OUTLINE_ERROR : null;
+        loField.putClientProperty(FlatClientProperties.OUTLINE, outline);
+        hiField.putClientProperty(FlatClientProperties.OUTLINE, outline);
+    }
+
+    /** FourierParams' own rule (0 <= lo < hi), asked rather than waited for. */
+    static boolean badBand(double lo, double hi) {
+        return !(lo >= 0) || !(hi > lo);
+    }
+
     private SequenceParams paramsFromWidgets() {
         String kind = (String) kindCombo.getSelectedItem();
         if (OFF.equals(kind) || kind == null)

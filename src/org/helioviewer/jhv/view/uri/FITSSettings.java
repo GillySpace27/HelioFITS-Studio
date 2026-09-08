@@ -25,6 +25,8 @@ import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.gui.component.JHVSlider;
 import org.helioviewer.jhv.gui.component.TerminatedFormatterFactory;
 
+import com.formdev.flatlaf.FlatClientProperties;
+
 @SuppressWarnings("serial")
 public final class FITSSettings {
 
@@ -116,9 +118,15 @@ public final class FITSSettings {
             JPanel alphaPanel = createScalingPanel(alphaButton, alphaSlider, alphaLabel);
 
             minClip.setColumns(10);
-            minClip.addPropertyChangeListener("value", e -> applyClipValue(minClip, FITSViewState::setClippingMin));
+            minClip.addPropertyChangeListener("value", e -> {
+                applyClipValue(minClip, FITSViewState::setClippingMin);
+                markClipRange();
+            });
             maxClip.setColumns(10);
-            maxClip.addPropertyChangeListener("value", e -> applyClipValue(maxClip, FITSViewState::setClippingMax));
+            maxClip.addPropertyChangeListener("value", e -> {
+                applyClipValue(maxClip, FITSViewState::setClippingMax);
+                markClipRange();
+            });
 
             JPanel rangePanel = new JPanel(new BorderLayout());
             rangePanel.add(minClip, BorderLayout.LINE_START);
@@ -205,6 +213,7 @@ public final class FITSSettings {
             boolean rangeMode = data.clippingMode() == FITSViewState.ClippingMode.Range;
             minClip.setEditable(rangeMode);
             maxClip.setEditable(rangeMode);
+            markClipRange(); // the mode decides whether the pair is in force, so it decides the outline
         }
 
         @Override
@@ -222,6 +231,25 @@ public final class FITSSettings {
 
         private static boolean differentDoubleValue(Object value, double expected) {
             return !(value instanceof Number number) || number.doubleValue() != expected;
+        }
+
+        /**
+         * Outline the pair when the low clip is not below the high one.
+         *
+         * <p>Nothing rejects it: both values are accepted independently and clamped only against
+         * the absolute limit, so an inverted or empty range is taken as given and the image comes
+         * out flat, with no indication that the two numbers are the reason. A warning rather than
+         * an error, because the pair is legal to type and only wrong once it is used, which is why
+         * it is only marked in Range mode, where the fields are live.
+         */
+        private void markClipRange() {
+            boolean rangeMode = FITSViewState.data().clippingMode() == FITSViewState.ClippingMode.Range;
+            boolean inverted = rangeMode
+                    && minClip.getValue() instanceof Number min && maxClip.getValue() instanceof Number max
+                    && min.doubleValue() >= max.doubleValue();
+            Object outline = inverted ? FlatClientProperties.OUTLINE_WARNING : null;
+            minClip.putClientProperty(FlatClientProperties.OUTLINE, outline);
+            maxClip.putClientProperty(FlatClientProperties.OUTLINE, outline);
         }
 
         private static void applyClipValue(JFormattedTextField field, DoubleConsumer setter) {
