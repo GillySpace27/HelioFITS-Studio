@@ -261,6 +261,13 @@ public final class Session {
             return;
         autosavedCounter = changeCounter;
         State.save(sessionFile.getParent(), sessionFile.getName());
+        // The file now matches the scene, so the session is no longer unsaved: "unsaved" should
+        // mean the work is not on disk, not that a particular button went unpressed. The name's
+        // asterisk comes off on the next UI tick, and the quit prompt (below, which reads
+        // isDirty) stops asking about a session autosave has already written. That is the same
+        // claim stated once rather than twice, and it is only reached when there IS a file: an
+        // untitled session autosaves nowhere and stays marked, correctly.
+        markSaved();
     }
 
     // Invoked from ExitHooks on every quit path. `closingThisWindow` is true for the red close

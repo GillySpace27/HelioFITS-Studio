@@ -207,6 +207,21 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
 
         Dimension dim = new Dimension(32, 32);
 
+        // First on the bar, and first for a reason: the overflow chevron drops buttons from the
+        // right as the window narrows, so the leftmost place is the one that can never be taken.
+        // Leaving a talk to hunt for Present in an overflow menu is the failure this avoids.
+        JToggleButton presentationButton = toolToggleButton(PRESENTATION);
+        presentationToggle = presentationButton;
+        presentationButton.setSelected(org.helioviewer.jhv.gui.PresentationMode.isActive());
+        presentationButton.addActionListener(e -> {
+            // The button's own selected state has already flipped; drive the mode from what it
+            // now says, so a stale state (toolbar rebuilt while presenting) cannot invert it.
+            if (presentationButton.isSelected() != org.helioviewer.jhv.gui.PresentationMode.isActive())
+                org.helioviewer.jhv.gui.PresentationMode.toggle();
+        });
+        addButton(presentationButton);
+        addSeparator(dim);
+
         // Zoom
         JButton zoomIn = toolButton(ZOOMIN);
         zoomIn.addActionListener(new Actions.ZoomIn());
@@ -350,17 +365,6 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         cameraPalette.bind(cameraButton);
         addButton(cameraButton);
         addSeparator(dim);
-
-        JToggleButton presentationButton = toolToggleButton(PRESENTATION);
-        presentationToggle = presentationButton;
-        presentationButton.setSelected(org.helioviewer.jhv.gui.PresentationMode.isActive());
-        presentationButton.addActionListener(e -> {
-            // The button's own selected state has already flipped; drive the mode from what it
-            // now says, so a stale state (toolbar rebuilt while presenting) cannot invert it.
-            if (presentationButton.isSelected() != org.helioviewer.jhv.gui.PresentationMode.isActive())
-                org.helioviewer.jhv.gui.PresentationMode.toggle();
-        });
-        addButton(presentationButton);
 
         // Everything reached once a session rather than once a minute, plus annotation, behind
         // one button. Annotation used to have its own top-level button; it is a mode you set once
