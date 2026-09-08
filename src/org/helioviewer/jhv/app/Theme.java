@@ -228,6 +228,169 @@ public final class Theme {
         return la > lb ? (la + 0.05) / (lb + 0.05) : (lb + 0.05) / (la + 0.05);
     }
 
+    // -- derivation from a chosen colour ---------------------------------------------------
+
+    /**
+     * WCAG 2.1 AA for text, and the same standard's non-text minimum for a band or a hairline.
+     *
+     * <p>4.5:1 and 3:1 are not picked for this feature; they are the numbers
+     * {@code ThemeContrastCheck} already holds the built-ins to and {@code ThemeDialog} reports
+     * live. Holding a derived theme to the same pair is the point: a theme generated in two
+     * clicks must not be allowed to be less legible than one built by hand.
+     */
+    public static final double TEXT_MIN = 4.5;
+    public static final double SURFACE_MIN = 3;
+
+    /** Below this saturation a colour counts as a neutral, and the most tint a neutral may take. */
+    private static final float NEUTRAL_MAX = 0.18f;
+    private static final float NEUTRAL_TINT = 0.10f;
+
+    /** How far a coloured token's saturation is pulled toward the chosen colour's. */
+    private static final float SAT_PULL = 0.35f;
+
+    /**
+     * The tokens that follow the second chosen colour when one is given.
+     *
+     * <p>The panels and the lists, plus the text that sits on them: body text is a near-neutral in
+     * every built-in, so it takes a whisper of whichever hue is behind it, and a warm panel wants
+     * warm-tinted text rather than text tinted like the highlights. Everything else (the accent,
+     * the header bands, the separator) is the highlight family and follows the accent.
+     */
+    private static final EnumSet<Token> SURFACE = EnumSet.of(
+            Token.Background, Token.Component, Token.Foreground, Token.HeaderText);
+
+    /**
+     * A parent theme's stated colours moved to the hue of one or two chosen ones.
+     *
+     * <p>What is taken from the chosen colours is hue and something of their saturation. What is
+     * kept from the parent is every token's lightness, and therefore every contrast ratio between
+     * them: "Sunset Dark, but forest green" is the same theme with the colour wheel turned, not a
+     * new theme that happens to be green. Choosing how light the result is stays the job of which
+     * parent you start from.
+     *
+     * @param accent the highlight hue: the accent, the header bands and the separator
+     * @param anchor the hue of the panels and the lists, or null to use the accent for those too
+     */
+    public static EnumMap<Token, Color> derived(Theme parent, Color accent, @Nullable Color anchor) {
+        float[] high = hsb(accent);
+        float[] surf = anchor == null ? high : hsb(anchor);
+
+        EnumMap<Token, Color> out = new EnumMap<>(Token.class);
+        for (Token t : STATED) {
+            float[] src = SURFACE.contains(t) ? surf : high;
+            out.put(t, retint(parent.get(t), src[0], src[1]));
+        }
+        enforce(out);
+        return out;
+    }
+
+    private static float[] hsb(Color c) {
+        return Color.RGBtoHSB(c.getRed(), c.getGreen(), c.getBlue(), null);
+    }
+
+    /** One token at a new hue, as light as it was. */
+    private static Color retint(Color from, float targetHue, float targetSat) {
+        float[] c = hsb(from);
+        float s = c[1];
+        float hue, sat;
+        if (targetSat < NEUTRAL_MAX) {
+            // The chosen colour is itself a grey, so there is no hue to move to and the request is
+            // really "take the colour out". Every token keeps its own hue and gives up saturation.
+            hue = c[0];
+            sat = s + (targetSat - s) * SAT_PULL;
+        } else if (s < NEUTRAL_MAX) {
+            // A near-neutral takes the hue but not the colour: greys must not come back bright
+            // green. Held to a tint, and given at least half of one so that a theme built out of
+            // pure greys still shifts rather than ignoring the choice entirely.
+            hue = targetHue;
+            sat = Math.min(NEUTRAL_TINT, Math.max(s, NEUTRAL_TINT / 2));
+        } else {
+            hue = targetHue;
+            sat = s + (targetSat - s) * SAT_PULL;
+        }
+        return atLuminance(hue, sat, luminance(from));
+    }
+
+    /**
+     * The colour at this hue and saturation that is as light as {@code target}.
+     *
+     * <p>Not the parent's HSB brightness, which is what "keep the brightness" would mean and is
+     * wrong: brightness is max(r,g,b), while luminance weights green nine times as heavily as
+     * blue, so a purple carried over to green at the same brightness comes out far lighter and
+     * whatever it was legible against stops being legible. Matching luminance instead makes every
+     * contrast ratio in the parent theme survive the derivation intact, since contrast is a
+     * function of luminance alone. That is the property the whole feature rests on.
+     *
+     * <p>Luminance rises monotonically with brightness at a fixed hue and saturation, so bisection
+     * finds it. Where even a fully bright colour cannot reach the target (no saturated blue is as
+     * light as near-white text) the saturation is bled out instead, a direction that always
+     * reaches white.
+     */
+    private static Color atLuminance(float hue, float sat, double target) {
+        boolean onSat = luminance(shade(hue, sat, 1, false)) < target;
+        float lo = 0, hi = onSat ? sat : 1;
+        for (int i = 0; i < 24; i++) {
+            float mid = (lo + hi) / 2;
+            // Less saturation is lighter, more brightness is lighter: opposite senses, one search.
+            if (onSat == (luminance(shade(hue, sat, mid, onSat)) < target))
+                hi = mid;
+            else
+                lo = mid;
+        }
+        // Luminance is a step function of the eight bits this ends up quantised to, so the
+        // interval closes on the edge of a step rather than on the target, always from the same
+        // side. Take whichever end lands closer, or every derived colour comes out half a step
+        // dark: white text, asked for the luminance of white, came back #FEFEFE.
+        Color a = shade(hue, sat, lo, onSat), b = shade(hue, sat, hi, onSat);
+        return Math.abs(luminance(a) - target) <= Math.abs(luminance(b) - target) ? a : b;
+    }
+
+    /** The colour at whichever of saturation or brightness the search above is moving. */
+    private static Color shade(float hue, float sat, float v, boolean onSat) {
+        return onSat ? Color.getHSBColor(hue, v, 1) : Color.getHSBColor(hue, sat, v);
+    }
+
+    /**
+     * The pairs that decide whether the interface can be read at all, walked in the order that
+     * settles the grounds before the things drawn on them.
+     *
+     * <p>Preserving luminance should make this a no-op, and for the four built-ins it is. It is
+     * here for the rounding to eight bits and for a parent that was already sitting on the line:
+     * whatever else the derivation does, it must not be the step that makes text unreadable.
+     */
+    private static void enforce(EnumMap<Token, Color> m) {
+        Color panel = m.get(Token.Background);
+        m.put(Token.HeaderFill, legible(m.get(Token.HeaderFill), panel, SURFACE_MIN));
+        m.put(Token.ChildHeaderFill, legible(m.get(Token.ChildHeaderFill), panel, SURFACE_MIN));
+        m.put(Token.Separator, legible(m.get(Token.Separator), panel, SURFACE_MIN));
+
+        // Text is fixed against the worse of the two grounds it sits on, so that clearing one
+        // cannot be what breaks the other.
+        Color header = m.get(Token.HeaderText);
+        Color band = contrast(header, m.get(Token.HeaderFill)) <= contrast(header, m.get(Token.ChildHeaderFill))
+                ? m.get(Token.HeaderFill) : m.get(Token.ChildHeaderFill);
+        m.put(Token.HeaderText, legible(header, band, TEXT_MIN));
+
+        Color body = m.get(Token.Foreground);
+        Color ground = contrast(body, panel) <= contrast(body, m.get(Token.Component))
+                ? panel : m.get(Token.Component);
+        m.put(Token.Foreground, legible(body, ground, TEXT_MIN));
+    }
+
+    /** {@code fore} pushed away from {@code back} until it clears {@code min}, or as far as it goes. */
+    private static Color legible(Color fore, Color back, double min) {
+        if (contrast(fore, back) >= min)
+            return fore;
+        // Away from the ground, not toward some fixed colour: a light token goes lighter.
+        Color away = luminance(fore) >= luminance(back) ? Color.WHITE : Color.BLACK;
+        for (double f = 0.05; f < 1; f += 0.05) {
+            Color c = mix(fore, away, f);
+            if (contrast(c, back) >= min)
+                return c;
+        }
+        return away;
+    }
+
     // -- the built-in table ----------------------------------------------------------------
 
     private static final List<Theme> BUILT_IN = List.of(

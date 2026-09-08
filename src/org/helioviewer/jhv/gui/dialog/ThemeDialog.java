@@ -34,11 +34,15 @@ import com.jidesoft.dialog.StandardDialog;
 /**
  * Edit the colours of a theme and save the result as a theme of your own.
  *
- * <p>Deliberately plain: a swatch, a name and a sentence saying what each colour is for. The one
- * thing it does beyond letting colours be picked is show the two contrast ratios that decide
- * whether a section header is a header at all, live, next to the swatches that move them. Those
- * are the numbers {@code ThemeContrastCheck} enforces for the built-ins; a theme of your own is
- * yours to break, but not without being told.
+ * <p>Deliberately plain: a swatch, a name and a sentence saying what each colour is for. It shows
+ * the two contrast ratios that decide whether a section header is a header at all, live, next to
+ * the swatches that move them. Those are the numbers {@code ThemeContrastCheck} enforces for the
+ * built-ins; a theme of your own is yours to break, but not without being told.
+ *
+ * <p>Fifteen swatches is the wrong way to say "the same theme, but green", so there is also
+ * "Derive from a colour...": pick an accent, optionally a second colour for the panels, and
+ * {@code Theme.derived} turns the parent's colour wheel while keeping each token's lightness, and
+ * so its contrast, exactly where it was.
  *
  * <p>A built-in is never modified. Saving always produces a user theme carrying only the colours
  * that differ from the built-in it started from, which is what lets the rest of that built-in
@@ -159,6 +163,12 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
                 save();
             }
         };
+        AbstractAction derive = new AbstractAction("Derive from a colour...") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                derive();
+            }
+        };
         AbstractAction delete = new AbstractAction("Delete") {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -174,12 +184,14 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
         setDefaultCancelAction(close);
 
         JButton saveButton = new JButton(save);
+        JButton deriveButton = new JButton(derive);
         deleteButton.setAction(delete);
         JButton closeButton = new JButton(close);
         setInitFocusedComponent(closeButton);
 
         ButtonPanel panel = new ButtonPanel();
         panel.add(saveButton, ButtonPanel.AFFIRMATIVE_BUTTON);
+        panel.add(deriveButton, ButtonPanel.OTHER_BUTTON);
         panel.add(deleteButton, ButtonPanel.OTHER_BUTTON);
         panel.add(closeButton, ButtonPanel.CANCEL_BUTTON);
         return panel;
@@ -268,6 +280,42 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
                 out.put(token, color);
         });
         return out;
+    }
+
+    /**
+     * A whole theme from one or two chosen colours, rather than fifteen swatches one at a time.
+     *
+     * <p>Two choosers, the second optional: someone who wants "the same theme, but green" should
+     * be able to say only that, and cancelling the second gives the panels the accent's hue as
+     * well. A second colour splits the two families, panels and lists from highlights.
+     *
+     * <p>What comes back has the parent's lightness in every token, so the two ratios in the
+     * banner do not move; they are shown anyway, because the derivation being loaded into the
+     * swatches is what makes it a preview rather than a promise. Saving straight away is the
+     * point of the feature (two clicks, not fifteen); the swatches are still there to adjust
+     * afterwards, and Save writes the adjustment over the same name.
+     */
+    private void derive() {
+        Theme parent = parent();
+        Color accent = JColorChooser.showDialog(this, "Accent colour: highlights, header bands, separator",
+                working.get(Theme.Token.Accent));
+        if (accent == null)
+            return;
+        // Null on Cancel, which is the "one colour" case rather than an error.
+        Color anchor = JColorChooser.showDialog(this, "Panel colour, or Cancel to use the accent for those too",
+                working.get(Theme.Token.Background));
+
+        String name = parent.name() + " " + Theme.hex(accent);
+        Theme preview = Theme.userTheme(Theme.idFor(name), name, parent, Theme.derived(parent, accent, anchor));
+        // The derivation restates all eight, so nothing an earlier hand-pick had pinned survives.
+        pinned.clear();
+        for (Theme.Token token : Theme.Token.values()) {
+            working.put(token, preview.get(token));
+            paintSwatch(token);
+        }
+        showRatios();
+        nameField.setText(name);
+        save();
     }
 
     private void save() {
