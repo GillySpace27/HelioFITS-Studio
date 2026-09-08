@@ -299,7 +299,6 @@ public class SequencePanel implements FilterDetails {
         syncing = false;
     }
 
-    @Nullable
     /**
      * Outline From and To when they do not make a band.
      *
@@ -321,6 +320,7 @@ public class SequencePanel implements FilterDetails {
         return !(lo >= 0) || !(hi > lo);
     }
 
+    @Nullable
     private SequenceParams paramsFromWidgets() {
         String kind = (String) kindCombo.getSelectedItem();
         if (OFF.equals(kind) || kind == null)
@@ -934,7 +934,7 @@ public class SequencePanel implements FilterDetails {
                     if (angular)
                         g.drawString(String.format("%.3g min", 2 * Math.PI / (rate / unit) / 60), x - 20, top - 8);
                 }
-                g.drawString("log10 power", 4, top + 12);
+                g.drawString("log10 power per cell", 4, top + 12);
                 // curves
                 drawCurve(g, spectrum.powerPositive(), lpmin, lpmax, plotH, new Color(30, 120, 220));
                 drawCurve(g, spectrum.powerNegative(), lpmin, lpmax, plotH, new Color(220, 80, 30));
@@ -942,9 +942,9 @@ public class SequencePanel implements FilterDetails {
                 g.drawString(angular ? "prograde" : "outward", w - right - 140, top + 14);
                 g.setColor(new Color(220, 80, 30));
                 g.drawString(angular ? "retrograde" : "inward", w - right - 70, top + 14);
-                // peak of the positive curve
+                // peak of the positive curve, among the bins a cell landed in
                 int peak = 0;
-                for (int i = 1; i < spectrum.rate().length; i++)
+                for (int i = 0; i < spectrum.rate().length; i++)
                     if (spectrum.powerPositive()[i] > spectrum.powerPositive()[peak])
                         peak = i;
                 double pr = spectrum.rate()[peak];
@@ -959,8 +959,10 @@ public class SequencePanel implements FilterDetails {
                 g.setColor(color);
                 int px = -1, py = -1;
                 for (int i = 0; i < spectrum.rate().length; i++) {
-                    if (power[i] <= 0)
+                    if (power[i] <= 0) {
+                        px = -1; // no cell landed in this bin: a gap in the curve, not a line across it
                         continue;
+                    }
                     int x = xOf(spectrum.rate()[i]);
                     double f = (Math.log10(power[i]) - lpmin) / (lpmax - lpmin);
                     int y = top + plotH - (int) (Math.clamp(f, 0, 1) * plotH);
