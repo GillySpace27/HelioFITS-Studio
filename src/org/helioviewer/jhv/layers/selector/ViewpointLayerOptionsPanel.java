@@ -34,7 +34,8 @@ final class ViewpointLayerOptionsPanel extends JPanel {
 
             If "Use movie time interval" is unselected, the viewpoint time is interpolated in the configured time interval.""";
 
-    private static final String flatReason = "Turntable turns the camera, which a flat projection does not show.";
+    private static final String flatReason = "<html>Turntable turns the camera, which a flat projection does not show. "
+            + "A revolution already running is suspended until a 3D projection returns.";
 
     private final ViewpointLayerOptions options;
     private final ViewpointLayerOptionsExpertPanel locationPanel;

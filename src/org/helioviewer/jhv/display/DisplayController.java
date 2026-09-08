@@ -10,6 +10,7 @@ import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.layers.ViewpointLayerOptions;
 import org.helioviewer.jhv.math.Quat;
+import org.helioviewer.jhv.math.Vec3;
 import org.helioviewer.jhv.metadata.MetaData;
 import org.helioviewer.jhv.metadata.Region;
 import org.helioviewer.jhv.movie.Player;
@@ -114,7 +115,9 @@ public final class DisplayController {
         resetCamera(Display.getMiniCamera(), miniViewpointState);
         resetCamera(Display.getCamera(), viewpointModel);
         // The only callers are the projection switches (Display.setMapMode, setHelioradial3D), and
-        // the Turntable behaviour is offered or greyed by projection.
+        // the Turntable behaviour is offered or greyed by projection. A revolution already running
+        // is suspended or resumed here, since the greyed radio cannot stop it.
+        ViewpointLayerOptions.projectionChanged();
         ViewpointLayerOptions.refreshPanel();
         render(1);
     }
@@ -226,7 +229,13 @@ public final class DisplayController {
     }
 
     public static void resetViewAxis() {
-        Display.getCamera().resetDragRotationAxis(getViewpointUpdate().dragAxis());
+        Vec3 dragAxis = getViewpointUpdate().dragAxis();
+        Display.getCamera().resetDragRotationAxis(dragAxis);
+        // The other reset path into the drag rotation the turntable writes into (Reset Axis in the
+        // toolbar, the View menu, jhv.view.reset-axis over SAMP). It keeps the twist about this
+        // axis rather than zeroing, so the turntable is told what happened rather than told to
+        // forget: only a revolution about some other axis was thrown away here.
+        ViewpointLayerOptions.cameraDragRotationTwisted(dragAxis);
         display();
     }
 
