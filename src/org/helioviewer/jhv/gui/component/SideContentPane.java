@@ -48,6 +48,13 @@ public final class SideContentPane extends JComponent {
         add(dummy, c);
     }
 
+    /** Expand or collapse one section, addressed by the component that was added. */
+    public void setExpanded(JComponent managed, boolean expanded) {
+        CollapsiblePane pane = map.get(managed);
+        if (pane != null)
+            pane.setExpanded(expanded);
+    }
+
     public void expandAll() {
         for (CollapsiblePane pane : map.values())
             pane.setExpanded(true);

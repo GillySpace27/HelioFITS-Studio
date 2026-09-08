@@ -142,6 +142,7 @@ public final class MainFrame {
     private static JPanel toolBarPanel;
     private static StatusPanel statusPanel;
     private static JPanel westWrap;
+    private static JComponent eastWrap;
     private static Component northTransport;
 
     private static SideContentPane leftPane;
@@ -263,6 +264,9 @@ public final class MainFrame {
         centerPanel.add(northTransport, BorderLayout.PAGE_START);
         centerPanel.add(westWrap, BorderLayout.WEST);
         centerPanel.add(mainContentPanel, BorderLayout.CENTER);
+        // The right sidebar, which shows only once something has been docked into it.
+        eastWrap = org.helioviewer.jhv.gui.component.RightSidebar.getInstance().component();
+        centerPanel.add(eastWrap, BorderLayout.EAST);
 
         ViewpointStatusPanel viewpointStatus = new ViewpointStatusPanel();
         FramerateStatusPanel framerateStatus = new FramerateStatusPanel();
@@ -789,6 +793,24 @@ public final class MainFrame {
         return imageLayersPane.getPreferredSize().width;
     }
 
+    /**
+     * Push a chrome layout change all the way down to the render canvas.
+     *
+     * <p>The canvas is nested deep inside the layout and carries a native GL surface, so a plain
+     * repaint leaves it at its old size: the whole frame is validated so the new bounds reach it
+     * synchronously, and then the surface is told to match. Anything that changes how much room
+     * the canvas has (either sidebar collapsing or resizing) goes through here.
+     */
+    public static void reflowChrome() {
+        if (centerPanel == null || mainFrame == null)
+            return;
+        centerPanel.revalidate();
+        mainFrame.validate();
+        centerPanel.repaint();
+        if (renderCanvas != null)
+            renderCanvas.refreshHost();
+    }
+
     public static void setSidebarCollapsed(boolean collapsed) {
         if (collapsed == sidebarCollapsed)
             return;
@@ -979,7 +1001,8 @@ public final class MainFrame {
         return java.util.List.of(
                 new ChromeSlot(toolBarPanel, mainFrame.getContentPane(), BorderLayout.NORTH, false),
                 new ChromeSlot(northTransport, centerPanel, BorderLayout.PAGE_START, false),
-                new ChromeSlot(westWrap, centerPanel, BorderLayout.WEST, true));
+                new ChromeSlot(westWrap, centerPanel, BorderLayout.WEST, true),
+                new ChromeSlot(eastWrap, centerPanel, BorderLayout.EAST, true));
     }
 
     public static boolean isSidebarCollapsed() {
