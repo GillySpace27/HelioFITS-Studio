@@ -104,21 +104,12 @@ public final class FourierPreview {
         int w = Math.max(1, f.width() / step), h = Math.max(1, f.height() / step);
         float[] values = new float[w * h];
         double u = (prep.times()[k] - prep.times()[0]) / 1000. / prep.dt();
-        cube.toCartesian(values, w, h, f.sunCentred(), u, notch);
-        // The source's own mask wins, as in the full run: a preview pixel whose source pixel at
-        // the same place holds nothing holds nothing.
-        java.nio.Buffer raw = f.decoded().imageBuffer().buffer;
-        if (raw instanceof java.nio.ShortBuffer sb) {
-            int fw = f.width();
-            for (int y = 0; y < h; y++) {
-                int sy = Math.min(f.height() - 1, y * step);
-                for (int x = 0; x < w; x++) {
-                    float d = Float.float16ToFloat(sb.get(sy * fw + Math.min(fw - 1, x * step)));
-                    if (!(d > 0) || d > 1)
-                        values[y * w + x] = Float.NaN;
-                }
-            }
-        }
+        // Each polar cell as a block, not blended: the preview should look like the grid it is.
+        // The source's own per-pixel mask is NOT applied here, unlike the full run. Sampled at one
+        // source pixel per preview pixel it drew every flagged pixel as a speck; regions with
+        // nothing in them are already missing from the cube (a cell is valid only when more than
+        // half its samples were present).
+        cube.toCartesian(values, w, h, f.sunCentred(), u, notch, true);
         ImageBuffer buffer = notch ? FrameStack.packLike(f, w, h, values) : FrameStack.packSigned(f, w, h, values, amplitude);
         return new DecodedImage(buffer, f.decoded().region());
     }

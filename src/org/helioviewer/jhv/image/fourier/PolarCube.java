@@ -184,10 +184,20 @@ public final class PolarCube {
      * reading randomly through a 512 MB cube.
      */
     public void toCartesian(float[] out, int w, int h, Region sunCentred, double u, boolean addMean) {
-        ParallelRange.run(h, (from, to) -> toCartesianRows(out, w, h, sunCentred, u, addMean, from, to));
+        toCartesian(out, w, h, sunCentred, u, addMean, false);
     }
 
-    private void toCartesianRows(float[] out, int w, int h, Region sunCentred, double u, boolean addMean, int rowFrom, int rowTo) {
+    /**
+     * With nearest, each polar cell is drawn as one flat block instead of being blended with its
+     * neighbours. That is for a coarse preview cube: bilinear across 128 x 64 cells makes a smooth
+     * picture that looks like detail it does not have, whereas blocks say what the grid is. The
+     * blend in time stays, since a frame's own time lies between two samples of the same cell.
+     */
+    public void toCartesian(float[] out, int w, int h, Region sunCentred, double u, boolean addMean, boolean nearest) {
+        ParallelRange.run(h, (from, to) -> toCartesianRows(out, w, h, sunCentred, u, addMean, nearest, from, to));
+    }
+
+    private void toCartesianRows(float[] out, int w, int h, Region sunCentred, double u, boolean addMean, boolean nearest, int rowFrom, int rowTo) {
         int t0 = Math.clamp((int) Math.floor(u), 0, nT - 1);
         int t1 = Math.min(t0 + 1, nT - 1);
         double ft = Math.clamp(u - t0, 0, 1);
@@ -210,9 +220,25 @@ public final class PolarCube {
                     phi += 2 * Math.PI;
                 double ir = (r - rIn) / dr - .5;
                 double iphi = phi / dPhi - .5;
-                float a = sample(t0, ir, iphi);
-                float b = t1 == t0 ? a : sample(t1, ir, iphi);
-                float v = Float.isNaN(a) || Float.isNaN(b) ? Float.NaN : (float) ((1 - ft) * a + ft * b);
+                float a, b, v;
+                if (nearest) {
+                    int cr = (int) Math.round(ir), cp = Math.floorMod((int) Math.round(iphi), nPhi);
+                    if (cr < 0 || cr >= nR || !valid[slice(cr, cp)][inner(cr, cp)]) {
+                        out[idx] = Float.NaN;
+                        continue;
+                    }
+                    int s = slice(cr, cp), in = inner(cr, cp);
+                    a = data[s][t0 * nInner + in];
+                    b = t1 == t0 ? a : data[s][t1 * nInner + in];
+                    v = (float) ((1 - ft) * a + ft * b);
+                    if (addMean)
+                        v += mean[s][in];
+                    out[idx] = v;
+                    continue;
+                }
+                a = sample(t0, ir, iphi);
+                b = t1 == t0 ? a : sample(t1, ir, iphi);
+                v = Float.isNaN(a) || Float.isNaN(b) ? Float.NaN : (float) ((1 - ft) * a + ft * b);
                 if (addMean && !Float.isNaN(v))
                     v += meanAt(ir, iphi);
                 out[idx] = v;
