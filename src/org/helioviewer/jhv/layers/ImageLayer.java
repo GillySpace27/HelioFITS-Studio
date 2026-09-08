@@ -110,6 +110,11 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     }
 
     private ImageLayer(JSONObject jo) {
+        // A layer the user just asked for should be framed when it arrives; one restored from a
+        // session must not be, because the session restored its own camera and re-fitting would
+        // throw that framing away. Every interactive route builds this with a null jo
+        // (ImageLayer.create(null)); only State's createDetached passes one.
+        fitOnLoad = jo == null;
         try {
             view = new BaseView(null, null);
         } catch (Exception e) { // impossible
@@ -300,6 +305,10 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             return;
 
         replaceView(_view);
+        if (fitOnLoad) {
+            fitOnLoad = false;
+            DisplayController.zoomFit(); // the Zoom-Fit button, once, now that there is something to fit
+        }
         if (fixedRange != null) // re-apply a pending shared display range to the freshly loaded view
             _view.setRange(fixedRange[0], fixedRange[1]);
         activateView();
@@ -399,6 +408,12 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         view.setRange(min, max); // applies now if the real view is already in place
         DisplayController.display();
     }
+
+    // Frame this layer once, when its real view lands. Until then there is nothing to fit to:
+    // the camera is reset while the layer is still an empty placeholder, so
+    // fitCameraToImageLayers sees no physical size and leaves the default field of view, which is
+    // how a freshly loaded movie ended up microscopic in a view sized for nothing in particular.
+    private boolean fitOnLoad;
 
     private void replaceView(View newView) {
         ImageFilter.Type filterType = restoredFilter != null ? restoredFilter : view.getFilter();
