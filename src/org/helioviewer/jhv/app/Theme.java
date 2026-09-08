@@ -300,6 +300,19 @@ public final class Theme {
         return current;
     }
 
+    /**
+     * Whether the theme this launch will use is a dark one, decided before the settings are
+     * loaded.
+     *
+     * <p>The macOS window appearance is read once, natively, when the Cocoa application starts,
+     * so it has to be chosen before anything else in main() runs; {@link Settings#load} cannot
+     * run that early because the data sources come first. Only the one key is peeked at, and an
+     * unreadable or absent file means the default theme, which is what the app would use anyway.
+     */
+    public static boolean startupIsDark() {
+        return byIdOrDefault(migrateId(Settings.peekProperty(SETTING))).dark();
+    }
+
     /** Records the choice. Installing it is {@code UIGlobals.switchTheme}, which calls this. */
     public static void setCurrent(Theme theme) {
         current = theme;

@@ -89,4 +89,24 @@ public class Settings {
         return settings.getProperty(key);
     }
 
+    /**
+     * One setting, read straight off disk before {@link #load} has run.
+     *
+     * <p>macOS fixes the application's appearance when the Cocoa application starts, which is
+     * before the data sources and therefore before the settings can be loaded (see
+     * {@link Theme#startupIsDark}). Nothing else should need this: everything that runs after
+     * start-up reads the loaded table.
+     */
+    static String peekProperty(String key) {
+        if (!Files.isReadable(userPath))
+            return null;
+        Properties peek = new Properties();
+        try (BufferedReader reader = Files.newBufferedReader(userPath)) {
+            peek.load(reader);
+        } catch (Exception e) {
+            return null;
+        }
+        return peek.getProperty(key);
+    }
+
 }
