@@ -62,6 +62,10 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
         addMouseMotionListener(this);
         addMouseWheelListener(this);
         addComponentListener(this);
+        // The graph is painted once into an offscreen image and reused until something dirties it.
+        // A theme switch changes every colour it was painted with and dirties nothing, so the old
+        // theme's pixels survived into the new one until the next pan, zoom or frame change.
+        org.helioviewer.jhv.gui.UIGlobals.themed(this, c -> drawRequest());
         DrawController.addDrawListener(this);
         DrawController.setGraphSize(new Rectangle(getWidth(), getHeight()));
 

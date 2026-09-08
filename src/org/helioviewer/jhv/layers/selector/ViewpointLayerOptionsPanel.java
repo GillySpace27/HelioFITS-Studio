@@ -55,7 +55,10 @@ final class ViewpointLayerOptionsPanel extends JPanel {
         setLayout(new GridBagLayout());
 
         JRadioButton turntable = null;
-        JPanel radioPanel = new JPanel(new FlowLayout(FlowLayout.TRAILING, 8, 0));
+        // Leading, not trailing. The old sidebar packed every row against the right edge, so the
+        // mode radios did too; the panels around this one now start their labels at the left, and
+        // one row floating off to the right reads as a mistake rather than as a choice.
+        JPanel radioPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 8, 0));
         ButtonGroup behaviourGroup = new ButtonGroup();
         for (CameraBehaviour behaviour : CameraBehaviour.values()) {
             JRadioButton radio = new JRadioButton(behaviour.toString(), behaviour == options.getBehaviour());
