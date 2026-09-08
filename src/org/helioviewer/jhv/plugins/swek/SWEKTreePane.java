@@ -19,6 +19,7 @@ import java.util.List;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultCellEditor;
 import javax.swing.ImageIcon;
+import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -38,8 +39,7 @@ import org.helioviewer.jhv.display.CMETracker;
 import org.helioviewer.jhv.event.filter.FilterDialog;
 import org.helioviewer.jhv.event.info.CactusTrackDialog;
 import org.helioviewer.jhv.gui.component.BusyIndicator;
-
-import com.jidesoft.swing.JideButton;
+import org.helioviewer.jhv.gui.component.Buttons;
 
 @SuppressWarnings("serial")
 final class SWEKTreePane extends JPanel {
@@ -177,7 +177,7 @@ final class SWEKTreePane extends JPanel {
         int rowHeight = checkBox.getPreferredSize().height;
 
         if (supplier.isCactus()) {
-            JideButton trackButton = new JideButton("Track");
+            JButton trackButton = Buttons.flat("Track");
             trackButton.setToolTipText("Browse the loaded CACTus CMEs and track one through the corona");
             Color defaultFg = trackButton.getForeground();
             Font baseFont = trackButton.getFont();
@@ -205,7 +205,7 @@ final class SWEKTreePane extends JPanel {
 
         if (supplier.containsFilter()) {
             FilterDialog filterDialog = new FilterDialog(supplier);
-            JideButton filterButton = new JideButton("Filter");
+            JButton filterButton = Buttons.flat("Filter");
             filterButton.addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseClicked(MouseEvent e) {

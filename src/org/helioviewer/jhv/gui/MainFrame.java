@@ -17,6 +17,7 @@ import javax.swing.BorderFactory;
 import javax.swing.JLabel;
 import javax.swing.SwingConstants;
 import javax.swing.JFrame;
+import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
@@ -50,7 +51,6 @@ import org.helioviewer.jhv.movie.Player;
 import org.helioviewer.jhv.opengl.AngleCanvas;
 import org.helioviewer.jhv.opengl.angle.AngleRenderer;
 
-import com.jidesoft.swing.JideButton;
 import org.helioviewer.jhv.opengl.angle.MacAngleBridge;
 import org.helioviewer.jhv.thread.Task;
 
@@ -112,7 +112,7 @@ public final class MainFrame {
     private static FixedWidthPanel leftPaneHost;
 
     private static JPanel centerPanel;
-    private static JideButton sidebarCollapseHandle;
+    private static JButton sidebarCollapseHandle;
     private static boolean sidebarCollapsed;
 
     // Presentation mode needs to take these away from the frame and give them back. They were
@@ -200,7 +200,7 @@ public final class MainFrame {
         // The scrubber + playback controls are always docked at the top, so playback stays
         // reachable whether or not the sidebar is open. Collapsing the sidebar (thin handle on its
         // right edge) just folds away the layers/settings and lets the canvas reflow to full width.
-        sidebarCollapseHandle = new JideButton(Buttons.collapseLeft);
+        sidebarCollapseHandle = Buttons.flat(Buttons.collapseLeft);
         sidebarCollapseHandle.setToolTipText("Collapse the sidebar");
         sidebarCollapseHandle.setPreferredSize(new Dimension(16, 0));
         sidebarCollapseHandle.addActionListener(e -> setSidebarCollapsed(!sidebarCollapsed));
@@ -416,10 +416,10 @@ public final class MainFrame {
         bar.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
 
         // Collapse-all / expand-all, left of the name: open or close every sidebar panel at once.
-        JideButton collapseAllButton = new JideButton(Buttons.collapseAll);
+        JButton collapseAllButton = Buttons.flat(Buttons.collapseAll);
         collapseAllButton.setToolTipText("Collapse all panels");
         collapseAllButton.addActionListener(e -> { if (leftPane != null) leftPane.collapseAll(); });
-        JideButton expandAllButton = new JideButton(Buttons.expandAll);
+        JButton expandAllButton = Buttons.flat(Buttons.expandAll);
         expandAllButton.setToolTipText("Expand all panels");
         expandAllButton.addActionListener(e -> { if (leftPane != null) leftPane.expandAll(); });
         JPanel leftIcons = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEADING, 0, 0));
@@ -461,7 +461,7 @@ public final class MainFrame {
         bar.add(sessionNamePanel, BorderLayout.CENTER);
 
         // New (plain click = new session, instant; ⌘-click = new window, which takes a moment → spinner).
-        JideButton newButton = new JideButton(Buttons.newSession);
+        JButton newButton = Buttons.flat(Buttons.newSession);
         newButton.setToolTipText("New session (⌘-click for a new window)");
         JProgressBar newSpinner = makeSpinner();
         newButton.addActionListener(e -> {
@@ -477,7 +477,7 @@ public final class MainFrame {
         });
 
         // Open (dialog is instant; the reload after choosing a file spins until it lands).
-        JideButton loadButton = new JideButton(Buttons.load);
+        JButton loadButton = Buttons.flat(Buttons.load);
         loadButton.setToolTipText("Open a saved session…");
         JProgressBar loadSpinner = makeSpinner();
         loadButton.addActionListener(e -> {
@@ -500,7 +500,7 @@ public final class MainFrame {
         });
 
         // Save: quick-save to the current file (silent → spinner); untitled falls back to Save As (dialog).
-        JideButton saveButton = new JideButton(Buttons.save);
+        JButton saveButton = Buttons.flat(Buttons.save);
         saveButton.setToolTipText("Save");
         JProgressBar saveSpinner = makeSpinner();
         saveButton.addActionListener(e -> {
@@ -516,12 +516,12 @@ public final class MainFrame {
             }
         });
 
-        JideButton saveAsButton = new JideButton(Buttons.saveAs);
+        JButton saveAsButton = Buttons.flat(Buttons.saveAs);
         saveAsButton.setToolTipText("Save As…");
         saveAsButton.addActionListener(e -> new Actions.SaveStateAs().actionPerformed(null));
 
         // Revert: reload the session from its file (spins until the load completes).
-        JideButton revertButton = new JideButton(Buttons.revert);
+        JButton revertButton = Buttons.flat(Buttons.revert);
         revertButton.setToolTipText("Revert to saved (reload this session from its file)");
         JProgressBar revertSpinner = makeSpinner();
         revertButton.addActionListener(e -> {
@@ -561,7 +561,7 @@ public final class MainFrame {
         return spinner;
     }
 
-    private static void startSpinner(JideButton button, JProgressBar spinner) {
+    private static void startSpinner(JButton button, JProgressBar spinner) {
         button.setEnabled(false);
         button.setText(null);
         button.add(spinner);
@@ -569,7 +569,7 @@ public final class MainFrame {
         button.repaint();
     }
 
-    private static Runnable stopSpinner(JideButton button, JProgressBar spinner, String glyph) {
+    private static Runnable stopSpinner(JButton button, JProgressBar spinner, String glyph) {
         return () -> EventQueue.invokeLater(() -> {
             button.remove(spinner);
             button.setText(glyph);

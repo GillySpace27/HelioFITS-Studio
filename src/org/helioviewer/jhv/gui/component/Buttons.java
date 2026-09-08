@@ -2,12 +2,47 @@ package org.helioviewer.jhv.gui.component;
 
 import java.awt.Font;
 
+import javax.swing.JButton;
+import javax.swing.JToggleButton;
+
 import org.helioviewer.jhv.gui.UIGlobals;
+
+import com.formdev.flatlaf.FlatClientProperties;
 
 public class Buttons {
 
     public static Font getMaterialFont(float size) {
         return UIGlobals.uiFontMDI.deriveFont(size);
+    }
+
+    /**
+     * A flat, borderless button: the JideButton look, drawn by FlatLaf instead of by JIDE.
+     *
+     * <p>JideButton is painted by BasicJideButtonUI, which reads none of FlatLaf's client
+     * properties, so on those buttons the theme's hover, pressed and disabled colours never
+     * arrived and the toolbar's rounded button groups were never drawn. Marking an ordinary
+     * JButton as a toolbar button gets all of it from the look-and-feel, inside a JToolBar or
+     * anywhere else (FlatButtonUI.isToolBarButton reads either the parent or this property).
+     */
+    public static JButton flat(String text) {
+        JButton button = new JButton(text);
+        button.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON);
+        // JideButton's own setting, and the reason the movie keys kept working: clicking a
+        // toolbar button must not take the keyboard focus off whatever had it, or the next
+        // Space would press that button instead of reaching the scrubber.
+        button.setRequestFocusEnabled(false);
+        return button;
+    }
+
+    public static JToggleButton flatToggle(String text) {
+        return flatToggle(text, false);
+    }
+
+    public static JToggleButton flatToggle(String text, boolean selected) {
+        JToggleButton button = new JToggleButton(text, selected);
+        button.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON);
+        button.setRequestFocusEnabled(false);
+        return button;
     }
 
     public static final String close = MaterialDesign.CLOSE.toString();

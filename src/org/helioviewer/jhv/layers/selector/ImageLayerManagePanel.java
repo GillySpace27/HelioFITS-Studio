@@ -8,9 +8,11 @@ import java.util.Arrays;
 
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
+import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
+import javax.swing.JToggleButton;
 
 import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.gui.CompletionNotifications;
@@ -24,9 +26,6 @@ import org.helioviewer.jhv.layers.Layer;
 import org.helioviewer.jhv.time.TimeUtils;
 import org.helioviewer.jhv.view.View;
 
-import com.jidesoft.swing.JideButton;
-import com.jidesoft.swing.JideToggleButton;
-
 // Download, metadata, and PUNCH-refresh controls for the selected image layer.
 // Shown in the "Manage" wrapper of the Layers section.
 @SuppressWarnings("serial")
@@ -35,9 +34,9 @@ final class ImageLayerManagePanel extends JPanel {
     private final ImageLayer layer;
     private final JLabel readout = new JLabel();
     private long lastReadoutSig = Long.MIN_VALUE; // memoize: skip rebuild when nothing shown changed
-    private final JideToggleButton downloadButton = new JideToggleButton(Buttons.download);
-    private final com.jidesoft.swing.JideButton cacheButton = new com.jidesoft.swing.JideButton(Buttons.cache);
-    private final com.jidesoft.swing.JideButton deleteCacheButton = new com.jidesoft.swing.JideButton(Buttons.deleteCache);
+    private final JToggleButton downloadButton = Buttons.flatToggle(Buttons.download);
+    private final JButton cacheButton = Buttons.flat(Buttons.cache);
+    private final JButton deleteCacheButton = Buttons.flat(Buttons.deleteCache);
     private final JProgressBar progressBar = new JProgressBar();
     private DownloadProgress downloadProgress;
 
@@ -73,7 +72,7 @@ final class ImageLayerManagePanel extends JPanel {
         progressBar.setForeground(downloadButton.getForeground());
 
         MetaDataDialog metaDialog = new MetaDataDialog();
-        JideButton metaButton = new JideButton(Buttons.info);
+        JButton metaButton = Buttons.flat(Buttons.info);
         // Deleting a cached dataset by hand is the only way to force a genuine re-download: the
         // persistent cache is keyed by a SHA-256 of the source URI, so the files are hash-named
         // and impossible to pick out of the folder by eye. Reveal the layer's own file, selected.
@@ -109,8 +108,8 @@ final class ImageLayerManagePanel extends JPanel {
     }
 
     // Only PUNCH layers carry a remembered query; the button stays hidden otherwise
-    private JideButton makeRefreshButton() {
-        JideButton refreshButton = new JideButton(Buttons.refresh);
+    private JButton makeRefreshButton() {
+        JButton refreshButton = Buttons.flat(Buttons.refresh);
         refreshButton.setToolTipText("Check the PUNCH archive for new frames in this layer's time range");
         refreshButton.setVisible(PunchClient.hasRememberedQuery(layer));
         JProgressBar refreshSpinner = new JProgressBar();

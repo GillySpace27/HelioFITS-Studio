@@ -43,8 +43,7 @@ import org.helioviewer.jhv.movie.ExportMovie;
 import org.helioviewer.jhv.movie.ExportPreset;
 import org.helioviewer.jhv.movie.Player;
 
-import com.jidesoft.swing.JideButton;
-import com.jidesoft.swing.JideToggleButton;
+import com.formdev.flatlaf.FlatClientProperties;
 
 @SuppressWarnings("serial")
 public class MoviePanel extends JPanel implements Player.StatusListener, ExportMovie.StatusListener, ViewState.PlaybackConfigListener, ViewState.RecordingConfigListener {
@@ -55,7 +54,7 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
     private final TimeSelectorPanel timeSelectorPanel = new TimeSelectorPanel();
 
     private static TimeSlider timeSlider;
-    private final JideButton playButton;
+    private final JButton playButton;
 
     private final RecordButton recordButton;
 
@@ -142,20 +141,20 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 1, 0));
         int small = 18, big = 26;
 
-        JideButton prevFrameButton = new JideButton(Buttons.backward);
+        JButton prevFrameButton = Buttons.flat(Buttons.backward);
         prevFrameButton.setFont(Buttons.getMaterialFont(small));
         prevFrameButton.setToolTipText("Step to previous frame");
         prevFrameButton.addActionListener(Actions.PREVIOUS_FRAME);
         HoldRepeat.install(prevFrameButton, FRAME_HOLD_REPEAT_MS);
         buttonPanel.add(prevFrameButton);
 
-        playButton = new JideButton(Buttons.play);
+        playButton = Buttons.flat(Buttons.play);
         playButton.setFont(Buttons.getMaterialFont(big));
         playButton.setToolTipText("Play movie");
         playButton.addActionListener(Actions.PLAY_PAUSE);
         buttonPanel.add(playButton);
 
-        JideButton nextFrameButton = new JideButton(Buttons.forward);
+        JButton nextFrameButton = Buttons.flat(Buttons.forward);
         nextFrameButton.setFont(Buttons.getMaterialFont(small));
         nextFrameButton.setToolTipText("Step to next frame");
         nextFrameButton.addActionListener(Actions.NEXT_FRAME);
@@ -203,7 +202,7 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         recordModeButtons = new Segmented<>(ViewState.RecordingMode.values(), ViewState.recordingData().mode(), ViewState::setRecordingMode);
         recordModeButtons.setToolTipText("One loop records the movie once through; Screenshot writes a single still; Unlimited records until it is stopped");
 
-        com.jidesoft.swing.JideToggleButton printableToggle = new com.jidesoft.swing.JideToggleButton("Frame");
+        JToggleButton printableToggle = Buttons.flatToggle("Frame");
         printableToggle.setToolTipText("Show the recorded video's printable area (the output resolution's aspect) on the canvas");
         printableToggle.setSelected(org.helioviewer.jhv.display.Display.showPrintableArea);
         printableToggle.addActionListener(e -> {
@@ -629,9 +628,11 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         return northTransport;
     }
 
-    private static class RecordButton extends JideToggleButton implements ActionListener {
+    private static class RecordButton extends JToggleButton implements ActionListener {
         RecordButton(float fontSize) {
             super(Buttons.record);
+            putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON);
+            setRequestFocusEnabled(false);
             setFont(Buttons.getMaterialFont(fontSize));
             setForeground(Color.decode("#800000"));
             setToolTipText("Record movie");

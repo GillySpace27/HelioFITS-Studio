@@ -4,12 +4,11 @@ import java.awt.BorderLayout;
 
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
+import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 
 import org.helioviewer.jhv.gui.MainFrame;
-
-import com.jidesoft.swing.JideButton;
 
 // Inner container for the nested sections shown under the "Image Layers" pane.
 // The layer-options and geometry wrappers are owned and filled by MainFrame's
@@ -28,7 +27,7 @@ public final class ImageLayersPane extends JPanel {
         // The master time range belongs with the image layers in spirit — it defines the span new
         // layers load into — so it sits at the very top, with the Sync button inline to its right
         // (moved off the New Layer row so that row, the widest, can shrink the sidebar).
-        JideButton syncButton = new JideButton(Buttons.syncLayers);
+        JButton syncButton = Buttons.flat(Buttons.syncLayers);
         syncButton.setToolTipText("Synchronize time intervals of all layers to the range above");
         syncButton.addActionListener(e -> MainFrame.getLayersSectionPanel().syncLayers());
         JPanel timeRow = new JPanel(new BorderLayout());

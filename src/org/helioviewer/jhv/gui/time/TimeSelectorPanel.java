@@ -8,6 +8,7 @@ import java.util.ArrayList;
 
 import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
+import javax.swing.JButton;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
@@ -15,12 +16,10 @@ import javax.swing.JRadioButtonMenuItem;
 
 import org.helioviewer.jhv.astronomy.Carrington;
 import org.helioviewer.jhv.gui.component.Buttons;
+import org.helioviewer.jhv.gui.component.SplitButton;
 import org.helioviewer.jhv.time.JHVTime;
 import org.helioviewer.jhv.time.TimeListener;
 import org.helioviewer.jhv.time.TimeUtils;
-
-import com.jidesoft.swing.JideButton;
-import com.jidesoft.swing.JideSplitButton;
 
 @SuppressWarnings("serial")
 public final class TimeSelectorPanel extends JPanel {
@@ -63,7 +62,7 @@ public final class TimeSelectorPanel extends JPanel {
         }
     }
 
-    private static ButtonGroup createShiftMenu(JideSplitButton menu) {
+    private static ButtonGroup createShiftMenu(SplitButton menu) {
         ButtonGroup group = new ButtonGroup();
         for (ShiftUnit unit : ShiftUnit.values()) {
             JRadioButtonMenuItem item = new JRadioButtonMenuItem(unit.toString());
@@ -71,7 +70,7 @@ public final class TimeSelectorPanel extends JPanel {
             if (unit == ShiftUnit.Day)
                 item.setSelected(true);
             group.add(item);
-            menu.add(item);
+            menu.addItem(item);
         }
         return group;
     }
@@ -80,7 +79,7 @@ public final class TimeSelectorPanel extends JPanel {
     private final TimeField startField = new TimeField("Select start date");
     private final TimeField endField = new TimeField("Select end date");
     private final CarringtonPicker carringtonPicker = new CarringtonPicker();
-    private final JideButton spanButton = new JideButton(); // current span; click for the preset ladder
+    private final JButton spanButton = Buttons.flat(""); // current span; click for the preset ladder
 
     public TimeSelectorPanel() {
         long milli = TimeUtils.START.milli;
@@ -90,20 +89,18 @@ public final class TimeSelectorPanel extends JPanel {
         endField.addListener(this::timeChanged);
         carringtonPicker.addListener(this::carringtonChanged);
 
-        JideSplitButton backButton = new JideSplitButton(Buttons.skipBack);
-        backButton.setMargin(new Insets(0, 0, 0, 0));
+        SplitButton backButton = new SplitButton(Buttons.skipBack);
         backButton.setToolTipText("Move time interval backward");
         ButtonGroup backGroup = createShiftMenu(backButton);
         backButton.addActionListener(e -> shiftSpan(-ShiftUnit.valueOf(backGroup.getSelection().getActionCommand()).shift));
 
-        JideSplitButton foreButton = new JideSplitButton(Buttons.skipFore);
-        foreButton.setMargin(new Insets(0, 0, 0, 0));
+        SplitButton foreButton = new SplitButton(Buttons.skipFore);
         foreButton.setToolTipText("Move time interval forward");
         ButtonGroup foreGroup = createShiftMenu(foreButton);
         foreButton.addActionListener(e -> shiftSpan(ShiftUnit.valueOf(foreGroup.getSelection().getActionCommand()).shift));
 
         // Span control: −/+ step the preset ladder, the middle button opens the full ladder.
-        JideButton spanDec = new JideButton("−");
+        JButton spanDec = Buttons.flat("−");
         spanDec.setMargin(new Insets(0, 3, 0, 3));
         spanDec.setToolTipText("Shorter time span");
         spanDec.addActionListener(e -> stepSpan(false));
@@ -118,7 +115,7 @@ public final class TimeSelectorPanel extends JPanel {
         }
         spanButton.addActionListener(e -> spanMenu.show(spanButton, 0, spanButton.getHeight()));
 
-        JideButton spanInc = new JideButton("+");
+        JButton spanInc = Buttons.flat("+");
         spanInc.setMargin(new Insets(0, 3, 0, 3));
         spanInc.setToolTipText("Longer time span");
         spanInc.addActionListener(e -> stepSpan(true));
@@ -173,7 +170,7 @@ public final class TimeSelectorPanel extends JPanel {
      * typed twice is a date that can differ in two places.
      */
     public void addUseMovieTimeButton() {
-        JideButton use = new JideButton(Buttons.calendar);
+        JButton use = Buttons.flat(Buttons.calendar);
         use.setToolTipText("Use the movie's current time range");
         use.addActionListener(e -> {
             org.helioviewer.jhv.gui.component.MoviePanel movie = org.helioviewer.jhv.gui.component.MoviePanel.getInstance();

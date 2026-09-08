@@ -21,6 +21,7 @@ import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
+import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
@@ -41,6 +42,7 @@ import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.component.CircularProgressUI;
 import org.helioviewer.jhv.gui.component.JHVSlider;
 import org.helioviewer.jhv.gui.component.Palette;
+import org.helioviewer.jhv.gui.component.SplitButton;
 import org.helioviewer.jhv.gui.component.TerminatedFormatterFactory;
 import org.helioviewer.jhv.image.fourier.FourierFilter;
 import org.helioviewer.jhv.image.fourier.FourierParams;
@@ -53,9 +55,6 @@ import org.helioviewer.jhv.thread.AppThread;
 import org.helioviewer.jhv.thread.Task;
 import org.helioviewer.jhv.view.ComputedView;
 import org.helioviewer.jhv.view.View;
-
-import com.jidesoft.swing.JideButton;
-import com.jidesoft.swing.JideSplitButton;
 
 /**
  * The "Fourier" row: a filter computed over every frame of the layer (a radial or angular
@@ -76,9 +75,9 @@ public class SequencePanel implements FilterDetails {
     private final JPanel second = new JPanel(new BorderLayout());
     private final JPanel third = new JPanel(new BorderLayout());
     private final JComboBox<String> kindCombo = new JComboBox<>(new String[]{OFF, RADIAL, ANGULAR, GATE});
-    private final JideSplitButton settingsButton = new JideSplitButton("…");
-    private final JideButton applyButton = new JideButton("Apply");
-    private final JideButton openButton = new JideButton("Off\u2026");
+    private final SplitButton settingsButton = new SplitButton("…");
+    private final JButton applyButton = Buttons.flat("Apply");
+    private final JButton openButton = Buttons.flat("Off\u2026");
     private final JProgressBar spinner = new JProgressBar(0, 100);        // the row's
     private final JProgressBar paletteSpinner = new JProgressBar(0, 100); // the palette's
     private final CardLayout cards = new CardLayout();
@@ -97,7 +96,7 @@ public class SequencePanel implements FilterDetails {
     private final JComboBox<String> directionCombo = new JComboBox<>();
     private final JComboBox<Integer> nRCombo = new JComboBox<>(new Integer[]{512, 1024, 2048});
     private final JComboBox<Integer> nPhiCombo = new JComboBox<>(new Integer[]{256, 512, 1024});
-    private final JideButton spectrumButton = new JideButton("Spectrum…");
+    private final JButton spectrumButton = Buttons.flat("Spectrum…");
     private SpectrumDialog spectrumDialog;
 
     // The live preview: one coarse-grid frame, recomputed while a band is dragged. Prepared when
@@ -187,7 +186,7 @@ public class SequencePanel implements FilterDetails {
         settings.add(readout, BorderLayout.PAGE_END);
         settingsButton.setAlwaysDropdown(true);
         settingsButton.setToolTipText("Settings of the sequence filter");
-        settingsButton.add(settings);
+        settingsButton.addItem(settings);
 
         kindCombo.addActionListener(e -> {
             if (syncing)
@@ -661,7 +660,7 @@ public class SequencePanel implements FilterDetails {
         JPanel content = new JPanel();
         content.setLayout(new BoxLayout(content, BoxLayout.PAGE_AXIS));
         content.setOpaque(false);
-        settingsButton.remove(settings);
+        settingsButton.getPopupMenu().remove(settings);
         settingsButton.setVisible(false);
         JPanel run = new JPanel(new FlowLayout(FlowLayout.CENTER, 4, 0));
         run.setOpaque(false);
@@ -720,7 +719,7 @@ public class SequencePanel implements FilterDetails {
             dialogPass.addActionListener(mode);
             dialogNotch.addActionListener(mode);
 
-            JideButton applyAll = new JideButton("Apply to the movie");
+            JButton applyAll = Buttons.flat("Apply to the movie");
             applyAll.setToolTipText("Run this band over every frame at full resolution. What you are watching is one frame on a coarse grid.");
             applyAll.addActionListener(e -> apply());
 

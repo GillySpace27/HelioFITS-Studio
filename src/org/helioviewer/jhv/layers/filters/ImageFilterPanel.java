@@ -11,11 +11,10 @@ import javax.swing.JPanel;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.component.JHVSlider;
+import org.helioviewer.jhv.gui.component.SplitButton;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layers;
-
-import com.jidesoft.swing.JideSplitButton;
 
 public class ImageFilterPanel implements FilterDetails {
 
@@ -68,10 +67,10 @@ public class ImageFilterPanel implements FilterDetails {
         filterCombo.setToolTipText(layer.getView().getFilter().description);
 
         JPanel enhancePanel = createEnhancePanel(layer);
-        JideSplitButton enhanceButton = new JideSplitButton(Buttons.corona);
+        SplitButton enhanceButton = new SplitButton(Buttons.corona);
         enhanceButton.setToolTipText("Enhance radially the off-disk corona");
         enhanceButton.setAlwaysDropdown(true);
-        enhanceButton.add(enhancePanel);
+        enhanceButton.addItem(enhancePanel);
 
         JHVSlider upsilonLowSlider = new JHVSlider(5, 100, (int) (layer.getGLImage().getUpsilonLow() * 100));
         JLabel upsilonLowLabel = new JLabel(formatUpsilon(upsilonLowSlider.getValue() / 100.), JLabel.RIGHT);
@@ -93,10 +92,10 @@ public class ImageFilterPanel implements FilterDetails {
         upsilonPanel.add(createUpsilonRow("ΥL ", upsilonLowSlider, upsilonLowLabel));
         upsilonPanel.add(createUpsilonRow("ΥH ", upsilonHighSlider, upsilonHighLabel));
 
-        JideSplitButton upsilonButton = new JideSplitButton("Υ");
+        SplitButton upsilonButton = new SplitButton("Υ");
         upsilonButton.setToolTipText("Soften shadows (ΥL, below median) and highlights (ΥH, above median) of RHEF output independently");
         upsilonButton.setAlwaysDropdown(true);
-        upsilonButton.add(upsilonPanel);
+        upsilonButton.addItem(upsilonPanel);
 
         upsilonButton.setVisible(layer.getView().getFilter() == ImageFilter.Type.RHEF);
         filterCombo.addActionListener(e -> {

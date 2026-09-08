@@ -4,8 +4,10 @@ import java.awt.BorderLayout;
 import java.awt.EventQueue;
 
 import javax.swing.BoxLayout;
+import javax.swing.JButton;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JToggleButton;
 import javax.swing.event.PopupMenuEvent;
 import javax.swing.event.PopupMenuListener;
 
@@ -15,18 +17,16 @@ import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.component.CadencePanel;
 import org.helioviewer.jhv.gui.component.ImageSelectorPanel;
 import org.helioviewer.jhv.gui.component.MoviePanel;
+import org.helioviewer.jhv.gui.component.SplitButton;
 import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.timelines.draw.DrawController;
-
-import com.jidesoft.swing.JideButton;
-import com.jidesoft.swing.JideSplitButton;
 
 @SuppressWarnings("serial")
 public final class LayersSectionPanel extends JPanel implements Interfaces.ObservationSelector {
 
     private final CadencePanel cadencePanel;
     private final ImageSelectorPanel imageSelectorPanel;
-    private final JideSplitButton addLayerButton;
+    private final SplitButton addLayerButton;
 
     public LayersSectionPanel() {
         setLayout(new BoxLayout(this, BoxLayout.PAGE_AXIS));
@@ -35,9 +35,9 @@ public final class LayersSectionPanel extends JPanel implements Interfaces.Obser
         cadencePanel = new CadencePanel(MoviePanel.getInstance().getTimeSelectorPanel());
         imageSelectorPanel = new ImageSelectorPanel(this);
 
-        addLayerButton = new JideSplitButton(Buttons.newLayer);
+        addLayerButton = new SplitButton(Buttons.newLayer);
         addLayerButton.setAlwaysDropdown(true);
-        addLayerButton.add(buildSourcePanel());
+        addLayerButton.addItem(buildSourcePanel());
         addLayerButton.getPopupMenu().addPopupMenuListener(new PopupMenuListener() {
             @Override
             public void popupMenuWillBecomeVisible(PopupMenuEvent e) {

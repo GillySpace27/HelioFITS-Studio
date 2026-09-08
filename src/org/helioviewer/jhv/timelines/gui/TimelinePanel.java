@@ -11,6 +11,7 @@ import java.awt.event.MouseEvent;
 
 import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
+import javax.swing.JButton;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
@@ -27,8 +28,6 @@ import org.helioviewer.jhv.gui.component.TableValue;
 import org.helioviewer.jhv.timelines.TimelineLayer;
 import org.helioviewer.jhv.timelines.TimelineLayers;
 import org.helioviewer.jhv.timelines.draw.DrawController;
-
-import com.jidesoft.swing.JideButton;
 
 @SuppressWarnings("serial")
 public final class TimelinePanel extends JPanel {
@@ -122,7 +121,7 @@ public final class TimelinePanel extends JPanel {
         UIGlobals.themed(jsp, c -> c.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, UIGlobals.separator())));
         UIGlobals.themed(jsp.getViewport(), c -> c.setBackground(grid.getBackground()));
 
-        JideButton addLayerButton = new JideButton(Buttons.newLayer);
+        JButton addLayerButton = Buttons.flat(Buttons.newLayer);
         addLayerButton.addActionListener(e -> new TimelineActions.NewLayer().actionPerformed(new ActionEvent(addLayerButton, 0, "")));
 
         JPanel addLayerButtonWrapper = new JPanel(new BorderLayout());
