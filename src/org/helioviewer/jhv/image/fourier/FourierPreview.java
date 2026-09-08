@@ -29,11 +29,13 @@ import org.helioviewer.jhv.view.View;
  */
 public final class FourierPreview {
 
-    // A quarter of the default grid in each direction: a sixteenth of the transform.
-    private static final int NR = 128, NPHI = 64;
+    // Half the default grid in each direction: a quarter of the transform. Was a quarter each way,
+    // which made a band change a few milliseconds cheaper and the picture too coarse to judge
+    // what Apply would do with it.
+    private static final int NR = 256, NPHI = 128;
 
     // Preview frames are packed at no more than this on the long side. The polar grid under them is
-    // 128 x 64, so full frame size would spend 67 MB and a tenth of a second per frame on nothing.
+    // 256 x 128, so full frame size would spend 67 MB and a tenth of a second per frame on nothing.
     private static final int MAX_SIDE = 768;
 
     private final View source;
