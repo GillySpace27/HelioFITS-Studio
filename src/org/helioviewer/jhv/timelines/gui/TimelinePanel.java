@@ -122,6 +122,7 @@ public final class TimelinePanel extends JPanel {
         UIGlobals.themed(jsp.getViewport(), c -> c.setBackground(grid.getBackground()));
 
         JButton addLayerButton = Buttons.flat(Buttons.newLayer);
+        addLayerButton.setText("New Layer");
         addLayerButton.addActionListener(e -> new TimelineActions.NewLayer().actionPerformed(new ActionEvent(addLayerButton, 0, "")));
 
         JPanel addLayerButtonWrapper = new JPanel(new BorderLayout());

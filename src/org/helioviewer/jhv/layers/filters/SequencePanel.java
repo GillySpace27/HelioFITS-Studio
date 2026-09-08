@@ -587,7 +587,7 @@ public class SequencePanel implements FilterDetails {
         if (running == showingStop)
             return;
         showingStop = running;
-        applyButton.setText(running ? Buttons.stopFilter : Buttons.runFilter);
+        applyButton.setIcon(running ? Buttons.stopFilter : Buttons.runFilter);
         applyButton.setToolTipText(running
                 ? "Stop the filter that is running on this layer"
                 : "Compute the filter over every frame of this layer");

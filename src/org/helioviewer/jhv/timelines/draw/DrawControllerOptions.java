@@ -47,11 +47,11 @@ class DrawControllerOptions extends JPanel {
             zoomTo(item.zoom, item.number);
         });
 
-        lockButton = Buttons.flatToggle(Buttons.unlock);
+        lockButton = Buttons.flatToggle(Buttons.unlock, false);
         lockButton.setToolTipText("Synchronize movie with time series");
         lockButton.addActionListener(e -> {
             DrawController.setLocked(lockButton.isSelected());
-            lockButton.setText(lockButton.isSelected() ? Buttons.lock : Buttons.unlock);
+            lockButton.setIcon(lockButton.isSelected() ? Buttons.lock : Buttons.unlock);
         });
 
         statusLabel = new JLabel("", JLabel.RIGHT);

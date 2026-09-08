@@ -49,6 +49,10 @@ import com.formdev.flatlaf.FlatClientProperties;
 public class MoviePanel extends JPanel implements Player.StatusListener, ExportMovie.StatusListener, ViewState.PlaybackConfigListener, ViewState.RecordingConfigListener {
 
     private static final int FRAME_HOLD_REPEAT_MS = 125;
+    // The transport glyph sizes, which used to be a font size on the button and are now the
+    // size the icon is derived at: play larger than the steppers, as before.
+    private static final float SMALL = 18;
+    private static final float BIG = 26;
     private int fixedPreferredWidth = -1;
 
     private final TimeSelectorPanel timeSelectorPanel = new TimeSelectorPanel();
@@ -137,31 +141,26 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         // Time slider
         timeSlider = new TimeSlider(TimeSlider.HORIZONTAL, 0, 0, 0);
 
-        // Control buttons
+        // Control buttons: play is the big one, the steppers and the record dot sit either side
         buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 1, 0));
-        int small = 18, big = 26;
-
-        JButton prevFrameButton = Buttons.flat(Buttons.backward);
-        prevFrameButton.setFont(Buttons.getMaterialFont(small));
+        JButton prevFrameButton = Buttons.flat(Buttons.backward.derive(SMALL));
         prevFrameButton.setToolTipText("Step to previous frame");
         prevFrameButton.addActionListener(Actions.PREVIOUS_FRAME);
         HoldRepeat.install(prevFrameButton, FRAME_HOLD_REPEAT_MS);
         buttonPanel.add(prevFrameButton);
 
-        playButton = Buttons.flat(Buttons.play);
-        playButton.setFont(Buttons.getMaterialFont(big));
+        playButton = Buttons.flat(Buttons.play.derive(BIG));
         playButton.setToolTipText("Play movie");
         playButton.addActionListener(Actions.PLAY_PAUSE);
         buttonPanel.add(playButton);
 
-        JButton nextFrameButton = Buttons.flat(Buttons.forward);
-        nextFrameButton.setFont(Buttons.getMaterialFont(small));
+        JButton nextFrameButton = Buttons.flat(Buttons.forward.derive(SMALL));
         nextFrameButton.setToolTipText("Step to next frame");
         nextFrameButton.addActionListener(Actions.NEXT_FRAME);
         HoldRepeat.install(nextFrameButton, FRAME_HOLD_REPEAT_MS);
         buttonPanel.add(nextFrameButton);
 
-        recordButton = new RecordButton(small);
+        recordButton = new RecordButton(SMALL);
         buttonPanel.add(recordButton);
 
         // Current frame number
@@ -629,11 +628,10 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
     }
 
     private static class RecordButton extends JToggleButton implements ActionListener {
-        RecordButton(float fontSize) {
-            super(Buttons.record);
+        RecordButton(float size) {
+            super(Buttons.record.derive(size));
             putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON);
             setRequestFocusEnabled(false);
-            setFont(Buttons.getMaterialFont(fontSize));
             setForeground(Color.decode("#800000"));
             setToolTipText("Record movie");
             addActionListener(this);
@@ -684,10 +682,10 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         boolean playing = Player.isPlaying();
 
         if (playing) {
-            playButton.setText(Buttons.pause);
+            playButton.setIcon(Buttons.pause.derive(BIG));
             playButton.setToolTipText("Pause movie");
         } else {
-            playButton.setText(Buttons.play);
+            playButton.setIcon(Buttons.play.derive(BIG));
             playButton.setToolTipText("Play movie");
         }
     }
