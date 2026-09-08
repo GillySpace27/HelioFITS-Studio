@@ -240,7 +240,19 @@ public final class MainFrame {
         sidebarCollapseHandle.setToolTipText("Drag to resize, click to collapse the sidebar");
         sidebarCollapseHandle.setPreferredSize(new Dimension(16, 0));
         sidebarCollapseHandle.setCursor(Cursor.getPredefinedCursor(Cursor.E_RESIZE_CURSOR));
-        sidebarCollapseHandle.addActionListener(e -> setSidebarCollapsed(!sidebarCollapsed));
+        sidebarCollapseHandle.addActionListener(e -> {
+            // A drag that ended over this button still delivers a click. Disarming the model
+            // during the drag was supposed to swallow it and does not: the handle MOVES with the
+            // edge being dragged, so it slides under the stationary pointer and the resulting
+            // mouseEntered re-arms the model before the release. Answer it where the answer
+            // cannot be undone, at the action itself, using a flag set during the drag and
+            // cleared on the next press.
+            if (sidebarDragged) {
+                sidebarDragged = false;
+                return;
+            }
+            setSidebarCollapsed(!sidebarCollapsed);
+        });
         attachSidebarResize(sidebarCollapseHandle);
 
         westWrap = new JPanel(new BorderLayout());
@@ -807,17 +819,18 @@ public final class MainFrame {
      * closed. Below the threshold, or while the sidebar is collapsed and there is nothing to
      * resize, it behaves exactly like the plain button it always was.
      */
+    private static boolean sidebarDragged; // a real drag happened, so the click that follows is not a click
+
     private static void attachSidebarResize(JButton handle) {
         final int threshold = 3;
         final int[] startX = new int[1];
         final int[] startWidth = new int[1];
-        final boolean[] dragging = new boolean[1];
         handle.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
                 startX[0] = e.getXOnScreen();
                 startWidth[0] = fixedContentWidth;
-                dragging[0] = false;
+                sidebarDragged = false;
             }
         });
         handle.addMouseMotionListener(new MouseAdapter() {
@@ -826,12 +839,9 @@ public final class MainFrame {
                 if (sidebarCollapsed)
                     return;
                 int dx = e.getXOnScreen() - startX[0];
-                if (!dragging[0] && Math.abs(dx) < threshold)
+                if (!sidebarDragged && Math.abs(dx) < threshold)
                     return;
-                if (!dragging[0]) {
-                    dragging[0] = true;
-                    handle.getModel().setArmed(false); // the eventual release must not also toggle collapse
-                }
+                sidebarDragged = true;
                 setSidebarWidth(startWidth[0] + dx);
             }
         });
