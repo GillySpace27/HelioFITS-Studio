@@ -33,7 +33,7 @@ public final class StatusPanel extends JPanel {
 
     public StatusPanel(int leftMargin, int rightMargin) {
         super(new BorderLayout());
-        setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, getBackground().brighter()));
+        UIGlobals.themed(this, c -> c.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, UIGlobals.separator())));
 
         add(leftPanel, BorderLayout.LINE_START);
         add(rightPanel, BorderLayout.LINE_END);

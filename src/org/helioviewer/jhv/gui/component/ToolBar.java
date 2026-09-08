@@ -42,6 +42,7 @@ import org.helioviewer.jhv.display.SkyProjection;
 import org.helioviewer.jhv.display.SurfaceModel;
 import org.helioviewer.jhv.display.interaction.Interaction;
 import org.helioviewer.jhv.gui.Actions;
+import org.helioviewer.jhv.gui.UIGlobals;
 import org.helioviewer.jhv.input.InputController;
 import org.helioviewer.jhv.io.samp.SampClient;
 import org.helioviewer.jhv.layers.ImageLayers;
@@ -116,7 +117,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
 
     public ToolBar() {
         setLayout(new FlowLayout(FlowLayout.LEADING, 1, 3));
-        setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, getBackground().brighter()));
+        UIGlobals.themed(this, c -> c.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, UIGlobals.separator())));
         setRollover(true);
 
         addMouseListener(new MouseAdapter() {

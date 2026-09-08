@@ -30,6 +30,7 @@ import javax.swing.JSeparator;
 import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.gui.PresentationMode;
+import org.helioviewer.jhv.gui.UIGlobals;
 
 import com.jidesoft.swing.JideButton;
 import com.jidesoft.swing.JideToggleButton;
@@ -283,9 +284,9 @@ public final class Palette {
         JPanel content = new JPanel();
         content.setCursor(Cursor.getDefaultCursor()); // always restore a visible arrow
         content.setLayout(new BoxLayout(content, BoxLayout.PAGE_AXIS));
-        content.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(content.getBackground().brighter()),
-                BorderFactory.createEmptyBorder(4, 8, 6, 8)));
+        UIGlobals.themed(content, c -> c.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(UIGlobals.separator()),
+                BorderFactory.createEmptyBorder(4, 8, 6, 8))));
 
         JPanel header = new JPanel(new BorderLayout());
         header.setOpaque(false);

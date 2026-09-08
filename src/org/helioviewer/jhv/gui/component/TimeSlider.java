@@ -111,6 +111,8 @@ public final class TimeSlider extends JSlider implements Interfaces.LazyComponen
         getActionMap().put("trimEnd", Actions.TRIM_END);
 
         frameNumberPanel = new FrameNumberPanel(getValue(), getMaximum());
+        // A plain foreground, so updateComponentTreeUI leaves it in the old theme's colour.
+        UIGlobals.themed(frameNumberPanel, c -> c.setForeground(UIGlobals.foreColor));
     }
 
     JComponent getFrameNumberPanel() {
@@ -139,6 +141,11 @@ public final class TimeSlider extends JSlider implements Interfaces.LazyComponen
     // Overrides updateUI, to keep own SliderUI
     @Override
     public void updateUI() {}
+
+    /** Re-read the track palette after a theme switch; updateUI above is deliberately a no-op. */
+    public static void refreshColors() {
+        TimeSliderUI.refreshColors();
+    }
 
     @Override
     public void repaint() {
@@ -357,7 +364,6 @@ public final class TimeSlider extends JSlider implements Interfaces.LazyComponen
             Object hints = Toolkit.getDefaultToolkit().getDesktopProperty("awt.font.desktophints");
             desktopHints = hints instanceof Map<?, ?> map ? map : null;
             setFont(UIGlobals.uiFontMonoSmall);
-            setForeground(UIGlobals.foreColor);
             setFrame(_value, _maximum);
         }
 
@@ -435,10 +441,23 @@ public final class TimeSlider extends JSlider implements Interfaces.LazyComponen
     // All functions for size calculations stay the same.
     private static class TimeSliderUI extends BasicSliderUI {
 
-        private static final Color completeColor = UIManager.getColor("Table.selectionBackground");
-        private static final Color partialColor = completeColor.darker();
-        private static final Color emptyColor = UIManager.getColor("ProgressBar.background");
-        private static final Color rangeColor = new Color(completeColor.getRed(), completeColor.getGreen(), completeColor.getBlue(), 96);
+        // Not final: this UI paints itself, so updateComponentTreeUI never reaches these and a
+        // theme switch would leave the track in the previous theme's colours. See refreshColors.
+        private static Color completeColor;
+        private static Color partialColor;
+        private static Color emptyColor;
+        private static Color rangeColor;
+
+        static {
+            refreshColors();
+        }
+
+        static void refreshColors() {
+            completeColor = UIManager.getColor("Table.selectionBackground");
+            partialColor = completeColor.darker();
+            emptyColor = UIManager.getColor("ProgressBar.background");
+            rangeColor = new Color(completeColor.getRed(), completeColor.getGreen(), completeColor.getBlue(), 96);
+        }
 
         private static final BasicStroke thinStroke = new BasicStroke(1);
         private static final BasicStroke thickStroke = new BasicStroke(4);

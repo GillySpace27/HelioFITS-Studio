@@ -35,7 +35,7 @@ public class CollapsiblePane extends JComponent implements ActionListener {
         boolean expanded = remembered(startExpanded);
         ComponentUtils.setVisible(managed, expanded);
 
-        toggleButton = new CollapsiblePaneButton();
+        toggleButton = new CollapsiblePaneButton(child);
         toggleButton.setSelected(expanded);
         toggleButton.setFont(child ? UIGlobals.uiFontSmall : UIGlobals.uiFontSmallBold);
         toggleButton.addActionListener(this);

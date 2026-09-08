@@ -149,24 +149,9 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         sampHub.addActionListener(e -> Settings.setProperty("startup.sampHub", Boolean.toString(sampHub.isSelected())));
         settings.add(sampHub, c);
 
-        JPanel themePanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
-        themePanel.add(new JLabel("Use theme ", JLabel.RIGHT));
-        ButtonGroup themeGroup = new ButtonGroup();
-        DisplaySettings.UITheme currentTheme = DisplaySettings.getUITheme();
-        for (DisplaySettings.UITheme theme : DisplaySettings.UITheme.values()) {
-            JRadioButton radio = new JRadioButton(theme.toString(), theme == currentTheme);
-            radio.addItemListener(e -> {
-                if (radio.isSelected()) {
-                    DisplaySettings.setUITheme(theme);
-                }
-            });
-            themePanel.add(radio);
-            themeGroup.add(radio);
-        }
-
-        c.gridx = 1;
-        c.gridy = 3;
-        settings.add(themePanel, c);
+        // The Dark/Light radios that used to sit here are gone. The theme list is now longer than
+        // two, is user-extensible, and switches live: it lives in View > Theme, and having a second
+        // control here that could disagree with it is worse than having one place to look.
 
         c.gridx = 0;
         c.gridy = 4;
