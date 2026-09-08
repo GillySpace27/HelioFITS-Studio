@@ -61,7 +61,6 @@ public final class LayersPanel extends JPanel {
 
     private final LayersTable grid;
     private final LayerOptionSections sections;
-    private final boolean images;
 
     // Both tables show one selection between them, because there is one options section per table
     // and a row left highlighted in the other one reads as "this is also selected" while nothing
@@ -151,13 +150,12 @@ public final class LayersPanel extends JPanel {
         grid.repaint();
     }
 
-    /** @param images true for the image layers, false for everything drawn over them. */
-    public LayersPanel(LayerOptionSections sections, boolean images) {
+    /** @param kind which of the three layer lists this table shows. */
+    public LayersPanel(LayerOptionSections sections, Layer.Kind kind) {
         this.sections = sections;
-        this.images = images;
         panels.add(this);
         setLayout(new GridBagLayout());
-        LayersTableModel model = new LayersTableModel(images);
+        LayersTableModel model = new LayersTableModel(kind);
 
         GridBagConstraints gc = new GridBagConstraints();
         gc.gridx = 0;
@@ -272,11 +270,8 @@ public final class LayersPanel extends JPanel {
             @Override
             public void mouseMoved(MouseEvent e) {
                 int row = grid.rowAtPoint(e.getPoint());
-                if (row >= 0 && grid.getValueAt(row, 0) instanceof ImageLayer) {
-                    grid.setCursor(UIGlobals.openHandCursor);
-                } else {
-                    grid.setCursor(Cursor.getDefaultCursor());
-                }
+                grid.setCursor(row >= 0 && grid.getValueAt(row, 0) instanceof Layer
+                        ? UIGlobals.openHandCursor : Cursor.getDefaultCursor());
             }
         });
 
@@ -293,13 +288,12 @@ public final class LayersPanel extends JPanel {
             }
         });
 
-        // Only the image layers have an order worth dragging: it is the compositing order. The
-        // overlays draw in a fixed order that reordering the rows would not change.
-        if (images) {
-            grid.setDragEnabled(true);
-            grid.setDropMode(DropMode.INSERT_ROWS);
-            grid.setTransferHandler(new TableRowTransferHandler(grid));
-        }
+        // Every list is draggable. Layers.render walks the registry in order, so a row's position
+        // is its position in the draw order whichever kind it is, and an overlay dragged below
+        // another is an overlay drawn on top of it.
+        grid.setDragEnabled(true);
+        grid.setDropMode(DropMode.INSERT_ROWS);
+        grid.setTransferHandler(new TableRowTransferHandler(grid));
 
         // Start at the fixed count only as a floor for an empty list; showAllRows takes over as
         // soon as there are layers to size to.

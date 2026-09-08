@@ -220,6 +220,13 @@ public final class ObserverLayer extends AbstractLayer implements Player.Listene
         framesPerRev = Math.clamp(jo.optInt("framesPerRev", framesPerRev), 2, 3600);
     }
 
+    // Draws nothing at all: it is a Player listener that turns the camera. Filing it with the
+    // grid and the timestamps put a cause among its effects.
+    @Override
+    public Kind kind() {
+        return Kind.VIEWPOINT;
+    }
+
     @Override
     public String getName() {
         return "Camera";

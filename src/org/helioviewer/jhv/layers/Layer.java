@@ -9,6 +9,21 @@ import org.json.JSONObject;
 
 public interface Layer {
 
+    /**
+     * Which list a layer belongs in, and nothing else.
+     *
+     * <p>Three answers rather than two, because "not an image" turned out to cover two unrelated
+     * things. An overlay is drawn on top of the picture; a viewpoint layer decides where the
+     * picture is seen from and may draw nothing at all. Putting the camera among the grid and the
+     * timestamps filed a cause under its effects.
+     */
+    enum Kind {IMAGE, VIEWPOINT, OVERLAY}
+
+    /** Overlay unless a layer says otherwise, which is what most of them are. */
+    default Kind kind() {
+        return Kind.OVERLAY;
+    }
+
     default void render(MapView mv, Viewport vp) {}
 
     default void renderScale(MapView mv, Viewport vp) {}

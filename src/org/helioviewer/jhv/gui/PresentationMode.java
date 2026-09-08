@@ -304,6 +304,7 @@ public final class PresentationMode {
         expandRecursively(chrome);
         MainFrame.getLayersPanel().forceShowAllRows(); // override a hand-set height for the talk
         MainFrame.getOverlaysPanel().forceShowAllRows();
+        MainFrame.getCameraPanel().forceShowAllRows();
     }
 
     private static void expandRecursively(Component c) {
