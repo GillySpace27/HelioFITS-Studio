@@ -17,6 +17,7 @@ import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.app.Platform;
 import org.helioviewer.jhv.app.Settings;
+import org.helioviewer.jhv.app.Theme;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.gui.UIGlobals;
@@ -36,7 +37,13 @@ import org.helioviewer.jhv.thread.Task;
 public class HFStudio {
 
     static void main(String[] args) throws Exception {
-        System.setProperty("apple.awt.application.appearance", "NSAppearanceNameDarkAqua");
+        // The traffic lights, the title bar and the native menus are drawn in the appearance the
+        // Cocoa application is given here. It was pinned to dark, so a light theme produced a
+        // light application under a dark title bar. macOS reads this exactly once, as NSApp
+        // starts (libosxapp, [NSApp setAppearance:]), which is why it is the first statement in
+        // main and why a theme switch made later in the session cannot move it: the rest of the
+        // interface changes immediately, the window frame follows on the next launch.
+        System.setProperty("apple.awt.application.appearance", appearance(Theme.startupIsDark()));
         System.setProperty("apple.awt.application.name", "HelioFITS Studio");
         System.setProperty("apple.laf.useScreenMenuBar", "true");
         System.setProperty("sun.awt.noerasebackground", "true");
@@ -156,6 +163,17 @@ public class HFStudio {
     private static void onFailureInit(String ignoredLogContext, Throwable t) {
         Log.error(t);
         Message.err("An error occurred during initialization", t.getMessage());
+    }
+
+    /**
+     * The Cocoa appearance name for a theme's darkness.
+     *
+     * <p>Its own method because the two names are strings macOS validates and silently ignores
+     * when they are wrong: a typo would leave the window frame at the system default with
+     * nothing said, which is indistinguishable from this never having been wired up.
+     */
+    static String appearance(boolean dark) {
+        return dark ? "NSAppearanceNameDarkAqua" : "NSAppearanceNameAqua";
     }
 
     private static boolean isHeadless() {
