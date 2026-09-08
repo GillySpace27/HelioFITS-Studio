@@ -6,6 +6,7 @@ import java.util.List;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.math.Quat;
+import org.helioviewer.jhv.math.Vec3;
 import org.helioviewer.jhv.movie.Player;
 import org.helioviewer.jhv.time.JHVTime;
 
@@ -137,6 +138,23 @@ public final class Turntable implements Player.Listener {
         appliedAngle = 0;
     }
 
+    /**
+     * The drag rotation has been reduced to its twist about {@code dragAxis} (Reset Axis).
+     *
+     * <p>A rotation about that same axis survives the twist untouched, which is the ordinary case:
+     * the turntable turns about solar north and so does the drag axis of every Free framing.
+     * Forgetting the angle there would make the next frame apply it a second time and jump the
+     * camera by a whole revolution's worth. A revolution about any other axis is what the twist
+     * strips out, and that one has to be forgotten, or the deltas go on being measured from an
+     * angle the camera no longer holds.
+     */
+    void dragRotationTwisted(Vec3 dragAxis) {
+        double[] a = axis();
+        double align = Math.abs(a[0] * dragAxis.x + a[1] * dragAxis.y + a[2] * dragAxis.z);
+        if (align < 1 - 1e-9)
+            appliedAngle = 0;
+    }
+
     void setEnabled(boolean _enabled) {
         if (_enabled == enabled)
             return;
@@ -170,9 +188,19 @@ public final class Turntable implements Player.Listener {
         return driver;
     }
 
+    // Disarmed under the OLD driver before the field moves: the disarm branch hands the master
+    // clock back only for the own-clock driver, so mutating first and rearming after left the
+    // synthetic clock installed forever when switching own clock -> movie clock.
     public void setDriver(Driver v) {
+        if (v == driver)
+            return;
+
+        boolean wasEnabled = enabled;
+        if (wasEnabled)
+            setEnabled(false);
         driver = v;
-        rearm();
+        if (wasEnabled)
+            setEnabled(true);
     }
 
     public double getAxisLon() {

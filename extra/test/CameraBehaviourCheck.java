@@ -23,38 +23,49 @@ public final class CameraBehaviourCheck {
 
     public static void main(String[] args) {
         // No camera information at all: a state from before any of this existed, or a fresh start.
-        expect(ViewpointLayerOptions.behaviourFromJson(null, false) == ViewpointLayerOptions.CameraBehaviour.FREE,
+        expect(ViewpointLayerOptions.behaviourFromJson(null) == ViewpointLayerOptions.CameraBehaviour.FREE,
                 "absent state is FREE");
-        expect(ViewpointLayerOptions.behaviourFromJson(new JSONObject(), false) == ViewpointLayerOptions.CameraBehaviour.FREE,
+        expect(ViewpointLayerOptions.behaviourFromJson(new JSONObject()) == ViewpointLayerOptions.CameraBehaviour.FREE,
                 "empty state is FREE");
 
         // The three old modes.
-        expect(fromMode("ObserverAt1au", false) == ViewpointLayerOptions.CameraBehaviour.FREE, "ObserverAt1au maps to FREE");
-        expect(fromMode("Location", false) == ViewpointLayerOptions.CameraBehaviour.FOLLOW, "Location maps to FOLLOW");
-        expect(fromMode("Heliosphere", false) == ViewpointLayerOptions.CameraBehaviour.OVERVIEW, "Heliosphere maps to OVERVIEW");
-        expect(fromMode("SomethingElse", false) == ViewpointLayerOptions.CameraBehaviour.FREE, "an unknown mode falls back to FREE");
-
-        // A ticked Camera layer beside any of them: that revolution is what was on screen, so it
-        // wins over the mode it sat next to.
-        expect(fromMode("ObserverAt1au", true) == ViewpointLayerOptions.CameraBehaviour.TURNTABLE, "legacy turntable beats ObserverAt1au");
-        expect(fromMode("Location", true) == ViewpointLayerOptions.CameraBehaviour.TURNTABLE, "legacy turntable beats Location");
-        expect(fromMode("Heliosphere", true) == ViewpointLayerOptions.CameraBehaviour.TURNTABLE, "legacy turntable beats Heliosphere");
-        expect(ViewpointLayerOptions.behaviourFromJson(null, true) == ViewpointLayerOptions.CameraBehaviour.TURNTABLE,
-                "legacy turntable alone is TURNTABLE");
+        expect(fromMode("ObserverAt1au") == ViewpointLayerOptions.CameraBehaviour.FREE, "ObserverAt1au maps to FREE");
+        expect(fromMode("Location") == ViewpointLayerOptions.CameraBehaviour.FOLLOW, "Location maps to FOLLOW");
+        expect(fromMode("Heliosphere") == ViewpointLayerOptions.CameraBehaviour.OVERVIEW, "Heliosphere maps to OVERVIEW");
+        expect(fromMode("SomethingElse") == ViewpointLayerOptions.CameraBehaviour.FREE, "an unknown mode falls back to FREE");
 
         // Current states name the behaviour, and that name is final: it is written by a build that
         // already had all four, so nothing else in the file can outrank it.
         for (ViewpointLayerOptions.CameraBehaviour behaviour : ViewpointLayerOptions.CameraBehaviour.values()) {
             JSONObject jo = new JSONObject().put("behaviour", behaviour.name()).put("mode", "Heliosphere");
-            expect(ViewpointLayerOptions.behaviourFromJson(jo, false) == behaviour, "round trip of " + behaviour.name());
-            expect(ViewpointLayerOptions.behaviourFromJson(jo, true) == behaviour, "named " + behaviour.name() + " outranks a legacy tick");
+            expect(ViewpointLayerOptions.behaviourFromJson(jo) == behaviour, "round trip of " + behaviour.name());
         }
 
         // A name this build does not know (a newer state, a hand-edited file) must not throw; it
         // falls through to the legacy reading rather than taking the session down.
         JSONObject unknown = new JSONObject().put("behaviour", "SIDEREAL").put("mode", "Location");
-        expect(ViewpointLayerOptions.behaviourFromJson(unknown, false) == ViewpointLayerOptions.CameraBehaviour.FOLLOW,
+        expect(ViewpointLayerOptions.behaviourFromJson(unknown) == ViewpointLayerOptions.CameraBehaviour.FOLLOW,
                 "an unknown behaviour name falls back to the mode");
+
+        // The migration's real precedence, on the path applyStashedLegacyCameraLayer takes: the old
+        // Camera layer arrives after the mode has already been read, and only its TICK decides. The
+        // tick lives on the layer entry, not in its data, and it is the thing most easily lost.
+        JSONObject ticked = legacyEntry(true);
+        JSONObject unticked = legacyEntry(false);
+        JSONObject noTick = new JSONObject().put("className", "org.helioviewer.jhv.layers.ObserverLayer");
+        for (ViewpointLayerOptions.CameraBehaviour behaviour : ViewpointLayerOptions.CameraBehaviour.values()) {
+            expect(ViewpointLayerOptions.behaviourAfterLegacyCameraLayer(behaviour, ticked)
+                            == ViewpointLayerOptions.CameraBehaviour.TURNTABLE,
+                    "a ticked Camera layer beats " + behaviour.name());
+            // Every pre-merge session carries the entry, ticked or not. An unticked one that
+            // hijacked the session into TURNTABLE would be the loudest possible migration bug.
+            expect(ViewpointLayerOptions.behaviourAfterLegacyCameraLayer(behaviour, unticked) == behaviour,
+                    "an unticked Camera layer leaves " + behaviour.name() + " alone");
+            expect(ViewpointLayerOptions.behaviourAfterLegacyCameraLayer(behaviour, noTick) == behaviour,
+                    "a Camera layer with no tick recorded leaves " + behaviour.name() + " alone");
+            expect(ViewpointLayerOptions.behaviourAfterLegacyCameraLayer(behaviour, null) == behaviour,
+                    "no Camera layer at all leaves " + behaviour.name() + " alone");
+        }
 
         // The legacy Camera layer's own five numbers.
         Turntable t = new Turntable(new JSONObject()
@@ -96,8 +107,12 @@ public final class CameraBehaviourCheck {
         System.out.println("CameraBehaviourCheck: PASS");
     }
 
-    private static ViewpointLayerOptions.CameraBehaviour fromMode(String mode, boolean legacyTurntableEnabled) {
-        return ViewpointLayerOptions.behaviourFromJson(new JSONObject().put("mode", mode), legacyTurntableEnabled);
+    private static ViewpointLayerOptions.CameraBehaviour fromMode(String mode) {
+        return ViewpointLayerOptions.behaviourFromJson(new JSONObject().put("mode", mode));
+    }
+
+    private static JSONObject legacyEntry(boolean enabled) {
+        return new JSONObject().put("className", "org.helioviewer.jhv.layers.ObserverLayer").put("enabled", enabled);
     }
 
     private static void expect(boolean ok, String what) {

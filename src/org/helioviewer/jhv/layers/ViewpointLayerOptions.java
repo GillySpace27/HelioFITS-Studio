@@ -12,6 +12,7 @@ import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.SurfaceModel;
+import org.helioviewer.jhv.math.Vec3;
 import org.helioviewer.jhv.movie.Player;
 import org.helioviewer.jhv.time.TimeListener;
 
@@ -90,7 +91,7 @@ public final class ViewpointLayerOptions implements TimeListener.Range {
 
         // A legacy Camera layer, if this session has one, is read later: it arrives after this
         // entry and is applied by Layers.restore. See applyStashedLegacyCameraLayer.
-        behaviour = behaviourFromJson(jo, false);
+        behaviour = behaviourFromJson(jo);
         if (jo != null) {
             try {
                 freeSource = FreeSource.valueOf(jo.optString("freeSource"));
@@ -105,10 +106,10 @@ public final class ViewpointLayerOptions implements TimeListener.Range {
      * The behaviour a saved state asks for.
      *
      * <p>Three generations of state have to open. Current states name the behaviour outright.
-     * States written while the camera was two rows carry this layer's {@code mode} beside a
-     * separate Camera layer, and a Camera layer that was ticked outranks the mode it sat next to,
-     * because a revolving camera is what the user was actually looking at. A state carrying no
-     * camera information at all is FREE, which is what a fresh session does.
+     * States written while the camera was two rows carry this layer's {@code mode}; the separate
+     * Camera layer that sat beside it arrives later and outranks what is decided here, in
+     * behaviourAfterLegacyCameraLayer. A state carrying no camera information at all is FREE,
+     * which is what a fresh session does.
      *
      * <p>FREE rather than FOLLOW as the fallback: FOLLOW is the one behaviour that can put the
      * camera inside the loaded field, and defaulting to it made the Thomson sphere refuse on a
@@ -116,16 +117,12 @@ public final class ViewpointLayerOptions implements TimeListener.Range {
      *
      * <p>Static and free of side effects so extra/test/CameraBehaviourCheck.java can run it.
      */
-    public static CameraBehaviour behaviourFromJson(@Nullable JSONObject jo, boolean legacyTurntableEnabled) {
-        if (jo != null) {
-            try {
-                return CameraBehaviour.valueOf(jo.optString("behaviour"));
-            } catch (RuntimeException ignore) {}
-        }
-        if (legacyTurntableEnabled)
-            return CameraBehaviour.TURNTABLE;
+    public static CameraBehaviour behaviourFromJson(@Nullable JSONObject jo) {
         if (jo == null)
             return CameraBehaviour.FREE;
+        try {
+            return CameraBehaviour.valueOf(jo.optString("behaviour"));
+        } catch (RuntimeException ignore) {}
         return switch (jo.optString("mode")) {
             case "Location" -> CameraBehaviour.FOLLOW;
             case "Heliosphere" -> CameraBehaviour.OVERVIEW;
@@ -158,8 +155,25 @@ public final class ViewpointLayerOptions implements TimeListener.Range {
         JSONObject data = entry.optJSONObject("data");
         if (data != null)
             turntable.deserialize(data);
-        if (entry.optBoolean("enabled", false)) // the legacy branch of behaviourFromJson
-            setBehaviour(CameraBehaviour.TURNTABLE, DisplayController.ViewpointApplyMode.KEEP_TRANSFORM);
+
+        CameraBehaviour migrated = behaviourAfterLegacyCameraLayer(behaviour, entry);
+        if (migrated != behaviour)
+            setBehaviour(migrated, DisplayController.ViewpointApplyMode.KEEP_TRANSFORM);
+    }
+
+    /**
+     * The behaviour once the old Camera layer has had its say.
+     *
+     * <p>A Camera layer that was TICKED outranks the mode it sat next to, because a revolving
+     * camera is what the user was actually looking at. Its tick lives on the layer entry rather
+     * than in its data, so this reads the entry, and an unticked one must leave the mode alone:
+     * every pre-merge session carries the entry whether or not it was ever switched on.
+     *
+     * <p>Static and free of side effects so extra/test/CameraBehaviourCheck.java can run it; the
+     * rest of applyStashedLegacyCameraLayer needs a live camera.
+     */
+    static CameraBehaviour behaviourAfterLegacyCameraLayer(CameraBehaviour fromState, @Nullable JSONObject legacyEntry) {
+        return legacyEntry != null && legacyEntry.optBoolean("enabled", false) ? CameraBehaviour.TURNTABLE : fromState;
     }
 
     void serialize(JSONObject jo) {
@@ -279,19 +293,37 @@ public final class ViewpointLayerOptions implements TimeListener.Range {
         enforceSurfaceExclusivity(behaviour);
     }
 
+    // Only the behaviour that is actually driving the camera. This is reached from programmatic
+    // writes as well as user edits -- a movie time range change calls setTimespan on BOTH option
+    // panels -- so enforcing exclusivity for whichever behaviour fired evicted a Thomson sphere
+    // chosen under FREE the moment the timespan moved, on account of a FOLLOW that drives nothing.
     private void optionStateChanged(CameraBehaviour changed) {
+        if (behaviour != changed)
+            return;
+
         enforceSurfaceExclusivity(changed);
-        if (behaviour == changed) {
-            applyCurrentViewpoint(DisplayController.ViewpointApplyMode.KEEP_TRANSFORM);
-            DisplayController.render(1);
-        }
+        applyCurrentViewpoint(DisplayController.ViewpointApplyMode.KEEP_TRANSFORM);
+        DisplayController.render(1);
     }
 
     // The turntable is armed by the behaviour, not by a tick of its own, and only while the layer
     // is driving the camera at all. Tracked from activate/deactivate rather than read back off
     // Layers.getViewpointLayer(), which during a restore still points at the layer being replaced.
+    //
+    // A flat projection suspends it rather than switching the behaviour: the panel greys the
+    // Turntable radio there, so a revolution left running would have been unstoppable through the
+    // one control that turns it off, and it would have gone on holding the placeholder master
+    // clock. Suspending keeps the user's choice, which a silent fall back to FREE would spend, and
+    // the revolution resumes when a 3D projection returns. See projectionChanged.
     private void syncTurntable() {
-        turntable.setEnabled(layerEnabled && behaviour == CameraBehaviour.TURNTABLE);
+        turntable.setEnabled(layerEnabled && behaviour == CameraBehaviour.TURNTABLE && Display.mode.rendersIn3D());
+    }
+
+    /** The projection has just changed, which is what decides whether a revolution can be seen. */
+    public static void projectionChanged() {
+        ViewpointLayer layer = Layers.getViewpointLayer();
+        if (layer != null)
+            layer.getOptions().syncTurntable();
     }
 
     void activate() {
@@ -342,6 +374,19 @@ public final class ViewpointLayerOptions implements TimeListener.Range {
         ViewpointLayer layer = Layers.getViewpointLayer();
         if (layer != null)
             layer.getOptions().turntable.dragRotationCleared();
+    }
+
+    /**
+     * Reset Axis: the drag rotation has been reduced to its twist about {@code dragAxis}.
+     *
+     * <p>Not the same event as a clear. What was about that axis survives, so a turntable turning
+     * about it keeps every degree it applied, and telling it otherwise would make the next frame
+     * apply the angle a second time. Only a revolution about some other axis loses its rotation.
+     */
+    public static void cameraDragRotationTwisted(Vec3 dragAxis) {
+        ViewpointLayer layer = Layers.getViewpointLayer();
+        if (layer != null)
+            layer.getOptions().turntable.dragRotationTwisted(dragAxis);
     }
 
     boolean isHeliospheric() {

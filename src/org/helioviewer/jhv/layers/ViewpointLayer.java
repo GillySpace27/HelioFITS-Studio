@@ -76,6 +76,14 @@ public class ViewpointLayer extends AbstractLayer {
 
     public ViewpointLayer(JSONObject jo) {
         options = new ViewpointLayerOptions(jo);
+        if (jo == null)
+            // Fresh construction (Layers' DEFAULT_LAYERS), as opposed to restoring a saved session,
+            // where State applies the stored "enabled" flag instead. All four camera behaviours are
+            // armed by this row being ticked, so without this a fresh session opened with the row
+            // unticked and the Turntable radio did nothing whatsoever: the headline control of the
+            // merged camera row was inert until someone thought to tick a row about the viewpoint.
+            // GridLayer, TimestampLayer and MiniviewLayer carry the same else-branch.
+            setEnabled(true);
     }
 
     public double getRelativeLongitude(long time, long start, long end) {
