@@ -27,6 +27,7 @@ enum MaterialDesign {
     DEBUG_STEP_OUT("mdi-debug-step-out", '\uf1bc'),
     DELETE("mdi-delete", '\uf1c0'),
     DOWNLOAD("mdi-download", '\uf1da'),
+    GRID("mdi-grid", '\uf2c1'), // a fine mesh, distinct from BORDER_ALL's single box; verified against the shipped font's own cmap and post tables, then rasterized
     IMAGE_FILTER_CENTER_FOCUS("mdi-image-filter-center-focus", '\uf2f1'),
     IMAGE_FILTER_HDR("mdi-image-filter-hdr", '\uf2f5'),
     INFORMATION_VARIANT("mdi-information-variant", '\uf64e'),

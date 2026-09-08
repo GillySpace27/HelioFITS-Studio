@@ -34,7 +34,7 @@ import org.helioviewer.jhv.layers.GridLayer;
 
 
 @SuppressWarnings("serial")
-final class GridLayerOptions extends JPanel {
+public final class GridLayerOptions extends JPanel {
 
     /**
      * Four collapsed sections rather than one flat list.
@@ -44,8 +44,15 @@ final class GridLayerOptions extends JPanel {
      * unlabelled sliders where "Line width" and "Thomson line width" sat five rows apart with
      * nothing saying which belonged to what. Each section now carries its own colour, opacity,
      * width and density, so a slider's meaning comes from the header above it.
+     *
+     * <p>Public, and safe to construct a second time: {@code gui.component.GridPaletteContent}
+     * builds its own instance for the floating palette rather than reusing the layer row's (a
+     * Swing component has exactly one parent), the same split {@code SequencePaletteContent}
+     * makes for the sequence filter. Every widget here binds straight to {@code layer}'s live
+     * getters and setters with no other static or shared state, so two instances of the same
+     * layer's options coexist without stepping on each other.
      */
-    GridLayerOptions(GridLayer layer) {
+    public GridLayerOptions(GridLayer layer) {
         setLayout(new BoxLayout(this, BoxLayout.PAGE_AXIS));
 
         add(new CollapsiblePane("Grid", gridSection(layer), true, true));

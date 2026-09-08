@@ -4,11 +4,14 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Taskbar;
 import java.awt.EventQueue;
 import java.awt.GraphicsEnvironment;
 import java.awt.event.ActionEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 
@@ -119,6 +122,21 @@ public final class MainFrame {
     private static JButton sidebarCollapseHandle;
     private static boolean sidebarCollapsed;
 
+    // A user-dragged width overrides the measure-and-grow behaviour below entirely: once someone
+    // has resized the sidebar by hand, its width is theirs to keep, the same way the collapsed
+    // state is. -1 means "no explicit width yet", not "zero pixels wide".
+    private static final int MIN_SIDEBAR_WIDTH = 160;
+    private static final int MAX_SIDEBAR_WIDTH = 900;
+    private static int explicitSidebarWidth = readSidebarWidth();
+
+    private static int readSidebarWidth() {
+        try {
+            return Integer.parseInt(org.helioviewer.jhv.app.Settings.getProperty("ui.sidebarWidth"));
+        } catch (RuntimeException ignore) {
+            return -1;
+        }
+    }
+
     // Presentation mode needs to take these away from the frame and give them back. They were
     // locals in prepare(), so there was no handle on the chrome at all.
     private static JPanel toolBarPanel;
@@ -213,10 +231,14 @@ public final class MainFrame {
         // The scrubber + playback controls are always docked at the top, so playback stays
         // reachable whether or not the sidebar is open. Collapsing the sidebar (thin handle on its
         // right edge) just folds away the layers/settings and lets the canvas reflow to full width.
+        // The same handle drags to resize: see the mouse listener below for how a drag and a click
+        // are told apart on one component.
         sidebarCollapseHandle = Buttons.flat(Buttons.collapseLeft);
-        sidebarCollapseHandle.setToolTipText("Collapse the sidebar");
+        sidebarCollapseHandle.setToolTipText("Drag to resize, click to collapse the sidebar");
         sidebarCollapseHandle.setPreferredSize(new Dimension(16, 0));
+        sidebarCollapseHandle.setCursor(Cursor.getPredefinedCursor(Cursor.E_RESIZE_CURSOR));
         sidebarCollapseHandle.addActionListener(e -> setSidebarCollapsed(!sidebarCollapsed));
+        attachSidebarResize(sidebarCollapseHandle);
 
         westWrap = new JPanel(new BorderLayout());
         westWrap.add(leftPaneHost, BorderLayout.CENTER);
@@ -681,7 +703,9 @@ public final class MainFrame {
 
         // The fixed host width stretches every top-level pane (via SideContentPane's fill) to match.
         int scrollbarWidth = leftScrollPane.getVerticalScrollBar().getPreferredSize().width;
-        fixedContentWidth = contentWidth + scrollbarWidth;
+        fixedContentWidth = explicitSidebarWidth > 0
+                ? Math.clamp(explicitSidebarWidth, MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH)
+                : contentWidth + scrollbarWidth;
         leftPaneHost.setFixedWidth(fixedContentWidth);
         leftPaneHost.revalidate();
         // Dynamic content (CR button, Sync, video/duration labels, per-layer options) can get wider
@@ -695,6 +719,8 @@ public final class MainFrame {
     private static int fixedContentWidth;
 
     private static void growLeftPaneToFit() {
+        if (explicitSidebarWidth > 0) // the user's own width is not something dynamic content grows past
+            return;
         int needed = Math.max(imageLayersPane.getPreferredSize().width, MoviePanel.getInstance().getPlaybackOptions().getPreferredSize().width)
                 + leftScrollPane.getVerticalScrollBar().getPreferredSize().width;
         if (needed > fixedContentWidth) {
@@ -719,7 +745,7 @@ public final class MainFrame {
 
         leftPaneHost.setVisible(!collapsed); // the handle stays; westWrap shrinks to just it
         sidebarCollapseHandle.setIcon(collapsed ? Buttons.collapseRight : Buttons.collapseLeft);
-        sidebarCollapseHandle.setToolTipText(collapsed ? "Show the sidebar" : "Collapse the sidebar");
+        sidebarCollapseHandle.setToolTipText(collapsed ? "Show the sidebar" : "Drag to resize, click to collapse the sidebar");
 
         // The canvas is nested deep inside a JSplitPane, so validate the whole frame to push its
         // new bounds all the way down, then force the native GL surface to match and re-render.
@@ -729,6 +755,76 @@ public final class MainFrame {
         centerPanel.repaint();
         if (renderCanvas != null)
             renderCanvas.refreshHost(); // synchronously resizes the native surface + renders at-size
+    }
+
+    /**
+     * One component that is both a click-to-collapse button and a drag-to-resize handle.
+     *
+     * <p>A JButton fires its click on mouse release provided it is still "armed", which
+     * {@code DefaultButtonModel} decides at release time by what {@code setArmed} last recorded --
+     * so disarming the model as soon as a drag is detected (moved further than a few pixels from
+     * where the mouse went down) is what keeps that same release from also toggling the sidebar
+     * closed. Below the threshold, or while the sidebar is collapsed and there is nothing to
+     * resize, it behaves exactly like the plain button it always was.
+     */
+    private static void attachSidebarResize(JButton handle) {
+        final int threshold = 3;
+        final int[] startX = new int[1];
+        final int[] startWidth = new int[1];
+        final boolean[] dragging = new boolean[1];
+        handle.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                startX[0] = e.getXOnScreen();
+                startWidth[0] = fixedContentWidth;
+                dragging[0] = false;
+            }
+        });
+        handle.addMouseMotionListener(new MouseAdapter() {
+            @Override
+            public void mouseDragged(MouseEvent e) {
+                if (sidebarCollapsed)
+                    return;
+                int dx = e.getXOnScreen() - startX[0];
+                if (!dragging[0] && Math.abs(dx) < threshold)
+                    return;
+                if (!dragging[0]) {
+                    dragging[0] = true;
+                    handle.getModel().setArmed(false); // the eventual release must not also toggle collapse
+                }
+                setSidebarWidth(startWidth[0] + dx);
+            }
+        });
+    }
+
+    private static javax.swing.Timer sidebarWidthSettle;
+
+    /** Resize the sidebar to width pixels, clamped to a sane range, and remember the choice. */
+    public static void setSidebarWidth(int width) {
+        int clamped = Math.clamp(width, MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH);
+        if (clamped == explicitSidebarWidth && clamped == fixedContentWidth)
+            return;
+        explicitSidebarWidth = clamped;
+        fixedContentWidth = clamped;
+        leftPaneHost.setFixedWidth(clamped);
+
+        // Live, like any other splitter: the same reflow setSidebarCollapsed forces, so the canvas
+        // and its native surface track the handle instead of catching up once the drag ends.
+        centerPanel.revalidate();
+        mainFrame.validate();
+        centerPanel.repaint();
+        if (renderCanvas != null)
+            renderCanvas.refreshHost();
+
+        // Settings.setProperty rewrites the whole properties file, and a drag fires this every few
+        // pixels; write the final width once things stop moving, the same debounce the window's
+        // own remembered bounds use.
+        if (sidebarWidthSettle == null) {
+            sidebarWidthSettle = new javax.swing.Timer(400, e ->
+                    org.helioviewer.jhv.app.Settings.setProperty("ui.sidebarWidth", String.valueOf(explicitSidebarWidth)));
+            sidebarWidthSettle.setRepeats(false);
+        }
+        sidebarWidthSettle.restart();
     }
 
     public static Component getRenderComponent() {

@@ -178,6 +178,7 @@ public final class Layers {
     private static ViewpointLayer viewpointLayer;
     private static MiniviewLayer miniviewLayer;
     private static ConnectionLayer connectionLayer;
+    private static GridLayer gridLayer;
 
     // Layer constructors have side effects, so keep constructors here and build layers only when used.
     private static final LinkedHashMap<Class<? extends Layer>, Supplier<? extends Layer>> DEFAULT_LAYERS = new LinkedHashMap<>();
@@ -209,6 +210,10 @@ public final class Layers {
         return connectionLayer;
     }
 
+    public static GridLayer getGridLayer() {
+        return gridLayer;
+    }
+
     public static void add(Layer layer) {
         if (layer instanceof ImageLayer) {
             layers.add(imageLayersCount++, layer);
@@ -230,6 +235,8 @@ public final class Layers {
             miniviewLayer = ml;
         else if (layer instanceof ConnectionLayer cl)
             connectionLayer = cl;
+        else if (layer instanceof GridLayer gl)
+            gridLayer = gl;
     }
 
     public static void remove(Layer layer) {
