@@ -20,6 +20,7 @@ import org.helioviewer.jhv.image.ImageBufferCache;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.image.fourier.ComputedCache;
 import org.helioviewer.jhv.image.fourier.FourierFilter;
+import org.helioviewer.jhv.image.fourier.FourierPreview;
 import org.helioviewer.jhv.image.fourier.SequenceJob;
 import org.helioviewer.jhv.image.fourier.SequenceParams;
 import org.helioviewer.jhv.image.lut.LUT;
@@ -84,28 +85,63 @@ public final class ComputedView implements View {
     private DecodedImage[] computed;
 
     /**
-     * One frame from the live preview, shown in place of the computed one until the next real run.
+     * The live preview, shown in place of the computed frames until the next real run.
      *
      * <p>Dragging a band in the spectrum dialog cannot re-run the filter over the movie, so it
-     * re-runs it over one frame on a coarse grid and puts the answer here. It is deliberately not
-     * in the frame array and not in the cache: it is an approximation of one frame, and the moment
-     * a real run lands or the dialog closes it has to be gone.
+     * re-masks a coarse cube of it (FourierPreview) and this serves frames from that cube. Frames
+     * are projected out of it in the background, the current one first and then round the movie,
+     * so playback catches up within seconds of a band change; a frame not yet projected shows the
+     * computed one, or the source, until it is. They are deliberately not in the frame array and
+     * not in the cache: approximations at preview size, gone the moment a real run lands or the
+     * dialog closes.
      */
     @Nullable
-    private volatile DecodedImage previewImage;
-    private volatile int previewFrame = -1;
+    private volatile FourierPreview previewSource;
+    private volatile int previewGeneration; // bumped per band change: a sweep for an older band stops
+    private final java.util.Map<Integer, DecodedImage> previewFrames = new java.util.concurrent.ConcurrentHashMap<>();
 
-    /** Show this frame in place of the computed one. The per-frame filter is applied here, so it is like for like. */
-    public void setPreview(int frame, @Nullable DecodedImage image) {
-        ImageFilter.Type filter = wrapped.getFilter();
-        previewImage = image != null && filter != ImageFilter.Type.None
-                ? filtered(image, filter, wrapped.getMetaData(wrapped.getFrameTime(frame))) : image;
-        previewFrame = image == null ? -1 : frame;
+    /**
+     * Serve frames from this preview (already filtered with the band to show), or from none.
+     * The per-frame filter is applied to each projected frame, so it is like for like.
+     */
+    public void setPreviewSource(@Nullable FourierPreview source) {
+        int generation = ++previewGeneration;
+        previewSource = source;
+        previewFrames.clear();
         DisplayController.render(1);
+        if (source == null)
+            return;
+        int n = wrapped.getMaximumFrameNumber() + 1;
+        int start = wrapped.getCurrentFrameNumber();
+        Task.submit("fourier preview sweep", () -> {
+                    for (int i = 0; i < n; i++) {
+                        int frame = (start + i) % n;
+                        if (previewGeneration != generation || Thread.currentThread().isInterrupted())
+                            return null;
+                        DecodedImage image = source.frame(frame);
+                        if (image == null)
+                            continue;
+                        ImageFilter.Type filter = wrapped.getFilter();
+                        if (filter != ImageFilter.Type.None)
+                            image = filtered(image, filter, wrapped.getMetaData(wrapped.getFrameTime(frame)));
+                        if (previewGeneration != generation)
+                            return null;
+                        previewFrames.put(frame, image);
+                        if (i == 0 || i % 8 == 7)
+                            DisplayController.render(1);
+                    }
+                    DisplayController.render(1);
+                    return null;
+                },
+                Task::doNothing,
+                (ctx, t) -> {
+                    if (!AppThread.isInterrupted(t))
+                        Log.warn(t);
+                });
     }
 
     public void clearPreview() {
-        setPreview(-1, null);
+        setPreviewSource(null);
     }
 
     /** Frames whose per-frame filter pass is in flight; see decode() for why this is bounded. */
@@ -193,8 +229,9 @@ public final class ComputedView implements View {
     /** The job's result becomes what decode() serves. Package-private so a check can install frames without a worker. */
     void install(DecodedImage[] frames) {
         running = false;
-        previewImage = null; // the real thing has landed
-        previewFrame = -1;
+        previewSource = null; // the real thing has landed
+        previewGeneration++;
+        previewFrames.clear();
         computed = frames;
         ready = true;
         status.accept(null);
@@ -207,16 +244,17 @@ public final class ComputedView implements View {
         running = false;
         ready = false;
         computed = null; // the Cleaner on each buffer reclaims the native memory
-        previewImage = null;
-        previewFrame = -1;
+        previewSource = null;
+        previewGeneration++;
+        previewFrames.clear();
         ImageBufferCache.invalidateIf(k -> k instanceof ComputedKey ck && ck.view() == this);
     }
 
     @Override
     public void decode(Position viewpoint, double pixFactor, float factor) {
         int frame = wrapped.getCurrentFrameNumber();
-        DecodedImage live = previewImage;
-        if (live != null && previewFrame == frame) {
+        DecodedImage live = previewSource == null ? null : previewFrames.get(frame);
+        if (live != null) {
             publish(live, frame, viewpoint);
             return;
         }

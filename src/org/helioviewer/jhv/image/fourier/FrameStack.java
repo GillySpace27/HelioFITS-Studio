@@ -129,6 +129,11 @@ public final class FrameStack {
      * keeps the smallest positive half so it stays valid downstream).
      */
     public static ImageBuffer packLike(Frame f, float[] physical) {
+        return packLike(f, f.width, f.height, physical);
+    }
+
+    /** The same, over a w x h grid laid across the frame's region. */
+    public static ImageBuffer packLike(Frame f, int w, int h, float[] physical) {
         short[] half = new short[physical.length];
         ImageBuffer.PhysicalScale scale = f.scale;
         // 29 ms a frame on one thread, and a stretch function called per pixel. Elementwise, so
@@ -144,13 +149,18 @@ public final class FrameStack {
                 half[i] = Float.floatToFloat16((float) Math.max(1e-6, Math.min(1, d)));
             }
         });
-        ImageBuffer buffer = ImageBuffer.fromShorts(f.width, f.height, ImageBuffer.Format.Gray16F, half, ImageFilter.of(ImageFilter.Type.None, f.decoded.region(), f.meta));
+        ImageBuffer buffer = ImageBuffer.fromShorts(w, h, ImageBuffer.Format.Gray16F, half, ImageFilter.of(ImageFilter.Type.None, f.decoded.region(), f.meta));
         buffer.setPhysicalScale(scale);
         return buffer;
     }
 
     /** A signed fluctuation on the symmetric scale: mid-grey is zero, plus or minus amplitude is white or black. */
     public static ImageBuffer packSigned(Frame f, float[] values, double amplitude) {
+        return packSigned(f, f.width, f.height, values, amplitude);
+    }
+
+    /** The same, over a w x h grid laid across the frame's region: a preview packs at less than full size. */
+    public static ImageBuffer packSigned(Frame f, int w, int h, float[] values, double amplitude) {
         short[] half = new short[values.length];
         double inv = 0.5 / amplitude;
         ParallelRange.run(half.length, (from, to) -> { // 35 ms a frame on one thread
@@ -159,7 +169,7 @@ public final class FrameStack {
                 half[i] = Float.isNaN(v) ? 0 : Float.floatToFloat16((float) Math.clamp(0.5 + v * inv, 1e-6, 1));
             }
         });
-        ImageBuffer buffer = ImageBuffer.fromShorts(f.width, f.height, ImageBuffer.Format.Gray16F, half, ImageFilter.of(ImageFilter.Type.None, f.decoded.region(), f.meta));
+        ImageBuffer buffer = ImageBuffer.fromShorts(w, h, ImageBuffer.Format.Gray16F, half, ImageFilter.of(ImageFilter.Type.None, f.decoded.region(), f.meta));
         buffer.setPhysicalScale(new ImageBuffer.PhysicalScale((float) -amplitude, (float) amplitude, y -> y, "Y = t", y -> y));
         return buffer;
     }

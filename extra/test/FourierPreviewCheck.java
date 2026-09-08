@@ -214,9 +214,29 @@ public final class FourierPreviewCheck {
         double apart = rms(out, full[8]);
         expect(String.format("the preview lands near the full run on the same frame (rms %.4f of the range)", apart), apart < 0.15);
 
+        // The equaliser's split: a band is one filter over the cube, after which every frame
+        // comes out of it without filtering again, and all of them belong to the same band.
+        preview.filter(outward);
+        expect("the preview knows what it is filtered with", outward.equals(preview.current()));
+        DecodedImage[] swept = new DecodedImage[stub.n];
+        for (int k = 0; k < stub.n; k++)
+            swept[k] = preview.frame(k);
+        boolean all = true;
+        for (DecodedImage d : swept)
+            all &= d != null && d.imageBuffer().width == stub.size;
+        expect("every frame of the movie comes out of one filtered cube", all);
+        expect("and frame 8 of it is the frame render gave for the same band", rms(swept[8], out) == 0);
+        preview.filter(inward);
+        DecodedImage after = preview.frame(8);
+        expect("a new band changes what frame() serves", after != null && rms(after, swept[8]) > 0.02);
+
         long started = System.nanoTime();
         preview.render(outward, 8);
-        System.out.printf("  ..     one preview frame on this stub: %.0f ms%n", (System.nanoTime() - started) / 1e6);
+        double band = (System.nanoTime() - started) / 1e6;
+        started = System.nanoTime();
+        for (int k = 0; k < stub.n; k++)
+            preview.frame(k);
+        System.out.printf("  ..     on this stub: a band %.0f ms, then %d frames in %.0f ms%n", band, stub.n, (System.nanoTime() - started) / 1e6);
 
         if (failures > 0)
             throw new AssertionError(failures + " preview failure(s)");
