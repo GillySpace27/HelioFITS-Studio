@@ -15,15 +15,16 @@ import org.helioviewer.jhv.layers.ViewpointLayer;
 import org.helioviewer.jhv.layers.selector.ViewpointLayerOptionsPanel;
 
 /**
- * The camera behaviours (Free, Follow, Turntable, Overview) and their settings as a floating
- * palette, next to Grid: the ONE place those settings exist.
+ * Where the scene is seen from (Free, Follow, Overview) and how the camera moves within that
+ * (revolving), as a floating palette next to Grid: the ONE place those settings exist.
  *
  * <p>They are the Viewpoint layer's options, and the sidebar's Camera section kept them until now.
  * That row keeps its master checkbox and points here ({@code PalettePointer}); the same checkbox
  * sits at the top of this palette, bound to the same {@link ViewpointLayer#isEnabled()}. Off, the
  * view returns to the observer and the behaviours release the camera, which is what the row's
- * checkbox has always done. The settings stay live while it is off, so a behaviour can be set up
- * before the layer takes the camera.
+ * checkbox has always done. It does NOT reach the revolution, which moves the camera rather than
+ * choosing a vantage point and runs either way (see ViewpointLayerOptions.revolve). The settings
+ * stay live while it is off, so a behaviour can be set up before the layer takes the camera.
  *
  * <p>One home matters more here than for the grid: {@code ViewpointLayerOptionsPanel} registers
  * itself as the single panel {@code ViewpointLayerOptions.refreshPanel()} pokes, so a second live
@@ -33,7 +34,7 @@ import org.helioviewer.jhv.layers.selector.ViewpointLayerOptionsPanel;
 final class CameraPaletteContent {
 
     private static final JPanel panel = new JPanel(new BorderLayout());
-    private static final JCheckBox cameraOn = new JCheckBox("Camera layer");
+    private static final JCheckBox cameraOn = new JCheckBox("Drive the viewpoint");
     private static boolean built;
     private static boolean syncing;
 
@@ -52,7 +53,8 @@ final class CameraPaletteContent {
         cameraOn.setOpaque(false);
         cameraOn.setBorder(BorderFactory.createEmptyBorder(2, 4, 4, 4));
         cameraOn.setToolTipText("The same switch as the Camera row's checkbox in the sidebar. Off, the view is the "
-                + "observer's and the behaviours below release the camera.");
+                + "observer's and the Seen-from behaviours below release the camera. Revolving is not affected: "
+                + "it moves the camera rather than deciding where the scene is seen from, and runs either way.");
         cameraOn.addActionListener(e -> {
             if (syncing || boundLayer == null)
                 return;

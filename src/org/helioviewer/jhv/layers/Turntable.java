@@ -155,6 +155,11 @@ public final class Turntable implements Player.Listener {
             appliedAngle = 0;
     }
 
+    /** Whether a revolution is actually running. Package-private for extra/test/CameraRevolveCheck. */
+    boolean isRunning() {
+        return enabled;
+    }
+
     void setEnabled(boolean _enabled) {
         if (_enabled == enabled)
             return;
