@@ -114,7 +114,7 @@ final class ColourPaletteContent {
                 HdrGain.commit();
         });
 
-        inRangeSlider = new JHVSlider(0, 100, 35);
+        inRangeSlider = new JHVSlider(0, 100, (int) Math.round(HdrGain.DEFAULT_IN_RANGE * 100)); // double-click resets to the shipped default
         inRangeValue = new JLabel();
         inRangeSlider.setToolTipText("<html>How much of the headroom brightens the picture itself, rather than being "
                 + "kept for data that exceeds the display range.<br><br>"

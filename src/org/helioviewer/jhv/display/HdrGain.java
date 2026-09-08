@@ -31,11 +31,13 @@ public final class HdrGain {
             label = _label;
         }
 
+        static final Mode DEFAULT = Uniform;
+
         static Mode fromName(String name) {
             for (Mode m : values())
                 if (m.name().equalsIgnoreCase(name))
                     return m;
-            return BeyondRange;
+            return DEFAULT; // an unreadable name is no setting at all, so it lands on the shipped default
         }
     }
 
@@ -45,6 +47,8 @@ public final class HdrGain {
     private static final String KEY_IN_RANGE = "display.hdrInRange";
     private static final String KEY_CANVAS = "display.edrCanvas";
     private static final float MAX = 16;
+    /** Half the headroom inside the display range, half above it: the panel's slider resets here too. */
+    public static final float DEFAULT_IN_RANGE = 0.5f;
 
     private static String setting = defaultSetting();
     private static Mode mode = Mode.fromName(String.valueOf(Settings.getProperty(KEY_MODE)));
@@ -55,7 +59,7 @@ public final class HdrGain {
         try {
             return (float) Math.clamp(Double.parseDouble(stored), 0, 1);
         } catch (NumberFormatException | NullPointerException e) {
-            return 0.35f;
+            return DEFAULT_IN_RANGE;
         }
     }
 
@@ -67,11 +71,12 @@ public final class HdrGain {
         }
     }
 
-    // One stop over white by default. The panel can do far more, and "auto" (the display's
-    // maximum) is still offered, but a full-headroom default is a demo, not a picture.
+    // The display's maximum by default. resolve() never asks for more headroom than the screen
+    // reports, so "auto" is whatever that screen can honestly show rather than a fixed stop that
+    // means something different on every display.
     private static String defaultSetting() {
         String stored = Settings.getProperty(KEY_GAIN);
-        return stored == null || stored.isBlank() ? "2" : stored.trim();
+        return stored == null || stored.isBlank() ? "auto" : stored.trim();
     }
 
     /** The gain the shader should apply now: 1 while capturing or without an EDR canvas. */
