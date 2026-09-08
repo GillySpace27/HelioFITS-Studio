@@ -9,15 +9,15 @@ import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.view.View;
 
 /**
- * One frame of a velocity filter, fast enough to drag a band and watch the picture answer.
+ * A velocity filter fast enough to drag a band and watch the movie answer.
  *
  * <p>A full run is half a minute: it reads every frame, resamples the movie onto a polar cube of
- * some 512 x 256 x 256, transforms every slice, and then back-projects and packs all 245 frames.
- * Nothing about that can be made interactive. What can is the question actually being asked while
- * a band is dragged, which is "what does THIS frame look like": the reading and resampling are
- * done once, the polar grid is dropped to a quarter in each direction, and only the displayed
- * frame is back-projected. The transform is then about a sixteenth of the work and the
- * back-projection one frame instead of 245.
+ * some 512 x 256 x 256, transforms every slice, and then back-projects and packs all 245 frames at
+ * full size. Nothing about that can be made interactive. What can is the equaliser's trick: the
+ * reading and resampling are done once, the polar grid is dropped to a quarter in each direction
+ * so the transform is a sixteenth of the work, and a band change is one mask over that cube. The
+ * masked cube then already holds every frame; projecting one back at preview size is milliseconds,
+ * so the movie can be played through the band rather than looked at one frame at a time.
  *
  * <p>The time grid is NOT coarsened. It is what sets the rate axis: dt fixes the highest
  * resolvable rate and the number of time samples fixes the resolution in rate, so a preview on a
@@ -32,9 +32,15 @@ public final class FourierPreview {
     // A quarter of the default grid in each direction: a sixteenth of the transform.
     private static final int NR = 128, NPHI = 64;
 
+    // Preview frames are packed at no more than this on the long side. The polar grid under them is
+    // 128 x 64, so full frame size would spend 67 MB and a tenth of a second per frame on nothing.
+    private static final int MAX_SIDE = 768;
+
     private final View source;
     private final FourierJob.Prepared prep;
-    private final float[][] pristine; // the resampled cube before any mask, restored before each render
+    private final float[][] pristine; // the resampled cube before any mask, restored before each filter
+    @Nullable private FourierParams current; // what the cube is filtered with now
+    private double amplitude = 1;
 
     private FourierPreview(View _source, FourierJob.Prepared _prep) {
         source = _source;
@@ -57,35 +63,74 @@ public final class FourierPreview {
     }
 
     /**
-     * One frame under these parameters, or null when the source cannot produce it.
+     * Filter the cube with these parameters: the one step a band change costs.
      *
-     * <p>Not thread safe: it filters the one cube in place, so the caller runs one at a time. The
-     * amplitude of a PASS frame is measured from this cube, exactly as the full run measures it
-     * from its own, so the preview is scaled like the thing it is previewing.
+     * <p>The amplitude of a PASS output is measured from this cube, exactly as the full run
+     * measures it from its own, so the preview is scaled like the thing it is previewing.
+     * Synchronised against {@link #frame}, which reads the cube this writes.
      */
-    @Nullable
-    public DecodedImage render(FourierParams params, int frame) throws Exception {
+    public synchronized void filter(FourierParams params) throws Exception {
         PolarCube cube = prep.cube();
         for (int s = 0; s < pristine.length; s++)
             System.arraycopy(pristine[s], 0, cube.data[s], 0, pristine[s].length);
         FourierFilter.filterCube(cube, params, prep.dInner(), prep.dt());
         if (Thread.currentThread().isInterrupted())
             throw new InterruptedException();
+        amplitude = FourierJob.amplitude(cube);
+        current = params;
+    }
 
-        FrameStack.Frame f = FrameStack.frame(source, frame);
+    /** What the cube is filtered with, or null before the first filter. */
+    @Nullable
+    public synchronized FourierParams current() {
+        return current;
+    }
+
+    /**
+     * Frame k from the filtered cube, at preview size, or null when the source cannot produce
+     * it or nothing has been filtered yet.
+     */
+    @Nullable
+    public synchronized DecodedImage frame(int k) {
+        FourierParams params = current;
+        if (params == null)
+            return null;
+        FrameStack.Frame f = FrameStack.frame(source, k);
         if (f == null)
             return null;
+        PolarCube cube = prep.cube();
         boolean notch = params.mode() == FourierParams.Mode.NOTCH;
-        double amplitude = FourierJob.amplitude(cube);
-        float[] values = new float[f.width() * f.height()];
-        double u = (prep.times()[frame] - prep.times()[0]) / 1000. / prep.dt();
-        cube.toCartesian(values, f.width(), f.height(), f.sunCentred(), u, notch);
-        float[] original = FrameStack.physical(f);
-        for (int i = 0; i < values.length; i++)
-            if (Float.isNaN(original[i]))
-                values[i] = Float.NaN; // the source's own mask wins, as in the full run
-        ImageBuffer buffer = notch ? FrameStack.packLike(f, values) : FrameStack.packSigned(f, values, amplitude);
+        int step = Math.max(1, (int) Math.ceil(Math.max(f.width(), f.height()) / (double) MAX_SIDE));
+        int w = Math.max(1, f.width() / step), h = Math.max(1, f.height() / step);
+        float[] values = new float[w * h];
+        double u = (prep.times()[k] - prep.times()[0]) / 1000. / prep.dt();
+        cube.toCartesian(values, w, h, f.sunCentred(), u, notch);
+        // The source's own mask wins, as in the full run: a preview pixel whose source pixel at
+        // the same place holds nothing holds nothing.
+        java.nio.Buffer raw = f.decoded().imageBuffer().buffer;
+        if (raw instanceof java.nio.ShortBuffer sb) {
+            int fw = f.width();
+            for (int y = 0; y < h; y++) {
+                int sy = Math.min(f.height() - 1, y * step);
+                for (int x = 0; x < w; x++) {
+                    float d = Float.float16ToFloat(sb.get(sy * fw + Math.min(fw - 1, x * step)));
+                    if (!(d > 0) || d > 1)
+                        values[y * w + x] = Float.NaN;
+                }
+            }
+        }
+        ImageBuffer buffer = notch ? FrameStack.packLike(f, w, h, values) : FrameStack.packSigned(f, w, h, values, amplitude);
         return new DecodedImage(buffer, f.decoded().region());
+    }
+
+    /** One frame under these parameters: filter if they are new, then project the frame. */
+    @Nullable
+    public DecodedImage render(FourierParams params, int frame) throws Exception {
+        synchronized (this) {
+            if (!params.equals(current))
+                filter(params);
+        }
+        return frame(frame);
     }
 
 }

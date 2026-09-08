@@ -483,7 +483,7 @@ public class SequencePanel implements FilterDetails {
                 fp -> {
                     previewPrep = null;
                     preview = fp;
-                    spectrumDialog.setStatus("Live preview on a " + fp.grid() + " grid, this frame only");
+                    spectrumDialog.setStatus("Live preview on a " + fp.grid() + " grid");
                     requestPreview();
                 },
                 (ctx, t) -> {
@@ -510,14 +510,15 @@ public class SequencePanel implements FilterDetails {
             return;
         pendingPreview = null;
         previewBusy = true;
-        int frame = view.getCurrentFrameNumber();
         long started = System.currentTimeMillis();
-        Task.submit("fourier preview", () -> fp.render(p, frame),
-                image -> {
+        // The band change is one mask over the cube; the frames then come out of it in the
+        // background (ComputedView.setPreviewSource), the one on screen first.
+        Task.submit("fourier preview", () -> { fp.filter(p); return fp; },
+                filtered -> {
                     previewBusy = false;
-                    if (preview == fp && image != null) { // still the same preview: the dialog has not closed
-                        view.setPreview(frame, image);
-                        spectrumDialog.setStatus(String.format("Preview %.2f s on a %s grid, this frame only",
+                    if (preview == fp) { // still the same preview: the dialog has not closed
+                        view.setPreviewSource(fp);
+                        spectrumDialog.setStatus(String.format("Band %.2f s on a %s grid; play to see every frame",
                                 (System.currentTimeMillis() - started) / 1000., fp.grid()));
                     }
                     pumpPreview();
