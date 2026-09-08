@@ -37,6 +37,12 @@ import org.helioviewer.jhv.movie.Player;
  * speed goes through ViewState so the Playback pane's own speed control follows it: a shortcut
  * that silently disagreed with the widget showing the same number would be worse than no
  * shortcut.
+ *
+ * <p>"When it stops" means whatever stops it, not just K. Space, the transport button and a movie
+ * running off the end in Stop mode all end playback without passing through here, and SwingDown
+ * left behind by one of those would outlive the shuttle: the Playback pane would still read Loop,
+ * and it writes the player only when its own value changes, so it could not put it back. The
+ * restore therefore hangs off the player's status, which every one of those routes announces.
  */
 public final class Shuttle {
 
@@ -58,11 +64,13 @@ public final class Shuttle {
         return Math.min(speed * 2, ViewState.PLAYBACK_SPEED_MAX);
     }
 
-    private static void shuttle(Key key) {
+    static void shuttle(Key key) {
         // Space or the play button can have stopped the movie since the last shuttle key, and
         // then a remembered direction would double the speed of a movie that is not running.
+        // Also covers the stop that never announced itself: play() does nothing when there is no
+        // multi-frame layer, so a J that started nothing still has to be undone here.
         if (!Player.isPlaying())
-            direction = 0;
+            playbackStopped();
 
         if (repeats(key, direction)) {
             ViewState.PlaybackData data = ViewState.playbackData();
@@ -71,9 +79,7 @@ public final class Shuttle {
         }
 
         if (key == Key.STOP) {
-            restore();
-            direction = 0;
-            Commands.pause();
+            Commands.pause(); // the status listener below does the restoring, as it does for Space
             return;
         }
 
@@ -87,9 +93,17 @@ public final class Shuttle {
         Commands.play();
     }
 
-    private static void restore() {
+    /**
+     * Playback has stopped, whatever stopped it: hand the player back what the shuttle borrowed.
+     *
+     * <p>Idempotent, because it runs on every status change that is not playing: the direction is
+     * cleared first, so a second call has nothing left to put back and cannot undo a shuttle that
+     * has since started again.
+     */
+    static void playbackStopped() {
         if (direction == 0)
             return;
+        direction = 0;
         Player.setAdvanceMode(ViewState.playbackData().advanceMode());
         if (savedUnit != null)
             ViewState.setPlaybackSpeed(savedSpeed, savedUnit);
@@ -107,6 +121,11 @@ public final class Shuttle {
         bind(root, KeyEvent.VK_J, "jhv.shuttleReverse", Key.REVERSE);
         bind(root, KeyEvent.VK_K, "jhv.shuttleStop", Key.STOP);
         bind(root, KeyEvent.VK_L, "jhv.shuttleForward", Key.FORWARD);
+        // Every route out of playback ends in Player.pause, and every one of them notifies here.
+        Player.addStatusListener(() -> {
+            if (!Player.isPlaying())
+                playbackStopped();
+        });
     }
 
     private static void bind(JRootPane root, int keyCode, String name, Key key) {

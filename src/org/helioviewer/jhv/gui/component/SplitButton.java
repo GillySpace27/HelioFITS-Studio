@@ -1,5 +1,6 @@
 package org.helioviewer.jhv.gui.component;
 
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
@@ -15,6 +16,7 @@ import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.SwingConstants;
+import javax.swing.UIManager;
 import javax.swing.event.PopupMenuEvent;
 import javax.swing.event.PopupMenuListener;
 
@@ -30,6 +32,10 @@ import javax.swing.event.PopupMenuListener;
  * control a dropdown. A single button with a trailing arrow icon would be narrower, but the icon
  * slot is already taken on most of these (a glyph plus a label), and losing the arrow entirely
  * would leave no sign that there is a menu.
+ *
+ * <p>The arrow itself is drawn here rather than by the look-and-feel, so the one thing the
+ * look-and-feel does for free on the text beside it, greying it when the button is off, has to be
+ * done by hand: see {@link #arrowColor} and {@link #setEnabled}.
  */
 @SuppressWarnings("serial")
 public final class SplitButton extends JPanel {
@@ -95,6 +101,20 @@ public final class SplitButton extends JPanel {
         if (System.currentTimeMillis() - popupHiddenAt < 200)
             return;
         popup.show(this, 0, getHeight());
+    }
+
+    /**
+     * Switch off both halves, not just the panel around them.
+     *
+     * <p>A JPanel's setEnabled does not reach its children, so without this a split button that
+     * the code had disabled kept a live button and a live arrow: the menu would still open from a
+     * control that is meant to be off, and the arrow would still be painted at full strength.
+     */
+    @Override
+    public void setEnabled(boolean b) {
+        super.setEnabled(b);
+        main.setEnabled(b);
+        arrow.setEnabled(b);
     }
 
     /** Whether pressing the button itself opens the menu, rather than firing its own action. */
@@ -170,14 +190,32 @@ public final class SplitButton extends JPanel {
             Graphics2D g2 = (Graphics2D) g.create();
             try {
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                // The component's own foreground, so the look-and-feel's disabled and pressed
-                // colours reach the arrow the same way they reach the text beside it.
-                g2.setColor(c.getForeground());
+                g2.setColor(arrowColor(c));
                 g2.fillPolygon(new int[]{x, x + WIDTH, x + WIDTH / 2}, new int[]{y, y, y + HEIGHT}, 3);
             } finally {
                 g2.dispose();
             }
         }
     };
+
+    /**
+     * The colour the arrow is drawn in: the component's own foreground while it is enabled, and
+     * the look-and-feel's disabled text colour when it is not.
+     *
+     * <p>The disabled half has to be asked for rather than inherited. FlatLaf greys a disabled
+     * button's text itself instead of changing its foreground, and its disabled-icon path hands
+     * back null for an icon that is not one of its own types, so an arrow painted from
+     * getForeground() alone stays at full strength on a button that is switched off: the control
+     * would say its menu is available when pressing it does nothing.
+     */
+    private static Color arrowColor(Component c) {
+        Color fg = c.getForeground();
+        if (c.isEnabled())
+            return fg;
+        Color disabled = UIManager.getColor("Button.disabledText");
+        // A half-transparent foreground when the look-and-feel names no disabled colour: some
+        // greying is what says "off", and any look-and-feel can paint this one.
+        return disabled != null ? disabled : new Color(fg.getRed(), fg.getGreen(), fg.getBlue(), 110);
+    }
 
 }

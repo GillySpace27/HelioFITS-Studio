@@ -37,12 +37,19 @@ import org.helioviewer.jhv.thread.Task;
 public class HFStudio {
 
     static void main(String[] args) throws Exception {
+        // Before the theme is peeked at, because the peek reads user.properties in the new home
+        // and the migration is what puts it there. Without this, the one launch that carries a
+        // JHelioviewer install across, and every launch until it is carried across, would read no
+        // theme and hand the window frame the default appearance while the rest of the interface
+        // used the saved one. Idempotent: createPersistentDirs calls it again below and it returns
+        // as soon as the new folder exists.
+        Directories.migrateLegacyHome();
         // The traffic lights, the title bar and the native menus are drawn in the appearance the
         // Cocoa application is given here. It was pinned to dark, so a light theme produced a
         // light application under a dark title bar. macOS reads this exactly once, as NSApp
-        // starts (libosxapp, [NSApp setAppearance:]), which is why it is the first statement in
-        // main and why a theme switch made later in the session cannot move it: the rest of the
-        // interface changes immediately, the window frame follows on the next launch.
+        // starts (libosxapp, [NSApp setAppearance:]), which is why it is set before anything
+        // touches AWT and why a theme switch made later in the session cannot move it: the rest
+        // of the interface changes immediately, the window frame follows on the next launch.
         System.setProperty("apple.awt.application.appearance", appearance(Theme.startupIsDark()));
         System.setProperty("apple.awt.application.name", "HelioFITS Studio");
         System.setProperty("apple.laf.useScreenMenuBar", "true");

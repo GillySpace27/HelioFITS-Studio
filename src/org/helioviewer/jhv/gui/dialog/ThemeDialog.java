@@ -9,6 +9,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.EnumMap;
+import java.util.EnumSet;
 
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
@@ -50,6 +51,9 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
     private static final double TEXT_MIN = 4.5;
 
     private final EnumMap<Theme.Token, Color> working = new EnumMap<>(Theme.Token.class);
+    // The derived tokens this theme states outright: the ones a person picked, here or in an
+    // earlier edit. Everything else derived stays derived, and follows the colour it comes from.
+    private final EnumSet<Theme.Token> pinned = EnumSet.noneOf(Theme.Token.class);
     private final EnumMap<Theme.Token, JLabel> swatches = new EnumMap<>(Theme.Token.class);
     private final JComboBox<Theme> source = new JComboBox<>();
     private final JTextField nameField = new JTextField(20);
@@ -117,6 +121,7 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
                 public void mouseClicked(MouseEvent e) {
                     Color picked = JColorChooser.showDialog(ThemeDialog.this, token.label, working.get(token));
                     if (picked != null) {
+                        pinned.add(token);
                         working.put(token, picked);
                         paintSwatch(token);
                         showRatios();
@@ -204,6 +209,14 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
             return;
         for (Theme.Token token : Theme.Token.values())
             working.put(token, selected.get(token));
+        // What the selected theme states beyond the eight every theme states: exactly the derived
+        // tokens someone picked by hand. The rest are shown at their resolved value but are not
+        // the theme's to keep, so re-editing a saved theme must not turn them into overrides.
+        pinned.clear();
+        selected.stated().keySet().forEach(token -> {
+            if (!Theme.STATED.contains(token))
+                pinned.add(token);
+        });
         nameField.setText(selected.builtIn() ? "My " + selected.name() : selected.name());
         deleteButton.setEnabled(!selected.builtIn());
         if (!swatches.isEmpty()) {
@@ -238,6 +251,25 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
                 what, onPanel, HEADER_MIN, textOn, TEXT_MIN, ok ? "passes" : "FAILS");
     }
 
+    /**
+     * The working colours a theme should actually state: the eight, plus the derived ones a
+     * person picked.
+     *
+     * <p>Handing over the whole working map instead would state all fifteen, and since load()
+     * fills it with resolved values, every derived token whose value differs from the parent's
+     * would be written out as an explicit override. A second edit of a saved theme froze its
+     * timeline that way, and a later change to the colour those tokens derive from then stopped
+     * reaching them.
+     */
+    private EnumMap<Theme.Token, Color> statedByHand() {
+        EnumMap<Theme.Token, Color> out = new EnumMap<>(Theme.Token.class);
+        working.forEach((token, color) -> {
+            if (Theme.STATED.contains(token) || pinned.contains(token))
+                out.put(token, color);
+        });
+        return out;
+    }
+
     private void save() {
         String name = nameField.getText().strip();
         if (name.isEmpty())
@@ -246,7 +278,7 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
         // Save the round trip, not the working map: a theme is stored as overrides on its parent
         // and rebuilt from them on the next launch, so applying anything else now would mean the
         // colours on screen and the colours in the file are not the same theme.
-        Theme candidate = Theme.userTheme(Theme.idFor(name), name, parent, working);
+        Theme candidate = Theme.userTheme(Theme.idFor(name), name, parent, statedByHand());
         Theme saved = Theme.userTheme(candidate.id(), name, parent, candidate.overrides());
         Theme.save(saved);
         UIGlobals.switchTheme(saved);

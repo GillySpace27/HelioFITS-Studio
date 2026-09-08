@@ -154,21 +154,27 @@ public class Colors {
 
     public static class Data {
 
-        private final Color[] colors;
-        private final int[] used;
+        // Long enough for either palette, because which one is in use can change between calls.
+        private final int[] used = new int[Math.max(brightColors.length, darkColors.length)];
         private int minValue = 0;
 
-        public Data() {
-            // Read per instance rather than once at class load, so a theme switch reaches the next
-            // timeline that asks for a colour. Colours already handed out stay as they are: a band
-            // that changed colour under the user would be a worse surprise than a mixed palette.
-            colors = Theme.current().dark() ? brightColors : darkColors;
-            used = new int[colors.length];
+        /**
+         * The palette for the theme in force right now.
+         *
+         * <p>Asked on every call rather than once in the constructor: both instances of this class
+         * are static finals, so a palette captured at construction is captured for the life of the
+         * process and a theme switch would never reach a band added afterwards. Colours already
+         * handed out stay as they are, so a switch leaves a mixed timeline: a band that changed
+         * colour under the user would be the worse surprise.
+         */
+        private static Color[] palette() {
+            return Theme.current().dark() ? brightColors : darkColors;
         }
 
         public Color getNextColor() {
+            Color[] colors = palette();
             while (true) {
-                for (int i = 0; i < used.length; i++) {
+                for (int i = 0; i < colors.length; i++) {
                     if (used[i] == minValue) {
                         used[i]++;
                         return colors[i];
