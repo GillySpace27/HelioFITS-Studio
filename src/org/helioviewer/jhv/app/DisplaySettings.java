@@ -4,12 +4,9 @@ public class DisplaySettings {
 
     public enum TimeMode {Observer, Sun, Earth}
 
-    public enum UITheme {Dark, Light}
-
     private static boolean normalizeAIA;
     private static boolean normalizeRadius;
     private static TimeMode timeMode;
-    private static UITheme uiTheme;
 
     static {
         normalizeAIA = Boolean.parseBoolean(Settings.getProperty("display.normalizeAIA"));
@@ -20,12 +17,6 @@ public class DisplaySettings {
             setTimeMode = TimeMode.valueOf(Settings.getProperty("display.time"));
         } catch (Exception ignore) {}
         timeMode = setTimeMode;
-
-        UITheme setUITheme = UITheme.Dark;
-        try {
-            setUITheme = UITheme.valueOf(Settings.getProperty("display.theme"));
-        } catch (Exception ignore) {}
-        uiTheme = setUITheme;
     }
 
     public static boolean getNormalizeAIA() {
@@ -54,15 +45,6 @@ public class DisplaySettings {
     public static void setTimeMode(TimeMode mode) {
         Settings.setProperty("display.time", mode.toString());
         timeMode = mode;
-    }
-
-    public static UITheme getUITheme() {
-        return uiTheme;
-    }
-
-    public static void setUITheme(UITheme theme) {
-        Settings.setProperty("display.theme", theme.toString());
-        uiTheme = theme;
     }
 
 }

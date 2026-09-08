@@ -10,15 +10,18 @@ import javax.swing.ButtonGroup;
 
 import org.helioviewer.jhv.app.AppInfo;
 import org.helioviewer.jhv.app.Platform;
+import org.helioviewer.jhv.app.Theme;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.HdrGain;
 import org.helioviewer.jhv.gui.Actions;
 import org.helioviewer.jhv.gui.DesktopIntegration;
 import org.helioviewer.jhv.gui.PresentationMode;
+import org.helioviewer.jhv.gui.UIGlobals;
 import org.helioviewer.jhv.gui.dialog.AboutDialog;
 import org.helioviewer.jhv.gui.dialog.LogDialog;
 import org.helioviewer.jhv.gui.dialog.SettingsDialog;
+import org.helioviewer.jhv.gui.dialog.ThemeDialog;
 import org.helioviewer.jhv.view.uri.FITSSettings;
 
 // Menu bar of the main window
@@ -171,6 +174,8 @@ public final class MenuBar extends JMenuBar {
         }
         viewMenu.add(hdrKnee);
 
+        viewMenu.addSeparator();
+        viewMenu.add(themeMenu());
 
         viewMenu.addSeparator();
         viewMenu.add(new Actions.TogglePresentationMode());
@@ -260,6 +265,35 @@ public final class MenuBar extends JMenuBar {
         helpMenu.add(new Actions.OpenURLinBrowser("Report Bug/Request Feature", AppInfo.bugURL));
 
         add(helpMenu);
+    }
+
+    // The built-in themes plus whatever the customizer has saved, rebuilt each time the menu opens.
+    // Rebuilt rather than built once because the list itself grows: a theme saved in the customizer
+    // has to appear here without a restart, and the radio has to follow a switch made from there.
+    private static JMenu themeMenu() {
+        JMenu menu = new JMenu("Theme");
+        menu.addMenuListener(new javax.swing.event.MenuListener() {
+            @Override
+            public void menuSelected(javax.swing.event.MenuEvent e) {
+                menu.removeAll();
+                ButtonGroup group = new ButtonGroup();
+                String current = Theme.current().id();
+                for (Theme theme : Theme.all()) {
+                    JRadioButtonMenuItem item = new JRadioButtonMenuItem(theme.name(), theme.id().equals(current));
+                    item.addActionListener(a -> UIGlobals.switchTheme(theme));
+                    group.add(item);
+                    menu.add(item);
+                }
+                menu.addSeparator();
+                javax.swing.JMenuItem customize = new javax.swing.JMenuItem("Customize Themes...");
+                customize.addActionListener(a -> new ThemeDialog().showDialog());
+                menu.add(customize);
+            }
+
+            @Override public void menuDeselected(javax.swing.event.MenuEvent e) {}
+            @Override public void menuCanceled(javax.swing.event.MenuEvent e) {}
+        });
+        return menu;
     }
 
     // Open Recent: rebuilt each time it opens, from the recent-sessions list.

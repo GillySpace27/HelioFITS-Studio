@@ -2,7 +2,7 @@ package org.helioviewer.jhv.base;
 
 import java.awt.Color;
 
-import org.helioviewer.jhv.app.DisplaySettings;
+import org.helioviewer.jhv.app.Theme;
 
 public class Colors {
 
@@ -159,10 +159,10 @@ public class Colors {
         private int minValue = 0;
 
         public Data() {
-            colors = switch (DisplaySettings.getUITheme()) {
-                case Dark -> brightColors;
-                case Light -> darkColors;
-            };
+            // Read per instance rather than once at class load, so a theme switch reaches the next
+            // timeline that asks for a colour. Colours already handed out stay as they are: a band
+            // that changed colour under the user would be a worse surprise than a mixed palette.
+            colors = Theme.current().dark() ? brightColors : darkColors;
             used = new int[colors.length];
         }
 

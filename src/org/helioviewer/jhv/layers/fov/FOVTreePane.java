@@ -19,6 +19,7 @@ import javax.swing.tree.DefaultTreeCellRenderer;
 
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.ComponentUtils;
+import org.helioviewer.jhv.gui.UIGlobals;
 import org.helioviewer.jhv.gui.component.JHVSpinner;
 import org.helioviewer.jhv.gui.component.TerminatedFormatterFactory;
 
@@ -52,7 +53,7 @@ public final class FOVTreePane extends JScrollPane {
         setViewportView(tree);
         setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-        setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, getBackground().brighter()));
+        UIGlobals.themed(this, c -> c.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, UIGlobals.separator())));
         setPreferredSize(new Dimension(-1, 120));
     }
 

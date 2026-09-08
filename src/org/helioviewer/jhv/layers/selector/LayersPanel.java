@@ -167,8 +167,10 @@ public final class LayersPanel extends JPanel {
         grid = new LayersTable(model);
 
         jsp = new JScrollPane(grid, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-        jsp.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, getBackground().brighter()));
-        jsp.getViewport().setBackground(grid.getBackground());
+        UIGlobals.themed(jsp, c -> c.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, UIGlobals.separator())));
+        // Plain, so updateComponentTreeUI leaves it behind: the strip below the last row would
+        // otherwise stay in the previous theme's colour after a switch.
+        UIGlobals.themed(jsp.getViewport(), c -> c.setBackground(grid.getBackground()));
         add(jsp, gc);
 
         // Drag handle below the list: grow it until every layer is visible (scrollbar disappears).
@@ -306,7 +308,7 @@ public final class LayersPanel extends JPanel {
         javax.swing.JPanel handle = new javax.swing.JPanel();
         handle.setPreferredSize(new Dimension(0, 5));
         handle.setMinimumSize(new Dimension(0, 5));
-        handle.setBackground(getBackground().brighter());
+        UIGlobals.themed(handle, c -> c.setBackground(UIGlobals.separator()));
         handle.setToolTipText("Drag to resize the layer list");
         handle.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.N_RESIZE_CURSOR));
         java.awt.event.MouseAdapter drag = new java.awt.event.MouseAdapter() {
