@@ -27,7 +27,10 @@ public final class LayerOptions implements Layers.Listener {
     static {
         register(ConnectionLayer.class, layer -> new ConnectionLayerOptions((ConnectionLayer) layer));
         register(FOVLayer.class, layer -> new FOVTreePane(((FOVLayer) layer).getCatalog()));
-        register(GridLayer.class, layer -> new GridLayerOptions((GridLayer) layer));
+        // The grid's settings live in the Grid palette (ToolBar), the one place they exist; the
+        // row here keeps the on/off checkbox, and selecting it offers the way there. See
+        // GridSettingsPointer for why not a second copy of the panel.
+        register(GridLayer.class, layer -> new GridSettingsPointer());
         register(MiniviewLayer.class, layer -> new MiniviewLayerOptions((MiniviewLayer) layer));
         register(TimestampLayer.class, layer -> new TimestampLayerOptions((TimestampLayer) layer));
         register(ViewpointLayer.class, layer -> new ViewpointLayerOptionsPanel((ViewpointLayer) layer));

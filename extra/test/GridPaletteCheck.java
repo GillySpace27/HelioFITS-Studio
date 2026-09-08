@@ -4,18 +4,17 @@ import org.helioviewer.jhv.layers.GridLayer;
 import org.helioviewer.jhv.layers.Layers;
 
 /**
- * Two claims a floating Grid palette rests on, neither obvious from reading the code alone.
+ * Two claims the Grid palette rests on, neither obvious from reading the code alone.
  *
  * <p>First, that {@link Layers#getGridLayer()} actually finds the one default {@link GridLayer}
  * the app always creates, the same way {@code getViewpointLayer()} and its siblings do. Second,
  * and the one worth a real run rather than an inspection: that {@link GridLayerOptions} tolerates
- * being constructed a SECOND time against that same layer. It has to, because the floating palette
- * builds its own instance instead of borrowing the layer row's (a Swing component has exactly one
- * parent) -- the same split {@code SequencePaletteContent} makes for the sequence filter, which
- * only works because {@code SequencePanel} is safe to instantiate twice. If a static or a
- * listener were hiding in one of {@code GridLayerOptions}'s section builders, the second
- * construction is where it would surface: a duplicate registration, a stale reference, or a
- * NullPointerException from state the first instance already claimed.
+ * being constructed a SECOND time against the same layer. The palette is the only home of the
+ * panel now (the sidebar row points at it), but it rebuilds the panel whenever the grid layer is
+ * replaced by a session restore, so two constructions in one process are the normal case. If a
+ * static or a listener were hiding in one of the section builders, the second construction is
+ * where it would surface: a duplicate registration, a stale reference, or a NullPointerException
+ * from state the first instance already claimed.
  *
  * <p>Run: java -cp "bin:extra/test-classes:resources:lib/*" org.helioviewer.jhv.layers.selector.GridPaletteCheck
  */
