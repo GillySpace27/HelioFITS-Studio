@@ -145,6 +145,8 @@ public final class MainFrame {
 
         menuBar = new MenuBar();
         mainFrame.setJMenuBar(menuBar);
+        // J, K and L scrub from anywhere in the window; the scrubber's own keys need its focus.
+        Shuttle.install(mainFrame.getRootPane());
 
         renderCanvas = null;
         renderHost = new RenderStartupHost();
