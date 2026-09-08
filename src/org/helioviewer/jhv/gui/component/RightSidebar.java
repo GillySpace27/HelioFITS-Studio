@@ -104,58 +104,11 @@ public final class RightSidebar {
     private boolean collapsed = "true".equals(Settings.getProperty(KEY_COLLAPSED));
     private boolean dragged; // a real drag happened, so the click that follows is not a click
 
-    /**
-     * Lays the sections out at the sidebar's width while they fit, and lets the view scroll
-     * sideways when they genuinely cannot.
-     *
-     * <p>Both halves are needed and the first one is what was missing. A palette's content was
-     * written for a window that packs to it, so it contains things with no width of their own to
-     * give: the camera panel's explanatory note is an HTML label, which wraps to whatever width it
-     * is laid out at and otherwise reports the whole paragraph as its preferred width. Without
-     * tracking the viewport the sidebar asked that label how wide it wanted to be, believed the
-     * answer, and laid the section out far wider than the sidebar. With the horizontal scrollbar
-     * suppressed as well, everything past the sidebar's edge was not merely off screen but
-     * unreachable, which took the section's own controls with it.
-     */
-    @SuppressWarnings("serial")
-    private static final class SqueezePanel extends JPanel implements javax.swing.Scrollable {
-
-        SqueezePanel(JComponent content) {
-            super(new BorderLayout());
-            setOpaque(false);
-            add(content, BorderLayout.PAGE_START);
-        }
-
-        @Override
-        public Dimension getPreferredScrollableViewportSize() {
-            return getPreferredSize();
-        }
-
-        @Override
-        public boolean getScrollableTracksViewportWidth() {
-            return getParent() instanceof javax.swing.JViewport viewport
-                    && tracksWidth(viewport.getWidth(), getMinimumSize().width);
-        }
-
-        @Override
-        public boolean getScrollableTracksViewportHeight() {
-            return false;
-        }
-
-        @Override
-        public int getScrollableUnitIncrement(java.awt.Rectangle visible, int orientation, int direction) {
-            return 16;
-        }
-
-        @Override
-        public int getScrollableBlockIncrement(java.awt.Rectangle visible, int orientation, int direction) {
-            return orientation == javax.swing.SwingConstants.VERTICAL ? visible.height : visible.width;
-        }
-    }
-
     private RightSidebar() {
-        JScrollPane scroller = new JScrollPane(new SqueezePanel(pane),
-                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        // Never sideways: see SqueezeView for why the contents' own minimum widths are not to be
+        // believed, and what is traded for it.
+        JScrollPane scroller = new JScrollPane(new SqueezeView(pane),
+                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         scroller.setFocusable(false);
         scroller.setBorder(null);
         scroller.getVerticalScrollBar().setPreferredSize(new Dimension(SCROLLBAR_WIDTH, 0));
@@ -182,19 +135,6 @@ public final class RightSidebar {
         wrap.add(host, BorderLayout.CENTER);
         applyCollapsed();
         wrap.setVisible(false); // nothing docked yet
-    }
-
-    /**
-     * Whether a section stack of this minimum width should be squeezed into a viewport this wide,
-     * rather than scrolled sideways in it.
-     *
-     * <p>Pure, and package-private, so RightSidebarLayoutCheck can pin it without a window: this
-     * one predicate is the whole difference between the sidebar that shipped, which laid its
-     * sections out at whatever width they asked for and put their controls beyond reach, and one
-     * that fits them to itself.
-     */
-    static boolean tracksWidth(int viewportWidth, int minimumWidth) {
-        return viewportWidth >= minimumWidth;
     }
 
     private static int readWidth() {

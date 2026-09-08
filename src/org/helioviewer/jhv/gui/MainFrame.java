@@ -216,7 +216,11 @@ public final class MainFrame {
         // most dated thing on the window, and the width it used to guard is reserved by the
         // frozen sidebar width below (stabilizeLeftPaneWidth adds the scrollbar's width whether
         // or not it is showing), so nothing overlaps when it appears.
-        leftScrollPane = new JScrollPane(leftPane, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        // Wrapped rather than held directly: the panes inside claim minimum widths that are
+        // really just their longest labels, and honouring those is what stopped the sidebar
+        // compressing when it was dragged narrower. See SqueezeView.
+        leftScrollPane = new JScrollPane(new org.helioviewer.jhv.gui.component.SqueezeView(leftPane),
+                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         leftScrollPane.setFocusable(false);
         leftScrollPane.setBorder(null);
         // A thin bar, and a fixed one: this width is what the frozen sidebar width reserves, so
