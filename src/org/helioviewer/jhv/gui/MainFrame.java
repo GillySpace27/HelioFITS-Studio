@@ -203,10 +203,13 @@ public final class MainFrame {
         // collapsed at the end of that method so the sidebar opens wide but with panels closed.
         // Order: Playback and Recording sits at the top, then Image Layers, then the plugin panels
         // (Timeline Layers, SWEK) below.
-        leftPane.add("Playback and Recording", moviePanel.getPlaybackOptions(), true);
-        leftPane.add("Image Layers", imageLayersPane, true);
-        leftPane.add("Overlays", overlaysPane, true);
-        leftPane.add("Camera", cameraPane, true);
+        // A glyph per section, from the toolbar's own set so the two chromes name a thing the same
+        // way. Buttons.colourSettings is the icon font's picture glyph, which is what an image
+        // layer is; the set has nothing that means a stack of layers.
+        leftPane.add("Playback and Recording", moviePanel.getPlaybackOptions(), true, Buttons.play);
+        leftPane.add("Image Layers", imageLayersPane, true, Buttons.colourSettings);
+        leftPane.add("Overlays", overlaysPane, true, Buttons.annotate);
+        leftPane.add("Camera", cameraPane, true, Buttons.camera);
 
         // As-needed, not always: a permanent empty scrollbar down the side of the sidebar is the
         // most dated thing on the window, and the width it used to guard is reserved by the

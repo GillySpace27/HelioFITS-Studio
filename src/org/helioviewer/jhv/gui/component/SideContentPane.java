@@ -4,6 +4,8 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.util.HashMap;
 
+import javax.annotation.Nullable;
+import javax.swing.Icon;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 
@@ -23,9 +25,14 @@ public final class SideContentPane extends JComponent {
     }
 
     public void add(String title, JComponent managed, boolean startExpanded) {
+        add(title, managed, startExpanded, null);
+    }
+
+    /** @param sectionIcon a glyph for what the section holds, or null where no existing icon says it */
+    public void add(String title, JComponent managed, boolean startExpanded, @Nullable Icon sectionIcon) {
         remove(dummy);
 
-        CollapsiblePane newPane = new CollapsiblePane(title, managed, startExpanded);
+        CollapsiblePane newPane = new CollapsiblePane(title, managed, startExpanded, false, sectionIcon);
         map.put(managed, newPane);
 
         GridBagConstraints c = new GridBagConstraints();
