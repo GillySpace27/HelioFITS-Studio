@@ -30,9 +30,14 @@ public final class SideContentPane extends JComponent {
 
     /** @param sectionIcon a glyph for what the section holds, or null where no existing icon says it */
     public void add(String title, JComponent managed, boolean startExpanded, @Nullable Icon sectionIcon) {
+        add(title, managed, startExpanded, sectionIcon, null);
+    }
+
+    /** @param prefKey what to remember expansion under, where the title is not unique in the window */
+    public void add(String title, JComponent managed, boolean startExpanded, @Nullable Icon sectionIcon, @Nullable String prefKey) {
         remove(dummy);
 
-        CollapsiblePane newPane = new CollapsiblePane(title, managed, startExpanded, false, sectionIcon);
+        CollapsiblePane newPane = new CollapsiblePane(title, managed, startExpanded, false, sectionIcon, prefKey);
         map.put(managed, newPane);
 
         GridBagConstraints c = new GridBagConstraints();

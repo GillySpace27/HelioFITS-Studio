@@ -46,6 +46,17 @@ public class CollapsiblePane extends JComponent implements ActionListener {
 
     /** @param _sectionIcon a glyph for what the section holds, drawn between chevron and title; may be null */
     public CollapsiblePane(String _title, JComponent _managed, boolean startExpanded, boolean child, @Nullable Icon _sectionIcon) {
+        this(_title, _managed, startExpanded, child, _sectionIcon, null);
+    }
+
+    /**
+     * @param _prefKey what to remember this section's expansion under, when its title is not
+     *                 unique across the window. Two sidebars can both hold a section called
+     *                 Camera, and sharing one setting made each collapse the other.
+     */
+    public CollapsiblePane(String _title, JComponent _managed, boolean startExpanded, boolean child,
+                           @Nullable Icon _sectionIcon, @Nullable String _prefKey) {
+        prefKey = _prefKey;
         setLayout(new BorderLayout());
 
         managed = _managed;
@@ -99,8 +110,11 @@ public class CollapsiblePane extends JComponent implements ActionListener {
         return stored == null ? fallback : Boolean.parseBoolean(stored);
     }
 
+    @Nullable
+    private final String prefKey;
+
     private String key() {
-        return "ui.section." + title.replace(' ', '_');
+        return "ui.section." + (prefKey != null ? prefKey : title).replace(' ', '_');
     }
 
     @Override

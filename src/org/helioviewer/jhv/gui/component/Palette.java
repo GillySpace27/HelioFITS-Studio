@@ -123,6 +123,10 @@ public final class Palette {
     public void bind(JToggleButton button) {
         toggle = button;
         dispose();
+        // The toolbar is rebuilt whole (a display-mode change, presentation mode), and the new
+        // button starts unselected. A palette sitting in the sidebar is present, so its button
+        // has to say so rather than reading as switched off.
+        button.setSelected(inSidebar);
         button.addActionListener(e -> {
             // Docked in the sidebar there is no window to open or close, so the toolbar button
             // means "show me this" rather than "toggle it": it opens the sidebar if it is folded
@@ -137,11 +141,17 @@ public final class Palette {
         });
     }
 
-    /** Open the palette with this title if it is not already open. Used by the layer row. */
+    /**
+     * Show the palette with this title, wherever it lives. Used by the layer rows.
+     *
+     * <p>Goes through the instance method rather than testing isOpen and toggling: a docked
+     * palette counts as open, so the old test made this a dead button the moment the palette was
+     * moved into the sidebar. "Show it" means reveal the section there, or raise the window here.
+     */
     public static void open(String title) {
         for (Palette p : palettes)
-            if (p.title.equals(title) && !p.isOpen())
-                p.toggle();
+            if (p.title.equals(title))
+                p.open();
     }
 
     private String key() {
