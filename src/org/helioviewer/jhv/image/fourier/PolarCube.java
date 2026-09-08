@@ -192,7 +192,15 @@ public final class PolarCube {
      * neighbours. That is for a coarse preview cube: bilinear across 128 x 64 cells makes a smooth
      * picture that looks like detail it does not have, whereas blocks say what the grid is. The
      * blend in time stays, since a frame's own time lies between two samples of the same cell.
+     *
+     * <p>Each output pixel is the mean of a 3 x 3 sub-sample of nearest cells. Without that a
+     * cell's curved edge is a staircase on the pixel grid, and a projection that samples this
+     * raster in polar coordinates (the unrolled layout) turns the staircase into a sawtooth along
+     * every block edge. Averaged over sub-samples the edge is a one-pixel ramp, which any
+     * projection draws as an edge.
      */
+    private static final int SUB = 3; // sub-samples per axis per pixel in nearest mode
+
     public void toCartesian(float[] out, int w, int h, Region sunCentred, double u, boolean addMean, boolean nearest) {
         ParallelRange.run(h, (from, to) -> toCartesianRows(out, w, h, sunCentred, u, addMean, nearest, from, to));
     }
@@ -222,18 +230,32 @@ public final class PolarCube {
                 double iphi = phi / dPhi - .5;
                 float a, b, v;
                 if (nearest) {
-                    int cr = (int) Math.round(ir), cp = Math.floorMod((int) Math.round(iphi), nPhi);
-                    if (cr < 0 || cr >= nR || !valid[slice(cr, cp)][inner(cr, cp)]) {
-                        out[idx] = Float.NaN;
-                        continue;
+                    double sumA = 0, sumB = 0, sumMean = 0;
+                    int n = 0;
+                    for (int j = 0; j < SUB; j++) {
+                        double sdy = sunCentred.lly + (y + (j + .5) / SUB) * pixY;
+                        for (int i = 0; i < SUB; i++) {
+                            double sdx = sunCentred.llx + (x + (i + .5) / SUB) * pixX;
+                            double sr = Math.sqrt(sdx * sdx + sdy * sdy);
+                            if (sr < rIn || sr >= rOut)
+                                continue;
+                            double sphi = Math.atan2(-sdx, -sdy);
+                            if (sphi < 0)
+                                sphi += 2 * Math.PI;
+                            int cr = (int) Math.round((sr - rIn) / dr - .5), cp = Math.floorMod((int) Math.round(sphi / dPhi - .5), nPhi);
+                            if (cr < 0 || cr >= nR)
+                                continue;
+                            int s = slice(cr, cp), in = inner(cr, cp);
+                            if (!valid[s][in])
+                                continue;
+                            sumA += data[s][t0 * nInner + in];
+                            sumB += t1 == t0 ? data[s][t0 * nInner + in] : data[s][t1 * nInner + in];
+                            if (addMean)
+                                sumMean += mean[s][in];
+                            n++;
+                        }
                     }
-                    int s = slice(cr, cp), in = inner(cr, cp);
-                    a = data[s][t0 * nInner + in];
-                    b = t1 == t0 ? a : data[s][t1 * nInner + in];
-                    v = (float) ((1 - ft) * a + ft * b);
-                    if (addMean)
-                        v += mean[s][in];
-                    out[idx] = v;
+                    out[idx] = n == 0 ? Float.NaN : (float) (((1 - ft) * sumA + ft * sumB + sumMean) / n);
                     continue;
                 }
                 a = sample(t0, ir, iphi);
