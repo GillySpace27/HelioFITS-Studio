@@ -7,7 +7,7 @@ import org.helioviewer.jhv.opengl.GLSLSolarShader;
  *
  * <p>Flat is a fragment-space inverse map on a full-screen quad (solarRadialWarp.frag) filling a
  * fixed normalized disk. 3D is a surface mesh (warpSurface) in physical solar radii with a
- * rotated MVP and a camera sized by the edge crop. Three things have to move as one: the render
+ * rotated MVP and a camera sized by the crop. Three things have to move as one: the render
  * path, the shader, and the camera contract. Switch the path without the shader and the mesh
  * shader gets a flat MVP; switch the shader without the camera and the scene is the wrong size.
  *
@@ -34,24 +34,24 @@ public final class HelioradialModeCheck {
         expect(!MapMode.Helioradial.rendersIn3D(), "flat does not take the 3D render path");
         same(MapMode.Helioradial.shader(), GLSLSolarShader.radialWarp, "flat uses the fragment-space shader");
 
-        // Flat framing is a fixed disk: the camera is constant and the edge acts through the
+        // Flat framing is a fixed disk: the camera is constant and the crop acts through the
         // scale instead, which is the behaviour the figures were made with.
         Display.setWarpOuterRadius(180);
         double flatWide = MapMode.Helioradial.baseCameraWidth(null);
         Display.setWarpOuterRadius(20);
         double flatTight = MapMode.Helioradial.baseCameraWidth(null);
-        near(flatTight, flatWide, 1e-12, "flat camera width ignores the edge");
+        near(flatTight, flatWide, 1e-12, "flat camera width ignores the crop");
 
         Display.setHelioradial3D(true);
         expect(MapMode.Helioradial.rendersIn3D(), "3D takes the 3D render path");
         same(MapMode.Helioradial.shader(), GLSLSolarShader.warpSurface, "3D uses the surface-mesh shader");
 
-        // 3D framing is physical: the camera follows the edge crop.
+        // 3D framing is physical: the camera follows the crop.
         Display.setWarpOuterRadius(180);
         double wide = MapMode.Helioradial.baseCameraWidth(null);
         Display.setWarpOuterRadius(90);
         double tight = MapMode.Helioradial.baseCameraWidth(null);
-        near(wide / tight, 2, 1e-12, "3D camera width follows the edge");
+        near(wide / tight, 2, 1e-12, "3D camera width follows the crop");
 
         // The toggle must not leak into the other projections.
         for (MapMode mode : new MapMode[]{MapMode.Orthographic, MapMode.HPC, MapMode.Latitudinal}) {

@@ -105,9 +105,9 @@ public final class CactusTrackDialog extends JDialog implements JHVEventListener
         JButton trackWarpButton = new JButton("Track (Warp)");
         trackWarpButton.setToolTipText("Jump to this CME's onset and animate the Box-Cox warp (λ) so the front holds a fixed screen radius — the corona rubber-bands around a stationary front");
         trackWarpButton.addActionListener(e -> trackSelected(CMETracker.Mode.WARP));
-        JButton trackEdgeButton = new JButton("Track (Edge)");
-        trackEdgeButton.setToolTipText("Jump to this CME's onset and animate the outer edge crop instead, holding λ — the field of view widens to follow the front, like a zoom-out");
-        trackEdgeButton.addActionListener(e -> trackSelected(CMETracker.Mode.EDGE));
+        JButton trackCropButton = new JButton("Track (Crop)");
+        trackCropButton.setToolTipText("Jump to this CME's onset and animate the outer radial crop instead, holding λ: the field of view widens to follow the front, like a zoom-out");
+        trackCropButton.addActionListener(e -> trackSelected(CMETracker.Mode.CROP));
         JButton detailsButton = new JButton("Details…");
         detailsButton.addActionListener(e -> detailsSelected());
         JButton closeButton = new JButton("Close");
@@ -116,7 +116,7 @@ public final class CactusTrackDialog extends JDialog implements JHVEventListener
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.TRAILING));
         buttons.add(detailsButton);
         buttons.add(trackWarpButton);
-        buttons.add(trackEdgeButton);
+        buttons.add(trackCropButton);
         buttons.add(closeButton);
 
         setLayout(new BorderLayout());

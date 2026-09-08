@@ -95,33 +95,33 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
     }
 
     // Hold this CME front at a fixed screen radius, by either of the two knobs: WARP animates the
-    // Box-Cox lambda so the corona rubber-bands around a stationary front, EDGE holds lambda and
+    // Box-Cox lambda so the corona rubber-bands around a stationary front, CROP holds lambda and
     // widens the outer crop instead (a zoom-out that follows the front). Transient, like camera
     // tracking: moving the driven slider or leaving the warp projections disengages.
     private static JPanel createTrackButtons(JHVEvent event) {
         JPanel panel = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.TRAILING, 4, 0));
         JButton warpButton = new JButton();
-        JButton edgeButton = new JButton();
+        JButton cropButton = new JButton();
         warpButton.setToolTipText("Animate the Box-Cox warp (λ) so this CME front stays at a fixed screen radius");
-        edgeButton.setToolTipText("Animate the outer edge crop instead, holding λ — the field of view widens to follow the front");
+        cropButton.setToolTipText("Animate the outer radial crop instead, holding λ: the field of view widens to follow the front");
 
         // Both labels reflect the shared tracking state, so engaging one shows the other is off.
         Runnable refresh = () -> {
             warpButton.setText(trackingIn(CMETracker.Mode.WARP) ? "Stop Tracking" : "Track (Warp)");
-            edgeButton.setText(trackingIn(CMETracker.Mode.EDGE) ? "Stop Tracking" : "Track (Edge)");
+            cropButton.setText(trackingIn(CMETracker.Mode.CROP) ? "Stop Tracking" : "Track (Crop)");
         };
         warpButton.addActionListener(e -> {
             toggleTracking(event, CMETracker.Mode.WARP);
             refresh.run();
         });
-        edgeButton.addActionListener(e -> {
-            toggleTracking(event, CMETracker.Mode.EDGE);
+        cropButton.addActionListener(e -> {
+            toggleTracking(event, CMETracker.Mode.CROP);
             refresh.run();
         });
         refresh.run();
 
         panel.add(warpButton);
-        panel.add(edgeButton);
+        panel.add(cropButton);
         return panel;
     }
 

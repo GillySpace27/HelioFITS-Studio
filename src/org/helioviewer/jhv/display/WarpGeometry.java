@@ -32,7 +32,7 @@ public final class WarpGeometry {
 
     /**
      * Heliocentric distance {@code r} mapped to its warped position, in the same world units.
-     * {@code outerRadius} is the edge of the projection, which is its own fixed point.
+     * {@code outerRadius} is the outer boundary of the projection, which is its own fixed point.
      */
     public static double warpRadius(MapScale scale, double radius, double outerRadius) {
         if (outerRadius <= 0)

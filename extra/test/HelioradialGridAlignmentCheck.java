@@ -19,8 +19,8 @@ package org.helioviewer.jhv.display;
  * purely visual: nothing throws, no guard fires, and the picture is simply wrong.
  *
  * <p>They came apart once. GLSLWarp.enable took the radius as a second argument, and when the
- * edge control stopped feeding the warp, the imagery was normalized over the full loaded field
- * while the overlays were still handed the edge crop. The argument is gone now and both read
+ * crop control stopped feeding the warp, the imagery was normalized over the full loaded field
+ * while the overlays were still handed the crop. The argument is gone now and both read
  * the scale, but this check exists because the seam is invisible in the code: the two values
  * are set in different files, for different UBOs, and only ever meet on screen.
  *
@@ -46,18 +46,18 @@ public final class HelioradialGridAlignmentCheck {
             }
         }
 
-        // The edge crop must not reach the warp mapping. This is the specific regression: the
-        // edge moves the camera only, so a scale built for the field keeps reporting the field
+        // The crop must not reach the warp mapping. This is the specific regression: the
+        // crop moves the camera only, so a scale built for the field keeps reporting the field
         // no matter where the crop sits.
         Display.setWarpLambda(0);
         double field = 180;
         MapScale scale = MapScale.boxCoxRadial(field);
-        for (double edge : new double[]{180, 120, 60, 30, 5}) {
-            Display.setWarpOuterRadius(edge);
+        for (double crop : new double[]{180, 120, 60, 30, 5}) {
+            Display.setWarpOuterRadius(crop);
             near(scale.warpOuterRadius(), field, 1e-12,
-                 "the edge crop does not move the overlay warp radius (edge=" + edge + ")");
+                 "the crop does not move the overlay warp radius (crop=" + crop + ")");
             near(scale.toMapY(1), field, 1e-12,
-                 "the edge crop does not move the imagery yStop (edge=" + edge + ")");
+                 "the crop does not move the imagery yStop (crop=" + crop + ")");
         }
         Display.setWarpOuterRadius(0);
 

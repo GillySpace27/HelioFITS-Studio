@@ -44,7 +44,7 @@ public final class GLSLWarp {
      *
      * <p>Takes the outer radius from the scale rather than as a separate argument. Passing it
      * in was how the overlays and the imagery came to disagree: the imagery normalized over the
-     * full loaded field while the overlays were handed the edge crop, so the grid sat at a
+     * full loaded field while the overlays were handed the crop, so the grid sat at a
      * different radius from the picture.
      */
     public static void enable(MapScale scale) {
