@@ -85,6 +85,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private final ButtonText COLOUR = new ButtonText(Buttons.colourSettings, "HDR", "How the whole view is mapped into the display's extended range: headroom, mapping, knee, in-range share, clipped pixels");
     private final ButtonText SEQUENCE = new ButtonText(Buttons.sequenceFilter, "Fourier", "Fourier filter over the whole movie: pick the layer, drag a band, watch it play");
     private final ButtonText GRID = new ButtonText(Buttons.grid, "Grid", "Grid, Thomson sphere, celestial sphere, ecliptic and planet overlay settings");
+    private final ButtonText CAMERA = new ButtonText(Buttons.camera, "Camera", "Where the view is seen from: Free, Follow, Turntable, Overview, and their settings");
     private final ButtonText MORE = new ButtonText(Buttons.moreSettings, "More", "Less common controls: annotation, automatic refresh, the SDO cut-out, SAMP");
     private final ButtonText PRESENTATION = new ButtonText(Buttons.presentation, "Present", "Presentation mode: output only, fullscreen (Esc to leave)");
     private final ButtonText REFRESH = new ButtonText(Buttons.refresh, "Refresh", "Automatic refresh");
@@ -339,6 +340,14 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             gridPalette = new Palette("Grid", GridPaletteContent::build, GridPaletteContent::refresh);
         gridPalette.bind(gridButton);
         addButton(gridButton);
+
+        // The camera behaviours are the Viewpoint layer's options, the sidebar's Camera section.
+        // Same move as the grid: the palette is the one home, the row points at it.
+        JToggleButton cameraButton = toolToggleButton(CAMERA);
+        if (cameraPalette == null)
+            cameraPalette = new Palette("Camera", CameraPaletteContent::build, CameraPaletteContent::refresh, true); // has text fields
+        cameraPalette.bind(cameraButton);
+        addButton(cameraButton);
         addSeparator(dim);
 
         JToggleButton presentationButton = toolToggleButton(PRESENTATION);
@@ -543,6 +552,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
 
     private static Palette sequencePalette;
     private static Palette gridPalette;
+    private static Palette cameraPalette;
 
     private static final Palette colourPalette =
             new Palette("HDR", ColourPaletteContent::build, ColourPaletteContent::refresh);
@@ -562,6 +572,25 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     public static void showGridPalette() {
         if (gridPalette != null)
             gridPalette.open();
+    }
+
+    // Toggle the camera palette the same way (used by View > Camera Settings).
+    public static void toggleCameraPalette() {
+        if (cameraPalette != null)
+            cameraPalette.toggle();
+    }
+
+    /** Open or raise the camera palette: the Camera row's "settings" button in the sidebar. */
+    public static void showCameraPalette() {
+        if (cameraPalette != null)
+            cameraPalette.open();
+    }
+
+    /** Open or raise the Fourier palette bound to this layer: a layer row's "Open" button. */
+    public static void showSequencePalette(org.helioviewer.jhv.layers.ImageLayer layer) {
+        SequencePaletteContent.show(layer);
+        if (sequencePalette != null)
+            sequencePalette.open();
     }
 
     // Toggle the projection palette exactly as the toolbar button does (used by View > Projection).

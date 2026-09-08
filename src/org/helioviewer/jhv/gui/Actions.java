@@ -149,6 +149,17 @@ public final class Actions {
         }
     }
 
+    public static class ShowCameraPalette extends AbstractAction {
+        public ShowCameraPalette() {
+            super("Camera Settings\u2026");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            org.helioviewer.jhv.gui.component.ToolBar.toggleCameraPalette();
+        }
+    }
+
     // Output-only fullscreen, the same toggle as the toolbar Presentation button.
     public static class TogglePresentationMode extends AbstractKeyAction {
         public TogglePresentationMode() {

@@ -21,8 +21,15 @@ import org.helioviewer.jhv.layers.ViewpointLayerOptions;
 import org.helioviewer.jhv.layers.ViewpointLayerOptions.CameraBehaviour;
 import org.helioviewer.jhv.layers.ViewpointLayerOptions.FreeSource;
 
+/**
+ * The camera behaviours and their settings. Public because it is built by the Camera palette
+ * ({@code gui.component.CameraPaletteContent}), which is the one place it now exists; the
+ * sidebar's Camera row points there. That matters here more than for the grid: the constructor
+ * registers itself as THE panel {@code ViewpointLayerOptions.refreshPanel()} pokes, so two live
+ * instances would leave one of them stale. One home, one hook.
+ */
 @SuppressWarnings("serial")
-final class ViewpointLayerOptionsPanel extends JPanel {
+public final class ViewpointLayerOptionsPanel extends JPanel {
 
     private static final String explanation = """
             <b>Free</b>: view from the active image layer's observer. Trackball, pan and axis are live.
@@ -46,7 +53,7 @@ final class ViewpointLayerOptionsPanel extends JPanel {
     private final JLabel flatNote = new JLabel(flatReason);
     private Component currentOptionPanel;
 
-    ViewpointLayerOptionsPanel(ViewpointLayer layer) {
+    public ViewpointLayerOptionsPanel(ViewpointLayer layer) {
         options = layer.getOptions();
         locationPanel = new ViewpointLayerOptionsExpertPanel(options.getLocationOptions());
         equatorialPanel = new ViewpointLayerOptionsExpertPanel(options.getEquatorialOptions());

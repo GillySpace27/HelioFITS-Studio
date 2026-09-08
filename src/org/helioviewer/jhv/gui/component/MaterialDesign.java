@@ -7,6 +7,7 @@ enum MaterialDesign {
     BORDER_ALL("mdi-border-all", '\uf0c7'),
     // BRIGHTNESS_AUTO("mdi-brightness-auto", '\uf0e1'),
     CALENDAR("mdi-calendar", '\uf0ed'),
+    CAMERA("mdi-camera", '\uf100'), // verified against the shipped font's cmap and post tables, then rasterized
     CHART_GANTT("mdi-chart-gantt", '\uf66c'),
     CHECK("mdi-check", '\uf12c'),
     CHEVRON_DOWN("mdi-chevron-down", '\uf140'),

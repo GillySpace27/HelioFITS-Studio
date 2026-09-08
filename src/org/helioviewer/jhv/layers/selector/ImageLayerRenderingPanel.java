@@ -20,7 +20,6 @@ import org.helioviewer.jhv.layers.filters.ImageFilterPanel;
 import org.helioviewer.jhv.layers.filters.LUTPanel;
 import org.helioviewer.jhv.layers.filters.ContrastPanel;
 import org.helioviewer.jhv.layers.filters.LevelsPanel;
-import org.helioviewer.jhv.layers.filters.SequencePanel;
 import org.helioviewer.jhv.layers.filters.SliderFilterPanel;
 
 // Rendering controls for the selected image layer: difference, opacity, blend, sharpen,
@@ -41,7 +40,7 @@ final class ImageLayerRenderingPanel extends JPanel {
     private final DifferencePanel differencePanel;
     private final FilterDetails channelMixerPanel;
     private final ImageFilterPanel imageFilterPanel;
-    private final SequencePanel sequencePanel;
+    private final SequencePointer sequencePanel; // the Fourier row: a readout and the way to the palette, not a second copy of it
 
     ImageLayerRenderingPanel(ImageLayer layer) {
         differencePanel = new DifferencePanel(layer);
@@ -57,7 +56,7 @@ final class ImageLayerRenderingPanel extends JPanel {
         contrastPanel = new ContrastPanel(layer);
         sharpenPanel = new SliderFilterPanel.Sharpen(layer);
         imageFilterPanel = new ImageFilterPanel(layer);
-        sequencePanel = new SequencePanel(layer);
+        sequencePanel = new SequencePointer(layer);
 
         setLayout(new GridBagLayout());
         setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
