@@ -115,6 +115,8 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         // throw that framing away. Every interactive route builds this with a null jo
         // (ImageLayer.create(null)); only State's createDetached passes one.
         fitOnLoad = jo == null;
+        if (jo != null)
+            fitPending = false; // a restored session has framed the scene itself; leave it alone
         try {
             view = new BaseView(null, null);
         } catch (Exception e) { // impossible
@@ -307,7 +309,10 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         replaceView(_view);
         if (fitOnLoad) {
             fitOnLoad = false;
-            DisplayController.zoomFit(); // the Zoom-Fit button, once, now that there is something to fit
+            if (fitPending) {
+                fitPending = false;
+                DisplayController.zoomFit(); // the Zoom-Fit button, once, now that there is something to fit
+            }
         }
         if (fixedRange != null) // re-apply a pending shared display range to the freshly loaded view
             _view.setRange(fixedRange[0], fixedRange[1]);
@@ -413,7 +418,12 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     // the camera is reset while the layer is still an empty placeholder, so
     // fitCameraToImageLayers sees no physical size and leaves the default field of view, which is
     // how a freshly loaded movie ended up microscopic in a view sized for nothing in particular.
-    private boolean fitOnLoad;
+    private boolean fitOnLoad; // this layer is an interactive one, so it is eligible
+
+    // And once per run, not once per layer. The first load has nothing to disturb, so framing it
+    // is a courtesy; every later one would be moving a view the user had already set, which is
+    // theirs to keep. A restored session spends this too, in the constructor above.
+    private static boolean fitPending = true;
 
     private void replaceView(View newView) {
         ImageFilter.Type filterType = restoredFilter != null ? restoredFilter : view.getFilter();

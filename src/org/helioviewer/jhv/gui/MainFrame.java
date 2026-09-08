@@ -668,14 +668,50 @@ public final class MainFrame {
         sessionNameCards.show(sessionNamePanel, "view");
     }
 
+    private static String sessionBaseName = "Untitled";
+    private static boolean sessionMarkShown;
+
     // Show the current session's name in-app (the macOS title bar is hidden here) and in the
     // window title / Window menu / Mission Control.
     public static void setSessionName(String name) {
-        String shown = name == null || name.isBlank() ? "Untitled" : name;
-        if (sessionNameLabel != null)
+        sessionBaseName = name == null || name.isBlank() ? "Untitled" : name;
+        renderSessionName();
+    }
+
+    /**
+     * The name as displayed, with a leading asterisk while the scene differs from what is on disk.
+     *
+     * <p>The name itself never carries the mark: Session.displayName stays the plain name, which is
+     * what the rename field seeds from and what suggestedSaveName turns into a filename. An
+     * asterisk that reached either of those would be a rename to "*Untitled" or a file called
+     * "*whatever.jhv".
+     */
+    private static void renderSessionName() {
+        sessionMarkShown = org.helioviewer.jhv.app.Session.isDirty();
+        String shown = displayedSessionName(sessionBaseName, sessionMarkShown);
+        if (sessionNameLabel != null) {
             sessionNameLabel.setText(shown);
+            sessionNameLabel.setToolTipText(sessionMarkShown
+                    ? "Unsaved changes since the last save. Double-click to rename this session."
+                    : "Double-click to rename this session");
+        }
         if (mainFrame != null)
             mainFrame.setTitle(shown + " : " + AppInfo.programName);
+    }
+
+    /** The composition, kept pure so SessionDirtyMarkCheck can pin it without a live window. */
+    static String displayedSessionName(String base, boolean dirty) {
+        return (dirty ? "*" : "") + (base == null || base.isBlank() ? "Untitled" : base);
+    }
+
+    // Polled, not pushed. Session.markDirty is called from wherever a change happens and on
+    // whatever thread, so a mirror that has to be notified is a mirror that will one day not be,
+    // and Swing wants the write on the EDT anyway. The UITimer is already the place this window
+    // keeps such readouts honest (see the zoom slider, which polls for the same reason). One
+    // boolean compare per tick, and a setText only when the state actually turns over.
+    private static void syncSessionDirtyMark() {
+        if (sessionMarkShown != org.helioviewer.jhv.app.Session.isDirty())
+            renderSessionName();
     }
 
     public static void toFront() {
@@ -715,6 +751,7 @@ public final class MainFrame {
         // than the startup measurement, and there is no horizontal scrollbar — so grow to fit. Only
         // ever growing keeps the width from oscillating as layers are selected.
         UITimer.register(MainFrame::growLeftPaneToFit);
+        UITimer.register(MainFrame::syncSessionDirtyMark);
 
         leftPane.restoreExpansion(); // the sidebar at full width, each section as it was last left
     }
