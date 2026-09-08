@@ -192,7 +192,10 @@ public final class Theme {
             // only part of the way: past about a third it stops clearing 3:1 against the panel.
             case ChildHeaderFill -> mix(c.get(Token.HeaderFill), c.get(Token.Background), 0.22);
             case TimelinePlot -> c.get(Token.Component);
-            case TimelineInterval -> mix(c.get(Token.Component), c.get(Token.Accent), 0.45);
+            // A tenth of the accent, not half of it. At 0.45 the plotted span became a lavender
+            // wash across the whole strip, and the four coloured layer bands drawn on it lost most
+            // of the contrast they had against the near-black ground they used to sit on.
+            case TimelineInterval -> mix(c.get(Token.Component), c.get(Token.Accent), 0.14);
             case TimelineIntervalBorder, TimelineTick -> c.get(Token.Separator);
             case TimelineLabel, TimelineMovie -> c.get(Token.Foreground);
             case TimelineMovieBand -> mix(c.get(Token.Component), c.get(Token.Foreground), 0.55);
@@ -232,7 +235,7 @@ public final class Theme {
             // 4.58:1 on the header, body text 12.61:1. The window between those two rules is
             // narrow: a lighter header fails the text rule and a darker one fails the panel rule.
             builtIn("sunset-dark", "Sunset Dark", Base.FlatDark,
-                    "#221E33", "#E6E1F2", "#8C79D9", "#2B2640", "#7E749E", "#7A6BB3", "#FFFFFF", "#72639F"),
+                    "#221E33", "#E6E1F2", "#8C79D9", "#2B2640", "#7E749E", "#7B6FA0", "#FFFFFF", "#736A99"),
             // The same idea warm: paper with an orange cast. Header 4.33:1, its text 4.94:1,
             // body 13.80:1.
             builtIn("sunset-light", "Sunset Light", Base.FlatLight,
