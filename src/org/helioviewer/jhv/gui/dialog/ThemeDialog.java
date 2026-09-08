@@ -8,8 +8,10 @@ import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.List;
 
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
@@ -41,8 +43,9 @@ import com.jidesoft.dialog.StandardDialog;
  *
  * <p>Fifteen swatches is the wrong way to say "the same theme, but green", so there is also
  * "Derive from a colour...": pick an accent, optionally a second colour for the panels, and
- * {@code Theme.derived} turns the parent's colour wheel while keeping each token's lightness, and
- * so its contrast, exactly where it was.
+ * {@code Theme.derived} puts those two colours on their own tokens exactly as they were picked
+ * and turns the parent's colour wheel around them, keeping every other token's lightness, and so
+ * its contrast, where it was.
  *
  * <p>A built-in is never modified. Saving always produces a user theme carrying only the colours
  * that differ from the built-in it started from, which is what lets the rest of that built-in
@@ -63,6 +66,9 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
     private final JTextField nameField = new JTextField(20);
     private final JLabel headerRatio = new JLabel();
     private final JLabel childRatio = new JLabel();
+    // Empty unless a derivation had to move one of the colours that were picked. Blank most of
+    // the time is the point: it says something only when the answer is not what was asked for.
+    private final JLabel adjustedNote = new JLabel();
     private final JButton deleteButton = new JButton();
 
     public ThemeDialog() {
@@ -101,6 +107,8 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
         top.add(headerRatio, c);
         c.gridy = 3;
         top.add(childRatio, c);
+        c.gridy = 4;
+        top.add(adjustedNote, c);
 
         return top;
     }
@@ -231,6 +239,7 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
         });
         nameField.setText(selected.builtIn() ? "My " + selected.name() : selected.name());
         deleteButton.setEnabled(!selected.builtIn());
+        adjustedNote.setText(""); // it belongs to one derivation, not to whatever is loaded next
         if (!swatches.isEmpty()) {
             for (Theme.Token token : Theme.Token.values())
                 paintSwatch(token);
@@ -289,24 +298,31 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
      * be able to say only that, and cancelling the second gives the panels the accent's hue as
      * well. A second colour splits the two families, panels and lists from highlights.
      *
-     * <p>What comes back has the parent's lightness in every token, so the two ratios in the
-     * banner do not move; they are shown anyway, because the derivation being loaded into the
-     * swatches is what makes it a preview rather than a promise. Saving straight away is the
-     * point of the feature (two clicks, not fifteen); the swatches are still there to adjust
-     * afterwards, and Save writes the adjustment over the same name.
+     * <p>The colours chosen here are the ones that come back: the accent is the Accent token and
+     * the second colour is the panel, both literally. Everything else keeps the parent's lightness
+     * and so its contrast, which is why the two ratios in the banner rarely move; they are shown
+     * anyway, because the derivation being loaded into the swatches is what makes it a preview
+     * rather than a promise. Saving straight away is the point of the feature (two clicks, not
+     * fifteen); the swatches are still there to adjust afterwards, and Save writes the adjustment
+     * over the same name.
+     *
+     * <p>A chosen colour can leave nothing else able to clear 4.5:1, and then the derivation moves
+     * it rather than shipping unreadable text. That is the one thing about the result nobody would
+     * guess from looking at the swatches, so it is said out loud under the ratios.
      */
     private void derive() {
         Theme parent = parent();
-        Color accent = JColorChooser.showDialog(this, "Accent colour: highlights, header bands, separator",
+        Color accent = JColorChooser.showDialog(this, "Accent colour: this colour itself, and the hue of the header bands and separator",
                 working.get(Theme.Token.Accent));
         if (accent == null)
             return;
         // Null on Cancel, which is the "one colour" case rather than an error.
-        Color anchor = JColorChooser.showDialog(this, "Panel colour, or Cancel to use the accent for those too",
+        Color anchor = JColorChooser.showDialog(this, "Panel colour, or Cancel to use the accent's hue for those too",
                 working.get(Theme.Token.Background));
 
+        List<String> adjusted = new ArrayList<>();
         String name = parent.name() + " " + Theme.hex(accent);
-        Theme preview = Theme.userTheme(Theme.idFor(name), name, parent, Theme.derived(parent, accent, anchor));
+        Theme preview = Theme.userTheme(Theme.idFor(name), name, parent, Theme.derived(parent, accent, anchor, adjusted));
         // The derivation restates all eight, so nothing an earlier hand-pick had pinned survives.
         pinned.clear();
         for (Theme.Token token : Theme.Token.values()) {
@@ -316,6 +332,8 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
         showRatios();
         nameField.setText(name);
         save();
+        // After save(), which reloads the combo and so runs load(), which clears this.
+        adjustedNote.setText(adjusted.isEmpty() ? "" : String.join("; ", adjusted));
     }
 
     private void save() {

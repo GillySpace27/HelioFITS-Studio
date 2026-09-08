@@ -253,25 +253,34 @@ public final class Theme {
      *
      * <p>The panels and the lists, plus the text that sits on them: body text is a near-neutral in
      * every built-in, so it takes a whisper of whichever hue is behind it, and a warm panel wants
-     * warm-tinted text rather than text tinted like the highlights. Everything else (the accent,
-     * the header bands, the separator) is the highlight family and follows the accent.
+     * warm-tinted text rather than text tinted like the highlights. Everything else (the header
+     * bands, the separator) is the highlight family and follows the accent. Background is in this
+     * set for the one-colour case; when a second colour is given it is that colour outright, and
+     * only the other three are retinted from it.
      */
     private static final EnumSet<Token> SURFACE = EnumSet.of(
             Token.Background, Token.Component, Token.Foreground, Token.HeaderText);
 
     /**
-     * A parent theme's stated colours moved to the hue of one or two chosen ones.
+     * A parent theme's stated colours moved to one or two chosen ones.
      *
-     * <p>What is taken from the chosen colours is hue and something of their saturation. What is
-     * kept from the parent is every token's lightness, and therefore every contrast ratio between
-     * them: "Sunset Dark, but forest green" is the same theme with the colour wheel turned, not a
-     * new theme that happens to be green. Choosing how light the result is stays the job of which
-     * parent you start from.
+     * <p>The chosen colours are used literally on the tokens they were chosen for: the accent IS
+     * {@link Token#Accent}, and a second colour IS {@link Token#Background}. Sampling their hue
+     * onto the parent's own accent instead, which is what this did first, produced a theme that
+     * nowhere contained the colour the person picked: forest green came back as the parent's
+     * accent lightness in a green hue, and the complaint was exactly that.
      *
-     * @param accent the highlight hue: the accent, the header bands and the separator
-     * @param anchor the hue of the panels and the lists, or null to use the accent for those too
+     * <p>Everything else still follows them by hue and something of their saturation, and is put
+     * back at the parent token's luminance, so every contrast ratio the parent held between those
+     * tokens survives. Only the two picked tokens carry a lightness of their own, and only they
+     * can move a ratio measured against them.
+     *
+     * @param accent the Accent token itself, and the hue of the header bands and the separator
+     * @param anchor the Background token itself, and the hue of the lists and the text, or null
+     *               to give those the accent's hue and leave the panel at the parent's lightness
+     * @param adjusted collects one line for any picked colour a contrast floor forced to move
      */
-    public static EnumMap<Token, Color> derived(Theme parent, Color accent, @Nullable Color anchor) {
+    public static EnumMap<Token, Color> derived(Theme parent, Color accent, @Nullable Color anchor, List<String> adjusted) {
         float[] high = hsb(accent);
         float[] surf = anchor == null ? high : hsb(anchor);
 
@@ -280,8 +289,17 @@ public final class Theme {
             float[] src = SURFACE.contains(t) ? surf : high;
             out.put(t, retint(parent.get(t), src[0], src[1]));
         }
-        enforce(out);
+        // Last, over the retinted stand-ins: the two colours someone actually chose, unaltered.
+        out.put(Token.Accent, accent);
+        if (anchor != null)
+            out.put(Token.Background, anchor);
+        enforce(out, adjusted);
         return out;
+    }
+
+    /** As above, for a caller with nowhere to show what had to be adjusted. */
+    public static EnumMap<Token, Color> derived(Theme parent, Color accent, @Nullable Color anchor) {
+        return derived(parent, accent, anchor, new ArrayList<>());
     }
 
     private static float[] hsb(Color c) {
@@ -354,35 +372,76 @@ public final class Theme {
      * The pairs that decide whether the interface can be read at all, walked in the order that
      * settles the grounds before the things drawn on them.
      *
-     * <p>Preserving luminance should make this a no-op, and for the four built-ins it is. It is
-     * here for the rounding to eight bits and for a parent that was already sitting on the line:
-     * whatever else the derivation does, it must not be the step that makes text unreadable.
+     * <p>Preserving luminance should make this a no-op, and for the four built-ins it is. What it
+     * is now for is the picked colours, which carry their own lightness and so can leave a parent
+     * token stranded. A picked accent is a ground for nothing here and is never touched. A picked
+     * panel is the ground everything else is measured against, so what gives way is a token nobody
+     * chose: the band, the hairline, the text. Only where no such move exists does the panel
+     * itself move, and then the caller is told rather than left to find out.
      */
-    private static void enforce(EnumMap<Token, Color> m) {
+    private static void enforce(EnumMap<Token, Color> m, List<String> adjusted) {
+        // Body text and its two grounds first, because this is the one step that can move the
+        // panel and every pair below is measured against it. The lists are settled first of the
+        // two grounds: they are never a picked colour, so they are the cheaper one to bend.
+        Color list = m.get(Token.Component);
+        Color body = legible(m.get(Token.Foreground), list, TEXT_MIN);
         Color panel = m.get(Token.Background);
+        if (contrast(body, panel) < TEXT_MIN) {
+            Color moved = legible(body, panel, TEXT_MIN);
+            if (contrast(moved, list) >= TEXT_MIN) {
+                body = moved; // the text is what nobody chose, so the text is what moves
+            } else {
+                // The two grounds are on opposite sides of the text, which only a chosen panel can
+                // arrange: no text colour is readable on both, and the panel is all that is left.
+                panel = legible(panel, body, TEXT_MIN);
+                m.put(Token.Background, panel);
+                adjusted.add(String.format("%s moved to %s: body text clears %.2f:1 on it",
+                        Token.Background.label, hex(panel), contrast(body, panel)));
+            }
+        }
+        m.put(Token.Foreground, body);
+
         m.put(Token.HeaderFill, legible(m.get(Token.HeaderFill), panel, SURFACE_MIN));
         m.put(Token.ChildHeaderFill, legible(m.get(Token.ChildHeaderFill), panel, SURFACE_MIN));
         m.put(Token.Separator, legible(m.get(Token.Separator), panel, SURFACE_MIN));
 
-        // Text is fixed against the worse of the two grounds it sits on, so that clearing one
-        // cannot be what breaks the other.
+        // Header text is fixed against the worse of the two bands it sits on, so that clearing one
+        // cannot be what breaks the other. Twice, because a crossing swaps which band is the worse
+        // one: white text sent dark to clear a light band then has the darker band to answer for.
         Color header = m.get(Token.HeaderText);
-        Color band = contrast(header, m.get(Token.HeaderFill)) <= contrast(header, m.get(Token.ChildHeaderFill))
-                ? m.get(Token.HeaderFill) : m.get(Token.ChildHeaderFill);
-        m.put(Token.HeaderText, legible(header, band, TEXT_MIN));
-
-        Color body = m.get(Token.Foreground);
-        Color ground = contrast(body, panel) <= contrast(body, m.get(Token.Component))
-                ? panel : m.get(Token.Component);
-        m.put(Token.Foreground, legible(body, ground, TEXT_MIN));
+        header = legible(header, worse(header, m.get(Token.HeaderFill), m.get(Token.ChildHeaderFill)), TEXT_MIN);
+        m.put(Token.HeaderText, legible(header, worse(header, m.get(Token.HeaderFill), m.get(Token.ChildHeaderFill)), TEXT_MIN));
     }
 
-    /** {@code fore} pushed away from {@code back} until it clears {@code min}, or as far as it goes. */
+    /** Whichever of two grounds {@code fore} is harder to read on. */
+    private static Color worse(Color fore, Color a, Color b) {
+        return contrast(fore, a) <= contrast(fore, b) ? a : b;
+    }
+
+    /**
+     * {@code fore} pushed away from {@code back} until it clears {@code min}, or as far as it goes.
+     *
+     * <p>The side the token is already on is tried first, which is what keeps the theme's
+     * character: a light token goes lighter. That side runs out at white, and against a mid-tone
+     * ground it runs out below 4.5:1, so the other side is tried before giving up. Crossing over
+     * is still moving this token rather than the ground it sits on, which is what the caller wants
+     * when that ground is a colour someone chose.
+     */
     private static Color legible(Color fore, Color back, double min) {
         if (contrast(fore, back) >= min)
             return fore;
-        // Away from the ground, not toward some fixed colour: a light token goes lighter.
-        Color away = luminance(fore) >= luminance(back) ? Color.WHITE : Color.BLACK;
+        boolean lighter = luminance(fore) >= luminance(back);
+        Color out = toward(fore, back, min, lighter ? Color.WHITE : Color.BLACK);
+        if (contrast(out, back) < min) {
+            Color crossed = toward(fore, back, min, lighter ? Color.BLACK : Color.WHITE);
+            if (contrast(crossed, back) >= min)
+                out = crossed;
+        }
+        return out;
+    }
+
+    /** {@code fore} mixed toward {@code away} in steps until it clears, or the whole way. */
+    private static Color toward(Color fore, Color back, double min, Color away) {
         for (double f = 0.05; f < 1; f += 0.05) {
             Color c = mix(fore, away, f);
             if (contrast(c, back) >= min)
