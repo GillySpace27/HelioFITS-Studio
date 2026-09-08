@@ -20,6 +20,7 @@ import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.component.CircularProgressUI;
 import org.helioviewer.jhv.gui.dialog.MetaDataDialog;
 import org.helioviewer.jhv.io.DownloadLayer;
+import org.helioviewer.jhv.io.FitsRequest;
 import org.helioviewer.jhv.io.PunchClient;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layer;
@@ -269,7 +270,7 @@ final class ImageLayerManagePanel extends JPanel {
 
         long start = view.getFirstTime().milli;
         long end = view.getLastTime().milli;
-        String cadence = cadenceText;
+        String cadence = cadenceText + pipelineVersionSuffix();
         String frames = downloading
                 ? (max == 0 ? "0/0 frames" : done + "/" + total + " frames") // scope not yet known
                 : total + (total == 1 ? " frame" : " frames");
@@ -285,6 +286,26 @@ final class ImageLayerManagePanel extends JPanel {
 
     private String cadenceText = "n/a";
     private String lastReadoutText;
+
+    /**
+     * The pipeline version a native-FITS layer was loaded at (PUNCH's own vocabulary calls this
+     * the version, e.g. "v0k" or "v0l"; distinct from the archive's product LEVEL, which is
+     * "0".."3" or "Q"), beside cadence rather than buried in describeData: a movie's calibration
+     * came from this string, and cadence is the other number that pins what a movie actually is.
+     *
+     * <p>Absent for a layer with no {@link FitsRequest} (a JP2 or VSO layer, neither of which has
+     * this concept). "Latest" is what was ASKED for, not what was resolved: PunchClient picks the
+     * newest version present in the query's time range at load time and does not persist which one
+     * that was, so a movie loaded with "Latest" reports the policy, not the calibration actually in
+     * the pixels. Say so rather than showing a version that might not be the true one.
+     */
+    private String pipelineVersionSuffix() {
+        FitsRequest request = layer.getFitsRequest();
+        if (request == null || request.version().isBlank())
+            return "";
+        return PunchClient.LATEST_VERSION.equals(request.version())
+                ? " (latest at load)" : " (" + request.version() + ")";
+    }
 
     /**
      * What this layer's pixels actually are: format, size, sample depth, plate scale.

@@ -184,6 +184,7 @@ public final class MenuBar extends JMenuBar {
         viewMenu.add(new Actions.ShowProjectionPalette());
         viewMenu.add(new Actions.ShowSequencePalette());
         viewMenu.add(new Actions.ShowColourPalette());
+        viewMenu.add(new Actions.ShowGridPalette());
         viewMenu.add(new Actions.TrackCME());
         viewMenu.add(new Actions.ShowDialog("FITS Settings...", new FITSSettings.SettingsDialog()));
 

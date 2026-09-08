@@ -138,6 +138,17 @@ public final class Actions {
         }
     }
 
+    public static class ShowGridPalette extends AbstractAction {
+        public ShowGridPalette() {
+            super("Grid Settings\u2026");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            org.helioviewer.jhv.gui.component.ToolBar.toggleGridPalette();
+        }
+    }
+
     // Output-only fullscreen, the same toggle as the toolbar Presentation button.
     public static class TogglePresentationMode extends AbstractKeyAction {
         public TogglePresentationMode() {

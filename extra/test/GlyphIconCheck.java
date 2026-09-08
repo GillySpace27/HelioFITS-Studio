@@ -51,6 +51,12 @@ public final class GlyphIconCheck {
         expect(pixel(disabled, Color.RED) != pixel(icon, Color.RED),
                 "the greyed variant ignores the foreground it would otherwise take");
 
+        // A new MaterialDesign entry is a codepoint into a curated subset of a much larger font;
+        // getting it wrong renders as tofu (an empty box) rather than as a compile error. This
+        // paints it and counts ink the same way the rest of this check does, which is the cheapest
+        // proof that a codepoint claimed for a specific glyph name is not landing on an empty cell.
+        expect(ink(Buttons.grid, Color.RED) > 0, "the grid glyph (mdi-grid, U+F2C1) actually paints");
+
         System.out.println(failures == 0 ? "GlyphIconCheck: PASS" : "GlyphIconCheck: " + failures + " FAILURE(S)");
         if (failures != 0)
             System.exit(1);

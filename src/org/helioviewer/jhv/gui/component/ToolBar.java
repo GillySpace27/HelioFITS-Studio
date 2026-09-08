@@ -76,7 +76,6 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         b.setToolTipText(text.tip());
     }
 
-    private final ButtonText ANNOTATION = new ButtonText(Buttons.annotate, "Annotation", "Annotation (Press Shift to draw)");
     private final ButtonText AXIS = new ButtonText(Buttons.axis, "Axis", "Axis");
     private final ButtonText DIFFROTATION = new ButtonText(Buttons.diffRotation, "Differential", "Toggle differential rotation");
     private final ButtonText MULTIVIEW = new ButtonText(Buttons.multiview, "Multiview", "Multiview");
@@ -84,8 +83,9 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private final ButtonText PAN = new ButtonText(Buttons.pan, "Pan", "Pan");
     private final ButtonText PROJECTION = new ButtonText(Buttons.projection, "Projection", "Projection");
     private final ButtonText COLOUR = new ButtonText(Buttons.colourSettings, "HDR", "How the whole view is mapped into the display's extended range: headroom, mapping, knee, in-range share, clipped pixels");
-    private final ButtonText SEQUENCE_HIDDEN = new ButtonText(Buttons.sequenceFilter, "Fourier", "Fourier filter over the whole movie"); // not added to the bar; see createNewToolBar
-    private final ButtonText MORE = new ButtonText(Buttons.moreSettings, "More", "Less common controls: automatic refresh, the SDO cut-out, SAMP");
+    private final ButtonText SEQUENCE = new ButtonText(Buttons.sequenceFilter, "Fourier", "Fourier filter over the whole movie: pick the layer, drag a band, watch it play");
+    private final ButtonText GRID = new ButtonText(Buttons.grid, "Grid", "Grid, Thomson sphere, celestial sphere, ecliptic and planet overlay settings");
+    private final ButtonText MORE = new ButtonText(Buttons.moreSettings, "More", "Less common controls: annotation, automatic refresh, the SDO cut-out, SAMP");
     private final ButtonText PRESENTATION = new ButtonText(Buttons.presentation, "Present", "Presentation mode: output only, fullscreen (Esc to leave)");
     private final ButtonText REFRESH = new ButtonText(Buttons.refresh, "Refresh", "Automatic refresh");
     private final ButtonText RESETCAMERA = new ButtonText(Buttons.resetCamera, "Reset View", "Reset view to default");
@@ -314,24 +314,32 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         projectionPalette.bind(projectionButton);
         addButton(projectionButton);
 
-        // The sequence filter still gets a palette, because it is a whole-movie computation with a
-        // lot of settings and a readout worth watching while the view plays. It does NOT get a
-        // place on this bar: it acts on one layer, and a global button for a per-layer thing
-        // invites the reading that it is doing something to all of them. It is opened from the
-        // Fourier row of the layer whose movie it will filter, or from the View menu, and Apply
-        // reaches every SELECTED layer, which is the "all at once" this bar could not express.
-        // The toggle still exists, unparented, because it is the record of whether the palette is
-        // open that Palette.open and the keep-visible watchdog read.
-        JToggleButton sequenceButton = toolToggleButton(SEQUENCE_HIDDEN);
-        if (sequencePalette == null)
-            sequencePalette = new Palette("Fourier filter", SequencePaletteContent::build, SequencePaletteContent::refresh, true); // has text fields
-        sequencePalette.bind(sequenceButton);
-
         // Colour settings are per view, not per layer: they decide how every frame of every movie
         // is shown, so they belong beside Projection rather than inside a layer's own row.
         JToggleButton colourButton = toolToggleButton(COLOUR);
         colourPalette.bind(colourButton);
         addButton(colourButton);
+
+        // The sequence filter is a whole-movie computation with a lot of settings and a readout
+        // worth watching while the view plays, which is what the palette form is for. It acts on
+        // one layer, which the palette itself now lets you pick (SequencePaletteContent's own
+        // combo), so a button here reads as "open the Fourier filter", not as "filter everything":
+        // Apply still only ever reaches the layer the palette is bound to.
+        JToggleButton sequenceButton = toolToggleButton(SEQUENCE);
+        if (sequencePalette == null)
+            sequencePalette = new Palette("Fourier filter", SequencePaletteContent::build, SequencePaletteContent::refresh, true); // has text fields
+        sequencePalette.bind(sequenceButton);
+        addButton(sequenceButton);
+
+        // The grid, Thomson sphere, celestial sphere, ecliptic and planets are one default layer's
+        // settings, reachable before only by opening its row in the layer list. A button beside
+        // the other view-wide palettes is the more discoverable route; the row keeps working too.
+        JToggleButton gridButton = toolToggleButton(GRID);
+        if (gridPalette == null)
+            gridPalette = new Palette("Grid", GridPaletteContent::build, GridPaletteContent::refresh);
+        gridPalette.bind(gridButton);
+        addButton(gridButton);
+        addSeparator(dim);
 
         JToggleButton presentationButton = toolToggleButton(PRESENTATION);
         presentationToggle = presentationButton;
@@ -344,7 +352,11 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         });
         addButton(presentationButton);
 
-        SplitButton annotationButton = toolSplitButton(ANNOTATION);
+        // Everything reached once a session rather than once a minute, plus annotation, behind
+        // one button. Annotation used to have its own top-level button; it is a mode you set once
+        // and then draw in, not a control worked against the view while watching it (the thing
+        // that earns a place of its own on this bar), so it folded in here with the rest.
+        SplitButton more = toolSplitButton(MORE);
         ButtonGroup annotationGroup = new ButtonGroup();
         for (AnnotationMode mode : AnnotationMode.values()) {
             JRadioButtonMenuItem item = new JRadioButtonMenuItem(mode.toString());
@@ -352,25 +364,17 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
                 item.setSelected(true);
             item.addActionListener(e -> ViewState.setAnnotationMode(mode));
             annotationGroup.add(item);
-            annotationButton.addItem(item);
+            more.addItem(item);
             annotationItems.put(mode, item);
         }
-        annotationButton.addItemSeparator();
-        addAnnotationColorItems(annotationButton);
-        annotationButton.addItem(createAnnotationThicknessPanel());
-        annotationButton.addItemSeparator();
-        annotationButton.addItem(new Actions.ClearAnnotations());
-        annotationButton.addItemSeparator();
-        annotationButton.addItem(new Actions.ZoomFOVAnnotation());
-        addButton(annotationButton);
-
-        addSeparator(dim);
-
-        // Everything reached once a session rather than once a minute, behind one button. Three
-        // top-level buttons for automatic refresh, the SDO cut-out and SAMP spent width that the
-        // overflow chevron then had to reclaim on a narrow window; the chevron is still there for
-        // whatever does not fit, but it no longer has to start with these.
-        SplitButton more = toolSplitButton(MORE);
+        more.addItemSeparator();
+        addAnnotationColorItems(more);
+        more.addItem(createAnnotationThicknessPanel());
+        more.addItemSeparator();
+        more.addItem(new Actions.ClearAnnotations());
+        more.addItemSeparator();
+        more.addItem(new Actions.ZoomFOVAnnotation());
+        more.addItemSeparator();
         refreshItem = new JCheckBoxMenuItem(REFRESH.text(), ViewState.isRefresh());
         refreshItem.setToolTipText(REFRESH.tip());
         refreshItem.addItemListener(e -> ViewState.setRefresh(refreshItem.isSelected()));
@@ -538,6 +542,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             new Palette("Projection", ToolBar::projectionContent, () -> {});
 
     private static Palette sequencePalette;
+    private static Palette gridPalette;
 
     private static final Palette colourPalette =
             new Palette("HDR", ColourPaletteContent::build, ColourPaletteContent::refresh);
@@ -545,6 +550,12 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     /** Toggle the HDR palette (used by View > HDR Settings). */
     public static void toggleColourPalette() {
         colourPalette.toggle();
+    }
+
+    // Toggle the grid palette the same way (used by View > Grid Settings).
+    public static void toggleGridPalette() {
+        if (gridPalette != null)
+            gridPalette.toggle();
     }
 
     // Toggle the projection palette exactly as the toolbar button does (used by View > Projection).
