@@ -6,8 +6,12 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.function.Consumer;
 
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
@@ -16,9 +20,13 @@ import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
+import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JRadioButton;
+import javax.swing.JPopupMenu;
+import javax.swing.JSpinner;
+import javax.swing.JToggleButton;
+import javax.swing.JToolBar;
 import javax.swing.SpinnerNumberModel;
 
 import org.helioviewer.jhv.app.Commands;
@@ -34,7 +42,6 @@ import org.helioviewer.jhv.movie.ExportFormat;
 import org.helioviewer.jhv.movie.ExportMovie;
 import org.helioviewer.jhv.movie.ExportPreset;
 import org.helioviewer.jhv.movie.Player;
-import org.helioviewer.jhv.time.TimeUtils;
 
 import com.jidesoft.swing.JideButton;
 import com.jidesoft.swing.JideToggleButton;
@@ -54,10 +61,8 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
 
     private final JHVSpinner speedSpinner;
     private final JComboBox<ViewState.PlaybackSpeedUnit> speedUnitComboBox;
-    private final JComboBox<Player.AdvanceMode> advanceModeComboBox;
-    private final JRadioButton loopButton;
-    private final JRadioButton shotButton;
-    private final JRadioButton freeButton;
+    private final Segmented<Player.AdvanceMode> advanceModeButtons;
+    private final Segmented<ViewState.RecordingMode> recordModeButtons;
     private final JComboBox<ViewState.RecordingAspect> recordAspectComboBox;
     // Powers of two only: every consumer downstream (GPU textures, fulldome masters, video
     // encoders) is happiest there, and a free spinner mostly collected typos.
@@ -107,16 +112,19 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         return !"false".equals(Settings.getProperty("video.allIntra"));
     }
     private final JLabel recordDerivedLabel;
+    private final JLabel recordLongSideLabel;
+    private final JLabel presetLabel;
+    private final JPanel presetRow;
+    private final CollapsiblePane encodingPane;
     private boolean syncingRecordSize;
 
-    private final JPanel modePanel = new JPanel(new FlowLayout(FlowLayout.TRAILING, 0, 0));
-    private final JPanel recordPanel = new JPanel(new GridBagLayout());
-    private final JLabel videoLengthLabel = new JLabel(); // estimated length of the recorded video
+    // Everything the "Playback and Recording" pane shows, in one grid so the label column lines up
+    // and so the recording-time disable has a single container to walk.
+    private final JPanel optionsPanel = new JPanel(new GridBagLayout());
 
     private JPanel buttonPanel;
     private JComponent frameNumberPanel;
     private JPanel northTransport; // scrubber + play/prev/next/record + frame counter, docked at the top
-    private JPanel playbackOptions; // speed / advance-mode / recording settings — the "Playback options" pane
 
     private static MoviePanel instance;
 
@@ -168,58 +176,33 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         northTransport.add(timeSlider, BorderLayout.CENTER);
         northTransport.add(frameNumberPanel, BorderLayout.LINE_END);
 
-        // Speed
-        modePanel.add(new JLabel(" Play ", JLabel.RIGHT));
+        // The pane is four labelled rows deep -- Play, Record, Output, Preset -- with the encoding
+        // choices behind a nested disclosure under them. The label column is a real GridBag column
+        // with insets, in place of the right-aligned glue column and the space-padded label
+        // strings it replaces, so the rows align on the left and the spacing is not baked into the
+        // text of the labels.
 
         speedSpinner = new JHVSpinner(ViewState.playbackData().speed(), ViewState.PLAYBACK_SPEED_MIN, ViewState.PLAYBACK_SPEED_MAX, 1);
         speedSpinner.setToolTipText("Maximum " + ViewState.PLAYBACK_SPEED_MAX + " fps");
+        // Three columns: the model stops at three digits, and the default editor otherwise sizes
+        // itself for a number far wider than anything that can be entered.
+        if (speedSpinner.getEditor() instanceof JSpinner.NumberEditor editor)
+            editor.getTextField().setColumns(3);
         speedSpinner.addChangeListener(e -> updatePlaybackConfig());
-        modePanel.add(speedSpinner);
 
         speedUnitComboBox = new JComboBox<>(ViewState.PlaybackSpeedUnit.values());
         speedUnitComboBox.addActionListener(e -> updatePlaybackConfig());
-        modePanel.add(speedUnitComboBox);
 
-        // Animation mode
-        modePanel.add(new JLabel(" and ", JLabel.RIGHT));
+        // SwingDown is not offered: the player enters it by itself on the way back down a swing,
+        // and it is not a mode anyone picks.
+        advanceModeButtons = new Segmented<>(new Player.AdvanceMode[]{Player.AdvanceMode.Loop, Player.AdvanceMode.Stop, Player.AdvanceMode.Swing},
+                ViewState.playbackData().advanceMode(), ViewState::setPlaybackAdvanceMode);
+        advanceModeButtons.setToolTipText("What happens when playback reaches the end");
+        addRow(optionsPanel, 0, "Play", row(speedSpinner, speedUnitComboBox, advanceModeButtons));
 
-        advanceModeComboBox = new JComboBox<>(new Player.AdvanceMode[]{Player.AdvanceMode.Loop, Player.AdvanceMode.Stop, Player.AdvanceMode.Swing});
-        advanceModeComboBox.addActionListener(e -> ViewState.setPlaybackAdvanceMode((Player.AdvanceMode) advanceModeComboBox.getSelectedItem()));
-        modePanel.add(advanceModeComboBox);
+        recordModeButtons = new Segmented<>(ViewState.RecordingMode.values(), ViewState.recordingData().mode(), ViewState::setRecordingMode);
+        recordModeButtons.setToolTipText("One loop records the movie once through; Screenshot writes a single still; Unlimited records until it is stopped");
 
-        // Record — right-justified and compact (no stretching)
-        GridBagConstraints c = new GridBagConstraints();
-        c.anchor = GridBagConstraints.LINE_END;
-        c.weighty = 1;
-        c.fill = GridBagConstraints.NONE;
-
-        loopButton = new JRadioButton(ViewState.RecordingMode.LOOP.toString());
-        shotButton = new JRadioButton(ViewState.RecordingMode.SHOT.toString());
-        freeButton = new JRadioButton(ViewState.RecordingMode.FREE.toString());
-
-        c.gridy = 0;
-        c.gridx = 0;
-        c.weightx = 1; // glue column absorbs slack so the record controls pack to the right
-        recordPanel.add(new JLabel("Record ", JLabel.RIGHT), c);
-        c.weightx = 0;
-        c.gridx = 1;
-        recordPanel.add(loopButton, c);
-        c.gridx = 2;
-        recordPanel.add(shotButton, c);
-        c.gridx = 3;
-        recordPanel.add(freeButton, c);
-
-        ButtonGroup group = new ButtonGroup();
-        group.add(loopButton);
-        group.add(shotButton);
-        group.add(freeButton);
-
-        loopButton.addActionListener(e -> ViewState.setRecordingMode(ViewState.RecordingMode.LOOP));
-        shotButton.addActionListener(e -> ViewState.setRecordingMode(ViewState.RecordingMode.SHOT));
-        freeButton.addActionListener(e -> ViewState.setRecordingMode(ViewState.RecordingMode.FREE));
-
-        c.gridy = 1;
-        c.gridx = 0;
         com.jidesoft.swing.JideToggleButton printableToggle = new com.jidesoft.swing.JideToggleButton("Frame");
         printableToggle.setToolTipText("Show the recorded video's printable area (the output resolution's aspect) on the canvas");
         printableToggle.setSelected(org.helioviewer.jhv.display.Display.showPrintableArea);
@@ -227,14 +210,7 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
             org.helioviewer.jhv.display.Display.showPrintableArea = printableToggle.isSelected();
             org.helioviewer.jhv.display.DisplayController.display();
         });
-        recordPanel.add(printableToggle, c);
-
-        c.gridx = 1;
-        videoLengthLabel.setFont(UIGlobals.uiFontSmall);
-        videoLengthLabel.setToolTipText("Estimated length of the recorded video at the current speed and frame count");
-        recordPanel.add(videoLengthLabel, c);
-        c.gridx = 2;
-        recordPanel.add(new JLabel("Aspect ", JLabel.RIGHT), c);
+        addRow(optionsPanel, 1, "Record", row(recordModeButtons, printableToggle));
 
         // Aspect and resolution are separate choices, and the short side is derived from them
         // rather than typed. That makes an inconsistent width/height pair unrepresentable, and
@@ -246,14 +222,9 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
             if (!syncingRecordSize)
                 ViewState.setRecordingAspect((ViewState.RecordingAspect) recordAspectComboBox.getSelectedItem());
         });
-        c.gridx = 3;
-        recordPanel.add(recordAspectComboBox, c);
 
-        c.gridy = 2;
-        c.gridx = 0;
-
-        c.gridx = 2;
-        recordPanel.add(new JLabel("Long side ", JLabel.RIGHT), c);
+        recordLongSideLabel = new JLabel("long side");
+        recordLongSideLabel.setFont(UIGlobals.uiFontSmall);
 
         recordLongSideComboBox = new JComboBox<>(LONG_SIDE_CHOICES);
         recordLongSideComboBox.setSelectedItem(nearestLongSide(ViewState.getRecordingLongSide()));
@@ -262,8 +233,11 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
             if (!syncingRecordSize)
                 ViewState.setRecordingLongSide((Integer) recordLongSideComboBox.getSelectedItem());
         });
-        c.gridx = 3;
-        recordPanel.add(recordLongSideComboBox, c);
+
+        recordDerivedLabel = new JLabel();
+        recordDerivedLabel.setFont(UIGlobals.uiFontSmall);
+        recordDerivedLabel.setToolTipText("The size that will actually be written");
+        addRow(optionsPanel, 2, "Output", row(recordAspectComboBox, recordLongSideLabel, recordLongSideComboBox, recordDerivedLabel));
 
         // Format sits with the record controls rather than in Settings, where it was: it is a
         // per-recording decision made at the same moment as aspect and resolution, not a
@@ -281,11 +255,7 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
             if (!syncingRecordFormat)
                 syncPresetSelection();
         });
-        allIntraCheckBox.setEnabled(!storedFormat().isSeries());
-
-        c.gridy = 3;
-        c.gridx = 2;
-        recordPanel.add(new JLabel("Preset ", JLabel.RIGHT), c);
+        allIntraCheckBox.setEnabled(takesKeyframeChoice(storedFormat()));
 
         recordPresetComboBox = new JComboBox<>();
         recordPresetComboBox.addActionListener(e -> {
@@ -299,26 +269,27 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
                 applyPreset(preset);
         });
 
-        JButton savePreset = new JButton("Save\u2026");
-        savePreset.setFont(UIGlobals.uiFontSmall);
+        // Save and Delete are two buttons' worth of width for something used once a month, and the
+        // preset row is one of the two that set the sidebar's width. Folded into a menu they cost
+        // one glyph. The menu is a child of the pane, so the recording-time disable still reaches
+        // it and it cannot be opened mid-recording.
+        JPopupMenu presetActions = new JPopupMenu();
+        JMenuItem savePreset = new JMenuItem("Save\u2026");
         savePreset.setToolTipText("Name the current settings as a preset, or overwrite an existing one");
         savePreset.addActionListener(e -> saveCurrentAsPreset());
-
-        JButton deletePreset = new JButton("Delete");
-        deletePreset.setFont(UIGlobals.uiFontSmall);
+        presetActions.add(savePreset);
+        JMenuItem deletePreset = new JMenuItem("Delete");
         deletePreset.setToolTipText("Remove the selected saved preset. A built-in rung you have overwritten reverts to its original.");
         deletePreset.addActionListener(e -> deleteSelectedPreset());
+        presetActions.add(deletePreset);
 
-        JPanel presetPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
-        presetPanel.add(recordPresetComboBox);
-        presetPanel.add(savePreset);
-        presetPanel.add(deletePreset);
-        c.gridx = 3;
-        recordPanel.add(presetPanel, c);
+        JButton presetMenuButton = new JButton("\u22ef");
+        presetMenuButton.setFont(UIGlobals.uiFontSmall);
+        presetMenuButton.setToolTipText("Save or delete a preset");
+        presetMenuButton.addActionListener(e -> presetActions.show(presetMenuButton, 0, presetMenuButton.getHeight()));
 
-        c.gridy = 4;
-        c.gridx = 2;
-        recordPanel.add(new JLabel("Format ", JLabel.RIGHT), c);
+        presetRow = row(recordPresetComboBox, presetMenuButton);
+        presetLabel = addRow(optionsPanel, 3, "Preset", presetRow);
 
         recordFormatComboBox = new JComboBox<>(ExportFormat.values());
         recordFormatComboBox.setSelectedItem(storedFormat());
@@ -329,8 +300,6 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
                 + "matches the screen: the depth and colour settings below are applied first, so lossless at 4:2:0 8-bit "
                 + "faithfully stores a picture that already lost three quarters of its colour and all but 256 of its levels. "
                 + "Exact end to end is EXR, which is the capture format itself, then RGB 16-bit in PNG or FFV1.</html>");
-        c.gridx = 3;
-        recordPanel.add(recordFormatComboBox, c);
 
         recordChromaComboBox = new JComboBox<>();
         recordChromaComboBox.setToolTipText("<html>How much colour detail is kept, relative to brightness detail.<br><br>"
@@ -355,7 +324,7 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
             ExportFormat sel = (ExportFormat) recordFormatComboBox.getSelectedItem();
             if (sel != null) {
                 Settings.setProperty("video.format", sel.name());
-                allIntraCheckBox.setEnabled(!sel.isSeries() && sel != ExportFormat.FFV1);
+                allIntraCheckBox.setEnabled(takesKeyframeChoice(sel));
                 syncPixelCombos();
             }
         });
@@ -374,45 +343,70 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
                 Settings.setProperty("video.depth", sel.name());
         });
 
-        c.gridy = 5;
-        c.gridx = 2;
-        recordPanel.add(new JLabel("Pixels ", JLabel.RIGHT), c); // the row holds colour AND depth
-        JPanel pixelPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
-        pixelPanel.add(recordChromaComboBox);
-        pixelPanel.add(recordDepthComboBox);
-        c.gridx = 3;
-        recordPanel.add(pixelPanel, c);
-
-        c.gridy = 6;
-        c.gridx = 3;
-        recordPanel.add(allIntraCheckBox, c);
-
-        c.gridy = 7;
-        c.gridx = 3;
-        recordDerivedLabel = new JLabel();
-        recordDerivedLabel.setFont(UIGlobals.uiFontSmall);
-        recordDerivedLabel.setToolTipText("The size that will actually be written");
-        recordPanel.add(recordDerivedLabel, c);
-        c.gridy = 1;
+        // The format combo is the widest thing in the sidebar and the pixel pair is the least
+        // often touched, so they sit behind a disclosure that is collapsed by default. Its header
+        // carries the summary, because ExportMovie reads Settings and not these widgets: a hidden
+        // format still governs the recording, so it has to stay legible while hidden.
+        JPanel encodingPanel = new JPanel(new GridBagLayout());
+        addRow(encodingPanel, 0, "Format", row(recordFormatComboBox));
+        addRow(encodingPanel, 1, "Pixels", row(recordChromaComboBox, recordDepthComboBox)); // colour AND depth
+        addSpan(encodingPanel, 2, row(allIntraCheckBox));
+        encodingPane = new EncodingPane(encodingPanel);
+        addSpan(optionsPanel, 4, encodingPane);
 
         syncPixelCombos();
         syncPresetList(null);
 
         timeSelectorPanel.addListener(Layers.timeSelectionListener);
 
-        // Playback/recording settings, exposed as their own top-level "Playback options" pane.
-        // The master time range is exposed separately and placed atop the Image Layers pane.
-        playbackOptions = new JPanel();
-        playbackOptions.setLayout(new BoxLayout(playbackOptions, BoxLayout.PAGE_AXIS));
-        playbackOptions.add(modePanel);
-        playbackOptions.add(recordPanel);
-
         Player.addStatusListener(this);
         ExportMovie.addStatusListener(this);
         ViewState.addPlaybackConfigListener(this);
         ViewState.addRecordingConfigListener(this);
 
-        updateVideoLength();
+        applyRecordingConfig(ViewState.recordingData());
+    }
+
+    private static final Insets LABEL_INSETS = new Insets(2, 0, 2, 8);
+    private static final Insets FIELD_INSETS = new Insets(2, 0, 2, 0);
+
+    /** One labelled row: the label left-aligned in column 0, its controls in column 1. */
+    private static JLabel addRow(JPanel panel, int gridy, String label, JComponent content) {
+        JLabel jLabel = new JLabel(label);
+        GridBagConstraints c = new GridBagConstraints();
+        c.gridx = 0;
+        c.gridy = gridy;
+        c.anchor = GridBagConstraints.LINE_START;
+        c.insets = LABEL_INSETS;
+        panel.add(jLabel, c);
+
+        c.gridx = 1;
+        c.weightx = 1; // the content column takes the slack, so the labels stay put at the left
+        c.fill = GridBagConstraints.HORIZONTAL;
+        c.insets = FIELD_INSETS;
+        panel.add(content, c);
+        return jLabel;
+    }
+
+    /** A row with no label of its own, across both columns. */
+    private static void addSpan(JPanel panel, int gridy, JComponent content) {
+        GridBagConstraints c = new GridBagConstraints();
+        c.gridx = 0;
+        c.gridy = gridy;
+        c.gridwidth = 2;
+        c.weightx = 1;
+        c.anchor = GridBagConstraints.LINE_START;
+        c.fill = GridBagConstraints.HORIZONTAL;
+        c.insets = FIELD_INSETS;
+        panel.add(content, c);
+    }
+
+    /** The controls of one row, packed to the left. */
+    private static JPanel row(JComponent... items) {
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
+        for (JComponent item : items)
+            panel.add(item);
+        return panel;
     }
 
     private void applyPreset(ExportPreset preset) {
@@ -428,7 +422,7 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         try {
             recordFormatComboBox.setSelectedItem(preset.format());
             allIntraCheckBox.setSelected(preset.allIntra());
-            allIntraCheckBox.setEnabled(!preset.format().isSeries() && preset.format() != ExportFormat.FFV1);
+            allIntraCheckBox.setEnabled(takesKeyframeChoice(preset.format()));
         } finally {
             syncingRecordFormat = false;
         }
@@ -511,6 +505,66 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         } finally {
             syncingRecordFormat = false;
         }
+        // Same four settings, so this is the one place that has to keep the disclosure's header
+        // honest about what it is hiding.
+        encodingPane.setTitle(encodingSummary(storedFormat(), storedChroma(), storedDepth(), isAllIntra()));
+    }
+
+    /** Whether the keyframe choice means anything: a series and FFV1 are all-intra by definition. */
+    private static boolean takesKeyframeChoice(ExportFormat format) {
+        return !format.isSeries() && format != ExportFormat.FFV1;
+    }
+
+    /**
+     * The one line the collapsed encoding disclosure carries as its header.
+     *
+     * <p>ExportMovie reads Settings rather than these widgets, so a hidden format still governs
+     * the recording. Summarising it in the header is what keeps the collapsed section from hiding
+     * a decision: the alternative is a recording that comes out 4:2:0 8-bit because a control the
+     * user cannot see says so.
+     */
+    static String encodingSummary(ExportFormat format, ExportFormat.Chroma chroma, ExportFormat.Depth depth, boolean allIntra) {
+        // ExportFormat.toString appends the extension and lossy/lossless after two spaces, which
+        // is a combo entry's worth of text and far too much for a section header.
+        StringBuilder summary = new StringBuilder(format.toString().split(" {2}")[0]);
+        if (format.isConfigurable()) // a series carries exactly one sampling, so naming it says nothing
+            summary.append(", ").append(switch (chroma) {
+                case YUV420 -> "4:2:0";
+                case YUV444 -> "4:4:4";
+                case RGB -> "RGB";
+            });
+        summary.append(", ").append(depth.bits).append("-bit");
+        if (allIntra && takesKeyframeChoice(format))
+            summary.append(", all-I");
+        return summary.toString();
+    }
+
+    /**
+     * Whether the encoding choices apply at all. A screenshot is written as a 16-bit RGB PNG
+     * whatever the video settings say (see ExportMovie.start), so in that mode the preset row and
+     * the encoding disclosure describe something that will not happen.
+     */
+    static boolean showsEncoding(ViewState.RecordingMode mode) {
+        return mode != ViewState.RecordingMode.SHOT;
+    }
+
+    /**
+     * Hide, rather than grey, what the current mode and aspect make irrelevant: the sidebar's
+     * width is frozen at startup from the widest row and only ever grows, so a greyed row goes on
+     * costing its full width forever, and neither of the two things hidden here reaches the
+     * output in the state that hides it.
+     */
+    private void applyRecordingConfig(ViewState.RecordingData data) {
+        boolean encoding = showsEncoding(data.mode());
+        presetLabel.setVisible(encoding);
+        presetRow.setVisible(encoding);
+        encodingPane.setVisible(encoding); // plain setVisible: ComponentUtils would force the collapsed body open
+
+        // With "On screen" the long side is not consulted at all: RecordingAspect.sizeFor returns
+        // the viewport, so nothing is left invisibly in force.
+        boolean fixed = data.aspect().isFixed();
+        recordLongSideLabel.setVisible(fixed);
+        recordLongSideComboBox.setVisible(fixed);
     }
 
     /**
@@ -595,8 +649,9 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
     }
 
     // The playback speed / advance-mode / recording settings, shown as the "Playback options" pane.
+    // The master time range is exposed separately and placed atop the Image Layers pane.
     public JComponent getPlaybackOptions() {
-        return playbackOptions;
+        return optionsPanel;
     }
 
     public void setFixedPreferredWidth(int width) {
@@ -619,16 +674,6 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         ViewState.setPlaybackSpeed(speed, unit);
     }
 
-    // Length of the recorded video for the actually loaded movie at the current speed.
-    private void updateVideoLength() {
-        if (!Player.isAvailable()) {
-            videoLengthLabel.setText("");
-            return;
-        }
-        double seconds = ViewState.estimateVideoSeconds(Player.getMaximumFrameNumber() + 1, Player.getEndTime() - Player.getStartTime());
-        videoLengthLabel.setText("≈ " + TimeUtils.formatDurationSig(Math.round(seconds * 1000)));
-    }
-
     public static TimeSlider getTimeSlider() {
         return timeSlider;
     }
@@ -644,7 +689,6 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
             playButton.setText(Buttons.play);
             playButton.setToolTipText("Play movie");
         }
-        updateVideoLength(); // frame count / span may have changed
     }
 
     @Override
@@ -652,16 +696,14 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         boolean recording = ExportMovie.isRecording();
         if (recordButton.isSelected() != recording)
             recordButton.setSelected(recording);
-        ComponentUtils.setEnabled(modePanel, !recording);
-        ComponentUtils.setEnabled(recordPanel, !recording);
+        ComponentUtils.setEnabled(optionsPanel, !recording); // every control of the pane lives in here
     }
 
     @Override
     public void playbackConfigChanged() {
         ViewState.PlaybackData playbackData = ViewState.playbackData();
 
-        if (advanceModeComboBox.getSelectedItem() != playbackData.advanceMode())
-            advanceModeComboBox.setSelectedItem(playbackData.advanceMode());
+        advanceModeButtons.select(playbackData.advanceMode());
 
         int speed = playbackData.speed();
         // Do not call speedSpinner.getValue() here: JHVSpinner commits editor text on read,
@@ -672,18 +714,13 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
 
         if (speedUnitComboBox.getSelectedItem() != playbackData.speedUnit())
             speedUnitComboBox.setSelectedItem(playbackData.speedUnit());
-
-        updateVideoLength();
     }
 
     @Override
     public void recordingConfigChanged() {
         ViewState.RecordingData recordingData = ViewState.recordingData();
-        switch (recordingData.mode()) {
-            case LOOP -> loopButton.setSelected(true);
-            case SHOT -> shotButton.setSelected(true);
-            case FREE -> freeButton.setSelected(true);
-        }
+        recordModeButtons.select(recordingData.mode());
+        applyRecordingConfig(recordingData);
         syncingRecordSize = true;
         try {
             if (recordAspectComboBox.getSelectedItem() != recordingData.aspect())
@@ -697,7 +734,6 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
             syncingRecordSize = false;
         }
         boolean fixed = recordingData.aspect().isFixed();
-        recordLongSideComboBox.setEnabled(fixed);
         ViewState.Size out = recordingData.size();
         recordDerivedLabel.setText(fixed ? out.width() + " \u00d7 " + out.height() : "follows the window");
         org.helioviewer.jhv.display.DisplayController.display(); // the capture overlay moved
@@ -714,6 +750,81 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
             if (Math.abs(choice - longSide) < Math.abs(best - longSide))
                 best = choice;
         return best;
+    }
+
+    /**
+     * One choice out of a few, drawn as a single segmented control.
+     *
+     * <p>The JToolBar is what draws it that way: FlatToolBarUI gives the buttons inside it the
+     * borderless toolbar treatment and paints one rounded background behind a whole ButtonGroup,
+     * which a plain panel of toggles does not get. JIDE's toggle buttons ignore those FlatLaf
+     * properties, so they are not an option here.
+     *
+     * <p>setSelected fires no ActionEvent, so {@link #select} cannot loop back into the listener
+     * the way a combo box's setSelectedItem would, and needs no syncing guard around it.
+     */
+    private static final class Segmented<E> extends JToolBar {
+
+        private final Map<E, JToggleButton> buttons = new LinkedHashMap<>();
+
+        Segmented(E[] values, E selected, Consumer<E> onSelect) {
+            setFloatable(false);
+            setOpaque(false);
+            setBorder(BorderFactory.createEmptyBorder());
+            ButtonGroup group = new ButtonGroup();
+            for (E value : values) {
+                JToggleButton button = new JToggleButton(value.toString(), value == selected);
+                button.setFont(UIGlobals.uiFontSmall);
+                button.addActionListener(e -> onSelect.accept(value));
+                group.add(button);
+                add(button);
+                buttons.put(value, button);
+            }
+        }
+
+        /**
+         * Show {@code value} as the live segment. A value with no segment of its own leaves the
+         * control alone, which is what the player's SwingDown needs: it is a state the playback
+         * enters by itself, not a fourth choice, and it must not clear the visible one.
+         */
+        void select(E value) {
+            JToggleButton button = buttons.get(value);
+            if (button != null && !button.isSelected())
+                button.setSelected(true);
+        }
+    }
+
+    /**
+     * The nested encoding disclosure, whose header is a live summary of what it hides.
+     *
+     * <p>CollapsiblePane keys its remembered expansion off its title, and this title changes with
+     * the format. Left alone, every format change would write the expansion under a new settings
+     * key and read back the wrong one (or none) at the next launch, so the section would forget
+     * having been opened. The key is pinned to the section instead of to the summary.
+     */
+    private static final class EncodingPane extends CollapsiblePane {
+
+        private static final String KEY = "ui.section.encoding";
+
+        private final JComponent managed;
+
+        EncodingPane(JComponent _managed) {
+            super(encodingSummary(storedFormat(), storedChroma(), storedDepth(), isAllIntra()), _managed, false, true);
+            managed = _managed;
+        }
+
+        @Override
+        public boolean remembered(boolean fallback) {
+            String stored = Settings.getProperty(KEY);
+            return stored == null ? fallback : Boolean.parseBoolean(stored);
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            boolean expanded = !managed.isVisible();
+            setExpanded(expanded);
+            Settings.setProperty(KEY, Boolean.toString(expanded));
+        }
     }
 
 }
