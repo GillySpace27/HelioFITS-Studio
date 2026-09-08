@@ -1,13 +1,21 @@
 package org.helioviewer.jhv.layers;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.annotation.Nullable;
+
+import org.helioviewer.jhv.app.AppInfo;
 import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.astronomy.Sun;
 import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
+import org.helioviewer.jhv.display.MapMode;
 import org.helioviewer.jhv.display.MapScale;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
+import org.helioviewer.jhv.image.fourier.SequenceParams;
 import org.helioviewer.jhv.math.Vec2;
 import org.helioviewer.jhv.opengl.BufVertex;
 import org.helioviewer.jhv.opengl.GL;
@@ -27,6 +35,13 @@ public final class TimestampLayer extends AbstractLayer {
     public static final int MAX_SCALE = 300;
 
     private static final int CLOCK_SEGMENTS = 24;
+    // dial geometry in units of the text size, shared by the placement clamp and the draw so the
+    // two cannot drift apart: the centre sits CLOCK_GAP past the end of the string
+    private static final float CLOCK_GAP = 1;
+    private static final float CLOCK_RADIUS = 0.5f;
+    // same line spacing GLText uses for its float text, so the annotation stack reads like the
+    // other on-canvas text rather than like a second, differently set block
+    private static final float LINE_HEIGHT = 1.1f;
     private static final byte[] clockColor = Colors.LightGray;
     private static final byte[] clockShadowColor = {26, 26, 26, (byte) 191}; // GLText.SHADOW_COLOR in premultiplied bytes
 
@@ -34,19 +49,52 @@ public final class TimestampLayer extends AbstractLayer {
 
     private int scale = 100;
     private boolean extra = false;
-    private boolean top = false;
+    // fractions of the free travel across the viewport, not pixels, so a placement survives a
+    // window resize or a change of recording aspect; 0,0 is the historical bottom-left corner
+    private double offsetX = 0;
+    private double offsetY = 0;
+    private boolean showClock = true;
+    // Render-time annotations, each its own line under the timestamp. They exist to burn into an
+    // exported movie the things a viewer cannot recover from the pixels but the app knows while
+    // the frame is drawn: which build made it, what projection and warp parameters it was drawn
+    // under, what sequence filter the imagery went through, and who was looking. All default off,
+    // so a default install keeps the look it has always had.
+    private boolean showVersion = false;
+    private boolean showProjection = false;
+    private boolean showFilter = false;
+    private boolean showObserver = false;
 
     @Override
     public void serialize(JSONObject jo) {
         jo.put("scale", scale);
         jo.put("extra", extra);
-        jo.put("top", top);
+        jo.put("offsetX", offsetX);
+        jo.put("offsetY", offsetY);
+        jo.put("showClock", showClock);
+        jo.put("showVersion", showVersion);
+        jo.put("showProjection", showProjection);
+        jo.put("showFilter", showFilter);
+        jo.put("showObserver", showObserver);
     }
 
     private void deserialize(JSONObject jo) {
         scale = Math.clamp(jo.optInt("scale", scale), MIN_SCALE, MAX_SCALE);
+        // "extra" is still its own flag rather than being folded into the annotations below: it
+        // appends to the timestamp line instead of adding one, and sessions that had it on must
+        // restore showing exactly what they showed.
         extra = jo.optBoolean("extra", extra);
-        top = jo.optBoolean("top", top);
+        // Sessions saved before free placement carry only the top/bottom flag, so map it onto the
+        // two positions it used to mean rather than dropping the user's choice. An explicit
+        // offsetY still wins, which is what a session written by this version supplies.
+        if (jo.has("top"))
+            offsetY = jo.optBoolean("top") ? 1 : 0;
+        offsetX = Math.clamp(jo.optDouble("offsetX", offsetX), 0, 1);
+        offsetY = Math.clamp(jo.optDouble("offsetY", offsetY), 0, 1);
+        showClock = jo.optBoolean("showClock", showClock);
+        showVersion = jo.optBoolean("showVersion", showVersion);
+        showProjection = jo.optBoolean("showProjection", showProjection);
+        showFilter = jo.optBoolean("showFilter", showFilter);
+        showObserver = jo.optBoolean("showObserver", showObserver);
     }
 
     public TimestampLayer(JSONObject jo) {
@@ -85,23 +133,139 @@ public final class TimestampLayer extends AbstractLayer {
             }
         }
 
-        int size = (int) (vp.height * (scale * 0.01 * 0.024));
+        List<String> notes = annotationLines(mv, viewpoint);
 
-        int deltaX = (int) (vp.height * 0.01);
-        int deltaY = top ? (int) (vp.height - Display.pixelScale[1] * deltaX - size) : deltaX; //!
+        int size = (int) (vp.height * (scale * 0.01 * 0.024));
+        float lineStep = size * LINE_HEIGHT;
 
         SdfTextRenderer renderer = GLText.renderer();
         float textScaleFactor = size / renderer.getFontSize();
+        float textWidth = renderer.measureWidth(text) * textScaleFactor;
+        float contentWidth = textWidth + (showClock ? (CLOCK_GAP + CLOCK_RADIUS) * size : 0);
+        for (String note : notes)
+            contentWidth = Math.max(contentWidth, renderer.measureWidth(note) * textScaleFactor);
+
+        // The offsets run over the free travel rather than over the whole viewport, so the string
+        // and the dial stay inside the margin at either extreme instead of sliding off the far
+        // edge. Zero reproduces the old bottom-left placement, one puts it where "Top" did.
+        // The travel is measured against the whole block, timestamp plus annotations, so the
+        // bottom line stays inside the margin instead of the stack hanging off the lower edge.
+        // With no annotations the block is one line high and the placement is bit-identical.
+        float contentHeight = size + notes.size() * lineStep;
+        int margin = (int) (vp.height * 0.01);
+        int deltaX = margin + (int) (offsetX * Math.max(0, vp.width - 2. * margin - contentWidth));
+        int deltaY = margin + (int) (offsetY * Math.max(0, vp.height - 2. * margin - contentHeight));
+        float textY = deltaY + notes.size() * lineStep; // the timestamp heads the block, notes hang below it
+
+        // Shadows first for the whole block, then the text: setColor flushes, so alternating per
+        // line would cost one draw call per line instead of two for the lot.
         renderer.beginRendering(vp.width, vp.height);
         renderer.setColor(GLText.SHADOW_COLOR);
-        renderer.draw(text, deltaX + GLText.SHADOW_OFFSET_X, deltaY + GLText.SHADOW_OFFSET_Y, 0, textScaleFactor);
+        drawBlock(renderer, text, notes, deltaX + GLText.SHADOW_OFFSET_X, textY + GLText.SHADOW_OFFSET_Y, lineStep, textScaleFactor);
         renderer.setColor(Colors.LightGrayFloat);
-        renderer.draw(text, deltaX, deltaY, 0, textScaleFactor);
+        drawBlock(renderer, text, notes, deltaX, textY, lineStep, textScaleFactor);
         renderer.endRendering();
 
-        float radius = 0.5f * size;
-        float clockX = deltaX + renderer.measureWidth(text) * textScaleFactor + size;
-        drawClock(vp, viewpoint.time.milli, clockX, deltaY + 0.35f * size, radius);
+        if (showClock)
+            drawClock(vp, viewpoint.time.milli, deltaX + textWidth + CLOCK_GAP * size, textY + 0.35f * size, CLOCK_RADIUS * size);
+    }
+
+    private static void drawBlock(SdfTextRenderer renderer, String text, List<String> notes, float x, float y, float lineStep, float textScaleFactor) {
+        renderer.draw(text, x, y, 0, textScaleFactor);
+        for (int i = 0; i < notes.size(); i++)
+            renderer.draw(notes.get(i), x, y - (i + 1) * lineStep, 0, textScaleFactor);
+    }
+
+    /**
+     * The annotation lines under the timestamp: the render-time state a viewer cannot read back
+     * off an exported frame.
+     *
+     * <p>This runs once per viewport per frame, so nothing here walks the layer stack or does
+     * work proportional to it, and the lines that only move when a setting moves are formatted
+     * on the change rather than on the frame (see the caches below). With every box unticked,
+     * which is the default, it allocates nothing at all.
+     */
+    private List<String> annotationLines(MapView mv, Position viewpoint) {
+        if (!(showVersion || showProjection || showFilter || showObserver))
+            return List.of();
+
+        List<String> lines = new ArrayList<>(4);
+        if (showVersion)
+            lines.add(versionLine());
+        if (showProjection)
+            lines.add(projectionLine(mv.mode()));
+        if (showFilter)
+            lines.add(filterLine());
+        if (showObserver) {
+            // Whatever the viewpoint already carries: SPICE's own name for the body the ephemeris
+            // was computed for, or nothing when the position did not come from an ephemeris.
+            String location = viewpoint.getLocation();
+            lines.add(String.format("Observer: %s | %.4fau", location == null ? "unknown" : location,
+                    viewpoint.distance * Sun.MeanEarthDistanceInv));
+        }
+        return lines;
+    }
+
+    @Nullable
+    private String versionCache; // AppInfo's strings are fixed by loadVersion at startup
+
+    private String versionLine() {
+        if (versionCache == null)
+            versionCache = AppInfo.programName + ' ' + AppInfo.version + '.' + AppInfo.revision;
+        return versionCache;
+    }
+
+    // Last projection state formatted, so a held view reformats nothing. Primitive compares only.
+    @Nullable
+    private MapMode projectionMode;
+    private double projectionLambda;
+    private double projectionCrop;
+    private double projectionDisk;
+    @Nullable
+    private String projectionCache;
+
+    private String projectionLine(MapMode mode) {
+        double lambda = Display.getWarpLambda();
+        double crop = Display.getWarpOuterRadius();
+        double disk = Display.getDiskScale();
+        if (projectionCache != null && mode == projectionMode && lambda == projectionLambda && crop == projectionCrop && disk == projectionDisk)
+            return projectionCache;
+
+        // Only the parameters the projection actually consults, on the same predicates the toolbar
+        // uses to enable their sliders: a burned-in exponent that the mode ignores would be a
+        // false provenance record.
+        StringBuilder sb = new StringBuilder(mode.toString());
+        if (mode.usesWarpLambda())
+            sb.append(String.format(" | lambda %.2f", lambda));
+        if (mode.usesWarpCrop())
+            sb.append(crop > 0 ? String.format(" | crop %.1fR☉", crop) : " | crop auto");
+        if (mode.usesWarpLambda())
+            sb.append(String.format(" | disk %.2f", disk));
+
+        projectionMode = mode;
+        projectionLambda = lambda;
+        projectionCrop = crop;
+        projectionDisk = disk;
+        return projectionCache = sb.toString();
+    }
+
+    // The filter's own description, kept until the filter itself is replaced: describe() formats.
+    @Nullable
+    private SequenceParams filterParams;
+    @Nullable
+    private String filterCache;
+
+    private String filterLine() {
+        // Static getter, no walk of the layer stack: the sequence filter that matters is the one
+        // on the master image layer, which is the one the movie clock follows.
+        SequenceParams params = Layers.getActiveImageLayer().getSequence();
+        if (params == null)
+            return "Filter: off"; // stated rather than omitted, so a missing line cannot be read as an unticked box
+        if (params != filterParams) {
+            filterParams = params;
+            filterCache = "Filter: " + params.describe();
+        }
+        return filterCache;
     }
 
     private void drawClock(Viewport vp, long milli, float cx, float cy, float r) {
@@ -231,12 +395,66 @@ public final class TimestampLayer extends AbstractLayer {
         DisplayController.display();
     }
 
-    public boolean isTop() {
-        return top;
+    public double getOffsetX() {
+        return offsetX;
     }
 
-    public void setTop(boolean _top) {
-        top = _top;
+    public void setOffsetX(double _offsetX) {
+        offsetX = Math.clamp(_offsetX, 0, 1);
+        DisplayController.display();
+    }
+
+    public double getOffsetY() {
+        return offsetY;
+    }
+
+    public void setOffsetY(double _offsetY) {
+        offsetY = Math.clamp(_offsetY, 0, 1);
+        DisplayController.display();
+    }
+
+    public boolean isShowClock() {
+        return showClock;
+    }
+
+    public void setShowClock(boolean _showClock) {
+        showClock = _showClock;
+        DisplayController.display();
+    }
+
+    public boolean isShowVersion() {
+        return showVersion;
+    }
+
+    public void setShowVersion(boolean _showVersion) {
+        showVersion = _showVersion;
+        DisplayController.display();
+    }
+
+    public boolean isShowProjection() {
+        return showProjection;
+    }
+
+    public void setShowProjection(boolean _showProjection) {
+        showProjection = _showProjection;
+        DisplayController.display();
+    }
+
+    public boolean isShowFilter() {
+        return showFilter;
+    }
+
+    public void setShowFilter(boolean _showFilter) {
+        showFilter = _showFilter;
+        DisplayController.display();
+    }
+
+    public boolean isShowObserver() {
+        return showObserver;
+    }
+
+    public void setShowObserver(boolean _showObserver) {
+        showObserver = _showObserver;
         DisplayController.display();
     }
 
