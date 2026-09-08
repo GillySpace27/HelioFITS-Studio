@@ -14,10 +14,15 @@ import org.helioviewer.jhv.view.View;
  * <p>A full run is half a minute: it reads every frame, resamples the movie onto a polar cube of
  * some 512 x 256 x 256, transforms every slice, and then back-projects and packs all 245 frames at
  * full size. Nothing about that can be made interactive. What can is the equaliser's trick: the
- * reading and resampling are done once, the polar grid is dropped to a quarter in each direction
- * so the transform is a sixteenth of the work, and a band change is one mask over that cube. The
- * masked cube then already holds every frame; projecting one back at preview size is milliseconds,
- * so the movie can be played through the band rather than looked at one frame at a time.
+ * reading and resampling are done once, and a band change is one mask over that cube rather than
+ * a fresh resample. The masked cube then already holds every frame; projecting one back at preview
+ * size is milliseconds, so the movie can be played through the band rather than looked at one
+ * frame at a time.
+ *
+ * <p>The polar grid is the SAME one the full run builds (params.nR() x params.nPhi()), on request:
+ * the preview answers "what will Apply do with this band", and a coarser grid was a different,
+ * softer question. A band change costs more for it (tens of milliseconds rather than a handful),
+ * which is the one price of the accurate answer.
  *
  * <p>The time grid is NOT coarsened. It is what sets the rate axis: dt fixes the highest
  * resolvable rate and the number of time samples fixes the resolution in rate, so a preview on a
@@ -29,13 +34,9 @@ import org.helioviewer.jhv.view.View;
  */
 public final class FourierPreview {
 
-    // Half the default grid in each direction: a quarter of the transform. Was a quarter each way,
-    // which made a band change a few milliseconds cheaper and the picture too coarse to judge
-    // what Apply would do with it.
-    private static final int NR = 256, NPHI = 128;
-
-    // Preview frames are packed at no more than this on the long side. The polar grid under them is
-    // 256 x 128, so full frame size would spend 67 MB and a tenth of a second per frame on nothing.
+    // Preview frames are packed at no more than this on the long side. Independent of the polar
+    // grid, which now matches the full run's: this bounds the pixel-grid work of one projection,
+    // not the detail the cube itself can resolve.
     private static final int MAX_SIDE = 768;
 
     private final View source;
@@ -55,7 +56,7 @@ public final class FourierPreview {
 
     /** Read the movie once onto the coarse grid. Seconds, and then every band is cheap. */
     public static FourierPreview prepare(View source, FourierParams params, Consumer<String> status) throws Exception {
-        return new FourierPreview(source, FourierJob.build(source, params, NR, NPHI, status, p -> {}, 0));
+        return new FourierPreview(source, FourierJob.build(source, params, params.nR(), params.nPhi(), status, p -> {}, 0));
     }
 
     /** The polar grid this is previewing on, for the readout that has to admit it is coarse. */
