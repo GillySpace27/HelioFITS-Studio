@@ -30,9 +30,11 @@ public final class CameraPaletteContentCheck {
             failures++;
     }
 
+    // By label, not by "the first one found": the options panel below carries its own checkbox
+    // for revolving, and this check is about the master toggle at the top.
     private static JCheckBox findCheckBox(Container c) {
         for (Component child : c.getComponents()) {
-            if (child instanceof JCheckBox box)
+            if (child instanceof JCheckBox box && "Drive the viewpoint".equals(box.getText()))
                 return box;
             if (child instanceof Container inner) {
                 JCheckBox found = findCheckBox(inner);

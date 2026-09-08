@@ -72,7 +72,15 @@ public final class ViewpointLayerOptions implements TimeListener.Range {
 
     private CameraBehaviour behaviour;
     private FreeSource freeSource = FreeSource.OBSERVER_1AU;
-    private boolean layerEnabled;
+
+    // Whether the camera is revolving. Independent of the behaviour above and of whether this
+    // layer is enabled at all, which is the whole point: a behaviour says where the scene is seen
+    // FROM, and a revolution is the camera moving within that. All the turntable does is write
+    // the camera's drag rotation (Turntable.apply), exactly as dragging with the mouse does, and
+    // that works whoever is supplying the viewpoint. Requiring the layer to be on to revolve made
+    // "turn the scene round" also mean "take over the viewpoint", which is a different act with
+    // its own consequences.
+    private boolean revolve;
 
     public ViewpointLayerOptions(JSONObject jo) {
         JSONObject joLocation = null;
@@ -92,7 +100,16 @@ public final class ViewpointLayerOptions implements TimeListener.Range {
         // A legacy Camera layer, if this session has one, is read later: it arrives after this
         // entry and is applied by Layers.restore. See applyStashedLegacyCameraLayer.
         behaviour = behaviourFromJson(jo);
+        // TURNTABLE was a behaviour, so a revolution could only run while this layer drove the
+        // viewpoint. It is a camera motion now (see the revolve field). A state naming it restores
+        // as the viewpoint it always installed anyway, FREE, with the revolution switched on, so
+        // such a session opens looking the same and revolving the same.
+        if (behaviour == CameraBehaviour.TURNTABLE) {
+            behaviour = CameraBehaviour.FREE;
+            revolve = true;
+        }
         if (jo != null) {
+            revolve |= jo.optBoolean("revolve", false);
             try {
                 freeSource = FreeSource.valueOf(jo.optString("freeSource"));
             } catch (RuntimeException ignore) {}
@@ -156,7 +173,14 @@ public final class ViewpointLayerOptions implements TimeListener.Range {
         if (data != null)
             turntable.deserialize(data);
 
+        // A ticked legacy Camera layer means a revolution was running, which is now the revolve
+        // switch rather than a behaviour; behaviourAfterLegacyCameraLayer still answers in the old
+        // vocabulary (CameraBehaviourCheck pins it), so translate here.
         CameraBehaviour migrated = behaviourAfterLegacyCameraLayer(behaviour, entry);
+        if (migrated == CameraBehaviour.TURNTABLE) {
+            setRevolving(true);
+            migrated = CameraBehaviour.FREE;
+        }
         if (migrated != behaviour)
             setBehaviour(migrated, DisplayController.ViewpointApplyMode.KEEP_TRANSFORM);
     }
@@ -178,6 +202,7 @@ public final class ViewpointLayerOptions implements TimeListener.Range {
 
     void serialize(JSONObject jo) {
         jo.put("behaviour", behaviour.name());
+        jo.put("revolve", revolve);
         jo.put("freeSource", freeSource.name());
         jo.put("camera", DisplayController.cameraToJson());
         jo.put("location", locationOptions.toJson());
@@ -198,7 +223,6 @@ public final class ViewpointLayerOptions implements TimeListener.Range {
     public void setBehaviour(CameraBehaviour _behaviour, DisplayController.ViewpointApplyMode mode) {
         behaviour = _behaviour;
         enforceSurfaceExclusivity(behaviour);
-        syncTurntable();
         applyCurrentViewpoint(mode);
     }
 
@@ -214,6 +238,19 @@ public final class ViewpointLayerOptions implements TimeListener.Range {
 
     public Turntable getTurntable() {
         return turntable;
+    }
+
+    public boolean isRevolving() {
+        return revolve;
+    }
+
+    /** Start or stop the revolution. Works whether or not this layer is driving the viewpoint. */
+    public void setRevolving(boolean _revolve) {
+        if (revolve == _revolve)
+            return;
+        revolve = _revolve;
+        syncTurntable();
+        DisplayController.render(1);
     }
 
     public ViewpointLayerOptionsExpert getLocationOptions() {
@@ -306,17 +343,16 @@ public final class ViewpointLayerOptions implements TimeListener.Range {
         DisplayController.render(1);
     }
 
-    // The turntable is armed by the behaviour, not by a tick of its own, and only while the layer
-    // is driving the camera at all. Tracked from activate/deactivate rather than read back off
-    // Layers.getViewpointLayer(), which during a restore still points at the layer being replaced.
+    // The revolution is armed by its own switch and by nothing else, except the one condition it
+    // cannot survive: a flat projection, where a revolving camera cannot be seen.
     //
-    // A flat projection suspends it rather than switching the behaviour: the panel greys the
-    // Turntable radio there, so a revolution left running would have been unstoppable through the
-    // one control that turns it off, and it would have gone on holding the placeholder master
-    // clock. Suspending keeps the user's choice, which a silent fall back to FREE would spend, and
-    // the revolution resumes when a 3D projection returns. See projectionChanged.
+    // That case suspends rather than switches off: the panel greys the control there, so a
+    // revolution left running would have been unstoppable through the one control that stops it,
+    // and it would have gone on holding the placeholder master clock. Suspending keeps the user's
+    // choice, which silently clearing it would spend, and the revolution resumes when a 3D
+    // projection returns. See projectionChanged.
     private void syncTurntable() {
-        turntable.setEnabled(layerEnabled && behaviour == CameraBehaviour.TURNTABLE && Display.mode.rendersIn3D());
+        turntable.setEnabled(revolve && Display.mode.rendersIn3D());
     }
 
     /** The projection has just changed, which is what decides whether a revolution can be seen. */
@@ -327,15 +363,11 @@ public final class ViewpointLayerOptions implements TimeListener.Range {
     }
 
     void activate() {
-        layerEnabled = true;
         Player.addTimeRangeListener(this);
-        syncTurntable();
     }
 
     void deactivate() {
-        layerEnabled = false;
         Player.removeTimeRangeListener(this);
-        syncTurntable();
     }
 
     void dispose() {
