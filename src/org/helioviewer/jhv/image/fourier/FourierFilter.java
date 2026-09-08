@@ -23,7 +23,19 @@ public final class FourierFilter {
     static final double EDGE = 0.10; // relative width of the raised-cosine transition
     static final int SPECTRUM_BINS = 200;
 
-    /** Power in the input as a function of rate, split by sign, on log-spaced bins over the resolvable range. */
+    /**
+     * Power in the input as a function of rate, split by sign, on log-spaced bins over the
+     * resolvable range: the MEAN power per (k, omega) cell among the cells whose rate falls in
+     * the bin, summed over slices; 0 where no cell does.
+     *
+     * <p>Per cell rather than a plain sum, because the cells are a lattice: their rates are
+     * (b / a) times a constant for integer b and a, so the number landing in a log bin rises
+     * with rate up to one inner sample per time sample and falls beyond it, and at high rates
+     * only the few low-wavenumber cells reach a bin at all. A sum draws that lattice: a hump
+     * peaking at the grid's own speed, and a comb of bins with and without a low-k cell. The mean
+     * takes it out. What a temporal line at omega_0 still leaves is honest: power at omega_0 / k
+     * for every k, a series at v, v/2, v/3 ... in the rate, which is what such a line is.
+     */
     public record Spectrum(FourierParams.Kind kind, double[] rate, double[] powerPositive, double[] powerNegative) {}
 
     /** The band weight in [0, 1] for a rate magnitude x. */
@@ -107,6 +119,26 @@ public final class FourierFilter {
         for (int i = 0; i < SPECTRUM_BINS; i++)
             rate[i] = Math.exp(logMin + (logMax - logMin) * (i + .5) / SPECTRUM_BINS);
         double[] powPos = new double[SPECTRUM_BINS], powNeg = new double[SPECTRUM_BINS];
+        // The lattice is the same for every slice, so the cells per bin are counted once.
+        int[] cntPos = new int[SPECTRUM_BINS], cntNeg = new int[SPECTRUM_BINS];
+        for (int b = 0; b < nTp; b++) {
+            double omega = 2 * Math.PI * FFT.signedIndex(b, nTp) / (nTp * dt);
+            for (int a = 1; a < nInnerP; a++) {
+                int sa = FFT.signedIndex(a, nInnerP);
+                if (sa == 0)
+                    continue;
+                double k = p.kind() == FourierParams.Kind.RADIAL ? 2 * Math.PI * sa / (nInnerP * dInner) : sa;
+                double r = -omega / k;
+                double ar = Math.abs(r);
+                if (ar < range[0] || ar > range[1])
+                    continue;
+                int bin = Math.clamp((int) ((Math.log(ar) - logMin) / (logMax - logMin) * SPECTRUM_BINS), 0, SPECTRUM_BINS - 1);
+                if (r > 0)
+                    cntPos[bin]++;
+                else
+                    cntNeg[bin]++;
+            }
+        }
 
         ParallelRange.run(cube.nSlices, (from, to) -> {
             float[] re = new float[nInnerP * nTp], im = new float[nInnerP * nTp];
@@ -162,6 +194,10 @@ public final class FourierFilter {
                 }
             }
         });
+        for (int i = 0; i < SPECTRUM_BINS; i++) {
+            powPos[i] = cntPos[i] > 0 ? powPos[i] / cntPos[i] : 0;
+            powNeg[i] = cntNeg[i] > 0 ? powNeg[i] / cntNeg[i] : 0;
+        }
         return new Spectrum(p.kind(), rate, powPos, powNeg);
     }
 
