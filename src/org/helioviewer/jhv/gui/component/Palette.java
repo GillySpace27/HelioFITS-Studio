@@ -4,10 +4,12 @@ import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Dialog;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.KeyboardFocusManager;
 import java.awt.Point;
+import java.awt.Rectangle;
 import java.awt.Window;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
@@ -26,6 +28,7 @@ import javax.swing.JButton;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JSeparator;
 import javax.swing.JToggleButton;
 
@@ -52,11 +55,21 @@ import org.helioviewer.jhv.gui.UIGlobals;
  *
  * <p>Open palettes stack down the right-hand edge in registration order, so a second one does not
  * land on top of the first.
+ *
+ * <p>Sizing has three rules, in order. A palette the user has dragged keeps that size, remembered
+ * across launches. Otherwise it packs to its content, capped to the render canvas so a wide one
+ * cannot open across the sidebar. Either way the content scrolls rather than being cut off.
  */
 public final class Palette {
 
     private static final List<Palette> palettes = new ArrayList<>();
     private static boolean listenersAdded;
+
+    private static final int DOCK_MARGIN = 12; // gap left between a docked palette and the canvas corner
+    private static final int MIN_WIDTH = 180; // small enough to be useful, large enough to still be grabbable
+    private static final int MIN_HEIGHT = 90;
+    private static final int GRIP = 6; // border pixels that resize instead of doing nothing
+    private static final int SCROLLBAR_WIDTH = 10; // FlatLaf's own ScrollBar.width default, as the sidebar uses
 
     private final String title;
     private final Supplier<Component> contentSupplier;
@@ -68,6 +81,10 @@ public final class Palette {
     @Nullable
     private JToggleButton toggle;
     private boolean pinned = true; // pinned: docks to the corner and follows; unpinned: free-floating
+    @Nullable
+    private Dimension userSize; // a size dragged by hand: theirs to keep, and it outranks packing
+    @Nullable
+    private Dimension autoNatural; // the content size an auto-sized palette was last fitted to
 
     /**
      * @param title           shown in the header and used as the drag handle
@@ -112,6 +129,30 @@ public final class Palette {
 
     private String key() {
         return "ui.palette." + title.replace(' ', '_');
+    }
+
+    private String sizeKey() {
+        return key() + ".size";
+    }
+
+    /** The stored hand-set size, or null for a palette nobody has resized, which keeps packing. */
+    @Nullable
+    private Dimension readUserSize() {
+        String value = Settings.getProperty(sizeKey());
+        if (value == null)
+            return null;
+        try {
+            int cross = value.indexOf('x');
+            return new Dimension(Math.max(MIN_WIDTH, Integer.parseInt(value.substring(0, cross))),
+                    Math.max(MIN_HEIGHT, Integer.parseInt(value.substring(cross + 1))));
+        } catch (RuntimeException ignore) { // an unreadable size just means "pack it"
+            return null;
+        }
+    }
+
+    private void setUserSize(int width, int height) {
+        userSize = new Dimension(width, height);
+        Settings.setProperty(sizeKey(), width + "x" + height); // so the next launch reopens it this big
     }
 
     /** Reopen the palettes that were open when the application last quit. Needs the frame on screen. */
@@ -174,19 +215,11 @@ public final class Palette {
     private void dock() {
         if (!pinned || dialog == null)
             return;
-        int x, y;
-        Window chrome = PresentationMode.chromeWindow();
-        if (chrome != null && chrome.isShowing()) {
-            x = chrome.getX() + chrome.getWidth() - dialog.getWidth() - 12;
-            y = chrome.getY() + 12;
-        } else {
-            Component rc = MainFrame.getRenderComponent();
-            if (rc == null || !rc.isShowing())
-                return;
-            Point loc = rc.getLocationOnScreen();
-            x = loc.x + rc.getWidth() - dialog.getWidth() - 12;
-            y = loc.y + 12;
-        }
+        Rectangle canvas = canvasBounds();
+        if (canvas == null)
+            return;
+        int x = canvas.x + canvas.width - dialog.getWidth() - DOCK_MARGIN;
+        int y = canvas.y + DOCK_MARGIN;
         for (Palette other : palettes) {
             if (other == this)
                 break;
@@ -194,6 +227,77 @@ public final class Palette {
                 y += other.dialog.getHeight() + 8;
         }
         dialog.setLocation(x, y);
+    }
+
+    /**
+     * The rectangle a palette docks against, on screen: the chrome window in presenter view, the
+     * render canvas otherwise. One source of truth, because the size cap has to agree with the
+     * docking or a palette capped to fit still lands somewhere it does not.
+     */
+    @Nullable
+    private static Rectangle canvasBounds() {
+        Window chrome = PresentationMode.chromeWindow();
+        if (chrome != null && chrome.isShowing())
+            return chrome.getBounds();
+        Component rc = MainFrame.getRenderComponent();
+        if (rc == null || !rc.isShowing())
+            return null;
+        Point loc = rc.getLocationOnScreen();
+        return new Rectangle(loc.x, loc.y, rc.getWidth(), rc.getHeight());
+    }
+
+    /**
+     * Trim a packed size to what fits against the render canvas.
+     *
+     * <p>The Camera palette's content is wider than the canvas, so packed and docked to the canvas
+     * corner it reached back across the sidebar and covered it. Capping to the same rectangle
+     * docking measures against, less the margin docking leaves at each end, is what keeps a
+     * palette inside the picture it belongs to. The floor comes first: a canvas narrower than the
+     * minimum would otherwise cap a palette down to nothing.
+     */
+    static Dimension capToCanvas(Dimension natural, @Nullable Rectangle canvas) {
+        if (canvas == null)
+            return natural; // nothing to measure against yet, e.g. before the canvas is on screen
+        return new Dimension(
+                Math.min(natural.width, Math.max(MIN_WIDTH, canvas.width - 2 * DOCK_MARGIN)),
+                Math.min(natural.height, Math.max(MIN_HEIGHT, canvas.height - 2 * DOCK_MARGIN)));
+    }
+
+    /** Which resize a point in the palette asks for, as a Cursor constant. DEFAULT means none. */
+    static int zoneAt(int width, int height, int x, int y) {
+        boolean west = x < GRIP, east = x >= width - GRIP;
+        boolean north = y < GRIP, south = y >= height - GRIP;
+        if (north)
+            return west ? Cursor.NW_RESIZE_CURSOR : east ? Cursor.NE_RESIZE_CURSOR : Cursor.N_RESIZE_CURSOR;
+        if (south)
+            return west ? Cursor.SW_RESIZE_CURSOR : east ? Cursor.SE_RESIZE_CURSOR : Cursor.S_RESIZE_CURSOR;
+        return west ? Cursor.W_RESIZE_CURSOR : east ? Cursor.E_RESIZE_CURSOR : Cursor.DEFAULT_CURSOR;
+    }
+
+    /**
+     * Where a drag of (dx, dy) in the given zone puts the window. Dragging a leading edge moves the
+     * origin as well as the size, and the minimum is enforced by pinning that edge rather than by
+     * letting it walk past the trailing one.
+     */
+    static Rectangle resizeBounds(Rectangle start, int zone, int dx, int dy) {
+        boolean west = zone == Cursor.NW_RESIZE_CURSOR || zone == Cursor.W_RESIZE_CURSOR || zone == Cursor.SW_RESIZE_CURSOR;
+        boolean east = zone == Cursor.NE_RESIZE_CURSOR || zone == Cursor.E_RESIZE_CURSOR || zone == Cursor.SE_RESIZE_CURSOR;
+        boolean north = zone == Cursor.NW_RESIZE_CURSOR || zone == Cursor.N_RESIZE_CURSOR || zone == Cursor.NE_RESIZE_CURSOR;
+        boolean south = zone == Cursor.SW_RESIZE_CURSOR || zone == Cursor.S_RESIZE_CURSOR || zone == Cursor.SE_RESIZE_CURSOR;
+        Rectangle to = new Rectangle(start);
+        if (east)
+            to.width = Math.max(MIN_WIDTH, start.width + dx);
+        if (west) {
+            to.width = Math.max(MIN_WIDTH, start.width - dx);
+            to.x = start.x + start.width - to.width;
+        }
+        if (south)
+            to.height = Math.max(MIN_HEIGHT, start.height + dy);
+        if (north) {
+            to.height = Math.max(MIN_HEIGHT, start.height - dy);
+            to.y = start.y + start.height - to.height;
+        }
+        return to;
     }
 
     /**
@@ -235,16 +339,24 @@ public final class Palette {
      * the readout went from two lines to four, the last line and the button under it were simply
      * outside the window. Nothing in Swing repacks a window on its own, so this is asked for
      * whenever the content is refreshed, and does nothing when the size already fits.
+     *
+     * <p>A palette the user has resized is left alone: packing it would throw that size away, and
+     * it no longer needs the help, because its content scrolls. The others track the shape of
+     * their content, which is what is compared rather than the window size: a palette held back by
+     * the canvas cap never matches its own preferred size, and would repack on every refresh.
      */
     public static void repackAll() {
         for (Palette p : palettes) {
-            if (p.dialog == null || !p.dialog.isVisible())
+            if (p.dialog == null || !p.dialog.isVisible() || p.userSize != null)
                 continue;
-            java.awt.Container content = p.dialog.getContentPane();
-            if (!content.getPreferredSize().equals(content.getSize())) {
-                p.dialog.pack();
-                p.dock();
-            }
+            Dimension natural = p.dialog.getContentPane().getPreferredSize();
+            if (natural.equals(p.autoNatural))
+                continue;
+            p.autoNatural = natural;
+            p.dialog.pack();
+            p.dialog.setSize(capToCanvas(p.dialog.getSize(), canvasBounds()));
+            p.dialog.validate();
+            p.dock();
         }
     }
 
@@ -288,9 +400,11 @@ public final class Palette {
         // events, which is what kept failing. See the activeWindow listener for the scoping.
         palette.setAlwaysOnTop(true);
 
-        JPanel content = new JPanel();
+        // BorderLayout, not the BoxLayout this used to be: the header has to keep its height while
+        // the scroller below it takes up every pixel the user adds or removes. Under a BoxLayout
+        // the two shrink together and the title bar is the first thing to go.
+        JPanel content = new JPanel(new BorderLayout());
         content.setCursor(Cursor.getDefaultCursor()); // always restore a visible arrow
-        content.setLayout(new BoxLayout(content, BoxLayout.PAGE_AXIS));
         UIGlobals.themed(content, c -> c.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(UIGlobals.separator()),
                 BorderFactory.createEmptyBorder(4, 8, 6, 8))));
@@ -341,14 +455,108 @@ public final class Palette {
         headerButtons.add(pin);
         headerButtons.add(close);
         header.add(headerButtons, BorderLayout.LINE_END);
-        content.add(header);
-        content.add(new JSeparator());
-        content.add(contentSupplier.get());
+
+        JPanel top = new JPanel();
+        top.setOpaque(false);
+        top.setLayout(new BoxLayout(top, BoxLayout.PAGE_AXIS));
+        top.add(header);
+        top.add(new JSeparator());
+        content.add(top, BorderLayout.PAGE_START);
+
+        // The palette can be made smaller than its content wants to be, so the content has to be
+        // able to scroll instead of being cut off at the window edge. Same treatment as the
+        // sidebar's scroller: bars only when they are needed, no border of its own over the
+        // palette's line border, and a thin bar when one does appear.
+        JScrollPane scroller = new JScrollPane(contentSupplier.get(),
+                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        scroller.setBorder(null);
+        scroller.setFocusable(false);
+        scroller.setOpaque(false);
+        scroller.getViewport().setOpaque(false);
+        scroller.getVerticalScrollBar().setPreferredSize(new Dimension(SCROLLBAR_WIDTH, 0));
+        scroller.getHorizontalScrollBar().setPreferredSize(new Dimension(0, SCROLLBAR_WIDTH));
+        scroller.getVerticalScrollBar().setUnitIncrement(16);
+        scroller.getHorizontalScrollBar().setUnitIncrement(16);
+        content.add(scroller, BorderLayout.CENTER);
+
+        attachResize(palette, content);
 
         palette.setContentPane(content);
+        palette.setMinimumSize(new Dimension(MIN_WIDTH, MIN_HEIGHT)); // a drag cannot take it to nothing
         palette.pack();
+        if (userSize == null)
+            userSize = readUserSize();
+        autoNatural = content.getPreferredSize();
+        // Packing gives the content's natural size; the cap is what stops a palette wider than the
+        // canvas (Camera) from opening across the sidebar. A hand-set size beats both.
+        palette.setSize(userSize != null ? userSize : capToCanvas(palette.getSize(), canvasBounds()));
+        palette.validate();
         addGlobalListeners();
         return palette;
+    }
+
+    /**
+     * Resize the palette by dragging its edges and corners, as any window resizes.
+     *
+     * <p>setUndecorated is deliberate, so there is no OS grip to inherit and setResizable alone
+     * offers nothing to grab. All eight zones rather than a corner grip only: dragging an edge is
+     * what people already do to windows, and the border insets the palette already draws are wide
+     * enough to catch the press without taking a single click away from the controls inside them.
+     * Nothing here touches pinned, so a docked palette stays docked and simply re-docks at its new
+     * size when the drag ends.
+     */
+    private void attachResize(JDialog palette, JPanel content) {
+        MouseAdapter resizer = new MouseAdapter() {
+            private int zone = Cursor.DEFAULT_CURSOR;
+            @Nullable
+            private Point press;
+            @Nullable
+            private Rectangle start;
+
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                content.setCursor(Cursor.getPredefinedCursor(zoneAt(content.getWidth(), content.getHeight(), e.getX(), e.getY())));
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                if (start == null)
+                    content.setCursor(Cursor.getDefaultCursor());
+            }
+
+            @Override
+            public void mousePressed(MouseEvent e) {
+                zone = zoneAt(content.getWidth(), content.getHeight(), e.getX(), e.getY());
+                if (zone == Cursor.DEFAULT_CURSOR)
+                    return;
+                press = e.getLocationOnScreen();
+                start = palette.getBounds();
+            }
+
+            @Override
+            public void mouseDragged(MouseEvent e) {
+                if (start == null || press == null)
+                    return;
+                Point on = e.getLocationOnScreen();
+                palette.setBounds(resizeBounds(start, zone, on.x - press.x, on.y - press.y));
+                palette.validate();
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                Rectangle from = start;
+                start = null;
+                press = null;
+                // A click on the border is not a resize, and must not freeze a palette that is
+                // still happily sizing itself to its content.
+                if (from == null || (from.width == palette.getWidth() && from.height == palette.getHeight()))
+                    return;
+                setUserSize(palette.getWidth(), palette.getHeight());
+                dock();
+            }
+        };
+        content.addMouseListener(resizer);
+        content.addMouseMotionListener(resizer);
     }
 
     // Registered once for the lifetime of the app, and acting on the live palettes rather than on
