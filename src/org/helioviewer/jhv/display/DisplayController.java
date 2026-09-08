@@ -8,6 +8,7 @@ import org.helioviewer.jhv.astronomy.UpdateViewpoint;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.layers.Layers;
+import org.helioviewer.jhv.layers.ViewpointLayerOptions;
 import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.metadata.MetaData;
 import org.helioviewer.jhv.metadata.Region;
@@ -112,12 +113,17 @@ public final class DisplayController {
     static void resetCameras() {
         resetCamera(Display.getMiniCamera(), miniViewpointState);
         resetCamera(Display.getCamera(), viewpointModel);
+        // The only callers are the projection switches (Display.setMapMode, setHelioradial3D), and
+        // the Turntable behaviour is offered or greyed by projection.
+        ViewpointLayerOptions.refreshPanel();
         render(1);
     }
 
     private static void resetCamera(Camera camera, ViewpointState model) {
         Position viewpoint = model.update(Player.getTime());
         camera.reset(viewpoint);
+        if (camera == Display.getCamera()) // reset() zeroed the drag rotation the turntable writes into
+            ViewpointLayerOptions.cameraDragRotationCleared();
         fitCameraToImageLayers(camera, viewpoint);
     }
 
@@ -136,6 +142,7 @@ public final class DisplayController {
         Position viewpoint = GLRenderer.getDisplayedViewpoint();
         camera.setTranslation(-centerX, -centerY);
         camera.resetDragRotation();
+        ViewpointLayerOptions.cameraDragRotationCleared();
         camera.setFOV(2 * Math.atan2(halfSize, viewpoint.distance), viewpoint);
     }
 

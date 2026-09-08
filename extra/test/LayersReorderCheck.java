@@ -13,9 +13,9 @@ import org.helioviewer.jhv.layers.Layers;
  * <p>Two failures here are silent. A layer whose kind matches no table is simply absent from the
  * sidebar while still being rendered, and a layer in two tables gets two checkboxes for one state.
  * The other is arithmetic: a table row is a position in that table, while the registry interleaves
- * all three kinds, so dropping the first overlay past the last one has to land it after the last
- * overlay and not at the end of the registry, which would jump it over the viewpoint layers and
- * silently change what draws on top of what.
+ * all three kinds, so dropping the first overlay past the last one has to land it immediately after
+ * the last overlay and not simply at the end of the registry, which would jump it over rows of the
+ * other kinds and silently change what draws on top of what.
  *
  * <p>Run: java -cp bin:extra/test-classes:resources org.helioviewer.jhv.layers.selector.LayersReorderCheck
  */
@@ -38,8 +38,10 @@ public final class LayersReorderCheck {
         expect(!all.isEmpty(), "the default layers were never installed, so this check proves nothing");
         expect(images.getRowCount() + overlays.getRowCount() + viewpoint.getRowCount() == all.size(),
                 "the three tables together hold every layer exactly once");
-        expect(overlays.getRowCount() >= 4 && viewpoint.getRowCount() == 2,
-                "expected the default overlays and both viewpoint layers, got "
+        // One camera row, not two: Free, Follow, Turntable and Overview are behaviours of the
+        // single Viewpoint layer, and a second row is what let two of them run at once.
+        expect(overlays.getRowCount() >= 4 && viewpoint.getRowCount() == 1,
+                "expected the default overlays and one camera row, got "
                         + overlays.getRowCount() + " and " + viewpoint.getRowCount());
 
         for (Layer layer : all) {
@@ -64,17 +66,20 @@ public final class LayersReorderCheck {
         expect(new java.util.HashSet<>(after).equals(new java.util.HashSet<>(rowsOf(overlays))) && after.size() == before.size() - otherKindsBefore.size(),
                 "reordering lost or duplicated an overlay");
 
-        // Drop past the last row. It must land after the last overlay, not at the end of the
-        // registry: the viewpoint layers sit at the end of that list and must stay there.
+        // Drop past the last row. It must land immediately after the last overlay in the registry,
+        // which is where the last overlay row is; landing anywhere else means the table row was
+        // used as a registry index.
         Layer first = rowsOf(overlays).getFirst();
         Layer lastOverlay = rowsOf(overlays).getLast();
+        List<Layer> otherKinds = otherThan(Layers.getLayers(), Layer.Kind.OVERLAY);
         overlays.reorder(0, overlays.getRowCount());
         expect(rowsOf(overlays).getLast() == first, first.getName() + " did not land last among the overlays");
         List<Layer> registry = Layers.getLayers();
-        expect(registry.indexOf(first) < registry.indexOf(rowsOf(viewpoint).getLast()),
-                first.getName() + " jumped past the viewpoint layers to the end of the registry");
-        expect(registry.indexOf(lastOverlay) < registry.indexOf(first),
-                "the dropped overlay did not end up after the one that was last");
+        expect(registry.indexOf(first) == registry.indexOf(lastOverlay) + 1,
+                first.getName() + " landed at registry index " + registry.indexOf(first)
+                        + ", not immediately after the last overlay at " + registry.indexOf(lastOverlay));
+        expect(otherKinds.equals(otherThan(registry, Layer.Kind.OVERLAY)),
+                "the drop disturbed the rows of the other kinds");
 
         if (failures != 0)
             throw new AssertionError(failures + " layer-reorder failure(s)");

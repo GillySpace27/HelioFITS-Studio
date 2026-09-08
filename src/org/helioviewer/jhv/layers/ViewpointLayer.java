@@ -296,6 +296,7 @@ public class ViewpointLayer extends AbstractLayer {
     @Override
     public void dispose() {
         clearOrbitWorker();
+        options.dispose(); // the turntable is a Player frame listener and would go on turning the camera
         orbits.dispose();
         planets.dispose();
         spiral.dispose();

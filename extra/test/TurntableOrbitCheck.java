@@ -2,19 +2,19 @@ package org.helioviewer.jhv.layers;
 
 /**
  * The two things the orbit has to get right, carried over from the turntable's own self-check when
- * it moved out of the point-cloud plugin into {@link ObserverLayer}.
+ * it moved out of the point-cloud plugin into {@link Turntable}.
  *
  * <p>A turntable that does not close leaves a seam in a looping movie, which is the whole point of
  * the feature, and it fails silently: the frames all render, they just do not join up. The angle is
  * applied as a per-frame delta, so closure means the deltas over one revolution sum to exactly 360
  * with the wrap from 359 back to 0 counted as a step forward rather than a leap back.
  *
- * <p>Run: java -cp bin:extra/test-classes org.helioviewer.jhv.layers.ObserverOrbitCheck
+ * <p>Run: java -cp bin:extra/test-classes org.helioviewer.jhv.layers.TurntableOrbitCheck
  */
-public final class ObserverOrbitCheck {
+public final class TurntableOrbitCheck {
 
     public static void main(String[] args) {
-        ObserverLayer o = new ObserverLayer(null);
+        Turntable o = new Turntable(null);
 
         // Solar north is lat +90, where longitude is degenerate, so the axis must come out as the
         // scene's north (y) whatever longitude sits beside it.
@@ -49,7 +49,7 @@ public final class ObserverOrbitCheck {
         if (o.getFramesPerRev() != 2)
             throw new AssertionError("framesPerRev floor is " + o.getFramesPerRev() + ", expected 2");
 
-        System.out.println("ObserverOrbitCheck: PASS");
+        System.out.println("TurntableOrbitCheck: PASS");
     }
 
 }

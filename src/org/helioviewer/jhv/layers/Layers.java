@@ -112,6 +112,7 @@ public final class Layers {
         masterTimelineSource = null; // a real image layer takes the clock back
         activeLayer = layer == null ? nullImageLayer : layer;
         Player.setMaster(activeLayer);
+        ViewpointLayerOptions.refreshPanel(); // the turntable's warning depends on whether imagery owns the clock
     }
 
     /**
@@ -189,7 +190,9 @@ public final class Layers {
         // DEFAULT_LAYERS.put(StarLayer.class, () -> new StarLayer(null));
         DEFAULT_LAYERS.put(TimestampLayer.class, () -> new TimestampLayer(null));
         DEFAULT_LAYERS.put(MiniviewLayer.class, () -> new MiniviewLayer(null));
-        DEFAULT_LAYERS.put(ObserverLayer.class, () -> new ObserverLayer(null));
+        // No Camera layer beside the Viewpoint one: revolving the camera is now one of the
+        // Viewpoint layer's four exclusive behaviours rather than a second row that could be
+        // ticked alongside it. See ViewpointLayerOptions.CameraBehaviour.
 
         DEFAULT_LAYERS.values().forEach(supplier -> add(supplier.get()));
     }
@@ -506,6 +509,11 @@ public final class Layers {
             }
             cacheLayer(layer);
         }
+
+        // Only now: the old Camera layer's entry sits after the Viewpoint layer's in the state
+        // file, so it cannot be read while the Viewpoint layer is being built.
+        if (viewpointLayer != null)
+            viewpointLayer.getOptions().applyStashedLegacyCameraLayer();
 
         setActiveImageLayer(null);
         listeners.forEach(Listener::layersCleared);
