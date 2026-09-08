@@ -14,7 +14,6 @@ import java.util.EnumMap;
 
 import javax.swing.AbstractButton;
 import javax.swing.BorderFactory;
-import javax.swing.Box;
 import javax.swing.ButtonGroup;
 import javax.swing.Icon;
 import javax.swing.JComponent;
@@ -49,6 +48,8 @@ import org.helioviewer.jhv.input.InputController;
 import org.helioviewer.jhv.io.samp.SampClient;
 import org.helioviewer.jhv.layers.ImageLayers;
 //import org.helioviewer.jhv.timelines.band.HapiReader;
+
+import com.formdev.flatlaf.FlatClientProperties;
 
 @SuppressWarnings("serial")
 public final class ToolBar extends JToolBar implements ViewState.ModeListener {
@@ -185,7 +186,16 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         annotationItems.clear();
         projectionItems.clear();
         if (Platform.isMacOS()) {
-            add(Box.createHorizontalStrut(90), 0);
+            // The window has full-window content and a transparent title bar, so the traffic
+            // lights sit on top of this bar and something has to hold their width. It used to be
+            // a 90 pixel strut, which is a guess: the real width depends on the buttons' spacing
+            // (this window asks for medium) and it is zero in full screen, where they are gone.
+            // A FlatLaf placeholder panel asks macOS for the actual bounds instead.
+            JPanel placeholder = new JPanel();
+            // "horizontal": reserve the width and no height, as the strut did, so the bar's
+            // preferred height still comes from the buttons on it.
+            placeholder.putClientProperty(FlatClientProperties.FULL_WINDOW_CONTENT_BUTTONS_PLACEHOLDER, "mac horizontal");
+            add(placeholder, 0);
         }
 
         Interaction.Mode interactionMode = InputController.getMode();
@@ -820,6 +830,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         // where the projection reduces to the unwarped view. Resetting to the start-up value
         // would leave the picture visibly warped, which is not what a reset can mean here.
         javax.swing.JButton resetView = new javax.swing.JButton("Reset view");
+        resetView.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_ROUND_RECT);
         resetView.setToolTipText("Return warp, edge and zoom to their defaults");
         resetView.addActionListener(e -> resetProjectionControls());
 
@@ -987,7 +998,10 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         skyAimValue = new JLabel(formatSkyAim(), JLabel.RIGHT);
         skyAimValue.setToolTipText("Where the centre of the picture is pointing, as an offset from the Sun. "
                 + "Drag in the view to look around.");
+        // Round-rect: these two act on the view rather than settling the palette, so they should
+        // not read as the affirmative button of a dialog.
         javax.swing.JButton aimAtSun = new javax.swing.JButton("Aim at Sun");
+        aimAtSun.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_ROUND_RECT);
         aimAtSun.setToolTipText("Put the Sun back at the centre of the picture");
         aimAtSun.addActionListener(e -> {
             Display.resetSkyLook();

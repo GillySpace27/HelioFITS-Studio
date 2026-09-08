@@ -55,6 +55,8 @@ import org.helioviewer.jhv.opengl.angle.AngleRenderer;
 import org.helioviewer.jhv.opengl.angle.MacAngleBridge;
 import org.helioviewer.jhv.thread.Task;
 
+import com.formdev.flatlaf.FlatClientProperties;
+
 public final class MainFrame {
 
     @SuppressWarnings("serial")
@@ -110,6 +112,7 @@ public final class MainFrame {
 
     private static JFrame mainFrame;
     private static JScrollPane leftScrollPane;
+    private static final int SCROLLBAR_WIDTH = 10; // FlatLaf's own ScrollBar.width default
     private static FixedWidthPanel leftPaneHost;
 
     private static JPanel centerPanel;
@@ -187,9 +190,16 @@ public final class MainFrame {
         leftPane.add("Overlays", overlaysPane, true);
         leftPane.add("Camera", cameraPane, true);
 
-        leftScrollPane = new JScrollPane(leftPane, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        // As-needed, not always: a permanent empty scrollbar down the side of the sidebar is the
+        // most dated thing on the window, and the width it used to guard is reserved by the
+        // frozen sidebar width below (stabilizeLeftPaneWidth adds the scrollbar's width whether
+        // or not it is showing), so nothing overlaps when it appears.
+        leftScrollPane = new JScrollPane(leftPane, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         leftScrollPane.setFocusable(false);
         leftScrollPane.setBorder(null);
+        // A thin bar, and a fixed one: this width is what the frozen sidebar width reserves, so
+        // it has to be the same number in both places, which an explicit preferred size gives.
+        leftScrollPane.getVerticalScrollBar().setPreferredSize(new Dimension(SCROLLBAR_WIDTH, 0));
         leftScrollPane.getVerticalScrollBar().setUnitIncrement(layersPanel.getGridRowHeight());
         leftPaneHost = new FixedWidthPanel();
         leftPaneHost.add(buildSessionBar(), BorderLayout.NORTH); // document name + save/load, above Playback and Recording
@@ -448,6 +458,16 @@ public final class MainFrame {
 
         sessionNameField = new JTextField();
         sessionNameField.setHorizontalAlignment(SwingConstants.CENTER);
+        // The field is opened by double-clicking the name, and it opens empty for an untitled
+        // session, where it otherwise says nothing about what it wants.
+        sessionNameField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, "Session name");
+        sessionNameField.putClientProperty(FlatClientProperties.TEXT_FIELD_SHOW_CLEAR_BUTTON, true);
+        // Clearing is the start of typing a new name, not a request to rename the session to
+        // nothing: the focus stays in the field, and the empty name is refused on commit as ever.
+        sessionNameField.putClientProperty(FlatClientProperties.TEXT_FIELD_CLEAR_CALLBACK, (Runnable) () -> {
+            sessionNameField.setText("");
+            sessionNameField.requestFocusInWindow();
+        });
         sessionNameField.addActionListener(e -> commitRenameSession()); // Enter
         sessionNameField.addFocusListener(new java.awt.event.FocusAdapter() {
             @Override

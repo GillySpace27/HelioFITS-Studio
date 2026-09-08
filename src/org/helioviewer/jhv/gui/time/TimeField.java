@@ -19,6 +19,8 @@ import javax.swing.PopupFactory;
 import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.time.TimeUtils;
 
+import com.formdev.flatlaf.FlatClientProperties;
+
 @SuppressWarnings("serial")
 class TimeField extends JTextField {
 
@@ -64,7 +66,13 @@ class TimeField extends JTextField {
                 }
             }
         });
-        putClientProperty("JTextField.trailingComponent", calendarButton); // FlatLaf 2 feature
+        putClientProperty(FlatClientProperties.TEXT_FIELD_TRAILING_COMPONENT, calendarButton);
+        // A date is retyped, never edited a character at a time, so landing in the field should
+        // leave it ready to be replaced rather than with a caret somewhere inside the timestamp.
+        putClientProperty(FlatClientProperties.SELECT_ALL_ON_FOCUS_POLICY, FlatClientProperties.SELECT_ALL_ON_FOCUS_POLICY_ALWAYS);
+        // Emptied, the field says nothing about what it will accept, and it accepts a good deal
+        // (TimeUtils.optParse); this is the form it writes back, so it is the form to show.
+        putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, "YYYY-MM-DDThh:mm:ss");
         setToolTipText(tip);
     }
 
