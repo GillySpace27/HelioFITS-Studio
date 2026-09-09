@@ -119,14 +119,23 @@ public final class Palette {
         palettes.add(this);
     }
 
-    /** Bind to the toolbar toggle that opens it. The toolbar is recreated on display-mode change. */
+    /**
+     * Bind to the toolbar toggle that opens it. The whole bar is rebuilt whenever its display mode
+     * or its contents change, and each rebuild binds again.
+     *
+     * <p>A floating palette is disposed on the way through, because its dialog is owned by a
+     * button that is about to stop existing. It is then put back if it was showing: the rebuild is
+     * a fact about the toolbar, and a palette the user had open and was working against should not
+     * be a casualty of one. This mattered little when the only rebuild was a display-mode change;
+     * it matters now that editing the bar rebuilds it on every drag.
+     */
     public void bind(JToggleButton button) {
         toggle = button;
+        boolean wasFloating = hasWindow();
         dispose();
-        // The toolbar is rebuilt whole (a display-mode change, presentation mode), and the new
-        // button starts unselected. A palette showing in the sidebar is present, so its button
-        // has to say so rather than reading as switched off.
-        button.setSelected(isOpen());
+        // The new button starts unselected. A palette showing in the sidebar is present, so its
+        // button has to say so rather than reading as switched off.
+        button.setSelected(wasFloating || isOpen());
         button.addActionListener(e -> {
             // One meaning in both homes: lit is showing, unlit is not. Docked, that shows or hides
             // the sidebar section rather than a window. It deliberately does NOT undock: where a
@@ -137,6 +146,8 @@ public final class Palette {
             else
                 setOpen(button.isSelected());
         });
+        if (wasFloating)
+            setOpen(true); // rebuilt under the new owner, where the user left it
     }
 
     /**

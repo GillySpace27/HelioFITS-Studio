@@ -39,6 +39,8 @@ enum MaterialDesign {
     MAGNIFY_MINUS("mdi-magnify-minus", '\uf34a'),
     MAGNIFY_PLUS("mdi-magnify-plus", '\uf34b'),
     PAUSE("mdi-pause", '\uf3e4'),
+    PENCIL("mdi-pencil", '\uf3eb'), // verified against the shipped font's cmap, and its outline
+    DRAG_HORIZONTAL("mdi-drag-horizontal", '\uf1dc'), // the grab bars on a draggable row
     PLAY("mdi-play", '\uf40a'),
     PLUS_CIRCLE("mdi-plus-circle", '\uf417'),
     PLUS_ONE("mdi-plus-one", '\uf41b'),
