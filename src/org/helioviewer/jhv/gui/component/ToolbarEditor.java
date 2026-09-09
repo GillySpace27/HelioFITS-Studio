@@ -56,6 +56,9 @@ final class ToolbarEditor {
     private static final String AVAILABLE = "available";
     private static final String ON_BAR = "bar";
 
+    private static final int AVAILABLE_WIDTH = 200;
+    private static final int BAR_WIDTH = 260;
+
     @Nullable
     private static JDialog dialog;
 
@@ -96,8 +99,8 @@ final class ToolbarEditor {
 
         JPanel content = new JPanel(new BorderLayout(10, 8));
         content.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-        content.add(titled("Available", availableList, 200), BorderLayout.LINE_START);
-        content.add(titled("On the toolbar", barList, 260), BorderLayout.CENTER);
+        content.add(titled("Available", availableList, AVAILABLE_WIDTH), BorderLayout.LINE_START);
+        content.add(titled("On the toolbar", barList, BAR_WIDTH), BorderLayout.CENTER);
 
         JButton reset = new JButton("Restore Defaults");
         reset.addActionListener(e -> {
@@ -111,11 +114,17 @@ final class ToolbarEditor {
         buttons.add(reset);
         buttons.add(done);
 
-        JLabel hint = new JLabel("Drag into the middle list to put a tool on the bar, out of it to take one off. "
-                + "Double-click does the same. Whatever is off the bar lives in the Tools menu.");
-        JPanel south = new JPanel(new BorderLayout(10, 0));
+        // Wrapped, and to a width this dialog picked rather than one the sentence picked. A plain
+        // JLabel is one line however long its text is, and in PAGE_END of a BorderLayout that line
+        // becomes the window's preferred width: the hint was stretching the dialog past the edge of
+        // the screen and taking the toolbar list, which is in CENTER, with it.
+        JLabel hint = new JLabel("<html><body style='width:" + (AVAILABLE_WIDTH + BAR_WIDTH) + "px'>"
+                + "Drag into the middle list to put a tool on the bar, out of it to take one off. "
+                + "Double-click does the same. Whatever is off the bar lives in the Tools menu.</body></html>");
+        hint.setBorder(BorderFactory.createEmptyBorder(4, 0, 0, 0));
+        JPanel south = new JPanel(new BorderLayout(10, 6));
         south.add(hint, BorderLayout.CENTER);
-        south.add(buttons, BorderLayout.LINE_END);
+        south.add(buttons, BorderLayout.PAGE_END);
         content.add(south, BorderLayout.PAGE_END);
 
         JDialog d = new JDialog(MainFrame.get(), "Edit Toolbar", false);
