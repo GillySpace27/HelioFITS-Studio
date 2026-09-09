@@ -62,9 +62,16 @@ public final class MenuBar extends JMenuBar {
                 if (settings != null)
                     toolsMenu.add(settings);
                 java.util.List<ToolBar.Tool> hidden = ToolBar.hiddenTools();
-                if (hidden.isEmpty())
-                    return;
                 toolsMenu.addSeparator();
+                if (hidden.isEmpty()) {
+                    // Says why rather than showing nothing. This menu holds what the toolbar does
+                    // not, so on a default bar it is legitimately empty, and an empty menu with no
+                    // explanation reads as a feature that failed rather than one not yet used.
+                    JMenuItem none = new JMenuItem("Every tool is on the toolbar");
+                    none.setEnabled(false);
+                    toolsMenu.add(none);
+                    return;
+                }
                 for (ToolBar.Tool tool : hidden)
                     toolsMenu.add(tool.comp());
             }
