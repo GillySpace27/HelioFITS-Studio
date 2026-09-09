@@ -124,20 +124,18 @@ public final class Palette {
         toggle = button;
         dispose();
         // The toolbar is rebuilt whole (a display-mode change, presentation mode), and the new
-        // button starts unselected. A palette sitting in the sidebar is present, so its button
+        // button starts unselected. A palette showing in the sidebar is present, so its button
         // has to say so rather than reading as switched off.
-        button.setSelected(inSidebar);
+        button.setSelected(isOpen());
         button.addActionListener(e -> {
-            // Docked in the sidebar there is no window to open or close, so the toolbar button
-            // means "show me this" rather than "toggle it": it opens the sidebar if it is folded
-            // away and expands the section. The button stays lit, which is true, since the
-            // palette is present either way.
-            if (inSidebar) {
-                RightSidebar.getInstance().reveal(title);
-                button.setSelected(true);
-                return;
-            }
-            setOpen(button.isSelected());
+            // One meaning in both homes: lit is showing, unlit is not. Docked, that shows or hides
+            // the sidebar section rather than a window. It deliberately does NOT undock: where a
+            // palette lives is the section's pop-out button's question, and answering it here
+            // would make throwing the palette back into a window the only way to put it away.
+            if (inSidebar)
+                setSidebarShown(button.isSelected());
+            else
+                setOpen(button.isSelected());
         });
     }
 
@@ -166,6 +164,16 @@ public final class Palette {
         return key() + ".sidebar";
     }
 
+    /**
+     * Whether the sidebar section is showing. Its own key, and ABSENT MEANS SHOWING: settings
+     * written before the toolbar button could release a docked palette say open=false for every
+     * palette that was docked, so reading the showing state out of that key would have brought
+     * Gilly's docked palettes back hidden, once, with no way to tell that from a real release.
+     */
+    private String shownKey() {
+        return key() + ".shown";
+    }
+
     /** The stored hand-set size, or null for a palette nobody has resized, which keeps packing. */
     @Nullable
     private Dimension readUserSize() {
@@ -188,14 +196,21 @@ public final class Palette {
 
     /** Reopen the palettes that were open when the application last quit. Needs the frame on screen. */
     public static void restoreOpen() {
-        // Sidebar membership first: a palette that belongs there must not be opened as a window on
-        // the way past, which is what the second loop would do with the stored open flag.
-        for (Palette p : palettes)
-            if (p.toggle != null && "true".equals(Settings.getProperty(p.sidebarKey())))
-                p.setInSidebar(true);
-        for (Palette p : palettes)
-            if (p.toggle != null && !p.isOpen() && "true".equals(Settings.getProperty(p.key())))
+        for (Palette p : palettes) {
+            if (p.toggle == null)
+                continue;
+            // Where it lives is asked first and on its own: a palette whose home is the sidebar
+            // must not be opened as a window on the way past, which is what the open flag alone
+            // would do. Released there, it stays released, and its button with it.
+            if ("true".equals(Settings.getProperty(p.sidebarKey()))) {
+                p.inSidebar = true;
+                boolean shown = !"false".equals(Settings.getProperty(p.shownKey())); // see shownKey
+                if (shown)
+                    p.setSidebarShown(true);
+                p.toggle.setSelected(shown);
+            } else if (!p.isOpen() && "true".equals(Settings.getProperty(p.key())))
                 p.toggle();
+        }
     }
 
     /** Toggle exactly as the toolbar button does, so the View menu and the button stay in step. */
@@ -205,8 +220,9 @@ public final class Palette {
     }
 
     /**
-     * Showing somewhere, either as a window or as a section of the sidebar. This is the question
-     * the toolbar and the layer rows are asking.
+     * Showing somewhere, as a window or as a section of the sidebar. This is the question the
+     * toolbar and the layer rows are asking, and living in the sidebar is not enough to answer it
+     * yes: a docked palette whose button has been released is still docked, just not showing.
      *
      * <p>NOT the question anything doing window geometry is asking. A palette in the sidebar has
      * no window at all, so code that stacks or measures windows must use {@link #hasWindow}: this
@@ -215,7 +231,7 @@ public final class Palette {
      * null dialog on the next launch that restored one.
      */
     public boolean isOpen() {
-        return inSidebar || hasWindow();
+        return inSidebar ? RightSidebar.getInstance().hasSection(title) : hasWindow();
     }
 
     /** Has a window of its own, on screen. The precondition for anything positional. */
@@ -230,7 +246,12 @@ public final class Palette {
     /** Open, or if already open bring to the front: what a "settings..." button wants, where a toggle would close it. */
     public void open() {
         if (inSidebar) {
-            RightSidebar.getInstance().reveal(title);
+            if (isOpen())
+                RightSidebar.getInstance().reveal(title);
+            else
+                setSidebarShown(true); // put back whatever the toolbar button was used to release
+            if (toggle != null)
+                toggle.setSelected(true);
             return;
         }
         if (!isOpen())
@@ -254,18 +275,36 @@ public final class Palette {
         if (sidebar) {
             Settings.setProperty(key(), "false"); // not a floating window now, so do not reopen as one
             dispose();
-            RightSidebar.getInstance().addSection(title,
-                    toggle == null ? null : toggle.getIcon(), // the same glyph as its toolbar button
-                    contentSupplier.get(), () -> setInSidebar(false));
-            onShow.run();
-            if (toggle != null)
-                toggle.setSelected(true);
+            setSidebarShown(true);
         } else {
             RightSidebar.getInstance().removeSection(title);
-            if (toggle != null)
-                toggle.setSelected(true);
             setOpen(true);
         }
+        if (toggle != null)
+            toggle.setSelected(true); // it changed address, it did not go away
+    }
+
+    /**
+     * Show or hide the sidebar section, leaving the palette living there either way.
+     *
+     * <p>Where a palette lives and whether it is showing are separate questions, and separating
+     * them is the point. They were one: a docked palette counted as showing by virtue of being
+     * docked, so its toolbar button was permanently lit with nothing to click it for, and the only
+     * way to make it go away was to pop it back out into a window first. The pop-out button on the
+     * section answers the first question; the toolbar button answers this one.
+     */
+    private void setSidebarShown(boolean shown) {
+        Settings.setProperty(shownKey(), Boolean.toString(shown)); // so the next launch shows what was showing
+        RightSidebar bar = RightSidebar.getInstance();
+        if (!shown) {
+            bar.removeSection(title);
+            return;
+        }
+        bar.addSection(title,
+                toggle == null ? null : toggle.getIcon(), // the same glyph as its toolbar button
+                contentSupplier.get(), () -> setInSidebar(false));
+        onShow.run();
+        bar.reveal(title);
     }
 
     private void setOpen(boolean open) {

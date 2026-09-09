@@ -34,6 +34,7 @@ enum MaterialDesign {
     INFORMATION_VARIANT("mdi-information-variant", '\uf64e'),
     INVERT_COLORS("mdi-invert-colors", '\uf301'),
     LOCK("mdi-lock", '\uf33e'),
+    OPEN_IN_NEW("mdi-open-in-new", '\uf3cc'), // a box with an arrow leaving it; verified against the shipped font's cmap
     LOCK_OPEN("mdi-lock-open", '\uf33f'),
     MAGNIFY_MINUS("mdi-magnify-minus", '\uf34a'),
     MAGNIFY_PLUS("mdi-magnify-plus", '\uf34b'),
