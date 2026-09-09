@@ -203,6 +203,44 @@ class CellRenderer {
 
     }
 
+    /**
+     * A funnel on any layer a whole-movie filter is computing through.
+     *
+     * <p>Beside the check that means "on disk here" and the cross that removes the row, in the
+     * same glyph font at the same size, because it answers a question of the same kind: what is
+     * true of this layer that is not visible in its name. A Fourier pass, a notch or a noise gate
+     * replaces what every frame of the movie shows, and nothing else in the row said so.
+     *
+     * <p>The test is the view, not the settings: a filter that has been configured but not applied
+     * changes nothing on screen, and a row that claimed otherwise would be worse than a blank one.
+     */
+    static final class Filtered extends DefaultTableCellRenderer {
+
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+            Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            c.setBackground(background(table, value, isSelected));
+            return c;
+        }
+
+        private final Font font = Buttons.getMaterialFont(getFont().getSize2D());
+
+        @Override
+        public void setValue(Object value) {
+            setBorder(null); //!
+            setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
+            if (value instanceof org.helioviewer.jhv.layers.ImageLayer layer && layer.getComputedView() != null) {
+                setFont(font);
+                setText(Buttons.filtered);
+                setToolTipText("A whole-movie filter is computing this layer's frames");
+            } else {
+                setText(null);
+                setToolTipText(null);
+            }
+        }
+
+    }
+
     static final class Remove extends DefaultTableCellRenderer {
 
         @Override
