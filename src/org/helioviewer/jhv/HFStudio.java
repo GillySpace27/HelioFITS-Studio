@@ -123,6 +123,10 @@ public class HFStudio {
             frame.setVisible(true);
             MainFrame.restoreChrome();
             UITimer.start();
+            // Starts the desktop watch when the mode is Follow system. The theme itself is already
+            // right: Theme.current() resolves through the mode, so setLaf() above put on whichever
+            // half of the pair applies.
+            org.helioviewer.jhv.gui.UIGlobals.applyThemeMode();
             org.helioviewer.jhv.app.Session.init(); // session dirty-tracking + autosave timer
 
             Task.submit("init", new Init(true), HFStudio::onSuccessInit, HFStudio::onFailureInit);

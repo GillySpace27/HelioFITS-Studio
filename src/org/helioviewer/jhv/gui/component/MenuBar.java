@@ -335,6 +335,22 @@ public final class MenuBar extends JMenuBar {
                     menu.add(item);
                 }
                 menu.addSeparator();
+                // The same setting the Settings dialog offers. Here because this menu is where a
+                // theme is picked, and a pick leaves Follow system: without a way back, following
+                // the desktop would be a one-way door for anyone who never opens Settings.
+                javax.swing.JCheckBoxMenuItem follow =
+                        new javax.swing.JCheckBoxMenuItem("Follow System Appearance", Theme.mode() == Theme.Mode.System);
+                follow.setEnabled(org.helioviewer.jhv.app.SystemAppearance.available());
+                follow.setToolTipText(follow.isEnabled()
+                        ? "Use the dark theme while the desktop is dark and the light one while it is light. Set the pair in Settings."
+                        : "This desktop does not report whether it is set to dark or light.");
+                follow.addActionListener(a -> {
+                    Theme.setMode(follow.isSelected() ? Theme.Mode.System
+                            : Theme.current().dark() ? Theme.Mode.Dark : Theme.Mode.Light);
+                    UIGlobals.applyThemeMode();
+                });
+                menu.add(follow);
+                menu.addSeparator();
                 javax.swing.JMenuItem customize = new javax.swing.JMenuItem("Customize Themes...");
                 customize.addActionListener(a -> new ThemeDialog().showDialog());
                 menu.add(customize);

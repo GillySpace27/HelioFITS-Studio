@@ -22,6 +22,8 @@ import javax.swing.ToolTipManager;
 import javax.swing.UIManager;
 //import javax.swing.plaf.FontUIResource;
 
+import javax.annotation.Nullable;
+
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.Platform;
 import org.helioviewer.jhv.app.Theme;
@@ -148,6 +150,46 @@ public final class UIGlobals {
      * {@link #themed}. The section headers need nothing: they read the theme while painting.
      */
     public static void switchTheme(Theme theme) {
+        Theme.choose(theme); // an explicit pick is also a statement of which kind is wanted
+        installTheme(theme);
+        syncSystemWatch();
+    }
+
+    /** Milliseconds between asks of the desktop while the mode is Follow system. */
+    private static final int SYSTEM_POLL_MS = 4000;
+
+    @Nullable
+    private static javax.swing.Timer systemWatch;
+
+    /**
+     * Put on whatever the theme mode now asks for, and keep watching the desktop while it is
+     * Follow system.
+     *
+     * <p>Polled rather than notified: catching the appearance change as it happens needs a
+     * distributed notification and therefore native code, where asking costs about thirty
+     * milliseconds every few seconds. Idempotent, so this is both how the watch starts and what it
+     * does on each tick.
+     */
+    public static void applyThemeMode() {
+        Theme want = Theme.effective();
+        if (!want.id().equals(Theme.current().id()))
+            installTheme(want);
+        syncSystemWatch();
+    }
+
+    private static void syncSystemWatch() {
+        boolean follow = Theme.mode() == Theme.Mode.System;
+        if (follow && systemWatch == null) {
+            systemWatch = new javax.swing.Timer(SYSTEM_POLL_MS, e -> applyThemeMode());
+            systemWatch.start();
+        } else if (!follow && systemWatch != null) {
+            systemWatch.stop();
+            systemWatch = null;
+        }
+    }
+
+    /** Install a theme without deciding anything: what the mode asks for, and what a pick installs. */
+    private static void installTheme(Theme theme) {
         Theme.setCurrent(theme);
         applyTheme();
         TimeSlider.refreshColors();

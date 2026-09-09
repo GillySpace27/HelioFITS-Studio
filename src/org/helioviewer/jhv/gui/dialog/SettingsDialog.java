@@ -17,6 +17,7 @@ import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
 import javax.swing.DefaultCellEditor;
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
@@ -37,10 +38,13 @@ import javax.swing.table.TableModel;
 import org.helioviewer.jhv.app.DisplaySettings;
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.Settings;
+import org.helioviewer.jhv.app.SystemAppearance;
+import org.helioviewer.jhv.app.Theme;
 import org.helioviewer.jhv.display.ProjectionTransition;
 import org.helioviewer.jhv.display.SurfaceTransition;
 import org.helioviewer.jhv.gui.Interfaces;
 import org.helioviewer.jhv.gui.MainFrame;
+import org.helioviewer.jhv.gui.UIGlobals;
 import org.helioviewer.jhv.io.DataSources;
 import org.helioviewer.jhv.movie.ExportFormat;
 import org.helioviewer.jhv.plugins.Plugin;
@@ -149,9 +153,13 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         sampHub.addActionListener(e -> Settings.setProperty("startup.sampHub", Boolean.toString(sampHub.isSelected())));
         settings.add(sampHub, c);
 
-        // The Dark/Light radios that used to sit here are gone. The theme list is now longer than
-        // two, is user-extensible, and switches live: it lives in View > Theme, and having a second
-        // control here that could disagree with it is worse than having one place to look.
+        c.gridx = 0;
+        c.gridy = 3;
+        settings.add(new JLabel("Appearance:", JLabel.RIGHT), c);
+
+        c.gridx = 1;
+        c.gridy = 3;
+        settings.add(appearancePanel(), c);
 
         c.gridx = 0;
         c.gridy = 4;
@@ -362,6 +370,93 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
             }
         }
 
+    }
+
+
+    /**
+     * Dark, light, or follow the desktop, with a theme kept for each.
+     *
+     * <p>Two themes rather than one plus a switch: following the desktop is only worth having if
+     * both of the things it switches between are yours. The combos list only the themes of their
+     * own kind, so neither can be set to something that would make the mode a lie.
+     *
+     * <p>Choosing a theme in View &gt; Theme writes the same two settings and leaves Follow system,
+     * which is why that menu and this panel cannot disagree: an explicit pick IS a mode.
+     */
+    private static JPanel appearancePanel() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setOpaque(false);
+        GridBagConstraints c = new GridBagConstraints();
+        c.anchor = GridBagConstraints.LINE_START;
+        c.insets = new java.awt.Insets(0, 0, 2, 6);
+
+        JComboBox<Theme> darkCombo = themeCombo(true);
+        JComboBox<Theme> lightCombo = themeCombo(false);
+
+        JPanel modes = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
+        modes.setOpaque(false);
+        ButtonGroup group = new ButtonGroup();
+        Theme.Mode currentMode = Theme.mode();
+        for (Theme.Mode mode : Theme.Mode.values()) {
+            JRadioButton radio = new JRadioButton(mode.toString(), mode == currentMode);
+            if (mode == Theme.Mode.System && !SystemAppearance.available()) {
+                radio.setEnabled(false);
+                radio.setToolTipText("This desktop does not report whether it is set to dark or light.");
+            } else
+                radio.setToolTipText(mode == Theme.Mode.System
+                        ? "Use the dark theme below while the desktop is dark, and the light one while it is light."
+                        : "Always use the " + mode.toString().toLowerCase() + " theme below.");
+            radio.addActionListener(e -> {
+                Theme.setMode(mode);
+                UIGlobals.applyThemeMode();
+            });
+            group.add(radio);
+            modes.add(radio);
+        }
+
+        c.gridx = 0;
+        c.gridy = 0;
+        c.gridwidth = 2;
+        panel.add(modes, c);
+
+        c.gridwidth = 1;
+        c.gridx = 0;
+        c.gridy = 1;
+        panel.add(new JLabel("Dark theme:", JLabel.RIGHT), c);
+        c.gridx = 1;
+        panel.add(darkCombo, c);
+
+        c.gridx = 0;
+        c.gridy = 2;
+        panel.add(new JLabel("Light theme:", JLabel.RIGHT), c);
+        c.gridx = 1;
+        panel.add(lightCombo, c);
+        return panel;
+    }
+
+    /** The themes of one kind, selecting the one currently chosen for it. */
+    private static JComboBox<Theme> themeCombo(boolean dark) {
+        JComboBox<Theme> combo = new JComboBox<>();
+        for (Theme theme : Theme.all())
+            if (theme.dark() == dark)
+                combo.addItem(theme);
+        combo.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public java.awt.Component getListCellRendererComponent(javax.swing.JList<?> list, Object value, int index, boolean selected, boolean focused) {
+                super.getListCellRendererComponent(list, value, index, selected, focused);
+                if (value instanceof Theme theme)
+                    setText(theme.name());
+                return this;
+            }
+        });
+        combo.setSelectedItem(dark ? Theme.darkChoice() : Theme.lightChoice());
+        combo.addActionListener(e -> {
+            if (combo.getSelectedItem() instanceof Theme theme) {
+                Theme.setChoice(theme);
+                UIGlobals.applyThemeMode(); // no-op unless this is the half in effect
+            }
+        });
+        return combo;
     }
 
 }
