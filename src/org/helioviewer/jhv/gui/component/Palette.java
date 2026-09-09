@@ -204,8 +204,23 @@ public final class Palette {
             toggle.doClick();
     }
 
+    /**
+     * Showing somewhere, either as a window or as a section of the sidebar. This is the question
+     * the toolbar and the layer rows are asking.
+     *
+     * <p>NOT the question anything doing window geometry is asking. A palette in the sidebar has
+     * no window at all, so code that stacks or measures windows must use {@link #hasWindow}: this
+     * method started answering "yes" for a windowless palette when docking arrived, and the
+     * stacking loop in dock(), which had always been entitled to assume otherwise, dereferenced a
+     * null dialog on the next launch that restored one.
+     */
     public boolean isOpen() {
-        return inSidebar || (dialog != null && dialog.isVisible());
+        return inSidebar || hasWindow();
+    }
+
+    /** Has a window of its own, on screen. The precondition for anything positional. */
+    boolean hasWindow() {
+        return dialog != null && dialog.isVisible();
     }
 
     public boolean isInSidebar() {
@@ -296,7 +311,7 @@ public final class Palette {
         for (Palette other : palettes) {
             if (other == this)
                 break;
-            if (other.pinned && other.isOpen())
+            if (other.pinned && other.hasWindow())
                 y += other.dialog.getHeight() + 8;
         }
         dialog.setLocation(x, y);
@@ -435,7 +450,7 @@ public final class Palette {
 
     private static void dockOpen() {
         for (Palette p : palettes)
-            if (p.dialog != null && p.isOpen()) // a sidebar palette has no window to place
+            if (p.hasWindow()) // a sidebar palette has no window to place
                 p.dock();
     }
 
