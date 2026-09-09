@@ -35,11 +35,11 @@ public final class PaletteWindowlessCheck {
         expect("a palette that was never opened is not showing", !palette.isOpen());
         expect("and has no window", !palette.hasWindow());
 
-        palette.setInSidebar(true);
+        palette.setHome(RightSidebar.getInstance());
         expect("docked into the sidebar it counts as showing", palette.isOpen());
         expect("but it still has NO window, which is what dock() must test",
                 !palette.hasWindow());
-        expect("and it knows where it lives", palette.isInSidebar());
+        expect("and it knows where it lives", palette.isDocked());
 
         // Deliberately not floated back out here: that builds a real JDialog, which needs a
         // display and would leave the AWT thread holding the JVM open after main returns. The

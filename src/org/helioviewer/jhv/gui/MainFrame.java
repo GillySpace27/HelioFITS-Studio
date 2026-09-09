@@ -207,10 +207,14 @@ public final class MainFrame {
         // A glyph per section, from the toolbar's own set so the two chromes name a thing the same
         // way. Buttons.colourSettings is the icon font's picture glyph, which is what an image
         // layer is; the set has nothing that means a stack of layers.
-        leftPane.add("Playback and Recording", moviePanel.getPlaybackOptions(), true, Buttons.play);
-        leftPane.add("Image Layers", imageLayersPane, true, Buttons.colourSettings);
-        leftPane.add("Overlays", overlaysPane, true, Buttons.annotate);
-        leftPane.add("Camera", cameraPane, true, Buttons.camera);
+        // Registered rather than added: each gets a palette, so it carries the same pop-out its
+        // right-sidebar counterparts have and can be moved to the other bar or floated free. The
+        // palette also remembers where the user left it, which is why one may not appear here at
+        // all on a later launch.
+        org.helioviewer.jhv.gui.component.LeftSidebar.register("Playback and Recording", Buttons.play, moviePanel.getPlaybackOptions());
+        org.helioviewer.jhv.gui.component.LeftSidebar.register("Image Layers", Buttons.colourSettings, imageLayersPane);
+        org.helioviewer.jhv.gui.component.LeftSidebar.register("Overlays", Buttons.annotate, overlaysPane);
+        org.helioviewer.jhv.gui.component.LeftSidebar.register("Camera", Buttons.camera, cameraPane);
 
         // As-needed, not always: a permanent empty scrollbar down the side of the sidebar is the
         // most dated thing on the window, and the width it used to guard is reserved by the

@@ -39,7 +39,7 @@ public final class PaletteReleaseCheck {
         JToggleButton button = new JToggleButton();
         palette.bind(button);
 
-        palette.setInSidebar(true);
+        palette.setHome(RightSidebar.getInstance());
         expect("docked, it is showing", palette.isOpen());
         expect("its toolbar button says so", button.isSelected());
         expect("exactly one section, not two", sections(title) == 1);
@@ -48,7 +48,7 @@ public final class PaletteReleaseCheck {
         expect("released, it is not showing", !palette.isOpen());
         expect("the button came up with it", !button.isSelected());
         expect("and the section is gone from the sidebar", sections(title) == 0);
-        expect("but it still lives in the sidebar, not in a window", palette.isInSidebar());
+        expect("but it still lives in the sidebar, not in a window", palette.isDocked());
         expect("and it grew no window on the way", !palette.hasWindow());
 
         button.doClick(); // and back

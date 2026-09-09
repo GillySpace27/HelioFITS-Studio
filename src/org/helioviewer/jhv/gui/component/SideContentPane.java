@@ -1,5 +1,6 @@
 package org.helioviewer.jhv.gui.component;
 
+import java.awt.Component;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.util.HashMap;
@@ -35,6 +36,18 @@ public final class SideContentPane extends JComponent {
 
     /** @param prefKey what to remember expansion under, where the title is not unique in the window */
     public void add(String title, JComponent managed, boolean startExpanded, @Nullable Icon sectionIcon, @Nullable String prefKey) {
+        add(title, managed, startExpanded, sectionIcon, prefKey, -1);
+    }
+
+    /**
+     * @param index where to put it among the sections already here, or -1 for the end.
+     *
+     * <p>Sections are laid out in the order they were added (the constraints set no gridy), so an
+     * index is simply a child index and putting one back where it came from is an insert rather
+     * than a rebuild. That matters because this pane is shared: the plugins add their own sections
+     * to it, and a palette popping back in must not disturb them or be moved below them.
+     */
+    public void add(String title, JComponent managed, boolean startExpanded, @Nullable Icon sectionIcon, @Nullable String prefKey, int index) {
         remove(dummy);
 
         CollapsiblePane newPane = new CollapsiblePane(title, managed, startExpanded, false, sectionIcon, prefKey);
@@ -47,10 +60,25 @@ public final class SideContentPane extends JComponent {
         c.gridwidth = 1;
         c.anchor = GridBagConstraints.PAGE_START;
         c.fill = GridBagConstraints.HORIZONTAL;
-        add(newPane, c);
+        if (index < 0 || index > getComponentCount())
+            add(newPane, c);
+        else
+            add(newPane, c, index);
 
         c.weighty = 1;
         add(dummy, c);
+    }
+
+    /** Where a section currently sits, or -1 if it is not here. The number to hand back to add(). */
+    public int indexOf(JComponent managed) {
+        CollapsiblePane pane = map.get(managed);
+        if (pane == null)
+            return -1;
+        Component[] children = getComponents();
+        for (int i = 0; i < children.length; i++)
+            if (children[i] == pane)
+                return i;
+        return -1;
     }
 
     /** Expand or collapse one section, addressed by the component that was added. */
