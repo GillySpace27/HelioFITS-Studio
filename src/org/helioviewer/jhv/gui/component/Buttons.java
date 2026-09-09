@@ -96,6 +96,7 @@ public class Buttons {
     public static final GlyphIcon newSession = icon(MaterialDesign.PLUS, INLINE);
     public static final GlyphIcon revert = icon(MaterialDesign.BACKUP_RESTORE, INLINE);
     public static final GlyphIcon saveAs = icon(MaterialDesign.CONTENT_SAVE_ALL, INLINE);
+    public static final GlyphIcon popOut = icon(MaterialDesign.OPEN_IN_NEW, INLINE);
     public static final GlyphIcon collapseAll = icon(MaterialDesign.CHEVRON_UP, INLINE);
     public static final GlyphIcon expandAll = icon(MaterialDesign.CHEVRON_DOWN, INLINE);
     public static final GlyphIcon download = icon(MaterialDesign.DOWNLOAD, INLINE);

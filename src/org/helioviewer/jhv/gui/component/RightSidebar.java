@@ -164,7 +164,12 @@ public final class RightSidebar {
     }
 
     /**
-     * The controls that ride above a section's own content: float it out, and move it up or down.
+     * The controls that ride above a section's own content: pop it back out into a floating
+     * palette, and move it up or down.
+     *
+     * <p>The pop-out comes first and carries its own glyph rather than a third chevron. Popping out
+     * is the one thing a palette in here can do that nothing else offers, and three unlabelled
+     * chevrons in a row read as one control with a direction rather than as three controls.
      *
      * <p>Above the content rather than in the section header, because a trailing button inside a
      * CollapsiblePane's header would sit outside the toggle button that paints the header's
@@ -189,21 +194,26 @@ public final class RightSidebar {
         JButton down = Buttons.flat(Buttons.expandAll);
         down.setToolTipText("Move " + title + " down");
         down.addActionListener(e -> move(title, 1));
-        JButton floatOut = Buttons.flat(Buttons.collapseLeft);
-        floatOut.setToolTipText("Float " + title + " free of the sidebar");
+        JButton floatOut = Buttons.flat(Buttons.popOut);
+        floatOut.setToolTipText("Pop " + title + " back out into a floating palette");
         floatOut.addActionListener(e -> onFloat.run());
 
+        bar.add(floatOut);
         bar.add(up);
         bar.add(down);
-        bar.add(floatOut);
         holder.add(bar, BorderLayout.PAGE_START);
         holder.add(content, BorderLayout.CENTER);
         return new Section(title, icon, content, onFloat, holder);
     }
 
     public void removeSection(String title) {
-        if (sections.remove(title) == null)
+        Section section = sections.remove(title);
+        if (section == null)
             return;
+        // Out of the pane here, because rebuild() below only knows about what is still in the map.
+        // Without this the section's header stayed behind after a pop-out, with its content stolen
+        // by the new window, and docking the same palette again added a second header beside it.
+        pane.remove(section.holder());
         rebuild();
     }
 
