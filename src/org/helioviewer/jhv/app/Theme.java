@@ -98,10 +98,36 @@ public final class Theme {
             Token.Separator, Token.HeaderFill, Token.HeaderText, Token.ChildHeaderFill);
 
     private static final String FILE_NAME = "themes.json";
-    private static final String SETTING = "display.theme";
+    private static final String SETTING = "display.theme"; // the theme in effect, whichever chose it
+    private static final String MODE_SETTING = "display.themeMode";
+    private static final String DARK_SETTING = "display.theme.dark";
+    private static final String LIGHT_SETTING = "display.theme.light";
 
     /** Chosen when nothing is stored. Gilly's call: the purple one, not the grey one. */
     public static final String DEFAULT_ID = "sunset-dark";
+    public static final String DEFAULT_LIGHT_ID = "sunset-light";
+
+    /**
+     * Which of the two chosen themes is in effect.
+     *
+     * <p>Dark and Light are a theme each, kept separately, so following the desktop is a real
+     * choice of two rather than a switch between one theme and whatever the other built-in
+     * happens to be. System asks the desktop and picks between them.
+     */
+    public enum Mode {
+        Dark("Dark"), Light("Light"), System("Follow system");
+
+        private final String label;
+
+        Mode(String _label) {
+            label = _label;
+        }
+
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
 
     private final String id;
     private final String name;
@@ -521,7 +547,7 @@ public final class Theme {
 
     public static Theme current() {
         if (current == null)
-            current = byIdOrDefault(migrateId(Settings.getProperty(SETTING)));
+            current = effective(); // whichever of the pair the mode asks for, on the first read
         return current;
     }
 
@@ -535,13 +561,100 @@ public final class Theme {
      * unreadable or absent file means the default theme, which is what the app would use anyway.
      */
     public static boolean startupIsDark() {
-        return byIdOrDefault(migrateId(Settings.peekProperty(SETTING))).dark();
+        boolean storedDark = byIdOrDefault(migrateId(Settings.peekProperty(SETTING))).dark();
+        Mode mode = parseMode(Settings.peekProperty(MODE_SETTING), storedDark);
+        // Dark and Light say it outright. System has to ask the desktop, here rather than later,
+        // because the window frame is fixed when NSApp starts and cannot be changed afterwards.
+        return mode == Mode.System ? SystemAppearance.isDark(storedDark) : mode == Mode.Dark;
     }
 
     /** Records the choice. Installing it is {@code UIGlobals.switchTheme}, which calls this. */
     public static void setCurrent(Theme theme) {
         current = theme;
         Settings.setProperty(SETTING, theme.id);
+    }
+
+    public static Mode mode() {
+        return parseMode(Settings.getProperty(MODE_SETTING), byIdOrDefault(migrateId(Settings.getProperty(SETTING))).dark());
+    }
+
+    /**
+     * The mode a settings file states, or the one its single stored theme implies.
+     *
+     * <p>An install from before this control has no mode recorded, only the one theme it was set
+     * to, and that theme is the whole of what the user asked for: a dark install stays dark rather
+     * than being handed the desktop's preference on upgrade. Pure, for ThemeModeCheck.
+     */
+    static Mode parseMode(@Nullable String stored, boolean storedThemeIsDark) {
+        if (stored != null)
+            for (Mode m : Mode.values())
+                if (m.name().equalsIgnoreCase(stored.trim()))
+                    return m;
+        return storedThemeIsDark ? Mode.Dark : Mode.Light;
+    }
+
+    public static void setMode(Mode mode) {
+        Settings.setProperty(MODE_SETTING, mode.name());
+    }
+
+    /** The theme to use when the interface is dark. */
+    public static Theme darkChoice() {
+        return choice(DARK_SETTING, DEFAULT_ID, true);
+    }
+
+    /** The theme to use when the interface is light. */
+    public static Theme lightChoice() {
+        return choice(LIGHT_SETTING, DEFAULT_LIGHT_ID, false);
+    }
+
+    /**
+     * One half of the pair, falling back twice.
+     *
+     * <p>An unset key falls back to the theme this install was already using, when that one is of
+     * the right kind, so splitting the setting in two changes nothing for someone who had picked a
+     * theme before it existed. Only then does it fall back to the built-in. A stored id of the
+     * WRONG kind (a light theme recorded as the dark choice, from a hand-edited file) is refused
+     * rather than honoured, because a Dark that is light is not a state any control here can undo.
+     */
+    private static Theme choice(String key, String fallbackId, boolean wantDark) {
+        String id = Settings.getProperty(key);
+        Theme stated = id == null ? null : byId(id);
+        if (stated != null && stated.dark() == wantDark)
+            return stated;
+        if (stated == null) {
+            Theme inUse = byIdOrDefault(migrateId(Settings.getProperty(SETTING)));
+            if (inUse.dark() == wantDark)
+                return inUse;
+        }
+        Theme fallback = byId(fallbackId);
+        return fallback == null ? BUILT_IN.getFirst() : fallback;
+    }
+
+    /** Remember a theme as the choice for its own kind, without saying which kind is in effect. */
+    public static void setChoice(Theme theme) {
+        Settings.setProperty(theme.dark() ? DARK_SETTING : LIGHT_SETTING, theme.id);
+    }
+
+    /**
+     * An explicit pick, from the Theme menu or the customizer: it is both the choice for its kind
+     * and a statement that that kind is what the user wants now, so it leaves System. Otherwise
+     * picking a light theme under a dark desktop would appear to do nothing, or would undo itself
+     * on the next poll.
+     */
+    public static void choose(Theme theme) {
+        setChoice(theme);
+        setMode(theme.dark() ? Mode.Dark : Mode.Light);
+    }
+
+    /** The theme the mode implies right now. */
+    public static Theme effective() {
+        return switch (mode()) {
+            case Dark -> darkChoice();
+            case Light -> lightChoice();
+            case System -> SystemAppearance.isDark(
+                    byIdOrDefault(migrateId(Settings.getProperty(SETTING))).dark())
+                    ? darkChoice() : lightChoice();
+        };
     }
 
     /**

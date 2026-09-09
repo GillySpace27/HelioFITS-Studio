@@ -33,7 +33,11 @@ public final class PaletteReleaseCheck {
         return RightSidebar.getInstance().sectionTitles().stream().filter(title::equals).count();
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws java.io.IOException {
+        // Before the first mention of Settings: a palette records where it lives, so without this
+        // the check writes ui.palette.* keys for a palette that does not exist into the settings
+        // file of the application it is checking. Same isolation StartupAppearanceCheck uses.
+        System.setProperty("user.home", java.nio.file.Files.createTempDirectory("jhv-palette-release").toString());
         String title = "Release test";
         Palette palette = new Palette(title, JPanel::new, () -> {});
         JToggleButton button = new JToggleButton();
