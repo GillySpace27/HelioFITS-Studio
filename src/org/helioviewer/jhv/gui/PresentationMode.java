@@ -14,6 +14,7 @@ import javax.swing.BoxLayout;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
+import javax.swing.JSplitPane;
 import javax.swing.JRootPane;
 import javax.swing.KeyStroke;
 
@@ -253,21 +254,28 @@ public final class PresentationMode {
         JPanel top = new JPanel();
         top.setLayout(new BoxLayout(top, BoxLayout.PAGE_AXIS));
 
+        java.util.List<Component> fillers = new java.util.ArrayList<>();
         for (MainFrame.ChromeSlot slot : MainFrame.chromeForPresenterView()) {
             Component c = slot.panel();
-            c.setVisible(true);
+            // Asked BEFORE it is forced open, because for the right sidebar being invisible is how
+            // it says it holds nothing: forcing that one on put an empty rail in the window and
+            // gave it half the height of the presenter view.
+            boolean carriesSomething = c.isVisible();
             Container parent = c.getParent();
             if (parent != null)
                 parent.remove(c);
-            if (slot.fills())
-                content.add(c, BorderLayout.CENTER);
-            else {
+            if (!slot.fills()) {
+                c.setVisible(true);
                 if (c instanceof JComponent jc)
                     jc.setAlignmentX(Component.LEFT_ALIGNMENT); // else BoxLayout centres them
                 top.add(c);
+            } else if (carriesSomething) {
+                c.setVisible(true);
+                fillers.add(c);
             }
         }
         content.add(top, BorderLayout.NORTH);
+        placeFillers(content, fillers);
         MainFrame.setSidebarCollapsed(false); // the layer list is the point of this window
         openEverything(content);
 
@@ -284,6 +292,39 @@ public final class PresentationMode {
         installEscape(window.getRootPane());
         window.setVisible(true);
         return window;
+    }
+
+    /**
+     * Give each sidebar its own place in the presenter window.
+     *
+     * <p>They both used to go to BorderLayout.CENTER, which takes one component: the second one
+     * added wins the constraint and the first is laid out at zero by zero while remaining a child
+     * of the container. With the canvas gone there is nothing between the two sidebars to hide
+     * that, so what the presenter got was one bar with everything crammed into it and the other
+     * either missing or painting over it.
+     *
+     * <p>Stacked rather than set side by side, because this window is a third of a screen wide and
+     * full height: two sidebars at their natural widths do not fit across it, which is the
+     * truncation half of the same complaint. Down the height they both fit, and the divider lets
+     * the presenter give the room to whichever of the two the talk needs.
+     */
+    static void placeFillers(JPanel content, java.util.List<Component> fillers) {
+        if (fillers.isEmpty())
+            return;
+        if (fillers.size() == 1) {
+            content.add(fillers.getFirst(), BorderLayout.CENTER);
+            return;
+        }
+        Component stacked = fillers.getFirst();
+        for (int i = 1; i < fillers.size(); i++) {
+            JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, stacked, fillers.get(i));
+            split.setResizeWeight(0.62); // the layer list is the one that grows with the window
+            split.setContinuousLayout(true);
+            split.setOneTouchExpandable(true);
+            split.setBorder(null);
+            stacked = split;
+        }
+        content.add(stacked, BorderLayout.CENTER);
     }
 
     /**
