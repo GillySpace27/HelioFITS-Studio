@@ -39,7 +39,12 @@ import org.helioviewer.jhv.app.Settings;
  * get backwards: the handle sits on the LEFT of the content rather than the right, and a drag to
  * the left WIDENS it, so the width moves against the pointer's x rather than with it.
  */
-public final class RightSidebar {
+public final class RightSidebar implements SectionHost {
+
+    @Override
+    public String hostName() {
+        return "right";
+    }
 
     private static final int MIN_WIDTH = 160;
     private static final int MAX_WIDTH = 900;
@@ -155,6 +160,7 @@ public final class RightSidebar {
      *
      * @param onFloat run when the user asks for this section to become a floating palette again
      */
+    @Override
     public void addSection(String title, @Nullable Icon icon, Component content, Runnable onFloat) {
         if (sections.containsKey(title))
             removeSection(title);
@@ -206,6 +212,7 @@ public final class RightSidebar {
         return new Section(title, icon, content, onFloat, holder);
     }
 
+    @Override
     public void removeSection(String title) {
         Section section = sections.remove(title);
         if (section == null)
@@ -276,6 +283,7 @@ public final class RightSidebar {
         revalidate();
     }
 
+    @Override
     public boolean hasSection(String title) {
         return sections.containsKey(title);
     }
@@ -286,6 +294,7 @@ public final class RightSidebar {
     }
 
     /** Make a section visible: open the sidebar if it is folded away, and expand the section. */
+    @Override
     public void reveal(String title) {
         Section section = sections.get(title);
         if (section == null)

@@ -23,6 +23,7 @@ import java.util.function.Supplier;
 
 import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
+import javax.swing.Icon;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JDialog;
@@ -84,11 +85,21 @@ public final class Palette {
     @Nullable
     private Dimension userSize; // a size dragged by hand: theirs to keep, and it outranks packing
 
-    // Whether this palette lives in the right sidebar rather than in a window of its own. The two
-    // are exclusive: in the sidebar it has no dialog at all, which is what keeps the watchdogs
-    // below (keepVisible, repackAll, rebuildAll, all of which skip a null dialog) from
-    // resurrecting it as a window behind the user's back.
-    private boolean inSidebar;
+    // Where this palette lives: a sidebar, or null for a window of its own. The two are exclusive:
+    // docked it has no dialog at all, which is what keeps the watchdogs below (keepVisible,
+    // repackAll, rebuildAll, all of which skip a null dialog) from resurrecting it as a window
+    // behind the user's back.
+    @Nullable
+    private SectionHost home;
+    // The glyph the sidebar shows for it. Normally the toolbar button's own, so the two chromes
+    // name a thing the same way; set explicitly for the panes that have no toolbar button.
+    @Nullable
+    private Icon icon;
+    // The sidebar this belongs to when it has nowhere else to be. Only the panes that came from a
+    // sidebar have one, and it is what stops a palette with no toolbar button being closed for
+    // good: see the close button in create().
+    @Nullable
+    private SectionHost defaultHome;
     @Nullable
     private Dimension autoNatural; // the content size an auto-sized palette was last fitted to
 
@@ -141,7 +152,7 @@ public final class Palette {
             // the sidebar section rather than a window. It deliberately does NOT undock: where a
             // palette lives is the section's pop-out button's question, and answering it here
             // would make throwing the palette back into a window the only way to put it away.
-            if (inSidebar)
+            if (home != null)
                 setSidebarShown(button.isSelected());
             else
                 setOpen(button.isSelected());
@@ -171,8 +182,26 @@ public final class Palette {
         return key() + ".size";
     }
 
+    /** Which sidebar it lives in, by {@link SectionHost#hostName()}, or absent for a window. */
     private String sidebarKey() {
         return key() + ".sidebar";
+    }
+
+    /**
+     * The sidebar a stored name refers to, or null for a window.
+     *
+     * <p>"true" is read as the right sidebar. It is what the build that had only one wrote, and
+     * these settings files are already on disk.
+     */
+    @Nullable
+    static SectionHost hostNamed(@Nullable String name) {
+        if (name == null)
+            return null;
+        return switch (name) {
+            case "left" -> LeftSidebar.getInstance();
+            case "right", "true" -> RightSidebar.getInstance();
+            default -> null;
+        };
     }
 
     /**
@@ -205,22 +234,54 @@ public final class Palette {
         Settings.setProperty(sizeKey(), width + "x" + height); // so the next launch reopens it this big
     }
 
+    /**
+     * Put this palette in a sidebar, showing unless it was last released from it. Idempotent, so
+     * restore can call it over a home the sidebar registration already applied.
+     */
+    private void dockInto(SectionHost host) {
+        if (home == host && isOpen())
+            return;
+        home = host;
+        if (!"false".equals(Settings.getProperty(shownKey()))) // see shownKey: absent means showing
+            setSidebarShown(true);
+    }
+
+    /**
+     * Apply the stored home at startup, defaulting to the sidebar the pane belongs to.
+     *
+     * <p>Only the docked cases are settled here, because this runs while the window is still being
+     * built and a window-homed palette needs a frame on screen to be owned by. That one is left to
+     * {@link #restoreOpen}, which runs later and now handles a palette with no toolbar button.
+     */
+    void restoreHome(SectionHost fallback) {
+        defaultHome = fallback;
+        String stored = Settings.getProperty(sidebarKey());
+        SectionHost host = stored == null ? fallback : hostNamed(stored);
+        if (host != null)
+            dockInto(host);
+    }
+
+    void setIcon(@Nullable Icon _icon) {
+        icon = _icon;
+    }
+
     /** Reopen the palettes that were open when the application last quit. Needs the frame on screen. */
     public static void restoreOpen() {
         for (Palette p : palettes) {
-            if (p.toggle == null)
-                continue;
-            // Where it lives is asked first and on its own: a palette whose home is the sidebar
-            // must not be opened as a window on the way past, which is what the open flag alone
-            // would do. Released there, it stays released, and its button with it.
-            if ("true".equals(Settings.getProperty(p.sidebarKey()))) {
-                p.inSidebar = true;
-                boolean shown = !"false".equals(Settings.getProperty(p.shownKey())); // see shownKey
-                if (shown)
-                    p.setSidebarShown(true);
-                p.toggle.setSelected(shown);
-            } else if (!p.isOpen() && "true".equals(Settings.getProperty(p.key())))
-                p.toggle();
+            // Where it lives is asked first and on its own: a palette whose home is a sidebar must
+            // not be opened as a window on the way past, which is what the open flag alone would
+            // do. Released there, it stays released, and its button with it.
+            SectionHost host = hostNamed(Settings.getProperty(p.sidebarKey()));
+            if (host != null) {
+                p.dockInto(host);
+                if (p.toggle != null)
+                    p.toggle.setSelected(p.isOpen());
+            } else if (!p.isOpen() && "true".equals(Settings.getProperty(p.key()))) {
+                if (p.toggle != null)
+                    p.toggle();
+                else
+                    p.setOpen(true); // a sidebar pane with no toolbar button of its own
+            }
         }
     }
 
@@ -242,7 +303,7 @@ public final class Palette {
      * null dialog on the next launch that restored one.
      */
     public boolean isOpen() {
-        return inSidebar ? RightSidebar.getInstance().hasSection(title) : hasWindow();
+        return home != null ? home.hasSection(title) : hasWindow();
     }
 
     /** Has a window of its own, on screen. The precondition for anything positional. */
@@ -250,15 +311,16 @@ public final class Palette {
         return dialog != null && dialog.isVisible();
     }
 
-    public boolean isInSidebar() {
-        return inSidebar;
+    /** Living in a sidebar rather than in a window of its own, whether or not it is showing there. */
+    public boolean isDocked() {
+        return home != null;
     }
 
     /** Open, or if already open bring to the front: what a "settings..." button wants, where a toggle would close it. */
     public void open() {
-        if (inSidebar) {
+        if (home != null) {
             if (isOpen())
-                RightSidebar.getInstance().reveal(title);
+                home.reveal(title);
             else
                 setSidebarShown(true); // put back whatever the toolbar button was used to release
             if (toggle != null)
@@ -272,25 +334,26 @@ public final class Palette {
     }
 
     /**
-     * Move this palette between the right sidebar and a window of its own.
+     * Move this palette to a sidebar, to the other sidebar, or (null) to a window of its own.
      *
-     * <p>The content component is the same object either way, and Swing gives a component exactly
-     * one parent, so handing it to the other host is what moves it: the dialog is disposed rather
-     * than hidden on the way in, and rebuilt on the way out.
+     * <p>The content component is the same object wherever it goes, and Swing gives a component
+     * exactly one parent, so handing it to the new host is what moves it: the dialog is disposed
+     * rather than hidden on the way into a sidebar, and rebuilt on the way out.
      */
-    public void setInSidebar(boolean sidebar) {
-        if (inSidebar == sidebar)
+    public void setHome(@Nullable SectionHost host) {
+        if (home == host)
             return;
-        inSidebar = sidebar;
-        Settings.setProperty(sidebarKey(), Boolean.toString(sidebar));
-        if (sidebar) {
+        SectionHost was = home;
+        home = host;
+        Settings.setProperty(sidebarKey(), host == null ? "window" : host.hostName());
+        if (was != null)
+            was.removeSection(title);
+        if (host != null) {
             Settings.setProperty(key(), "false"); // not a floating window now, so do not reopen as one
             dispose();
             setSidebarShown(true);
-        } else {
-            RightSidebar.getInstance().removeSection(title);
+        } else
             setOpen(true);
-        }
         if (toggle != null)
             toggle.setSelected(true); // it changed address, it did not go away
     }
@@ -305,17 +368,18 @@ public final class Palette {
      * section answers the first question; the toolbar button answers this one.
      */
     private void setSidebarShown(boolean shown) {
+        if (home == null)
+            return;
         Settings.setProperty(shownKey(), Boolean.toString(shown)); // so the next launch shows what was showing
-        RightSidebar bar = RightSidebar.getInstance();
         if (!shown) {
-            bar.removeSection(title);
+            home.removeSection(title);
             return;
         }
-        bar.addSection(title,
-                toggle == null ? null : toggle.getIcon(), // the same glyph as its toolbar button
-                contentSupplier.get(), () -> setInSidebar(false));
+        home.addSection(title,
+                icon != null ? icon : toggle == null ? null : toggle.getIcon(), // its toolbar glyph
+                contentSupplier.get(), () -> setHome(null));
         onShow.run();
-        bar.reveal(title);
+        home.reveal(title);
     }
 
     private void setOpen(boolean open) {
@@ -452,8 +516,14 @@ public final class Palette {
      */
     public static void keepVisible() {
         for (Palette p : palettes) {
-            if (p.dialog == null || p.toggle == null || !p.toggle.isSelected())
-                continue; // never opened, mid-rebuild, or genuinely closed by the user
+            if (p.dialog == null)
+                continue; // never opened, or mid-rebuild
+            // The record of intent is the toolbar toggle where there is one. A palette without a
+            // button (a pane popped out of the left sidebar) has none to consult, and for it the
+            // intent is simply that it has a window and no sidebar to be in. Without this branch
+            // the platform could hide one of those for good, since nothing would put it back.
+            if (p.toggle != null ? !p.toggle.isSelected() : p.home != null)
+                continue; // genuinely closed by the user, or docked
             Window owner = p.dialog.getOwner();
             if (owner != null) {
                 if (!owner.isShowing())
@@ -582,18 +652,35 @@ public final class Palette {
             if (pinned)
                 dockOpen();
         });
-        JButton toSidebar = Buttons.flat(Buttons.chevronRight);
-        toSidebar.setToolTipText("Dock into the right sidebar");
-        toSidebar.addActionListener(e -> setInSidebar(true));
+        // One chevron per sidebar, pointing at it. A palette can be put in either, so the header
+        // has to offer both: with a single "dock" button there was no way to say which.
+        JButton toLeft = Buttons.flat(Buttons.collapseLeft);
+        toLeft.setToolTipText("Dock into the left sidebar");
+        toLeft.addActionListener(e -> setHome(LeftSidebar.getInstance()));
+        JButton toRight = Buttons.flat(Buttons.chevronRight);
+        toRight.setToolTipText("Dock into the right sidebar");
+        toRight.addActionListener(e -> setHome(RightSidebar.getInstance()));
+        // What close means depends on whether anything could undo it. A palette with a toolbar
+        // button collapses, and the button brings it back. One WITHOUT a button (the panes the left
+        // sidebar starts with, popped out) has nothing that would ever reopen it, so closing it
+        // would be closing it for good: it goes home to its sidebar instead.
+        boolean homeward = toggle == null && defaultHome != null;
         JButton close = Buttons.flat("✕");
-        close.setToolTipText("Collapse (the toolbar " + title + " button reopens it)");
+        close.setToolTipText(homeward
+                ? "Put " + title + " back in the sidebar"
+                : "Collapse (the toolbar " + title + " button reopens it)");
         close.addActionListener(e -> {
+            if (homeward) {
+                setHome(defaultHome);
+                return;
+            }
             if (toggle != null)
                 toggle.setSelected(false);
             palette.setVisible(false);
             dockOpen(); // whatever was stacked below this closes the gap
         });
-        headerButtons.add(toSidebar);
+        headerButtons.add(toLeft);
+        headerButtons.add(toRight);
         headerButtons.add(pin);
         headerButtons.add(close);
         header.add(headerButtons, BorderLayout.LINE_END);
