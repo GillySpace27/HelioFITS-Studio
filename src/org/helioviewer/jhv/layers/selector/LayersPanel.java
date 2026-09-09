@@ -46,9 +46,10 @@ public final class LayersPanel extends JPanel {
     static final int MASTER_COL = 1;
     static final int NAME_COL = 2;
     static final int TIME_COL = 3;
-    static final int DOWNLOAD_COL = 4;
-    static final int REMOVE_COL = 5;
-    static final int NUMBER_COLUMNS = 6;
+    static final int FILTER_COL = 4;
+    static final int DOWNLOAD_COL = 5;
+    static final int REMOVE_COL = 6;
+    static final int NUMBER_COLUMNS = 7;
 
     private static final int NUMBEROFVISIBLEROWS = 9;
 
@@ -205,6 +206,10 @@ public final class LayersPanel extends JPanel {
         grid.getColumnModel().getColumn(TIME_COL).setCellRenderer(new CellRenderer.Time());
         int timeWidth = SwingUtilities.computeStringWidth(grid.getFontMetrics(CellRenderer.Time.font), "2000-01-01T12:00:00.000");
         grid.getColumnModel().getColumn(TIME_COL).setMinWidth(timeWidth);
+
+        grid.getColumnModel().getColumn(FILTER_COL).setCellRenderer(new CellRenderer.Filtered());
+        grid.getColumnModel().getColumn(FILTER_COL).setPreferredWidth(ICON_WIDTH + 2);
+        grid.getColumnModel().getColumn(FILTER_COL).setMaxWidth(ICON_WIDTH + 2);
 
         grid.getColumnModel().getColumn(DOWNLOAD_COL).setCellRenderer(new CellRenderer.Loading());
         grid.getColumnModel().getColumn(DOWNLOAD_COL).setPreferredWidth(ICON_WIDTH + 2);

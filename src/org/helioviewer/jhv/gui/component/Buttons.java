@@ -70,6 +70,10 @@ public class Buttons {
     // font itself and sizes the glyph off the row's own font, which an icon cannot follow.
     public static final String close = MaterialDesign.CLOSE.toString();
     public static final String check = MaterialDesign.CHECK.toString();
+    // A funnel, in the same family as the check and the close above: these three are drawn into
+    // table cells by a renderer that sets the icon font itself and sizes the glyph off the row's
+    // own font, which an Icon cannot follow.
+    public static final String filtered = MaterialDesign.FILTER.toString();
 
     public static final GlyphIcon play = icon(MaterialDesign.PLAY, INLINE);
     public static final GlyphIcon pause = icon(MaterialDesign.PAUSE, INLINE);

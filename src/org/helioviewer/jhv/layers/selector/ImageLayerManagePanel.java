@@ -33,7 +33,35 @@ import org.helioviewer.jhv.view.View;
 final class ImageLayerManagePanel extends JPanel {
 
     private final ImageLayer layer;
-    private final JLabel readout = new JLabel();
+    /**
+     * The readout, which never gets shorter than it has already been for this layer.
+     *
+     * <p>Its third line names the CURRENT frame's decoded size and bit depth, both of which move
+     * as frames stream past, so during playback the text changes ten times a second. In a sidebar
+     * narrow enough to wrap it, that line wraps and unwraps from one frame to the next, the label
+     * gains and loses a line of height, and every section below it jumps: the whole options stack
+     * flashing up and down while the movie plays.
+     *
+     * <p>Held at its high-water mark rather than fixed at a guess, because how many lines it takes
+     * depends on the sidebar's width, the UI font and how much this particular layer has to say.
+     * The mark is per layer without any bookkeeping, since LayerOptionSections builds one of these
+     * panels per layer and keeps it. Sometimes it leaves an empty line where a longer frame
+     * description used to be, which is the cost, and it is far cheaper than the alternative:
+     * dropping the frame-dependent facts would take the decoded-resolution readout with them, and
+     * that one is how you tell a low-resolution instrument from being zoomed out.
+     */
+    @SuppressWarnings("serial")
+    private final JLabel readout = new JLabel() {
+        private int tallest;
+
+        @Override
+        public Dimension getPreferredSize() {
+            Dimension size = super.getPreferredSize();
+            tallest = Math.max(tallest, size.height);
+            size.height = tallest;
+            return size;
+        }
+    };
     private long lastReadoutSig = Long.MIN_VALUE; // memoize: skip rebuild when nothing shown changed
     private final JToggleButton downloadButton = Buttons.flatToggle(Buttons.download, false);
     private final JButton cacheButton = Buttons.flat(Buttons.cache);
