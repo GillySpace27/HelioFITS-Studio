@@ -8,7 +8,7 @@ void main(void) {
     vec2 texCoord;
     float enhancementFactor;
     clipHpcGeometry(hpcXY);
-    texCoord = sampleHpcTexcoord(wcs[0], projection[0], helioprojective, hpcXY, wcs[0].deltaT, pv0, enhancementFactor);
+    texCoord = sampleLayerTexcoord(wcs[0], projection[0], helioprojective, hpcXY, wcs[0].deltaT, pv0, enhancementFactor);
     if (!diffMode) {
         color = getColor(texCoord, texCoord, enhancementFactor);
     } else {
@@ -17,7 +17,7 @@ void main(void) {
         vec2 diffTexCoord;
         float diffEnhancementFactor;
         clipHpcGeometry(diffHpcXY);
-        diffTexCoord = sampleHpcTexcoord(wcs[1], projection[1], helioprojective, diffHpcXY, wcs[1].deltaT, pv1, diffEnhancementFactor);
+        diffTexCoord = sampleLayerTexcoord(wcs[1], projection[1], helioprojective, diffHpcXY, wcs[1].deltaT, pv1, diffEnhancementFactor);
         color = getColor(texCoord, diffTexCoord, max(enhancementFactor, diffEnhancementFactor));
     }
     outColor = color;
