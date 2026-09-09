@@ -57,6 +57,26 @@ public final class ToolbarOrderCheck {
                 java.util.Arrays.stream(ToolBar.DEFAULT_ORDER.split("\\|"))
                         .allMatch(id -> ToolBar.SEPARATOR.equals(id) || DEFAULT_IDS.contains(id)));
 
+        // The Tools menu lists every tool exactly once: the ones on the bar as items that click
+        // them, the rest as the controls themselves. That is only true while these two are a
+        // partition of what exists. A tool in neither would be gone from the bar AND the menu; one
+        // in both would appear twice, and the second copy would take the control out of the first.
+        for (String stored : new String[]{null, "", "grid|zoomIn|edit", "---|grid|---|---|more",
+                "zoomIn|zoomIn|grid", "nosuchtool|grid", ToolBar.DEFAULT_ORDER}) {
+            List<String> order = resolve(stored);
+            Set<String> onBar = ToolBar.onBar(order);
+            List<String> missing = ToolBar.missing(order, KNOWN);
+            String label = stored == null ? "no stored order" : "\"" + stored + "\"";
+            expect(label + ": nothing is both on the bar and missing from it",
+                    missing.stream().noneMatch(onBar::contains));
+            expect(label + ": every tool that exists is in exactly one of the two",
+                    KNOWN.size() == missing.size() + KNOWN.stream().filter(onBar::contains).count());
+            expect(label + ": the missing list never repeats one",
+                    missing.size() == Set.copyOf(missing).size());
+            expect(label + ": and never names a tool that does not exist",
+                    KNOWN.containsAll(missing));
+        }
+
         System.out.println(failures == 0 ? "ToolbarOrderCheck: PASS" : "ToolbarOrderCheck: " + failures + " FAILURE(S)");
         System.exit(failures == 0 ? 0 : 1);
     }

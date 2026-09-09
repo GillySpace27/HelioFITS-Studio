@@ -55,31 +55,64 @@ public final class MenuBar extends JMenuBar {
             @Override
             public void menuSelected(javax.swing.event.MenuEvent e) {
                 toolsMenu.removeAll();
+                // Every tool, at the top, whether or not it is on the bar: this menu is the
+                // inventory. Rebuilt on each open because both the list and the toggles' states
+                // move underneath it.
+                java.util.Set<String> onBar = ToolBar.shownIds();
+                for (ToolBar.Tool tool : ToolBar.allTools())
+                    if (!"edit".equals(tool.id())) // it has its own item below, with the ellipsis
+                        toolsMenu.add(toolItem(tool, onBar.contains(tool.id())));
+                toolsMenu.addSeparator();
                 JMenuItem edit = new JMenuItem("Edit Toolbar...");
                 edit.setIcon(Buttons.editToolbar);
                 edit.addActionListener(ev -> ToolbarEditor.open());
                 toolsMenu.add(edit);
                 if (settings != null)
                     toolsMenu.add(settings);
-                java.util.List<ToolBar.Tool> hidden = ToolBar.hiddenTools();
-                toolsMenu.addSeparator();
-                if (hidden.isEmpty()) {
-                    // Says why rather than showing nothing. This menu holds what the toolbar does
-                    // not, so on a default bar it is legitimately empty, and an empty menu with no
-                    // explanation reads as a feature that failed rather than one not yet used.
-                    JMenuItem none = new JMenuItem("Every tool is on the toolbar");
-                    none.setEnabled(false);
-                    toolsMenu.add(none);
-                    return;
-                }
-                for (ToolBar.Tool tool : hidden)
-                    toolsMenu.add(tool.comp());
             }
 
             @Override public void menuDeselected(javax.swing.event.MenuEvent e) {}
             @Override public void menuCanceled(javax.swing.event.MenuEvent e) {}
         });
         return toolsMenu;
+    }
+
+    /**
+     * One tool as an entry in the Tools menu.
+     *
+     * <p>Swing gives a component one parent, so a tool that is on the toolbar cannot also be in
+     * this menu. It appears as an item that clicks the real control instead, and a toggle appears
+     * as a checkbox reading the real button, so the menu can never claim a state the bar disagrees
+     * with. A tool that is NOT on the bar is handed over as itself: nothing else holds that
+     * control, the menu is where it lives, and its pressed state is then simply its own.
+     *
+     * <p>The exception is the two split buttons, More and Rotate View 90. A SplitButton is a
+     * JPanel rather than an AbstractButton, so there is no click to forward, and its whole content
+     * is a dropdown anchored to itself: it has to be present somewhere to open one. On the bar,
+     * the item opens that dropdown where the button is. Off it, the button comes here bodily, as
+     * every hidden tool used to.
+     */
+    private static java.awt.Component toolItem(ToolBar.Tool tool, boolean onBar) {
+        javax.swing.JComponent comp = tool.comp();
+        if (comp instanceof javax.swing.AbstractButton button) {
+            JMenuItem item = button instanceof javax.swing.JToggleButton
+                    ? new javax.swing.JCheckBoxMenuItem(tool.label(), button.isSelected())
+                    : new JMenuItem(tool.label());
+            item.addActionListener(e -> button.doClick());
+            item.setIcon(tool.icon());
+            item.setToolTipText(tool.tip());
+            return item;
+        }
+        if (onBar && comp instanceof SplitButton split) {
+            JMenuItem item = new JMenuItem(tool.label());
+            item.setIcon(tool.icon());
+            item.setToolTipText(tool.tip());
+            // After this menu has closed, or the two popups fight over who is showing.
+            item.addActionListener(e -> javax.swing.SwingUtilities.invokeLater(
+                    () -> split.getPopupMenu().show(split, 0, split.getHeight())));
+            return item;
+        }
+        return comp;
     }
 
     public MenuBar() {

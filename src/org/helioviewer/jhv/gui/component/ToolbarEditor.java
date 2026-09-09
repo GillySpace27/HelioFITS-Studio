@@ -43,8 +43,10 @@ import org.helioviewer.jhv.gui.MainFrame;
  * exists. The glyphs are snapshotted once when the dialog opens (they are shared constants and do
  * not change); everything else is looked up by id.
  *
- * <p>Nothing taken off the bar is lost. {@link ToolBar#hiddenTools()} hands the very same controls
- * to the Tools menu, which is why a toggle put away there still shows whether it is on.
+ * <p>Nothing taken off the bar is lost. The Tools menu lists every tool whatever this dialog says,
+ * and for the ones that are not on the bar it holds the very same controls ({@link
+ * ToolBar#hiddenTools()}), which is why a toggle put away there still shows whether it is on. That
+ * is what the left-hand column is named for: menu-only, not unavailable.
  *
  * <p>Separator is the one entry that behaves differently, because it is a gap rather than a
  * control: it stays in the left list however many are in use, and it is the only id allowed to
@@ -99,7 +101,7 @@ final class ToolbarEditor {
 
         JPanel content = new JPanel(new BorderLayout(10, 8));
         content.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-        content.add(titled("Available", availableList, AVAILABLE_WIDTH), BorderLayout.LINE_START);
+        content.add(titled("Menu-Only", availableList, AVAILABLE_WIDTH), BorderLayout.LINE_START);
         content.add(titled("On the toolbar", barList, BAR_WIDTH), BorderLayout.CENTER);
 
         JButton reset = new JButton("Restore Defaults");
@@ -119,8 +121,9 @@ final class ToolbarEditor {
         // becomes the window's preferred width: the hint was stretching the dialog past the edge of
         // the screen and taking the toolbar list, which is in CENTER, with it.
         JLabel hint = new JLabel("<html><body style='width:" + (AVAILABLE_WIDTH + BAR_WIDTH) + "px'>"
-                + "Drag into the middle list to put a tool on the bar, out of it to take one off. "
-                + "Double-click does the same. Whatever is off the bar lives in the Tools menu.</body></html>");
+                + "Drag into \"On the toolbar\" to put a tool on the bar, out of it to take one off. "
+                + "Double-click does the same. Every tool is listed in the Tools menu either way; "
+                + "these are the ones the menu is the only way to reach.</body></html>");
         hint.setBorder(BorderFactory.createEmptyBorder(4, 0, 0, 0));
         JPanel south = new JPanel(new BorderLayout(10, 6));
         south.add(hint, BorderLayout.CENTER);

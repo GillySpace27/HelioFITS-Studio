@@ -242,15 +242,43 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         return current == null ? java.util.List.of() : java.util.List.copyOf(current.built.values());
     }
 
-    /** The controls that exist but are not on the bar. The Tools menu shows exactly these. */
+    /** The ids laid out on the bar right now, separators aside. */
+    public static java.util.Set<String> shownIds() {
+        return current == null ? java.util.Set.of() : onBar(order(current.built.keySet()));
+    }
+
+    /**
+     * The controls an order puts on the bar, out of the ids handed in.
+     *
+     * <p>With {@link #missing} this is a partition, and it has to be: the Tools menu lists every
+     * tool once, taking the ones on the bar as items that click them and the rest as themselves.
+     * A tool in neither set would vanish from both the bar and the menu; one in both would be
+     * listed twice, and the second copy would steal the control out of the first. Pure, so
+     * ToolbarOrderCheck can hold the two sides against each other.
+     */
+    static java.util.Set<String> onBar(java.util.List<String> order) {
+        java.util.Set<String> ids = new java.util.HashSet<>(order);
+        ids.remove(SEPARATOR);
+        return ids;
+    }
+
+    /** The other half: what exists and the order leaves off. */
+    static java.util.List<String> missing(java.util.List<String> order, java.util.Collection<String> known) {
+        java.util.Set<String> shown = onBar(order);
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (String id : known)
+            if (!shown.contains(id))
+                out.add(id);
+        return out;
+    }
+
+    /** The controls that exist but are not on the bar, which are the ones the menu itself holds. */
     public static java.util.List<Tool> hiddenTools() {
         if (current == null)
             return java.util.List.of();
-        java.util.Set<String> shown = new java.util.HashSet<>(order(current.built.keySet()));
         java.util.List<Tool> hidden = new java.util.ArrayList<>();
-        for (Tool t : current.built.values())
-            if (!shown.contains(t.id()))
-                hidden.add(t);
+        for (String id : missing(order(current.built.keySet()), current.built.keySet()))
+            hidden.add(current.built.get(id));
         return hidden;
     }
 
