@@ -2,9 +2,11 @@ package org.helioviewer.jhv.gui.component;
 
 import java.awt.event.KeyEvent;
 
+import javax.annotation.Nullable;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
 import javax.swing.JRadioButtonMenuItem;
 import javax.swing.ButtonGroup;
 
@@ -32,6 +34,45 @@ public final class MenuBar extends JMenuBar {
 
     public JMenu getLayersMenu() {
         return layersMenu;
+    }
+
+    /**
+     * Everything the toolbar is not showing, and the way to change what that is.
+     *
+     * <p>Rebuilt every time it opens, and holding the toolbar's OWN controls rather than stand-ins
+     * for them. Both halves matter. The bar is recreated whenever its contents or its display mode
+     * change, so a component captured once would soon belong to a toolbar that no longer exists;
+     * and a stand-in menu item could not show a toggle's pressed state, which for Track, Corona,
+     * Differential and Multiview is most of what the control is.
+     *
+     * @param settings the Settings item, where this menu is its home. Null on macOS, where it
+     *                 belongs in the application menu and is installed as the preferences handler.
+     */
+    private static JMenu buildToolsMenu(@Nullable Actions.ShowDialog settings) {
+        JMenu toolsMenu = new JMenu("Tools");
+        toolsMenu.setMnemonic(KeyEvent.VK_T);
+        toolsMenu.addMenuListener(new javax.swing.event.MenuListener() {
+            @Override
+            public void menuSelected(javax.swing.event.MenuEvent e) {
+                toolsMenu.removeAll();
+                JMenuItem edit = new JMenuItem("Edit Toolbar...");
+                edit.setIcon(Buttons.editToolbar);
+                edit.addActionListener(ev -> ToolbarEditor.open());
+                toolsMenu.add(edit);
+                if (settings != null)
+                    toolsMenu.add(settings);
+                java.util.List<ToolBar.Tool> hidden = ToolBar.hiddenTools();
+                if (hidden.isEmpty())
+                    return;
+                toolsMenu.addSeparator();
+                for (ToolBar.Tool tool : hidden)
+                    toolsMenu.add(tool.comp());
+            }
+
+            @Override public void menuDeselected(javax.swing.event.MenuEvent e) {}
+            @Override public void menuCanceled(javax.swing.event.MenuEvent e) {}
+        });
+        return toolsMenu;
     }
 
     public MenuBar() {
@@ -209,6 +250,13 @@ public final class MenuBar extends JMenuBar {
         layersMenu.add(new Actions.OpenLocalFile());
         add(layersMenu);
 
+        // Beside Layers, because it answers the same kind of question: Layers is what is in the
+        // scene, Tools is what you have to work on it with.
+        Actions.ShowDialog settingsAction = new Actions.ShowDialog("Settings...", new SettingsDialog());
+        if (Platform.isMacOS())
+            DesktopIntegration.setPreferencesHandler(e -> settingsAction.actionPerformed(null));
+        add(buildToolsMenu(Platform.isMacOS() ? null : settingsAction));
+
         JMenu movieMenu = new JMenu("Movie");
         movieMenu.setMnemonic(KeyEvent.VK_M);
         movieMenu.add(Actions.PLAY_PAUSE);
@@ -220,9 +268,7 @@ public final class MenuBar extends JMenuBar {
         movieMenu.add(Actions.TRIM_RESET);
         add(movieMenu);
 
-        Actions.ShowDialog settingsAction = new Actions.ShowDialog("Settings...", new SettingsDialog());
         if (Platform.isMacOS()) {
-            DesktopIntegration.setPreferencesHandler(e -> settingsAction.actionPerformed(null));
             JMenu windowMenu = new JMenu("Window");
             windowMenu.setMnemonic(KeyEvent.VK_W);
             windowMenu.add(new Actions.NewWindow());
@@ -241,11 +287,6 @@ public final class MenuBar extends JMenuBar {
                 @Override public void menuCanceled(javax.swing.event.MenuEvent e) {}
             });
             add(windowMenu);
-        } else {
-            JMenu toolsMenu = new JMenu("Tools");
-            toolsMenu.setMnemonic(KeyEvent.VK_T);
-            toolsMenu.add(settingsAction);
-            add(toolsMenu);
         }
 
         JMenu helpMenu = new JMenu("Help");

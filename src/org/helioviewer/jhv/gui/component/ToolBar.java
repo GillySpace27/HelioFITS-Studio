@@ -88,6 +88,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private final ButtonText GRID = new ButtonText(Buttons.grid, "Grid", "Grid, Thomson sphere, celestial sphere, ecliptic and planet overlay settings");
     private final ButtonText CAMERA = new ButtonText(Buttons.camera, "Camera", "Where the view is seen from: Free, Follow, Turntable, Overview, and their settings");
     private final ButtonText MORE = new ButtonText(Buttons.moreSettings, "More", "Less common controls: annotation, automatic refresh, the SDO cut-out, SAMP");
+    private final ButtonText EDITTOOLBAR = new ButtonText(Buttons.editToolbar, "Edit", "Choose which tools are on this bar and in what order; the rest live in the Tools menu");
     private final ButtonText PRESENTATION = new ButtonText(Buttons.presentation, "Present", "Presentation mode: output only, fullscreen (Esc to leave)");
     private final ButtonText REFRESH = new ButtonText(Buttons.refresh, "Refresh", "Automatic refresh");
     private final ButtonText RESETCAMERA = new ButtonText(Buttons.resetCamera, "Reset View", "Reset view to default");
@@ -169,6 +170,103 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private JCheckBoxMenuItem refreshItem;
     private JToggleButton trackingButton;
 
+    // --- which tools are on the bar, and in what order ----------------------------------------
+    // Every control is BUILT every time, and only the chosen ones are added. That is the whole
+    // trick: the buttons carry live wiring (a shared ButtonGroup for the interaction modes, the
+    // palette bindings, the fields modeStateChanged() writes into), so a control left off the bar
+    // has to exist anyway or hiding one would break the ones that stayed. Hidden simply means not
+    // added here; the Tools menu adopts the very same component, which is why a toggle in that
+    // menu still shows its pressed state.
+    static final String SEPARATOR = "---"; // a gap, not a control: allowed more than once
+    private static final String EDIT_ID = "edit";
+    static final String ORDER_KEY = "ui.toolbar.order";
+
+    /** One customisable place on the bar: a stable id, how it looks in the editor, and the control. */
+    public record Tool(String id, String label, Icon icon, String tip, JComponent comp) {}
+
+    private final java.util.LinkedHashMap<String, Tool> built = new java.util.LinkedHashMap<>();
+
+    // The bar as it has always looked, and the fallback whenever the stored order is missing or
+    // has rotted. Ids are persisted, so they are API: rename one and a saved bar loses that tool.
+    static final String DEFAULT_ORDER = String.join("|",
+            "present", SEPARATOR,
+            "zoomIn", "zoomOut", "zoomFit", "zoomOne", SEPARATOR,
+            "resetCamera", "resetAxis", "rotate90", SEPARATOR,
+            "pan", "rotate", "axis", SEPARATOR,
+            "track", "diffRotation", "corona", "multiview", SEPARATOR,
+            "projection", "colour", "sequence", "grid", "camera", SEPARATOR,
+            "more", SEPARATOR, EDIT_ID);
+
+    /** Build a control and record it under an id, without deciding yet whether it is shown. */
+    private void register(String id, ButtonText text, JComponent comp) {
+        built.put(id, new Tool(id, text.text(), text.icon(), text.tip(), comp));
+    }
+
+    /**
+     * The stored order, dropped down to ids that still exist.
+     *
+     * <p>Edit is appended when it is missing rather than being refused a place in the editor: it
+     * is the way back, and a bar you can customise into a state with no way to customise it again
+     * is a trap. Removing it from the editor therefore does nothing, and the Tools menu carries it
+     * too.
+     */
+    static java.util.List<String> order(java.util.Set<String> known) {
+        return resolveOrder(Settings.getProperty(ORDER_KEY), known);
+    }
+
+    /** The same, with the stored string handed in: pure, so ToolbarOrderCheck can pin the rules. */
+    static java.util.List<String> resolveOrder(@javax.annotation.Nullable String stored, java.util.Set<String> known) {
+        java.util.List<String> ids = new java.util.ArrayList<>();
+        for (String id : (stored == null || stored.isBlank() ? DEFAULT_ORDER : stored).split("\\|"))
+            if (SEPARATOR.equals(id) || known.isEmpty() || known.contains(id))
+                ids.add(id);
+        if (!ids.contains(EDIT_ID))
+            ids.add(EDIT_ID);
+        return ids;
+    }
+
+    static void setOrder(java.util.List<String> ids) {
+        Settings.setProperty(ORDER_KEY, String.join("|", ids));
+        if (current != null)
+            current.recreate();
+    }
+
+    static void resetOrder() {
+        Settings.setProperty(ORDER_KEY, DEFAULT_ORDER);
+        if (current != null)
+            current.recreate();
+    }
+
+    /** Every control that exists, in the order the bar was built, for the editor to list. */
+    public static java.util.List<Tool> allTools() {
+        return current == null ? java.util.List.of() : java.util.List.copyOf(current.built.values());
+    }
+
+    /** The controls that exist but are not on the bar. The Tools menu shows exactly these. */
+    public static java.util.List<Tool> hiddenTools() {
+        if (current == null)
+            return java.util.List.of();
+        java.util.Set<String> shown = new java.util.HashSet<>(order(current.built.keySet()));
+        java.util.List<Tool> hidden = new java.util.ArrayList<>();
+        for (Tool t : current.built.values())
+            if (!shown.contains(t.id()))
+                hidden.add(t);
+        return hidden;
+    }
+
+    /** Add the chosen tools, in the chosen order. Everything else stays built and unparented. */
+    private void layOutTools(Dimension dim) {
+        for (String id : order(built.keySet())) {
+            if (SEPARATOR.equals(id)) {
+                addSeparator(dim);
+                continue;
+            }
+            Tool tool = built.get(id);
+            if (tool != null)
+                addButton(tool.comp());
+        }
+    }
+
     // --- overflow ----------------------------------------------------------------------------
     // A toolbar narrower than its contents used to just clip whatever did not fit, with no way
     // to reach it: the buttons were still there, laid out past the right edge and invisible.
@@ -185,6 +283,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
 
     private void createNewToolBar() {
         current = this;
+        built.clear();
         annotationItems.clear();
         projectionItems.clear();
         if (Platform.isMacOS()) {
@@ -219,8 +318,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             if (presentationButton.isSelected() != org.helioviewer.jhv.gui.PresentationMode.isActive())
                 org.helioviewer.jhv.gui.PresentationMode.toggle();
         });
-        addButton(presentationButton);
-        addSeparator(dim);
+        register("present", PRESENTATION, presentationButton);
 
         // Zoom
         JButton zoomIn = toolButton(ZOOMIN);
@@ -243,15 +341,13 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         rotate90Button.addItem(new Actions.Rotate90Camera("Y Axis", "Y"));
         rotate90Button.addItem(new Actions.Rotate90Camera("Z Axis", "Z"));
 
-        addButton(zoomIn);
-        addButton(zoomOut);
-        addButton(zoomFit);
-        addButton(zoomOne);
-        addSeparator(dim);
-        addButton(resetCamera);
-        addButton(resetCameraAxis);
-        addButton(rotate90Button);
-        addSeparator(dim);
+        register("zoomIn", ZOOMIN, zoomIn);
+        register("zoomOut", ZOOMOUT, zoomOut);
+        register("zoomFit", ZOOMFIT, zoomFit);
+        register("zoomOne", ZOOMONE, zoomOne);
+        register("resetCamera", RESETCAMERA, resetCamera);
+        register("resetAxis", RESETCAMERAAXIS, resetCameraAxis);
+        register("rotate90", ROTATE90, rotate90Button);
 
         // Interaction
         ButtonGroup group = new ButtonGroup();
@@ -267,10 +363,9 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         group.add(rotate);
         group.add(axis);
 
-        addButton(pan);
-        addButton(rotate);
-        addButton(axis);
-        addSeparator(dim);
+        register("pan", PAN, pan);
+        register("rotate", ROTATE, rotate);
+        register("axis", AXIS, axis);
 
         if (interactionMode == Interaction.Mode.ZOOM) // only ever momentary; never a remembered choice
             interactionMode = Interaction.Mode.ROTATE;
@@ -318,24 +413,23 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         multiviewButton.setSelected(ViewState.isMultiview());
         multiviewButton.addItemListener(e -> ViewState.setMultiview(multiviewButton.isSelected()));
 
-        addButton(trackingButton);
-        addButton(diffRotationButton);
-        addButton(coronaButton);
-        addButton(multiviewButton);
-        addSeparator(dim);
+        register("track", TRACK, trackingButton);
+        register("diffRotation", DIFFROTATION, diffRotationButton);
+        register("corona", OFFDISK, coronaButton);
+        register("multiview", MULTIVIEW, multiviewButton);
 
         // The projection controls live in a persistent palette, not a dropdown: it survives
         // focus loss (so the sliders can be worked against the view) and only collapses when
         // the toolbar button is toggled again or its window is closed.
         JToggleButton projectionButton = toolToggleButton(PROJECTION);
         projectionPalette.bind(projectionButton);
-        addButton(projectionButton);
+        register("projection", PROJECTION, projectionButton);
 
         // Colour settings are per view, not per layer: they decide how every frame of every movie
         // is shown, so they belong beside Projection rather than inside a layer's own row.
         JToggleButton colourButton = toolToggleButton(COLOUR);
         colourPalette.bind(colourButton);
-        addButton(colourButton);
+        register("colour", COLOUR, colourButton);
 
         // The sequence filter is a whole-movie computation with a lot of settings and a readout
         // worth watching while the view plays, which is what the palette form is for. It acts on
@@ -346,7 +440,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         if (sequencePalette == null)
             sequencePalette = new Palette("Fourier filter", SequencePaletteContent::build, SequencePaletteContent::refresh, true); // has text fields
         sequencePalette.bind(sequenceButton);
-        addButton(sequenceButton);
+        register("sequence", SEQUENCE, sequenceButton);
 
         // The grid, Thomson sphere, celestial sphere, ecliptic and planets are one default layer's
         // settings, reachable before only by opening its row in the layer list. A button beside
@@ -355,7 +449,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         if (gridPalette == null)
             gridPalette = new Palette("Grid", GridPaletteContent::build, GridPaletteContent::refresh);
         gridPalette.bind(gridButton);
-        addButton(gridButton);
+        register("grid", GRID, gridButton);
 
         // The camera behaviours are the Viewpoint layer's options, the sidebar's Camera section.
         // Same move as the grid: the palette is the one home, the row points at it.
@@ -363,8 +457,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         if (cameraPalette == null)
             cameraPalette = new Palette("Camera", CameraPaletteContent::build, CameraPaletteContent::refresh, true); // has text fields
         cameraPalette.bind(cameraButton);
-        addButton(cameraButton);
-        addSeparator(dim);
+        register("camera", CAMERA, cameraButton);
 
         // Everything reached once a session rather than once a minute, plus annotation, behind
         // one button. Annotation used to have its own top-level button; it is a mode you set once
@@ -409,9 +502,13 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             samp.addActionListener(e -> SampClient.notifyRequestData());
             more.addItem(samp);
         }
-        addButton(more);
+        register("more", MORE, more);
 
-        addSeparator(dim);
+        JButton editButton = toolButton(EDITTOOLBAR);
+        editButton.addActionListener(e -> ToolbarEditor.open());
+        register(EDIT_ID, EDITTOOLBAR, editButton);
+
+        layOutTools(dim);
 /*
         ButtonText hText = new ButtonText("HAPI", "HAPI", "HAPI");
         JButton hButton = toolButton(hText);
@@ -1398,6 +1495,11 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             iconOnly.addActionListener(e -> setDisplayMode(DisplayMode.ICONONLY));
             group.add(iconOnly);
             popUpMenu.add(iconOnly);
+
+            popUpMenu.addSeparator();
+            JMenuItem edit = new JMenuItem("Edit Toolbar...");
+            edit.addActionListener(ev -> ToolbarEditor.open());
+            popUpMenu.add(edit);
 
             popUpMenu.show(me.getComponent(), me.getX(), me.getY());
         }

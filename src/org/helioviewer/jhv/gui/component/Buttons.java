@@ -127,6 +127,8 @@ public class Buttons {
     public static final GlyphIcon moreSettings = icon(MaterialDesign.TUNE, TOOLBAR);
     public static final GlyphIcon presentation = icon(MaterialDesign.PROJECTOR_SCREEN, TOOLBAR);
     public static final GlyphIcon overflow = icon(MaterialDesign.CHEVRON_DOWN, TOOLBAR);
+    public static final GlyphIcon editToolbar = icon(MaterialDesign.PENCIL, TOOLBAR);
+    public static final GlyphIcon dragHandle = icon(MaterialDesign.DRAG_HORIZONTAL, INLINE);
     public static final GlyphIcon refresh = icon(MaterialDesign.REFRESH, TOOLBAR);
     public static final GlyphIcon resetCamera = icon(MaterialDesign.IMAGE_FILTER_CENTER_FOCUS, TOOLBAR);
     public static final GlyphIcon resetCameraAxis = icon(MaterialDesign.DEBUG_STEP_OUT, TOOLBAR);
