@@ -27,6 +27,10 @@ COMMON_SOLAR_FRAGMENTS = (
     # The observer-sky map. Same prepend as its siblings: it reuses the shared helioprojective
     # sampling wholesale and only changes which part of the sky reaches the screen.
     "solarSky.frag",
+    # The colour-table legend. GLSLSolarShader builds it with the common prefix like the rest, so
+    # validating it without one reported a missing default precision qualifier: a harness fault
+    # standing in the output as if the shader were broken, which is worse than no check at all.
+    "solarLegend.frag",
 )
 
 # Vertex-stage splice, the mirror of the fragment prepend above. GLSLShader._init inserts

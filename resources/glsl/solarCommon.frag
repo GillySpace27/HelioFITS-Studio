@@ -736,6 +736,7 @@ bool sampleSurfaceMapTexcoord(const vec2 helioprojective, const WCS wcs, const P
     return true;
 }
 
+
 vec2 sampleHpcTexcoord(const WCS wcs, const ProjectionParams projection, vec2 helioprojective, const vec2 hpcXY, const float dt, const float[6] PV, out float enhancementFactor) {
     enhancementFactor = 1.;
     float observerDistance = projection.observerDistance;
@@ -752,4 +753,30 @@ vec2 sampleHpcTexcoord(const WCS wcs, const ProjectionParams projection, vec2 he
 
     vec2 plane = projectHelioprojectiveToWcsPlane(helioprojective, wcs, projection, PV);
     return wcsPlaneToTexcoord(plane, wcs);
+}
+
+/**
+ * Sample one layer along a helioprojective line of sight, whatever kind of image it is.
+ *
+ * Every projection that reconstructs its picture from sight lines comes through here: HPC,
+ * Helioradial in both of its implementations, Helioradial Unrolled and Observer Sky all reduce
+ * their own page geometry to a helioprojective direction and then ask what is in that direction.
+ * A CAR/CEA surface map is the one input that cannot answer through the observer-image path,
+ * because it is a map OF THE SPHERE rather than a picture taken of it, so it takes the sight-line
+ * intersection above and discards where the sight line misses the Sun.
+ *
+ * Shared rather than written out per mode, which is exactly how three of those five kept calling
+ * sampleHpcTexcoord directly long after the other two were fixed. That path routes CAR/CEA through
+ * projectHelioprojectiveToWcsPlane, which has no branch for either and silently treats them as
+ * TAN, so a synoptic map came out as a smear across the page instead of as the disk it is.
+ */
+vec2 sampleLayerTexcoord(const WCS wcs, const ProjectionParams projection, const vec2 helioprojective, const vec2 hpcXY, const float dt, const float[6] PV, out float enhancementFactor) {
+    if (isSurfaceMapProjection(projection)) {
+        vec2 surfaceTexCoord;
+        if (!sampleSurfaceMapTexcoord(helioprojective, wcs, projection, PV, surfaceTexCoord))
+            discard;
+        enhancementFactor = 1.;
+        return surfaceTexCoord;
+    }
+    return sampleHpcTexcoord(wcs, projection, helioprojective, hpcXY, dt, PV, enhancementFactor);
 }
