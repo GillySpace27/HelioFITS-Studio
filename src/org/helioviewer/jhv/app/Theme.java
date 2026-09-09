@@ -249,6 +249,31 @@ public final class Theme {
     }
 
     /** WCAG 2.1 contrast ratio, 1 to 21. */
+    /**
+     * The ground under a nested section's contents: the panel, stepped down.
+     *
+     * <p>Derived rather than stated as a token, because it is not a choice a theme has to make: it
+     * is one step of recession from a colour the theme already states, and every theme wants the
+     * same step. Clamped so body text keeps its 4.5:1 on it, which is what stops a light theme
+     * being darkened into illegibility while a dark one can take the full step.
+     */
+    public static Color nestedSurface() {
+        Theme theme = current();
+        Color panel = theme.get(Token.Background);
+        Color text = theme.get(Token.Foreground);
+        Color stepped = panel;
+        for (double f = 0.02; f <= NEST_STEP + 1e-9; f += 0.02) {
+            Color c = mix(panel, Color.BLACK, f);
+            if (contrast(text, c) < TEXT_MIN)
+                break;
+            stepped = c;
+        }
+        return stepped;
+    }
+
+    /** How far a nested body is stepped toward black, at most. Subtle: a step, not a well. */
+    private static final double NEST_STEP = 0.18;
+
     public static double contrast(Color a, Color b) {
         double la = luminance(a), lb = luminance(b);
         return la > lb ? (la + 0.05) / (lb + 0.05) : (lb + 0.05) / (la + 0.05);

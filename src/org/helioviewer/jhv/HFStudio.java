@@ -127,6 +127,15 @@ public class HFStudio {
             // right: Theme.current() resolves through the mode, so setLaf() above put on whichever
             // half of the pair applies.
             org.helioviewer.jhv.gui.UIGlobals.applyThemeMode();
+            // A way to get the layout report without a hand on the mouse. Same call the Help menu
+            // makes, once the window has actually been laid out.
+            if (Boolean.getBoolean("jhv.probeLayout"))
+                new javax.swing.Timer(4000, e -> {
+                    ((javax.swing.Timer) e.getSource()).stop();
+                    org.helioviewer.jhv.gui.LayoutProbe.logReport();
+                    if (Boolean.getBoolean("jhv.probeExit"))
+                        System.exit(0);
+                }).start();
             org.helioviewer.jhv.app.Session.init(); // session dirty-tracking + autosave timer
 
             Task.submit("init", new Init(true), HFStudio::onSuccessInit, HFStudio::onFailureInit);
