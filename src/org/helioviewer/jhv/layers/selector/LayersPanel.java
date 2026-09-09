@@ -325,11 +325,7 @@ public final class LayersPanel extends JPanel {
 
             @Override
             public void mouseDragged(java.awt.event.MouseEvent e) {
-                int rh = grid.getRowHeight();
-                int rows = Math.max(grid.getRowCount(), 1);
-                int minH = rh * 2 + 1;
-                int maxH = rh * rows + 1; // all rows visible → scrollbar gone
-                int h = Math.clamp((long) startH + (e.getYOnScreen() - startY), minH, maxH);
+                int h = dragHeight(startH, e.getYOnScreen() - startY, grid.getRowHeight(), grid.getRowCount());
                 jsp.setPreferredSize(new Dimension(-1, h));
                 jsp.revalidate();
                 revalidate();
@@ -338,6 +334,24 @@ public final class LayersPanel extends JPanel {
         handle.addMouseListener(drag);
         handle.addMouseMotionListener(drag);
         return handle;
+    }
+
+    /**
+     * Where a drag of dy pixels puts the list's height: between two rows and exactly all rows, so
+     * the scrollbar vanishes once every layer fits.
+     *
+     * <p>The ceiling is held at or above the floor rather than taken as written, because with one
+     * layer (or none) "all rows" is SHORTER than the two-row floor, and Math.clamp throws when the
+     * bounds cross rather than picking one. A single-layer session therefore crashed on the first
+     * pixel of any drag of the handle: IllegalArgumentException 41 &gt; 21.
+     *
+     * <p>Pure and package-private so LayerListResizeCheck can pin it: the arithmetic is the part
+     * that breaks, and it needs no window to exercise.
+     */
+    static int dragHeight(int startH, int dy, int rowHeight, int rowCount) {
+        int minH = rowHeight * 2 + 1;
+        int maxH = Math.max(minH, rowHeight * Math.max(rowCount, 1) + 1);
+        return Math.clamp((long) startH + dy, minH, maxH);
     }
 
     public int getGridRowHeight() {
