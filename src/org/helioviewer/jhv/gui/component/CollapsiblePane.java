@@ -6,6 +6,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
 import javax.annotation.Nullable;
+import javax.swing.BorderFactory;
 import javax.swing.Icon;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
@@ -26,6 +27,7 @@ public class CollapsiblePane extends JComponent implements ActionListener {
     // different look-and-feel carries the headers up with it.
     private static final float PARENT_STEP = 2;
     private static final float CHILD_STEP = 1; // above the body text it heads, below its parent
+    private static final int CHILD_INDENT = 12; // how far a nested section steps in from its parent
 
     final CollapsiblePaneButton toggleButton;
     private final JComponent managed;
@@ -78,6 +80,13 @@ public class CollapsiblePane extends JComponent implements ActionListener {
         toggleButton.addActionListener(this);
         setSectionIcon(_sectionIcon); // sets the title too
 
+        // Inset, so what reads as top level is exactly what runs the full width of the sidebar.
+        // Weight and fill alone were not enough: a nested band is a different colour from the
+        // parent band but the same shape in the same place, and shape is what the eye groups by.
+        // The border is on the whole pane rather than the header, so the section's contents step
+        // in with its title instead of hanging off the edge under an indented heading.
+        if (child)
+            setBorder(BorderFactory.createEmptyBorder(0, CHILD_INDENT, 0, 0));
         add(toggleButton, BorderLayout.PAGE_START);
         add(managed, BorderLayout.CENTER);
     }

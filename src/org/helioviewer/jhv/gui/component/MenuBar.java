@@ -60,8 +60,7 @@ public final class MenuBar extends JMenuBar {
                 // move underneath it.
                 java.util.Set<String> onBar = ToolBar.shownIds();
                 for (ToolBar.Tool tool : ToolBar.allTools())
-                    if (!"edit".equals(tool.id())) // it has its own item below, with the ellipsis
-                        toolsMenu.add(toolItem(tool, onBar.contains(tool.id())));
+                    toolsMenu.add(toolItem(tool, onBar.contains(tool.id())));
                 toolsMenu.addSeparator();
                 JMenuItem edit = new JMenuItem("Edit Toolbar...");
                 edit.setIcon(Buttons.editToolbar);
@@ -75,6 +74,28 @@ public final class MenuBar extends JMenuBar {
             @Override public void menuCanceled(javax.swing.event.MenuEvent e) {}
         });
         return toolsMenu;
+    }
+
+    /**
+     * Show the tool's keyboard shortcut, taken from the very listener that will run.
+     *
+     * <p>Not a second table of shortcuts. A toolbar button is wired to the same Action the File and
+     * View menus carry, and that Action already states its ACCELERATOR_KEY, so the shortcut is read
+     * off the button rather than written down again somewhere that could disagree with it. A tool
+     * driven by a lambda instead of an Action has no shortcut to show, and shows none.
+     *
+     * <p>The keystroke is then bound twice, here and on the menu item that owns the Action. Both
+     * bindings invoke the same Action, so whichever Swing picks does the same thing; the cost of
+     * the duplicate is that it exists, and the alternative is a menu that hides shortcuts the
+     * application does have.
+     */
+    private static void setShortcut(JMenuItem item, javax.swing.AbstractButton button) {
+        for (java.awt.event.ActionListener listener : button.getActionListeners())
+            if (listener instanceof javax.swing.Action action
+                    && action.getValue(javax.swing.Action.ACCELERATOR_KEY) instanceof javax.swing.KeyStroke key) {
+                item.setAccelerator(key);
+                return;
+            }
     }
 
     /**
@@ -101,6 +122,7 @@ public final class MenuBar extends JMenuBar {
             item.addActionListener(e -> button.doClick());
             item.setIcon(tool.icon());
             item.setToolTipText(tool.tip());
+            setShortcut(item, button);
             return item;
         }
         if (onBar && comp instanceof SplitButton split) {

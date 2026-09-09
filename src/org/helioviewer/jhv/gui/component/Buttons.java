@@ -97,6 +97,39 @@ public class Buttons {
     public static final GlyphIcon revert = icon(MaterialDesign.BACKUP_RESTORE, INLINE);
     public static final GlyphIcon saveAs = icon(MaterialDesign.CONTENT_SAVE_ALL, INLINE);
     public static final GlyphIcon popOut = icon(MaterialDesign.OPEN_IN_NEW, INLINE);
+    /**
+     * Pencil beside a gear, for the control that changes what the toolbar holds.
+     *
+     * <p>Two glyphs rather than one because neither says it alone: a pencil is "edit" and belongs
+     * to whatever is under the pointer, a gear is "settings" and every application has six of them.
+     * Together they read as editing the settings of this thing, which is what the button does, and
+     * they are unlike any single-glyph tool on the bar, which is what a permanent corner control
+     * has to be.
+     */
+    public static final Icon editToolbarCorner =
+            new PairIcon(icon(MaterialDesign.PENCIL, INLINE), icon(MaterialDesign.SETTINGS, INLINE), 1);
+
+    /** Two icons side by side, each centred on the taller. A button has one icon slot. */
+    private record PairIcon(Icon first, Icon second, int gap) implements Icon {
+
+        @Override
+        public int getIconWidth() {
+            return first.getIconWidth() + gap + second.getIconWidth();
+        }
+
+        @Override
+        public int getIconHeight() {
+            return Math.max(first.getIconHeight(), second.getIconHeight());
+        }
+
+        @Override
+        public void paintIcon(java.awt.Component c, java.awt.Graphics g, int x, int y) {
+            int h = getIconHeight();
+            first.paintIcon(c, g, x, y + (h - first.getIconHeight()) / 2);
+            second.paintIcon(c, g, x + first.getIconWidth() + gap, y + (h - second.getIconHeight()) / 2);
+        }
+
+    }
     public static final GlyphIcon collapseAll = icon(MaterialDesign.CHEVRON_UP, INLINE);
     public static final GlyphIcon expandAll = icon(MaterialDesign.CHEVRON_DOWN, INLINE);
     public static final GlyphIcon download = icon(MaterialDesign.DOWNLOAD, INLINE);

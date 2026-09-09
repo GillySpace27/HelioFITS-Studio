@@ -49,6 +49,7 @@ enum MaterialDesign {
     REFRESH("mdi-refresh", '\uf450'),
     ROTATE_3D("mdi-rotate-3d", '\uf464'),
     ROTATE_90("mdi-rotate-90", '\uf6a9'),
+    SETTINGS("mdi-settings", '\uf493'), // a gear; verified against the shipped font's cmap
     SHAPE_POLYGON_PLUS("mdi-shape-polygon-plus", '\uf65e'),
     SHARE_VARIANT("mdi-share-variant", '\uf497'),
     SKIP_BACKWARD("mdi-skip-backward", '\uf4ab'),

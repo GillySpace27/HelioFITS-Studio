@@ -8,7 +8,7 @@ import java.util.Set;
  *
  * <p>The order is persisted as a list of ids, which makes those ids API: the arithmetic here is
  * what stands between a settings file written by an older build and a bar with a tool missing, a
- * tool twice, or no way to get the editor back.
+ * tool twice, or a place on it that silently disappears.
  *
  * <p>Run: java -cp "bin:extra/test-classes" org.helioviewer.jhv.gui.component.ToolbarOrderCheck
  */
@@ -22,7 +22,7 @@ public final class ToolbarOrderCheck {
             failures++;
     }
 
-    private static final Set<String> KNOWN = Set.of("present", "zoomIn", "zoomOut", "grid", "more", "edit");
+    private static final Set<String> KNOWN = Set.of("present", "zoomIn", "zoomOut", "grid", "more");
 
     private static List<String> resolve(String stored) {
         return ToolBar.resolveOrder(stored, KNOWN);
@@ -34,24 +34,27 @@ public final class ToolbarOrderCheck {
         expect("and the default is the bar as it has always been, minus what this check pretends exists",
                 fallback.equals(List.of("present", ToolBar.SEPARATOR, "zoomIn", "zoomOut",
                         ToolBar.SEPARATOR, ToolBar.SEPARATOR, ToolBar.SEPARATOR, ToolBar.SEPARATOR,
-                        "grid", ToolBar.SEPARATOR, "more", ToolBar.SEPARATOR, "edit")));
+                        "grid", ToolBar.SEPARATOR, "more")));
 
         expect("a stored order is honoured as given",
-                resolve("grid|zoomIn|edit").equals(List.of("grid", "zoomIn", "edit")));
+                resolve("grid|zoomIn").equals(List.of("grid", "zoomIn")));
         expect("an id from a build that had a tool this one does not is dropped, not shown blank",
-                resolve("grid|fourierWhatsit|zoomIn|edit").equals(List.of("grid", "zoomIn", "edit")));
+                resolve("grid|fourierWhatsit|zoomIn").equals(List.of("grid", "zoomIn")));
 
         expect("separators survive, and repeat as often as they were placed",
-                resolve("grid|---|---|zoomIn|edit")
-                        .equals(List.of("grid", ToolBar.SEPARATOR, ToolBar.SEPARATOR, "zoomIn", "edit")));
+                resolve("grid|---|---|zoomIn")
+                        .equals(List.of("grid", ToolBar.SEPARATOR, ToolBar.SEPARATOR, "zoomIn")));
 
-        // The one rule that is not "do as you are told": a bar with no editor on it cannot be
-        // edited back, so Edit is put on the end rather than left off.
-        expect("an order without Edit gets it back, at the end",
-                resolve("grid|zoomIn").equals(List.of("grid", "zoomIn", "edit")));
-        expect("an order with Edit is not given a second one",
-                resolve("edit|grid").equals(List.of("edit", "grid")));
-        expect("an empty bar is still editable", resolve("|").equals(List.of("edit")));
+        // Edit used to be forced onto the end here, because a bar with no editor on it could not
+        // be edited back. It is a fixed corner control now, outside the order entirely, so the
+        // order is simply obeyed: an "edit" in a settings file written by an older build names a
+        // tool that no longer exists and is dropped like any other.
+        expect("an order without Edit is left as it is: the corner control is not a tool",
+                resolve("grid|zoomIn").equals(List.of("grid", "zoomIn")));
+        expect("an \"edit\" left in an older settings file is dropped, like any other unknown id",
+                resolve("edit|grid").equals(List.of("grid")));
+        expect("an empty bar stays empty, and the corner control is still there",
+                resolve("|").isEmpty());
 
         expect("every id in the default order is a tool the bar actually builds, or a separator",
                 java.util.Arrays.stream(ToolBar.DEFAULT_ORDER.split("\\|"))
@@ -90,7 +93,7 @@ public final class ToolbarOrderCheck {
             "pan", "rotate", "axis",
             "track", "diffRotation", "corona", "multiview",
             "projection", "colour", "sequence", "grid", "camera",
-            "more", "edit");
+            "more");
 
     private ToolbarOrderCheck() {}
 
