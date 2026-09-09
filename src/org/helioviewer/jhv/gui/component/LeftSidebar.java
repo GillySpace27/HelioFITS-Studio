@@ -25,8 +25,11 @@ import org.helioviewer.jhv.gui.MainFrame;
  * Space Weather Event Knowledgebase), so this must never rebuild the stack: a section pops out with
  * its position remembered and is inserted back at that index, leaving everything around it alone.
  *
- * <p>No reorder arrows here, for the same reason. Moving one of these would mean deciding where the
- * plugins' sections go, which is a question the plugins currently answer by adding last.
+ * <p>The reorder arrows move a section past whatever is next to it, a plugin's section included.
+ * Confining them to the palettes was the first instinct and it is the wrong one: it would leave a
+ * section that refuses to pass the one above it for reasons nothing on screen explains. What they
+ * must not do is rebuild the stack, and they do not: SideContentPane moves the one pane and leaves
+ * every other child of the shared pane exactly where it was.
  */
 public final class LeftSidebar implements SectionHost {
 
@@ -74,33 +77,49 @@ public final class LeftSidebar implements SectionHost {
             return;
         if (sections.containsKey(title))
             removeSection(title);
-        JComponent holder = buildSection(title, content, onFloat);
+        JPanel holder = new JPanel(new BorderLayout());
+        holder.setOpaque(false);
+        holder.add(content, BorderLayout.CENTER);
         sections.put(title, new Section(title, icon, content, holder));
         pane.add(title, holder, true, icon, title, insertIndex(lastIndex.get(title), pane.getComponentCount()));
+        pane.setAccessory(holder, buildControls(title, holder, onFloat));
         pane.revalidate();
     }
 
     /**
-     * The pop-out control, above the section's own content.
+     * Pop out, and move up or down: in line with the title, at the trailing end of its band.
      *
-     * <p>Above rather than in the header, and at the leading edge, for the two reasons the right
-     * sidebar's row carries: a trailing button inside a CollapsiblePane's header sits outside the
-     * toggle that paints the header's coloured bar and leaves a notch of window background in it,
-     * and anything right-aligned in a row as wide as the content is the first thing pushed out of
-     * a narrow sidebar.
+     * <p>They were a row of their own under the header, which cost a line of sidebar height per
+     * section and read as content rather than as chrome. CollapsiblePane carries the band's fill
+     * behind them now, which is what used to make a trailing button leave a notch of window
+     * background in the header.
+     *
+     * <p>The arrows are arrows and not chevrons on purpose. A chevron here means disclosure: the
+     * one on this very header opens the section. Reordering is a different verb, and while the two
+     * shared a glyph they sat a few pixels apart looking identical and doing unrelated things.
      */
-    private static JComponent buildSection(String title, Component content, Runnable onFloat) {
-        JPanel holder = new JPanel(new BorderLayout());
-        holder.setOpaque(false);
-        JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
+    private static JComponent buildControls(String title, JComponent holder, Runnable onFloat) {
+        JPanel bar = new JPanel(new FlowLayout(FlowLayout.TRAILING, 0, 0));
         bar.setOpaque(false);
+        JButton up = Buttons.flat(Buttons.moveUp);
+        up.setToolTipText("Move " + title + " up");
+        up.addActionListener(e -> move(holder, -1));
+        JButton down = Buttons.flat(Buttons.moveDown);
+        down.setToolTipText("Move " + title + " down");
+        down.addActionListener(e -> move(holder, 1));
         JButton floatOut = Buttons.flat(Buttons.popOut);
         floatOut.setToolTipText("Pop " + title + " out into a floating palette");
         floatOut.addActionListener(e -> onFloat.run());
+        bar.add(up);
+        bar.add(down);
         bar.add(floatOut);
-        holder.add(bar, BorderLayout.PAGE_START);
-        holder.add(content, BorderLayout.CENTER);
-        return holder;
+        return bar;
+    }
+
+    private static void move(JComponent holder, int delta) {
+        SideContentPane pane = MainFrame.getLeftContentPane();
+        if (pane != null)
+            pane.move(holder, delta);
     }
 
     @Override

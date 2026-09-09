@@ -101,7 +101,8 @@ public final class RightSidebar implements SectionHost {
     private final JPanel wrap = new JPanel(new BorderLayout());
     private final JButton handle = Buttons.flat(Buttons.collapseRight);
     /** What a section is made of, kept so the whole stack can be rebuilt in a new order. */
-    private record Section(String title, @Nullable Icon icon, Component content, Runnable onFloat, JComponent holder) {}
+    private record Section(String title, @Nullable Icon icon, Component content, Runnable onFloat,
+                           JComponent holder, JComponent controls) {}
 
     private final Map<String, Section> sections = new LinkedHashMap<>();
 
@@ -173,13 +174,16 @@ public final class RightSidebar implements SectionHost {
      * The controls that ride above a section's own content: pop it back out into a floating
      * palette, and move it up or down.
      *
-     * <p>The pop-out comes first and carries its own glyph rather than a third chevron. Popping out
-     * is the one thing a palette in here can do that nothing else offers, and three unlabelled
-     * chevrons in a row read as one control with a direction rather than as three controls.
+     * <p>The pop-out carries its own glyph rather than a third chevron, and the two that DO move
+     * the section carry arrows rather than chevrons. A chevron in this application means
+     * disclosure: the one on this very header opens the section, the one on the sidebar handle
+     * folds the bar away. While reordering shared that glyph, two controls a few pixels apart
+     * looked identical and did unrelated things.
      *
-     * <p>Above the content rather than in the section header, because a trailing button inside a
-     * CollapsiblePane's header would sit outside the toggle button that paints the header's
-     * coloured bar, leaving a notch of window background in it.
+     * <p>In line with the title, at the trailing end of its band. They were a row of their own
+     * under the header, because a trailing button there sat outside the toggle that paints the
+     * header's coloured bar and left a notch of window background in it; CollapsiblePane carries
+     * that fill behind them now, so the band is continuous and the row of height is given back.
      *
      * <p>Buttons rather than dragging the header. Both are ways to say "put this one above that
      * one", and with a handful of sections a pair of arrows says it without the ambiguity of a
@@ -188,28 +192,26 @@ public final class RightSidebar implements SectionHost {
     private Section buildSection(String title, @Nullable Icon icon, Component content, Runnable onFloat) {
         JPanel holder = new JPanel(new BorderLayout());
         holder.setOpaque(false);
-        // LEADING, not trailing. Right-aligned they sat at the far end of a row as wide as the
-        // content, which is how they ended up outside the sidebar entirely and unreachable. At the
-        // leading edge they are at x = 0 of the section whatever the content does.
-        JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
+        // Trailing is safe now that these ride in the header: the header is exactly as wide as the
+        // sidebar, where the old row was as wide as the content and put them off the edge.
+        JPanel bar = new JPanel(new FlowLayout(FlowLayout.TRAILING, 0, 0));
         bar.setOpaque(false);
 
-        JButton up = Buttons.flat(Buttons.collapseAll);
+        JButton up = Buttons.flat(Buttons.moveUp);
         up.setToolTipText("Move " + title + " up");
         up.addActionListener(e -> move(title, -1));
-        JButton down = Buttons.flat(Buttons.expandAll);
+        JButton down = Buttons.flat(Buttons.moveDown);
         down.setToolTipText("Move " + title + " down");
         down.addActionListener(e -> move(title, 1));
         JButton floatOut = Buttons.flat(Buttons.popOut);
         floatOut.setToolTipText("Pop " + title + " back out into a floating palette");
         floatOut.addActionListener(e -> onFloat.run());
 
-        bar.add(floatOut);
         bar.add(up);
         bar.add(down);
-        holder.add(bar, BorderLayout.PAGE_START);
+        bar.add(floatOut);
         holder.add(content, BorderLayout.CENTER);
-        return new Section(title, icon, content, onFloat, holder);
+        return new Section(title, icon, content, onFloat, holder, bar);
     }
 
     @Override
@@ -274,11 +276,13 @@ public final class RightSidebar implements SectionHost {
     private void rebuild() {
         for (Section s : sections.values())
             pane.remove(s.holder());
-        for (Section s : sections.values())
+        for (Section s : sections.values()) {
             // Its own preference key, because CollapsiblePane otherwise remembers expansion under
             // the section's title and the left sidebar already has a section called Camera: the
             // two were collapsing each other through one shared setting.
             pane.add(s.title(), s.holder(), true, s.icon(), "rightSidebar." + s.title());
+            pane.setAccessory(s.holder(), s.controls());
+        }
         wrap.setVisible(!sections.isEmpty());
         revalidate();
     }

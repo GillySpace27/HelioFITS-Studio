@@ -367,6 +367,10 @@ public final class MenuBar extends JMenuBar {
         helpMenu.add(new Actions.CheckForUpdates());
         helpMenu.addSeparator();
         helpMenu.add(new Actions.ShowDialog("Show Log...", new LogDialog()));
+        JMenuItem probe = new JMenuItem("Report Clipped Controls");
+        probe.setToolTipText("List every control on screen that is narrower than it asked to be, into the log");
+        probe.addActionListener(e -> org.helioviewer.jhv.gui.LayoutProbe.logReport());
+        helpMenu.add(probe);
         helpMenu.add(new Actions.OpenURLinBrowser("Report Bug/Request Feature", AppInfo.bugURL));
 
         add(helpMenu);

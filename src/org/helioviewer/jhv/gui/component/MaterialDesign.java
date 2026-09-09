@@ -3,6 +3,8 @@ package org.helioviewer.jhv.gui.component;
 enum MaterialDesign {
 
     // https://github.com/aalmiray/ikonli
+    ARROW_DOWN("mdi-arrow-down", '\uf045'), // move, as against a chevron, which discloses
+    ARROW_UP("mdi-arrow-up", '\uf05d'),
     BACKUP_RESTORE("mdi-backup-restore", '\uf06f'),
     BORDER_ALL("mdi-border-all", '\uf0c7'),
     // BRIGHTNESS_AUTO("mdi-brightness-auto", '\uf0e1'),

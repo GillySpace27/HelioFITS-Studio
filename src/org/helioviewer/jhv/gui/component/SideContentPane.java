@@ -81,6 +81,42 @@ public final class SideContentPane extends JComponent {
         return -1;
     }
 
+    /** Put controls in line with a section's title, at the trailing end of its header band. */
+    public void setAccessory(JComponent managed, @Nullable JComponent accessory) {
+        CollapsiblePane pane = map.get(managed);
+        if (pane != null)
+            pane.setAccessory(accessory);
+    }
+
+    /**
+     * Move a section one place up or down among the sections here.
+     *
+     * <p>Past whatever is next to it, a plugin's section included. This pane is shared and the
+     * plugins add to it, so "up" cannot mean "up among the palettes only" without leaving a section
+     * that refuses to pass the one above it for reasons nothing on screen explains.
+     */
+    public void move(JComponent managed, int delta) {
+        CollapsiblePane pane = map.get(managed);
+        int from = indexOf(managed);
+        if (pane == null || from < 0)
+            return;
+        int sections = getComponentCount() - 1; // the trailing strut is not one of them
+        int to = Math.clamp(from + delta, 0, sections - 1);
+        if (to == from)
+            return;
+        GridBagConstraints c = new GridBagConstraints();
+        c.weightx = 1;
+        c.weighty = 0;
+        c.gridx = 0;
+        c.gridwidth = 1;
+        c.anchor = GridBagConstraints.PAGE_START;
+        c.fill = GridBagConstraints.HORIZONTAL;
+        super.remove(pane);
+        add(pane, c, to);
+        revalidate();
+        repaint();
+    }
+
     /** Expand or collapse one section, addressed by the component that was added. */
     public void setExpanded(JComponent managed, boolean expanded) {
         CollapsiblePane pane = map.get(managed);

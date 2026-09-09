@@ -10,9 +10,11 @@ import javax.swing.BorderFactory;
 import javax.swing.Icon;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
+import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 
 import org.helioviewer.jhv.app.Settings;
+import org.helioviewer.jhv.app.Theme;
 import org.helioviewer.jhv.gui.ComponentUtils;
 import org.helioviewer.jhv.gui.UIGlobals;
 
@@ -30,6 +32,10 @@ public class CollapsiblePane extends JComponent implements ActionListener {
     private static final int CHILD_INDENT = 12; // how far a nested section steps in from its parent
 
     final CollapsiblePaneButton toggleButton;
+    /** Carries the band's fill behind whatever sits beside the title, so there is no notch in it. */
+    private final JPanel header = new JPanel(new BorderLayout());
+    @Nullable
+    private JComponent accessory;
     private final JComponent managed;
     private final float headerSize;
     private String title;
@@ -69,6 +75,9 @@ public class CollapsiblePane extends JComponent implements ActionListener {
         ComponentUtils.setVisible(managed, expanded);
 
         toggleButton = new CollapsiblePaneButton(child);
+        header.setOpaque(true);
+        UIGlobals.themed(header, c -> c.setBackground(
+                Theme.current().get(child ? Theme.Token.ChildHeaderFill : Theme.Token.HeaderFill)));
         toggleButton.setSelected(expanded);
         // UIGlobals fills its fonts from the look and feel, which a headless check (and any code
         // that builds a section before the LAF is installed) never runs; fall back to the button's
@@ -85,10 +94,44 @@ public class CollapsiblePane extends JComponent implements ActionListener {
         // parent band but the same shape in the same place, and shape is what the eye groups by.
         // The border is on the whole pane rather than the header, so the section's contents step
         // in with its title instead of hanging off the edge under an indented heading.
-        if (child)
+        if (child) {
             setBorder(BorderFactory.createEmptyBorder(0, CHILD_INDENT, 0, 0));
-        add(toggleButton, BorderLayout.PAGE_START);
+            // And the ground under its contents is stepped down from the panel's, so the nested
+            // block reads as recessed rather than as another band on the same surface. The band
+            // itself cannot carry this: a section header has to clear 3:1 against the panel, and
+            // in a dark theme the parent band is already within a tenth of that floor, so there is
+            // no darker band available. A body has no such rule, only that its text stays legible
+            // on it, which Theme.nestedSurface() is what enforces.
+            setOpaque(true);
+            UIGlobals.themed(this, c -> c.setBackground(Theme.nestedSurface()));
+            UIGlobals.themed(managed, c -> {
+                c.setOpaque(true);
+                c.setBackground(Theme.nestedSurface());
+            });
+        }
+        header.add(toggleButton, BorderLayout.CENTER);
+        add(header, BorderLayout.PAGE_START);
         add(managed, BorderLayout.CENTER);
+    }
+
+    /**
+     * Controls that ride at the trailing end of the header, in line with the title.
+     *
+     * <p>These used to be a row of their own under the header, because a button placed here sits
+     * outside the toggle that paints the header's coloured band and left a notch of window
+     * background in it. The notch is the thing to fix, not the placement: the strip carries the
+     * same fill, so the band is continuous and the controls are on it. A row of their own cost a
+     * whole line of sidebar height per section and read as content rather than as chrome.
+     */
+    public void setAccessory(@Nullable JComponent accessory) {
+        if (this.accessory != null)
+            header.remove(this.accessory);
+        this.accessory = accessory;
+        if (accessory != null) {
+            accessory.setOpaque(false);
+            header.add(accessory, BorderLayout.LINE_END);
+        }
+        header.revalidate();
     }
 
     /** The section's own glyph, or null for none. The chevron keeps its place in front of it. */

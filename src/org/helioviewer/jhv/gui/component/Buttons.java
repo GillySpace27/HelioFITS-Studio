@@ -105,16 +105,21 @@ public class Buttons {
      * Together they read as editing the settings of this thing, which is what the button does, and
      * they are unlike any single-glyph tool on the bar, which is what a permanent corner control
      * has to be.
+     *
+     * <p>The gear is first and the pencil second, overlapping it by five pixels. Second means drawn
+     * second, so the pencil is the one on top, and the MDI pencil points down and to the left: its
+     * graphite lands on the gear rather than beside it. Two glyphs merely adjacent read as two
+     * buttons pushed together; overlapped, they read as one mark.
      */
     public static final Icon editToolbarCorner =
-            new PairIcon(icon(MaterialDesign.PENCIL, INLINE), icon(MaterialDesign.SETTINGS, INLINE), 1);
+            new PairIcon(icon(MaterialDesign.SETTINGS, INLINE), icon(MaterialDesign.PENCIL, INLINE), -5);
 
     /** Two icons side by side, each centred on the taller. A button has one icon slot. */
     private record PairIcon(Icon first, Icon second, int gap) implements Icon {
 
         @Override
         public int getIconWidth() {
-            return first.getIconWidth() + gap + second.getIconWidth();
+            return first.getIconWidth() + gap + second.getIconWidth(); // a negative gap overlaps them
         }
 
         @Override
@@ -132,6 +137,12 @@ public class Buttons {
     }
     public static final GlyphIcon collapseAll = icon(MaterialDesign.CHEVRON_UP, INLINE);
     public static final GlyphIcon expandAll = icon(MaterialDesign.CHEVRON_DOWN, INLINE);
+    // Arrows, not chevrons. A chevron in this application means disclosure: the one on a section
+    // header opens it, the one on the sidebar handle folds the bar away. Reordering a section is a
+    // different verb, and giving it the same glyph left two controls a few pixels apart that looked
+    // identical and did unrelated things.
+    public static final GlyphIcon moveUp = icon(MaterialDesign.ARROW_UP, INLINE);
+    public static final GlyphIcon moveDown = icon(MaterialDesign.ARROW_DOWN, INLINE);
     public static final GlyphIcon download = icon(MaterialDesign.DOWNLOAD, INLINE);
     public static final GlyphIcon cache = icon(MaterialDesign.FOLDER_OPEN, INLINE);
     public static final GlyphIcon deleteCache = icon(MaterialDesign.DELETE, INLINE);
