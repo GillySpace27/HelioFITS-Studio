@@ -88,7 +88,6 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private final ButtonText GRID = new ButtonText(Buttons.grid, "Grid", "Grid, Thomson sphere, celestial sphere, ecliptic and planet overlay settings");
     private final ButtonText CAMERA = new ButtonText(Buttons.camera, "Camera", "Where the view is seen from: Free, Follow, Turntable, Overview, and their settings");
     private final ButtonText MORE = new ButtonText(Buttons.moreSettings, "More", "Less common controls: annotation, automatic refresh, the SDO cut-out, SAMP");
-    private final ButtonText EDITTOOLBAR = new ButtonText(Buttons.editToolbar, "Edit", "Choose which tools are on this bar and in what order; the rest live in the Tools menu");
     private final ButtonText PRESENTATION = new ButtonText(Buttons.presentation, "Present", "Presentation mode: output only, fullscreen (Esc to leave)");
     private final ButtonText REFRESH = new ButtonText(Buttons.refresh, "Refresh", "Automatic refresh");
     private final ButtonText RESETCAMERA = new ButtonText(Buttons.resetCamera, "Reset View", "Reset view to default");
@@ -178,7 +177,6 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     // added here; the Tools menu adopts the very same component, which is why a toggle in that
     // menu still shows its pressed state.
     static final String SEPARATOR = "---"; // a gap, not a control: allowed more than once
-    private static final String EDIT_ID = "edit";
     static final String ORDER_KEY = "ui.toolbar.order";
 
     /** One customisable place on the bar: a stable id, how it looks in the editor, and the control. */
@@ -195,7 +193,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             "pan", "rotate", "axis", SEPARATOR,
             "track", "diffRotation", "corona", "multiview", SEPARATOR,
             "projection", "colour", "sequence", "grid", "camera", SEPARATOR,
-            "more", SEPARATOR, EDIT_ID);
+            "more");
 
     /** Build a control and record it under an id, without deciding yet whether it is shown. */
     private void register(String id, ButtonText text, JComponent comp) {
@@ -205,10 +203,11 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     /**
      * The stored order, dropped down to ids that still exist.
      *
-     * <p>Edit is appended when it is missing rather than being refused a place in the editor: it
-     * is the way back, and a bar you can customise into a state with no way to customise it again
-     * is a trap. Removing it from the editor therefore does nothing, and the Tools menu carries it
-     * too.
+     * <p>Edit used to be appended here when missing, because it is the way back and a bar you can
+     * customise into a state with no way to customise it again is a trap. It is not a tool any
+     * more: it is a fixed control in the bar's trailing corner, which closes that trap outright
+     * rather than by patching every saved order. An "edit" left in an older settings file is
+     * simply an id that no longer exists, and is dropped like any other.
      */
     static java.util.List<String> order(java.util.Set<String> known) {
         return resolveOrder(Settings.getProperty(ORDER_KEY), known);
@@ -220,8 +219,6 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         for (String id : (stored == null || stored.isBlank() ? DEFAULT_ORDER : stored).split("\\|"))
             if (SEPARATOR.equals(id) || known.isEmpty() || known.contains(id))
                 ids.add(id);
-        if (!ids.contains(EDIT_ID))
-            ids.add(EDIT_ID);
         return ids;
     }
 
@@ -303,6 +300,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private final java.util.List<Component> items = new java.util.ArrayList<>();
     private final java.util.List<Component> overflowed = new java.util.ArrayList<>();
     private JButton overflowButton;
+    private JButton editCorner; // permanent, in the trailing corner, never part of the order
     private JPopupMenu overflowPopup;
     private JPanel overflowPanel;
     // While the menu is open its buttons are parented to it rather than to the toolbar, so
@@ -532,10 +530,6 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         }
         register("more", MORE, more);
 
-        JButton editButton = toolButton(EDITTOOLBAR);
-        editButton.addActionListener(e -> ToolbarEditor.open());
-        register(EDIT_ID, EDITTOOLBAR, editButton);
-
         layOutTools(dim);
 /*
         ButtonText hText = new ButtonText("HAPI", "HAPI", "HAPI");
@@ -564,6 +558,17 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         overflowButton.addActionListener(e -> showOverflow());
         overflowButton.setVisible(false);
         add(overflowButton);
+
+        // Added after the snapshot above, so it is a child of the bar without being part of the
+        // running order: doLayout pins it to the trailing corner and the overflow never eats it.
+        // That is the point of moving it off the row. As the last tool it was the first thing a
+        // narrow window pushed into the chevron, and the way back to the editor is not something
+        // to go hunting for in the menu that the editor decides the contents of.
+        editCorner = Buttons.flat(Buttons.editToolbarCorner);
+        editCorner.setToolTipText("Edit the toolbar: choose which tools are on it, and in what order");
+        editCorner.setFocusPainted(false);
+        editCorner.addActionListener(e -> ToolbarEditor.open());
+        add(editCorner);
     }
 
     private void showOverflow() {
@@ -622,7 +627,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     public void doLayout() {
         // getWidth() is 0 until the first real layout pass; without this every item would
         // "not fit" and the whole bar would collapse into the chevron for a frame.
-        if (items.isEmpty() || overflowButton == null || overflowOpen || getWidth() <= 0) {
+        if (items.isEmpty() || overflowButton == null || editCorner == null || overflowOpen || getWidth() <= 0) {
             super.doLayout();
             return;
         }
@@ -636,6 +641,9 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             total += c.getPreferredSize().width + hgap;
 
         int chevron = overflowButton.getPreferredSize().width;
+        int edit = editCorner.getPreferredSize().width;
+        // The corner control is always there, so its width is never available to the row.
+        avail -= edit + hgap;
         boolean needed = total > avail;
         int limit = needed ? avail - chevron - hgap : avail;
 
@@ -652,9 +660,11 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
                 overflowed.add(c);
             }
         }
+        int right = getWidth() - in.right;
+        editCorner.setBounds(right - edit, in.top, edit, rowHeight);
         overflowButton.setVisible(!overflowed.isEmpty());
         if (!overflowed.isEmpty())
-            overflowButton.setBounds(getWidth() - in.right - chevron, in.top, chevron, rowHeight);
+            overflowButton.setBounds(right - edit - hgap - chevron, in.top, chevron, rowHeight);
     }
 
     // Takes a JComponent rather than an AbstractButton because a split button is now a small
