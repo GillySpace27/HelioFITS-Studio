@@ -38,6 +38,48 @@ public final class FitsMetaData extends CommonMetaData {
     // since these are hand-annotated rather than machine-generated to exact WCS geometry.
     private static final double SPHERE_SPAN_TOLERANCE = 0.05;
 
+    /**
+     * What a header says it is and when, and nothing else.
+     *
+     * <p>The scanner reading a cache of loose FITS files wants exactly this and cannot have the
+     * rest: {@link #retrievePosition} asks SPICE where the observer was, which needs the native
+     * library and its kernels loaded, so a full FitsMetaData cannot be built outside a running
+     * application. Everything here is read before that line and is pure string work.
+     */
+    public record Observation(String displayName, String observatory, String instrument,
+                              String detector, String measurement, JHVTime time) {}
+
+    /**
+     * Identity and observation time, without the observer's position.
+     *
+     * <p>Exists so that reading a header outside the application means calling the application's
+     * own reader rather than writing a second one. The conventions are not guessable: LASCO alone
+     * puts its date in {@code DATE-OBS} with slashes and its time in a separate {@code TIME-OBS},
+     * MDI and early EIT need {@code DATE_OBS} instead, and a date-only header means midnight. A
+     * scanner that learned those independently would be a second place for them to be wrong.
+     */
+    @Nonnull
+    public static Observation observation(@Nonnull MetaDataContainer m) {
+        FitsMetaData meta = new FitsMetaData(m, IDENTITY_ONLY);
+        return new Observation(meta.displayName, meta.observatory, meta.instrument,
+                meta.detector, meta.measurement, meta.identityTime);
+    }
+
+    private static final Object IDENTITY_ONLY = new Object();
+
+    private JHVTime identityTime = new JHVTime(0);
+
+    /** Identity and time only. Private, because a half-built MetaData must not escape as one. */
+    private FitsMetaData(@Nonnull MetaDataContainer m, Object identityOnly) {
+        identifyObservation(m);
+        instrument = instrument.trim().intern();
+        detector = detector.trim().intern();
+        measurement = measurement.trim().intern();
+        observatory = observatory.trim().intern();
+        displayName = displayName.trim().intern();
+        identityTime = retrieveTime(m);
+    }
+
     public FitsMetaData(@Nonnull MetaDataContainer m) {
         identifyObservation(m);
 
