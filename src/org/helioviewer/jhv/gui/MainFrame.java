@@ -975,10 +975,26 @@ public final class MainFrame {
     // sidebar's own collapsed state is left alone so exiting restores what the user had.
     // The canvas is never removed from its container: detaching it would run removeNotify(),
     // which tears down the native Metal host and every static GL object with it.
-    static void setChromeVisible(boolean visible) {
+    /**
+     * Show or hide everything that is not the picture.
+     *
+     * @param keepLeft  leave the left sidebar up even while the rest goes away
+     * @param keepRight the same for the right one
+     *
+     * <p>The right sidebar was missing from this list entirely, which is why it did not close in
+     * presentation mode: this method predates it and adding eastWrap to the window did not add it
+     * here. The same omission, in the same pair of places, as the one that had both sidebars
+     * stacked on one BorderLayout constraint in the presenter window.
+     *
+     * <p>eastWrap is never forced back ON by the restore, only released: its visibility is how the
+     * right sidebar says whether it holds anything, so showing it unconditionally would leave an
+     * empty rail behind after a talk. PresentationMode hands back what it saw on the way in.
+     */
+    static void setChromeVisible(boolean visible, boolean keepLeft, boolean keepRight, boolean eastWasVisible) {
         toolBarPanel.setVisible(visible);
         statusPanel.setVisible(visible);
-        westWrap.setVisible(visible);
+        westWrap.setVisible(visible || keepLeft);
+        eastWrap.setVisible((visible && eastWasVisible) || (!visible && keepRight && eastWasVisible));
         northTransport.setVisible(visible);
         mainContentPanel.setPluginsVisible(visible);
         centerPanel.revalidate();
@@ -1011,6 +1027,11 @@ public final class MainFrame {
                 new ChromeSlot(northTransport, centerPanel, BorderLayout.PAGE_START, false),
                 new ChromeSlot(westWrap, centerPanel, BorderLayout.WEST, true),
                 new ChromeSlot(eastWrap, centerPanel, BorderLayout.EAST, true));
+    }
+
+    /** Whether the right sidebar is showing, which is also how it says it holds anything. */
+    static boolean isEastVisible() {
+        return eastWrap != null && eastWrap.isVisible();
     }
 
     public static boolean isSidebarCollapsed() {

@@ -515,6 +515,8 @@ public final class Palette {
      * this one is deliberately out of the way.
      */
     public static void keepVisible() {
+        if (suppressed)
+            return; // presentation mode is deliberately holding them down; do not fight it
         for (Palette p : palettes) {
             if (p.dialog == null)
                 continue; // never opened, or mid-rebuild
@@ -566,6 +568,42 @@ public final class Palette {
             p.dialog.validate();
             p.dock();
         }
+    }
+
+    private static boolean suppressed;
+    private static final java.util.List<Palette> hidden = new ArrayList<>();
+
+    /**
+     * Take every floating palette off the screen, or put back the ones that were on it.
+     *
+     * <p>For a single-screen talk, where the picture is the whole display and a palette is drawn
+     * over the slide. Which is sometimes exactly what is wanted, so it is a setting rather than a
+     * rule, and the ones that were showing are remembered so putting them back restores the desk
+     * as it was rather than opening everything.
+     *
+     * <p>{@link #keepVisible} has to be told, because it exists to undo any hiding it did not do:
+     * it reads the toolbar toggle as the record of what the user wants open and would put these
+     * straight back on the next tick. Palettes docked in a sidebar are not touched here at all;
+     * they go wherever their sidebar goes.
+     */
+    public static void setFloatingVisible(boolean visible) {
+        if (visible) {
+            suppressed = false;
+            for (Palette p : hidden)
+                if (p.dialog != null) {
+                    p.dock();
+                    p.dialog.setVisible(true);
+                }
+            hidden.clear();
+            return;
+        }
+        hidden.clear();
+        for (Palette p : palettes)
+            if (p.hasWindow()) {
+                hidden.add(p);
+                p.dialog.setVisible(false);
+            }
+        suppressed = true;
     }
 
     private static void dockOpen() {

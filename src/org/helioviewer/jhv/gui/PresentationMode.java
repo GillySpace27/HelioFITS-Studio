@@ -39,6 +39,7 @@ public final class PresentationMode {
     private static boolean active;
 
     @Nullable private static JFrame presenterWindow;
+    private static boolean savedEastVisible;
     @Nullable private static GraphicsDevice fullScreenOn; // the device we put into exclusive full screen
     @Nullable private static java.awt.event.ComponentAdapter settleListener;
     @Nullable private static Rectangle savedBounds;
@@ -87,7 +88,11 @@ public final class PresentationMode {
         // Hide everything first, in both configurations: the presented window must be output
         // only either way. The presenter window then takes back just the panels it wants, which
         // is also what keeps the status bar and the plugins pane off the projector.
-        MainFrame.setChromeVisible(false);
+        savedEastVisible = MainFrame.isEastVisible();
+        Keep keep = keepFor(dual);
+        MainFrame.setChromeVisible(false, keep.left(), keep.right(), savedEastVisible);
+        if (!keep.palettes())
+            org.helioviewer.jhv.gui.component.Palette.setFloatingVisible(false);
         if (dual)
             presenterWindow = buildPresenterWindow(presenterScreen);
 
@@ -159,7 +164,8 @@ public final class PresentationMode {
             presenterWindow.dispose(); // a plain JFrame of lightweight panels: no GL to lose
             presenterWindow = null;
         }
-        MainFrame.setChromeVisible(true);
+        MainFrame.setChromeVisible(true, false, false, savedEastVisible);
+        org.helioviewer.jhv.gui.component.Palette.setFloatingVisible(true);
         MainFrame.setSidebarCollapsed(savedSidebarCollapsed);
 
         if (savedBounds != null)
@@ -180,6 +186,47 @@ public final class PresentationMode {
     // most single-projector setups want.
     public static final String OUTPUT_SCREEN = "presentation.outputScreen";
     public static final String CONTROLS_SCREEN = "presentation.controlsScreen";
+
+    // --- what stays on screen ---------------------------------------------------------------
+    public static final String KEEP_LEFT = "presentation.keepLeftSidebar";
+    public static final String KEEP_RIGHT = "presentation.keepRightSidebar";
+    public static final String KEEP_PALETTES = "presentation.keepFloatingPalettes";
+
+    /** What presentation mode leaves up. All three are false on two screens; see {@link #keepFor}. */
+    public record Keep(boolean left, boolean right, boolean palettes) {}
+
+    /**
+     * What stays on screen, given how many screens are in play.
+     *
+     * <p>On one screen the picture is the whole display and anything kept is drawn over it, which
+     * is a real trade the presenter is making knowingly: a sidebar in the corner of the slide, in
+     * exchange for being able to drive the thing without leaving the mode. Those are the settings.
+     *
+     * <p>With a second display the sidebar settings are ignored, and not as a limitation worked
+     * around: the chrome is not hidden there at all, it is lent to a presenter window on the other
+     * screen where both sidebars already are. Keeping one "on screen" would mean drawing it over
+     * the projector, which is the one thing the mode exists to prevent.
+     *
+     * <p>The palettes go the other way, and the difference is the whole reason this is not one
+     * flag. A palette is its own window and follows the presenter to the second screen; hiding
+     * them there would take away the controls the presenter view exists to provide. So the
+     * sidebars are forced off on two screens and the palettes are forced ON.
+     *
+     * <p>Pure, so the check can pin both rules without a projector.
+     */
+    public static Keep keepFor(boolean dual) {
+        return dual ? new Keep(false, false, true)
+                : new Keep(flag(KEEP_LEFT, false), flag(KEEP_RIGHT, false), flag(KEEP_PALETTES, true));
+    }
+
+    public static boolean flag(String key, boolean fallback) {
+        String value = org.helioviewer.jhv.app.Settings.getProperty(key);
+        return value == null || value.isBlank() ? fallback : Boolean.parseBoolean(value);
+    }
+
+    public static void setFlag(String key, boolean value) {
+        org.helioviewer.jhv.app.Settings.setProperty(key, Boolean.toString(value));
+    }
 
     /** One attached display: a stable id to persist, and a label to show in the menu. */
     public record Screen(String id, String label) {}
