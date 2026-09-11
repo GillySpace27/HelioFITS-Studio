@@ -38,6 +38,7 @@ public final class AutomationTrackCheck {
         roundTrip();
         applier();
         editing();
+        curveEdits();
         System.out.println("AutomationTrackCheck: OK");
     }
 
@@ -227,6 +228,92 @@ public final class AutomationTrackCheck {
         assertTrue(Automation.getLatched() == null, "clearing the tracks clears the latch");
 
         Display.setWarpLambda(0);
+    }
+
+    // The edits a drag on the lane makes (phase 5). The gestures themselves are Swing and the hit
+    // test needs the plot's geometry, so neither is reachable here; what IS reachable is every way
+    // those gestures can corrupt a curve, and each of these is silent in the application:
+    //
+    //   - a key dragged past its neighbour leaves the list unsorted, and valueAt binary-searches
+    //     it, so the curve would read wrong from then on with nothing to show for it;
+    //   - a caller that keeps the index it started the drag with follows the wrong key after that
+    //     re-sort, so the drag would jump to another point mid-gesture;
+    //   - a segment drag that does not move both bounding keys by the SAME amount changes the
+    //     segment's shape while claiming to slide it;
+    //   - deleting the last key leaves a track that evaluates to NaN, which the applier skips, so
+    //     the row still says the parameter is animated while nothing animates it.
+    private static void curveEdits() {
+        Track t = new Track("display.warpLambda");
+        t.put(new Track.Key(T0, 0, Track.Interp.LINEAR));
+        t.put(new Track.Key(T0 + 1000, 1, Track.Interp.SMOOTH));
+        t.put(new Track.Key(T0 + 3000, -1, Track.Interp.HOLD));
+
+        // A move keeps the key's own interpolation: dragging a point must not restyle its segment.
+        int i = t.moveKey(1, T0 + 1500, 0.5);
+        assertTrue(i == 1, "a move within its neighbours keeps the index");
+        assertTrue(t.getKeys().get(1).interp() == Track.Interp.SMOOTH, "a move keeps the key's interpolation");
+        eq(t.getKeys().get(1).time(), T0 + 1500, "and lands where it was put");
+        eq(t.valueAt(T0 + 1500), 0.5, "the curve follows it");
+
+        // Dragged past its neighbour. The list re-sorts, so the index the caller holds must move.
+        i = t.moveKey(1, T0 + 4000, 0.25);
+        assertTrue(i == 2, "a key dragged past its neighbour reports its new index");
+        assertTrue(sorted(t), "and the list stays sorted");
+        eq(t.getKeys().get(2).value(), 0.25, "the followed index is the key that moved");
+        eq(t.getKeys().get(1).value(), -1, "and the key it passed is where it was");
+
+        // Dropped exactly onto another key: one key, not two at one time, which valueAt would
+        // divide by zero across.
+        int before = t.getKeys().size();
+        t.moveKey(2, T0, 0.75);
+        assertTrue(t.getKeys().size() == before - 1, "a key dropped onto another consumes it");
+        eq(t.valueAt(T0), 0.75, "and the dropped one wins");
+
+        // Segment drag: both bounding keys by the same delta, times untouched.
+        Track seg = new Track("display.diskScale");
+        seg.put(new Track.Key(T0, 0.2, Track.Interp.LINEAR));
+        seg.put(new Track.Key(T0 + 1000, 0.8, Track.Interp.LINEAR));
+        double shapeBefore = seg.valueAt(T0 + 500) - seg.getKeys().getFirst().value();
+        seg.shiftValue(0, 0.2 + 0.3);
+        seg.shiftValue(1, 0.8 + 0.3);
+        eq(seg.getKeys().getFirst().time(), T0, "a segment drag leaves the first key's time alone");
+        eq(seg.getKeys().get(1).time(), T0 + 1000, "and the second's");
+        eq(seg.valueAt(T0 + 500) - seg.getKeys().getFirst().value(), shapeBefore, "and does not change the segment's shape");
+        eq(seg.valueAt(T0), 0.5, "the whole segment moved by the drag's delta");
+
+        // Interpolation, set from the right-click menu.
+        seg.setInterp(0, Track.Interp.HOLD);
+        eq(seg.valueAt(T0 + 500), 0.5, "HOLD makes the segment a step");
+        assertTrue(seg.getKeys().getFirst().time() == T0, "and moves nothing");
+
+        // Delete, and the floor under it.
+        Track one = new Track("display.warpLambda");
+        one.put(new Track.Key(T0, 0.4, Track.Interp.LINEAR));
+        assertTrue(!one.removeKey(0), "the last key refuses to go");
+        assertTrue(one.getKeys().size() == 1, "and is still there");
+        one.put(new Track.Key(T0 + 1000, 0.9, Track.Interp.LINEAR));
+        assertTrue(one.removeKey(1), "a key with a sibling goes");
+        eq(one.valueAt(T0 + 5000), 0.4, "leaving the survivor holding the curve");
+
+        // Flatten to constant.
+        one.put(new Track.Key(T0 + 1000, 0.9, Track.Interp.LINEAR));
+        one.flatten(T0 + 500, 0.6);
+        assertTrue(one.getKeys().size() == 1, "flatten leaves one key");
+        eq(one.valueAt(T0 - 9999), 0.6, "and the curve is that value everywhere");
+        eq(one.valueAt(T0 + 9999), 0.6, "at both ends");
+    }
+
+    private static boolean sorted(Track t) {
+        java.util.List<Track.Key> keys = t.getKeys();
+        for (int i = 1; i < keys.size(); i++)
+            if (keys.get(i - 1).time() > keys.get(i).time())
+                return false;
+        return true;
+    }
+
+    private static void eq(long got, long want, String what) {
+        if (got != want)
+            throw new AssertionError(what + ": expected " + want + ", got " + got);
     }
 
     private static Track unresolvable() {

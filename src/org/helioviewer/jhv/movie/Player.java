@@ -322,6 +322,19 @@ public class Player {
         return best;
     }
 
+    /**
+     * The timestamp of the frame nearest {@code millis}, or {@code millis} itself when no movie is
+     * loaded. Dragging an animation key snaps to this, because a key between two frames is a value
+     * the renderer will never be asked for: Layers.setImageLayersNearestFrame snaps every layer to
+     * its nearest existing frame, so the curve is only ever sampled at frame times.
+     */
+    public static long snapToFrame(long millis) {
+        ImageLayer layer = Layers.getActiveImageLayer();
+        if (layer == null)
+            return millis;
+        return layer.getView().getFrameTime(frameForTime(millis)).milli;
+    }
+
     public static int getMaximumFrameNumber() {
         ImageLayer layer = Layers.getActiveImageLayer();
         return layer == null ? 0 : layer.getView().getMaximumFrameNumber();

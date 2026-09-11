@@ -19,6 +19,12 @@ key on release. Section 12 records the one parameter that was deliberately left 
 (dragging keys in the lane) and phase 7 (the frame-rate track) are still not built, so a curve is
 built by arming, scrubbing and dragging the slider rather than by editing the lane.
 
+**Status, 2026-09-11: phase 5 is built.** Keys can be dragged in time and value, a segment can be
+dragged in value, double-click inserts and deletes, right-click sets the interpolation of the
+segment leaving a key, and the selected row's options panel carries the value at the playhead and
+a flatten-to-constant button. Section 13 records what changed against section 5's description.
+Only phase 7 is left, and it is restricted to the solar-time speed units (section 4).
+
 ## 1. What the feature is
 
 Every knob in the application is a constant today: you set the opacity, the warp lambda, the HDR
@@ -560,3 +566,52 @@ added. The registry's getter is the value that gets stored.
 programmatic `setValue` never sets. Panels are rebuilt and their sliders re-set constantly as
 layers are selected and filters change; without that condition, switching layers would edit a
 curve.
+
+## 13. Phase 5, as built
+
+Written 2026-09-11, after building the lane's gestures. Section 5's table stood, and both traps it
+was written around were real. Four things are worth recording.
+
+**The vertical scale is frozen for the duration of a drag.** Section 5 did not anticipate this and
+it is the difference between a lane you can edit and one you cannot. The lane's scale is derived
+from the track's own extremes, and a drag moves a key: recomputed live, dragging a key upward
+raises the maximum, which rescales the lane, which moves the key back down under the cursor. The
+curve squirms and the point does not follow the mouse. `range()` returns a frozen pair while a drag
+is running, padded by a quarter of the span at each end so a drag can still push a key past the old
+extremes, and the lane rescales once on release.
+
+**A key drag has to follow its own index.** `Track.moveKey` keeps the list sorted, so dragging a
+key past its neighbour renumbers both, and a caller holding the index it started with would silently
+start dragging the neighbour instead. `moveKey` returns the index the key ended up at and the drag
+follows it. A key dropped on another's exact time consumes it, which is what dragging one point onto
+another means everywhere else, and which also keeps `valueAt` from dividing by zero across two keys
+at one time.
+
+**Deleting the last key is refused.** A track with no keys evaluates to NaN, which the applier
+skips, so double-clicking a lane's last key would leave the row still saying the parameter is
+animated while nothing animated it. The delete column is the way to remove a track, and it says so.
+
+**The live value went to the options panel, which is where section 11 said it belonged.** The lane
+draws into the plot's cached image and a time change does not rebuild it, so a number printed in
+the lane is stale. A JLabel in the selected row's panel repaints itself. Its timer runs only while
+the panel is on screen, so nothing is left registered when the lane goes.
+
+Two notes on the gestures themselves. A drag repaints the whole plot once per mouse event, every
+timeline layer included, because the plot is a cached image and an edit dirties nothing on its own;
+that is the price of a curve that follows the cursor and it is why the grab radius is generous. And
+an automation lane gets first refusal on a double-click, ahead of `DrawController.resetAxis`: the
+two gestures collide, and a lane has no y-axis to reset (`showYAxis()` is false), so nothing is lost
+by answering there first. Off a lane, `resetAxis` is untouched.
+
+### Verified on 2026-09-11
+
+`ant` clean, `ant prone` clean, `AutomationTrackCheck` green. The phase-5 assertions were
+mutation-proved: `moveKey` returning the pre-sort index, `moveKey` not consuming a collision,
+`removeKey` without its floor, `moveKey` restyling the segment it moves, and `flatten` not clearing
+each fail their own named assertion, and the restored source passes.
+
+### Not verified
+
+The gestures have not been performed on screen. The hit test needs the plot's geometry and the
+menu needs a display, and the display is held by another session. What is checked is every way the
+gestures can corrupt a curve, not that a press lands where the cursor is.

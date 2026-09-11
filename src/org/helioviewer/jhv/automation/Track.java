@@ -72,6 +72,58 @@ public final class Track {
     }
 
     /**
+     * Moves the key at {@code index} to a new time and value, keeping its interpolation.
+     *
+     * <p>A move onto another key's exact time consumes that key, which is what dragging one point
+     * over another means everywhere else. Returns the index the key ended up at: the list stays
+     * sorted, so dragging one key past its neighbour renumbers both, and a caller holding an index
+     * across a drag has to follow it.
+     */
+    public int moveKey(int index, long time, double value) {
+        Key old = keys.get(index);
+        keys.remove(index);
+        Key moved = new Key(time, value, old.interp());
+        keys.removeIf(k -> k.time() == time);
+        keys.add(moved);
+        keys.sort(BY_TIME);
+        return keys.indexOf(moved);
+    }
+
+    /** Shifts one key's value, leaving its time alone. For dragging a whole segment vertically. */
+    public void shiftValue(int index, double value) {
+        Key old = keys.get(index);
+        keys.set(index, new Key(old.time(), value, old.interp()));
+    }
+
+    /** How the segment leaving the key at {@code index} reaches the next one. */
+    public void setInterp(int index, Interp interp) {
+        Key old = keys.get(index);
+        keys.set(index, new Key(old.time(), old.value(), interp));
+    }
+
+    /**
+     * Removes the key at {@code index}, unless it is the only one left.
+     *
+     * <p>A track with no keys evaluates to NaN, which the applier skips, so emptying one by
+     * double-clicking its last key would leave a lane drawing nothing and a parameter that quietly
+     * stopped being animated while its row still said it was. Deleting the last key is the delete
+     * column's job, which removes the track and says so.
+     */
+    public boolean removeKey(int index) {
+        if (keys.size() <= 1)
+            return false;
+        keys.remove(index);
+        return true;
+    }
+
+    /** Replaces the whole curve with one key holding {@code value}: "flatten to constant". */
+    public void flatten(long time, double value) {
+        Interp interp = keys.isEmpty() ? Interp.LINEAR : keys.get(0).interp();
+        keys.clear();
+        keys.add(new Key(time, value, interp));
+    }
+
+    /**
      * The parameter's value at data time {@code t}, or NaN if the track has no keys.
      *
      * <p>Clamped at both ends rather than extrapolated: continuing an opacity ramp past the end of
