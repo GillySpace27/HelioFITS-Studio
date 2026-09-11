@@ -5,6 +5,13 @@ control, choose "Animate", and that parameter appears as an editable lane in the
 with draggable keys, the way a DAW automation lane works. Nothing here is built; this is the shape
 of it, so the design can be argued with before it costs a build.
 
+**Status, 2026-09-08 (after the spec was written): phases 1 to 4 are built and verified.** The
+tracks, the registry, the per-frame applier, the layer ids, the session's `automation` object and
+the read-only lane all exist and were exercised end to end against a real session (three tracks,
+PUNCH + LASCO + SUVI layers). Phases 5 to 7 are not built. Two things changed under contact with
+the code and are marked inline below: the registry resolves per frame instead of taking
+registrations, and the lane does not print a live value. Section 11 records both.
+
 ## 1. What the feature is
 
 Every knob in the application is a constant today: you set the opacity, the warp lambda, the HDR
@@ -445,3 +452,65 @@ case (a rate that halves linearly over an interval has a known elapsed output ti
 - Every line number above was checked against the working tree on 2026-09-08. `State.java` and
   `Layers.java` both moved under me while this was being written, so treat any citation that does
   not land as a shift, not as a claim about different code.
+
+## 11. What contact with the code changed
+
+Written 2026-09-08 after building phases 1 to 4. Everything else in this document stood.
+
+**The registry does not take registrations.** Section 2 proposed a registration protocol: a layer
+registers its parameters when its view is ready and unregisters when it is removed. What was built
+resolves the key per frame instead: `Automation.resolve` switches on the fixed global keys and
+otherwise parses `kind:<layerId>/<name>` and looks the id up in `Layers`. This has the property the
+registration protocol was there to buy (a key naming a layer that has not loaded yet does nothing
+that frame and costs a lookup) with no lifecycle to leak, no registration sites, and no ordering.
+The cheap-setter contract survives unchanged: it is the switch's right-hand side. Phase 6 needs a
+slider to ask "does this control carry a key", which is the reverse direction and will want a small
+map from slider to key; that map is the registration, and it can be added when phase 6 needs it.
+
+**The lane prints no live value.** Section 5's lane was to print the value at the playhead at its
+right edge. Built and then removed, because it is wrong on the screen: a timeline layer draws into
+the plot's cached image, which is rebuilt only when something sets `DrawController`'s redraw flag,
+and a time change does not: the movie line is composited over the cached image afterwards. Measured
+in the running application on 2026-09-08, the lane read 0.99 while the track's actual value was
+0.33, and did not change across two seeks; it corrected itself only when a pointer event in the
+plot forced a redraw. This is trap 4 in a new place. Forcing a repaint per frame would redraw every
+timeline layer, a radio spectrogram included, on every frame, so the number was dropped: the movie
+line crossing the curve is the readout, and the lane's own min and max bound it. The number belongs
+in the selected-row options panel, which Swing repaints on its own, and that panel is phase 5.
+
+**The strict ISO parse, not `TimeUtils.optParse`.** Key times are machine-written by
+`TimeUtils.format`, so `TimeUtils.parse` round-trips them to the millisecond. `optParse` routes
+through SPICE and a natural-language fallback: it needs a native library that `AppInit` extracts at
+startup and no headless check can load, and it would guess at a malformed field rather than skip it.
+
+**Automation lanes are excluded from `saveTimelineState`.** Section 6 decided that tracks are not
+stored in the `timelines` array. Enforcing that needs one more line than the section says: the lane
+is a `TimelineLayer`, so `saveTimelineState` would write it there anyway, and the session would
+carry two copies of each track with only one restore path. `State.saveTimelineState` now skips
+`AutomationTimelineLayer`.
+
+**`Display.applyDiskScale` is public**, rather than the applier living in
+`org.helioviewer.jhv.display`. Section 8 offered both; this is the shorter diff.
+
+### Verified on 2026-09-08
+
+Built with `ant`; `extra/test/AutomationTrackCheck.java` passes (evaluator in all three
+interpolation modes, both clamps, out-of-order insertion, the save/load round trip including a
+track whose layer id no layer carries, and the applier writing through the registry). Then run in
+the application against a session carrying three tracks: an opacity track on a PUNCH mosaic bound
+by layer id, a `display.warpLambda` track, and a track naming a layer id no layer carries. All
+three lanes drew, stacked from the top, with the coverage rows undisturbed below them. The opacity
+lane's label resolved to "WFI+NFI Mosaic 530 opacity", which is the layer id surviving the save and
+the reload. The unresolved track loaded, drew, showed its raw key as its label, applied nothing and
+threw nothing. At 2025-09-24T13:31 the lanes read 0.36 and 0.51 against 0.347 and 0.528 computed
+from the track definitions.
+
+### Still not verified
+
+- Recording. Nothing was exported, so the claim that the file is the screen is still an argument
+  from where the applier sits in `GLRenderer.display`, not an observation.
+- Anything in section 10 that was open then is open now, the layered EXR path and the multiview
+  viewport loop included.
+- The grid mesh rebuild's per-frame cost is still unmeasured.
+- Resolving a `layer:<id>/...` key against the live layer list is not covered by the headless
+  check: `Layers`' class initialisation reaches SPICE. It is covered by the application run above.

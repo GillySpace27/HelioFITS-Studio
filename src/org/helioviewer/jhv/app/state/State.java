@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.annotation.Nullable;
@@ -17,7 +18,10 @@ import javax.annotation.Nullable;
 import org.helioviewer.jhv.annotation.Annotations;
 import org.helioviewer.jhv.app.Commands;
 import org.helioviewer.jhv.app.Log;
+import org.helioviewer.jhv.automation.Automation;
+import org.helioviewer.jhv.automation.Track;
 import org.helioviewer.jhv.display.DisplayController;
+import org.helioviewer.jhv.layers.AbstractLayer;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.layers.Layer;
@@ -31,6 +35,7 @@ import org.helioviewer.jhv.thread.Task;
 import org.helioviewer.jhv.time.JHVTime;
 import org.helioviewer.jhv.gui.component.MoviePanel;
 import org.helioviewer.jhv.time.TimeUtils;
+import org.helioviewer.jhv.timelines.AutomationTimelineLayer;
 import org.helioviewer.jhv.timelines.TimelineLayer;
 import org.helioviewer.jhv.timelines.TimelineLayers;
 import org.helioviewer.jhv.timelines.Timelines;
@@ -148,6 +153,12 @@ public final class State {
         main.put("imageLayers", ji);
 
         saveTimelineState(main);
+        // Beside the layers, NOT inside "timelines". State.load only reads that array when
+        // EVEPlugin is active, while saveTimelineState writes it unconditionally from a list that
+        // is empty when the plugin was never installed -- so a track stored there would survive
+        // one session with the panel off and be written away to nothing by the next autosave.
+        // Automation is a property of the picture, not of the panel that edits it.
+        main.put("automation", Automation.toJson());
         JSONObject plugins = new JSONObject();
         PluginManager.saveState(plugins);
         main.put("plugins", plugins);
@@ -157,6 +168,11 @@ public final class State {
 
     private static JSONObject layer2json(Layer layer, boolean master) {
         JSONObject jo = new JSONObject().put("className", layer.getClass().getName()).put("name", layer.getName());
+        // Stable identity, so an automation track can name this layer across a save and a reload.
+        // Neither the name (not unique, and "Loading..." while the view is in flight) nor the list
+        // position (decided by an asynchronous restore that also prunes failures) can carry it.
+        if (layer instanceof AbstractLayer al)
+            jo.put("id", al.getId());
         JSONObject dataObject = new JSONObject();
         layer.serialize(dataObject);
         jo.put("data", dataObject);
@@ -175,9 +191,19 @@ public final class State {
         return jo;
     }
 
+    // A session saved before layer ids existed carries none; that layer simply keeps the fresh id
+    // its constructor generated, and any track naming an id no layer carries stays unresolved and
+    // is written back out unchanged. No migration is needed: no session in existence has a track.
+    private static void restoreId(JSONObject jo, Layer layer) {
+        if (layer instanceof AbstractLayer al)
+            al.restoreId(jo.optString("id", ""));
+    }
+
     private static void saveTimelineState(JSONObject main) {
         JSONArray ja = new JSONArray();
         for (TimelineLayer tl : TimelineLayers.get()) {
+            if (tl instanceof AutomationTimelineLayer) // stored under "automation"; see Automation.fromJson
+                continue;
             JSONObject jo = new JSONObject().put("className", tl.getClass().getName()).put("name", tl.getName());
             JSONObject dataObject = new JSONObject();
             tl.serialize(dataObject);
@@ -263,6 +289,7 @@ public final class State {
                         if (ViewpointLayerOptions.stashLegacyCameraLayer(jo))
                             continue;
                         if (json2Object(jo) instanceof Layer layer) {
+                            restoreId(jo, layer);
                             restoredLayers.add(layer);
                             layer.setEnabled(jo.optBoolean("enabled", false));
                         }
@@ -293,6 +320,7 @@ public final class State {
 
                     try {
                         ImageLayer layer = ImageLayer.createDetached(jd);
+                        restoreId(jo, layer);
                         restoredLayers.add(layer);
                         newLayers.put(layer, jo.optBoolean("enabled", false));
                         if (jo.optBoolean("master", false))
@@ -378,9 +406,16 @@ public final class State {
                 FITSViewState.fromJson(fitsView); // before the layers decode
             ViewState.applyRecordingJson(jo.optJSONObject("recording"));
 
-            if (PluginManager.isActive(EVEPlugin.class))
+            // Unconditional, and before the timelines gate: the tracks load, apply and record
+            // whether or not the panel that edits them exists. A movie recorded with the
+            // Timelines panel open must record identically with it closed.
+            List<Track> tracks = Automation.fromJson(jo.optJSONObject("automation"));
+
+            if (PluginManager.isActive(EVEPlugin.class)) {
                 loadTimelines(jo);
-            else
+                for (Track track : tracks) // the lanes are the panel's view of the tracks, not their storage
+                    Timelines.getLayers().add(new AutomationTimelineLayer(track));
+            } else
                 Log.info("Skipping timeline state because EVEPlugin is inactive");
 
             JSONObject plugins = jo.optJSONObject("plugins");

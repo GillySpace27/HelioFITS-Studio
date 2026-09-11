@@ -716,10 +716,23 @@ public final class GridLayer extends AbstractLayer {
     }
 
     public void setGridAlpha(double _gridAlpha) {
+        aimGridAlpha(_gridAlpha);
+        DisplayController.display();
+    }
+
+    /**
+     * Move the value without asking for a frame. The animation applier runs at the top of
+     * GLRenderer.display, so calling the set* variant would request another frame from inside a
+     * frame, every frame. Same split as HdrGain's aim-and-commit pair and
+     * Display.applyDiskScale, for the same reason.
+     *
+     * <p>Not free: the alpha is baked into the grid's vertex colour bytes, so animating it
+     * re-runs GridMath.initGrid on every frame it changes. It works; it costs a mesh rebuild.
+     */
+    public void aimGridAlpha(double _gridAlpha) {
         gridAlpha = Math.clamp(_gridAlpha, 0, 1);
         updateGridColorBytes();
         gridNeedsInit = true;
-        DisplayController.display();
     }
 
     public double getLabelAlpha() {
@@ -727,8 +740,13 @@ public final class GridLayer extends AbstractLayer {
     }
 
     public void setLabelAlpha(double _labelAlpha) {
-        labelAlpha = Math.clamp(_labelAlpha, 0, 1);
+        aimLabelAlpha(_labelAlpha);
         DisplayController.display();
+    }
+
+    /** As {@link #aimGridAlpha}: the state change without the repaint. */
+    public void aimLabelAlpha(double _labelAlpha) {
+        labelAlpha = Math.clamp(_labelAlpha, 0, 1);
     }
 
     public double getGridLineScale() {
@@ -736,8 +754,13 @@ public final class GridLayer extends AbstractLayer {
     }
 
     public void setGridLineScale(double _gridLineScale) {
-        gridLineScale = Math.clamp(_gridLineScale, GRID_LINE_SCALE_MIN, GRID_LINE_SCALE_MAX);
+        aimGridLineScale(_gridLineScale);
         DisplayController.display();
+    }
+
+    /** As {@link #aimGridAlpha}: the state change without the repaint. */
+    public void aimGridLineScale(double _gridLineScale) {
+        gridLineScale = Math.clamp(_gridLineScale, GRID_LINE_SCALE_MIN, GRID_LINE_SCALE_MAX);
     }
 
     public double getGridLabelSize() {

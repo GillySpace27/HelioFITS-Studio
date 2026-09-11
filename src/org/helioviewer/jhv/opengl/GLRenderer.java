@@ -3,6 +3,7 @@ package org.helioviewer.jhv.opengl;
 import org.helioviewer.jhv.annotation.Annotations;
 import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.astronomy.Sun;
+import org.helioviewer.jhv.automation.Automation;
 import org.helioviewer.jhv.display.Camera;
 import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.base.Colors;
@@ -18,6 +19,7 @@ import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.layers.MiniviewLayer;
 import org.helioviewer.jhv.metadata.Region;
 import org.helioviewer.jhv.movie.ExportMovie;
+import org.helioviewer.jhv.movie.Player;
 
 public final class GLRenderer {
 
@@ -38,8 +40,8 @@ public final class GLRenderer {
             case HPC -> createHpcScales(viewports);
             case Latitudinal -> createConstantScales(viewports, MapScale.lati);
             // In 3D, Helioradial normalizes the warp over the whole loaded field and lets the
-            // camera do the cropping, so the edge is a zoom. Flat, there is no camera to crop
-            // with (the map fills a fixed disk), so the edge has to act through the scale, which
+            // camera do the cropping, so the crop is a zoom. Flat, there is no camera to crop
+            // with (the map fills a fixed disk), so the crop has to act through the scale, which
             // is what it has always done and what the published figures were made with. The
             // unrolled layout is flat for the same reason.
             case Helioradial -> createConstantScales(viewports, MapScale.boxCoxRadial(
@@ -144,6 +146,14 @@ public final class GLRenderer {
         GL.glClear(GL.COLOR_BUFFER_BIT | GL.DEPTH_BUFFER_BIT);
 
         Layers.prerender();
+
+        // Parameter animation, before the mapView rebuild below because the geometry parameters
+        // (warp lambda, warp crop, disk scale) are read inside that call and by the warp mesh in
+        // the same call: applied after it they would be one frame stale. And here rather than on
+        // a Player time listener because a frame is also drawn when nothing about time changed,
+        // and because ExportMovie.handleMovieExport() grabs from the bottom of this same method,
+        // so the pixels encoded are the pixels one evaluation produced. See Automation.
+        Automation.apply(Player.getTime().milli);
 
         // Wedged between prerender and the mapView rebuild, and it has to be exactly here.
         // After prerender, because that is where each layer's GL init runs: capturing ahead of
