@@ -45,6 +45,7 @@ public final class PresentationMode {
     @Nullable private static Rectangle savedBounds;
     private static int savedExtendedState;
     private static boolean savedSidebarCollapsed;
+    private static boolean savedRightCollapsed;
 
     public static boolean isActive() {
         return active;
@@ -77,6 +78,7 @@ public final class PresentationMode {
         savedBounds = frame.getBounds();
         savedExtendedState = frame.getExtendedState();
         savedSidebarCollapsed = MainFrame.isSidebarCollapsed();
+        savedRightCollapsed = org.helioviewer.jhv.gui.component.RightSidebar.getInstance().isCollapsed();
 
         GraphicsDevice target = resolve(OUTPUT_SCREEN, presentationDevice(deviceOf(frame)));
         GraphicsDevice presenterScreen = resolve(CONTROLS_SCREEN,
@@ -176,6 +178,9 @@ public final class PresentationMode {
         MainFrame.setChromeVisible(true, false, false, savedEastVisible);
         org.helioviewer.jhv.gui.component.Palette.setFloatingVisible(true);
         MainFrame.setSidebarCollapsed(savedSidebarCollapsed);
+        MainFrame.setSidebarHandleVisible(true);
+        org.helioviewer.jhv.gui.component.RightSidebar.getInstance().setCollapsed(savedRightCollapsed);
+        org.helioviewer.jhv.gui.component.RightSidebar.getInstance().setHandleVisible(true);
 
         if (savedBounds != null)
             frame.setBounds(savedBounds);
@@ -334,7 +339,14 @@ public final class PresentationMode {
         }
         content.add(top, BorderLayout.NORTH);
         placeFillers(content, fillers);
+        // Both sidebars open, and neither collapsible while they are here. In the main window a
+        // collapse folds a sidebar out of the way of the picture; in this window the two sit side
+        // by side with no picture between them, so collapsing one only slides the other across
+        // and the control the presenter was reaching for is somewhere else.
         MainFrame.setSidebarCollapsed(false); // the layer list is the point of this window
+        MainFrame.setSidebarHandleVisible(false);
+        org.helioviewer.jhv.gui.component.RightSidebar.getInstance().setCollapsed(false);
+        org.helioviewer.jhv.gui.component.RightSidebar.getInstance().setHandleVisible(false);
         openEverything(content);
 
         window.setContentPane(content);

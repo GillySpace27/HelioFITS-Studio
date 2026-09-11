@@ -826,6 +826,20 @@ public final class MainFrame {
             renderCanvas.refreshHost();
     }
 
+    /**
+     * Show or hide the left sidebar's collapse rail.
+     *
+     * <p>Taken away in the presenter window. There the two sidebars sit next to each other with no
+     * picture between them, so collapsing one does not fold it out of the way of anything: it
+     * just slides the other across the window, and the control the presenter was aiming at is
+     * somewhere else. The affordance only makes sense when there is something on the other side
+     * of it worth giving the space to.
+     */
+    public static void setSidebarHandleVisible(boolean visible) {
+        if (sidebarCollapseHandle != null)
+            sidebarCollapseHandle.setVisible(visible);
+    }
+
     public static void setSidebarCollapsed(boolean collapsed) {
         if (collapsed == sidebarCollapsed)
             return;
@@ -1009,6 +1023,9 @@ public final class MainFrame {
         centerPanel.repaint();
         if (renderCanvas != null)
             renderCanvas.refreshHost(); // a plain display() only reshapes the GL viewport
+        // The plugins pane has just been taken away or given back without the toolbar's Timelines
+        // button being touched; every path that moves it comes through here.
+        ToolBar.syncTimelinesToggle();
     }
 
     /**

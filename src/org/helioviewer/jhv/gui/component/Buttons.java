@@ -103,6 +103,8 @@ public class Buttons {
     public static final GlyphIcon popOut = icon(MaterialDesign.OPEN_IN_NEW, INLINE);
     /** Bars across a time axis, for the Timeline Layers section. Not CHART_GANTT: that is the toolbar's differential rotation. */
     public static final GlyphIcon timeline = icon(MaterialDesign.CHART_TIMELINE, INLINE);
+    /** The same mark at toolbar size, for the button that pops the Timelines pane up and down. */
+    public static final GlyphIcon timelineToolbar = icon(MaterialDesign.CHART_TIMELINE, TOOLBAR);
     /** A bolt, for the Space Weather Event Knowledgebase. Not a warning triangle: this is a catalogue, not an error. */
     public static final GlyphIcon events = icon(MaterialDesign.FLASH, INLINE);
     /**

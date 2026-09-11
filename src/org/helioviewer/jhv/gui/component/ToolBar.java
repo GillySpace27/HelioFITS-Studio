@@ -44,6 +44,7 @@ import org.helioviewer.jhv.display.SkyProjection;
 import org.helioviewer.jhv.display.SurfaceModel;
 import org.helioviewer.jhv.display.interaction.Interaction;
 import org.helioviewer.jhv.gui.Actions;
+import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.gui.UIGlobals;
 import org.helioviewer.jhv.input.InputController;
 import org.helioviewer.jhv.io.samp.SampClient;
@@ -80,6 +81,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private final ButtonText AXIS = new ButtonText(Buttons.axis, "Axis", "Axis");
     private final ButtonText DIFFROTATION = new ButtonText(Buttons.diffRotation, "Differential", "Toggle differential rotation");
     private final ButtonText MULTIVIEW = new ButtonText(Buttons.multiview, "Multiview", "Multiview");
+    private final ButtonText TIMELINES = new ButtonText(Buttons.timelineToolbar, "Timelines",
+            "Show the Timelines pane under the picture");
     private final ButtonText OFFDISK = new ButtonText(Buttons.offDisk, "Corona", "Toggle off-disk corona");
     private final ButtonText PAN = new ButtonText(Buttons.pan, "Pan", "Pan");
     private final ButtonText PROJECTION = new ButtonText(Buttons.projection, "Projection", "Projection");
@@ -156,6 +159,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private JToggleButton coronaButton;
     private JToggleButton diffRotationButton;
     private JToggleButton multiviewButton;
+    private static JToggleButton timelinesToggle; // current toolbar's Timelines button
     private final EnumMap<AnnotationMode, JRadioButtonMenuItem> annotationItems = new EnumMap<>(AnnotationMode.class);
     private final EnumMap<MapMode, javax.swing.JRadioButton> projectionItems = new EnumMap<>(MapMode.class);
     private JHVSlider warpLambdaSlider;
@@ -186,12 +190,26 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
 
     // The bar as it has always looked, and the fallback whenever the stored order is missing or
     // has rotted. Ids are persisted, so they are API: rename one and a saved bar loses that tool.
+    /** Tools this bar has already been offered once, so declining one is not undone on the next launch. */
+    private static final String SEEDED_KEY = "ui.toolbar.seeded";
+
+    /**
+     * Tools new enough that a saved bar omitting them means "did not exist yet", not "taken off".
+     *
+     * <p>An explicit list, and it has to be. The first attempt at this seeded everything in
+     * DEFAULT_ORDER that a stored order lacked, which cannot tell a tool that postdates the bar
+     * from one the user dragged off it, so a curated seven-button bar came back with fifteen. Add
+     * an id here when the tool is introduced; remove it once nobody is running a build older than
+     * that.
+     */
+    private static final java.util.Set<String> SEED_ONCE = java.util.Set.of("timelines");
+
     static final String DEFAULT_ORDER = String.join("|",
             "present", SEPARATOR,
             "zoomIn", "zoomOut", "zoomFit", "zoomOne", SEPARATOR,
             "resetCamera", "resetAxis", "rotate90", SEPARATOR,
             "pan", "rotate", "axis", SEPARATOR,
-            "track", "diffRotation", "corona", "multiview", SEPARATOR,
+            "track", "diffRotation", "corona", "multiview", "timelines", SEPARATOR,
             "projection", "colour", "sequence", "grid", "camera", SEPARATOR,
             "more");
 
@@ -210,7 +228,64 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
      * simply an id that no longer exists, and is dropped like any other.
      */
     static java.util.List<String> order(java.util.Set<String> known) {
-        return resolveOrder(Settings.getProperty(ORDER_KEY), known);
+        String stored = Settings.getProperty(ORDER_KEY);
+        java.util.List<String> ids = resolveOrder(stored, known);
+        if (stored == null || stored.isBlank()) // a fresh bar is DEFAULT_ORDER, which has everything
+            return ids;
+
+        String seeded = Settings.getProperty(SEEDED_KEY);
+        java.util.List<String> placed = seedNewTools(ids, known, seeded);
+        if (!placed.isEmpty()) {
+            Settings.setProperty(ORDER_KEY, String.join("|", ids));
+            Settings.setProperty(SEEDED_KEY,
+                    seeded == null || seeded.isBlank() ? String.join("|", placed) : seeded + "|" + String.join("|", placed));
+        }
+        return ids;
+    }
+
+    /**
+     * Put a tool that did not exist when this bar was saved where it belongs, once.
+     *
+     * <p>Without this a new tool is on nobody's bar but a fresh install's: everyone who has ever
+     * opened the editor has a stored order, and an id missing from that order is a tool that only
+     * exists down in the Tools menu. That is the wrong default for something added because the
+     * fast path was missing.
+     *
+     * <p>Once, and recorded under its own key rather than inferred from the order, because
+     * otherwise taking the tool off the bar would be undone on the next launch: the id would be
+     * missing again and look new again. Seeded means offered, not kept.
+     *
+     * <p>Only ids in {@link #SEED_ONCE}, which is the whole difference between a tool that did not
+     * exist when the bar was saved and one the user took off it. Everything else a stored order
+     * omits, it omits deliberately.
+     *
+     * <p>Placed beside the neighbour it has in DEFAULT_ORDER, so it arrives in the company it was
+     * designed for rather than at the end of the bar. Mutates {@code ids}; returns what it placed.
+     */
+    static java.util.List<String> seedNewTools(java.util.List<String> ids, java.util.Set<String> known, @javax.annotation.Nullable String seeded) {
+        java.util.Set<String> already = new java.util.HashSet<>(ids);
+        if (seeded != null && !seeded.isBlank())
+            already.addAll(java.util.Arrays.asList(seeded.split("\\|")));
+
+        java.util.List<String> defaults = java.util.Arrays.asList(DEFAULT_ORDER.split("\\|"));
+        java.util.List<String> placed = new java.util.ArrayList<>();
+        for (int i = 0; i < defaults.size(); i++) {
+            String id = defaults.get(i);
+            if (SEPARATOR.equals(id) || !SEED_ONCE.contains(id) || already.contains(id) || !known.contains(id))
+                continue;
+            int at = ids.size();
+            for (int j = i - 1; j >= 0; j--) { // after the tool it follows by default
+                int found = ids.indexOf(defaults.get(j));
+                if (!SEPARATOR.equals(defaults.get(j)) && found >= 0) {
+                    at = found + 1;
+                    break;
+                }
+            }
+            ids.add(at, id);
+            already.add(id);
+            placed.add(id);
+        }
+        return placed;
     }
 
     /** The same, with the stored string handed in: pure, so ToolbarOrderCheck can pin the rules. */
@@ -443,6 +518,20 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         register("diffRotation", DIFFROTATION, diffRotationButton);
         register("corona", OFFDISK, coronaButton);
         register("multiview", MULTIVIEW, multiviewButton);
+
+        // The pane the timelines and SWEK are drawn in has only ever been foldable by its own
+        // header, which presentation mode takes away along with the rest of the chrome. So while
+        // presenting there was no way to put the timeline on the screen at all, which is the one
+        // configuration where someone most wants to point at it.
+        JToggleButton timelinesButton = toolToggleButton(TIMELINES);
+        timelinesToggle = timelinesButton;
+        timelinesButton.setSelected(pluginsShowing());
+        timelinesButton.addItemListener(e -> {
+            MainContentPanel panel = MainFrame.getMainContentPanel();
+            if (panel != null)
+                panel.setPluginsShowing(timelinesButton.isSelected());
+        });
+        register("timelines", TIMELINES, timelinesButton);
 
         // The projection controls live in a persistent palette, not a dropdown: it survives
         // focus loss (so the sliders can be worked against the view) and only collapses when
@@ -762,6 +851,26 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             presentationToggle.doClick();
         else
             org.helioviewer.jhv.gui.PresentationMode.toggle();
+    }
+
+    private static boolean pluginsShowing() {
+        MainContentPanel panel = MainFrame.getMainContentPanel();
+        return panel != null && panel.isPluginsShowing();
+    }
+
+    /**
+     * Keep the Timelines button honest when something else moved the pane.
+     *
+     * <p>Entering and leaving presentation mode both take the whole pane away and give it back
+     * without going near this button, and so does the pane's own header. Called from
+     * MainFrame.setChromeVisible, which is where every one of those paths ends up.
+     */
+    public static void syncTimelinesToggle() {
+        if (timelinesToggle == null)
+            return;
+        boolean showing = pluginsShowing();
+        if (timelinesToggle.isSelected() != showing)
+            timelinesToggle.setSelected(showing);
     }
 
     // Presentation mode can also be left with Escape, which does not go through the button; keep
