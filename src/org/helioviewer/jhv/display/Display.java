@@ -177,9 +177,9 @@ public final class Display {
         }
     }
 
-    // Outer edge of the warp projections in solar radii. 0 = auto: the largest radial size
-    // among the loaded layers. Lowering it is a radial crop — a linear zoom-in independent
-    // of the lambda warp — and makes the projection edge itself mutable.
+    // The Crop control: the outer boundary of the warp projections in solar radii. 0 = auto:
+    // the largest radial size among the loaded layers. Lowering it is a radial crop, a linear
+    // zoom-in independent of the lambda warp, and makes that boundary itself mutable.
     private static double warpOuterRadius = 0.0;
 
     public static double getWarpOuterRadius() {
@@ -191,7 +191,7 @@ public final class Display {
     }
 
     /**
-     * The warp projections' outer edge: the user's radial crop when set, else the full field.
+     * The warp projections' outer boundary: the user's Crop when set, else the full field.
      *
      * <p>Lives here rather than in the renderer because it is a display setting, and because
      * MapMode needs it to size the helioradial camera. Routing that through GLRenderer forced
@@ -208,13 +208,13 @@ public final class Display {
 
     /**
      * The radial extent the warp itself is normalized over: always the full loaded field,
-     * never the edge crop.
+     * never the Crop.
      *
-     * <p>Keeping these two apart is what makes the edge behave as its own comment promises, "a
+     * <p>Keeping these two apart is what makes the Crop behave as its own comment promises, "a
      * linear zoom-in independent of the lambda warp". Feeding the crop into the warp instead
-     * renormalizes the projection, so lowering the edge redistributes structure inside a rim
+     * renormalizes the projection, so tightening the crop redistributes structure inside a rim
      * that never moves, which reads as the picture rearranging itself rather than as a zoom.
-     * With them separated, the warp mapping is fixed by the data and the edge only decides how
+     * With them separated, the warp mapping is fixed by the data and the crop only decides how
      * much of it the camera shows, so cropping magnifies everything uniformly.
      */
     public static double fullWarpFieldRadius() {
@@ -535,7 +535,7 @@ public final class Display {
      * geometry can be exercised headlessly: touching DisplayController drags in the viewpoint,
      * which drags in SPICE's native library, which no check can load.
      */
-    static void applyDiskScale(double scale) {
+    public static void applyDiskScale(double scale) {
         diskScale = Math.clamp(scale, DISK_SCALE_MIN, DISK_SCALE_MAX);
     }
 
@@ -636,7 +636,7 @@ public final class Display {
      * The radial scale the sky is composed with, or null when it is not composing.
      *
      * <p>The same scale Helioradial builds for itself, so the composed sky shows that mode's
-     * picture and the Box-Cox lambda and the Edge crop reach it unchanged.
+     * picture and the Box-Cox lambda and the Crop reach it unchanged.
      */
     @javax.annotation.Nullable
     public static MapScale skyComposeScale() {
