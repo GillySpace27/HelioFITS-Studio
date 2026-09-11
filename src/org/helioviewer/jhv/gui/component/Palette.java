@@ -262,7 +262,7 @@ public final class Palette {
      * built and a window-homed palette needs a frame on screen to be owned by. That one is left to
      * {@link #restoreOpen}, which runs later and now handles a palette with no toolbar button.
      */
-    void restoreHome(SectionHost fallback) {
+    public void restoreHome(SectionHost fallback) {
         defaultHome = fallback;
         String stored = Settings.getProperty(sidebarKey());
         SectionHost host = stored == null ? fallback : hostNamed(stored);

@@ -37,7 +37,7 @@ import org.helioviewer.jhv.event.SWEKGroup;
 import org.helioviewer.jhv.event.SWEKSupplier;
 import org.helioviewer.jhv.display.CMETracker;
 import org.helioviewer.jhv.event.filter.FilterDialog;
-import org.helioviewer.jhv.event.info.CactusTrackDialog;
+import org.helioviewer.jhv.event.info.CactusTrackPanel;
 import org.helioviewer.jhv.gui.component.BusyIndicator;
 import org.helioviewer.jhv.gui.component.Buttons;
 
@@ -196,7 +196,7 @@ final class SWEKTreePane extends JPanel {
             trackButton.addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseClicked(MouseEvent e) {
-                    CactusTrackDialog.open();
+                    CactusTrackPanel.open();
                 }
             });
             actions.add(trackButton);

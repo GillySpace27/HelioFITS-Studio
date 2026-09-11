@@ -819,6 +819,12 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         for (Component c : overflowed) {
             remove(c);
             c.setVisible(true);
+            // A separator is a gap between groups, and which way it is drawn depends on which way
+            // the things it separates run. On the bar they run across, so the gap is a vertical
+            // rule; in the menu they run down, so it has to lie down with them or it is a one-pixel
+            // sliver doing nothing. Turned back on the way out, in reclaimOverflow.
+            if (c instanceof javax.swing.JToolBar.Separator sep)
+                sep.setOrientation(SwingConstants.HORIZONTAL);
             if (c instanceof JComponent jc)
                 jc.setAlignmentX(Component.LEFT_ALIGNMENT);
             overflowPanel.add(c);
@@ -839,6 +845,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         overflowOpen = false;
         for (Component c : overflowed) {
             overflowPanel.remove(c);
+            if (c instanceof javax.swing.JToolBar.Separator sep)
+                sep.setOrientation(SwingConstants.VERTICAL); // back to a rule between things in a row
             add(c);
         }
         revalidate();
