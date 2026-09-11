@@ -6,6 +6,7 @@ import java.util.List;
 import javax.swing.JComponent;
 
 import org.helioviewer.jhv.event.JHVEventCache;
+import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.Interfaces;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.movie.Player;
@@ -37,7 +38,7 @@ public class Timelines implements Interfaces.MainContentPanelPlugin {
 
     public void installTimelines() {
         pluginPanes.add(plotOne);
-        MainFrame.getLeftContentPane().add("Timeline Layers", timelinePanel, true);
+        MainFrame.getLeftContentPane().add("Timeline Layers", timelinePanel, true, Buttons.timeline);
         MainFrame.getLeftContentPane().revalidate();
         MainFrame.getMainContentPanel().addPlugin(this);
 

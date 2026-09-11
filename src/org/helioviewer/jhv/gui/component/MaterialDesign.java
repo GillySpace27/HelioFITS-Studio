@@ -11,6 +11,7 @@ enum MaterialDesign {
     CALENDAR("mdi-calendar", '\uf0ed'),
     CAMERA("mdi-camera", '\uf100'), // verified against the shipped font's cmap and post tables, then rasterized
     CHART_GANTT("mdi-chart-gantt", '\uf66c'),
+    CHART_TIMELINE("mdi-chart-timeline", '\uf66e'), // bars across a time axis; rasterized from the shipped font before use
     CHECK("mdi-check", '\uf12c'),
     CHEVRON_DOWN("mdi-chevron-down", '\uf140'),
     TUNE("mdi-tune", '\uf62e'), // sliders; probed against the shipped font before use
@@ -23,6 +24,7 @@ enum MaterialDesign {
     CONTENT_SAVE_ALL("mdi-content-save-all", '\uf194'),
     FOLDER_OPEN("mdi-folder-open", '\uf24b'),
     FILTER("mdi-filter", '\uf232'), // a funnel; rasterized to check before use
+    FLASH("mdi-flash", '\uf241'), // a bolt, for space weather events; rasterized from the shipped font before use
     CROP_LANDSCAPE("mdi-crop-landscape", '\uf1a0'),
     CROSSHAIRS_GPS("mdi-crosshairs-gps", '\uf1a4'),
     CUBE_OUTLINE("mdi-cube-outline", '\uf1a7'),

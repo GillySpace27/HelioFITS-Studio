@@ -35,6 +35,7 @@ import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.app.Platform;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.component.Buttons;
+import org.helioviewer.jhv.gui.component.IdleFader;
 import org.helioviewer.jhv.gui.component.ImageLayersPane;
 import org.helioviewer.jhv.gui.component.MainContentPanel;
 import org.helioviewer.jhv.gui.component.MenuBar;
@@ -263,6 +264,12 @@ public final class MainFrame {
             setSidebarCollapsed(!sidebarCollapsed);
         });
         attachSidebarResize(sidebarCollapseHandle);
+        // While presenting with the sidebar collapsed, all that is left of it is this rail. Let it
+        // fade out with the rest of the chrome and come back on any input, the way the Heliograph
+        // Wall's close button does. Only while collapsed: an open sidebar is deliberate, and its
+        // handle is how you close it.
+        IdleFader.register(sidebarCollapseHandle,
+                () -> PresentationMode.isActive() && sidebarCollapsed);
 
         westWrap = new JPanel(new BorderLayout());
         westWrap.add(leftPaneHost, BorderLayout.CENTER);
