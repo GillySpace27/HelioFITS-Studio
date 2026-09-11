@@ -329,11 +329,14 @@ public final class RightSidebar implements SectionHost {
 
     /** Make a section visible: open the sidebar if it is folded away, and expand the section. */
     @Override
-    public void revealAndFlash(String title) {
-        reveal(title);
+    public void revealOrFold(String title) {
         Section section = sections.get(title);
-        if (section != null)
-            pane.revealAndFlash(section.holder());
+        if (section == null)
+            return;
+        // As the left one: revealing first would make the fold decision always see an open
+        // section, so every click would fold and nothing could be reopened from the toolbar.
+        if (pane.revealOrFold(section.holder()) && collapsed)
+            setCollapsed(false);
     }
 
     @Override

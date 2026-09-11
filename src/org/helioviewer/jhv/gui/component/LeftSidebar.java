@@ -157,12 +157,16 @@ public final class LeftSidebar implements SectionHost {
     }
 
     @Override
-    public void revealAndFlash(String title) {
-        reveal(title);
+    public void revealOrFold(String title) {
         SideContentPane pane = MainFrame.getLeftContentPane();
         Section section = sections.get(title);
-        if (pane != null && section != null)
-            pane.revealAndFlash(section.holder());
+        if (pane == null || section == null)
+            return;
+        // NOT reveal() first. That expands the section, so the fold decision below then always saw
+        // an expanded one and folded it: every click folded, and a folded section could not be
+        // opened again from the toolbar at all.
+        if (pane.revealOrFold(section.holder()) && MainFrame.isSidebarCollapsed())
+            MainFrame.setSidebarCollapsed(false); // only when it is actually being shown
     }
 
     @Override

@@ -52,11 +52,12 @@ public final class PanelLock {
      * button usually means "not applicable here" and this one means "you asked for this".
      */
     /**
-     * @param whereIsIt run instead of the toggle's own action while locked: reveal the panel and
-     *                  blink it, so "where did I put HDR" is answerable without unlocking
+     * @param whereIsIt run instead of the toggle's own action while locked: fold the panel, or
+     *                  unfold and blink it, so "where did I put HDR" is answerable without
+     *                  unlocking and folding still works, which the lock always allowed
      */
     public static void registerPaletteToggle(AbstractButton toggle, Runnable whereIsIt) {
-        registerBadged(toggle, "Panels are locked, so this cannot be shown or hidden. Click to find it instead.", whereIsIt);
+        registerBadged(toggle, "Panels are locked where they are. Click to fold this one, or to unfold and flash it.", whereIsIt);
     }
 
     /**

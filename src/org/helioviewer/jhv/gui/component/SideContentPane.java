@@ -124,15 +124,29 @@ public final class SideContentPane extends JComponent {
             pane.setExpanded(expanded);
     }
 
-    /** Unfold a section and blink it, so a locked palette's button can say where the panel is. */
-    public void revealAndFlash(JComponent managed) {
+    /**
+     * What a locked palette button does: fold the section if it is open, unfold and blink it if
+     * it is not.
+     *
+     * <p>Still a toggle, in other words, just of the one thing the lock allows. Folding is how you
+     * make room, not how you rearrange, so it was never what the lock was for; and a button that
+     * could only ever open a section was half a control, since the way to put it away again was
+     * the section's own chevron and nothing said so.
+     */
+    public boolean revealOrFold(JComponent managed) {
         CollapsiblePane pane = map.get(managed);
         if (pane == null)
-            return;
+            return false;
+        if (pane.isExpanded()) {
+            pane.setExpanded(false);
+            revalidate();
+            return false;
+        }
         pane.setExpanded(true);
         revalidate();
         pane.scrollRectToVisible(new java.awt.Rectangle(0, 0, pane.getWidth(), pane.getHeight()));
         pane.flash();
+        return true;
     }
 
     public void expandAll() {
