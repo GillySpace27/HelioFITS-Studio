@@ -9,6 +9,7 @@ import javax.swing.JToggleButton;
 import org.helioviewer.jhv.gui.UIGlobals;
 
 import com.formdev.flatlaf.FlatClientProperties;
+import com.formdev.flatlaf.FlatLaf;
 
 public class Buttons {
 
@@ -91,6 +92,8 @@ public class Buttons {
     public static final GlyphIcon lock = icon(MaterialDesign.LOCK, INLINE);
     /** The toolbar corner's panel lock, at the size the corner's edit control is drawn. */
     public static final GlyphIcon lockPanels = icon(MaterialDesign.LOCK, INLINE);
+    /** The corner badge itself: small, because it qualifies the glyph rather than replacing it. */
+    public static final GlyphIcon lockBadge = icon(MaterialDesign.LOCK, 10);
     public static final GlyphIcon unlockPanels = icon(MaterialDesign.LOCK_OPEN, INLINE);
     public static final GlyphIcon unlock = icon(MaterialDesign.LOCK_OPEN, INLINE);
 
@@ -127,8 +130,52 @@ public class Buttons {
     public static final Icon editToolbarCorner =
             new PairIcon(icon(MaterialDesign.SETTINGS, INLINE), icon(MaterialDesign.PENCIL, INLINE), -5);
 
+    /**
+     * A small glyph in the bottom-right corner of another, for a state the button is IN rather
+     * than a thing it does. Sized to the base, so badging one does not move it in a row of them.
+     */
+    public static Icon badged(Icon base, Icon badge) {
+        return new BadgedIcon(base, badge);
+    }
+
+    private record BadgedIcon(Icon base, Icon badge) implements Icon, FlatLaf.DisabledIconProvider {
+
+        @Override
+        public int getIconWidth() {
+            return base.getIconWidth();
+        }
+
+        @Override
+        public int getIconHeight() {
+            return base.getIconHeight();
+        }
+
+        @Override
+        public void paintIcon(java.awt.Component c, java.awt.Graphics g, int x, int y) {
+            base.paintIcon(c, g, x, y);
+            // Overhanging the corner a little: a badge tucked fully inside reads as part of the
+            // glyph rather than as something stuck on it.
+            badge.paintIcon(c, g, x + base.getIconWidth() - badge.getIconWidth() + 2,
+                    y + base.getIconHeight() - badge.getIconHeight() + 2);
+        }
+
+        @Override
+        public Icon getDisabledIcon() {
+            return new BadgedIcon(disabled(base), disabled(badge));
+        }
+
+        static Icon disabled(Icon icon) {
+            return icon instanceof FlatLaf.DisabledIconProvider p ? p.getDisabledIcon() : icon;
+        }
+    }
+
     /** Two icons side by side, each centred on the taller. A button has one icon slot. */
-    private record PairIcon(Icon first, Icon second, int gap) implements Icon {
+    private record PairIcon(Icon first, Icon second, int gap) implements Icon, FlatLaf.DisabledIconProvider {
+
+        @Override
+        public Icon getDisabledIcon() { // else both halves keep painting in the enabled foreground
+            return new PairIcon(BadgedIcon.disabled(first), BadgedIcon.disabled(second), gap);
+        }
 
         @Override
         public int getIconWidth() {

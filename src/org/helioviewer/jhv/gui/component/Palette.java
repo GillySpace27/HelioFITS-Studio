@@ -142,6 +142,10 @@ public final class Palette {
      */
     public void bind(JToggleButton button) {
         toggle = button;
+        // Showing and hiding a palette moves it in and out of a sidebar, which is exactly what the
+        // panel lock is for. Registered here because bind is where a plain toggle becomes a
+        // palette's toggle, so there is one place rather than one per construction site.
+        PanelLock.registerPaletteToggle(button);
         boolean wasFloating = hasWindow();
         dispose();
         // The new button starts unselected. A palette showing in the sidebar is present, so its
