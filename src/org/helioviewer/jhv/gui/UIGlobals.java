@@ -220,12 +220,32 @@ public final class UIGlobals {
      */
     public static void themed(JComponent c, Consumer<JComponent> apply) {
         c.putClientProperty(THEMED, apply);
+        themedComponents.put(c, Boolean.TRUE);
         apply.accept(c);
     }
 
+    /**
+     * Everything ever themed, weakly, so a switch reaches what the window walk cannot see.
+     *
+     * <p>The walk below covers the component trees of the open windows, which is most things and
+     * was assumed to be all of them. It is not. A palette whose dialog has been disposed, a
+     * toolbar control parked in the More menu, a section lifted out of a sidebar mid-move: none of
+     * those is under a window at the moment the theme changes, so none was re-derived, and each
+     * came back later still painted in the theme before last. Weak, so the promise that a panel
+     * which goes away takes its entry with it still holds.
+     */
+    private static final java.util.Map<JComponent, Boolean> themedComponents =
+            java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
+
+    @SuppressWarnings("unchecked")
     public static void refreshThemed() {
         for (Window w : Window.getWindows())
             refreshThemed(w);
+        // And again for anything detached. Re-applying a recipe twice is free: they set a colour
+        // or a border from the current theme and say nothing about what was there before.
+        for (JComponent c : java.util.List.copyOf(themedComponents.keySet()))
+            if (c.getClientProperty(THEMED) instanceof Consumer<?> apply)
+                ((Consumer<JComponent>) apply).accept(c);
     }
 
     @SuppressWarnings("unchecked")

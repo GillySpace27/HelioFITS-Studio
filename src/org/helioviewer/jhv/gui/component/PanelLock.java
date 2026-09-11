@@ -129,7 +129,10 @@ public final class PanelLock {
     // offer to make with one. GlyphIcon paints in the component's foreground, so this is the
     // whole of the look.
     private static void dim(AbstractButton mover) {
-        mover.setForeground(locked ? UIManager.getColor("Button.disabledText") : null);
+        // Through themed, because the dimmed colour is the look-and-feel's disabled text and a
+        // theme switch changes it. Set once by hand, a locked sidebar kept the previous theme's
+        // grey on every arrow for the rest of the session.
+        UIGlobals.themed(mover, c -> c.setForeground(locked ? UIManager.getColor("Button.disabledText") : null));
     }
 
     public static boolean isLocked() {

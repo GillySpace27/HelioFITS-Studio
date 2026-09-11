@@ -117,6 +117,10 @@ public final class RightSidebar implements SectionHost {
                 JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         scroller.setFocusable(false);
         scroller.setBorder(null);
+        // As the left one: the empty stretch below the last section is the viewport's ground, and
+        // a viewport background is a plain Color that updateComponentTreeUI will not touch.
+        org.helioviewer.jhv.gui.UIGlobals.themed(scroller.getViewport(),
+                c -> c.setBackground(javax.swing.UIManager.getColor("Panel.background")));
         scroller.getVerticalScrollBar().setPreferredSize(new Dimension(SCROLLBAR_WIDTH, 0));
         scroller.getVerticalScrollBar().setUnitIncrement(16);
         // The same pair the left sidebar has had at its top. Both bars can hold any palette now,
