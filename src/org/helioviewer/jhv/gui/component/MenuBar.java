@@ -282,8 +282,7 @@ public final class MenuBar extends JMenuBar {
 
         viewMenu.addSeparator();
         viewMenu.add(new Actions.TogglePresentationMode());
-        viewMenu.add(screenMenu("Presentation Output Display", PresentationMode.OUTPUT_SCREEN));
-        viewMenu.add(screenMenu("Presentation Controls Display", PresentationMode.CONTROLS_SCREEN));
+        viewMenu.add(presentationMenu());
         viewMenu.add(new Actions.ShowProjectionPalette());
         viewMenu.add(new Actions.ShowSequencePalette());
         viewMenu.add(new Actions.ShowColourPalette());
@@ -376,6 +375,39 @@ public final class MenuBar extends JMenuBar {
         helpMenu.add(new Actions.OpenURLinBrowser("Report Bug/Request Feature", AppInfo.bugURL));
 
         add(helpMenu);
+    }
+
+    /**
+     * Everything about presentation mode, in one place.
+     *
+     * <p>The two screen choices were already here as top-level View items; the three below are
+     * about the same mode and would have been a second place to look. They apply only on ONE
+     * screen, and say so, because with a second display nothing is hidden in the first place: the
+     * chrome is lent to a presenter window where both sidebars and every palette already are.
+     */
+    private static JMenu presentationMenu() {
+        JMenu menu = new JMenu("Presentation");
+        menu.add(screenMenu("Output Display", PresentationMode.OUTPUT_SCREEN));
+        menu.add(screenMenu("Controls Display", PresentationMode.CONTROLS_SCREEN));
+        menu.addSeparator();
+
+        JMenuItem heading = new JMenuItem("On a single screen, keep:");
+        heading.setEnabled(false);
+        menu.add(heading);
+        menu.add(keepItem("Left sidebar", PresentationMode.KEEP_LEFT, false,
+                "Leave the layer list up over the slide, so the talk can be driven without leaving the mode"));
+        menu.add(keepItem("Right sidebar", PresentationMode.KEEP_RIGHT, false,
+                "Leave the docked palettes up over the slide"));
+        menu.add(keepItem("Floating palettes", PresentationMode.KEEP_PALETTES, true,
+                "Windowed palettes stay on screen. Off, they are hidden while presenting and come back afterwards"));
+        return menu;
+    }
+
+    private static JCheckBoxMenuItem keepItem(String label, String key, boolean fallback, String tip) {
+        JCheckBoxMenuItem item = new JCheckBoxMenuItem(label, PresentationMode.flag(key, fallback));
+        item.setToolTipText(tip);
+        item.addActionListener(e -> PresentationMode.setFlag(key, item.isSelected()));
+        return item;
     }
 
     // The built-in themes plus whatever the customizer has saved, rebuilt each time the menu opens.
