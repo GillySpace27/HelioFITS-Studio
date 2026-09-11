@@ -179,7 +179,7 @@ public final class Actions {
 
         @Override
         public void actionPerformed(ActionEvent e) {
-            org.helioviewer.jhv.event.info.CactusTrackDialog.open();
+            org.helioviewer.jhv.event.info.CactusTrackPanel.open();
         }
     }
 

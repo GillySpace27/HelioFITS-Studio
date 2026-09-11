@@ -3,21 +3,17 @@ package org.helioviewer.jhv.event.info;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
-import java.awt.Window;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
 
 import javax.swing.JButton;
-import javax.swing.JComboBox;
-import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.ListSelectionModel;
-import javax.swing.WindowConstants;
 import javax.swing.table.DefaultTableModel;
 
 import org.helioviewer.jhv.app.state.ViewState;
@@ -30,31 +26,48 @@ import org.helioviewer.jhv.event.JHVEventParameter;
 import org.helioviewer.jhv.event.JHVRelatedEvents;
 import org.helioviewer.jhv.event.SWEKCatalog;
 import org.helioviewer.jhv.event.SWEKSupplier;
-import org.helioviewer.jhv.gui.MainFrame;
+import org.helioviewer.jhv.gui.component.LeftSidebar;
+import org.helioviewer.jhv.gui.component.Palette;
 import org.helioviewer.jhv.movie.Player;
 import org.helioviewer.jhv.time.JHVTime;
 import org.helioviewer.jhv.time.TimeUtils;
 
-// Browse the CACTus CME events loaded in the current movie range and pick one to track:
-// double-click (or Track) jumps the playhead to the event onset, switches to Helioradial, and
-// engages CMETracker so the front holds a fixed screen radius. Reuses the loaded event cache;
-// no runtime arc-catching. Kept in event.info (core) so the menu action need not import the
-// SWEK plugin; the SWEK panel's Track button calls in from the plugin side.
+/**
+ * Browse the CACTus CME events in the current movie range and pick one to lock onto: double-click
+ * (or a Track button) jumps the playhead to the event onset, switches to Helioradial and engages
+ * CMETracker, so the front holds a fixed screen radius.
+ *
+ * <p>A palette rather than the dialog it was. Picking a CME is not a question with one answer you
+ * submit and are done with: you try one, watch the corona rubber-band around the front, and want
+ * the next one, or the other mode, or the same one again after nudging the view. A dialog made
+ * every one of those a reopen. This is the same reason Annotation stopped being a menu, and the
+ * same reason the projection controls were a palette to begin with.
+ *
+ * <p>Kept in event.info (core) so the menu action need not import the SWEK plugin; the SWEK
+ * panel's Track button calls in from the plugin side.
+ */
 @SuppressWarnings("serial")
-public final class CactusTrackDialog extends JDialog implements JHVEventListener.Handle, JHVEventListener.Highlight {
+public final class CactusTrackPanel extends JPanel implements JHVEventListener.Handle, JHVEventListener.Highlight {
 
     private static final String[] COLUMNS = {"Onset (UTC)", "Speed km/s", "Width°", "PA°", "Source"};
 
-    private static CactusTrackDialog instance;
+    private static CactusTrackPanel instance;
+    private static Palette palette;
 
-    // Show (creating on first use), refreshed from the current event cache each time.
+    /** Open the palette (creating it on first use) and refresh it from the current event cache. */
     public static void open() {
         if (instance == null)
-            instance = new CactusTrackDialog();
+            instance = new CactusTrackPanel();
+        if (palette == null) {
+            palette = new Palette("Track CME", () -> instance, () -> {
+                instance.ensureCactusLoaded();
+                instance.reload();
+            });
+            palette.restoreHome(LeftSidebar.getInstance());
+        }
         instance.ensureCactusLoaded(); // pull CACTus events for the movie range if not already active
         instance.reload();
-        instance.setVisible(true);
-        instance.toFront();
+        palette.open();
     }
 
     private final DefaultTableModel model;
@@ -63,10 +76,8 @@ public final class CactusTrackDialog extends JDialog implements JHVEventListener
     private final List<JHVRelatedEvents> rows = new ArrayList<>(); // aligned with model rows
     private boolean syncingSelection; // guard against the table<->canvas highlight feedback loop
 
-    private CactusTrackDialog() {
-        super(MainFrame.get(), "Track CME");
-        setType(Window.Type.UTILITY);
-        setDefaultCloseOperation(WindowConstants.HIDE_ON_CLOSE); // reused across opens
+    private CactusTrackPanel() {
+        super(new BorderLayout());
 
         model = new DefaultTableModel(COLUMNS, 0) {
             @Override
@@ -110,36 +121,38 @@ public final class CactusTrackDialog extends JDialog implements JHVEventListener
         trackCropButton.addActionListener(e -> trackSelected(CMETracker.Mode.CROP));
         JButton detailsButton = new JButton("Details…");
         detailsButton.addActionListener(e -> detailsSelected());
-        JButton closeButton = new JButton("Close");
-        closeButton.addActionListener(e -> setVisible(false));
-
+        // No Close button: the palette's own header closes it, and in a sidebar there is nothing
+        // to close. A dialog needed one; a panel that lives somewhere does not.
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.TRAILING));
         buttons.add(detailsButton);
         buttons.add(trackWarpButton);
         buttons.add(trackCropButton);
-        buttons.add(closeButton);
 
-        setLayout(new BorderLayout());
         add(status, BorderLayout.PAGE_START);
         add(new JScrollPane(table), BorderLayout.CENTER);
         add(buttons, BorderLayout.PAGE_END);
         setPreferredSize(new Dimension(540, 360));
-        pack();
-        setLocationRelativeTo(MainFrame.get());
-    }
 
-    // Listen only while shown: the cache handler repopulates the table when the async CACTus
-    // download lands, and the highlight listener mirrors a canvas wedge selection into the table.
-    @Override
-    public void setVisible(boolean b) {
-        if (b) {
-            JHVEventCache.registerHandler(this);
-            JHVEventCache.addHighlightListener(this);
-        } else {
-            JHVEventCache.unregisterHandler(this);
-            JHVEventCache.removeHighlightListener(this);
-        }
-        super.setVisible(b);
+        // Listen only while on screen. This used to hang off setVisible, which a dialog gets told
+        // about and a panel in a folded section does not; an ancestor listener sees both being
+        // added to a window and the section around it being folded away.
+        addAncestorListener(new javax.swing.event.AncestorListener() {
+            @Override
+            public void ancestorAdded(javax.swing.event.AncestorEvent e) {
+                JHVEventCache.registerHandler(CactusTrackPanel.this);
+                JHVEventCache.addHighlightListener(CactusTrackPanel.this);
+                reload();
+            }
+
+            @Override
+            public void ancestorRemoved(javax.swing.event.AncestorEvent e) {
+                JHVEventCache.unregisterHandler(CactusTrackPanel.this);
+                JHVEventCache.removeHighlightListener(CactusTrackPanel.this);
+            }
+
+            @Override
+            public void ancestorMoved(javax.swing.event.AncestorEvent e) {}
+        });
     }
 
     // Make the dialog self-sufficient: if CACTus isn't an active supplier yet, activate it and
