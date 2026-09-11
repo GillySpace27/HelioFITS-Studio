@@ -27,6 +27,9 @@ public final class MainContentPanel extends JPanel {
     private final ArrayList<Interfaces.MainContentPanelPlugin> pluginList = new ArrayList<>();
 
     private final JSplitPane splitPane;
+    /** How tall the plugins pane was when it was last hidden, so showing it gives that back. */
+    private int savedDivider = -1;
+
     private final JPanel pluginContainer;
     private final CollapsiblePane collapsiblePane;
 
@@ -51,10 +54,24 @@ public final class MainContentPanel extends JPanel {
     // Presentation mode folds the plugins pane (timelines, SWEK) away without touching the
     // user's own "display.plugins" preference, so leaving the mode restores what they had.
     public void setPluginsVisible(boolean visible) {
+        boolean atBottom = splitPane.getBottomComponent() == collapsiblePane;
+        // Remember how tall it was. Hiding the bottom component of a JSplitPane leaves the divider
+        // where the now-zero-sized child drags it, which is the bottom, so showing it again gave
+        // it back with no height at all: the pane returned as a title bar and looked like it had
+        // come back collapsed. The fold state itself was never lost; the height was.
+        if (!visible && atBottom && collapsiblePane.isVisible() && splitPane.getDividerLocation() > 0)
+            savedDivider = splitPane.getDividerLocation();
+
         collapsiblePane.setVisible(visible);
-        splitPane.setDividerSize(visible && splitPane.getBottomComponent() == collapsiblePane ? DIVIDER_SIZE : 0);
+        splitPane.setDividerSize(visible && atBottom ? DIVIDER_SIZE : 0);
         revalidate();
         repaint();
+
+        // After the layout that revalidate schedules, or the split pane overwrites it: setting a
+        // divider location on a component that has not been laid out yet is the classic way to
+        // have it silently ignored.
+        if (visible && atBottom && savedDivider > 0)
+            javax.swing.SwingUtilities.invokeLater(() -> splitPane.setDividerLocation(savedDivider));
     }
 
     /**
