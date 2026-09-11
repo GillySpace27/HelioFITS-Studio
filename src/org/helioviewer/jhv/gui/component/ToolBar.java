@@ -882,7 +882,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     }
 
     private JPanel createWarpLambdaPanel() {
-        warpLambdaSlider = new JHVSlider(-1000, 1000, warpLambdaToSlider(ViewState.getWarpLambda()));
+        warpLambdaSlider = new JHVSlider(-1000, 1000, warpLambdaToSlider(ViewState.getWarpLambda())).animates("display.warpLambda");
         warpLambdaSlider.setToolTipText("Warp strength (Box-Cox lambda) for warp projections: right stretches the inner corona outward, left is the unwarped view");
         warpLambdaSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, warpLambdaSlider.getPreferredSize().height));
         JLabel label = new JLabel("Warp");
@@ -1280,7 +1280,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     }
 
     private JPanel createDiskPanel() {
-        diskSlider = new JHVSlider(0, 1000, diskScaleToSlider(Display.getDiskScale()));
+        diskSlider = new JHVSlider(0, 1000, diskScaleToSlider(Display.getDiskScale())).animates("display.diskScale");
         diskSlider.setToolTipText("Size of the solar disk as a multiple of the nominal Box-Cox warp: 1.00\u00d7 is the warp untouched, right is bigger, left is smaller. Double-click to return to nominal.");
         diskSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, diskSlider.getPreferredSize().height));
         JLabel label = new JLabel("Disk");
@@ -1424,7 +1424,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     }
 
     private JPanel createWarpCropPanel() {
-        warpCropSlider = new JHVSlider(0, 1000, CROP_SLIDER_AUTO);
+        warpCropSlider = new JHVSlider(0, 1000, CROP_SLIDER_AUTO).animates("display.warpOuterRadius");
         warpCropSlider.setToolTipText("Circular crop, in solar radii: cuts the picture to a disc without moving the camera or changing the warp. Zoom magnifies instead; leftmost is auto, no crop.");
         warpCropSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, warpCropSlider.getPreferredSize().height));
         JLabel label = new JLabel("Crop");

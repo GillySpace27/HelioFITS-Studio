@@ -106,8 +106,8 @@ public final class GridLayerOptions extends JPanel {
         JPanel rows = new JPanel(new GridBagLayout());
         addAdjustmentRow(rows, "Color ", createColorBox(layer), 0);
         addAdjustmentRow(rows, "Line width ", createLineWidthSlider(layer), 1);
-        addAdjustmentRow(rows, "Line opacity ", createOpacitySlider(layer.getGridAlpha(), layer::setGridAlpha), 2);
-        addAdjustmentRow(rows, "Label opacity ", createOpacitySlider(layer.getLabelAlpha(), layer::setLabelAlpha), 3);
+        addAdjustmentRow(rows, "Line opacity ", createOpacitySlider(layer.getGridAlpha(), layer::setGridAlpha).animates("grid:" + layer.getId() + "/alpha"), 2);
+        addAdjustmentRow(rows, "Label opacity ", createOpacitySlider(layer.getLabelAlpha(), layer::setLabelAlpha).animates("grid:" + layer.getId() + "/labelAlpha"), 3);
         addAdjustmentRow(rows, "Label size ", createLabelSizeSlider(layer), 4);
         addAdjustmentRow(rows, "Ring label angle ", createLabelAngleSlider(layer), 5);
 
@@ -303,7 +303,7 @@ public final class GridLayerOptions extends JPanel {
     private static JHVSlider createLineWidthSlider(GridLayer layer) {
         int min = (int) Math.round(GridLayer.GRID_LINE_SCALE_MIN * 10);
         int max = (int) Math.round(GridLayer.GRID_LINE_SCALE_MAX * 10);
-        JHVSlider slider = new JHVSlider(min, max, (int) Math.round(layer.getGridLineScale() * 10));
+        JHVSlider slider = new JHVSlider(min, max, (int) Math.round(layer.getGridLineScale() * 10)).animates("grid:" + layer.getId() + "/lineScale");
         slider.addChangeListener(e -> layer.setGridLineScale(slider.getValue() / 10.));
         return slider;
     }

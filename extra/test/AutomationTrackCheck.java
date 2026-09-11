@@ -37,6 +37,7 @@ public final class AutomationTrackCheck {
         clamps();
         roundTrip();
         applier();
+        editing();
         System.out.println("AutomationTrackCheck: OK");
     }
 
@@ -173,6 +174,58 @@ public final class AutomationTrackCheck {
         eq(Display.getWarpLambda(), -0.5, "an unresolved key leaves everything alone");
 
         Automation.clear();
+        Display.setWarpLambda(0);
+    }
+
+    // The slider's menu and the touch latch (phase 6). Every one of these fails silently in the
+    // application: a second Animate that replaced a curve, a stray key written by a panel being
+    // rebuilt, or a latch left set would each leave a movie that is not the movie that was asked
+    // for, and none of them throws.
+    private static void editing() {
+        Automation.clear();
+        Display.setWarpLambda(0.3);
+
+        Track armed = Automation.arm("display.warpLambda", T0);
+        assertTrue(armed != null, "arming a resolvable parameter makes a track");
+        assertTrue(armed.getKeys().size() == 1, "arming plants exactly one key");
+        eq(armed.getKeys().getFirst().value(), 0.3, "the first key holds what the parameter is now");
+        assertTrue(armed.getKeys().getFirst().time() == T0, "planted at the playhead");
+
+        // Arming twice must not silently replace a curve someone has already built.
+        Display.setWarpLambda(-0.9);
+        assertTrue(Automation.arm("display.warpLambda", T0 + 5000) == null, "arming an armed parameter changes nothing");
+        assertTrue(Automation.get("display.warpLambda").getKeys().size() == 1, "and plants no second key");
+
+        assertTrue(Automation.arm("nothing.answers.to.this", T0) == null, "arming an unresolvable key makes no track");
+        assertTrue(Automation.get("nothing.answers.to.this") == null, "and leaves nothing behind");
+
+        // Write-on-release reads the parameter, not the slider: the slider is in ticks.
+        assertTrue(Automation.writeKey("display.warpLambda", T0 + 2000), "a key is written while armed");
+        Track t = Automation.get("display.warpLambda");
+        assertTrue(t.getKeys().size() == 2, "the released drag adds a key");
+        eq(t.getKeys().get(1).value(), -0.9, "holding the parameter's value, not the slider's position");
+        eq(t.valueAt(T0 + 1000), -0.3, "and the two keys interpolate");
+
+        // Dragging a slider nobody armed must never start an animation by accident.
+        assertTrue(!Automation.writeKey("display.diskScale", T0), "an unarmed parameter takes no key");
+        assertTrue(Automation.get("display.diskScale") == null, "and gets no track");
+
+        // The latch. While a hand is on the slider the curve stops writing that parameter, or the
+        // two fight at frame rate and the slider appears to spring back while being dragged.
+        Display.setWarpLambda(0.5);
+        Automation.setLatched("display.warpLambda");
+        Automation.apply(T0);
+        eq(Display.getWarpLambda(), 0.5, "a latched track leaves the parameter to the hand");
+        Automation.setLatched(null);
+        Automation.apply(T0);
+        eq(Display.getWarpLambda(), 0.3, "and the curve takes it back on release");
+
+        // A latch surviving a session load would freeze one parameter for the rest of the run,
+        // with nothing on screen to say why.
+        Automation.setLatched("display.warpLambda");
+        Automation.clear();
+        assertTrue(Automation.getLatched() == null, "clearing the tracks clears the latch");
+
         Display.setWarpLambda(0);
     }
 

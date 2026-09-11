@@ -101,6 +101,65 @@ public final class Automation {
 
     public static void clear() {
         tracks.clear();
+        latched = null;
+    }
+
+    // -- the touch latch ---------------------------------------------------------------------
+
+    // While a hand is on the parameter's own slider the applier stops writing that key, so the
+    // hand and the curve are not fighting over one number thirty times a second. One field rather
+    // than a set because there is one mouse; a second slider grabbed mid-drag would be a Swing bug.
+    @Nullable
+    private static String latched;
+
+    public static void setLatched(@Nullable String paramKey) {
+        latched = paramKey;
+    }
+
+    @Nullable
+    public static String getLatched() {
+        return latched;
+    }
+
+    // -- editing -----------------------------------------------------------------------------
+
+    /**
+     * Starts animating a parameter, with one key at {@code time} holding what it is now.
+     *
+     * <p>Returns null, and changes nothing, when the parameter is already animated or when nothing
+     * answers to the key: a menu item that quietly replaced a curve someone had built would be
+     * worse than one that does nothing.
+     */
+    @Nullable
+    public static Track arm(String paramKey, long time) {
+        if (tracks.containsKey(paramKey))
+            return null;
+        Param param = resolve(paramKey);
+        if (param == null)
+            return null;
+        Track track = new Track(paramKey);
+        track.put(new Track.Key(time, param.getter().getAsDouble(), Track.Interp.LINEAR));
+        tracks.put(paramKey, track);
+        return track;
+    }
+
+    /**
+     * Writes the parameter's value at {@code time} as a key, replacing any key already there.
+     *
+     * <p>The value is read from the registry's getter, never from the slider that triggered this:
+     * the slider's position is in ticks and the mapping from ticks to the parameter can change
+     * under a track (the Crop slider's radius depends on the layer stack), while the parameter is
+     * the thing the track is a curve of. False when nothing is animating this parameter.
+     */
+    public static boolean writeKey(String paramKey, long time) {
+        Track track = tracks.get(paramKey);
+        if (track == null)
+            return false;
+        Param param = resolve(paramKey);
+        if (param == null)
+            return false;
+        track.put(new Track.Key(time, param.getter().getAsDouble(), Track.Interp.LINEAR));
+        return true;
     }
 
     /** Writes every enabled track's value at {@code time}. Silently skips keys nothing answers to. */
@@ -108,7 +167,7 @@ public final class Automation {
         if (tracks.isEmpty()) // the common case: one map check per frame
             return;
         for (Track track : tracks.values()) {
-            if (!track.isEnabled() || track.isEmpty())
+            if (!track.isEnabled() || track.isEmpty() || track.paramKey.equals(latched))
                 continue;
             Param param = resolve(track.paramKey);
             if (param == null)

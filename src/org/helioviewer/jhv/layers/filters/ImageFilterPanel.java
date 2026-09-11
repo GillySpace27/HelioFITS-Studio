@@ -46,7 +46,7 @@ public class ImageFilterPanel implements FilterDetails {
     }
 
     private static JPanel createEnhancePanel(ImageLayer layer) {
-        JHVSlider slider = new JHVSlider(0, 30, (int) (layer.getGLImage().getEnhanced() * 10));
+        JHVSlider slider = new JHVSlider(0, 30, (int) (layer.getGLImage().getEnhanced() * 10)).animates("layer:" + layer.getId() + "/enhanced");
         JLabel label = new JLabel(formatLabel(slider.getValue() / 10.), JLabel.RIGHT);
         label.setToolTipText("<html><body>pixel⋅R<sup>v");
         slider.addChangeListener(e -> {
@@ -72,7 +72,7 @@ public class ImageFilterPanel implements FilterDetails {
         enhanceButton.setAlwaysDropdown(true);
         enhanceButton.addItem(enhancePanel);
 
-        JHVSlider upsilonLowSlider = new JHVSlider(5, 100, (int) (layer.getGLImage().getUpsilonLow() * 100));
+        JHVSlider upsilonLowSlider = new JHVSlider(5, 100, (int) (layer.getGLImage().getUpsilonLow() * 100)).animates("layer:" + layer.getId() + "/upsilonLow");
         JLabel upsilonLowLabel = new JLabel(formatUpsilon(upsilonLowSlider.getValue() / 100.), JLabel.RIGHT);
         upsilonLowSlider.addChangeListener(e -> {
             double value = upsilonLowSlider.getValue() / 100.;
@@ -80,7 +80,7 @@ public class ImageFilterPanel implements FilterDetails {
             upsilonLowLabel.setText(formatUpsilon(value));
             DisplayController.display();
         });
-        JHVSlider upsilonHighSlider = new JHVSlider(5, 100, (int) (layer.getGLImage().getUpsilonHigh() * 100));
+        JHVSlider upsilonHighSlider = new JHVSlider(5, 100, (int) (layer.getGLImage().getUpsilonHigh() * 100)).animates("layer:" + layer.getId() + "/upsilonHigh");
         JLabel upsilonHighLabel = new JLabel(formatUpsilon(upsilonHighSlider.getValue() / 100.), JLabel.RIGHT);
         upsilonHighSlider.addChangeListener(e -> {
             double value = upsilonHighSlider.getValue() / 100.;
