@@ -234,6 +234,7 @@ public class CollapsiblePane extends JComponent implements ActionListener {
         boolean expanded = !managed.isVisible();
         setExpanded(expanded);
         Settings.setProperty(key(), Boolean.toString(expanded)); // a click is a preference; setExpanded from code is not
+        Palette.syncToggles(); // a palette's toolbar button shows this fold state and was not told
         // A palette is packed to its contents and nothing in Swing repacks a window by itself, so
         // a section expanded inside one was simply cut off at the window edge. Only a pane living
         // in a dialog asks: the sidebar's panes are in the main frame's JScrollPane, which takes

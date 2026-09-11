@@ -142,29 +142,35 @@ public final class Palette {
      */
     public void bind(JToggleButton button) {
         toggle = button;
-        // Showing and hiding a palette moves it in and out of a sidebar, which is exactly what the
-        // panel lock is for. Registered here because bind is where a plain toggle becomes a
-        // palette's toggle, so there is one place rather than one per construction site.
-        PanelLock.registerPaletteToggle(button, this::flashHome);
         boolean wasFloating = hasWindow();
         dispose();
-        // The new button starts unselected. A palette showing in the sidebar is present, so its
-        // button has to say so rather than reading as switched off.
-        button.setSelected(wasFloating || isOpen());
+        // Lit means you can see the controls: a window that is open, or a docked section that is
+        // unfolded. A docked palette's button used to mean "present in the sidebar", and unticking
+        // it took the whole panel out, which is the one thing about the toolbar that ever made a
+        // layout come apart by accident. Where a palette LIVES is the section header's business
+        // (pop-out, cross, up, down); this button only ever folds and unfolds it, and the lock
+        // therefore has no reason to touch it.
+        button.setSelected(wasFloating || (home != null ? home.isUnfolded(title) : isOpen()));
         button.addActionListener(e -> {
-            if (PanelLock.intercept(button)) // locked: say where the panel is rather than moving it
-                return;
-            // One meaning in both homes: lit is showing, unlit is not. Docked, that shows or hides
-            // the sidebar section rather than a window. It deliberately does NOT undock: where a
-            // palette lives is the section's pop-out button's question, and answering it here
-            // would make throwing the palette back into a window the only way to put it away.
             if (home != null)
-                setSidebarShown(button.isSelected());
+                button.setSelected(home.revealOrFold(title));
             else
                 setOpen(button.isSelected());
         });
         if (wasFloating)
             setOpen(true); // rebuilt under the new owner, where the user left it
+    }
+
+    /**
+     * Keep every docked palette's toolbar button honest after a section was folded some other way,
+     * which is the header's own chevron and the collapse-all buttons. One static call from the
+     * pane's click handler rather than a listener per section, because the sections are rebuilt
+     * as palettes come and go and a listener would have to be rebuilt with them.
+     */
+    static void syncToggles() {
+        for (Palette p : palettes)
+            if (p.toggle != null && p.home != null)
+                p.toggle.setSelected(p.home.isUnfolded(p.title));
     }
 
     /**
@@ -257,8 +263,10 @@ public final class Palette {
         if (home == host && isOpen())
             return;
         home = host;
-        if (!"false".equals(Settings.getProperty(shownKey()))) // see shownKey: absent means showing
-            setSidebarShown(true);
+        // Always shown. The toolbar button no longer takes a docked section away, so a stored
+        // "not shown" is a leftover from when it did, and honouring it would dock a palette into
+        // a sidebar as nothing at all, with no control anywhere that brings it back.
+        setSidebarShown(true);
     }
 
     /**
@@ -331,14 +339,6 @@ public final class Palette {
         return home != null;
     }
 
-    /** Fold this palette's section, or unfold and blink it. What a locked toggle does instead of toggling. */
-    private void flashHome() {
-        if (home != null)
-            home.revealOrFold(title);
-        else
-            open(); // a floating one: raising the window is the same answer
-    }
-
     /** Open, or if already open bring to the front: what a "settings..." button wants, where a toggle would close it. */
     public void open() {
         if (home != null) {
@@ -403,6 +403,10 @@ public final class Palette {
                 contentSupplier.get(), () -> setHome(null));
         onShow.run();
         home.reveal(title);
+        // The section arrives with the fold state it remembers, which is not what the button was
+        // set to when it was bound (a restore lights the button first and docks afterwards), so
+        // Projection and Camera came up lit over folded sections. Say what is actually on screen.
+        syncToggles();
     }
 
     private void setOpen(boolean open) {

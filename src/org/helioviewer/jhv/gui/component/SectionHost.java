@@ -33,8 +33,11 @@ public interface SectionHost {
     /** Make a section visible: open the sidebar if it is folded away, and expand the section. */
     void reveal(String title);
 
-    /** Fold it, or unfold and blink it: what a locked palette button does, since folding is not moving. */
-    void revealOrFold(String title);
+    /** Fold it, or unfold and blink it. What a palette's toolbar button does. True if it is now unfolded. */
+    boolean revealOrFold(String title);
+
+    /** Whether the section is present and unfolded, which is what lights the palette's toolbar button. */
+    boolean isUnfolded(String title);
 
     /** Stable name used to remember where a palette lives, across launches. */
     String hostName();

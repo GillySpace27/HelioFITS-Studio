@@ -133,6 +133,11 @@ public final class SideContentPane extends JComponent {
      * could only ever open a section was half a control, since the way to put it away again was
      * the section's own chevron and nothing said so.
      */
+    public boolean isExpanded(JComponent managed) {
+        CollapsiblePane pane = map.get(managed);
+        return pane != null && pane.isExpanded();
+    }
+
     public boolean revealOrFold(JComponent managed) {
         CollapsiblePane pane = map.get(managed);
         if (pane == null)
@@ -150,6 +155,11 @@ public final class SideContentPane extends JComponent {
     }
 
     public void expandAll() {
+        expandAllImpl();
+        Palette.syncToggles();
+    }
+
+    private void expandAllImpl() {
         for (CollapsiblePane pane : map.values())
             pane.setExpanded(true);
         revalidate();
@@ -165,6 +175,11 @@ public final class SideContentPane extends JComponent {
     }
 
     public void collapseAll() {
+        collapseAllImpl();
+        Palette.syncToggles();
+    }
+
+    private void collapseAllImpl() {
         for (CollapsiblePane pane : map.values())
             pane.setExpanded(false);
         revalidate();

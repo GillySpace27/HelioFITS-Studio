@@ -489,8 +489,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
 
     private static String lockTip() {
         return PanelLock.isLocked()
-                ? "Panels are locked in place. Click to let them be moved again; folding still works either way."
-                : "Lock the panels where they are: the move, cross and pop-out controls grey out, folding still works.";
+                ? "Panels are locked where they are. Click to let them be moved; every toolbar button works the same either way."
+                : "Lock the panels where they are: the move, cross and pop-out arrows and the toolbar editor stop, nothing else changes.";
     } // permanent, in the trailing corner, never part of the order
     private JPopupMenu overflowPopup;
     private JPanel overflowPanel;
@@ -777,16 +777,13 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
                 lockCorner.setToolTipText(lockTip());
             }
         });
+        PanelLock.setLockButton(lockCorner); // so a refused move can blink it
         add(lockCorner);
 
         editCorner = Buttons.flat(Buttons.editToolbarCorner);
         editCorner.setToolTipText("Edit the toolbar: choose which tools are on it, and in what order");
         editCorner.setFocusPainted(false);
-        editCorner.addActionListener(e -> {
-            if (PanelLock.intercept(editCorner))
-                return;
-            ToolbarEditor.open();
-        });
+        editCorner.addActionListener(e -> ToolbarEditor.open()); // disabled outright while locked
         // Frozen with everything else. The editor is not only about which tools are on the bar: it
         // can take a palette's toggle off it entirely, and a palette whose toggle is gone is a
         // panel you cannot reach. That is a bigger rearrangement than any header arrow makes, so

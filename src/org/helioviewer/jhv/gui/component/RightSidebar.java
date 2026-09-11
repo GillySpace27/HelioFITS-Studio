@@ -218,21 +218,32 @@ public final class RightSidebar implements SectionHost {
 
         JButton up = Buttons.flat(Buttons.moveUp);
         up.setToolTipText("Move " + title + " up");
-        up.addActionListener(e -> move(title, -1));
+        up.addActionListener(e -> {
+            if (!PanelLock.interceptMove(up))
+                move(title, -1);
+        });
         JButton down = Buttons.flat(Buttons.moveDown);
         down.setToolTipText("Move " + title + " down");
-        down.addActionListener(e -> move(title, 1));
+        down.addActionListener(e -> {
+            if (!PanelLock.interceptMove(down))
+                move(title, 1);
+        });
         // The mirror of the left bar's: from here the only useful crossing is leftward.
         JButton toOther = Buttons.flat(Buttons.collapseLeft);
         toOther.setToolTipText("Move " + title + " to the left sidebar");
         toOther.addActionListener(e -> {
+            if (PanelLock.interceptMove(toOther))
+                return;
             Palette palette = Palette.named(title);
             if (palette != null)
                 palette.setHome(LeftSidebar.getInstance());
         });
         JButton floatOut = Buttons.flat(Buttons.popOut);
         floatOut.setToolTipText("Pop " + title + " back out into a floating palette");
-        floatOut.addActionListener(e -> onFloat.run());
+        floatOut.addActionListener(e -> {
+            if (!PanelLock.interceptMove(floatOut))
+                onFloat.run();
+        });
 
         for (JButton b : new JButton[]{up, down, toOther, floatOut})
             PanelLock.register(b);
@@ -329,14 +340,22 @@ public final class RightSidebar implements SectionHost {
 
     /** Make a section visible: open the sidebar if it is folded away, and expand the section. */
     @Override
-    public void revealOrFold(String title) {
+    public boolean revealOrFold(String title) {
         Section section = sections.get(title);
         if (section == null)
-            return;
+            return false;
         // As the left one: revealing first would make the fold decision always see an open
         // section, so every click would fold and nothing could be reopened from the toolbar.
-        if (pane.revealOrFold(section.holder()) && collapsed)
+        boolean unfolded = pane.revealOrFold(section.holder());
+        if (unfolded && collapsed)
             setCollapsed(false);
+        return unfolded;
+    }
+
+    @Override
+    public boolean isUnfolded(String title) {
+        Section section = sections.get(title);
+        return section != null && pane.isExpanded(section.holder());
     }
 
     @Override
