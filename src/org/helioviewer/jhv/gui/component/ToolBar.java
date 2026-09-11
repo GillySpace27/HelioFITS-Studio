@@ -888,6 +888,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         JLabel label = new JLabel("Warp");
         warpLambdaValue = new JLabel(String.format("%.3f", ViewState.getWarpLambda()), JLabel.RIGHT);
         warpLambdaValue.setPreferredSize(new JLabel("-0.000").getPreferredSize());
+        warpLambdaSlider.readout(warpLambdaValue);
         warpLambdaSlider.addChangeListener(e -> {
             if (!syncingFromTracker && CMETracker.getMode() == CMETracker.Mode.WARP)
                 CMETracker.stop(); // a manual move takes the wheel back, but only from the knob tracking drives
@@ -1285,6 +1286,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         diskSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, diskSlider.getPreferredSize().height));
         JLabel label = new JLabel("Disk");
         diskValue = new JLabel(formatDiskScale(Display.getDiskScale()), JLabel.RIGHT);
+        diskSlider.readout(diskValue);
         diskValue.setPreferredSize(new JLabel("-0.000").getPreferredSize());
         diskSlider.addChangeListener(e -> {
             double scale = sliderToDiskScale(diskSlider.getValue());
@@ -1429,6 +1431,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         warpCropSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, warpCropSlider.getPreferredSize().height));
         JLabel label = new JLabel("Crop");
         warpCropValue = new JLabel("auto", JLabel.RIGHT);
+        warpCropSlider.readout(warpCropValue);
         JLabel value = warpCropValue;
         value.setPreferredSize(new JLabel("-0.000").getPreferredSize());
         warpCropSlider.addChangeListener(e -> {

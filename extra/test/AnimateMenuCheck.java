@@ -4,6 +4,7 @@ import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
 import javax.swing.MenuElement;
@@ -77,7 +78,8 @@ public final class AnimateMenuCheck {
         Display.setWarpLambda(0.25);
 
         JHVSlider unbound = new JHVSlider(0, 100, 50);
-        JHVSlider warp = new JHVSlider(-1000, 1000, 0).animates("display.warpLambda");
+        JLabel label = new JLabel("0.000");
+        JHVSlider warp = new JHVSlider(-1000, 1000, 0).animates("display.warpLambda").readout(label);
 
         // JPopupMenu.show asks its invoker for a location on screen, so the sliders have to be in
         // a window that is showing. Parked far off any display: nothing is ever drawn where a
@@ -94,8 +96,23 @@ public final class AnimateMenuCheck {
         assertTrue(menuItems(warp).equals(List.of("Animate")), "an unarmed slider offers Animate, and only that");
 
         Automation.arm("display.warpLambda", Player.getTime().milli);
-        assertTrue(menuItems(warp).equals(List.of("Stop animating", "Add key at playhead")),
-                "the menu is built per press, so an armed slider offers the other two");
+        assertTrue(menuItems(warp).equals(List.of("Stop animating", "Take manual control", "Add key at playhead")),
+                "the menu is built per press, so an armed slider offers the other three");
+
+        // The readout greys while a curve is in charge, because neither the thumb nor the number
+        // is being told what the applier writes, and a number that silently disagrees with the
+        // picture is worse than one that plainly says it is not the one deciding.
+        assertTrue(!label.isEnabled(), "an armed slider's readout is greyed");
+
+        // Manual override: the menu flips, the readout comes back, and writing is refused.
+        Automation.setSuspended("display.warpLambda", true);
+        assertTrue(menuItems(warp).equals(List.of("Stop animating", "Return to curve", "Add key at playhead")),
+                "under manual control the same item reads the other way");
+        assertTrue(label.isEnabled(), "and the readout is live again, because the hand is deciding");
+        assertTrue(!Automation.writeKey("display.warpLambda", Player.getTime().milli + 60_000),
+                "and the schedule is closed to writes");
+        Automation.setSuspended("display.warpLambda", false);
+        assertTrue(!label.isEnabled(), "handed back, the readout greys again");
 
         // The drag. isAdjusting true latches; false with a value change releases and writes.
         Track track = Automation.get("display.warpLambda");

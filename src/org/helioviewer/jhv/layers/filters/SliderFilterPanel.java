@@ -120,7 +120,7 @@ public class SliderFilterPanel {
         /** Marks this row's slider animatable. Here rather than in the constructor's signature so
          *  the five geometry panels that have no track key keep the argument list they had. */
         protected void animates(String paramKey) {
-            slider.animates(paramKey);
+            slider.animates(paramKey).readout(label);
         }
 
         public void setVisible(boolean visible) {

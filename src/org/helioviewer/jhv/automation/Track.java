@@ -43,6 +43,7 @@ public final class Track {
     public final String paramKey;
     private final ArrayList<Key> keys = new ArrayList<>();
     private boolean enabled = true;
+    private boolean suspended; // live only: never saved, see setSuspended
 
     public Track(String _paramKey) {
         paramKey = _paramKey;
@@ -62,6 +63,31 @@ public final class Track {
 
     public void setEnabled(boolean _enabled) {
         enabled = _enabled;
+    }
+
+    /**
+     * Manual override: the curve stands, and stops driving its parameter until it is handed back.
+     *
+     * <p>Distinct from {@link #setEnabled}, which is the lane's tick and is a property of the
+     * movie, saved with it. This is a property of the person: you took the wheel to look at
+     * something. It is deliberately NOT written to the session, so a file always opens with its
+     * curves in charge; a saved override would be a movie that quietly does not animate, with the
+     * curve sitting right there in the panel looking like it should.
+     *
+     * <p>While it holds, nothing writes to this track: not the applier, and not a slider drag.
+     * That is the whole point of the state. Building the curve is what TOUCH is for.
+     */
+    public void setSuspended(boolean _suspended) {
+        suspended = _suspended;
+    }
+
+    public boolean isSuspended() {
+        return suspended;
+    }
+
+    /** Whether this track is currently the thing deciding its parameter's value. */
+    public boolean isDriving() {
+        return enabled && !suspended && !keys.isEmpty();
     }
 
     /** Adds a key, replacing any key already at that exact time. Keeps the list sorted. */

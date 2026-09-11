@@ -93,15 +93,27 @@ public final class Automation {
 
     public static void put(Track track) {
         tracks.put(track.paramKey, track);
+        handedOver();
     }
 
     public static void remove(String paramKey) {
         tracks.remove(paramKey);
+        handedOver();
     }
 
     public static void clear() {
         tracks.clear();
         latched = null;
+        handedOver();
+    }
+
+    // Who is in charge of some parameter just changed, so the sliders' readouts have to be re-greyed.
+    // Called straight rather than through a listener: this class already reaches the render side
+    // (Display, GLImage, GridLayer), there is exactly one thing that wants to know, and a registry
+    // of live sliders would need pruning as layer panels come and go. With no windows up -- a
+    // headless check -- the walk finds nothing and costs nothing.
+    private static void handedOver() {
+        org.helioviewer.jhv.gui.component.JHVSlider.refreshAll();
     }
 
     // -- the touch latch ---------------------------------------------------------------------
@@ -119,6 +131,27 @@ public final class Automation {
     @Nullable
     public static String getLatched() {
         return latched;
+    }
+
+    /** Whether a curve, rather than the last thing a hand did, is deciding this parameter now. */
+    public static boolean isDriving(String paramKey) {
+        Track track = tracks.get(paramKey);
+        return track != null && track.isDriving();
+    }
+
+    /**
+     * Takes the wheel from a curve, or hands it back. Returns false when nothing is animating it.
+     *
+     * <p>Handing it back needs no restoring: the applier writes the curve's value at the playhead
+     * on the very next frame, so the parameter snaps to where the curve says it should be.
+     */
+    public static boolean setSuspended(String paramKey, boolean suspended) {
+        Track track = tracks.get(paramKey);
+        if (track == null)
+            return false;
+        track.setSuspended(suspended);
+        handedOver();
+        return true;
     }
 
     // -- editing -----------------------------------------------------------------------------
@@ -140,6 +173,7 @@ public final class Automation {
         Track track = new Track(paramKey);
         track.put(new Track.Key(time, param.getter().getAsDouble(), Track.Interp.LINEAR));
         tracks.put(paramKey, track);
+        handedOver();
         return track;
     }
 
@@ -153,7 +187,11 @@ public final class Automation {
      */
     public static boolean writeKey(String paramKey, long time) {
         Track track = tracks.get(paramKey);
-        if (track == null)
+        // A suspended or un-ticked track is one the person has taken the wheel from, and a hand on
+        // the wheel must not be filing edits to the schedule it is overriding. Without this the
+        // override is not an override: every correcting drag would quietly rewrite the curve it
+        // was standing in for, and the curve you came back to would not be the curve you left.
+        if (track == null || track.isSuspended() || !track.isEnabled())
             return false;
         Param param = resolve(paramKey);
         if (param == null)
@@ -167,7 +205,7 @@ public final class Automation {
         if (tracks.isEmpty()) // the common case: one map check per frame
             return;
         for (Track track : tracks.values()) {
-            if (!track.isEnabled() || track.isEmpty() || track.paramKey.equals(latched))
+            if (!track.isDriving() || track.paramKey.equals(latched))
                 continue;
             Param param = resolve(track.paramKey);
             if (param == null)
