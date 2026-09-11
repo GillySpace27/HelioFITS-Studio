@@ -90,6 +90,8 @@ final class ToolbarEditor {
             barModel.addElement(id);
         availableModel.clear();
         availableModel.addElement(ToolBar.SEPARATOR); // always on offer, however many are in use
+        if (!barModel.contains(ToolBar.MORE_DIVIDER))
+            availableModel.addElement(ToolBar.MORE_DIVIDER); // at most one, so it is on offer only while unused
         for (String id : catalog.keySet())
             if (!barModel.contains(id))
                 availableModel.addElement(id);
@@ -181,6 +183,11 @@ final class ToolbarEditor {
                 setIcon(Buttons.dragHandle);
                 setText("Separator");
                 setToolTipText("A gap between groups of tools. Use as many as you like.");
+            } else if (ToolBar.MORE_DIVIDER.equals(id)) {
+                setIcon(Buttons.moreSettings);
+                setText("\u2014 More \u2014");
+                setToolTipText("Everything below this lives in the More menu. Anything above it is on the bar, "
+                        + "and spills into More from the bottom when the window is too narrow. One only.");
             } else {
                 ToolBar.Tool tool = catalog.get(id);
                 setIcon(tool == null ? null : tool.icon());
