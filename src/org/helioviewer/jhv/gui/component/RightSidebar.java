@@ -314,6 +314,11 @@ public final class RightSidebar implements SectionHost {
         section.holder().scrollRectToVisible(new java.awt.Rectangle(0, 0, section.holder().getWidth(), section.holder().getHeight()));
     }
 
+    /** As MainFrame.setSidebarHandleVisible: no collapsing in the presenter window. */
+    public void setHandleVisible(boolean visible) {
+        handle.setVisible(visible);
+    }
+
     public boolean isCollapsed() {
         return collapsed;
     }

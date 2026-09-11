@@ -56,6 +56,37 @@ public final class ToolbarOrderCheck {
         expect("an empty bar stays empty, and the corner control is still there",
                 resolve("|").isEmpty());
 
+        // Seeding a tool that did not exist when the bar was saved. Everyone who has ever opened
+        // the editor has a stored order, so without this a new tool is on nobody's bar.
+        // Its own KNOWN: the one above deliberately pretends most tools do not exist, to pin what
+        // resolveOrder drops, and seeding is about tools that DO exist.
+        Set<String> seedKnown = Set.of("pan", "rotate", "multiview", "timelines", "grid");
+        java.util.List<String> bar = new java.util.ArrayList<>(java.util.List.of("pan", "rotate", "multiview", "grid"));
+        java.util.List<String> placed = ToolBar.seedNewTools(bar, seedKnown, null);
+        expect("a tool missing from a saved bar is placed", placed.contains("timelines"));
+        expect("beside the neighbour it has in the default order, not at the end",
+                bar.indexOf("timelines") == bar.indexOf("multiview") + 1);
+
+        // The bit that matters most, and the bit the first version got wrong: a curated bar must
+        // not be repopulated. Everything a stored order omits, it omits on purpose, EXCEPT the
+        // handful of ids that postdate it.
+        java.util.List<String> curated = new java.util.ArrayList<>(java.util.List.of("pan", "multiview", "grid"));
+        ToolBar.seedNewTools(curated, seedKnown, null);
+        expect("a tool the user took off the bar is not put back",
+                !curated.contains("rotate") && curated.size() == 4);
+
+        // Declining it has to stick, or every launch puts it back.
+        java.util.List<String> without = new java.util.ArrayList<>(java.util.List.of("pan", "multiview"));
+        expect("a tool already offered once is not offered again",
+                !ToolBar.seedNewTools(without, seedKnown, "timelines").contains("timelines"));
+        expect("and the bar is left as the user left it", !without.contains("timelines"));
+
+        // Already on the bar is not "new", whatever the seeded list says.
+        java.util.List<String> has = new java.util.ArrayList<>(java.util.List.of("timelines", "pan"));
+        ToolBar.seedNewTools(has, seedKnown, null);
+        expect("a tool already on the bar is never added twice",
+                has.stream().filter("timelines"::equals).count() == 1);
+
         expect("every id in the default order is a tool the bar actually builds, or a separator",
                 java.util.Arrays.stream(ToolBar.DEFAULT_ORDER.split("\\|"))
                         .allMatch(id -> ToolBar.SEPARATOR.equals(id) || DEFAULT_IDS.contains(id)));
@@ -91,7 +122,7 @@ public final class ToolbarOrderCheck {
             "present", "zoomIn", "zoomOut", "zoomFit", "zoomOne",
             "resetCamera", "resetAxis", "rotate90",
             "pan", "rotate", "axis",
-            "track", "diffRotation", "corona", "multiview",
+            "track", "diffRotation", "corona", "multiview", "timelines",
             "projection", "colour", "sequence", "grid", "camera",
             "more");
 

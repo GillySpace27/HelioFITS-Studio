@@ -71,6 +71,24 @@ public final class MainContentPanel extends JPanel {
         }
     }
 
+    /**
+     * Whether the plugins pane is actually on screen: present AND unfolded.
+     *
+     * <p>Two separate things can hide it. Presentation mode takes the whole pane away with
+     * {@link #setPluginsVisible}, and the user folds it with its own header. A toolbar toggle has
+     * to mean "is the timeline showing", which is both of them at once.
+     */
+    public boolean isPluginsShowing() {
+        return collapsiblePane.isVisible() && collapsiblePane.toggleButton.isSelected();
+    }
+
+    /** Show or hide the plugins pane outright, whichever of the two was hiding it. */
+    public void setPluginsShowing(boolean showing) {
+        setPluginsVisible(showing);
+        if (showing)
+            revealPlugins();
+    }
+
     public void addPlugin(Interfaces.MainContentPanelPlugin plugin) {
         if (plugin == null || pluginList.contains(plugin) || plugin.getVisualInterfaces().isEmpty()) {
             return;
