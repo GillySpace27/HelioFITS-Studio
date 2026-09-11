@@ -132,10 +132,12 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
         table.getColumnModel().getColumn(Model.TYPE).setPreferredWidth(45);
         table.getColumnModel().getColumn(Model.VERSION).setPreferredWidth(55);
 
-        DefaultTableCellRenderer right = new DefaultTableCellRenderer();
-        right.setHorizontalAlignment(SwingConstants.TRAILING);
-        for (int col : new int[]{Model.FRAMES, Model.CADENCE, Model.SIZE})
-            table.getColumnModel().getColumn(col).setCellRenderer(right);
+        // The model holds raw longs so the sorter can order them; these renderers are what
+        // stops the table from showing epoch milliseconds and eleven-digit byte counts.
+        table.getColumnModel().getColumn(Model.FRAMES).setCellRenderer(new NumberCell(v -> String.format("%,d", v)));
+        table.getColumnModel().getColumn(Model.CADENCE).setCellRenderer(new NumberCell(CacheDialog::cadence));
+        table.getColumnModel().getColumn(Model.SIZE).setCellRenderer(new NumberCell(CacheDialog::size));
+        table.getColumnModel().getColumn(Model.SPAN).setCellRenderer(new SpanCell());
 
         JScrollPane scroller = new JScrollPane(table);
         scroller.setPreferredSize(new Dimension(880, 330));
@@ -250,6 +252,52 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
         return bytes >= 1L << 30
                 ? String.format("%.1f GB", bytes / (double) (1L << 30))
                 : (bytes >> 20) + " MB";
+    }
+
+    /** Median frame spacing, given in milliseconds, as a duration a person reads at a glance. */
+    private static String cadence(long millis) {
+        if (millis <= 0)
+            return "";
+        double seconds = millis / 1e3;
+        if (seconds < 1)
+            return String.format("%d ms", millis);
+        if (seconds < 90)
+            return seconds == Math.rint(seconds) ? String.format("%.0f s", seconds) : String.format("%.1f s", seconds);
+        double minutes = seconds / 60;
+        if (minutes < 90)
+            return minutes == Math.rint(minutes) ? String.format("%.0f min", minutes) : String.format("%.1f min", minutes);
+        double hours = minutes / 60;
+        return hours < 48
+                ? String.format("%.1f h", hours)
+                : String.format("%.1f d", hours / 24);
+    }
+
+    /** Right-aligned cell whose text comes from the raw long the model still sorts on. */
+    private static final class NumberCell extends DefaultTableCellRenderer {
+
+        private final java.util.function.LongFunction<String> format;
+
+        NumberCell(java.util.function.LongFunction<String> _format) {
+            format = _format;
+            setHorizontalAlignment(SwingConstants.TRAILING);
+        }
+
+        @Override
+        protected void setValue(Object value) {
+            setText(value instanceof Number n ? format.apply(n.longValue()) : "");
+        }
+    }
+
+    /** The observed range. The model sorts on the start instant; this shows start to end. */
+    private static final class SpanCell extends DefaultTableCellRenderer {
+
+        @Override
+        public Component getTableCellRendererComponent(JTable t, Object value, boolean selected, boolean focused, int viewRow, int col) {
+            super.getTableCellRendererComponent(t, value, selected, focused, viewRow, col);
+            Row row = ((Model) t.getModel()).row(t.convertRowIndexToModel(viewRow));
+            setText(row == null ? "" : span(row.set()));
+            return this;
+        }
     }
 
     private static String span(CacheIndex.Dataset set) {
