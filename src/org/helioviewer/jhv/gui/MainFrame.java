@@ -34,6 +34,7 @@ import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.app.Platform;
 import org.helioviewer.jhv.display.DisplayController;
+import org.helioviewer.jhv.gui.UIGlobals;
 import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.component.IdleFader;
 import org.helioviewer.jhv.gui.component.ImageLayersPane;
@@ -228,6 +229,13 @@ public final class MainFrame {
                 JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         leftScrollPane.setFocusable(false);
         leftScrollPane.setBorder(null);
+        // The ground under the sections, which is the viewport's and not the pane's:
+        // SideContentPane is a bare JComponent and SqueezeView is non-opaque, so both paint
+        // nothing and what shows through the empty stretch below the last section is this. Themed
+        // because a viewport background is a plain Color rather than a UIResource, so
+        // updateComponentTreeUI leaves it alone and the sidebar kept the previous theme's ground.
+        UIGlobals.themed(leftScrollPane.getViewport(),
+                c -> c.setBackground(javax.swing.UIManager.getColor("Panel.background")));
         // A thin bar, and a fixed one: this width is what the frozen sidebar width reserves, so
         // it has to be the same number in both places, which an explicit preferred size gives.
         leftScrollPane.getVerticalScrollBar().setPreferredSize(new Dimension(SCROLLBAR_WIDTH, 0));

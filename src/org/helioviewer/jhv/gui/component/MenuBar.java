@@ -62,6 +62,13 @@ public final class MenuBar extends JMenuBar {
                 for (ToolBar.Tool tool : ToolBar.allTools())
                     toolsMenu.add(toolItem(tool, onBar.contains(tool.id())));
                 toolsMenu.addSeparator();
+                // The tools that are not on the bar and never were: a palette with no toolbar
+                // button of its own, and two dialogs. They were in View, which is where a thing
+                // you look through goes, not a thing you work with.
+                toolsMenu.add(new Actions.TrackCME());
+                toolsMenu.add(new Actions.ShowDialog("Load from Cache...", new org.helioviewer.jhv.gui.dialog.CacheDialog()));
+                toolsMenu.add(new Actions.ShowDialog("FITS Settings...", new FITSSettings.SettingsDialog()));
+                toolsMenu.addSeparator();
                 JMenuItem edit = new JMenuItem("Edit Toolbar...");
                 edit.setIcon(Buttons.editToolbar);
                 edit.addActionListener(ev -> ToolbarEditor.open());
@@ -175,6 +182,11 @@ public final class MenuBar extends JMenuBar {
         JMenu editMenu = new JMenu("Edit");
         editMenu.setMnemonic(KeyEvent.VK_E);
         editMenu.add(new Actions.Paste());
+        editMenu.addSeparator();
+        // Rubbing out what you drew is an edit of the scene, not a way of looking at it. It sat
+        // in View because Annotation used to live on the toolbar's More menu and this was the
+        // only other place it could be reached from.
+        editMenu.add(new Actions.ClearAnnotations());
         add(editMenu);
 
         JMenu viewMenu = new JMenu("View");
@@ -192,8 +204,6 @@ public final class MenuBar extends JMenuBar {
         viewMenu.addSeparator();
         viewMenu.add(new Actions.ResetCameraAxis());
         viewMenu.add(new Actions.ResetCamera());
-        viewMenu.addSeparator();
-        viewMenu.add(new Actions.ClearAnnotations());
 
         JCheckBoxMenuItem white = new JCheckBoxMenuItem("Use White Background");
         white.addItemListener(e -> {
@@ -281,17 +291,12 @@ public final class MenuBar extends JMenuBar {
         viewMenu.add(themeMenu());
 
         viewMenu.addSeparator();
+        // Presentation stays: it is a way of looking at the scene rather than a thing to work on
+        // it with. The five palette items that used to follow it are gone, not moved -- the Tools
+        // menu lists every toolbar tool, and Projection, HDR, Fourier, Grid and Camera are five of
+        // them, so those lines were a second copy that could drift out of step with the first.
         viewMenu.add(new Actions.TogglePresentationMode());
         viewMenu.add(presentationMenu());
-        viewMenu.add(new Actions.ShowProjectionPalette());
-        viewMenu.add(new Actions.ShowSequencePalette());
-        viewMenu.add(new Actions.ShowColourPalette());
-        viewMenu.add(new Actions.ShowGridPalette());
-        viewMenu.add(new Actions.ShowCameraPalette());
-        viewMenu.add(new Actions.TrackCME());
-        viewMenu.addSeparator();
-        viewMenu.add(new Actions.ShowDialog("Load from Cache...", new org.helioviewer.jhv.gui.dialog.CacheDialog()));
-        viewMenu.add(new Actions.ShowDialog("FITS Settings...", new FITSSettings.SettingsDialog()));
 
         add(viewMenu);
 
