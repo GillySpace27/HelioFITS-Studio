@@ -90,11 +90,20 @@ public final class PresentationMode {
         // is also what keeps the status bar and the plugins pane off the projector.
         savedEastVisible = MainFrame.isEastVisible();
         Keep keep = keepFor(dual);
+        // What each panel was carrying, read BEFORE the line below hides them all. The presenter
+        // window needs to know which sidebars hold anything, and a panel's visibility is how it
+        // says so -- but only until setChromeVisible imposes its own. Asked afterwards, as it was,
+        // every panel answered "empty" and the presenter window came up with the toolbar and the
+        // transport and nothing else, which is the whole point of having one.
+        java.util.Map<Component, Boolean> carried = new java.util.IdentityHashMap<>();
+        for (MainFrame.ChromeSlot slot : MainFrame.chromeForPresenterView())
+            carried.put(slot.panel(), slot.panel().isVisible());
+
         MainFrame.setChromeVisible(false, keep.left(), keep.right(), savedEastVisible);
         if (!keep.palettes())
             org.helioviewer.jhv.gui.component.Palette.setFloatingVisible(false);
         if (dual)
-            presenterWindow = buildPresenterWindow(presenterScreen);
+            presenterWindow = buildPresenterWindow(presenterScreen, carried);
 
         // NORMAL first: a maximized frame ignores setBounds on some platforms.
         frame.setExtendedState(JFrame.NORMAL);
@@ -289,7 +298,8 @@ public final class PresentationMode {
     // Lend the chrome to a window on the presenter's screen. These are ordinary lightweight
     // Swing panels, so moving them between windows is just a reparent -- the expensive
     // component, the canvas, stays exactly where it is.
-    private static JFrame buildPresenterWindow(GraphicsDevice on) {
+    /** @param carried what each panel's visibility said before {@link MainFrame#setChromeVisible} hid them */
+    private static JFrame buildPresenterWindow(GraphicsDevice on, java.util.Map<Component, Boolean> carried) {
         JFrame window = new JFrame("HelioFITS Studio: Presenter", on.getDefaultConfiguration());
         window.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE); // closing it would strand the chrome
         // Toolbar and transport stack at the top at their natural height; the sidebar takes
@@ -304,10 +314,11 @@ public final class PresentationMode {
         java.util.List<Component> fillers = new java.util.ArrayList<>();
         for (MainFrame.ChromeSlot slot : MainFrame.chromeForPresenterView()) {
             Component c = slot.panel();
-            // Asked BEFORE it is forced open, because for the right sidebar being invisible is how
-            // it says it holds nothing: forcing that one on put an empty rail in the window and
-            // gave it half the height of the presenter view.
-            boolean carriesSomething = c.isVisible();
+            // For the right sidebar, being invisible is how it says it holds nothing, and forcing
+            // that one open put an empty rail in the window with half the height of the presenter
+            // view. So the answer comes from the snapshot taken before the chrome was hidden, not
+            // from the panel now: by now every one of them has been made invisible.
+            boolean carriesSomething = carried.getOrDefault(c, Boolean.TRUE);
             Container parent = c.getParent();
             if (parent != null)
                 parent.remove(c);
