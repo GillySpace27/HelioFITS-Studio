@@ -95,6 +95,32 @@ public final class SideContentPane extends JComponent {
      * plugins add to it, so "up" cannot mean "up among the palettes only" without leaving a section
      * that refuses to pass the one above it for reasons nothing on screen explains.
      */
+    /** The section's pane, for anything that has to draw or measure the section as a whole. */
+    @Nullable
+    public CollapsiblePane paneFor(JComponent managed) {
+        return map.get(managed);
+    }
+
+    /** The pane one place up or down from this section's, or null at the end of the stack. */
+    @Nullable
+    public CollapsiblePane neighbourOf(JComponent managed, int delta) {
+        int from = indexOf(managed);
+        int sections = getComponentCount() - 1; // the trailing strut is not one of them
+        int to = from + delta;
+        if (from < 0 || to < 0 || to >= sections)
+            return null;
+        return getComponent(to) instanceof CollapsiblePane pane ? pane : null;
+    }
+
+    /** {@link #move}, drawn as the two sections passing each other. */
+    public void moveAnimated(JComponent managed, int delta) {
+        CollapsiblePane pane = map.get(managed);
+        CollapsiblePane other = neighbourOf(managed, delta);
+        if (pane == null || other == null)
+            return;
+        Dosido.swap(pane, other, () -> move(managed, delta));
+    }
+
     public void move(JComponent managed, int delta) {
         CollapsiblePane pane = map.get(managed);
         int from = indexOf(managed);
