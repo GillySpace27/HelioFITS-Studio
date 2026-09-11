@@ -331,10 +331,10 @@ public final class Palette {
         return home != null;
     }
 
-    /** Reveal this palette where it lives and blink it. What a locked toggle does instead of toggling. */
+    /** Fold this palette's section, or unfold and blink it. What a locked toggle does instead of toggling. */
     private void flashHome() {
         if (home != null)
-            home.revealAndFlash(title);
+            home.revealOrFold(title);
         else
             open(); // a floating one: raising the window is the same answer
     }

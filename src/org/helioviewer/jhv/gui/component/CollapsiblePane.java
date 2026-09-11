@@ -183,21 +183,37 @@ public class CollapsiblePane extends JComponent implements ActionListener {
      * the timer was running.
      */
     public void flash() {
-        java.awt.Color was = header.getBackground();
+        // The whole band, which means the button too. The header panel's own background shows
+        // only where nothing is drawn over it, and that is the strip the docking icons sit in:
+        // the accessory is non-opaque, the toggle button paints its own fill across everything
+        // else. Colouring the header alone therefore blinked the three icons and left the title
+        // and its band sitting there unmoved, which reads as a glitch rather than as an answer.
+        java.awt.Color wasHeader = header.getBackground();
+        java.awt.Color wasButton = toggleButton.getBackground();
+        boolean wasOpaque = toggleButton.isOpaque();
         java.awt.Color hit = UIGlobals.separator();
         javax.swing.Timer timer = new javax.swing.Timer(180, null);
         int[] left = {6}; // three on, three off
         timer.addActionListener(e -> {
-            header.setBackground(left[0] % 2 == 0 ? hit : was);
+            boolean on = left[0] % 2 == 0;
+            header.setBackground(on ? hit : wasHeader);
+            toggleButton.setOpaque(on || wasOpaque);
+            toggleButton.setBackground(on ? hit : wasButton);
             header.repaint();
             if (--left[0] <= 0) {
                 timer.stop();
-                header.setBackground(was);
+                header.setBackground(wasHeader);
+                toggleButton.setOpaque(wasOpaque);
+                toggleButton.setBackground(wasButton);
                 header.repaint();
             }
         });
         timer.setRepeats(true);
         timer.start();
+    }
+
+    public boolean isExpanded() {
+        return toggleButton.isSelected();
     }
 
     /** How this section was last left by a click, or the fallback when it never was. */
