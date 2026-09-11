@@ -163,7 +163,7 @@ public final class ToolbarOrderCheck {
             "present", "zoomIn", "zoomOut", "zoomFit", "zoomOne",
             "resetCamera", "resetAxis", "rotate90",
             "pan", "rotate", "axis",
-            "track", "diffRotation", "corona", "multiview", "timelines", "annotate",
+            "track", "diffRotation", "corona", "multiview", "sidebarLeft", "timelines", "sidebarRight", "annotate",
             "projection", "colour", "sequence", "grid", "camera",
             "refresh", "sdoCutout", "samp",
             "more");

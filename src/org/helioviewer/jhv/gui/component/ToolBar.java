@@ -95,6 +95,10 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             "The tools parked here, and any the window is too narrow to show");
     private final ButtonText TIMELINES = new ButtonText(Buttons.timelineToolbar, "Timelines",
             "Show the Timelines pane under the picture");
+    // Left | bottom | right, the way an editor draws its layout controls. Timelines is the bottom
+    // one and predates the other two, so it keeps its own glyph and its own name.
+    private final ButtonText SIDEBAR_LEFT = new ButtonText(Buttons.sidebarLeft, "Left bar", "Show or fold the left sidebar");
+    private final ButtonText SIDEBAR_RIGHT = new ButtonText(Buttons.sidebarRight, "Right bar", "Show or fold the right sidebar");
     private final ButtonText OFFDISK = new ButtonText(Buttons.offDisk, "Corona", "Toggle off-disk corona");
     private final ButtonText PAN = new ButtonText(Buttons.pan, "Pan", "Pan");
     private final ButtonText PROJECTION = new ButtonText(Buttons.projection, "Projection", "Projection");
@@ -177,6 +181,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private static JToggleButton refreshToggle;
     @Nullable private static Palette annotatePalette;
     private static JToggleButton timelinesToggle; // current toolbar's Timelines button
+    private static JToggleButton leftBarToggle;
+    private static JToggleButton rightBarToggle;
     private final EnumMap<MapMode, javax.swing.JRadioButton> projectionItems = new EnumMap<>(MapMode.class);
     private JHVSlider warpLambdaSlider;
     private JHVSlider warpCropSlider;
@@ -228,14 +234,14 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
      * an id here when the tool is introduced; remove it once nobody is running a build older than
      * that.
      */
-    private static final java.util.Set<String> SEED_ONCE = java.util.Set.of("timelines");
+    private static final java.util.Set<String> SEED_ONCE = java.util.Set.of("timelines", "sidebarLeft", "sidebarRight");
 
     static final String DEFAULT_ORDER = String.join("|",
             "present", SEPARATOR,
             "zoomIn", "zoomOut", "zoomFit", "zoomOne", SEPARATOR,
             "resetCamera", "resetAxis", "rotate90", SEPARATOR,
             "pan", "rotate", "axis", SEPARATOR,
-            "track", "diffRotation", "corona", "multiview", "timelines", SEPARATOR,
+            "track", "diffRotation", "corona", "multiview", "sidebarLeft", "timelines", "sidebarRight", SEPARATOR,
             "projection", "colour", "sequence", "grid", "camera", "annotate", SEPARATOR,
             MORE_DIVIDER,
             "refresh", "sdoCutout", "samp");
@@ -648,6 +654,26 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         });
         register("timelines", TIMELINES, timelinesButton);
 
+        // The other two of the three. Fold means collapse to the rail, exactly what the rail's
+        // own handle does, so the sidebar can be reopened from either end. Lit is showing.
+        JToggleButton leftBar = toolToggleButton(SIDEBAR_LEFT);
+        leftBarToggle = leftBar;
+        leftBar.setSelected(!MainFrame.isSidebarCollapsed());
+        leftBar.addItemListener(e -> {
+            if (!syncingBars)
+                MainFrame.setSidebarCollapsed(!leftBar.isSelected());
+        });
+        register("sidebarLeft", SIDEBAR_LEFT, leftBar);
+
+        JToggleButton rightBar = toolToggleButton(SIDEBAR_RIGHT);
+        rightBarToggle = rightBar;
+        rightBar.addItemListener(e -> {
+            if (!syncingBars)
+                RightSidebar.getInstance().setCollapsed(!rightBar.isSelected());
+        });
+        register("sidebarRight", SIDEBAR_RIGHT, rightBar);
+        syncSidebarToggles();
+
         // The projection controls live in a persistent palette, not a dropdown: it survives
         // focus loss (so the sliders can be worked against the view) and only collapses when
         // the toolbar button is toggled again or its window is closed.
@@ -1020,6 +1046,33 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
      * without going near this button, and so does the pane's own header. Called from
      * MainFrame.setChromeVisible, which is where every one of those paths ends up.
      */
+    private static boolean syncingBars; // mirroring state into the buttons, not the user clicking them
+
+    /**
+     * Keep the two sidebar buttons honest when a bar was folded some other way: its own rail
+     * handle, presentation mode, or a session restore. Called from the two collapse setters, so
+     * every path ends up here.
+     *
+     * <p>The right button is also greyed while nothing is docked on the right, because folding an
+     * empty sidebar is a click that does nothing and should look like one.
+     */
+    public static void syncSidebarToggles() {
+        if (leftBarToggle == null || rightBarToggle == null)
+            return;
+        syncingBars = true;
+        try {
+            leftBarToggle.setSelected(!MainFrame.isSidebarCollapsed());
+            boolean east = MainFrame.isEastVisible();
+            rightBarToggle.setEnabled(east);
+            rightBarToggle.setSelected(east && !RightSidebar.getInstance().isCollapsed());
+            rightBarToggle.setToolTipText(east ? SIDEBAR_RIGHT_TIP : "Nothing is docked on the right; drop a palette there first");
+        } finally {
+            syncingBars = false;
+        }
+    }
+
+    private static final String SIDEBAR_RIGHT_TIP = "Show or fold the right sidebar";
+
     public static void syncTimelinesToggle() {
         if (timelinesToggle == null)
             return;

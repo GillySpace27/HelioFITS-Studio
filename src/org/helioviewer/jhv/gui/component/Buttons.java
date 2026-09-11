@@ -111,6 +111,9 @@ public class Buttons {
     public static final GlyphIcon timeline = icon(MaterialDesign.CHART_TIMELINE, INLINE);
     /** The same mark at toolbar size, for the button that pops the Timelines pane up and down. */
     public static final GlyphIcon timelineToolbar = icon(MaterialDesign.CHART_TIMELINE, TOOLBAR);
+    /** The window with one side marked: the layout toggles, as an editor draws them. Timelines is the bottom one. */
+    public static final GlyphIcon sidebarLeft = icon(MaterialDesign.PAGE_LAYOUT_SIDEBAR_LEFT, TOOLBAR);
+    public static final GlyphIcon sidebarRight = icon(MaterialDesign.PAGE_LAYOUT_SIDEBAR_RIGHT, TOOLBAR);
     /** A bolt, for the Space Weather Event Knowledgebase. Not a warning triangle: this is a catalogue, not an error. */
     public static final GlyphIcon events = icon(MaterialDesign.FLASH, INLINE);
     /**
