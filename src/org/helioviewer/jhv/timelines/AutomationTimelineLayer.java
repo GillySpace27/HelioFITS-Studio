@@ -15,6 +15,11 @@ import javax.swing.JPanel;
 
 import org.helioviewer.jhv.automation.Automation;
 import org.helioviewer.jhv.automation.Track;
+import org.helioviewer.jhv.gui.MainFrame;
+import org.helioviewer.jhv.movie.Player;
+import org.helioviewer.jhv.plugins.PluginManager;
+import org.helioviewer.jhv.plugins.eve.EVEPlugin;
+import org.helioviewer.jhv.timelines.draw.DrawController;
 import org.helioviewer.jhv.timelines.draw.TimeAxis;
 import org.helioviewer.jhv.timelines.draw.YAxis;
 import org.helioviewer.jhv.timelines.draw.YAxis.YAxisIdentityScale;
@@ -228,6 +233,42 @@ public final class AutomationTimelineLayer extends AbstractTimelineLayer {
                 .filter(AutomationTimelineLayer.class::isInstance)
                 .map(AutomationTimelineLayer.class::cast)
                 .toList();
+    }
+
+    // -- the slider's menu -------------------------------------------------------------------
+    //
+    // Both halves of arming live here rather than in Automation, because only half of arming is
+    // about the model: the track is the animation, the lane is the panel's view of it, and the
+    // panel is optional. A build with the Timelines plugin inactive still arms the parameter and
+    // still records the curve; it just has nowhere to draw it. State.load makes the same split.
+
+    /** Starts animating the parameter, shows its lane, and opens the plot if it was folded away. */
+    public static void arm(String paramKey) {
+        Track track = Automation.arm(paramKey, Player.getTime().milli);
+        if (track == null)
+            return; // already animated, or nothing answers to that key
+        if (PluginManager.isActive(EVEPlugin.class)) {
+            Timelines.getLayers().add(new AutomationTimelineLayer(track));
+            // Otherwise the only feedback for "Animate" is a menu that closed. The lane is the
+            // whole promise of the gesture, and it is drawn in a pane that is folded by default.
+            MainFrame.getMainContentPanel().revealPlugins();
+        }
+        DrawController.drawRequest();
+    }
+
+    /** A key at the playhead holding the parameter's current value, plus the redraw to show it. */
+    public static void writeKeyAndRedraw(String paramKey) {
+        if (Automation.writeKey(paramKey, Player.getTime().milli))
+            DrawController.drawRequest(); // the plot is a cached image; a new key dirties nothing on its own
+    }
+
+    /** Stops animating it: the track and its lane both go, and the parameter stays where it is. */
+    public static void disarm(String paramKey) {
+        Automation.remove(paramKey);
+        for (AutomationTimelineLayer lane : lanes())
+            if (lane.track.paramKey.equals(paramKey))
+                Timelines.getLayers().remove(lane);
+        DrawController.drawRequest();
     }
 
 }

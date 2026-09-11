@@ -57,6 +57,20 @@ public final class MainContentPanel extends JPanel {
         repaint();
     }
 
+    /**
+     * Unfolds the plugins pane, if it was folded, so something drawn in it can actually be seen.
+     *
+     * <p>setExpanded alone is not enough: the pane's own toggle runs updateLayout through an
+     * action listener, and setSelected on the button does not fire one, so an expand from code
+     * would leave the split pane still sized for a collapsed section.
+     */
+    public void revealPlugins() {
+        if (!collapsiblePane.toggleButton.isSelected()) {
+            collapsiblePane.setExpanded(true);
+            updateLayout();
+        }
+    }
+
     public void addPlugin(Interfaces.MainContentPanelPlugin plugin) {
         if (plugin == null || pluginList.contains(plugin) || plugin.getVisualInterfaces().isEmpty()) {
             return;

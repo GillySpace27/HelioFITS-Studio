@@ -20,6 +20,7 @@ public class SliderFilterPanel {
                     0, 100, (int) (layer.getGLImage().getBlend() * 100),
                     LevelsPanel::formatPercent,
                     value -> Layers.applyToSelected(layer, gl -> gl.setBlend(value / 100.)));
+            animates("layer:" + layer.getId() + "/blend");
         }
     }
 
@@ -56,6 +57,7 @@ public class SliderFilterPanel {
                     0, 100, (int) (layer.getGLImage().getOpacity() * 100),
                     LevelsPanel::formatPercent,
                     value -> Layers.applyToSelected(layer, gl -> gl.setOpacity(value / 100.)));
+            animates("layer:" + layer.getId() + "/opacity");
         }
     }
 
@@ -65,6 +67,7 @@ public class SliderFilterPanel {
                     -100, 100, (int) (layer.getGLImage().getSharpen() * 100),
                     LevelsPanel::formatPercent,
                     value -> Layers.applyToSelected(layer, gl -> gl.setSharpen(value / 100.)));
+            animates("layer:" + layer.getId() + "/sharpen");
         }
     }
 
@@ -112,6 +115,12 @@ public class SliderFilterPanel {
         @Override
         public Component getThird() {
             return label;
+        }
+
+        /** Marks this row's slider animatable. Here rather than in the constructor's signature so
+         *  the five geometry panels that have no track key keep the argument list they had. */
+        protected void animates(String paramKey) {
+            slider.animates(paramKey);
         }
 
         public void setVisible(boolean visible) {

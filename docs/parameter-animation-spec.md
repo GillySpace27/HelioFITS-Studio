@@ -12,6 +12,13 @@ PUNCH + LASCO + SUVI layers). Phases 5 to 7 are not built. Two things changed un
 the code and are marked inline below: the registry resolves per frame instead of taking
 registrations, and the lane does not print a live value. Section 11 records both.
 
+**Status, 2026-09-11: phase 6 is built.** Right-click any of the twelve bound sliders for Animate,
+Stop animating and Add key at playhead; arming plants a key holding the current value, shows the
+lane and unfolds the plot; a drag of an armed slider suspends its track for the drag and writes a
+key on release. Section 12 records the one parameter that was deliberately left unbound. Phase 5
+(dragging keys in the lane) and phase 7 (the frame-rate track) are still not built, so a curve is
+built by arming, scrubbing and dragging the slider rather than by editing the lane.
+
 ## 1. What the feature is
 
 Every knob in the application is a constant today: you set the opacity, the warp lambda, the HDR
@@ -514,3 +521,42 @@ from the track definitions.
 - The grid mesh rebuild's per-frame cost is still unmeasured.
 - Resolving a `layer:<id>/...` key against the live layer list is not covered by the headless
   check: `Layers`' class initialisation reaches SPICE. It is covered by the application run above.
+
+## 12. Phase 6, and the slider that was left alone
+
+Written 2026-09-11.
+
+**The registration is a field on the slider.** Section 5 wanted a map from slider to parameter key.
+That map is one nullable `String` on `JHVSlider`, set by `animates(key)` at the construction site
+and returned by the same call so it chains onto the `new`. Nothing has to unregister: when a
+layer's options panel is thrown away with the layer, its sliders and their keys go with it. A
+slider that was never bound has no menu, which is what keeps the several dozen out-of-scope
+controls exactly as they were.
+
+**Fourteen sites, not twelve.** Warp, Crop and Disk on the toolbar; HDR gain, knee and in-range;
+Opacity, Blend, Sharpen, Enhance, ΥL and ΥH per image layer; grid line opacity, label opacity and
+line width per grid layer.
+
+**Contrast is deliberately not bound.** It is the one slider whose gesture and whose parameter
+disagree. Section 2 decided there is no separate `contrast` key, because Levels and Contrast are
+two panels over one pair of numbers and a second key would fight the first. But the Contrast
+slider widens the Levels window *about its centre*, while `layer:<id>/brightScale` keeps the
+offset and moves the far edge. Binding it would record a curve that plays back as a different
+picture from the one the drag made, which is the failure this whole document exists to avoid.
+So `brightOffset` and `brightScale` are animatable from a hand-written session and from nowhere in
+the interface, until Levels' two-handle slider grows a menu of its own.
+
+**The latch is one field, not a set.** `Automation.setLatched` holds at most one key, because
+there is one mouse. `Automation.clear()` drops it: a latch surviving a session load would freeze
+one parameter for the rest of the run with nothing on screen to say why, and that is the kind of
+bug that gets blamed on the track.
+
+**Write-on-release reads the parameter, never the slider.** The slider is in ticks, and the tick
+to parameter mapping can change under a track: the Crop slider's position maps to a radius through
+the layer stack's largest radial size, so the same tick is a different radius as soon as a layer is
+added. The registry's getter is the value that gets stored.
+
+**Only a drag writes.** The key is written when `getValueIsAdjusting()` falls from true, which a
+programmatic `setValue` never sets. Panels are rebuilt and their sliders re-set constantly as
+layers are selected and filters change; without that condition, switching layers would edit a
+curve.

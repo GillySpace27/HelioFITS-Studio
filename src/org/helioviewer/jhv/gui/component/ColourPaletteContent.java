@@ -63,7 +63,7 @@ final class ColourPaletteContent {
         panel.setLayout(new BoxLayout(panel, BoxLayout.PAGE_AXIS));
         panel.setOpaque(false);
 
-        gainSlider = new JHVSlider(0, MAX_STOPS, MAX_STOPS);
+        gainSlider = new JHVSlider(0, MAX_STOPS, MAX_STOPS).animates("hdr.gain");
         gainValue = new JLabel();
         gainSlider.setToolTipText("<html>How far over the interface white the brightest data is allowed to go, in "
                 + "photographic stops: each stop doubles it, so +2 stops is 4x white.<br><br>"
@@ -95,7 +95,7 @@ final class ColourPaletteContent {
             refresh();
         });
 
-        kneeSlider = new JHVSlider(5, 95, 75);
+        kneeSlider = new JHVSlider(5, 95, 75).animates("hdr.knee");
         kneeValue = new JLabel();
         kneeSlider.setToolTipText("<html>Where the knee modes stop leaving the picture alone and start spending the "
                 + "headroom, as a position in the data range that feeds the colour table.<br><br>"
@@ -114,7 +114,7 @@ final class ColourPaletteContent {
                 HdrGain.commit();
         });
 
-        inRangeSlider = new JHVSlider(0, 100, (int) Math.round(HdrGain.DEFAULT_IN_RANGE * 100)); // double-click resets to the shipped default
+        inRangeSlider = new JHVSlider(0, 100, (int) Math.round(HdrGain.DEFAULT_IN_RANGE * 100)).animates("hdr.inRange"); // double-click resets to the shipped default
         inRangeValue = new JLabel();
         inRangeSlider.setToolTipText("<html>How much of the headroom brightens the picture itself, rather than being "
                 + "kept for data that exceeds the display range.<br><br>"
