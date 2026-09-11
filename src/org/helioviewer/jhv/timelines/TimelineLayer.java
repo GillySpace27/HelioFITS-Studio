@@ -16,7 +16,25 @@ import org.json.JSONObject;
 
 public interface TimelineLayer {
 
+    /**
+     * The panel is letting go of this layer. A teardown hook, not a user gesture: it fires when
+     * the row is deleted AND when a state load replaces the whole stack, so it must release only
+     * what the layer itself holds (timers, listeners) and never destroy what the layer is a view
+     * of. See {@link #deleted()} for the other half.
+     */
     void remove();
+
+    /**
+     * The user hit the delete column. Only this means "the thing itself should go".
+     *
+     * <p>Split out because {@link #remove()} cannot tell the two apart: TimelineLayers.remove and
+     * TimelineLayers.restore both call it, and the second is a state load replacing the stack. A
+     * layer that owns its own data has nothing to do here; one that is a view of something stored
+     * elsewhere (an automation track lives in the session's own object, not in "timelines") has to
+     * delete that something here rather than in remove(), or reloading a session deletes the
+     * animation it has just finished loading.
+     */
+    default void deleted() {}
 
     void setEnabled(boolean enabled);
 
