@@ -27,6 +27,10 @@ import org.helioviewer.jhv.movie.ExportMovie;
 import org.helioviewer.jhv.timelines.TimelineLayers;
 import org.helioviewer.jhv.timelines.draw.ClickableDrawable;
 import org.helioviewer.jhv.timelines.draw.DrawConstants;
+import javax.annotation.Nullable;
+
+import org.helioviewer.jhv.automation.Track;
+import org.helioviewer.jhv.timelines.AutomationTimelineLayer;
 import org.helioviewer.jhv.timelines.draw.DrawController;
 import org.helioviewer.jhv.timelines.draw.GraphGeometry;
 import org.helioviewer.jhv.timelines.draw.TimeAxis;
@@ -35,11 +39,12 @@ import org.helioviewer.jhv.timelines.draw.TimeAxis;
 final class ChartDrawGraphPane extends JComponent implements MouseInputListener, MouseWheelListener, ComponentListener, DrawController.Listener {
 
     private enum DragMode {
-        MOVIELINE, CHART, TRIM, NODRAG
+        MOVIELINE, CHART, TRIM, KEYFRAME, NODRAG
     }
 
     private Point mousePressedPosition;
     private boolean chartDragged;
+    @Nullable private AutomationTimelineLayer.Drag keyDrag; // live only between press and release on a lane
     private boolean trimDraggingEnd; // which trim handle an Option-drag is moving
 
     private BufferedImage screenImage;
@@ -229,6 +234,18 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
     public void mouseClicked(MouseEvent e) {
         Point p = e.getPoint();
         if (e.getClickCount() == 2) {
+            // A lane gets first refusal on a double-click, because the two gestures collide: the
+            // plot's own double-click resets the y-axis under the cursor, and an automation lane
+            // has no y-axis to reset (showYAxis is false), so nothing is lost by answering here
+            // first. Off a lane, resetAxis is untouched.
+            AutomationTimelineLayer.Hit hit = AutomationTimelineLayer.hitTest(p);
+            if (hit != null) {
+                if (hit.onKey())
+                    AutomationTimelineLayer.deleteKey(hit);
+                else
+                    AutomationTimelineLayer.insertKeyAt(hit, p);
+                return;
+            }
             DrawController.resetAxis(p);
             return;
         }
@@ -259,6 +276,22 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
     public void mousePressed(MouseEvent e) {
         Point p = e.getPoint();
         mousePressedPosition = p;
+        // Animation lanes first, and only on a plain press: a press on a key has to be claimed
+        // here or the MOVIELINE branch below scrubs the movie for the whole of the drag. Option
+        // and Shift keep their meanings everywhere in the plot, lanes included, so trimming and
+        // panning still work over one.
+        if (!e.isAltDown() && !e.isShiftDown() && !e.isPopupTrigger() && javax.swing.SwingUtilities.isLeftMouseButton(e)) {
+            AutomationTimelineLayer.Hit hit = AutomationTimelineLayer.hitTest(p);
+            if (hit != null) {
+                keyDrag = AutomationTimelineLayer.beginDrag(hit, p);
+                if (keyDrag != null) {
+                    dragMode = DragMode.KEYFRAME;
+                    return;
+                }
+            }
+        }
+        if (e.isPopupTrigger() && showInterpMenu(e))
+            return;
         if (e.isAltDown()) { // Option-drag trims the movie, like the top scrubber's ends
             dragMode = DragMode.TRIM;
             trimDraggingEnd = nearerToTrimEnd(p.x);
@@ -274,6 +307,36 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
             dragMode = DragMode.MOVIELINE;
         }
     }
+
+    /**
+     * Right-click on a key: how the segment leaving it reaches the next one.
+     *
+     * <p>Returns whether it opened, so the caller can leave the press alone when it did. Built on
+     * the spot rather than kept around, because the item that should be ticked is a property of
+     * whichever key was hit.
+     */
+    private boolean showInterpMenu(MouseEvent e) {
+        AutomationTimelineLayer.Hit hit = AutomationTimelineLayer.hitTest(e.getPoint());
+        if (hit == null || !hit.onKey())
+            return false;
+        Track.Interp current = hit.lane().interpAt(hit.keyIndex());
+        javax.swing.JPopupMenu menu = new javax.swing.JPopupMenu();
+        for (Track.Interp interp : Track.Interp.values()) {
+            javax.swing.JRadioButtonMenuItem item =
+                    new javax.swing.JRadioButtonMenuItem(INTERP_LABELS.get(interp), interp == current);
+            item.addActionListener(a -> AutomationTimelineLayer.setInterp(hit, interp));
+            menu.add(item);
+        }
+        menu.show(this, e.getX(), e.getY());
+        return true;
+    }
+
+    // Named for what the segment does, not for the algorithm: "Smooth" is a smoothstep and "Hold"
+    // a step, and neither word is what a curve editor calls them out loud.
+    private static final java.util.Map<Track.Interp, String> INTERP_LABELS = java.util.Map.of(
+            Track.Interp.HOLD, "Hold until the next key",
+            Track.Interp.LINEAR, "Straight to the next key",
+            Track.Interp.SMOOTH, "Ease into the next key");
 
     // True if x is nearer the current out-point than the in-point.
     private static boolean nearerToTrimEnd(int x) {
@@ -311,8 +374,15 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
             }
             case MOVIELINE -> DrawController.setMovieFrame(p);
             case TRIM -> setTrimAt(p.x);
+            case KEYFRAME -> {
+                if (keyDrag != null)
+                    keyDrag.end();
+            }
             case NODRAG -> {}
         }
+        if (e.isPopupTrigger())
+            showInterpMenu(e); // macOS delivers the popup trigger on press, X11 on release
+        keyDrag = null;
         dragMode = DragMode.NODRAG;
         mousePressedPosition = null;
         chartDragged = false;
@@ -331,6 +401,10 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
                 }
                 case MOVIELINE -> DrawController.setMovieFrame(p);
                 case TRIM -> setTrimAt(p.x);
+                case KEYFRAME -> {
+                    if (keyDrag != null)
+                        keyDrag.update(p, !e.isShiftDown()); // Shift drops the snap to frame times
+                }
                 case NODRAG -> {}
             }
         }
@@ -353,6 +427,9 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
             setCursor(org.helioviewer.jhv.gui.component.TrimCursor.get());
         } else if (overMovieLine(mousePosition)) {
             setCursor(Cursor.getPredefinedCursor(Cursor.E_RESIZE_CURSOR));
+        } else if (AutomationTimelineLayer.hitTest(mousePosition) != null) {
+            // The only thing that says a curve is grabbable before you try to grab it.
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         } else if (TimelineLayers.getDrawableUnderMouse() != null) {
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         } else if (geometry.area().contains(mousePosition)) {
