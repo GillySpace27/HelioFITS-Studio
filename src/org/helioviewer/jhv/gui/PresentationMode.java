@@ -340,11 +340,15 @@ public final class PresentationMode {
         window.setContentPane(content);
         window.pack();
         Rectangle bounds = on.getDefaultConfiguration().getBounds();
-        // A third of the screen: enough for the layer list to be readable, and it leaves the
-        // rest of the presenter's screen free for notes, the console or the speaker view. The
-        // toolbar no longer drives the width -- it overflows into a menu instead of forcing the
-        // window as wide as every button laid end to end.
-        int width = Math.max(bounds.width / 3, 360);
+        // A third of the screen for one sidebar: enough for the layer list to be readable, and it
+        // leaves the rest of the presenter's screen free for notes, the console or the speaker
+        // view. Half for two, because side by side each gets only half of whatever the window is,
+        // and a layer list under about 300 pixels stops being a list of datasets and becomes a
+        // column of truncated names. The toolbar does not drive the width either way -- it
+        // overflows into a menu instead of forcing the window as wide as every button laid end
+        // to end.
+        boolean twoSidebars = fillers.size() > 1;
+        int width = Math.max(twoSidebars ? bounds.width / 2 : bounds.width / 3, twoSidebars ? 720 : 360);
         window.setBounds(bounds.x + 40, bounds.y + 40,
                 Math.min(width, bounds.width - 80), bounds.height - 120);
         installEscape(window.getRootPane());
@@ -373,16 +377,22 @@ public final class PresentationMode {
             content.add(fillers.getFirst(), BorderLayout.CENTER);
             return;
         }
-        Component stacked = fillers.getFirst();
+        // Side by side, in the order they have in the main window: left sidebar on the left,
+        // right sidebar on the right. Stacked vertically, as this used to be, the two read as one
+        // very long sidebar carrying both sets of sections -- the layer list and the projection
+        // panel in one column, with a divider between them that looks like nothing in particular.
+        // The presenter is reaching for controls they know the position of, and the position they
+        // know is which SIDE the panel is on.
+        Component beside = fillers.getFirst();
         for (int i = 1; i < fillers.size(); i++) {
-            JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, stacked, fillers.get(i));
+            JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, beside, fillers.get(i));
             split.setResizeWeight(0.62); // the layer list is the one that grows with the window
             split.setContinuousLayout(true);
             split.setOneTouchExpandable(true);
             split.setBorder(null);
-            stacked = split;
+            beside = split;
         }
-        content.add(stacked, BorderLayout.CENTER);
+        content.add(beside, BorderLayout.CENTER);
     }
 
     /**
