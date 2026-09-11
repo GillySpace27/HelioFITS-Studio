@@ -124,6 +124,17 @@ public final class SideContentPane extends JComponent {
             pane.setExpanded(expanded);
     }
 
+    /** Unfold a section and blink it, so a locked palette's button can say where the panel is. */
+    public void revealAndFlash(JComponent managed) {
+        CollapsiblePane pane = map.get(managed);
+        if (pane == null)
+            return;
+        pane.setExpanded(true);
+        revalidate();
+        pane.scrollRectToVisible(new java.awt.Rectangle(0, 0, pane.getWidth(), pane.getHeight()));
+        pane.flash();
+    }
+
     public void expandAll() {
         for (CollapsiblePane pane : map.values())
             pane.setExpanded(true);

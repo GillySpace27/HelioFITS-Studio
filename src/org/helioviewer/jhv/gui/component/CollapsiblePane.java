@@ -33,6 +33,9 @@ public class CollapsiblePane extends JComponent implements ActionListener {
 
     final CollapsiblePaneButton toggleButton;
     /** Carries the band's fill behind whatever sits beside the title, so there is no notch in it. */
+    /** Ground under a top-level section, between its last control and the next section's band. */
+    private static final int SECTION_GAP = 5;
+
     private final JPanel header = new JPanel(new BorderLayout());
     @Nullable
     private JComponent accessory;
@@ -94,6 +97,16 @@ public class CollapsiblePane extends JComponent implements ActionListener {
         // parent band but the same shape in the same place, and shape is what the eye groups by.
         // The border is on the whole pane rather than the header, so the section's contents step
         // in with its title instead of hanging off the edge under an indented heading.
+        if (!child) {
+            // Where one panel ends and the next begins. Expanded, a section is a coloured band
+            // followed by an undifferentiated stretch of contents, and the next band sits straight
+            // on the end of it, so two open panels read as one long one with a stripe through the
+            // middle. A rule and a few pixels of ground under each closes the block: the band
+            // opens it, this ends it, and the gap says the next band belongs to something else.
+            UIGlobals.themed(this, c -> c.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createMatteBorder(0, 0, 1, 0, UIGlobals.separator()),
+                    BorderFactory.createEmptyBorder(0, 0, SECTION_GAP, 0))));
+        }
         if (child) {
             setBorder(BorderFactory.createEmptyBorder(0, CHILD_INDENT, 0, 0));
             // And the ground under its contents is stepped down from the panel's, so the nested
@@ -154,6 +167,37 @@ public class CollapsiblePane extends JComponent implements ActionListener {
         ComponentUtils.setVisible(managed, expanded);
         toggleButton.setSelected(expanded);
         setTitle(title);
+    }
+
+    /**
+     * Blink the header a few times: "it is here".
+     *
+     * <p>For the panel lock. Locked, a palette's toolbar button cannot show or hide the panel, but
+     * that is exactly when you most want to know WHERE it went, and unlocking, hunting, and
+     * locking again to find out is a worse answer than the question deserves. So a locked button
+     * reveals the section and blinks it instead of moving anything.
+     *
+     * <p>Three blinks at 180 ms, which is long enough to catch out of the corner of an eye and
+     * short enough to be over before it becomes something happening AT you. The band's own colour
+     * is put back at the end rather than assumed, because a theme switch may have changed it while
+     * the timer was running.
+     */
+    public void flash() {
+        java.awt.Color was = header.getBackground();
+        java.awt.Color hit = UIGlobals.separator();
+        javax.swing.Timer timer = new javax.swing.Timer(180, null);
+        int[] left = {6}; // three on, three off
+        timer.addActionListener(e -> {
+            header.setBackground(left[0] % 2 == 0 ? hit : was);
+            header.repaint();
+            if (--left[0] <= 0) {
+                timer.stop();
+                header.setBackground(was);
+                header.repaint();
+            }
+        });
+        timer.setRepeats(true);
+        timer.start();
     }
 
     /** How this section was last left by a click, or the fallback when it never was. */

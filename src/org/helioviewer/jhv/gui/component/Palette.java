@@ -145,13 +145,15 @@ public final class Palette {
         // Showing and hiding a palette moves it in and out of a sidebar, which is exactly what the
         // panel lock is for. Registered here because bind is where a plain toggle becomes a
         // palette's toggle, so there is one place rather than one per construction site.
-        PanelLock.registerPaletteToggle(button);
+        PanelLock.registerPaletteToggle(button, this::flashHome);
         boolean wasFloating = hasWindow();
         dispose();
         // The new button starts unselected. A palette showing in the sidebar is present, so its
         // button has to say so rather than reading as switched off.
         button.setSelected(wasFloating || isOpen());
         button.addActionListener(e -> {
+            if (PanelLock.intercept(button)) // locked: say where the panel is rather than moving it
+                return;
             // One meaning in both homes: lit is showing, unlit is not. Docked, that shows or hides
             // the sidebar section rather than a window. It deliberately does NOT undock: where a
             // palette lives is the section's pop-out button's question, and answering it here
@@ -327,6 +329,14 @@ public final class Palette {
     /** Living in a sidebar rather than in a window of its own, whether or not it is showing there. */
     public boolean isDocked() {
         return home != null;
+    }
+
+    /** Reveal this palette where it lives and blink it. What a locked toggle does instead of toggling. */
+    private void flashHome() {
+        if (home != null)
+            home.revealAndFlash(title);
+        else
+            open(); // a floating one: raising the window is the same answer
     }
 
     /** Open, or if already open bring to the front: what a "settings..." button wants, where a toggle would close it. */

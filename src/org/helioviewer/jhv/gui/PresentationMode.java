@@ -423,9 +423,11 @@ public final class PresentationMode {
         // of the main frame and the presenter window does not exist yet, so neither one would
         // reach them.
         expandRecursively(chrome);
-        MainFrame.getLayersPanel().forceShowAllRows(); // override a hand-set height for the talk
-        MainFrame.getOverlaysPanel().forceShowAllRows();
-        MainFrame.getCameraPanel().forceShowAllRows();
+        // Nothing to override any more: a list is always as tall as its contents. Kept as the
+        // nudge that refits one whose rows arrived while the panel was somewhere else.
+        MainFrame.getLayersPanel().showAllRows();
+        MainFrame.getOverlaysPanel().showAllRows();
+        MainFrame.getCameraPanel().showAllRows();
     }
 
     private static void expandRecursively(Component c) {

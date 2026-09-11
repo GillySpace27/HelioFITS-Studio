@@ -55,14 +55,12 @@ public final class LayersPanel extends JPanel {
     // count (see the 6 >= 6 crash of 2026-09-10).
     static int numberColumns() { return REMOVE_COL + 1; }
 
-    private static final int NUMBEROFVISIBLEROWS = 9;
 
     // Once the drag handle has been used, the height is the user's choice and auto-fit stops.
     // Before that the list grows to fit its layers, because opening at nine rows and being
     // resized by hand on every single use is the wrong default.
-    private boolean userResizedList;
 
-    private JScrollPane jsp; // the layer list's viewport, resized by the drag handle below
+    private JScrollPane jsp; // sized to its contents, always: see showAllRows
 
     private final LayersTable grid;
     private final LayerOptionSections sections;
@@ -177,15 +175,6 @@ public final class LayersPanel extends JPanel {
         // otherwise stay in the previous theme's colour after a switch.
         UIGlobals.themed(jsp.getViewport(), c -> c.setBackground(grid.getBackground()));
         add(jsp, gc);
-
-        // Drag handle below the list: grow it until every layer is visible (scrollbar disappears).
-        GridBagConstraints hc = new GridBagConstraints();
-        hc.gridx = 0;
-        hc.gridy = 1;
-        hc.weightx = 1;
-        hc.weighty = 0;
-        hc.fill = GridBagConstraints.HORIZONTAL;
-        add(makeResizeHandle(jsp), hc);
 
         grid.setTableHeader(null);
         grid.setShowHorizontalLines(true);
@@ -307,42 +296,7 @@ public final class LayersPanel extends JPanel {
         grid.setDropMode(DropMode.INSERT_ROWS);
         grid.setTransferHandler(new TableRowTransferHandler(grid));
 
-        // Start at the fixed count only as a floor for an empty list; showAllRows takes over as
-        // soon as there are layers to size to.
-        jsp.setPreferredSize(new Dimension(-1, grid.getRowHeight() * NUMBEROFVISIBLEROWS + 1));
-    }
-
-    // A thin strip the user drags vertically to resize the layer list, clamped between two rows
-    // and exactly all rows (so the scrollbar vanishes once every layer fits).
-    private java.awt.Component makeResizeHandle(JScrollPane jsp) {
-        javax.swing.JPanel handle = new javax.swing.JPanel();
-        handle.setPreferredSize(new Dimension(0, 5));
-        handle.setMinimumSize(new Dimension(0, 5));
-        UIGlobals.themed(handle, c -> c.setBackground(UIGlobals.separator()));
-        handle.setToolTipText("Drag to resize the layer list");
-        handle.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.N_RESIZE_CURSOR));
-        java.awt.event.MouseAdapter drag = new java.awt.event.MouseAdapter() {
-            private int startY;
-            private int startH;
-
-            @Override
-            public void mousePressed(java.awt.event.MouseEvent e) {
-                startY = e.getYOnScreen();
-                startH = jsp.getPreferredSize().height;
-                userResizedList = true; // from here on the height is the user's, not ours
-            }
-
-            @Override
-            public void mouseDragged(java.awt.event.MouseEvent e) {
-                int h = dragHeight(startH, e.getYOnScreen() - startY, grid.getRowHeight(), grid.getRowCount());
-                jsp.setPreferredSize(new Dimension(-1, h));
-                jsp.revalidate();
-                revalidate();
-            }
-        };
-        handle.addMouseListener(drag);
-        handle.addMouseMotionListener(drag);
-        return handle;
+        showAllRows(); // and every time the row count changes, which is the only height it has
     }
 
     /**
@@ -357,12 +311,6 @@ public final class LayersPanel extends JPanel {
      * <p>Pure and package-private so LayerListResizeCheck can pin it: the arithmetic is the part
      * that breaks, and it needs no window to exercise.
      */
-    static int dragHeight(int startH, int dy, int rowHeight, int rowCount) {
-        int minH = rowHeight * 2 + 1;
-        int maxH = Math.max(minH, rowHeight * Math.max(rowCount, 1) + 1);
-        return Math.clamp((long) startH + dy, minH, maxH);
-    }
-
     public int getGridRowHeight() {
         return grid.getRowHeight();
     }
@@ -419,21 +367,32 @@ public final class LayersPanel extends JPanel {
         sections.setSelectedLayer(layer);
     }
 
-    // Grow the list until every layer is visible, which is the same upper bound the drag handle
-    // clamps to (all rows shown, so the scrollbar disappears). Presentation mode calls this so
-    // the layer list is fully open rather than needing a drag mid-talk.
+    /**
+     * Size the list to every row it holds. There is no other height it is allowed to be.
+     *
+     * <p>It used to open at a nine-row window with a drag handle under it, which meant a list
+     * could have members you could not see and no sign on screen that it did: a scrollbar inside
+     * a sidebar that is itself scrollable reads as the end of the list, not as more of it. Layers
+     * and overlays are short lists of things you are working on, and the whole point of the panel
+     * is to see what is loaded. So the list is exactly as tall as its contents, always, and the
+     * sidebar's own scrollbar is the one that deals with a long stack.
+     */
+    @Override
+    public void addNotify() {
+        super.addNotify();
+        // Refit on the way onto the screen. The constructor sizes for the rows the table has THEN,
+        // which for a session whose layers were restored before this panel existed is none of
+        // them: no insert event ever arrives afterwards, so the list stayed at its opening height
+        // with the next section's header drawn across the first row.
+        showAllRows();
+    }
+
     public void showAllRows() {
-        if (jsp == null || userResizedList)
+        if (jsp == null)
             return;
         jsp.setPreferredSize(new Dimension(-1, grid.getRowHeight() * Math.max(grid.getRowCount(), 1) + 1));
         jsp.revalidate();
         revalidate();
-    }
-
-    /** Presentation mode opens the list fully even if the user had sized it down by hand. */
-    public void forceShowAllRows() {
-        userResizedList = false;
-        showAllRows();
     }
 
 }
