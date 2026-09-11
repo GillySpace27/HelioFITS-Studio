@@ -782,7 +782,11 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         editCorner = Buttons.flat(Buttons.editToolbarCorner);
         editCorner.setToolTipText("Edit the toolbar: choose which tools are on it, and in what order");
         editCorner.setFocusPainted(false);
-        editCorner.addActionListener(e -> ToolbarEditor.open());
+        editCorner.addActionListener(e -> {
+            if (PanelLock.intercept(editCorner))
+                return;
+            ToolbarEditor.open();
+        });
         // Frozen with everything else. The editor is not only about which tools are on the bar: it
         // can take a palette's toggle off it entirely, and a palette whose toggle is gone is a
         // panel you cannot reach. That is a bigger rearrangement than any header arrow makes, so

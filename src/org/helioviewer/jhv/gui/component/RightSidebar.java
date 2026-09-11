@@ -329,6 +329,14 @@ public final class RightSidebar implements SectionHost {
 
     /** Make a section visible: open the sidebar if it is folded away, and expand the section. */
     @Override
+    public void revealAndFlash(String title) {
+        reveal(title);
+        Section section = sections.get(title);
+        if (section != null)
+            pane.revealAndFlash(section.holder());
+    }
+
+    @Override
     public void reveal(String title) {
         Section section = sections.get(title);
         if (section == null)

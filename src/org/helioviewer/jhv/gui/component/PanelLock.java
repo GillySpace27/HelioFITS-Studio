@@ -7,6 +7,7 @@ import javax.annotation.Nullable;
 import javax.swing.AbstractButton;
 import javax.swing.Icon;
 import javax.swing.JComponent;
+import javax.swing.UIManager;
 
 import org.helioviewer.jhv.app.Settings;
 
@@ -50,8 +51,12 @@ public final class PanelLock {
      * padlock in the corner of its own glyph rather than just going grey, because a greyed toolbar
      * button usually means "not applicable here" and this one means "you asked for this".
      */
-    public static void registerPaletteToggle(AbstractButton toggle) {
-        registerBadged(toggle, "Panels are locked in place, so this one cannot be shown or hidden.");
+    /**
+     * @param whereIsIt run instead of the toggle's own action while locked: reveal the panel and
+     *                  blink it, so "where did I put HDR" is answerable without unlocking
+     */
+    public static void registerPaletteToggle(AbstractButton toggle, Runnable whereIsIt) {
+        registerBadged(toggle, "Panels are locked, so this cannot be shown or hidden. Click to find it instead.", whereIsIt);
     }
 
     /**
@@ -62,15 +67,49 @@ public final class PanelLock {
      * undoes it, since a disabled button that will not say why is the same as a broken one.
      */
     public static void registerBadged(AbstractButton button, String why) {
-        Badged badged = new Badged(button, button.getIcon(), button.getToolTipText(), why);
+        registerBadged(button, why, null);
+    }
+
+    public static void registerBadged(AbstractButton button, String why, @Nullable Runnable onLockedClick) {
+        Badged badged = new Badged(button, button.getIcon(), button.getToolTipText(), why, onLockedClick);
         badgedButtons.add(badged);
         applyTo(badged);
     }
 
-    private record Badged(AbstractButton button, Icon plainIcon, @Nullable String plainTip, String why) {}
+    /**
+     * Whether a click should be swallowed by the lock. Called first by the control's own listener.
+     *
+     * <p>Returns true when the lock answered it, which for a palette button means it revealed the
+     * panel and blinked it rather than showing or hiding it.
+     */
+    public static boolean intercept(AbstractButton button) {
+        if (!locked)
+            return false;
+        for (Badged b : badgedButtons)
+            if (b.button() == button) {
+                if (b.onLockedClick() == null)
+                    return true;
+                // A toggle has already flipped itself by the time its listener runs; put it back,
+                // because nothing about what is on screen changed.
+                button.setSelected(!button.isSelected());
+                b.onLockedClick().run();
+                return true;
+            }
+        return false;
+    }
+
+    private record Badged(AbstractButton button, Icon plainIcon, @Nullable String plainTip, String why,
+                          @Nullable Runnable onLockedClick) {}
 
     private static void applyTo(Badged b) {
-        b.button().setEnabled(!locked);
+        // Greyed but NOT disabled, where there is somewhere to go: a disabled button receives no
+        // clicks, and a locked palette button has something useful to do with one. Swing has no
+        // "looks unavailable but is not", so the look is the badge plus a foreground dimmed by
+        // hand, and the action decides what a click means.
+        if (b.onLockedClick() == null)
+            b.button().setEnabled(!locked);
+        else
+            b.button().setForeground(locked ? UIManager.getColor("Button.disabledText") : null);
         b.button().setIcon(locked ? Buttons.badged(b.plainIcon(), Buttons.lockBadge) : b.plainIcon());
         b.button().setToolTipText(locked
                 ? b.why() + " Click the padlock beside the toolbar's edit control to unlock them."

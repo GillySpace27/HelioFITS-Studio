@@ -157,6 +157,15 @@ public final class LeftSidebar implements SectionHost {
     }
 
     @Override
+    public void revealAndFlash(String title) {
+        reveal(title);
+        SideContentPane pane = MainFrame.getLeftContentPane();
+        Section section = sections.get(title);
+        if (pane != null && section != null)
+            pane.revealAndFlash(section.holder());
+    }
+
+    @Override
     public void reveal(String title) {
         Section section = sections.get(title);
         if (section == null)

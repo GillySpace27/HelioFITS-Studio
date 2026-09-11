@@ -33,6 +33,9 @@ public interface SectionHost {
     /** Make a section visible: open the sidebar if it is folded away, and expand the section. */
     void reveal(String title);
 
+    /** Reveal it and blink it, for a locked palette button that may move nothing but must still answer "where?". */
+    void revealAndFlash(String title);
+
     /** Stable name used to remember where a palette lives, across launches. */
     String hostName();
 
