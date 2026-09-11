@@ -49,7 +49,7 @@ final class LayersTableModel extends AbstractTableModel implements Layers.Listen
 
     @Override
     public int getColumnCount() {
-        return LayersPanel.NUMBER_COLUMNS;
+        return LayersPanel.numberColumns();
     }
 
     @Nullable

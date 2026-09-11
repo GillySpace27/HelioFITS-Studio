@@ -49,7 +49,11 @@ public final class LayersPanel extends JPanel {
     static final int FILTER_COL = 4;
     static final int DOWNLOAD_COL = 5;
     static final int REMOVE_COL = 6;
-    static final int NUMBER_COLUMNS = 7;
+    // Deliberately a method, not a static final int. A constant would be inlined
+    // into LayersTableModel at compile time, and an incremental build that
+    // recompiled only this file would leave the model reporting a stale column
+    // count (see the 6 >= 6 crash of 2026-09-10).
+    static int numberColumns() { return REMOVE_COL + 1; }
 
     private static final int NUMBEROFVISIBLEROWS = 9;
 
