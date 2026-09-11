@@ -387,6 +387,38 @@ public final class LayersPanel extends JPanel {
         showAllRows();
     }
 
+    /**
+     * Rigid: exactly as tall as its rows, and not to be compressed or stretched.
+     *
+     * <p>This is what the truncation was. A layer list's natural minimum is a JScrollPane's, which
+     * is a few pixels, so it was the first thing crushed whenever anything upstream ran short of
+     * room. Measured 2026-09-11: the image-layer list wanted 101 px for five rows, its parent
+     * BoxLayout was handed 51 where it wanted 143, and the list was squeezed to its minimum of 9
+     * while the fixed-height panel beside it kept all 42 of its own. Nine pixels of a twenty-pixel
+     * row is the sliver that the next section's header appeared to be drawn across.
+     *
+     * <p>So it declines to compress. The shortfall now goes where it belongs: the section keeps
+     * its height, the stack gets taller than the sidebar, and the sidebar's own scrollbar deals
+     * with it, which is the one place a scrollbar means "there is more" rather than "this is the
+     * end". Maximum too, or a stretch would leave empty rows below the last layer.
+     *
+     * <p>HEIGHT only, in both. The preferred width here is 0, because showAllRows asks for a width
+     * of -1 and lets weightx stretch the list to whatever the sidebar is; pinning the maximum to
+     * the preferred size wholesale therefore pinned the width to zero as well, and the list
+     * reserved its full height and drew nothing in it. Width stays free at both ends: unbounded
+     * above, and zero below, which is what SqueezeView needs to squeeze a sidebar narrower than
+     * the labels inside it claim to need.
+     */
+    @Override
+    public Dimension getMinimumSize() {
+        return new Dimension(0, getPreferredSize().height);
+    }
+
+    @Override
+    public Dimension getMaximumSize() {
+        return new Dimension(Integer.MAX_VALUE, getPreferredSize().height);
+    }
+
     public void showAllRows() {
         if (jsp == null)
             return;
