@@ -76,6 +76,7 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
     private final JComboBox<ExportFormat.Depth> recordDepthComboBox;
     private final JComboBox<String> recordPresetComboBox;
     private final javax.swing.JCheckBox allIntraCheckBox;
+    private final javax.swing.JCheckBox timelinesCheckBox;
     private boolean syncingRecordFormat; // repopulating the two dependent combos fires their listeners
 
     /** The persisted format, falling back to H.264 for an absent or stale name. */
@@ -113,6 +114,19 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
 
     public static boolean isAllIntra() {
         return !"false".equals(Settings.getProperty("video.allIntra"));
+    }
+
+    /**
+     * Whether the Timelines strip is burned into the recording. Off unless asked for.
+     *
+     * <p>ExportMovie composites the timeline plot's own image into every encoded frame, so for as
+     * long as this existed, opening the Timelines panel silently changed what a recording was: the
+     * movie came out with a chart stapled under the picture, and the only way to record without
+     * one was to close a panel you were using. The picture is the thing being published; the
+     * chart is a tool for making it. Anyone who does want the plot in the movie ticks this.
+     */
+    public static boolean isTimelinesInRecording() {
+        return "true".equals(Settings.getProperty("video.recordTimelines"));
     }
     private final JLabel recordDerivedLabel;
     private final JLabel recordLongSideLabel;
@@ -268,6 +282,15 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
                 syncPresetSelection();
         });
 
+        // Default off: see isTimelinesInRecording. An unticked box that changes nothing is the
+        // right default here precisely because the alternative was invisible -- the panel being
+        // open was the setting.
+        timelinesCheckBox = new javax.swing.JCheckBox("Include the Timelines strip", isTimelinesInRecording());
+        timelinesCheckBox.setFont(UIGlobals.uiFontSmall);
+        timelinesCheckBox.setToolTipText("Burn the Timelines plot into the recording, under the picture. Off by default: the picture is what is being published.");
+        timelinesCheckBox.addItemListener(e ->
+                Settings.setProperty("video.recordTimelines", Boolean.toString(timelinesCheckBox.isSelected())));
+
         recordPresetComboBox = new JComboBox<>();
         recordPresetComboBox.addActionListener(e -> {
             if (syncingRecordFormat)
@@ -366,6 +389,7 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         addRow(encodingPanel, 0, "Format", row(recordFormatComboBox));
         addRow(encodingPanel, 1, "Pixels", row(recordChromaComboBox, recordDepthComboBox)); // colour AND depth
         addSpan(encodingPanel, 2, row(allIntraCheckBox));
+        addSpan(encodingPanel, 3, row(timelinesCheckBox));
         encodingPane = new EncodingPane(encodingPanel);
         addSpan(optionsPanel, 4, encodingPane);
 

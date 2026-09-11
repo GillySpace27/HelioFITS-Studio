@@ -51,6 +51,7 @@ public final class AutomationTimelineLayer extends AbstractTimelineLayer {
 
     private static final int LANE_H = 30;      // automation stacks DOWN from the top; coverage fills UP from the bottom
     private static final int LANE_GAP = 4;
+    private static final int MIN_LANE_H = 8; // thin enough to be a squiggle, and a squiggle is feedback
     private static final int TOP_OFFSET = 2;
     private static final Color CURVE = new Color(255, 200, 90);
     private static final Color KEY = new Color(255, 235, 190);
@@ -83,8 +84,6 @@ public final class AutomationTimelineLayer extends AbstractTimelineLayer {
             return;
 
         Strip s = strip(graphArea);
-        if (s == null) // the plot is 50px tall by default; deeper lanes need the splitter dragged
-            return;
         int yTop = s.yTop(), yBot = s.yBot();
         double[] r = range();
         double lo = r[0], hi = r[1];
@@ -126,8 +125,12 @@ public final class AutomationTimelineLayer extends AbstractTimelineLayer {
 
         g.setFont(savedFont.deriveFont(Font.PLAIN, 9f));
         int baseline = yTop + g.getFontMetrics().getAscent();
+        // A thinned lane has no room for three lines of 9pt text, and text that does not fit is
+        // not small, it is in the next lane's band. The curve is the part worth keeping.
+        boolean labels = baseline + 9 <= yBot;
         g.setColor(CURVE);
-        g.drawString(getName(), graphArea.x + 2, baseline);
+        if (labels)
+            g.drawString(getName(), graphArea.x + 2, baseline);
         // The lane's own range, in place of a y-axis. Both ends are static, which is the point:
         // this layer draws into the plot's CACHED image, which is rebuilt only when something
         // sets DrawController's redraw flag. A time change does not -- the movie line is
@@ -139,22 +142,36 @@ public final class AutomationTimelineLayer extends AbstractTimelineLayer {
         // the live readout; the number belongs in the selected-row options panel, which Swing
         // repaints on its own.
         g.setColor(BASE);
-        g.drawString(format(hi), graphArea.x + 2, baseline + 9);
-        g.drawString(format(lo), graphArea.x + 2, yBot - 1);
+        if (labels) {
+            g.drawString(format(hi), graphArea.x + 2, baseline + 9);
+            g.drawString(format(lo), graphArea.x + 2, yBot - 1);
+        }
 
         g.setClip(savedClip);
         g.setStroke(savedStroke);
         g.setFont(savedFont);
     }
 
-    /** This lane's own horizontal band of the shared plot rectangle, or null when it will not fit. */
+    /** This lane's own horizontal band of the shared plot rectangle. */
     private record Strip(int yTop, int yBot) {}
 
-    @Nullable
+    /**
+     * The band, thinned to whatever the plot can spare rather than skipped when LANE_H will not
+     * fit. A fixed 30 needs a plot 74 pixels tall before the first lane appears at all
+     * (GraphGeometry takes 46 off for the axes, plus 18 per propagated axis), and
+     * ChartDrawGraphPane asks for 50: arming a parameter on a plot nobody had dragged taller
+     * therefore added the row to the panel and drew nothing, not even the baseline, with nothing
+     * thrown and nothing on screen to say why. Measured 2026-09-11. A thin lane is hard to read;
+     * an absent one looks like the gesture failed.
+     *
+     * <p>The index is the registration order among the automation lanes only, so adding a
+     * spectrogram or a band curve does not shuffle the parameter lanes down the plot.
+     */
     private Strip strip(Rectangle graphArea) {
-        int yTop = graphArea.y + TOP_OFFSET + laneIndex() * LANE_H;
-        int yBot = yTop + LANE_H - LANE_GAP;
-        return yBot > graphArea.y + graphArea.height ? null : new Strip(yTop, yBot);
+        List<AutomationTimelineLayer> lanes = lanes();
+        int h = Math.clamp((graphArea.height - TOP_OFFSET) / Math.max(1, lanes.size()), MIN_LANE_H, LANE_H);
+        int yTop = graphArea.y + TOP_OFFSET + Math.max(0, lanes.indexOf(this)) * h;
+        return new Strip(yTop, yTop + h - Math.min(LANE_GAP, h / 3)); // the gap thins with the lane
     }
 
     /**
@@ -197,19 +214,6 @@ public final class AutomationTimelineLayer extends AbstractTimelineLayer {
         return Math.abs(v) >= 1000 || (v != 0 && Math.abs(v) < 0.01) ? String.format("%.3g", v) : String.format("%.3f", v);
     }
 
-    // Registration order among the automation lanes only, so adding a spectrogram or a band curve
-    // does not shuffle the parameter lanes down the plot.
-    private int laneIndex() {
-        int i = 0;
-        for (TimelineLayer tl : TimelineLayers.get()) {
-            if (tl == this)
-                return i;
-            if (tl instanceof AutomationTimelineLayer)
-                i++;
-        }
-        return i;
-    }
-
     @Override
     public String getName() {
         return Automation.labelFor(track.paramKey);
@@ -217,7 +221,17 @@ public final class AutomationTimelineLayer extends AbstractTimelineLayer {
 
     @Override
     public void remove() {
-        Automation.remove(track.paramKey); // the delete column removes the track, not just its view
+        // Nothing. The track is not this layer's to destroy: the lane is the panel's VIEW of it,
+        // and remove() is the panel letting go, which TimelineLayers.restore does to every layer
+        // on a state load. Deleting the track here meant that loading a session deleted the
+        // animation it had just loaded, two lines earlier, in State.load. Measured 2026-09-11:
+        // a session that restored a warp track came back with "automation": {"tracks": []}.
+        // The user's delete column arrives at deleted(), below.
+    }
+
+    @Override
+    public void deleted() {
+        Automation.remove(track.paramKey);
     }
 
     @Override
@@ -359,7 +373,7 @@ public final class AutomationTimelineLayer extends AbstractTimelineLayer {
             if (!lane.enabled || lane.track.isEmpty())
                 continue;
             Strip s = lane.strip(graphArea);
-            if (s == null || p.y < s.yTop() - GRAB || p.y > s.yBot() + GRAB)
+            if (p.y < s.yTop() - GRAB || p.y > s.yBot() + GRAB)
                 continue;
             double[] r = lane.range();
 
@@ -413,8 +427,6 @@ public final class AutomationTimelineLayer extends AbstractTimelineLayer {
         public void update(Point p, boolean snap) {
             Rectangle graphArea = DrawController.getGeometry().area();
             Strip s = lane.strip(graphArea);
-            if (s == null)
-                return;
             double[] r = lane.range();
             double dv = valueFor(p.y, r[0], r[1], s.yTop(), s.yBot())
                     - valueFor(startY, r[0], r[1], s.yTop(), s.yBot());

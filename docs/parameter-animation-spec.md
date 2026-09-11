@@ -615,3 +615,55 @@ each fail their own named assertion, and the restored source passes.
 The gestures have not been performed on screen. The hit test needs the plot's geometry and the
 menu needs a display, and the display is held by another session. What is checked is every way the
 gestures can corrupt a curve, not that a press lands where the cursor is.
+
+## 14. The recording, verified
+
+Written 2026-09-11. Section 3's whole argument for putting the applier at the top of
+`GLRenderer.display` was that `ExportMovie.handleMovieExport()` grabs from the bottom of the same
+method, so the encoded pixels are the pixels one evaluation produced. That was an argument from
+where the code sits. It is now an observation.
+
+Two recordings of the same movie at the same 640x360 output, measured by the same script: the row
+at which one instrument's band begins, which the Box-Cox warp moves.
+
+| | frame 0 | 10 | 20 | 30 | 39 |
+|---|---|---|---|---|---|
+| track deleted | 198 | 198 | 198 | 198 | 198 |
+| track live, lambda sweeping -0.9 to +0.9 | 6 | 12 | 24 | 40 | 54 |
+
+Monotonic across the recorded range, in lockstep with the curve, against a flat 198 for the same
+movie with no track. Solar data does not move a band edge monotonically for forty frames; the warp
+parameter does. The animated parameter reaches the file.
+
+The first of those two recordings was an accident worth keeping, because it found a defect.
+
+## 15. The lane must not own the track
+
+`AutomationTimelineLayer.remove()` deleted the track. That is wrong, and section 6 already said why
+without noticing that the code contradicted it: the lane is the panel's VIEW of a track, and
+`remove()` is the panel letting go, which `TimelineLayers.restore` does to every layer on a state
+load. So the sequence in `State.load` was: load the tracks, build their lanes, and then, on the
+next state load, delete every track two lines before loading the next session's. It also fired on
+quit, which is how it was caught: a session that had restored a warp track, animated correctly for
+several minutes and recorded, saved itself as `"automation": {"tracks": []}`.
+
+Split in two. `remove()` is the teardown hook and releases only what the layer itself holds.
+`deleted()` is new on `TimelineLayer`, called by the delete column alone, and means the thing
+itself should go. Verified by the same round trip that exposed it: the session now saves the track
+with both its keys.
+
+## 16. The Timelines strip is opt-in
+
+Trap 13 said the strip lands in every recording whenever the panel is open, and that this "needs no
+fix". That was wrong about what it costs. Whether a movie came out with a chart stapled under the
+picture was decided by whether a panel happened to be open while it was made, and the only way to
+record without one was to close a tool you were using. Worse, the strip takes its height out of the
+picture: the same recording is 640x360 either way, so the picture itself was being squeezed into
+the rows the chart left over.
+
+`video.recordTimelines`, off by default, read once at the start of a recording so a panel opened
+mid-recording cannot change the frame size under the encoder. Verified: with it off, the whole
+640x360 frame is picture.
+
+Sidebars were never in a recording and are not affected. `GLGrab` renders the GL scene, and the
+timeline plot's image was the only Swing pixels that ever reached the file.

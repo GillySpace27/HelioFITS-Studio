@@ -33,6 +33,9 @@ public final class ExportMovie implements Player.Listener {
     private static ViewState.RecordingMode mode;
     private static boolean recording;
     private static boolean shallStop;
+    // Read once when a recording starts, so opening the Timelines panel mid-recording cannot
+    // start feeding strip pixels into frames sized without room for them.
+    private static boolean includeTimelines;
     private static @Nullable Commands.OperationContext operationContext;
 
     public static BufferedImage EVEImage = null;
@@ -101,7 +104,7 @@ public final class ExportMovie implements Player.Listener {
             int bpp = grabber.bytesPerPixel();
             screen = MappedImageFactory.createRGBImage(bpp == 6 ? 2 * grabber.w : grabber.w, grabber.h);
             grabber.renderFrame(MappedImageFactory.getByteBuffer(screen));
-            eve = EVEImage == null ? null : NativeImageFactory.copyImage(EVEImage);
+            eve = !includeTimelines || EVEImage == null ? null : NativeImageFactory.copyImage(EVEImage);
             encodeExecutor.execute(new FrameConsumer(exporter, screen, eve, EVEMovieLinePosition, bpp));
             submitted = true;
         } catch (Exception e) {
@@ -158,12 +161,19 @@ public final class ExportMovie implements Player.Listener {
         frameIndex = 0;
         exrPermits = new java.util.concurrent.Semaphore(EXR_IN_FLIGHT); // fresh per recording: a cancelled one never releases
 
+        // The Timelines strip is composited under the picture, and whether there IS one was
+        // decided by whether the panel happened to be open. It is a checkbox now, read once here
+        // so a panel opened or closed mid-recording cannot change the frame size underneath the
+        // encoder. Sidebars and the rest of the chrome were never in a recording: GLGrab renders
+        // the GL scene, and this image is the only Swing pixels that reach the file.
+        boolean withTimelines = org.helioviewer.jhv.gui.component.MoviePanel.isTimelinesInRecording();
         int scrw = 1;
         int scrh = 0;
-        if (EVEImage != null) {
+        if (withTimelines && EVEImage != null) {
             scrw = Math.max(1, EVEImage.getWidth());
             scrh = EVEImage.getHeight();
         }
+        includeTimelines = withTimelines;
 
         ViewState.Size size = recordingData.size();
         int width = size.width();

@@ -178,6 +178,7 @@ public final class TimelinePanel extends JPanel {
                         setOptionsPanel(timeline);
                     DrawController.graphAreaChanged();
                 } else if (v.col == REMOVE_COL && timeline.isDeletable()) {
+                    timeline.deleted(); // the user's gesture, as against the teardown remove() below
                     model.remove(timeline);
                     selectExistingRow(v.row);
                 }
