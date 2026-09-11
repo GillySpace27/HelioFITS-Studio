@@ -97,6 +97,18 @@ Three edges, all found by the check rather than by thinking:
 - A dataset that *is* a single instant is the exception to that rule. It has no span to share, so
   the same test would grey out a lone cached frame sitting squarely inside the range.
 
+### Naming, which only a real scan could settle
+
+`LEVEL` is not a standard card and instruments use it however they like. The first scan of the
+real cache produced three names that were wrong in three different ways: PUNCH writes `'3'` and
+wants an L in front of it; Proba-3 writes `'L3'` and got a second one, reading `ASPIICS · LL3`;
+GOES SUVI writes the whole of "National Aeronautics and Space Administration (NASA) L1b", which is
+a provenance statement rather than a level, and turned a dataset name into a paragraph.
+
+So an L is added only when one is missing, and anything longer than six characters is not treated
+as a level at all. Dropping it costs nothing: the display name it would have joined already carries
+the mission and instrument.
+
 ## What a row shows
 
 Columns mirror the manage readout, so a cached dataset is described in the same words as a loaded
@@ -112,11 +124,26 @@ Filters above the table: text over the dataset name, and a three-way toggle over
 ## Build order
 
 1. **Scanner and index.** `FitsHeaderContainer`, `CacheIndex`, the grouping, the overlap
-   arithmetic. No UI. Checked by `CacheIndexCheck`.
+   arithmetic. No UI. Checked by `CacheIndexCheck`. Done.
 2. **The dialog.** Table, chips, filters, background first scan. Read-only, and already useful: it
-   answers "what have I got" without touching anything.
+   answers "what have I got" without touching anything. Done; measured on the real cache at
+   2.8 s cold and 21 ms warm, which is the index earning its place at 133 times over.
 3. **Load and delete.** The two actions that change something, once the reading half has been seen
    on screen.
+
+### The chips are the one thing not taken from the theme
+
+Good, caution and nothing are a separate axis from the interface's accent: a theme is free to be
+purple or orange, and green still has to mean "you already have this". `CacheChipContrastCheck`
+holds all six colours at 4.5:1 against the list background of every built-in theme, and it caught
+the grey failing at 4.26 and 3.90 in the two dark ones.
+
+Its first version measured whether the three could be told apart using the contrast ratio, which
+was the wrong instrument. Contrast is a luminance difference, and a semantic palette deliberately
+keeps its good and caution colours at similar lightness so neither shouts over the other; asking
+for contrast between them would have forced green and amber apart in brightness for no reader's
+benefit. What separates them is hue, 106 degrees of it, and what separates both from the third is
+that the third has almost no colour at all.
 
 ## Open, with recommendations
 
