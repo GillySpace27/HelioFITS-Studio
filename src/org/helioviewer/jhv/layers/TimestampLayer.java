@@ -50,9 +50,14 @@ public final class TimestampLayer extends AbstractLayer {
     private int scale = 100;
     private boolean extra = false;
     // fractions of the free travel across the viewport, not pixels, so a placement survives a
-    // window resize or a change of recording aspect; 0,0 is the historical bottom-left corner
+    // window resize or a change of recording aspect; 0,0 is the bottom-left corner and 0,1 the
+    // top-left one. Top-left is the default because the bottom of the viewport is already spoken
+    // for: Colorbar draws each legend as a full-width band along the bottom edge, stacking upward
+    // one slot per layer, so the historical bottom-left default put the time under or behind them
+    // as soon as any layer showed a colorbar. Only a session that never recorded an offsetY
+    // moves; one that wrote a position keeps the position it wrote.
     private double offsetX = 0;
-    private double offsetY = 0;
+    private double offsetY = 1;
     private boolean showClock = true;
     // Render-time annotations, each its own line under the timestamp. They exist to burn into an
     // exported movie the things a viewer cannot recover from the pixels but the app knows while

@@ -101,6 +101,10 @@ public class Buttons {
     public static final GlyphIcon revert = icon(MaterialDesign.BACKUP_RESTORE, INLINE);
     public static final GlyphIcon saveAs = icon(MaterialDesign.CONTENT_SAVE_ALL, INLINE);
     public static final GlyphIcon popOut = icon(MaterialDesign.OPEN_IN_NEW, INLINE);
+    /** Bars across a time axis, for the Timeline Layers section. Not CHART_GANTT: that is the toolbar's differential rotation. */
+    public static final GlyphIcon timeline = icon(MaterialDesign.CHART_TIMELINE, INLINE);
+    /** A bolt, for the Space Weather Event Knowledgebase. Not a warning triangle: this is a catalogue, not an error. */
+    public static final GlyphIcon events = icon(MaterialDesign.FLASH, INLINE);
     /**
      * Pencil beside a gear, for the control that changes what the toolbar holds.
      *

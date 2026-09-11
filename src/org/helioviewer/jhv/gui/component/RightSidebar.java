@@ -136,6 +136,10 @@ public final class RightSidebar implements SectionHost {
             setCollapsed(!collapsed);
         });
         attachResize();
+        // Same as the left rail: while presenting with this sidebar collapsed, the handle is all
+        // that is left of it, so let it fade with the rest of the chrome and return on any input.
+        IdleFader.register(handle,
+                () -> org.helioviewer.jhv.gui.PresentationMode.isActive() && collapsed);
 
         wrap.add(handle, BorderLayout.LINE_START);
         wrap.add(host, BorderLayout.CENTER);

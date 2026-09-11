@@ -655,13 +655,28 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
     }
 
     private static class RecordButton extends JToggleButton implements ActionListener {
+
+        // Armed and rolling, as on anything else that records. The dark red is the dot sitting
+        // there available; the bright one is the dot meaning tape is moving. A toolbar toggle's
+        // selected state is a faint background wash that reads as "this button has focus" rather
+        // than as "you are recording right now", which is the one thing about this control that
+        // has to be unmistakable from across a room. GlyphIcon paints in the component's own
+        // foreground, so the colour is the whole change.
+        private static final Color IDLE = Color.decode("#800000");
+        private static final Color ROLLING = Color.decode("#FF3B30");
+
         RecordButton(float size) {
             super(Buttons.record.derive(size));
             putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON);
             setRequestFocusEnabled(false);
-            setForeground(Color.decode("#800000"));
+            setForeground(IDLE);
             setToolTipText("Record movie");
             addActionListener(this);
+        }
+
+        void setRolling(boolean rolling) {
+            setForeground(rolling ? ROLLING : IDLE);
+            setToolTipText(rolling ? "Recording; click to stop" : "Record movie");
         }
 
         @Override
@@ -722,6 +737,7 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         boolean recording = ExportMovie.isRecording();
         if (recordButton.isSelected() != recording)
             recordButton.setSelected(recording);
+        recordButton.setRolling(recording);
         ComponentUtils.setEnabled(optionsPanel, !recording); // every control of the pane lives in here
         // The blanket enable recurses with no memory of what was deliberately disabled, so without
         // this a finished recording hands back a live keyframe box and live pixel combos on a
