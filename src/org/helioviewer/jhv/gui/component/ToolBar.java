@@ -83,6 +83,16 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private final ButtonText AXIS = new ButtonText(Buttons.axis, "Axis", "Axis");
     private final ButtonText DIFFROTATION = new ButtonText(Buttons.diffRotation, "Differential", "Toggle differential rotation");
     private final ButtonText MULTIVIEW = new ButtonText(Buttons.multiview, "Multiview", "Multiview");
+    /**
+     * The end of the bar, and a tool-shaped button rather than a corner control.
+     *
+     * <p>It used to wear the sliders glyph, which sat next to the gear-and-pencil and read as a
+     * second settings control. It is not settings, it is the rest of the tools: a chevron pointing
+     * down at a list, at the size and shape every other tool is drawn, so it reads as the last item
+     * of the row it is the last item of.
+     */
+    private final ButtonText MORE = new ButtonText(Buttons.overflow, "More",
+            "The tools parked here, and any the window is too narrow to show");
     private final ButtonText TIMELINES = new ButtonText(Buttons.timelineToolbar, "Timelines",
             "Show the Timelines pane under the picture");
     private final ButtonText OFFDISK = new ButtonText(Buttons.offDisk, "Corona", "Toggle off-disk corona");
@@ -741,8 +751,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         // out of room, beside a separate "More" split button with four controls written into it.
         // Two menus at the same end of the bar meaning different things. Now there is one: it
         // holds whatever is after the divider plus whatever the width pushed past it.
-        overflowButton = Buttons.flat(Buttons.moreSettings);
-        overflowButton.setToolTipText("More: tools parked here, and any the window is too narrow to show");
+        overflowButton = toolButton(MORE);
         overflowButton.setFocusPainted(false);
         overflowButton.addActionListener(e -> showOverflow());
         overflowButton.setVisible(false);

@@ -184,7 +184,7 @@ final class ToolbarEditor {
                 setText("Separator");
                 setToolTipText("A gap between groups of tools. Use as many as you like.");
             } else if (ToolBar.MORE_DIVIDER.equals(id)) {
-                setIcon(Buttons.moreSettings);
+                setIcon(Buttons.overflow);
                 setText("\u2014 More \u2014");
                 setToolTipText("Everything below this lives in the More menu. Anything above it is on the bar, "
                         + "and spills into More from the bottom when the window is too narrow. One only.");
