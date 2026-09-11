@@ -34,7 +34,7 @@ public final class ToolbarOrderCheck {
         expect("and the default is the bar as it has always been, minus what this check pretends exists",
                 fallback.equals(List.of("present", ToolBar.SEPARATOR, "zoomIn", "zoomOut",
                         ToolBar.SEPARATOR, ToolBar.SEPARATOR, ToolBar.SEPARATOR, ToolBar.SEPARATOR,
-                        "grid", ToolBar.SEPARATOR, "more")));
+                        "grid", ToolBar.SEPARATOR, ToolBar.MORE_DIVIDER)));
 
         expect("a stored order is honoured as given",
                 resolve("grid|zoomIn").equals(List.of("grid", "zoomIn")));
@@ -89,7 +89,48 @@ public final class ToolbarOrderCheck {
 
         expect("every id in the default order is a tool the bar actually builds, or a separator",
                 java.util.Arrays.stream(ToolBar.DEFAULT_ORDER.split("\\|"))
-                        .allMatch(id -> ToolBar.SEPARATOR.equals(id) || DEFAULT_IDS.contains(id)));
+                        .allMatch(id -> ToolBar.SEPARATOR.equals(id) || ToolBar.MORE_DIVIDER.equals(id)
+                                || DEFAULT_IDS.contains(id)));
+
+        // The migration off the old More split button. A saved bar that names "more" must come out
+        // with the divider in its place, the three menu-only controls behind it, and Annotation on
+        // the bar: what was in More is still in More, and is draggable out of it for the first time.
+        Set<String> migrateKnown = Set.of("pan", "annotate", "refresh", "sdoCutout", "samp");
+        String migrated = ToolBar.migrateMore("pan|---|more", migrateKnown);
+        List<String> after = ToolBar.resolveOrder(migrated, migrateKnown);
+        expect("the old More tool becomes the divider", after.contains(ToolBar.MORE_DIVIDER) && !after.contains("more"));
+        expect("what was written into More is parked behind it",
+                ToolBar.moreIds(after).equals(List.of("refresh", "sdoCutout", "samp")));
+        expect("and Annotation comes out on the bar, not in More",
+                ToolBar.barIds(after).contains("annotate"));
+        expect("migrating twice changes nothing", ToolBar.migrateMore(migrated, migrateKnown).equals(migrated));
+        expect("a bar that never named More is left alone",
+                ToolBar.migrateMore("pan|annotate", migrateKnown).equals("pan|annotate"));
+
+        // The divider is a place, not a gap. Two of them would make "after it" ambiguous, so the
+        // second is dropped rather than honoured.
+        Set<String> dividerKnown = Set.of("pan", "rotate", "grid", "camera");
+        List<String> twice = ToolBar.resolveOrder("pan|" + ToolBar.MORE_DIVIDER + "|rotate|"
+                + ToolBar.MORE_DIVIDER + "|grid", dividerKnown);
+        expect("only one More divider survives",
+                twice.stream().filter(ToolBar.MORE_DIVIDER::equals).count() == 1);
+        expect("and it is the first one, so nothing silently moves into More",
+                twice.indexOf(ToolBar.MORE_DIVIDER) == 1);
+
+        // The cut: before is the bar, after is More, and the two together are everything placed.
+        List<String> cutOrder = ToolBar.resolveOrder("pan|rotate|" + ToolBar.MORE_DIVIDER + "|grid|camera", dividerKnown);
+        expect("the bar is what comes before the divider",
+                ToolBar.barIds(cutOrder).equals(List.of("pan", "rotate")));
+        expect("More is what comes after it", ToolBar.moreIds(cutOrder).equals(List.of("grid", "camera")));
+
+        // No divider at all is the old behaviour: everything on the bar, nothing parked.
+        List<String> noCut = ToolBar.resolveOrder("pan|rotate", dividerKnown);
+        expect("without a divider the whole order is the bar", ToolBar.barIds(noCut).equals(List.of("pan", "rotate")));
+        expect("and nothing is parked in More", ToolBar.moreIds(noCut).isEmpty());
+
+        // Gaps have no meaning past the cut: More is a menu, not a row.
+        List<String> gapPastCut = ToolBar.resolveOrder("pan|" + ToolBar.MORE_DIVIDER + "|---|grid", dividerKnown);
+        expect("a separator after the divider is not a menu item", ToolBar.moreIds(gapPastCut).equals(List.of("grid")));
 
         // The Tools menu lists every tool exactly once: the ones on the bar as items that click
         // them, the rest as the controls themselves. That is only true while these two are a
@@ -122,8 +163,9 @@ public final class ToolbarOrderCheck {
             "present", "zoomIn", "zoomOut", "zoomFit", "zoomOne",
             "resetCamera", "resetAxis", "rotate90",
             "pan", "rotate", "axis",
-            "track", "diffRotation", "corona", "multiview", "timelines",
+            "track", "diffRotation", "corona", "multiview", "timelines", "annotate",
             "projection", "colour", "sequence", "grid", "camera",
+            "refresh", "sdoCutout", "samp",
             "more");
 
     private ToolbarOrderCheck() {}

@@ -184,6 +184,8 @@ public class Buttons {
     public static final GlyphIcon editToolbar = icon(MaterialDesign.PENCIL, TOOLBAR);
     public static final GlyphIcon dragHandle = icon(MaterialDesign.DRAG_HORIZONTAL, INLINE);
     public static final GlyphIcon refresh = icon(MaterialDesign.REFRESH, TOOLBAR);
+    /** A box with an arrow leaving it: the AIA cut-out hands the view off to a service in a browser. */
+    public static final GlyphIcon sdoCutout = icon(MaterialDesign.OPEN_IN_NEW, TOOLBAR);
     public static final GlyphIcon resetCamera = icon(MaterialDesign.IMAGE_FILTER_CENTER_FOCUS, TOOLBAR);
     public static final GlyphIcon resetCameraAxis = icon(MaterialDesign.DEBUG_STEP_OUT, TOOLBAR);
     public static final GlyphIcon rotate = icon(MaterialDesign.ROTATE_3D, TOOLBAR);

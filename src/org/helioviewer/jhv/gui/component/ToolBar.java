@@ -43,6 +43,8 @@ import org.helioviewer.jhv.display.MapMode;
 import org.helioviewer.jhv.display.SkyProjection;
 import org.helioviewer.jhv.display.SurfaceModel;
 import org.helioviewer.jhv.display.interaction.Interaction;
+import javax.annotation.Nullable;
+
 import org.helioviewer.jhv.gui.Actions;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.gui.UIGlobals;
@@ -90,7 +92,10 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private final ButtonText SEQUENCE = new ButtonText(Buttons.sequenceFilter, "Fourier", "Fourier filter over the whole movie: pick the layer, drag a band, watch it play");
     private final ButtonText GRID = new ButtonText(Buttons.grid, "Grid", "Grid, Thomson sphere, celestial sphere, ecliptic and planet overlay settings");
     private final ButtonText CAMERA = new ButtonText(Buttons.camera, "Camera", "Where the view is seen from: Free, Follow, Turntable, Overview, and their settings");
-    private final ButtonText MORE = new ButtonText(Buttons.moreSettings, "More", "Less common controls: annotation, automatic refresh, the SDO cut-out, SAMP");
+    private final ButtonText ANNOTATE = new ButtonText(Buttons.annotate, "Annotation",
+            "Draw on the view: mode, colour and thickness (hold Shift to draw)");
+    private final ButtonText SDO_CUTOUT = new ButtonText(Buttons.sdoCutout, "SDO Cut-out",
+            "Open LMSAL's AIA cut-out service for the enabled AIA layers and the current view");
     private final ButtonText PRESENTATION = new ButtonText(Buttons.presentation, "Present", "Presentation mode: output only, fullscreen (Esc to leave)");
     private final ButtonText REFRESH = new ButtonText(Buttons.refresh, "Refresh", "Automatic refresh");
     private final ButtonText RESETCAMERA = new ButtonText(Buttons.resetCamera, "Reset View", "Reset view to default");
@@ -159,8 +164,9 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private JToggleButton coronaButton;
     private JToggleButton diffRotationButton;
     private JToggleButton multiviewButton;
+    private static JToggleButton refreshToggle;
+    @Nullable private static Palette annotatePalette;
     private static JToggleButton timelinesToggle; // current toolbar's Timelines button
-    private final EnumMap<AnnotationMode, JRadioButtonMenuItem> annotationItems = new EnumMap<>(AnnotationMode.class);
     private final EnumMap<MapMode, javax.swing.JRadioButton> projectionItems = new EnumMap<>(MapMode.class);
     private JHVSlider warpLambdaSlider;
     private JHVSlider warpCropSlider;
@@ -170,7 +176,6 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     // values into the sliders. Guarded so that programmatic move does not look like a manual one
     // and disengage the very tracking that caused it.
     private boolean syncingFromTracker;
-    private JCheckBoxMenuItem refreshItem;
     private JToggleButton trackingButton;
 
     // --- which tools are on the bar, and in what order ----------------------------------------
@@ -181,6 +186,17 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     // added here; the Tools menu adopts the very same component, which is why a toggle in that
     // menu still shows its pressed state.
     static final String SEPARATOR = "---"; // a gap, not a control: allowed more than once
+
+    /**
+     * The cut between the bar and the More menu. At most one, and it is a place rather than a gap.
+     *
+     * <p>The order is one priority list. Everything before this is on the bar; everything after it
+     * lives in More however wide the window is. Overflow then is not a second mechanism: a narrow
+     * window moves the EFFECTIVE cut leftward, and More shows everything after it, in order. So an
+     * icon pushed off the bar lands above the ones parked there on purpose, because that is where
+     * it already was in the list, and the menu grows upward from the cut instead of reshuffling.
+     */
+    static final String MORE_DIVIDER = ">>>";
     static final String ORDER_KEY = "ui.toolbar.order";
 
     /** One customisable place on the bar: a stable id, how it looks in the editor, and the control. */
@@ -210,8 +226,9 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             "resetCamera", "resetAxis", "rotate90", SEPARATOR,
             "pan", "rotate", "axis", SEPARATOR,
             "track", "diffRotation", "corona", "multiview", "timelines", SEPARATOR,
-            "projection", "colour", "sequence", "grid", "camera", SEPARATOR,
-            "more");
+            "projection", "colour", "sequence", "grid", "camera", "annotate", SEPARATOR,
+            MORE_DIVIDER,
+            "refresh", "sdoCutout", "samp");
 
     /** Build a control and record it under an id, without deciding yet whether it is shown. */
     private void register(String id, ButtonText text, JComponent comp) {
@@ -229,9 +246,16 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
      */
     static java.util.List<String> order(java.util.Set<String> known) {
         String stored = Settings.getProperty(ORDER_KEY);
-        java.util.List<String> ids = resolveOrder(stored, known);
         if (stored == null || stored.isBlank()) // a fresh bar is DEFAULT_ORDER, which has everything
-            return ids;
+            return resolveOrder(stored, known);
+
+        // Before resolveOrder, which drops ids no tool answers to and "more" is now one of them.
+        String migrated = migrateMore(stored, known);
+        if (!migrated.equals(stored)) {
+            stored = migrated;
+            Settings.setProperty(ORDER_KEY, stored);
+        }
+        java.util.List<String> ids = resolveOrder(stored, known);
 
         String seeded = Settings.getProperty(SEEDED_KEY);
         java.util.List<String> placed = seedNewTools(ids, known, seeded);
@@ -241,6 +265,32 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
                     seeded == null || seeded.isBlank() ? String.join("|", placed) : seeded + "|" + String.join("|", placed));
         }
         return ids;
+    }
+
+    /**
+     * A bar saved when More was a tool with four controls written into it.
+     *
+     * <p>The divider says the same thing and says it better, so it takes More's place in the order
+     * and the three menu-only ones move in behind it: what was in More stays in More, and is now
+     * draggable out of it. Annotation goes on the bar instead, because it is a palette now and
+     * belongs with the other palette toggles. Operates on the raw stored string, because by the
+     * time resolveOrder has run, "more" has been dropped as an id nothing answers to.
+     *
+     * <p>Cannot fire twice: it leaves no "more" behind. Pure, so ToolbarOrderCheck can pin it.
+     */
+    static String migrateMore(String stored, java.util.Set<String> known) {
+        java.util.List<String> ids = new java.util.ArrayList<>(java.util.Arrays.asList(stored.split("\\|")));
+        int at = ids.indexOf("more");
+        if (at < 0 || ids.contains(MORE_DIVIDER))
+            return stored;
+
+        ids.set(at, MORE_DIVIDER);
+        if (known.contains("annotate") && !ids.contains("annotate"))
+            ids.add(at, "annotate"); // ahead of the divider: on the bar, beside the other palettes
+        for (String id : java.util.List.of("refresh", "sdoCutout", "samp"))
+            if (known.contains(id) && !ids.contains(id))
+                ids.add(id);
+        return String.join("|", ids);
     }
 
     /**
@@ -271,12 +321,13 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         java.util.List<String> placed = new java.util.ArrayList<>();
         for (int i = 0; i < defaults.size(); i++) {
             String id = defaults.get(i);
-            if (SEPARATOR.equals(id) || !SEED_ONCE.contains(id) || already.contains(id) || !known.contains(id))
+            if (SEPARATOR.equals(id) || MORE_DIVIDER.equals(id) || !SEED_ONCE.contains(id)
+                    || already.contains(id) || !known.contains(id))
                 continue;
             int at = ids.size();
             for (int j = i - 1; j >= 0; j--) { // after the tool it follows by default
                 int found = ids.indexOf(defaults.get(j));
-                if (!SEPARATOR.equals(defaults.get(j)) && found >= 0) {
+                if (!SEPARATOR.equals(defaults.get(j)) && !MORE_DIVIDER.equals(defaults.get(j)) && found >= 0) {
                     at = found + 1;
                     break;
                 }
@@ -291,10 +342,38 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     /** The same, with the stored string handed in: pure, so ToolbarOrderCheck can pin the rules. */
     static java.util.List<String> resolveOrder(@javax.annotation.Nullable String stored, java.util.Set<String> known) {
         java.util.List<String> ids = new java.util.ArrayList<>();
-        for (String id : (stored == null || stored.isBlank() ? DEFAULT_ORDER : stored).split("\\|"))
-            if (SEPARATOR.equals(id) || known.isEmpty() || known.contains(id))
+        boolean seenDivider = false;
+        for (String id : (stored == null || stored.isBlank() ? DEFAULT_ORDER : stored).split("\\|")) {
+            if (MORE_DIVIDER.equals(id)) {
+                if (seenDivider) // a place, not a gap: a second one would make "after it" ambiguous
+                    continue;
+                seenDivider = true;
                 ids.add(id);
+            } else if (SEPARATOR.equals(id) || known.isEmpty() || known.contains(id)) {
+                ids.add(id);
+            }
+        }
         return ids;
+    }
+
+    /** Where the bar stops and More begins, or the end of the list when there is no divider. */
+    private static int cut(java.util.List<String> order) {
+        int at = order.indexOf(MORE_DIVIDER);
+        return at < 0 ? order.size() : at;
+    }
+
+    /** The ids the bar lays out, in order: everything before the cut. */
+    static java.util.List<String> barIds(java.util.List<String> order) {
+        return new java.util.ArrayList<>(order.subList(0, cut(order)));
+    }
+
+    /** The ids parked in More, in order: everything after the cut, gaps dropped. */
+    static java.util.List<String> moreIds(java.util.List<String> order) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (String id : order.subList(Math.min(cut(order) + 1, order.size()), order.size()))
+            if (!SEPARATOR.equals(id) && !MORE_DIVIDER.equals(id))
+                out.add(id);
+        return out;
     }
 
     static void setOrder(java.util.List<String> ids) {
@@ -331,7 +410,13 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     static java.util.Set<String> onBar(java.util.List<String> order) {
         java.util.Set<String> ids = new java.util.HashSet<>(order);
         ids.remove(SEPARATOR);
+        ids.remove(MORE_DIVIDER);
         return ids;
+    }
+
+    /** Placed, whether on the bar or parked in More. The other side of {@link #missing}. */
+    static java.util.Set<String> placed(java.util.List<String> order) {
+        return onBar(order);
     }
 
     /** The other half: what exists and the order leaves off. */
@@ -356,7 +441,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
 
     /** Add the chosen tools, in the chosen order. Everything else stays built and unparented. */
     private void layOutTools(Dimension dim) {
-        for (String id : order(built.keySet())) {
+        java.util.List<String> ids = order(built.keySet());
+        for (String id : barIds(ids)) {
             if (SEPARATOR.equals(id)) {
                 addSeparator(dim);
                 continue;
@@ -364,6 +450,13 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             Tool tool = built.get(id);
             if (tool != null)
                 addButton(tool.comp());
+        }
+        // Parked behind the divider: never on the bar, so More holds them whatever the width is.
+        parked.clear();
+        for (String id : moreIds(ids)) {
+            Tool tool = built.get(id);
+            if (tool != null)
+                parked.add(tool.comp());
         }
     }
 
@@ -374,6 +467,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     // Everything that does not fit moves into a chevron menu at the right-hand end instead.
     private final java.util.List<Component> items = new java.util.ArrayList<>();
     private final java.util.List<Component> overflowed = new java.util.ArrayList<>();
+    /** Controls placed after the divider: in More by choice rather than because the window is narrow. */
+    private final java.util.List<Component> parked = new java.util.ArrayList<>();
     private JButton overflowButton;
     private JButton editCorner; // permanent, in the trailing corner, never part of the order
     private JPopupMenu overflowPopup;
@@ -385,7 +480,6 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private void createNewToolBar() {
         current = this;
         built.clear();
-        annotationItems.clear();
         projectionItems.clear();
         if (Platform.isMacOS()) {
             // The window has full-window content and a transparent title bar, so the traffic
@@ -582,42 +676,33 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         // As its own submenu, not poured into this one. Annotation is eight items, a colour strip
         // and a slider; flattened into More they were most of the menu and the three things More
         // is actually for sat under them. A submenu keeps More a short list of destinations.
-        SplitButton more = toolSplitButton(MORE);
-        JMenu annotation = new JMenu("Annotation");
-        annotation.setIcon(Buttons.annotate);
-        annotation.setToolTipText("Annotation (Press Shift to draw)");
-        ButtonGroup annotationGroup = new ButtonGroup();
-        for (AnnotationMode mode : AnnotationMode.values()) {
-            JRadioButtonMenuItem item = new JRadioButtonMenuItem(mode.toString());
-            if (mode == ViewState.getAnnotationMode())
-                item.setSelected(true);
-            item.addActionListener(e -> ViewState.setAnnotationMode(mode));
-            annotationGroup.add(item);
-            annotation.add(item);
-            annotationItems.put(mode, item);
-        }
-        annotation.addSeparator();
-        addAnnotationColorItems(annotation);
-        annotation.add(createAnnotationThicknessPanel());
-        annotation.addSeparator();
-        annotation.add(new Actions.ClearAnnotations());
-        annotation.addSeparator();
-        annotation.add(new Actions.ZoomFOVAnnotation());
-        more.addItem(annotation);
-        more.addItemSeparator();
-        refreshItem = new JCheckBoxMenuItem(REFRESH.text(), ViewState.isRefresh());
-        refreshItem.setToolTipText(REFRESH.tip());
-        refreshItem.addItemListener(e -> ViewState.setRefresh(refreshItem.isSelected()));
-        more.addItem(refreshItem);
-        more.addItemSeparator();
-        more.addItem(new Actions.SDOCutOut());
+        // Annotation is a palette now, beside Projection, HDR, Grid and Camera: it is a mode you
+        // stay in while you draw, and its thickness slider was unusable inside a menu that closed
+        // the moment you touched it. See AnnotationPaletteContent.
+        JToggleButton annotateButton = toolToggleButton(ANNOTATE);
+        if (annotatePalette == null)
+            annotatePalette = new Palette("Annotation", AnnotationPaletteContent::build, AnnotationPaletteContent::refresh);
+        annotatePalette.bind(annotateButton);
+        register("annotate", ANNOTATE, annotateButton);
+
+        // The other three were written into More as menu items, so they could not be moved, put on
+        // the bar, or taken off it. They are ordinary tools now; the divider is what puts a tool in
+        // More, and by default that is where these three still are.
+        JToggleButton refreshButton = toolToggleButton(REFRESH);
+        refreshButton.setSelected(ViewState.isRefresh());
+        refreshButton.addItemListener(e -> ViewState.setRefresh(refreshButton.isSelected()));
+        refreshToggle = refreshButton;
+        register("refresh", REFRESH, refreshButton);
+
+        JButton cutOut = toolButton(SDO_CUTOUT);
+        cutOut.addActionListener(new Actions.SDOCutOut());
+        register("sdoCutout", SDO_CUTOUT, cutOut);
+
         if (Boolean.parseBoolean(Settings.getProperty("startup.sampHub"))) {
-            JMenuItem samp = new JMenuItem(SAMP.text());
-            samp.setToolTipText(SAMP.tip());
+            JButton samp = toolButton(SAMP);
             samp.addActionListener(e -> SampClient.notifyRequestData());
-            more.addItem(samp);
+            register("samp", SAMP, samp);
         }
-        register("more", MORE, more);
 
         layOutTools(dim);
 /*
@@ -641,8 +726,12 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         items.clear();
         java.util.Collections.addAll(items, getComponents());
 
-        overflowButton = Buttons.flat(Buttons.overflow);
-        overflowButton.setToolTipText("More toolbar controls");
+        // One More button, not two. This used to be a chevron that appeared only when the bar ran
+        // out of room, beside a separate "More" split button with four controls written into it.
+        // Two menus at the same end of the bar meaning different things. Now there is one: it
+        // holds whatever is after the divider plus whatever the width pushed past it.
+        overflowButton = Buttons.flat(Buttons.moreSettings);
+        overflowButton.setToolTipText("More: tools parked here, and any the window is too narrow to show");
         overflowButton.setFocusPainted(false);
         overflowButton.addActionListener(e -> showOverflow());
         overflowButton.setVisible(false);
@@ -661,7 +750,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     }
 
     private void showOverflow() {
-        if (overflowed.isEmpty())
+        if (overflowed.isEmpty() && parked.isEmpty())
             return;
         if (overflowPopup == null) {
             overflowPopup = new JPopupMenu();
@@ -687,8 +776,17 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         overflowPanel.removeAll();
         // The real buttons are moved into the menu rather than mirrored by proxy items, so a
         // split button keeps its dropdown and a toggle keeps its pressed state.
+        // Overflowed first, then parked, which is simply their order in the one list: an icon the
+        // width pushed off the bar sits earlier than anything deliberately put behind the divider.
+        // So the menu grows upward from the cut and never reshuffles as the window is resized.
         for (Component c : overflowed) {
             remove(c);
+            c.setVisible(true);
+            if (c instanceof JComponent jc)
+                jc.setAlignmentX(Component.LEFT_ALIGNMENT);
+            overflowPanel.add(c);
+        }
+        for (Component c : parked) { // never children of the bar, so nothing to take them out of
             c.setVisible(true);
             if (c instanceof JComponent jc)
                 jc.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -733,7 +831,9 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         int edit = editCorner.getPreferredSize().width;
         // The corner control is always there, so its width is never available to the row.
         avail -= edit + hgap;
-        boolean needed = total > avail;
+        // Room for the More button whenever anything is parked behind the divider, not only when
+        // the row runs out of space: it is on screen either way.
+        boolean needed = total > avail || !parked.isEmpty();
         int limit = needed ? avail - chevron - hgap : avail;
 
         overflowed.clear();
@@ -751,8 +851,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         }
         int right = getWidth() - in.right;
         editCorner.setBounds(right - edit, in.top, edit, rowHeight);
-        overflowButton.setVisible(!overflowed.isEmpty());
-        if (!overflowed.isEmpty())
+        overflowButton.setVisible(!overflowed.isEmpty() || !parked.isEmpty());
+        if (!overflowed.isEmpty() || !parked.isEmpty())
             overflowButton.setBounds(right - edit - hgap - chevron, in.top, chevron, rowHeight);
     }
 
@@ -1661,7 +1761,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         diffRotationButton.setSelected(ViewState.isDifferentialRotation());
         coronaButton.setSelected(ViewState.isShowCorona());
         multiviewButton.setSelected(ViewState.isMultiview());
-        refreshItem.setSelected(ViewState.isRefresh());
+        if (refreshToggle != null)
+            refreshToggle.setSelected(ViewState.isRefresh());
         javax.swing.JRadioButton activeProjection = projectionItems.get(displayedProjection());
         if (activeProjection != null)
             activeProjection.setSelected(true);
@@ -1683,9 +1784,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         setSkyPanelEnabled(ViewState.getProjection() == MapMode.ObserverSky);
         if (warpLambdaValue != null)
             warpLambdaValue.setText(String.format("%.3f", ViewState.getWarpLambda()));
-        JRadioButtonMenuItem activeAnnotationMode = annotationItems.get(ViewState.getAnnotationMode());
-        if (activeAnnotationMode != null)
-            activeAnnotationMode.setSelected(true);
+        AnnotationPaletteContent.refresh(); // the mode radios live there now, not in a menu
     }
 
 }
