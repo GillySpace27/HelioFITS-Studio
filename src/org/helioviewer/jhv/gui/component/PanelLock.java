@@ -3,6 +3,9 @@ package org.helioviewer.jhv.gui.component;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.annotation.Nullable;
+import javax.swing.AbstractButton;
+import javax.swing.Icon;
 import javax.swing.JComponent;
 
 import org.helioviewer.jhv.app.Settings;
@@ -28,6 +31,7 @@ public final class PanelLock {
     private static final String KEY = "ui.panelsLocked";
 
     private static final List<JComponent> controls = new ArrayList<>();
+    private static final List<Badged> badgedButtons = new ArrayList<>();
     private static final List<Runnable> listeners = new ArrayList<>();
     private static boolean locked = "true".equals(Settings.getProperty(KEY));
 
@@ -35,6 +39,42 @@ public final class PanelLock {
     public static void register(JComponent control) {
         controls.add(control);
         control.setEnabled(!locked);
+    }
+
+    /**
+     * A toolbar toggle that shows and hides a palette, to be frozen along with the movers.
+     *
+     * <p>Greying the header arrows alone was not a lock. A palette's toolbar button takes the
+     * whole panel out of the sidebar, which is a bigger rearrangement than any arrow makes, so
+     * leaving it live meant the layout could still come apart with one click on the bar. It gets a
+     * padlock in the corner of its own glyph rather than just going grey, because a greyed toolbar
+     * button usually means "not applicable here" and this one means "you asked for this".
+     */
+    public static void registerPaletteToggle(AbstractButton toggle) {
+        registerBadged(toggle, "Panels are locked in place, so this one cannot be shown or hidden.");
+    }
+
+    /**
+     * A button frozen by the lock, wearing a padlock in the corner of its own glyph while it is.
+     *
+     * <p>The badge rather than plain greying, because a greyed toolbar button usually means "not
+     * applicable here" and this one means "you asked for this". The tooltip says which control
+     * undoes it, since a disabled button that will not say why is the same as a broken one.
+     */
+    public static void registerBadged(AbstractButton button, String why) {
+        Badged badged = new Badged(button, button.getIcon(), button.getToolTipText(), why);
+        badgedButtons.add(badged);
+        applyTo(badged);
+    }
+
+    private record Badged(AbstractButton button, Icon plainIcon, @Nullable String plainTip, String why) {}
+
+    private static void applyTo(Badged b) {
+        b.button().setEnabled(!locked);
+        b.button().setIcon(locked ? Buttons.badged(b.plainIcon(), Buttons.lockBadge) : b.plainIcon());
+        b.button().setToolTipText(locked
+                ? b.why() + " Click the padlock beside the toolbar's edit control to unlock them."
+                : b.plainTip());
     }
 
     /** Forget a control whose header has been thrown away, so the list does not grow forever. */
@@ -59,6 +99,8 @@ public final class PanelLock {
     public static void apply() {
         for (JComponent control : controls)
             control.setEnabled(!locked);
+        for (Badged b : badgedButtons)
+            applyTo(b);
     }
 
     /** Told when the lock turns over, so a toolbar button can keep its pressed state honest. */

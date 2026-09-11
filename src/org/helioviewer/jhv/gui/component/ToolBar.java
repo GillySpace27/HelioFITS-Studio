@@ -783,6 +783,12 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         editCorner.setToolTipText("Edit the toolbar: choose which tools are on it, and in what order");
         editCorner.setFocusPainted(false);
         editCorner.addActionListener(e -> ToolbarEditor.open());
+        // Frozen with everything else. The editor is not only about which tools are on the bar: it
+        // can take a palette's toggle off it entirely, and a palette whose toggle is gone is a
+        // panel you cannot reach. That is a bigger rearrangement than any header arrow makes, so
+        // the lock has to reach it too, and "nothing moves while it is on" is one rule rather than
+        // a rule with an exception in it.
+        PanelLock.registerBadged(editCorner, "Panels are locked in place, so the toolbar cannot be edited.");
         add(editCorner);
     }
 
