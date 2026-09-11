@@ -39,6 +39,7 @@ public final class AutomationTrackCheck {
         applier();
         editing();
         curveEdits();
+        override();
         System.out.println("AutomationTrackCheck: OK");
     }
 
@@ -314,6 +315,58 @@ public final class AutomationTrackCheck {
     private static void eq(long got, long want, String what) {
         if (got != want)
             throw new AssertionError(what + ": expected " + want + ", got " + got);
+    }
+
+    // Manual override: the person takes the parameter from its curve, and the curve survives
+    // untouched. Both halves fail silently. A curve that keeps applying makes the override look
+    // broken; a drag that still writes makes it look like it worked and quietly rewrites the
+    // schedule, which is the worse of the two because the damage is only visible later.
+    private static void override() {
+        Automation.clear();
+        Display.setWarpLambda(0.2);
+
+        Track t = Automation.arm("display.warpLambda", T0);
+        t.put(new Track.Key(T0 + 1000, 0.9, Track.Interp.LINEAR));
+        assertTrue(t.isDriving(), "a fresh track is in charge of its parameter");
+
+        Automation.apply(T0 + 1000);
+        eq(Display.getWarpLambda(), 0.9, "and writes its value");
+
+        assertTrue(Automation.setSuspended("display.warpLambda", true), "the parameter can be taken by hand");
+        assertTrue(!t.isDriving(), "a suspended track is not in charge");
+        assertTrue(!Automation.isDriving("display.warpLambda"), "which is what greys the slider's readout");
+
+        Display.setWarpLambda(-0.4); // the hand, through the panel's own listener
+        Automation.apply(T0);
+        eq(Display.getWarpLambda(), -0.4, "the curve does not take it back while the hand has it");
+
+        // The schedule is the thing being protected. Nothing below may change it.
+        assertTrue(!Automation.writeKey("display.warpLambda", T0 + 500), "no key is written under manual control");
+        assertTrue(t.getKeys().size() == 2, "so the curve still has exactly the keys it had");
+        eq(t.valueAt(T0), 0.2, "with its first value untouched");
+        eq(t.valueAt(T0 + 1000), 0.9, "and its second");
+
+        // An un-ticked lane is the other way a person says "not now", and it protects the curve
+        // the same way: the row is off, the curve is invisible, and a drag must not edit it blind.
+        Automation.setSuspended("display.warpLambda", false);
+        t.setEnabled(false);
+        assertTrue(!Automation.writeKey("display.warpLambda", T0 + 500), "no key is written to a disabled track");
+        assertTrue(t.getKeys().size() == 2, "which also still has its keys");
+        t.setEnabled(true);
+
+        // Handing it back needs no restore: the next frame is the restore.
+        assertTrue(Automation.isDriving("display.warpLambda"), "handed back, the curve is in charge again");
+        Automation.apply(T0 + 1000);
+        eq(Display.getWarpLambda(), 0.9, "and takes the parameter at the next frame");
+
+        // An override is a live state, not a property of the movie: a saved session must never
+        // come back animating nothing while its curve sits in the panel looking like it should.
+        Automation.setSuspended("display.warpLambda", true);
+        Automation.fromJson(Automation.toJson());
+        assertTrue(!Automation.get("display.warpLambda").isSuspended(), "an override is not saved with the session");
+
+        Automation.clear();
+        Display.setWarpLambda(0);
     }
 
     private static Track unresolvable() {

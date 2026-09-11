@@ -65,6 +65,7 @@ final class ColourPaletteContent {
 
         gainSlider = new JHVSlider(0, MAX_STOPS, MAX_STOPS).animates("hdr.gain");
         gainValue = new JLabel();
+        gainSlider.readout(gainValue);
         gainSlider.setToolTipText("<html>How far over the interface white the brightest data is allowed to go, in "
                 + "photographic stops: each stop doubles it, so +2 stops is 4x white.<br><br>"
                 + "The display is the ceiling. Whatever you ask for, the compositor gives what it has at the "
@@ -97,6 +98,7 @@ final class ColourPaletteContent {
 
         kneeSlider = new JHVSlider(5, 95, 75).animates("hdr.knee");
         kneeValue = new JLabel();
+        kneeSlider.readout(kneeValue);
         kneeSlider.setToolTipText("<html>Where the knee modes stop leaving the picture alone and start spending the "
                 + "headroom, as a position in the data range that feeds the colour table.<br><br>"
                 + "At 75 the bottom three quarters of the range are drawn exactly as they would be with no "
@@ -116,6 +118,7 @@ final class ColourPaletteContent {
 
         inRangeSlider = new JHVSlider(0, 100, (int) Math.round(HdrGain.DEFAULT_IN_RANGE * 100)).animates("hdr.inRange"); // double-click resets to the shipped default
         inRangeValue = new JLabel();
+        inRangeSlider.readout(inRangeValue);
         inRangeSlider.setToolTipText("<html>How much of the headroom brightens the picture itself, rather than being "
                 + "kept for data that exceeds the display range.<br><br>"
                 + "At 0 the picture is exactly what it is with no headroom at all and every bit of the extra range "
