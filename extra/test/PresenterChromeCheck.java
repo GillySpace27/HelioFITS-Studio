@@ -71,7 +71,8 @@ public final class PresenterChromeCheck {
         Component west = bar("west", 320);
         Component east = bar("east", 300);
 
-        // The presenter window as it is actually sized: a third of a screen, full height.
+        // The presenter window as it is actually sized when it carries two sidebars: half a
+        // screen, full height. buildPresenterWindow widens it for the second one.
         place(List.of(west, east), 420, 900);
         Rectangle w = inWindow(west);
         Rectangle e = inWindow(east);
@@ -79,9 +80,12 @@ public final class PresenterChromeCheck {
         expect("the left sidebar is given real area", w.width > 0 && w.height > 0);
         expect("so is the right one", e.width > 0 && e.height > 0);
         expect("and they do not sit on top of one another", !w.intersects(e));
-        expect("both get the full width of a narrow window, rather than half of it each",
-                w.width > 300 && e.width > 300);
-        expect("and between them they use the height", w.height + e.height > 700);
+        // Side by side, not stacked: the presenter reaches for a control by the side it is on,
+        // and one tall column carrying both sets of sections reads as a single long sidebar.
+        expect("the left sidebar is on the left", w.x < e.x);
+        expect("and they share the width rather than the height",
+                w.width + e.width <= 420 && w.height > 800 && e.height > 800);
+        expect("with the layer list given the larger share", w.width > e.width);
 
         // One sidebar, which is the ordinary case: nothing docked on the right.
         Component only = bar("only", 320);
