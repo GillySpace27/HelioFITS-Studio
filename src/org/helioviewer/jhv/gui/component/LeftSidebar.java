@@ -103,25 +103,36 @@ public final class LeftSidebar implements SectionHost {
         bar.setOpaque(false);
         JButton up = Buttons.flat(Buttons.moveUp);
         up.setToolTipText("Move " + title + " up");
-        up.addActionListener(e -> move(holder, -1));
+        up.addActionListener(e -> {
+            if (!PanelLock.interceptMove(up))
+                move(holder, -1);
+        });
         JButton down = Buttons.flat(Buttons.moveDown);
         down.setToolTipText("Move " + title + " down");
-        down.addActionListener(e -> move(holder, 1));
+        down.addActionListener(e -> {
+            if (!PanelLock.interceptMove(down))
+                move(holder, 1);
+        });
         // The one chevron that is not redundant here: a section in the left bar can only usefully
         // be sent to the right one. The floating header offers both because a window is in
         // neither; a docked section already knows which side it is on.
         JButton toOther = Buttons.flat(Buttons.chevronRight);
         toOther.setToolTipText("Move " + title + " to the right sidebar");
         toOther.addActionListener(e -> {
+            if (PanelLock.interceptMove(toOther))
+                return;
             Palette palette = Palette.named(title);
             if (palette != null)
                 palette.setHome(RightSidebar.getInstance());
         });
         JButton floatOut = Buttons.flat(Buttons.popOut);
         floatOut.setToolTipText("Pop " + title + " out into a floating palette");
-        floatOut.addActionListener(e -> onFloat.run());
+        floatOut.addActionListener(e -> {
+            if (!PanelLock.interceptMove(floatOut))
+                onFloat.run();
+        });
         for (JButton b : new JButton[]{up, down, toOther, floatOut})
-            PanelLock.register(b); // these four move the panel; the lock greys exactly these
+            PanelLock.register(b); // these four move the panel; the lock dims exactly these
         bar.add(up);
         bar.add(down);
         bar.add(toOther);
@@ -157,16 +168,25 @@ public final class LeftSidebar implements SectionHost {
     }
 
     @Override
-    public void revealOrFold(String title) {
+    public boolean revealOrFold(String title) {
         SideContentPane pane = MainFrame.getLeftContentPane();
         Section section = sections.get(title);
         if (pane == null || section == null)
-            return;
+            return false;
         // NOT reveal() first. That expands the section, so the fold decision below then always saw
         // an expanded one and folded it: every click folded, and a folded section could not be
         // opened again from the toolbar at all.
-        if (pane.revealOrFold(section.holder()) && MainFrame.isSidebarCollapsed())
+        boolean unfolded = pane.revealOrFold(section.holder());
+        if (unfolded && MainFrame.isSidebarCollapsed())
             MainFrame.setSidebarCollapsed(false); // only when it is actually being shown
+        return unfolded;
+    }
+
+    @Override
+    public boolean isUnfolded(String title) {
+        SideContentPane pane = MainFrame.getLeftContentPane();
+        Section section = sections.get(title);
+        return pane != null && section != null && pane.isExpanded(section.holder());
     }
 
     @Override
