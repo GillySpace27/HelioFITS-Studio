@@ -269,14 +269,23 @@ public final class RightSidebar implements SectionHost {
 
     /** Move a section one place up or down, and remember where everything ended up. */
     public void move(String title, int delta) {
-        java.util.List<String> titles = reordered(new java.util.ArrayList<>(sections.keySet()), title, delta);
-        Map<String, Section> next = new LinkedHashMap<>();
-        for (String t : titles)
-            next.put(t, sections.get(t));
-        sections.clear();
-        sections.putAll(next);
-        Settings.setProperty(KEY_ORDER, String.join("|", titles));
-        rebuild();
+        Section section = sections.get(title);
+        CollapsiblePane a = section == null ? null : pane.paneFor(section.holder());
+        CollapsiblePane b = section == null ? null : pane.neighbourOf(section.holder(), delta);
+        Runnable commit = () -> {
+            java.util.List<String> titles = reordered(new java.util.ArrayList<>(sections.keySet()), title, delta);
+            Map<String, Section> next = new LinkedHashMap<>();
+            for (String t : titles)
+                next.put(t, sections.get(t));
+            sections.clear();
+            sections.putAll(next);
+            Settings.setProperty(KEY_ORDER, String.join("|", titles));
+            rebuild();
+        };
+        if (a == null || b == null)
+            commit.run(); // nothing to pass: at the end of the stack the move is a no-op anyway
+        else
+            Dosido.swap(a, b, commit); // the do-si-do; see Dosido
     }
 
     /**

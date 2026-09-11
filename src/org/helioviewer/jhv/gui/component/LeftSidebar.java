@@ -143,7 +143,7 @@ public final class LeftSidebar implements SectionHost {
     private static void move(JComponent holder, int delta) {
         SideContentPane pane = MainFrame.getLeftContentPane();
         if (pane != null)
-            pane.move(holder, delta);
+            pane.moveAnimated(holder, delta); // the do-si-do; see Dosido
     }
 
     @Override
