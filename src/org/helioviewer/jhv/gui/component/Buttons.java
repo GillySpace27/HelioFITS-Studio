@@ -89,6 +89,9 @@ public class Buttons {
     public static final GlyphIcon newLayer = icon(MaterialDesign.PLUS_CIRCLE, INLINE);
     public static final GlyphIcon syncLayers = icon(MaterialDesign.SYNC, INLINE);
     public static final GlyphIcon lock = icon(MaterialDesign.LOCK, INLINE);
+    /** The toolbar corner's panel lock, at the size the corner's edit control is drawn. */
+    public static final GlyphIcon lockPanels = icon(MaterialDesign.LOCK, INLINE);
+    public static final GlyphIcon unlockPanels = icon(MaterialDesign.LOCK_OPEN, INLINE);
     public static final GlyphIcon unlock = icon(MaterialDesign.LOCK_OPEN, INLINE);
 
     public static final GlyphIcon sync = icon(MaterialDesign.SYNC, INLINE);

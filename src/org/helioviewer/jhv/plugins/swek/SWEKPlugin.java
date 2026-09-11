@@ -42,7 +42,11 @@ public class SWEKPlugin extends Plugin {
         popupController = new SWEKPopupController();
         bindLayer();
 
-        MainFrame.getLeftContentPane().add("Space Weather Event Knowledgebase", swekPanel, true, Buttons.events);
+        // Through LeftSidebar rather than straight into the pane, so it gets what every other
+        // section has: the reorder arrows, the crossing to the other sidebar, and a pop-out that
+        // is remembered across launches. Added directly, it was one of the two sections nailed
+        // where the plugin happened to put it.
+        org.helioviewer.jhv.gui.component.LeftSidebar.register("Space Weather Event Knowledgebase", Buttons.events, swekPanel);
         MainFrame.getLeftContentPane().revalidate();
 
         LayerOptions.register(SWEKLayer.class, layer -> new SWEKLayerOptionsPanel((SWEKLayer) layer));

@@ -119,6 +119,21 @@ public final class RightSidebar implements SectionHost {
         scroller.setBorder(null);
         scroller.getVerticalScrollBar().setPreferredSize(new Dimension(SCROLLBAR_WIDTH, 0));
         scroller.getVerticalScrollBar().setUnitIncrement(16);
+        // The same pair the left sidebar has had at its top. Both bars can hold any palette now,
+        // so a control that exists on one and not the other is just a thing you have to remember
+        // the asymmetry of.
+        JPanel icons = new JPanel(new FlowLayout(FlowLayout.TRAILING, 0, 0));
+        icons.setOpaque(false);
+        JButton collapseAll = Buttons.flat(Buttons.collapseAll);
+        collapseAll.setToolTipText("Collapse all panels");
+        collapseAll.addActionListener(e -> pane.collapseAll());
+        JButton expandAll = Buttons.flat(Buttons.expandAll);
+        expandAll.setToolTipText("Expand all panels");
+        expandAll.addActionListener(e -> pane.expandAll());
+        icons.add(collapseAll);
+        icons.add(expandAll);
+
+        host.add(icons, BorderLayout.PAGE_START);
         host.add(scroller, BorderLayout.CENTER);
         host.setFixedWidth(width);
 
@@ -207,12 +222,23 @@ public final class RightSidebar implements SectionHost {
         JButton down = Buttons.flat(Buttons.moveDown);
         down.setToolTipText("Move " + title + " down");
         down.addActionListener(e -> move(title, 1));
+        // The mirror of the left bar's: from here the only useful crossing is leftward.
+        JButton toOther = Buttons.flat(Buttons.collapseLeft);
+        toOther.setToolTipText("Move " + title + " to the left sidebar");
+        toOther.addActionListener(e -> {
+            Palette palette = Palette.named(title);
+            if (palette != null)
+                palette.setHome(LeftSidebar.getInstance());
+        });
         JButton floatOut = Buttons.flat(Buttons.popOut);
         floatOut.setToolTipText("Pop " + title + " back out into a floating palette");
         floatOut.addActionListener(e -> onFloat.run());
 
+        for (JButton b : new JButton[]{up, down, toOther, floatOut})
+            PanelLock.register(b);
         bar.add(up);
         bar.add(down);
+        bar.add(toOther);
         bar.add(floatOut);
         holder.add(content, BorderLayout.CENTER);
         return new Section(title, icon, content, onFloat, holder, bar);

@@ -470,7 +470,18 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     /** Controls placed after the divider: in More by choice rather than because the window is narrow. */
     private final java.util.List<Component> parked = new java.util.ArrayList<>();
     private JButton overflowButton;
-    private JButton editCorner; // permanent, in the trailing corner, never part of the order
+    private JButton editCorner;
+    private JToggleButton lockCorner;
+
+    private static Icon lockIcon() {
+        return PanelLock.isLocked() ? Buttons.lockPanels : Buttons.unlockPanels;
+    }
+
+    private static String lockTip() {
+        return PanelLock.isLocked()
+                ? "Panels are locked in place. Click to let them be moved again; folding still works either way."
+                : "Lock the panels where they are: the move, cross and pop-out controls grey out, folding still works.";
+    } // permanent, in the trailing corner, never part of the order
     private JPopupMenu overflowPopup;
     private JPanel overflowPanel;
     // While the menu is open its buttons are parented to it rather than to the toolbar, so
@@ -742,6 +753,23 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         // That is the point of moving it off the row. As the last tool it was the first thing a
         // narrow window pushed into the chevron, and the way back to the editor is not something
         // to go hunting for in the menu that the editor decides the contents of.
+        // Beside the edit control, and for the same reason it is out of the running order: a
+        // permanent corner control, not a tool. The two belong together -- one decides what the
+        // bar holds, the other decides whether the panels can be moved -- and neither should be
+        // the first thing a narrow window pushes into a menu.
+        lockCorner = Buttons.flatToggle(lockIcon(), PanelLock.isLocked());
+        lockCorner.setToolTipText(lockTip());
+        lockCorner.setFocusPainted(false);
+        lockCorner.addActionListener(e -> PanelLock.setLocked(lockCorner.isSelected()));
+        PanelLock.addListener(() -> {
+            if (lockCorner != null) {
+                lockCorner.setSelected(PanelLock.isLocked());
+                lockCorner.setIcon(lockIcon());
+                lockCorner.setToolTipText(lockTip());
+            }
+        });
+        add(lockCorner);
+
         editCorner = Buttons.flat(Buttons.editToolbarCorner);
         editCorner.setToolTipText("Edit the toolbar: choose which tools are on it, and in what order");
         editCorner.setFocusPainted(false);
@@ -814,7 +842,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     public void doLayout() {
         // getWidth() is 0 until the first real layout pass; without this every item would
         // "not fit" and the whole bar would collapse into the chevron for a frame.
-        if (items.isEmpty() || overflowButton == null || editCorner == null || overflowOpen || getWidth() <= 0) {
+        if (items.isEmpty() || overflowButton == null || editCorner == null || lockCorner == null || overflowOpen || getWidth() <= 0) {
             super.doLayout();
             return;
         }
@@ -828,7 +856,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             total += c.getPreferredSize().width + hgap;
 
         int chevron = overflowButton.getPreferredSize().width;
-        int edit = editCorner.getPreferredSize().width;
+        int edit = editCorner.getPreferredSize().width + hgap + lockCorner.getPreferredSize().width;
         // The corner control is always there, so its width is never available to the row.
         avail -= edit + hgap;
         // Room for the More button whenever anything is parked behind the divider, not only when
@@ -850,7 +878,10 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             }
         }
         int right = getWidth() - in.right;
-        editCorner.setBounds(right - edit, in.top, edit, rowHeight);
+        int editW = editCorner.getPreferredSize().width;
+        int lockW = lockCorner.getPreferredSize().width;
+        editCorner.setBounds(right - editW, in.top, editW, rowHeight);
+        lockCorner.setBounds(right - editW - hgap - lockW, in.top, lockW, rowHeight);
         overflowButton.setVisible(!overflowed.isEmpty() || !parked.isEmpty());
         if (!overflowed.isEmpty() || !parked.isEmpty())
             overflowButton.setBounds(right - edit - hgap - chevron, in.top, chevron, rowHeight);

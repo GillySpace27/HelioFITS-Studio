@@ -38,7 +38,9 @@ public class Timelines implements Interfaces.MainContentPanelPlugin {
 
     public void installTimelines() {
         pluginPanes.add(plotOne);
-        MainFrame.getLeftContentPane().add("Timeline Layers", timelinePanel, true, Buttons.timeline);
+        // As SWEKPlugin: registered rather than added, so it can be reordered, sent to the other
+        // sidebar and popped out like every other section.
+        org.helioviewer.jhv.gui.component.LeftSidebar.register("Timeline Layers", Buttons.timeline, timelinePanel);
         MainFrame.getLeftContentPane().revalidate();
         MainFrame.getMainContentPanel().addPlugin(this);
 

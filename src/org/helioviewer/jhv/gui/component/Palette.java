@@ -182,6 +182,15 @@ public final class Palette {
         return key() + ".size";
     }
 
+    /** The palette with this title, or null. Lets a docked section's header reach its own palette. */
+    @Nullable
+    static Palette named(String title) {
+        for (Palette p : palettes)
+            if (p.title.equals(title))
+                return p;
+        return null;
+    }
+
     /** Which sidebar it lives in, by {@link SectionHost#hostName()}, or absent for a window. */
     private String sidebarKey() {
         return key() + ".sidebar";
