@@ -11,12 +11,23 @@ radial enhancement filter, CME tracking, and grid styling.
 
 
 ON APPLE SILICON, THE EASIER OPTION IS THE .dmg
-  If you are on an Apple Silicon Mac, download  JHelioviewer-PUNCH-preview.dmg
+  If you are on an Apple Silicon Mac, download  HFStudio-PUNCH-preview.dmg
   instead of this zip. It is signed and notarized (so it opens with no security
   warning) and carries its own Java runtime, so you do not need to install Java.
-  Open the .dmg, drag JHelioviewer to Applications, and double-click.
+  Open the .dmg, drag HF Studio onto the Applications folder beside it, and
+  double-click.
 
   This zip is the path for Intel Macs, or if you prefer to run from your own Java.
+
+
+IF YOU ALREADY USE JHELIOVIEWER
+  Your saved sessions are carried over automatically the first time HF Studio
+  runs: it copies Settings and States out of ~/JHelioviewer-SWHV and leaves the
+  originals alone, so your existing JHelioviewer keeps working.
+
+  That copy happens only when ~/HFStudio does not exist yet. If you had already
+  run HF Studio once before reading this, nothing is lost: your old sessions are
+  still in ~/JHelioviewer-SWHV/States and open directly with File > Load State.
 
 
 TESTED PLATFORMS
