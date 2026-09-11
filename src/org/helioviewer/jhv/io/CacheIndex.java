@@ -50,11 +50,20 @@ import nom.tam.fits.Header;
  */
 public final class CacheIndex {
 
-    /** One cached frame: where it is, what it belongs to, and when it was observed. */
-    public record Frame(String fileName, String dataset, String displayName, long time, long bytes) {}
+    /**
+     * One cached frame: where it is, what it belongs to, and when it was observed.
+     *
+     * <p>The three product cards are kept apart from the dataset key rather than only baked into
+     * it, so the dialog can sort on them. Version especially: {@code 0k} and {@code 0l} are two
+     * cache entries for one observation, and putting a version column next to a frame count is how
+     * you see that you already have the data and only the label moved.
+     */
+    public record Frame(String fileName, String dataset, String displayName,
+                        String level, String typeCode, String version, long time, long bytes) {}
 
     /** Frames that share an identity, which is what the dialog lists and what loads as one layer. */
-    public record Dataset(String key, String displayName, List<Frame> frames, long start, long end, long bytes) {
+    public record Dataset(String key, String displayName, String level, String typeCode, String version,
+                          List<Frame> frames, long start, long end, long bytes) {
 
         public int frameCount() {
             return frames.size();
@@ -130,7 +139,7 @@ public final class CacheIndex {
     // -- scanning --------------------------------------------------------------------------
 
     private static final String INDEX_NAME = "cacheIndex.json";
-    private static final int INDEX_VERSION = 1; // bump to force a full re-read after a format change
+    private static final int INDEX_VERSION = 2; // bump to force a full re-read after a format change
     private static final int MAX_HDUS = 4; // an identity card is in the first image HDU or not there
 
     private static File indexFile() {
@@ -185,8 +194,11 @@ public final class CacheIndex {
                     continue;
                 FitsHeaderContainer container = new FitsHeaderContainer(header);
                 FitsMetaData.Observation obs = FitsMetaData.observation(container);
-                return new Frame(file.getName(), datasetKey(obs, container), obs.displayName(),
-                        obs.time().milli, file.length());
+                String level = container.getString("LEVEL").orElse("");
+                String typeCode = container.getString("TYPECODE").orElse("");
+                String version = container.getString("FILEVRSN").or(() -> container.getString("FILE_VRSN")).orElse("");
+                return new Frame(file.getName(), datasetKey(obs.displayName(), level, typeCode, version),
+                        obs.displayName(), level, typeCode, version, obs.time().milli, file.length());
             }
         } catch (Exception e) { // a truncated or half-written file is not an error worth a dialog
             Log.warn("Cache scan skipped " + file.getName() + ": " + e.getMessage());
@@ -203,13 +215,39 @@ public final class CacheIndex {
      * is the whole point of this dialog, since {@code 0k} and {@code 0l} are two cache entries for
      * one observation. Those three cards are appended where a file has them.
      */
-    private static String datasetKey(FitsMetaData.Observation obs, FitsHeaderContainer m) {
-        StringBuilder sb = new StringBuilder(obs.displayName());
-        m.getString("LEVEL").ifPresent(v -> sb.append(" · L").append(v));
-        m.getString("TYPECODE").ifPresent(v -> sb.append(" · ").append(v));
-        m.getString("FILEVRSN").or(() -> m.getString("FILE_VRSN")).ifPresent(v -> sb.append(" · v").append(v));
+    static String datasetKey(String displayName, String level, String typeCode, String version) {
+        StringBuilder sb = new StringBuilder(displayName);
+        String tidyLevel = level(level);
+        if (!tidyLevel.isEmpty())
+            sb.append(" · ").append(tidyLevel);
+        if (!typeCode.isEmpty())
+            sb.append(" · ").append(typeCode);
+        if (!version.isEmpty())
+            sb.append(" · v").append(version);
         return sb.toString();
     }
+
+    /**
+     * A processing level as a short label, or nothing.
+     *
+     * <p>LEVEL is not a standard card and instruments use it however they like. PUNCH writes
+     * {@code '3'}, which wants an L in front of it. Proba-3 writes {@code 'L3'}, which does not,
+     * and got one anyway: the first real scan produced "ASPIICS · LL3". GOES SUVI writes the whole
+     * of "National Aeronautics and Space Administration (NASA) L1b", which is a provenance
+     * statement rather than a level, and turned a dataset name into a paragraph.
+     *
+     * <p>So: an L is added only when one is missing, and anything too long to be a level code is
+     * not treated as one. Dropping it costs nothing, because the display name it would have been
+     * appended to already carries the mission and instrument.
+     */
+    static String level(String level) {
+        String tidy = level.trim();
+        if (tidy.isEmpty() || tidy.length() > MAX_LEVEL_LENGTH)
+            return "";
+        return tidy.charAt(0) == 'L' || tidy.charAt(0) == 'l' ? tidy : "L" + tidy;
+    }
+
+    private static final int MAX_LEVEL_LENGTH = 6; // "L1b" and "3" are levels; a sentence is not
 
     /** The frames gathered into datasets, each ordered in time, the largest first. */
     public static List<Dataset> group(List<Frame> frames) {
@@ -223,8 +261,9 @@ public final class CacheIndex {
             long bytes = 0;
             for (Frame frame : list)
                 bytes += frame.bytes();
-            out.add(new Dataset(key, list.getFirst().displayName(), List.copyOf(list),
-                    list.getFirst().time(), list.getLast().time(), bytes));
+            Frame first = list.getFirst();
+            out.add(new Dataset(key, first.displayName(), first.level(), first.typeCode(), first.version(),
+                    List.copyOf(list), first.time(), list.getLast().time(), bytes));
         });
         out.sort(Comparator.comparingLong(Dataset::bytes).reversed());
         return out;
@@ -246,7 +285,8 @@ public final class CacheIndex {
             for (int i = 0; entries != null && i < entries.length(); i++) {
                 JSONObject o = entries.getJSONObject(i);
                 out.put(o.getString("stamp"), new Frame(o.getString("file"), o.getString("dataset"),
-                        o.getString("name"), o.getLong("time"), o.getLong("bytes")));
+                        o.getString("name"), o.optString("level"), o.optString("type"), o.optString("version"),
+                        o.getLong("time"), o.getLong("bytes")));
             }
         } catch (Exception e) {
             Log.warn("Cache index unreadable, rescanning: " + e.getMessage());
@@ -262,6 +302,9 @@ public final class CacheIndex {
                 .put("file", frame.fileName())
                 .put("dataset", frame.dataset())
                 .put("name", frame.displayName())
+                .put("level", frame.level())
+                .put("type", frame.typeCode())
+                .put("version", frame.version())
                 .put("time", frame.time())
                 .put("bytes", frame.bytes())));
         JSONObject root = new JSONObject().put("version", INDEX_VERSION).put("frames", entries);

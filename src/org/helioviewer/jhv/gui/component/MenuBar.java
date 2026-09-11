@@ -290,6 +290,8 @@ public final class MenuBar extends JMenuBar {
         viewMenu.add(new Actions.ShowGridPalette());
         viewMenu.add(new Actions.ShowCameraPalette());
         viewMenu.add(new Actions.TrackCME());
+        viewMenu.addSeparator();
+        viewMenu.add(new Actions.ShowDialog("Load from Cache...", new org.helioviewer.jhv.gui.dialog.CacheDialog()));
         viewMenu.add(new Actions.ShowDialog("FITS Settings...", new FITSSettings.SettingsDialog()));
 
         add(viewMenu);

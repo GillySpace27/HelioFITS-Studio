@@ -39,7 +39,7 @@ public final class CacheIndexCheck {
     }
 
     private static CacheIndex.Frame frame(String dataset, long time, long bytes) {
-        return new CacheIndex.Frame("f" + time, dataset, dataset, time, bytes);
+        return new CacheIndex.Frame("f" + time, dataset, dataset, "3", "PA", "0l", time, bytes);
     }
 
     public static void main(String[] args) throws Exception {
@@ -102,6 +102,25 @@ public final class CacheIndexCheck {
         CacheIndex.Dataset gappy = CacheIndex.group(List.of(
                 frame("g", 0, 1), frame("g", DAY, 1), frame("g", 2 * DAY, 1), frame("g", 60 * DAY, 1))).getFirst();
         expect("one long gap does not become the cadence", gappy.cadence() == DAY);
+
+        // -- the dataset name -------------------------------------------------------------------
+        // Every one of these came out of the first scan of a real cache, wrong.
+        expect("a bare number gets its L", CacheIndex.level("3").equals("L3"));
+        expect("one that already has an L does not get a second, as ASPIICS did",
+                CacheIndex.level("L3").equals("L3"));
+        expect("nor does a lowercase one", CacheIndex.level("l1b").equals("l1b"));
+        expect("a level code with a suffix survives", CacheIndex.level("1b").equals("L1b"));
+        expect("SUVI's provenance sentence is not a level and is dropped",
+                CacheIndex.level("National Aeronautics and Space Administration (NASA) L1b").isEmpty());
+        expect("neither is blank", CacheIndex.level("   ").isEmpty());
+        expect("and the padding FITS writes around a value is trimmed off",
+                CacheIndex.level("  3  ").equals("L3"));
+
+        expect("a key names the product, not a paragraph",
+                CacheIndex.datasetKey("WFI+NFI Mosaic", "3", "PA", "0l")
+                        .equals("WFI+NFI Mosaic · L3 · PA · v0l"));
+        expect("and leaves out what a file does not carry",
+                CacheIndex.datasetKey("LASCO C2", "", "", "").equals("LASCO C2"));
 
         // -- the stored index -------------------------------------------------------------------
         System.setProperty("user.home", Files.createTempDirectory("jhv-cache-index").toString());
