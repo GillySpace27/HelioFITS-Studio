@@ -849,6 +849,7 @@ public final class MainFrame {
         leftPaneHost.setVisible(!collapsed); // the handle stays; westWrap shrinks to just it
         sidebarCollapseHandle.setIcon(collapsed ? Buttons.collapseRight : Buttons.collapseLeft);
         sidebarCollapseHandle.setToolTipText(collapsed ? "Show the sidebar" : "Drag to resize, click to collapse the sidebar");
+        ToolBar.syncSidebarToggles(); // the toolbar's left-bar button shows this state and was not told
 
         // The canvas is nested deep inside a JSplitPane, so validate the whole frame to push its
         // new bounds all the way down, then force the native GL surface to match and re-render.
@@ -1054,7 +1055,7 @@ public final class MainFrame {
     }
 
     /** Whether the right sidebar is showing, which is also how it says it holds anything. */
-    static boolean isEastVisible() {
+    public static boolean isEastVisible() {
         return eastWrap != null && eastWrap.isVisible();
     }
 

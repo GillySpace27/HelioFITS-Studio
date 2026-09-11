@@ -335,6 +335,7 @@ public final class RightSidebar implements SectionHost {
         }
         wrap.setVisible(!sections.isEmpty());
         revalidate();
+        ToolBar.syncSidebarToggles(); // docked-or-empty decides whether the right-bar button is live
     }
 
     @Override
@@ -398,6 +399,7 @@ public final class RightSidebar implements SectionHost {
     }
 
     private void applyCollapsed() {
+        ToolBar.syncSidebarToggles(); // the toolbar's right-bar button shows this state and was not told
         host.setVisible(!collapsed); // the handle stays, so there is something left to click
         handle.setIcon(collapsed ? Buttons.collapseLeft : Buttons.collapseRight);
         handle.setToolTipText(collapsed ? "Show the right sidebar" : "Drag to resize, click to collapse the right sidebar");
