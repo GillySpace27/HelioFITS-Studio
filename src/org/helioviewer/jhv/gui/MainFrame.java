@@ -1024,7 +1024,13 @@ public final class MainFrame {
         toolBarPanel.setVisible(visible);
         statusPanel.setVisible(visible);
         westWrap.setVisible(visible || keepLeft);
-        eastWrap.setVisible((visible && eastWasVisible) || (!visible && keepRight && eastWasVisible));
+        // Going away, this is the only place that knows what presentation mode wants. Coming back,
+        // it is not: the sidebar itself knows whether it holds anything, and a flag remembered on
+        // the way in has had a whole talk to go stale in. Ask it instead of imposing.
+        if (visible)
+            org.helioviewer.jhv.gui.component.RightSidebar.getInstance().refresh();
+        else
+            eastWrap.setVisible(keepRight && eastWasVisible);
         northTransport.setVisible(visible);
         mainContentPanel.setPluginsVisible(visible);
         centerPanel.revalidate();
@@ -1035,6 +1041,10 @@ public final class MainFrame {
         // The plugins pane has just been taken away or given back without the toolbar's Timelines
         // button being touched; every path that moves it comes through here.
         ToolBar.syncTimelinesToggle();
+        // The same for the sidebars. The restore leg already did this inside refresh(), but the
+        // hide leg lends the toolbar to the presenter window, where a right-bar button reporting
+        // the state from before the mode switch is a button that lies in front of an audience.
+        ToolBar.syncSidebarToggles();
     }
 
     /**
