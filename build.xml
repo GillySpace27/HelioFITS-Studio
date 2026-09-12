@@ -23,7 +23,7 @@
 
     <target name="build-metal-host">
         <mkdir dir="lib/natives-macos"/>
-        <exec executable="xcrun" failonerror="false">
+        <exec executable="xcrun" failonerror="true">
             <arg value="clang"/>
             <arg value="-O2"/>
             <arg value="-fobjc-arc"/>
@@ -48,6 +48,19 @@
             <arg value="lib/natives-macos/libjhvmetalhost.dylib"/>
             <arg value="native/macos/jhv_metal_host.m"/>
         </exec>
+        <!--
+          The compile used to be failonerror="false", so clang could return nonzero and the build
+          would carry on and package whatever dylib happened to be lying in lib/natives-macos from
+          a previous run, or none. The deep-colour canvas then fails at runtime, on the user's
+          machine, with nothing in the build log to say why. A release must not be able to leave
+          here without its Metal host, so say so twice: once for the compiler's exit code, and once
+          for the file it was supposed to produce.
+        -->
+        <fail message="build-metal-host produced no lib/natives-macos/libjhvmetalhost.dylib. The deep-colour canvas needs it; do not package without it.">
+            <condition>
+                <not><available file="lib/natives-macos/libjhvmetalhost.dylib"/></not>
+            </condition>
+        </fail>
     </target>
 
     <!--
@@ -156,6 +169,20 @@
         <java jar="${jarfile}" fork="true">
             <jvmarg value="--enable-native-access=ALL-UNNAMED"/>
         </java>
+    </target>
+
+    <!--
+      Every self-check in extra/test, compiled together and run one after another. Not part of
+      "all": the checks want a built bin/ and some of them take a few seconds, and a packaging run
+      should not be the thing that discovers a broken check. Run it before cutting a release.
+
+      The work is in extra/run-checks.sh rather than here because Ant cannot iterate over a fileset
+      without ant-contrib, and a shell loop is the smaller of the two dependencies.
+    -->
+    <target name="test" depends="compile" description="compile and run every check in extra/test">
+        <exec executable="sh" failonerror="true">
+            <arg value="extra/run-checks.sh"/>
+        </exec>
     </target>
 
     <target name="all" depends="jar"/>

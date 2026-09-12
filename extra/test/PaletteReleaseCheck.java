@@ -12,6 +12,14 @@ import javax.swing.JToggleButton;
  * clicking it only scrolled the section into view. Gilly's words: the icons at the top had no way
  * of being released.
  *
+ * <p>"Put away" then changed meaning and this check did not, which is the second thing it is now
+ * good for. It used to take the section out of the sidebar entirely; since Palette.bind sends a
+ * docked toggle through SectionHost.revealOrFold, it folds the section shut and leaves it in
+ * place, so a button press cannot make a panel vanish from a sidebar the user is looking at. The
+ * assertions below moved to the fold contract on 2026-09-12, two commits after the behaviour did.
+ * They had been failing in between, and nothing said so because until `ant test` there was no way
+ * to run the checks except one at a time by hand.
+ *
  * <p>Also pins the sidebar's own half of it. removeSection used to drop the section from its map
  * and then rebuild from that map, so the section it had just dropped was never taken out of the
  * pane: the header stayed behind with its content stolen by the new window, and docking the same
@@ -48,17 +56,22 @@ public final class PaletteReleaseCheck {
         expect("its toolbar button says so", button.isSelected());
         expect("exactly one section, not two", sections(title) == 1);
 
-        button.doClick(); // the release
-        expect("released, it is not showing", !palette.isOpen());
+        RightSidebar bar = RightSidebar.getInstance();
+        expect("and it is unfolded to start with", bar.isUnfolded(title));
+
+        button.doClick(); // the fold
+        expect("folded, it is shut", !bar.isUnfolded(title));
         expect("the button came up with it", !button.isSelected());
-        expect("and the section is gone from the sidebar", sections(title) == 0);
-        expect("but it still lives in the sidebar, not in a window", palette.isDocked());
+        // The point of the change: a toolbar button folds a docked palette, it does not take it
+        // out of the sidebar. Whipping a panel out from under the user was the thing to stop.
+        expect("but the section stays in the sidebar", sections(title) == 1);
+        expect("so it still lives there, not in a window", palette.isDocked());
         expect("and it grew no window on the way", !palette.hasWindow());
 
         button.doClick(); // and back
-        expect("clicked again it is showing once more", palette.isOpen());
+        expect("clicked again it is unfolded once more", bar.isUnfolded(title));
         expect("with its button lit", button.isSelected());
-        expect("still exactly one section: no ghost left by the release", sections(title) == 1);
+        expect("still exactly one section: no ghost left by the fold", sections(title) == 1);
         expect("still no window", !palette.hasWindow());
 
         // Not popped out here: that builds a real JDialog, which needs a display and would leave
