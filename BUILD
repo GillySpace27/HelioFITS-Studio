@@ -40,15 +40,20 @@ II) Build the source code with Ant (http://ant.apache.org/)
 
     2.) The following ant targets exist:
 
-           ant                   - just builds JHelioviewer.jar
+           ant                   - just builds HFStudio.jar
+
+           ant test              - compile and run every self-check in extra/test
 
            ant prone             - run Error Prone static analysis tool on the source tree
 
            ant clean             - delete temporary build files
 
-    3.) The Java Development Kit version 19 or later has to be installed and present in the PATH.
+    3.) The Java Development Kit version 25 or later has to be installed and present in the PATH.
+        build.xml compiles with release="25", so an older JDK cannot build this at all.
 
     4.) After the source is built, the program can be run by executing the following
     command:
 
-        java --add-exports java.desktop/sun.awt=ALL-UNNAMED --add-exports java.desktop/sun.swing=ALL-UNNAMED -jar JHelioviewer.jar
+        java --enable-native-access=ALL-UNNAMED --add-exports java.desktop/sun.awt=ALL-UNNAMED --add-exports java.desktop/sun.swing=ALL-UNNAMED -jar HFStudio.jar
+
+        Or use the launchers that ship beside it: run.command (macOS), run.sh, run.bat.

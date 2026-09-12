@@ -2,7 +2,6 @@
 .idea
 bin
 cov-int
-release/install4j/builds
 gradle
 HFStudio.jar
 *.iml
