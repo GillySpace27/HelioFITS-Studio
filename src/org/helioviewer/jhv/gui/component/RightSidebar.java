@@ -337,9 +337,28 @@ public final class RightSidebar implements SectionHost {
             pane.add(s.title(), s.holder(), true, s.icon(), "rightSidebar." + s.title());
             pane.setAccessory(s.holder(), s.controls());
         }
-        wrap.setVisible(!sections.isEmpty());
+        refresh();
+    }
+
+    /**
+     * Restate what this sidebar is: whether anything is docked decides if it takes space at all,
+     * and the collapsed flag decides how much. Idempotent, and safe to call at any time.
+     *
+     * <p>This exists because two owners write the visibility of one component. Here it is derived
+     * from the sections; in MainFrame.setChromeVisible it was imposed from what presentation mode
+     * saw on the way in. The second one wrote it directly and told only the Timelines button, so
+     * leaving presentation mode could leave the bar with no size while the right-bar button stayed
+     * lit and the collapsed flag stayed false. Nothing could undo it either: setCollapsed is the
+     * one thing that re-applies the layout and it short-circuits when the flag has not changed, so
+     * the only way back was to collapse and uncollapse. Gilly's words: the bar itself is absent.
+     *
+     * <p>Restating beats remembering. A stored "it was showing" goes stale the moment a palette is
+     * docked or released while the flag is held, and the sections are the truth either way.
+     */
+    public void refresh() {
+        wrap.setVisible(!sections.isEmpty()); // docked-or-empty decides whether it is there at all
+        applyCollapsed();                     // which also tells the right-bar button what is true
         revalidate();
-        ToolBar.syncSidebarToggles(); // docked-or-empty decides whether the right-bar button is live
     }
 
     @Override
