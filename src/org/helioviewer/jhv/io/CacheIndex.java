@@ -154,7 +154,9 @@ public final class CacheIndex {
     public static List<Frame> scan(@Nullable IntConsumer progress) {
         Map<String, Frame> known = read();
         Map<String, Frame> found = new LinkedHashMap<>();
-        File[] files = Directories.FILECACHE.getFile().listFiles(File::isFile);
+        // Not the dl*.tmp a download writes before it is published under its hash: one in flight
+        // is not a frame yet, and one left by a download that never finished never will be.
+        File[] files = Directories.FILECACHE.getFile().listFiles(f -> f.isFile() && !f.getName().endsWith(".tmp"));
         if (files == null)
             return List.of();
         int done = 0;
@@ -240,7 +242,7 @@ public final class CacheIndex {
      * not treated as one. Dropping it costs nothing, because the display name it would have been
      * appended to already carries the mission and instrument.
      */
-    static String level(String level) {
+    public static String level(String level) {
         String tidy = level.trim();
         if (tidy.isEmpty() || tidy.length() > MAX_LEVEL_LENGTH)
             return "";
@@ -267,6 +269,34 @@ public final class CacheIndex {
         });
         out.sort(Comparator.comparingLong(Dataset::bytes).reversed());
         return out;
+    }
+
+    /**
+     * The dataset's files, in time order, which is the order a layer wants them in.
+     *
+     * <p>Only the name is taken from the index, never a path: the index is a file on disk like any
+     * other, and whatever it says, what gets loaded or deleted is in the cache folder.
+     */
+    public static List<File> files(Dataset set) {
+        File dir = Directories.FILECACHE.getFile();
+        List<File> out = new ArrayList<>(set.frames().size());
+        for (Frame frame : set.frames())
+            out.add(new File(dir, new File(frame.fileName()).getName()));
+        return out;
+    }
+
+    /** Delete a dataset's files and return how many are still there. One already gone is not a failure. */
+    public static int delete(Dataset set) {
+        int failed = 0;
+        for (File file : files(set)) {
+            if (!file.exists())
+                continue;
+            if (!Directories.isInsideCache(file) || !file.delete()) {
+                Log.warn("Could not delete cached frame " + file);
+                failed++;
+            }
+        }
+        return failed;
     }
 
     // -- the stored index ------------------------------------------------------------------

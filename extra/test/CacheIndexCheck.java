@@ -141,6 +141,28 @@ public final class CacheIndexCheck {
         expect("a file whose size or date changed is not in the index under its new stamp",
                 !back.containsKey("a:1:9"));
 
+        // -- loading and deleting a dataset -------------------------------------------------------
+        java.io.File cache = Directories.FILECACHE.getFile();
+        java.io.File keep = new java.io.File(cache, "keep"), fa = new java.io.File(cache, "fa"), fb = new java.io.File(cache, "fb");
+        java.io.File outside = new java.io.File(cache.getParentFile(), "outside");
+        for (java.io.File f : new java.io.File[]{keep, fa, fb, outside})
+            Files.writeString(f.toPath(), "x");
+        CacheIndex.Dataset doomed = CacheIndex.group(List.of(
+                new CacheIndex.Frame("fb", "d", "d", "", "", "", 2, 1),
+                new CacheIndex.Frame("fa", "d", "d", "", "", "", 1, 1),
+                new CacheIndex.Frame("gone", "d", "d", "", "", "", 3, 1),
+                new CacheIndex.Frame("../outside", "d", "d", "", "", "", 4, 1))).getFirst();
+        List<java.io.File> files = CacheIndex.files(doomed);
+        expect("a dataset's files come out in time order",
+                files.get(0).getName().equals("fa") && files.get(1).getName().equals("fb"));
+        expect("and all of them in the cache folder, whatever path the index names",
+                files.stream().allMatch(f -> f.getParentFile().equals(cache)));
+        int failed = CacheIndex.delete(doomed);
+        expect("deleting the dataset removes its files", !fa.exists() && !fb.exists());
+        expect("and nothing else in the cache", keep.exists());
+        expect("and nothing outside it, even when the index climbs out with ..", outside.exists());
+        expect("a frame already gone is not counted as a failure", failed == 0);
+
         System.out.println(failures == 0 ? "CacheIndexCheck: PASS" : "CacheIndexCheck: " + failures + " FAILURE(S)");
         System.exit(failures == 0 ? 0 : 1);
     }
