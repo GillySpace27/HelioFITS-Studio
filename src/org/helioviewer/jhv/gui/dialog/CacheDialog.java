@@ -6,6 +6,11 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.event.ActionEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.io.File;
+import java.net.URI;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -15,6 +20,7 @@ import javax.swing.BorderFactory;
 import javax.swing.JCheckBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
@@ -30,7 +36,10 @@ import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableRowSorter;
 
+import org.helioviewer.jhv.app.Commands;
+import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.app.Theme;
+import org.helioviewer.jhv.gui.DesktopIntegration;
 import org.helioviewer.jhv.gui.Interfaces;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.gui.UIGlobals;
@@ -50,8 +59,8 @@ import com.jidesoft.dialog.StandardDialog;
  * observation. This lists the frames that are there, grouped into the datasets they came from, so
  * that answer is available before the download starts.
  *
- * <p>Read-only. The actions that change something (load one as a layer, delete one to get the disk
- * back) come next, deliberately after the half that only reads has been looked at on screen.
+ * <p>A selected dataset loads as one layer (a double-click does the same), shows its files on disk,
+ * or is deleted to get the space back. Deleting only ever removes files inside the cache folder.
  *
  * <p>The scan is not instant the first time. Measured on a real cache, 754 files and 13 GB take
  * about two and a half seconds of header reading, so it runs on a worker with the count showing
@@ -68,6 +77,9 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
     private final JCheckBox showCovers = new JCheckBox("covers", true);
     private final JCheckBox showPartial = new JCheckBox("partial", true);
     private final JCheckBox showNone = new JCheckBox("no overlap", true);
+    private final AbstractAction load = action("Load as Layer", this::load);
+    private final AbstractAction reveal = action(System.getProperty("os.name").startsWith("Mac") ? "Reveal in Finder" : "Show in Folder", this::reveal);
+    private final AbstractAction delete = action("Delete...", this::delete);
 
     private List<CacheIndex.Dataset> all = List.of();
 
@@ -139,6 +151,16 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
         table.getColumnModel().getColumn(Model.SIZE).setCellRenderer(new NumberCell(CacheDialog::size));
         table.getColumnModel().getColumn(Model.SPAN).setCellRenderer(new SpanCell());
 
+        table.getSelectionModel().addListSelectionListener(e -> enableActions());
+        table.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2 && table.rowAtPoint(e.getPoint()) >= 0)
+                    load();
+            }
+        });
+        enableActions();
+
         JScrollPane scroller = new JScrollPane(table);
         scroller.setPreferredSize(new Dimension(880, 330));
         panel.add(scroller, BorderLayout.CENTER);
@@ -155,9 +177,17 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
         };
         setDefaultCancelAction(close);
         ButtonPanel panel = new ButtonPanel();
+        panel.setBorder(BorderFactory.createEmptyBorder(6, 9, 9, 9));
+        // The two that act on the files rather than open them sit on the far side, away from Load.
+        panel.setButtonOrder("AC");
+        panel.setOppositeButtonOrder("O");
+        javax.swing.JButton loadButton = new javax.swing.JButton(load);
         javax.swing.JButton closeButton = new javax.swing.JButton(close);
+        panel.add(loadButton, ButtonPanel.AFFIRMATIVE_BUTTON);
+        panel.add(new javax.swing.JButton(reveal), ButtonPanel.OTHER_BUTTON);
+        panel.add(new javax.swing.JButton(delete), ButtonPanel.OTHER_BUTTON);
         panel.add(closeButton, ButtonPanel.CANCEL_BUTTON);
-        getRootPane().setDefaultButton(closeButton);
+        getRootPane().setDefaultButton(loadButton);
         return panel;
     }
 
@@ -200,6 +230,72 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
                 refilter();
             }
         }.execute();
+    }
+
+    private void enableActions() {
+        boolean one = selected() != null;
+        load.setEnabled(one);
+        reveal.setEnabled(one);
+        delete.setEnabled(one);
+    }
+
+    @Nullable
+    private Row selected() {
+        int view = table.getSelectedRow();
+        return view < 0 ? null : model.row(table.convertRowIndexToModel(view));
+    }
+
+    /** The whole dataset as one layer, frames in time order. */
+    private void load() {
+        Row row = selected();
+        if (row == null)
+            return;
+        List<URI> uris = new ArrayList<>();
+        for (File file : CacheIndex.files(row.set()))
+            if (file.isFile())
+                uris.add(file.toURI());
+        if (uris.isEmpty()) {
+            Message.warn("Nothing left to load", "The files of this dataset are no longer on disk.");
+            rescan();
+            return;
+        }
+        Commands.loadImage(uris);
+        setVisible(false);
+    }
+
+    private void reveal() {
+        Row row = selected();
+        if (row != null)
+            DesktopIntegration.reveal(CacheIndex.files(row.set()).getFirst());
+    }
+
+    private void delete() {
+        Row row = selected();
+        if (row == null)
+            return;
+        CacheIndex.Dataset set = row.set();
+        int answer = JOptionPane.showConfirmDialog(this,
+                "Delete " + set.frameCount() + (set.frameCount() == 1 ? " cached frame" : " cached frames")
+                        + " (" + size(set.bytes()) + ") of " + set.key() + "?\n\n"
+                        + "This only removes the local copy: the data downloads again next time it is needed.\n"
+                        + "Frames already loaded stay in memory until the layer is reloaded.",
+                "Delete Cached Dataset", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (answer != JOptionPane.OK_OPTION)
+            return;
+        int failed = CacheIndex.delete(set);
+        if (failed > 0)
+            Message.err("Dataset partly deleted", failed + " of " + set.frameCount()
+                    + " files could not be deleted. See the log for details.");
+        rescan();
+    }
+
+    private static AbstractAction action(String name, Runnable run) {
+        return new AbstractAction(name) {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                run.run();
+            }
+        };
     }
 
     /** The master range the chips are measured against: whatever the movie is set to right now. */
@@ -296,14 +392,18 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
             super.getTableCellRendererComponent(t, value, selected, focused, viewRow, col);
             Row row = ((Model) t.getModel()).row(t.convertRowIndexToModel(viewRow));
             setText(row == null ? "" : span(row.set()));
+            setToolTipText(row == null ? null : TimeUtils.format(row.set().start()) + " to " + TimeUtils.format(row.set().end()));
             return this;
         }
     }
 
+    /** To the minute: the column is for seeing the range at a glance, and its tooltip has the rest. */
+    private static final DateTimeFormatter SPAN = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+
     private static String span(CacheIndex.Dataset set) {
         return set.start() == set.end()
-                ? TimeUtils.format(set.start())
-                : TimeUtils.format(set.start()) + "  to  " + TimeUtils.format(set.end());
+                ? TimeUtils.format(SPAN, set.start())
+                : TimeUtils.format(SPAN, set.start()) + " to " + TimeUtils.format(SPAN, set.end());
     }
 
     private static final class Model extends AbstractTableModel {
@@ -362,7 +462,7 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
                 case SPAN -> set.start();
                 case CADENCE -> set.cadence();
                 case SIZE -> set.bytes();
-                case LEVEL -> set.level();
+                case LEVEL -> CacheIndex.level(set.level()); // as the dataset name spells it, not the raw card
                 case TYPE -> set.typeCode();
                 default -> set.version();
             };

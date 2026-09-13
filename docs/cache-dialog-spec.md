@@ -128,8 +128,14 @@ Filters above the table: text over the dataset name, and a three-way toggle over
 2. **The dialog.** Table, chips, filters, background first scan. Read-only, and already useful: it
    answers "what have I got" without touching anything. Done; measured on the real cache at
    2.8 s cold and 21 ms warm, which is the index earning its place at 133 times over.
-3. **Load and delete.** The two actions that change something, once the reading half has been seen
-   on screen.
+3. **Load, reveal and delete.** Done. Load hands the dataset's files to `Commands.loadImage` in time
+   order, and a double-click does the same. Delete confirms with the frame count and size, then
+   removes only files inside the cache folder: the index supplies a name, never a path.
+   `CacheIndexCheck` holds that, and fails against a version that trusts the path an index entry
+   names.
+   The first render, against 1,165 real frames, showed two stage-two defects, fixed with it: the
+   Observed column clipped the end of every span, and Level showed the raw card rather than the
+   spelling the dataset name already used.
 
 ### The chips are the one thing not taken from the theme
 
@@ -163,5 +169,8 @@ that the third has almost no colour at all.
   Delete is in scope rather than deferred.
 - Frames whose headers carry no instrument identity land in one unidentified group. There are none
   in the measured cache; grouping them together still beats hiding them.
+- Downloads write to `dl*.tmp` before publishing under their hash, and those are not listed: one in
+  flight is not a frame yet. On 2026-09-12 there were 139 of them, 222 MB, none in flight, left by
+  downloads that died on a non-I/O exit. Clearing them belongs to the download side, not here.
 - The dialog reads what is on disk, not what is loadable. A truncated file is listed and fails at
   load, reported as one failed frame, which is the existing behaviour for any bad file.
