@@ -180,6 +180,41 @@ public final class Palette {
      * palette counts as open, so the old test made this a dead button the moment the palette was
      * moved into the sidebar. "Show it" means reveal the section there, or raise the window here.
      */
+    /**
+     * Carry a palette's remembered state across a change of title, once.
+     *
+     * <p>Everything a palette remembers is keyed by its title: whether it is open, where it lives,
+     * whether its section is folded, its size, and its place in the right sidebar's order. Renaming one
+     * without this sends it back to its defaults, which is the dashboard forgetting what the user set,
+     * the one thing it must not do. Leaves the old keys where they are, and does nothing once the new
+     * title has any state of its own, so it cannot overwrite a choice made after the rename.
+     */
+    static void renameStored(String from, String to) {
+        String oldKey = "ui.palette." + from.replace(' ', '_');
+        String newKey = "ui.palette." + to.replace(' ', '_');
+        for (String suffix : new String[]{"", ".shown", ".sidebar", ".size"})
+            if (Settings.getProperty(newKey + suffix) != null)
+                return; // already carried over, or set since
+        for (String suffix : new String[]{"", ".shown", ".sidebar", ".size"})
+            copyStored(oldKey + suffix, newKey + suffix);
+        for (String prefix : new String[]{"ui.section.rightSidebar.", "ui.section."}) // RightSidebar's prefKey, and the left's plain title
+            copyStored(prefix + from.replace(' ', '_'), prefix + to.replace(' ', '_'));
+        String order = Settings.getProperty("ui.rightSidebarOrder"); // RightSidebar.KEY_ORDER: titles as they are, not underscored
+        if (order != null && !order.isBlank()) {
+            List<String> titles = new ArrayList<>(java.util.Arrays.asList(order.split("\\|")));
+            if (titles.contains(from)) {
+                titles.replaceAll(t -> t.equals(from) ? to : t);
+                Settings.setProperty("ui.rightSidebarOrder", String.join("|", titles));
+            }
+        }
+    }
+
+    private static void copyStored(String from, String to) {
+        String value = Settings.getProperty(from);
+        if (value != null)
+            Settings.setProperty(to, value);
+    }
+
     public static void open(String title) {
         for (Palette p : palettes)
             if (p.title.equals(title))
@@ -290,20 +325,30 @@ public final class Palette {
 
     /** Reopen the palettes that were open when the application last quit. Needs the frame on screen. */
     public static void restoreOpen() {
-        for (Palette p : palettes) {
-            // Where it lives is asked first and on its own: a palette whose home is a sidebar must
-            // not be opened as a window on the way past, which is what the open flag alone would
-            // do. Released there, it stays released, and its button with it.
-            SectionHost host = hostNamed(Settings.getProperty(p.sidebarKey()));
-            if (host != null) {
-                p.dockInto(host);
-                if (p.toggle != null)
-                    p.toggle.setSelected(p.isOpen());
-            } else if (!p.isOpen() && "true".equals(Settings.getProperty(p.key()))) {
-                if (p.toggle != null)
-                    p.toggle();
-                else
-                    p.setOpen(true); // a sidebar pane with no toolbar button of its own
+        // Over a copy: restoring can create palettes (the first touch of a sidebar builds the toolbar's,
+        // and Track CME makes its own lazily), and each one adds itself to this list mid-iteration, which
+        // threw ConcurrentModificationException from the loop header, outside the guard below.
+        for (Palette p : List.copyOf(palettes)) {
+            // Each on its own. One palette whose content threw here (Filters, binding RHEF to the
+            // placeholder layer a restoring session starts with) ended the loop, and every palette after
+            // it in the list, Grid and Annotation among them, was simply missing from the sidebar.
+            try {
+                // Where it lives is asked first and on its own: a palette whose home is a sidebar must
+                // not be opened as a window on the way past, which is what the open flag alone would
+                // do. Released there, it stays released, and its button with it.
+                SectionHost host = hostNamed(Settings.getProperty(p.sidebarKey()));
+                if (host != null) {
+                    p.dockInto(host);
+                    if (p.toggle != null)
+                        p.toggle.setSelected(p.isOpen());
+                } else if (!p.isOpen() && "true".equals(Settings.getProperty(p.key()))) {
+                    if (p.toggle != null)
+                        p.toggle();
+                    else
+                        p.setOpen(true); // a sidebar pane with no toolbar button of its own
+                }
+            } catch (RuntimeException e) {
+                org.helioviewer.jhv.app.Log.errorStack("Palette " + p.title + " could not be restored", e);
             }
         }
     }

@@ -105,7 +105,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private final ButtonText TRACK_CME = new ButtonText(Buttons.trackCme, "Track CME",
             "Pick a CACTus CME in the loaded range and hold its front at a fixed screen radius");
     private final ButtonText COLOUR = new ButtonText(Buttons.colourSettings, "HDR", "How the whole view is mapped into the display's extended range: headroom, mapping, knee, in-range share, clipped pixels");
-    private final ButtonText SEQUENCE = new ButtonText(Buttons.sequenceFilter, "Fourier", "Fourier filter over the whole movie: pick the layer, drag a band, watch it play");
+    private final ButtonText SEQUENCE = new ButtonText(Buttons.sequenceFilter, "Filters",
+            "Filters for one layer: RHEF per frame, and the Fourier filter or noise gate over the whole movie");
     private final ButtonText GRID = new ButtonText(Buttons.grid, "Grid", "Grid, Thomson sphere, celestial sphere, ecliptic and planet overlay settings");
     private final ButtonText CAMERA = new ButtonText(Buttons.camera, "Camera", "Where the view is seen from: Free, Follow, Turntable, Overview, and their settings");
     private final ButtonText ANNOTATE = new ButtonText(Buttons.annotate, "Annotation",
@@ -707,8 +708,12 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         // combo), so a button here reads as "open the Fourier filter", not as "filter everything":
         // Apply still only ever reaches the layer the palette is bound to.
         JToggleButton sequenceButton = toolToggleButton(SEQUENCE);
-        if (sequencePalette == null)
-            sequencePalette = new Palette("Fourier filter", SequencePaletteContent::build, SequencePaletteContent::refresh, true); // has text fields
+        if (sequencePalette == null) {
+            // It was "Fourier filter" until RHEF moved in beside it. Before the constructor reads any of it,
+            // so the palette comes back where it was put, folded as it was left, in its place in the bar.
+            Palette.renameStored("Fourier filter", "Filters");
+            sequencePalette = new Palette("Filters", SequencePaletteContent::build, SequencePaletteContent::refresh, true); // has text fields
+        }
         sequencePalette.bind(sequenceButton);
         register("sequence", SEQUENCE, sequenceButton);
 

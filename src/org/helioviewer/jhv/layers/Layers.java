@@ -229,7 +229,7 @@ public final class Layers {
             try {
                 event.accept(listener);
             } catch (RuntimeException e) {
-                org.helioviewer.jhv.app.Log.error("Layer listener " + listener.getClass().getName() + " failed", e);
+                org.helioviewer.jhv.app.Log.errorStack("Layer listener " + listener.getClass().getName() + " failed", e);
             }
         }
     }

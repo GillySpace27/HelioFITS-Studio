@@ -224,7 +224,7 @@ public class SequencePanel implements FilterDetails {
         // control that edit the same layer are two chances to disagree. What the row keeps is what
         // a row is for: what the filter currently is, a way to open the palette, and run/stop.
         openButton.setToolTipText("Open the sequence filter palette for this layer");
-        openButton.addActionListener(e -> Palette.open("Fourier filter"));
+        openButton.addActionListener(e -> Palette.open("Filters"));
         second.add(openButton, BorderLayout.CENTER);
 
         spinner.setUI(new CircularProgressUI());

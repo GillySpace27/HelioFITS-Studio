@@ -36,7 +36,7 @@ public final class JHVUncaughtExceptionHandler {
             // screen and no exception ever reached the file: a stalled session left nothing to read
             // afterwards, and every exception after the first vanished outright.
             try {
-                Log.error("Uncaught exception on " + t.getName(), e);
+                Log.errorStack("Uncaught exception on " + t.getName(), e); // with the stack: the message alone says nothing of where
             } catch (Throwable ignored) {
                 // before logging is up there is nowhere to write it; the report below still goes out
             }

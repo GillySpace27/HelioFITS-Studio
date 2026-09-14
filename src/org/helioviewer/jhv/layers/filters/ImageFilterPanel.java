@@ -22,11 +22,17 @@ public class ImageFilterPanel implements FilterDetails {
     private final JPanel buttonPanel = new JPanel(new BorderLayout());
     private final JLabel title = new JLabel("Filter ", JLabel.RIGHT);
     private JComboBox<ImageFilter.Type> filterCombo;
+    private SplitButton upsilonButton;
 
     /** Mirrors the view's filter in the combo (a sequence filter forces it to None); the listener no-ops on an equal value. */
     public void syncFromLayer(ImageLayer layer) {
         if (filterCombo != null && filterCombo.getSelectedItem() != layer.getView().getFilter())
             filterCombo.setSelectedItem(layer.getView().getFilter());
+        // Here as well as in the combo's listener: that one returns early on an equal value, which is
+        // exactly what a sync produces, so a copy of this panel brought into step from elsewhere (the
+        // Filters palette and the Image Layers row are two copies of one setting) kept the wrong Υ.
+        if (upsilonButton != null)
+            upsilonButton.setVisible(layer.getView().getFilter() == ImageFilter.Type.RHEF);
     }
 
     private static String formatLabel(double value) {
@@ -95,7 +101,7 @@ public class ImageFilterPanel implements FilterDetails {
         upsilonPanel.add(createUpsilonRow("ΥL ", upsilonLowSlider, upsilonLowLabel));
         upsilonPanel.add(createUpsilonRow("ΥH ", upsilonHighSlider, upsilonHighLabel));
 
-        SplitButton upsilonButton = new SplitButton("Υ");
+        upsilonButton = new SplitButton("Υ");
         upsilonButton.setToolTipText("Soften shadows (ΥL, below median) and highlights (ΥH, above median) of RHEF output independently");
         upsilonButton.setAlwaysDropdown(true);
         upsilonButton.addItem(upsilonPanel);
@@ -108,6 +114,9 @@ public class ImageFilterPanel implements FilterDetails {
                 Layers.applyToSelectedLayers(layer, il -> {
                     il.getView().clearCache();
                     il.getView().setFilter(type);
+                    // Setting the filter fires nothing by itself, so say so: the other copy of this panel
+                    // (Filters palette or Image Layers row, whichever this is not) re-syncs on it.
+                    Layers.fireLayerUpdated(il);
                 });
                 DisplayController.render(1);
             }

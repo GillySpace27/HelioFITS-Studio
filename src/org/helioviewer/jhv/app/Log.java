@@ -115,6 +115,17 @@ public class Log {
         root.log(Level.SEVERE, getCaller(stackTrace(thrown)));
     }
 
+    /**
+     * An error with its whole stack in the log, not just the exception's message.
+     *
+     * <p>The formatter prints a thrown exception as its message only, which keeps ordinary warnings to one
+     * line. For a failure nobody expected, the one line is useless: an uncaught NullPointerException on
+     * 2026-09-14 reached the log as "Cannot invoke getEnhanced()" with no hint of where it came from.
+     */
+    public static void errorStack(String msg, Throwable thrown) {
+        root.log(Level.SEVERE, getCaller(msg + "\n" + stackTrace(thrown)));
+    }
+
     public static void error(String msg, Throwable thrown) {
         root.log(Level.SEVERE, getCaller(msg), thrown);
     }
