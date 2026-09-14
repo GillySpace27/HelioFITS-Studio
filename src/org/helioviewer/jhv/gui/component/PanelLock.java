@@ -37,20 +37,39 @@ public final class PanelLock {
     private static final String KEY = "ui.panelsLocked";
 
     private static final List<AbstractButton> movers = new ArrayList<>();
+    private static final List<AbstractButton> standIns = new ArrayList<>();
     private static final List<Badged> badgedButtons = new ArrayList<>();
     private static final List<Runnable> listeners = new ArrayList<>();
     @Nullable private static AbstractButton lockButton;
     private static boolean locked = !"false".equals(Settings.getProperty(KEY)); // absent means locked
 
-    /** A control that moves a panel: dimmed while locked, and its click becomes an offer to unlock. */
+    /** A control that moves a panel: hidden while locked, where the header's one padlock stands in for it. */
     public static void register(AbstractButton mover) {
         movers.add(mover);
-        dim(mover);
+        show(mover, !locked);
+    }
+
+    /**
+     * The one control a locked header shows in place of its four movers.
+     *
+     * <p>Four dimmed buttons on every header, all of them refusing, were most of the chrome in a
+     * sidebar that is locked nearly all the time. Gilly's words: every single panel has four buttons
+     * that are usually disabled. So a locked header carries one padlock, which makes the same offer a
+     * dimmed mover used to: the unlock under the pointer, and the toolbar padlock blinking.
+     */
+    public static AbstractButton standIn(String title) {
+        javax.swing.JButton padlock = Buttons.flat(Buttons.lockPanels);
+        padlock.setToolTipText("Panels are locked. Click to unlock moving " + title + " and the others");
+        padlock.addActionListener(e -> interceptMove(padlock));
+        standIns.add(padlock);
+        show(padlock, locked);
+        return padlock;
     }
 
     /** Forget a control whose header has been thrown away, so the list does not grow forever. */
     public static void unregister(AbstractButton mover) {
         movers.remove(mover);
+        standIns.remove(mover);
     }
 
     /**
@@ -125,14 +144,13 @@ public final class PanelLock {
                 : b.plainTip());
     }
 
-    // Dimmed, not disabled: a disabled button receives no clicks, and a locked mover has an
-    // offer to make with one. GlyphIcon paints in the component's foreground, so this is the
-    // whole of the look.
-    private static void dim(AbstractButton mover) {
-        // Through themed, because the dimmed colour is the look-and-feel's disabled text and a
-        // theme switch changes it. Set once by hand, a locked sidebar kept the previous theme's
-        // grey on every arrow for the rest of the session.
-        UIGlobals.themed(mover, c -> c.setForeground(locked ? UIManager.getColor("Button.disabledText") : null));
+    // Shown or not, and the header told, since a trailing strip losing three buttons changes width.
+    private static void show(AbstractButton button, boolean visible) {
+        if (button.isVisible() == visible)
+            return;
+        button.setVisible(visible);
+        if (button.getParent() != null)
+            button.getParent().revalidate();
     }
 
     public static boolean isLocked() {
@@ -150,7 +168,8 @@ public final class PanelLock {
 
     /** Re-apply to everything registered; also the way a freshly built header picks the state up. */
     public static void apply() {
-        movers.forEach(PanelLock::dim);
+        movers.forEach(m -> show(m, !locked));
+        standIns.forEach(s -> show(s, locked));
         badgedButtons.forEach(PanelLock::applyTo);
     }
 

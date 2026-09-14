@@ -132,11 +132,12 @@ public final class LeftSidebar implements SectionHost {
                 onFloat.run();
         });
         for (JButton b : new JButton[]{up, down, toOther, floatOut})
-            PanelLock.register(b); // these four move the panel; the lock dims exactly these
+            PanelLock.register(b); // these four move the panel; the lock hides exactly these
         bar.add(up);
         bar.add(down);
         bar.add(toOther);
         bar.add(floatOut);
+        bar.add(PanelLock.standIn(title)); // one padlock in their place while locked
         return bar;
     }
 
