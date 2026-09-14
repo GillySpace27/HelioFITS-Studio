@@ -250,11 +250,12 @@ public final class RightSidebar implements SectionHost {
         });
 
         for (JButton b : new JButton[]{up, down, toOther, floatOut})
-            PanelLock.register(b);
+            PanelLock.register(b); // hidden while locked
         bar.add(up);
         bar.add(down);
         bar.add(toOther);
         bar.add(floatOut);
+        bar.add(PanelLock.standIn(title)); // and this one padlock shown instead
         holder.add(content, BorderLayout.CENTER);
         return new Section(title, icon, content, onFloat, holder, bar);
     }
