@@ -26,15 +26,31 @@ public class Settings {
         }
     };
     private static final Properties settings = new Properties(defaults);
+    /**
+     * Whether this process has read the settings file. Until it has, nothing may be written over it.
+     *
+     * <p>write() stores the whole table, so a process that never called load() stores a table holding
+     * only the keys it set itself, and the atomic move then puts that in place of the user's file. The
+     * application always loads first, but the self-checks in extra/test run the same classes in their
+     * own JVMs and most of them never isolate user.home: one of them setting display.skyBase left
+     * Gilly's settings as that one line on 2026-09-11, toolbar order, sidebars and palettes included.
+     * Hence the dashboard "not keeping" its configuration. The move made a torn write impossible; this
+     * makes a write from a process that never saw the file impossible.
+     */
+    private static boolean loaded;
 
     public static void load() {
         if (Files.exists(userPath)) {
             try (BufferedReader reader = Files.newBufferedReader(userPath)) {
                 settings.load(reader);
+                loaded = true;
             } catch (Exception e) {
-                Log.warn(e);
+                Log.warn(e); // not loaded: an unreadable file is kept for the user, never replaced by a blank table
             }
-        }
+            if (loaded)
+                keepDailyCopy();
+        } else
+            loaded = true; // nothing there to lose
 
         if (getProperty("path.local") == null)
             setProperty("path.local", Directories.DOWNLOADS.getPath());
@@ -43,6 +59,39 @@ public class Settings {
         String server = getProperty("dataSources.defaultServer");
         if (server == null || DataSources.getServerSetting(server, "API.getDataSources") == null)
             setProperty("dataSources.defaultServer", "IAS");
+    }
+
+    /**
+     * One copy of the file per day it is loaded, the last seven kept, beside it.
+     *
+     * <p>The guard in write() stops the one cause of lost settings that has been identified. On
+     * 2026-09-12 the file lost its toolbar order, every palette's sidebar and the panel lock again,
+     * between 18:09 and 18:21, and which process did it was never established. This is for that
+     * kind of day: whatever did it, yesterday's file, and this morning's, are still there to put
+     * back. A copy per day rather than per launch, because a launch after the damage would
+     * otherwise copy the damage over the last good one.
+     */
+    private static void keepDailyCopy() {
+        Path today = userPath.resolveSibling("user.properties." + java.time.LocalDate.now());
+        try {
+            if (!Files.exists(today))
+                Files.copy(userPath, today);
+            try (java.util.stream.Stream<Path> siblings = Files.list(userPath.getParent())) {
+                siblings.map(p -> p.getFileName().toString())
+                        .filter(n -> n.matches("user\\.properties\\.\\d{4}-\\d{2}-\\d{2}"))
+                        .sorted(java.util.Comparator.reverseOrder()) // ISO dates sort as dates
+                        .skip(7)
+                        .forEach(n -> {
+                            try {
+                                Files.delete(userPath.resolveSibling(n));
+                            } catch (Exception ignored) {
+                                // an old copy left behind costs a kilobyte
+                            }
+                        });
+            }
+        } catch (Exception e) {
+            Log.warn(e); // never a reason not to start
+        }
     }
 
     public static void setProperty(String key, String val) {
@@ -65,6 +114,10 @@ public class Settings {
      * A move is atomic, so a reader sees either the old file or the new one.
      */
     private static void write() {
+        // Silently, not with a warning: the process that reaches this is a check or a tool, where the
+        // in-memory value is all it wanted, and logging would open a log file in the real home too.
+        if (!loaded && Files.exists(userPath))
+            return;
         Path temp = userPath.resolveSibling("user.properties.tmp");
         try {
             try (BufferedWriter writer = Files.newBufferedWriter(temp)) {

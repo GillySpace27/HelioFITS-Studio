@@ -26,7 +26,7 @@ import org.helioviewer.jhv.event.JHVEventParameter;
 import org.helioviewer.jhv.event.JHVRelatedEvents;
 import org.helioviewer.jhv.event.SWEKCatalog;
 import org.helioviewer.jhv.event.SWEKSupplier;
-import org.helioviewer.jhv.gui.component.LeftSidebar;
+import org.helioviewer.jhv.gui.component.RightSidebar;
 import org.helioviewer.jhv.gui.component.Palette;
 import org.helioviewer.jhv.movie.Player;
 import org.helioviewer.jhv.time.JHVTime;
@@ -54,8 +54,12 @@ public final class CactusTrackPanel extends JPanel implements JHVEventListener.H
     private static CactusTrackPanel instance;
     private static Palette palette;
 
-    /** Open the palette (creating it on first use) and refresh it from the current event cache. */
-    public static void open() {
+    /**
+     * The palette, built on first call and docked where it lives (the right sidebar unless the user
+     * moved it). The toolbar calls this while it is being built, which is what puts the panel on
+     * screen at launch; before, it only existed once the menu or the SWEK row had opened it.
+     */
+    public static Palette palette() {
         if (instance == null)
             instance = new CactusTrackPanel();
         if (palette == null) {
@@ -63,8 +67,14 @@ public final class CactusTrackPanel extends JPanel implements JHVEventListener.H
                 instance.ensureCactusLoaded();
                 instance.reload();
             });
-            palette.restoreHome(LeftSidebar.getInstance());
+            palette.restoreHome(RightSidebar.getInstance());
         }
+        return palette;
+    }
+
+    /** Show the palette wherever it lives and refresh it from the current event cache. */
+    public static void open() {
+        palette();
         instance.ensureCactusLoaded(); // pull CACTus events for the movie range if not already active
         instance.reload();
         palette.open();
@@ -131,7 +141,9 @@ public final class CactusTrackPanel extends JPanel implements JHVEventListener.H
         add(status, BorderLayout.PAGE_START);
         add(new JScrollPane(table), BorderLayout.CENTER);
         add(buttons, BorderLayout.PAGE_END);
-        setPreferredSize(new Dimension(540, 360));
+        // No fixed size: that was the dialog's, 540 x 360, and in a sidebar it hid every row past the
+        // fourteenth behind a scrollbar. The height is the rows'; see fitRows.
+        fitRows();
 
         // Listen only while on screen. This used to hang off setVisible, which a dialog gets told
         // about and a panel in a folded section does not; an ancestor listener sees both being
@@ -141,6 +153,10 @@ public final class CactusTrackPanel extends JPanel implements JHVEventListener.H
             public void ancestorAdded(javax.swing.event.AncestorEvent e) {
                 JHVEventCache.registerHandler(CactusTrackPanel.this);
                 JHVEventCache.addHighlightListener(CactusTrackPanel.this);
+                // Here as well as on show: docked at launch, the palette is shown while the toolbar is
+                // built, before the SWEK plugin has loaded the catalog, so that request finds no CACTus
+                // and quietly does nothing. The window going on screen comes after the plugins.
+                ensureCactusLoaded();
                 reload();
             }
 
@@ -224,6 +240,29 @@ public final class CactusTrackPanel extends JPanel implements JHVEventListener.H
         status.setText(rows.isEmpty()
                 ? "No CACTus events in the loaded range — enable HEK → CME → CACTus and load a coronagraph movie."
                 : rows.size() + " CACTus event(s) — double-click one to track.");
+        fitRows();
+    }
+
+    /**
+     * Ask for exactly the height of every row, so a sidebar shows the whole list.
+     *
+     * <p>A JTable asks its scroll pane for 450 x 400 whatever it holds, and a scroll pane's own minimum
+     * is about one header tall. The sidebar lays sections out in a GridBag, which drops every child to
+     * its minimum as soon as it cannot give them all their preferred size, so the first launch that
+     * docked this palette showed "23 CACTus event(s)" over a header with no rows under it and nothing
+     * to double-click. Same fault, same container, as the layer lists before it. A popped-out window
+     * smaller than the list still scrolls: the scroll pane stays, it just no longer decides the height.
+     */
+    void fitRows() {
+        int height = Math.max(table.getRowHeight(), table.getPreferredSize().height); // one row's room when empty
+        table.setPreferredScrollableViewportSize(new Dimension(table.getPreferredSize().width, height));
+        revalidate();
+    }
+
+    /** Height only, as LayersPanel: never less than every row, and width left for SqueezeView to squeeze. */
+    @Override
+    public Dimension getMinimumSize() {
+        return new Dimension(0, getPreferredSize().height);
     }
 
     private JHVRelatedEvents selected() {
