@@ -537,7 +537,11 @@ public final class Actions {
         @Override
         public void actionPerformed(ActionEvent e) {
             List<Layer> removable = Layers.getLayers().stream().filter(Layer::isDeletable).toList();
-            if (!removable.isEmpty()) {
+            // Timeline tracks the user added (bands, automation tracks) are loaded content as much as
+            // image layers are. The built-in lanes are not deletable and stay, as the grid does above.
+            List<org.helioviewer.jhv.timelines.TimelineLayer> tracks = org.helioviewer.jhv.timelines.TimelineLayers.get()
+                    .stream().filter(org.helioviewer.jhv.timelines.TimelineLayer::isDeletable).toList();
+            if (!removable.isEmpty() || !tracks.isEmpty() || org.helioviewer.jhv.display.CMETracker.isTracking()) {
                 int r = JOptionPane.showConfirmDialog(MainFrame.get(),
                         "Clear all loaded layers and start a new session?",
                         "New Session", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
@@ -545,6 +549,11 @@ public final class Actions {
                     return;
             }
             removable.forEach(Layers::remove);
+            tracks.forEach(tl -> {
+                tl.deleted(); // the user's gesture, as the delete column does, so an automation track goes with its lane
+                org.helioviewer.jhv.timelines.Timelines.getLayers().remove(tl);
+            });
+            org.helioviewer.jhv.display.CMETracker.stop(); // a tracked front belongs to a layer that is gone
             Annotations.clear();
             org.helioviewer.jhv.app.Session.resetToUntitled(); // clear the name back to Untitled
         }

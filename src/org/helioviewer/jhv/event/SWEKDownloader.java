@@ -27,6 +27,11 @@ public class SWEKDownloader {
             new AppThread.NamedThreadFactory("SWEK Download"),
             new ThreadPoolExecutor.DiscardPolicy());
 
+    /** Event downloads running or queued, for the footer's activity light. */
+    public static int pending() {
+        return downloadPool.getActiveCount() + downloadPool.getQueue().size();
+    }
+
     private record LoadedEvents(List<JHVEvent.Link> associations, List<JHVEvent> events) {}
 
     private static final class Worker implements Runnable, Comparable<Worker> {

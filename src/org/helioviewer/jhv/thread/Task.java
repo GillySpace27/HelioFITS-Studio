@@ -28,6 +28,11 @@ public final class Task {
 
     public static void doNothing(Object ignoredResult) {}
 
+    /** Tasks running right now in the shared worker pool, for the footer's activity light. */
+    public static int running() {
+        return EDTCallbackExecutor.pool.delegate() instanceof java.util.concurrent.ThreadPoolExecutor pool ? pool.getActiveCount() : 0;
+    }
+
     @FunctionalInterface
     public interface FailureHandler {
         void onFailure(String logContext, Throwable error);

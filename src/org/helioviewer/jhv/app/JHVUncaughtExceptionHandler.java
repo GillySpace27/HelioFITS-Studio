@@ -31,6 +31,15 @@ public final class JHVUncaughtExceptionHandler {
 
         @Override
         public final void uncaughtException(Thread t, Throwable e) {
+            // Every one into the log, not only the first. The dialog below is shown once per session,
+            // and it carried the log rather than writing to it, so the first exception reached the
+            // screen and no exception ever reached the file: a stalled session left nothing to read
+            // afterwards, and every exception after the first vanished outright.
+            try {
+                Log.error("Uncaught exception on " + t.getName(), e);
+            } catch (Throwable ignored) {
+                // before logging is up there is nowhere to write it; the report below still goes out
+            }
             if (alreadySent.compareAndSet(false, true))
                 handle(format(t, e));
         }

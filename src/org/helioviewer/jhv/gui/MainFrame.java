@@ -297,6 +297,8 @@ public final class MainFrame {
         InputController.addListener(positionStatus);
 
         statusPanel = new StatusPanel(5, 5);
+        // First, at the far left: spinning while anything is still arriving or computing, a check when it has all landed.
+        statusPanel.addPlugin(new org.helioviewer.jhv.gui.status.ActivityStatusPanel(), StatusPanel.Alignment.LEFT);
         statusPanel.addPlugin(framerateStatus, StatusPanel.Alignment.LEFT);
         statusPanel.addPlugin(positionStatus, StatusPanel.Alignment.RIGHT);
         statusPanel.addPlugin(viewpointStatus, StatusPanel.Alignment.RIGHT);

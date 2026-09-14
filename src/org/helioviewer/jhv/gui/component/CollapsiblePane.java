@@ -128,6 +128,22 @@ public class CollapsiblePane extends JComponent implements ActionListener {
     }
 
     /**
+     * Never shorter than it asks to be, and free in width.
+     *
+     * <p>GridBagLayout lays everything out at its minimum size as soon as the container is short of
+     * its preferred size in EITHER dimension (arrangeGrid, JDK 25 GridBagLayout.java:2070). The
+     * sidebars squeeze width on purpose (SqueezeView), so every section there was always being laid
+     * out at its minimum height. That is what emptied the Track CME table to its header, what cut the
+     * layer lists short, and what made the image layer readout jump: its preferred height is held at
+     * a high-water mark, but its minimum is recomputed from whatever the current frame says. Pinning
+     * the minimum here fixes it once, for every section in both sidebars, rather than per panel.
+     */
+    @Override
+    public java.awt.Dimension getMinimumSize() {
+        return new java.awt.Dimension(0, getPreferredSize().height);
+    }
+
+    /**
      * Controls that ride at the trailing end of the header, in line with the title.
      *
      * <p>These used to be a row of their own under the header, because a button placed here sits
