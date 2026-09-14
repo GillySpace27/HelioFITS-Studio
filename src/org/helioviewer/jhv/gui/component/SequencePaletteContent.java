@@ -2,10 +2,13 @@ package org.helioviewer.jhv.gui.component;
 
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.Font;
 import java.util.List;
 
 import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
@@ -15,6 +18,8 @@ import javax.swing.JPanel;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layer;
 import org.helioviewer.jhv.layers.Layers;
+import org.helioviewer.jhv.layers.filters.FilterDetails;
+import org.helioviewer.jhv.layers.filters.ImageFilterPanel;
 import org.helioviewer.jhv.layers.filters.SequencePanel;
 
 /**
@@ -32,12 +37,20 @@ import org.helioviewer.jhv.layers.filters.SequencePanel;
  * removed. It builds its own SequencePanel rather than borrowing the one in the layer row: a
  * Swing component has exactly one parent, and both read their state back from the layer, so the
  * two stay in step without having to talk to each other.
+ *
+ * <p>RHEF lives here too, as the palette's first section, which is why it is called Filters. Two reasons
+ * it belongs beside the Fourier filter rather than only in the Image Layers row. Setting up a session
+ * meant opening Image Layers again just for that one control. And the two filters act on each other: a
+ * sequence filter takes the per-frame filter to None, which used to happen in a panel nobody was
+ * looking at. The Image Layers row keeps its copy, since that is where the colour table, levels and
+ * contrast RHEF works together with are; both copies are bound to the one setting on the layer.
  */
 final class SequencePaletteContent {
 
     private static final JPanel panel = new JPanel(new BorderLayout());
     private static final JComboBox<ImageLayer> layerCombo = new JComboBox<>();
     private static final JLabel emptyLabel = new JLabel("No image layer");
+    private static final JPanel body = new JPanel(); // Per frame, then Whole movie; rebuilt per bound layer
     private static boolean built;
     private static boolean syncing; // rebuilding the combo's own items/selection, not a user pick
 
@@ -53,6 +66,8 @@ final class SequencePaletteContent {
     private static boolean boundOnce; // false until the first refresh(), so a null target still binds an empty state
     @Nullable
     private static SequencePanel sequencePanel;
+    @Nullable
+    private static ImageFilterPanel filterPanel;
 
     static Component build() {
         panel.removeAll();
@@ -76,10 +91,15 @@ final class SequencePaletteContent {
             refresh();
         });
         panel.add(layerCombo, BorderLayout.PAGE_START);
+        body.removeAll();
+        body.setLayout(new BoxLayout(body, BoxLayout.PAGE_AXIS));
+        body.setOpaque(false);
+        panel.add(body, BorderLayout.CENTER);
         lastLayers = List.of(); // force the combo to be populated fresh under the new owner
         boundLayer = null; // the palette may have been rebuilt under a new owner: rebind
         boundOnce = false;
         sequencePanel = null;
+        filterPanel = null;
         built = true;
         refresh();
         return panel;
@@ -132,18 +152,32 @@ final class SequencePaletteContent {
         if (target != boundLayer || !boundOnce) {
             boundLayer = target;
             boundOnce = true;
-            panel.remove(sequencePanel != null ? sequencePanel.getPaletteContent() : emptyLabel);
             sequencePanel = target == null ? null : new SequencePanel(target);
+            // Only for a layer with pixels. While a session restores, the active layer is the registry's
+            // placeholder, which has no GLImage, and ImageFilterPanel reads its enhance and Υ values
+            // straight off it: the first launch with RHEF in here threw on exactly that. Throwing here
+            // also left boundLayer set, so the palette would not have rebuilt until the layer changed.
+            filterPanel = target == null || target.getGLImage() == null ? null : new ImageFilterPanel(target);
             // Deliberately no setPreferredSize here. Pinning the height froze the palette at
             // whatever the readout said when it was built, and the readout gains two lines the
             // moment a kind is chosen: the last line and the run button under it ended up outside
             // the window. The content sizes itself and the window is repacked when it changes.
-            panel.add(sequencePanel != null ? sequencePanel.getPaletteContent() : emptyLabel, BorderLayout.CENTER);
+            body.removeAll();
+            if (sequencePanel == null || filterPanel == null)
+                body.add(left(emptyLabel));
+            else {
+                body.add(heading("Per frame"));
+                body.add(row(filterPanel));
+                body.add(heading("Whole movie"));
+                body.add(left(sequencePanel.getPaletteContent()));
+            }
             panel.revalidate();
             panel.repaint();
         }
         if (sequencePanel != null && boundLayer != null)
             sequencePanel.refresh(boundLayer);
+        if (filterPanel != null && boundLayer != null)
+            filterPanel.syncFromLayer(boundLayer); // RHEF may have been changed from the Image Layers row
         Palette.repackAll(); // the readout gains and loses lines; the window has to follow
     }
 
@@ -183,6 +217,35 @@ final class SequencePaletteContent {
             public void timeUpdated(Layer layer) {
             }
         });
+    }
+
+    /** A section title inside the palette: smaller than the palette's own header, a step above the controls. */
+    private static JLabel heading(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(label.getFont().deriveFont(Font.BOLD));
+        label.setBorder(BorderFactory.createEmptyBorder(8, 2, 3, 2));
+        return left(label);
+    }
+
+    /** One filter's three parts on a line, as FilterRowLayout lays them out in the Image Layers row. */
+    @SuppressWarnings("serial")
+    private static JPanel row(FilterDetails details) {
+        JPanel row = new JPanel(new BorderLayout(4, 0)) {
+            @Override
+            public Dimension getMaximumSize() { // a BoxLayout stretches a row to fill the height otherwise
+                return new Dimension(Integer.MAX_VALUE, getPreferredSize().height);
+            }
+        };
+        row.setOpaque(false);
+        row.add(details.getFirst(), BorderLayout.LINE_START);
+        row.add(details.getSecond(), BorderLayout.CENTER);
+        row.add(details.getThird(), BorderLayout.LINE_END);
+        return left(row);
+    }
+
+    private static <T extends javax.swing.JComponent> T left(T c) {
+        c.setAlignmentX(Component.LEFT_ALIGNMENT); // a BoxLayout mixes alignments into a staircase otherwise
+        return c;
     }
 
     private SequencePaletteContent() {}
