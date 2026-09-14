@@ -176,12 +176,24 @@ final class SequencePaletteContent {
         }
         if (sequencePanel != null && boundLayer != null)
             sequencePanel.refresh(boundLayer);
-        if (filterPanel != null && boundLayer != null)
+        if (filterPanel != null && boundLayer != null) {
             filterPanel.syncFromLayer(boundLayer); // RHEF may have been changed from the Image Layers row
+            // Greyed for a categorical colour table, as the Image Layers row greys it: a table that promises
+            // each value is exactly one colour is broken by anything that remaps values, RHEF included.
+            boolean categorical = org.helioviewer.jhv.image.lut.LUTLabels.isCategorical(boundLayer.getGLImage().getLUT());
+            for (Component part : new Component[]{filterPanel.getFirst(), filterPanel.getSecond(), filterPanel.getThird()})
+                org.helioviewer.jhv.gui.ComponentUtils.setEnabled(part, !categorical);
+            if (filterPanel.getFirst() instanceof javax.swing.JComponent label)
+                label.setToolTipText(categorical
+                        ? "Disabled: this layer's colours are a fixed category legend, not a value range to adjust" : null);
+        }
         Palette.repackAll(); // the readout gains and loses lines; the window has to follow
     }
 
     static {
+        // A colour table change fires no layer event (see LUTPanel.addLutListener for why), and it is what
+        // flips whether RHEF may be used on this layer.
+        org.helioviewer.jhv.layers.filters.LUTPanel.addLutListener(SequencePaletteContent::refresh);
         // The palette is not modal and the layer selection changes underneath it, so it has to be
         // told. This also catches a filter finishing, which is what moves the progress bar and
         // clears the status line.

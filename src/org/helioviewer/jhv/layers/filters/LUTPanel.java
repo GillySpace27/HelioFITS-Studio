@@ -25,6 +25,18 @@ public class LUTPanel implements FilterDetails {
     // LUT is in play can flip here, which gates other controls elsewhere (see
     // ImageLayerRenderingPanel.applyIndexedGating()). The callback must not call back into this
     // panel's setLUT()/combo -- that reopens the combo's own listener and loops forever.
+    /**
+     * Anything outside this panel that has to know a colour table changed: the Filters palette, which
+     * greys its copy of RHEF for a categorical table just as the Image Layers row does. A list rather
+     * than a Layers event, because a layerUpdated here would bring the Image Layers row back through
+     * setLUT(), and so through this listener, forever. Listeners must not touch a LUT either.
+     */
+    private static final java.util.List<Runnable> lutListeners = new java.util.ArrayList<>();
+
+    public static void addLutListener(Runnable listener) {
+        lutListeners.add(listener);
+    }
+
     public LUTPanel(ImageLayer layer, Runnable onLutChanged) {
         lutCombo = new LUTComboBox();
         JToggleButton invertButton = Buttons.flatToggle(Buttons.invert, layer.getGLImage().getInvertLUT());
@@ -43,6 +55,7 @@ public class LUTPanel implements FilterDetails {
             else
                 Layers.applyToSelected(layer, gl -> gl.setLUT(lutCombo.getLUT(), invertButton.isSelected()));
             onLutChanged.run();
+            lutListeners.forEach(Runnable::run);
             DisplayController.display();
         };
         lutCombo.addActionListener(listener);
