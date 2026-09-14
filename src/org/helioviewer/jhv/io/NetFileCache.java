@@ -12,6 +12,8 @@ import java.security.NoSuchAlgorithmException;
 
 import javax.annotation.Nonnull;
 
+import org.helioviewer.jhv.app.Log;
+
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 
@@ -22,6 +24,26 @@ public class NetFileCache {
 
     private static final LoadingCache<URI, DataUri> cache = Caffeine.newBuilder().softValues().
             build(NetFileCache::fetch);
+
+    // Download temp files that a process which died mid-download (a quit, a kill, a crash) left
+    // behind, swept on first use of the cache. Only old ones: a second running instance's download
+    // keeps its temp file's mtime fresh, and stalls past the 60 s read timeout and fails well
+    // before an hour, so an hour without a write means nobody is writing it.
+    // ponytail: once per launch, so an orphan younger than the cutoff waits for a later launch.
+    private static final long ORPHAN_AGE_MS = 3600_000L;
+
+    static {
+        long cutoff = System.currentTimeMillis() - ORPHAN_AGE_MS;
+        File[] orphans = Directories.FILECACHE.getFile().listFiles(f ->
+                f.getName().startsWith("dl") && f.getName().endsWith(".tmp") && f.isFile() && f.lastModified() < cutoff);
+        int swept = 0;
+        if (orphans != null)
+            for (File f : orphans)
+                if (Directories.isInsideCache(f) && f.delete())
+                    swept++;
+        if (swept > 0)
+            Log.info("Swept " + swept + " abandoned download temp file(s) from " + Directories.FILECACHE.getFile());
+    }
 
     private static DataUri fetch(URI uri) throws IOException {
         String scheme = uri.getScheme().toLowerCase();
@@ -44,20 +66,24 @@ public class NetFileCache {
         // leaves a truncated file that a later launch would mistake for a complete one.
         Path dir = Directories.FILECACHE.getFile().toPath();
         Path tmp = Files.createTempFile(dir, "dl", null);
-        try (NetClient nc = NetClient.of(uri, false, NetClient.NetCache.BYPASS); BufferedSink sink = Okio.buffer(Okio.sink(tmp))) {
-            sink.writeAll(nc.getSource());
-        } catch (IOException e) {
-            Files.deleteIfExists(tmp);
-            throw e;
-        }
-
-        Path target = cached.toPath();
         try {
-            Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE);
-        } catch (IOException e) {
-            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING); // ATOMIC_MOVE unsupported across devices
+            try (NetClient nc = NetClient.of(uri, false, NetClient.NetCache.BYPASS); BufferedSink sink = Okio.buffer(Okio.sink(tmp))) {
+                sink.writeAll(nc.getSource());
+            }
+
+            Path target = cached.toPath();
+            try {
+                Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE);
+            } catch (IOException e) {
+                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING); // ATOMIC_MOVE unsupported across devices
+            }
+            return new DataUri(uri, target.toUri(), cached);
+        } finally {
+            // Whatever ended the download, not only an IOException; nothing to do once it was moved.
+            // File.delete rather than Files.deleteIfExists, which could throw over the real failure.
+            // A JVM that exits mid-download never gets here: the sweep above covers that.
+            tmp.toFile().delete();
         }
-        return new DataUri(uri, target.toUri(), cached);
     }
 
     /** Where this URI's bytes live on disk once cached, whether or not the file exists yet. */
