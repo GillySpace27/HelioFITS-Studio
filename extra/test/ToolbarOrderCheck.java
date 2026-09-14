@@ -87,6 +87,22 @@ public final class ToolbarOrderCheck {
         expect("a tool already on the bar is never added twice",
                 has.stream().filter("timelines"::equals).count() == 1);
 
+        // Track CME joined the bar beside Projection. A bar saved before it existed is offered it once,
+        // in the place it was designed for rather than at the end.
+        Set<String> cmeKnown = Set.of("projection", "trackCme", "colour", "grid");
+        java.util.List<String> palettes = new java.util.ArrayList<>(List.of("projection", "colour", "grid"));
+        expect("Track CME is offered to a bar saved before it existed",
+                ToolBar.seedNewTools(palettes, cmeKnown, null).contains("trackCme"));
+        expect("and lands right after Projection",
+                palettes.indexOf("trackCme") == palettes.indexOf("projection") + 1);
+
+        // order() seeds into the STORED ids and writes those back. An id no tool answers to on this
+        // launch (samp, with the SAMP hub off) must come through a seed untouched, or one such launch
+        // erases it from the user's bar for good.
+        java.util.List<String> withSamp = new java.util.ArrayList<>(List.of("projection", "samp", "colour"));
+        ToolBar.seedNewTools(withSamp, cmeKnown, null);
+        expect("a tool not built on this launch survives seeding", withSamp.contains("samp"));
+
         expect("every id in the default order is a tool the bar actually builds, or a separator",
                 java.util.Arrays.stream(ToolBar.DEFAULT_ORDER.split("\\|"))
                         .allMatch(id -> ToolBar.SEPARATOR.equals(id) || ToolBar.MORE_DIVIDER.equals(id)
@@ -164,7 +180,7 @@ public final class ToolbarOrderCheck {
             "resetCamera", "resetAxis", "rotate90",
             "pan", "rotate", "axis",
             "track", "diffRotation", "corona", "multiview", "sidebarLeft", "timelines", "sidebarRight", "annotate",
-            "projection", "colour", "sequence", "grid", "camera",
+            "projection", "trackCme", "colour", "sequence", "grid", "camera",
             "refresh", "sdoCutout", "samp",
             "more");
 

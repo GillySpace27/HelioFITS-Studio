@@ -102,6 +102,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private final ButtonText OFFDISK = new ButtonText(Buttons.offDisk, "Corona", "Toggle off-disk corona");
     private final ButtonText PAN = new ButtonText(Buttons.pan, "Pan", "Pan");
     private final ButtonText PROJECTION = new ButtonText(Buttons.projection, "Projection", "Projection");
+    private final ButtonText TRACK_CME = new ButtonText(Buttons.trackCme, "Track CME",
+            "Pick a CACTus CME in the loaded range and hold its front at a fixed screen radius");
     private final ButtonText COLOUR = new ButtonText(Buttons.colourSettings, "HDR", "How the whole view is mapped into the display's extended range: headroom, mapping, knee, in-range share, clipped pixels");
     private final ButtonText SEQUENCE = new ButtonText(Buttons.sequenceFilter, "Fourier", "Fourier filter over the whole movie: pick the layer, drag a band, watch it play");
     private final ButtonText GRID = new ButtonText(Buttons.grid, "Grid", "Grid, Thomson sphere, celestial sphere, ecliptic and planet overlay settings");
@@ -234,7 +236,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
      * an id here when the tool is introduced; remove it once nobody is running a build older than
      * that.
      */
-    private static final java.util.Set<String> SEED_ONCE = java.util.Set.of("timelines", "sidebarLeft", "sidebarRight");
+    private static final java.util.Set<String> SEED_ONCE = java.util.Set.of("timelines", "sidebarLeft", "sidebarRight", "trackCme");
 
     static final String DEFAULT_ORDER = String.join("|",
             "present", SEPARATOR,
@@ -242,7 +244,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             "resetCamera", "resetAxis", "rotate90", SEPARATOR,
             "pan", "rotate", "axis", SEPARATOR,
             "track", "diffRotation", "corona", "multiview", "sidebarLeft", "timelines", "sidebarRight", SEPARATOR,
-            "projection", "colour", "sequence", "grid", "camera", "annotate", SEPARATOR,
+            "projection", "trackCme", "colour", "sequence", "grid", "camera", "annotate", SEPARATOR,
             MORE_DIVIDER,
             "refresh", "sdoCutout", "samp");
 
@@ -271,16 +273,20 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             stored = migrated;
             Settings.setProperty(ORDER_KEY, stored);
         }
-        java.util.List<String> ids = resolveOrder(stored, known);
-
         String seeded = Settings.getProperty(SEEDED_KEY);
-        java.util.List<String> placed = seedNewTools(ids, known, seeded);
+        // Seeded into the stored ids, not the resolved ones. Resolving drops every id no tool answers
+        // to on this launch, and not every tool is built on every launch (samp only with the SAMP hub
+        // on), so writing the resolved list back would erase a tool for good because of one launch
+        // without it. The stored string is the user's; this only ever inserts into it.
+        java.util.List<String> raw = new java.util.ArrayList<>(java.util.Arrays.asList(stored.split("\\|")));
+        java.util.List<String> placed = seedNewTools(raw, known, seeded);
         if (!placed.isEmpty()) {
-            Settings.setProperty(ORDER_KEY, String.join("|", ids));
+            stored = String.join("|", raw);
+            Settings.setProperty(ORDER_KEY, stored);
             Settings.setProperty(SEEDED_KEY,
                     seeded == null || seeded.isBlank() ? String.join("|", placed) : seeded + "|" + String.join("|", placed));
         }
-        return ids;
+        return resolveOrder(stored, known);
     }
 
     /**
@@ -680,6 +686,14 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         JToggleButton projectionButton = toolToggleButton(PROJECTION);
         projectionPalette.bind(projectionButton);
         register("projection", PROJECTION, projectionButton);
+
+        // Track CME was a dialog, then a palette that only existed once something opened it, so it
+        // could not be on the bar, had no home to come back to, and was never there at launch. It is
+        // built here with the rest, docks into the right sidebar by default, and remembers where the
+        // user puts it like any other palette. Beside Projection because tracking drives the warp.
+        JToggleButton trackCmeButton = toolToggleButton(TRACK_CME);
+        org.helioviewer.jhv.event.info.CactusTrackPanel.palette().bind(trackCmeButton);
+        register("trackCme", TRACK_CME, trackCmeButton);
 
         // Colour settings are per view, not per layer: they decide how every frame of every movie
         // is shown, so they belong beside Projection rather than inside a layer's own row.
