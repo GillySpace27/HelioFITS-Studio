@@ -139,7 +139,9 @@ public final class CacheIndex {
     // -- scanning --------------------------------------------------------------------------
 
     private static final String INDEX_NAME = "cacheIndex.json";
-    private static final int INDEX_VERSION = 2; // bump to force a full re-read after a format change
+    // bump to force a full re-read after a format change. 3: PUNCH frames are named "PUNCH CAM v0l" now, not
+    // "WFI+NFI Mosaic", and datasets group by name, so frames indexed under the old name would split a dataset.
+    private static final int INDEX_VERSION = 3;
     private static final int MAX_HDUS = 4; // an identity card is in the first image HDU or not there
 
     private static File indexFile() {

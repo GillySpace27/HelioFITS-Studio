@@ -11,6 +11,16 @@ public interface MetaData {
     @Nonnull
     String getDisplayName();
 
+    /**
+     * The data pipeline's version for this file, as the file itself states it ("0l" for PUNCH's FILEVRSN),
+     * or empty where a format has no such thing. Separate from the name so the readout can show it for a
+     * load that asked for whatever was newest.
+     */
+    @Nonnull
+    default String getPipelineVersion() {
+        return "";
+    }
+
     @Nonnull
     Region getPhysicalRegion();
 

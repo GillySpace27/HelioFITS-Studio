@@ -329,10 +329,17 @@ final class ImageLayerManagePanel extends JPanel {
      */
     private String pipelineVersionSuffix() {
         FitsRequest request = layer.getFitsRequest();
+        boolean latest = request != null && PunchClient.LATEST_VERSION.equals(request.version());
+        // The version the frames actually carry, from their own FILEVRSN. A load that asked for the latest
+        // used to say only "(latest at load)", which is the one thing it cannot tell you: PUNCH releases a
+        // new pipeline version every couple of months, and which one a movie was made from decides what it
+        // can be compared with.
+        String loaded = layer.getMetaData().getPipelineVersion();
+        if (!loaded.isEmpty())
+            return " (v" + loaded + (latest ? ", latest at load" : "") + ")";
         if (request == null || request.version().isBlank())
             return "";
-        return PunchClient.LATEST_VERSION.equals(request.version())
-                ? " (latest at load)" : " (" + request.version() + ")";
+        return latest ? " (latest at load)" : " (" + request.version() + ")";
     }
 
     /**

@@ -22,6 +22,7 @@ public final class FitsMetaData extends CommonMetaData {
     private String detector = "";
     private String measurement = "";
     private String observatory = "";
+    private String pipelineVersion = ""; // FILEVRSN, for the formats that carry one
 
     private double referenceX = 0;
     private double referenceY = 0;
@@ -260,6 +261,15 @@ public final class FitsMetaData extends CommonMetaData {
         } else if (instrument.equals("SPICE")) {
             measurement = m.getString("CMPNAM").orElse("");
             displayName = instrument + ' ' + measurement;
+        } else if (m.getString("OBSRVTRY").orElse("").trim().equals("PUNCH")) {
+            // "PUNCH CAM v0l", from the file's own cards: TYPECODE "CA" and OBSCODE "M" make the product code
+            // the archive and the PUNCH dialog use, and FILEVRSN "0l" is the pipeline version. The generic
+            // branch below called it "WFI+NFI Mosaic 530", which is the same for the clear and polarized
+            // mosaics and says nothing of the version, and versions are released every couple of months.
+            String product = m.getString("TYPECODE").orElse("").trim() + m.getString("OBSCODE").orElse("").trim();
+            pipelineVersion = m.getString("FILEVRSN").orElse("").trim();
+            displayName = "PUNCH " + (product.isEmpty() ? instrument : product)
+                    + (pipelineVersion.isEmpty() ? "" : " v" + pipelineVersion);
         } else if (detector.equals("demregpy")) {
             displayName = "DEM " + instrument;
         } else if (originIsPtmcCompo) {
@@ -471,6 +481,12 @@ public final class FitsMetaData extends CommonMetaData {
     @Nonnull
     public String getMeasurement() {
         return measurement;
+    }
+
+    @Nonnull
+    @Override
+    public String getPipelineVersion() {
+        return pipelineVersion;
     }
 
     @Nonnull
