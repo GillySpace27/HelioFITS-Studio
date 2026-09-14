@@ -214,6 +214,26 @@ public final class Layers {
         return gridLayer;
     }
 
+    /**
+     * Tell every listener, each on its own.
+     *
+     * <p>A bare forEach let one listener's exception end the loop, and these loops sit in the middle
+     * of add and remove: when the Fourier filter palette threw on 2026-09-14, the listeners after it
+     * never heard about the layer, ImageLayer.create never got as far as starting the load, and the
+     * layer sat at "Loading..." with nothing in the log. New Session stopped after one removal the
+     * same way. A listener that fails is logged and skipped; the layer list is not held hostage to it.
+     * Iterates a copy, so a listener that registers another one while being told is also safe.
+     */
+    private static void tell(java.util.function.Consumer<Listener> event) {
+        for (Listener listener : List.copyOf(listeners)) {
+            try {
+                event.accept(listener);
+            } catch (RuntimeException e) {
+                org.helioviewer.jhv.app.Log.error("Layer listener " + listener.getClass().getName() + " failed", e);
+            }
+        }
+    }
+
     public static void add(Layer layer) {
         if (layer instanceof ImageLayer) {
             layers.add(imageLayersCount++, layer);
@@ -224,7 +244,7 @@ public final class Layers {
         cacheLayer(layer);
 
         int row = layers.indexOf(layer);
-        listeners.forEach(listener -> listener.layerAdded(row, layer));
+        tell(listener -> listener.layerAdded(row, layer));
         DisplayController.display(); // e.g., PFSS layer
     }
 
@@ -258,7 +278,7 @@ public final class Layers {
             masterChosen = false; // a fallback, not a choice: the next arriving layer may take it
         }
 
-        listeners.forEach(listener -> listener.layerRemoved(row, layer));
+        tell(listener -> listener.layerRemoved(row, layer));
         DisplayController.display();
     }
 
@@ -358,15 +378,15 @@ public final class Layers {
     }
 
     public static void fireTimeUpdated(Layer layer) {
-        listeners.forEach(listener -> listener.timeUpdated(layer));
+        tell(listener -> listener.timeUpdated(layer));
     }
 
     public static void fireNameUpdated(Layer layer) {
-        listeners.forEach(listener -> listener.nameUpdated(layer));
+        tell(listener -> listener.nameUpdated(layer));
     }
 
     public static void fireLayerUpdated(Layer layer) {
-        listeners.forEach(listener -> listener.layerUpdated(layer));
+        tell(listener -> listener.layerUpdated(layer));
     }
 
     public static void addListener(Listener listener) {
@@ -524,7 +544,7 @@ public final class Layers {
             viewpointLayer.getOptions().applyStashedLegacyCameraLayer();
 
         setActiveImageLayer(null);
-        listeners.forEach(Listener::layersCleared);
+        tell(Listener::layersCleared);
         DisplayController.display();
     }
 

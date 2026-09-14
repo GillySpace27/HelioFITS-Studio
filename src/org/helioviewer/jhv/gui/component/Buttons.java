@@ -228,6 +228,7 @@ public class Buttons {
     public static final GlyphIcon pan = icon(MaterialDesign.CURSOR_MOVE, TOOLBAR);
     public static final GlyphIcon projection = icon(MaterialDesign.CUBE_OUTLINE, TOOLBAR);
     public static final GlyphIcon trackCme = icon(MaterialDesign.CROSSHAIRS_GPS, TOOLBAR); // a reticle: pick a front and hold it
+    public static final GlyphIcon activityDone = icon(MaterialDesign.CHECK, INLINE); // the footer's "everything has landed"
     public static final GlyphIcon sequenceFilter = icon(MaterialDesign.FILTER, TOOLBAR); // NOT a vector-circle
     public static final GlyphIcon grid = icon(MaterialDesign.GRID, TOOLBAR);
     public static final GlyphIcon camera = icon(MaterialDesign.CAMERA, TOOLBAR);

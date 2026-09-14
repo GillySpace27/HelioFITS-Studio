@@ -99,7 +99,12 @@ final class SequencePaletteContent {
 
         List<ImageLayer> current = Layers.getImageLayers();
         if (!current.equals(lastLayers)) {
-            lastLayers = current;
+            // A copy. Layers.getImageLayers() is a live subList view, and once the layer list changes, any
+            // use of an old view throws ConcurrentModificationException. Holding the view itself made
+            // the next add or remove throw from inside Layers' listener loop, which stranded the new
+            // layer at "Loading..." (ImageLayer.create never reached load) and stopped New Session
+            // after its first removal. Gilly's report, 2026-09-14.
+            lastLayers = List.copyOf(current);
             syncing = true;
             try {
                 layerCombo.removeAllItems();
