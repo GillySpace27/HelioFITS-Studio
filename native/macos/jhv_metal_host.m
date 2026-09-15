@@ -217,6 +217,21 @@ void jhv_metal_host_set_frame_sync(void *boxPtr, double x, double y, double widt
     });
 }
 
+void jhv_metal_host_set_visible(void *boxPtr, int visible) {
+    if (boxPtr == NULL)
+        return;
+
+    JHVMetalHostBox *box = (__bridge JHVMetalHostBox *)boxPtr;
+    CFRetain((__bridge CFTypeRef)box);
+    jhv_run_on_main_async(^{
+        @autoreleasepool {
+            JHVMetalHostBox *retainedBox = box;
+            retainedBox.metalLayer.hidden = visible == 0;
+            CFRelease((__bridge CFTypeRef)retainedBox);
+        }
+    });
+}
+
 void *jhv_metal_host_get_layer(void *boxPtr) {
     if (boxPtr == NULL)
         return NULL;

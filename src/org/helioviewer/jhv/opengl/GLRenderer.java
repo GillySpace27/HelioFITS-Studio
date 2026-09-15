@@ -151,7 +151,7 @@ public final class GLRenderer {
         // (warp lambda, warp crop, disk scale) are read inside that call and by the warp mesh in
         // the same call: applied after it they would be one frame stale. And here rather than on
         // a Player time listener because a frame is also drawn when nothing about time changed,
-        // and because ExportMovie.handleMovieExport() grabs from the bottom of this same method,
+        // and because ExportMovie.renderedFrame() grabs from the bottom of this same method,
         // so the pixels encoded are the pixels one evaluation produced. See Automation.
         Automation.apply(Player.getTime().milli);
 
@@ -174,8 +174,7 @@ public final class GLRenderer {
         if (ProjectionTransition.isActive())
             RenderGuard.run("projection transition", GLRenderer::renderTransitionOverlay);
 
-        if (ExportMovie.isRecording())
-            ExportMovie.handleMovieExport();
+        ExportMovie.renderedFrame();
     }
 
     // Snapshot of the scene a projection switch is fading out of, captured once when the

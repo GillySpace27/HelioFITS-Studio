@@ -56,7 +56,7 @@ public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.R
     private double arrowLength = 8;
     private double arrowWidth = 3;
     private double arrowHalfAngle = 0; // >0 turns the arrow into an ice-cream-cone CME model
-    private Colors.NamedColor arrowColor = Colors.NamedColor.Red;
+    private Colors arrowColor = Colors.Red;
 
     private PointCloudMesh.Parameters uploadedParameters;
     private PointCloudMesh.Result readyResult;
@@ -77,7 +77,7 @@ public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.R
             arrowLength = Math.clamp(jo.optDouble("arrowLength", arrowLength), 1, 200);
             arrowWidth = Math.clamp(jo.optDouble("arrowWidth", arrowWidth), 0.5, 20);
             arrowHalfAngle = Math.clamp(jo.optDouble("arrowHalfAngle", arrowHalfAngle), 0, 89);
-            arrowColor = Colors.NamedColor.parse(jo.optString("arrowColor", arrowColor.name()), arrowColor);
+            arrowColor = Colors.parse(jo.optString("arrowColor", arrowColor.name()), arrowColor);
             JSONArray uris = jo.optJSONArray("sources");
             if (uris != null)
                 for (int i = 0; i < uris.length(); i++) {
@@ -475,11 +475,11 @@ public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.R
         DisplayController.display();
     }
 
-    Colors.NamedColor getArrowColor() {
+    Colors getArrowColor() {
         return arrowColor;
     }
 
-    void setArrowColor(Colors.NamedColor v) {
+    void setArrowColor(Colors v) {
         arrowColor = v;
         DisplayController.display();
     }

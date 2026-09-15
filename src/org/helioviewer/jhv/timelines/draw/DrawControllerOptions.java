@@ -1,6 +1,7 @@
 package org.helioviewer.jhv.timelines.draw;
 
 import java.awt.BorderLayout;
+import java.awt.Dimension;
 import java.util.Objects;
 
 import javax.swing.JComboBox;
@@ -18,6 +19,7 @@ class DrawControllerOptions extends JPanel {
 
     private final JComboBox<ZoomItem> zoomCombo;
     private final JToggleButton lockButton;
+    private final JToggleButton stackedButton;
     private final JLabel statusLabel;
 
     private enum ZOOM {
@@ -42,6 +44,8 @@ class DrawControllerOptions extends JPanel {
                 new ZoomItem(ZOOM.Hour, 1)
         };
         zoomCombo = new JComboBox<>(items);
+        zoomCombo.setMaximumSize(new Dimension(130, zoomCombo.getPreferredSize().height));
+        zoomCombo.setPreferredSize(new Dimension(110, zoomCombo.getPreferredSize().height));
         zoomCombo.addActionListener(e -> {
             ZoomItem item = (ZoomItem) Objects.requireNonNull(zoomCombo.getSelectedItem());
             zoomTo(item.zoom, item.number);
@@ -52,6 +56,13 @@ class DrawControllerOptions extends JPanel {
         lockButton.addActionListener(e -> {
             DrawController.setLocked(lockButton.isSelected());
             lockButton.setIcon(lockButton.isSelected() ? Buttons.lock : Buttons.unlock);
+        });
+
+        stackedButton = Buttons.flatToggle(Buttons.overlaid, false);
+        stackedButton.setToolTipText("Stack layers vertically");
+        stackedButton.addActionListener(e -> {
+            DrawController.setStacked(stackedButton.isSelected());
+            stackedButton.setIcon(stackedButton.isSelected() ? Buttons.stacked : Buttons.overlaid);
         });
 
         statusLabel = new JLabel("", JLabel.RIGHT);
@@ -71,15 +82,16 @@ class DrawControllerOptions extends JPanel {
             DrawController.drawRequest();
         });
 
-        javax.swing.JPanel center = new javax.swing.JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.CENTER, 4, 0));
-        center.add(lockButton);
-        center.add(endpointsButton);
-        center.add(new JLabel("↕"));
-        center.add(barSlider);
+        JPanel togglePanel = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 4, 0));
+        togglePanel.add(stackedButton);
+        togglePanel.add(zoomCombo);
+        togglePanel.add(lockButton);
+        togglePanel.add(endpointsButton);
+        togglePanel.add(new JLabel("↕"));
+        togglePanel.add(barSlider);
 
         add(statusLabel, BorderLayout.LINE_START);
-        add(center, BorderLayout.CENTER);
-        add(zoomCombo, BorderLayout.LINE_END);
+        add(togglePanel, BorderLayout.CENTER);
     }
 
     private record ZoomItem(ZOOM zoom, long number) {
@@ -87,7 +99,7 @@ class DrawControllerOptions extends JPanel {
         public String toString() {
             String plural = number > 1 ? "s" : "";
             return switch (zoom) {
-                case CUSTOM -> "Custom interval";
+                case CUSTOM -> "Custom";
                 case All -> "Maximum interval";
                 case Year -> number + " year" + plural;
                 case Month -> number + " month" + plural;
@@ -125,6 +137,11 @@ class DrawControllerOptions extends JPanel {
     void setLocked(boolean locked) {
         if (lockButton.isSelected() != locked)
             lockButton.doClick();
+    }
+
+    void setStacked(boolean stacked) {
+        if (stackedButton.isSelected() != stacked)
+            stackedButton.doClick();
     }
 
     void setStatus(String status) {

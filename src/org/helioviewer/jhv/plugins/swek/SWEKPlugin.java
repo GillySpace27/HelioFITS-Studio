@@ -1,5 +1,7 @@
 package org.helioviewer.jhv.plugins.swek;
 
+import javax.annotation.Nullable;
+
 import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.layers.Layers;
@@ -86,6 +88,11 @@ public class SWEKPlugin extends Plugin {
     static void layerStateChanged(SWEKLayer _layer) {
         if (layer == _layer)
             instance.bindLayer();
+    }
+
+    @Nullable
+    static EventTimelineLayer getTimelineLayer() {
+        return instance == null ? null : instance.etl;
     }
 
     private void bindLayer() {

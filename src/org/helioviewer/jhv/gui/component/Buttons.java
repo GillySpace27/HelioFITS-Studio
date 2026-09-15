@@ -96,6 +96,8 @@ public class Buttons {
     public static final GlyphIcon lockBadge = icon(MaterialDesign.LOCK, 10);
     public static final GlyphIcon unlockPanels = icon(MaterialDesign.LOCK_OPEN, INLINE);
     public static final GlyphIcon unlock = icon(MaterialDesign.LOCK_OPEN, INLINE);
+    public static final GlyphIcon stacked = icon(MaterialDesign.CHART_GANTT, INLINE);
+    public static final GlyphIcon overlaid = icon(MaterialDesign.BORDER_ALL, INLINE);
 
     public static final GlyphIcon sync = icon(MaterialDesign.SYNC, INLINE);
     public static final GlyphIcon runFilter = icon(MaterialDesign.PLAY, INLINE);
@@ -200,6 +202,8 @@ public class Buttons {
     }
     public static final GlyphIcon collapseAll = icon(MaterialDesign.CHEVRON_UP, INLINE);
     public static final GlyphIcon expandAll = icon(MaterialDesign.CHEVRON_DOWN, INLINE);
+    public static final GlyphIcon maximizePanel = icon(MaterialDesign.CHEVRON_UP, INLINE);
+    public static final GlyphIcon restorePanel = icon(MaterialDesign.CHEVRON_DOWN, INLINE);
     // Arrows, not chevrons. A chevron in this application means disclosure: the one on a section
     // header opens it, the one on the sidebar handle folds the bar away. Reordering a section is a
     // different verb, and giving it the same glyph left two controls a few pixels apart that looked

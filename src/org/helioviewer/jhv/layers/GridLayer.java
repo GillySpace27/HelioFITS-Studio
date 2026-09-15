@@ -53,6 +53,8 @@ public final class GridLayer extends AbstractLayer {
     private static final double LINEWIDTH_THICK = 2 * LINEWIDTH;
     private static final double LINEWIDTH_EARTH = LINEWIDTH;
     private static final double LINEWIDTH_AXES = 2 * LINEWIDTH;
+    private static final float[] LABEL_COLOR = Colors.WhiteFloat;
+    private static final float[] RADIAL_LABEL_COLOR = Colors.MiddleGrayFloat;
     // private static final double PLANETEXT_Z = 0.01;
 
     private double lonStep = 30;
@@ -68,9 +70,9 @@ public final class GridLayer extends AbstractLayer {
     private boolean showThomson = false;
     private boolean showEcliptic = false;
     private boolean showCelestial = false;
-    private Colors.NamedColor thomsonColor = Colors.NamedColor.Cyan;
-    private Colors.NamedColor eclipticColor = Colors.NamedColor.Yellow;
-    private Colors.NamedColor celestialColor = Colors.NamedColor.Magenta;
+    private Colors thomsonColor = Colors.Cyan;
+    private Colors eclipticColor = Colors.Yellow;
+    private Colors celestialColor = Colors.Magenta;
     // Same affordances the grid itself has, per surface: with two wireframes and a grid overlaid
     // on the imagery, colour alone does not separate them -- opacity is what stops a dense mesh
     // burying the data, and width is what keeps a sparse one visible over bright corona.
@@ -112,10 +114,12 @@ public final class GridLayer extends AbstractLayer {
      */
     private double celestialExtent = CELESTIAL_EXTENT_DEFAULT;
 
-    private Colors.NamedColor gridColor = Colors.NamedColor.ReducedGreen;
+    private Colors gridColor = Colors.ReducedGreen;
     private double gridAlpha = 0.47;
     private byte[] gridColorBytes = Colors.bytes(gridColor.awtColor(), gridAlpha); // honors a non-1 default alpha
     private double labelAlpha = 1;
+    private float[] labelColor = LABEL_COLOR;
+    private float[] radialLabelColor = RADIAL_LABEL_COLOR;
     private double gridLineScale = 1;
     private double gridLabelSize = 16;
     private double gridLabelAngle = 148;
@@ -140,7 +144,7 @@ public final class GridLayer extends AbstractLayer {
      */
     private final GLSLShape observerPoint = new GLSLShape(false);
     private final BufVertex observerBuf = new BufVertex(GLSLShape.stride); // one vertex
-    private static final byte[] OBSERVER_COLOR = Colors.Blue;
+    private static final byte[] OBSERVER_COLOR = Colors.Blue.bytes();
     // As a fraction of the camera width, so the dot keeps a constant size on screen: the point
     // shader multiplies by pixels-per-scene-unit, and this view's camera spans hundreds of solar
     // radii, where earthPoint's fixed 0.02 scene units would be a small fraction of one pixel.
@@ -230,10 +234,11 @@ public final class GridLayer extends AbstractLayer {
         showAxis = jo.optBoolean("showAxis", showAxis);
         showLabels = jo.optBoolean("showLabels", showLabels);
         showRadial = jo.optBoolean("showRadial", showRadial);
-        gridColor = Colors.NamedColor.parse(jo.optString("color", gridColor.name()), gridColor);
+        gridColor = Colors.parse(jo.optString("color", gridColor.name()), gridColor);
         gridAlpha = Math.clamp(jo.optDouble("alpha", gridAlpha), 0, 1);
         updateGridColorBytes();
         labelAlpha = Math.clamp(jo.optDouble("labelAlpha", labelAlpha), 0, 1);
+        updateLabelColors();
         gridLineScale = Math.clamp(jo.optDouble("lineScale", gridLineScale), GRID_LINE_SCALE_MIN, GRID_LINE_SCALE_MAX);
         gridLabelSize = Math.clamp(jo.optDouble("labelSize", gridLabelSize), GRID_LABEL_SIZE_MIN, GRID_LABEL_SIZE_MAX);
         gridLabelAngle = jo.optDouble("labelAngle", gridLabelAngle);
@@ -245,9 +250,9 @@ public final class GridLayer extends AbstractLayer {
         showThomson = jo.optBoolean("showThomson", showThomson);
         showEcliptic = jo.optBoolean("showEcliptic", showEcliptic);
         showCelestial = jo.optBoolean("showCelestial", showCelestial);
-        thomsonColor = Colors.NamedColor.parse(jo.optString("thomsonColor", thomsonColor.name()), thomsonColor);
-        eclipticColor = Colors.NamedColor.parse(jo.optString("eclipticColor", eclipticColor.name()), eclipticColor);
-        celestialColor = Colors.NamedColor.parse(jo.optString("celestialColor", celestialColor.name()), celestialColor);
+        thomsonColor = Colors.parse(jo.optString("thomsonColor", thomsonColor.name()), thomsonColor);
+        eclipticColor = Colors.parse(jo.optString("eclipticColor", eclipticColor.name()), eclipticColor);
+        celestialColor = Colors.parse(jo.optString("celestialColor", celestialColor.name()), celestialColor);
         thomsonAlpha = Math.clamp(jo.optDouble("thomsonAlpha", thomsonAlpha), 0, 1);
         eclipticAlpha = Math.clamp(jo.optDouble("eclipticAlpha", eclipticAlpha), 0, 1);
         celestialAlpha = Math.clamp(jo.optDouble("celestialAlpha", celestialAlpha), 0, 1);
@@ -337,12 +342,12 @@ public final class GridLayer extends AbstractLayer {
                     radialCircleLineFar.renderLine(vp, LINEWIDTH);
                     radialThickLineFar.renderLine(vp, LINEWIDTH_THICK);
                     if (showLabels)
-                        drawRadialGridText(radialLabelsFar, ztext, R_LABEL_POS_FAR, Colors.fade(Colors.MiddleGrayFloat, labelAlpha));
+                        drawRadialGridText(radialLabelsFar, ztext, R_LABEL_POS_FAR, radialLabelColor);
                 } else {
                     radialCircleLine.renderLine(vp, LINEWIDTH);
                     radialThickLine.renderLine(vp, LINEWIDTH_THICK);
                     if (showLabels)
-                        drawRadialGridText(radialLabels, ztext, R_LABEL_POS, Colors.fade(Colors.MiddleGrayFloat, labelAlpha));
+                        drawRadialGridText(radialLabels, ztext, R_LABEL_POS, radialLabelColor);
                 }
             }
             Transform.popView();
@@ -354,7 +359,7 @@ public final class GridLayer extends AbstractLayer {
         if (mv.isHelioradial()) {
             Transform.pushView();
             Transform.rotateViewInverse(viewpoint.toQuat());
-            helioradialGrid.renderWorld(mv, vp, showLabels, lonStep, gridColorBytes, gridLineScale, Colors.fade(Colors.WhiteFloat, labelAlpha), gridLabelSize, gridLabelAngle);
+            helioradialGrid.renderWorld(mv, vp, showLabels, lonStep, gridColorBytes, gridLineScale, labelColor, gridLabelSize, gridLabelAngle);
             Transform.popView();
         }
     }
@@ -376,14 +381,14 @@ public final class GridLayer extends AbstractLayer {
         if (!isVisible[vp.idx])
             return;
         if (mv.isHelioradial())
-            helioradialGrid.render(mv, vp, showLabels, lonStep, gridColorBytes, gridLineScale, Colors.fade(Colors.WhiteFloat, labelAlpha), gridLabelSize, gridLabelAngle);
+            helioradialGrid.render(mv, vp, showLabels, lonStep, gridColorBytes, gridLineScale, labelColor, gridLabelSize, gridLabelAngle);
         // The observer sky is a zenithal projection, so its grid is rings and spokes about the aim
         // rather than a ruling of the page. See SkyGrid for why a cartesian grid there is drawable
         // but meaningless.
         else if (mv.isObserverSky())
-            skyGrid.render(mv, vp, showLabels, lonStep, gridColorBytes, gridLineScale, Colors.fade(Colors.WhiteFloat, labelAlpha), gridLabelSize, gridLabelAngle);
+            skyGrid.render(mv, vp, showLabels, lonStep, gridColorBytes, gridLineScale, labelColor, gridLabelSize, gridLabelAngle);
         else
-            flatGrid.render(mv, vp, showLabels, gridColorBytes, gridLineScale, Colors.fade(Colors.WhiteFloat, labelAlpha), gridLabelSize);
+            flatGrid.render(mv, vp, showLabels, gridColorBytes, gridLineScale, labelColor, gridLabelSize);
     }
 
     /**
@@ -564,7 +569,7 @@ public final class GridLayer extends AbstractLayer {
 
     private void drawGridText(float z) {
         SdfTextRenderer renderer = GLText.renderer();
-        renderer.setColor(Colors.fade(Colors.WhiteFloat, labelAlpha));
+        renderer.setColor(labelColor);
         // the scale factor has to be divided by the current font size
         float textScaleFactor = (float) (textScale * gridLabelSize / GRID_LABEL_SIZE_REF / renderer.getFontSize());
 
@@ -700,11 +705,11 @@ public final class GridLayer extends AbstractLayer {
         DisplayController.display();
     }
 
-    public Colors.NamedColor getGridColor() {
+    public Colors getGridColor() {
         return gridColor;
     }
 
-    public void setGridColor(Colors.NamedColor _gridColor) {
+    public void setGridColor(Colors _gridColor) {
         gridColor = _gridColor;
         updateGridColorBytes();
         gridNeedsInit = true;
@@ -747,6 +752,7 @@ public final class GridLayer extends AbstractLayer {
     /** As {@link #aimGridAlpha}: the state change without the repaint. */
     public void aimLabelAlpha(double _labelAlpha) {
         labelAlpha = Math.clamp(_labelAlpha, 0, 1);
+        updateLabelColors();
     }
 
     public double getGridLineScale() {
@@ -808,29 +814,29 @@ public final class GridLayer extends AbstractLayer {
         DisplayController.display();
     }
 
-    public Colors.NamedColor getThomsonColor() {
+    public Colors getThomsonColor() {
         return thomsonColor;
     }
 
-    public void setThomsonColor(Colors.NamedColor c) {
+    public void setThomsonColor(Colors c) {
         thomsonColor = c;
         DisplayController.display();
     }
 
-    public Colors.NamedColor getEclipticColor() {
+    public Colors getEclipticColor() {
         return eclipticColor;
     }
 
-    public void setEclipticColor(Colors.NamedColor c) {
+    public void setEclipticColor(Colors c) {
         eclipticColor = c;
         DisplayController.display();
     }
 
-    public Colors.NamedColor getCelestialColor() {
+    public Colors getCelestialColor() {
         return celestialColor;
     }
 
-    public void setCelestialColor(Colors.NamedColor c) {
+    public void setCelestialColor(Colors c) {
         celestialColor = c;
         DisplayController.display();
     }
@@ -976,6 +982,11 @@ public final class GridLayer extends AbstractLayer {
 
     private void updateGridColorBytes() {
         gridColorBytes = gridAlpha == 1 ? gridColor.bytes() : Colors.bytes(gridColor.awtColor(), gridAlpha);
+    }
+
+    private void updateLabelColors() {
+        labelColor = Colors.fade(LABEL_COLOR, labelAlpha);
+        radialLabelColor = Colors.fade(RADIAL_LABEL_COLOR, labelAlpha);
     }
 
 }

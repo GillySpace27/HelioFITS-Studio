@@ -158,10 +158,10 @@ class PointCloudOptions extends JPanel {
         c.gridx = 2;
         add(labeled("Half-angle", halfAngle), c);
 
-        JComboBox<Colors.NamedColor> arrowColor = new JComboBox<>(Colors.NamedColor.values());
+        JComboBox<Colors> arrowColor = new JComboBox<>(Colors.values());
         arrowColor.setSelectedItem(layer.getArrowColor());
         arrowColor.addActionListener(e -> {
-            Colors.NamedColor picked = (Colors.NamedColor) arrowColor.getSelectedItem();
+            Colors picked = (Colors) arrowColor.getSelectedItem();
             if (picked != null)
                 layer.setArrowColor(picked);
         });

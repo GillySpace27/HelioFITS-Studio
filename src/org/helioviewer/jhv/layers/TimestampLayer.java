@@ -42,7 +42,7 @@ public final class TimestampLayer extends AbstractLayer {
     // same line spacing GLText uses for its float text, so the annotation stack reads like the
     // other on-canvas text rather than like a second, differently set block
     private static final float LINE_HEIGHT = 1.1f;
-    private static final byte[] clockColor = Colors.LightGray;
+    private static final byte[] clockColor = Colors.LightGray.bytes();
     private static final byte[] clockShadowColor = {26, 26, 26, (byte) 191}; // GLText.SHADOW_COLOR in premultiplied bytes
 
     private final GLSLShape clock = new GLSLShape(true);

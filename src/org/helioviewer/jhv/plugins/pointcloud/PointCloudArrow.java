@@ -42,7 +42,7 @@ class PointCloudArrow {
     }
 
     static DirectBufVertex build(double lonDeg, double latDeg, double height, double halfAngleDeg,
-                                 Colors.NamedColor color) {
+                                 Colors color) {
         double[] d = direction(lonDeg, latDeg);
         byte[] col = color.bytes();
         return halfAngleDeg <= 0 ? arrow(d, height, col) : cone(d, height, Math.toRadians(halfAngleDeg), col);

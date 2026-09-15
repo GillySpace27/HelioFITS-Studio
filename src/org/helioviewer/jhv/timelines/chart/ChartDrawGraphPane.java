@@ -43,16 +43,16 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
     }
 
     private Point mousePressedPosition;
-    private boolean chartDragged;
+    private Point dragTargetPosition;
     @Nullable private AutomationTimelineLayer.Drag keyDrag; // live only between press and release on a lane
     private boolean trimDraggingEnd; // which trim handle an Option-drag is moving
 
     private BufferedImage screenImage;
+    private final ExportMovie.TimelineFrameSource recordingSource =
+            () -> screenImage == null ? null : new ExportMovie.TimelineFrame(screenImage, DrawController.getMovieLinePosition());
 
     private final TimelineLabelPainter labelPainter = new TimelineLabelPainter();
     private Point mousePosition;
-    private int lastWidth = -1;
-    private int lastHeight = -1;
 
     private boolean redrawGraphArea;
 
@@ -71,8 +71,7 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
         // A theme switch changes every colour it was painted with and dirties nothing, so the old
         // theme's pixels survived into the new one until the next pan, zoom or frame change.
         org.helioviewer.jhv.gui.UIGlobals.themed(this, c -> drawRequest());
-        DrawController.addDrawListener(this);
-        DrawController.setGraphSize(new Rectangle(getWidth(), getHeight()));
+        DrawController.setGraphSize(getWidth(), getHeight());
 
         // Same trim keys as the top scrubber: click the timeline to move the playhead to (say) an
         // instrument's first frame in the coverage track, then I/O to trim there.
@@ -110,6 +109,13 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
     }
 
     @Override
+    public void addNotify() {
+        super.addNotify();
+        DrawController.addDrawListener(this);
+        drawRequest();
+    }
+
+    @Override
     public void removeNotify() {
         DrawController.removeDrawListener(this);
         super.removeNotify();
@@ -119,10 +125,10 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
     public void setVisible(boolean visible) {
         super.setVisible(visible);
         if (visible) {
-            ExportMovie.EVEImage = screenImage;
+            ExportMovie.setTimelineFrameSource(recordingSource);
             DrawController.start();
         } else {
-            ExportMovie.EVEImage = null;
+            ExportMovie.setTimelineFrameSource(null);
             DrawController.stop();
         }
     }
@@ -166,12 +172,8 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
         int width = (int) (sx * graphSize.getWidth() + .5);
         int height = (int) (sy * graphSize.getHeight() + .5);
 
-        if (width != lastWidth || height != lastHeight) {
+        if (screenImage == null || width != screenImage.getWidth() || height != screenImage.getHeight()) {
             screenImage = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration().createCompatibleImage(width, height, Transparency.OPAQUE);
-            ExportMovie.EVEImage = screenImage;
-
-            lastWidth = width;
-            lastHeight = height;
         }
 
         Graphics2D fullG = screenImage.createGraphics();
@@ -198,7 +200,6 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
 
     private static void drawMovieLine(Graphics2D g) {
         int movieLinePosition = DrawController.getMovieLinePosition();
-        ExportMovie.EVEMovieLinePosition = movieLinePosition;
         if (movieLinePosition < 0) {
             return;
         }
@@ -247,7 +248,7 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
         if (e.getClickCount() == 2) {
             // A lane gets first refusal on a double-click, because the two gestures collide: the
             // plot's own double-click resets the y-axis under the cursor, and an automation lane
-            // has no y-axis to reset (showYAxis is false), so nothing is lost by answering here
+            // has no y-axis to reset (hasYAxis is false), so nothing is lost by answering here
             // first. Off a lane, resetAxis is untouched.
             AutomationTimelineLayer.Hit hit = AutomationTimelineLayer.hitTest(p);
             if (hit != null) {
@@ -276,7 +277,7 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
     public void mouseExited(MouseEvent e) {
         JHVEventCache.highlight(null);
         mousePosition = null;
-        if (TimelineLayers.setYAxisHighlight(null)) {
+        if (!DrawController.getGeometry().isStacked() && DrawController.setYAxisHighlight(null)) {
             drawRequest();
             return;
         }
@@ -287,6 +288,7 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
     public void mousePressed(MouseEvent e) {
         Point p = e.getPoint();
         mousePressedPosition = p;
+        dragTargetPosition = p;
         // Animation lanes first, and only on a plain press: a press on a key has to be claimed
         // here or the MOVIELINE branch below scrubs the movie for the whole of the drag. Option
         // and Shift keep their meanings everywhere in the plot, lanes included, so trimming and
@@ -378,10 +380,8 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
         switch (dragMode) {
             case CHART -> {
                 setCursor(UIGlobals.openHandCursor);
-                if (mousePressedPosition != null && chartDragged) {
-                    DrawController.moveX(mousePressedPosition.x - p.x);
-                    DrawController.moveAllAxes(p.y - mousePressedPosition.y);
-                }
+                if (mousePressedPosition != null)
+                    moveChart(p);
             }
             case MOVIELINE -> DrawController.setMovieFrame(p);
             case TRIM -> setTrimAt(p.x);
@@ -396,7 +396,7 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
         keyDrag = null;
         dragMode = DragMode.NODRAG;
         mousePressedPosition = null;
-        chartDragged = false;
+        dragTargetPosition = null;
     }
 
     @Override
@@ -405,10 +405,8 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
         if (mousePressedPosition != null) {
             switch (dragMode) {
                 case CHART -> {
-                    chartDragged = true;
                     setCursor(UIGlobals.closedHandCursor);
-                    DrawController.moveX(mousePressedPosition.x - p.x);
-                    DrawController.moveY(p, p.y - mousePressedPosition.y);
+                    moveChart(p);
                 }
                 case MOVIELINE -> DrawController.setMovieFrame(p);
                 case TRIM -> setTrimAt(p.x);
@@ -420,6 +418,11 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
             }
         }
         mousePressedPosition = p;
+    }
+
+    private void moveChart(Point p) {
+        DrawController.moveX(mousePressedPosition.x - p.x);
+        DrawController.moveY(dragTargetPosition, p.y - mousePressedPosition.y);
     }
 
     private static boolean overMovieLine(Point p) {
@@ -449,12 +452,21 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
             setCursor(Cursor.getDefaultCursor());
         }
 
-        boolean axisHighlightChanged = TimelineLayers.setYAxisHighlight(geometry.yAxisHit(mousePosition));
-        boolean eventHighlightChanged = TimelineLayers.highlightChanged(mousePosition);
-        if (axisHighlightChanged || eventHighlightChanged) {
-            drawRequest();
+        if (geometry.isStacked()) {
+            boolean eventHighlightChanged = TimelineLayers.highlightChanged(mousePosition);
+            if (eventHighlightChanged) {
+                drawRequest();
+            } else {
+                repaint();
+            }
         } else {
-            repaint(); // for timeline values
+            boolean axisHighlightChanged = DrawController.setYAxisHighlight(geometry.yAxisHit(mousePosition));
+            boolean eventHighlightChanged = TimelineLayers.highlightChanged(mousePosition);
+            if (axisHighlightChanged || eventHighlightChanged) {
+                drawRequest();
+            } else {
+                repaint();
+            }
         }
     }
 
@@ -474,9 +486,9 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
 
     @Override
     public void componentResized(ComponentEvent e) {
-        DrawController.setGraphSize(new Rectangle(getWidth(), getHeight()));
-        if (mousePosition != null)
-            TimelineLayers.setYAxisHighlight(DrawController.getGeometry().yAxisHit(mousePosition));
+        DrawController.setGraphSize(getWidth(), getHeight());
+        if (mousePosition != null && !DrawController.getGeometry().isStacked())
+            DrawController.setYAxisHighlight(DrawController.getGeometry().yAxisHit(mousePosition));
     }
 
     @Override
@@ -491,6 +503,16 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
     @Override
     public void drawMovieLineRequest() {
         repaint();
+    }
+
+    @Override
+    public void layoutChanged() {
+        Dimension preferredSize = getPreferredSize();
+        int minimumHeight = DrawController.getGeometry().minimumHeight();
+        if (preferredSize.height != minimumHeight) {
+            setPreferredSize(new Dimension(preferredSize.width, minimumHeight));
+            revalidate();
+        }
     }
 
 }

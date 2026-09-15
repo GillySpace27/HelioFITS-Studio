@@ -14,6 +14,7 @@ import javax.swing.table.DefaultTableCellRenderer;
 import org.helioviewer.jhv.gui.component.BusyIndicator;
 import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.timelines.TimelineLayer;
+import org.helioviewer.jhv.timelines.band.Band;
 
 @SuppressWarnings("serial")
 class CellRenderer {
@@ -37,11 +38,16 @@ class CellRenderer {
     static final class LineColor extends DefaultTableCellRenderer {
 
         private Color c;
+        private boolean multicolor;
 
         @Override
         public void setValue(Object value) {
-            if (value instanceof TimelineLayer layer) {
+            if (value instanceof Band band) {
+                c = band.getDataColor();
+                multicolor = band.isMulticolor();
+            } else if (value instanceof TimelineLayer layer) {
                 c = layer.getDataColor();
+                multicolor = false;
             }
         }
 
@@ -49,8 +55,18 @@ class CellRenderer {
         public void paintComponent(Graphics g) {
             super.paintComponent(g);
             if (c != null) {
-                g.setColor(c);
-                g.fillRect(4, getHeight() / 2 - 1, getWidth() - 4, 2);
+                int w = getWidth() - 4;
+                int h = 2;
+                int y = getHeight() / 2 - 1;
+                if (multicolor) {
+                    g.setColor(Color.RED);
+                    g.fillRect(4, y, w / 2, h);
+                    g.setColor(Color.GREEN);
+                    g.fillRect(4 + w / 2, y, w - w / 2, h);
+                } else {
+                    g.setColor(c);
+                    g.fillRect(4, y, w, h);
+                }
             }
         }
 

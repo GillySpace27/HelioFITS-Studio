@@ -3,14 +3,18 @@ package org.helioviewer.jhv.timelines.band;
 import java.io.InputStream;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.Future;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.helioviewer.jhv.app.Log;
@@ -22,7 +26,6 @@ import org.helioviewer.jhv.io.NetFileCache;
 import org.helioviewer.jhv.io.UriTemplate;
 import org.helioviewer.jhv.thread.Task;
 import org.helioviewer.jhv.time.TimeUtils;
-import org.helioviewer.jhv.timelines.Timelines;
 import org.helioviewer.jhv.timelines.draw.YAxis;
 
 import org.json.JSONArray;
@@ -37,60 +40,145 @@ import uk.ac.starlink.table.RowSequence;
 
 public class BandReaderHapi {
 
-    private static final String groupName = "HAPI";
+    @FunctionalInterface
+    public interface CatalogListener {
+        void catalogsLoaded(Map<String, BandType[]> catalogs);
+    }
+
     private static final String hapiFormat = "binary";
-    private static final String ROBserver = "https://hapi.swhv.oma.be/SWHV_Timelines/hapi/";
+    private static final CatalogEndpoint[] catalogEndpoints = {
+            new CatalogEndpoint("ROB", "https://hapi.swhv.oma.be/SWHV_Timelines/hapi/"),
+            //new CatalogEndpoint("ROB Test", "http://swhv-test:4000/hapi/")
+    };
 
-    private static Catalog theCatalog; //!
+    private static final HashMap<CatalogEndpoint, Catalog> catalogs = new HashMap<>();
+    private static Future<?> catalogRequest;
 
-    public static void requestCatalog() {
-        Task.submit(ROBserver, new LoadHapiCatalog(ROBserver), BandReaderHapi::onSuccessCatalog, BandReaderHapi::onFailure);
+    public static String[] getCatalogGroups() {
+        String[] groups = new String[catalogEndpoints.length];
+        for (int i = 0; i < catalogEndpoints.length; i++)
+            groups[i] = catalogEndpoints[i].groupName;
+        return groups;
     }
 
-    static Future<Band.Data> requestData(String url, long start, long end) {
-        return Task.submit(url, new LoadHapiStream(theCatalog, url, start, end), BandReaderHapi::onSuccessData, BandReaderHapi::onFailure);
+    public static void requestCatalog(CatalogListener listener) {
+        if (catalogRequest != null)
+            catalogRequest.cancel(true);
+        catalogRequest = Task.submit(BandReaderHapi::loadCatalogs,
+                loaded -> onSuccessCatalogs(loaded, listener), BandReaderHapi::onFailure);
     }
 
-    public static void loadUri(URI uri) {
-        Task.submit(uri.toString(), new LoadHapiUri(uri), BandReaderHapi::onSuccessData, BandReaderHapi::onFailure);
+    static boolean hasCatalog(String url) {
+        return findCatalog(url) != null;
     }
 
-    private record LoadHapiCatalog(String server) implements Callable<Catalog> {
+    static Callable<BandData> dataRequest(String url, long start, long end) {
+        return new LoadHapiStream(findCatalog(url), url, start, end);
+    }
+
+    static BandData readUri(URI uri) throws Exception {
+        return getHapiUri(uri);
+    }
+
+    private record LoadHapiStream(Catalog catalog, String url, long start, long end) implements Callable<BandData> {
         @Override
-        public Catalog call() throws Exception {
-            return getCatalog(server);
-        }
-    }
-
-    private record LoadHapiStream(Catalog catalog, String url, long start, long end) implements Callable<Band.Data> {
-        @Override
-        public Band.Data call() throws Exception {
+        public BandData call() throws Exception {
             return getHapiStream(catalog, url, start, end);
         }
     }
 
-    private record LoadHapiUri(URI uri) implements Callable<Band.Data> {
-        @Override
-        public Band.Data call() throws Exception {
-            return getHapiUri(uri);
+    private static Catalog[] loadCatalogs() {
+        return Arrays.stream(catalogEndpoints).parallel()
+                .map(BandReaderHapi::loadCatalog)
+                .toArray(Catalog[]::new);
+    }
+
+    @Nullable
+    private static Catalog loadCatalog(CatalogEndpoint catalogEndpoint) {
+        String server = catalogEndpoint.server;
+        String endpoint = server.endsWith("/") ? server : server + '/';
+        try {
+            return getCatalog(endpoint);
+        } catch (Exception e) {
+            Log.error(endpoint, e);
+            return null;
         }
     }
 
-    private static void onSuccessData(Band.Data line) {
-        if (line != null)
-            BandDataProvider.acceptData(line);
+    private static void onSuccessCatalogs(Catalog[] loadedCatalogs, CatalogListener listener) {
+        LinkedHashMap<String, BandType[]> bandTypes = new LinkedHashMap<>();
+        for (int i = 0; i < loadedCatalogs.length; i++) {
+            Catalog catalog = loadedCatalogs[i];
+            if (catalog != null) {
+                CatalogEndpoint endpoint = catalogEndpoints[i];
+                catalogs.put(endpoint, catalog);
+                bandTypes.put(endpoint.groupName, catalog.types);
+            }
+        }
+        listener.catalogsLoaded(bandTypes);
     }
 
-    private static void onSuccessCatalog(@Nonnull Catalog catalog) {
-        theCatalog = catalog;
-        Timelines.td.setupDatasets(groupName, theCatalog.types);
+    public static Map<String, List<BandType>> getPredefinedGroups() {
+        if (catalogs.isEmpty())
+            return Map.of();
+        if (catalogs.size() == 1)
+            return catalogs.values().iterator().next().predefinedGroups;
+
+        LinkedHashMap<String, List<BandType>> groups = new LinkedHashMap<>();
+        for (CatalogEndpoint endpoint : catalogEndpoints) {
+            Catalog catalog = catalogs.get(endpoint);
+            if (catalog != null) {
+                catalog.predefinedGroups.forEach((name, bandTypes) ->
+                        groups.computeIfAbsent(name, k -> new ArrayList<>()).addAll(bandTypes));
+            }
+        }
+        return finishPredefinedGroups(groups);
     }
 
-    private static void onFailure(String ignoredLogContext, Throwable t) {
-        Log.errorStack(t);
+    private static Map<String, List<BandType>> createPredefinedGroups(BandType[] types) {
+        LinkedHashMap<String, List<BandType>> groups = new LinkedHashMap<>();
+        for (BandType type : types) {
+            BandType.PredefinedEntry[] entries = type.getPredefinedEntries();
+            for (BandType.PredefinedEntry entry : entries)
+                groups.computeIfAbsent(entry.name(), k -> new ArrayList<>()).add(type);
+        }
+        return finishPredefinedGroups(groups);
     }
 
-    private record Catalog(HapiVersion version, Map<String, BandParameter> parameters, BandType[] types) {}
+    private static Map<String, List<BandType>> finishPredefinedGroups(LinkedHashMap<String, List<BandType>> groups) {
+        for (Map.Entry<String, List<BandType>> e : groups.entrySet())
+            e.getValue().sort(Comparator.comparingInt(type -> orderFor(type, e.getKey())));
+        groups.replaceAll((name, bandTypes) -> List.copyOf(bandTypes));
+        return Collections.unmodifiableMap(groups);
+    }
+
+    @Nullable
+    private static Catalog findCatalog(String baseUrl) {
+        for (Catalog catalog : catalogs.values()) {
+            if (catalog.parameters.containsKey(baseUrl))
+                return catalog;
+        }
+        return null;
+    }
+
+    private static int orderFor(BandType type, String groupName) {
+        BandType.PredefinedEntry[] entries = type.getPredefinedEntries();
+        for (BandType.PredefinedEntry entry : entries) {
+            if (groupName.equals(entry.name()))
+                return entry.order();
+        }
+        return 0;
+    }
+
+    private static void onFailure(Throwable t) {
+        if (!(t instanceof CancellationException))
+            Log.errorStack(t);
+    }
+
+    private record CatalogEndpoint(String groupName, String server) {}
+
+    private record Catalog(HapiVersion version, Map<String, BandParameter> parameters, BandType[] types,
+                           Map<String, List<BandType>> predefinedGroups) {}
 
     private record Dataset(String id, List<BandReader> readers, long start, long stop) {}
 
@@ -98,7 +186,7 @@ public class BandReaderHapi {
 
     private record BandReader(BandType type, HapiTableReader tableReader) {}
 
-    private record Parameter(String name, String units, String scale, JSONArray range) {}
+    private record Parameter(String name, String units, JSONObject jhvparams) {}
 
     private static Catalog getCatalog(String server) throws Exception {
         String urlCatalog = server + "catalog";
@@ -148,7 +236,8 @@ public class BandReaderHapi {
         }
         ArrayList<BandType> types = new ArrayList<>();
         parameters.values().forEach(parameter -> types.add(parameter.reader.type));
-        return new Catalog(version, parameters, types.toArray(BandType[]::new));
+        BandType[] typeArray = types.toArray(BandType[]::new);
+        return new Catalog(version, parameters, typeArray, createPredefinedGroups(typeArray));
     }
 
     private static Dataset getDataset(HapiVersion version, String urlData, @Nullable String id, @Nullable String title, JSONObject jo) throws Exception {
@@ -190,12 +279,10 @@ public class BandReaderHapi {
                 request.set(version.getDatasetRequestParam(), id)
                         .set("format", hapiFormat)
                         .set("parameters", p.name);
-            JSONObject jobt = new JSONObject().
+            JSONObject jobt = getBandOptions(p.jhvparams).
                     put("baseUrl", new UriTemplate(urlData).expand(request)).
                     put("unitLabel", p.units).
                     put("name", id == null ? p.name : id + ' ' + p.name).
-                    put("range", p.range).
-                    put("scale", p.scale).
                     put("label", title == null ? p.name : title + ' ' + p.name);
 
             HapiParam[] typeParams = new HapiParam[]{params[0], params[i]};
@@ -209,23 +296,19 @@ public class BandReaderHapi {
             throw new Exception("Bins not supported");
         if (jo.optJSONArray("size") != null)
             throw new Exception("Only scalars supported");
-        String name = jo.optString("name", null);
-        name = name == null ? "unknown" : name;
-        String units = jo.optString("units", null);
-        units = units == null ? "unknown" : units;
-
-        String scale = null;
-        JSONArray range = null;
-        JSONObject jhvparams = jo.optJSONObject("jhvparams");
-        if (jhvparams != null) {
-            scale = jhvparams.optString("scale", null);
-            range = jhvparams.optJSONArray("range");
-        }
-
-        return new Parameter(name, units, scale, range);
+        return new Parameter(jo.optString("name", "unknown"), jo.optString("units", "unknown"), jo.optJSONObject("jhvparams"));
     }
 
-    private static Band.Data getHapiStream(Catalog catalog, String baseUrl, long startTime, long endTime) throws Exception {
+    private static JSONObject getBandOptions(@Nullable JSONObject jhvparams) {
+        if (jhvparams == null)
+            return new JSONObject();
+
+        JSONObject options = new JSONObject(jhvparams, "scale", "range", "plotType", "barWidth", "levels", "warningLevels");
+        options.putOpt("predefined", jhvparams.optJSONArray("predefined", jhvparams.optJSONArray("groups")));
+        return options;
+    }
+
+    private static BandData getHapiStream(Catalog catalog, String baseUrl, long startTime, long endTime) throws Exception {
         if (catalog == null) // we may be offline
             return null;
         BandParameter parameter = catalog.parameters.get(baseUrl);
@@ -248,13 +331,10 @@ public class BandReaderHapi {
 
         try (NetClient nc = NetClient.of(new URI(uri), false, NetClient.NetCache.NETWORK)) {
             return readBand(parameter.reader.type, parameter.reader.tableReader, nc.getStream(), null, hapiFormat);
-        } catch (Exception e) {
-            Log.error(uri, e);
-            throw e;
         }
     }
 
-    private static Band.Data getHapiLocalCSV(DataUri dataUri) throws Exception {
+    private static BandData getHapiLocalCSV(DataUri dataUri) throws Exception {
         URI uri = dataUri.uri();
         try (NetClient nc = NetClient.of(uri)) {
             InputStream in = nc.getStream();
@@ -273,7 +353,7 @@ public class BandReaderHapi {
         }
     }
 
-    private static Band.Data readBand(BandType type, HapiTableReader tableReader, InputStream in, Byte byte0, String fmt) throws Exception {
+    private static BandData readBand(BandType type, HapiTableReader tableReader, InputStream in, Byte byte0, String fmt) throws Exception {
         List<Long> dateList = new ArrayList<>();
         List<Float> valueList = new ArrayList<>();
         try (RowSequence rseq = tableReader.createRowSequence(in, byte0, fmt)) {
@@ -295,9 +375,11 @@ public class BandReaderHapi {
 
         long[] dates = longArray(numPoints, dateList);
         float[] values = floatArray(numPoints, valueList);
-        DatesValues dvs = new DatesValues(dates, new float[][]{values}).rebin();
+        DatesValues dvs = type.isBarPlot()
+                ? new DatesValues(dates, new float[][]{values})
+                : new DatesValues(dates, new float[][]{values}).rebin();
 
-        return new Band.Data(type, dvs.dates(), dvs.values()[0]);
+        return new BandData(type, dvs.dates(), dvs.values()[0]);
     }
 
     private static long[] longArray(int numPoints, List<Long> dateList) {
@@ -323,7 +405,7 @@ public class BandReaderHapi {
         return jo;
     }
 
-    private static Band.Data getHapiUri(URI uri) throws Exception { // tbd
+    private static BandData getHapiUri(URI uri) throws Exception { // tbd
         DataUri dataUri = NetFileCache.get(uri);
         return switch (dataUri.format()) {
             case DataUri.Format.Image.ZIP -> loadZIP(dataUri);
@@ -332,7 +414,7 @@ public class BandReaderHapi {
         };
     }
 
-    private static Band.Data loadZIP(DataUri dataUri) throws Exception {
+    private static BandData loadZIP(DataUri dataUri) throws Exception {
         List<URI> uriList = FileUtils.unZip(dataUri.uri());
         if (uriList.size() != 1)
             throw new Exception("Only one CSV file per zip supported");

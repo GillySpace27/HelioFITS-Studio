@@ -73,7 +73,7 @@ public final class PlateScaleCheck {
         headers.put("CRVAL1", "0.0");
         headers.put("CRVAL2", "0.0");
         headers.put("DATE-OBS", "2025-09-09T04:19:22.127");
-        return new FitsMetaData(new MapMetaDataContainer(headers));
+        return new FitsMetaData(new MapMetaDataContainer(headers), MetaData.UNKNOWN_SOURCE_URI);
     }
 
     /** A Carrington map: pixels are degrees of longitude and latitude, not angles on the sky. */
@@ -90,7 +90,7 @@ public final class PlateScaleCheck {
         headers.put("CRVAL1", "0.0");
         headers.put("CRVAL2", "0.0");
         headers.put("DATE-OBS", "2025-09-09T04:19:22.127");
-        return new FitsMetaData(new MapMetaDataContainer(headers));
+        return new FitsMetaData(new MapMetaDataContainer(headers), MetaData.UNKNOWN_SOURCE_URI);
     }
 
     private static void near(double got, double want, double tolerance, String what) {

@@ -83,7 +83,7 @@ public final class ReferenceSurfacesCheck {
      * sphere is its own centre, so 90 degrees has to be the hemisphere of sky facing the Sun.
      */
     private static void sweptVertices() {
-        byte[] color = Colors.Blue;
+        byte[] color = Colors.Blue.bytes();
 
         for (double diameter : new double[]{EARTH, 2 * EARTH}) {
             double worst = 0;

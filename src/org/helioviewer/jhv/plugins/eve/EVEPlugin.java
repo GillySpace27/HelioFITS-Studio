@@ -5,14 +5,13 @@ import javax.swing.JMenuItem;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.plugins.Plugin;
 import org.helioviewer.jhv.timelines.Timelines;
-import org.helioviewer.jhv.timelines.band.BandReaderHapi;
 import org.helioviewer.jhv.timelines.gui.TimelineActions;
 
 import org.json.JSONObject;
 
 public class EVEPlugin extends Plugin {
 
-    private Timelines tl;
+    private Timelines timelines;
     private JMenuItem newItem;
     private JMenuItem openItem;
 
@@ -28,14 +27,15 @@ public class EVEPlugin extends Plugin {
 
     @Override
     public void installGUI() {
-        tl = new Timelines();
-        tl.installTimelines();
+        if (timelines == null)
+            timelines = new Timelines();
+        timelines.installTimelines();
         newItem = new JMenuItem(new TimelineActions.NewLayer());
         openItem = new JMenuItem(new TimelineActions.OpenLocalFile());
         MainFrame.getMenuBar().getLayersMenu().add(newItem, 5);
         MainFrame.getMenuBar().getLayersMenu().add(openItem, 6);
 
-        BandReaderHapi.requestCatalog();
+        Timelines.requestCatalog();
     }
 
     @Override
@@ -44,8 +44,7 @@ public class EVEPlugin extends Plugin {
         MainFrame.getMenuBar().getLayersMenu().remove(newItem);
         openItem = null;
         newItem = null;
-        tl.uninstallTimelines();
-        tl = null;
+        timelines.uninstallTimelines();
     }
 
     @Override

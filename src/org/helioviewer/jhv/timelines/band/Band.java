@@ -4,11 +4,12 @@ import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.awt.geom.Path2D;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.function.LongUnaryOperator;
 
+import javax.annotation.Nullable;
 import javax.swing.JPanel;
 
 import org.helioviewer.jhv.base.Colors;
@@ -18,7 +19,7 @@ import org.helioviewer.jhv.thread.LatestWorker;
 import org.helioviewer.jhv.time.Interval;
 import org.helioviewer.jhv.time.RequestCache;
 import org.helioviewer.jhv.time.TimeUtils;
-import org.helioviewer.jhv.timelines.AbstractTimelineLayer;
+import org.helioviewer.jhv.timelines.TimelineLayer;
 import org.helioviewer.jhv.timelines.draw.DrawConstants;
 import org.helioviewer.jhv.timelines.draw.DrawController;
 import org.helioviewer.jhv.timelines.draw.GraphGeometry;
@@ -28,50 +29,50 @@ import org.helioviewer.jhv.timelines.draw.YAxis;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-public final class Band extends AbstractTimelineLayer {
+public final class Band extends TimelineLayer {
 
-    record Data(BandType bandType, long[] dates, float[] values) {}
+    private record Polyline(int[] xPoints, int[] yPoints, float[] values) {}
 
-    private record Polyline(int[] xPoints, int[] yPoints) {
-        int length() {
-            return xPoints.length;
-        }
-    }
+    private record Bar(int x1, int y1, int x2, int y2, Color levelColor) {}
 
+    private sealed interface GraphData {}
+
+    private record EmptyGraph() implements GraphData {}
+
+    private record LineGraph(List<Polyline> polylines) implements GraphData {}
+
+    private record BarGraph(List<Bar> bars) implements GraphData {}
+
+    private static final GraphData EMPTY_GRAPH_DATA = new EmptyGraph();
     private static final Colors.Data bandColors = new Colors.Data();
-    private static final HashMap<BandType, Band> bandMap = new HashMap<>();
 
-    public static Band createFromType(BandType _bandType) {
-        return bandMap.computeIfAbsent(_bandType, Band::new);
-    }
-
-    private static final int SUPER_SAMPLE = 1; // 8 for dots
     private static final int DOWNLOADER_MAX_DAYS_PER_BLOCK = 21;
 
     private final BandType bandType;
     private final BandOptions optionsPanel = new BandOptions(this);
 
     private final YAxis yAxis;
-    private final int[] warnLevels;
-    private final List<Polyline> polylines = new ArrayList<>();
-    private final LatestWorker<List<Polyline>> graphWorker = new LatestWorker<>("Timeline-Graph");
+    private final int[] warnPixels;
+    private final LatestWorker<GraphData> graphWorker = new LatestWorker<>("Timeline-Graph");
 
     private RequestCache requestCache;
     private BandCache bandCache;
+    private GraphData graphData = EMPTY_GRAPH_DATA;
     private Color graphColor = bandColors.getNextColor();
     private PropagationModel propagationModel = new PropagationModel.Delay(0);
+    private boolean multicolor;
 
-    private Band(BandType _bandType) {
+    public Band(BandType _bandType) {
         bandType = _bandType;
+        multicolor = bandType.hasLevels();
         yAxis = new YAxis(bandType.getMin(), bandType.getMax(), YAxis.generateScale(bandType.getScale(), bandType.getUnitLabel()));
-        warnLevels = new int[bandType.getWarnLevels().length];
-        // those should be cleared
+        warnPixels = new int[bandType.getWarningLevels().length];
         requestCache = new RequestCache();
-        bandCache = createBandCache(bandType.getBandCacheType());
+        bandCache = createBandCache();
     }
 
-    private static BandCache createBandCache(String cacheType) {
-        return "BandCacheAll".equals(cacheType) ? new BandCacheAll() : new BandCacheMinute();
+    private BandCache createBandCache() {
+        return bandType.cacheAllValues() ? new BandCacheAll() : new BandCacheMinute();
     }
 
     JSONObject toJson() {
@@ -96,13 +97,14 @@ public final class Band extends AbstractTimelineLayer {
     public void serialize(JSONObject jo) {
         bandType.serialize(jo);
         jo.put("color", new JSONObject().put("r", graphColor.getRed()).put("g", graphColor.getGreen()).put("b", graphColor.getBlue()));
+        jo.put("multicolor", multicolor);
     }
 
-    public static AbstractTimelineLayer deserialize(JSONObject jo) throws Exception { // has to be implemented for state
+    public static TimelineLayer deserialize(JSONObject jo) throws Exception { // has to be implemented for state
         JSONObject jobt = jo.optJSONObject("bandType");
         if (jobt == null)
             throw new Exception("Missing bandType: " + jo);
-        Band band = createFromType(new BandType(jobt));
+        Band band = new Band(new BandType(jobt));
 
         JSONObject jcolor = jo.optJSONObject("color");
         if (jcolor != null) {
@@ -111,7 +113,14 @@ public final class Band extends AbstractTimelineLayer {
             int b = Math.clamp(jcolor.optInt("b", 0), 0, 255);
             band.setDataColor(new Color(r, g, b));
         }
+        band.multicolor = band.hasLevelColors() && jo.optBoolean("multicolor", band.bandType.hasLevels());
         return band;
+    }
+
+    public void applyStateFrom(Band restored) {
+        enabled = restored.enabled;
+        graphColor = restored.graphColor;
+        multicolor = restored.multicolor;
     }
 
     @Override
@@ -144,11 +153,11 @@ public final class Band extends AbstractTimelineLayer {
 
     @Override
     public void remove() {
-        graphWorker.cancel();
-        BandDataProvider.stopDownloads(this);
-        // clear caches
+        graphWorker.abolish();
+        graphData = EMPTY_GRAPH_DATA;
+        BandDownloads.stop(this);
         requestCache = new RequestCache();
-        bandCache = createBandCache(bandType.getBandCacheType());
+        bandCache = createBandCache();
     }
 
     @Override
@@ -164,11 +173,30 @@ public final class Band extends AbstractTimelineLayer {
     void setDataColor(Color c) {
         graphColor = c;
         DrawController.drawRequest();
+        notifyStateChanged();
+    }
+
+    public boolean isMulticolor() {
+        return multicolor;
+    }
+
+    public boolean hasLevelColors() {
+        return bandType.hasLevels();
+    }
+
+    public boolean hasWarningLevels() {
+        return bandType.hasWarningLevels();
+    }
+
+    public void setMulticolor(boolean _multicolor) {
+        multicolor = hasLevelColors() && _multicolor;
+        updateGraph();
+        notifyStateChanged();
     }
 
     @Override
     public boolean isDownloading() {
-        return BandDataProvider.isDownloadActive(this);
+        return BandDownloads.isActive(this);
     }
 
     @Override
@@ -187,22 +215,75 @@ public final class Band extends AbstractTimelineLayer {
     }
 
     @Override
-    public boolean showYAxis() {
-        return enabled;
+    public boolean hasYAxis() {
+        return true;
     }
 
     @Override
     public void draw(Graphics2D g, Rectangle graphArea, TimeAxis timeAxis, Point mousePosition) {
+        draw(g, graphArea, true);
+    }
+
+    public void draw(Graphics2D g, Rectangle graphArea, boolean drawWarnings) {
         if (!enabled)
             return;
 
-        g.setColor(graphColor);
-        polylines.forEach(line -> g.drawPolyline(line.xPoints(), line.yPoints(), line.length()));
+        GraphData data = graphData;
+        switch (data) {
+            case EmptyGraph ignored -> {}
+            case BarGraph bars -> {
+                for (Bar bar : bars.bars) {
+                    g.setColor(bar.levelColor != null ? bar.levelColor : graphColor);
+                    g.fillRect(bar.x1, bar.y1, bar.x2 - bar.x1, bar.y2 - bar.y1);
+                }
+            }
+            case LineGraph lines -> {
+                if (multicolor) {
+                    drawMulticolorPolylines(g, lines.polylines);
+                } else {
+                    g.setColor(graphColor);
+                    lines.polylines.forEach(line -> g.drawPolyline(line.xPoints, line.yPoints, line.xPoints.length));
+                }
+            }
+        }
 
-        String[] warnLabels = bandType.getWarnLabels();
-        for (int i = 0; i < warnLevels.length; i++) {
-            g.drawLine(graphArea.x, warnLevels[i], graphArea.x + graphArea.width, warnLevels[i]);
-            g.drawString(warnLabels[i], graphArea.x, warnLevels[i] - 2);
+        if (drawWarnings) {
+            BandType.WarningLevel[] wls = bandType.getWarningLevels();
+            for (int i = 0; i < warnPixels.length; i++) {
+                Color warningColor = wls[i].color();
+                g.setColor(warningColor == null ? graphColor : warningColor);
+                g.drawLine(graphArea.x, warnPixels[i], graphArea.x + graphArea.width, warnPixels[i]);
+                g.drawString(wls[i].label(), graphArea.x, warnPixels[i] - 2);
+            }
+        }
+    }
+
+    private void drawMulticolorPolylines(Graphics2D g, List<Polyline> polylines) {
+        Path2D.Float path = new Path2D.Float();
+        for (Polyline line : polylines) {
+            int[] xp = line.xPoints;
+            int[] yp = line.yPoints;
+            float[] vals = line.values;
+            Color pathColor = null;
+            for (int i = 0; i < xp.length - 1; i++) {
+                Color segmentColor = vals != null ? bandType.getLevelColor(vals[i]) : null;
+                if (segmentColor == null)
+                    segmentColor = graphColor;
+                if (!segmentColor.equals(pathColor)) {
+                    if (pathColor != null) {
+                        g.setColor(pathColor);
+                        g.draw(path);
+                    }
+                    path.reset();
+                    path.moveTo(xp[i], yp[i]);
+                    pathColor = segmentColor;
+                }
+                path.lineTo(xp[i + 1], yp[i + 1]);
+            }
+            if (pathColor != null) {
+                g.setColor(pathColor);
+                g.draw(path);
+            }
         }
     }
 
@@ -213,12 +294,16 @@ public final class Band extends AbstractTimelineLayer {
         }
 
         GraphGeometry geometry = DrawController.getGeometry();
-        Rectangle graphArea = geometry.area();
-        YAxis.Mapper yMapper = geometry.yMapper(yAxis);
+        Rectangle drawArea = geometry.getLayerArea(this);
+        if (drawArea == null) {
+            graphWorker.cancel();
+            return;
+        }
+        YAxis.Mapper yMapper = geometry.yMapper(yAxis, drawArea);
 
-        double[] unconvertedWarnLevels = bandType.getWarnLevels();
-        for (int i = 0; i < warnLevels.length; i++) {
-            warnLevels[i] = yMapper.dataToPixel(unconvertedWarnLevels[i]);
+        BandType.WarningLevel[] wls = bandType.getWarningLevels();
+        for (int i = 0; i < warnPixels.length; i++) {
+            warnPixels[i] = yMapper.dataToPixel(wls[i].value());
         }
 
         TimeAxis timeAxis = DrawController.selectedAxis;
@@ -227,38 +312,77 @@ public final class Band extends AbstractTimelineLayer {
 
         LongUnaryOperator viewpointTime = propagationModel.viewpointTimeMapper();
         TimeAxis.Mapper xMapper = geometry.xMapper(timeAxis);
-        List<List<BandCache.DateValue>> rawData = bandCache.getValues(SUPER_SAMPLE * Display.pixelScale[0] * graphArea.width, start, end);
+        final boolean isBar = bandType.isBarPlot() && bandType.getBarWidth() > 0;
+        final long barWidthMillis = isBar ? bandType.getBarWidth() * 1000 : 0;
+        List<List<BandCache.DateValue>> rawData = bandCache.getValues(
+                Display.pixelScale[0] * drawArea.width,
+                start - barWidthMillis, end + barWidthMillis);
+        final boolean useMulticolor = multicolor;
 
-        graphWorker.submit(() -> {
-                    List<Polyline> result = new ArrayList<>();
-                    for (List<BandCache.DateValue> list : rawData) {
-                        if (Thread.currentThread().isInterrupted()) {
-                            throw new InterruptedException();
-                        }
-                        int size = list.size();
-                        if (size == 0) {
-                            continue;
-                        }
+        graphWorker.submit(
+                () -> isBar
+                        ? buildBars(rawData, xMapper, yMapper, viewpointTime, useMulticolor)
+                        : buildPolylines(rawData, xMapper, yMapper, viewpointTime, useMulticolor),
+                this::graphUpdated);
+    }
 
-                        int[] dates = new int[size];
-                        int[] values = new int[size];
-                        for (int i = 0; i < size; i++) {
-                            BandCache.DateValue dv = list.get(i);
-                            dates[i] = xMapper.toPixel(viewpointTime.applyAsLong(dv.milli));
-                            values[i] = yMapper.dataToPixel(dv.value);
-                        }
-                        result.add(new Polyline(dates, values));
-                    }
-                    return result;
-                },
-                (result, fresh) -> {
-                    if (!fresh)
-                        return;
+    private BarGraph buildBars(List<List<BandCache.DateValue>> rawData, TimeAxis.Mapper xMapper,
+                               YAxis.Mapper yMapper, LongUnaryOperator viewpointTime,
+                               boolean useMulticolor) throws InterruptedException {
+        long barWidthMillis = bandType.getBarWidth() * 1000;
+        int baselineY = yMapper.dataToPixel(0);
+        List<Bar> bars = new ArrayList<>();
+        for (List<BandCache.DateValue> list : rawData) {
+            if (Thread.currentThread().isInterrupted())
+                throw new InterruptedException();
 
-                    polylines.clear();
-                    polylines.addAll(result);
-                    DrawController.drawRequest();
-                });
+            for (BandCache.DateValue dv : list) {
+                int right = xMapper.toPixel(viewpointTime.applyAsLong(dv.milli));
+                int mappedLeft = xMapper.toPixel(viewpointTime.applyAsLong(dv.milli) - barWidthMillis);
+                int left = barLeftPixel(mappedLeft, right);
+                int valueY = yMapper.dataToPixel(dv.value);
+                int top = Math.min(valueY, baselineY);
+                int bottom = Math.max(valueY, baselineY);
+                Color levelColor = useMulticolor ? bandType.getLevelColor(dv.value) : null;
+                bars.add(new Bar(left, top, right, bottom, levelColor));
+            }
+        }
+        return new BarGraph(bars);
+    }
+
+    private static LineGraph buildPolylines(List<List<BandCache.DateValue>> rawData, TimeAxis.Mapper xMapper,
+                                            YAxis.Mapper yMapper, LongUnaryOperator viewpointTime,
+                                            boolean useMulticolor) throws InterruptedException {
+        List<Polyline> polylines = new ArrayList<>();
+        for (List<BandCache.DateValue> list : rawData) {
+            if (Thread.currentThread().isInterrupted())
+                throw new InterruptedException();
+
+            int size = list.size();
+            if (size == 0)
+                continue;
+
+            int[] dates = new int[size];
+            int[] yPixels = new int[size];
+            float[] values = useMulticolor ? new float[size] : null;
+            for (int i = 0; i < size; i++) {
+                BandCache.DateValue dv = list.get(i);
+                dates[i] = xMapper.toPixel(viewpointTime.applyAsLong(dv.milli));
+                yPixels[i] = yMapper.dataToPixel(dv.value);
+                if (values != null)
+                    values[i] = dv.value;
+            }
+            polylines.add(new Polyline(dates, yPixels, values));
+        }
+        return new LineGraph(polylines);
+    }
+
+    private void graphUpdated(GraphData result, boolean fresh) {
+        if (!fresh)
+            return;
+
+        graphData = result;
+        DrawController.drawRequest();
     }
 
     @Override
@@ -266,11 +390,16 @@ public final class Band extends AbstractTimelineLayer {
         float val = bandCache.getValue(propagationModel.getObservationTime(ts));
         if (val == YAxis.BLANK) {
             return "--";
-        } else if (bandType.isXRSB()) {
-            return GOESLevel.getStringValue(val);
-        } else {
-            return DrawConstants.valueFormatter.format(yAxis.scale(val));
         }
+        if (bandType.isXRSB())
+            return GOESLevel.getStringValue(val);
+        return DrawConstants.valueFormatter.format(yAxis.scale(val));
+    }
+
+    static int barLeftPixel(int mappedLeft, int right) {
+        int width = Math.max(1, right - mappedLeft);
+        int gap = width / 40;
+        return right - width + gap;
     }
 
     @Override
@@ -279,6 +408,9 @@ public final class Band extends AbstractTimelineLayer {
     }
 
     private void updateData(long start, long end) {
+        if (!BandDownloads.hasCatalog(this))
+            return;
+
         List<Interval> missingIntervals = requestCache.getMissingIntervals(start, end);
         if (!missingIntervals.isEmpty()) {
             // extend
@@ -287,8 +419,23 @@ public final class Band extends AbstractTimelineLayer {
 
             List<Interval> intervals = new ArrayList<>();
             requestCache.adaptRequestCache(start, end).forEach(interval -> intervals.addAll(Interval.splitInterval(interval, DOWNLOADER_MAX_DAYS_PER_BLOCK)));
-            BandDataProvider.addDownloads(this, intervals);
+            BandDownloads.start(this, intervals);
         }
+    }
+
+    void requestFailed(Interval interval) {
+        requestCache.removeRequestedInterval(interval.start(), interval.end());
+        notifyStateChanged();
+    }
+
+    void downloadSucceeded(@Nullable BandData data) {
+        if (data != null)
+            addToCache(data.values(), data.dates());
+        notifyStateChanged();
+    }
+
+    void downloadStateChanged() {
+        notifyStateChanged();
     }
 
     @Override
@@ -296,6 +443,11 @@ public final class Band extends AbstractTimelineLayer {
         long start = propagationModel.getObservationTime(timeAxis.start());
         long end = propagationModel.getObservationTime(timeAxis.end());
         updateData(start, end);
+        updateGraph();
+    }
+
+    @Override
+    public void graphGeometryChanged() {
         updateGraph();
     }
 
@@ -308,20 +460,7 @@ public final class Band extends AbstractTimelineLayer {
         boolean hadData = bandCache.hasData();
         bandCache.addToCache(yAxis, values, dates);
         updateGraph();
-        DrawController.drawRequest();
         return !hadData && bandCache.hasData();
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        return o instanceof Band && o.toString().equals(toString());
-    }
-
-    @Override
-    public int hashCode() {
-        return toString().hashCode();
     }
 
     @Override
@@ -341,7 +480,9 @@ public final class Band extends AbstractTimelineLayer {
 
     void setPropagationModel(PropagationModel _propagationModel) {
         propagationModel = _propagationModel;
-        DrawController.graphAreaChanged();
+        TimeAxis timeAxis = DrawController.selectedAxis;
+        updateData(propagationModel.getObservationTime(timeAxis.start()), propagationModel.getObservationTime(timeAxis.end()));
+        DrawController.layoutChanged();
     }
 
 }

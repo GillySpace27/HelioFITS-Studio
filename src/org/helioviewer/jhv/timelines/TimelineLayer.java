@@ -14,7 +14,18 @@ import org.helioviewer.jhv.timelines.draw.YAxis;
 
 import org.json.JSONObject;
 
-public interface TimelineLayer {
+public abstract class TimelineLayer {
+
+    protected boolean enabled = true;
+    private Runnable onStateChanged = () -> {};
+
+    void setOnStateChanged(Runnable callback) {
+        onStateChanged = callback;
+    }
+
+    protected final void notifyStateChanged() {
+        onStateChanged.run();
+    }
 
     /**
      * The panel is letting go of this layer. A teardown hook, not a user gesture: it fires when
@@ -22,7 +33,7 @@ public interface TimelineLayer {
      * what the layer itself holds (timers, listeners) and never destroy what the layer is a view
      * of. See {@link #deleted()} for the other half.
      */
-    void remove();
+    public abstract void remove();
 
     /**
      * The user hit the delete column. Only this means "the thing itself should go".
@@ -34,61 +45,67 @@ public interface TimelineLayer {
      * delete that something here rather than in remove(), or reloading a session deletes the
      * animation it has just finished loading.
      */
-    default void deleted() {}
+    public void deleted() {}
 
-    void setEnabled(boolean enabled);
+    public void setEnabled(boolean _enabled) {
+        enabled = _enabled;
+    }
 
-    boolean isEnabled();
+    public boolean isEnabled() {
+        return enabled;
+    }
 
-    String getName();
-
-    @Nullable
-    Color getDataColor();
-
-    boolean isDownloading();
-
-    boolean hasData();
+    public abstract String getName();
 
     @Nullable
-    JPanel getOptionsPanel();
+    public abstract Color getDataColor();
 
-    boolean isDeletable();
+    public abstract boolean isDownloading();
 
-    boolean showYAxis();
+    public abstract boolean hasData();
 
-    void draw(Graphics2D g, Rectangle graphArea, TimeAxis timeAxis, Point mousePosition);
+    @Nullable
+    public abstract JPanel getOptionsPanel();
 
-    YAxis getYAxis();
+    public abstract boolean isDeletable();
 
-    void fetchData(TimeAxis selectedAxis);
+    public abstract boolean hasYAxis();
 
-    default void yaxisChanged() {}
+    public abstract void draw(Graphics2D g, Rectangle graphArea, TimeAxis timeAxis, Point mousePosition);
 
-    default void zoomToFitAxis() {}
+    public abstract YAxis getYAxis();
 
-    default void resetAxis() {}
+    public abstract void fetchData(TimeAxis selectedAxis);
 
-    default boolean highlightChanged(Point p) {
+    public void graphGeometryChanged() {}
+
+    public void yaxisChanged() {}
+
+    public void zoomToFitAxis() {}
+
+    public void resetAxis() {}
+
+    public boolean highlightChanged(Point p) {
         return false;
     }
 
     @Nullable
-    default String getStringValue(long ts) {
+    public String getStringValue(long ts) {
         return null;
     }
 
     @Nullable
-    default ClickableDrawable getDrawableUnderMouse() {
+    public ClickableDrawable getDrawableUnderMouse() {
         return null;
     }
 
-    void serialize(JSONObject jo);
+    public abstract void serialize(JSONObject jo);
 
-    default boolean isPropagated() {
+    public boolean isPropagated() {
         return false;
     }
 
-    default long getObservationTime(long ts) {
+    public long getObservationTime(long ts) {
         return ts;
     }
 

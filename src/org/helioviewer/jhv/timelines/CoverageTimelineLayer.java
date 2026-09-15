@@ -31,7 +31,7 @@ import org.json.JSONObject;
 //            (a short tick at its parsed timestamp, drawn over any gap it falls inside),
 //   dotted = a gap in the archive itself (unavailable — no data was ever requested there).
 // has to be public for state restore
-public final class CoverageTimelineLayer extends AbstractTimelineLayer {
+public final class CoverageTimelineLayer extends TimelineLayer {
 
     private static final Color GAP_COLOR = new Color(120, 120, 120);
     
@@ -56,7 +56,7 @@ public final class CoverageTimelineLayer extends AbstractTimelineLayer {
         repaint.start();
     }
 
-    public static AbstractTimelineLayer deserialize(JSONObject ignore) { // for state restore
+    public static TimelineLayer deserialize(JSONObject ignore) { // for state restore
         return new CoverageTimelineLayer();
     }
 
@@ -249,7 +249,7 @@ public final class CoverageTimelineLayer extends AbstractTimelineLayer {
     }
 
     @Override
-    public boolean showYAxis() {
+    public boolean hasYAxis() {
         return false;
     }
 

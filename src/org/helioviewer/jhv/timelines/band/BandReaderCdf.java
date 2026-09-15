@@ -1,6 +1,5 @@
 package org.helioviewer.jhv.timelines.band;
 
-import java.awt.EventQueue;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -14,7 +13,6 @@ import java.util.Set;
 import org.helioviewer.jhv.base.Regex;
 import org.helioviewer.jhv.io.NetFileCache;
 import org.helioviewer.jhv.time.TimeUtils;
-import org.helioviewer.jhv.timelines.draw.DrawController;
 import org.helioviewer.jhv.timelines.draw.YAxis;
 
 import org.json.JSONArray;
@@ -32,20 +30,6 @@ import uk.ac.bristol.star.cdf.VariableAttribute;
 
 public class BandReaderCdf {
 
-    public static void load(URI uri) throws Exception {
-        List<Band.Data> lines = read(NetFileCache.get(uri).uri()); // tbd : sniff type
-        if (lines.isEmpty()) // failed
-            return;
-        long[] dates = lines.getFirst().dates();
-        if (dates.length == 0) // empty file
-            return;
-
-        EventQueue.invokeLater(() -> {
-            lines.forEach(BandDataProvider::acceptData);
-            DrawController.setSelectedInterval(dates[0], dates[dates.length - 1]);
-        });
-    }
-
     private static final double eV2K = 11604.5250061657;
     private static final Set<String> SWAIncluded = Set.of("N", "V_RTN", "T");
 
@@ -54,7 +38,8 @@ public class BandReaderCdf {
 
     private record CDFVariable(Variable variable, Map<String, String> attributes) {}
 
-    private static List<Band.Data> read(URI uri) throws IOException {
+    static List<BandData> read(URI uri) throws Exception {
+        uri = NetFileCache.get(uri).uri(); // tbd : sniff type
         CdfContent cdf = new CdfContent(new CdfReader(new File(uri)));
 
         LinkedListMultimap<String, String> globalAttrs = LinkedListMultimap.create();
@@ -88,7 +73,7 @@ public class BandReaderCdf {
         }
 
         long[] dates = readEpoch(variables, uri);
-        List<Band.Data> ret = new ArrayList<>();
+        List<BandData> ret = new ArrayList<>();
 
         for (CDFVariable v : variables) {
             if ("data".equals(v.attributes.get("VAR_TYPE"))) {
@@ -99,11 +84,11 @@ public class BandReaderCdf {
         return ret;
     }
 
-    private static List<Band.Data> readBandData(CDFVariable v, long[] dates, String instrumentName, CDFVariable[] variables, URI uri) throws IOException {
+    private static List<BandData> readBandData(CDFVariable v, long[] dates, String instrumentName, CDFVariable[] variables, URI uri) throws IOException {
         CDFData data = readData(v, dates, instrumentName, variables, uri);
         int numAxes = data.datesValues.values().length;
 
-        List<Band.Data> ret = new ArrayList<>(numAxes);
+        List<BandData> ret = new ArrayList<>(numAxes);
         for (int i = 0; i < numAxes; i++) {
             String name = instrumentName + ' ' + data.labels[i];
             JSONObject jo = new JSONObject().
@@ -113,7 +98,7 @@ public class BandReaderCdf {
                     put("range", new JSONArray().put(data.scaleMin).put(data.scaleMax)).
                     put("scale", data.scaleType).
                     put("label", "<html>" + name.replaceAll("_(r|t|n|x|y|z|RTN|SRF|VSO|URF)", "<sub>$1</sub>"));
-            ret.add(new Band.Data(new BandType(jo), data.datesValues.dates(), data.datesValues.values()[i]));
+            ret.add(new BandData(new BandType(jo), data.datesValues.dates(), data.datesValues.values()[i]));
         }
         return ret;
     }

@@ -44,7 +44,7 @@ final class AnnotationPaletteContent {
     private static final JPanel panel = new JPanel(new BorderLayout());
     private static final EnumMap<AnnotationMode, JRadioButton> modeButtons = new EnumMap<>(AnnotationMode.class);
     private static JHVSlider thickness;
-    private static final EnumMap<Colors.NamedColor, JToggleButton> colorButtons = new EnumMap<>(Colors.NamedColor.class);
+    private static final EnumMap<Colors, JToggleButton> colorButtons = new EnumMap<>(Colors.class);
     private static boolean built;
     private static boolean syncing; // mirroring state into the widgets, not the user clicking them
 
@@ -70,7 +70,7 @@ final class AnnotationPaletteContent {
 
         JPanel colors = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
         ButtonGroup colorGroup = new ButtonGroup();
-        for (Colors.NamedColor color : Annotations.BASE_COLORS) {
+        for (Colors color : Annotations.BASE_COLORS) {
             JToggleButton button = new JToggleButton(new Swatch(color.awtColor()));
             button.setSelected(color == Annotations.getBaseColor());
             button.setToolTipText(color.toString());

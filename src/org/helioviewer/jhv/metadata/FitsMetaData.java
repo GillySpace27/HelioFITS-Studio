@@ -1,5 +1,6 @@
 package org.helioviewer.jhv.metadata;
 
+import java.net.URI;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -80,8 +81,9 @@ public final class FitsMetaData extends CommonMetaData {
         identityTime = retrieveTime(m);
     }
 
-    public FitsMetaData(@Nonnull MetaDataContainer m) {
+    public FitsMetaData(@Nonnull MetaDataContainer m, @Nonnull URI _sourceUri) {
         m = LascoPointing.fill(m);
+        sourceUri = _sourceUri;
         identifyObservation(m);
 
         instrument = instrument.trim().intern();

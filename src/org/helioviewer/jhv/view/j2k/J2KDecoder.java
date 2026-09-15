@@ -103,7 +103,8 @@ record J2KDecoder(J2KSource src, J2KParams.Decode params, int numComps, ImageFil
             boolean gray = numComps < 3;
             // Assume Kakadu's 4-byte compositor output already matches our RGBA byte upload layout.
             ImageBuffer.Format format = gray ? ImageBuffer.Format.Gray8 : ImageBuffer.Format.RGBA32;
-            Region imageRegion = metaData.roiToRegion(actualX, actualY, actualWidth, actualHeight, factorX, factorY);
+            Region imageRegion = metaData.roiToRegion(actualX, actualY, actualWidth, actualHeight,
+                    factorX / params.factor, factorY / params.factor);
             ImageFilter filter = ImageFilter.of(filterType, imageRegion, metaData);
             ImageBuffer.WriteBuffer outBuffer = ImageBuffer.createWriteBuffer(actualWidth, actualHeight, format, filter);
             ByteBuffer outByteBuffer = outBuffer.byteBuffer();
@@ -111,7 +112,11 @@ record J2KDecoder(J2KSource src, J2KParams.Decode params, int numComps, ImageFil
             Kdu_dims newRegion = scratch.newRegion;
             newRegion.From_u32(0, 0, 0, 0);
             //sw.reset().start();
-            while (compositor.Process(MAX_RENDER_SAMPLES, newRegion)) {
+            while (!compositor.Is_processing_complete()) {
+                if (!compositor.Process(MAX_RENDER_SAMPLES, newRegion))
+                    throw new KduException("JPEG 2000 rendering failed, invalid scale code "
+                            + compositor.Check_invalid_scale_code());
+
                 Kdu_coords newSize = newRegion.Access_size();
                 int newWidth = newSize.Get_x();
                 int newHeight = newSize.Get_y();

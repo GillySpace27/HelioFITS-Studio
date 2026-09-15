@@ -35,6 +35,7 @@ class ExportWriter {
     private int bytesPerPixel = 3; // 3 = rgb24, 6 = rgb48le; set by the first encoded frame
 
     private File tempFile;
+    private @Nullable Exception failure;
 
     ExportWriter(ExportFormat _format, ExportFormat.Chroma _chroma, ExportFormat.Depth _depth,
                  int _w, int _h, int _fps, boolean _allIntra) {
@@ -76,34 +77,37 @@ class ExportWriter {
         return dir;
     }
 
-    void encode(BufferedImage mainImage, BufferedImage eveImage, int movieLinePosition, int _bytesPerPixel) throws Exception {
+    void encode(@Nullable BufferedImage mainImage, @Nullable BufferedImage timelineImage,
+                int movieLinePosition, int _bytesPerPixel) throws Exception {
         bytesPerPixel = _bytesPerPixel;
         if (tempFile == null) {
             tempFile = File.createTempFile("dump", null, Directories.exportCacheDir);
             tempFile.deleteOnExit();
         }
 
-        int mainH = mainImage.getHeight();
+        int mainH = mainImage == null ? 0 : mainImage.getHeight();
         BufferedImage scaled = null;
-        ByteBuffer eveData = null;
-        if (eveImage != null) {
-            scaled = ExportUtils.scaleImage(eveImage, w, h - mainH, movieLinePosition);
-            eveData = NativeImageFactory.getByteBuffer(scaled).clear().limit(3 * w * scaled.getHeight());
+        ByteBuffer timelineData = null;
+        if (timelineImage != null) {
+            scaled = ExportUtils.scaleImage(timelineImage, w, h - mainH, movieLinePosition);
+            timelineData = NativeImageFactory.getByteBuffer(scaled).clear().limit(3 * w * scaled.getHeight());
         }
 
-        ByteBuffer mainData = MappedImageFactory.getByteBuffer(mainImage).clear().limit(bytesPerPixel * w * mainH);
         try (FileChannel channel = FileChannel.open(tempFile.toPath(), StandardOpenOption.APPEND)) {
-            for (int j = mainH - 1; j >= 0; j--) { // write image flipped
-                int pos = bytesPerPixel * w * j;
-                mainData.position(pos);
-                mainData.limit(pos + bytesPerPixel * w);
-                writeFully(channel, mainData);
+            if (mainImage != null) {
+                ByteBuffer mainData = MappedImageFactory.getByteBuffer(mainImage).clear().limit(bytesPerPixel * w * mainH);
+                for (int j = mainH - 1; j >= 0; j--) { // write image flipped
+                    int pos = bytesPerPixel * w * j;
+                    mainData.position(pos);
+                    mainData.limit(pos + bytesPerPixel * w);
+                    writeFully(channel, mainData);
+                }
             }
-            if (eveData != null)
-                // The EVE strip is composited at 8 bits whatever the main frame is, and the two
+            if (timelineData != null)
+                // The timeline strip is composited at 8 bits whatever the main frame is, and the two
                 // are concatenated into one raw frame: leaving it narrow would both garble the
                 // strip and make the frame the wrong length for ffmpeg, which is counting bytes.
-                writeFully(channel, bytesPerPixel == 6 ? widenTo16(eveData) : eveData);
+                writeFully(channel, bytesPerPixel == 6 ? widenTo16(timelineData) : timelineData);
         } catch (Exception e) {
             tempFile.delete();
             tempFile = null;
@@ -122,6 +126,11 @@ class ExportWriter {
             out.put((byte) v).put((byte) (v >>> 8));
         }
         return out.flip();
+    }
+
+    void recordFailure(Exception e) {
+        if (failure == null)
+            failure = e;
     }
 
     private static void writeFully(FileChannel channel, ByteBuffer data) throws Exception {
@@ -147,6 +156,11 @@ class ExportWriter {
 
     @Nullable
     String close() throws Exception {
+        if (failure != null) {
+            if (tempFile != null)
+                tempFile.delete();
+            throw failure;
+        }
         if (format == ExportFormat.EXR)
             return exrFrames == 0 ? null : new File(prefix, "frame" + format.extension).getPath();
         if (tempFile == null) // unlikely reach here on encode error

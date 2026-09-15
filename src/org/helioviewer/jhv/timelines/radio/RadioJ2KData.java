@@ -29,6 +29,7 @@ import org.helioviewer.jhv.view.j2k.ResolutionSet;
 class RadioJ2KData implements View.DataHandler {
 
     private final LatestWorker<DecodedImage> executor = new LatestWorker<>("Radio-Decoder");
+    private final RadioData owner;
     private final J2KViewCallisto view;
     private boolean disposed;
 
@@ -43,7 +44,8 @@ class RadioJ2KData implements View.DataHandler {
     private BufferedImage bufferedImage;
     private Region region;
 
-    RadioJ2KData(APIRequest req, DataUri dataUri) throws Exception {
+    RadioJ2KData(RadioData _owner, APIRequest req, DataUri dataUri) throws Exception {
+        owner = _owner;
         J2KViewCallisto v = null;
         try {
             v = new J2KViewCallisto(executor, req, dataUri);
@@ -97,10 +99,10 @@ class RadioJ2KData implements View.DataHandler {
 
         region = imageData.region();
         boolean hadData = bufferedImage != null;
-        bufferedImage = createIndexedImage((ByteBuffer) imageBuffer.buffer, w, h, RadioData.getColorModel());
+        bufferedImage = createIndexedImage((ByteBuffer) imageBuffer.buffer, w, h, owner.getColorModel());
         imageBuffer.allowExplicitFree();
         if (!hadData)
-            RadioData.dataUpdated();
+            owner.dataUpdated();
         DrawController.drawRequest();
     }
 
@@ -170,14 +172,9 @@ class RadioJ2KData implements View.DataHandler {
         return new Rectangle(x0, 0, width, j2kHeight);
     }
 
-    void draw(Graphics2D g, Rectangle ga, TimeAxis.Mapper xMapper, YAxis.Mapper yMapper) {
-        if (!willDraw) {
+    void draw(Graphics2D g, TimeAxis.Mapper xMapper, YAxis.Mapper yMapper) {
+        if (!willDraw || !hasData())
             return;
-        }
-        if (!hasData()) {
-            RadioData.drawMessage(g, ga, "Fetching data");
-            return;
-        }
 
         long timeWidth = endDate - startDate;
         long imStart = (long) (startDate + timeWidth * region.llx / j2kWidth);
@@ -193,6 +190,10 @@ class RadioJ2KData implements View.DataHandler {
                 xMapper.toPixel(imEnd),
                 yMapper.dataToPixel(freqimEnd),
                 0, 0, bufferedImage.getWidth(), bufferedImage.getHeight(), null);
+    }
+
+    boolean isLoading() {
+        return willDraw && !disposed && !hasData();
     }
 
     void changeColormap(ColorModel cm) {

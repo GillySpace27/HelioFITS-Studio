@@ -42,7 +42,7 @@ import org.json.JSONObject;
  * costs a few dozen double interpolations.
  *
  * <p>And, decisively, because the export is grabbed from inside that same method:
- * ExportMovie.handleMovieExport() is the last thing GLRenderer.display does. There is no second
+ * ExportMovie.renderedFrame() is the last thing GLRenderer.display does. There is no second
  * code path to keep in step, so the pixels encoded are the pixels the tracks produced, from one
  * evaluation. In this application the picture is the claim, and a parameter animation evaluated on
  * a different clock for export would produce a movie that is a different picture from the one on

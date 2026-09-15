@@ -154,7 +154,7 @@ final class PointCloudMesh {
 
         BufVertex buf = new BufVertex(4 * faces.length * GLSLLine.stride);
         float[] pos = d.scenePos();
-        byte[] col = Colors.Blue;
+        byte[] col = Colors.Blue.bytes();
         long prev = -1;
         for (long e : edges) {
             if (e == prev)

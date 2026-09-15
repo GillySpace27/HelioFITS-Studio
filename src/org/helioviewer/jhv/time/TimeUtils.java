@@ -23,7 +23,7 @@ public class TimeUtils {
     // something first asks for the default zone, so a bare check that touched this class before
     // anything else died in the static initializer.
     private static final ZoneId zoneId = ZoneId.systemDefault();
-    private static final DateTimeFormatter fileFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH.mm.ss").withZone(zoneId); //! local time
+    private static final DateTimeFormatter fileFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH.mm.ss.SSS").withZone(zoneId); //! local time
     private static final DateTimeFormatter logFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS").withZone(zoneId); //! local time
 
     private static final PrettyTimeParser prettyParser = new PrettyTimeParser();

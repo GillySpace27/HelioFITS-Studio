@@ -18,8 +18,8 @@ public final class YAxis {
     private final float min;
     private final float max;
 
-    private final double scaledMinBound;
-    private final double scaledMaxBound;
+    private final double scaledLowerLimit;
+    private final double scaledUpperLimit;
     private boolean highlighted = false;
 
     public YAxis(double _start, double _end, YAxisScale _scale) {
@@ -29,8 +29,10 @@ public final class YAxis {
 
         min = scale.getMin();
         max = scale.getMax();
-        scaledMinBound = scale(min);
-        scaledMaxBound = scale(max);
+        double scaledStart = scale(start);
+        double scaledEnd = scale(end);
+        scaledLowerLimit = Math.min(scale(min), Math.min(scaledStart, scaledEnd));
+        scaledUpperLimit = Math.max(scale(max), Math.max(scaledStart, scaledEnd));
     }
 
     public double start() {
@@ -82,40 +84,31 @@ public final class YAxis {
     }
 
     public void shiftDownPixels(double distanceY, int height) {
-        double scaledMin = scale(start);
-        double scaledMax = scale(end);
+        double scaledStart = scale(start);
+        double scaledEnd = scale(end);
 
-        double ratioValue = (scaledMax - scaledMin) / height;
+        double ratioValue = (scaledEnd - scaledStart) / height;
         double shift = distanceY * ratioValue;
-        double startValue = scaledMin + shift;
-        double endValue = scaledMax + shift;
-        if (startValue < scaledMinBound) {
-            double oldStart = startValue;
-            startValue = scaledMinBound;
-            endValue = startValue + (endValue - oldStart);
-        } else if (endValue > scaledMaxBound) {
-            double oldEnd = endValue;
-            endValue = scaledMaxBound;
-            startValue = endValue - (oldEnd - startValue);
-        }
-        start = invScale(startValue);
-        end = invScale(endValue);
+        double lower = Math.min(scaledStart, scaledEnd);
+        double upper = Math.max(scaledStart, scaledEnd);
+        shift = Math.clamp(shift, scaledLowerLimit - lower, scaledUpperLimit - upper);
+        start = invScale(scaledStart + shift);
+        end = invScale(scaledEnd + shift);
     }
 
     public void zoomSelectedRange(double scrollValue, double relativeY, double height) {
-        double scaledMin = scale(start);
-        double scaledMax = scale(end);
-        double scaled = scaledMin + (scaledMax - scaledMin) * (relativeY / height);
+        double scaledStart = scale(start);
+        double scaledEnd = scale(end);
+        double scaled = scaledStart + (scaledEnd - scaledStart) * (relativeY / height);
         double delta = scrollValue * ZOOMSTEP_PERCENTAGE;
 
-        double newScaledMin = (1 + delta) * scaledMin - delta * scaled;
-        newScaledMin = Math.max(scaledMinBound, newScaledMin);
+        double newScaledStart = Math.clamp((1 + delta) * scaledStart - delta * scaled,
+                scaledLowerLimit, scaledUpperLimit);
+        double newScaledEnd = Math.clamp((1 + delta) * scaledEnd - delta * scaled,
+                scaledLowerLimit, scaledUpperLimit);
 
-        double newScaledMax = (1 + delta) * scaledMax - delta * scaled;
-        newScaledMax = Math.min(scaledMaxBound, newScaledMax);
-
-        start = invScale(newScaledMin);
-        end = invScale(newScaledMax);
+        start = invScale(newScaledStart);
+        end = invScale(newScaledEnd);
     }
 
     public boolean preferMax() {

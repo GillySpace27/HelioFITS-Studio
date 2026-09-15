@@ -162,10 +162,11 @@ public final class JHVMetadataDump {
         FitsFactory.setLongStringsEnabled(true);
         initSpice();
 
-        try (Fits fits = new Fits(new File(args[0]))) {
+        File file = new File(args[0]);
+        try (Fits fits = new Fits(file)) {
             ImageHDU hdu = findImageHdu(fits, requestedHdu);
             Header header = hdu.getHeader();
-            FitsMetaData meta = new FitsMetaData(new FitsMetaDataContainer(header));
+            FitsMetaData meta = new FitsMetaData(new FitsMetaDataContainer(header), file.toURI());
             System.out.println(dumpMetadata(meta, header).toString());
         }
     }

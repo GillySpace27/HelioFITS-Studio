@@ -145,7 +145,7 @@ public final class MenuBar extends JMenuBar {
         return comp;
     }
 
-    public MenuBar() {
+    public MenuBar(ToolBar toolBar) {
         JMenu fileMenu = new JMenu("File");
         fileMenu.setMnemonic(KeyEvent.VK_F);
         fileMenu.add(new Actions.NewSession());
@@ -198,6 +198,15 @@ public final class MenuBar extends JMenuBar {
         viewMenu.add(new Actions.ZoomOut());
         viewMenu.addSeparator();
 
+        JCheckBoxMenuItem showToolbar = new JCheckBoxMenuItem("Show Toolbar", toolBar.isVisible());
+        showToolbar.addItemListener(e -> toolBar.setToolbarVisible(showToolbar.getState()));
+        viewMenu.add(showToolbar);
+
+        JCheckBoxMenuItem showToolbarText = new JCheckBoxMenuItem("Show Toolbar Text", toolBar.isTextVisible());
+        showToolbarText.addItemListener(e -> toolBar.setTextVisible(showToolbarText.getState()));
+        viewMenu.add(showToolbarText);
+
+        viewMenu.addSeparator();
         JCheckBoxMenuItem separateMultiviewZoom = new JCheckBoxMenuItem(new Actions.SeparateMultiviewZoom());
         separateMultiviewZoom.setState(Display.separateViewportZoom);
         viewMenu.add(separateMultiviewZoom);

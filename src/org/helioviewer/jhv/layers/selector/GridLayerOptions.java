@@ -258,24 +258,24 @@ public final class GridLayerOptions extends JPanel {
         panel.add(component, c);
     }
 
-    private static JComboBox<Colors.NamedColor> createColorBox(GridLayer layer) {
-        JComboBox<Colors.NamedColor> comboBox = new JComboBox<>(Colors.NamedColor.values());
+    private static JComboBox<Colors> createColorBox(GridLayer layer) {
+        JComboBox<Colors> comboBox = new JComboBox<>(Colors.values());
         comboBox.setSelectedItem(layer.getGridColor());
         comboBox.setRenderer(new ColorRenderer());
         comboBox.addActionListener(e -> {
-            Colors.NamedColor color = (Colors.NamedColor) Objects.requireNonNull(comboBox.getSelectedItem());
+            Colors color = (Colors) Objects.requireNonNull(comboBox.getSelectedItem());
             layer.setGridColor(color);
         });
         return comboBox;
     }
 
     /** A colour box for a reference surface, which owns its own colour rather than the grid's. */
-    private static JComboBox<Colors.NamedColor> createSurfaceColorBox(Colors.NamedColor initial, Consumer<Colors.NamedColor> setter) {
-        JComboBox<Colors.NamedColor> comboBox = new JComboBox<>(Colors.NamedColor.values());
+    private static JComboBox<Colors> createSurfaceColorBox(Colors initial, Consumer<Colors> setter) {
+        JComboBox<Colors> comboBox = new JComboBox<>(Colors.values());
         comboBox.setSelectedItem(initial);
         comboBox.setRenderer(new ColorRenderer());
         comboBox.addActionListener(e ->
-                setter.accept((Colors.NamedColor) Objects.requireNonNull(comboBox.getSelectedItem())));
+                setter.accept((Colors) Objects.requireNonNull(comboBox.getSelectedItem())));
         return comboBox;
     }
 
@@ -350,9 +350,9 @@ public final class GridLayerOptions extends JPanel {
         private static final int WIDTH = 24;
         private static final int HEIGHT = 12;
 
-        private final Colors.NamedColor color;
+        private final Colors color;
 
-        private ColorIcon(Colors.NamedColor _color) {
+        private ColorIcon(Colors _color) {
             color = _color;
         }
 
@@ -380,7 +380,7 @@ public final class GridLayerOptions extends JPanel {
         @Override
         public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
             JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-            if (value instanceof Colors.NamedColor color) {
+            if (value instanceof Colors color) {
                 label.setIcon(new ColorIcon(color));
                 label.setText(color.toString());
             }

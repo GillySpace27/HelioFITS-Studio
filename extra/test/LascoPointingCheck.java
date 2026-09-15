@@ -51,7 +51,7 @@ public final class LascoPointingCheck {
     }
 
     private static double angle(Map<String, String> h) {
-        var m = new FitsMetaData(new MapMetaDataContainer(h)).getWcsHeader().imageToPlane;
+        var m = new FitsMetaData(new MapMetaDataContainer(h), MetaData.UNKNOWN_SOURCE_URI).getWcsHeader().imageToPlane;
         return Math.toDegrees(Math.atan2(m.m10, m.m00));
     }
 

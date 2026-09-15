@@ -3,9 +3,10 @@ package org.helioviewer.jhv.gui.component;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.EventQueue;
 import java.util.ArrayList;
 
-import javax.swing.BorderFactory;
+import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.JSplitPane;
@@ -22,7 +23,8 @@ import org.helioviewer.jhv.gui.MainFrame;
 @SuppressWarnings("serial")
 public final class MainContentPanel extends JPanel {
 
-    private static final int DIVIDER_SIZE = 3;
+    private static final int DIVIDER_SIZE = 5;
+    private static final double NORMAL_RESIZE_WEIGHT = 0.75;
 
     private final ArrayList<Interfaces.MainContentPanelPlugin> pluginList = new ArrayList<>();
 
@@ -32,16 +34,25 @@ public final class MainContentPanel extends JPanel {
 
     private final JPanel pluginContainer;
     private final CollapsiblePane collapsiblePane;
+    private final JButton maximizeButton;
+
+    private boolean pluginMaximized;
+    private int normalDividerLocation;
 
     public MainContentPanel(Component mainComponent) {
         pluginContainer = new JPanel(new BorderLayout());
         collapsiblePane = new CollapsiblePane("Plugins", pluginContainer, !"false".equals(Settings.getProperty("display.plugins")));
         collapsiblePane.toggleButton.addActionListener(e -> updateLayout());
 
-        splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, true);
+        maximizeButton = Buttons.flat(Buttons.maximizePanel);
+        maximizeButton.addActionListener(e -> togglePluginMaximized());
+        collapsiblePane.setAccessory(maximizeButton);
+        updateMaximizeButton();
+
+        splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
         splitPane.setDividerSize(0);
-        splitPane.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 1));
-        splitPane.setResizeWeight(0.75);
+        splitPane.setBorder(null);
+        splitPane.setResizeWeight(NORMAL_RESIZE_WEIGHT);
 
         splitPane.setTopComponent(mainComponent);
 
@@ -54,6 +65,9 @@ public final class MainContentPanel extends JPanel {
     // Presentation mode folds the plugins pane (timelines, SWEK) away without touching the
     // user's own "display.plugins" preference, so leaving the mode restores what they had.
     public void setPluginsVisible(boolean visible) {
+        // Maximized hides the render surface, which has to come back along with the canvas.
+        if (!visible && pluginMaximized)
+            restorePluginSize();
         boolean atBottom = splitPane.getBottomComponent() == collapsiblePane;
         // Remember how tall it was. Hiding the bottom component of a JSplitPane leaves the divider
         // where the now-zero-sized child drags it, which is the bottom, so showing it again gave
@@ -136,11 +150,15 @@ public final class MainContentPanel extends JPanel {
     }
 
     private void updateLayoutImpl() {
+        if ((pluginList.isEmpty() || !collapsiblePane.toggleButton.isSelected()) && pluginMaximized)
+            restorePluginSize();
+
         splitPane.remove(collapsiblePane);
         remove(collapsiblePane);
         splitPane.setDividerSize(0);
 
         if (pluginList.isEmpty()) {
+            pluginContainer.removeAll();
             revalidate();
             repaint();
             return;
@@ -165,14 +183,54 @@ public final class MainContentPanel extends JPanel {
                 pluginContainer.add(tabbedPane, BorderLayout.CENTER);
             }
             splitPane.setBottomComponent(collapsiblePane);
-            splitPane.setDividerSize(DIVIDER_SIZE);
+            if (pluginMaximized) {
+                splitPane.setDividerLocation(0);
+            } else {
+                splitPane.setDividerSize(DIVIDER_SIZE);
+            }
         } else {
             add(collapsiblePane, BorderLayout.PAGE_END);
         }
+        maximizeButton.setVisible(isSelected);
         Settings.setProperty("display.plugins", Boolean.toString(isSelected));
 
         revalidate();
         repaint();
+    }
+
+    private void togglePluginMaximized() {
+        if (pluginMaximized) {
+            restorePluginSize();
+        } else {
+            normalDividerLocation = splitPane.getDividerLocation();
+            MainFrame.setRenderSurfaceVisible(false);
+            splitPane.setResizeWeight(0);
+            splitPane.setDividerSize(0);
+            splitPane.setDividerLocation(0);
+            pluginMaximized = true;
+            updateMaximizeButton();
+            revalidate();
+            repaint();
+        }
+    }
+
+    private void restorePluginSize() {
+        splitPane.setResizeWeight(NORMAL_RESIZE_WEIGHT);
+        splitPane.setDividerSize(DIVIDER_SIZE);
+        splitPane.setDividerLocation(normalDividerLocation);
+        pluginMaximized = false;
+        updateMaximizeButton();
+        revalidate();
+        repaint();
+        EventQueue.invokeLater(() -> {
+            if (!pluginMaximized)
+                MainFrame.setRenderSurfaceVisible(true);
+        });
+    }
+
+    private void updateMaximizeButton() {
+        maximizeButton.setIcon(pluginMaximized ? Buttons.restorePanel : Buttons.maximizePanel);
+        maximizeButton.setToolTipText(pluginMaximized ? "Restore panel size" : "Maximize panel");
     }
 
 }

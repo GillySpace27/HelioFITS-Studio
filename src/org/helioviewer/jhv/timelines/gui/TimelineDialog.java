@@ -22,8 +22,7 @@ import javax.swing.JScrollPane;
 
 import org.helioviewer.jhv.gui.Interfaces;
 import org.helioviewer.jhv.gui.MainFrame;
-import org.helioviewer.jhv.timelines.Timelines;
-import org.helioviewer.jhv.timelines.band.Band;
+import org.helioviewer.jhv.timelines.TimelineLayers;
 import org.helioviewer.jhv.timelines.band.BandType;
 
 import com.jidesoft.dialog.ButtonPanel;
@@ -32,20 +31,21 @@ import com.jidesoft.dialog.StandardDialog;
 @SuppressWarnings("serial")
 public final class TimelineDialog extends StandardDialog implements Interfaces.ShowableDialog {
 
+    private final TimelineLayers layers;
     private final JComboBox<String> comboGroup = new JComboBox<>();
     private final JList<BandType> listBand = new JList<>();
     private final AbstractAction load = new AbstractAction() {
         @Override
         public void actionPerformed(ActionEvent e) {
-            for (BandType bandType : listBand.getSelectedValuesList()) {
-                Timelines.getLayers().add(Band.createFromType(bandType));
-            }
+            for (BandType bandType : listBand.getSelectedValuesList())
+                layers.addBand(bandType);
             setVisible(false);
         }
     };
 
-    public TimelineDialog() {
+    public TimelineDialog(TimelineLayers _layers) {
         super(MainFrame.get(), "New Layer", true);
+        layers = _layers;
         setResizable(false);
     }
 
@@ -115,14 +115,21 @@ public final class TimelineDialog extends StandardDialog implements Interfaces.S
 
     private final LinkedHashMap<String, BandType[]> groups = new LinkedHashMap<>();
 
-    public void setupDatasets(String group, BandType[] types) {
-        groups.put(group, types);
-        DefaultComboBoxModel<String> model = new DefaultComboBoxModel<>(groups.keySet().toArray(String[]::new));
-        if (model.getSize() > 0) {
-            comboGroup.setModel(model);
+    public void setupDatasetGroups(String[] groupNames) {
+        if (comboGroup.getItemCount() != 0)
+            return;
+
+        for (String group : groupNames)
+            groups.put(group, new BandType[0]);
+        comboGroup.setModel(new DefaultComboBoxModel<>(groupNames));
+        if (groupNames.length > 0)
             comboGroup.setSelectedIndex(0);
+    }
+
+    public void setupDataset(String group, BandType[] types) {
+        groups.put(group, types);
+        if (group.equals(comboGroup.getSelectedItem()))
             updateGroupValues();
-        }
     }
 
     private void updateGroupValues() {

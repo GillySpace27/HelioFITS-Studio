@@ -12,6 +12,8 @@ import java.awt.GraphicsEnvironment;
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 
@@ -52,6 +54,7 @@ import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.layers.selector.LayerOptionSections;
 import org.helioviewer.jhv.layers.selector.LayersPanel;
 import org.helioviewer.jhv.layers.selector.LayersSectionPanel;
+import org.helioviewer.jhv.movie.ExportMovie;
 import org.helioviewer.jhv.movie.Player;
 import org.helioviewer.jhv.opengl.AngleCanvas;
 import org.helioviewer.jhv.opengl.angle.AngleRenderer;
@@ -94,23 +97,29 @@ public final class MainFrame {
 
     @SuppressWarnings("serial")
     private static final class RenderStartupHost extends JPanel {
-        private final JPanel placeholder = new JPanel();
         private AngleCanvas canvas;
+        private boolean surfaceVisible = true;
 
         RenderStartupHost() {
             super(new BorderLayout());
+            JPanel placeholder = new JPanel();
             placeholder.setBackground(Color.BLACK);
             add(placeholder, BorderLayout.CENTER);
         }
 
         void attachCanvas(AngleCanvas _canvas) {
-            if (canvas != null)
-                return;
             canvas = _canvas;
-            remove(placeholder);
+            canvas.setHostVisible(surfaceVisible);
+            removeAll();
             add(canvas, BorderLayout.CENTER);
             revalidate();
             repaint();
+        }
+
+        void setSurfaceVisible(boolean visible) {
+            surfaceVisible = visible;
+            if (canvas != null)
+                canvas.setHostVisible(visible);
         }
     }
 
@@ -148,8 +157,7 @@ public final class MainFrame {
 
     private static SideContentPane leftPane;
 
-    private static AngleCanvas renderCanvas;
-    private static RenderStartupHost renderHost;
+    private static final RenderStartupHost renderHost = new RenderStartupHost();
     private static AwtInputAdapter awtInputAdapter;
     private static MainContentPanel mainContentPanel;
 
@@ -166,13 +174,8 @@ public final class MainFrame {
 
         Message.setHandler(new MessageHandler());
 
-        menuBar = new MenuBar();
-        mainFrame.setJMenuBar(menuBar);
         // J, K and L scrub from anywhere in the window; the scrubber's own keys need its focus.
         Shuttle.install(mainFrame.getRootPane());
-
-        renderCanvas = null;
-        renderHost = new RenderStartupHost();
 
         leftPane = new SideContentPane();
         JPanel layerOptionsWrapper = new JPanel(new BorderLayout());
@@ -304,7 +307,28 @@ public final class MainFrame {
 
         ToolBar toolBar = new ToolBar();
 
+        menuBar = new MenuBar(toolBar);
+        mainFrame.setJMenuBar(menuBar);
+
         toolBarPanel = new JPanel(new BorderLayout());
+        // With the toolbar hidden, this keeps the window buttons off the transport strip.
+        if (Platform.isMacOS()) {
+            JPanel titleBarInset = new JPanel();
+            titleBarInset.putClientProperty(FlatClientProperties.FULL_WINDOW_CONTENT_BUTTONS_PLACEHOLDER, "mac vertical");
+            titleBarInset.setVisible(!toolBar.isVisible());
+            toolBar.addComponentListener(new ComponentAdapter() {
+                @Override
+                public void componentShown(ComponentEvent e) {
+                    titleBarInset.setVisible(false);
+                }
+
+                @Override
+                public void componentHidden(ComponentEvent e) {
+                    titleBarInset.setVisible(true);
+                }
+            });
+            toolBarPanel.add(titleBarInset, BorderLayout.LINE_START);
+        }
         toolBarPanel.add(toolBar, BorderLayout.CENTER);
 
         mainFrame.getContentPane().add(toolBarPanel, BorderLayout.NORTH);
@@ -333,22 +357,22 @@ public final class MainFrame {
     }
 
     private static void attachAndRender() {
-        if (renderCanvas != null) // impossible
+        if (renderHost.canvas != null) // impossible
             return;
 
-        renderCanvas = new AngleCanvas();
-        renderCanvas.setMinimumSize(new Dimension(1, 1)); // allow resize
-        renderCanvas.addMouseListener(awtInputAdapter);
-        renderCanvas.addMouseMotionListener(awtInputAdapter);
-        renderCanvas.addMouseWheelListener(awtInputAdapter);
-        renderCanvas.addKeyListener(awtInputAdapter);
+        AngleCanvas canvas = new AngleCanvas();
+        canvas.setMinimumSize(new Dimension(1, 1)); // allow resize
+        canvas.addMouseListener(awtInputAdapter);
+        canvas.addMouseMotionListener(awtInputAdapter);
+        canvas.addMouseWheelListener(awtInputAdapter);
+        canvas.addKeyListener(awtInputAdapter);
         // The canvas is a heavyweight AWT child, so the frame's drop target does not cover it;
         // it gets its own.
-        FileDropHandler.attach(renderCanvas);
-        renderHost.attachCanvas(renderCanvas);
+        FileDropHandler.attach(canvas);
+        renderHost.attachCanvas(canvas);
         // Force ANGLE surface/context creation immediately instead of waiting for the next UI event.
-        renderCanvas.requestRender();
-        DisplayController.setRenderRequestHandler(renderCanvas::requestRender);
+        canvas.requestRender();
+        DisplayController.setRenderRequestHandler(canvas::requestRender);
     }
 
     private static JFrame createFrame() {
@@ -826,8 +850,8 @@ public final class MainFrame {
         centerPanel.revalidate();
         mainFrame.validate();
         centerPanel.repaint();
-        if (renderCanvas != null)
-            renderCanvas.refreshHost();
+        if (renderHost.canvas != null)
+            renderHost.canvas.refreshHost();
     }
 
     /**
@@ -861,8 +885,8 @@ public final class MainFrame {
         centerPanel.revalidate();
         mainFrame.validate(); // push the new bounds down to the deeply-nested canvas synchronously
         centerPanel.repaint();
-        if (renderCanvas != null)
-            renderCanvas.refreshHost(); // synchronously resizes the native surface + renders at-size
+        if (renderHost.canvas != null)
+            renderHost.canvas.refreshHost(); // synchronously resizes the native surface + renders at-size
     }
 
     /**
@@ -919,8 +943,8 @@ public final class MainFrame {
         centerPanel.revalidate();
         mainFrame.validate();
         centerPanel.repaint();
-        if (renderCanvas != null)
-            renderCanvas.refreshHost();
+        if (renderHost.canvas != null)
+            renderHost.canvas.refreshHost();
 
         // Settings.setProperty rewrites the whole properties file, and a drag fires this every few
         // pixels; write the final width once things stop moving, the same debounce the window's
@@ -934,11 +958,16 @@ public final class MainFrame {
     }
 
     public static Component getRenderComponent() {
-        return renderCanvas != null ? renderCanvas : renderHost;
+        return renderHost.canvas != null ? renderHost.canvas : renderHost;
     }
 
     public static int getFramerate() {
-        return renderCanvas != null ? renderCanvas.getFramerate() : 0;
+        return renderHost.canvas != null ? renderHost.canvas.getFramerate() : 0;
+    }
+
+    public static void setRenderSurfaceVisible(boolean visible) {
+        ExportMovie.setMainCanvasVisible(visible);
+        renderHost.setSurfaceVisible(visible);
     }
 
     // A programmatic layout change resizes the canvas, and the native GL surface has to follow it.
@@ -953,12 +982,12 @@ public final class MainFrame {
     public static void resyncRenderSurface() {
         if (mainFrame == null)
             return;
-        if (renderCanvas != null)
-            renderCanvas.beginHostResync();
+        if (renderHost.canvas != null)
+            renderHost.canvas.beginHostResync();
         mainFrame.validate();
         EventQueue.invokeLater(() -> EventQueue.invokeLater(() -> {
-            if (renderCanvas != null)
-                renderCanvas.resyncHostDeferred();
+            if (renderHost.canvas != null)
+                renderHost.canvas.resyncHostDeferred();
         }));
     }
 
@@ -1032,8 +1061,8 @@ public final class MainFrame {
         centerPanel.revalidate();
         mainFrame.validate(); // push the new bounds down to the canvas synchronously
         centerPanel.repaint();
-        if (renderCanvas != null)
-            renderCanvas.refreshHost(); // a plain display() only reshapes the GL viewport
+        if (renderHost.canvas != null)
+            renderHost.canvas.refreshHost(); // a plain display() only reshapes the GL viewport
         // The plugins pane has just been taken away or given back without the toolbar's Timelines
         // button being touched; every path that moves it comes through here.
         ToolBar.syncTimelinesToggle();

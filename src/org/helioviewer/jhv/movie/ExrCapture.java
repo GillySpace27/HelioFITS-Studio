@@ -24,7 +24,7 @@ import org.helioviewer.jhv.opengl.GLGrab;
 import org.helioviewer.jhv.opengl.GLImage;
 import org.helioviewer.jhv.opengl.GLRenderer;
 import org.helioviewer.jhv.time.TimeUtils;
-import org.helioviewer.jhv.timelines.AbstractTimelineLayer;
+import org.helioviewer.jhv.timelines.TimelineLayer;
 import org.helioviewer.jhv.view.View;
 
 import org.json.JSONArray;
@@ -72,7 +72,7 @@ final class ExrCapture {
         Set<String> used = new HashSet<>();
         JSONArray layerList = new JSONArray();
         for (Layer layer : Layers.getLayers()) {
-            if (!layer.isEnabled() || layer instanceof AbstractTimelineLayer || layer instanceof MiniviewLayer)
+            if (!layer.isEnabled() || layer instanceof TimelineLayer || layer instanceof MiniviewLayer)
                 continue;
             String prefix = prefix(layer.getName(), used);
             if (layer instanceof ImageLayer imageLayer) {

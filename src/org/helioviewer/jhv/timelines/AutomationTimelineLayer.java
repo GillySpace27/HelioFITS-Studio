@@ -43,11 +43,11 @@ import org.json.JSONObject;
  * <p>It draws inside its own horizontal strip of the shared plot rectangle, the way
  * {@link CoverageTimelineLayer} bottom-justifies its coverage rows: clip to graphArea, compute y
  * from a strip index, and do not use GraphGeometry.yMapper, which spans the whole plot height.
- * {@link #showYAxis()} is false because every layer that answers true takes 30 pixels of plot
+ * {@link #hasYAxis()} is false because every layer that answers true takes 30 pixels of plot
  * width for its axis, and eight animated parameters would eat 240 of them; the lane prints its own
  * range at its left edge instead.
  */
-public final class AutomationTimelineLayer extends AbstractTimelineLayer {
+public final class AutomationTimelineLayer extends TimelineLayer {
 
     private static final int LANE_H = 30;      // automation stacks DOWN from the top; coverage fills UP from the bottom
     private static final int LANE_GAP = 4;
@@ -329,7 +329,7 @@ public final class AutomationTimelineLayer extends AbstractTimelineLayer {
     }
 
     @Override
-    public boolean showYAxis() {
+    public boolean hasYAxis() {
         return false;
     }
 

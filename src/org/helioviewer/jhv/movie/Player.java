@@ -335,6 +335,10 @@ public class Player {
         return layer.getView().getFrameTime(frameForTime(millis)).milli;
     }
 
+    static boolean hasActiveImage() {
+        return Layers.getActiveImageLayer() != null;
+    }
+
     public static int getMaximumFrameNumber() {
         ImageLayer layer = Layers.getActiveImageLayer();
         return layer == null ? 0 : layer.getView().getMaximumFrameNumber();
@@ -345,7 +349,7 @@ public class Player {
     }
 
     private static void syncTime(JHVTime dateTime) {
-        if (ExportMovie.isRecording() && notDone)
+        if (!ExportMovie.beginPlaybackFrame())
             return;
 
         lastTimestamp = dateTime;
@@ -361,9 +365,7 @@ public class Player {
         boolean last = view.getFrameTime(activeFrame).equals(playbackLastTime);
 
         frameListeners.forEach(listener -> listener.frameChanged(activeFrame, last));
-
-        if (ExportMovie.isRecording())
-            notDone = true;
+        ExportMovie.playbackFrameReady(last);
     }
 
     private static final ArrayList<Listener> frameListeners = new ArrayList<>();
@@ -427,12 +429,6 @@ public class Player {
 
     public static void setAdvanceMode(AdvanceMode mode) {
         advanceMode = mode;
-    }
-
-    private static boolean notDone;
-
-    public static void grabDone() {
-        notDone = false;
     }
 
 }
