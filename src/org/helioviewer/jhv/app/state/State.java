@@ -50,7 +50,7 @@ public final class State {
     public static void save(String dir, String file) {
         JSONObject json = toJson();
 
-        AppThread.create(() -> writeJson(json, dir, file), "JHV-SaveState").start();
+        AppThread.create(() -> writeJson(json, dir, file), "HFS-SaveState").start();
     }
 
     // Synchronous save for shutdown: the async variant can be cut off by System.exit before the

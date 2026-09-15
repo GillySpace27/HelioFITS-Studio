@@ -1,7 +1,21 @@
 
-# Revision history for JHelioviewer
+# Revision history
 
-## JHelioviewer 5.6.0 (pending)
+## HelioFITS Studio 1.0.0 (2026-09-15)
+
+The first release under the HelioFITS Studio name. It joins the PUNCH and coronagraph work of the preview builds with upstream JHelioviewer's development through July 2026 in a single line. Every entry from this heading down to the JHelioviewer 5.5.0 heading belongs to this release.
+
+### Consolidation for 1.0
+- Merge upstream JHelioviewer's timeline overhaul (HAPI catalogs, stacked and predefined plots, warning levels), its export refactor with failure reporting, the LWJGL and ANGLE updates, toolbar visibility and timeline maximize controls, and its grid allocation work
+- Native LASCO FITS from NRL take their CROTA, so frames recorded while SOHO is rolled are no longer upside down; Helioviewer's pre-rotated LASCO JP2s are left as they are
+- LASCO frames whose header lost its pointing borrow it from the nearest frame of either telescope (C2 CROTA is C3's plus 0.732°), and every borrow is logged
+- Give PUNCH mosaics an inner occulter radius so their no-data center no longer paints an opaque disk over layers beneath (by @GillySpace27)
+- Native PUNCH mosaics, which name PUNCH only in OBSRVTRY, get that inner occulter too
+- Every product code in the PUNCH dialog explains itself on hover
+- Grid labels and viewpoint markers keep their share of the frame in exported movies and images
+- The update check reads the released VERSION file; it used to build a malformed address
+- Rename the application's threads, default export name, icon and launch scripts to HelioFITS Studio, and move files that belonged to upstream JHelioviewer or to the preview builds into `archive/`
+
 
 ### Display and rendering
 - Add options to choose colors and line thickness for annotations (fixes #156)
@@ -58,6 +72,8 @@
 - Clean up viewpoint position loading, map-scale ownership, FOV shape emission, and SWEK APIs
 - Various bug fixes, cleanups, and internal refactoring
 
+# Earlier releases, as JHelioviewer
+
 ## JHelioviewer 5.5.0 (2026-06-01)
 
 ### Display and rendering
@@ -110,7 +126,7 @@
 
 ### Application control and integration
 - Restructure viewer, playback, recording, and state changes around explicit application commands
-- Expose playback, recording, load-state, view, seek, and camera commands through SAMP (see `docs/jhv-samp-commands.md`)
+- Expose playback, recording, load-state, view, seek, and camera commands through SAMP (see `docs/samp-commands.md`)
 - Add completion notifications for command-driven state loads and recordings
 
 ### Interaction and UI

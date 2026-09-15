@@ -206,7 +206,7 @@ public final class Commands {
             return future;
         }
 
-        FileUtils.resolveURIListOffEDT(uris, "JHV-LoadDirectory", resolved -> {
+        FileUtils.resolveURIListOffEDT(uris, "HFS-LoadDirectory", resolved -> {
             if (resolved.isEmpty()) {
                 future.complete(null);
                 return;

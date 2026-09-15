@@ -1,5 +1,5 @@
 @echo off
-REM HelioFITS Studio - PUNCH & coronagraph preview build.  Needs Java 25 or newer.
+REM HelioFITS Studio 1.0.  Needs Java 25 or newer.
 cd /d "%~dp0"
 
 set "JAVA=java"

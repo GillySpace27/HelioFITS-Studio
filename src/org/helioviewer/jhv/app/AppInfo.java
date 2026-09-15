@@ -17,8 +17,9 @@ public final class AppInfo {
      */
     public static final String bugURL = "https://github.com/GillySpace27/JHelioviewer-SWHV/issues";
     public static final String downloadURL = "https://github.com/GillySpace27/JHelioviewer-SWHV/releases";
-    // The preview guide (JHV-Preview-Guide.pdf) ships as an asset of every release, so the
-    // releases page is the one place that documents this build rather than upstream SWHV.
+    public static final String versionURL = "https://raw.githubusercontent.com/GillySpace27/JHelioviewer-SWHV/master/VERSION";
+    // The field guide (HFStudio-Guide.pdf) ships as an asset of every release, so the releases
+    // page is the one place that documents this build rather than upstream JHelioviewer.
     public static final String documentationURL = downloadURL;
     public static final String emailAddress = "swhv@oma.be";
     public static String version = "2.-1.-1";

@@ -424,7 +424,7 @@ public final class MainFrame {
         restoreBounds(frame, maxSize);
         rememberBounds(frame);
 
-        frame.setIconImage(IconBank.getIcon(IconBank.JHVIcon.HVLOGO_SMALL).getImage());
+        frame.setIconImage(IconBank.getIcon(IconBank.JHVIcon.HVLOGO_APP).getImage());
         setAppIcon();
 
         return frame;

@@ -21,11 +21,11 @@ public final class TransferAccess {
         try {
             if (transferable.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
                 List<?> objects = (List<?>) transferable.getTransferData(DataFlavor.javaFileListFlavor);
-                AppThread.create(() -> TransferLoad.transferFileList(objects), "JHV-TransferFileList").start(); // avoid file system operations on EDT
+                AppThread.create(() -> TransferLoad.transferFileList(objects), "HFS-TransferFileList").start(); // avoid file system operations on EDT
                 return true;
             } else if (transferable.isDataFlavorSupported(DataFlavor.stringFlavor)) {
                 String loc = (String) transferable.getTransferData(DataFlavor.stringFlavor);
-                AppThread.create(() -> TransferLoad.transferStringArray(loc), "JHV-TransferStringArray").start(); // avoid file system operations on EDT
+                AppThread.create(() -> TransferLoad.transferStringArray(loc), "HFS-TransferStringArray").start(); // avoid file system operations on EDT
                 return true;
             }
         } catch (Exception e) {

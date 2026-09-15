@@ -39,7 +39,7 @@ public final class ExportMovie {
     // unbounded queue filled a 30 GB heap in a dozen frames. The GL thread waits instead.
     private static final int EXR_IN_FLIGHT = 2;
     private static final ExecutorService encodeExecutor = Executors.newSingleThreadExecutor(
-            new AppThread.NamedThreadFactory("JHV-EncodeMovie"));
+            new AppThread.NamedThreadFactory("HFS-EncodeMovie"));
     private static final ArrayList<StatusListener> statusListeners = new ArrayList<>();
 
     private static @Nullable RecordingSession recordingSession;

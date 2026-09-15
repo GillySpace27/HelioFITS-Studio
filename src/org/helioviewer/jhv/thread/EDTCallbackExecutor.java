@@ -28,7 +28,7 @@ record EDTCallbackExecutor(ExecutorService delegate) {
                             executorService.shutdown();
                     }
                 };
-        Runtime.getRuntime().addShutdownHook(new Thread(shutdownHook, "JHV-ShutdownHook"));
+        Runtime.getRuntime().addShutdownHook(new Thread(shutdownHook, "HFS-ShutdownHook"));
         return service;
     }
 

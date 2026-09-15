@@ -52,7 +52,7 @@ public final class SampClient extends HubConnector {
                 }
             }
             instance = new SampClient(DefaultClientProfile.getProfile());
-        }, "JHV-StartSamp").start();
+        }, "HFS-StartSamp").start();
     }
 
     private static HubProfile[] hubProfiles(boolean webProfilePopup) throws IOException, SampException {
@@ -70,7 +70,6 @@ public final class SampClient extends HubConnector {
         Map<String, String> meta = new HashMap<>();
         meta.put("samp.name", "HelioFITS Studio");
         meta.put("samp.description.text", AppInfo.userAgent);
-        meta.put("samp.icon.url", "https://swhv.oma.be/user_manual/hvImage_160x160.png");
         meta.put("samp.documentation.url", AppInfo.documentationURL);
         meta.put("author.mail", AppInfo.emailAddress);
         meta.put("author.name", "HelioFITS Studio, built on JHelioviewer");

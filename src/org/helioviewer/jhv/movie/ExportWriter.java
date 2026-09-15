@@ -41,7 +41,7 @@ class ExportWriter {
                  int _w, int _h, int _fps, boolean _allIntra) {
         // Name the export after the current session so a recording is self-identifying.
         String session = org.helioviewer.jhv.app.Session.displayName();
-        String base = "Untitled".equals(session) ? "JHV" : session.replaceAll("[^A-Za-z0-9._-]", "_");
+        String base = "Untitled".equals(session) ? "HFStudio" : session.replaceAll("[^A-Za-z0-9._-]", "_");
         prefix = Directories.EXPORTS.getPath() + base + "_" + TimeUtils.formatFilename(System.currentTimeMillis());
         format = _format;
         chroma = _format.clamp(_chroma);

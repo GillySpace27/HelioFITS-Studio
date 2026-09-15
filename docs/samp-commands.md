@@ -1,15 +1,15 @@
-# JHV SAMP Commands
+# HelioFITS Studio SAMP Commands
 
-This note describes the SAMP interface exposed by JHelioviewer to external
+This note describes the SAMP interface exposed by HelioFITS Studio to external
 clients. It documents the accepted `samp.mtype` values, the expected message
 parameters, the handling of invalid input, and the completion notifications
-that JHV may send back.
+that HelioFITS Studio may send back.
 
 Only implemented SAMP commands are documented here.
 
 ## Accepted Message Types
 
-JHV accepts the following SAMP message types:
+HelioFITS Studio accepts the following SAMP message types:
 
 ### Load messages
 
@@ -75,11 +75,11 @@ These messages update only the fields they receive:
 
 For these messages:
 
-- omitted parameters leave the existing JHV state unchanged
+- omitted parameters leave the existing HelioFITS Studio state unchanged
 - invalid string values are ignored
 - out-of-range numeric values are clamped
 
-JHV applies those rules at the state boundary. See
+HelioFITS Studio applies those rules at the state boundary. See
 [ViewState.java](../src/org/helioviewer/jhv/app/state/ViewState.java) and
 [FITSViewState.java](../src/org/helioviewer/jhv/view/uri/FITSViewState.java)
 for the exact implementation.
@@ -116,7 +116,7 @@ These messages act immediately instead of performing a partial state merge:
 
 ### State-changing messages
 
-These messages update real JHV state and leave the resulting state visible in
+These messages update real HelioFITS Studio state and leave the resulting state visible in
 the UI after execution:
 
 - `jhv.view.set`
@@ -148,7 +148,7 @@ Payload shape:
 }
 ```
 
-The `url` value may also be a local path string. JHV will treat a value with no URI scheme as a local file path.
+The `url` value may also be a local path string. HelioFITS Studio will treat a value with no URI scheme as a local file path.
 
 ### Multi-URL or single-URL load payloads
 
@@ -201,11 +201,11 @@ Message types:
 - `jhv.load.sunjson`
 
 For `jhv.load.state`, clients may also send an optional `requestId` parameter.
-This is not a SAMP-standard field; it is part of JHV's application-level
+This is not a SAMP-standard field; it is part of HelioFITS Studio's application-level
 message contract and is used only so the client can correlate the eventual
 completion notification.
 
-The `url` or inline `value` for `jhv.load.state` must contain a JHV state
+The `url` or inline `value` for `jhv.load.state` must contain a HelioFITS Studio state
 document, not arbitrary JSON.
 
 Accepted payload shapes:
@@ -230,8 +230,8 @@ Inline-value form:
 
 Behavior:
 
-- if `url` is present, JHV uses it
-- otherwise, if `value` is present, JHV uses the inline string
+- if `url` is present, HelioFITS Studio uses it
+- otherwise, if `value` is present, HelioFITS Studio uses the inline string
 - these handlers do not combine `url` and `value`
 
 ### Load notes
@@ -428,7 +428,7 @@ Accepted parameters:
 - `speedUnit`
 
 This message starts recording using the resulting recording and playback state.
-If recording is already active, JHV sends a failure completion.
+If recording is already active, HelioFITS Studio sends a failure completion.
 
 Omitted parameters leave the existing recording or playback configuration
 unchanged. Invalid strings are warned about and ignored. Out-of-range numeric
@@ -615,7 +615,7 @@ Failure example:
 Notes:
 
 - `success` means the image layer load reached the same loaded state used by
-  state restore, not just that JHV accepted the SAMP message
+  state restore, not just that HelioFITS Studio accepted the SAMP message
 - `imageParams` is applied after creating the image layer and before loading
   the indicated local or remote data
 - `failure` may come from:
@@ -653,7 +653,7 @@ Response:
   - `message`
 - `samp.params` additionally includes:
   - `requestId` if and only if the original request supplied one
-  - `output` when recording finishes successfully and JHV has a result path or
+  - `output` when recording finishes successfully and HelioFITS Studio has a result path or
     output pattern to report
 
 Success example:
@@ -713,9 +713,9 @@ Implemented completion messages:
 - `jhv.load.image.completed` is implemented as described above
 - `jhv.record.start.completed` is implemented as described above
 
-## JHV State Document Format
+## HelioFITS Studio State Document Format
 
-`jhv.load.state` accepts a JHV state document, not arbitrary JSON.
+`jhv.load.state` accepts a HelioFITS Studio state document, not arbitrary JSON.
 
 The role of the state document is to rebuild the same scene:
 
@@ -756,7 +756,7 @@ three roles:
 
 Meaning:
 
-- `data` tells JHV what data to reload and which per-entry view options to
+- `data` tells HelioFITS Studio what data to reload and which per-entry view options to
   restore for annotations, layers, image layers, timelines, and plugin-backed
   data such as PFSS and SWEK
 - `view mode` restores the global viewing mode

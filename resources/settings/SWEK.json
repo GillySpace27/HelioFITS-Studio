@@ -260,7 +260,7 @@
                         {
                             "source"                    : "JHV",
                             "parameter_name"            : "JHV_GOESFlux",
-                            "parameter_display_name"    : "JHV GOES Flux",
+                            "parameter_display_name"    : "GOES Flux",
                             "filter"                    :
                                 {
                                     "filter_type"   : "flarefilter",

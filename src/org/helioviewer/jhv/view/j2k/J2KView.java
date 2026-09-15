@@ -142,7 +142,7 @@ public class J2KView extends BaseView {
                 } catch (KduException e) {
                     Log.error(e);
                 }
-            }, "JHV-J2KAbolisher").start();
+            }, "HFS-J2KAbolisher").start();
         }
     }
 

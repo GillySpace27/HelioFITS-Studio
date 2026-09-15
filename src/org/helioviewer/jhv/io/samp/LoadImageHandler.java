@@ -63,7 +63,7 @@ final class LoadImageHandler {
                 } catch (Exception e) {
                     context.complete(false, message(e), null);
                 }
-            }, "JHV-WaitImageLoad").start();
+            }, "HFS-WaitImageLoad").start();
         });
     }
 

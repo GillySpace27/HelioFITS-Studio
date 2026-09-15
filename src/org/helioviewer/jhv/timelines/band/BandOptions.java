@@ -79,7 +79,7 @@ class BandOptions extends JPanel {
                 } catch (Exception ex) {
                     Log.error("Failed to write JSON", ex);
                 }
-            }, "JHV-ExportBand").start();
+            }, "HFS-ExportBand").start();
         });
         return downloadButton;
     }

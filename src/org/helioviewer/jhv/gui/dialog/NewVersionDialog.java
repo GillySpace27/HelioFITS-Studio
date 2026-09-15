@@ -29,7 +29,7 @@ public class NewVersionDialog extends TextDialog {
 
     public static void check() {
         AppThread.create(() -> {
-            try (NetClient nc = NetClient.of(new URI(AppInfo.downloadURL + "VERSION")); BufferedSource source = nc.getSource()) {
+            try (NetClient nc = NetClient.of(new URI(AppInfo.versionURL)); BufferedSource source = nc.getSource()) {
                 String version = source.readUtf8Line();
                 if (version == null || version.isEmpty())
                     throw new Exception("Update Checker: Empty version string");
@@ -45,7 +45,7 @@ public class NewVersionDialog extends TextDialog {
                 Log.warn(e);
                 Message.warn("Update check error", failedMessage(e));
             }
-        }, "JHV-CheckUpdate").start();
+        }, "HFS-CheckUpdate").start();
     }
 
     @Override
