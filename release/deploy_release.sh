@@ -38,7 +38,7 @@ VERSION="$(tr -d '[:space:]' < "$SRC/VERSION")"
 # Checked before any mode runs: publish does minutes of packaging before it would otherwise
 # notice, and failing after the work is a good way to be ignored. jpackage needs it numeric.
 echo "$VERSION" | grep -qE '^[0-9]+(\.[0-9]+){0,2}$' || {
-    echo "!! VERSION is '$VERSION'; it must be numeric, like 0.9.0 (jpackage requires it, and the tag is v<version>)." >&2
+    echo "!! VERSION is '$VERSION'; it must be numeric, like 0.8.0 (jpackage requires it, and the tag is v<version>)." >&2
     exit 2
 }
 TAG="v$VERSION"
@@ -70,7 +70,7 @@ repackage() {
     cp "$SRC/run.command" "$SRC/run.sh" "$SRC/run.bat" "$STAGE/$TOP/"
     cp "$ICNS" "$STAGE/$TOP/"   # shipped so zip users have the icon; the Dock tile itself
                                 # comes from Taskbar.setIconImage inside the app
-    # The root README.txt moved to archive/preview/ in the 0.9 cleanup. Ship whichever README
+    # The root README.txt moved to archive/preview/ in the 0.8 cleanup. Ship whichever README
     # the root has, and say so loudly when it has none instead of aborting under set -e.
     _readme=""
     for _r in README.txt README.md; do [ -f "$SRC/$_r" ] && { _readme="$SRC/$_r"; break; }; done

@@ -14,7 +14,7 @@ release/install4j/resources/HFS_icon.png, which was deleted in e8d52ff4c, so rec
   python3 make_squircle_icon.py /tmp/HFS_icon.png
 
 Do not pass resources/images/HFStudio_icon_512.png: that is already a finished tile (a
-rounded square with a layers badge), so it would end up boxed inside a second tile.
+rounded square), so it would end up boxed inside a second tile.
 """
 import math, subprocess, sys, os
 from PIL import Image, ImageDraw, ImageFilter
