@@ -86,6 +86,7 @@ public final class AboutDialog extends StandardDialog implements Interfaces.Show
                 "<a href='/licenses/JHelioviewer.txt'>Mozilla Public License Version 2.0</a>.<br/>" +
                 "The bundled JHelioviewer components remain subject to the<br/>" +
                 "<a href='/licenses/EULA.txt'>ESA End-User License Agreement</a>.<br/><br/>" +
+                "Source code for this build: <a href='" + AppInfo.sourceURL + "'>GitHub</a><br/>" +
                 "Report a problem with this build: <a href='" + AppInfo.bugURL + "'>issue tracker</a>";
 
         HTMLPane pane = new HTMLPane();

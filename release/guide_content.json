@@ -16,7 +16,7 @@
    "title": "What HelioFITS Studio is",
    "paras": [
     "**HelioFITS Studio** is a solar image browser built on JHelioviewer, the open-source viewer from the ESA/NASA Helioviewer Project. It adds a handful of tools for coronal research: a Sun-centered radial projection (Helioradial) that gives the outer corona the space it never gets in a normal view, a rectangular unwrap of the same stretch (Helioradial Unrolled), support for NASA's PUNCH mission data and ESA's PROBA-3/ASPIICS coronagraph, a radial enhancement filter, CME tracking, adjustable coordinate grids, a Point Cloud layer that drops a 3-D reconstruction into the scene alongside the imagery, hand-drawn synoptic maps wrapped onto the solar globe, and a colour-table legend so a map's colours can actually be read.",
-    "Two of these, the PUNCH layer and the RHEF filter, have also been merged into JHelioviewer itself, and others were submitted there as pull requests (see the last page). HelioFITS Studio is maintained at `github.com/@REPO@`; please report problems and requests on that repository's issue tracker, which the app also opens from **Help > Report Bug/Request Feature**."
+    "Several of these, among them the PUNCH layer, the RHEF filter, the Helioradial projections and the grid controls, have since been taken into JHelioviewer's own development line, and others were submitted there as pull requests (see the last page). HelioFITS Studio is maintained at `github.com/@REPO@`; please report problems and requests on that repository's issue tracker, which the app also opens from **Help > Report Bug/Request Feature**."
    ]
   },
   {
@@ -344,8 +344,8 @@
    "title": "Credit, and what went upstream",
    "paras": [
     "HelioFITS Studio is a fork of JHelioviewer, the open-source solar image browser from the ESA/NASA Helioviewer Project, at `github.com/Helioviewer-Project/JHelioviewer-SWHV`. The tools described here are built on it.",
-    "Two additions are merged into JHelioviewer: the New PUNCH Layer source (with the PUNCH colormap), and the RHEF radial-histogram filter.",
-    "Others were submitted there as a series of focused pull requests: the Helioradial and Helioradial Unrolled projections, PROBA-3/ASPIICS support, grid styling, the per-layer PUNCH refresh, a shared display range that keeps PUNCH movies from strobing, the reorganized layer panel, timeline navigation improvements, the Point Cloud layer (proposed on its own, since it is a larger addition), synoptic-map support, and the colour-table legend. You can browse them under that repository's Pull requests tab.",
+    "Four additions have been taken into JHelioviewer's development line and are credited in its pending 5.10.0 changelog: the New PUNCH Layer source (with the PUNCH colormap), the RHEF radial-histogram filter, the Helioradial and Helioradial Unrolled projections (RadialWarp and RectWarp there), and the grid colour, opacity and width controls.",
+    "Others were submitted there as a series of focused pull requests: PROBA-3/ASPIICS support, grid label controls, the per-layer PUNCH refresh, a shared display range that keeps PUNCH movies from strobing, the reorganized layer panel, timeline navigation improvements, the Point Cloud layer (proposed on its own, since it is a larger addition), synoptic-map support, and the colour-table legend. You can browse them under that repository's Pull requests tab.",
     "Licensed under MPL 2.0, the same as JHelioviewer itself."
    ]
   }

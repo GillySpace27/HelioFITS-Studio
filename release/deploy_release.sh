@@ -90,8 +90,11 @@ repackage() {
 notes_file() {
     NOTES="$(mktemp)"
     DMGSHA="$([ -f "$DMG" ] && shasum -a 256 "$DMG" | awk '{print $1}' || echo '(built by: ./deploy_release.sh notarize)')"
+    PRE_NOTE=""; [ -n "$PRERELEASE" ] && PRE_NOTE="This is a pre-release, published for testing ahead of 1.0. Only macOS has been tried; please report anything that breaks."
     cat > "$NOTES" <<EOF
 **$APP_NAME $VERSION**
+
+$PRE_NOTE
 
 $APP_NAME is a fork of JHelioviewer, the open-source solar image browser from the ESA/NASA
 Helioviewer Project. It streams decades of full-disk and coronagraph imagery from the major
@@ -103,9 +106,12 @@ https://github.com/$REPO/issues
 
 We work with NASA's PUNCH mission and the wider coronagraph record, and JHelioviewer did not do
 several things that work needed: load PUNCH data, stretch the outer corona so it has room to read,
-equalize the steep radial falloff, and a few more. $APP_NAME adds them. Two of those pieces have
-also been merged into JHelioviewer itself (the PUNCH layer and RHEF), and others were submitted
-there as pull requests.
+equalize the steep radial falloff, and a few more. $APP_NAME adds them. Several of those pieces
+have since been taken into JHelioviewer's own development line (the PUNCH layer, RHEF, the
+Helioradial projections and the grid colour controls), and others were submitted there as pull
+requests. Earlier builds were published here as the JHelioviewer PUNCH & Coronal Research
+Distribution (v5.6a to v5.6d); $APP_NAME continues that line under its own name. The README on
+this repository explains the fork, its relationship to JHelioviewer and its licensing in full.
 
 ### What $APP_NAME adds
 
@@ -123,11 +129,11 @@ there as pull requests.
 - **Native FITS from the VSO**: a FITS (VSO) card on the add-layer button pulls calibrated full-bit-depth FITS for most missions (LASCO, EIT, AIA, HMI, SECCHI, XRT, EIS), plus **GOES SUVI** channel by channel as native L1b, for when the 8-bit JP2 browse products band under a hard stretch.
 
 **Image processing**
-- **RHEF**: the Radial Histogram Equalization Filter, with an Upsilon control for shadows and highlights. (also merged into JHelioviewer, Helioviewer-Project/JHelioviewer-SWHV#327)
+- **RHEF**: the Radial Histogram Equalization Filter, with an Upsilon control for shadows and highlights. (also taken into JHelioviewer's development line)
 - **C3 with its background removed.** NRL's monthly minimum images are fetched automatically, the two bracketing each frame interpolated as their own getbkgimg.pro does, and subtracted in DN before normalization, which also puts a movie's frames on one photometric footing.
 
 **Display**
-- **Ten-bit canvas (macOS)**: the on-screen image carries 10 bits per channel instead of 8: four times the levels, the anti-banding dither retires automatically, colours unchanged. The 16-bit movie export was already deeper and is untouched.
+- **HDR canvas (macOS)**: image layers render into the display's extended range, so the corona can be brighter than the window. Needs an EDR display.
 
 **Overlays**
 - Adjustable coordinate grid: color, opacity, line width, label size, and radial-label angle.
@@ -176,7 +182,12 @@ sha256  $DMGSHA  $TOP.dmg
 sha256  $SHA  $TOP.zip
 \`\`\`
 
-Licensed under MPL 2.0, the same as JHelioviewer.
+### Licensing
+
+Licensed under MPL 2.0, the same as JHelioviewer; the source of this release is this repository at
+tag $TAG. The downloads bundle third-party components under their own licences, among them the
+proprietary Kakadu JPEG 2000 codec (non-commercial licence, NewSouth Innovations Ltd); see
+THIRD-PARTY.md in the repository.
 EOF
     echo "$NOTES"
 }
