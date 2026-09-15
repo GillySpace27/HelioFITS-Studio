@@ -69,6 +69,17 @@ public final class PunchNameCheck {
         expect("another instrument is left alone",
                 "SOMETHING 171".equals(FitsMetaData.observation(new MapMetaDataContainer(other)).displayName()));
 
+        // A native L3 mosaic says PUNCH only in OBSRVTRY (no DETECTOR card), and still needs the inner occulter.
+        try (nom.tam.fits.Fits fits = new nom.tam.fits.Fits(new java.io.File("extra/test/data/PUNCH_L3_CAM_20260425001600_v0k.fits"))) {
+            nom.tam.fits.Header header = null;
+            for (nom.tam.fits.BasicHDU<?> hdu : fits.read())
+                if (hdu instanceof nom.tam.image.compression.hdu.CompressedImageHDU chdu && header == null)
+                    header = chdu.getImageHeader();
+            float inner = new FitsMetaData(new org.helioviewer.jhv.io.FitsHeaderContainer(header), MetaData.UNKNOWN_SOURCE_URI).getInnerRadius();
+            double rsun = inner / org.helioviewer.jhv.astronomy.Sun.Radius;
+            expect("a native PUNCH L3 mosaic gets the 12 Rsun inner occulter, got " + rsun, Math.abs(rsun - 12) < 1e-4);
+        }
+
         System.out.println(failures == 0 ? "PunchNameCheck: PASS" : "PunchNameCheck: " + failures + " FAILURE(S)");
         System.exit(failures == 0 ? 0 : 1);
     }

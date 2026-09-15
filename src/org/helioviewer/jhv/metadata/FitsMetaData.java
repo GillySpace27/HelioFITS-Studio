@@ -168,8 +168,8 @@ public final class FitsMetaData extends CommonMetaData {
             } else if (observatory.equals("STEREO-B") && detector.equals("COR2")) {
                 inner = 3.25 * Sun.Radius;
                 outer = 17 * Sun.Radius;
-            } else if (detector.equals("PUNCH")) {
-                // PUNCH JP2s carry no HV_ROCC_* occulter keywords, so inner stays 0 and the
+            } else if (detector.equals("PUNCH") || m.getString("OBSRVTRY").orElse("").trim().equals("PUNCH")) {
+                // PUNCH carries no HV_ROCC_* occulter keywords (native mosaics not even DETECTOR), so inner stays 0 and the
                 // central no-data region renders as an opaque black disk over any layer beneath.
                 // Give it an inner radius so the shader discards that region automatically (no
                 // hand-set mask needed). Tune PUNCH_INNER_RSUN if a black ring remains / too much
