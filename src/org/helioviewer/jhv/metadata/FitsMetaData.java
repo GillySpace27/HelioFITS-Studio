@@ -81,6 +81,7 @@ public final class FitsMetaData extends CommonMetaData {
     }
 
     public FitsMetaData(@Nonnull MetaDataContainer m) {
+        m = LascoPointing.fill(m);
         identifyObservation(m);
 
         instrument = instrument.trim().intern();

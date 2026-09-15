@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -21,6 +22,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import org.helioviewer.jhv.app.Log;
+import org.helioviewer.jhv.metadata.LascoPointing;
 import org.helioviewer.jhv.thread.Task;
 import org.helioviewer.jhv.time.TimeUtils;
 
@@ -53,7 +55,7 @@ public final class LascoClient {
     }
 
     static List<URI> query(FitsRequest request) throws Exception {
-        return filterToSynoptic(list(request));
+        return filterToSynoptic(request, list(request));
     }
 
     private static List<URI> list(FitsRequest request) throws Exception {
@@ -104,26 +106,22 @@ public final class LascoClient {
      * <p>The keeper is whichever (filter, polarizer, width) combination is most common among the
      * frames asked for, which needs no per-detector lore and follows the programme if it changes.
      * Headers are read by taking the first few kilobytes of each file and closing the stream, so a
-     * rejected frame never costs its two megabytes.
+     * rejected frame never costs its two megabytes. The same read lends pointing to frames whose
+     * header has none; see {@link LascoPointing}.
      */
-    private static List<URI> filterToSynoptic(List<URI> candidates) throws Exception {
+    private static List<URI> filterToSynoptic(FitsRequest request, List<URI> candidates) throws Exception {
+        if (candidates.isEmpty())
+            return candidates;
+
+        List<Probe> probes = probe(candidates);
+        List<LascoPointing.Frame> frames = probes.stream().map(Probe::frame).filter(Objects::nonNull).toList();
+        LascoPointing.lend(frames, otherTelescope(request, frames));
+
         if (candidates.size() < 4) // too few to have a majority worth trusting
             return candidates;
 
-        List<Config> configs;
-        ExecutorService pool = Executors.newFixedThreadPool(PROBE_THREADS);
-        try {
-            List<Future<Config>> futures = new ArrayList<>(candidates.size());
-            for (URI uri : candidates)
-                futures.add(pool.submit(() -> readConfig(uri)));
-            configs = new ArrayList<>(candidates.size());
-            for (Future<Config> f : futures)
-                configs.add(f.get());
-        } finally {
-            pool.shutdown();
-        }
-
-        Map<Config, Long> counts = configs.stream()
+        Map<Config, Long> counts = probes.stream()
+                .map(Probe::config)
                 .filter(c -> c != Config.UNKNOWN)
                 .collect(Collectors.groupingBy(c -> c, Collectors.counting()));
         if (counts.isEmpty()) // nothing readable: keep everything rather than empty the layer
@@ -132,13 +130,51 @@ public final class LascoClient {
 
         List<URI> out = new ArrayList<>(candidates.size());
         for (int i = 0; i < candidates.size(); i++) {
-            Config c = configs.get(i);
+            Config c = probes.get(i).config();
             // An unreadable header is kept: a probe that failed is not evidence about the frame.
             if (c == Config.UNKNOWN || c.equals(keep))
                 out.add(candidates.get(i));
         }
         Log.info("LASCO keeping " + keep + ": " + out.size() + " of " + candidates.size() + " frames");
         return out;
+    }
+
+    /**
+     * Headers of the other telescope over the stretch where this request's frames have no pointing, or
+     * nothing when they all have some. C2 and C3 ride the same spacecraft, and in the 2025-08 C2 gap every
+     * C3 header kept its CROTA.
+     */
+    private static List<LascoPointing.Frame> otherTelescope(FitsRequest request, List<LascoPointing.Frame> frames) throws Exception {
+        String other = switch (request.product().toUpperCase(Locale.ROOT)) {
+            case "C2" -> "C3";
+            case "C3" -> "C2";
+            default -> null;
+        };
+        List<LascoPointing.Frame> gaps = frames.stream().filter(LascoPointing.Frame::placeholder).toList();
+        if (other == null || gaps.isEmpty())
+            return List.of();
+
+        long start = gaps.stream().mapToLong(LascoPointing.Frame::milli).min().orElseThrow();
+        long end = gaps.stream().mapToLong(LascoPointing.Frame::milli).max().orElseThrow();
+        Log.info("LASCO " + gaps.size() + " " + request.product() + " frames have no pointing; reading " + other + " headers from "
+                + TimeUtils.format(start) + " to " + TimeUtils.format(end));
+        FitsRequest otherRequest = new FitsRequest(request.archive(), request.level(), other, request.version(), request.cadence(), start, end);
+        return probe(list(otherRequest)).stream().map(Probe::frame).filter(Objects::nonNull).toList();
+    }
+
+    private static List<Probe> probe(List<URI> uris) throws Exception {
+        ExecutorService pool = Executors.newFixedThreadPool(PROBE_THREADS);
+        try {
+            List<Future<Probe>> futures = new ArrayList<>(uris.size());
+            for (URI uri : uris)
+                futures.add(pool.submit(() -> readProbe(uri)));
+            List<Probe> probes = new ArrayList<>(uris.size());
+            for (Future<Probe> f : futures)
+                probes.add(f.get());
+            return probes;
+        } finally {
+            pool.shutdown();
+        }
     }
 
     /** The parts of a LASCO header that decide whether two frames belong in the same movie. */
@@ -151,17 +187,22 @@ public final class LascoClient {
         }
     }
 
-    private static Config readConfig(URI uri) {
+    private record Probe(Config config, LascoPointing.Frame frame) {
+        private static final Probe UNKNOWN = new Probe(Config.UNKNOWN, null);
+    }
+
+    private static Probe readProbe(URI uri) {
         try (NetClient nc = NetClient.prefix(uri, HEADER_BYTES)) {
             if (!nc.isSuccessful())
-                return Config.UNKNOWN;
+                return Probe.UNKNOWN;
             // A 206 gives exactly the prefix; a server ignoring Range gives 200 and the whole file,
             // so take what is there rather than insisting on the full count.
             okio.BufferedSource source = nc.getSource();
             source.request(HEADER_BYTES);
             byte[] head = source.getBuffer().readByteArray(Math.min(HEADER_BYTES, source.getBuffer().size()));
-            String filter = null, polar = null;
-            int width = 0;
+            String filter = null, polar = null, detector = null, date = null, time = null;
+            int width = 0, height = 0;
+            double crota1 = Double.NaN, crota2 = Double.NaN, crpix1 = Double.NaN, crpix2 = Double.NaN;
             for (int i = 0; i + 80 <= head.length; i += 80) {
                 String card = new String(head, i, 80, StandardCharsets.ISO_8859_1);
                 if (card.startsWith("END "))
@@ -170,29 +211,66 @@ public final class LascoClient {
                 switch (key) {
                     case "FILTER" -> filter = cardValue(card);
                     case "POLAR" -> polar = cardValue(card);
-                    case "NAXIS1" -> {
-                        try {
-                            width = Integer.parseInt(cardValue(card));
-                        } catch (NumberFormatException ignore) {
-                        }
-                    }
+                    case "DETECTOR" -> detector = cardValue(card);
+                    case "DATE-OBS" -> date = cardValue(card);
+                    case "TIME-OBS" -> time = cardValue(card);
+                    case "CROTA1" -> crota1 = cardDouble(card);
+                    case "CROTA2" -> crota2 = cardDouble(card);
+                    case "CRPIX1" -> crpix1 = cardDouble(card);
+                    case "CRPIX2" -> crpix2 = cardDouble(card);
+                    case "NAXIS1" -> width = cardInt(card);
+                    case "NAXIS2" -> height = cardInt(card);
                     default -> {
                     }
                 }
             }
-            return filter == null || polar == null || width == 0
+            Config config = filter == null || polar == null || width == 0
                     ? Config.UNKNOWN : new Config(filter, polar, width);
+            return new Probe(config, frame(uri, detector, date, time, width, height, crota1, crota2, crpix1, crpix2));
         } catch (Exception e) {
-            return Config.UNKNOWN;
+            return Probe.UNKNOWN;
         }
     }
 
-    private static String cardValue(String card) {
-        String v = card.length() > 10 ? card.substring(10) : "";
+    private static LascoPointing.Frame frame(URI uri, String detector, String date, String time, int width, int height,
+                                             double crota1, double crota2, double crpix1, double crpix2) {
+        if (detector == null || date == null || time == null || width == 0 || height == 0)
+            return null;
+        long milli;
+        try {
+            milli = TimeUtils.parse(date.replace('/', '-') + 'T' + (time.length() > 8 ? time.substring(0, 8) : time));
+        } catch (RuntimeException e) {
+            return null;
+        }
+        String path = uri.getPath();
+        return new LascoPointing.Frame(path.substring(path.lastIndexOf('/') + 1), detector, date, time, milli, width, height,
+                crota1, crpix1, crpix2, LascoPointing.isPlaceholder(crota1, crota2, crpix1, crpix2, width, height));
+    }
+
+    static String cardValue(String card) {
+        String v = card.length() > 10 ? card.substring(10).trim() : "";
+        if (v.startsWith("'")) { // a quoted value may hold a slash, as DATE-OBS = '2025/08/31' does
+            int end = v.indexOf('\'', 1);
+            return (end > 0 ? v.substring(1, end) : v.substring(1)).trim();
+        }
         int slash = v.indexOf('/');
-        if (slash >= 0)
-            v = v.substring(0, slash);
-        return v.trim().replace("'", "").trim();
+        return (slash >= 0 ? v.substring(0, slash) : v).trim();
+    }
+
+    private static double cardDouble(String card) {
+        try {
+            return Double.parseDouble(cardValue(card));
+        } catch (NumberFormatException e) {
+            return Double.NaN;
+        }
+    }
+
+    private static int cardInt(String card) {
+        try {
+            return Integer.parseInt(cardValue(card));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     private static String readIndex(String url) throws Exception {
