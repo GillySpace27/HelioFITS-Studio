@@ -332,7 +332,7 @@ public class AspiicsDialog extends StandardDialog {
         String size = jp2Button.isSelected() ? "" : String.format(" (roughly %.1f GB)", count * FITS_MB / 1024);
         return JOptionPane.showConfirmDialog(this,
                 String.format("This will download %d frames%s.%nThe P3SC archive is not fast; a sparser cadence will cut this down.%nProceed?", count, size),
-                "Large ASPIICS download", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) == JOptionPane.OK_OPTION;
+                "Large ASPIICS Download", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) == JOptionPane.OK_OPTION;
     }
 
     // Observation time from the file name: aspiics_<product>_l3_<YYYYMMDDThhmmss>_...

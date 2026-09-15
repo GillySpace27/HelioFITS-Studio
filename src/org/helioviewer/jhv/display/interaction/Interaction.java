@@ -182,6 +182,11 @@ public final class Interaction {
         }
         if (annotating)
             interactionAnnotate.keyPressed(e);
+        // Space toggles playback when the canvas has focus, matching every video app; Cmd+P
+        // stays in the Play/Pause menu item as the legacy accelerator, off the Print collision
+        // only because this app has no print command to collide with.
+        else if (e.key() == KeyInputEvent.Key.SPACE && !e.metaDown() && !e.ctrlDown() && !e.altDown())
+            org.helioviewer.jhv.app.Commands.togglePlayback();
     }
 
     public void keyReleased(KeyInputEvent e) {

@@ -146,6 +146,17 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
             drawMovieEndpoints(g);
             labelPainter.drawMouseValues(g, geometry, DrawController.selectedAxis, mousePosition);
         }
+        if (TimelineLayers.get().isEmpty())
+            drawEmptyState(g1);
+    }
+
+    // Half the vertical space with no data and no explanation is worse than an empty half.
+    private void drawEmptyState(Graphics g1) {
+        String text = "No timelines loaded. Add one under Timeline Layers.";
+        g1.setFont(UIGlobals.uiFont);
+        g1.setColor(java.awt.Color.GRAY);
+        java.awt.FontMetrics fm = g1.getFontMetrics();
+        g1.drawString(text, (getWidth() - fm.stringWidth(text)) / 2, getHeight() / 2);
     }
 
     private void redrawGraph(GraphGeometry geometry) {

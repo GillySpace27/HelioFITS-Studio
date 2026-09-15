@@ -44,29 +44,50 @@ public final class PunchClient {
         }
     }
 
-    public interface ReceiverItems {
+    /**
+     * How a failed archive call gets back to whoever asked. One superinterface rather than the
+     * same default on each receiver, so a class implementing several of them does not inherit
+     * unrelated copies of the method. The default drops the failure, for callers with nowhere to
+     * put it; a dialog overrides it so its labels stop saying they are still working.
+     */
+    public interface ReceiverFailure {
+        String ARCHIVE_UNREACHABLE = "Could not reach the PUNCH archive. Check your connection and try again.";
+
+        default void setPunchResponseFailed(String reason) {}
+    }
+
+    public interface ReceiverItems extends ReceiverFailure {
         void setPunchResponseItems(List<DataItem> list);
     }
 
-    public interface ReceiverProducts {
+    public interface ReceiverProducts extends ReceiverFailure {
         void setPunchResponseProducts(List<String> list);
     }
 
-    public interface ReceiverCoverage {
+    public interface ReceiverCoverage extends ReceiverFailure {
         // Latest day with data, in UTC epoch ms; 0 if the archive has nothing for this product
         void setPunchResponseCoverage(long latestDayMilli);
     }
 
+    // A modal error on top of the search dialog says nothing the dialog cannot say in its own
+    // labels, and it leaves those labels claiming the search is still running.
+    private static Task.FailureHandler reportTo(ReceiverFailure receiver) {
+        return (logContext, t) -> {
+            Log.error(logContext, t);
+            receiver.setPunchResponseFailed(ReceiverFailure.ARCHIVE_UNREACHABLE);
+        };
+    }
+
     public static void submitSearchTime(@Nonnull ReceiverItems receiver, @Nonnull String level, @Nonnull String product, long start, long end, long cadence, @Nonnull String version) {
-        Task.submit("punch", new QueryItems(level, product, start, end, cadence, version), receiver::setPunchResponseItems, "Error listing the PUNCH archive");
+        Task.submit("punch", new QueryItems(level, product, start, end, cadence, version), receiver::setPunchResponseItems, reportTo(receiver));
     }
 
     public static void submitGetProducts(@Nonnull ReceiverProducts receiver, @Nonnull String level) {
-        Task.submit("punch", new QueryProducts(level), receiver::setPunchResponseProducts, "Error listing the PUNCH archive");
+        Task.submit("punch", new QueryProducts(level), receiver::setPunchResponseProducts, reportTo(receiver));
     }
 
     public static void submitGetCoverage(@Nonnull ReceiverCoverage receiver, @Nonnull String level, @Nonnull String product) {
-        Task.submit("punch", new QueryCoverage(level, product), receiver::setPunchResponseCoverage, "Error listing the PUNCH archive");
+        Task.submit("punch", new QueryCoverage(level, product), receiver::setPunchResponseCoverage, reportTo(receiver));
     }
 
     /**

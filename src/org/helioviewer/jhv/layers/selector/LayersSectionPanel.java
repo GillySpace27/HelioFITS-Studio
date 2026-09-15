@@ -146,7 +146,7 @@ public final class LayersSectionPanel extends JPanel implements Interfaces.Obser
         long end = getEndTime();
         if (start > end) {
             setTime(end, end);
-            JOptionPane.showMessageDialog(null, "End date is before start date", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(null, "The end date must be after the start date.", "Invalid Date Range", JOptionPane.ERROR_MESSAGE);
             return false;
         }
         return true;

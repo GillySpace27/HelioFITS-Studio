@@ -49,7 +49,7 @@ import org.helioviewer.jhv.time.TimeUtils;
 @SuppressWarnings("serial")
 public final class CactusTrackPanel extends JPanel implements JHVEventListener.Handle, JHVEventListener.Highlight {
 
-    private static final String[] COLUMNS = {"Onset (UTC)", "Speed km/s", "Width°", "PA°", "Source"};
+    private static final String[] COLUMNS = {"Onset (UTC)", "km/s", "Width°", "PA°", "Source"};
 
     private static CactusTrackPanel instance;
     private static Palette palette;
@@ -124,7 +124,7 @@ public final class CactusTrackPanel extends JPanel implements JHVEventListener.H
 
         // One button per way of holding the front, rather than a mode selector plus a Track button.
         JButton trackWarpButton = new JButton("Track (Warp)");
-        trackWarpButton.setToolTipText("Jump to this CME's onset and animate the Box-Cox warp (λ) so the front holds a fixed screen radius — the corona rubber-bands around a stationary front");
+        trackWarpButton.setToolTipText("Jump to this CME's onset and animate the Box-Cox warp (λ) so the front holds a fixed screen radius: the corona rubber-bands around a stationary front");
         trackWarpButton.addActionListener(e -> trackSelected(CMETracker.Mode.WARP));
         JButton trackCropButton = new JButton("Track (Crop)");
         trackCropButton.setToolTipText("Jump to this CME's onset and animate the outer radial crop instead, holding λ: the field of view widens to follow the front, like a zoom-out");
@@ -238,8 +238,8 @@ public final class CactusTrackPanel extends JPanel implements JHVEventListener.H
         highlightChanged(); // restore the row selection to whatever wedge is currently highlighted
 
         status.setText(rows.isEmpty()
-                ? "No CACTus events in the loaded range — enable HEK → CME → CACTus and load a coronagraph movie."
-                : rows.size() + " CACTus event(s) — double-click one to track.");
+                ? "No CACTus events in the loaded range. Enable HEK > CME > CACTus and load a coronagraph movie."
+                : rows.size() + (rows.size() == 1 ? " CACTus event. Double-click it to track." : " CACTus events. Double-click one to track."));
         fitRows();
     }
 
@@ -277,7 +277,7 @@ public final class CactusTrackPanel extends JPanel implements JHVEventListener.H
         if (re == null)
             return;
         if (!Player.isAvailable()) { // setTime would silently no-op; don't switch projection / engage against a stale time
-            status.setText("Load a coronagraph movie first — there is no movie to jump to.");
+            status.setText("Load a coronagraph movie first: there is no movie to jump to.");
             return;
         }
         JHVEvent evt = representative(re);

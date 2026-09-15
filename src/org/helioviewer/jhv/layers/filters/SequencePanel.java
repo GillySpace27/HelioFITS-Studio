@@ -203,7 +203,7 @@ public class SequencePanel implements FilterDetails {
                 Layers.applyToSelectedLayers(layer, il -> il.setSequence(null));
                 DisplayController.render(1);
             }
-            updateReadout();
+            refresh(layer); // regates the settings and the run button for the new kind
         });
 
         setRunning(false);
@@ -345,7 +345,7 @@ public class SequencePanel implements FilterDetails {
                     passButton.isSelected() ? FourierParams.Mode.PASS : FourierParams.Mode.NOTCH,
                     lo, hi, direction, 1, (Integer) nRCombo.getSelectedItem(), (Integer) nPhiCombo.getSelectedItem()); // contrast is the layer's Contrast row now
         } catch (Exception e) {
-            Message.warn("Fourier filter", "Check the settings: " + e.getMessage());
+            Message.warn("Fourier Filter", "Check the settings: " + e.getMessage());
             return null;
         }
     }
@@ -358,7 +358,7 @@ public class SequencePanel implements FilterDetails {
         Runtime rt = Runtime.getRuntime();
         long free = rt.maxMemory() - rt.totalMemory() + rt.freeMemory();
         if (budget > 0.6 * free) {
-            Message.warn("Fourier filter", String.format("This would need about %d MB of working memory and %d MB are free. Shorten the time range or lower the grid size.", budget >> 20, free >> 20));
+            Message.warn("Fourier Filter", String.format("This would need about %d MB of working memory and %d MB are free. Shorten the time range or lower the grid size.", budget >> 20, free >> 20));
             return;
         }
         // The output is off-heap and the view holds all of it at once, so the heap check above
@@ -367,7 +367,7 @@ public class SequencePanel implements FilterDetails {
         long output = outputBytes();
         if (output > (2L << 30) && JOptionPane.showConfirmDialog(second,
                 String.format("This will hold about %.1f GB of filtered frames in memory for as long as the filter is on.\nShorten the time range to reduce it.\n\nContinue?", output / (double) (1L << 30)),
-                "Fourier filter", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION)
+                "Fourier Filter", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION)
             return;
         Layers.applyToSelectedLayers(layer, il -> il.setSequence(params));
         DisplayController.render(1);
@@ -406,9 +406,9 @@ public class SequencePanel implements FilterDetails {
         double dt = org.helioviewer.jhv.image.fourier.FrameStack.medianCadence(times);
         double gap = org.helioviewer.jhv.image.fourier.FrameStack.maxGap(times);
         String kind = (String) kindCombo.getSelectedItem();
-        StringBuilder sb = new StringBuilder("<html>").append(frames).append(" frames, cadence ").append(fmt(dt)).append(" s");
+        StringBuilder sb = new StringBuilder("<html>").append(frames).append(" frames, cadence ").append(humanizeSeconds(dt));
         if (gap > 2 * dt)
-            sb.append(" (largest gap ").append(fmt(gap)).append(" s)");
+            sb.append(" (largest gap ").append(humanizeSeconds(gap)).append(')');
         View.ImageData data = layer.getImageData();
         if (data != null && !OFF.equals(kind) && !GATE.equals(kind)) {
             double kmPerPixel = data.metaData().getUnitPerPixelY() * FourierParams.KM_PER_RSUN;
@@ -440,6 +440,15 @@ public class SequencePanel implements FilterDetails {
 
     private static String fmt(double seconds) {
         return seconds >= 100 ? String.format("%.0f", seconds) : String.format("%.1f", seconds);
+    }
+
+    /** A duration for someone reading it, not a raw second count: "48 min" and "1.8 h", not "2880 s". */
+    private static String humanizeSeconds(double seconds) {
+        if (seconds < 90)
+            return Math.round(seconds) + " s";
+        if (seconds < 5400)
+            return Math.round(seconds / 60) + " min";
+        return String.format("%.1f h", seconds / 3600);
     }
 
     private void showSpectrum() {
@@ -575,14 +584,16 @@ public class SequencePanel implements FilterDetails {
     public void refresh(ImageLayer imageLayer) {
         String blocker = imageLayer.sequenceBlocker();
         boolean can = blocker == null;
+        boolean off = OFF.equals(kindCombo.getSelectedItem());
         ComponentUtils.setEnabled(kindCombo, can);
-        ComponentUtils.setEnabled(settingsButton, can);
+        ComponentUtils.setEnabled(settingsButton, can && !off);
+        settings.setVisible(!off); // Off has nothing to set, so the palette folds down to the kind and the run button
         // The reason, not a menu of four: "1 frame(s) loaded so far" and "JPX frames cannot be
         // handed over whole" call for entirely different things from the person reading it.
         title.setToolTipText(can ? null : "No sequence filter yet: " + blocker);
         ComputedView view = imageLayer.getComputedView();
         boolean running = view != null && view.isRunning();
-        applyButton.setEnabled(can || running);
+        applyButton.setEnabled((can && !off) || running);
         setRunning(running);
         for (JProgressBar bar : new JProgressBar[]{spinner, paletteSpinner}) {
             bar.setVisible(running);

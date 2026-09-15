@@ -25,6 +25,11 @@ final class MessageHandler implements Message.Handler {
     }
 
     @Override
+    public void info(String title, Object msg) {
+        show(title, msg, JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    @Override
     public void err(String title, Object msg, Throwable cause) {
         show(title, msg, JOptionPane.ERROR_MESSAGE, cause);
     }
@@ -64,35 +69,79 @@ final class MessageHandler implements Message.Handler {
         return false;
     }
 
+    /**
+     * Whether this failure came out of the JPIP/JPEG2000 path, which is the only thing the
+     * Helioviewer issue tracker can act on. Text is checked as well as the types, because most of
+     * these reports arrive as a string with no exception attached.
+     */
+    private static boolean isJPIP(String title, Object msg, @Nullable Throwable cause) {
+        if (mentionsJPIP(title) || mentionsJPIP(msg == null ? null : msg.toString()))
+            return true;
+        int depth = 0;
+        for (Throwable t = cause; t != null; t = t.getCause(), depth++) {
+            if (depth > 32)
+                return false;
+            if (mentionsJPIP(t.getClass().getName()) || mentionsJPIP(t.getMessage()))
+                return true;
+        }
+        return false;
+    }
+
+    private static boolean mentionsJPIP(@Nullable String s) {
+        if (s == null)
+            return false;
+        String lower = s.toLowerCase(java.util.Locale.ENGLISH);
+        return lower.contains("jpip") || lower.contains("j2k") || lower.contains("jp2") || lower.contains("kdu");
+    }
+
     private static void show(String title, Object msg, int type, @Nullable Throwable cause) {
         if (Thread.currentThread().isInterrupted())
             return;
 
         EventQueue.invokeLater(() -> {
+            String text = Message.format(msg);
             JTextArea textArea = new JTextArea();
-            textArea.setText(Message.format(msg));
+            textArea.setText(text);
             textArea.setEditable(false);
             textArea.setLineWrap(true);
-            JScrollPane scrollPane = new JScrollPane(textArea);
-            scrollPane.setPreferredSize(new Dimension(600, 400));
+            textArea.setWrapStyleWord(true);
 
-            HTMLPane report = new HTMLPane();
-            report.setOpaque(false);
-            report.addHyperlinkListener(DesktopIntegration.hyperOpenURL);
+            // Only a report long enough to need scrolling gets a scroll pane. A one-sentence
+            // dialog in a fixed 600x400 viewport reads as a crash dump for no reason.
+            Object body;
+            if (text.length() > 600 || text.lines().count() > 8) {
+                JScrollPane scrollPane = new JScrollPane(textArea);
+                scrollPane.setPreferredSize(new Dimension(600, 400));
+                body = scrollPane;
+            } else {
+                textArea.setOpaque(false);
+                textArea.setBorder(null);
+                if (text.length() > 45)
+                    textArea.setColumns(45);
+                body = textArea;
+            }
+
             // A machine with no network is not a server bug, and offering a bug tracker for it
             // sends the user to file a report against an archive that never heard from them.
             // The link was previously shown on EVERY error, which is how "No route to host" from
             // the PUNCH archive at the SDAC came to suggest reporting it to Helioviewer.
+            HTMLPane report = null;
             if (isOffline(cause)) {
+                report = new HTMLPane();
                 report.setText("This machine could not reach the network. Nothing is wrong at the "
                         + "other end; a session saved with its data downloaded will still open.");
-            } else {
+            } else if (isJPIP(title, msg, cause)) {
                 String url = "https://github.com/Helioviewer-Project/api/issues/new";
-                report.setText("If this is a JPIP connection failure, you can open a bug report for the<br>Helioviewer server at <a href='" + url + "'>" + url + "</a>.");
+                report = new HTMLPane();
+                report.setText("This is a JPIP connection failure; you can open a bug report for the<br>Helioviewer server at <a href='" + url + "'>" + url + "</a>.");
+            }
+            if (report != null) {
+                report.setOpaque(false);
+                report.addHyperlinkListener(DesktopIntegration.hyperOpenURL);
             }
 
             JOptionPane optionPane = new JOptionPane();
-            optionPane.setMessage(new Object[]{report, scrollPane});
+            optionPane.setMessage(report == null ? new Object[]{body} : new Object[]{report, body});
             optionPane.setMessageType(type);
             optionPane.setOptions(new String[]{"Close"});
             optionPane.createDialog(MainFrame.get(), title).setVisible(true);

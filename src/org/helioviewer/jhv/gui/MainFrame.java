@@ -44,7 +44,6 @@ import org.helioviewer.jhv.gui.component.MoviePanel;
 import org.helioviewer.jhv.gui.component.SideContentPane;
 import org.helioviewer.jhv.gui.component.StatusPanel;
 import org.helioviewer.jhv.gui.component.ToolBar;
-import org.helioviewer.jhv.gui.status.FramerateStatusPanel;
 import org.helioviewer.jhv.gui.status.PositionStatusPanel;
 import org.helioviewer.jhv.gui.status.ViewpointStatusPanel;
 import org.helioviewer.jhv.input.InputController;
@@ -292,14 +291,14 @@ public final class MainFrame {
         centerPanel.add(eastWrap, BorderLayout.EAST);
 
         ViewpointStatusPanel viewpointStatus = new ViewpointStatusPanel();
-        FramerateStatusPanel framerateStatus = new FramerateStatusPanel();
         PositionStatusPanel positionStatus = new PositionStatusPanel();
         InputController.addListener(positionStatus);
 
         statusPanel = new StatusPanel(5, 5);
         // First, at the far left: spinning while anything is still arriving or computing, a check when it has all landed.
         statusPanel.addPlugin(new org.helioviewer.jhv.gui.status.ActivityStatusPanel(), StatusPanel.Alignment.LEFT);
-        statusPanel.addPlugin(framerateStatus, StatusPanel.Alignment.LEFT);
+        // ponytail: FramerateStatusPanel (FPS readout) is left out of the default bar, a developer
+        // number with no audience in a finished build. Add it back here if that changes.
         statusPanel.addPlugin(positionStatus, StatusPanel.Alignment.RIGHT);
         statusPanel.addPlugin(viewpointStatus, StatusPanel.Alignment.RIGHT);
 
@@ -614,13 +613,8 @@ public final class MainFrame {
         revertButton.setToolTipText("Revert to saved (reload this session from its file)");
         JProgressBar revertSpinner = makeSpinner();
         revertButton.addActionListener(e -> {
-            java.io.File f = org.helioviewer.jhv.app.Session.currentSessionFile();
-            if (f == null || !f.isFile())
-                return;
-            int r = javax.swing.JOptionPane.showConfirmDialog(mainFrame,
-                    "Discard changes and revert to the last saved state?",
-                    "Revert to Saved", javax.swing.JOptionPane.OK_CANCEL_OPTION, javax.swing.JOptionPane.WARNING_MESSAGE);
-            if (r != javax.swing.JOptionPane.OK_OPTION)
+            java.io.File f = Actions.RevertToSaved.confirmed(mainFrame);
+            if (f == null)
                 return;
             startSpinner(revertButton, revertSpinner);
             Runnable stopRevert = stopSpinner(revertButton, revertSpinner, Buttons.revert);

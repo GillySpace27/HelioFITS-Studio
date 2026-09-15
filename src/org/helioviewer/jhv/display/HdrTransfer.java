@@ -4,7 +4,7 @@ package org.helioviewer.jhv.display;
  * The rendered picture as an HDR video signal.
  *
  * <p>What the scene shader writes is display-referred and sRGB-encoded, extended past 1.0 through
- * the magnitude, where 1.0 is the interface white of the screen and the HDR gain has already put
+ * the magnitude, where 1.0 is the SDR white of the screen and the HDR gain has already put
  * the corona above it. That is exactly what the Metal presenter decodes to show on an EDR display,
  * and until now the capture simply clamped it at 1: everything the headroom was carrying was
  * thrown away at the last step, which is why an exported movie looked blown out where the screen
@@ -32,7 +32,7 @@ package org.helioviewer.jhv.display;
 public final class HdrTransfer {
 
     public enum Curve {
-        /** Clamp at interface white, which is what an SDR file can hold. */
+        /** Clamp at SDR white, which is what an SDR file can hold. */
         NONE,
         /** ITU-R BT.2100 hybrid log-gamma. Degrades sanely on a player that ignores the tagging. */
         HLG,

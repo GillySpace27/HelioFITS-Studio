@@ -64,6 +64,29 @@ public final class DataSourcesTree extends JTree {
     private final DefaultMutableTreeNode nodeRoot;
     private final HashMap<String, DefaultMutableTreeNode> nodes = new HashMap<>();
 
+    // Live trees. The listener interface carries a parser or null, so a failed listing has no way
+    // to say WHICH server failed; this lets the loader address the tree directly. Weak because a
+    // tree belongs to a dialog that may be discarded.
+    private static final java.util.Set<DataSourcesTree> instances =
+            java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
+
+    /** Report a server whose listing failed, in the tree itself rather than an empty node. */
+    public static void markServerFailed(String server) {
+        for (DataSourcesTree tree : java.util.List.copyOf(instances))
+            tree.setServerFailed(server);
+    }
+
+    private void setServerFailed(String server) {
+        DefaultMutableTreeNode node = nodes.get(server);
+        if (node == null)
+            return;
+        node.removeAllChildren();
+        node.add(new DefaultMutableTreeNode(new Item("Could not reach this server. Use File > Reload Datasets Listings to retry.",
+                "The dataset listing for " + server + " could not be loaded.")));
+        ((DefaultTreeModel) getModel()).nodeStructureChanged(node);
+        expandPath(new TreePath(node.getPath()));
+    }
+
     public DataSourcesTree(Interfaces.ObservationSelector selector) {
         nodeRoot = new DefaultMutableTreeNode("Datasets");
 
@@ -82,6 +105,7 @@ public final class DataSourcesTree extends JTree {
             defaultRenderer.setLeafIcon(null);
         }
 
+        instances.add(this);
         setSelectionModel(new OneLeafTreeSelectionModel(selector));
         ToolTipManager.sharedInstance().registerComponent(this);
         com.jidesoft.swing.SearchableUtils.installSearchable(this).setRecursive(true);

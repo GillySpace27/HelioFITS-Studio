@@ -334,7 +334,7 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         recordFormatComboBox.setSelectedItem(storedFormat());
         recordFormatComboBox.setToolTipText("<html>Codec and container; the extension after each name is what lands on disk.<br><br>"
                 + "A <i>series</i> writes one file per frame into its own directory rather than a single video. Only the two "
-                + "HDR entries and EXR carry the picture above interface white; the rest clamp there.<br><br>"
+                + "HDR entries and EXR carry the picture above SDR white; the rest clamp there.<br><br>"
                 + "<b>Lossless</b> means the encoder gives back exactly the frames it was handed. It does not mean the file "
                 + "matches the screen: the depth and colour settings below are applied first, so lossless at 4:2:0 8-bit "
                 + "faithfully stores a picture that already lost three quarters of its colour and all but 256 of its levels. "

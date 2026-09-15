@@ -104,66 +104,10 @@ public final class Actions {
         }
     }
 
-    // Opens/closes the projection palette, the same toggle as the toolbar Projection button.
-    public static class ShowProjectionPalette extends AbstractAction {
-        public ShowProjectionPalette() {
-            super("Projection…");
-        }
-
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            org.helioviewer.jhv.gui.component.ToolBar.toggleProjectionPalette();
-        }
-    }
-
-    public static class ShowSequencePalette extends AbstractAction {
-        public ShowSequencePalette() {
-            super("Fourier Filter\u2026");
-        }
-
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            org.helioviewer.jhv.gui.component.ToolBar.toggleSequencePalette();
-        }
-    }
-
-    public static class ShowColourPalette extends AbstractAction {
-        public ShowColourPalette() {
-            super("HDR Settings\u2026");
-        }
-
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            org.helioviewer.jhv.gui.component.ToolBar.toggleColourPalette();
-        }
-    }
-
-    public static class ShowGridPalette extends AbstractAction {
-        public ShowGridPalette() {
-            super("Grid Settings\u2026");
-        }
-
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            org.helioviewer.jhv.gui.component.ToolBar.toggleGridPalette();
-        }
-    }
-
-    public static class ShowCameraPalette extends AbstractAction {
-        public ShowCameraPalette() {
-            super("Camera Settings\u2026");
-        }
-
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            org.helioviewer.jhv.gui.component.ToolBar.toggleCameraPalette();
-        }
-    }
-
     // Output-only fullscreen, the same toggle as the toolbar Presentation button.
     public static class TogglePresentationMode extends AbstractKeyAction {
         public TogglePresentationMode() {
-            super("Presentation Mode", KeyStroke.getKeyStroke(KeyEvent.VK_P, DesktopIntegration.menuShortcutMask | InputEvent.SHIFT_DOWN_MASK));
+            super("Present", KeyStroke.getKeyStroke(KeyEvent.VK_P, DesktopIntegration.menuShortcutMask | InputEvent.SHIFT_DOWN_MASK));
         }
 
         @Override
@@ -174,7 +118,7 @@ public final class Actions {
 
     public static class TrackCME extends AbstractAction {
         public TrackCME() {
-            super("Track CME...");
+            super("Find CMEs to Track...");
         }
 
         @Override
@@ -195,9 +139,9 @@ public final class Actions {
         }
     }
 
-    public static class LoadState extends AbstractAction {
+    public static class LoadState extends AbstractKeyAction {
         public LoadState() {
-            super("Load State...");
+            super("Open Session...", KeyStroke.getKeyStroke(KeyEvent.VK_O, DesktopIntegration.menuShortcutMask | InputEvent.SHIFT_DOWN_MASK));
         }
 
         @Override
@@ -223,7 +167,7 @@ public final class Actions {
 
     public static class NewSoarLayer extends AbstractAction {
         public NewSoarLayer() {
-            super("New FITS Layer \u2014 Solar Orbiter (SOAR)\u2026");
+            super("New SOAR Layer…");
         }
 
         @Override
@@ -245,7 +189,7 @@ public final class Actions {
 
     public static class NewPunchLayer extends AbstractAction {
         public NewPunchLayer() {
-            super("New FITS Layer \u2014 PUNCH (SDAC)\u2026");
+            super("New PUNCH Layer…");
         }
 
         @Override
@@ -275,7 +219,7 @@ public final class Actions {
             // Pick the file(s) up front, like the other "New … Layer" actions. Multi-select so a whole
             // folder of per-frame clouds loads into ONE layer as a time series (the layer keys them by
             // timestamp and shows the one nearest the movie time) — select all the files in the folder.
-            FileDialog fileDialog = new FileDialog(MainFrame.get(), "Choose point cloud file(s) — select several for a time series", FileDialog.LOAD);
+            FileDialog fileDialog = new FileDialog(MainFrame.get(), "Choose point cloud files (select several for a time series)", FileDialog.LOAD);
             fileDialog.setMultipleMode(true);
             fileDialog.setFilenameFilter((dir, name) -> {
                 String n = name.toLowerCase(java.util.Locale.ROOT);
@@ -350,7 +294,7 @@ public final class Actions {
 
     public static class ResetCamera extends AbstractAction {
         public ResetCamera() {
-            super("Reset Camera");
+            super("Reset View");
         }
 
         @Override
@@ -373,7 +317,7 @@ public final class Actions {
 
     public static class ResetCameraAxis extends AbstractAction {
         public ResetCameraAxis() {
-            super("Reset Camera Axis");
+            super("Reset View Axis");
         }
 
         @Override
@@ -446,7 +390,7 @@ public final class Actions {
 
     public static class SaveState extends AbstractKeyAction {
         public SaveState() {
-            super("Save State", KeyStroke.getKeyStroke(KeyEvent.VK_S, DesktopIntegration.menuShortcutMask));
+            super("Save Session", KeyStroke.getKeyStroke(KeyEvent.VK_S, DesktopIntegration.menuShortcutMask));
         }
 
         @Override
@@ -458,7 +402,7 @@ public final class Actions {
 
     public static class SaveStateAs extends AbstractKeyAction {
         public SaveStateAs() {
-            super("Save State As...", KeyStroke.getKeyStroke(KeyEvent.VK_S, DesktopIntegration.menuShortcutMask | InputEvent.ALT_DOWN_MASK));
+            super("Save Session As...", KeyStroke.getKeyStroke(KeyEvent.VK_S, DesktopIntegration.menuShortcutMask | InputEvent.ALT_DOWN_MASK));
         }
 
         @Override
@@ -514,7 +458,7 @@ public final class Actions {
                     if (free < 2 * GB) {
                         int r = JOptionPane.showConfirmDialog(MainFrame.get(),
                                 String.format("Only %.1f GB of memory is free. Opening another window may run the machine short. Open it anyway?", free / (double) GB),
-                                "Low memory", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
+                                "Low Memory", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
                         return r == JOptionPane.OK_OPTION;
                     }
                 }
@@ -577,15 +521,21 @@ public final class Actions {
             super("Revert to Saved");
         }
 
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            java.io.File f = org.helioviewer.jhv.app.Session.currentSessionFile();
+        // The file to revert to once the person has confirmed, else null. The session bar's Revert button asks the same way.
+        public static File confirmed(java.awt.Component parent) {
+            File f = org.helioviewer.jhv.app.Session.currentSessionFile();
             if (f == null || !f.isFile())
-                return;
-            int r = JOptionPane.showConfirmDialog(MainFrame.get(),
+                return null;
+            int r = JOptionPane.showConfirmDialog(parent,
                     "Discard changes and revert to the last saved state?",
                     "Revert to Saved", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
-            if (r == JOptionPane.OK_OPTION)
+            return r == JOptionPane.OK_OPTION ? f : null;
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            File f = confirmed(MainFrame.get());
+            if (f != null)
                 Commands.loadState(f.toURI());
         }
     }
@@ -633,7 +583,7 @@ public final class Actions {
             String file = "default.jhv";
             State.saveNow(dir, file);
             Settings.setProperty("startup.loadState", java.nio.file.Path.of(dir, file).toString());
-            org.helioviewer.jhv.app.Message.warn("Default session", "This session will load automatically on startup.");
+            org.helioviewer.jhv.app.Message.info("Default Session", "This session will load automatically on startup.");
         }
     }
 
@@ -646,7 +596,7 @@ public final class Actions {
         @Override
         public void actionPerformed(ActionEvent e) {
             Settings.setProperty("startup.loadState", "false");
-            org.helioviewer.jhv.app.Message.warn("Default session", "Startup will reopen your last session instead.");
+            org.helioviewer.jhv.app.Message.info("Default Session", "Startup will reopen your last session instead.");
         }
     }
 

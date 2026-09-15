@@ -66,7 +66,7 @@ final class ColourPaletteContent {
         gainSlider = new JHVSlider(0, MAX_STOPS, MAX_STOPS).animates("hdr.gain");
         gainValue = new JLabel();
         gainSlider.readout(gainValue);
-        gainSlider.setToolTipText("<html>How far over the interface white the brightest data is allowed to go, in "
+        gainSlider.setToolTipText("<html>How far over the SDR white the brightest data is allowed to go, in "
                 + "photographic stops: each stop doubles it, so +2 stops is 4x white.<br><br>"
                 + "The display is the ceiling. Whatever you ask for, the compositor gives what it has at the "
                 + "current screen brightness, and the line at the bottom of this palette says what that is right "
@@ -241,8 +241,8 @@ final class ColourPaletteContent {
 
         float gain = HdrGain.current(false);
         headroom.setText(gain > 1
-                ? String.format("<html>The display is showing %.2fx interface white.<br>The colorbar's shaded section is that headroom.</html>", gain)
-                : "<html>No headroom in use: everything is at or below interface white.</html>");
+                ? String.format("<html>The display is showing %.2fx SDR white.<br>The colorbar's shaded section is that headroom.</html>", gain)
+                : "<html>No headroom in use: everything is at or below SDR white.</html>");
     }
 
     private ColourPaletteContent() {}

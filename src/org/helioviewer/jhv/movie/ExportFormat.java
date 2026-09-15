@@ -33,7 +33,7 @@ public enum ExportFormat {
     /**
      * The same encoder, delivering the extended range instead of throwing it away.
      *
-     * <p>An SDR export clamps at interface white, so everything the HDR gain was carrying is lost
+     * <p>An SDR export clamps at SDR white, so everything the HDR gain was carrying is lost
      * at the last step and the file looks blown out where the screen looked right. These two carry
      * it: the capture converts the render to absolute luminance (diffuse white at 203 cd/m2 per
      * ITU-R BT.2408, so a gain of 4 is 812) in BT.2020 primaries, and the curve is what the file
@@ -309,7 +309,7 @@ public enum ExportFormat {
     }
 
     /**
-     * Whether this format can hold what the HDR gain put above interface white.
+     * Whether this format can hold what the HDR gain put above SDR white.
      *
      * <p>True for the two HDR video formats, which encode it through a curve, and for EXR, which
      * is half float and simply stores it. Everything else is an integer format with no transfer

@@ -66,7 +66,7 @@ final class ImageLayerLoader {
                     return createView(req, uri);
                 },
                 result -> onSuccess(result, gen),
-                (logContext, t) -> onFailure(t, gen));
+                (logContext, t) -> onFailure(t, gen, "Could not load the layer"));
     }
 
     void load(List<URI> uriList) {
@@ -76,7 +76,18 @@ final class ImageLayerLoader {
         loadFuture = Task.submit(uriList.toString(),
                 () -> loadUri(uriList, view -> EventQueue.invokeLater(() -> onPreview(view, gen))),
                 result -> onSuccess(result, gen),
-                (logContext, t) -> onFailure(t, gen));
+                (logContext, t) -> onFailure(t, gen, failureTitle(uriList)));
+    }
+
+    // A file the user picked by hand is best named in the title; a remote load has no name the
+    // user would recognize, so it stays generic.
+    private static String failureTitle(List<URI> uriList) {
+        if (uriList.size() == 1) {
+            URI uri = uriList.getFirst();
+            if ("file".equalsIgnoreCase(uri.getScheme()) && uri.getPath() != null)
+                return "Could not open " + new java.io.File(uri.getPath()).getName();
+        }
+        return "Could not load the layer";
     }
 
     /**
@@ -145,7 +156,7 @@ final class ImageLayerLoader {
         }
     }
 
-    private void onFailure(Throwable t, int gen) {
+    private void onFailure(Throwable t, int gen, String title) {
         statusSink.accept(null);
         if (gen != loadGeneration) {
             return;
@@ -157,7 +168,7 @@ final class ImageLayerLoader {
         onUnload.run();
 
         Log.errorStack(t);
-        Message.err("Error getting the data", t.getMessage());
+        Message.err(title, t.getMessage() == null ? "See the log for details." : t.getMessage(), t);
     }
 
     private View loadUri(List<URI> uriList, Consumer<View> preview) throws Exception {
@@ -167,7 +178,7 @@ final class ImageLayerLoader {
             return createView(null, uriList.getFirst());
         } else {
             // ponytail: frame-count granularity only; per-file byte progress needs NetFileCache changes
-            statusSink.accept("Connecting \u2014 0/" + total + " frames\u2026");
+            statusSink.accept("Connecting: 0/" + total + " frames\u2026");
             // One frame is enough to stop the canvas being empty for the length of the download,
             // which for a hundred coronagraph frames is a couple of hundred megabytes. Failure
             // here is not worth reporting: the same URI is about to be tried again in the batch.
@@ -180,12 +191,12 @@ final class ImageLayerLoader {
             List<View> views = uriList.parallelStream().map(uri -> {
                 try {
                     View v = createView(null, uri);
-                    statusSink.accept("Retrieving \u2014 " + done.incrementAndGet() + "/" + total + " frames\u2026");
+                    statusSink.accept("Retrieving: " + done.incrementAndGet() + "/" + total + " frames\u2026");
                     return v;
                 } catch (Exception e) {
                     Log.warn(uri.toString(), e);
                     failed.add(uri); // remembered so the layer can report it as retryable, not just absent
-                    statusSink.accept("Retrieving \u2014 " + done.incrementAndGet() + "/" + total + " frames\u2026");
+                    statusSink.accept("Retrieving: " + done.incrementAndGet() + "/" + total + " frames\u2026");
                     return null;
                 }
             }).filter(Objects::nonNull).toList();
@@ -218,7 +229,7 @@ final class ImageLayerLoader {
             return parseAPIResponse(JSONUtils.get(new URI(url)));
         } catch (SocketTimeoutException e) {
             Log.error("Socket timeout while requesting JPIP URL", e);
-            Message.err("Socket timeout", "Socket timeout while requesting JPIP URL.");
+            Message.err("Connection timed out", "The server did not respond while loading the layer. Try again in a moment.", e);
         } catch (Exception e) {
             throw new Exception("Invalid response for " + url, e);
         }
@@ -235,7 +246,7 @@ final class ImageLayerLoader {
 
         String message = data.optString("message", null);
         if (message != null) {
-            Message.warn("Warning", message);
+            Message.warn("Server Message", message);
         }
         String error = data.optString("error", null);
         if (error != null) {

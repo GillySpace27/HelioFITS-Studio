@@ -74,15 +74,14 @@ public final class JHVUncaughtExceptionHandler {
             report.addHyperlinkListener(DesktopIntegration.hyperOpenURL);
             report.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 10));
             report.setText("Fatal error detected." +
-                    "<p>Please email this report at <a href='mailto:" + AppInfo.emailAddress + "'>" + AppInfo.emailAddress + "</a> " +
-                    "or use it to open an issue at <a href='" + AppInfo.bugURL + "'>" + AppInfo.bugURL + "</a>.<br/>");
+                    "<p>Please copy this report and open an issue at <a href='" + AppInfo.bugURL + "'>" + AppInfo.bugURL + "</a>.<br/>");
 
             JLabel copyToClipboard = new JLabel("<html><a href=''>Click here to copy the error report to the clipboard.");
             copyToClipboard.addMouseListener(new MouseAdapter() {
                 @Override
                 public void mousePressed(MouseEvent me) {
                     TransferAccess.writeClipboard(msg);
-                    JOptionPane.showMessageDialog(null, "Error report copied to clipboard.");
+                    JOptionPane.showMessageDialog(null, "Error report copied to clipboard.", "HelioFITS Studio", JOptionPane.INFORMATION_MESSAGE);
                 }
             });
 

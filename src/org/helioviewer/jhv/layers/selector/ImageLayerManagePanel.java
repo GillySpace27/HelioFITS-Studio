@@ -156,7 +156,7 @@ final class ImageLayerManagePanel extends JPanel {
                 refreshButton.remove(refreshSpinner);
                 refreshButton.setIcon(Buttons.refresh);
                 refreshButton.setEnabled(true);
-                Message.warn("PUNCH refresh", result.newCount() == 0
+                Message.info("PUNCH Refresh", result.newCount() == 0
                         ? "No new frames in the archive for this layer."
                         : String.format("Loaded %d new frame%s as a new layer.", result.newCount(), result.newCount() == 1 ? "" : "s"));
             });
@@ -210,7 +210,7 @@ final class ImageLayerManagePanel extends JPanel {
     private void deleteCache() {
         java.util.List<java.io.File> found = cachedFiles();
         if (found.isEmpty()) {
-            Message.warn("Nothing cached on disk", "This layer has no cached files, so there is nothing to delete.");
+            Message.info("Nothing Cached on Disk", "This layer has no cached files, so there is nothing to delete.");
             return;
         }
         long bytes = 0;
@@ -237,7 +237,7 @@ final class ImageLayerManagePanel extends JPanel {
                 failed++;
         }
         if (failed == 0)
-            Message.warn("Cache deleted", "Removed " + deleted + " file" + (deleted == 1 ? "" : "s")
+            Message.info("Cache Deleted", "Removed " + deleted + " file" + (deleted == 1 ? "" : "s")
                     + " (" + humanSize(bytes) + "). Reload the layer to fetch it again.");
         else
             Message.err("Cache partly deleted", "Removed " + deleted + " file" + (deleted == 1 ? "" : "s")
@@ -247,7 +247,7 @@ final class ImageLayerManagePanel extends JPanel {
     private void revealCache() {
         java.util.List<java.io.File> found = cachedFiles();
         if (found.isEmpty()) {
-            Message.warn("Nothing cached on disk",
+            Message.info("Nothing Cached on Disk",
                     "This layer has no files in the cache, so there is nothing to delete. "
                             + "Opening the cache folder anyway.");
             org.helioviewer.jhv.gui.DesktopIntegration.reveal(org.helioviewer.jhv.io.Directories.FILECACHE.getFile());

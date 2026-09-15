@@ -76,6 +76,8 @@ public class HFStudio {
         Directories.createCacheDirs();
         // Information log message
         Log.info("HelioFITS Studio started with command-line options: " + String.join(" ", args));
+        if (Directories.migrationNote != null)
+            Log.info(Directories.migrationNote);
 
         // Read the version and revision from the JAR metafile
         AppInfo.loadVersion();
@@ -182,7 +184,7 @@ public class HFStudio {
 
     private static void onFailureInit(String ignoredLogContext, Throwable t) {
         Log.error(t);
-        Message.err("An error occurred during initialization", t.getMessage());
+        Message.err("HelioFITS Studio could not finish starting", t.getMessage() == null ? "See the log for details." : t.getMessage());
     }
 
     /**

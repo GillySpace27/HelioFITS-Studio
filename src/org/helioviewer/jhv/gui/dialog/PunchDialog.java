@@ -325,11 +325,20 @@ public class PunchDialog extends StandardDialog implements PunchClient.ReceiverI
         setVisible(true);
     }
 
+    // The archive did not answer. Say so where the user is already looking, instead of popping a
+    // modal over a dialog whose labels would go on claiming they are still working.
+    @Override
+    public void setPunchResponseFailed(String reason) {
+        coverageLabel.setText(reason);
+        if ("Searching...".equals(foundLabel.getText()))
+            foundLabel.setText("Search failed");
+    }
+
     @Override
     public void setPunchResponseItems(List<PunchClient.DataItem> list) {
         listPane.setListData(list.toArray(PunchClient.DataItem[]::new));
         foundLabel.setText(list.isEmpty()
-                ? "0 found — archive may not cover this period; see umbra.nascom.nasa.gov/punch"
+                ? "0 found: archive may not cover this period; see umbra.nascom.nasa.gov/punch"
                 : list.size() + " found");
         checkNativeCadence(list);
     }

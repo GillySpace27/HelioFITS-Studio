@@ -156,7 +156,7 @@ public final class AngleRenderer {
             !"false".equals(org.helioviewer.jhv.app.Settings.getProperty("display.deepColorCanvas"));
 
     // EDR is the rung above deep colour: same IOSurface route, half-float canvas, layer tagged
-    // linear with EDR requested, so image layers can exceed the interface white. Off leaves the
+    // linear with EDR requested, so image layers can exceed the SDR white. Off leaves the
     // 10-bit canvas exactly as it was.
     private static boolean edrColor =
             !"false".equals(org.helioviewer.jhv.app.Settings.getProperty("display.edrCanvas"));

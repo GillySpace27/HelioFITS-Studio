@@ -80,7 +80,7 @@ public final class Colorbar {
     // half-float texture of the VALUES the bar stands for, drawn through GLSLSolarShader.legend,
     // which is getColor() and nothing else: Levels, response, the colour table, the HDR gain, its
     // mode and its knee are all applied by the same code that applies them to the picture. That is
-    // what lets the bar be brighter than interface white on the EDR canvas, and what makes the
+    // what lets the bar be brighter than SDR white on the EDR canvas, and what makes the
     // knee's expansion visible on it, and it is why there is no curve to keep in step here.
     private static final int RAMP_TEXELS = 1024;
     private GLTexture rampTex;
