@@ -40,13 +40,13 @@ The first time it runs, HelioFITS Studio copies your settings and saved states f
 
 HelioFITS Studio is released under the Mozilla Public License 2.0, the same licence as JHelioviewer (see [LICENSE](LICENSE)). Files that came from JHelioviewer keep that licence and their notices. The complete source of every release is this repository, and each entry on the Releases page carries the source it was built from.
 
-The downloads also bundle libraries and native programs that carry their own licences; [THIRD-PARTY.md](THIRD-PARTY.md) lists them, and the About dialog credits them. One deserves a mention here. The Kakadu JPEG 2000 codec, which decodes Helioviewer's JPEG 2000 images, is proprietary software licensed from NewSouth Innovations Ltd under non-commercial terms, and we intend to remove it before 1.0.
+The downloads also bundle libraries and native programs that carry their own licences, and the About dialog credits each of them. One deserves a mention here. The Kakadu JPEG 2000 codec, which decodes Helioviewer's JPEG 2000 images, is proprietary software licensed from NewSouth Innovations Ltd under non-commercial terms, and we intend to remove it before 1.0.
 
 The name JHelioviewer appears here only to say where this software comes from. It belongs to its project, and the MPL grants no rights in it.
 
 ## Citing
 
-If HelioFITS Studio helps your research, please cite the JHelioviewer paper it is built on: Müller et al. (2017), Astronomy & Astrophysics, https://doi.org/10.1051/0004-6361/201730893.
+If HelioFITS Studio helps your research, please cite the JHelioviewer paper it is built on: Müller et al. (2017), Astronomy & Astrophysics, https://doi.org/10.1051/0004-6361/201730893. A dedicated HFS methods paper is in prep for publication. 
 
 ## Reporting problems
 
