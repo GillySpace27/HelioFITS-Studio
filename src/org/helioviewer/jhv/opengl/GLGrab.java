@@ -112,16 +112,20 @@ public class GLGrab {
         boolean _suppressed = Display.outputFitSuppressed;
 
         boolean _high = Display.highBitDepthCapture;
+        double _captureScale = Display.captureScale;
+        int _renderHeight = Display.fullViewport.height;
 
         try {
             Display.highBitDepthCapture = capture.bytesPerPixel() > 3;
             Display.outputFitSuppressed = true;
             Display.setGLSize(0, 0, w, h);
             Display.reshapeAll();
+            Display.captureScale = Display.fullViewport.height / (double) _renderHeight;
 
             capture.bindForRender();
             return render.get();
         } finally {
+            Display.captureScale = _captureScale;
             Display.highBitDepthCapture = _high;
             Display.outputFitSuppressed = _suppressed;
             Display.setGLSize(0, 0, _w, _h);

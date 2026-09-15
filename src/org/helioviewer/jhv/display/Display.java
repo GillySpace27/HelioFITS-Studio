@@ -231,6 +231,9 @@ public final class Display {
     private static int canvasWidth = 1;
     private static int canvasHeight = 1;
     public static final double[] pixelScale = {1, 1};
+    // Render-area height of a GLGrab capture over the on-screen one, so labels sized in screen
+    // pixels keep their share of the frame in an export of any size. 1 when drawing on screen.
+    public static double captureScale = 1;
 
     public static int getCanvasWidth() {
         return canvasWidth;

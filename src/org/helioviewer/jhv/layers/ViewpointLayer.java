@@ -153,7 +153,7 @@ public class ViewpointLayer extends AbstractLayer {
     private int mouseX, mouseY;
 
     private static double temperedPointFactor(Viewport vp, double width) {
-        double pixelScale = Display.pixelScale[1];
+        double pixelScale = Display.pixelScale[1] * Display.captureScale;
         return pixelScale * Math.cbrt(ViewportMath.getPixelFactor(vp, width) / pixelScale);
     }
 
