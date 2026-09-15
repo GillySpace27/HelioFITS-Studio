@@ -416,8 +416,8 @@ public final class MainFrame {
 
         frame.setMinimumSize(minSize);
 
-        int preferredWidth = readSizeEnv("JHV_PREFERRED_WIDTH", maxSize.width - 100);
-        int preferredHeight = readSizeEnv("JHV_PREFERRED_HEIGHT", maxSize.height - 100);
+        int preferredWidth = readSizeEnv("HFSTUDIO_PREFERRED_WIDTH", maxSize.width - 100);
+        int preferredHeight = readSizeEnv("HFSTUDIO_PREFERRED_HEIGHT", maxSize.height - 100);
         preferredWidth = Math.min(preferredWidth, maxSize.width);
         preferredHeight = Math.min(preferredHeight, maxSize.height);
         frame.setPreferredSize(new Dimension(preferredWidth, preferredHeight));

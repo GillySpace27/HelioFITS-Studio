@@ -64,7 +64,7 @@ public final class LascoPointingCheck {
 
     public static void main(String[] args) throws Exception {
         // Building any FitsMetaData initialises Sun, which asks SPICE for Earth's position; as PunchNameCheck.
-        System.setProperty("user.home", java.nio.file.Files.createTempDirectory("jhv-lasco-pointing").toString());
+        System.setProperty("user.home", java.nio.file.Files.createTempDirectory("hfs-lasco-pointing").toString());
         org.helioviewer.jhv.app.Platform.init();
         org.helioviewer.jhv.io.Directories.createCacheDirs();
         org.helioviewer.jhv.app.AppInit.loadSpice();

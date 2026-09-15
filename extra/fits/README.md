@@ -1,7 +1,7 @@
 # FITS Load Benchmark
 
-Small off-JHV harness for timing the real JHV FITS loading path on a directory of FITS files.
-The runner uses `bin:resources` plus `lib/*.jar` as the classpath, so JHV service-provider files such as the FastRice SPI are active.
+Small harness, outside the application, for timing HelioFITS Studio's real FITS loading path on a directory of FITS files.
+The runner uses `bin:resources` plus `lib/*.jar` as the classpath, so the application's service-provider files such as the FastRice SPI are active.
 
 Run from the repository root:
 

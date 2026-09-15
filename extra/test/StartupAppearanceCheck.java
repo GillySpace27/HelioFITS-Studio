@@ -52,7 +52,7 @@ public final class StartupAppearanceCheck {
         // Before the first mention of Directories or Settings: Directories captures user.home as
         // its enum initialises and Settings derives the file it peeks at from that, so everything
         // below has to be reached with this already in place.
-        Path home = Files.createTempDirectory("jhv-startup-appearance");
+        Path home = Files.createTempDirectory("hfs-startup-appearance");
         System.setProperty("user.home", home.toString());
         try {
             run(home);

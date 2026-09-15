@@ -123,7 +123,7 @@ public final class CacheIndexCheck {
                 CacheIndex.datasetKey("LASCO C2", "", "", "").equals("LASCO C2"));
 
         // -- the stored index -------------------------------------------------------------------
-        System.setProperty("user.home", Files.createTempDirectory("jhv-cache-index").toString());
+        System.setProperty("user.home", Files.createTempDirectory("hfs-cache-index").toString());
         org.helioviewer.jhv.app.Platform.init();
         Directories.createPersistentDirs();
 

@@ -32,7 +32,7 @@ public final class PaletteWindowlessCheck {
         // Before the first mention of Settings: a palette records where it lives, so without this
         // the check writes ui.palette.* keys for a palette that does not exist into the settings
         // file of the application it is checking. Same isolation StartupAppearanceCheck uses.
-        System.setProperty("user.home", java.nio.file.Files.createTempDirectory("jhv-palette-windowless").toString());
+        System.setProperty("user.home", java.nio.file.Files.createTempDirectory("hfs-palette-windowless").toString());
         Palette palette = new Palette("Squeeze test", JPanel::new, () -> {});
         palette.bind(new JToggleButton());
 

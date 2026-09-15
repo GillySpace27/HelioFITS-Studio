@@ -36,7 +36,7 @@ public final class NetFileCacheTmpCheck {
 
     public static void main(String[] args) throws Exception {
         // Before Directories is touched: HOME reads user.home once, when the enum initialises.
-        System.setProperty("user.home", Files.createTempDirectory("jhv-netfilecache").toString());
+        System.setProperty("user.home", Files.createTempDirectory("hfs-netfilecache").toString());
         org.helioviewer.jhv.app.Platform.init();
         Directories.createPersistentDirs();
 

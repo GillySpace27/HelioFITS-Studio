@@ -8,7 +8,7 @@ if [[ "${JHV_SKIP_COMPILE:-0}" != "1" ]]; then
   ant compile
 fi
 
-BUILD_DIR="${TMPDIR:-/tmp}/jhv-fits-benchmark"
+BUILD_DIR="${TMPDIR:-/tmp}/hfs-fits-benchmark"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 

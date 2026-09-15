@@ -27,7 +27,7 @@ public final class PaletteRestoreIsolationCheck {
     }
 
     public static void main(String[] args) throws Exception {
-        System.setProperty("user.home", java.nio.file.Files.createTempDirectory("jhv-palette-restore").toString());
+        System.setProperty("user.home", java.nio.file.Files.createTempDirectory("hfs-palette-restore").toString());
         java.nio.file.Files.createDirectories(java.nio.file.Path.of(org.helioviewer.jhv.io.Directories.SETTINGS.getPath()));
 
         Settings.setProperty("ui.palette.Broken.sidebar", "right");

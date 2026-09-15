@@ -29,7 +29,7 @@ public final class PaletteRenameCheck {
     }
 
     public static void main(String[] args) throws Exception {
-        System.setProperty("user.home", Files.createTempDirectory("jhv-palette-rename").toString());
+        System.setProperty("user.home", Files.createTempDirectory("hfs-palette-rename").toString());
         Path file = Path.of(Directories.SETTINGS.getPath(), "user.properties");
         Files.createDirectories(file.getParent());
         Files.writeString(file, String.join("\n",

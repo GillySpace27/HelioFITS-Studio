@@ -29,7 +29,7 @@ public final class CactusTrackSizeCheck {
     }
 
     public static void main(String[] args) throws Exception {
-        System.setProperty("user.home", java.nio.file.Files.createTempDirectory("jhv-cactus-size").toString());
+        System.setProperty("user.home", java.nio.file.Files.createTempDirectory("hfs-cactus-size").toString());
 
         Constructor<CactusTrackPanel> ctor = CactusTrackPanel.class.getDeclaredConstructor();
         ctor.setAccessible(true);

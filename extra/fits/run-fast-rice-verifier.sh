@@ -8,7 +8,7 @@ if [[ "${JHV_SKIP_COMPILE:-0}" != "1" ]]; then
   ant compile
 fi
 
-BUILD_DIR="${TMPDIR:-/tmp}/jhv-fast-rice-verifier"
+BUILD_DIR="${TMPDIR:-/tmp}/hfs-fast-rice-verifier"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 

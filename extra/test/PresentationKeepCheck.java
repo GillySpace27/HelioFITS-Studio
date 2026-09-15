@@ -33,7 +33,7 @@ public final class PresentationKeepCheck {
 
     public static void main(String[] args) throws Exception {
         // These are written through Settings, so run against a throwaway home.
-        System.setProperty("user.home", Files.createTempDirectory("jhv-presentation-keep").toString());
+        System.setProperty("user.home", Files.createTempDirectory("hfs-presentation-keep").toString());
         org.helioviewer.jhv.app.Platform.init();
         org.helioviewer.jhv.io.Directories.createPersistentDirs();
 

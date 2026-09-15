@@ -23,7 +23,7 @@ seed() { # home, extra settings lines
 }
 shoot() { # home, png
     # Pinned window size: the default derives from the screen at that instant and moved between runs.
-    JHV_PREFERRED_WIDTH=1600 JHV_PREFERRED_HEIGHT=1000 java -Duser.home="$1" --enable-native-access=ALL-UNNAMED -jar HFStudio.jar -state "file://$STATE" > "$OUT/$(basename "$2" .png).log" 2>&1 &
+    HFSTUDIO_PREFERRED_WIDTH=1600 HFSTUDIO_PREFERRED_HEIGHT=1000 java -Duser.home="$1" --enable-native-access=ALL-UNNAMED -jar HFStudio.jar -state "file://$STATE" > "$OUT/$(basename "$2" .png).log" 2>&1 &
     PID=$!
     sleep "$WAIT"
     python3 - "$PID" "$2" <<'PY'

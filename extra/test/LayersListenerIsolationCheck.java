@@ -29,7 +29,7 @@ public final class LayersListenerIsolationCheck {
     }
 
     public static void main(String[] args) throws Exception {
-        System.setProperty("user.home", java.nio.file.Files.createTempDirectory("jhv-layer-listeners").toString());
+        System.setProperty("user.home", java.nio.file.Files.createTempDirectory("hfs-layer-listeners").toString());
         // As LayersReorderCheck: the registry's null image layer reaches SPICE through its metadata.
         org.helioviewer.jhv.app.Platform.init();
         org.helioviewer.jhv.io.Directories.createCacheDirs();

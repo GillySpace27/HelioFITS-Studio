@@ -32,7 +32,7 @@ public final class RightSidebarChromeCheck {
     public static void main(String[] args) throws java.io.IOException {
         // As PaletteReleaseCheck: a palette records where it lives, so keep this out of the
         // settings file of the application being checked.
-        System.setProperty("user.home", java.nio.file.Files.createTempDirectory("jhv-right-chrome").toString());
+        System.setProperty("user.home", java.nio.file.Files.createTempDirectory("hfs-right-chrome").toString());
 
         RightSidebar bar = RightSidebar.getInstance();
         String title = "Chrome test";

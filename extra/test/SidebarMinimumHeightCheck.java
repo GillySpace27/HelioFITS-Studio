@@ -27,7 +27,7 @@ public final class SidebarMinimumHeightCheck {
     }
 
     public static void main(String[] args) throws Exception {
-        System.setProperty("user.home", java.nio.file.Files.createTempDirectory("jhv-sidebar-min").toString());
+        System.setProperty("user.home", java.nio.file.Files.createTempDirectory("hfs-sidebar-min").toString());
 
         // Wants 600 x 200, will settle for 10 x 20: the shape of a wrapping label or a table.
         @SuppressWarnings("serial")

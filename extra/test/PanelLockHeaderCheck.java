@@ -24,7 +24,7 @@ public final class PanelLockHeaderCheck {
     }
 
     public static void main(String[] args) throws Exception {
-        System.setProperty("user.home", java.nio.file.Files.createTempDirectory("jhv-panel-lock").toString());
+        System.setProperty("user.home", java.nio.file.Files.createTempDirectory("hfs-panel-lock").toString());
         java.nio.file.Files.createDirectories(java.nio.file.Path.of(org.helioviewer.jhv.io.Directories.SETTINGS.getPath()));
 
         JPanel bar = new JPanel();

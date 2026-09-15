@@ -31,7 +31,7 @@ public final class CacheChipContrastCheck {
     public static void main(String[] args) throws java.io.IOException {
         // Theme.setCurrent records the choice, so this runs against a throwaway home rather than
         // rewriting the settings of the application it is checking.
-        System.setProperty("user.home", java.nio.file.Files.createTempDirectory("jhv-cache-chips").toString());
+        System.setProperty("user.home", java.nio.file.Files.createTempDirectory("hfs-cache-chips").toString());
         org.helioviewer.jhv.app.Platform.init();
         org.helioviewer.jhv.io.Directories.createPersistentDirs();
 

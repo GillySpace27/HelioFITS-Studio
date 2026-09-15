@@ -29,7 +29,7 @@ public final class SettingsWriteGuardCheck {
 
     public static void main(String[] args) throws Exception {
         // Before the first mention of Directories or Settings: both capture user.home when loaded.
-        System.setProperty("user.home", Files.createTempDirectory("jhv-settings-guard").toString());
+        System.setProperty("user.home", Files.createTempDirectory("hfs-settings-guard").toString());
 
         Path file = Path.of(Directories.SETTINGS.getPath(), "user.properties");
         Files.createDirectories(file.getParent());

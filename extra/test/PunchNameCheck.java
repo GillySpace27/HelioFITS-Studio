@@ -42,7 +42,7 @@ public final class PunchNameCheck {
     public static void main(String[] args) throws Exception {
         // Building any FitsMetaData initialises Sun, which asks SPICE for Earth's position, so the native has to
         // be loaded first. As LayersListenerIsolationCheck, in a throwaway home.
-        System.setProperty("user.home", java.nio.file.Files.createTempDirectory("jhv-punch-name").toString());
+        System.setProperty("user.home", java.nio.file.Files.createTempDirectory("hfs-punch-name").toString());
         org.helioviewer.jhv.app.Platform.init();
         org.helioviewer.jhv.io.Directories.createCacheDirs();
         org.helioviewer.jhv.app.AppInit.loadSpice();
