@@ -275,7 +275,7 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
     }
 
     private static JPanel createEventPanel(JHVRelatedEvents rEvents, JHVEvent event) {
-        JButton detailsButton = new JButton("Details");
+        JButton detailsButton = new JButton("Details…");
         detailsButton.addActionListener(e -> {
             SWEKEventInformationDialog dialog = new SWEKEventInformationDialog(rEvents, event);
             dialog.pack();

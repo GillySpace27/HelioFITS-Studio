@@ -224,7 +224,7 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
                 try {
                     all = get();
                 } catch (Exception e) {
-                    status.setText("Could not read the cache: " + e.getMessage());
+                    status.setText("Could not read the cache: " + (e.getMessage() == null ? "See the log for details." : e.getMessage()));
                     return;
                 }
                 refilter();

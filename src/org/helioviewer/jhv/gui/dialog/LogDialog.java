@@ -39,7 +39,7 @@ public class LogDialog implements Interfaces.ShowableDialog {
             @Override
             public void mousePressed(MouseEvent e) {
                 TransferAccess.writeClipboard(log);
-                JOptionPane.showMessageDialog(null, "Log copied to clipboard.");
+                JOptionPane.showMessageDialog(null, "Log copied to clipboard.", "HelioFITS Studio", JOptionPane.INFORMATION_MESSAGE);
             }
         });
 

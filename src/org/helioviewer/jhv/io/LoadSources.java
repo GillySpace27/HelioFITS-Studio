@@ -45,6 +45,7 @@ class LoadSources {
 
     private static void onFailure(String server, Throwable t) {
         DataSources.setupSources(null); // signal failure
+        DataSourcesTree.markServerFailed(server); // an empty expandable node explains nothing
         Log.error(server, t);
         if (t instanceof ValidationException ve) {
             ve.getCausingExceptions().stream().map(ValidationException::getMessage).forEach(Log::error);

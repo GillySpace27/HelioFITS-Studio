@@ -335,7 +335,7 @@ public final class Session {
             new ProcessBuilder(cmd).inheritIO().start();
         } catch (Exception e) {
             Log.error(e);
-            Message.err("New window", "Could not open a new window: " + e.getMessage());
+            Message.err("New window", "Could not open a new window: " + (e.getMessage() == null ? "See the log for details." : e.getMessage()));
         }
     }
 

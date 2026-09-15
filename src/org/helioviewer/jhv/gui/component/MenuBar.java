@@ -62,9 +62,10 @@ public final class MenuBar extends JMenuBar {
                 for (ToolBar.Tool tool : ToolBar.allTools())
                     toolsMenu.add(toolItem(tool, onBar.contains(tool.id())));
                 toolsMenu.addSeparator();
-                // The tools that are not on the bar and never were: a palette with no toolbar
-                // button of its own, and two dialogs. They were in View, which is where a thing
-                // you look through goes, not a thing you work with.
+                // Below the tools: a command that loads the CACTus events and then opens the
+                // Track CME palette (the toolbar toggle above only shows the palette), and two
+                // dialogs with no toolbar button. They were in View, which is where a thing you
+                // look through goes, not a thing you work with.
                 toolsMenu.add(new Actions.TrackCME());
                 toolsMenu.add(new Actions.ShowDialog("Load from Cache...", new org.helioviewer.jhv.gui.dialog.CacheDialog()));
                 toolsMenu.add(new Actions.ShowDialog("FITS Settings...", new FITSSettings.SettingsDialog()));
@@ -234,7 +235,7 @@ public final class MenuBar extends JMenuBar {
 
         JCheckBoxMenuItem hdrCanvas = new JCheckBoxMenuItem("HDR Canvas", HdrGain.canvasEnabled());
         hdrCanvas.setToolTipText("Render image layers into the display's extended range, so the corona can be "
-                + "brighter than the window. Needs an EDR display; takes effect the next time JHelioviewer starts.");
+                + "brighter than the window. Needs an EDR display; takes effect the next time HelioFITS Studio starts.");
         hdrCanvas.addItemListener(e -> {
             HdrGain.setCanvasEnabled(hdrCanvas.getState()); // also parks the brightness at 1x, or restores it
             DisplayController.display();
@@ -242,7 +243,7 @@ public final class MenuBar extends JMenuBar {
         viewMenu.add(hdrCanvas);
 
         JMenu hdrBrightness = new JMenu("HDR Brightness");
-        hdrBrightness.setToolTipText("How far over the interface white the brightest data goes, in photographic stops. "
+        hdrBrightness.setToolTipText("How far over the SDR white the brightest data goes, in photographic stops. "
                 + "Never more than the display offers at its current brightness; Maximum uses all of it.");
         ButtonGroup gainGroup = new ButtonGroup();
         String[][] stops = {{"Off (1x)", "1"}, {"+1/2 stop (1.4x)", "1.41"}, {"+1 stop (2x)", "2"}, {"+1 1/2 stops (2.8x)", "2.83"},
@@ -368,8 +369,8 @@ public final class MenuBar extends JMenuBar {
         }
 
         helpMenu.add(new Actions.OpenURLinBrowser("Open User Manual", AppInfo.documentationURL));
-        helpMenu.add(new Actions.OpenURLinBrowser("Open Website", "https://www.jhelioviewer.org"));
-        helpMenu.add(new Actions.OpenURLinBrowser("Open Change Log", "https://github.com/GillySpace27/JHelioviewer-SWHV/blob/thomson-warp/changelog.md"));
+        helpMenu.add(new Actions.OpenURLinBrowser("Open JHelioviewer Website (upstream)", "https://www.jhelioviewer.org"));
+        helpMenu.add(new Actions.OpenURLinBrowser("Open Change Log", "https://github.com/GillySpace27/JHelioviewer-SWHV/blob/demo-all/changelog.md"));
         helpMenu.add(new Actions.CheckForUpdates());
         helpMenu.addSeparator();
         helpMenu.add(new Actions.ShowDialog("Show Log...", new LogDialog()));

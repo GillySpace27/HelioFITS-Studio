@@ -106,7 +106,7 @@ public final class TimeSelectorPanel extends JPanel {
         spanDec.addActionListener(e -> stepSpan(false));
 
         spanButton.setMargin(new Insets(0, 3, 0, 3));
-        spanButton.setToolTipText("Time span — click to pick a preset (keeps the start date fixed)");
+        spanButton.setToolTipText("Time span: click to pick a preset (keeps the start date fixed)");
         JPopupMenu spanMenu = new JPopupMenu();
         for (SpanPreset p : SpanPreset.values()) {
             JMenuItem item = new JMenuItem(p.label);

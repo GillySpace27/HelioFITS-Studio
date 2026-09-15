@@ -15,6 +15,8 @@ public class Message {
 
         void warn(String title, Object msg);
 
+        void info(String title, Object msg);
+
         void fatalErr(String msg);
     }
 
@@ -43,6 +45,11 @@ public class Message {
         handler.warn(title, msg);
     }
 
+    /** Report something that went right. A warning icon on a success is its own small lie. */
+    public static void info(String title, String msg) {
+        handler.info(title, msg);
+    }
+
     public static void fatalErr(String msg) {
         handler.fatalErr(msg);
         System.exit(-1);
@@ -64,8 +71,22 @@ public class Message {
         }
 
         @Override
+        public void info(String title, Object msg) {
+            System.out.println(title + ": " + format(msg));
+        }
+
+        @Override
         public void fatalErr(String msg) {
             System.err.println("Fatal Error: " + format(msg));
+            // A fatal error can happen before the GUI handler is installed (SPICE loads before
+            // MainFrame), and the process then exits with nothing on screen. If there is a display,
+            // say so there too.
+            if (!java.awt.GraphicsEnvironment.isHeadless()) {
+                try {
+                    javax.swing.JOptionPane.showMessageDialog(null, format(msg), "Fatal Error", javax.swing.JOptionPane.ERROR_MESSAGE);
+                } catch (Throwable ignored) { // a dialog that fails must not hide the message above
+                }
+            }
         }
     }
 

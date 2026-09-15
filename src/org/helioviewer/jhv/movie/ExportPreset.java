@@ -58,12 +58,12 @@ public record ExportPreset(String name, String description, ExportFormat format,
             new ExportPreset("Archive (exact)",
                     "Bit-for-bit identical to what was rendered: no colour conversion, no quantization, nothing thrown away. "
                             + "The only video whose output can be called unaltered. Very large, and plays in VLC rather than "
-                            + "QuickTime. Clamped at interface white, like every rung but the two HDR ones: 16 bits of the "
+                            + "QuickTime. Clamped at SDR white, like every rung but the two HDR ones: 16 bits of the "
                             + "range that was on screen, not the range above it.",
                     ExportFormat.FFV1, ExportFormat.Chroma.RGB, ExportFormat.Depth.SIXTEEN, true, true),
             new ExportPreset("Publication figures",
                     "One lossless 16-bit PNG per frame (.png), for figures and page layout. The same fidelity as Archive, "
-                            + "delivered as stills you can drop into a paper. Clamped at interface white; for the range "
+                            + "delivered as stills you can drop into a paper. Clamped at SDR white; for the range "
                             + "above it use HDR frames.",
                     ExportFormat.PNG, ExportFormat.Chroma.RGB, ExportFormat.Depth.SIXTEEN, true, true),
             new ExportPreset("HDR frames",

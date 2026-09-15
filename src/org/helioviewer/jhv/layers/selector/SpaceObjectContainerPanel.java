@@ -96,6 +96,7 @@ final class SpaceObjectContainerPanel extends JScrollPane {
         setViewportView(grid);
         UIGlobals.themed(getViewport(), c -> c.setBackground(grid.getBackground()));
         setPreferredSize(new Dimension(-1, grid.getRowHeight() * NUMBEROFVISIBLEROWS + 1));
+        setMinimumSize(new Dimension(0, grid.getRowHeight() * NUMBEROFVISIBLEROWS + 1));
     }
 
     @Override

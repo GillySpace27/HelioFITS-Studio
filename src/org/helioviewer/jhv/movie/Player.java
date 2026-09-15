@@ -167,7 +167,7 @@ public class Player {
                     stuckTicks = 0;
                     pause();
                     Message.warn("Playback stalled", "Could not advance past " + TimeUtils.format(next.milli)
-                            + " — the next frame's data may have failed to download. Paused; scrub to resume.");
+                            + ". The next frame's data may have failed to download. Playback is paused; scrub to resume.");
                     return;
                 }
             } else {

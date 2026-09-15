@@ -78,6 +78,9 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         b.setHorizontalTextPosition(SwingConstants.CENTER);
         b.setVerticalTextPosition(SwingConstants.BOTTOM);
         b.setToolTipText(text.tip());
+        // Icon-only buttons carry no visible text for VoiceOver to read, so the label always
+        // becomes the accessible name, even when ICONONLY hides it from sight.
+        b.getAccessibleContext().setAccessibleName(text.text());
     }
 
     private final ButtonText AXIS = new ButtonText(Buttons.axis, "Axis", "Axis");
@@ -97,8 +100,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             "Show the Timelines pane under the picture");
     // Left | bottom | right, the way an editor draws its layout controls. Timelines is the bottom
     // one and predates the other two, so it keeps its own glyph and its own name.
-    private final ButtonText SIDEBAR_LEFT = new ButtonText(Buttons.sidebarLeft, "Left bar", "Show or fold the left sidebar");
-    private final ButtonText SIDEBAR_RIGHT = new ButtonText(Buttons.sidebarRight, "Right bar", "Show or fold the right sidebar");
+    private final ButtonText SIDEBAR_LEFT = new ButtonText(Buttons.sidebarLeft, "Left Sidebar", "Show or fold the left sidebar");
+    private final ButtonText SIDEBAR_RIGHT = new ButtonText(Buttons.sidebarRight, "Right Sidebar", "Show or fold the right sidebar");
     private final ButtonText OFFDISK = new ButtonText(Buttons.offDisk, "Corona", "Toggle off-disk corona");
     private final ButtonText PAN = new ButtonText(Buttons.pan, "Pan", "Pan");
     private final ButtonText PROJECTION = new ButtonText(Buttons.projection, "Projection", "Projection");
@@ -121,7 +124,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private final ButtonText ROTATE90 = new ButtonText(Buttons.rotate90, "Rotate View 90°", "Rotate view 90°");
     private final ButtonText SAMP = new ButtonText(Buttons.samp, "SAMP", "Send SAMP message");
     private final ButtonText TRACK = new ButtonText(Buttons.track, "Track", "Track solar rotation");
-    private final ButtonText ZOOMFIT = new ButtonText(Buttons.zoomFit, "Zoom-Fit", "Zoom to fit");
+    private final ButtonText ZOOMFIT = new ButtonText(Buttons.zoomFit, "Zoom to Fit", "Zoom to fit");
     private final ButtonText ZOOMIN = new ButtonText(Buttons.zoomIn, "Zoom In", "Zoom in");
     private final ButtonText ZOOMONE = new ButtonText(Buttons.zoomOne, "Actual Size", "Zoom to native resolution");
     private final ButtonText ZOOMOUT = new ButtonText(Buttons.zoomOut, "Zoom Out", "Zoom out");
@@ -138,6 +141,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         SplitButton b = new SplitButton((String) null);
         b.dress(text.icon(), displayMode == DisplayMode.ICONONLY ? null : text.text());
         b.setToolTipText(text.tip);
+        b.getAccessibleContext().setAccessibleName(text.text());
         b.setAlwaysDropdown(true);
         return b;
     }
@@ -1219,7 +1223,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
 
     private JPanel createWarpLambdaPanel() {
         warpLambdaSlider = new JHVSlider(-1000, 1000, warpLambdaToSlider(ViewState.getWarpLambda())).animates("display.warpLambda");
-        warpLambdaSlider.setToolTipText("Warp strength (Box-Cox lambda) for warp projections: right stretches the inner corona outward, left is the unwarped view");
+        warpLambdaSlider.setToolTipText("Warp strength (Box-Cox lambda) for warp projections: right stretches the inner corona outward, left is the unwarped view (available in Helioradial projections)");
         warpLambdaSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, warpLambdaSlider.getPreferredSize().height));
         JLabel label = new JLabel("Warp");
         warpLambdaValue = new JLabel(String.format("%.3f", ViewState.getWarpLambda()), JLabel.RIGHT);
@@ -1618,7 +1622,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
 
     private JPanel createDiskPanel() {
         diskSlider = new JHVSlider(0, 1000, diskScaleToSlider(Display.getDiskScale())).animates("display.diskScale");
-        diskSlider.setToolTipText("Size of the solar disk as a multiple of the nominal Box-Cox warp: 1.00\u00d7 is the warp untouched, right is bigger, left is smaller. Double-click to return to nominal.");
+        diskSlider.setToolTipText("Size of the solar disk as a multiple of the nominal Box-Cox warp: 1.00\u00d7 is the warp untouched, right is bigger, left is smaller. Double-click to return to nominal. (available in Helioradial projections)");
         diskSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, diskSlider.getPreferredSize().height));
         JLabel label = new JLabel("Disk");
         diskValue = new JLabel(formatDiskScale(Display.getDiskScale()), JLabel.RIGHT);

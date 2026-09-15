@@ -60,7 +60,9 @@ public final class DisplayController {
         if (missingHandlerLogged)
             return;
         missingHandlerLogged = true;
-        Log.warn("No render request handler installed");
+        // Expected during the startup window before MainFrame installs the real handler
+        // (setRenderRequestHandler, called from MainFrame's constructor): not a warning.
+        Log.info("No render request handler installed yet");
     }
 
     public static UpdateViewpoint getViewpointUpdate() {

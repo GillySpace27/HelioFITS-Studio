@@ -1,6 +1,7 @@
 package org.helioviewer.jhv.gui.dialog;
 
 import java.awt.BorderLayout;
+import java.awt.Dimension;
 
 import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
@@ -38,6 +39,10 @@ public class TextDialog extends StandardDialog implements Interfaces.ShowableDia
         pane.setOpaque(false);
         pane.setText(text);
         pane.addHyperlinkListener(DesktopIntegration.hyperOpenURL);
+        // Without a width to wrap to, the pane packs to its longest unwrapped line: one long
+        // help-text line could otherwise open a dialog over 1600px wide.
+        pane.setSize(new Dimension(520, Integer.MAX_VALUE));
+        pane.setPreferredSize(new Dimension(520, pane.getPreferredSize().height));
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
         panel.add(pane);

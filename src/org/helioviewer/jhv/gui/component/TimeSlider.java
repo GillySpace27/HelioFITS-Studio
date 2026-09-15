@@ -235,7 +235,7 @@ public final class TimeSlider extends JSlider implements Interfaces.LazyComponen
         // Spell out the hidden range gestures right where they live; note which end is nearer so an
         // Option-drag is unambiguous. Without this, trimming is a covert modifier no one discovers.
         String end = nearestBoundary(e.getX()) == DragMode.RangeStart ? "start" : "end";
-        return "<html><b>Timeline</b> — drag to scrub.<br>"
+        return "<html><b>Timeline</b>: drag to scrub.<br>"
                 + "<b>" + ALT_KEY + "</b>-drag an end to <b>trim</b> the movie (nearest here: " + end + ").<br>"
                 + "<b>" + MENU_KEY + "</b>-drag to slide the whole range.</html>";
     }

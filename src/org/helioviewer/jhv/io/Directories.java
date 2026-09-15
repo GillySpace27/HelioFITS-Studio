@@ -125,7 +125,7 @@ public enum Directories {
 
             File f = dir.getFile();
             if (!f.isDirectory() && !f.mkdirs())
-                throw new IllegalStateException("Failed to create directory: " + f);
+                throw new IllegalStateException("HelioFITS Studio cannot create its folder " + f + ". Check that the location is writable and has free space.");
         }
     }
 
@@ -133,11 +133,11 @@ public enum Directories {
         File cacheDir = Directories.CACHE.getFile();
         try {
             if (!cacheDir.isDirectory() && !cacheDir.mkdirs())
-                throw new IllegalStateException("Failed to create directory: " + cacheDir);
+                throw new IllegalStateException("HelioFITS Studio cannot create its folder " + cacheDir + ". Check that the location is writable and has free space.");
 
             File downloadsDir = Directories.DOWNLOADS.getFile();
             if (!downloadsDir.isDirectory() && !downloadsDir.mkdirs())
-                throw new IllegalStateException("Failed to create directory: " + downloadsDir);
+                throw new IllegalStateException("HelioFITS Studio cannot create its folder " + downloadsDir + ". Check that the location is writable and has free space.");
 
             libCacheDir = FileUtils.tempDir(cacheDir, "lib").getAbsolutePath();
             dataCacheDir = FileUtils.tempDir(cacheDir, "data").getAbsolutePath();
@@ -145,7 +145,7 @@ public enum Directories {
             clientCacheDir = FileUtils.tempDir(cacheDir, "client");
             exportCacheDir = FileUtils.tempDir(cacheDir, "export");
         } catch (Exception e) {
-            throw new IllegalStateException("Failed to initialize cache directory: " + cacheDir, e);
+            throw new IllegalStateException("HelioFITS Studio cannot set up its cache folder " + cacheDir + ". Check that the location is writable and has free space.", e);
         }
     }
 
@@ -176,7 +176,9 @@ public enum Directories {
         if (isUsableAsciiDirectory(root))
             return root;
 
-        throw new IllegalStateException("No writable ASCII temporary directory found. Set java.io.tmpdir to an ASCII path.");
+        throw new IllegalStateException("HelioFITS Studio could not find a writable folder for temporary files whose path uses only plain "
+                + "ASCII characters. Install it under a path without accented or non-Latin characters "
+                + "(or point the Java property java.io.tmpdir at one).");
     }
 
     private static boolean isUsableAsciiDirectory(String path) {
@@ -213,6 +215,10 @@ public enum Directories {
      * them. Runs only when the new folder does not exist yet, so it happens exactly once and
      * never overwrites anything the user has done since.
      */
+    // What the migration did, kept so HFStudio can write it to the log file once Log.init has run;
+    // the migration itself runs before logging exists, so its own Log.info reaches only the console.
+    public static String migrationNote;
+
     public static void migrateLegacyHome() {
         java.nio.file.Path home = java.nio.file.Path.of(System.getProperty("user.home"));
         java.nio.file.Path target = home.resolve(NAME);
@@ -241,7 +247,8 @@ public enum Directories {
                     }
                 }
             }
-            org.helioviewer.jhv.app.Log.info("Carried " + copied + " file(s) over from " + legacy);
+            migrationNote = "Carried " + copied + " files over from " + legacy;
+            org.helioviewer.jhv.app.Log.info(migrationNote);
         } catch (Exception e) {
             // Not fatal: a fresh folder is a working folder. Say so and carry on.
             org.helioviewer.jhv.app.Log.warn("Could not carry settings over from " + legacy, e);
