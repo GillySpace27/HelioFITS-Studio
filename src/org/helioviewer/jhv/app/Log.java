@@ -24,7 +24,7 @@ public class Log {
     private static final Logger root = Logger.getLogger("");
     private static final HashMap<String, Logger> configuredLoggers = new HashMap<>();
 
-    private static final String filename = Directories.LOGS.getPath() + "JHV_" + TimeUtils.formatFilename(System.currentTimeMillis()) + ".log";
+    private static final String filename = Directories.LOGS.getPath() + "HFStudio_" + TimeUtils.formatFilename(System.currentTimeMillis()) + ".log";
     private static final StackWalker WALKER = StackWalker.getInstance();
 
     public static void init() throws Exception {

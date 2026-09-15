@@ -89,6 +89,8 @@
 
     <target name="compile" depends="kernels">
         <mkdir dir="${bin}"/>
+        <!-- javac recompiles only changed sources; drop classes whose dependencies changed so no jar links against stale bytecode -->
+        <depend srcdir="${src}" destdir="${bin}" cache="${bin}/.dependcache" closure="yes"/>
         <javac srcdir="${src}" destdir="${bin}" release="25" debug="on" debuglevel="source,lines,vars" includeantruntime="false" encoding="utf-8">
             <compilerarg value="-Xlint:all"/>
             <classpath>
@@ -149,7 +151,7 @@
          failonerror=false and xcrun simply is not there). -->
     <target name="jar" depends="compile,build-metal-host">
         <delete file="${jarfile}"/>
-        <copy file="version.properties" tofile="${bin}/version.properties"/>
+        <copy file="version.properties" tofile="${bin}/version.properties" overwrite="true"/>
         <replace file="${bin}/version.properties" token="@@VERSION" value="${version}"/>
         <replace file="${bin}/version.properties" token="@@REVISION" value="${revision}"/>
         <manifestclasspath property="manifest_cp" jarfile="${jarfile}">
