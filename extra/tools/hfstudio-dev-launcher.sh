@@ -13,7 +13,7 @@
 # Gatekeeper refuses to let this signed bundle exec that unsigned .command script. A Finder
 # launch also gets a bare PATH (/usr/bin:/bin:/usr/sbin:/sbin), so every tool is found by
 # absolute path or by asking the OS.
-BUILD="$HOME/Documents/NWRA/PUNCH_Science/jhv-demo"
+BUILD="$HOME/Documents/NWRA/PUNCH_Science/JHelioviewer-SWHV"
 JAR="HFStudio.jar"
 LOG="/tmp/hfstudio-dev-build.log"
 LOCK="/tmp/hfstudio-dev-build.lock"

@@ -1,0 +1,353 @@
+{
+ "title": "HelioFITS Studio @VERSION@",
+ "subtitle": "A field guide: installing it, and the tools it adds to JHelioviewer",
+ "byline": "Compiled by Gilly, NWRA",
+ "blocks": [
+  {
+   "kind": "rule"
+  },
+  {
+   "kind": "figure",
+   "file": "fig_cover.png",
+   "caption": "The same multi-observatory composite as a plane-of-sky view (left) and under Helioradial (right): the radial stretch pulls the crushed inner corona out into legible concentric shells, from the disk out to about 200 solar radii."
+  },
+  {
+   "kind": "callout",
+   "title": "What HelioFITS Studio is",
+   "paras": [
+    "**HelioFITS Studio** is a solar image browser built on JHelioviewer, the open-source viewer from the ESA/NASA Helioviewer Project. It adds a handful of tools for coronal research: a Sun-centered radial projection (Helioradial) that gives the outer corona the space it never gets in a normal view, a rectangular unwrap of the same stretch (Helioradial Unrolled), support for NASA's PUNCH mission data and ESA's PROBA-3/ASPIICS coronagraph, a radial enhancement filter, CME tracking, adjustable coordinate grids, a Point Cloud layer that drops a 3-D reconstruction into the scene alongside the imagery, hand-drawn synoptic maps wrapped onto the solar globe, and a colour-table legend so a map's colours can actually be read.",
+    "Two of these, the PUNCH layer and the RHEF filter, have also been merged into JHelioviewer itself, and others were submitted there as pull requests (see the last page). HelioFITS Studio is maintained at `github.com/@REPO@`; please report problems and requests on that repository's issue tracker, which the app also opens from **Help > Report Bug/Request Feature**."
+   ]
+  },
+  {
+   "kind": "spacer",
+   "points": 8
+  },
+  {
+   "kind": "h1",
+   "text": "1. Installing"
+  },
+  {
+   "kind": "p",
+   "text": "HelioFITS Studio is tested on macOS. Apple Silicon Macs get a signed app; Intel Macs run the same build from a zip with Java. (The zip also carries Linux and Windows launchers, but we have not tried them, so treat those as untested.)"
+  },
+  {
+   "kind": "h2",
+   "text": "Apple Silicon Mac (recommended)"
+  },
+  {
+   "kind": "p",
+   "text": "Download `HFStudio-@VERSION@.dmg` from the GitHub release (`github.com/@REPO@/releases`). Open it and drag HelioFITS Studio into your Applications folder. It is signed and notarized, so it opens with no security warning, and it carries its own Java runtime, so there is nothing else to install. Double-click to run."
+  },
+  {
+   "kind": "h2",
+   "text": "Intel Mac"
+  },
+  {
+   "kind": "p",
+   "text": "Download `HFStudio-@VERSION@.zip` from the same release. This one needs Java 25 or newer; the free Eclipse Temurin distribution works well (`adoptium.net`, or `brew install openjdk@25`). Unzip it somewhere convenient, then double-click `run.command`. The launcher finds your Java 25 for you, including a Homebrew install that is not on your PATH; if it cannot find one, it prints how to install it."
+  },
+  {
+   "kind": "h1",
+   "text": "2. What it adds"
+  },
+  {
+   "kind": "p",
+   "text": "First, a 30-second orientation. When HelioFITS Studio opens you see a 3-D view of the Sun in the center, a toolbar of view controls across the top, and a panel on the right that lists your image **layers**: each data source you load is one layer. To try the tools below you need at least one layer: the quickest is **File > New Layer…**, pick an instrument such as SDO/AIA 171, and click **Add**, and an image appears. Click a layer's name to select it; its options (filters, opacity, and so on) show in the panel below the list. Everything that follows acts on the selected layer or on the overall view."
+  },
+  {
+   "kind": "p",
+   "text": "Each tool below gets a quick description and a **How**. You do not need to read them in order; jump to whatever you came for."
+  },
+  {
+   "kind": "h2",
+   "text": "Helioradial; room for the outer corona"
+  },
+  {
+   "kind": "p",
+   "text": "The corona fades steeply with height, so an ordinary linear view gives its outer reaches almost no room; in a full-disk image the off-limb corona is just a thin bright rim above the edge. **Helioradial** re-stretches the radial axis so the outer corona gets room to breathe: a single knob that runs from a linear view, through a logarithmic one, to an inverse view that pulls large heliocentric distances into a finite edge."
+  },
+  {
+   "kind": "p",
+   "text": "**How:** in the toolbar across the top of the main view, click the **Projection** button (its icon is a small cube); a menu opens. Choose **Helioradial**. A **λ** slider then appears at the bottom of that same menu: λ = 1 is linear, λ = 0 is logarithmic (the default), and λ = -1 is inverse; it is the exponent of a Box-Cox stretch on heliocentric distance, so lower values give the outer corona progressively more of the screen. The view fits itself on its own. Note that the disk is never warped; only the corona beyond the limb is re-stretched, so the Sun does not smear."
+  },
+  {
+   "kind": "p",
+   "text": "A companion projection, **Helioradial Unrolled**, unrolls the corona into a strip; position angle along one axis and the same radial stretch (the λ slider) along the other; so radial structure can be read off at a glance. It is an earlier-stage draft; you will find it in the same Projection menu as Helioradial, listed just below it."
+  },
+  {
+   "kind": "figure",
+   "file": "fig_radialwarp.png",
+   "caption": "Helioradial: the Projection menu with its λ slider, and the resulting Sun-centered view."
+  },
+  {
+   "kind": "figure",
+   "file": "fig_rectwarp.png",
+   "caption": "Helioradial Unrolled: the corona unrolled; position angle across, radial stretch up; so the composite's concentric shells become horizontal bands."
+  },
+  {
+   "kind": "h2",
+   "text": "PUNCH data; loading and playing the mission's frames"
+  },
+  {
+   "kind": "p",
+   "text": "PUNCH is NASA's four-spacecraft mission that images the solar corona and the young solar wind across a remarkably wide field; from the low corona out toward Earth. HelioFITS Studio can pull PUNCH images straight from the public archive and play them as a movie."
+  },
+  {
+   "kind": "p",
+   "text": "**How:** open **File > New PUNCH Layer…** For a first try, choose **Level 3**, product **PTM** (the PTM and CTM “trefoil mosaics” are the high-cadence ones), a one-day time range, and leave cadence (the spacing between frames) at its default. Click **Search**; after a moment a list of matching frames appears. Select the ones you want; or all of them; click **Add**, and they load as a new layer you can play like a movie with the timeline controls at the bottom."
+  },
+  {
+   "kind": "p",
+   "text": "One quirk is worth knowing: the **Version** box. PUNCH data is reprocessed over time (v0k, v0l, and so on), and mixing two processing versions in one movie makes the brightness jump frame to frame. “Latest” keeps the newest single version, or you can name one; either way a movie is never a mix. Each PUNCH layer also carries a small refresh button in its row of the layer list; click it to re-check the archive and pull in any newer frames."
+  },
+  {
+   "kind": "figure",
+   "file": "fig_punch_dialog.png",
+   "caption": "The New PUNCH Layer dialog: level, product, time range, cadence, and the Version box, with Search and Add."
+  },
+  {
+   "kind": "h2",
+   "text": "ASPIICS; an eclipse whenever you want one"
+  },
+  {
+   "kind": "p",
+   "text": "PROBA-3 is ESA's formation-flying pair: one spacecraft holds a disk about 144 m in front of the other, casting a shadow precisely onto the second one's telescope. The result is an artificial total eclipse, held for hours at a stretch rather than the few minutes nature allows. **ASPIICS**, the coronagraph sitting behind that shadow, therefore sees the corona from roughly 1.1 solar radii outward; the band just above the limb that an ordinary coronagraph loses to its own occulter. In essence, it is an eclipse on demand, and it covers the inner corona that PUNCH's wide mosaics are not built to resolve; the two are quite complementary."
+  },
+  {
+   "kind": "p",
+   "text": "**How:** open **File > New ASPIICS Layer…**. Choose an **Orbit** from the dropdown; each entry carries its own time range; then pick **FITS** or **JP2**, and select a product. **bt** is total brightness, the ordinary white-light corona, and the right first choice; **pb** is polarized brightness and **pa** the polarization angle, which are the ones to reach for if you care about the three-dimensional structure; **fe** and **he** are the Fe XIV green line and the He I D3 line. Click **Search**. Before you select anything, set the **Cadence**: ASPIICS runs at a high native cadence and each frame is a 17 MB image, so a whole orbit at full rate runs to several gigabytes, and thinning to one frame a minute (or ten) is usually what you actually want for a movie. Then select frames from the list and click **Add**."
+  },
+  {
+   "kind": "figure",
+   "file": "fig_aspiics.png",
+   "caption": "The New ASPIICS Layer dialog: pick an orbit, FITS or JP2, and a product (bt, fe, he, pb, pa)."
+  },
+  {
+   "kind": "h2",
+   "text": "Synoptic maps; a whole rotation wrapped on the globe"
+  },
+  {
+   "kind": "p",
+   "text": "Everything above is an image of the Sun as seen from somewhere. A **synoptic map** is the other kind of picture: a whole Carrington rotation flattened into one 360°×180° chart, built up over the ~27 days the far side takes to come around. HelioFITS Studio recognises those maps and wraps them back onto the sphere they came from, so instead of reading a rectangle you turn the globe and see the corona where it actually sits. Rotate past the limb and the far side is there too; the map covers all longitudes, which no single observation ever does."
+  },
+  {
+   "kind": "p",
+   "text": "The immediate case is the **McIntosh Archive** hand-drawn charts (Ian Hewins, Sarah Gibson and colleagues), where an analyst has traced coronal holes, magnetic polarity, filaments and the neutral line by hand. Those are **categorical** images: a pixel does not carry a brightness, it carries a label; \"this is a negative-polarity coronal hole\". HelioFITS Studio renders them with the exact colours the analyst assigned, without the smoothing and contrast handling that would quietly corrupt a category into its neighbour."
+  },
+  {
+   "kind": "p",
+   "text": "**How:** **File > Open Image Layer…** and pick the FITS file; there is no separate menu item, and nothing to configure. The map is recognised from its own header, drawn with its own colour table, and the controls that would damage it (Levels, Sharpen, Difference) are hidden for that layer. Composite it under a coronagraph layer to see the corona above the surface features that produced it."
+  },
+  {
+   "kind": "figure",
+   "file": "fig_synoptic.png",
+   "caption": "A McIntosh Archive synoptic chart (CR2302) wrapped on the sphere: a negative-polarity coronal hole in red with its magenta boundary, a positive one in blue, and filaments in green."
+  },
+  {
+   "kind": "h2",
+   "text": "Colour table legend; what the colours mean"
+  },
+  {
+   "kind": "p",
+   "text": "Any layer that can choose a colour table can show that table along the bottom of the view. For a categorical map it is not decoration but the key: without it the colours are unreadable, so it appears automatically for those layers. For an ordinary image it is off until you ask for it."
+  },
+  {
+   "kind": "p",
+   "text": "**How:** the button beside the **Color** dropdown in a layer's options toggles it. Each layer has its own, so you can show two at once and they stack up from the bottom edge. Categorical maps get one labelled block per feature; a coronal hole and its boundary share a block, since they are one feature. Ordinary colour tables get the smooth ramp and the table's name."
+  },
+  {
+   "kind": "p",
+   "text": "**Hovering a swatch tells you what it stands for.** On a categorical map you get the raw pixel index under the cursor together with its label, which is the quick way to confirm a feature really carries the index you think it does. On an ordinary ramp you get the value that colour represents."
+  },
+  {
+   "kind": "p",
+   "text": "The ramp itself still carries **no printed numbers**, and that is deliberate: a scale drawn along the bar would have to freeze one moment's brightness and contrast and then go on claiming it after you had moved them. The hovered value is computed fresh instead, and for a layer opened directly from a FITS file it is a real physical value: the layer's Levels and instrument-response adjustment are undone, then the decoder's own stretch and min/max normalisation, arriving back at the number stored in the file. HelioFITS Studio does not yet read the unit from the header, so that number is shown unlabelled. Where the chain cannot be inverted the reading falls back to a plain percentage of the display range, rather than dressing a display coordinate up as physics: server-streamed movies (AIA, SUVI, LASCO and the rest) never carried the original FITS numbers to your machine at all, and RHEF's rank transform and difference mode have no single value to invert back to."
+  },
+  {
+   "kind": "figure",
+   "file": "fig_colorbar.png",
+   "caption": "The legend for a hand-drawn synoptic chart, its labels taken from the analyst's own colour table."
+  },
+  {
+   "kind": "h2",
+   "text": "RHEF; bringing out the faint corona"
+  },
+  {
+   "kind": "p",
+   "text": "The corona gets dramatically fainter with height, so its outer structure tends to vanish into black. The **Radial Histogram Equalization Filter (RHEF)** flattens that falloff, so faint outer features become visible without blowing out the bright inner corona. Sort of like running a separate histogram-equalization at every radius; each ring's pixels are spread out by their brightness rank, so the steep radial falloff is flattened without a manual stretch."
+  },
+  {
+   "kind": "p",
+   "text": "**How:** select an image layer in the layer list, then open its options below and, in the **Filter** dropdown, choose **RHEF**. If the result looks too harsh, the **Upsilon** control (the “Y” button) exposes two handles; one for the shadows, below the midpoint, and one for the highlights, above it; so you can soften dark and bright structure independently."
+  },
+  {
+   "kind": "figure",
+   "file": "fig_rhef.png",
+   "caption": "The same corona before and after RHEF: faint outer structure brought up without clipping the core."
+  },
+  {
+   "kind": "h2",
+   "text": "Grid styling; taming the overlay"
+  },
+  {
+   "kind": "p",
+   "text": "The coordinate grid is adjustable, which helps when it competes with your images. The grid is itself a layer: if you do not see one, add it from **File > New Layer…** and choose Grid, then select that Grid layer and open its options. There you will find a color picker and sliders for line opacity, label opacity, line width, and label size; in the disk view there is also a slider that swings the radius labels to any angle, so you can move them off the part of the image you care about. The common move is to fade the grid to a light overlay while keeping the labels crisp."
+  },
+  {
+   "kind": "figure",
+   "file": "fig_grid.png",
+   "caption": "Grid layer options: color, opacities, line width, label size, and label angle."
+  },
+  {
+   "kind": "h2",
+   "text": "Track CME; holding an eruption still while it flies"
+  },
+  {
+   "kind": "p",
+   "text": "A CME crosses the field quickly, and in an ordinary movie it shrinks as it goes; by the time its structure has become interesting it is a small feature drifting near the edge. **Track CME** turns that around. Pick an eruption from the CACTus catalog and the view animates the Helioradial λ frame by frame, so the CME's leading front stays pinned at a fixed radius on the screen. The eruption then holds roughly the same apparent size the whole way out, and what you watch is its structure evolving rather than it simply receding. Sort of like a camera that zooms out at exactly the speed the CME expands."
+  },
+  {
+   "kind": "p",
+   "text": "**How:** first load the CACTus CME catalog as an event layer, so there are events to choose from. Then open **View > Track CME…**; the dialog lists the CMEs currently loaded, and selecting one jumps to that event's onset and begins tracking it. It works in both Helioradial projections. There is also an option to propagate each CACTus front past the LASCO edge, out to the field of view you actually have loaded, by constant-speed extrapolation; useful when the catalog stops well short of where your data reaches."
+  },
+  {
+   "kind": "figure",
+   "file": "fig_trackcme.png",
+   "caption": "Track CME: a CACTus front held at a fixed screen radius while the eruption propagates."
+  },
+  {
+   "kind": "h2",
+   "text": "Point Cloud; a 3-D reconstruction in the scene"
+  },
+  {
+   "kind": "p",
+   "text": "Every other layer in HelioFITS Studio is 2-D imagery mapped onto the sky. This one is different: it drops a **3-D point cloud**: a scattered set of points in space, each optionally carrying a data value; into the same view as your coronagraph frames, so a reconstruction can be seen against the imagery it came from. The natural sources are things that live as scattered samples rather than pictures: a modeled flux-rope surface, a triangulated CME front, feature positions from multi-viewpoint tracking. An **alpha-shape** control then wraps a surface around the points, so a folded sheet reads as a surface instead of a haze of dots. Sort of like shrink-wrapping the cloud at a tightness you set by hand: pulled all the way in it is the convex hull, and as you loosen it the real folds and concavities separate out."
+  },
+  {
+   "kind": "p",
+   "text": "**How:** open **File > New Point Cloud Layer…** and choose one or more cloud files (each is a small `.json` or `.json.gz`); selecting several at once loads them as a **time series** that steps with the movie clock, so a reconstruction can animate. To try it with nothing of your own, the release ships a demo; `fabric_suvi.json.gz`, a rippled sheet placed in the GOES-R SUVI field of view; right beside the app download; grab it and open it here. Once a cloud is loaded, its options give you **Points** with a **Size**, and **Color by data** with a **Colormap** to shade the points by their value; the **Alpha** slider to wrap a surface (drag right toward the convex hull, left to let the folds open up; double-click to reset); **Wireframe** and **Surface** with an **Opacity**, to show the mesh as lines, as a translucent skin, or both at once; and a **sync** button that snaps the movie interval to the cloud's own time span. You never triangulate anything yourself; a file is just a list of `[x, y, z]` points (with optional per-point values) in heliocentric coordinates, and HelioFITS Studio builds the mesh internally. The full format is written up in the point-cloud hand-off note."
+  },
+  {
+   "kind": "figure",
+   "file": "fig_pointcloud.png",
+   "caption": "The Point Cloud layer: the fabric demo over SUVI, with the alpha-shape surface tightened from a convex hull down to its folds."
+  },
+  {
+   "kind": "h2",
+   "text": "Deep colour; a ten-bit canvas"
+  },
+  {
+   "kind": "p",
+   "text": "The visible canvas on macOS used to quantize every frame to 256 levels per channel, which is why smooth coronal gradients could band on screen and why a dither has always been quietly applied. The canvas now renders into a 10-bit surface handed straight to the compositor: four times the levels, the dither retires automatically on the deep path, and colours are pixel-for-pixel unchanged. The 16-bit movie export was already deeper and is untouched."
+  },
+  {
+   "kind": "p",
+   "text": "**How:** nothing to do; it is on by default and the log records it (`Deep-colour canvas: RGB10_A2 ...`). To compare against the old canvas, add `display.deepColorCanvas=false` to `Settings/user.properties` and relaunch."
+  },
+  {
+   "kind": "h2",
+   "text": "Native FITS; full bit depth from the VSO"
+  },
+  {
+   "kind": "p",
+   "text": "The streamed JP2 imagery is an 8-bit browse product, and no amount of stretching can recover levels it never carried; that is where the terracing in a heavily filtered SUVI or AIA layer comes from. The add-layer button in the Layers panel has a **FITS (VSO)** card that queries the Virtual Solar Observatory for the calibrated FITS behind most missions (LASCO, EIT, AIA, HMI, SECCHI, XRT, EIS) at full bit depth, plus **GOES SUVI** channel by channel, served as native L1b files. Larger and slower than JP2, and worth it when the faint structure matters."
+  },
+  {
+   "kind": "p",
+   "text": "**How:** in the Layers panel, open the add-layer split button and choose **FITS (VSO)**. Pick an instrument (for SUVI: **GOES > SUVI 195** and friends), then **Add FITS layer**; the query follows the master time range like any other layer."
+  },
+  {
+   "kind": "h2",
+   "text": "Observer Sky; the sky from where you stand"
+  },
+  {
+   "kind": "p",
+   "text": "Every projection so far looks *at* the Sun from outside. **Observer Sky** turns the camera around: it renders the sky as seen from the observer's own position, so you can look around the scene the way the spacecraft does, with the coronagraph reference surfaces available and the solar disk held steady while the sky style changes. Early and experimental, and already useful for reasoning about what a wide-field imager like PUNCH actually sees."
+  },
+  {
+   "kind": "p",
+   "text": "**How:** pick **Observer Sky** in the projection menu on the toolbar; its sky controls appear alongside."
+  },
+  {
+   "kind": "h2",
+   "text": "Coronagraph and EUV data at full depth"
+  },
+  {
+   "kind": "p",
+   "text": "The streamed JP2 imagery is an 8-bit browse product, and no stretch can recover levels it never carried; that is where the terracing in a heavily filtered layer comes from. Three routes bring the real thing. **LASCO C2 and C3** come from NRL's own level-0.5 archive, because the VSO's LASCO catalogue stops in early 2025 while NRL's is current. **GOES SUVI** arrives as native L1b, one channel at a time. **AIA** likewise, one channel per entry."
+  },
+  {
+   "kind": "p",
+   "text": "**How:** in the Layers panel, open the add-layer button. **FITS (native)** has LASCO C2 (NRL) and LASCO C3 (NRL), which use the master time range directly. **FITS (VSO)** has GOES SUVI and AIA per channel, plus LASCO, EIT, HMI, SECCHI, XRT and EIS."
+  },
+  {
+   "kind": "p",
+   "text": "The layer readout states the depth it measured from the pixels beside the depth the file claims, so \"16-bit (measured 2615 levels)\" and \"16-bit (measured 256 levels, 8-bit data)\" tell you apart at a glance which one you are actually looking at."
+  },
+  {
+   "kind": "h2",
+   "text": "C3 with its background removed"
+  },
+  {
+   "kind": "p",
+   "text": "A raw C3 frame is dominated by the static K-corona, F-corona and stray light, which is why an 8-bit browse JPEG can look better than the 16-bit FITS behind it: the browse products are background-subtracted and the raw file is not. Level-1 calibration does not remove any of it either. HelioFITS Studio fetches NRL's monthly minimum images, interpolates the two that bracket each frame the way NRL's own getbkgimg.pro does, and subtracts in DN before anything is normalized, leaving the frames of a movie on one photometric footing."
+  },
+  {
+   "kind": "p",
+   "text": "**How:** nothing to do; it applies to LASCO layers automatically. Add `display.lascoBackground=false` to `Settings/user.properties` to turn it off."
+  },
+  {
+   "kind": "h2",
+   "text": "Smaller refinements"
+  },
+  {
+   "kind": "p",
+   "text": "A few quieter improvements are worth knowing about:"
+  },
+  {
+   "kind": "bullets",
+   "items": [
+    "**Trim and scrub the timeline.** The movie bar at the bottom has grab handles: drag an end to trim the playback range, drag the middle to slide that window along, so you can loop just the interval you care about without reloading.",
+    "**PUNCH mosaics composite cleanly.** A PUNCH mosaic's central no-data region used to paint an opaque black disk over anything beneath it; it now carries an inner radius, so it layers over LASCO or AIA without hiding them; which is what makes the multi-instrument composites on the cover possible.",
+    "**Faster reopen.** Downloaded frames are cached to disk between launches, so reopening a saved session loads from disk instead of re-fetching everything over the network.",
+    "**Playback that fails out loud.** If a frame's data never arrives, playback pauses and tells you which frame, instead of silently freezing the playhead.",
+    "**Its own icon.** The app shows the HelioFITS Studio icon in the Dock and taskbar rather than the generic Java coffee cup.",
+    "**A clock on the timestamp.** The timestamp overlay has a small dial whose hand tracks the displayed frame's UTC hour of day, a quick cue that playback is running and roughly where in the day it is.",
+    "**The export frame, previewed truthfully.** Output size is an aspect and a long side, and locking an aspect letterboxes the canvas to exactly what the export will contain, so you compose the recording before you record it.",
+    "**Two instances coexist.** A second copy of HelioFITS Studio used to flood the log because the first held the disk cache; it now says so once and runs with a memory-only cache for the session.",
+    "**Layers added from the File menu follow the master range**, including the cadence, exactly like layers added from the sidebar.",
+    "**The colour legend is a true gradient** rather than 128 flat steps, and durations in the movie bar read `5.08s / 12.3s`.",
+    "**Imagery appears while the rest is still arriving.** A multi-frame layer used to show nothing at all until every frame had been fetched; the first frame now lands in well under a second and the movie fills in behind it.",
+    "**Frames with no picture in them are skipped.** SUVI writes the occasional dark or shuttered frame, which used to arrive as a rectangle of noise. Those are now recognized from the frame's own statistics and quietly replaced by the nearest good one.",
+    "**Files dropped on the window load themselves**, whether they are imagery, a point cloud, or a saved session."
+   ]
+  },
+  {
+   "kind": "h1",
+   "text": "3. Good to know"
+  },
+  {
+   "kind": "p",
+   "text": "One honest rough edge: only a single PUNCH processing version is public at the moment, so the Version box has little to choose from until the next reprocessing lands. That gap does not affect the features above."
+  },
+  {
+   "kind": "p",
+   "text": "Feedback is welcome and genuinely useful. Please report problems and requests on the issue tracker at `github.com/@REPO@/issues`, or open it from **Help > Report Bug/Request Feature** in the app."
+  },
+  {
+   "kind": "spacer",
+   "points": 6
+  },
+  {
+   "kind": "callout",
+   "title": "Credit, and what went upstream",
+   "paras": [
+    "HelioFITS Studio is a fork of JHelioviewer, the open-source solar image browser from the ESA/NASA Helioviewer Project, at `github.com/Helioviewer-Project/JHelioviewer-SWHV`. The tools described here are built on it.",
+    "Two additions are merged into JHelioviewer: the New PUNCH Layer source (with the PUNCH colormap), and the RHEF radial-histogram filter.",
+    "Others were submitted there as a series of focused pull requests: the Helioradial and Helioradial Unrolled projections, PROBA-3/ASPIICS support, grid styling, the per-layer PUNCH refresh, a shared display range that keeps PUNCH movies from strobing, the reorganized layer panel, timeline navigation improvements, the Point Cloud layer (proposed on its own, since it is a larger addition), synoptic-map support, and the colour-table legend. You can browse them under that repository's Pull requests tab.",
+    "Licensed under MPL 2.0, the same as JHelioviewer itself."
+   ]
+  }
+ ]
+}
