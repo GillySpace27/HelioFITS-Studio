@@ -26,7 +26,7 @@ class DataCollapsiblePanel extends CollapsiblePane {
         model.repackCollapsiblePanels();
     }
 
-    boolean isExpanded() {
+    public boolean isExpanded() {
         return isExpanded;
     }
 
