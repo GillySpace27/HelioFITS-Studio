@@ -16,7 +16,6 @@ import org.helioviewer.jhv.wcs.WcsProjection;
 public final class FitsMetaData extends CommonMetaData {
 
     private static final Set<String> SECCHIDetectors = Set.of("EUVI", "COR1", "COR2", "HI1", "HI2");
-    private static final Set<String> CROTABlockSet = Set.of("LASCO");
 
     private String instrument = "";
     private String detector = "";
@@ -119,7 +118,9 @@ public final class FitsMetaData extends CommonMetaData {
     private void retrieveOcculterLinearCutOff(MetaDataContainer m) {
         if (detector.equals("C2")) {
             cutOffValue = (float) -region.ulx;
-            double maskRotation = -m.getDouble("CROTA").map(Math::toRadians).orElse(0.); // C2 JP2 already rotated
+            // the FOV square sits at CROTA on screen, for pre-rotated JP2s and rotated native FITS alike
+            double maskRotation = -m.getDouble("CROTA").or(() -> m.getDouble("CROTA1")).or(() -> m.getDouble("CROTA2"))
+                    .map(Math::toRadians).orElse(0.);
             cutOffX = (float) (Math.sin(maskRotation) / 0.9625);
             cutOffY = (float) (Math.cos(maskRotation) / 0.9625);
         }/* else if (instrument.equals("SWAP")) {
@@ -405,7 +406,8 @@ public final class FitsMetaData extends CommonMetaData {
             if (wcsProjection.usesPv2())
                 System.arraycopy(wcs.pv2(), 0, pv2, 0, pv2.length);
 
-            if (!CROTABlockSet.contains(instrument))
+            // Helioviewer's LASCO JP2s are already rotated by CROTA; native LASCO FITS are not
+            if (!(instrument.equals("LASCO") && m.getString("HV_SOURCE_PROGRAM").isPresent()))
                 imageToPlane = wcs.imageToPlane();
         }
 

@@ -30,6 +30,8 @@ public final class JHVMetadataDump {
         @Override
         public Optional<String> getString(String key) {
             HeaderCard card = header.findCard(key);
+            if (card == null) // long keys like HV_SOURCE_PROGRAM are plain XML elements in the app but HIERARCH cards in FITS
+                card = header.findCard("HIERARCH." + key);
             if (card == null)
                 return Optional.empty();
             return Optional.ofNullable(card.getValue());

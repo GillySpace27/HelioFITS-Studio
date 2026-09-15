@@ -305,7 +305,7 @@ def build_jhv_meta(header) -> JHVMeta:
     crpix1_gl = float(header.get("CRPIX1", (pixel_width + 1) / 2.0)) - 0.5
     crpix2_gl = float(header.get("CRPIX2", (pixel_height + 1) / 2.0)) - 0.5
 
-    if str(header.get("INSTRUME", "")) == "LASCO":
+    if str(header.get("INSTRUME", "")) == "LASCO" and "HV_SOURCE_PROGRAM" in header:
         image_to_plane = (1.0, 0.0, 0.0, 1.0)
     plane_to_image = invert_mat2(image_to_plane)
     pv2 = (
