@@ -232,7 +232,7 @@ MILESTONES = [
      # failure, that read exactly like a missing published asset.
      f"{_PUBLISHED} "
      f"&& gh release view {TAG} --repo {REPO} --json isPrerelease,assets "
-     f"--jq 'select((.isPrerelease|not) and (.assets|length)>=5)' | grep -q . "
+     f"--jq 'select((.isPrerelease == {'true' if TAG.startswith('v0.') else 'false'}) and (.assets|length)>=5)' | grep -q . "
      f"&& {_SHORTLINK_SERVES_DMG}"),
 ]
 
@@ -288,8 +288,8 @@ HOW = {
         "Quit any running HelioFITS Studio first: a second instance cannot take the JPIP\n"
         "ehcache lock, and the failure is not contained (levelCache stays null, every\n"
         "image read throws, and it presents as a rendering bug).\n"
-        "Run it from the mounted image: on the development Mac, dragging it into\n"
-        "/Applications replaces the launcher tile of the same name.\n"
+        "Run it from the mounted image. HFStudio.app sits beside the launcher tile\n"
+        "HelioFITS Studio.app in /Applications rather than replacing it.\n"
         "Then pass --done smoketest."),
 
     "published": ("gate",

@@ -22,7 +22,7 @@ the same slug in the update-check, download and issue-tracker URLs in
 
 The version is the **`VERSION`** file at the repository root. It sets the tag
 (`v<version>`) and the asset names. `jpackage` needs a purely numeric version,
-so `VERSION` must look like `1.0.0`; `deploy_release.sh` refuses anything else.
+so `VERSION` must look like `0.9.0`; `deploy_release.sh` refuses anything else.
 
 **Every release gets its own tag and its own release object.** Assets are never
 replaced in place. The previous release keeps its binaries, so a collaborator
@@ -30,7 +30,7 @@ whose workflow breaks on a new build can go back to the one that worked. The tag
 is cut at the commit the build actually came from, which is also the only
 reliable way to answer "what source is in this binary?".
 
-Tags follow `VERSION`: `v1.0.0`, then whatever the next bump is. `publish`
+Tags follow `VERSION`: `v0.9.0`, then whatever the next bump is. Versions below 1.0 publish as GitHub pre-releases, and 1.0 and later as normal releases. `publish`
 **refuses** to touch a tag that already has a release, so shipping again means
 bumping `VERSION` first. To correct a mistake on the newest release, delete that
 release deliberately by hand first.
@@ -71,7 +71,7 @@ second half, not a string edit.
   repository, and the tracker's `live` check follows it. A new short link needs
   its redirect created there first, and the old one kept working, since it has
   been sent to people.
-- **`GillySpace27/JHelioviewer-SWHV`**, the repository slug. Kept for 1.0; see
+- **`GillySpace27/JHelioviewer-SWHV`**, the repository slug. Kept for now; see
   above for the two places it lives.
 - **`org.helioviewer.jhv`, `libjhvmetalhost.dylib`, the `jhv/macos-arm64`
   resource path**: application identifiers that `deploy_release.sh` has to
@@ -185,10 +185,9 @@ spctl -a -t open --context context:primary-signature -v "HFStudio-$(cat ../VERSI
 Mount the dmg and launch the app it contains, not the jar you built. This is
 the step that catches a bundle that is signed correctly and still broken.
 
-Run it from the mounted image. The bundle is named `HelioFITS Studio.app`, the
-same as the development launcher tile in `/Applications`
-(`heliofits-studio-launcher.sh`), so dragging it into `/Applications` on the
-development Mac replaces that tile.
+Run it from the mounted image. The bundle is named `HFStudio.app`, so on the
+development Mac it sits beside the launcher tile `HelioFITS Studio.app` in
+`/Applications` (`heliofits-studio-launcher.sh`) instead of replacing it.
 
 Quit any running HelioFITS Studio first. A second instance cannot take the JPIP
 ehcache persistence lock, and the failure is not contained: `levelCache` stays
@@ -202,7 +201,7 @@ a link that has been sent to colleagues (Sarah Gibson, Ian Hewins, Yara De Leo,
 Curt de Koning). A yes for one release never carries to the next.
 
 State plainly what is about to happen, for example: "this will create the public
-`v1.0.0` release, with the `.dmg`, `.zip` and guide built from commit `<sha>`."
+`v0.9.0` pre-release, with the `.dmg`, `.zip` and guide built from commit `<sha>`."
 
 ```sh
 cd ~/Documents/NWRA/PUNCH_Science/JHelioviewer-SWHV/release
@@ -367,12 +366,12 @@ release object; the next preview would have been `v5.6b-coronal-research`.
   provenance points at the wrong commit cannot be reasoned about later. Rebuild
   after committing, and check the manifest (step 2).
 
-- **2026-09-15: the tooling moved into the application repository for 1.0.**
+- **2026-09-15: the tooling moved into the application repository for 0.9.**
   `preview-deploy` assumed the source at `../jhv-demo`, and that worktree was
   being removed. The tooling now lives in `release/`, builds from the repository
   root, reads the version from `VERSION`, tags `v<version>`, names the assets
-  `HFStudio-<version>.*` and the guide `HFStudio-Guide.*`, and publishes a
-  normal release rather than a pre-release. `RELEASE_TAG` is gone because
+  `HFStudio-<version>.*` and the guide `HFStudio-Guide.*`, and publishes
+  versions below 1.0 as pre-releases. `RELEASE_TAG` is gone because
   `VERSION` now supplies the tag; `publish` still refuses an existing release.
   At the same time the root `README.txt` that `repackage` copied into the zip
   had moved to `archive/preview/` (commit `65b4bbbf9`), which would have aborted

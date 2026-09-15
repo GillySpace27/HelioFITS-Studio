@@ -21,7 +21,7 @@ public final class AppInfo {
     // The field guide (HFStudio-Guide.pdf) ships as an asset of every release, so the releases
     // page is the one place that documents this build rather than upstream JHelioviewer.
     public static final String documentationURL = downloadURL;
-    public static final String emailAddress = "swhv@oma.be";
+    public static final String emailAddress = "gilly@nwra.com";
     public static String version = "2.-1.-1";
     public static String revision = "-1";
     // Kept as JHV/SWHV so the data archives keep recognizing this client: the servers this talks

@@ -42,7 +42,7 @@ claimed.
 - **`VERSION`** at the root sets the release: tag `v<version>`, assets
   `HFStudio-<version>.dmg` and `HFStudio-<version>.zip`.
 
-Before 1.0 these were two repos (`jhv-demo` on `demo-all`, and
+Before 0.9 these were two repos (`jhv-demo` on `demo-all`, and
 `preview-deploy`). Older entries in `RELEASING.md` use those names.
 
 ## Order matters

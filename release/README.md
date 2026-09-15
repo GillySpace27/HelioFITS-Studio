@@ -59,7 +59,7 @@ Shareable short link: <https://gilly.space/jhv>, which redirects to that index.
 
 ## History
 
-Until the 1.0 release this tooling lived in a separate repository,
+Until the 0.9 pre-release this tooling lived in a separate repository,
 `preview-deploy`, which built from a sibling `jhv-demo` worktree on the
 `demo-all` branch. It moved here so the tooling and the source it packages are
 versioned together. Older entries in `RELEASING.md` use the old names.

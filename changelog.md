@@ -1,11 +1,11 @@
 
 # Revision history
 
-## HelioFITS Studio 1.0.0 (2026-09-15)
+## HelioFITS Studio 0.9.0 (pre-release, 2026-09-15)
 
-The first release under the HelioFITS Studio name. It joins the PUNCH and coronagraph work of the preview builds with upstream JHelioviewer's development through July 2026 in a single line. Every entry from this heading down to the JHelioviewer 5.5.0 heading belongs to this release.
+The first pre-release under the HelioFITS Studio name, for testing ahead of 1.0. It joins the PUNCH and coronagraph work of the preview builds with upstream JHelioviewer's development through July 2026 in a single line. Every entry from this heading down to the JHelioviewer 5.5.0 heading belongs to this release.
 
-### Consolidation for 1.0
+### Consolidation
 - Merge upstream JHelioviewer's timeline overhaul (HAPI catalogs, stacked and predefined plots, warning levels), its export refactor with failure reporting, the LWJGL and ANGLE updates, toolbar visibility and timeline maximize controls, and its grid allocation work
 - Native LASCO FITS from NRL take their CROTA, so frames recorded while SOHO is rolled are no longer upside down; Helioviewer's pre-rotated LASCO JP2s are left as they are
 - LASCO frames whose header lost its pointing borrow it from the nearest frame of either telescope (C2 CROTA is C3's plus 0.732°), and every borrow is logged

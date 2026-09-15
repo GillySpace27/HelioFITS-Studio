@@ -24,6 +24,7 @@ SRC="$(cd "$HERE/.." && pwd)"
 # this line, so keep it in the form REPO="owner/name".
 REPO="GillySpace27/JHelioviewer-SWHV"
 APP_NAME="HelioFITS Studio"
+BUNDLE_NAME="HFStudio"   # the .app on disk, kept free of spaces; APP_NAME stays the display name
 # macOS 26 (Tahoe) enforces the squircle on app-bundle icons: a bare circular icon gets shrunk onto a
 # grey squircle ("squircle jail"). This is the hv orb composed onto a proper squircle tile, so the
 # bundled .app looks native. Regenerate with make_squircle_icon.py.
@@ -37,10 +38,12 @@ VERSION="$(tr -d '[:space:]' < "$SRC/VERSION")"
 # Checked before any mode runs: publish does minutes of packaging before it would otherwise
 # notice, and failing after the work is a good way to be ignored. jpackage needs it numeric.
 echo "$VERSION" | grep -qE '^[0-9]+(\.[0-9]+){0,2}$' || {
-    echo "!! VERSION is '$VERSION'; it must be numeric, like 1.0.0 (jpackage requires it, and the tag is v<version>)." >&2
+    echo "!! VERSION is '$VERSION'; it must be numeric, like 0.9.0 (jpackage requires it, and the tag is v<version>)." >&2
     exit 2
 }
 TAG="v$VERSION"
+# 0.x versions are pre-releases; 1.0 and later publish as normal releases
+PRERELEASE=""; [ "${VERSION%%.*}" = "0" ] && PRERELEASE="--prerelease"
 TITLE="$APP_NAME $VERSION"
 TOP="HFStudio-$VERSION"
 ZIP="$HERE/$TOP.zip"
@@ -67,7 +70,7 @@ repackage() {
     cp "$SRC/run.command" "$SRC/run.sh" "$SRC/run.bat" "$STAGE/$TOP/"
     cp "$ICNS" "$STAGE/$TOP/"   # shipped so zip users have the icon; the Dock tile itself
                                 # comes from Taskbar.setIconImage inside the app
-    # The root README.txt moved to archive/preview/ in the 1.0 cleanup. Ship whichever README
+    # The root README.txt moved to archive/preview/ in the 0.9 cleanup. Ship whichever README
     # the root has, and say so loudly when it has none instead of aborting under set -e.
     _readme=""
     for _r in README.txt README.md; do [ -f "$SRC/$_r" ] && { _readme="$SRC/$_r"; break; }; done
@@ -150,7 +153,7 @@ there as pull requests.
 
 ### Install
 
-**Apple Silicon Mac (recommended):** download **$TOP.dmg**, open it, and drag **$APP_NAME**
+**Apple Silicon Mac (recommended):** download **$TOP.dmg**, open it, and drag **$BUNDLE_NAME**
 into your Applications folder. It is signed and notarized, so it opens with no security warning,
 and it carries its own Java runtime, so there is nothing else to install. Just double-click.
 
@@ -209,14 +212,14 @@ publish() {
     CLOUD_ASSET=""; [ -f "$CLOUD" ] && CLOUD_ASSET="$CLOUD"
     echo "==> creating release $TAG"
     gh release create "$TAG" "$ZIP" "$PDF" "$MD" $DMG_ASSET $CLOUD_ASSET \
-        --repo "$REPO" --title "$TITLE" --notes-file "$NOTES"
+        --repo "$REPO" --title "$TITLE" --notes-file "$NOTES" $PRERELEASE
     rm -f "$NOTES"
     echo "==> done: https://github.com/$REPO/releases/tag/$TAG"
     echo "    short link gilly.space/jhv points at /releases, which always shows the newest."
 }
 
 # ---- macOS signing + notarization ------------------------------------------
-# Produces a Gatekeeper-clean HelioFITS Studio.app (embedded JRE) inside a stapled
+# Produces a Gatekeeper-clean HFStudio.app (embedded JRE) inside a stapled
 # .dmg. Config via env (or it auto-detects the first Developer ID it finds):
 #   DEV_ID_APP     "Developer ID Application: NAME (TEAMID)"  (from: security find-identity -v -p codesigning)
 #   NOTARY_PROFILE keychain profile name for notarytool        (default: jhv-notary, a legacy name; see RELEASING.md)
@@ -365,7 +368,7 @@ PLIST
 
     echo "==> jpackage app-image (embeds the full JDK at $JAVA_HOME as the runtime)"
     "$JAVA_HOME/bin/jpackage" \
-        --type app-image --name "$APP_NAME" --app-version "$APP_VERSION" \
+        --type app-image --name "$BUNDLE_NAME" --app-version "$APP_VERSION" \
         --input "$APPSTAGE" --main-jar HFStudio.jar \
         --main-class org.helioviewer.jhv.HFStudio \
         --java-options "--enable-native-access=ALL-UNNAMED" \
@@ -375,13 +378,13 @@ PLIST
         --icon "$ICNS" \
         --runtime-image "$JAVA_HOME" \
         --dest "$OUT"
-    APP="$OUT/$APP_NAME.app"
+    APP="$OUT/$BUNDLE_NAME.app"
     [ -d "$APP" ] || { echo "!! jpackage produced no .app"; exit 1; }
 
     # Prove the bundled app actually starts (catches missing deps / broken native load)
     # before spending a multi-minute notary round-trip on it.
     echo "==> smoke-testing the bundled app"
-    "$APP/Contents/MacOS/$APP_NAME" >"$HERE/.app_smoke.log" 2>&1 &
+    "$APP/Contents/MacOS/$BUNDLE_NAME" >"$HERE/.app_smoke.log" 2>&1 &
     _smoke=$!; _ok=0
     for _i in 1 2 3 4 5 6 7 8 9 10 11 12; do
         grep -qi 'Start main window' "$HERE/.app_smoke.log" 2>/dev/null && { _ok=1; break; }

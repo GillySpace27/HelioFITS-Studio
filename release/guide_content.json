@@ -37,7 +37,7 @@
   },
   {
    "kind": "p",
-   "text": "Download `HFStudio-@VERSION@.dmg` from the GitHub release (`github.com/@REPO@/releases`). Open it and drag HelioFITS Studio into your Applications folder. It is signed and notarized, so it opens with no security warning, and it carries its own Java runtime, so there is nothing else to install. Double-click to run."
+   "text": "Download `HFStudio-@VERSION@.dmg` from the GitHub release (`github.com/@REPO@/releases`). Open it and drag HFStudio into your Applications folder. It is signed and notarized, so it opens with no security warning, and it carries its own Java runtime, so there is nothing else to install. Double-click to run."
   },
   {
    "kind": "h2",
