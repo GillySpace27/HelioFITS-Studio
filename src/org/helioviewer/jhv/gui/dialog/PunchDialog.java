@@ -1,5 +1,6 @@
 package org.helioviewer.jhv.gui.dialog;
 
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.event.ActionEvent;
@@ -11,6 +12,7 @@ import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.DefaultComboBoxModel;
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
@@ -177,6 +179,16 @@ public class PunchDialog extends StandardDialog implements PunchClient.ReceiverI
                 }
                 productsDownloaded = false;
                 PunchClient.submitGetProducts(this, level);
+            }
+        });
+        // Hovering any product code in the open list shows its description, row by row.
+        productCombo.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                Component c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                if (value instanceof String code)
+                    list.setToolTipText(ProductInfo.getOrDefault(code, "PUNCH data product"));
+                return c;
             }
         });
         productCombo.addActionListener(e -> {
