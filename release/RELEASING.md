@@ -35,7 +35,7 @@ Tags follow `VERSION`: `v0.8.0`, then whatever the next bump is. Versions below 
 bumping `VERSION` first. To correct a mistake on the newest release, delete that
 release deliberately by hand first.
 
-Public link: **<https://gilly.space/jhv>**, which redirects to the repo's
+Public link: **<https://gilly.space/hfs>**, which redirects to the repo's
 **`/releases` index**, not to any single tag. That page always shows the newest
 release with its assets and lists the older ones underneath, so it cannot go
 stale when a new release is cut, and it doubles as the way back to a previous
@@ -66,7 +66,7 @@ second half, not a string edit.
   Store the credential under the new name first (the command is in the
   2026-08-23 credentials entry below), then change the default. Changing only
   the script breaks `notarize`.
-- **`gilly.space/jhv`** (and its `/JHV` duplicate), the short link handed to
+- **`gilly.space/hfs`** (and its `/HFS` duplicate), the short link handed to
   collaborators. It is a redirect hosted on gilly.space, outside this
   repository, and the tracker's `live` check follows it. A new short link needs
   its redirect created there first, and the old one kept working, since it has
@@ -322,7 +322,7 @@ release object; the next preview would have been `v5.6b-coronal-research`.
   to ignore, which is worse than not having it.
 
 - **2026-08-23: the shareable link had been sending people to a page with
-  nothing on it.** `gilly.space/jhv` (and the `/JHV` duplicate) redirected to
+  nothing on it.** `gilly.space/jhv` (and the `/JHV` duplicate, both now forwarding to `/hfs`) redirected to
   `releases/tag/v5.6.0-punch-preview`, retired when the release was retagged.
   That URL still returns **200**, because GitHub renders a page for any tag that
   exists, so every naive check passed. It is a bare tag page: no release, no

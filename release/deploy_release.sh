@@ -226,7 +226,7 @@ publish() {
         --repo "$REPO" --title "$TITLE" --notes-file "$NOTES" $PRERELEASE
     rm -f "$NOTES"
     echo "==> done: https://github.com/$REPO/releases/tag/$TAG"
-    echo "    short link gilly.space/jhv points at /releases, which always shows the newest."
+    echo "    short link gilly.space/hfs points at /releases, which always shows the newest."
 }
 
 # ---- macOS signing + notarization ------------------------------------------
