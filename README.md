@@ -30,7 +30,7 @@ The full record, including the JHelioviewer changes merged here, is in [changelo
 
 On an Apple Silicon Mac, the simplest route is the signed and notarized `.dmg` from the [Releases page](https://github.com/GillySpace27/JHelioviewer-SWHV/releases). It carries its own Java runtime, so there is nothing else to install.
 
-Everywhere else, download the `.zip` from the same page, install Java 25 or newer (for example Temurin 25 from [adoptium.net](https://adoptium.net), or `brew install openjdk@25`), and start `run.command` on macOS, `run.sh` on Linux or `run.bat` on Windows. Note that only macOS has been tested so far; the Linux and Windows launchers are included, but we have not yet tried them on those systems.
+Everywhere else, download the `.zip` from the same page, install Java 25 or newer (for example Temurin 25 from [adoptium.net](https://adoptium.net), or `brew install openjdk@25`), and start `run.command` on macOS, `run.sh` on Linux or `run.bat` on Windows. The zip carries the JPEG 2000 decoder for each platform; on Windows that decoder needs Microsoft's Visual C++ runtime, which most machines already have. Note that only macOS has been tested so far; the Linux and Windows launchers are included, but we have not yet tried them on those systems.
 
 ## Coming from JHelioviewer
 

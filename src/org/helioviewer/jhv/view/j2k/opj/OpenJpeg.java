@@ -73,7 +73,16 @@ public final class OpenJpeg {
             if (Files.isReadable(path))
                 return SymbolLookup.libraryLookup(path, arena);
         }
-        return SymbolLookup.libraryLookup(System.mapLibraryName("openjp2"), arena); // throws if it is nowhere
+        try {
+            return SymbolLookup.libraryLookup(System.mapLibraryName("openjp2"), arena);
+        } catch (IllegalArgumentException e) {
+            // On Windows the bundled decoder needs Microsoft's C runtime, which a machine may not
+            // have; say so rather than leaving "library not found" to be puzzled over.
+            String hint = System.getProperty("os.name", "").startsWith("Windows")
+                    ? ". On Windows this usually means the Microsoft Visual C++ runtime is missing"
+                    : "";
+            throw new IllegalStateException("No JPEG 2000 decoder: OpenJPEG could not be loaded" + hint, e);
+        }
     }
 
     private static Api link(Arena arena) {
