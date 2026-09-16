@@ -1,7 +1,7 @@
 
 # Revision history
 
-## HelioFITS Studio 0.8.0 (pre-release, 2026-09-15)
+## HelioFITS Studio 0.8.0 (pre-release, 2026-09-16)
 
 The first pre-release under the HelioFITS Studio name, for testing ahead of 1.0. It joins the PUNCH and coronagraph work of the preview builds with upstream JHelioviewer's development through 14 September 2026 in a single line. Every entry from this heading down to the JHelioviewer 5.5.0 heading belongs to this release.
 
