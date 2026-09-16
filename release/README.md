@@ -54,7 +54,7 @@ tracker and the guide read it from there.
 
 ## Release
 
-Releases: <https://github.com/GillySpace27/JHelioviewer-SWHV/releases>.
+Releases: <https://github.com/GillySpace27/HelioFITS-Studio/releases>.
 Shareable short link: <https://gilly.space/jhv>, which redirects to that index.
 
 ## History

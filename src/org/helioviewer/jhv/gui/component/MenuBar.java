@@ -395,7 +395,7 @@ public final class MenuBar extends JMenuBar {
         }
 
         helpMenu.add(new Actions.OpenURLinBrowser("Open User Manual", AppInfo.documentationURL));
-        helpMenu.add(new Actions.OpenURLinBrowser("Open Change Log", "https://github.com/GillySpace27/JHelioviewer-SWHV/blob/master/changelog.md"));
+        helpMenu.add(new Actions.OpenURLinBrowser("Open Change Log", "https://github.com/GillySpace27/HelioFITS-Studio/blob/master/changelog.md"));
         helpMenu.add(new Actions.CheckForUpdates());
         helpMenu.addSeparator();
         helpMenu.add(new Actions.ShowDialog("Show Log...", new LogDialog()));

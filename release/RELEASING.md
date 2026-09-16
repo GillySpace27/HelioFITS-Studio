@@ -8,7 +8,7 @@ Gilly can follow this by hand with no assistant present. That is the point.
 
 ## What ships, and from where
 
-One repository, **`GillySpace27/JHelioviewer-SWHV`**:
+One repository, **`GillySpace27/HelioFITS-Studio`**:
 
 | | Path | Holds |
 |---|---|---|
@@ -71,7 +71,7 @@ second half, not a string edit.
   repository, and the tracker's `live` check follows it. A new short link needs
   its redirect created there first, and the old one kept working, since it has
   been sent to people.
-- **`GillySpace27/JHelioviewer-SWHV`**, the repository slug. Kept for now; see
+- **`GillySpace27/HelioFITS-Studio`**, the repository slug. Kept for now; see
   above for the two places it lives.
 - **`org.helioviewer.jhv`, `libjhvmetalhost.dylib`, the `jhv/macos-arm64`
   resource path**: application identifiers that `deploy_release.sh` has to
@@ -218,7 +218,7 @@ newest.
 ### 7. Confirm what actually landed
 
 ```sh
-gh release view "v$(cat ../VERSION)" --repo GillySpace27/JHelioviewer-SWHV \
+gh release view "v$(cat ../VERSION)" --repo GillySpace27/HelioFITS-Studio \
   --json assets --jq '.assets[] | "\(.name)  \(.size)  \(.updatedAt)"'
 ```
 

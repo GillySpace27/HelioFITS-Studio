@@ -22,7 +22,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 SRC="$(cd "$HERE/.." && pwd)"
 # The GitHub repository, defined once. build_guide.py and the ship-hfstudio tracker read it from
 # this line, so keep it in the form REPO="owner/name".
-REPO="GillySpace27/JHelioviewer-SWHV"
+REPO="GillySpace27/HelioFITS-Studio"
 APP_NAME="HelioFITS Studio"
 BUNDLE_NAME="HFStudio"   # the .app on disk, kept free of spaces; APP_NAME stays the display name
 # macOS 26 (Tahoe) enforces the squircle on app-bundle icons: a bare circular icon gets shrunk onto a

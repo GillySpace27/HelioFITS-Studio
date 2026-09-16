@@ -28,7 +28,7 @@ The full record, including the JHelioviewer changes merged here, is in [changelo
 
 ## Installing
 
-On an Apple Silicon Mac, the simplest route is the signed and notarized `.dmg` from the [Releases page](https://github.com/GillySpace27/JHelioviewer-SWHV/releases). It carries its own Java runtime, so there is nothing else to install.
+On an Apple Silicon Mac, the simplest route is the signed and notarized `.dmg` from the [Releases page](https://github.com/GillySpace27/HelioFITS-Studio/releases). It carries its own Java runtime, so there is nothing else to install.
 
 Everywhere else, download the `.zip` from the same page, install Java 25 or newer (for example Temurin 25 from [adoptium.net](https://adoptium.net), or `brew install openjdk@25`), and start `run.command` on macOS, `run.sh` on Linux or `run.bat` on Windows. The zip carries the JPEG 2000 decoder for each platform; on Windows that decoder needs Microsoft's Visual C++ runtime, which most machines already have. Note that only macOS has been tested so far; the Linux and Windows launchers are included, but we have not yet tried them on those systems.
 
@@ -50,7 +50,7 @@ If HelioFITS Studio helps your research, please cite the JHelioviewer paper it i
 
 ## Reporting problems
 
-Please report problems on this repository's [issue tracker](https://github.com/GillySpace27/JHelioviewer-SWHV/issues), or write to gilly@nwra.com. The JHelioviewer team did not write the code added here, so problems with HelioFITS Studio should not go to them.
+Please report problems on this repository's [issue tracker](https://github.com/GillySpace27/HelioFITS-Studio/issues), or write to gilly@nwra.com. The JHelioviewer team did not write the code added here, so problems with HelioFITS Studio should not go to them.
 
 ## Building from source
 
