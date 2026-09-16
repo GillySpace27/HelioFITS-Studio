@@ -198,6 +198,14 @@ public final class MenuBar extends JMenuBar {
         viewMenu.add(new Actions.ZoomOut());
         viewMenu.add(new Actions.ResetCameraAxis());
         viewMenu.add(new Actions.ResetCamera());
+
+        JCheckBoxMenuItem autoReset = new JCheckBoxMenuItem("Reset View for New Layers",
+                org.helioviewer.jhv.app.DisplaySettings.getAutoResetView());
+        autoReset.setToolTipText("Frame the scene the way Reset View does when a layer's first frame arrives, "
+                + "instead of leaving it framed for whatever was loaded before");
+        autoReset.addItemListener(e -> org.helioviewer.jhv.app.DisplaySettings.setAutoResetView(autoReset.getState()));
+        viewMenu.add(autoReset);
+
         viewMenu.addSeparator();
 
         JCheckBoxMenuItem separateMultiviewZoom = new JCheckBoxMenuItem(new Actions.SeparateMultiviewZoom());

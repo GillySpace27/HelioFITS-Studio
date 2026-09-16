@@ -338,7 +338,13 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             return;
 
         replaceView(_view);
-        if (fitOnLoad) {
+        // Framing, now that there is something to frame. Until this moment the layer is an empty
+        // placeholder with no physical size, which is why a camera reset before it lands does
+        // nothing useful and a freshly opened dataset arrives framed for whatever came before it.
+        if (org.helioviewer.jhv.app.DisplaySettings.getAutoResetView()) {
+            fitOnLoad = false;
+            DisplayController.resetView(); // exactly what the Reset View button does
+        } else if (fitOnLoad) {
             fitOnLoad = false;
             if (fitPending) {
                 fitPending = false;
