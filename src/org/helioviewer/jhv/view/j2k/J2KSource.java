@@ -333,6 +333,12 @@ abstract class J2KSource {
     static class Remote extends J2KSource {
 
         private final JPIPCache cache = new JPIPCache();
+
+        /** The same bins in Java, while the replacement for Kakadu is being proved. Null unless asked for. */
+        @javax.annotation.Nullable
+        org.helioviewer.jhv.view.j2k.opj.DataBinCache bins() {
+            return cache.shadow();
+        }
         private ResolutionSet[] resolutionSet;
         private int partialUntil = 0;
         private boolean fullyComplete;

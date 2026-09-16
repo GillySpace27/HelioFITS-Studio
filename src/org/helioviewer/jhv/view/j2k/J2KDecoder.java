@@ -124,6 +124,10 @@ record J2KDecoder(J2KSource src, J2KParams.Decode params, int numComps, ImageFil
                 for (int row = 0; row < actualHeight; row++)
                     outByteBuffer.put(4 * row * actualWidth, nativeBuffer, 4 * row * srcStride[0], 4 * actualWidth);
             }
+            if (org.helioviewer.jhv.view.j2k.jpip.JPIPCache.VERIFY && src instanceof J2KSource.Remote remote)
+                org.helioviewer.jhv.view.j2k.opj.OpjVerify.compare(remote.bins(), frame, params.level,
+                        actualWidth, actualHeight, gray ? outByteBuffer : null);
+
             return new DecodedImage(outBuffer.finish(), imageRegion);
         } finally {
             // Kakadu's destructor stops processing and releases layers and buffers.

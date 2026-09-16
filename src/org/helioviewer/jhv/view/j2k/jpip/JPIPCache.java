@@ -1,10 +1,32 @@
 package org.helioviewer.jhv.view.j2k.jpip;
 
+import javax.annotation.Nullable;
+
+import org.helioviewer.jhv.view.j2k.opj.DataBinCache;
+
 import kdu_jni.KduException;
 import kdu_jni.Kdu_cache;
 import kdu_jni.Kdu_global;
 
 public class JPIPCache extends Kdu_cache {
+
+    /**
+     * The same bins, kept a second time in Java, while the replacement for Kakadu is proved.
+     *
+     * <p>Off unless -Djhv.opj.verify is set, because it doubles what a JPIP session holds. With
+     * it on, every frame the application decodes is also rebuilt and decoded by the new path and
+     * the two are compared, which is a far wider test than any fixture: whatever the archives
+     * actually serve, in whatever order a real session asks for it.
+     */
+    public static final boolean VERIFY = System.getProperty("jhv.opj.verify") != null;
+
+    @Nullable
+    private final DataBinCache shadow = VERIFY ? new DataBinCache() : null;
+
+    @Nullable
+    public DataBinCache shadow() {
+        return shadow;
+    }
 
     boolean isDataBinCompleted(int klassID, long streamID, long binID) throws KduException {
         boolean[] complete = new boolean[1];
@@ -37,6 +59,8 @@ public class JPIPCache extends Kdu_cache {
 
     void put(int frame, JPIPSegment seg) throws KduException {
         Add_to_databin(seg.klassID, frame, seg.binID, seg.data, seg.offset, seg.length, seg.isFinal, true, false);
+        if (shadow != null && seg.data != null)
+            shadow.put(seg.klassID, frame, seg.binID, seg.offset, seg.data, seg.isFinal);
     }
 
     public void put(int frame, JPIPStream stream) throws KduException {
