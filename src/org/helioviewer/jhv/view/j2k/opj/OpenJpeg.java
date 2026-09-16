@@ -52,7 +52,7 @@ public final class OpenJpeg {
                        MethodHandle setUserDataLength, MethodHandle readHeader, MethodHandle setResolutionFactor,
                        MethodHandle decode, MethodHandle endDecompress, MethodHandle imageDestroy,
                        MethodHandle streamDestroy, MethodHandle destroyCodec, MethodHandle setErrorHandler,
-                       MethodHandle setStrictMode, MethodHandle version) {}
+                       MethodHandle setStrictMode, MethodHandle setDecodeArea, MethodHandle version) {}
 
     private static final class Holder {
         private static final Arena ARENA = Arena.ofShared();
@@ -101,6 +101,7 @@ public final class OpenJpeg {
                 bind(linker, opj, "opj_destroy_codec", FunctionDescriptor.ofVoid(A)),
                 bind(linker, opj, "opj_set_error_handler", FunctionDescriptor.of(I32, A, A, A)),
                 bind(linker, opj, "opj_decoder_set_strict_mode", FunctionDescriptor.of(I32, A, I32)),
+                bind(linker, opj, "opj_set_decode_area", FunctionDescriptor.of(I32, A, A, I32, I32, I32, I32)),
                 bind(linker, opj, "opj_version", FunctionDescriptor.of(A)));
     }
 
@@ -129,6 +130,18 @@ public final class OpenJpeg {
      * @param threads   decoding threads, or 0 to leave OpenJPEG's default alone
      */
     public static Decoded decode(byte[] data, boolean boxed, int reduce, int threads) {
+        return decode(data, boxed, reduce, threads, 0, 0, 0, 0);
+    }
+
+    /**
+     * Decode part of an image.
+     *
+     * <p>The rectangle is in the image's own full-size coordinates whatever the reduction, which
+     * is how JPEG 2000 addresses a region: ask for the same rectangle at a coarser level and the
+     * same part of the picture comes back smaller. An empty rectangle means the whole image.
+     */
+    public static Decoded decode(byte[] data, boolean boxed, int reduce, int threads,
+                                 int x0, int y0, int x1, int y1) {
         Api api = Holder.API;
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment bytes = arena.allocate(data.length);
@@ -170,6 +183,9 @@ public final class OpenJpeg {
                 image = imagePtr.get(ValueLayout.ADDRESS, 0);
                 if (reduce > 0 && 0 == (int) api.setResolutionFactor().invokeExact(codec, reduce))
                     throw new IllegalStateException("OpenJPEG refused resolution factor " + reduce);
+                if (x1 > x0 && y1 > y0 && 0 == (int) api.setDecodeArea().invokeExact(codec, image, x0, y0, x1, y1))
+                    throw new IllegalStateException("OpenJPEG refused the area " + x0 + "," + y0 + " to " + x1 + "," + y1
+                            + ": " + complaints);
 
                 if (0 == (int) api.decode().invokeExact(codec, stream, image))
                     throw new IllegalStateException("OpenJPEG could not decode the image: " + complaints);
