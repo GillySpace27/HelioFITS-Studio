@@ -88,6 +88,33 @@ public final class Jp2Boxes {
         return null;
     }
 
+    /** Every XML box in document order, which for a JPX movie is one FITS header per frame. */
+    public static List<String> xmls(byte[] data) {
+        List<String> out = new ArrayList<>();
+        collectXml(data, 0, data.length, 0, out);
+        return out;
+    }
+
+    private static void collectXml(byte[] data, int from, int to, int depth, List<String> out) {
+        if (depth > 4)
+            return;
+        for (Box box : walk(data, from, to)) {
+            if ("xml ".equals(box.type()))
+                out.add(new String(data, box.contentAt(), box.contentLength(), StandardCharsets.UTF_8));
+            else if ("asoc".equals(box.type()) || "jp2h".equals(box.type()))
+                collectXml(data, box.contentAt(), box.contentAt() + box.contentLength(), depth + 1, out);
+        }
+    }
+
+    /** Placeholder boxes, one per codestream JPIP has not sent inline, which is how a movie's frames are counted. */
+    public static int placeholders(byte[] data) {
+        int count = 0;
+        for (Box box : walk(data))
+            if ("phld".equals(box.type()))
+                count++;
+        return count;
+    }
+
     /**
      * The codestreams in a file, in the order they appear, which for a JPX movie is frame order.
      *
