@@ -52,8 +52,13 @@ public interface MapScale {
         return new LinearMapScale(-halfWidth, halfWidth, -halfHeight, halfHeight);
     }
 
+    // The current exponent, for callers that have no reason to hold one of their own.
     static MapScale boxCoxRadial(double radialSize) {
-        return new BoxCoxRadialScale(Math.max(radialSize, 1));
+        return boxCoxRadial(radialSize, Display.getWarpLambda());
+    }
+
+    static MapScale boxCoxRadial(double radialSize, double lambda) {
+        return new BoxCoxRadialScale(Math.max(radialSize, 1), lambda);
     }
 
     final class LinearMapScale implements MapScale {
@@ -107,18 +112,21 @@ public interface MapScale {
 
         private final double radialSize;
         private final double limb;
+        // Captured at construction, not read per call: one scale is one mapping, and a scale
+        // that consulted the live exponent could answer two different things within a frame.
+        private final double lambda;
 
-        BoxCoxRadialScale(double _radialSize) {
+        BoxCoxRadialScale(double _radialSize, double _lambda) {
             radialSize = _radialSize;
+            lambda = _lambda;
             // The limb's screen position. This restores the original origin-anchored warp: the
             // full radial axis is normalized by warp(R), so the limb sits at
             // warp(1)/warp(R) = 1/(1 + boxcox(R, lambda)) and the disk's share GROWS as lambda
             // compresses the corona (~18% at lambda=0 with a 100 Rsun FOV, ~50% at -1, 1/R at
             // +1 = linear). The corona formula is unchanged; only this anchor differs from
             // upstream's fixed 1/R, which rendered the disk invisible under a wide FOV.
-            double lambda = Display.getWarpLambda();
             double bc = _radialSize <= 1 ? 0
-                    : (lambda == 0 ? Math.log(_radialSize) : (Math.pow(_radialSize, lambda) - 1) / lambda);
+                    : (_lambda == 0 ? Math.log(_radialSize) : (Math.pow(_radialSize, _lambda) - 1) / _lambda);
             // Scaled rather than replaced, so lambda stops silently deciding the photosphere's
             // share while the anchor it is scaling still follows the warp. A scale of 1 returns
             // the nominal value untouched, which is what makes the control reversible.
@@ -158,7 +166,7 @@ public interface MapScale {
 
         @Override
         public double warpLambda() {
-            return Display.getWarpLambda();
+            return lambda;
         }
 
         @Override
@@ -167,7 +175,6 @@ public interface MapScale {
                 return unitY / limb;
 
             double u = (unitY - limb) / (1 - limb);
-            double lambda = warpLambda();
             return lambda == 0
                     ? Math.pow(radialSize, u)
                     : Math.pow(1 + u * (Math.pow(radialSize, lambda) - 1), 1 / lambda);
@@ -178,7 +185,6 @@ public interface MapScale {
             if (radialSize <= 1 || mapY <= 1)
                 return mapY * limb;
 
-            double lambda = warpLambda();
             double u = lambda == 0
                     ? Math.log(mapY) / Math.log(radialSize)
                     : (Math.pow(mapY, lambda) - 1) / (Math.pow(radialSize, lambda) - 1);

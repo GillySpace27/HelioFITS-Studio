@@ -12,17 +12,17 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextArea;
 
-import org.helioviewer.jhv.event.JHVEvent;
-import org.helioviewer.jhv.event.JHVEventCache;
-import org.helioviewer.jhv.event.JHVRelatedEvents;
+import org.helioviewer.jhv.event.EventCache;
+import org.helioviewer.jhv.event.RelatedEvents;
+import org.helioviewer.jhv.event.SolarEvent;
 import org.helioviewer.jhv.plugins.swek.SWEKIconBank;
 import org.helioviewer.jhv.time.TimeUtils;
 
 @SuppressWarnings("serial")
 class EventDescriptionPanel extends JPanel {
 
-    EventDescriptionPanel(JHVRelatedEvents revent, JHVEvent event) {
-        ImageIcon icon = SWEKIconBank.getIcon(revent.getGroup().getIconKey());
+    EventDescriptionPanel(RelatedEvents related, SolarEvent event) {
+        ImageIcon icon = SWEKIconBank.getIcon(event.getSupplier().group().getIconKey());
         JLabel labelIcon = new JLabel(icon);
 
         JTextArea textStartTime = new JTextArea(TimeUtils.formatShort(event.start));
@@ -34,18 +34,18 @@ class EventDescriptionPanel extends JPanel {
         addMouseListener(new MouseAdapter() {
             @Override
             public void mouseEntered(MouseEvent e) {
-                JHVEventCache.highlight(revent);
+                EventCache.highlight(related);
             }
 
             @Override
             public void mouseExited(MouseEvent e) {
-                JHVEventCache.highlight(null);
+                EventCache.highlight(null);
             }
         });
         setLayout(new GridBagLayout());
 
         JLabel colorLabel = new JLabel();
-        colorLabel.setBackground(revent.getColor());
+        colorLabel.setBackground(related.getColor());
         colorLabel.setOpaque(true);
 
         GridBagConstraints iconLabelConstraint = new GridBagConstraints();

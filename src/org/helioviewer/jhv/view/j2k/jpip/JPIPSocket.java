@@ -3,10 +3,10 @@ package org.helioviewer.jhv.view.j2k.jpip;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.helioviewer.jhv.base.Regex;
 import org.helioviewer.jhv.view.j2k.jpip.http.HTTPSocket;
 
 import kdu_jni.KduException;
@@ -18,10 +18,12 @@ public final class JPIPSocket extends HTTPSocket {
     private static final int mainHeaderKlass = Constants.getKlass(Constants.JPIP.MAIN_HEADER_DATA_BIN_CLASS);
 
     private static final int META_REQUEST_LEN = 2000000;
-    // Maximum number of layers that can be requested at the same time
-    private static final int MAX_REQ_LAYERS = 1;
-    // The maximum length in bytes of a JPIP request
-    private static final int MAX_REQUEST_LEN = (MAX_REQ_LAYERS + 1) * (1024 * 1024);
+    private static final int FRAME_RESPONSE_LIMIT = 2 * 1024 * 1024;
+
+    public record FrameResponse(int frame, boolean complete) {}
+
+    // Owned by the reader thread. Abort only closes the socket; it does not touch this queue.
+    private final ArrayDeque<Integer> pendingFrames = new ArrayDeque<>();
 
     // The jpip channel ID for the connection (persistent)
     private final String jpipChannelID;
@@ -36,24 +38,25 @@ public final class JPIPSocket extends HTTPSocket {
         try {
             jpipPath = uri.getPath();
 
-            JPIPResponse res = request(createQuery(512, "cnew", "http", "type", "jpp-stream", "tid", "0"), cache, 0); // deliberately short
+            JPIPResponse res = requestInitialization(createQuery(512, "cnew", "http", "type", "jpp-stream", "tid", "0"), cache); // deliberately short
             String cnew = res.getCNew();
             if (cnew == null)
                 throw new IOException("The header 'JPIP-cnew' was not sent by the server");
 
             Map<String, String> map = new HashMap<>();
-            for (String part : Regex.Comma.split(cnew))
+            for (String part : cnew.split(","))
                 for (String cnewParam : cnewParams)
                     if (part.startsWith(cnewParam + '='))
                         map.put(cnewParam, part.substring(cnewParam.length() + 1));
 
-            jpipPath = '/' + map.get("path");
+            String path = map.get("path");
             jpipChannelID = map.get("cid");
-            if (jpipChannelID == null)
-                throw new IOException("The channel id was not sent by the server");
-
+            if (jpipChannelID == null || path == null)
+                throw new IOException("The server did not send a channel id and path in JPIP-cnew");
             if (!"http".equals(map.get("transport")))
                 throw new IOException("The client only supports HTTP transport");
+
+            jpipPath = '/' + path;
         } catch (KduException | IOException | RuntimeException | Error e) {
             try {
                 super.close();
@@ -61,6 +64,11 @@ public final class JPIPSocket extends HTTPSocket {
             }
             throw e;
         }
+    }
+
+    // Interrupt pending I/O without writing another request.
+    public void abort() throws IOException {
+        super.close();
     }
 
     // Closes the JPIPChannel
@@ -89,22 +97,38 @@ public final class JPIPSocket extends HTTPSocket {
         return buf + "len=" + len;
     }
 
-    public static String createLayerQuery(int layer, String fSiz) {
-        return createQuery(MAX_REQUEST_LEN, "stream", String.valueOf(layer), "fsiz", fSiz + ",closest", "rsiz", fSiz, "roff", "0,0");
+    private static String createFrameQuery(int frame, String size) {
+        return createQuery(FRAME_RESPONSE_LIMIT, "stream", String.valueOf(frame), "fsiz", size + ",closest", "rsiz", size, "roff", "0,0");
     }
 
     public void init(JPIPCache cache) throws KduException, IOException {
         JPIPResponse res;
         String req = createQuery(META_REQUEST_LEN, "stream", "0", "metareq", "[*]!!");
         do {
-            res = request(req, cache, 0);
+            res = requestInitialization(req, cache);
         } while (!res.isResponseComplete());
 
         // prime first image
-        req = createLayerQuery(0, "64,64");
+        req = createFrameQuery(0, "64,64");
         do {
-            res = request(req, cache, 0);
+            res = requestInitialization(req, cache);
         } while (!res.isResponseComplete() && !cache.isDataBinCompleted(mainHeaderKlass, 0, 0));
+    }
+
+    public void sendFrame(int frame, String size) throws IOException {
+        writeRequest(createFrameQuery(frame, size));
+        pendingFrames.addLast(frame);
+    }
+
+    public FrameResponse receiveFrame(JPIPCache cache) throws KduException, IOException {
+        int frame = pendingFrames.getFirst();
+        JPIPResponse response = receive(cache, frame);
+        pendingFrames.removeFirst();
+        return new FrameResponse(frame, response.isResponseComplete());
+    }
+
+    public int pendingCount() {
+        return pendingFrames.size();
     }
 
     private void writeRequest(String queryStr) throws IOException {
@@ -114,9 +138,12 @@ public final class JPIPSocket extends HTTPSocket {
         write("GET " + jpipPath + '?' + queryStr + httpHeader);
     }
 
-    public JPIPResponse request(String queryStr, JPIPCache cache, int frame) throws KduException, IOException {
+    private JPIPResponse requestInitialization(String queryStr, JPIPCache cache) throws KduException, IOException {
         writeRequest(queryStr);
+        return receive(cache, 0);
+    }
 
+    private JPIPResponse receive(JPIPCache cache, int frame) throws KduException, IOException {
         Map<String, String> header = readHeader();
         if (!"image/jpp-stream".equals(header.get("Content-Type")))
             throw new IOException("Expected image/jpp-stream content");

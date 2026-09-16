@@ -145,13 +145,14 @@ public final class ReferenceSurfacesCheck {
     }
 
     private static float[][] vertices(BufVertex buf) {
-        FloatBuffer floats = buf.toVertexBuffer().duplicate().order(ByteOrder.nativeOrder()).asFloatBuffer();
+        // One vertex is four position floats followed by four colour bytes, so it spans five floats.
+        FloatBuffer floats = buf.toBuffer().duplicate().order(ByteOrder.nativeOrder()).asFloatBuffer();
         int n = buf.getCount();
         float[][] out = new float[n][3];
         for (int i = 0; i < n; i++) {
-            out[i][0] = floats.get(4 * i);
-            out[i][1] = floats.get(4 * i + 1);
-            out[i][2] = floats.get(4 * i + 2);
+            out[i][0] = floats.get(5 * i);
+            out[i][1] = floats.get(5 * i + 1);
+            out[i][2] = floats.get(5 * i + 2);
         }
         return out;
     }

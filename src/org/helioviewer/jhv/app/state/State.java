@@ -39,7 +39,6 @@ import org.helioviewer.jhv.timelines.AutomationTimelineLayer;
 import org.helioviewer.jhv.timelines.TimelineLayer;
 import org.helioviewer.jhv.timelines.TimelineLayers;
 import org.helioviewer.jhv.timelines.Timelines;
-import org.helioviewer.jhv.view.uri.FITSViewState;
 import org.helioviewer.jhv.gui.MainFrame;
 
 import org.json.JSONArray;
@@ -126,10 +125,11 @@ public final class State {
         main.put("masterEndTime", TimeUtils.format(MoviePanel.getInstance().getEndTime()));
         ViewState.writeModeJson(main);
         // Everything else a session is expected to bring back and did not: how it plays, how it
-        // records, how FITS pixels are stretched, and the cadence beside the master range.
+        // records, and the cadence beside the master range. The FITS stretch is not written here
+        // any more: it is no longer global, so each image layer serializes its own copy with its
+        // data and comes back with it.
         main.put("playback", ViewState.playbackJson());
         main.put("recording", ViewState.recordingJson());
-        main.put("fitsView", FITSViewState.toJson());
         if (MainFrame.getLayersSectionPanel() != null) // absent when headless
             main.put("masterCadence", MainFrame.getLayersSectionPanel().getCadence());
         main.put("annotations", Annotations.toJson());
@@ -350,7 +350,7 @@ public final class State {
 
         JHVTime time = new JHVTime(TimeUtils.optParse(data.optString("time"), Player.getTime().milli));
         Callback callback = new Callback(context, newLayers, masterLayer, time, modeData, data.optJSONObject("playback"));
-        Task.submit(
+        Task.submitBackground(
                 new ImageLayers.WaitUntilLoaded(newLayers.keySet()),
                 callback::onSuccess,
                 callback::onFailure);
@@ -401,9 +401,6 @@ public final class State {
         try {
             ViewState.ModeData modeData = ViewState.readModeJson(jo);
             ViewState.setProjection(modeData.projection()); // to be set before viewpoint
-            JSONObject fitsView = jo.optJSONObject("fitsView");
-            if (fitsView != null)
-                FITSViewState.fromJson(fitsView); // before the layers decode
             ViewState.applyRecordingJson(jo.optJSONObject("recording"));
 
             // Unconditional, and before the timelines gate: the tracks load, apply and record

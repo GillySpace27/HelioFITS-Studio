@@ -19,28 +19,14 @@ import org.helioviewer.jhv.time.TimeUtils;
 
 public class LoadConnectivity {
 
-    public static class Connectivity {
-
-        public final JHVTime time;
-        public final List<Vec3> SSW;
-        public final List<Vec3> FSW;
-        public final List<Vec3> M;
-
-        Connectivity(JHVTime _time, List<Vec3> _SSW, List<Vec3> _FSW, List<Vec3> _M) {
-            time = _time;
-            SSW = _SSW;
-            FSW = _FSW;
-            M = _M;
-        }
-
-    }
+    public record Connectivity(JHVTime time, List<Vec3> SSW, List<Vec3> FSW, List<Vec3> M) {}
 
     public interface Receiver {
         void setConnectivity(@Nullable Connectivity connectivity);
     }
 
     public static void submit(@Nonnull URI uri, Receiver receiver) {
-        Task.submit(uri.toString(), new ConnectivityLoad(uri), receiver::setConnectivity, "Error getting the data");
+        Task.submitBackground(uri.toString(), new ConnectivityLoad(uri), receiver::setConnectivity, "Error getting the data");
     }
 
     private record ConnectivityLoad(URI uri) implements Callable<Connectivity> {

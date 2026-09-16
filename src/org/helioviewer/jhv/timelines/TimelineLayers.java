@@ -1,10 +1,10 @@
 package org.helioviewer.jhv.timelines;
 
-import java.awt.Graphics2D;
-import java.awt.Point;
-import java.awt.Rectangle;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 
 import javax.annotation.Nullable;
@@ -12,9 +12,7 @@ import javax.swing.table.AbstractTableModel;
 
 import org.helioviewer.jhv.timelines.band.Band;
 import org.helioviewer.jhv.timelines.band.BandType;
-import org.helioviewer.jhv.timelines.draw.ClickableDrawable;
 import org.helioviewer.jhv.timelines.draw.DrawController;
-import org.helioviewer.jhv.timelines.draw.GraphGeometry;
 import org.helioviewer.jhv.timelines.draw.TimeAxis;
 
 @SuppressWarnings("serial")
@@ -34,34 +32,6 @@ public class TimelineLayers extends AbstractTableModel {
         return extLayers;
     }
 
-    public static void draw(Graphics2D g, Rectangle graphArea, TimeAxis timeAxis, Point mousePosition) {
-        GraphGeometry geometry = DrawController.getGeometry();
-        boolean stackedMode = geometry.isStacked();
-        boolean warningBandDrawn = false;
-
-        for (TimelineLayer layer : layers) {
-            if (!layer.isEnabled())
-                continue;
-
-            Rectangle area = graphArea;
-            if (layer.hasYAxis()) {
-                area = geometry.getLayerArea(layer);
-                if (area == null)
-                    continue;
-            }
-
-            g.setClip(area);
-            if (layer instanceof Band band) {
-                boolean drawWarnings = stackedMode || !warningBandDrawn;
-                warningBandDrawn |= band.hasWarningLevels();
-                band.draw(g, area, drawWarnings);
-            } else {
-                layer.draw(g, area, timeAxis, mousePosition);
-            }
-        }
-        g.setClip(graphArea);
-    }
-
     public static void fetchData(TimeAxis timeAxis) {
         for (TimelineLayer layer : layers) {
             if (layer.isEnabled())
@@ -69,37 +39,57 @@ public class TimelineLayers extends AbstractTableModel {
         }
     }
 
-    public static void fetchBands(BandType[] bandTypes, TimeAxis timeAxis) {
-        List<BandType> types = List.of(bandTypes);
+    static void fetchBands() {
         for (TimelineLayer layer : layers) {
-            if (layer.isEnabled() && layer instanceof Band band && types.contains(band.getBandType()))
-                band.fetchData(timeAxis);
+            if (layer.isEnabled() && layer instanceof Band band)
+                band.fetchData(DrawController.selectedAxis);
         }
     }
 
-    public static boolean highlightChanged(Point p) {
-        boolean changed = false;
-        for (TimelineLayer tl : layers) {
-            changed = tl.highlightChanged(p) || changed;
-        }
-        return changed;
-    }
-
-    public void updateRow(TimelineLayer tl) {
-        int row = layers.indexOf(tl);
+    private void updateRow(TimelineLayer layer) {
+        int row = layers.indexOf(layer);
         if (row >= 0)
             fireTableRowsUpdated(row, row);
     }
 
-    private Band getOrCreateBand(BandType bandType) {
-        Band band = findBand(layers, bandType);
-        return band == null ? new Band(bandType) : band;
+    public void updateRows(Collection<? extends TimelineLayer> changedLayers) {
+        int firstRow = layers.size();
+        int lastRow = -1;
+        for (TimelineLayer layer : changedLayers) {
+            int row = layers.indexOf(layer);
+            if (row >= 0) {
+                firstRow = Math.min(firstRow, row);
+                lastRow = Math.max(lastRow, row);
+            }
+        }
+        if (lastRow >= 0)
+            fireTableRowsUpdated(firstRow, lastRow);
     }
 
-    public Band addBand(BandType bandType) {
-        Band band = getOrCreateBand(bandType);
-        add(band);
-        return band;
+    public List<Band> addBands(List<BandType> bandTypes) {
+        return addBands(bandTypes, false);
+    }
+
+    public List<Band> addBands(List<BandType> bandTypes, boolean fullResolution) {
+        int firstRow = layers.size();
+        ArrayList<Band> bands = new ArrayList<>(bandTypes.size());
+        ArrayList<Band> added = new ArrayList<>();
+        for (BandType bandType : bandTypes) {
+            Band band = findBand(layers, bandType);
+            if (band == null) {
+                band = new Band(bandType, fullResolution);
+                layers.add(band);
+                configureLayer(band);
+                added.add(band);
+            }
+            bands.add(band);
+        }
+        if (!added.isEmpty()) {
+            fireTableRowsInserted(firstRow, layers.size() - 1);
+            DrawController.layoutChanged();
+            added.forEach(layer -> layer.fetchData(DrawController.selectedAxis));
+        }
+        return bands;
     }
 
     public void add(TimelineLayer tl) {
@@ -138,7 +128,7 @@ public class TimelineLayers extends AbstractTableModel {
     private static TimelineLayer reuseBand(TimelineLayer restored) {
         if (restored instanceof Band restoredBand) {
             Band band = findBand(layers, restoredBand.getBandType());
-            if (band != null) {
+            if (band != null && band.isFullResolution() == restoredBand.isFullResolution()) {
                 band.applyStateFrom(restoredBand);
                 return band;
             }
@@ -148,18 +138,25 @@ public class TimelineLayers extends AbstractTableModel {
 
     public void replaceBands(List<BandType> bandTypes) {
         ArrayList<TimelineLayer> replacement = new ArrayList<>();
+        HashMap<BandType, Band> existingBands = new HashMap<>();
         for (TimelineLayer layer : layers) {
-            if (!(layer instanceof Band))
+            if (layer instanceof Band band)
+                existingBands.putIfAbsent(band.getBandType(), band);
+            else
                 replacement.add(layer);
         }
-        for (BandType bandType : bandTypes)
-            addUnique(replacement, getOrCreateBand(bandType));
+
+        bandTypes.stream()
+                .distinct()
+                .map(type -> existingBands.computeIfAbsent(type, Band::new))
+                .forEach(replacement::add);
         replaceAll(replacement);
     }
 
     private void replaceAll(List<TimelineLayer> replacement) {
+        HashSet<TimelineLayer> retained = new HashSet<>(replacement);
         for (TimelineLayer layer : layers) {
-            if (!replacement.contains(layer))
+            if (!retained.contains(layer))
                 layer.remove();
         }
         layers.clear();
@@ -188,19 +185,6 @@ public class TimelineLayers extends AbstractTableModel {
     @Override
     public Object getValueAt(int row, int col) {
         return layers.get(row);
-    }
-
-    @Nullable
-    public static ClickableDrawable getDrawableUnderMouse() {
-        for (TimelineLayer tl : layers) {
-            if (!tl.isEnabled())
-                continue;
-            ClickableDrawable tlUnderMouse = tl.getDrawableUnderMouse();
-            if (tlUnderMouse != null) {
-                return tlUnderMouse;
-            }
-        }
-        return null;
     }
 
     private void configureLayer(TimelineLayer layer) {

@@ -18,14 +18,15 @@ import javax.imageio.stream.FileImageInputStream;
 import javax.imageio.stream.ImageInputStream;
 
 import org.helioviewer.jhv.app.Log;
+import org.helioviewer.jhv.base.BufferUtils;
 import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.image.lut.LUT;
 import org.helioviewer.jhv.image.nio.NativeImageFactory;
-//import org.helioviewer.jhv.io.XMLUtils;
 
-// essentially static; local or network cache
-final class GenericImage implements URIImageReader {
+final class GenericImage {
+
+    private GenericImage() {}
 
     private interface ReaderAction<T> {
         T run(ImageReader reader) throws Exception;
@@ -33,10 +34,12 @@ final class GenericImage implements URIImageReader {
 
     private static <T> T withReader(File file, ReaderAction<T> action) throws Exception {
         try (ImageInputStream iis = new FileImageInputStream(file)) {
-            ImageReader reader = getReader(iis);
-            if (reader == null)
+            Iterator<ImageReader> readers = ImageIO.getImageReaders(iis);
+            if (!readers.hasNext())
                 throw new Exception("No image reader found");
+            ImageReader reader = readers.next();
             try {
+                reader.setInput(iis, true);
                 return action.run(reader);
             } finally {
                 reader.dispose();
@@ -44,8 +47,7 @@ final class GenericImage implements URIImageReader {
         }
     }
 
-    @Override
-    public URIImageReader.Image readImage(File file) throws Exception {
+    static URIView.SourceInfo readInfo(File file) throws Exception {
         return withReader(file, reader -> {
             String xml = null;
             // read metadata of first image
@@ -57,48 +59,18 @@ final class GenericImage implements URIImageReader {
                     xml = mn.getAttribute("value");
                 }
             } catch (Exception e) {
-                Log.error(file.toString(), e); // tbd
+                Log.error(file.toString(), e);
             }
-            /*
-            String[] names = metadata.getMetadataFormatNames();
-            int length = names.length;
-            for (int i = 0; i < length; i++) {
-                System.out.println("Format name: " + names[i]);
-                XMLUtils.displayNode(metadata.getAsTree(names[i]), 0);
-            }
-            */
-            BufferedImage image = reader.read(0);
-            LUT lut = readLUT(image);
-            ImageBuffer imageBuffer = readBuffered(image, ImageFilter.NONE);
-
-            return new URIImageReader.Image(xml, imageBuffer, lut);
+            LUT lut = readLUT(reader.getImageTypes(0).next().getColorModel());
+            return new URIView.SourceInfo(xml, reader.getWidth(0), reader.getHeight(0), lut, null);
         });
     }
 
-    @Override
-    public ImageBuffer readImageBuffer(File file, ImageFilter filter, @Nullable float[] clip) throws Exception {
-        return withReader(file, reader -> readBuffered(reader.read(0), filter)); // clip: N/A for 8-bit images
+    static ImageBuffer decode(File file, ImageFilter filter) throws Exception {
+        return withReader(file, reader -> convertImage(reader.read(0), filter));
     }
 
-    @Nullable
-    private static ImageReader getReader(ImageInputStream iis) {
-        Iterator<ImageReader> readers = ImageIO.getImageReaders(iis);
-        if (!readers.hasNext())
-            return null;
-
-        // pick the first available ImageReader
-        ImageReader reader = readers.next();
-        try {
-            // attach source to the reader
-            reader.setInput(iis, true);
-            return reader;
-        } catch (RuntimeException | Error e) {
-            reader.dispose();
-            throw e;
-        }
-    }
-
-    private static ImageBuffer readBuffered(BufferedImage image, ImageFilter filter) {
+    private static ImageBuffer convertImage(BufferedImage image, ImageFilter filter) {
         int w = image.getWidth();
         int h = image.getHeight();
 
@@ -109,7 +81,7 @@ final class GenericImage implements URIImageReader {
             }
             case BufferedImage.TYPE_USHORT_GRAY -> {
                 return ImageBuffer.fromShorts(w, h, ImageBuffer.Format.Gray16F,
-                        halfFloat(((DataBufferUShort) image.getRaster().getDataBuffer()).getData()), filter);
+                        toHalfFloatInPlace(((DataBufferUShort) image.getRaster().getDataBuffer()).getData()), filter);
             }
             default -> {
                 BufferedImage conv = NativeImageFactory.createRGBAPremultipliedImage(w, h);
@@ -120,10 +92,9 @@ final class GenericImage implements URIImageReader {
                     } finally {
                         g.dispose();
                     }
-                    // avoidable native -> heap -> native copy.
-                    byte[] buffer = new byte[w * h * 4];
-                    NativeImageFactory.getByteBuffer(conv).get(buffer);
-                    return ImageBuffer.fromBytes(w, h, ImageBuffer.Format.RGBA32, buffer);
+                    ImageBuffer.WriteBuffer output = ImageBuffer.createWriteBuffer(w, h, ImageBuffer.Format.RGBA32, filter);
+                    BufferUtils.putRemaining(output.byteBuffer(), NativeImageFactory.getByteBuffer(conv)).flip();
+                    return output.finish();
                 } finally {
                     NativeImageFactory.free(conv);
                 }
@@ -131,16 +102,14 @@ final class GenericImage implements URIImageReader {
         }
     }
 
-    private static short[] halfFloat(short[] data) {
-        short[] halfFloat = new short[data.length];
+    private static short[] toHalfFloatInPlace(short[] data) {
         for (int i = 0; i < data.length; i++)
-            halfFloat[i] = Float.floatToFloat16((data[i] & 0xFFFF) / 65535f);
-        return halfFloat;
+            data[i] = Float.floatToFloat16((data[i] & 0xFFFF) / 65535f);
+        return data;
     }
 
     @Nullable
-    private static LUT readLUT(BufferedImage image) {
-        ColorModel cm = image.getColorModel();
+    private static LUT readLUT(ColorModel cm) {
         if (cm instanceof IndexColorModel icm) {
             int num = icm.getMapSize();
             byte[] r = new byte[num];
@@ -153,5 +122,4 @@ final class GenericImage implements URIImageReader {
         }
         return null;
     }
-
 }

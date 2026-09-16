@@ -5,7 +5,6 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
-import java.awt.event.ActionEvent;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +28,7 @@ import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 
 import org.helioviewer.jhv.app.Commands;
+import org.helioviewer.jhv.gui.ComponentUtils;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.gui.component.MoviePanel;
 import org.helioviewer.jhv.gui.time.TimeSelectorPanel;
@@ -88,12 +88,7 @@ public class SynopticDialog extends StandardDialog {
             setVisible(false);
         });
 
-        AbstractAction close = new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                setVisible(false);
-            }
-        };
+        AbstractAction close = ComponentUtils.hideAction(this);
         setDefaultCancelAction(close);
 
         JButton closeButton = new JButton(close);
@@ -157,7 +152,7 @@ public class SynopticDialog extends StandardDialog {
             selectedLabel.setText("0 selected");
             listPane.setListData(new URI[0]);
             updateButtonState();
-            Task.submit(server, new SearchSynoptic(server, hmiButton.isSelected() ? hmiQuery : aiaQuery, buildQuery()), this::onSearchSuccess,
+            Task.submitBackground(server, new SearchSynoptic(server, hmiButton.isSelected() ? hmiQuery : aiaQuery, buildQuery()), this::onSearchSuccess,
                     (logContext, t) -> onSearchFailure(t));
         });
         gc.gridx = 0;

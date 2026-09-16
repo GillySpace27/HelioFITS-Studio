@@ -1,5 +1,7 @@
 package org.helioviewer.jhv.view.j2k.jpip;
 
+import java.nio.BufferUnderflowException;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.logging.Level;
@@ -21,6 +23,8 @@ import org.ehcache.config.builders.ResourcePoolsBuilder;
 import org.ehcache.config.units.EntryUnit;
 import org.ehcache.config.units.MemoryUnit;
 import org.ehcache.expiry.ExpiryPolicy;
+import org.ehcache.spi.serialization.Serializer;
+import org.ehcache.spi.serialization.SerializerException;
 
 public class JPIPCacheManager {
 
@@ -28,89 +32,104 @@ public class JPIPCacheManager {
         Log.setLoggerLevel("org.ehcache", Level.WARNING); // shut-up Ehcache info logs
     }
 
-    private static final Path levelCacheDir = Path.of(Directories.CACHE.getPath(), "JPIPLevel-4");
-    private static final Path streamCacheDir = Path.of(Directories.CACHE.getPath(), "JPIPStream-4");
+    public record Entry(int level, JPIPStream stream) {}
 
-    private static CacheManager levelManager;
-    private static CacheManager streamManager;
-    private static Cache<String, Integer> levelCache;
-    private static Cache<String, JPIPStream> streamCache;
+    static final class EntrySerializer implements Serializer<Entry> {
+        @Override
+        public ByteBuffer serialize(Entry entry) {
+            long size = Integer.BYTES + entry.stream().encodedSize();
+            if (size > Integer.MAX_VALUE)
+                throw new SerializerException("JPIP cache entry is too large");
+            ByteBuffer buffer = ByteBuffer.allocate((int) size);
+            buffer.putInt(entry.level());
+            entry.stream().write(buffer);
+            return buffer.flip();
+        }
+
+        @Override
+        public Entry read(ByteBuffer binary) {
+            ByteBuffer buffer = binary.slice();
+            try {
+                int level = buffer.getInt();
+                return new Entry(level, JPIPStream.read(buffer));
+            } catch (BufferUnderflowException | IllegalArgumentException e) {
+                throw new SerializerException("Invalid JPIP cache entry", e);
+            }
+        }
+
+        @Override
+        public boolean equals(Entry entry, ByteBuffer binary) {
+            return serialize(entry).equals(binary);
+        }
+    }
+
+    private static final Path cacheDir = Path.of(Directories.CACHE.getPath(), "JPIPStream-7");
+
+    // Not necessarily persistent: a second instance of the application cannot take the disk cache's
+    // lock, and falls back to a memory-only manager for its session.
+    private static CacheManager cacheManager;
+    private static Cache<String, Entry> cache;
     private static Thread hook;
 
     public static void init() {
-        deleteDirs("JPIPLevel-3", "JPIPStream-3", "JPIPLevel-5", "JPIPStream-5", "JPIPLevel-6", "JPIPStream-6");
+        deleteDirs("JPIPLevel-4", "JPIPStream-4", "JPIPLevel-5", "JPIPStream-5", "JPIPLevel-6", "JPIPStream-6");
 
         ExpiryPolicy<Object, Object> expiryPolicy = ExpiryPolicyBuilder.timeToIdleExpiration(Duration.ofDays(7));
 
         try {
-            levelManager = CacheManagerBuilder.newCacheManagerBuilder()
-                    .with(CacheManagerBuilder.persistence(levelCacheDir.toString()))
-                    .withCache("JPIPLevel", CacheConfigurationBuilder
-                            .newCacheConfigurationBuilder(String.class, Integer.class,
-                                    ResourcePoolsBuilder.newResourcePoolsBuilder()
-                                            .heap(10000, EntryUnit.ENTRIES)
-                                            .disk(10, MemoryUnit.MB, true))
-                            .withExpiry(expiryPolicy))
-                    .build(true);
-            streamManager = CacheManagerBuilder.newCacheManagerBuilder()
-                    .with(CacheManagerBuilder.persistence(streamCacheDir.toString()))
+            cacheManager = CacheManagerBuilder.newCacheManagerBuilder()
+                    .with(CacheManagerBuilder.persistence(cacheDir.toString()))
                     .withCache("JPIPStream", CacheConfigurationBuilder
-                            .newCacheConfigurationBuilder(String.class, JPIPStream.class,
+                            .newCacheConfigurationBuilder(String.class, Entry.class,
                                     ResourcePoolsBuilder.newResourcePoolsBuilder()
                                             .disk(8, MemoryUnit.GB, true))
-                            .withExpiry(expiryPolicy))
+                            .withExpiry(expiryPolicy)
+                            .withValueSerializer(new EntrySerializer()))
                     .build(true);
         } catch (Exception e) { // disk cache locked by another running instance
             Log.warn("JPIP disk cache is in use by another HelioFITS Studio instance, using a memory-only cache for this session", e);
             close();
-            levelManager = CacheManagerBuilder.newCacheManagerBuilder()
-                    .withCache("JPIPLevel", CacheConfigurationBuilder
-                            .newCacheConfigurationBuilder(String.class, Integer.class,
-                                    ResourcePoolsBuilder.newResourcePoolsBuilder()
-                                            .heap(10000, EntryUnit.ENTRIES))
-                            .withExpiry(expiryPolicy))
-                    .build(true);
-            streamManager = CacheManagerBuilder.newCacheManagerBuilder()
+            cacheManager = CacheManagerBuilder.newCacheManagerBuilder()
                     .withCache("JPIPStream", CacheConfigurationBuilder
-                            .newCacheConfigurationBuilder(String.class, JPIPStream.class,
+                            .newCacheConfigurationBuilder(String.class, Entry.class,
                                     ResourcePoolsBuilder.newResourcePoolsBuilder()
                                             .heap(256, EntryUnit.ENTRIES)) // entries, not bytes: streams are too large to size-of
                             .withExpiry(expiryPolicy))
                     .build(true);
         }
+        cache = cacheManager.getCache("JPIPStream", String.class, Entry.class);
 
         if (hook == null) {
             hook = new Thread(JPIPCacheManager::close);
             Runtime.getRuntime().addShutdownHook(hook);
         }
-
-        streamCache = streamManager.getCache("JPIPStream", String.class, JPIPStream.class);
-        levelCache = levelManager.getCache("JPIPLevel", String.class, Integer.class);
     }
 
     @Nullable
-    public static JPIPStream get(@Nonnull String key, int level) {
-        if (levelCache == null)
+    public static Entry get(@Nonnull String key, int level) {
+        Cache<String, Entry> currentCache = cache;
+        if (currentCache == null)
             return null;
+
         try {
-            Integer clevel = levelCache.get(key);
-            if (clevel != null && clevel <= level)
-                return streamCache.get(key);
+            Entry entry = currentCache.get(key);
+            if (entry != null && entry.level() <= level)
+                return entry;
         } catch (Exception e) { // might get interrupted
             Log.error(e);
         }
         return null;
     }
 
-    public static void put(@Nonnull String key, int level, @Nonnull JPIPStream stream) {
-        if (levelCache == null)
+    public static void store(@Nonnull String key, int level, @Nonnull JPIPCache source, int frame) {
+        Cache<String, Entry> currentCache = cache;
+        if (currentCache == null)
             return;
+
         try {
-            Integer clevel = levelCache.get(key);
-            if (clevel == null || clevel > level) {
-                levelCache.put(key, level);
-                streamCache.put(key, stream);
-            }
+            Entry entry = currentCache.get(key);
+            if (entry == null || entry.level() > level)
+                currentCache.put(key, new Entry(level, source.scan(frame)));
         } catch (Exception e) {
             Log.error(e);
         }
@@ -125,34 +144,45 @@ public class JPIPCacheManager {
     }
 
     private static void close() {
+        CacheManager oldManager = cacheManager;
+        cache = null;
+        cacheManager = null;
+        close(oldManager);
+    }
+
+    private static void close(@Nullable CacheManager manager) {
+        if (manager == null)
+            return;
         try {
-            if (levelManager != null)
-                levelManager.close();
-            if (streamManager != null)
-                streamManager.close();
+            manager.close();
         } catch (Exception e) {
             Log.error(e);
         }
     }
 
     public static void clear() {
+        CacheManager oldManager = cacheManager;
+        if (oldManager == null)
+            return;
+
         close();
+        destroy(oldManager);
+        init();
+    }
+
+    private static void destroy(CacheManager manager) {
         try {
-            if (levelManager instanceof PersistentCacheManager persistent)
-                persistent.destroy();
-            if (streamManager instanceof PersistentCacheManager persistent)
+            if (manager instanceof PersistentCacheManager persistent) // nothing on disk to destroy otherwise
                 persistent.destroy();
         } catch (Exception e) {
             Log.error(e);
         }
-        init();
     }
 
     public static long getSize() {
         long size = 0;
         try {
-            size += FileUtils.diskUsage(levelCacheDir);
-            size += FileUtils.diskUsage(streamCacheDir);
+            size = FileUtils.diskUsage(cacheDir);
         } catch (Exception e) {
             Log.error(e);
         }

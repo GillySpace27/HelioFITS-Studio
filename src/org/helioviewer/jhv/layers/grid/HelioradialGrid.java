@@ -1,6 +1,5 @@
 package org.helioviewer.jhv.layers.grid;
 
-import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.MapScale;
 import org.helioviewer.jhv.display.MapView;
@@ -23,7 +22,7 @@ public final class HelioradialGrid {
     private static final double[] RING_FACTORS = {1, 2, 5};
 
     private final GLSLLine line = new GLSLLine(true);
-    private final BufVertex vexBuf = new BufVertex(0);
+    private final BufVertex vexBuf = new BufVertex();
     private final double[] rings = new double[MAX_RINGS];
     private final String[] ringLabels = new String[MAX_RINGS];
 
@@ -69,8 +68,6 @@ public final class HelioradialGrid {
 
     private void updateWorldLine(int ringCount, double spokeStep, byte[] color, MapScale scale) {
         int spokes = (int) Math.round(360 / spokeStep);
-        int noPoints = ringCount * (SUBDIVISIONS + 3) + 4 * spokes;
-        BufVertex vexBuf = new BufVertex(noPoints * GLSLLine.stride);
 
         // Physical radii: the shader warps these, so emitting them unwarped is what keeps the
         // grid and the imagery in step.
@@ -81,10 +78,11 @@ public final class HelioradialGrid {
                 float x = (float) (r * Math.cos(a));
                 float y = (float) (r * Math.sin(a));
                 if (j == 0)
-                    vexBuf.putVertex(x, y, 0, 1, Colors.Null);
-                vexBuf.putVertex(x, y, 0, 1, color);
+                    vexBuf.startLine(x, y, 0, 1, color);
+                else
+                    vexBuf.putVertex(x, y, 0, 1, color);
                 if (j == SUBDIVISIONS)
-                    vexBuf.putVertex(x, y, 0, 1, Colors.Null);
+                    vexBuf.endLine();
             }
         }
 
@@ -95,12 +93,11 @@ public final class HelioradialGrid {
         for (int s = 0; s < spokes; s++) {
             double a = Math.toRadians(s * spokeStep);
             double sin = Math.sin(a), cos = Math.cos(a);
-            vexBuf.putVertex((float) (-inner * sin), (float) (inner * cos), 0, 1, Colors.Null);
-            vexBuf.repeatVertex(color);
+            vexBuf.startLine((float) (-inner * sin), (float) (inner * cos), 0, 1, color);
             vexBuf.putVertex((float) (-outer * sin), (float) (outer * cos), 0, 1, color);
-            vexBuf.repeatVertex(Colors.Null);
+            vexBuf.endLine();
         }
-        line.setVertex(vexBuf);
+        line.uploadAndClear(vexBuf);
     }
 
     private static void drawWorldLabels(MapView mv, Viewport vp, MapScale scale, double[] rings, int ringCount, float[] color,
@@ -169,10 +166,11 @@ public final class HelioradialGrid {
                 float x = (float) (rho * Math.cos(a));
                 float y = (float) (rho * Math.sin(a));
                 if (j == 0)
-                    vexBuf.putVertex(x, y, 0, 1, Colors.Null);
-                vexBuf.putVertex(x, y, 0, 1, color);
+                    vexBuf.startLine(x, y, 0, 1, color);
+                else
+                    vexBuf.putVertex(x, y, 0, 1, color);
                 if (j == SUBDIVISIONS)
-                    vexBuf.putVertex(x, y, 0, 1, Colors.Null);
+                    vexBuf.endLine();
             }
         }
 
@@ -180,12 +178,11 @@ public final class HelioradialGrid {
             double a = Math.toRadians(s * spokeStep);
             float x = (float) (.5 * -Math.sin(a));
             float y = (float) (.5 * Math.cos(a));
-            vexBuf.putVertex(0, 0, 0, 1, Colors.Null);
-            vexBuf.repeatVertex(color);
+            vexBuf.startLine(0, 0, 0, 1, color);
             vexBuf.putVertex(x, y, 0, 1, color);
-            vexBuf.repeatVertex(Colors.Null);
+            vexBuf.endLine();
         }
-        line.setVertex(vexBuf);
+        line.uploadAndClear(vexBuf);
     }
 
     private void drawLabels(MapView mv, Viewport vp, MapScale scale, int ringCount, float[] color, double labelSize, double labelAngle) {

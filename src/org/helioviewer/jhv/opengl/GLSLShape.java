@@ -1,48 +1,57 @@
 package org.helioviewer.jhv.opengl;
 
 import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
 
-public class GLSLShape extends VAO implements GLSLVertexReceiver {
-
-    private static final int size0 = 4;
-    private static final int size1 = 4;
-    public static final int stride = 4 * size0 + size1;
+public class GLSLShape extends VertexArrayObject implements GLSLVertexReceiver {
 
     private int count;
 
     public GLSLShape(boolean _dynamic) {
-        super(2, _dynamic, new VAA[]{new VAA(0, size0, false, 0, 0, 0), new VAA(1, size1, true, 0, 0, 0)});
+        super(_dynamic,
+                VertexAttribute.floats(0, BufVertex.POSITION_COMPONENTS, BufVertex.BYTES_PER_VERTEX, 0),
+                VertexAttribute.normalizedUnsignedBytes(1, BufVertex.COLOR_COMPONENTS, BufVertex.BYTES_PER_VERTEX, BufVertex.POSITION_BYTES));
     }
 
     @Override
-    public void setVertexRepeatable(BufVertex vexBuf) {
-        count = vexBuf.getCount();
-        setVertexRepeatable(vexBuf.toVertexBuffer(), vexBuf.toColorBuffer());
+    public void upload(BufVertex vertices) {
+        count = vertices.getCount();
+        upload(vertices.toBuffer());
     }
 
     @Override
-    public void setVertexRepeatable(DirectBufVertex vexBuf) {
-        count = vexBuf.count();
-        setVertexRepeatable(vexBuf.vertexBuffer(), vexBuf.colorBuffer());
+    public void upload(DirectBufVertex vertices) {
+        count = vertices.count();
+        upload(vertices.buffer());
     }
 
-    private void setVertexRepeatable(ByteBuffer vertexBuffer, ByteBuffer colorBuffer) {
+    private void upload(ByteBuffer vertices) {
         if (count == 0)
             return;
-        vbo[0].setBufferData(vertexBuffer.capacity(), vertexBuffer);
-        vbo[1].setBufferData(colorBuffer.capacity(), colorBuffer);
+        uploadVertexBuffer(vertices);
     }
 
     public void renderPoints(double factor) {
+        renderPoints(factor, Transform.get());
+    }
+
+    void renderPoints(double factor, FloatBuffer mvp) {
         if (count == 0)
             return;
 
         GLSLShapeShader.point.use();
         GLSLShapeShader.point.bindParams(factor);
-        GLSLShapeShader.point.bindMVP();
+        GLSLShapeShader.point.bindMVP(mvp);
 
         bind();
+
+        GLSLShapeShader.point.bindOpaquePass(true);
         GL.glDrawArrays(GL.POINTS, 0, count);
+
+        GLSLShapeShader.point.bindOpaquePass(false);
+        GL.glDepthMask(false);
+        GL.glDrawArrays(GL.POINTS, 0, count);
+        GL.glDepthMask(true);
     }
 
     public void renderShape(int mode) {
@@ -50,7 +59,7 @@ public class GLSLShape extends VAO implements GLSLVertexReceiver {
             return;
 
         GLSLShapeShader.shape.use();
-        GLSLShapeShader.shape.bindMVP();
+        GLSLShapeShader.shape.bindMVP(Transform.get());
 
         bind();
         GL.glDrawArrays(mode, 0, count);

@@ -1,0 +1,8 @@
+Okio 3.18.1
+===========
+
+The published Maven metadata declares the Apache Software License, Version 2.0.
+Its terms are included in Apache-2.0.txt.
+
+Source:
+https://repo.maven.apache.org/maven2/com/squareup/okio/okio-jvm/3.18.1/okio-jvm-3.18.1.pom

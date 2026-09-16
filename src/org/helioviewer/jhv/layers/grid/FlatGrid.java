@@ -26,7 +26,7 @@ public class FlatGrid {
     private static final double AXIS_EPSILON = 1e-9;
 
     private final GLSLShape shape = new GLSLShape(true);
-    private final BufVertex vexBuf = new BufVertex(0);
+    private final BufVertex vexBuf = new BufVertex();
     private final Axis xAxis = new Axis();
     private final Axis yAxis = new Axis();
 
@@ -111,7 +111,7 @@ public class FlatGrid {
             byte[] color = position == 0 ? AXIS_COLOR : gridColor;
             RasterLine.putHorizontal(vp, width, mv.cameraTranslationY(), -0.5 * vp.aspect, 0.5 * vp.aspect, position, thickness, color, vexBuf);
         }
-        shape.setVertex(vexBuf);
+        shape.uploadAndClear(vexBuf);
     }
 
     private static void updateAxis(Axis axis, boolean angularStep, double start, double stop, int pixels) {

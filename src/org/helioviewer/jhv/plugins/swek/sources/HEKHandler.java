@@ -1,10 +1,11 @@
 package org.helioviewer.jhv.plugins.swek.sources;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.net.URI;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
+import java.time.DateTimeException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -12,11 +13,11 @@ import java.util.Set;
 
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.event.GOESLevel;
-import org.helioviewer.jhv.event.JHVEvent;
 import org.helioviewer.jhv.event.SWEK;
 import org.helioviewer.jhv.event.SWEKCatalog;
 import org.helioviewer.jhv.event.SWEKHandler;
 import org.helioviewer.jhv.event.SWEKSupplier;
+import org.helioviewer.jhv.event.SolarEvent;
 import org.helioviewer.jhv.io.JSONUtils;
 import org.helioviewer.jhv.time.TimeUtils;
 
@@ -27,93 +28,114 @@ import org.json.JSONObject;
 public class HEKHandler extends SWEKHandler {
 
     private static final String BASE_URL = "https://www.lmsal.com/hek/her?";
-    private static final String SMALLER_OR_EQUAL = URLEncoder.encode("<=", StandardCharsets.UTF_8);
-    private static final String STRING_EQUALS = URLEncoder.encode("==", StandardCharsets.UTF_8);
 
     @Override
     protected RemotePage parseRemotePage(JSONObject eventJSON, SWEKSupplier supplier) throws Exception {
+        // Missing pagination metadata must not turn a partial response into cached coverage.
+        boolean overmax = eventJSON.getBoolean("overmax");
         JSONArray results = eventJSON.getJSONArray("result");
         int len = results.length();
         List<SWEKHandler.RemoteEvent> event2dbList = new ArrayList<>(len);
         Set<String> acceptedUids = new HashSet<>();
         for (int i = 0; i < len; i++) {
-            JSONObject result = results.getJSONObject(i);
-            if (!isSupplierEvent(result, supplier))
-                continue;
+            try {
+                JSONObject result = results.getJSONObject(i);
+                if (!isSupplierEvent(result, supplier))
+                    continue;
 
-            addGoesValue(result);
-
-            long start = TimeUtils.parse(result.getString("event_starttime"));
-            long end = TimeUtils.parse(result.getString("event_endtime"));
-            if (end < start) {
-                Log.warn("Event end before start: " + result);
-                continue;
-            }
-
-            long archiv = TimeUtils.parse(result.getString("kb_archivdate"));
-            String uid = result.getString("kb_archivid");
-            acceptedUids.add(uid);
-
-            ArrayList<SWEKHandler.RemoteParameter> paramList = new ArrayList<>();
-            for (Map.Entry<String, String> fieldEntry : SWEKCatalog.databaseFields(supplier).entrySet()) {
-                String dbType = fieldEntry.getValue();
-                String fieldName = fieldEntry.getKey();
-                String lfieldName = fieldName.toLowerCase();
-                if (!result.isNull(lfieldName)) {
-                    switch (dbType) {
-                        case "INTEGER" -> paramList.add(new SWEKHandler.RemoteParameter(fieldName, result.getInt(lfieldName)));
-                        case "TEXT" -> paramList.add(new SWEKHandler.RemoteParameter(fieldName, result.getString(lfieldName)));
-                        case "REAL" -> paramList.add(new SWEKHandler.RemoteParameter(fieldName, result.getDouble(lfieldName)));
-                    }
-                }
-            }
-            try (ByteArrayOutputStream baos = JSONUtils.compressJSON(result)) {
-                event2dbList.add(new SWEKHandler.RemoteEvent(baos.toByteArray(), start, end, archiv, uid, paramList));
+                SWEKHandler.RemoteEvent event = parseRemoteEvent(result, supplier);
+                event2dbList.add(event);
+                acceptedUids.add(event.uid());
+            } catch (JSONException | DateTimeException e) {
+                throw new IOException("Malformed HEK event at result index " + i, e);
             }
         }
-        return new RemotePage(eventJSON.optBoolean("overmax", false), event2dbList, parseAssociations(eventJSON, acceptedUids));
+        return new RemotePage(overmax, event2dbList, parseAssociations(eventJSON, acceptedUids));
     }
 
-    private static List<JHVEvent.LinkRef> parseAssociations(JSONObject eventJSON, Set<String> acceptedUids) {
+    private static SWEKHandler.RemoteEvent parseRemoteEvent(JSONObject result, SWEKSupplier supplier) throws IOException {
+        addGoesValue(result);
+
+        long start = TimeUtils.parse(result.getString("event_starttime"));
+        long end = TimeUtils.parse(result.getString("event_endtime"));
+        if (end < start) {
+            throw new IOException("HEK event end before start: " + result.optString("kb_archivid"));
+        }
+
+        String archiveDate = result.optString("kb_archivdate");
+        long archiv = archiveDate.isBlank() ? start : TimeUtils.parse(archiveDate);
+        String uid = result.getString("kb_archivid");
+        if (uid.isBlank())
+            throw new IOException("HEK event has an empty archive ID");
+
+        HashMap<String, Number> indexedValues = new HashMap<>();
+        for (Map.Entry<String, SWEK.NumericType> field : SWEKCatalog.indexedParameters(supplier).entrySet()) {
+            String fieldName = field.getKey();
+            String lfieldName = fieldName.toLowerCase();
+            if (result.isNull(lfieldName))
+                continue;
+
+            try {
+                switch (field.getValue()) {
+                    case INTEGER -> indexedValues.put(fieldName, result.getInt(lfieldName));
+                    case DECIMAL -> {
+                        double value = result.getDouble(lfieldName);
+                        if (!Double.isFinite(value))
+                            throw new JSONException("Nonfinite numeric value: " + result.get(lfieldName));
+                        indexedValues.put(fieldName, value);
+                    }
+                }
+            } catch (JSONException e) {
+                Log.warn("Ignoring malformed HEK field " + fieldName + " in " + uid, e);
+            }
+        }
+        try (ByteArrayOutputStream baos = JSONUtils.compressJSON(result)) {
+            return new SWEKHandler.RemoteEvent(baos.toByteArray(), start, end, archiv, uid, indexedValues);
+        }
+    }
+
+    private static List<SolarEvent.LinkRef> parseAssociations(JSONObject eventJSON, Set<String> acceptedUids) {
         JSONArray associations = eventJSON.optJSONArray("association");
         if (associations == null)
             return List.of();
 
         int len = associations.length();
-        List<JHVEvent.LinkRef> links = new ArrayList<>(len);
+        List<SolarEvent.LinkRef> links = new ArrayList<>(len);
         for (int i = 0; i < len; i++) {
-            JSONObject asobj = associations.getJSONObject(i);
-            String first = asobj.getString("first_ivorn");
-            String second = asobj.getString("second_ivorn");
-            if (acceptedUids.contains(first) || acceptedUids.contains(second))
-                links.add(new JHVEvent.LinkRef(first, second));
+            try {
+                JSONObject asobj = associations.getJSONObject(i);
+                String first = asobj.getString("first_ivorn");
+                String second = asobj.getString("second_ivorn");
+                if (acceptedUids.contains(first) || acceptedUids.contains(second))
+                    links.add(new SolarEvent.LinkRef(first, second));
+            } catch (JSONException e) {
+                Log.warn("Skipping malformed HEK association at index " + i, e);
+            }
         }
         return links;
     }
 
     private static boolean isSupplierEvent(JSONObject result, SWEKSupplier supplier) {
-        return supplier.supplierName().equals(result.optString("frm_name"));
+        return supplier.supplierName().equals(result.getString("frm_name"));
     }
 
     private static void addGoesValue(JSONObject result) {
         String goesClass = result.optString("fl_goescls").trim();
-        if (!goesClass.isEmpty())
+        if (goesClass.isEmpty())
+            return;
+        try {
             result.put("jhv_goesflux", GOESLevel.getFloatValue(goesClass));
+        } catch (IllegalArgumentException ignore) {}
     }
 
     @Override
-    protected URI createURI(SWEKSupplier supplier, long start, long end, List<SWEK.Param> params, int page) throws Exception {
-        StringBuilder baseURL = new StringBuilder(BASE_URL + "cmd=search&type=column");
-        baseURL.append("&event_type=").append(getEventAbbreviation(supplier.group().getName()));
-        baseURL.append("&event_coordsys=helioprojective&x1=-3600&x2=3600&y1=-3600&y2=3600&cosec=2");
-        baseURL.append("&param0=event_starttime&op0=").append(SMALLER_OR_EQUAL).append("&value0=").append(TimeUtils.format(end));
-        String encodedSupplier = URLEncoder.encode(supplier.supplierName(), StandardCharsets.UTF_8);
-        baseURL.append("&param1=frm_name&op1=").append(STRING_EQUALS).append("&value1=").append(encodedSupplier);
-        baseURL.append("&event_starttime=").append(TimeUtils.format(start));
-        long max = Math.max(System.currentTimeMillis(), end);
-        baseURL.append("&event_endtime=").append(TimeUtils.format(max));
-        baseURL.append("&page=").append(page);
-        return new URI(baseURL.toString());
+    protected URI createURI(SWEKSupplier supplier, long start, long end, int page) throws Exception {
+        // HEK's supplier predicate is known to omit CACTus records. Query by event type and filter all suppliers locally.
+        // The time bounds select overlapping events, including events that began before the requested start time.
+        // Convert the downloader's zero-based page index to HEK's one-based page number.
+        return new URI(BASE_URL + "cmd=search&type=column&event_type=" + getEventAbbreviation(supplier.group().getName())
+                + "&event_coordsys=helioprojective&x1=-3600&x2=3600&y1=-3600&y2=3600&cosec=2"
+                + "&event_starttime=" + TimeUtils.format(start) + "&event_endtime=" + TimeUtils.format(end) + "&page=" + (page + 1));
     }
 
     private static String getEventAbbreviation(String eventType) {
@@ -134,10 +156,25 @@ public class HEKHandler extends SWEKHandler {
     }
 
     @Override
-    public JHVEvent parseEventJSON(JSONObject json, SWEKSupplier supplier, int id, long start, long end, boolean full) throws JSONException {
-        JHVEvent currentEvent = new JHVEvent(supplier, id, start, end);
-        HEKParser.parseResult(json, currentEvent, full);
-        currentEvent.finishParams();
-        return currentEvent;
+    public SolarEvent parseEventJSON(JSONObject json, SWEKSupplier supplier, int id, long start, long end, boolean full) throws JSONException {
+        return new SolarEvent(supplier, id, start, end, new HEKGeometry(json).position(start, supplier.isCactus()),
+                readCMEParameters(json, supplier), HEKParser.parseResult(json, supplier, full));
     }
+
+    private static SolarEvent.CMEParameters readCMEParameters(JSONObject json, SWEKSupplier supplier) {
+        SolarEvent.CMEParameters defaults = SolarEvent.CMEParameters.DEFAULT;
+        if (!supplier.isCactus())
+            return defaults;
+        return new SolarEvent.CMEParameters(readDouble(json, "cme_radiallinvel", defaults.speedKmPerSecond()),
+                readDouble(json, "event_coord1", defaults.principalAngleDegree()), readDouble(json, "cme_angularwidth", defaults.angularWidthDegree()));
+    }
+
+    private static double readDouble(JSONObject result, String parameter, double fallback) {
+        try {
+            return Double.parseDouble(result.optString(parameter).trim());
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
 }

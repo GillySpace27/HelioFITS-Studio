@@ -72,7 +72,7 @@ public final class FourierPreviewCheck {
         }
 
         @Override
-        public void decode(Position viewpoint, double pixFactor, float factor) {
+        public void decode(Position viewpoint, double pixFactor, float factor, org.helioviewer.jhv.view.ClipSet.Range clipRange) {
             decodeCalls++;
         }
 

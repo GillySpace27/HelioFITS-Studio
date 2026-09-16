@@ -1,6 +1,7 @@
 package org.helioviewer.jhv.view;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -16,45 +17,35 @@ import org.helioviewer.jhv.time.TimeMap;
 
 public class ManyView implements View {
 
-    private static class FrameInfo {
-        final View view;
-        final JHVTime timeView;
-        final int idxView;
-        int idxMany;
-
-        FrameInfo(View _view, JHVTime _timeView, int _idxView) {
-            view = _view;
-            timeView = _timeView;
-            idxView = _idxView;
-        }
-    }
+    private record FrameInfo(View view, JHVTime timeView, int idxView) {}
 
     private final TimeMap<FrameInfo> frameMap = new TimeMap<>();
+    private final boolean hasFITS;
+    private final @Nullable ClipSet clipSet;
+    private final @Nullable View firstView;
     private int targetFrame;
-
-    @Nullable
-    @Override
-    public org.helioviewer.jhv.io.DataUri.Format getFormat() {
-        // The frames of one layer come from one query, so the first speaks for all of them.
-        return firstView == null ? null : firstView.getFormat();
-    }
-
-    @Nullable private final View firstView;
 
     public ManyView(List<View> views) throws IOException {
         if (views.isEmpty())
             throw new IOException("Empty list of views");
         firstView = views.getFirst();
 
+        hasFITS = views.stream().anyMatch(View::hasFITS);
         views.forEach(this::putDates);
         frameMap.buildIndex();
-        for (int i = 0; i <= frameMap.maxIndex(); i++) {
-            frameMap.indexedValue(i).idxMany = i;
+        List<ClipSet> clipSets = new ArrayList<>();
+        for (FrameInfo frameInfo : frameMap.values()) {
+            clipSets.add(frameInfo.view.getClipSet());
         }
+        clipSet = ClipSet.median(clipSets);
         // unused J2KViews should be abolished by their reaper
     }
 
     private void putDates(View v) {
+        if (v instanceof ManyView manyView) {
+            frameMap.putAll(manyView.frameMap);
+            return;
+        }
         int m = v.getMaximumFrameNumber();
         for (int i = 0; i <= m; i++) {
             JHVTime t = v.getFrameTime(i);
@@ -88,14 +79,32 @@ public class ManyView implements View {
     }
 
     @Override
-    public void decode(Position viewpoint, double pixFactor, float factor) {
-        frameMap.indexedValue(targetFrame).view.decode(viewpoint, pixFactor, factor);
+    public void decode(Position viewpoint, double pixFactor, float factor, @Nullable ClipSet.Range clipRange) {
+        frameMap.indexedValue(targetFrame).view.decode(viewpoint, pixFactor, factor, clipRange);
     }
 
     @Nullable
     @Override
     public LUT getDefaultLUT() {
         return frameMap.indexedValue(0).view.getDefaultLUT();
+    }
+
+    @Nullable
+    @Override
+    public ClipSet getClipSet() {
+        return clipSet;
+    }
+
+    @Override
+    public boolean hasFITS() {
+        return hasFITS;
+    }
+
+    @Nullable
+    @Override
+    public org.helioviewer.jhv.io.DataUri.Format getFormat() {
+        // The frames of one layer come from one query, so the first speaks for all of them.
+        return firstView == null ? null : firstView.getFormat();
     }
 
     @Override
@@ -156,9 +165,10 @@ public class ManyView implements View {
 
     @Override
     public boolean setNearestFrame(JHVTime time) {
-        FrameInfo frameInfo = frameMap.nearestValue(time);
+        int frame = frameMap.nearestIndex(time);
+        FrameInfo frameInfo = frameMap.indexedValue(frame);
         if (frameInfo.view.setNearestFrame(frameInfo.timeView)) {
-            targetFrame = frameInfo.idxMany;
+            targetFrame = frame;
             return true;
         }
         return false;

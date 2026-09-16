@@ -2,17 +2,15 @@ package org.helioviewer.jhv.timelines;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import javax.swing.JComponent;
 
-import org.helioviewer.jhv.event.JHVEventCache;
+import org.helioviewer.jhv.event.EventCache;
 import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.Interfaces;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.movie.Player;
 import org.helioviewer.jhv.timelines.band.BandReaderHapi;
-import org.helioviewer.jhv.timelines.band.BandType;
 import org.helioviewer.jhv.timelines.chart.PlotPanel;
 import org.helioviewer.jhv.timelines.draw.DrawController;
 import org.helioviewer.jhv.timelines.gui.TimelineDialog;
@@ -40,16 +38,13 @@ public class Timelines implements Interfaces.MainContentPanelPlugin {
     }
 
     public static void requestCatalog() {
-        td.setupDatasetGroups(BandReaderHapi.getCatalogGroups());
         BandReaderHapi.requestCatalog(Timelines::catalogsLoaded);
     }
 
-    private static void catalogsLoaded(Map<String, BandType[]> catalogs) {
-        catalogs.forEach((group, bandTypes) -> {
-            td.setupDataset(group, bandTypes);
-            TimelineLayers.fetchBands(bandTypes, DrawController.selectedAxis);
-        });
-        timelinePanel.setPredefinedGroups(BandReaderHapi.getPredefinedGroups());
+    private static void catalogsLoaded(BandReaderHapi.CatalogData catalogData) {
+        td.setCatalogs(catalogData.datasets());
+        TimelineLayers.fetchBands();
+        timelinePanel.setPredefinedGroups(catalogData.predefinedGroups());
     }
 
     public void installTimelines() {
@@ -61,11 +56,11 @@ public class Timelines implements Interfaces.MainContentPanelPlugin {
         MainFrame.getMainContentPanel().addPlugin(this);
 
         Player.addTimeListener(dc);
-        JHVEventCache.addHighlightListener(dc);
+        EventCache.addHighlightListener(dc);
     }
 
     public void uninstallTimelines() {
-        JHVEventCache.removeHighlightListener(dc);
+        EventCache.removeHighlightListener(dc);
         Player.removeTimeListener(dc);
 
         MainFrame.getMainContentPanel().removePlugin(this);

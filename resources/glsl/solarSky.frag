@@ -74,7 +74,7 @@ void main(void) {
     if (ray.z >= 0.)
         discard;
 
-    float observerDistance = projection[0].observerDistance;
+    float observerDistance = images[0].observerDistance;
     if (skyWarp.x > 0.) {
         // The field ends at the smaller of the loaded outer radius and the surface's own reach:
         // a Thomson sphere only reaches the observer, so with a field wider than that there is
@@ -105,17 +105,17 @@ void main(void) {
     vec2 hpcXY = helioprojectiveToHpcXY(helioprojective, observerDistance);
     vec2 texCoord;
     float enhancementFactor;
-    clipHpcGeometry(hpcXY);
-    texCoord = sampleLayerTexcoord(wcs[0], projection[0], helioprojective, hpcXY, wcs[0].deltaT, pv0, enhancementFactor);
+    clipPlanarMasks(hpcXY);
+    texCoord = sampleHpcTexcoord(images[0], helioprojective, hpcXY, pv0, enhancementFactor);
     if (!diffMode) {
         color = getColor(texCoord, texCoord, enhancementFactor);
     } else {
-        float diffObserverDistance = projection[1].observerDistance;
+        float diffObserverDistance = images[1].observerDistance;
         vec2 diffHpcXY = helioprojectiveToHpcXY(helioprojective, diffObserverDistance);
         vec2 diffTexCoord;
         float diffEnhancementFactor;
-        clipHpcGeometry(diffHpcXY);
-        diffTexCoord = sampleLayerTexcoord(wcs[1], projection[1], helioprojective, diffHpcXY, wcs[1].deltaT, pv1, diffEnhancementFactor);
+        clipPlanarMasks(diffHpcXY);
+        diffTexCoord = sampleHpcTexcoord(images[1], helioprojective, diffHpcXY, pv1, diffEnhancementFactor);
         color = getColor(texCoord, diffTexCoord, max(enhancementFactor, diffEnhancementFactor));
     }
     outColor = color;

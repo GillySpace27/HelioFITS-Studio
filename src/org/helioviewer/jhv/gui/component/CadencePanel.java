@@ -150,6 +150,16 @@ public final class CadencePanel extends JPanel implements ViewState.PlaybackConf
         return (int) Math.max(1, spanMs / Math.max(1, frames - 1) / 1000);
     }
 
+    /**
+     * A request for exactly one frame, so a load should collapse its range to the start time.
+     *
+     * <p>Upstream's SamplingPanel carries the same idea: asking for one frame over a span is a
+     * request for the frame at the start of it, not for a movie of length one somewhere inside.
+     */
+    public boolean isSingleFrame() {
+        return byFramesCheck.isSelected() && ((Number) framesSpinner.getValue()).intValue() == 1;
+    }
+
     // Returns the number of seconds of the selected cadence
     public int getCadence() {
         int value = (Integer) cadenceSpinner.getValue();

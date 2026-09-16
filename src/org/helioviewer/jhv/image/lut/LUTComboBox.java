@@ -33,17 +33,18 @@ public final class LUTComboBox extends JComboBox<String> {
         return selected == null ? LUT.gray().name() : selected.toString();
     }
 
-    public void setLUT(LUT lut) {
+    public void selectLUT(LUT lut) {
         String name;
         if (lut == null) // e.g. RGB
             name = LUT.gray().name();
         else {
             name = lut.name();
-            if (LUT.get(name) == null && customLuts.putIfAbsent(name, lut) == null) {
+            if (LUT.get(name) == null && customLuts.put(name, lut) == null) {
                 addItem(name);
             }
         }
-        setSelectedItem(name);
+        if (!name.equals(getSelectedItem()))
+            setSelectedItem(name);
     }
 
 }

@@ -16,7 +16,7 @@ import org.helioviewer.jhv.layers.AbstractLayer;
 import org.helioviewer.jhv.layers.GridLayer;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layers;
-import org.helioviewer.jhv.opengl.GLImage;
+import org.helioviewer.jhv.image.ImageDisplaySettings;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -70,7 +70,7 @@ import org.json.JSONObject;
  * HdrGain's aim* variants instead of its set* (which each rewrite the whole properties file),
  * Display.applyDiskScale instead of setDiskScale (which writes Settings and requests a render),
  * GridLayer's aim* variants instead of its set* (which each ask for another frame from inside a
- * frame), and GLImage's own setters instead of the filter panels' consumers, which fan every edit
+ * frame), and the layer's own display-settings setters instead of the filter panels' consumers, which fan every edit
  * out to the whole selection through Layers.applyToSelected.
  */
 public final class Automation {
@@ -109,7 +109,7 @@ public final class Automation {
 
     // Who is in charge of some parameter just changed, so the sliders' readouts have to be re-greyed.
     // Called straight rather than through a listener: this class already reaches the render side
-    // (Display, GLImage, GridLayer), there is exactly one thing that wants to know, and a registry
+    // (Display, ImageDisplaySettings, GridLayer), there is exactly one thing that wants to know, and a registry
     // of live sliders would need pruning as layer panels come and go. With no windows up -- a
     // headless check -- the walk finds nothing and costs nothing.
     private static void handedOver() {
@@ -256,11 +256,11 @@ public final class Automation {
             return null;
 
         if ("layer".equals(kind) && layer instanceof ImageLayer image) {
-            GLImage gl = image.getGLImage(); // null on the placeholder layer, so never dereferenced blind
-            if (gl == null)
+            if (!image.hasPixels()) // the placeholder layer has nothing to animate yet
                 return null;
+            ImageDisplaySettings gl = image.getDisplaySettings();
             String label = image.getName() + ' ' + name;
-            // Written straight onto this layer's GLImage. Never through the filter panels'
+            // Written straight onto this layer's display settings. Never through the filter panels'
             // consumers: those go through Layers.applyToSelected, which would apply the edit to
             // every selected layer rather than the one the track is bound to.
             return switch (name) {

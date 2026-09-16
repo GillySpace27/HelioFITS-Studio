@@ -5,7 +5,6 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
-import java.awt.event.ActionEvent;
 import java.net.URI;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -36,6 +35,7 @@ import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 
 import org.helioviewer.jhv.app.Commands;
+import org.helioviewer.jhv.gui.ComponentUtils;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.io.JSONUtils;
 import org.helioviewer.jhv.thread.Task;
@@ -118,15 +118,11 @@ public class AspiicsDialog extends StandardDialog {
             setVisible(false);
         });
 
-        AbstractAction close = new AbstractAction("Close") {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                setVisible(false);
-            }
-        };
+        AbstractAction close = ComponentUtils.hideAction(this);
         setDefaultCancelAction(close);
 
         JButton closeButton = new JButton(close);
+        closeButton.setText("Close");
 
         ButtonPanel panel = new ButtonPanel();
         panel.add(addButton, ButtonPanel.AFFIRMATIVE_BUTTON);
@@ -187,10 +183,8 @@ public class AspiicsDialog extends StandardDialog {
         listPane.setCellRenderer(new DefaultListCellRenderer() {
             @Override
             public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
-                JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                if (value instanceof String datalocation)
-                    label.setText(fileName(datalocation));
-                return label;
+                Object text = value instanceof String datalocation ? fileName(datalocation) : value;
+                return super.getListCellRendererComponent(list, text, index, isSelected, cellHasFocus);
             }
         });
         SearchableUtils.installSearchable(listPane);
@@ -241,7 +235,7 @@ public class AspiicsDialog extends StandardDialog {
         loadingOrbits = true;
         foundLabel.setText("Loading orbits...");
         updateButtonState();
-        Task.submit("ASPIICS orbits", new LoadOrbits(), this::onLoadOrbitsSuccess, (logContext, t) -> onLoadOrbitsFailure());
+        Task.submitBackground("ASPIICS orbits", new LoadOrbits(), this::onLoadOrbitsSuccess, (logContext, t) -> onLoadOrbitsFailure());
     }
 
     private void onLoadOrbitsSuccess(List<Orbit> orbits) {
@@ -265,7 +259,7 @@ public class AspiicsDialog extends StandardDialog {
         searching = true;
         clearProducts("Searching...");
         boolean jp2 = jp2Button.isSelected();
-        Task.submit("ASPIICS search", new SearchProducts(orbit.orbitId(), jp2), this::onSearchSuccess, (logContext, t) -> onSearchFailure());
+        Task.submitBackground("ASPIICS search", new SearchProducts(orbit.orbitId(), jp2), this::onSearchSuccess, (logContext, t) -> onSearchFailure());
     }
 
     private void onSearchSuccess(List<String> result) {

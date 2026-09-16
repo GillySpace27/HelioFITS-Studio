@@ -12,11 +12,12 @@ import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.component.JHVSlider;
 import org.helioviewer.jhv.gui.component.SplitButton;
+import org.helioviewer.jhv.image.ImageDisplaySettings;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layers;
 
-public class ImageFilterPanel implements FilterDetails {
+public final class ImageFilterPanel implements FilterDetails {
 
     private final JPanel filterPanel = new JPanel(new BorderLayout());
     private final JPanel buttonPanel = new JPanel(new BorderLayout());
@@ -24,15 +25,15 @@ public class ImageFilterPanel implements FilterDetails {
     private JComboBox<ImageFilter.Type> filterCombo;
     private SplitButton upsilonButton;
 
-    /** Mirrors the view's filter in the combo (a sequence filter forces it to None); the listener no-ops on an equal value. */
+    /** Mirrors the layer's filter in the combo (a sequence filter forces it to None); the listener no-ops on an equal value. */
     public void syncFromLayer(ImageLayer layer) {
-        if (filterCombo != null && filterCombo.getSelectedItem() != layer.getView().getFilter())
-            filterCombo.setSelectedItem(layer.getView().getFilter());
+        if (filterCombo != null && filterCombo.getSelectedItem() != layer.getFilter())
+            filterCombo.setSelectedItem(layer.getFilter());
         // Here as well as in the combo's listener: that one returns early on an equal value, which is
         // exactly what a sync produces, so a copy of this panel brought into step from elsewhere (the
         // Filters palette and the Image Layers row are two copies of one setting) kept the wrong Υ.
         if (upsilonButton != null)
-            upsilonButton.setVisible(layer.getView().getFilter() == ImageFilter.Type.RHEF);
+            upsilonButton.setVisible(layer.getFilter() == ImageFilter.Type.RHEF);
     }
 
     private static String formatLabel(double value) {
@@ -52,13 +53,14 @@ public class ImageFilterPanel implements FilterDetails {
     }
 
     private static JPanel createEnhancePanel(ImageLayer layer) {
-        JHVSlider slider = new JHVSlider(0, 30, (int) (layer.getGLImage().getEnhanced() * 10)).animates("layer:" + layer.getId() + "/enhanced");
+        ImageDisplaySettings settings = layer.getDisplaySettings();
+        JHVSlider slider = new JHVSlider(0, 30, (int) (settings.getEnhanced() * 10)).animates("layer:" + layer.getId() + "/enhanced");
         JLabel label = new JLabel(formatLabel(slider.getValue() / 10.), JLabel.RIGHT);
         slider.readout(label);
         label.setToolTipText("<html><body>pixel⋅R<sup>v");
         slider.addChangeListener(e -> {
             double value = slider.getValue() / 10.;
-            Layers.applyToSelected(layer, gl -> gl.setEnhanced(value));
+            Layers.applyToSelected(layer, s -> s.setEnhanced(value));
             label.setText(formatLabel(value));
             DisplayController.display();
         });
@@ -69,9 +71,10 @@ public class ImageFilterPanel implements FilterDetails {
     }
 
     public ImageFilterPanel(ImageLayer layer) {
+        ImageDisplaySettings settings = layer.getDisplaySettings();
         filterCombo = new JComboBox<>(ImageFilter.Type.values());
-        filterCombo.setSelectedItem(layer.getView().getFilter());
-        filterCombo.setToolTipText(layer.getView().getFilter().description);
+        filterCombo.setSelectedItem(layer.getFilter());
+        filterCombo.setToolTipText(layer.getFilter().description);
 
         JPanel enhancePanel = createEnhancePanel(layer);
         SplitButton enhanceButton = new SplitButton(Buttons.corona);
@@ -79,21 +82,22 @@ public class ImageFilterPanel implements FilterDetails {
         enhanceButton.setAlwaysDropdown(true);
         enhanceButton.addItem(enhancePanel);
 
-        JHVSlider upsilonLowSlider = new JHVSlider(5, 100, (int) (layer.getGLImage().getUpsilonLow() * 100)).animates("layer:" + layer.getId() + "/upsilonLow");
+        JHVSlider upsilonLowSlider = new JHVSlider(5, 100, (int) (settings.getUpsilonLow() * 100)).animates("layer:" + layer.getId() + "/upsilonLow");
         JLabel upsilonLowLabel = new JLabel(formatUpsilon(upsilonLowSlider.getValue() / 100.), JLabel.RIGHT);
         upsilonLowSlider.readout(upsilonLowLabel);
         upsilonLowSlider.addChangeListener(e -> {
             double value = upsilonLowSlider.getValue() / 100.;
-            Layers.applyToSelected(layer, gl -> gl.setUpsilon(value, gl.getUpsilonHigh()));
+            // The other handle is read per layer inside the fan-out, so a peer keeps its own.
+            Layers.applyToSelected(layer, s -> s.setUpsilon(value, s.getUpsilonHigh()));
             upsilonLowLabel.setText(formatUpsilon(value));
             DisplayController.display();
         });
-        JHVSlider upsilonHighSlider = new JHVSlider(5, 100, (int) (layer.getGLImage().getUpsilonHigh() * 100)).animates("layer:" + layer.getId() + "/upsilonHigh");
+        JHVSlider upsilonHighSlider = new JHVSlider(5, 100, (int) (settings.getUpsilonHigh() * 100)).animates("layer:" + layer.getId() + "/upsilonHigh");
         JLabel upsilonHighLabel = new JLabel(formatUpsilon(upsilonHighSlider.getValue() / 100.), JLabel.RIGHT);
         upsilonHighSlider.readout(upsilonHighLabel);
         upsilonHighSlider.addChangeListener(e -> {
             double value = upsilonHighSlider.getValue() / 100.;
-            Layers.applyToSelected(layer, gl -> gl.setUpsilon(gl.getUpsilonLow(), value));
+            Layers.applyToSelected(layer, s -> s.setUpsilon(s.getUpsilonLow(), value));
             upsilonHighLabel.setText(formatUpsilon(value));
             DisplayController.display();
         });
@@ -106,14 +110,15 @@ public class ImageFilterPanel implements FilterDetails {
         upsilonButton.setAlwaysDropdown(true);
         upsilonButton.addItem(upsilonPanel);
 
-        upsilonButton.setVisible(layer.getView().getFilter() == ImageFilter.Type.RHEF);
+        upsilonButton.setVisible(layer.getFilter() == ImageFilter.Type.RHEF);
         filterCombo.addActionListener(e -> {
-            if (filterCombo.getSelectedItem() instanceof ImageFilter.Type type && type != layer.getView().getFilter()) {
+            if (filterCombo.getSelectedItem() instanceof ImageFilter.Type type) {
                 filterCombo.setToolTipText(type.description);
                 upsilonButton.setVisible(type == ImageFilter.Type.RHEF);
                 Layers.applyToSelectedLayers(layer, il -> {
-                    il.getView().clearCache();
-                    il.getView().setFilter(type);
+                    // The filter lives on the layer's processing settings now, and setting it
+                    // already drops the decoded frames and re-renders; the view follows from there.
+                    il.setFilter(type);
                     // Setting the filter fires nothing by itself, so say so: the other copy of this panel
                     // (Filters palette or Image Layers row, whichever this is not) re-syncs on it.
                     Layers.fireLayerUpdated(il);

@@ -82,7 +82,6 @@ class FilterRHEF implements ImageFilter.Algorithm {
         for (int i = 0; i < length; i++)
             order[cursor[binOf[i]]++] = i;
 
-        float[] out = data.clone();
         ParallelRange.run(numBins, (from, to) -> {
             // One 65536-entry table per worker, reused across that worker's annuli and cleared
             // only where it was touched, so the per-annulus cost is the number of DISTINCT values
@@ -134,13 +133,13 @@ class FilterRHEF implements ImageFilter.Algorithm {
                     int idx = order[j];
                     float v = data[idx];
                     if (v > 0)
-                        out[idx] = rankOf[Float.floatToFloat16(v) & 0xFFFF];
+                        data[idx] = rankOf[Float.floatToFloat16(v) & 0xFFFF];
                 }
                 for (int i = 0; i < distinct; i++)
                     counts[touched[i]] = 0;
             }
         });
-        return out;
+        return data;
     }
 
 }

@@ -1,0 +1,6 @@
+JSON-java 20260719
+==================
+
+Source: https://raw.githubusercontent.com/stleary/JSON-java/20260719/LICENSE
+
+Public Domain.

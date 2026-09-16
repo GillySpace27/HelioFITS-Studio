@@ -2,11 +2,13 @@ package org.helioviewer.jhv.timelines.draw;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.util.Objects;
 
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JSlider;
 import javax.swing.JToggleButton;
 
 import org.helioviewer.jhv.astronomy.Carrington;
@@ -74,15 +76,15 @@ class DrawControllerOptions extends JPanel {
         endpointsButton.addActionListener(e -> DrawController.setShowMovieEndpoints(endpointsButton.isSelected()));
 
         // Global vertical extent of every timeline bar.
-        javax.swing.JSlider barSlider = new javax.swing.JSlider(2, 24, DrawConstants.getBarHeight());
-        barSlider.setPreferredSize(new java.awt.Dimension(70, barSlider.getPreferredSize().height));
+        JSlider barSlider = new JSlider(2, 24, DrawConstants.getBarHeight());
+        barSlider.setPreferredSize(new Dimension(70, barSlider.getPreferredSize().height));
         barSlider.setToolTipText("Timeline bar height");
         barSlider.addChangeListener(e -> {
             DrawConstants.setBarHeight(barSlider.getValue());
             DrawController.drawRequest();
         });
 
-        JPanel togglePanel = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 4, 0));
+        JPanel togglePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         togglePanel.add(stackedButton);
         togglePanel.add(zoomCombo);
         togglePanel.add(lockButton);

@@ -79,15 +79,15 @@ public final class PunchClient {
     }
 
     public static void submitSearchTime(@Nonnull ReceiverItems receiver, @Nonnull String level, @Nonnull String product, long start, long end, long cadence, @Nonnull String version) {
-        Task.submit("punch", new QueryItems(level, product, start, end, cadence, version), receiver::setPunchResponseItems, reportTo(receiver));
+        Task.submitBackground("punch", new QueryItems(level, product, start, end, cadence, version), receiver::setPunchResponseItems, reportTo(receiver));
     }
 
     public static void submitGetProducts(@Nonnull ReceiverProducts receiver, @Nonnull String level) {
-        Task.submit("punch", new QueryProducts(level), receiver::setPunchResponseProducts, reportTo(receiver));
+        Task.submitBackground("punch", new QueryProducts(level), receiver::setPunchResponseProducts, reportTo(receiver));
     }
 
     public static void submitGetCoverage(@Nonnull ReceiverCoverage receiver, @Nonnull String level, @Nonnull String product) {
-        Task.submit("punch", new QueryCoverage(level, product), receiver::setPunchResponseCoverage, reportTo(receiver));
+        Task.submitBackground("punch", new QueryCoverage(level, product), receiver::setPunchResponseCoverage, reportTo(receiver));
     }
 
     /**
@@ -96,7 +96,7 @@ public final class PunchClient {
      * directory layout.
      */
     public static void submitResolve(@Nonnull FitsRequest request, @Nonnull java.util.function.Consumer<List<URI>> receiver) {
-        Task.submit("punch", new QueryItems(request.level(), request.product(), request.startTime(),
+        Task.submitBackground("punch", new QueryItems(request.level(), request.product(), request.startTime(),
                         request.endTime(), request.cadence(), request.version()),
                 items -> receiver.accept(items.stream().map(DataItem::uri).toList()),
                 "Error listing the PUNCH archive");
@@ -114,9 +114,9 @@ public final class PunchClient {
                 // Raw PUNCH FITS carry no display range, so each frame would auto-normalize to its
                 // own percentile range and the movie strobes. The layer loads immediately; in the
                 // background PunchRange samples a bounded subset, derives one shared range, and pins
-                // the whole layer to it (ImageLayer.setFixedRange) so every frame decodes identically
-                // — the strobe disappears once the range arrives, without blocking the load.
-                Task.submit("punch-range", () -> PunchRange.compute(uris), range -> {
+                // the whole layer to it (ImageLayer.setFixedRange) so every frame decodes
+                // identically: the strobe disappears once the range arrives, without blocking the load.
+                Task.submitBackground("punch-range", () -> PunchRange.compute(uris), range -> {
                     if (range != null)
                         layer.setFixedRange(range[0], range[1]);
                 }, "Error computing the PUNCH display range");
@@ -153,7 +153,7 @@ public final class PunchClient {
             receiver.onRefreshComplete(new RefreshResult(0, 0, null));
             return;
         }
-        Task.submit("punch-refresh", new QueryItems(q.level, q.product, q.start, q.end, q.cadence, q.version), items -> {
+        Task.submitBackground("punch-refresh", new QueryItems(q.level, q.product, q.start, q.end, q.cadence, q.version), items -> {
             List<URI> newUris = new ArrayList<>();
             for (DataItem it : items)
                 if (!q.loadedUris.contains(it.uri))
@@ -251,15 +251,12 @@ public final class PunchClient {
                 if (target == null || target.equals(item.version()))
                     found.put(item.milli(), item);
 
-            // lastKept is seeded just below the first possible in-range item so that any
-            // item with milli >= start passes the cadence check on the first iteration.
-            // Using Long.MIN_VALUE here would overflow the (item.milli - lastKept) check.
+            // listDay already dropped anything outside [start, end], so the first kept item seeds
+            // the cadence check and every later one is measured against the last one kept.
             List<DataItem> result = new ArrayList<>(found.size());
-            long lastKept = start - Math.max(1, cadence) - 1;
             for (DataItem item : found.values()) {
-                if (item.milli() >= start && item.milli() <= end && item.milli() - lastKept >= cadence) {
+                if (result.isEmpty() || item.milli() - result.getLast().milli() >= cadence) {
                     result.add(item);
-                    lastKept = item.milli();
                 }
             }
             return result;
@@ -277,7 +274,8 @@ public final class PunchClient {
             while (m.find()) {
                 String file = m.group(1);
                 long milli = TimeUtils.parse(FILE_TIME, m.group(2));
-                all.add(new DataItem(file, URI.create(dirUrl + file), milli, m.group(3)));
+                if (milli >= start && milli <= end)
+                    all.add(new DataItem(file, URI.create(dirUrl + file), milli, m.group(3)));
                 matched++;
             }
             Log.info("PUNCH parsed " + matched + " files from " + dirUrl);

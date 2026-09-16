@@ -4,8 +4,6 @@ import java.awt.EventQueue;
 
 import org.helioviewer.jhv.app.Commands;
 
-import org.json.JSONObject;
-
 final class ViewHandlers {
 
     static void register(SampClient client) {
@@ -28,13 +26,8 @@ final class ViewHandlers {
             String layer = SampHandlers.optionalString(msg, "layer");
             EventQueue.invokeLater(() -> Commands.setSequenceRaw(layer, value));
         }));
-        client.addMessageHandler(SampHandlers.create("jhv.view.fits.set", (senderId, sender, msg) -> {
-            String value = SampHandlers.optionalString(msg, "value");
-            if (value != null) {
-                JSONObject json = new JSONObject(value);
-                EventQueue.invokeLater(() -> Commands.setFITSViewState(json));
-            }
-        }));
+        // FITS clipping and scaling are per-layer imageParams now, sent with jhv.load.image,
+        // so there is no global FITS state message any more.
     }
 
     private ViewHandlers() {}

@@ -3,7 +3,6 @@ package org.helioviewer.jhv.plugins.pointcloud;
 import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.opengl.BufVertex;
 import org.helioviewer.jhv.opengl.DirectBufVertex;
-import org.helioviewer.jhv.opengl.GLSLLine;
 
 // A heliographic direction marker anchored at Sun centre, in one of two forms:
 //
@@ -58,7 +57,7 @@ class PointCloudArrow {
         double barb = length * HEAD_FRACTION;
         double half = barb * HEAD_SPREAD;
 
-        BufVertex buf = new BufVertex(4 * (1 + HEAD_BARBS) * GLSLLine.stride);
+        BufVertex buf = new BufVertex(4 * (1 + HEAD_BARBS));
         segment(buf, 0, 0, 0, tx, ty, tz, col);
         for (int i = 0; i < HEAD_BARBS; i++) {
             double a = 2 * Math.PI * i / HEAD_BARBS;
@@ -76,7 +75,7 @@ class PointCloudArrow {
         double[] u = basis[0], v = basis[1];
 
         int segments = 1 + GENERATORS + RIM_STEPS + MERIDIANS * MERIDIAN_STEPS;
-        BufVertex buf = new BufVertex(4 * segments * GLSLLine.stride);
+        BufVertex buf = new BufVertex(4 * segments);
 
         // Axis, so the propagation direction stays readable inside the cone.
         segment(buf, 0, 0, 0, d[0] * height, d[1] * height, d[2] * height, col);
@@ -126,10 +125,9 @@ class PointCloudArrow {
     // consecutive segments do not get joined by the strip (same packing as buildWire).
     private static void segment(BufVertex buf, double x0, double y0, double z0,
                                 double x1, double y1, double z1, byte[] col) {
-        buf.putVertex((float) x0, (float) y0, (float) z0, 1, Colors.Null);
-        buf.putVertex((float) x0, (float) y0, (float) z0, 1, col);
+        buf.startLine((float) x0, (float) y0, (float) z0, 1, col);
         buf.putVertex((float) x1, (float) y1, (float) z1, 1, col);
-        buf.putVertex((float) x1, (float) y1, (float) z1, 1, Colors.Null);
+        buf.endLine();
     }
 
     private static double[] cross(double[] p, double[] q) {

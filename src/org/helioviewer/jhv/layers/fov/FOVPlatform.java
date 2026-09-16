@@ -16,7 +16,6 @@ import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.display.ViewportMath;
 import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.opengl.BufVertex;
-import org.helioviewer.jhv.opengl.FOVShape;
 import org.helioviewer.jhv.opengl.GLHelper;
 import org.helioviewer.jhv.opengl.GLSLLine;
 import org.helioviewer.jhv.opengl.GLSLShape;
@@ -39,8 +38,8 @@ class FOVPlatform extends DefaultMutableTreeNode {
     private final GLSLLine hemiLine = new GLSLLine(false);
     private final GLSLLine instrumentLines = new GLSLLine(true);
     private final GLSLShape instrumentCenters = new GLSLShape(true);
-    private final BufVertex lineBuf = new BufVertex(8 * (4 * (FOVShape.RECT_SUBDIVS + 1) + 2) * GLSLLine.stride);
-    private final BufVertex centerBuf = new BufVertex(8 * GLSLShape.stride);
+    private final BufVertex lineBuf = new BufVertex();
+    private final BufVertex centerBuf = new BufVertex();
 
     private final String name;
     private final String observer;
@@ -70,11 +69,13 @@ class FOVPlatform extends DefaultMutableTreeNode {
     }
 
     private void putHemiLine() {
-        BufVertex buf = new BufVertex(2 * (SUBDIVISIONS + 3) * GLSLLine.stride);
+        int fullCircleVertices = SUBDIVISIONS + 3;
+        int halfCircleVertices = SUBDIVISIONS / 2 + 3;
+        BufVertex buf = new BufVertex(fullCircleVertices + 2 * halfCircleVertices);
         GLHelper.emitCircle(HEMI_RADIUS, SUBDIVISIONS, 0, SUBDIVISIONS, null, color, Colors.White.bytes(), buf);
         GLHelper.emitCircle(HEMI_RADIUS, SUBDIVISIONS, 0, SUBDIVISIONS / 2, Quat.X90, color, Colors.White.bytes(), buf);
         GLHelper.emitCircle(HEMI_RADIUS, SUBDIVISIONS, SUBDIVISIONS / 4, 3 * SUBDIVISIONS / 4, Quat.Y90, color, Colors.White.bytes(), buf);
-        hemiLine.setVertex(buf);
+        hemiLine.uploadAndClear(buf);
     }
 
     void init() {
@@ -117,9 +118,9 @@ class FOVPlatform extends DefaultMutableTreeNode {
 
         children().asIterator().forEachRemaining(c -> ((FOVInstrument) c).putGeometry(obsPosition.distance, LINEWIDTH_FOV, color, renderer, lineBuf, centerBuf));
 
-        instrumentCenters.setVertex(centerBuf);
+        instrumentCenters.uploadAndClear(centerBuf);
         instrumentCenters.renderPoints(ViewportMath.getPixelFactor(vp, mv.cameraWidth(vp)));
-        instrumentLines.setVertex(lineBuf);
+        instrumentLines.uploadAndClear(lineBuf);
         instrumentLines.renderLine(vp, LINEWIDTH_FOV);
 
         renderer.setDirectPut();

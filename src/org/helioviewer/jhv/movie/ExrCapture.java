@@ -12,6 +12,7 @@ import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.image.ImageBuffer;
+import org.helioviewer.jhv.image.ImageDisplaySettings;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.image.lut.LUT;
 import org.helioviewer.jhv.layers.ImageLayer;
@@ -21,7 +22,7 @@ import org.helioviewer.jhv.layers.MiniviewLayer;
 import org.helioviewer.jhv.metadata.FitsMetaData;
 import org.helioviewer.jhv.metadata.MetaData;
 import org.helioviewer.jhv.opengl.GLGrab;
-import org.helioviewer.jhv.opengl.GLImage;
+import org.helioviewer.jhv.opengl.GLSLImage;
 import org.helioviewer.jhv.opengl.GLRenderer;
 import org.helioviewer.jhv.time.TimeUtils;
 import org.helioviewer.jhv.timelines.TimelineLayer;
@@ -61,7 +62,7 @@ final class ExrCapture {
         // holds a float per pixel beyond that buffer.
 
         // 1. What the screen shows. A white background is opaque on screen, so it is here too.
-        float[] rgba = grabber.renderPass(null, GLImage.Capture.NONE);
+        float[] rgba = grabber.renderPass(null, GLSLImage.Capture.NONE);
         boolean opaque = Display.whiteBackground;
         exr.channel("R", linear(rgba, 0, opaque));
         exr.channel("G", linear(rgba, 1, opaque));
@@ -78,17 +79,17 @@ final class ExrCapture {
             if (layer instanceof ImageLayer imageLayer) {
                 if (imageLayer.getImageData() == null)
                     continue;
-                float[] data = grabber.renderPass(layer, GLImage.Capture.DATA);
+                float[] data = grabber.renderPass(layer, GLSLImage.Capture.DATA);
                 if (empty(data))
                     continue;
                 exr.channel(prefix + ".Y", pick(data, 0, false));
                 exr.channel(prefix + ".A", pick(data, 3, false));
-                float[] display = grabber.renderPass(layer, GLImage.Capture.DISPLAY); // same buffer as data: Y and A are already out
+                float[] display = grabber.renderPass(layer, GLSLImage.Capture.DISPLAY); // same buffer as data: Y and A are already out
                 exr.channel(prefix + ".V", pick(display, 0, false));
                 exr.attribute(prefix + ".meta", imageMeta(imageLayer).toString());
-                exr.attribute(prefix + ".lut", lutHex(imageLayer.getGLImage()));
+                exr.attribute(prefix + ".lut", lutHex(imageLayer.getDisplaySettings()));
             } else {
-                float[] over = grabber.renderPass(layer, GLImage.Capture.NONE);
+                float[] over = grabber.renderPass(layer, GLSLImage.Capture.NONE);
                 if (empty(over))
                     continue;
                 exr.channel(prefix + ".R", linear(over, 0, false));
@@ -136,11 +137,11 @@ final class ExrCapture {
     }
 
     private static JSONObject imageMeta(ImageLayer layer) {
-        GLImage g = layer.getGLImage();
+        ImageDisplaySettings g = layer.getDisplaySettings();
         View.ImageData imageData = layer.getImageData();
         MetaData meta = imageData.metaData();
         boolean rhef = layer.getView().getFilter() == ImageFilter.Type.RHEF;
-        boolean diff = g.getDifferenceMode() != GLImage.DifferenceMode.None;
+        boolean diff = g.getDifferenceMode() != ImageDisplaySettings.DifferenceMode.None;
 
         JSONObject o = new JSONObject()
                 .put("name", layer.getName())
@@ -185,7 +186,7 @@ final class ExrCapture {
     }
 
     // The table as displayed, inversion included, 256 entries of RRGGBB: colour = table[round(V * 255)].
-    private static String lutHex(GLImage g) {
+    private static String lutHex(ImageDisplaySettings g) {
         LUT lut = g.getLUT();
         ByteBuffer rgba = (g.getInvertLUT() ? lut.rgbaInv() : lut.rgba()).duplicate();
         StringBuilder sb = new StringBuilder(rgba.remaining() / 4 * 6);

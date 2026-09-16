@@ -1,17 +1,18 @@
 package org.helioviewer.jhv.opengl;
 
-import java.nio.Buffer;
+public class GLSLTexture extends VertexArrayObject {
 
-public class GLSLTexture extends VAO1 {
-
-    private static final int size0 = 4;
-    private static final int size1 = 2;
-    private static final int stride = 4 * (size0 + size1);
+    private static final int POSITION_COMPONENTS = 4;
+    private static final int TEX_COORD_COMPONENTS = 2;
+    private static final int POSITION_BYTES = POSITION_COMPONENTS * Float.BYTES;
+    private static final int STRIDE = POSITION_BYTES + TEX_COORD_COMPONENTS * Float.BYTES;
 
     private int count;
 
     public GLSLTexture() {
-        super(true, new VAA[]{new VAA(0, size0, false, stride, 0, 0), new VAA(1, size1, false, stride, 4 * size0, 0)});
+        super(true,
+                VertexAttribute.floats(0, POSITION_COMPONENTS, STRIDE, 0),
+                VertexAttribute.floats(1, TEX_COORD_COMPONENTS, STRIDE, POSITION_BYTES));
     }
 
     public void setCoord(BufCoord buf) {
@@ -19,13 +20,12 @@ public class GLSLTexture extends VAO1 {
         if (count == 0)
             return;
 
-        Buffer buffer = buf.toBuffer();
-        vbo.setBufferData(4 * buffer.capacity(), buffer);
+        uploadVertexBuffer(buf.toBuffer());
         buf.clear();
     }
 
     public void renderTexture(int mode, float[] color, int first, int toDraw) {
-        if (count == 0 || toDraw > count)
+        if (count == 0 || first + toDraw > count)
             return;
 
         GLSLTextureShader shader = GLSLTextureShader.texture;
@@ -38,7 +38,7 @@ public class GLSLTexture extends VAO1 {
     }
 
     public void renderSdfTexture(int mode, float[] color, float unitRangeX, float unitRangeY, int first, int toDraw) {
-        if (count == 0 || toDraw > count)
+        if (count == 0 || first + toDraw > count)
             return;
 
         GLSLTextureShader shader = GLSLTextureShader.sdf;

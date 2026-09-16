@@ -4,50 +4,45 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.util.Arrays;
-import java.util.List;
 
+import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.math.Vec3;
 
 public class BufVertex {
 
-    private static final int chunk = 1024;
-    private int multiplier = 1;
+    static final int POSITION_COMPONENTS = 4;
+    static final int POSITION_BYTES = POSITION_COMPONENTS * Float.BYTES;
+    static final int COLOR_COMPONENTS = 4;
+    private static final int COLOR_BYTES = COLOR_COMPONENTS * Byte.BYTES;
+    static final int BYTES_PER_VERTEX = POSITION_BYTES + COLOR_BYTES;
 
-    private final byte[] byteLast = new byte[16];
-    private final FloatBuffer bufferLast = ByteBuffer.wrap(byteLast).order(ByteOrder.nativeOrder()).asFloatBuffer();
+    private static final int MIN_CAPACITY = 64;
+
+    private final byte[] lastPosition = new byte[POSITION_BYTES];
+    private final FloatBuffer lastPositionFloats = ByteBuffer.wrap(lastPosition).order(ByteOrder.nativeOrder()).asFloatBuffer();
 
     private int count;
 
-    private ByteBuffer vertxBuffer;
-    private byte[] arrayVertx;
-    private int lengthVertx;
+    private byte[] array;
+    private ByteBuffer buffer;
 
-    private ByteBuffer colorBuffer;
-    private byte[] arrayColor;
-    private int lengthColor;
-
-    public BufVertex(int size) {
-        arrayVertx = new byte[Math.max(size, 16)];
-        vertxBuffer = ByteBuffer.wrap(arrayVertx);
-        size /= 4;
-        arrayColor = new byte[Math.max(size, 4)];
-        colorBuffer = ByteBuffer.wrap(arrayColor);
+    public BufVertex() {
+        this(0);
     }
 
-    private void ensureVertx(int nbytes) {
-        int size = arrayVertx.length;
-        if (lengthVertx + nbytes > size) {
-            arrayVertx = Arrays.copyOf(arrayVertx, size + chunk * multiplier++);
-            vertxBuffer = ByteBuffer.wrap(arrayVertx);
-        }
+    public BufVertex(int capacity) {
+        array = new byte[Math.multiplyExact(capacity, BYTES_PER_VERTEX)];
+        buffer = ByteBuffer.wrap(array);
     }
 
-    private void ensureColor(int nbytes) {
-        int size = arrayColor.length;
-        if (lengthColor + nbytes > size) {
-            arrayColor = Arrays.copyOf(arrayColor, size + chunk * multiplier++);
-            colorBuffer = ByteBuffer.wrap(arrayColor);
-        }
+    private void ensureCapacity() {
+        int capacity = array.length / BYTES_PER_VERTEX;
+        if (count < capacity)
+            return;
+
+        int newCapacity = Math.max(MIN_CAPACITY, capacity * 2);
+        array = Arrays.copyOf(array, Math.multiplyExact(newCapacity, BYTES_PER_VERTEX));
+        buffer = ByteBuffer.wrap(array);
     }
 
     public void putVertex(Vec3 v, byte[] color) {
@@ -55,20 +50,28 @@ public class BufVertex {
     }
 
     public void putVertex(float x, float y, float z, float w, byte[] color) {
-        bufferLast.put(0, x).put(1, y).put(2, z).put(3, w);
+        lastPositionFloats.put(0, x).put(1, y).put(2, z).put(3, w);
         repeatVertex(color);
     }
 
-    public void repeatVertex(byte[] color) {
-        ensureVertx(16);
-        System.arraycopy(byteLast, 0, arrayVertx, lengthVertx, 16);
-        lengthVertx += 16;
+    public void startLine(Vec3 v, byte[] color) {
+        startLine((float) v.x, (float) v.y, (float) v.z, 1, color);
+    }
 
-        ensureColor(4);
-        arrayColor[lengthColor++] = color[0];
-        arrayColor[lengthColor++] = color[1];
-        arrayColor[lengthColor++] = color[2];
-        arrayColor[lengthColor++] = color[3];
+    public void startLine(float x, float y, float z, float w, byte[] color) {
+        putVertex(x, y, z, w, Colors.Null);
+        repeatVertex(color);
+    }
+
+    public void endLine() {
+        repeatVertex(Colors.Null);
+    }
+
+    private void repeatVertex(byte[] color) {
+        ensureCapacity();
+        int offset = count * BYTES_PER_VERTEX;
+        System.arraycopy(lastPosition, 0, array, offset, POSITION_BYTES);
+        System.arraycopy(color, 0, array, offset + POSITION_BYTES, COLOR_BYTES);
 
         count++;
     }
@@ -93,58 +96,16 @@ public class BufVertex {
         return count;
     }
 
-    int vertexByteLength() {
-        return lengthVertx;
-    }
-
-    int colorByteLength() {
-        return lengthColor;
+    private int byteLength() {
+        return count * BYTES_PER_VERTEX;
     }
 
     public void clear() {
-        lengthVertx = 0;
-        lengthColor = 0;
         count = 0;
     }
 
-    public ByteBuffer toVertexBuffer() {
-        return vertxBuffer.limit(lengthVertx);
-    }
-
-    public ByteBuffer toColorBuffer() {
-        return colorBuffer.limit(lengthColor);
-    }
-
-    public static BufVertex join(List<BufVertex> list) {
-        int listSize = list.size();
-        if (listSize == 0)
-            throw new IllegalArgumentException("Empty BufVertex list");
-        if (listSize == 1)
-            return list.getFirst();
-
-        int retLengthVertx = 0, retLengthColor = 0, retCount = 0, toCopy;
-        for (BufVertex b : list) {
-            retLengthVertx += b.lengthVertx;
-        }
-        BufVertex ret = new BufVertex(retLengthVertx);
-
-        retLengthVertx = 0;
-        for (BufVertex b : list) {
-            toCopy = b.lengthVertx;
-            ret.vertxBuffer.put(retLengthVertx, b.vertxBuffer, 0, toCopy);
-            retLengthVertx += toCopy;
-
-            toCopy = b.lengthColor;
-            ret.colorBuffer.put(retLengthColor, b.colorBuffer, 0, toCopy);
-            retLengthColor += toCopy;
-
-            retCount += b.count;
-        }
-        ret.lengthVertx = retLengthVertx;
-        ret.lengthColor = retLengthColor;
-        ret.count = retCount;
-
-        return ret;
+    public ByteBuffer toBuffer() {
+        return buffer.limit(byteLength());
     }
 
 }

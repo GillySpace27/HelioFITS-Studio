@@ -47,56 +47,76 @@ abstract class J2KSource {
     final void open() throws KduException {
         if (!isClosed)
             return;
-        doOpenFamilySource();
-        jpxSrc.Open(jp2Src, false);
         isClosed = false;
-        initResolutionStateOnce();
+        try {
+            doOpenFamilySource();
+            jpxSrc.Open(jp2Src, false);
+            initResolutionStateOnce();
+        } catch (KduException | RuntimeException e) {
+            try {
+                close();
+            } catch (KduException cleanupFailure) {
+                e.addSuppressed(cleanupFailure);
+            }
+            throw e;
+        }
     }
 
-    void destroy() throws KduException {}
-
-    void close() throws KduException {
+    // Temporary close: JP2 sources reopen for the next decode.
+    final void close() throws KduException {
         if (isClosed)
             return;
-        jpxSrc.Close();
-        jp2Src.Close();
+        KduException failure = null;
+        try {
+            jpxSrc.Close();
+        } catch (KduException e) {
+            failure = e;
+        }
+        try {
+            jp2Src.Close();
+        } catch (KduException e) {
+            if (failure == null)
+                throw e;
+            failure.addSuppressed(e);
+        }
+        if (failure != null)
+            throw failure;
         isClosed = true;
     }
 
-    void closeWhenUnused() throws KduException {
+    // Terminal cleanup: wait for active users before releasing owned native resources.
+    void destroy() throws KduException {
+        boolean interrupted = false;
         synchronized (this) {
             closing = true;
             while (users > 0) {
                 try {
                     wait();
                 } catch (InterruptedException e) {
-                    // The background abolisher thread is not expected to be interrupted.
-                    // If this wait ever hangs in normal flow, some decode path leaked
-                    // beginUse() without a matching endUse() and that path should be fixed.
-                    Thread.currentThread().interrupt();
-                    break;
+                    interrupted = true;
                 }
             }
         }
-        close();
+        if (interrupted)
+            Thread.currentThread().interrupt();
+        try {
+            close();
+        } finally {
+            jpxSrc.Native_destroy();
+            jp2Src.Native_destroy();
+        }
     }
 
     // Native access guards
 
-    Use use() {
-        if (!beginUse())
+    synchronized Use use() {
+        if (closing)
             throw new CancellationException("J2KSource access cancelled after close");
+        users++;
         return new Use(this);
     }
 
-    synchronized boolean beginUse() {
-        if (closing)
-            return false;
-        users++;
-        return true;
-    }
-
-    synchronized void endUse() {
+    private synchronized void endUse() {
         users--;
         if (users == 0)
             notifyAll();
@@ -116,16 +136,17 @@ abstract class J2KSource {
     }
 
     ResolutionSet readResolutionSet(int frame) throws KduException {
-        Jpx_input_box inputBox = null;
-        Kdu_codestream stream = null;
+        Jpx_codestream_source xstream = jpxSrc.Access_codestream(frame);
+        if (!xstream.Exists())
+            throw new KduException(">> stream does not exist " + frame);
+
+        Jpx_input_box inputBox = new Jpx_input_box();
+        Kdu_codestream stream = new Kdu_codestream();
+        Kdu_dims dims = new Kdu_dims();
         try {
-            Jpx_codestream_source xstream = jpxSrc.Access_codestream(frame);
-            inputBox = xstream.Open_stream();
-            stream = new Kdu_codestream();
+            if (xstream.Open_stream(inputBox) == null)
+                throw new KduException(">> stream is not ready " + frame);
             stream.Create(inputBox);
-            if (!stream.Exists()) {
-                throw new KduException(">> stream does not exist " + frame);
-            }
 
             // Since it gets tricky here I am just grabbing a bunch of values
             // and taking the max of them. It is acceptable to think that an
@@ -142,14 +163,12 @@ abstract class J2KSource {
                 // numComponents = maxComponents == 1 ? 1 : 3;
                 // With new file formats we may have 2 components
             } finally {
-                cmap.Clear();
                 cmap.Native_destroy();
             }
 
             int maxDWT = stream.Get_min_dwt_levels();
             ResolutionSet res = new ResolutionSet(maxDWT + 1, maxComponents);
 
-            Kdu_dims dims = new Kdu_dims();
             stream.Get_dims(0, dims);
             Kdu_coords siz = dims.Access_size();
             int width0 = siz.Get_x(), height0 = siz.Get_y();
@@ -165,15 +184,12 @@ abstract class J2KSource {
 
             return res;
         } finally {
-            if (stream != null) {
-                try {
+            try {
+                if (stream.Exists())
                     stream.Destroy();
-                } catch (KduException ignore) {}
-            }
-            if (inputBox != null) {
-                inputBox.Close();
-                inputBox.Native_destroy();
-            }
+            } catch (KduException ignore) {}
+            dims.Native_destroy();
+            inputBox.Native_destroy();
         }
     }
 
@@ -214,16 +230,12 @@ abstract class J2KSource {
                 if (i == xmlMetaData.length)
                     break;
                 if (node.Open_existing(xmlBox)) {
-                    try {
-                        xmlMetaData[i] = xmlBox2String(xmlBox);
-                    } finally {
-                        xmlBox.Close();
-                    }
+                    xmlMetaData[i] = xmlBox2String(xmlBox);
+                    xmlBox.Close();
                 }
                 i++;
             }
         } finally {
-            xmlBox.Close(); // harmless if already closed
             xmlBox.Native_destroy();
         }
     }
@@ -340,8 +352,11 @@ abstract class J2KSource {
 
         @Override
         void destroy() throws KduException {
-            cache.Close();
-            cache.Native_destroy();
+            try {
+                super.destroy();
+            } finally {
+                cache.Native_destroy();
+            }
         }
 
         @Override

@@ -205,7 +205,7 @@ public final class CoverageTimelineLayer extends TimelineLayer {
 
     @Override
     public YAxis getYAxis() {
-        return yAxis;
+        return null; // no axis column: the coverage rows prints its own range, and every axis costs 30 px of plot width
     }
 
     @Override
@@ -246,11 +246,6 @@ public final class CoverageTimelineLayer extends TimelineLayer {
     @Override
     public boolean isDeletable() {
         return false; // a built-in default track; always present
-    }
-
-    @Override
-    public boolean hasYAxis() {
-        return false;
     }
 
 }

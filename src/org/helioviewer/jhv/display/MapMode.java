@@ -3,7 +3,6 @@ package org.helioviewer.jhv.display;
 import javax.annotation.Nullable;
 
 import org.helioviewer.jhv.astronomy.Position;
-import org.helioviewer.jhv.opengl.GLSLSolarShader;
 
 /**
  * The projections the viewer can draw a scene in.
@@ -25,33 +24,17 @@ public enum MapMode {
     // Menu order, and it carries meaning: Orthographic, HPC and Helioradial at lambda = 1 are
     // the same view at default settings and differ only in their grids, so they sit together.
     // Latitudinal is the odd one out, a surface map rather than a sky view, and goes last.
-    Orthographic(GLSLSolarShader.ortho, "Orthographic"),
-    HPC(GLSLSolarShader.hpc, "HPC"),
-    Helioradial(GLSLSolarShader.warpSurface, "Helioradial"),
-    HelioradialUnrolled(GLSLSolarShader.rectWarp, "Helioradial Unrolled"),
-    Latitudinal(GLSLSolarShader.lati, "Latitudinal"),
+    Orthographic("Orthographic"),
+    HPC("HPC"),
+    Helioradial("Helioradial"),
+    HelioradialUnrolled("Helioradial Unrolled"),
+    Latitudinal("Latitudinal"),
     // Last because it is the only one that is not centred on the Sun. Everything above answers
     // "what does the corona look like"; this one answers "what is in that direction", which is a
     // different question and is why it gets its own aim and field controls.
-    ObserverSky(GLSLSolarShader.sky, "Observer Sky");
+    ObserverSky("Observer Sky");
 
-    private final GLSLSolarShader shader3D;
     private final String label;
-
-    /**
-     * The shader for this mode as currently configured.
-     *
-     * <p>Helioradial has two implementations. Flat, it is a fragment-space inverse map on a
-     * full-screen quad (solarRadialWarp.frag), which is the original and the one the published
-     * figures come from. In 3D it is a surface mesh (warpSurface). They are not
-     * interchangeable: the mesh shader expects a rotated MVP and a per-vertex world position,
-     * so the render path and the shader have to be switched together.
-     */
-    public GLSLSolarShader shader() {
-        return this == Helioradial && !Display.isHelioradial3D()
-                ? GLSLSolarShader.radialWarp
-                : shader3D;
-    }
 
     /** Menu and status-bar text. The enum name has no space; the label does. */
     @Override
@@ -139,6 +122,21 @@ public enum MapMode {
     }
 
     /**
+     * Whether this mode draws its imagery as a warped surface mesh rather than through a
+     * full-screen quad.
+     *
+     * <p>Helioradial has two implementations. Flat, it is a fragment-space inverse map on a
+     * full-screen quad, which is the original and the one the published figures come from. In 3D
+     * it is a surface mesh. They are not interchangeable: the mesh shader expects a rotated MVP
+     * and a per-vertex world position, so the render path and the shader have to be switched
+     * together. Which program each mode gets is GLSLSolarShader's business now; this says only
+     * which of the two render paths the mode is asking for.
+     */
+    public boolean usesWarpSurface() {
+        return this == Helioradial && Display.isHelioradial3D();
+    }
+
+    /**
      * Whether this mode draws a rotated 3D scene rather than a flat projected map.
      *
      * <p>Helioradial joins Orthographic here because its warp is now geometry: the imagery is a
@@ -146,7 +144,7 @@ public enum MapMode {
      * layer rendering. Helioradial Unrolled, HPC and Latitudinal stay flat.
      */
     public boolean rendersIn3D() {
-        return this == Orthographic || (this == Helioradial && Display.isHelioradial3D());
+        return this == Orthographic || usesWarpSurface();
     }
 
     /**
@@ -166,7 +164,7 @@ public enum MapMode {
         // is undoing is measured on the surface, so the surface decides which elongation a given
         // radius came from. With the Thomson sphere chosen, the composed sky is the Thomson-sphere
         // placement drawn on the celestial sphere.
-        return (this == Helioradial && Display.isHelioradial3D()) || (this == ObserverSky && Display.isSkyCompose());
+        return usesWarpSurface() || (this == ObserverSky && Display.isSkyCompose());
     }
 
     public boolean usesWarpLambda() {
@@ -197,12 +195,11 @@ public enum MapMode {
         return this == Orthographic || this == HPC || this == Helioradial;
     }
 
-    MapMode(GLSLSolarShader _shader, String _label) {
-        shader3D = _shader;
+    MapMode(String _label) {
         label = _label;
     }
 
     public MapView createMapView(Camera camera, Position viewpoint, GridType gridType, MapScale[] scales) {
-        return MapView.create(camera, viewpoint, gridType, this, scales);
+        return MapView.create(camera, viewpoint, this, gridType, scales);
     }
 }

@@ -48,7 +48,7 @@ public final class RadioData extends TimelineLayer {
     private static final int MAX_AMOUNT_OF_DAYS = 3;
     private static final int DAYS_IN_CACHE = MAX_AMOUNT_OF_DAYS + 4;
 
-    private final Cache<Long, RadioJ2KData> cache = Caffeine.newBuilder().maximumSize(DAYS_IN_CACHE)
+    private final Cache<Long, RadioJ2KData> cache = Caffeine.newBuilder().maximumSize(DAYS_IN_CACHE).executor(Runnable::run)
             .removalListener((Long k, RadioJ2KData v, RemovalCause c) -> {
                 if (v != null)
                     v.removeData();
@@ -114,7 +114,7 @@ public final class RadioData extends TimelineLayer {
                 RadioJPXDownload download = new RadioJPXDownload(date);
                 downloads.put(date, download);
                 notifyStateChanged();
-                Task.submit(Long.toString(date), download, result -> onSuccessRadioJPX(download, result),
+                Task.submitBackground(Long.toString(date), download, result -> onSuccessRadioJPX(download, result),
                         (logContext, t) -> onFailureRadioJPX(download, t));
             }
         }
@@ -131,7 +131,7 @@ public final class RadioData extends TimelineLayer {
         public RadioJ2KData call() throws Exception {
             APIRequest req = new APIRequest("ROB", APIRequest.CallistoID, date, date, APIRequest.CADENCE_ALL);
             DataUri dataUri = NetFileCache.get(new URI(req.toFileRequest()));
-            if (dataUri.format() != DataUri.Format.Image.JP2) // paranoia
+            if (dataUri.format() != DataUri.Format.JP2) // paranoia
                 throw new Exception("Invalid data format");
 
             return new RadioJ2KData(RadioData.this, req, dataUri);
@@ -175,11 +175,6 @@ public final class RadioData extends TimelineLayer {
     @Override
     public YAxis getYAxis() {
         return yAxis;
-    }
-
-    @Override
-    public boolean hasYAxis() {
-        return true;
     }
 
     @Override
@@ -292,7 +287,7 @@ public final class RadioData extends TimelineLayer {
 
     private static JPanel optionsPanel(LUTComboBox combo) {
         JButton availabilityBtn = new JButton("Available data");
-        availabilityBtn.addActionListener(e -> DesktopIntegration.openURL(DataSources.getServerSetting("ROB", "availability.images") +
+        availabilityBtn.addActionListener(e -> DesktopIntegration.openURL(DataSources.getServer("ROB").availabilityURL() +
                 "ID=" + APIRequest.CallistoID));
 
         JPanel panel = new JPanel(new GridBagLayout());

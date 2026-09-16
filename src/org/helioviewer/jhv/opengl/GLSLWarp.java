@@ -2,7 +2,6 @@ package org.helioviewer.jhv.opengl;
 
 import java.nio.FloatBuffer;
 
-import org.helioviewer.jhv.base.BufferUtils;
 import org.helioviewer.jhv.display.MapScale;
 
 /**
@@ -19,24 +18,20 @@ import org.helioviewer.jhv.display.MapScale;
  */
 public final class GLSLWarp {
 
-    private static GLBO warpBO;
-    private static final FloatBuffer buf = BufferUtils.newFloatBuffer(4);
-    private static final int SIZE = buf.capacity() * 4;
+    private static final UniformBufferObject warpBuffer = new UniformBufferObject(UniformBlockLayout.WARP, GL.STREAM_DRAW);
 
     static void init() {
-        warpBO = new GLBO(GL.UNIFORM_BUFFER, GL.STREAM_DRAW);
+        warpBuffer.init();
+        warpBuffer.bind();
         disable(); // a sane block before any frame has been drawn
     }
 
     static void dispose() {
-        if (warpBO != null) {
-            warpBO.delete();
-            warpBO = null;
-        }
+        warpBuffer.dispose();
     }
 
     static void setupBlock(int programID) {
-        GLSLShader.setupUBO(programID, "WarpBlock", warpBO.getID(), GLSLShader.UBO.WARP);
+        GLSLShader.setupUniformBlock(programID, UniformBlockLayout.WARP);
     }
 
     /**
@@ -57,12 +52,9 @@ public final class GLSLWarp {
     }
 
     private static void upload(float lambda, float limb, float outerRadius, float enabled) {
-        if (warpBO == null)
-            return;
-        buf.clear();
-        buf.put(lambda).put(limb).put(outerRadius).put(enabled);
-        buf.flip();
-        warpBO.setBufferData(SIZE, buf);
+        FloatBuffer values = warpBuffer.begin();
+        values.put(lambda).put(limb).put(outerRadius).put(enabled);
+        warpBuffer.upload();
     }
 
     private GLSLWarp() {}

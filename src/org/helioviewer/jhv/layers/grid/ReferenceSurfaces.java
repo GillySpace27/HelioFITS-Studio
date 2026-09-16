@@ -1,7 +1,6 @@
 package org.helioviewer.jhv.layers.grid;
 
 import org.helioviewer.jhv.astronomy.SpaceObject;
-import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.display.SurfaceModel;
 import org.helioviewer.jhv.math.Vec3;
 import org.helioviewer.jhv.opengl.BufVertex;
@@ -41,7 +40,7 @@ public final class ReferenceSurfaces {
      */
     public static void buildThomsonSphere(GLSLLine line, double observerDistance, double outerRadius, byte[] color, double density) {
         if (observerDistance <= 0 || outerRadius <= 0) {
-            line.setVertex(new BufVertex(0));
+            line.uploadAndClear(new BufVertex());
             return;
         }
         // Past D/sqrt(2) the surface folds back toward the axis and the rings shrink again. That
@@ -65,20 +64,20 @@ public final class ReferenceSurfaces {
      *                 pi is the whole sphere, and for the celestial sphere the angle is elongation
      */
     private static void buildSphere(GLSLLine line, double diameter, double thetaMax, byte[] color, double density) {
-        line.setVertex(sphereVertices(diameter, thetaMax, color, density));
+        line.uploadAndClear(sphereVertices(diameter, thetaMax, color, density));
     }
 
     /** The wireframe itself, separated from the GL upload so extra/test/ReferenceSurfacesCheck can read the vertices. */
     static BufVertex sphereVertices(double diameter, double thetaMax, byte[] color, double density) {
         double sweep = Math.clamp(thetaMax, 0, Math.PI);
         if (diameter <= 0 || sweep <= 0)
-            return new BufVertex(0);
+            return new BufVertex();
         double radius = diameter / 2;
         // Ring count from the heliocentric extent actually drawn, so density means the same thing
         // whether the sweep was set by a field of view or by an angle.
         int rings = ringCount(diameter * Math.sin(sweep / 2), density);
         int vertices = rings * (RING_SUBDIVISIONS + 3) + SPOKE_COUNT * (SPOKE_STEPS + 3);
-        BufVertex buf = new BufVertex(vertices * GLSLLine.stride);
+        BufVertex buf = new BufVertex(vertices);
 
         for (int i = 1; i <= rings; i++) {
             double theta = sweep * i / rings;
@@ -134,10 +133,11 @@ public final class ReferenceSurfaces {
         float y = (float) (rho * Math.cos(positionAngle));
         float zf = (float) z;
         if (first)
-            buf.putVertex(x, y, zf, 1, Colors.Null);
-        buf.putVertex(x, y, zf, 1, color);
+            buf.startLine(x, y, zf, 1, color);
+        else
+            buf.putVertex(x, y, zf, 1, color);
         if (last)
-            buf.putVertex(x, y, zf, 1, Colors.Null);
+            buf.endLine();
     }
 
     /**
@@ -174,7 +174,7 @@ public final class ReferenceSurfaces {
      */
     public static void buildEcliptic(GLSLLine line, JHVTime time, double outerRadius, byte[] color, double density) {
         if (outerRadius <= 0) {
-            line.setVertex(new BufVertex(0));
+            line.uploadAndClear(new BufVertex());
             return;
         }
         // One offset for both samples: it is the frame conversion, not a per-epoch correction, and
@@ -185,20 +185,20 @@ public final class ReferenceSurfaces {
         // is well conditioned. Any separation would span the plane; 90 degrees is just the steadiest.
         Vec3 w = earthDirection(new JHVTime(time.milli + 91 * 86400_000L), offset);
         if (u.length() == 0 || w.length() == 0) { // no ephemeris: draw nothing rather than a guess
-            line.setVertex(new BufVertex(0));
+            line.uploadAndClear(new BufVertex());
             return;
         }
 
         Vec3 normal = Vec3.cross(u, w);
         if (normal.length() < 1e-9) { // degenerate: fall back to the solar equator rather than draw nonsense
-            line.setVertex(new BufVertex(0));
+            line.uploadAndClear(new BufVertex());
             return;
         }
         Vec3 v = unit(Vec3.cross(unit(normal), u));
 
         int rings = ringCount(outerRadius, density);
         int vertices = rings * (RING_SUBDIVISIONS + 3) + SPOKE_COUNT * 3;
-        BufVertex buf = new BufVertex(vertices * GLSLLine.stride);
+        BufVertex buf = new BufVertex(vertices);
 
         for (int i = 1; i <= rings; i++) {
             double r = outerRadius * i / rings;
@@ -216,7 +216,7 @@ public final class ReferenceSurfaces {
             putPlanePoint(buf, u, v, cx, cy, color, false, true);
         }
 
-        line.setVertex(buf);
+        line.uploadAndClear(buf);
     }
 
     private static void putPlanePoint(BufVertex buf, Vec3 u, Vec3 v, double a, double b,
@@ -225,10 +225,11 @@ public final class ReferenceSurfaces {
         float y = (float) (a * u.y + b * v.y);
         float z = (float) (a * u.z + b * v.z);
         if (first)
-            buf.putVertex(x, y, z, 1, Colors.Null);
-        buf.putVertex(x, y, z, 1, color);
+            buf.startLine(x, y, z, 1, color);
+        else
+            buf.putVertex(x, y, z, 1, color);
         if (last)
-            buf.putVertex(x, y, z, 1, Colors.Null);
+            buf.endLine();
     }
 
     /**

@@ -24,56 +24,58 @@ public class FOVShape {
 
     public static void putRectLine(double centerX, double centerY, double bw, double bh, boolean flat, double lineWidth, byte[] color, BufVertex vexBuf) {
         double x, y, z;
+        byte[] white = Colors.White.bytes();
 
         for (int i = 0; i <= RECT_SUBDIVS; i++) {
             x = -bw + 2 * bw / RECT_SUBDIVS * i + centerX;
             y = bh + centerY;
             z = computeZ(x, y, flat, lineWidth);
-            if (i == 0) { // first
-                vexBuf.putVertex((float) x, (float) y, (float) z, 1, Colors.Null);
-            }
-            vexBuf.putVertex((float) x, (float) y, (float) z, 1, i % 2 == 0 ? color : Colors.White.bytes());
+            byte[] vertexColor = i % 2 == 0 ? color : white;
+            if (i == 0)
+                vexBuf.startLine((float) x, (float) y, (float) z, 1, vertexColor);
+            else
+                vexBuf.putVertex((float) x, (float) y, (float) z, 1, vertexColor);
         }
 
         for (int i = 1; i <= RECT_SUBDIVS; i++) {
             x = bw + centerX;
             y = bh - 2 * bh / RECT_SUBDIVS * i + centerY;
             z = computeZ(x, y, flat, lineWidth);
-            vexBuf.putVertex((float) x, (float) y, (float) z, 1, i % 2 == 0 ? color : Colors.White.bytes());
+            vexBuf.putVertex((float) x, (float) y, (float) z, 1, i % 2 == 0 ? color : white);
         }
 
         for (int i = 1; i <= RECT_SUBDIVS; i++) {
             x = bw - 2 * bw / RECT_SUBDIVS * i + centerX;
             y = -bh + centerY;
             z = computeZ(x, y, flat, lineWidth);
-            vexBuf.putVertex((float) x, (float) y, (float) z, 1, i % 2 == 0 ? color : Colors.White.bytes());
+            vexBuf.putVertex((float) x, (float) y, (float) z, 1, i % 2 == 0 ? color : white);
         }
 
         for (int i = 1; i <= RECT_SUBDIVS; i++) {
             x = -bw + centerX;
             y = -bh + 2 * bh / RECT_SUBDIVS * i + centerY;
             z = computeZ(x, y, flat, lineWidth);
-            vexBuf.putVertex((float) x, (float) y, (float) z, 1, i % 2 == 0 ? color : Colors.White.bytes());
-            if (i == RECT_SUBDIVS) { // last
-                vexBuf.putVertex((float) x, (float) y, (float) z, 1, Colors.Null);
-            }
+            vexBuf.putVertex((float) x, (float) y, (float) z, 1, i % 2 == 0 ? color : white);
+            if (i == RECT_SUBDIVS)
+                vexBuf.endLine();
         }
     }
 
     public static void putCircLine(double centerX, double centerY, double r, boolean flat, double lineWidth, byte[] color, BufVertex vexBuf) {
+        byte[] white = Colors.White.bytes();
         for (int i = 0; i <= CIRC_SUBDIVS; i++) {
             double t = i * 2. * Math.PI / CIRC_SUBDIVS;
             double x = centerX + Math.sin(t) * r;
             double y = centerY + Math.cos(t) * r;
             double z = computeZ(x, y, flat, lineWidth);
 
-            if (i == 0) {
-                vexBuf.putVertex((float) x, (float) y, (float) z, 1, Colors.Null);
-            }
-            vexBuf.putVertex((float) x, (float) y, (float) z, 1, i % 2 == 0 ? color : Colors.White.bytes());
-            if (i == CIRC_SUBDIVS) {
-                vexBuf.putVertex((float) x, (float) y, (float) z, 1, Colors.Null);
-            }
+            byte[] vertexColor = i % 2 == 0 ? color : white;
+            if (i == 0)
+                vexBuf.startLine((float) x, (float) y, (float) z, 1, vertexColor);
+            else
+                vexBuf.putVertex((float) x, (float) y, (float) z, 1, vertexColor);
+            if (i == CIRC_SUBDIVS)
+                vexBuf.endLine();
         }
     }
 

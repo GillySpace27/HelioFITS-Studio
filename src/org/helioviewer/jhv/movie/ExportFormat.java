@@ -18,17 +18,19 @@ import org.helioviewer.jhv.display.HdrTransfer;
  * extra/test/ExportFormatCheck.java pins the ones that would fail silently.
  */
 public enum ExportFormat {
+    // No -level: a fixed 4.2 rejects the larger frame sizes outright rather than encoding them.
+    // The H.265 CRFs match H.264's, so "better" means the same thing whichever codec is picked.
     H264("H.264", ".mp4",
-            List.of("-c:v", "libx264", "-level", "4.2", "-crf", "23", "-preset", "fast", "-tune", "animation"),
+            List.of("-c:v", "libx264", "-crf", "23", "-preset", "fast", "-tune", "psnr"),
             "-x264-params", "colorprim=bt709:transfer=bt709:colormatrix=bt709:fullrange=on"),
     H264HQ("H.264 better", ".mp4",
-            List.of("-c:v", "libx264", "-level", "4.2", "-crf", "17", "-preset", "medium", "-tune", "animation"),
+            List.of("-c:v", "libx264", "-crf", "17", "-preset", "medium", "-tune", "psnr"),
             "-x264-params", "colorprim=bt709:transfer=bt709:colormatrix=bt709:fullrange=on"),
     H265("H.265", ".mp4",
-            List.of("-c:v", "libx265", "-tag:v", "hvc1", "-crf", "28", "-preset", "fast", "-tune", "animation"),
+            List.of("-c:v", "libx265", "-tag:v", "hvc1", "-crf", "23", "-preset", "fast", "-tune", "psnr"),
             "-x265-params", "colorprim=bt709:transfer=bt709:colormatrix=bt709:range=full"),
     H265HQ("H.265 better", ".mp4",
-            List.of("-c:v", "libx265", "-tag:v", "hvc1", "-crf", "22", "-preset", "medium", "-tune", "animation"),
+            List.of("-c:v", "libx265", "-tag:v", "hvc1", "-crf", "17", "-preset", "medium", "-tune", "psnr"),
             "-x265-params", "colorprim=bt709:transfer=bt709:colormatrix=bt709:range=full"),
     /**
      * The same encoder, delivering the extended range instead of throwing it away.
@@ -46,11 +48,11 @@ public enum ExportFormat {
      * and VLC play directly.
      */
     H265_HLG("H.265 HDR (HLG)", ".mp4",
-            List.of("-c:v", "libx265", "-tag:v", "hvc1", "-crf", "22", "-preset", "medium", "-tune", "animation",
+            List.of("-c:v", "libx265", "-tag:v", "hvc1", "-crf", "22", "-preset", "medium", "-tune", "psnr",
                     "-vf", "scale=out_color_matrix=bt2020nc:out_range=tv"),
             "-x265-params", "colorprim=bt2020:transfer=arib-std-b67:colormatrix=bt2020nc:range=limited"),
     H265_PQ("H.265 HDR (PQ)", ".mp4",
-            List.of("-c:v", "libx265", "-tag:v", "hvc1", "-crf", "22", "-preset", "medium", "-tune", "animation",
+            List.of("-c:v", "libx265", "-tag:v", "hvc1", "-crf", "22", "-preset", "medium", "-tune", "psnr",
                     "-vf", "scale=out_color_matrix=bt2020nc:out_range=tv"),
             "-x265-params", "colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc:range=limited"),
     /**

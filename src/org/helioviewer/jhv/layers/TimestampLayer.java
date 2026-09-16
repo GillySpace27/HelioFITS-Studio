@@ -278,9 +278,10 @@ public final class TimestampLayer extends AbstractLayer {
         double dayFrac = (milli % TimeUtils.DAY_IN_MILLIS) / (double) TimeUtils.DAY_IN_MILLIS;
         double hourFrac = (milli % 3600000L) / 3600000.;
 
-        BufVertex buf = new BufVertex(2 * (2 * (CLOCK_SEGMENTS + 1) + 12) * GLSLShape.stride);
-        emitClock(buf, cx + GLText.SHADOW_OFFSET_X, cy + GLText.SHADOW_OFFSET_Y, r, dayFrac, hourFrac, clockShadowColor);
-        emitClock(buf, cx, cy, r, dayFrac, hourFrac, clockColor);
+        BufVertex buf = new BufVertex(2 * (2 * (CLOCK_SEGMENTS + 1) + 12));
+        float[] last = new float[2];
+        emitClock(buf, last, cx + GLText.SHADOW_OFFSET_X, cy + GLText.SHADOW_OFFSET_Y, r, dayFrac, hourFrac, clockShadowColor);
+        emitClock(buf, last, cx, cy, r, dayFrac, hourFrac, clockColor);
 
         Transform.pushProjection();
         Transform.setOrtho2DProjection(0, vp.width, 0, vp.height);
@@ -288,7 +289,7 @@ public final class TimestampLayer extends AbstractLayer {
         Transform.setIdentityView();
         GL.glDisable(GL.DEPTH_TEST);
 
-        clock.setVertex(buf);
+        clock.uploadAndClear(buf);
         clock.renderShape(GL.TRIANGLE_STRIP);
 
         GL.glEnable(GL.DEPTH_TEST);
@@ -296,37 +297,45 @@ public final class TimestampLayer extends AbstractLayer {
         Transform.popProjection();
     }
 
-    private static void emitClock(BufVertex buf, float cx, float cy, float r, double dayFrac, double hourFrac, byte[] color) {
+    private static void emitClock(BufVertex buf, float[] last, float cx, float cy, float r, double dayFrac, double hourFrac, byte[] color) {
         float thick = Math.max(1, 0.1f * r);
         // dial outline as a triangle strip ring
-        bridge(buf, cx, cy + r, color);
+        bridge(buf, last, cx, cy + r, color);
         for (int i = 0; i <= CLOCK_SEGMENTS; i++) {
             double t = 2 * Math.PI * i / CLOCK_SEGMENTS;
             float sin = (float) Math.sin(t), cos = (float) Math.cos(t);
-            buf.putVertex(cx + r * sin, cy + r * cos, 0, 1, color);
-            buf.putVertex(cx + (r - thick) * sin, cy + (r - thick) * cos, 0, 1, color);
+            put(buf, last, cx + r * sin, cy + r * cos, color);
+            put(buf, last, cx + (r - thick) * sin, cy + (r - thick) * cos, color);
         }
         // 24h dial (00:00 UTC at top, clockwise) since solar movies span days; thin hand turns once per hour
-        emitHand(buf, cx, cy, 2 * Math.PI * dayFrac, 0.55f * r, 1.2f * thick, color);
-        emitHand(buf, cx, cy, 2 * Math.PI * hourFrac, 0.85f * r, 0.6f * thick, color);
+        emitHand(buf, last, cx, cy, 2 * Math.PI * dayFrac, 0.55f * r, 1.2f * thick, color);
+        emitHand(buf, last, cx, cy, 2 * Math.PI * hourFrac, 0.85f * r, 0.6f * thick, color);
     }
 
-    private static void emitHand(BufVertex buf, float cx, float cy, double angle, float length, float halfWidth, byte[] color) {
+    private static void emitHand(BufVertex buf, float[] last, float cx, float cy, double angle, float length, float halfWidth, byte[] color) {
         float sin = (float) Math.sin(angle), cos = (float) Math.cos(angle);
         float px = halfWidth * cos, py = -halfWidth * sin;
-        bridge(buf, cx - px, cy - py, color);
-        buf.putVertex(cx - px, cy - py, 0, 1, color);
-        buf.putVertex(cx + px, cy + py, 0, 1, color);
-        buf.putVertex(cx + length * sin - px, cy + length * cos - py, 0, 1, color);
-        buf.putVertex(cx + length * sin + px, cy + length * cos + py, 0, 1, color);
+        bridge(buf, last, cx - px, cy - py, color);
+        put(buf, last, cx - px, cy - py, color);
+        put(buf, last, cx + px, cy + py, color);
+        put(buf, last, cx + length * sin - px, cy + length * cos - py, color);
+        put(buf, last, cx + length * sin + px, cy + length * cos + py, color);
     }
 
-    private static void bridge(BufVertex buf, float x, float y, byte[] color) {
-        // two degenerate vertices join sub-strips; even counts keep front-face winding
+    // two degenerate vertices join sub-strips; even counts keep front-face winding. BufVertex no
+    // longer exposes a way to repeat its own last vertex, so the last position put() writes is
+    // tracked here and repeated explicitly instead.
+    private static void bridge(BufVertex buf, float[] last, float x, float y, byte[] color) {
         if (buf.getCount() > 0) {
-            buf.repeatVertex(color);
-            buf.putVertex(x, y, 0, 1, color);
+            put(buf, last, last[0], last[1], color);
+            put(buf, last, x, y, color);
         }
+    }
+
+    private static void put(BufVertex buf, float[] last, float x, float y, byte[] color) {
+        buf.putVertex(x, y, 0, 1, color);
+        last[0] = x;
+        last[1] = y;
     }
 
     private static String formatFOV(MapView mv, Viewport vp) {

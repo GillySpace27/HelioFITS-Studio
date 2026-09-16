@@ -200,14 +200,12 @@ public final class ViewState {
     private static final ArrayList<RecordingConfigListener> recordingConfigListeners = new ArrayList<>();
     private static boolean suppressModeNotifications;
 
+    // Everything else below is read straight off Display, but the projection cannot be: an
+    // interactive switch is handed to ProjectionTransition, which captures the outgoing scene
+    // and only then flips Display.mode, a frame later. Reading Display.mode here would report
+    // the old projection until that happens, so the requested one is held.
     private static MapMode projection = Display.mode;
     private static AnnotationMode annotationMode = AnnotationMode.Cross;
-    private static boolean multiview = Display.multiview;
-    private static boolean tracking = DisplayController.getTrackingMode();
-    private static boolean refresh = ImageLayers.getRefreshMode();
-    private static boolean showCorona = Display.getShowCorona();
-    private static boolean differentialRotation = ImageLayers.getDiffRotationMode();
-    private static double warpLambda = Display.getWarpLambda();
     public static final int PLAYBACK_SPEED_MIN = 1;
     public static final int PLAYBACK_SPEED_MAX = 120;
     private static Player.AdvanceMode playbackAdvanceMode = Player.AdvanceMode.Loop;
@@ -232,7 +230,8 @@ public final class ViewState {
     private static int recordingLongSide = DEFAULT_LONG_SIDE;
 
     public static ModeData modeData() {
-        return new ModeData(projection, Display.getSurfaceModel(), warpLambda, getAnnotationMode(), multiview, tracking, refresh, showCorona, differentialRotation, Display.isHelioradial3D());
+        return new ModeData(getProjection(), Display.getSurfaceModel(), getWarpLambda(), getAnnotationMode(),
+                isMultiview(), isTracking(), isRefresh(), isShowCorona(), isDifferentialRotation(), Display.isHelioradial3D());
     }
 
     public static PlaybackData playbackData() {
@@ -349,14 +348,7 @@ public final class ViewState {
         ModeData current = modeData();
         MapMode projectionValue = current.projection();
         SurfaceModel surfaceModelValue = current.surfaceModel();
-        double warpLambdaValue = current.warpLambda();
         AnnotationMode annotationModeValue = current.annotationMode();
-        boolean multiviewValue = current.multiview();
-        boolean trackingValue = current.tracking();
-        boolean refreshValue = current.refresh();
-        boolean showCoronaValue = current.showCorona();
-        boolean differentialRotationValue = current.differentialRotation();
-        boolean helioradial3DValue = current.helioradial3D();
         String projectionName = source.optString("projection", projectionValue.name());
         String surfaceModelName = source.optString("surfaceModel", surfaceModelValue.name());
         String annotationModeName = source.optString("annotationMode", annotationModeValue.name());
@@ -377,37 +369,29 @@ public final class ViewState {
         } catch (IllegalArgumentException e) {
             Log.warn("Ignoring invalid annotation mode state value: " + annotationModeName, e);
         }
-        multiviewValue = readBoolean(source, "multiview", multiviewValue);
-        warpLambdaValue = Math.clamp(source.optDouble("warpLambda", warpLambdaValue), -1, 1);
-        trackingValue = readBoolean(source, "tracking", trackingValue);
-        refreshValue = readBoolean(source, "refresh", refreshValue);
-        showCoronaValue = readBoolean(source, "showCorona", showCoronaValue);
-        helioradial3DValue = readBoolean(source, "helioradial3D", helioradial3DValue);
-        differentialRotationValue = readBoolean(source, "differentialRotation", differentialRotationValue);
-
         return new ModeData(
                 projectionValue,
                 surfaceModelValue,
-                warpLambdaValue,
+                Math.clamp(source.optDouble("warpLambda", current.warpLambda()), -1, 1),
                 annotationModeValue,
-                multiviewValue,
-                trackingValue,
-                refreshValue,
-                showCoronaValue,
-                differentialRotationValue,
-                helioradial3DValue);
+                readBoolean(source, "multiview", current.multiview()),
+                readBoolean(source, "tracking", current.tracking()),
+                readBoolean(source, "refresh", current.refresh()),
+                readBoolean(source, "showCorona", current.showCorona()),
+                readBoolean(source, "differentialRotation", current.differentialRotation()),
+                readBoolean(source, "helioradial3D", current.helioradial3D()));
     }
 
     public static void applyMode(ModeData data) {
-        boolean changed = projection != data.projection()
+        boolean changed = getProjection() != data.projection()
                 || Display.getSurfaceModel() != data.surfaceModel()
-                || warpLambda != data.warpLambda()
+                || getWarpLambda() != data.warpLambda()
                 || annotationMode != data.annotationMode()
-                || multiview != data.multiview()
-                || tracking != data.tracking()
-                || refresh != data.refresh()
-                || showCorona != data.showCorona()
-                || differentialRotation != data.differentialRotation()
+                || isMultiview() != data.multiview()
+                || isTracking() != data.tracking()
+                || isRefresh() != data.refresh()
+                || isShowCorona() != data.showCorona()
+                || isDifferentialRotation() != data.differentialRotation()
                 || Display.isHelioradial3D() != data.helioradial3D();
 
         if (!changed)
@@ -492,15 +476,14 @@ public final class ViewState {
     }
 
     public static double getWarpLambda() {
-        return warpLambda;
+        return Display.getWarpLambda();
     }
 
     public static void setWarpLambda(double newWarpLambda) {
         newWarpLambda = Math.clamp(newWarpLambda, -1, 1);
-        if (warpLambda == newWarpLambda)
+        if (getWarpLambda() == newWarpLambda)
             return;
 
-        warpLambda = newWarpLambda;
         Display.setWarpLambda(newWarpLambda);
         DisplayController.display();
         notifyModeListeners();
@@ -519,68 +502,63 @@ public final class ViewState {
     }
 
     public static boolean isMultiview() {
-        return multiview;
+        return Display.multiview;
     }
 
     public static void setMultiview(boolean newMultiview) {
-        if (multiview == newMultiview)
+        if (isMultiview() == newMultiview)
             return;
 
-        multiview = newMultiview;
         Display.multiview = newMultiview;
         ImageLayers.arrangeMultiView(newMultiview);
         notifyModeListeners();
     }
 
     public static boolean isTracking() {
-        return tracking;
+        return DisplayController.getTrackingMode();
     }
 
     public static void setTracking(boolean newTracking) {
-        if (tracking == newTracking)
+        if (isTracking() == newTracking)
             return;
 
-        tracking = newTracking;
         DisplayController.setTrackingMode(newTracking);
         notifyModeListeners();
     }
 
     public static boolean isRefresh() {
-        return refresh;
+        return ImageLayers.getRefreshMode();
     }
 
     public static void setRefresh(boolean newRefresh) {
-        if (refresh == newRefresh)
+        if (isRefresh() == newRefresh)
             return;
 
-        refresh = newRefresh;
         ImageLayers.setRefreshMode(newRefresh);
         notifyModeListeners();
     }
 
     public static boolean isShowCorona() {
-        return showCorona;
+        return Display.getShowCorona();
     }
 
     public static void setShowCorona(boolean newShowCorona) {
-        if (showCorona == newShowCorona)
+        if (isShowCorona() == newShowCorona)
             return;
 
-        showCorona = newShowCorona;
         Display.setShowCorona(newShowCorona);
         DisplayController.display();
         notifyModeListeners();
     }
 
     public static boolean isDifferentialRotation() {
-        return differentialRotation;
+        return ImageLayers.getDiffRotationMode();
     }
 
     public static void setDifferentialRotation(boolean newDifferentialRotation) {
-        if (differentialRotation == newDifferentialRotation)
+        if (isDifferentialRotation() == newDifferentialRotation)
             return;
 
-        differentialRotation = newDifferentialRotation;
         ImageLayers.setDiffRotationMode(newDifferentialRotation);
         DisplayController.display();
         notifyModeListeners();

@@ -11,7 +11,7 @@ package org.helioviewer.jhv.display;
  * field rather than a rescaling of it: composed and uncomposed agree at the edge and differ
  * inside, which is the warp showing up as a change of angular scale.
  *
- * <p>It also pins the Java against the GLSL. unwarpRadiusWith in solarCommon.frag and
+ * <p>It also pins the Java against the GLSL. unwarpRadiusWith in imageCommon.frag and
  * MapScale.BoxCoxRadialScale.toMapY are the same function written twice, and this fails if they
  * stop being.
  *
@@ -27,7 +27,7 @@ public final class SkyComposeCheck {
             failures++;
     }
 
-    /** solarCommon.frag's unwarpRadiusWith, ported. */
+    /** imageCommon.frag's unwarpRadiusWith, ported. */
     private static double glslUnwarp(double normalizedRadius, double outerRadius, double limb, double lambda) {
         if (outerRadius <= 1 || normalizedRadius <= limb)
             return normalizedRadius / limb;

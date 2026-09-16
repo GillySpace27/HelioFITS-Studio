@@ -1,12 +1,10 @@
 package org.helioviewer.jhv.display;
 
-import org.helioviewer.jhv.opengl.GLSLSolarShader;
-
 /**
  * Flat and 3D Helioradial are two implementations, and the toggle must switch all of it together.
  *
- * <p>Flat is a fragment-space inverse map on a full-screen quad (solarRadialWarp.frag) filling a
- * fixed normalized disk. 3D is a surface mesh (warpSurface) in physical solar radii with a
+ * <p>Flat is a fragment-space inverse map on a full-screen quad filling a
+ * fixed normalized disk (imageRadialWarp.frag). 3D is a surface mesh (warpSurface) in physical solar radii with a
  * rotated MVP and a camera sized by the crop. Three things have to move as one: the render
  * path, the shader, and the camera contract. Switch the path without the shader and the mesh
  * shader gets a flat MVP; switch the shader without the camera and the scene is the wrong size.
@@ -32,7 +30,7 @@ public final class HelioradialModeCheck {
 
         Display.setHelioradial3D(false);
         expect(!MapMode.Helioradial.rendersIn3D(), "flat does not take the 3D render path");
-        same(MapMode.Helioradial.shader(), GLSLSolarShader.radialWarp, "flat uses the fragment-space shader");
+        expect(!MapMode.Helioradial.usesWarpSurface(), "flat uses the fragment-space shader");
 
         // Flat framing is a fixed disk: the camera is constant and the crop acts through the
         // scale instead, which is the behaviour the figures were made with.
@@ -44,7 +42,7 @@ public final class HelioradialModeCheck {
 
         Display.setHelioradial3D(true);
         expect(MapMode.Helioradial.rendersIn3D(), "3D takes the 3D render path");
-        same(MapMode.Helioradial.shader(), GLSLSolarShader.warpSurface, "3D uses the surface-mesh shader");
+        expect(MapMode.Helioradial.usesWarpSurface(), "3D uses the surface-mesh shader");
 
         // 3D framing is physical: the camera follows the crop.
         Display.setWarpOuterRadius(180);
@@ -60,12 +58,10 @@ public final class HelioradialModeCheck {
             expect(mode.rendersIn3D() == before, mode.name() + " is unaffected by the Helioradial toggle");
             Display.setHelioradial3D(!Display.isHelioradial3D());
         }
-        expect(MapMode.HelioradialUnrolled.shader() == MapMode.HelioradialUnrolled.shader(),
-               "the unrolled layout has one shader regardless of the toggle");
         Display.setHelioradial3D(true);
-        GLSLSolarShader unrolled3D = MapMode.HelioradialUnrolled.shader();
+        boolean unrolled3D = MapMode.HelioradialUnrolled.usesWarpSurface();
         Display.setHelioradial3D(false);
-        same(MapMode.HelioradialUnrolled.shader(), unrolled3D, "the unrolled layout ignores the toggle");
+        expect(MapMode.HelioradialUnrolled.usesWarpSurface() == unrolled3D, "the unrolled layout ignores the toggle");
 
         // Limb continuity: the sphere branch and the corona branch must meet at r = 1.
         for (double lambda : new double[]{1, 0.5, 0, -0.5, -1}) {
@@ -86,13 +82,6 @@ public final class HelioradialModeCheck {
         System.out.println(failures == 0 ? "HelioradialModeCheck: PASS" : "HelioradialModeCheck: " + failures + " FAILURE(S)");
         if (failures != 0)
             System.exit(1);
-    }
-
-    private static void same(Object got, Object want, String what) {
-        if (got != want) {
-            System.out.println("FAIL: " + what);
-            failures++;
-        }
     }
 
     private static void expect(boolean condition, String what) {

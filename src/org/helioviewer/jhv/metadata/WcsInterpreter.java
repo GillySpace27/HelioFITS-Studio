@@ -5,6 +5,7 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 
 import org.helioviewer.jhv.math.Mat2;
+import org.helioviewer.jhv.math.Vec2;
 import org.helioviewer.jhv.wcs.WcsHeader;
 
 final class WcsInterpreter {
@@ -14,34 +15,20 @@ final class WcsInterpreter {
     record Result(
             WcsHeader.Projection projection,
             float[] pv2,
-            double internalCrvalX,
-            double internalCrvalY,
+            Vec2 crval,
             Mat2 imageToPlane,
             double unitPerPixelX,
             double unitPerPixelY,
-            double arcsecPerPixelX,
-            double arcsecPerPixelY) {}
+            double unitsPerRad) {}
 
-    private record PixelAxes(
+    private record AxisUnits(
             double arcsecX,
-            double arcsecY,
-            double arcsecPerPixelX,
-            double arcsecPerPixelY,
-            Mat2 pc) {}
+            double arcsecY) {}
 
     private record LinearTransform(
             Mat2 imageToPlane,
             double unitPerPixelX,
             double unitPerPixelY) {}
-
-    private record WcsInput(
-            double cdelt1,
-            double cdelt2,
-            double crval1,
-            double crval2,
-            double pv2_1,
-            MatrixKeywords pc,
-            MatrixKeywords cd) {}
 
     private record MatrixKeywords(boolean present, Mat2 matrix) {}
 
@@ -49,58 +36,35 @@ final class WcsInterpreter {
         return read(m, null);
     }
 
+    // forcedProjection overrides CTYPE, for products whose CTYPE does not name the projection they
+    // actually are: a ptmc_compo indexed surface map is CAR regardless of what its header says.
     static Result read(MetaDataContainer m, @Nullable WcsHeader.Projection forcedProjection) {
         String ctype1 = m.getString("CTYPE1").orElse("");
         String ctype2 = m.getString("CTYPE2").orElse("");
         WcsHeader.Projection projection = forcedProjection != null ? forcedProjection : WcsHeader.Projection.fromCtype(ctype1, ctype2);
         boolean isSurfaceMap = projection.isSurfaceMap();
 
-        WcsInput wcs = readWcsInput(m);
-        PixelAxes axes = computePixelAxes(wcs, m, isSurfaceMap);
-        float[] pv2 = readPv2(m, wcs, projection);
-        double crvalX;
-        double crvalY;
-        LinearTransform transform;
+        AxisUnits units = readAxisUnits(m, isSurfaceMap);
+        double pv2_1 = m.getDouble("PV2_1").orElse(1.);
+        float[] pv2 = readPv2(m, projection, pv2_1);
+        LinearTransform transform = computeLinearTransform(m, units, projection);
+        double crval1 = m.getDouble("CRVAL1").orElse(0.);
+        double crval2 = m.getDouble("CRVAL2").orElse(0.);
+        Vec2 crval;
+        double unitsPerRad;
 
         if (isSurfaceMap) {
             boolean isCea = projection == WcsHeader.Projection.CEA;
-            transform = computeSurfaceTransform(m, wcs, axes, isCea);
-            double longitude = wcs.crval1 * axes.arcsecX / ARCSEC_PER_RAD;
-            double latitude = wcs.crval2 * axes.arcsecY / ARCSEC_PER_RAD;
-            crvalX = longitude;
-            crvalY = isCea ? ceaLatitudeCoordinate(latitude, wcs.pv2_1) : latitude;
+            double longitude = crval1 * units.arcsecX / ARCSEC_PER_RAD;
+            double latitude = crval2 * units.arcsecY / ARCSEC_PER_RAD;
+            crval = new Vec2(longitude, isCea ? ceaLatitudeCoordinate(latitude, pv2_1) : latitude);
+            unitsPerRad = 1;
         } else {
-            transform = computeObserverTransform(m, wcs, axes);
-            crvalX = wcs.crval1 * axes.arcsecX;
-            crvalY = wcs.crval2 * axes.arcsecY;
+            crval = new Vec2(crval1 * units.arcsecX, crval2 * units.arcsecY);
+            unitsPerRad = ARCSEC_PER_RAD;
         }
 
-        return new Result(
-                projection,
-                pv2,
-                crvalX,
-                crvalY,
-                transform.imageToPlane,
-                isSurfaceMap ? transform.unitPerPixelX : 0,
-                isSurfaceMap ? transform.unitPerPixelY : 0,
-                isSurfaceMap ? axes.arcsecPerPixelX : transform.unitPerPixelX,
-                isSurfaceMap ? axes.arcsecPerPixelY : transform.unitPerPixelY);
-    }
-
-    private static WcsInput readWcsInput(MetaDataContainer m) {
-        MatrixKeywords pc = readMatrix(m, "PC", 1.);
-        MatrixKeywords cd = readMatrix(m, "CD", 0.);
-        // FITS WCS/wcslib: PC takes precedence if both are present. Otherwise,
-        // any CD card selects a zero-defaulted CD matrix; CDELT and CROTA are ignored.
-        boolean usesCd = cd.present && !pc.present;
-        return new WcsInput(
-                usesCd ? 1. : m.getRequiredDouble("CDELT1"),
-                usesCd ? 1. : m.getRequiredDouble("CDELT2"),
-                m.getDouble("CRVAL1").orElse(0.),
-                m.getDouble("CRVAL2").orElse(0.),
-                m.getDouble("PV2_1").orElse(1.),
-                pc,
-                cd);
+        return new Result(projection, pv2, crval, transform.imageToPlane, transform.unitPerPixelX, transform.unitPerPixelY, unitsPerRad);
     }
 
     private static MatrixKeywords readMatrix(MetaDataContainer m, String prefix, double diagonalDefault) {
@@ -114,11 +78,10 @@ final class WcsInterpreter {
                 m21.orElse(0.), m22.orElse(diagonalDefault)));
     }
 
-    private static PixelAxes computePixelAxes(WcsInput wcs, MetaDataContainer m, boolean isSurfaceMap) {
-        double arcsecX = readAngularAxisScaleArcsec(m, "CUNIT1", isSurfaceMap);
-        double arcsecY = readAngularAxisScaleArcsec(m, "CUNIT2", isSurfaceMap);
-        return new PixelAxes(
-                arcsecX, arcsecY, wcs.cdelt1 * arcsecX, wcs.cdelt2 * arcsecY, wcs.pc.matrix);
+    private static AxisUnits readAxisUnits(MetaDataContainer m, boolean isSurfaceMap) {
+        return new AxisUnits(
+                readAngularAxisScaleArcsec(m, "CUNIT1", isSurfaceMap),
+                readAngularAxisScaleArcsec(m, "CUNIT2", isSurfaceMap));
     }
 
     private static double readAngularAxisScaleArcsec(MetaDataContainer m, String cunitKey, boolean defaultDegrees) {
@@ -129,81 +92,76 @@ final class WcsInterpreter {
 
     private static double arcsecPerUnit(String unit) {
         return switch (unit.strip().toLowerCase()) {
-            // "degree"/"degrees" are not FITS-standard but occur in the wild (IDL-written
-            // synoptic maps); without them they fall to default and scale the image by 1/3600.
-            case "deg", "degree", "degrees" -> 3600.;
+            case "deg", "degree", "degrees" -> 3600.; // Accept alternative non-standard spellings.
             case "arcmin" -> 60.;
-            case "arcsec" -> 1.;
             case "mas" -> .001;
             case "rad" -> 180. * 3600. / Math.PI;
             default -> 1.;
         };
     }
 
-    private static float[] readPv2(MetaDataContainer m, WcsInput wcs, WcsHeader.Projection projection) {
+    private static float[] readPv2(MetaDataContainer m, WcsHeader.Projection projection, double pv2_1) {
         float[] pv2 = new float[6];
+        if (!projection.usesPv2())
+            return pv2;
         for (int i = 0; i < pv2.length; i++)
             pv2[i] = m.getDouble("PV2_" + i).map(Double::floatValue).orElse(0f);
         if (projection == WcsHeader.Projection.CEA) // Thompson (2006): CEA defaults PV2_1 to 1 when omitted.
-            pv2[1] = (float) wcs.pv2_1;
+            pv2[1] = (float) pv2_1;
         return pv2;
     }
 
-    private static LinearTransform computeSurfaceTransform(MetaDataContainer m, WcsInput wcs, PixelAxes axes, boolean isCea) {
+    private static LinearTransform computeLinearTransform(
+            MetaDataContainer m, AxisUnits units, WcsHeader.Projection projection) {
         // Surface-map X is angular longitude. Y is angular latitude for CAR and equal-area Y for CEA.
-        // Historical normalized CEA maps omit CUNIT2 and store the second plane coordinate
-        // directly as sin(latitude) / lambda. An explicit CUNIT2 selects the FITS angular
-        // convention used by wcslib/Astropy, which JHV converts to the same internal coordinate.
-        // This deliberately overrides the FITS default of degrees when CUNIT2 is absent.
-        boolean normalizedCeaY = isCea && m.getString("CUNIT2").isEmpty();
-        double axis1Scale = axes.arcsecX / ARCSEC_PER_RAD;
-        double axis2Scale = normalizedCeaY ? 1 : axes.arcsecY / ARCSEC_PER_RAD;
-
-        if (!wcs.pc.present && wcs.cd.present) {
-            Mat2 cd = wcs.cd.matrix;
-            return normalize(
-                    axis1Scale * cd.m00,
-                    axis1Scale * cd.m01,
-                    axis2Scale * cd.m10,
-                    axis2Scale * cd.m11);
+        boolean isSurfaceMap = projection.isSurfaceMap();
+        double axis1Scale = units.arcsecX;
+        double axis2Scale = units.arcsecY;
+        if (isSurfaceMap) {
+            axis1Scale /= ARCSEC_PER_RAD;
+            // Historical normalized CEA maps omit CUNIT2 and store the second plane coordinate
+            // directly as sin(latitude) / lambda. An explicit CUNIT2 selects the FITS angular
+            // convention used by wcslib/Astropy, which JHV converts to the same internal coordinate.
+            // This deliberately overrides the FITS default of degrees when CUNIT2 is absent.
+            boolean normalizedCeaY = projection == WcsHeader.Projection.CEA && m.getString("CUNIT2").isEmpty();
+            axis2Scale = normalizedCeaY ? 1 : axis2Scale / ARCSEC_PER_RAD;
         }
 
-        double cdelt1Surface = wcs.cdelt1 * axis1Scale;
-        double cdelt2Surface = wcs.cdelt2 * axis2Scale;
-        return normalize(
-                cdelt1Surface * axes.pc.m00,
-                cdelt1Surface * axes.pc.m01,
-                cdelt2Surface * axes.pc.m10,
-                cdelt2Surface * axes.pc.m11);
-    }
+        // FITS WCS/wcslib gives PC precedence over CD when both are present.
+        MatrixKeywords pc = readMatrix(m, "PC", 1.);
+        if (pc.present)
+            return normalizeRows(
+                    pc.matrix,
+                    m.getRequiredDouble("CDELT1") * axis1Scale,
+                    m.getRequiredDouble("CDELT2") * axis2Scale);
 
-    private static LinearTransform computeObserverTransform(MetaDataContainer m, WcsInput wcs, PixelAxes axes) {
-        if (wcs.pc.present) {
-            return normalize(
-                    axes.arcsecPerPixelX * axes.pc.m00,
-                    axes.arcsecPerPixelX * axes.pc.m01,
-                    axes.arcsecPerPixelY * axes.pc.m10,
-                    axes.arcsecPerPixelY * axes.pc.m11);
-        }
+        // Any CD card selects a zero-defaulted CD matrix and makes CDELT and CROTA irrelevant.
+        MatrixKeywords cd = readMatrix(m, "CD", 0.);
+        if (cd.present)
+            return normalizeRows(cd.matrix, axis1Scale, axis2Scale);
 
-        if (wcs.cd.present) {
-            Mat2 cd = wcs.cd.matrix;
-            return normalize(
-                    axes.arcsecX * cd.m00,
-                    axes.arcsecX * cd.m01,
-                    axes.arcsecY * cd.m10,
-                    axes.arcsecY * cd.m11);
-        }
+        double unitPerPixelX = m.getRequiredDouble("CDELT1") * axis1Scale;
+        double unitPerPixelY = m.getRequiredDouble("CDELT2") * axis2Scale;
+        if (isSurfaceMap)
+            return normalize(unitPerPixelX, 0, 0, unitPerPixelY);
 
         double crota = m.getDouble("CROTA").or(() -> m.getDouble("CROTA1")).or(() -> m.getDouble("CROTA2"))
                 .map(Math::toRadians).orElse(0.);
         double c = Math.cos(crota);
         double s = Math.sin(crota);
         return normalize(
-                axes.arcsecPerPixelX * c,
-                -axes.arcsecPerPixelY * s,
-                axes.arcsecPerPixelX * s,
-                axes.arcsecPerPixelY * c);
+                unitPerPixelX * c,
+                -unitPerPixelY * s,
+                unitPerPixelX * s,
+                unitPerPixelY * c);
+    }
+
+    private static LinearTransform normalizeRows(Mat2 matrix, double rowScaleX, double rowScaleY) {
+        return normalize(
+                rowScaleX * matrix.m00,
+                rowScaleX * matrix.m01,
+                rowScaleY * matrix.m10,
+                rowScaleY * matrix.m11);
     }
 
     private static LinearTransform normalize(double m00, double m01, double m10, double m11) {

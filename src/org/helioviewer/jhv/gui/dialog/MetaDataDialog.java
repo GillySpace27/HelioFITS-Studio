@@ -1,7 +1,6 @@
 package org.helioviewer.jhv.gui.dialog;
 
 import java.awt.Dimension;
-import java.awt.event.ActionEvent;
 import java.io.BufferedWriter;
 import java.net.URI;
 import java.nio.file.Files;
@@ -21,6 +20,7 @@ import javax.swing.table.TableRowSorter;
 
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.gui.CompletionNotifications;
+import org.helioviewer.jhv.gui.ComponentUtils;
 import org.helioviewer.jhv.gui.DesktopIntegration;
 import org.helioviewer.jhv.gui.Interfaces;
 import org.helioviewer.jhv.gui.MainFrame;
@@ -84,12 +84,7 @@ public final class MetaDataDialog extends StandardDialog implements Interfaces.S
 
     @Override
     public ButtonPanel createButtonPanel() {
-        AbstractAction close = new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                setVisible(false);
-            }
-        };
+        AbstractAction close = ComponentUtils.hideAction(this);
         setDefaultAction(close);
         setDefaultCancelAction(close);
 
@@ -148,7 +143,7 @@ public final class MetaDataDialog extends StandardDialog implements Interfaces.S
                 "Observation Date: " + fitsMetadata.getViewpoint().time +
                 (hasSourceUri ? "<br/>" + sourceText : ""));
 
-        Task.submit("metadata", () -> parseMetadata(layer, fitsMetadata), parsed -> applyMetadata(request, parsed), Log::error);
+        Task.submitBackground("metadata", () -> parseMetadata(layer, fitsMetadata), parsed -> applyMetadata(request, parsed), Log::error);
     }
 
     private void applyMetadata(int request, ParsedMetadata parsed) {
@@ -191,7 +186,7 @@ public final class MetaDataDialog extends StandardDialog implements Interfaces.S
         if (xml == null || filename == null)
             return;
 
-        Task.submit("metadata-export", () -> {
+        Task.submitBackground("metadata-export", () -> {
             Path path = Path.of(Directories.EXPORTS.getPath(), filename);
             try (BufferedWriter writer = Files.newBufferedWriter(path)) {
                 writer.write(xml, 0, xml.length());

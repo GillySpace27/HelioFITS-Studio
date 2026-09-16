@@ -16,3 +16,5 @@ resources/kernels/outer_planets_de440s.bsp
 __pycache__/
 *.pyc
 extra/test/.java-bin
+AGENTS.md
+extra/test/out

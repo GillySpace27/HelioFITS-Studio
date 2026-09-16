@@ -5,12 +5,13 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import org.helioviewer.jhv.app.Log;
-import org.helioviewer.jhv.event.JHVEvent;
-import org.helioviewer.jhv.event.SWEK;
+import org.helioviewer.jhv.event.EventMetadata;
 import org.helioviewer.jhv.event.SWEKHandler;
 import org.helioviewer.jhv.event.SWEKSupplier;
+import org.helioviewer.jhv.event.SolarEvent;
 import org.helioviewer.jhv.io.JSONUtils;
 import org.helioviewer.jhv.io.UriTemplate;
 import org.helioviewer.jhv.time.TimeUtils;
@@ -52,7 +53,7 @@ public class FHNWHandler extends SWEKHandler {
                 long archiv = start;
                 String uid = result.getString("granule_uid");
                 try (ByteArrayOutputStream baos = JSONUtils.compressJSON(result)) {
-                    event2dbList.add(new SWEKHandler.RemoteEvent(baos.toByteArray(), start, end, archiv, uid, List.of()));
+                    event2dbList.add(new SWEKHandler.RemoteEvent(baos.toByteArray(), start, end, archiv, uid, Map.of()));
                 }
             } else
                 Log.warn("Inconsistent event parameter list length");
@@ -62,29 +63,27 @@ public class FHNWHandler extends SWEKHandler {
     }
 
     @Override
-    public JHVEvent parseEventJSON(JSONObject json, SWEKSupplier supplier, int id, long start, long end, boolean full) throws JSONException {
-        JHVEvent currentEvent = new JHVEvent(supplier, id, start, end);
-        parseResult(json, currentEvent);
-        currentEvent.finishParams();
-
-        return currentEvent;
+    public SolarEvent parseEventJSON(JSONObject json, SWEKSupplier supplier, int id, long start, long end, boolean full) throws JSONException {
+        EventMetadata.Builder metadata = new EventMetadata.Builder(supplier, true);
+        parseResult(json, metadata);
+        return new SolarEvent(supplier, id, start, end, null, SolarEvent.CMEParameters.DEFAULT, metadata.build());
     }
 
-    private static void parseResult(JSONObject result, JHVEvent currentEvent) throws JSONException {
+    private static void parseResult(JSONObject result, EventMetadata.Builder metadata) throws JSONException {
         Iterator<String> keys = result.keys();
         while (keys.hasNext()) {
             String key = keys.next();
             if (!(key.equals("start_time") || key.equals("end_time"))) { // don't repeat
                 String value = result.optString(key).trim();
                 if (!value.isEmpty()) {
-                    currentEvent.addParameter(key, value, true);
+                    metadata.add(key, value);
                 }
             }
         }
     }
 
     @Override
-    protected URI createURI(SWEKSupplier supplier, long start, long end, List<SWEK.Param> params, int page) throws Exception {
+    protected URI createURI(SWEKSupplier supplier, long start, long end, int page) throws Exception {
         String adql = "SELECT TOP 10 * FROM rhessi_flares.epn_core WHERE" +
                 " start_time >= '" + "2002-01-01T00:00:00" + //TimeUtils.format(start) +
                 "' AND end_time <= '" + TimeUtils.format(end) + "' ORDER BY start_time";

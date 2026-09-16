@@ -184,7 +184,7 @@ class PointCloudOptions extends JPanel {
             return;
         }
         long start = layer.getStartTime(), end = layer.getEndTime();
-        Task.submit("donki", DonkiCone.query(start - DAY_MILLI, end + DAY_MILLI), fits -> {
+        Task.submitBackground("donki", DonkiCone.query(start - DAY_MILLI, end + DAY_MILLI), fits -> {
             if (fits.isEmpty()) {
                 JOptionPane.showMessageDialog(MainFrame.get(),
                         "No DONKI cone fits with a direction and half-angle in that window.",

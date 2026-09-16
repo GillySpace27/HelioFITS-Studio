@@ -2,6 +2,7 @@ package org.helioviewer.jhv.timelines.band;
 
 import java.awt.EventQueue;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 
@@ -17,14 +18,13 @@ import org.json.JSONObject;
 public final class BandImporter {
 
     public static void loadBand(JSONObject jo) {
-        Task.submit("band", new BandLoad(jo), BandImporter::acceptData, BandImporter::onFailure);
+        boolean fullResolution = jo.optBoolean("fullResolution", false);
+        Task.submitBackground("band", new BandLoad(jo), data -> acceptData(data, fullResolution), BandImporter::onFailure);
     }
 
     public static void loadHapi(URI uri) {
-        Task.submit(uri.toString(), () -> BandReaderHapi.readUri(uri), data -> {
-            if (data != null)
-                acceptData(data);
-        }, BandImporter::onFailure);
+        Task.submitBackground(uri.toString(), () -> BandReaderHapi.readUri(uri), BandImporter::acceptData,
+                BandImporter::onFailure);
     }
 
     public static void loadCdf(URI uri) throws Exception {
@@ -36,22 +36,34 @@ public final class BandImporter {
             return;
 
         EventQueue.invokeLater(() -> {
-            bands.forEach(BandImporter::acceptData);
+            acceptData(bands);
             DrawController.setSelectedInterval(dates[0], dates[dates.length - 1]);
         });
     }
 
-    static void acceptData(BandData data) {
-        TimelineLayers layers = Timelines.getLayers();
-        Band band = layers.addBand(data.bandType());
-        boolean hasDataChanged = band.addToCache(data.values(), data.dates());
-        if (hasDataChanged)
-            layers.updateRow(band);
+    private static void acceptData(List<BandData> data) {
+        acceptData(data, false);
     }
 
-    private record BandLoad(JSONObject jo) implements Callable<BandData> {
+    private static void acceptData(List<BandData> data, boolean fullResolution) {
+        if (data.isEmpty())
+            return;
+
+        TimelineLayers layers = Timelines.getLayers();
+        List<Band> bands = layers.addBands(data.stream().map(BandData::bandType).toList(), fullResolution);
+        List<Band> changedBands = new ArrayList<>();
+        for (int i = 0; i < data.size(); i++) {
+            BandData bandData = data.get(i);
+            Band band = bands.get(i);
+            if (band.addToCache(bandData.values(), bandData.dates()))
+                changedBands.add(band);
+        }
+        layers.updateRows(changedBands);
+    }
+
+    private record BandLoad(JSONObject jo) implements Callable<List<BandData>> {
         @Override
-        public BandData call() throws Exception {
+        public List<BandData> call() throws Exception {
             JSONObject bo = jo.optJSONObject("bandType");
             if (bo == null)
                 throw new Exception("Missing bandType: " + jo);
@@ -67,19 +79,19 @@ public final class BandImporter {
                 dates = new long[len];
                 for (int i = 0; i < len; i++) {
                     JSONArray entry = data.getJSONArray(i);
-                    dates[i] = entry.getLong(0) * 1000L;
+                    dates[i] = Math.round(entry.getDouble(0) * 1000);
                     values[i] = (float) (entry.getDouble(1) * multiplier);
                 }
             } else {
                 dates = new long[0];
                 values = new float[0];
             }
-            return new BandData(bandType, dates, values);
+            return List.of(new BandData(bandType, dates, values));
         }
     }
 
-    private static void onFailure(String ignoredLogContext, Throwable t) {
-        Log.error(t);
+    private static void onFailure(String logContext, Throwable t) {
+        Log.error(logContext, t);
     }
 
     private BandImporter() {}

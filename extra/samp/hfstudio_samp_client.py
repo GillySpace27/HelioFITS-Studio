@@ -42,20 +42,7 @@ def movie_commands(path: str, size: str) -> list[dict]:
                 "value": json.dumps({"org.helioviewer.jhv.state": {}}),
             },
         ),
-        # those are global, no need to always set them
-        command(
-            "jhv.view.fits.set",
-            {
-                "value": json.dumps(
-                    {
-                        "clippingMode": "ZScale",
-                        "zContrast": 40,
-                        "scalingMode": "Gamma",
-                        "gamma": 0.4545454545,
-                    }
-                ),
-            },
-        ),
+        # clipping and scaling are per-layer imageParams below, not a global FITS command
         # HelioFITS Studio will recurse if it's a directory
         # use "url": [ as_url("arg1"), as_url("arg2"), ..., ] for multiple arguments
         command(
@@ -67,6 +54,9 @@ def movie_commands(path: str, size: str) -> list[dict]:
                         "opacity": 0.75,
                         "sharpen": 0.2,
                         "enhanced": 1.0,
+                        "clippingMode": "Percentile001",
+                        "scalingMode": "Gamma",
+                        "gamma": 0.4545454545,
                     }
                 ),
             },

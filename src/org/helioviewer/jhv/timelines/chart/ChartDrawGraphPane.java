@@ -4,7 +4,6 @@ import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.GraphicsEnvironment;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
@@ -16,24 +15,26 @@ import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
+import java.util.List;
 
+import javax.annotation.Nullable;
 import javax.swing.JComponent;
 import javax.swing.event.MouseInputListener;
 
-import org.helioviewer.jhv.display.Display;
-import org.helioviewer.jhv.event.JHVEventCache;
+import org.helioviewer.jhv.automation.Track;
+import org.helioviewer.jhv.event.EventCache;
 import org.helioviewer.jhv.gui.UIGlobals;
 import org.helioviewer.jhv.movie.ExportMovie;
+import org.helioviewer.jhv.timelines.AutomationTimelineLayer;
+import org.helioviewer.jhv.timelines.TimelineLayer;
 import org.helioviewer.jhv.timelines.TimelineLayers;
+import org.helioviewer.jhv.timelines.band.Band;
 import org.helioviewer.jhv.timelines.draw.ClickableDrawable;
 import org.helioviewer.jhv.timelines.draw.DrawConstants;
-import javax.annotation.Nullable;
-
-import org.helioviewer.jhv.automation.Track;
-import org.helioviewer.jhv.timelines.AutomationTimelineLayer;
 import org.helioviewer.jhv.timelines.draw.DrawController;
 import org.helioviewer.jhv.timelines.draw.GraphGeometry;
 import org.helioviewer.jhv.timelines.draw.TimeAxis;
+import org.helioviewer.jhv.timelines.radio.RadioData;
 
 @SuppressWarnings("serial")
 final class ChartDrawGraphPane extends JComponent implements MouseInputListener, MouseWheelListener, ComponentListener, DrawController.Listener {
@@ -52,6 +53,7 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
             () -> screenImage == null ? null : new ExportMovie.TimelineFrame(screenImage, DrawController.getMovieLinePosition());
 
     private final TimelineLabelPainter labelPainter = new TimelineLabelPainter();
+    private final List<TimelineLayer> layers = TimelineLayers.get();
     private Point mousePosition;
 
     private boolean redrawGraphArea;
@@ -70,7 +72,7 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
         // The graph is painted once into an offscreen image and reused until something dirties it.
         // A theme switch changes every colour it was painted with and dirties nothing, so the old
         // theme's pixels survived into the new one until the next pan, zoom or frame change.
-        org.helioviewer.jhv.gui.UIGlobals.themed(this, c -> drawRequest());
+        UIGlobals.themed(this, c -> drawRequest());
         DrawController.setGraphSize(getWidth(), getHeight());
 
         // Same trim keys as the top scrubber: click the timeline to move the playhead to (say) an
@@ -89,7 +91,7 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
 
         // Show the crop cursor the instant Option is pressed while hovering, not just once the
         // mouse next moves. WHEN_IN_FOCUSED_WINDOW so it fires regardless of which component has
-        // keyboard focus — purely visual, so it's safe to bind window-wide.
+        // keyboard focus; purely visual, so it's safe to bind window-wide.
         getInputMap(WHEN_IN_FOCUSED_WINDOW).put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ALT, 0, false), "altDown");
         getInputMap(WHEN_IN_FOCUSED_WINDOW).put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ALT, 0, true), "altUp");
         getActionMap().put("altDown", new javax.swing.AbstractAction() {
@@ -137,22 +139,22 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
     protected void paintComponent(Graphics g1) {
         super.paintComponent(g1);
         GraphGeometry geometry = DrawController.getGeometry();
+        Graphics2D g = (Graphics2D) g1;
 
         if (redrawGraphArea) {
             redrawGraphArea = false;
-            redrawGraph(geometry);
+            redrawGraph(g, geometry);
         }
 
-        Graphics2D g = (Graphics2D) g1;
         if (screenImage != null) {
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             g.drawImage(screenImage, 0, 0, getWidth(), getHeight(), null);
             drawMovieLine(g);
             drawMovieEndpoints(g);
-            labelPainter.drawMouseValues(g, geometry, DrawController.selectedAxis, mousePosition);
+            labelPainter.drawMouseValues(g, geometry, DrawController.selectedAxis, mousePosition, layers);
         }
-        if (TimelineLayers.get().isEmpty())
+        if (layers.isEmpty())
             drawEmptyState(g1);
     }
 
@@ -165,15 +167,15 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
         g1.drawString(text, (getWidth() - fm.stringWidth(text)) / 2, getHeight() / 2);
     }
 
-    private void redrawGraph(GraphGeometry geometry) {
-        Rectangle graphArea = geometry.area();
+    private void redrawGraph(Graphics2D target, GraphGeometry geometry) {
         Rectangle graphSize = geometry.size();
-        double sx = Display.pixelScale[0], sy = Display.pixelScale[1];
+        AffineTransform targetTransform = target.getTransform();
+        double sx = targetTransform.getScaleX(), sy = targetTransform.getScaleY();
         int width = (int) (sx * graphSize.getWidth() + .5);
         int height = (int) (sy * graphSize.getHeight() + .5);
 
         if (screenImage == null || width != screenImage.getWidth() || height != screenImage.getHeight()) {
-            screenImage = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration().createCompatibleImage(width, height, Transparency.OPAQUE);
+            screenImage = target.getDeviceConfiguration().createCompatibleImage(width, height, Transparency.OPAQUE);
         }
 
         Graphics2D fullG = screenImage.createGraphics();
@@ -182,15 +184,49 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
         fullG.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         fullG.setTransform(AffineTransform.getScaleInstance(sx, sy));
 
-        Graphics2D plotG = (Graphics2D) fullG.create();
-        plotG.setClip(graphArea);
-        plotG.setFont(DrawConstants.font);
-        TimeAxis xAxis = DrawController.selectedAxis;
-        TimelineLayers.draw(plotG, graphArea, xAxis, mousePosition);
-        labelPainter.drawStaticLabels(fullG, geometry, xAxis);
-
-        plotG.dispose();
+        drawChart(fullG, geometry, DrawController.selectedAxis);
         fullG.dispose();
+    }
+
+    private void drawChart(Graphics2D g, GraphGeometry geometry, TimeAxis timeAxis) {
+        Rectangle graphArea = geometry.area();
+        g.setFont(DrawConstants.font);
+        // Radio fills its plot area. Put the grid over it, then paint foreground data.
+        for (TimelineLayer layer : layers) {
+            if (layer instanceof RadioData && layer.isEnabled()) {
+                Rectangle area = geometry.getLayerArea(layer);
+                if (area != null) {
+                    g.setClip(area);
+                    layer.draw(g, area, timeAxis, mousePosition);
+                }
+            }
+        }
+        g.setClip(null);
+        labelPainter.drawStaticLabels(g, geometry, timeAxis);
+
+        boolean stackedMode = geometry.isStacked();
+        boolean warningBandDrawn = false;
+
+        for (TimelineLayer layer : layers) {
+            if (!layer.isEnabled() || layer instanceof RadioData)
+                continue;
+
+            Rectangle area = graphArea;
+            if (layer.getYAxis() != null) {
+                area = geometry.getLayerArea(layer);
+                if (area == null)
+                    continue;
+            }
+
+            g.setClip(area);
+            if (layer instanceof Band band) {
+                boolean drawWarnings = stackedMode || !warningBandDrawn;
+                warningBandDrawn |= band.hasWarningLevels();
+                band.draw(g, area, drawWarnings);
+            } else {
+                layer.draw(g, area, timeAxis, mousePosition);
+            }
+        }
     }
 
     private static void drawBackground(Graphics2D g, int width, int height) {
@@ -209,7 +245,7 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
 
     // Mark the movie's trim (in/out) points as vertical guides with handle triangles, shading the
     // trimmed-away regions. Same playback range as the top scrubber, so trimming from either shows
-    // here. Toggled by the "Ends" button.
+    // here. Toggled by the "Trim" button.
     private static void drawMovieEndpoints(Graphics2D g) {
         if (!DrawController.isShowMovieEndpoints())
             return;
@@ -217,8 +253,8 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
         long outTime = org.helioviewer.jhv.movie.Player.getPlaybackLastTime();
         if (outTime <= inTime)
             return;
-        java.awt.Rectangle area = DrawController.getGeometry().area();
-        org.helioviewer.jhv.timelines.draw.TimeAxis.Mapper m = DrawController.selectedAxis.mapper(area.x, area.width);
+        Rectangle area = DrawController.getGeometry().area();
+        TimeAxis.Mapper m = DrawController.selectedAxis.mapper(area.x, area.width);
         int h = DrawController.getGeometry().size().height;
         int xIn = m.toPixel(inTime);
         int xOut = m.toPixel(outTime);
@@ -262,7 +298,7 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
             return;
         }
 
-        ClickableDrawable element = TimelineLayers.getDrawableUnderMouse();
+        ClickableDrawable element = getDrawableUnderMouse();
         if (element != null) {
             element.clicked(e.getLocationOnScreen(), DrawController.getGeometry().xMapper(DrawController.selectedAxis).toValue(p.x));
         } else {
@@ -275,7 +311,7 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
 
     @Override
     public void mouseExited(MouseEvent e) {
-        JHVEventCache.highlight(null);
+        EventCache.highlight(null);
         mousePosition = null;
         if (!DrawController.getGeometry().isStacked() && DrawController.setYAxisHighlight(null)) {
             drawRequest();
@@ -353,8 +389,8 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
 
     // True if x is nearer the current out-point than the in-point.
     private static boolean nearerToTrimEnd(int x) {
-        java.awt.Rectangle area = DrawController.getGeometry().area();
-        org.helioviewer.jhv.timelines.draw.TimeAxis.Mapper m = DrawController.selectedAxis.mapper(area.x, area.width);
+        Rectangle area = DrawController.getGeometry().area();
+        TimeAxis.Mapper m = DrawController.selectedAxis.mapper(area.x, area.width);
         int xIn = m.toPixel(org.helioviewer.jhv.movie.Player.getPlaybackFirstTime());
         int xOut = m.toPixel(org.helioviewer.jhv.movie.Player.getPlaybackLastTime());
         return Math.abs(x - xOut) <= Math.abs(x - xIn);
@@ -362,8 +398,8 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
 
     // Set the trim in/out (whichever this drag owns) to the frame nearest the cursor time.
     private void setTrimAt(int x) {
-        java.awt.Rectangle area = DrawController.getGeometry().area();
-        org.helioviewer.jhv.timelines.draw.TimeAxis.Mapper m = DrawController.selectedAxis.mapper(area.x, area.width);
+        Rectangle area = DrawController.getGeometry().area();
+        TimeAxis.Mapper m = DrawController.selectedAxis.mapper(area.x, area.width);
         long t = m.toValue(Math.clamp(x, area.x, area.x + area.width));
         int frame = org.helioviewer.jhv.movie.Player.frameForTime(t);
         org.helioviewer.jhv.app.state.ViewState.PlaybackData d = org.helioviewer.jhv.app.state.ViewState.playbackData();
@@ -433,10 +469,11 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
     @Override
     public void mouseMoved(MouseEvent e) {
         mousePosition = e.getPoint();
+        boolean eventHighlightChanged = highlightChanged(mousePosition);
 
         GraphGeometry geometry = DrawController.getGeometry();
         if (e.isAltDown()) {
-            // Option held anywhere over the timeline: crop cursor, matching the top scrubber — the
+            // Option held anywhere over the timeline: crop cursor, matching the top scrubber. The
             // same trim gesture (Option-drag) works here.
             setCursor(org.helioviewer.jhv.gui.component.TrimCursor.get());
         } else if (overMovieLine(mousePosition)) {
@@ -444,7 +481,7 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
         } else if (AutomationTimelineLayer.hitTest(mousePosition) != null) {
             // The only thing that says a curve is grabbable before you try to grab it.
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        } else if (TimelineLayers.getDrawableUnderMouse() != null) {
+        } else if (getDrawableUnderMouse() != null) {
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         } else if (geometry.area().contains(mousePosition)) {
             setCursor(e.isShiftDown() ? UIGlobals.openHandCursor : Cursor.getDefaultCursor()); // the hand means pan, which is Shift
@@ -452,22 +489,12 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
             setCursor(Cursor.getDefaultCursor());
         }
 
-        if (geometry.isStacked()) {
-            boolean eventHighlightChanged = TimelineLayers.highlightChanged(mousePosition);
-            if (eventHighlightChanged) {
-                drawRequest();
-            } else {
-                repaint();
-            }
-        } else {
-            boolean axisHighlightChanged = DrawController.setYAxisHighlight(geometry.yAxisHit(mousePosition));
-            boolean eventHighlightChanged = TimelineLayers.highlightChanged(mousePosition);
-            if (axisHighlightChanged || eventHighlightChanged) {
-                drawRequest();
-            } else {
-                repaint();
-            }
-        }
+        boolean axisHighlightChanged = !geometry.isStacked()
+                && DrawController.setYAxisHighlight(geometry.yAxisHit(mousePosition));
+        if (axisHighlightChanged || eventHighlightChanged)
+            drawRequest();
+        else
+            repaint();
     }
 
     @Override
@@ -476,6 +503,25 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
             int scrollDistance = e.getWheelRotation() * e.getScrollAmount();
             DrawController.zoomXY(e.getPoint(), scrollDistance, e.isShiftDown(), e.isAltDown(), e.isControlDown());
         }
+    }
+
+    @Nullable
+    private ClickableDrawable getDrawableUnderMouse() {
+        for (TimelineLayer layer : layers) {
+            if (!layer.isEnabled())
+                continue;
+            ClickableDrawable drawable = layer.getDrawableUnderMouse();
+            if (drawable != null)
+                return drawable;
+        }
+        return null;
+    }
+
+    private boolean highlightChanged(Point p) {
+        boolean changed = false;
+        for (TimelineLayer layer : layers)
+            changed = layer.highlightChanged(p) || changed;
+        return changed;
     }
 
     @Override

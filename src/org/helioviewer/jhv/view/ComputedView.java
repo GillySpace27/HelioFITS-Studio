@@ -113,7 +113,7 @@ public final class ComputedView implements View {
             return;
         int n = wrapped.getMaximumFrameNumber() + 1;
         int start = wrapped.getCurrentFrameNumber();
-        Task.submit("fourier preview sweep", () -> {
+        Task.submitBackground("fourier preview sweep", () -> {
                     for (int i = 0; i < n; i++) {
                         int frame = (start + i) % n;
                         if (previewGeneration != generation || Thread.currentThread().isInterrupted())
@@ -193,7 +193,7 @@ public final class ComputedView implements View {
         // glyph now, with no room to write a number in, and the status line is already the place
         // this layer says what it is busy with.
         fromCache = false;
-        future = Task.submit("sequence filter", () -> {
+        future = Task.submitBackground("sequence filter", () -> {
                     // The same filter over the same frames has been run before: map its files
                     // instead of computing again. See ComputedCache for what the key covers.
                     ComputedCache.Hit hit = ComputedCache.load(wrapped, params);
@@ -251,7 +251,7 @@ public final class ComputedView implements View {
     }
 
     @Override
-    public void decode(Position viewpoint, double pixFactor, float factor) {
+    public void decode(Position viewpoint, double pixFactor, float factor, @Nullable ClipSet.Range clipRange) {
         int frame = wrapped.getCurrentFrameNumber();
         DecodedImage live = previewSource == null ? null : previewFrames.get(frame);
         if (live != null) {
@@ -280,7 +280,7 @@ public final class ComputedView implements View {
                         filtering.remove(frame);
                     } else {
                         MetaData meta = wrapped.getMetaData(wrapped.getFrameTime(frame));
-                        Task.submit("sequence filter " + filter, () -> filtered(plain, filter, meta),
+                        Task.submitBackground("sequence filter " + filter, () -> filtered(plain, filter, meta),
                                 result -> {
                                     filtering.remove(frame);
                                     if (wrapped.getFilter() == filter) { // not changed in flight
@@ -299,7 +299,7 @@ public final class ComputedView implements View {
             publish(image, frame, viewpoint);
             return;
         }
-        wrapped.decode(viewpoint, pixFactor, factor);
+        wrapped.decode(viewpoint, pixFactor, factor, clipRange);
     }
 
     private void publish(DecodedImage image, int frame, Position viewpoint) {
@@ -376,6 +376,17 @@ public final class ComputedView implements View {
     @Override
     public void setRange(double min, double max) {
         wrapped.setRange(min, max);
+    }
+
+    @Nullable
+    @Override
+    public ClipSet getClipSet() {
+        return wrapped.getClipSet();
+    }
+
+    @Override
+    public boolean hasFITS() {
+        return wrapped.hasFITS();
     }
 
     @Override

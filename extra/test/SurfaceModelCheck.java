@@ -8,7 +8,7 @@ import org.helioviewer.jhv.math.Vec3;
 // across a wide field.
 //
 // This checks the Java side against closed-form geometry. It does NOT check that the GLSL twin in
-// resources/glsl/solarCommon.frag agrees numerically -- that needs a GPU and is covered by the
+// resources/glsl/imageCommon.frag agrees numerically -- that needs a GPU and is covered by the
 // pixel-diff regression once the mesh path exists. Keep the two edited together.
 public final class SurfaceModelCheck {
 

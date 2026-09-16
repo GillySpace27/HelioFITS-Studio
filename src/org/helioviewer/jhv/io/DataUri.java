@@ -18,22 +18,30 @@ public class DataUri {
     private static final Tika tika = new Tika();
 
     /**
-     * @param name the name the resource has at its source, not the cached file's
+     * @param sourceUri the URI the resource has at its source, not the cached file's path
      *
-     * <p>The distinction is the whole point. Tika reports a gzipped FITS as gzip, so the extension
-     * is what rescues it, and the cached copy of a download is named by hash with no extension at
+     * <p>The distinction is the whole point. Tika reports a gzipped FITS as gzip, so the name is
+     * what rescues it, and the cached copy of a download is named by hash with no extension at
      * all: testing the cached path meant every remote {@code .fits.gz} was Unknown while the same
      * file opened locally was fine. That is every SUVI frame, which NOAA serves gzipped.
      *
      * <p>The content check behind it covers a server that does not say gz in the name.
      */
-    private static Format detect(File file, String name) throws IOException {
-        String lower = name.toLowerCase(Locale.US);
-        if (lower.endsWith(".fits.gz") || lower.endsWith(".fts.gz"))
-            return Format.Image.FITS;
+    private static Format detect(URI sourceUri, File file) throws IOException {
+        String sourcePath = sourceUri.getPath();
+        if (sourcePath != null) {
+            sourcePath = sourcePath.toLowerCase(Locale.US);
+            boolean gzip = sourcePath.endsWith(".gz");
+            if (gzip)
+                sourcePath = sourcePath.substring(0, sourcePath.length() - 3);
+            if (gzip && (sourcePath.endsWith(".fits") || sourcePath.endsWith(".fts")))
+                return Format.FITS;
+            if (sourcePath.endsWith(".gltf") || sourcePath.endsWith(".glb"))
+                return Format.GLTF;
+        }
 
         Format format = getFormat(tika.detect(file));
-        return format == Format.Unknown.UNKNOWN && isGzippedFits(file) ? Format.Image.FITS : format;
+        return format == Format.UNKNOWN && isGzippedFits(file) ? Format.FITS : format;
     }
 
     /** Every FITS begins with the SIMPLE keyword, so one decompressed read settles it. */
@@ -46,29 +54,23 @@ public class DataUri {
     }
 
     private static final Map<String, Format> map = Map.of(
-            "application/x-jpp-stream", Format.Image.JPIP,
-            "image/jp2", Format.Image.JP2,
-            "image/jpx", Format.Image.JPX,
-            "application/fits", Format.Image.FITS,
-            "image/png", Format.Image.PNG,
-            "image/jpeg", Format.Image.JPEG,
-            "application/zip", Format.Image.ZIP,
-            "application/x-netcdf", Format.Timeline.CDF,
-            "text/csv", Format.Timeline.CSV
+            "application/x-jpp-stream", Format.JPIP,
+            "image/jp2", Format.JP2,
+            "image/jpx", Format.JPX,
+            "application/fits", Format.FITS,
+            "image/png", Format.PNG,
+            "image/jpeg", Format.JPEG,
+            "application/zip", Format.ZIP,
+            "application/x-netcdf", Format.CDF,
+            "text/csv", Format.CSV
     );
 
     private static Format getFormat(String spec) {
         Format f = map.get(spec);
-        return f == null ? Format.Unknown.UNKNOWN : f;
+        return f == null ? Format.UNKNOWN : f;
     }
 
-    public interface Format {
-        enum Unknown implements Format {UNKNOWN}
-
-        enum Image implements Format {JPIP, JP2, JPX, FITS, PNG, JPEG, ZIP}
-
-        enum Timeline implements Format {CDF, CSV}
-    }
+    public enum Format {UNKNOWN, JPIP, JP2, JPX, FITS, PNG, JPEG, ZIP, GLTF, CDF, CSV}
 
     private final URI sourceUri;
     private final URI uri;
@@ -81,7 +83,7 @@ public class DataUri {
         uri = cachedUri;
         file = _file;
         baseName = FilenameUtils.getName(originalUri.toString());
-        format = file == null ? Format.Image.JPIP : detect(file, baseName); // JPIP not backed by file
+        format = file == null ? Format.JPIP : detect(originalUri, file); // JPIP not backed by file
     }
 
     public URI sourceUri() {

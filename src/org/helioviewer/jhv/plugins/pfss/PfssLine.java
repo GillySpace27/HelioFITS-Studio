@@ -29,6 +29,21 @@ class PfssLine {
         return (byte) ((from & 0xFF) + t * ((to & 0xFF) - (from & 0xFF)));
     }
 
+    static int vertexCount(PfssLoader.Data data, int detail) {
+        int points = data.points();
+        int lines = data.lineX().length / points;
+        int selectedLines = 0;
+        for (int line = 0; line < lines; line++) {
+            if (included(line, detail))
+                selectedLines++;
+        }
+        return selectedLines * (points + 2);
+    }
+
+    private static boolean included(int line, int detail) {
+        return line % (PfssSettings.MAX_DETAIL + 1) <= detail;
+    }
+
     static void calculatePositions(PfssLoader.Data data, int detail, boolean fixedColor, double radius, boolean whiteBackground, BufVertex vexBuf) {
         float[] lineX = data.lineX();
         float[] lineY = data.lineY();
@@ -42,7 +57,7 @@ class PfssLine {
         byte[] brightColor = new byte[4];
 
         for (int j = 0; j < nlines; j++) {
-            if (j % (PfssSettings.MAX_DETAIL + 1) <= detail) {
+            if (included(j, detail)) {
                 for (int i = 0; i < points; i++) {
                     int idx = j * points + i;
                     float x = lineX[idx];
@@ -51,11 +66,10 @@ class PfssLine {
                     double r = Math.sqrt(x * x + y * y + z * z);
 
                     float b = lineS[idx]; // this can be index in LUT
-                    computeBrightColor(b, whiteBackground, brightColor);
+                    if (!fixedColor)
+                        computeBrightColor(b, whiteBackground, brightColor);
 
                     if (i == 0) {
-                        vexBuf.putVertex(x, z, -y, 1, Colors.Null);
-
                         if (fixedColor) {
                             int idxLast = j * points + points - 1;
                             float xo = lineX[idxLast];
@@ -73,10 +87,13 @@ class PfssLine {
                         }
                     }
 
-                    vexBuf.putVertex(x, z, -y, 1, r > radius ? Colors.Null : (fixedColor ? oneColor : brightColor));
-                    if (i == points - 1) {
-                        vexBuf.repeatVertex(Colors.Null);
-                    }
+                    byte[] color = r > radius ? Colors.Null : (fixedColor ? oneColor : brightColor);
+                    if (i == 0)
+                        vexBuf.startLine(x, z, -y, 1, color);
+                    else
+                        vexBuf.putVertex(x, z, -y, 1, color);
+                    if (i == points - 1)
+                        vexBuf.endLine();
                 }
             }
         }

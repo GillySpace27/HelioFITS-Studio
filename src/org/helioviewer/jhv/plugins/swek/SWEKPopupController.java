@@ -3,27 +3,26 @@ package org.helioviewer.jhv.plugins.swek;
 import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Point;
+import java.util.ArrayList;
 import java.util.List;
 
+import javax.annotation.Nullable;
+
 import org.helioviewer.jhv.astronomy.Position;
-import org.helioviewer.jhv.astronomy.Sun;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.MapScale;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
-import org.helioviewer.jhv.event.JHVEvent;
-import org.helioviewer.jhv.event.JHVEventCache;
-import org.helioviewer.jhv.event.JHVPositionInformation;
-import org.helioviewer.jhv.event.JHVRelatedEvents;
+import org.helioviewer.jhv.event.EventCache;
+import org.helioviewer.jhv.event.EventGeometry;
+import org.helioviewer.jhv.event.RelatedEvents;
+import org.helioviewer.jhv.event.SolarEvent;
 import org.helioviewer.jhv.event.info.SWEKEventInformationDialog;
 import org.helioviewer.jhv.gui.AwtInputAdapter;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.input.InputController;
-import org.helioviewer.jhv.input.InputPointerListener;
-import org.helioviewer.jhv.input.InputPointerMotionListener;
+import org.helioviewer.jhv.input.InputMouseListener;
 import org.helioviewer.jhv.input.PointerEvent;
-import javax.annotation.Nullable;
-
 import org.helioviewer.jhv.math.MathUtils;
 import org.helioviewer.jhv.math.PolarBasis;
 import org.helioviewer.jhv.math.Quat;
@@ -31,11 +30,14 @@ import org.helioviewer.jhv.math.Vec2;
 import org.helioviewer.jhv.math.Vec3;
 import org.helioviewer.jhv.opengl.GLRenderer;
 
-class SWEKPopupController implements InputPointerListener, InputPointerMotionListener {
+class SWEKPopupController implements InputMouseListener {
 
     private static final Cursor helpCursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR);
     private static final int xOffset = 12;
     private static final int yOffset = 12;
+
+    private static final double ANGLE_PAD_DEG = 3; // grace either side of the wedge's angular span
+    private static final double RADIUS_PAD = 0.4;  // grace either side of its radial span, in Rsun
 
     private final SWEKContext swekContext = new SWEKContext();
     private SWEKLayer layer;
@@ -127,13 +129,13 @@ class SWEKPopupController implements InputPointerListener, InputPointerMotionLis
     @Override
     public void mouseClicked(PointerEvent e) {
         // Single click selects the wedge under the cursor: the selection IS the global highlight, so
-        // it stays bold on the canvas and stays linked to the Track-CME dialog row and the timeline
-        // bar (all keyed off isHighlighted). Clicking empty space clears the selection. Hover no
-        // longer drives the highlight — only the click does — so a selection survives mouse movement.
-        // The details popup is reserved for a DOUBLE click, so browsing wedges stays quiet.
-        JHVRelatedEvents mouseOverJHVEvent = swekContext.mouseOverJHVEvent();
-        JHVEventCache.highlight(mouseOverJHVEvent);
-        if (mouseOverJHVEvent == null)
+        // it stays bold on the canvas and stays linked to the Track-CME row and the timeline bar
+        // (all keyed off isHighlighted). Clicking empty space clears the selection. Hover no longer
+        // drives the highlight, only the click does, so a selection survives mouse movement. The
+        // details popup is reserved for a DOUBLE click, so browsing wedges stays quiet.
+        RelatedEvents mouseOverEvents = swekContext.mouseOverEvents();
+        EventCache.highlight(mouseOverEvents);
+        if (mouseOverEvents == null)
             return;
 
         Component canvas = component();
@@ -141,7 +143,7 @@ class SWEKPopupController implements InputPointerListener, InputPointerMotionLis
         if (e.clickCount() < 2)
             return;
 
-        SWEKEventInformationDialog hekPopUp = new SWEKEventInformationDialog(mouseOverJHVEvent, mouseOverJHVEvent.getClosestTo(swekContext.mouseOverTime()));
+        SWEKEventInformationDialog hekPopUp = new SWEKEventInformationDialog(mouseOverEvents, mouseOverEvents.getClosestTo(swekContext.mouseOverTime()));
         hekPopUp.pack();
         hekPopUp.setLocation(calcWindowPosition(canvas, AwtInputAdapter.toAwtPoint(e), hekPopUp.getWidth(), hekPopUp.getHeight()));
         hekPopUp.setVisible(true);
@@ -152,29 +154,18 @@ class SWEKPopupController implements InputPointerListener, InputPointerMotionLis
         clearHoverPreview(); // leaving the canvas keeps the selection
     }
 
-    // Full teardown: drop the hover tooltip and the selection. Used when the layer is disabled/removed.
+    // Full teardown: drop the hover tooltip and the selection. Used when the layer is disabled or removed.
     void resetHover() {
         swekContext.clearHover();
-        JHVEventCache.highlight(null);
+        EventCache.highlight(null);
         component().setCursor(lastCursor != null ? lastCursor : Cursor.getDefaultCursor());
     }
 
-    // Mouse moved off the events (or left the canvas): drop the hover tooltip/cursor but keep the
-    // clicked selection highlighted.
+    // Mouse moved off the events (or left the canvas): drop the hover tooltip and cursor but keep
+    // the clicked selection highlighted.
     private void clearHoverPreview() {
         swekContext.clearHover();
         component().setCursor(lastCursor != null ? lastCursor : Cursor.getDefaultCursor());
-    }
-
-    private static final double DIST_SUN_BEGIN = 2.4; // inner edge of a CACTus wedge, matches SWEKLayer
-    private static final double ANGLE_PAD_DEG = 3;    // grace either side of the wedge's angular span
-    private static final double RADIUS_PAD = 0.4;     // grace either side of its radial span, in Rsun
-
-    private static double computeDistSun(JHVEvent evt, long currentTime) {
-        double speed = SWEKData.readCMESpeed(evt);
-        double distSun = DIST_SUN_BEGIN;
-        distSun += speed * (currentTime - evt.start) / Sun.RadiusMeter;
-        return distSun;
     }
 
     // Mouse position expressed as (position angle in degrees, radial distance in Rsun) for the warp
@@ -191,13 +182,14 @@ class SWEKPopupController implements InputPointerListener, InputPointerMotionLis
 
     // Angular separation from the wedge's principal angle, or NaN when the mouse is outside the
     // wedge entirely. Smaller = deeper inside, which is how overlapping wedges are ranked.
-    private static double wedgeMiss(JHVEvent evt, long currentTime, Vec2 polar) {
-        double halfWidth = SWEKData.readCMEAngularWidthDegree(evt) / 2;
-        double distSun = computeDistSun(evt, currentTime);
-        if (polar.y < DIST_SUN_BEGIN - RADIUS_PAD || polar.y > distSun + RADIUS_PAD)
+    private static double wedgeMiss(SolarEvent evt, long currentTime, Vec2 polar) {
+        SolarEvent.CMEParameters cme = evt.getCMEParameters();
+        double halfWidth = cme.angularWidthDegree() / 2;
+        double distSun = SWEKData.cactusDistance(evt, currentTime);
+        if (polar.y < SWEKData.CACTUS_START_RADIUS - RADIUS_PAD || polar.y > distSun + RADIUS_PAD)
             return Double.NaN;
         // shortest signed separation, wrap-safe
-        double delta = Math.abs(MathUtils.mapTo0To360(polar.x - SWEKData.readCMEPrincipalAngleDegree(evt) + 180) - 180);
+        double delta = Math.abs(MathUtils.mapTo0To360(polar.x - cme.principalAngleDegree() + 180) - 180);
         return delta > halfWidth + ANGLE_PAD_DEG ? Double.NaN : delta;
     }
 
@@ -207,11 +199,11 @@ class SWEKPopupController implements InputPointerListener, InputPointerMotionLis
         long currentTime = viewpoint.time.milli;
         // Same set the layer draws: events live at this time, plus the extended fronts propagated
         // past their catalog window. Without the latter a wedge stays on screen but stops being
-        // selectable the moment it leaves the catalog — which is when its icon changes too.
-        List<JHVRelatedEvents> activeEvents = JHVEventCache.getEvents(currentTime, currentTime);
-        List<JHVRelatedEvents> extended = layer == null ? List.of() : layer.propagatingNow(currentTime);
+        // selectable the moment it leaves the catalog, which is when its icon changes too.
+        List<SWEKLayer.ActiveEvent> activeEvents = layer.activeEvents(currentTime);
+        List<SWEKLayer.ActiveEvent> extended = layer.propagatingNow(currentTime);
         if (!extended.isEmpty()) {
-            List<JHVRelatedEvents> both = new java.util.ArrayList<>(activeEvents.size() + extended.size());
+            List<SWEKLayer.ActiveEvent> both = new ArrayList<>(activeEvents.size() + extended.size());
             both.addAll(activeEvents);
             both.addAll(extended);
             activeEvents = both;
@@ -226,34 +218,34 @@ class SWEKPopupController implements InputPointerListener, InputPointerMotionLis
 
         Viewport vp = Display.getActiveViewport();
         MapView mv = GLRenderer.getMapView();
-        JHVRelatedEvents mouseOverJHVEvent = mv.rendersIn3D()
+        RelatedEvents mouseOverEvents = mv.rendersIn3D()
                 ? findOrthographicEvent(activeEvents, currentTime, mv.mouseToSurface(vp, mouseOverX, mouseOverY), mv.mouseToPlane(vp, mouseOverX, mouseOverY))
                 : findProjectedEvent(activeEvents, currentTime, mv, vp, mv.mouseToScreen(vp, mouseOverX, mouseOverY));
 
-        swekContext.setMouseOver(mouseOverX, mouseOverY, currentTime, mouseOverJHVEvent);
+        swekContext.setMouseOver(mouseOverX, mouseOverY, currentTime, mouseOverEvents);
         Component canvas = component();
         Cursor cursor = canvas.getCursor();
         if (helpCursor != cursor)
             lastCursor = cursor;
 
-        if (mouseOverJHVEvent != null) {
+        if (mouseOverEvents != null) {
             canvas.setCursor(helpCursor);
         } else {
             canvas.setCursor(lastCursor != null ? lastCursor : Cursor.getDefaultCursor());
         }
     }
 
-    private static JHVRelatedEvents findOrthographicEvent(List<JHVRelatedEvents> activeEvents, long currentTime, Vec3 sphereHitpoint, Vec3 planeHitpoint) {
-        for (JHVRelatedEvents evtr : activeEvents) {
-            JHVEvent evt = evtr.getClosestTo(currentTime);
-            JHVPositionInformation pi = evt.getPositionInformation();
+    private static RelatedEvents findOrthographicEvent(List<SWEKLayer.ActiveEvent> activeEvents, long currentTime, Vec3 sphereHitpoint, Vec3 planeHitpoint) {
+        for (SWEKLayer.ActiveEvent active : activeEvents) {
+            SolarEvent evt = active.event();
+            EventGeometry pi = evt.getPositionInformation();
             if (pi == null)
                 continue;
 
             Vec3 hitpoint, pt;
             if (evt.isCactus()) {
-                double principalAngle = Math.toRadians(SWEKData.readCMEPrincipalAngleDegree(evt));
-                double distSun = computeDistSun(evt, currentTime);
+                double principalAngle = Math.toRadians(evt.getCMEParameters().principalAngleDegree());
+                double distSun = SWEKData.cactusDistance(evt, currentTime);
                 Quat q = pi.getEarth().toQuat();
                 pt = q.rotateInverseVector(PolarBasis.vec3(distSun, principalAngle));
                 hitpoint = planeHitpoint == null ? null : q.rotateInverseVector(planeHitpoint);
@@ -267,32 +259,32 @@ class SWEKPopupController implements InputPointerListener, InputPointerMotionLis
                 double deltaY = Math.abs(hitpoint.y - pt.y);
                 double deltaZ = Math.abs(hitpoint.z - pt.z);
                 if (deltaX < 0.08 && deltaZ < 0.08 && deltaY < 0.08)
-                    return evtr;
+                    return active.relatedEvents();
             }
         }
         return null;
     }
 
-    private static JHVRelatedEvents findProjectedEvent(List<JHVRelatedEvents> activeEvents, long currentTime, MapView mv, Viewport vp, Vec2 mousePosition) {
+    private static RelatedEvents findProjectedEvent(List<SWEKLayer.ActiveEvent> activeEvents, long currentTime, MapView mv, Viewport vp, Vec2 mousePosition) {
         MapScale scale = mv.scale(vp);
         Vec2 polar = mouseToPolar(mv, vp, scale, mousePosition);
-        JHVRelatedEvents bestWedge = null;
+        RelatedEvents bestWedge = null;
         double bestMiss = Double.MAX_VALUE;
 
-        for (JHVRelatedEvents evtr : activeEvents) {
-            JHVEvent evt = evtr.getClosestTo(currentTime);
-            JHVPositionInformation pi = evt.getPositionInformation();
+        for (SWEKLayer.ActiveEvent active : activeEvents) {
+            SolarEvent evt = active.event();
+            EventGeometry pi = evt.getPositionInformation();
             if (pi == null)
                 continue;
 
             // A CACTus wedge is selectable anywhere inside the region it spans, not just at its
-            // front point — the old point test meant hitting a ~0.02 box on a wedge tens of
-            // degrees wide. When wedges overlap, the one we are deepest inside wins.
+            // front point: the old point test meant hitting a ~0.02 box on a wedge tens of degrees
+            // wide. When wedges overlap, the one we are deepest inside wins.
             if (evt.isCactus() && polar != null) {
                 double miss = wedgeMiss(evt, currentTime, polar);
                 if (!Double.isNaN(miss) && miss < bestMiss) {
                     bestMiss = miss;
-                    bestWedge = evtr;
+                    bestWedge = active.relatedEvents();
                 }
                 continue;
             }
@@ -303,7 +295,7 @@ class SWEKPopupController implements InputPointerListener, InputPointerMotionLis
                 double deltaX = Math.abs(tf.x - mousePosition.x);
                 double deltaY = Math.abs(tf.y - mousePosition.y);
                 if (deltaX < 0.02 && deltaY < 0.02)
-                    return evtr;
+                    return active.relatedEvents();
             }
         }
         return bestWedge;

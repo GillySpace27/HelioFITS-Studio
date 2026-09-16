@@ -1,6 +1,7 @@
 package org.helioviewer.jhv.display.interaction;
 
-import org.helioviewer.jhv.astronomy.Sun;
+import javax.annotation.Nullable;
+
 import org.helioviewer.jhv.display.Camera;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.Viewport;
@@ -13,13 +14,14 @@ final class InteractionTrackball extends Interaction.Type {
 
     private enum Constraint {NONE, AXIS}
 
-    final Camera camera;
+    private final Camera camera;
     private final Constraint constraint;
-    private double trackballRadius2 = Sun.Radius2;
-    private Vec3 dragAxis = Vec3.YAxis; // cached drag axis
+    @Nullable
+    private Vec3 axisOverride;
+    private double trackballRadius2;
+    private Vec3 defaultAxis;
     private int lastMouseX;
     private int lastMouseY;
-    private boolean dragStartSet; // avoid freak mouseDragged before mousePressed
 
     private InteractionTrackball(Camera _camera, Constraint _constraint) {
         camera = _camera;
@@ -34,33 +36,31 @@ final class InteractionTrackball extends Interaction.Type {
         return new InteractionTrackball(camera, Constraint.AXIS);
     }
 
+    void setAxisOverride(@Nullable Vec3 axis) {
+        axisOverride = axis;
+    }
+
     @Override
     void mousePressed(PointerEvent e, Viewport vp) {
         trackballRadius2 = ViewportMath.selectTrackballRadius2(camera, vp, e.x(), e.y());
         if (constraint == Constraint.AXIS)
-            dragAxis = DisplayController.getViewpointUpdate().dragAxis();
+            defaultAxis = DisplayController.getViewpointUpdate().dragAxis();
         lastMouseX = e.x();
         lastMouseY = e.y();
-        dragStartSet = true;
     }
 
     @Override
     void mouseDragged(PointerEvent e, Viewport vp) {
-        if (!dragStartSet)
-            return;
-        if ((e.x() == lastMouseX) && (e.y() == lastMouseY))
+        if (e.x() == lastMouseX && e.y() == lastMouseY)
             return;
 
         Quat delta = ViewportMath.calcTrackballDelta(camera, vp, lastMouseX, lastMouseY, e.x(), e.y(), trackballRadius2);
-        camera.rotateDragRotation(constraint == Constraint.AXIS ? delta.twist(dragAxis) : delta);
+        if (constraint == Constraint.AXIS)
+            delta = delta.twist(axisOverride == null ? defaultAxis : axisOverride);
+        camera.rotateDragRotation(delta);
         lastMouseX = e.x();
         lastMouseY = e.y();
         DisplayController.display();
-    }
-
-    @Override
-    void mouseReleased() {
-        dragStartSet = false;
     }
 
 }

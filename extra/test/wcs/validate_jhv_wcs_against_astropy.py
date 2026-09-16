@@ -1,0 +1,3172 @@
+#!/usr/bin/env python3
+
+import argparse
+import math
+import random
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+
+import numpy as np
+import astropy.units as u
+from astropy.coordinates import get_sun
+from astropy.io import fits
+from astropy.time import Time
+from astropy.wcs import WCS
+from PIL import Image
+
+
+SUN_RADIUS_METER = 695700.0 * 1e3
+SUN_MEAN_EARTH_DISTANCE_METER = 149_597_870_700.0
+SUN_MEAN_EARTH_DISTANCE = SUN_MEAN_EARTH_DISTANCE_METER / SUN_RADIUS_METER
+SUN_EARTH_MASS_RATIO = 332946.0487
+SUN_L1_FACTOR = 1.0 - (1.0 / SUN_EARTH_MASS_RATIO / 3.0) ** (1.0 / 3.0)
+ARCSEC_PER_RAD = 180.0 * 3600.0 / math.pi
+IDENTITY_QUAT = (0.0, 0.0, 0.0, 1.0)
+LATI_SURFACE_BOUNDS_DEG = (-180.0, 180.0, -90.0, 90.0)
+LATI_ZENITHAL_BOUNDS_DEG = LATI_SURFACE_BOUNDS_DEG
+SURFACE_MAP_PROJECTIONS = {"CAR", "CEA"}
+PV2_PROJECTIONS = {"AZP", "ZPN", "CEA"}
+PIXEL_SAMPLED_FORWARD_PROJECTIONS = {"ZPN", "CAR", "CEA"}
+DISPLAY_SECTORS = ((0.0, 0.0), (0.0, 0.0))
+DISPLAY_CUTOFF = (0.0, 0.0, -1.0)
+DISPLAY_RADII = (0.0, math.inf)
+DISPLAY_SLIT = (0.0, 1.0)
+PLANE_Z_EPS = 1e-8
+ZPN_BISECTION_STEPS = 50
+
+
+# Metadata / WCS interpretation.
+
+@dataclass(frozen=True)
+class JHVMeta:
+    pixel_width: int
+    pixel_height: int
+    arcsec_per_pixel_x: float
+    arcsec_per_pixel_y: float
+    unit_per_arcsec: float
+    unit_per_pixel_x: float
+    unit_per_pixel_y: float
+    plane_units_per_rad: float
+    crpix1_gl: float
+    crpix2_gl: float
+    crval_internal_x: float
+    crval_internal_y: float
+    image_to_plane: tuple[float, float, float, float]
+    plane_to_image: tuple[float, float, float, float]
+    observer_distance: float
+    projection: str
+    pv2: tuple[float, float, float, float, float, float]
+
+
+def projection_suffix(header) -> str:
+    return str(header.get("CTYPE1", ""))[-3:]
+
+
+def ctype_pair(header) -> tuple[str, str]:
+    return str(header.get("CTYPE1", "")), str(header.get("CTYPE2", ""))
+
+
+def default_angular_cunit(header, axis: int) -> str | None:
+    cunit = header.get(f"CUNIT{axis}")
+    if cunit is not None:
+        return cunit
+    ctype = str(header.get(f"CTYPE{axis}", ""))
+    if ctype.endswith("CAR") or ctype.endswith("CEA"):
+        return "deg"
+    return None
+
+
+def uses_normalized_cea_y(header) -> bool:
+    # Historical normalized CEA maps omit CUNIT2 and store the second plane
+    # coordinate directly as sin(latitude) / lambda. Explicit units select
+    # the FITS angular convention used by wcslib/Astropy.
+    return projection_suffix(header) == "CEA" and header.get("CUNIT2") is None
+
+
+def unit_scale_from_cunit(cunit: str | None) -> float:
+    if cunit is None:
+        return 1.0
+    return {
+        # mirrors WcsInterpreter.arcsecPerUnit: "degree"/"degrees" are non-standard but
+        # occur in IDL-written synoptic maps.
+        "deg": 3600.0,
+        "degree": 3600.0,
+        "degrees": 3600.0,
+        "arcmin": 60.0,
+        "arcsec": 1.0,
+        "mas": 0.001,
+        "rad": 180.0 * 3600.0 / math.pi,
+    }.get(cunit.strip().lower(), 1.0)
+
+
+def angular_header_value_to_deg(value: float, cunit: str | None) -> float:
+    return float(value) * unit_scale_from_cunit(cunit) / 3600.0
+
+
+def invert_mat2(matrix: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
+    m00, m01, m10, m11 = matrix
+    determinant = m00 * m11 - m01 * m10
+    if not math.isfinite(determinant) or determinant == 0.0:
+        return (1.0, 0.0, 0.0, 1.0)
+    return (m11 / determinant, -m01 / determinant, -m10 / determinant, m00 / determinant)
+
+
+def transform_mat2(matrix: tuple[float, float, float, float], vector: tuple[float, float]) -> tuple[float, float]:
+    m00, m01, m10, m11 = matrix
+    x, y = vector
+    return (m00 * x + m01 * y, m10 * x + m11 * y)
+
+
+def normalize_effective_cd(cd: tuple[float, float, float, float]) -> tuple[tuple[float, float, float, float], float, float]:
+    cd11, cd12, cd21, cd22 = cd
+    scale_x = math.hypot(cd11, cd21)
+    scale_y = math.hypot(cd12, cd22)
+    divisor_x = scale_x or 1.0
+    divisor_y = scale_y or 1.0
+    return ((cd11 / divisor_x, cd12 / divisor_y, cd21 / divisor_x, cd22 / divisor_y), scale_x, scale_y)
+
+
+def wrap_angle_diff_deg(a: float, b: float) -> float:
+    return abs((a - b + 180.0) % 360.0 - 180.0)
+
+
+def find_image_hdu(hdul: fits.HDUList, hdu_index: int | None):
+    if hdu_index is not None:
+        hdu = hdul[hdu_index]
+        if hdu.data is None or getattr(hdu.data, "ndim", 0) < 2:
+            raise ValueError(f"HDU {hdu_index} is not an image HDU")
+        return hdu
+
+    for hdu in hdul:
+        if hdu.data is not None and getattr(hdu.data, "ndim", 0) >= 2:
+            return hdu
+    raise ValueError("No image HDU found")
+
+
+def header_observed_date(header) -> str:
+    observed_date = (
+        header.get("DATE-AVG")
+        or header.get("DATE_AVG")
+        or header.get("DATE_OBS")
+        or header.get("DATE-OBS")
+    )
+    if observed_date is None:
+        raise ValueError("Missing DATE-OBS-style keyword")
+    observed_date = str(observed_date)
+    if str(header.get("INSTRUME", "")) == "LASCO":
+        observed_time = header.get("TIME_OBS") or header.get("TIME-OBS")
+        if observed_time is None:
+            raise ValueError("LASCO header missing TIME_OBS/TIME-OBS")
+        observed_date = observed_date.replace("/", "-") + "T" + str(observed_time)
+    if observed_date.endswith("Z"):
+        observed_date = observed_date[:-1]
+    if len(observed_date) == 10:
+        observed_date += "T00:00:00"
+    return observed_date
+
+
+def earth_distance_solar_radii(header) -> float:
+    time = Time(header_observed_date(header), format="isot", scale="utc")
+    return float(get_sun(time).distance.to_value(u.m) / SUN_RADIUS_METER)
+
+
+def matrix_keywords_present(header, prefix: str) -> bool:
+    return any(f"{prefix}{row}_{column}" in header for row in (1, 2) for column in (1, 2))
+
+
+def read_matrix_keywords(header, prefix: str, diagonal_default: float) -> tuple[float, float, float, float]:
+    return (
+        float(header.get(f"{prefix}1_1", diagonal_default)),
+        float(header.get(f"{prefix}1_2", 0.0)),
+        float(header.get(f"{prefix}2_1", 0.0)),
+        float(header.get(f"{prefix}2_2", diagonal_default)),
+    )
+
+
+def scale_matrix_rows(
+    matrix: tuple[float, float, float, float],
+    axis1_scale: float,
+    axis2_scale: float,
+) -> tuple[float, float, float, float]:
+    return (
+        axis1_scale * matrix[0],
+        axis1_scale * matrix[1],
+        axis2_scale * matrix[2],
+        axis2_scale * matrix[3],
+    )
+
+
+def car_effective_cd_rad(header) -> tuple[float, float, float, float]:
+    if matrix_keywords_present(header, "CD") and not matrix_keywords_present(header, "PC"):
+        matrix = read_matrix_keywords(header, "CD", 0.0)
+        axis1_scale = math.radians(angular_header_value_to_deg(1.0, default_angular_cunit(header, 1)))
+        axis2_scale = math.radians(angular_header_value_to_deg(1.0, default_angular_cunit(header, 2)))
+    else:
+        matrix = read_matrix_keywords(header, "PC", 1.0)
+        axis1_scale = math.radians(angular_header_value_to_deg(
+            float(header.get("CDELT1", 1.0)), default_angular_cunit(header, 1)))
+        axis2_scale = math.radians(angular_header_value_to_deg(
+            float(header.get("CDELT2", 1.0)), default_angular_cunit(header, 2)))
+    return scale_matrix_rows(matrix, axis1_scale, axis2_scale)
+
+
+def cea_effective_cd(header) -> tuple[float, float, float, float]:
+    normalized_y = uses_normalized_cea_y(header)
+    if matrix_keywords_present(header, "CD") and not matrix_keywords_present(header, "PC"):
+        matrix = read_matrix_keywords(header, "CD", 0.0)
+        axis1_scale = math.radians(angular_header_value_to_deg(1.0, default_angular_cunit(header, 1)))
+        axis2_scale = 1.0 if normalized_y else math.radians(
+            angular_header_value_to_deg(1.0, default_angular_cunit(header, 2)))
+    else:
+        matrix = read_matrix_keywords(header, "PC", 1.0)
+        axis1_scale = math.radians(angular_header_value_to_deg(
+            float(header.get("CDELT1", 1.0)), default_angular_cunit(header, 1)))
+        axis2_scale = float(header.get("CDELT2", 1.0)) if normalized_y else math.radians(
+            angular_header_value_to_deg(
+                float(header.get("CDELT2", 1.0)), default_angular_cunit(header, 2)))
+    return scale_matrix_rows(matrix, axis1_scale, axis2_scale)
+
+
+def observer_effective_cd_arcsec(header) -> tuple[float, float, float, float]:
+    axis1_scale = unit_scale_from_cunit(default_angular_cunit(header, 1))
+    axis2_scale = unit_scale_from_cunit(default_angular_cunit(header, 2))
+    cdelt1 = float(header.get("CDELT1", 1.0)) * axis1_scale
+    cdelt2 = float(header.get("CDELT2", 1.0)) * axis2_scale
+    if matrix_keywords_present(header, "PC"):
+        return scale_matrix_rows(read_matrix_keywords(header, "PC", 1.0), cdelt1, cdelt2)
+
+    if matrix_keywords_present(header, "CD"):
+        return scale_matrix_rows(read_matrix_keywords(header, "CD", 0.0), axis1_scale, axis2_scale)
+
+    crota = math.radians(float(header.get("CROTA", header.get("CROTA1", header.get("CROTA2", 0.0)))))
+    c = math.cos(crota)
+    s = math.sin(crota)
+    return (cdelt1 * c, -cdelt2 * s, cdelt1 * s, cdelt2 * c)
+
+
+def build_astropy_wcs_base(header, projection: str, crval1_deg: float, crval2_deg: float) -> WCS:
+    ctype1, ctype2 = ctype_pair(header)
+    wcs = WCS(naxis=2)
+    if projection in SURFACE_MAP_PROJECTIONS:
+        wcs.wcs.ctype = [ctype1, ctype2]
+        wcs.wcs.cunit = [default_angular_cunit(header, 1) or "deg", default_angular_cunit(header, 2) or "deg"]
+    else:
+        wcs.wcs.ctype = [f"RA---{projection}", f"DEC--{projection}"]
+    wcs.wcs.crval = [crval1_deg, crval2_deg]
+    return wcs
+
+
+def build_jhv_meta(header) -> JHVMeta:
+    pixel_width = int(header.get("ZNAXIS1", header.get("NAXIS1")))
+    pixel_height = int(header.get("ZNAXIS2", header.get("NAXIS2")))
+    projection = projection_suffix(header)
+
+    arcsec_x = unit_scale_from_cunit(default_angular_cunit(header, 1))
+    arcsec_y = unit_scale_from_cunit(default_angular_cunit(header, 2))
+
+    dsun_obs = header.get("DSUN_OBS")
+    if dsun_obs is not None:
+        observer_distance = dsun_obs / SUN_RADIUS_METER
+    else:
+        earth_distance = earth_distance_solar_radii(header)
+        observer_distance = earth_distance * SUN_L1_FACTOR if header.get("TELESCOP") == "SOHO" else earth_distance
+
+    if projection in SURFACE_MAP_PROJECTIONS:
+        unit_per_arcsec = math.pi / (180.0 * 3600.0)
+        plane_units_per_rad = 1.0
+        effective_cd = cea_effective_cd(header) if projection == "CEA" else car_effective_cd_rad(header)
+        image_to_plane, unit_per_pixel_x, unit_per_pixel_y = normalize_effective_cd(effective_cd)
+        arcsec_per_pixel_x = math.degrees(unit_per_pixel_x) * 3600.0
+        arcsec_per_pixel_y = math.degrees(unit_per_pixel_y) * 3600.0 if projection == "CAR" else unit_per_pixel_y
+        crval_internal_x = math.radians(angular_header_value_to_deg(header.get("CRVAL1", 0.0), default_angular_cunit(header, 1)))
+        if projection == "CEA":
+            lam = float(header.get("PV2_1", 1.0))
+            crval_lat = math.radians(angular_header_value_to_deg(header.get("CRVAL2", 0.0), default_angular_cunit(header, 2)))
+            crval_internal_y = math.sin(crval_lat) / lam
+        else:
+            crval_internal_y = math.radians(angular_header_value_to_deg(header.get("CRVAL2", 0.0), default_angular_cunit(header, 2)))
+    else:
+        radius_sun_in_arcsec = math.degrees(math.atan2(1.0, observer_distance)) * 3600.0
+        unit_per_arcsec = 1.0 / radius_sun_in_arcsec
+        plane_units_per_rad = unit_per_arcsec * ARCSEC_PER_RAD
+        image_to_plane, arcsec_per_pixel_x, arcsec_per_pixel_y = normalize_effective_cd(observer_effective_cd_arcsec(header))
+        unit_per_pixel_x = arcsec_per_pixel_x * unit_per_arcsec
+        unit_per_pixel_y = arcsec_per_pixel_y * unit_per_arcsec
+        crval_internal_x = float(header.get("CRVAL1", 0.0)) * arcsec_x * unit_per_arcsec
+        crval_internal_y = float(header.get("CRVAL2", 0.0)) * arcsec_y * unit_per_arcsec
+
+    crpix1_gl = float(header.get("CRPIX1", (pixel_width + 1) / 2.0)) - 0.5
+    crpix2_gl = float(header.get("CRPIX2", (pixel_height + 1) / 2.0)) - 0.5
+
+    if str(header.get("INSTRUME", "")) == "LASCO" and "HV_SOURCE_PROGRAM" in header:
+        image_to_plane = (1.0, 0.0, 0.0, 1.0)
+    plane_to_image = invert_mat2(image_to_plane)
+    pv2 = (
+        [float(np.float32(header.get(f"PV2_{i}", 0.0))) for i in range(6)]
+        if projection in PV2_PROJECTIONS else [0.0] * 6
+    )
+    if projection == "CEA":
+        pv2[1] = float(np.float32(header.get("PV2_1", 1.0)))
+
+    return JHVMeta(
+        pixel_width=pixel_width,
+        pixel_height=pixel_height,
+        arcsec_per_pixel_x=arcsec_per_pixel_x,
+        arcsec_per_pixel_y=arcsec_per_pixel_y,
+        unit_per_arcsec=unit_per_arcsec,
+        unit_per_pixel_x=unit_per_pixel_x,
+        unit_per_pixel_y=unit_per_pixel_y,
+        plane_units_per_rad=plane_units_per_rad,
+        crpix1_gl=crpix1_gl,
+        crpix2_gl=crpix2_gl,
+        crval_internal_x=crval_internal_x,
+        crval_internal_y=crval_internal_y,
+        image_to_plane=image_to_plane,
+        plane_to_image=plane_to_image,
+        observer_distance=observer_distance,
+        projection=projection,
+        pv2=tuple(pv2),
+    )
+
+
+def ensure_supported_projection(header) -> None:
+    ctype1, ctype2 = ctype_pair(header)
+    if ctype1[-3:] != ctype2[-3:]:
+        raise ValueError(f"Mismatched projection types: {ctype1!r} / {ctype2!r}")
+    if not (ctype1.endswith("TAN") or ctype1.endswith("ARC") or ctype1.endswith("AZP") or ctype1.endswith("ZPN") or ctype1.endswith("CAR") or ctype1.endswith("CEA")):
+        raise ValueError(f"Only TAN, ARC, AZP, ZPN, CAR, and CEA FITS files are supported right now, got {ctype1!r} / {ctype2!r}")
+
+
+# Shared geometric and projection math.
+
+def wrap_delta_lon_rad(lon: float, lon0: float) -> float:
+    return (lon - lon0 + math.pi) % (2.0 * math.pi) - math.pi
+
+
+def world2helioprojective(point_xyz: tuple[float, float, float], observer_distance: float) -> tuple[float, float]:
+    x, y, z = point_xyz
+    zeta = observer_distance - z
+    return (
+        math.atan2(x, zeta),
+        math.atan2(y, math.sqrt(x * x + zeta * zeta)),
+    )
+
+
+def quat_rotate_vector(quat: tuple[float, float, float, float], vec: tuple[float, float, float]) -> tuple[float, float, float]:
+    qx, qy, qz, qw = quat
+    vx, vy, vz = vec
+    tx = qy * vz - qz * vy + qw * vx
+    ty = qz * vx - qx * vz + qw * vy
+    tz = qx * vy - qy * vx + qw * vz
+    return (
+        vx + 2.0 * (qy * tz - qz * ty),
+        vy + 2.0 * (qz * tx - qx * tz),
+        vz + 2.0 * (qx * ty - qy * tx),
+    )
+
+
+def quat_rotate_vector_inverse(quat: tuple[float, float, float, float], vec: tuple[float, float, float]) -> tuple[float, float, float]:
+    qx, qy, qz, qw = quat
+    vx, vy, vz = vec
+    tx = -qy * vz + qz * vy + qw * vx
+    ty = -qz * vx + qx * vz + qw * vy
+    tz = -qx * vy + qy * vx + qw * vz
+    return (
+        vx + 2.0 * (-qy * tz + qz * ty),
+        vy + 2.0 * (-qz * tx + qx * tz),
+        vz + 2.0 * (-qx * ty + qy * tx),
+    )
+
+
+# CPU mirror of the shared GLSL helpers in imageCommon.frag.
+def wrapDeltaLongitude(lon: float, lon0: float) -> float:
+    return wrap_delta_lon_rad(lon, lon0)
+
+
+def worldToHelioprojective(world_xyz: tuple[float, float, float], observer_distance: float) -> tuple[float, float]:
+    return world2helioprojective(world_xyz, observer_distance)
+
+
+def rotate_vector(quat: tuple[float, float, float, float], vec: tuple[float, float, float]) -> tuple[float, float, float]:
+    return quat_rotate_vector(quat, vec)
+
+
+def rotate_vector_inverse(quat: tuple[float, float, float, float], vec: tuple[float, float, float]) -> tuple[float, float, float]:
+    return quat_rotate_vector_inverse(quat, vec)
+
+
+def differentialRotation(delta_t: float, sin_latitude: float) -> float:
+    sin_latitude2 = sin_latitude * sin_latitude
+    return delta_t * (0.01367 - 0.339 * sin_latitude2 - 0.485 * sin_latitude2 * sin_latitude2)
+
+
+def differential(delta_t: float, vector: tuple[float, float, float]) -> tuple[float, float, float]:
+    delta = differentialRotation(delta_t, vector[1])
+    sin_delta = math.sin(delta)
+    cos_delta = math.cos(delta)
+    return (
+        vector[0] * cos_delta - vector[2] * sin_delta,
+        vector[1],
+        vector[2] * cos_delta + vector[0] * sin_delta,
+    )
+
+
+def nativeZenithalCoordinates(helioprojective: tuple[float, float], meta: JHVMeta) -> tuple[float, float, float]:
+    phi, theta = helioprojective
+    phi0 = meta.crval_internal_x / meta.plane_units_per_rad
+    theta0 = meta.crval_internal_y / meta.plane_units_per_rad
+
+    sin_lat = math.sin(theta)
+    cos_lat = math.cos(theta)
+    sin_lat0 = math.sin(theta0)
+    cos_lat0 = math.cos(theta0)
+    delta_lon = phi - phi0
+    sin_delta_lon = math.sin(delta_lon)
+    cos_delta_lon = math.cos(delta_lon)
+
+    native_x = cos_lat * sin_delta_lon
+    native_y = cos_lat0 * sin_lat - sin_lat0 * cos_lat * cos_delta_lon
+    cos_native_distance = sin_lat0 * sin_lat + cos_lat0 * cos_lat * cos_delta_lon
+    return native_x, native_y, cos_native_distance
+
+
+def projectTanToWcsPlane(helioprojective: tuple[float, float], meta: JHVMeta) -> tuple[float, float]:
+    native_x, native_y, cos_native_distance = nativeZenithalCoordinates(helioprojective, meta)
+    if cos_native_distance <= 0.0:
+        raise ValueError("Point is outside the visible TAN hemisphere")
+    return (
+        meta.plane_units_per_rad * (native_x / cos_native_distance),
+        meta.plane_units_per_rad * (native_y / cos_native_distance),
+    )
+
+
+def projectCarToWcsPlane(world_xyz: tuple[float, float, float], meta: JHVMeta) -> tuple[float, float]:
+    norm = math.sqrt(world_xyz[0] * world_xyz[0] + world_xyz[1] * world_xyz[1] + world_xyz[2] * world_xyz[2])
+    if norm == 0.0:
+        return (math.nan, math.nan)
+    lon = math.atan2(world_xyz[0], world_xyz[2])
+    lat = math.asin(max(-1.0, min(1.0, world_xyz[1] / norm)))
+    lon0 = meta.crval_internal_x
+    lat0 = meta.crval_internal_y
+    return (
+        meta.plane_units_per_rad * wrapDeltaLongitude(lon, lon0),
+        meta.plane_units_per_rad * (lat - lat0),
+    )
+
+
+def projectCeaToWcsPlane(world_xyz: tuple[float, float, float], meta: JHVMeta) -> tuple[float, float]:
+    norm = math.sqrt(world_xyz[0] * world_xyz[0] + world_xyz[1] * world_xyz[1] + world_xyz[2] * world_xyz[2])
+    if norm == 0.0:
+        return (math.nan, math.nan)
+    lon = math.atan2(world_xyz[0], world_xyz[2])
+    sin_lat = max(-1.0, min(1.0, world_xyz[1] / norm))
+    lon0 = meta.crval_internal_x
+    y0 = meta.crval_internal_y
+    lam = max(abs(meta.pv2[1]), 1e-12)
+    return (
+        meta.plane_units_per_rad * wrapDeltaLongitude(lon, lon0),
+        meta.plane_units_per_rad * (sin_lat / lam - y0),
+    )
+
+
+def projectAzpToWcsPlane(helioprojective: tuple[float, float], meta: JHVMeta) -> tuple[float, float]:
+    native_x, native_y, cos_native_distance = nativeZenithalCoordinates(helioprojective, meta)
+    mu = meta.pv2[1]
+    gamma = math.radians(meta.pv2[2])
+    native_radius = math.hypot(native_x, native_y)
+    if native_radius == 0.0:
+        return (0.0, 0.0)
+    if gamma == 0.0 and mu > 1.0 and mu * cos_native_distance + 1.0 <= 0.0:
+        raise ValueError("Point is outside the primary forward AZP branch")
+    denom = mu + cos_native_distance - native_y * math.tan(gamma)
+    if denom <= 0.0:
+        raise ValueError("Point is on the AZP singularity")
+    radial = (mu + 1.0) * native_radius / denom
+    return (
+        meta.plane_units_per_rad * radial * native_x / native_radius,
+        meta.plane_units_per_rad * radial * native_y / (native_radius * math.cos(gamma)),
+    )
+
+
+def projectArcToWcsPlane(helioprojective: tuple[float, float], meta: JHVMeta) -> tuple[float, float]:
+    native_x, native_y, cos_native_distance = nativeZenithalCoordinates(helioprojective, meta)
+    native_radius = math.hypot(native_x, native_y)
+    if native_radius == 0.0:
+        return (0.0, 0.0)
+    native_distance = math.atan2(native_radius, cos_native_distance)
+    return (
+        meta.plane_units_per_rad * native_distance * native_x / native_radius,
+        meta.plane_units_per_rad * native_distance * native_y / native_radius,
+    )
+
+
+def projectZpnToWcsPlane(helioprojective: tuple[float, float], meta: JHVMeta) -> tuple[float, float]:
+    native_x, native_y, cos_native_distance = nativeZenithalCoordinates(helioprojective, meta)
+    native_radius = math.hypot(native_x, native_y)
+    if native_radius == 0.0:
+        return (0.0, 0.0)
+    eta = math.atan2(native_radius, cos_native_distance)
+    if eta > zpn_primary_branch_upper_eta(meta):
+        raise ValueError("Point is outside the primary forward ZPN branch")
+    radial = zpn_radial(meta, eta)
+    if radial < 0.0:
+        raise ValueError("Point is outside the primary forward ZPN branch")
+    return (
+        meta.plane_units_per_rad * radial * native_x / native_radius,
+        meta.plane_units_per_rad * radial * native_y / native_radius,
+    )
+
+
+def tan_world_to_plane_internal(world_rad: tuple[float, float], meta: JHVMeta) -> tuple[float, float]:
+    return projectTanToWcsPlane(world_rad, meta)
+
+
+def azp_world_to_plane_internal(world_rad: tuple[float, float], meta: JHVMeta) -> tuple[float, float]:
+    return projectAzpToWcsPlane(world_rad, meta)
+
+
+def zpn_radial(meta: JHVMeta, eta_rad: float) -> float:
+    radial = meta.pv2[-1]
+    for coefficient in reversed(meta.pv2[:-1]):
+        radial = radial * eta_rad + coefficient
+    return radial
+
+
+def zpn_radial_derivative(meta: JHVMeta, eta_rad: float) -> float:
+    derivative = (len(meta.pv2) - 1) * meta.pv2[-1]
+    for index in range(len(meta.pv2) - 2, 0, -1):
+        derivative = derivative * eta_rad + index * meta.pv2[index]
+    return derivative
+
+
+def zpn_primary_branch_upper_eta(meta: JHVMeta) -> float:
+    max_eta = math.pi
+    prev_eta = 0.0
+    prev_derivative = zpn_radial_derivative(meta, prev_eta)
+    if prev_derivative <= 0.0:
+        return 0.0
+
+    for step in range(1, 513):
+        eta = max_eta * step / 512.0
+        derivative = zpn_radial_derivative(meta, eta)
+        if derivative <= 0.0:
+            lo = prev_eta
+            hi = eta
+            for _ in range(ZPN_BISECTION_STEPS):
+                mid = 0.5 * (lo + hi)
+                if zpn_radial_derivative(meta, mid) > 0.0:
+                    lo = mid
+                else:
+                    hi = mid
+            return 0.5 * (lo + hi)
+        prev_eta = eta
+        prev_derivative = derivative
+    return max_eta
+
+
+def zpn_world_to_plane_internal(world_rad: tuple[float, float], meta: JHVMeta) -> tuple[float, float]:
+    return projectZpnToWcsPlane(world_rad, meta)
+
+
+def arc_world_to_plane_internal(world_rad: tuple[float, float], meta: JHVMeta) -> tuple[float, float]:
+    return projectArcToWcsPlane(world_rad, meta)
+
+
+def azp_plane_internal_to_world(plane_internal: tuple[float, float], meta: JHVMeta) -> tuple[float, float]:
+    gamma = math.radians(meta.pv2[2])
+    x = plane_internal[0] / meta.plane_units_per_rad
+    y = plane_internal[1] / meta.plane_units_per_rad
+    r = math.hypot(x, y)
+
+    lon0 = meta.crval_internal_x / meta.plane_units_per_rad
+    lat0 = meta.crval_internal_y / meta.plane_units_per_rad
+    mu = meta.pv2[1]
+    sin_gamma = math.sin(gamma)
+    cos_gamma = math.cos(gamma)
+
+    if r == 0.0:
+        return (lon0, lat0)
+
+    mu_plus_1 = mu + 1.0
+    a = 1.0 + y * sin_gamma / mu_plus_1
+    k = (x * x + y * y * cos_gamma * cos_gamma) / (mu_plus_1 * mu_plus_1 * a * a)
+    discriminant = max(0.0, 1.0 + k * (1.0 - mu * mu))
+    cos_native_distance = (-k * mu + math.sqrt(discriminant)) / (1.0 + k)
+    denom = (mu + cos_native_distance) / a
+    native_x = x * denom / mu_plus_1
+    native_y = y * cos_gamma * denom / mu_plus_1
+
+    sin_lat0 = math.sin(lat0)
+    cos_lat0 = math.cos(lat0)
+    lat = math.asin(cos_native_distance * sin_lat0 + native_y * cos_lat0)
+    lon = lon0 + math.atan2(native_x, cos_native_distance * cos_lat0 - native_y * sin_lat0)
+    return (lon, lat)
+
+
+def zpn_plane_internal_to_world(plane_internal: tuple[float, float], meta: JHVMeta) -> tuple[float, float]:
+    x = plane_internal[0] / meta.plane_units_per_rad
+    y = plane_internal[1] / meta.plane_units_per_rad
+    radial_target = math.hypot(x, y)
+
+    lon0 = meta.crval_internal_x / meta.plane_units_per_rad
+    lat0 = meta.crval_internal_y / meta.plane_units_per_rad
+    upper = zpn_primary_branch_upper_eta(meta)
+    lo = 0.0
+    hi = upper
+    radial_lo = zpn_radial(meta, lo)
+    radial_hi = zpn_radial(meta, hi)
+    if radial_lo > radial_hi:
+        target = radial_lo
+    else:
+        target = min(max(radial_target, radial_lo), radial_hi)
+    for _ in range(ZPN_BISECTION_STEPS):
+        mid = 0.5 * (lo + hi)
+        if zpn_radial(meta, mid) < target:
+            lo = mid
+        else:
+            hi = mid
+    eta = 0.5 * (lo + hi)
+    if eta == 0.0:
+        return (lon0, lat0)
+
+    alpha = math.atan2(x, y)
+    sin_eta = math.sin(eta)
+    cos_eta = math.cos(eta)
+    a = sin_eta * math.sin(alpha)
+    b = sin_eta * math.cos(alpha)
+
+    sin_lat0 = math.sin(lat0)
+    cos_lat0 = math.cos(lat0)
+    lat = math.asin(cos_eta * sin_lat0 + b * cos_lat0)
+    lon = lon0 + math.atan2(a, cos_eta * cos_lat0 - b * sin_lat0)
+    return (lon, lat)
+
+
+def arc_plane_internal_to_world(plane_internal: tuple[float, float], meta: JHVMeta) -> tuple[float, float]:
+    x = plane_internal[0] / meta.plane_units_per_rad
+    y = plane_internal[1] / meta.plane_units_per_rad
+    radial = math.hypot(x, y)
+
+    lon0 = meta.crval_internal_x / meta.plane_units_per_rad
+    lat0 = meta.crval_internal_y / meta.plane_units_per_rad
+    if radial == 0.0:
+        return (lon0, lat0)
+
+    native_distance = radial
+    native_radius = math.sin(native_distance)
+    cos_native_distance = math.cos(native_distance)
+    native_x = native_radius * x / radial
+    native_y = native_radius * y / radial
+
+    sin_lat0 = math.sin(lat0)
+    cos_lat0 = math.cos(lat0)
+    lat = math.asin(cos_native_distance * sin_lat0 + native_y * cos_lat0)
+    lon = lon0 + math.atan2(native_x, cos_native_distance * cos_lat0 - native_y * sin_lat0)
+    return (lon, lat)
+
+
+def project_world_to_plane_internal(world_rad: tuple[float, float], meta: JHVMeta) -> tuple[float, float]:
+    if meta.projection == "CAR":
+        world_xyz = (
+            math.cos(world_rad[1]) * math.sin(world_rad[0]),
+            math.sin(world_rad[1]),
+            math.cos(world_rad[1]) * math.cos(world_rad[0]),
+        )
+        return projectCarToWcsPlane(world_xyz, meta)
+    if meta.projection == "CEA":
+        world_xyz = (
+            math.cos(world_rad[1]) * math.sin(world_rad[0]),
+            math.sin(world_rad[1]),
+            math.cos(world_rad[1]) * math.cos(world_rad[0]),
+        )
+        return projectCeaToWcsPlane(world_xyz, meta)
+    if meta.projection == "TAN":
+        return tan_world_to_plane_internal(world_rad, meta)
+    if meta.projection == "ARC":
+        return arc_world_to_plane_internal(world_rad, meta)
+    if meta.projection == "AZP":
+        return azp_world_to_plane_internal(world_rad, meta)
+    if meta.projection == "ZPN":
+        return zpn_world_to_plane_internal(world_rad, meta)
+    raise ValueError(f"Unsupported projection {meta.projection!r}")
+
+
+def project_plane_internal_to_world(plane_internal: tuple[float, float], meta: JHVMeta) -> tuple[float, float]:
+    if meta.projection == "CAR":
+        lon0 = meta.crval_internal_x
+        lat0 = meta.crval_internal_y
+        return (
+            lon0 + plane_internal[0] / meta.plane_units_per_rad,
+            lat0 + plane_internal[1] / meta.plane_units_per_rad,
+        )
+    if meta.projection == "CEA":
+        lon0 = meta.crval_internal_x
+        y0 = meta.crval_internal_y
+        lam = max(abs(meta.pv2[1]), 1e-12)
+        return (
+            lon0 + plane_internal[0] / meta.plane_units_per_rad,
+            math.asin(max(-1.0, min(1.0, lam * (plane_internal[1] / meta.plane_units_per_rad + y0)))),
+        )
+    if meta.projection == "TAN":
+        return project_plane_internal_to_world_tan(plane_internal, meta)
+    if meta.projection == "ARC":
+        return arc_plane_internal_to_world(plane_internal, meta)
+    if meta.projection == "AZP":
+        return azp_plane_internal_to_world(plane_internal, meta)
+    if meta.projection == "ZPN":
+        return zpn_plane_internal_to_world(plane_internal, meta)
+    raise ValueError(f"Inverse projection is unsupported for {meta.projection!r}")
+
+
+def helioprojective_to_observer_ray(world_rad: tuple[float, float]) -> np.ndarray:
+    lon, lat = world_rad
+    cos_lon = math.cos(lon)
+    cos_lat = math.cos(lat)
+    sign = -1.0 if cos_lon * cos_lat < 0.0 else 1.0
+    ray = np.array([
+        sign * math.sin(lon) * cos_lat,
+        sign * math.sin(lat),
+        -sign * cos_lon * cos_lat,
+    ], dtype=np.float64)
+    return ray
+
+
+def project_world_to_plane_internal_array(world_deg: np.ndarray, meta: JHVMeta) -> np.ndarray:
+    lon = np.deg2rad(world_deg[:, 0])
+    lat = np.deg2rad(world_deg[:, 1])
+
+    if meta.projection == "CAR":
+        lon0 = meta.crval_internal_x
+        lat0 = meta.crval_internal_y
+        delta_lon = (lon - lon0 + math.pi) % (2.0 * math.pi) - math.pi
+        x = meta.plane_units_per_rad * delta_lon
+        y = meta.plane_units_per_rad * (lat - lat0)
+        return np.column_stack((x, y))
+    if meta.projection == "CEA":
+        lon0 = meta.crval_internal_x
+        y0 = meta.crval_internal_y
+        lam = max(abs(meta.pv2[1]), 1e-12)
+        delta_lon = (lon - lon0 + math.pi) % (2.0 * math.pi) - math.pi
+        x = meta.plane_units_per_rad * delta_lon
+        y = meta.plane_units_per_rad * (np.sin(lat) / lam - y0)
+        return np.column_stack((x, y))
+
+    lon0 = meta.crval_internal_x / meta.plane_units_per_rad
+    lat0 = meta.crval_internal_y / meta.plane_units_per_rad
+
+    sin_lat = np.sin(lat)
+    cos_lat = np.cos(lat)
+    sin_lat0 = math.sin(lat0)
+    cos_lat0 = math.cos(lat0)
+    delta_lon = lon - lon0
+    sin_delta_lon = np.sin(delta_lon)
+    cos_delta_lon = np.cos(delta_lon)
+
+    if meta.projection == "TAN":
+        cosc = sin_lat0 * sin_lat + cos_lat0 * cos_lat * cos_delta_lon
+        x = meta.plane_units_per_rad * (cos_lat * sin_delta_lon / cosc)
+        y = meta.plane_units_per_rad * ((cos_lat0 * sin_lat - sin_lat0 * cos_lat * cos_delta_lon) / cosc)
+        x = np.where(cosc <= 0.0, np.nan, x)
+        y = np.where(cosc <= 0.0, np.nan, y)
+        return np.column_stack((x, y))
+
+    if meta.projection == "ARC":
+        a = cos_lat * sin_delta_lon
+        b = cos_lat0 * sin_lat - sin_lat0 * cos_lat * cos_delta_lon
+        c = np.hypot(a, b)
+        eta = np.arctan2(c, sin_lat0 * sin_lat + cos_lat0 * cos_lat * cos_delta_lon)
+        x = meta.plane_units_per_rad * eta * a / c
+        y = meta.plane_units_per_rad * eta * b / c
+        x = np.where(c == 0.0, 0.0, x)
+        y = np.where(c == 0.0, 0.0, y)
+        return np.column_stack((x, y))
+
+    if meta.projection == "AZP":
+        mu = meta.pv2[1]
+        gamma = math.radians(meta.pv2[2])
+        a = cos_lat * sin_delta_lon
+        b = cos_lat0 * sin_lat - sin_lat0 * cos_lat * cos_delta_lon
+        c = np.hypot(a, b)
+        cosc = sin_lat0 * sin_lat + cos_lat0 * cos_lat * cos_delta_lon
+        denom = mu + cosc - b * math.tan(gamma)
+        radial = (mu + 1.0) * c / denom
+        x = meta.plane_units_per_rad * radial * a / c
+        y = meta.plane_units_per_rad * radial * b / (c * math.cos(gamma))
+        x = np.where(c == 0.0, 0.0, x)
+        y = np.where(c == 0.0, 0.0, y)
+        invalid = denom <= 0.0
+        if gamma == 0.0 and mu > 1.0:
+            invalid |= mu * cosc + 1.0 <= 0.0
+        x = np.where(invalid, np.nan, x)
+        y = np.where(invalid, np.nan, y)
+        return np.column_stack((x, y))
+
+    if meta.projection == "ZPN":
+        a = cos_lat * sin_delta_lon
+        b = cos_lat0 * sin_lat - sin_lat0 * cos_lat * cos_delta_lon
+        c = np.hypot(a, b)
+        eta = np.arctan2(c, sin_lat0 * sin_lat + cos_lat0 * cos_lat * cos_delta_lon)
+        radial = np.full_like(eta, meta.pv2[-1])
+        for coefficient in reversed(meta.pv2[:-1]):
+            radial = radial * eta + coefficient
+        x = meta.plane_units_per_rad * radial * a / c
+        y = meta.plane_units_per_rad * radial * b / c
+        x = np.where(c == 0.0, 0.0, x)
+        y = np.where(c == 0.0, 0.0, y)
+        invalid = (radial < 0.0) | (eta > zpn_primary_branch_upper_eta(meta))
+        x = np.where(invalid, np.nan, x)
+        y = np.where(invalid, np.nan, y)
+        return np.column_stack((x, y))
+
+    raise ValueError(f"Unsupported projection {meta.projection!r}")
+
+
+def surface_map_wraps_x(meta: JHVMeta) -> bool:
+    if meta.projection not in SURFACE_MAP_PROJECTIONS:
+        return False
+    width_internal = meta.pixel_width * abs(meta.unit_per_pixel_x)
+    return abs(width_internal - 2.0 * math.pi) <= 2.0 * abs(meta.unit_per_pixel_x)
+
+
+def wrap_source_x_pixel(x_px: float, meta: JHVMeta) -> float:
+    if surface_map_wraps_x(meta):
+        return x_px % meta.pixel_width
+    return x_px
+
+
+def pixel_center_error_px(jhv_px: tuple[float, float], astro_px: tuple[float, float], meta: JHVMeta) -> float:
+    dx = abs(jhv_px[0] - astro_px[0])
+    if surface_map_wraps_x(meta):
+        dx = min(dx, abs((jhv_px[0] + meta.pixel_width) - astro_px[0]), abs(jhv_px[0] - (astro_px[0] + meta.pixel_width)))
+    dy = abs(jhv_px[1] - astro_px[1])
+    return max(dx, dy)
+
+
+def fits_pixel_to_texture_pixel(
+    fits_pixel: tuple[float, float] | np.ndarray,
+    meta: JHVMeta,
+) -> tuple[float, float] | np.ndarray:
+    """Convert FITS one-based, bottom-up pixels to OpenGL texture pixel centers."""
+    pixels = np.asarray(fits_pixel, dtype=np.float64)
+    converted = np.empty_like(pixels)
+    converted[..., 0] = pixels[..., 0] - 0.5
+    converted[..., 1] = meta.pixel_height - (pixels[..., 1] - 0.5)
+    if converted.ndim == 1:
+        return (float(converted[0]), float(converted[1]))
+    return converted
+
+
+def texture_reference_pixel_y(meta: JHVMeta) -> float:
+    return meta.pixel_height - meta.crpix2_gl
+
+
+def plane_internal_to_pixel_center(plane_internal: tuple[float, float], meta: JHVMeta, wrap_x: bool = False) -> tuple[float, float]:
+    image_internal = transform_mat2(meta.plane_to_image, plane_internal)
+    px = image_internal[0] / meta.unit_per_pixel_x + meta.crpix1_gl
+    py = -image_internal[1] / meta.unit_per_pixel_y + texture_reference_pixel_y(meta)
+    return (wrap_source_x_pixel(px, meta) if wrap_x else px, py)
+
+
+def plane_internal_array_to_pixel_center(plane_internal: np.ndarray, meta: JHVMeta, wrap_x: bool = False) -> np.ndarray:
+    m00, m01, m10, m11 = meta.plane_to_image
+    image_x = m00 * plane_internal[:, 0] + m01 * plane_internal[:, 1]
+    image_y = m10 * plane_internal[:, 0] + m11 * plane_internal[:, 1]
+    px = image_x / meta.unit_per_pixel_x + meta.crpix1_gl
+    if wrap_x and surface_map_wraps_x(meta):
+        px = np.mod(px, meta.pixel_width)
+    py = -image_y / meta.unit_per_pixel_y + texture_reference_pixel_y(meta)
+    return np.column_stack((px, py))
+
+
+def pixel_center_to_plane_internal(pixel_center: tuple[float, float], meta: JHVMeta) -> tuple[float, float]:
+    rotated_internal = (
+        (pixel_center[0] - meta.crpix1_gl) * meta.unit_per_pixel_x,
+        -(pixel_center[1] - texture_reference_pixel_y(meta)) * meta.unit_per_pixel_y,
+    )
+    return transform_mat2(meta.image_to_plane, rotated_internal)
+
+
+def pixel_center_to_world_deg(pixel_center: tuple[float, float], meta: JHVMeta) -> tuple[float, float]:
+    world_rad = project_plane_internal_to_world(pixel_center_to_plane_internal(pixel_center, meta), meta)
+    return (math.degrees(world_rad[0]), math.degrees(world_rad[1]))
+
+
+def mirrored_world_to_plane_internal(world_rad: tuple[float, float], meta: JHVMeta) -> tuple[float, float]:
+    if meta.projection == "CAR":
+        lon, lat = world_rad
+        world_xyz = (
+            math.cos(lat) * math.sin(lon),
+            math.sin(lat),
+            math.cos(lat) * math.cos(lon),
+        )
+        return projectCarToWcsPlane(world_xyz, meta)
+    if meta.projection == "CEA":
+        lon, lat = world_rad
+        world_xyz = (
+            math.cos(lat) * math.sin(lon),
+            math.sin(lat),
+            math.cos(lat) * math.cos(lon),
+        )
+        return projectCeaToWcsPlane(world_xyz, meta)
+    return projectHelioprojectiveToWcsPlane(world_rad, meta)
+
+
+def mirrored_world_to_pixel_center(world_rad: tuple[float, float], meta: JHVMeta) -> tuple[float, float]:
+    plane_internal = mirrored_world_to_plane_internal(world_rad, meta)
+    return plane_internal_to_pixel_center(plane_internal, meta, wrap_x=surface_map_wraps_x(meta))
+
+
+def mirrored_world_array_to_pixel_center(world_deg: np.ndarray, meta: JHVMeta) -> np.ndarray:
+    plane_internal = project_world_to_plane_internal_array(world_deg, meta)
+    return plane_internal_array_to_pixel_center(plane_internal, meta, wrap_x=surface_map_wraps_x(meta))
+
+
+def simple_tan_world_array_to_pixel_center(world_xyz: np.ndarray, meta: JHVMeta) -> np.ndarray:
+    dx = world_xyz[:, 0] - meta.crval_internal_x
+    dy = world_xyz[:, 1] - meta.crval_internal_y
+    return plane_internal_array_to_pixel_center(np.column_stack((dx, dy)), meta)
+
+
+def ortho_carrier_world_array_from_hpc_world_deg(world_deg: np.ndarray, meta: JHVMeta) -> np.ndarray:
+    lon = np.deg2rad(world_deg[:, 0])
+    lat = np.deg2rad(world_deg[:, 1])
+    tx = np.tan(lon)
+    ty = np.tan(lat) / np.cos(lon)
+
+    a = tx * tx + ty * ty + 1.0
+    disc = meta.observer_distance * meta.observer_distance - a * (meta.observer_distance * meta.observer_distance - 1.0)
+    hits_sphere = disc >= 0.0
+
+    s = np.empty_like(tx)
+    s[hits_sphere] = (meta.observer_distance - np.sqrt(disc[hits_sphere])) / a[hits_sphere]
+    s[~hits_sphere] = meta.observer_distance
+
+    z = meta.observer_distance - s
+    z[~hits_sphere] = 0.0
+    return np.column_stack((s * tx, s * ty, z))
+
+
+def build_projection_only_wcs(header) -> WCS:
+    crval1_deg = angular_header_value_to_deg(header.get("CRVAL1", 0.0), default_angular_cunit(header, 1))
+    crval2_deg = angular_header_value_to_deg(header.get("CRVAL2", 0.0), default_angular_cunit(header, 2))
+    projection = projection_suffix(header)
+    wcs = build_astropy_wcs_base(header, projection, crval1_deg, crval2_deg)
+    wcs.wcs.crpix = [1.0, 1.0]
+    wcs.wcs.cdelt = [1.0, 1.0]
+    wcs.wcs.pc = [[1.0, 0.0], [0.0, 1.0]]
+    if projection in PV2_PROJECTIONS:
+        wcs.wcs.set_pv([(2, i, float(header.get(f"PV2_{i}", 0.0))) for i in range(6) if f"PV2_{i}" in header])
+    return wcs
+
+
+def astropy_compatible_header(header):
+    if uses_normalized_cea_y(header):
+        # Astropy correctly defaults a missing celestial CUNIT2 to degrees. Convert the
+        # explicitly supported legacy normalized convention to an equivalent angular CEA
+        # header before using Astropy as the reference for the intended full-latitude map.
+        header = header.copy()
+        has_pc = matrix_keywords_present(header, "PC")
+        has_cd = matrix_keywords_present(header, "CD")
+        if has_cd and not has_pc:
+            for key in ("CD2_1", "CD2_2"):
+                if key in header:
+                    header[key] = math.degrees(header[key])
+        else:
+            header["CDELT2"] = math.degrees(header.get("CDELT2", 1.0))
+        header["CUNIT2"] = "deg"
+    return header
+
+
+def build_astropy_pixel_wcs(header) -> WCS:
+    """Build the reference, canonicalizing only the documented legacy CEA convention."""
+    header = astropy_compatible_header(header)
+    return WCS(header, naxis=2)
+
+
+def image_plane_edge_samples(meta: JHVMeta) -> tuple[tuple[float, float], ...]:
+    x0 = -meta.crpix1_gl * meta.unit_per_pixel_x
+    x1 = (meta.pixel_width - meta.crpix1_gl) * meta.unit_per_pixel_x
+    y0 = -meta.crpix2_gl * meta.unit_per_pixel_y
+    y1 = (meta.pixel_height - meta.crpix2_gl) * meta.unit_per_pixel_y
+    xm = 0.5 * (x0 + x1)
+    ym = 0.5 * (y0 + y1)
+    return (
+        (x0, y0), (x1, y0), (x0, y1), (x1, y1),
+        (xm, y0), (xm, y1), (x0, ym), (x1, ym),
+    )
+
+
+def rotated_image_plane_edge_samples(meta: JHVMeta) -> tuple[tuple[float, float], ...]:
+    return tuple(transform_mat2(meta.image_to_plane, point) for point in image_plane_edge_samples(meta))
+
+
+def raw_hpc_footprint_bounds_degrees(meta: JHVMeta) -> tuple[float, float, float, float]:
+    min_x = math.inf
+    max_x = -math.inf
+    min_y = math.inf
+    max_y = -math.inf
+    for plane in rotated_image_plane_edge_samples(meta):
+        world_rad = project_plane_internal_to_world(plane, meta)
+        lon_deg = math.degrees(world_rad[0])
+        lat_deg = math.degrees(world_rad[1])
+        min_x = min(min_x, lon_deg)
+        max_x = max(max_x, lon_deg)
+        min_y = min(min_y, lat_deg)
+        max_y = max(max_y, lat_deg)
+    return (min_x, max_x, min_y, max_y)
+
+
+def image_radial_bound(meta: JHVMeta) -> float:
+    if not is_surface_map_projection(meta):
+        radius = 0.0
+        for plane in rotated_image_plane_edge_samples(meta):
+            helioprojective = project_plane_internal_to_world(plane, meta)
+            hpc_xy = helioprojectiveToHpcXY(helioprojective, meta.observer_distance)
+            if math.isfinite(hpc_xy[0]) and math.isfinite(hpc_xy[1]):
+                radius = max(radius, math.hypot(hpc_xy[0], hpc_xy[1]))
+        if radius > 0.0:
+            return radius
+
+    x0 = -meta.crpix1_gl * meta.unit_per_pixel_x - meta.crval_internal_x
+    x1 = (meta.pixel_width - meta.crpix1_gl) * meta.unit_per_pixel_x - meta.crval_internal_x
+    y0 = -meta.crpix2_gl * meta.unit_per_pixel_y - meta.crval_internal_y
+    y1 = (meta.pixel_height - meta.crpix2_gl) * meta.unit_per_pixel_y - meta.crval_internal_y
+    return max(math.hypot(x0, y0), math.hypot(x1, y0), math.hypot(x0, y1), math.hypot(x1, y1))
+
+
+def image_sun_shift(meta: JHVMeta) -> tuple[float, float]:
+    if is_surface_map_projection(meta) or (meta.crval_internal_x == 0.0 and meta.crval_internal_y == 0.0):
+        return (0.0, 0.0)
+    try:
+        sun_plane = project_world_to_plane_internal((0.0, 0.0), meta)
+    except ValueError:
+        return (0.0, 0.0)
+    image_plane = transform_mat2(meta.plane_to_image, sun_plane)
+    return (image_plane[0], -image_plane[1])
+
+
+def hpc_bounds_degrees(meta: JHVMeta, aspect: float) -> tuple[float, float, float, float]:
+    min_x, max_x, min_y, max_y = raw_hpc_footprint_bounds_degrees(meta)
+    half_width = max(abs(min_x), abs(max_x))
+    half_height = max(abs(min_y), abs(max_y), half_width / aspect)
+    half_width = half_height * aspect
+    return (-half_width, half_width, -half_height, half_height)
+
+
+def pixel_center_to_texcoord(px: float, py: float, image2d: np.ndarray) -> tuple[float, float]:
+    return (px / image2d.shape[1], py / image2d.shape[0])
+
+
+def texture_texel(image2d: np.ndarray, texel_x: int, texel_y: int) -> float:
+    return float(image2d[image2d.shape[0] - 1 - texel_y, texel_x])
+
+
+def wcsPlaneToPixelCenter(plane_internal: tuple[float, float], meta: JHVMeta) -> tuple[float, float]:
+    return plane_internal_to_pixel_center(plane_internal, meta)
+
+
+def wcsRect(meta: JHVMeta) -> tuple[float, float, float, float]:
+    width = meta.pixel_width * meta.unit_per_pixel_x
+    height = meta.pixel_height * meta.unit_per_pixel_y
+    return (
+        -meta.crpix1_gl * meta.unit_per_pixel_x,
+        -texture_reference_pixel_y(meta) * meta.unit_per_pixel_y,
+        1.0 / width,
+        1.0 / height,
+    )
+
+
+def wcsPlaneToTexcoord(plane_internal: tuple[float, float], meta: JHVMeta, image2d: np.ndarray) -> tuple[float, float]:
+    centered = transform_mat2(meta.plane_to_image, plane_internal)
+    rect = wcsRect(meta)
+    texcoord = (
+        rect[2] * (centered[0] - rect[0]),
+        rect[3] * (-centered[1] - rect[1]),
+    )
+    return texcoord if normalized_coord_visible(texcoord) else (math.nan, math.nan)
+
+
+def wcsPlaneToWrappedXTexcoord(plane_internal: tuple[float, float], meta: JHVMeta, image2d: np.ndarray) -> tuple[float, float]:
+    centered = transform_mat2(meta.plane_to_image, plane_internal)
+    rect = wcsRect(meta)
+    texcoord = (
+        (rect[2] * (centered[0] - rect[0])) % 1.0,
+        rect[3] * (-centered[1] - rect[1]),
+    )
+    return texcoord if normalized_coord_visible(texcoord) else (math.nan, math.nan)
+
+
+def sample_texture_linear(image2d: np.ndarray, texcoord: tuple[float, float], wrap_x: bool = False) -> float:
+    u, v = texcoord
+    if not math.isfinite(u) or not math.isfinite(v):
+        return math.nan
+
+    if wrap_x:
+        u = u % 1.0
+    elif u < 0.0 or u > 1.0:
+        return math.nan
+
+    if v < 0.0 or v > 1.0:
+        return math.nan
+
+    fx = u * image2d.shape[1] - 0.5
+    fy = v * image2d.shape[0] - 0.5
+    x0 = int(math.floor(fx))
+    y0 = int(math.floor(fy))
+    tx = fx - x0
+    ty = fy - y0
+    x1 = x0 + 1
+    y1 = y0 + 1
+
+    y0 = min(max(y0, 0), image2d.shape[0] - 1)
+    y1 = min(max(y1, 0), image2d.shape[0] - 1)
+
+    if wrap_x:
+        x0 = x0 % image2d.shape[1]
+        x1 = x1 % image2d.shape[1]
+    else:
+        x0 = min(max(x0, 0), image2d.shape[1] - 1)
+        x1 = min(max(x1, 0), image2d.shape[1] - 1)
+
+    v00 = texture_texel(image2d, x0, y0)
+    v10 = texture_texel(image2d, x1, y0)
+    v01 = texture_texel(image2d, x0, y1)
+    v11 = texture_texel(image2d, x1, y1)
+    return (
+        (1.0 - tx) * (1.0 - ty) * v00 +
+        tx * (1.0 - ty) * v10 +
+        (1.0 - tx) * ty * v01 +
+        tx * ty * v11
+    )
+
+
+def sample_observer_image_linear(image2d: np.ndarray, px: float, py: float) -> float:
+    return sample_texture_linear(image2d, pixel_center_to_texcoord(px, py, image2d))
+
+
+def sample_surface_map_linear(image2d: np.ndarray, px: float, py: float, meta: JHVMeta) -> float:
+    return sample_texture_linear(image2d, pixel_center_to_texcoord(px, py, image2d), wrap_x=surface_map_wraps_x(meta))
+
+
+def sample_source_linear(image2d: np.ndarray, px: float, py: float, meta: JHVMeta) -> float:
+    if meta.projection in SURFACE_MAP_PROJECTIONS:
+        return sample_surface_map_linear(image2d, px, py, meta)
+    return sample_observer_image_linear(image2d, px, py)
+
+
+def sample_texture_linear_array(image2d: np.ndarray, u: np.ndarray, v: np.ndarray, wrap_x: bool = False) -> np.ndarray:
+    u = np.asarray(u, dtype=np.float64)
+    v = np.asarray(v, dtype=np.float64)
+    out = np.full(u.shape, np.nan, dtype=np.float64)
+
+    finite = np.isfinite(u) & np.isfinite(v)
+    if wrap_x:
+        u = np.mod(u, 1.0)
+    else:
+        finite &= (u >= 0.0) & (u <= 1.0)
+    finite &= (v >= 0.0) & (v <= 1.0)
+    if not np.any(finite):
+        return out
+
+    width = image2d.shape[1]
+    height = image2d.shape[0]
+
+    fx = u[finite] * width - 0.5
+    fy = v[finite] * height - 0.5
+    x0 = np.floor(fx).astype(np.int64)
+    y0 = np.floor(fy).astype(np.int64)
+    tx = fx - x0
+    ty = fy - y0
+    x1 = x0 + 1
+    y1 = y0 + 1
+
+    y0 = np.clip(y0, 0, height - 1)
+    y1 = np.clip(y1, 0, height - 1)
+
+    if wrap_x:
+        x0 = np.mod(x0, width)
+        x1 = np.mod(x1, width)
+    else:
+        x0 = np.clip(x0, 0, width - 1)
+        x1 = np.clip(x1, 0, width - 1)
+
+    ty0 = height - 1 - y0
+    ty1 = height - 1 - y1
+    v00 = image2d[ty0, x0]
+    v10 = image2d[ty0, x1]
+    v01 = image2d[ty1, x0]
+    v11 = image2d[ty1, x1]
+    out[finite] = (
+        (1.0 - tx) * (1.0 - ty) * v00 +
+        tx * (1.0 - ty) * v10 +
+        (1.0 - tx) * ty * v01 +
+        tx * ty * v11
+    )
+    return out
+
+
+def sample_source_linear_array(image2d: np.ndarray, px: np.ndarray, py: np.ndarray, meta: JHVMeta) -> np.ndarray:
+    wrap_x = surface_map_wraps_x(meta)
+    return sample_texture_linear_array(
+        image2d,
+        np.asarray(px, dtype=np.float64) / image2d.shape[1],
+        np.asarray(py, dtype=np.float64) / image2d.shape[0],
+        wrap_x=wrap_x,
+    )
+
+
+def sample_points(sample_count: int, seed: int) -> list[tuple[float, float, float]]:
+    rng = random.Random(seed)
+    points: list[tuple[float, float, float]] = []
+
+    half = sample_count // 2
+    for _ in range(half):
+        radius = math.sqrt(rng.random()) * 0.98
+        angle = rng.random() * 2.0 * math.pi
+        x = radius * math.cos(angle)
+        y = radius * math.sin(angle)
+        z = math.sqrt(max(0.0, 1.0 - x * x - y * y))
+        points.append((x, y, z))
+
+    for _ in range(sample_count - half):
+        radius = 1.05 + rng.random() * 2.0
+        angle = rng.random() * 2.0 * math.pi
+        x = radius * math.cos(angle)
+        y = radius * math.sin(angle)
+        z = -0.5 + rng.random() * 2.0
+        points.append((x, y, z))
+
+    return points
+
+
+def sample_worlds_from_pixels(pixel_wcs: WCS, meta: JHVMeta, sample_count: int) -> list[tuple[float, float]]:
+    grid = max(2, int(math.ceil(math.sqrt(sample_count))))
+    xs = np.linspace(1.0, float(meta.pixel_width), grid)
+    ys = np.linspace(1.0, float(meta.pixel_height), grid)
+    worlds: list[tuple[float, float]] = []
+    for y in ys:
+        points = np.column_stack((xs, np.full(xs.shape, y, dtype=np.float64)))
+        world_deg = pixel_wcs.wcs_pix2world(points, 1)
+        for lon_deg, lat_deg in world_deg:
+            worlds.append((math.radians(float(lon_deg)), math.radians(float(lat_deg))))
+    return worlds
+
+
+def project_plane_internal_to_world_tan(plane_internal: tuple[float, float], meta: JHVMeta) -> tuple[float, float]:
+    x = plane_internal[0] / meta.plane_units_per_rad
+    y = plane_internal[1] / meta.plane_units_per_rad
+    rho = math.hypot(x, y)
+    lon0 = meta.crval_internal_x / meta.plane_units_per_rad
+    lat0 = meta.crval_internal_y / meta.plane_units_per_rad
+    if rho == 0.0:
+        return (lon0, lat0)
+    c = math.atan(rho)
+    sinc = math.sin(c)
+    cosc = math.cos(c)
+    return (
+        lon0 + math.atan2(x * sinc, rho * math.cos(lat0) * cosc - y * math.sin(lat0) * sinc),
+        math.asin(cosc * math.sin(lat0) + y * sinc * math.cos(lat0) / rho),
+    )
+
+
+def hpc_screen_to_world_rad(scrpos: tuple[float, float], bounds_deg: tuple[float, float, float, float]) -> tuple[float, float]:
+    sx, sy = scrpos
+    x0, x1, y0, y1 = bounds_deg
+    return (
+        math.radians(x0 + sx * (x1 - x0)),
+        math.radians(y0 + sy * (y1 - y0)),
+    )
+
+
+# CPU mirror of imageHpc.frag.
+def screenToHelioprojective(scrpos: tuple[float, float], bounds_deg: tuple[float, float, float, float]) -> tuple[float, float]:
+    return hpc_screen_to_world_rad(scrpos, bounds_deg)
+
+
+def helioprojectiveToWorld(helioprojective: tuple[float, float], observer_distance: float) -> tuple[bool, tuple[float, float, float]]:
+    ray = helioprojective_to_observer_ray(helioprojective)
+    b = observer_distance * ray[2]
+    c = observer_distance * observer_distance - 1.0
+    discriminant = b * b - c
+    if discriminant < 0.0:
+        return False, (0.0, 0.0, 0.0)
+
+    root = math.sqrt(discriminant)
+    t_near = -b - root
+    t_far = -b + root
+    t = t_near if t_near > 0.0 else t_far
+    if t <= 0.0:
+        return False, (0.0, 0.0, 0.0)
+
+    observer = (0.0, 0.0, observer_distance)
+    world = (
+        observer[0] + t * ray[0],
+        observer[1] + t * ray[1],
+        observer[2] + t * ray[2],
+    )
+    return True, world
+
+
+def helioprojectiveToHpcXY(helioprojective: tuple[float, float], observer_distance: float) -> tuple[float, float]:
+    ray = helioprojective_to_observer_ray(helioprojective)
+    scale = -observer_distance / ray[2]
+    return float(scale * ray[0]), float(scale * ray[1])
+
+
+def passes_sector_opening(theta: float, sector: tuple[float, float]) -> bool:
+    center, half_width = sector
+    if half_width <= 0.0:
+        return True
+    delta = abs(theta - center)
+    return min(delta, 2.0 * math.pi - delta) >= half_width
+
+
+def passes_sectors(
+    xy: tuple[float, float],
+    sectors: tuple[tuple[float, float], tuple[float, float]] = DISPLAY_SECTORS,
+) -> bool:
+    theta = math.atan2(xy[1], xy[0])
+    return all(passes_sector_opening(theta, sector) for sector in sectors)
+
+
+def passes_radii(radial2: float, radii: tuple[float, float] = DISPLAY_RADII) -> bool:
+    return radii[0] * radii[0] <= radial2 <= radii[1] * radii[1]
+
+
+def passes_cutoff(xy: tuple[float, float], cutoff: tuple[float, float, float] = DISPLAY_CUTOFF) -> bool:
+    if cutoff[2] < 0.0:
+        return True
+    geometry_flat_dist = abs(xy[0] * cutoff[0] + xy[1] * cutoff[1])
+    cutoff_alt = (-cutoff[1], cutoff[0])
+    geometry_flat_dist_alt = abs(xy[0] * cutoff_alt[0] + xy[1] * cutoff_alt[1])
+    return geometry_flat_dist <= cutoff[2] and geometry_flat_dist_alt <= cutoff[2]
+
+
+def normalized_coord_visible(coord: tuple[float, float], slit: tuple[float, float] = DISPLAY_SLIT) -> bool:
+    return slit[0] <= coord[0] <= slit[1] and 0.0 <= coord[1] <= 1.0
+
+
+def getScrPos(scrpos: tuple[float, float], slit: tuple[float, float] = DISPLAY_SLIT) -> tuple[float, float]:
+    return scrpos if normalized_coord_visible(scrpos, slit) else (math.nan, math.nan)
+
+
+def clipHpcGeometry(
+    hpc_xy: tuple[float, float],
+    sectors: tuple[tuple[float, float], tuple[float, float]] = DISPLAY_SECTORS,
+    radii: tuple[float, float] = DISPLAY_RADII,
+    cutoff: tuple[float, float, float] = DISPLAY_CUTOFF,
+) -> bool:
+    radial2 = hpc_xy[0] * hpc_xy[0] + hpc_xy[1] * hpc_xy[1]
+    return passes_sectors(hpc_xy, sectors) and passes_radii(radial2, radii) and passes_cutoff(hpc_xy, cutoff)
+
+
+def projectHelioprojectiveToWcsPlane(helioprojective: tuple[float, float], meta: JHVMeta) -> tuple[float, float]:
+    if meta.projection == "TAN":
+        return projectTanToWcsPlane(helioprojective, meta)
+    if meta.projection == "ARC":
+        return projectArcToWcsPlane(helioprojective, meta)
+    if meta.projection == "AZP":
+        return projectAzpToWcsPlane(helioprojective, meta)
+    if meta.projection == "ZPN":
+        return projectZpnToWcsPlane(helioprojective, meta)
+    raise ValueError(f"HPC path does not support projection {meta.projection!r}")
+
+
+def sampleHpcTexcoord(
+    helioprojective: tuple[float, float],
+    hpc_xy: tuple[float, float],
+    meta: JHVMeta,
+    image2d: np.ndarray,
+    delta_t: float = 0.0,
+) -> tuple[tuple[float, float], float]:
+    enhancement_factor = 1.0
+    hp = helioprojective
+    hit, world = helioprojectiveToWorld(hp, meta.observer_distance)
+    if hit:
+        if delta_t != 0.0:
+            world = differential(delta_t, world)
+        hp = worldToHelioprojective(world, meta.observer_distance)
+    else:
+        enhancement_factor = max(1.0, math.hypot(hpc_xy[0], hpc_xy[1]))
+
+    try:
+        plane = projectHelioprojectiveToWcsPlane(hp, meta)
+    except ValueError:
+        return (math.nan, math.nan), enhancement_factor
+    return wcsPlaneToTexcoord(plane, meta, image2d), enhancement_factor
+
+
+# imageHpc.frag mirror.
+
+def renderHpcTexcoords(
+    scrpos: tuple[float, float],
+    bounds_deg: tuple[float, float, float, float],
+    meta: JHVMeta,
+    image2d: np.ndarray,
+    diff_meta: JHVMeta | None = None,
+    diff_image2d: np.ndarray | None = None,
+    delta_t: float = 0.0,
+    diff_delta_t: float = 0.0,
+) -> tuple[tuple[float, float], tuple[float, float], float, float, tuple[float, float], tuple[float, float]]:
+    clamped_scrpos = getScrPos(scrpos)
+    if not math.isfinite(clamped_scrpos[0]) or not math.isfinite(clamped_scrpos[1]):
+        nan2 = (math.nan, math.nan)
+        return nan2, nan2, math.nan, math.nan, nan2, nan2
+
+    helioprojective = screenToHelioprojective(clamped_scrpos, bounds_deg)
+    hpc_xy = helioprojectiveToHpcXY(helioprojective, meta.observer_distance)
+    if not clipHpcGeometry(hpc_xy):
+        nan2 = (math.nan, math.nan)
+        return nan2, nan2, math.nan, math.nan, helioprojective, nan2
+
+    texcoord, enhancement_factor = sampleHpcTexcoord(helioprojective, hpc_xy, meta, image2d, delta_t)
+    if diff_meta is None:
+        return texcoord, texcoord, enhancement_factor, enhancement_factor, helioprojective, hpc_xy
+
+    diff_hpc_xy = helioprojectiveToHpcXY(helioprojective, diff_meta.observer_distance)
+    if not clipHpcGeometry(diff_hpc_xy):
+        nan2 = (math.nan, math.nan)
+        return texcoord, nan2, enhancement_factor, math.nan, helioprojective, diff_hpc_xy
+
+    diff_texcoord, diff_enhancement_factor = sampleHpcTexcoord(
+        helioprojective,
+        diff_hpc_xy,
+        diff_meta,
+        diff_image2d if diff_image2d is not None else image2d,
+        diff_delta_t,
+    )
+    return texcoord, diff_texcoord, enhancement_factor, diff_enhancement_factor, helioprojective, diff_hpc_xy
+
+
+def f32(value: float) -> float:
+    return float(np.float32(value))
+
+
+def sin32(value: float) -> float:
+    return f32(np.sin(np.float32(value)))
+
+
+def cos32(value: float) -> float:
+    return f32(np.cos(np.float32(value)))
+
+
+def sqrt32(value: float) -> float:
+    return f32(np.sqrt(np.float32(value)))
+
+
+def atan32(y: float, x: float) -> float:
+    return f32(np.arctan2(np.float32(y), np.float32(x)))
+
+
+def radians32(value: float) -> float:
+    return f32(np.deg2rad(np.float32(value)))
+
+
+def length32(x: float, y: float) -> float:
+    return sqrt32(f32(f32(x * x) + f32(y * y)))
+
+
+def screenToHelioprojectiveFloat32(scrpos: tuple[float, float], bounds_deg: tuple[float, float, float, float]) -> tuple[float, float]:
+    sx, sy = f32(scrpos[0]), f32(scrpos[1])
+    x0, x1, y0, y1 = [f32(v) for v in bounds_deg]
+    return (
+        radians32(f32(x0 + f32(sx * f32(x1 - x0)))),
+        radians32(f32(y0 + f32(sy * f32(y1 - y0)))),
+    )
+
+
+def helioprojectiveToObserverRayFloat32(helioprojective: tuple[float, float]) -> tuple[float, float, float]:
+    phi, theta = helioprojective
+    cos_phi = cos32(phi)
+    cos_theta = cos32(theta)
+    ray_sign = -1.0 if f32(cos_phi * cos_theta) < 0.0 else 1.0
+    return (
+        f32(ray_sign * f32(sin32(phi) * cos_theta)),
+        f32(ray_sign * sin32(theta)),
+        f32(-ray_sign * f32(cos_phi * cos_theta)),
+    )
+
+
+def helioprojectiveToWorldFloat32(helioprojective: tuple[float, float], observer_distance: float) -> tuple[bool, tuple[float, float, float]]:
+    ray = helioprojectiveToObserverRayFloat32(helioprojective)
+    observer_distance = f32(observer_distance)
+    b = f32(observer_distance * ray[2])
+    c = f32(f32(observer_distance * observer_distance) - 1.0)
+    discriminant = f32(f32(b * b) - c)
+    if discriminant < 0.0:
+        return False, (0.0, 0.0, 0.0)
+
+    root = sqrt32(discriminant)
+    t_near = f32(-b - root)
+    t_far = f32(-b + root)
+    t = t_near if t_near > 0.0 else t_far
+    if t <= 0.0:
+        return False, (0.0, 0.0, 0.0)
+
+    return True, (
+        f32(t * ray[0]),
+        f32(t * ray[1]),
+        f32(observer_distance + f32(t * ray[2])),
+    )
+
+
+def helioprojectiveToHpcXYFloat32(helioprojective: tuple[float, float], observer_distance: float) -> tuple[float, float]:
+    ray = helioprojectiveToObserverRayFloat32(helioprojective)
+    if ray[2] >= 0.0:
+        return (math.nan, math.nan)
+    scale = f32(-f32(observer_distance) / ray[2])
+    return f32(scale * ray[0]), f32(scale * ray[1])
+
+
+def worldToHelioprojectiveFloat32(world_xyz: tuple[float, float, float], observer_distance: float) -> tuple[float, float]:
+    x, y, z = [f32(v) for v in world_xyz]
+    zeta = f32(f32(observer_distance) - z)
+    return (
+        atan32(x, zeta),
+        atan32(y, sqrt32(f32(f32(x * x) + f32(zeta * zeta)))),
+    )
+
+
+def clipHpcGeometryFloat32(hpc_xy: tuple[float, float]) -> bool:
+    if not math.isfinite(hpc_xy[0]) or not math.isfinite(hpc_xy[1]):
+        return False
+    radial2 = f32(f32(hpc_xy[0] * hpc_xy[0]) + f32(hpc_xy[1] * hpc_xy[1]))
+    return passes_sectors(hpc_xy) and passes_radii(radial2) and passes_cutoff(hpc_xy)
+
+
+def nativeZenithalCoordinatesFloat32(helioprojective: tuple[float, float], meta: JHVMeta) -> tuple[float, float, float]:
+    phi, theta = helioprojective
+    plane_units_per_rad = f32(meta.plane_units_per_rad)
+    phi0 = f32(f32(meta.crval_internal_x) / plane_units_per_rad)
+    theta0 = f32(f32(meta.crval_internal_y) / plane_units_per_rad)
+
+    sin_lat = sin32(theta)
+    cos_lat = cos32(theta)
+    sin_lat0 = sin32(theta0)
+    cos_lat0 = cos32(theta0)
+    delta_lon = f32(phi - phi0)
+    sin_delta_lon = sin32(delta_lon)
+    cos_delta_lon = cos32(delta_lon)
+
+    native_x = f32(cos_lat * sin_delta_lon)
+    native_y = f32(f32(cos_lat0 * sin_lat) - f32(f32(sin_lat0 * cos_lat) * cos_delta_lon))
+    cos_native_distance = f32(f32(sin_lat0 * sin_lat) + f32(f32(cos_lat0 * cos_lat) * cos_delta_lon))
+    return native_x, native_y, cos_native_distance
+
+
+def zpnRadialFloat32(meta: JHVMeta, eta_rad: float) -> float:
+    radial = f32(meta.pv2[-1])
+    eta = f32(eta_rad)
+    for coefficient in reversed(meta.pv2[:-1]):
+        radial = f32(f32(radial * eta) + f32(coefficient))
+    return radial
+
+
+def projectHelioprojectiveToWcsPlaneFloat32(helioprojective: tuple[float, float], meta: JHVMeta) -> tuple[float, float]:
+    native_x, native_y, cos_native_distance = nativeZenithalCoordinatesFloat32(helioprojective, meta)
+    plane_units_per_rad = f32(meta.plane_units_per_rad)
+
+    if meta.projection == "TAN":
+        if cos_native_distance <= 0.0:
+            raise ValueError("Point is outside the visible TAN hemisphere")
+        return (
+            f32(plane_units_per_rad * f32(native_x / cos_native_distance)),
+            f32(plane_units_per_rad * f32(native_y / cos_native_distance)),
+        )
+
+    native_radius = length32(native_x, native_y)
+    if native_radius == 0.0:
+        return (0.0, 0.0)
+
+    if meta.projection == "ARC":
+        native_distance = atan32(native_radius, cos_native_distance)
+        scale = f32(plane_units_per_rad * f32(native_distance / native_radius))
+        return f32(scale * native_x), f32(scale * native_y)
+
+    if meta.projection == "AZP":
+        mu = f32(meta.pv2[1])
+        gamma = radians32(meta.pv2[2])
+        if gamma == 0.0 and mu > 1.0 and f32(f32(mu * cos_native_distance) + 1.0) <= 0.0:
+            raise ValueError("Point is outside the primary forward AZP branch")
+        denom = f32(f32(mu + cos_native_distance) - f32(native_y * f32(math.tan(gamma))))
+        if denom <= 0.0:
+            raise ValueError("Point is on the AZP singularity")
+        radial = f32(f32(mu + 1.0) * f32(native_radius / denom))
+        return (
+            f32(plane_units_per_rad * f32(radial * f32(native_x / native_radius))),
+            f32(plane_units_per_rad * f32(radial * f32(native_y / f32(native_radius * cos32(gamma))))),
+        )
+
+    if meta.projection == "ZPN":
+        native_distance = atan32(native_radius, cos_native_distance)
+        if native_distance > f32(zpn_primary_branch_upper_eta(meta)):
+            raise ValueError("Point is outside the primary forward ZPN branch")
+        radial = zpnRadialFloat32(meta, native_distance)
+        if radial < 0.0:
+            raise ValueError("Point is outside the primary forward ZPN branch")
+        scale = f32(plane_units_per_rad * f32(radial / native_radius))
+        return f32(scale * native_x), f32(scale * native_y)
+
+    raise ValueError(f"HPC path does not support projection {meta.projection!r}")
+
+
+def transformPlaneToImageFloat32(transform: tuple[float, float, float, float], vec: tuple[float, float]) -> tuple[float, float]:
+    m00, m01, m10, m11 = [f32(v) for v in transform]
+    x, y = [f32(v) for v in vec]
+    return (
+        f32(f32(m00 * x) + f32(m01 * y)),
+        f32(f32(m10 * x) + f32(m11 * y)),
+    )
+
+
+def wcsPlaneToTexcoordFloat32(plane_internal: tuple[float, float], meta: JHVMeta, image2d: np.ndarray) -> tuple[float, float]:
+    centered = transformPlaneToImageFloat32(meta.plane_to_image, plane_internal)
+    width = f32(f32(meta.pixel_width) * f32(meta.unit_per_pixel_x))
+    height = f32(f32(meta.pixel_height) * f32(meta.unit_per_pixel_y))
+    rect = (
+        f32(-f32(meta.crpix1_gl) * f32(meta.unit_per_pixel_x)),
+        f32(-f32(texture_reference_pixel_y(meta)) * f32(meta.unit_per_pixel_y)),
+        f32(1.0 / width),
+        f32(1.0 / height),
+    )
+    texcoord = (
+        f32(rect[2] * f32(centered[0] - rect[0])),
+        f32(rect[3] * f32(-centered[1] - rect[1])),
+    )
+    return texcoord if normalized_coord_visible(texcoord) else (math.nan, math.nan)
+
+
+def sampleHpcTexcoordFloat32(helioprojective: tuple[float, float], hpc_xy: tuple[float, float], meta: JHVMeta, image2d: np.ndarray) -> tuple[tuple[float, float], float]:
+    enhancement_factor = 1.0
+    hp = helioprojective
+    hit, world = helioprojectiveToWorldFloat32(hp, meta.observer_distance)
+    if hit:
+        hp = worldToHelioprojectiveFloat32(world, meta.observer_distance)
+    else:
+        enhancement_factor = max(1.0, length32(hpc_xy[0], hpc_xy[1]))
+
+    try:
+        plane = projectHelioprojectiveToWcsPlaneFloat32(hp, meta)
+    except ValueError:
+        return (math.nan, math.nan), enhancement_factor
+    return wcsPlaneToTexcoordFloat32(plane, meta, image2d), enhancement_factor
+
+
+def renderHpcTexcoordsFloat32(
+    scrpos: tuple[float, float],
+    bounds_deg: tuple[float, float, float, float],
+    meta: JHVMeta,
+    image2d: np.ndarray,
+) -> tuple[tuple[float, float], float, tuple[float, float], tuple[float, float]]:
+    clamped_scrpos = getScrPos(scrpos)
+    if not math.isfinite(clamped_scrpos[0]) or not math.isfinite(clamped_scrpos[1]):
+        nan2 = (math.nan, math.nan)
+        return nan2, math.nan, nan2, nan2
+
+    helioprojective = screenToHelioprojectiveFloat32(clamped_scrpos, bounds_deg)
+    hpc_xy = helioprojectiveToHpcXYFloat32(helioprojective, meta.observer_distance)
+    if not clipHpcGeometryFloat32(hpc_xy):
+        nan2 = (math.nan, math.nan)
+        return nan2, math.nan, helioprojective, nan2
+
+    texcoord, enhancement_factor = sampleHpcTexcoordFloat32(helioprojective, hpc_xy, meta, image2d)
+    return texcoord, enhancement_factor, helioprojective, hpc_xy
+
+
+# imageLati.frag mirror.
+
+def latitudinalWorld(
+    scrpos: tuple[float, float],
+    bounds_deg: tuple[float, float, float, float],
+    origin: tuple[float, float] = (0.0, 0.0),
+) -> tuple[float, float, float]:
+    longitude = math.radians(bounds_deg[0] + scrpos[0] * (bounds_deg[1] - bounds_deg[0])) - origin[0]
+    latitude = math.radians(bounds_deg[2] + scrpos[1] * (bounds_deg[3] - bounds_deg[2])) + origin[1]
+    if latitude < -0.5 * math.pi or latitude > 0.5 * math.pi:
+        return (math.nan, math.nan, math.nan)
+    cos_latitude = math.cos(latitude)
+    return (
+        cos_latitude * math.sin(longitude),
+        math.sin(latitude),
+        cos_latitude * math.cos(longitude),
+    )
+
+
+def sampleLatiSurfaceTexcoord(
+    scrpos: tuple[float, float],
+    bounds_deg: tuple[float, float, float, float],
+    meta: JHVMeta,
+    image2d: np.ndarray,
+    lati_origin: tuple[float, float] = (0.0, 0.0),
+) -> tuple[float, float]:
+    world = latitudinalWorld(scrpos, bounds_deg, lati_origin)
+    plane = projectCarToWcsPlane(world, meta) if meta.projection == "CAR" else projectCeaToWcsPlane(world, meta)
+    return wcsPlaneToWrappedXTexcoord(plane, meta, image2d)
+
+
+def sampleLatiZenithalTexcoord(
+    scrpos: tuple[float, float],
+    bounds_deg: tuple[float, float, float, float],
+    meta: JHVMeta,
+    image2d: np.ndarray,
+    lati_origin: tuple[float, float] = (0.0, 0.0),
+    source_view_quat: tuple[float, float, float, float] = IDENTITY_QUAT,
+    delta_t: float = 0.0,
+) -> tuple[float, float]:
+    world = latitudinalWorld(scrpos, bounds_deg, lati_origin)
+    if not all(math.isfinite(value) for value in world):
+        return (math.nan, math.nan)
+
+    if delta_t != 0.0:
+        world = differential(delta_t, world)
+
+    source_world = rotate_vector(source_view_quat, world)
+    if source_world[2] < 0.0:
+        return (math.nan, math.nan)
+
+    helioprojective = worldToHelioprojective(source_world, meta.observer_distance)
+    plane = projectHelioprojectiveToWcsPlane(helioprojective, meta)
+    return wcsPlaneToTexcoord(plane, meta, image2d)
+
+
+def sampleLatiTexcoord(
+    scrpos: tuple[float, float],
+    bounds_deg: tuple[float, float, float, float],
+    meta: JHVMeta,
+    image2d: np.ndarray,
+    lati_origin: tuple[float, float] = (0.0, 0.0),
+    source_view_quat: tuple[float, float, float, float] = IDENTITY_QUAT,
+    delta_t: float = 0.0,
+) -> tuple[float, float]:
+    if meta.projection in SURFACE_MAP_PROJECTIONS:
+        return sampleLatiSurfaceTexcoord(scrpos, bounds_deg, meta, image2d, lati_origin)
+    return sampleLatiZenithalTexcoord(
+        scrpos, bounds_deg, meta, image2d, lati_origin, source_view_quat, delta_t)
+
+
+def renderLatitudinalTexcoords(
+    scrpos: tuple[float, float],
+    bounds_deg: tuple[float, float, float, float],
+    meta: JHVMeta,
+    image2d: np.ndarray,
+    diff_meta: JHVMeta | None = None,
+    diff_image2d: np.ndarray | None = None,
+    lati_origin: tuple[float, float] = (0.0, 0.0),
+    source_view_quat: tuple[float, float, float, float] = IDENTITY_QUAT,
+    diff_source_view_quat: tuple[float, float, float, float] = IDENTITY_QUAT,
+    delta_t: float = 0.0,
+    diff_delta_t: float = 0.0,
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    if DISPLAY_RADII[0] > 1.0:
+        return (math.nan, math.nan), (math.nan, math.nan)
+    clamped_scrpos = getScrPos(scrpos)
+    if not math.isfinite(clamped_scrpos[0]) or not math.isfinite(clamped_scrpos[1]):
+        return (math.nan, math.nan), (math.nan, math.nan)
+    texcoord = sampleLatiTexcoord(
+        clamped_scrpos, bounds_deg, meta, image2d, lati_origin, source_view_quat, delta_t)
+    if diff_meta is None:
+        return texcoord, texcoord
+    diff_texcoord = sampleLatiTexcoord(
+        clamped_scrpos,
+        bounds_deg,
+        diff_meta,
+        diff_image2d if diff_image2d is not None else image2d,
+        lati_origin,
+        diff_source_view_quat,
+        diff_delta_t,
+    )
+    return texcoord, diff_texcoord
+
+
+def renderLatitudinalPixel(
+    scrpos: tuple[float, float],
+    bounds_deg: tuple[float, float, float, float],
+    meta: JHVMeta,
+    image2d: np.ndarray,
+    lati_origin: tuple[float, float] = (0.0, 0.0),
+    source_view_quat: tuple[float, float, float, float] = IDENTITY_QUAT,
+    delta_t: float = 0.0,
+) -> tuple[float, float]:
+    texcoord, _ = renderLatitudinalTexcoords(
+        scrpos,
+        bounds_deg,
+        meta,
+        image2d,
+        lati_origin=lati_origin,
+        source_view_quat=source_view_quat,
+        delta_t=delta_t,
+    )
+    return texcoord
+
+
+# imageOrtho.frag mirror.
+
+def ortho_screen_to_world(screen_xy: tuple[float, float]) -> tuple[float, float, float]:
+    x, y = screen_xy
+    radius2 = x * x + y * y
+    return (x, y, math.sqrt(max(0.0, 1.0 - radius2)))
+
+
+def texcoord_to_pixel_center(texcoord: tuple[float, float], width: int, height: int) -> tuple[float, float]:
+    return (texcoord[0] * width, texcoord[1] * height)
+
+
+# CPU mirror of the on-disk source sampling logic in imageOrtho.frag.
+def sampleOrthoTexcoord(
+    world_xyz: tuple[float, float, float],
+    meta: JHVMeta,
+    image2d: np.ndarray,
+    simple_tan: bool = False,
+) -> tuple[float, float]:
+    if meta.projection == "CAR":
+        plane = projectCarToWcsPlane(world_xyz, meta)
+        return wcsPlaneToWrappedXTexcoord(plane, meta, image2d)
+    if meta.projection == "CEA":
+        plane = projectCeaToWcsPlane(world_xyz, meta)
+        return wcsPlaneToWrappedXTexcoord(plane, meta, image2d)
+    if simple_tan and meta.projection == "TAN":
+        return wcsPlaneToTexcoord((world_xyz[0] - meta.crval_internal_x, world_xyz[1] - meta.crval_internal_y), meta, image2d)
+    helioprojective = worldToHelioprojective(world_xyz, meta.observer_distance)
+    plane = projectHelioprojectiveToWcsPlane(helioprojective, meta)
+    return wcsPlaneToTexcoord(plane, meta, image2d)
+
+
+def rotateOnDiskPoint(
+    hit_point: tuple[float, float, float],
+    meta: JHVMeta,
+    camera_diff_quat: tuple[float, float, float, float] = IDENTITY_QUAT,
+    delta_t: float = 0.0,
+) -> tuple[float, float, float]:
+    rotated = rotate_vector_inverse(camera_diff_quat, hit_point)
+    if delta_t != 0.0:
+        rotated = differential(delta_t, rotated)
+    return rotated
+
+
+def intersectPlane(camera_diff_quat: tuple[float, float, float, float], vecin: tuple[float, float, float], discard_back_facing: bool) -> float:
+    altnormal = rotate_vector(camera_diff_quat, (0.0, 0.0, 1.0))
+    if discard_back_facing and altnormal[2] <= 0.0:
+        return math.nan
+    if abs(altnormal[2]) < PLANE_Z_EPS:
+        return math.nan
+    return -(altnormal[0] * vecin[0] + altnormal[1] * vecin[1]) / altnormal[2]
+
+
+def clipOrthoGeometry(sample_point: tuple[float, float, float]) -> bool:
+    xy = (sample_point[0], sample_point[1])
+    if not passes_sectors(xy):
+        return False
+    radial2 = sample_point[0] * sample_point[0] + sample_point[1] * sample_point[1]
+    return passes_radii(radial2) and passes_cutoff(xy)
+
+
+def orthographic_vs_hpc_screen_pixel_centers(screen_xy: tuple[float, float], meta: JHVMeta, image2d: np.ndarray) -> tuple[tuple[float, float], tuple[float, float]]:
+    ortho_texcoord, _ = renderOrthographicPixel(screen_xy, meta, image2d)
+    ortho_px = texcoord_to_pixel_center(ortho_texcoord, meta.pixel_width, meta.pixel_height)
+
+    solar_limb_angle_deg = math.degrees(math.atan2(1.0, meta.observer_distance))
+    hpc_bounds_deg = (
+        -solar_limb_angle_deg,
+        solar_limb_angle_deg,
+        -solar_limb_angle_deg,
+        solar_limb_angle_deg,
+    )
+    hpc_scrpos = (
+        0.5 * (screen_xy[0] + 1.0),
+        0.5 * (screen_xy[1] + 1.0),
+    )
+    hpc_texcoord, _, _, _, _, _ = renderHpcTexcoords(hpc_scrpos, hpc_bounds_deg, meta, image2d)
+    hpc_px = texcoord_to_pixel_center(hpc_texcoord, meta.pixel_width, meta.pixel_height)
+    return ortho_px, hpc_px
+
+
+def renderOrthographicTexcoords(
+    screen_xy: tuple[float, float],
+    meta: JHVMeta,
+    image2d: np.ndarray,
+    diff_meta: JHVMeta | None = None,
+    diff_image2d: np.ndarray | None = None,
+    simple_tan: bool = False,
+    camera_diff_quat: tuple[float, float, float, float] = IDENTITY_QUAT,
+    diff_camera_diff_quat: tuple[float, float, float, float] = IDENTITY_QUAT,
+    source_view_quat: tuple[float, float, float, float] = IDENTITY_QUAT,
+    diff_source_view_quat: tuple[float, float, float, float] = IDENTITY_QUAT,
+    delta_t: float = 0.0,
+    diff_delta_t: float = 0.0,
+) -> tuple[tuple[float, float], tuple[float, float], tuple[float, float, float], tuple[float, float, float]]:
+    radius2 = screen_xy[0] * screen_xy[0] + screen_xy[1] * screen_xy[1]
+    on_disk = radius2 <= 1.0
+    surface_map_mode = meta.projection in SURFACE_MAP_PROJECTIONS
+    diff_surface_map_mode = diff_meta.projection in SURFACE_MAP_PROJECTIONS if diff_meta is not None else False
+    if surface_map_mode and not on_disk:
+        return (math.nan, math.nan), (math.nan, math.nan), (math.nan, math.nan, math.nan), (math.nan, math.nan, math.nan)
+    if diff_meta is not None and diff_surface_map_mode and not on_disk:
+        return (math.nan, math.nan), (math.nan, math.nan), (math.nan, math.nan, math.nan), (math.nan, math.nan, math.nan)
+
+    if on_disk:
+        hit_point = ortho_screen_to_world(screen_xy)
+        world_xyz = (
+            rotate_vector_inverse(source_view_quat, hit_point)
+            if surface_map_mode
+            else rotateOnDiskPoint(hit_point, meta, camera_diff_quat, delta_t)
+        )
+    else:
+        hit_point = (math.nan, math.nan, math.nan)
+        world_xyz = (0.0, 0.0, 0.0)
+
+    if not surface_map_mode and world_xyz[2] <= 0.0:
+        hit_point = (screen_xy[0], screen_xy[1], intersectPlane(camera_diff_quat, (screen_xy[0], screen_xy[1], 0.0), on_disk))
+        world_xyz = rotate_vector_inverse(camera_diff_quat, hit_point)
+        if on_disk and hit_point[2] < 0.0:
+            return (math.nan, math.nan), (math.nan, math.nan), world_xyz, world_xyz
+        if world_xyz[0] * world_xyz[0] + world_xyz[1] * world_xyz[1] + world_xyz[2] * world_xyz[2] <= 1.0:
+            return (math.nan, math.nan), (math.nan, math.nan), world_xyz, world_xyz
+
+    if not clipOrthoGeometry(world_xyz):
+        return (math.nan, math.nan), (math.nan, math.nan), world_xyz, world_xyz
+
+    texcoord = sampleOrthoTexcoord(world_xyz, meta, image2d, simple_tan=simple_tan)
+    if diff_meta is None:
+        return texcoord, texcoord, world_xyz, world_xyz
+
+    if on_disk:
+        diff_hit_point = ortho_screen_to_world(screen_xy)
+        diff_world_xyz = (
+            rotate_vector_inverse(diff_source_view_quat, diff_hit_point)
+            if diff_surface_map_mode
+            else rotateOnDiskPoint(diff_hit_point, diff_meta, diff_camera_diff_quat, diff_delta_t)
+        )
+    else:
+        diff_hit_point = (math.nan, math.nan, math.nan)
+        diff_world_xyz = (0.0, 0.0, 0.0)
+
+    if not diff_surface_map_mode and diff_world_xyz[2] <= 0.0:
+        diff_hit_point = (screen_xy[0], screen_xy[1], intersectPlane(diff_camera_diff_quat, (screen_xy[0], screen_xy[1], 0.0), on_disk))
+        diff_world_xyz = rotate_vector_inverse(diff_camera_diff_quat, diff_hit_point)
+        if on_disk and diff_hit_point[2] < 0.0:
+            return (math.nan, math.nan), (math.nan, math.nan), world_xyz, diff_world_xyz
+        if (
+            diff_world_xyz[0] * diff_world_xyz[0] +
+            diff_world_xyz[1] * diff_world_xyz[1] +
+            diff_world_xyz[2] * diff_world_xyz[2]
+        ) <= 1.0:
+            return (math.nan, math.nan), (math.nan, math.nan), world_xyz, diff_world_xyz
+
+    if not clipOrthoGeometry(diff_world_xyz):
+        return (math.nan, math.nan), (math.nan, math.nan), world_xyz, diff_world_xyz
+
+    diff_texcoord = sampleOrthoTexcoord(
+        diff_world_xyz,
+        diff_meta,
+        diff_image2d if diff_image2d is not None else image2d,
+        simple_tan=simple_tan,
+    )
+    return texcoord, diff_texcoord, world_xyz, diff_world_xyz
+
+
+def renderOrthographicPixel(
+    screen_xy: tuple[float, float],
+    meta: JHVMeta,
+    image2d: np.ndarray,
+    simple_tan: bool = False,
+    camera_diff_quat: tuple[float, float, float, float] = IDENTITY_QUAT,
+    source_view_quat: tuple[float, float, float, float] = IDENTITY_QUAT,
+) -> tuple[tuple[float, float], tuple[float, float, float]]:
+    texcoord, _, world_xyz, _ = renderOrthographicTexcoords(
+        screen_xy,
+        meta,
+        image2d,
+        simple_tan=simple_tan,
+        camera_diff_quat=camera_diff_quat,
+        source_view_quat=source_view_quat,
+    )
+    return texcoord, world_xyz
+
+
+# Shared render utilities.
+
+def normalize_image_for_png(img: np.ndarray) -> np.ndarray:
+    finite = np.isfinite(img)
+    if not np.any(finite):
+        return np.zeros(img.shape, dtype=np.uint8)
+    lo = float(np.nanpercentile(img[finite], 1.0))
+    hi = float(np.nanpercentile(img[finite], 99.0))
+    if hi <= lo:
+        hi = lo + 1.0
+    scaled = np.clip((img - lo) / (hi - lo), 0.0, 1.0)
+    scaled[~finite] = 0.0
+    return np.round(255.0 * scaled).astype(np.uint8)
+
+
+def save_png(path: Path, image: np.ndarray) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    Image.fromarray(normalize_image_for_png(image), mode="L").save(path)
+
+
+def require_2d_image(image_data: np.ndarray, mode_name: str) -> None:
+    if image_data.ndim != 2:
+        raise ValueError(f"{mode_name} expects 2D image data, got shape {image_data.shape!r}")
+
+
+def render_square_image(
+    size: int,
+    texcoord_at_pixel,
+    sample_value,
+) -> np.ndarray:
+    image = np.full((size, size), np.nan, dtype=np.float64)
+    for iy in range(size):
+        sy = 1.0 - (iy / (size - 1) if size > 1 else 0.5)
+        for ix in range(size):
+            sx = ix / (size - 1) if size > 1 else 0.5
+            image[iy, ix] = sample_value(texcoord_at_pixel(sx, sy))
+    return image
+
+
+def render_square_signed_image(
+    size: int,
+    texcoord_at_pixel,
+    sample_value,
+) -> np.ndarray:
+    image = np.full((size, size), np.nan, dtype=np.float64)
+    for iy in range(size):
+        sy = 1.0 - 2.0 * (iy / (size - 1) if size > 1 else 0.5)
+        for ix in range(size):
+            sx = -1.0 + 2.0 * (ix / (size - 1) if size > 1 else 0.5)
+            image[iy, ix] = sample_value(texcoord_at_pixel(sx, sy))
+    return image
+
+
+def evaluate_diff_selfcheck(
+    size: int,
+    screen_positions,
+    texcoords_at_pixel,
+    sample_value,
+) -> tuple[np.ndarray, np.ndarray, int, int, float, float]:
+    base_img = np.full((size, size), np.nan, dtype=np.float64)
+    diff_img = np.full((size, size), np.nan, dtype=np.float64)
+    max_texcoord_err = 0.0
+    max_sample_err = 0.0
+    compared = 0
+    validity_mismatches = 0
+
+    for iy, ix, screen_pos in screen_positions(size):
+        texcoord, diff_texcoord = texcoords_at_pixel(screen_pos)
+        base_sample = sample_value(texcoord)
+        diff_sample = sample_value(diff_texcoord)
+        base_img[iy, ix] = base_sample
+        err = abs(base_sample - diff_sample) if math.isfinite(base_sample) and math.isfinite(diff_sample) else math.nan
+        diff_img[iy, ix] = err
+        base_valid = math.isfinite(texcoord[0]) and math.isfinite(texcoord[1])
+        diff_valid = math.isfinite(diff_texcoord[0]) and math.isfinite(diff_texcoord[1])
+        validity_mismatches += int(base_valid != diff_valid)
+        if base_valid and diff_valid:
+            compared += 1
+            max_texcoord_err = max(
+                max_texcoord_err,
+                max(abs(texcoord[0] - diff_texcoord[0]), abs(texcoord[1] - diff_texcoord[1])),
+            )
+        if math.isfinite(err):
+            max_sample_err = max(max_sample_err, err)
+
+    return base_img, diff_img, compared, validity_mismatches, max_texcoord_err, max_sample_err
+
+
+def square_screen_positions(size: int):
+    for iy in range(size):
+        sy = 1.0 - (iy / (size - 1) if size > 1 else 0.5)
+        for ix in range(size):
+            sx = ix / (size - 1) if size > 1 else 0.5
+            yield iy, ix, (sx, sy)
+
+
+def signed_square_screen_positions(size: int):
+    for iy in range(size):
+        sy = 1.0 - 2.0 * (iy / (size - 1) if size > 1 else 0.5)
+        for ix in range(size):
+            sx = -1.0 + 2.0 * (ix / (size - 1) if size > 1 else 0.5)
+            yield iy, ix, (sx, sy)
+
+
+def is_surface_map_projection(meta: JHVMeta) -> bool:
+    return meta.projection in SURFACE_MAP_PROJECTIONS
+
+
+def render_surface_latitudinal_image(size: int, meta: JHVMeta, image2d: np.ndarray) -> np.ndarray:
+    return render_square_image(
+        size,
+        lambda sx, sy: renderLatitudinalPixel((sx, sy), LATI_SURFACE_BOUNDS_DEG, meta, image2d),
+        lambda texcoord: sample_texture_linear(image2d, texcoord, wrap_x=True),
+    )
+
+
+def surface_map_display_world_grid(
+    width: int,
+    height: int,
+    bounds_deg: tuple[float, float, float, float],
+) -> np.ndarray:
+    xs = np.linspace(bounds_deg[0], bounds_deg[1], width, dtype=np.float64)
+    ys = np.linspace(bounds_deg[3], bounds_deg[2], height, dtype=np.float64)
+    lon_deg, lat_deg = np.meshgrid(xs, ys)
+    return np.column_stack((lon_deg.ravel(), lat_deg.ravel()))
+
+
+def render_zenithal_latitudinal_image(
+    size: int,
+    meta: JHVMeta,
+    image2d: np.ndarray,
+    lati_origin: tuple[float, float] = (0.0, 0.0),
+    source_view_quat: tuple[float, float, float, float] = IDENTITY_QUAT,
+    delta_t: float = 0.0,
+) -> np.ndarray:
+    return render_square_image(
+        size,
+        lambda sx, sy: renderLatitudinalPixel(
+            (sx, sy), LATI_ZENITHAL_BOUNDS_DEG, meta, image2d,
+            lati_origin=lati_origin, source_view_quat=source_view_quat, delta_t=delta_t),
+        lambda texcoord: sample_texture_linear(image2d, texcoord),
+    )
+
+
+def render_orthographic_image(size: int, meta: JHVMeta, image2d: np.ndarray) -> np.ndarray:
+    return render_square_signed_image(
+        size,
+        lambda sx, sy: renderOrthographicPixel((sx, sy), meta, image2d)[0],
+        lambda texcoord: sample_texture_linear(image2d, texcoord, wrap_x=is_surface_map_projection(meta)),
+    )
+
+
+# Validator mode runners.
+
+def run_hpc_bounds_compare(fits_file: Path, meta: JHVMeta) -> int:
+    raw_bounds_deg = raw_hpc_footprint_bounds_degrees(meta)
+    centered_bounds_deg = hpc_bounds_degrees(meta, 1.0)
+    print(f"file={fits_file}")
+    print("mode=hpc_bounds_compare")
+    print(f"projection={meta.projection}")
+    print(f"observer_distance={meta.observer_distance:.12f}")
+    print(
+        "raw_bounds_deg=("
+        f"{raw_bounds_deg[0]:.12f}, {raw_bounds_deg[1]:.12f}, "
+        f"{raw_bounds_deg[2]:.12f}, {raw_bounds_deg[3]:.12f})"
+    )
+    print(
+        "centered_bounds_deg=("
+        f"{centered_bounds_deg[0]:.12f}, {centered_bounds_deg[1]:.12f}, "
+        f"{centered_bounds_deg[2]:.12f}, {centered_bounds_deg[3]:.12f})"
+    )
+    print(f"centered_half_width_deg={centered_bounds_deg[1]:.12f}")
+    print(f"centered_half_height_deg={centered_bounds_deg[3]:.12f}")
+    return 0
+
+
+def run_latitudinal_render(fits_file: Path, output_dir: Path, render_size: int, meta: JHVMeta, image_data: np.ndarray) -> int:
+    require_2d_image(image_data, "Latitudinal render")
+    if not is_surface_map_projection(meta):
+        raise ValueError("Latitudinal render mode currently supports CAR/CEA surface maps only")
+
+    jhv_img = render_surface_latitudinal_image(render_size, meta, image_data)
+    jhv_path = output_dir / f"{fits_file.stem}_lati_jhv.png"
+    save_png(jhv_path, jhv_img)
+
+    print(f"file={fits_file}")
+    print(f"mode=latitudinal_render size={render_size}")
+    print(f"bounds_deg=({LATI_SURFACE_BOUNDS_DEG[0]:.12f}, {LATI_SURFACE_BOUNDS_DEG[1]:.12f}, {LATI_SURFACE_BOUNDS_DEG[2]:.12f}, {LATI_SURFACE_BOUNDS_DEG[3]:.12f})")
+    print(f"jhv_png={jhv_path}")
+    return 0
+
+
+def run_latitudinal_zenithal_render(fits_file: Path, output_dir: Path, render_size: int, meta: JHVMeta, image_data: np.ndarray) -> int:
+    require_2d_image(image_data, "Latitudinal zenithal render")
+    if is_surface_map_projection(meta):
+        raise ValueError("Latitudinal zenithal render is for the legacy zenithal path, not CAR/CEA surface maps")
+
+    lati_origin = (0.0, 0.0)
+    jhv_img = render_zenithal_latitudinal_image(render_size, meta, image_data, lati_origin=lati_origin)
+    jhv_path = output_dir / f"{fits_file.stem}_lati_zenithal_jhv.png"
+    save_png(jhv_path, jhv_img)
+
+    print(f"file={fits_file}")
+    print(f"mode=latitudinal_zenithal_render size={render_size}")
+    print(f"default_lati_origin=({lati_origin[0]:.12f}, {lati_origin[1]:.12f})")
+    print(f"jhv_png={jhv_path}")
+    return 0
+
+
+def run_orthographic_render(fits_file: Path, output_dir: Path, render_size: int, meta: JHVMeta, image_data: np.ndarray) -> int:
+    require_2d_image(image_data, "Orthographic render")
+
+    jhv_img = render_orthographic_image(render_size, meta, image_data)
+    jhv_path = output_dir / f"{fits_file.stem}_ortho_jhv.png"
+    save_png(jhv_path, jhv_img)
+
+    print(f"file={fits_file}")
+    print(f"mode=orthographic_render size={render_size}")
+    print(f"jhv_png={jhv_path}")
+    return 0
+
+
+def run_surface_map_render_compare(
+    fits_file: Path,
+    output_dir: Path,
+    grid_factor: int,
+    meta: JHVMeta,
+    image_data: np.ndarray,
+    pixel_wcs: WCS,
+    max_error_px: float,
+) -> int:
+    require_2d_image(image_data, "Surface-map render compare")
+    if not is_surface_map_projection(meta):
+        raise ValueError("Surface-map render compare currently supports CAR/CEA surface maps only")
+    if grid_factor < 1:
+        raise ValueError("Surface-map grid factor must be >= 1")
+
+    width = meta.pixel_width * grid_factor
+    height = meta.pixel_height * grid_factor
+    world_deg = surface_map_display_world_grid(width, height, LATI_SURFACE_BOUNDS_DEG)
+
+    jhv_px = mirrored_world_array_to_pixel_center(world_deg, meta)
+    astro_px_raw = pixel_wcs.wcs_world2pix(world_deg, 1)
+    astro_px = fits_pixel_to_texture_pixel(astro_px_raw, meta)
+
+    if not np.array_equal(np.isfinite(jhv_px).all(axis=1), np.isfinite(astro_px).all(axis=1)):
+        print("FAILED: JHV/Astropy surface-map coordinate validity differs")
+        return 1
+
+    jhv_samples = sample_source_linear_array(image_data, jhv_px[:, 0], jhv_px[:, 1], meta)
+    astro_samples = sample_source_linear_array(image_data, astro_px[:, 0], astro_px[:, 1], meta)
+
+    diff_px = np.full(world_deg.shape[0], np.nan, dtype=np.float64)
+    finite = (
+        np.isfinite(jhv_px[:, 0]) & np.isfinite(jhv_px[:, 1]) &
+        np.isfinite(astro_px[:, 0]) & np.isfinite(astro_px[:, 1])
+    )
+    if np.any(finite):
+        dx = np.abs(jhv_px[finite, 0] - astro_px[finite, 0])
+        if surface_map_wraps_x(meta):
+            dx = np.minimum(dx, np.abs((jhv_px[finite, 0] + meta.pixel_width) - astro_px[finite, 0]))
+            dx = np.minimum(dx, np.abs(jhv_px[finite, 0] - (astro_px[finite, 0] + meta.pixel_width)))
+        dy = np.abs(jhv_px[finite, 1] - astro_px[finite, 1])
+        diff_px[finite] = np.maximum(dx, dy)
+
+    sample_diff = np.abs(jhv_samples - astro_samples)
+    jhv_img = jhv_samples.reshape(height, width)
+    astro_img = astro_samples.reshape(height, width)
+    diff_img = sample_diff.reshape(height, width)
+
+    jhv_path = output_dir / f"{fits_file.stem}_surface_map_jhv_{grid_factor}x.png"
+    astro_path = output_dir / f"{fits_file.stem}_surface_map_astropy_{grid_factor}x.png"
+    diff_path = output_dir / f"{fits_file.stem}_surface_map_diff_{grid_factor}x.png"
+    save_png(jhv_path, jhv_img)
+    save_png(astro_path, astro_img)
+    save_png(diff_path, diff_img)
+
+    max_px_err = float(np.nanmax(diff_px)) if np.any(np.isfinite(diff_px)) else math.nan
+    rms_px_err = float(math.sqrt(np.nanmean(diff_px[finite] ** 2))) if np.any(finite) else math.nan
+    max_sample_err = float(np.nanmax(sample_diff)) if np.any(np.isfinite(sample_diff)) else math.nan
+
+    print(f"file={fits_file}")
+    print(f"mode=surface_map_render_compare grid_factor={grid_factor}")
+    print(f"render_size={width}x{height}")
+    print(f"bounds_deg=({LATI_SURFACE_BOUNDS_DEG[0]:.12f}, {LATI_SURFACE_BOUNDS_DEG[1]:.12f}, {LATI_SURFACE_BOUNDS_DEG[2]:.12f}, {LATI_SURFACE_BOUNDS_DEG[3]:.12f})")
+    print(f"pixel_center_max_error_px={max_px_err:.6e}" if math.isfinite(max_px_err) else "pixel_center_max_error_px=nan")
+    print(f"pixel_center_rms_error_px={rms_px_err:.6e}" if math.isfinite(rms_px_err) else "pixel_center_rms_error_px=nan")
+    print(f"sample_max_abs_error={max_sample_err:.6e}" if math.isfinite(max_sample_err) else "sample_max_abs_error=nan")
+    print(f"jhv_png={jhv_path}")
+    print(f"astropy_png={astro_path}")
+    print(f"diff_png={diff_path}")
+    if not math.isfinite(max_px_err) or max_px_err > max_error_px:
+        print(f"FAILED: pixel_center_max_error_px exceeds {max_error_px:.6e}")
+        return 1
+    return 0
+
+
+def run_hpc_diff_selfcheck(
+    fits_file: Path,
+    output_dir: Path,
+    render_size: int,
+    meta: JHVMeta,
+    image_data: np.ndarray,
+) -> int:
+    require_2d_image(image_data, "HPC diff selfcheck")
+
+    bounds_deg = hpc_bounds_degrees(meta, 1.0)
+    base_img, diff_img, compared, validity_mismatches, max_texcoord_err, max_sample_err = evaluate_diff_selfcheck(
+        render_size,
+        square_screen_positions,
+        lambda scrpos: renderHpcTexcoords(
+                scrpos,
+                bounds_deg,
+                meta,
+                image_data,
+                diff_meta=meta,
+                diff_image2d=image_data,
+            )[:2],
+        lambda texcoord: sample_texture_linear(image_data, texcoord),
+    )
+
+    base_path = output_dir / f"{fits_file.stem}_hpc_diff_self_base.png"
+    diff_path = output_dir / f"{fits_file.stem}_hpc_diff_self_diff.png"
+    save_png(base_path, base_img)
+    save_png(diff_path, diff_img)
+
+    print(f"file={fits_file}")
+    print(f"mode=hpc_diff_selfcheck size={render_size}")
+    print(f"compared_samples={compared}")
+    print(f"validity_mismatches={validity_mismatches}")
+    print(f"texcoord_max_abs_error={max_texcoord_err:.6e}")
+    print(f"sample_max_abs_error={max_sample_err:.6e}")
+    print(f"base_png={base_path}")
+    print(f"diff_png={diff_path}")
+    if compared == 0 or validity_mismatches or max_texcoord_err != 0.0 or max_sample_err != 0.0:
+        print("FAILED: identical HPC inputs produced different results")
+        return 1
+    return 0
+
+
+def run_latitudinal_diff_selfcheck(
+    fits_file: Path,
+    output_dir: Path,
+    render_size: int,
+    meta: JHVMeta,
+    image_data: np.ndarray,
+) -> int:
+    require_2d_image(image_data, "Latitudinal diff selfcheck")
+    if not is_surface_map_projection(meta):
+        raise ValueError("Latitudinal diff selfcheck currently supports CAR/CEA surface maps only")
+
+    base_img, diff_img, compared, validity_mismatches, max_texcoord_err, max_sample_err = evaluate_diff_selfcheck(
+        render_size,
+        square_screen_positions,
+        lambda scrpos: renderLatitudinalTexcoords(
+                scrpos,
+                LATI_SURFACE_BOUNDS_DEG,
+                meta,
+                image_data,
+                diff_meta=meta,
+                diff_image2d=image_data,
+            ),
+        lambda texcoord: sample_texture_linear(image_data, texcoord, wrap_x=True),
+    )
+
+    base_path = output_dir / f"{fits_file.stem}_lati_diff_self_base.png"
+    diff_path = output_dir / f"{fits_file.stem}_lati_diff_self_diff.png"
+    save_png(base_path, base_img)
+    save_png(diff_path, diff_img)
+
+    print(f"file={fits_file}")
+    print(f"mode=latitudinal_diff_selfcheck size={render_size}")
+    print(f"compared_samples={compared}")
+    print(f"validity_mismatches={validity_mismatches}")
+    print(f"texcoord_max_abs_error={max_texcoord_err:.6e}")
+    print(f"sample_max_abs_error={max_sample_err:.6e}")
+    print(f"base_png={base_path}")
+    print(f"diff_png={diff_path}")
+    if compared == 0 or validity_mismatches or max_texcoord_err != 0.0 or max_sample_err != 0.0:
+        print("FAILED: identical Latitudinal inputs produced different results")
+        return 1
+    return 0
+
+
+def run_orthographic_diff_selfcheck(
+    fits_file: Path,
+    output_dir: Path,
+    render_size: int,
+    meta: JHVMeta,
+    image_data: np.ndarray,
+) -> int:
+    require_2d_image(image_data, "Orthographic diff selfcheck")
+
+    base_img, diff_img, compared, validity_mismatches, max_texcoord_err, max_sample_err = evaluate_diff_selfcheck(
+        render_size,
+        signed_square_screen_positions,
+        lambda screen_xy: renderOrthographicTexcoords(
+                screen_xy,
+                meta,
+                image_data,
+                diff_meta=meta,
+                diff_image2d=image_data,
+            )[:2],
+        lambda texcoord: sample_texture_linear(image_data, texcoord, wrap_x=is_surface_map_projection(meta)),
+    )
+
+    base_path = output_dir / f"{fits_file.stem}_ortho_diff_self_base.png"
+    diff_path = output_dir / f"{fits_file.stem}_ortho_diff_self_diff.png"
+    save_png(base_path, base_img)
+    save_png(diff_path, diff_img)
+
+    print(f"file={fits_file}")
+    print(f"mode=orthographic_diff_selfcheck size={render_size}")
+    print(f"compared_samples={compared}")
+    print(f"validity_mismatches={validity_mismatches}")
+    print(f"texcoord_max_abs_error={max_texcoord_err:.6e}")
+    print(f"sample_max_abs_error={max_sample_err:.6e}")
+    print(f"base_png={base_path}")
+    print(f"diff_png={diff_path}")
+    if compared == 0 or validity_mismatches or max_texcoord_err != 0.0 or max_sample_err != 0.0:
+        print("FAILED: identical Orthographic inputs produced different results")
+        return 1
+    return 0
+
+
+def run_hpc_render_compare(
+    fits_file: Path,
+    output_dir: Path,
+    render_size: int,
+    meta: JHVMeta,
+    image_data: np.ndarray,
+    pixel_wcs: WCS,
+    max_error_px: float,
+) -> int:
+    require_2d_image(image_data, "HPC render compare")
+
+    raw_bounds_deg = raw_hpc_footprint_bounds_degrees(meta)
+    bounds_deg = hpc_bounds_degrees(meta, 1.0)
+    jhv_img = np.full((render_size, render_size), np.nan, dtype=np.float64)
+    astro_img = np.full((render_size, render_size), np.nan, dtype=np.float64)
+    diff_px = np.full((render_size, render_size), np.nan, dtype=np.float64)
+    max_px_err = 0.0
+    sum_px_err2 = 0.0
+    count = 0
+    validity_mismatches = 0
+
+    for iy in range(render_size):
+        sy = 1.0 - (iy / (render_size - 1) if render_size > 1 else 0.5)
+        row_texcoord = np.full((render_size, 2), np.nan, dtype=np.float64)
+        row_jhv_px = np.full((render_size, 2), np.nan, dtype=np.float64)
+        row_world_deg = np.full((render_size, 2), np.nan, dtype=np.float64)
+        row_geometry_valid = np.zeros(render_size, dtype=bool)
+        for ix in range(render_size):
+            sx = ix / (render_size - 1) if render_size > 1 else 0.5
+            helioprojective = screenToHelioprojective((sx, sy), bounds_deg)
+            row_world_deg[ix] = np.degrees(helioprojective)
+            row_geometry_valid[ix] = clipHpcGeometry(helioprojectiveToHpcXY(helioprojective, meta.observer_distance))
+            texcoord = renderHpcTexcoords((sx, sy), bounds_deg, meta, image_data)[0]
+            if not math.isfinite(texcoord[0]) or not math.isfinite(texcoord[1]):
+                diff_px[iy, ix] = math.nan
+                continue
+
+            try:
+                jhv_px = texcoord_to_pixel_center(texcoord, meta.pixel_width, meta.pixel_height)
+            except ValueError:
+                diff_px[iy, ix] = math.nan
+                continue
+            row_texcoord[ix] = texcoord
+            row_jhv_px[ix] = jhv_px
+
+        world_mask = np.isfinite(row_world_deg[:, 0]) & np.isfinite(row_world_deg[:, 1])
+        row_astro_px = np.full((render_size, 2), np.nan, dtype=np.float64)
+        if np.any(world_mask):
+            astro_px_raw = pixel_wcs.wcs_world2pix(row_world_deg[world_mask], 1)
+            row_astro_px[world_mask] = fits_pixel_to_texture_pixel(astro_px_raw, meta)
+
+        reference_valid = (
+            row_geometry_valid & np.isfinite(row_astro_px).all(axis=1) &
+            (row_astro_px[:, 0] >= 0) & (row_astro_px[:, 0] <= meta.pixel_width) &
+            (row_astro_px[:, 1] >= 0) & (row_astro_px[:, 1] <= meta.pixel_height)
+        )
+        jhv_valid = np.isfinite(row_jhv_px).all(axis=1)
+        validity_mismatches += int(np.count_nonzero(jhv_valid != reference_valid))
+        finite_mask = jhv_valid & reference_valid
+        if np.any(finite_mask):
+            row_err = np.maximum(
+                np.abs(row_jhv_px[finite_mask, 0] - row_astro_px[finite_mask, 0]),
+                np.abs(row_jhv_px[finite_mask, 1] - row_astro_px[finite_mask, 1]),
+            )
+            diff_px[iy, finite_mask] = row_err
+            max_px_err = max(max_px_err, float(np.max(row_err)))
+            sum_px_err2 += float(np.sum(row_err * row_err))
+            count += int(row_err.size)
+
+        jhv_img[iy] = sample_texture_linear_array(image_data, row_texcoord[:, 0], row_texcoord[:, 1])
+        astro_img[iy] = sample_source_linear_array(image_data, row_astro_px[:, 0], row_astro_px[:, 1], meta)
+
+    intensity_diff = np.abs(jhv_img - astro_img)
+    jhv_path = output_dir / f"{fits_file.stem}_hpc_jhv.png"
+    astro_path = output_dir / f"{fits_file.stem}_hpc_astropy.png"
+    diff_path = output_dir / f"{fits_file.stem}_hpc_diff.png"
+    save_png(jhv_path, jhv_img)
+    save_png(astro_path, astro_img)
+    save_png(diff_path, intensity_diff)
+
+    print(f"file={fits_file}")
+    print(f"mode=hpc_render_compare size={render_size}")
+    print(f"validity_mismatches={validity_mismatches}")
+    print(f"raw_bounds_deg=({raw_bounds_deg[0]:.12f}, {raw_bounds_deg[1]:.12f}, {raw_bounds_deg[2]:.12f}, {raw_bounds_deg[3]:.12f})")
+    print(f"bounds_deg=({bounds_deg[0]:.12f}, {bounds_deg[1]:.12f}, {bounds_deg[2]:.12f}, {bounds_deg[3]:.12f})")
+    print(f"pixel_center_max_error_px={max_px_err:.6e}")
+    print(f"pixel_center_rms_error_px={math.sqrt(sum_px_err2 / count):.6e}" if count > 0 else "pixel_center_rms_error_px=nan")
+    print(f"jhv_png={jhv_path}")
+    print(f"astropy_png={astro_path}")
+    print(f"diff_png={diff_path}")
+    if count == 0 or validity_mismatches or max_px_err > max_error_px:
+        print(f"FAILED: invalid coverage or pixel_center_max_error_px exceeds {max_error_px:.6e}")
+        return 1
+    return 0
+
+
+def run_ortho_vs_hpc_screen_compare(
+    fits_file: Path,
+    output_dir: Path,
+    render_size: int,
+    meta: JHVMeta,
+    image_data: np.ndarray,
+) -> int:
+    require_2d_image(image_data, "Ortho/HPC screen compare")
+
+    ortho_img = np.full((render_size, render_size), np.nan, dtype=np.float64)
+    hpc_img = np.full((render_size, render_size), np.nan, dtype=np.float64)
+    diff_px = np.full((render_size, render_size), np.nan, dtype=np.float64)
+    max_px_err = 0.0
+    sum_px_err2 = 0.0
+    count = 0
+
+    for iy in range(render_size):
+        sy = 1.0 - 2.0 * (iy / (render_size - 1) if render_size > 1 else 0.5)
+        row_ortho_px = np.full((render_size, 2), np.nan, dtype=np.float64)
+        row_hpc_px = np.full((render_size, 2), np.nan, dtype=np.float64)
+        for ix in range(render_size):
+            sx = -1.0 + 2.0 * (ix / (render_size - 1) if render_size > 1 else 0.5)
+            ortho_px, hpc_px = orthographic_vs_hpc_screen_pixel_centers((sx, sy), meta, image_data)
+            if not (
+                math.isfinite(ortho_px[0]) and math.isfinite(ortho_px[1]) and
+                math.isfinite(hpc_px[0]) and math.isfinite(hpc_px[1])
+            ):
+                diff_px[iy, ix] = math.nan
+                continue
+            err = max(abs(ortho_px[0] - hpc_px[0]), abs(ortho_px[1] - hpc_px[1]))
+            diff_px[iy, ix] = err
+            max_px_err = max(max_px_err, err)
+            sum_px_err2 += err * err
+            count += 1
+            row_ortho_px[ix] = ortho_px
+            row_hpc_px[ix] = hpc_px
+
+        ortho_img[iy] = sample_source_linear_array(image_data, row_ortho_px[:, 0], row_ortho_px[:, 1], meta)
+        hpc_img[iy] = sample_source_linear_array(image_data, row_hpc_px[:, 0], row_hpc_px[:, 1], meta)
+
+    intensity_diff = np.abs(ortho_img - hpc_img)
+    ortho_path = output_dir / f"{fits_file.stem}_ortho_screen.png"
+    hpc_path = output_dir / f"{fits_file.stem}_hpc_screen.png"
+    diff_path = output_dir / f"{fits_file.stem}_ortho_vs_hpc_diff.png"
+    save_png(ortho_path, ortho_img)
+    save_png(hpc_path, hpc_img)
+    save_png(diff_path, intensity_diff)
+
+    print(f"file={fits_file}")
+    print(f"mode=ortho_vs_hpc_screen_compare size={render_size}")
+    print(f"observer_distance={meta.observer_distance:.12f}")
+    print(f"solar_limb_angle_deg={math.degrees(math.atan2(1.0, meta.observer_distance)):.12f}")
+    print(f"pixel_center_max_error_px={max_px_err:.6e}")
+    print(f"pixel_center_rms_error_px={math.sqrt(sum_px_err2 / count):.6e}" if count > 0 else "pixel_center_rms_error_px=nan")
+    print(f"ortho_png={ortho_path}")
+    print(f"hpc_png={hpc_path}")
+    print(f"diff_png={diff_path}")
+    return 0
+
+
+def run_compare_initial_tan_image_frame(
+    fits_file: Path,
+    output_dir: Path,
+    meta: JHVMeta,
+    image_data: np.ndarray,
+    pixel_wcs: WCS,
+) -> int:
+    require_2d_image(image_data, "TAN implementation comparison")
+    if meta.projection != "TAN":
+        raise ValueError("TAN implementation comparison requires a TAN FITS file")
+
+    size = max(meta.pixel_width, meta.pixel_height)
+    max_old = 0.0
+    max_new = 0.0
+    max_old_new = 0.0
+    sum_old2 = 0.0
+    sum_new2 = 0.0
+    sum_old_new2 = 0.0
+    count = 0
+    old_img = np.full((meta.pixel_height, meta.pixel_width), np.nan, dtype=np.float64)
+    new_img = np.full((meta.pixel_height, meta.pixel_width), np.nan, dtype=np.float64)
+    diff_img = np.full((meta.pixel_height, meta.pixel_width), np.nan, dtype=np.float64)
+
+    for iy in range(meta.pixel_height):
+        fits_y = np.full(meta.pixel_width, iy + 1.0, dtype=np.float64)
+        fits_x = np.arange(meta.pixel_width, dtype=np.float64) + 1.0
+        world_deg = pixel_wcs.wcs_pix2world(np.column_stack((fits_x, fits_y)), 1)
+        astro_px = fits_pixel_to_texture_pixel(np.column_stack((fits_x, fits_y)), meta)
+        world_xyz = ortho_carrier_world_array_from_hpc_world_deg(world_deg, meta)
+        screen_xy = np.column_stack((world_xyz[:, 0], world_xyz[:, 1]))
+        new_px = np.array([
+            texcoord_to_pixel_center(
+                renderOrthographicTexcoords((float(sx), float(sy)), meta, image_data, simple_tan=False)[0],
+                meta.pixel_width,
+                meta.pixel_height,
+            )
+            for sx, sy in screen_xy
+        ], dtype=np.float64)
+        old_px = np.array([
+            texcoord_to_pixel_center(
+                renderOrthographicTexcoords((float(sx), float(sy)), meta, image_data, simple_tan=True)[0],
+                meta.pixel_width,
+                meta.pixel_height,
+            )
+            for sx, sy in screen_xy
+        ], dtype=np.float64)
+
+        finite_mask = (
+            np.isfinite(old_px[:, 0]) & np.isfinite(old_px[:, 1]) &
+            np.isfinite(new_px[:, 0]) & np.isfinite(new_px[:, 1])
+        )
+        if not np.any(finite_mask):
+            continue
+
+        astro_px = astro_px[finite_mask]
+        old_px = old_px[finite_mask]
+        new_px = new_px[finite_mask]
+        row_indices = np.nonzero(finite_mask)[0]
+
+        old_err = np.maximum(np.abs(old_px[:, 0] - astro_px[:, 0]), np.abs(old_px[:, 1] - astro_px[:, 1]))
+        new_err = np.maximum(np.abs(new_px[:, 0] - astro_px[:, 0]), np.abs(new_px[:, 1] - astro_px[:, 1]))
+        old_new_err = np.maximum(np.abs(old_px[:, 0] - new_px[:, 0]), np.abs(old_px[:, 1] - new_px[:, 1]))
+
+        max_old = max(max_old, float(np.max(old_err)))
+        max_new = max(max_new, float(np.max(new_err)))
+        max_old_new = max(max_old_new, float(np.max(old_new_err)))
+        sum_old2 += float(np.sum(old_err * old_err))
+        sum_new2 += float(np.sum(new_err * new_err))
+        sum_old_new2 += float(np.sum(old_new_err * old_new_err))
+        count += int(old_err.size)
+
+        old_samples = sample_source_linear_array(image_data, old_px[:, 0], old_px[:, 1], meta)
+        new_samples = sample_source_linear_array(image_data, new_px[:, 0], new_px[:, 1], meta)
+        diff_samples = np.abs(old_samples - new_samples)
+        old_img[iy, row_indices] = old_samples
+        new_img[iy, row_indices] = new_samples
+        diff_img[iy, row_indices] = diff_samples
+
+    suffix = "_image_frame"
+    old_path = output_dir / f"{fits_file.stem}_initial_tan{suffix}.png"
+    new_path = output_dir / f"{fits_file.stem}_formal_tan{suffix}.png"
+    diff_path = output_dir / f"{fits_file.stem}_initial_vs_formal_tan{suffix}_diff.png"
+    save_png(old_path, old_img)
+    save_png(new_path, new_img)
+    save_png(diff_path, diff_img)
+
+    print(f"file={fits_file}")
+    print(f"mode=compare_initial_tan_image_frame size={size}")
+    print("domain=image_frame")
+    print(f"observer_distance={meta.observer_distance:.12f}")
+    print(f"samples={count}")
+    print(f"old_max_px_vs_astropy={max_old:.6e}")
+    print(f"old_rms_px_vs_astropy={math.sqrt(sum_old2 / count):.6e}" if count > 0 else "old_rms_px_vs_astropy=nan")
+    print(f"new_max_px_vs_astropy={max_new:.6e}")
+    print(f"new_rms_px_vs_astropy={math.sqrt(sum_new2 / count):.6e}" if count > 0 else "new_rms_px_vs_astropy=nan")
+    print(f"old_new_max_px={max_old_new:.6e}")
+    print(f"old_new_rms_px={math.sqrt(sum_old_new2 / count):.6e}" if count > 0 else "old_new_rms_px=nan")
+    print(f"initial_tan_png={old_path}")
+    print(f"formal_tan_png={new_path}")
+    print(f"initial_vs_formal_diff_png={diff_path}")
+    return 0
+
+
+def run_compare_initial_tan_vs_hpc(
+    fits_file: Path,
+    output_dir: Path,
+    meta: JHVMeta,
+    image_data: np.ndarray,
+) -> int:
+    require_2d_image(image_data, "--compare-initial-tan-vs-hpc")
+    if meta.projection != "TAN":
+        raise ValueError("--compare-initial-tan-vs-hpc requires a TAN FITS file")
+
+    size = max(meta.pixel_width, meta.pixel_height)
+    old_img = np.full((size, size), np.nan, dtype=np.float64)
+    hpc_img = np.full((size, size), np.nan, dtype=np.float64)
+    diff_img = np.full((size, size), np.nan, dtype=np.float64)
+    max_px_err = 0.0
+    sum_px_err2 = 0.0
+    count = 0
+
+    xs = np.linspace(-1.0, 1.0, size, dtype=np.float64)
+    ys = np.linspace(-1.0, 1.0, size, dtype=np.float64)
+    solar_limb_angle = math.atan2(1.0, meta.observer_distance)
+
+    for iy, y in enumerate(ys):
+        radius2 = xs * xs + y * y
+        valid_indices = np.arange(size)
+        z_valid = np.sqrt(np.maximum(0.0, 1.0 - radius2))
+        world_xyz = np.column_stack((xs, np.full(xs.shape, y, dtype=np.float64), z_valid))
+        old_px = simple_tan_world_array_to_pixel_center(world_xyz, meta)
+        hpc_world_deg = np.rad2deg(np.column_stack((
+            xs * solar_limb_angle,
+            np.full(xs.shape, y * solar_limb_angle, dtype=np.float64),
+        )))
+        hpc_px = mirrored_world_array_to_pixel_center(hpc_world_deg, meta)
+
+        finite_mask = (
+            np.isfinite(old_px[:, 0]) & np.isfinite(old_px[:, 1]) &
+            np.isfinite(hpc_px[:, 0]) & np.isfinite(hpc_px[:, 1])
+        )
+        if not np.any(finite_mask):
+            continue
+
+        valid_indices = valid_indices[finite_mask]
+        old_px = old_px[finite_mask]
+        hpc_px = hpc_px[finite_mask]
+
+        px_err = np.maximum(np.abs(old_px[:, 0] - hpc_px[:, 0]), np.abs(old_px[:, 1] - hpc_px[:, 1]))
+        max_px_err = max(max_px_err, float(np.max(px_err)))
+        sum_px_err2 += float(np.sum(px_err * px_err))
+        count += int(px_err.size)
+
+        old_samples = sample_source_linear_array(image_data, old_px[:, 0], old_px[:, 1], meta)
+        hpc_samples = sample_source_linear_array(image_data, hpc_px[:, 0], hpc_px[:, 1], meta)
+        diff_samples = np.abs(old_samples - hpc_samples)
+        old_img[iy, valid_indices] = old_samples
+        hpc_img[iy, valid_indices] = hpc_samples
+        diff_img[iy, valid_indices] = diff_samples
+
+    old_path = output_dir / f"{fits_file.stem}_initial_tan_screen.png"
+    hpc_path = output_dir / f"{fits_file.stem}_hpc_screen_from_initial_tan_compare.png"
+    diff_path = output_dir / f"{fits_file.stem}_initial_tan_vs_hpc_diff.png"
+    save_png(old_path, old_img)
+    save_png(hpc_path, hpc_img)
+    save_png(diff_path, diff_img)
+
+    print(f"file={fits_file}")
+    print(f"mode=compare_initial_tan_vs_hpc size={size}")
+    print(f"observer_distance={meta.observer_distance:.12f}")
+    print(f"samples={count}")
+    print(f"initial_tan_vs_hpc_max_px={max_px_err:.6e}")
+    print(f"initial_tan_vs_hpc_rms_px={math.sqrt(sum_px_err2 / count):.6e}" if count > 0 else "initial_tan_vs_hpc_rms_px=nan")
+    print(f"initial_tan_screen_png={old_path}")
+    print(f"hpc_screen_png={hpc_path}")
+    print(f"initial_tan_vs_hpc_diff_png={diff_path}")
+    return 0
+
+
+def run_inverse_validation(
+    fits_file: Path,
+    projection_wcs: WCS,
+    pixel_wcs: WCS,
+    meta: JHVMeta,
+    samples: int,
+    seed: int,
+    report_worst: int,
+    inverse_tan: bool,
+    inverse_azp: bool,
+    inverse_zpn: bool,
+    inverse_arc: bool,
+    inverse_car: bool,
+    inverse_cea: bool,
+    max_error_deg: float = 1e-7,
+) -> int:
+    inverse_mode_count = sum(1 for enabled in (inverse_tan, inverse_arc, inverse_azp, inverse_zpn, inverse_car, inverse_cea) if enabled)
+    if inverse_mode_count > 1:
+        raise ValueError("Choose at most one of --inverse-tan, --inverse-arc, --inverse-azp, --inverse-zpn, --inverse-car, or --inverse-cea")
+
+    if inverse_tan:
+        expected_projection = "TAN"
+        mode_name = "inverse_tan"
+    elif inverse_arc:
+        expected_projection = "ARC"
+        mode_name = "inverse_arc"
+    elif inverse_azp:
+        expected_projection = "AZP"
+        mode_name = "inverse_azp"
+    elif inverse_zpn:
+        expected_projection = "ZPN"
+        mode_name = "inverse_zpn"
+    elif inverse_car:
+        expected_projection = "CAR"
+        mode_name = "inverse_car"
+    else:
+        expected_projection = "CEA"
+        mode_name = "inverse_cea"
+
+    if meta.projection != expected_projection:
+        raise ValueError(f"--{mode_name.replace('_', '-')} requires a {expected_projection} FITS file")
+
+    inverse_err_max_deg = 0.0
+    roundtrip_err_max_internal = 0.0
+    valid_inverse_samples = 0
+    skipped_inverse_samples = 0
+    worst_inverse: list[tuple[float, tuple[float, float], tuple[float, float], tuple[float, float]]] = []
+    if expected_projection in PIXEL_SAMPLED_FORWARD_PROJECTIONS:
+        inverse_samples = sample_worlds_from_pixels(pixel_wcs, meta, samples)
+    else:
+        inverse_samples = [world2helioprojective(point_xyz, meta.observer_distance) for point_xyz in sample_points(samples, seed)]
+    actual_sample_count = len(inverse_samples)
+
+    for world_rad in inverse_samples:
+        # Establish valid inputs independently of the implementation under test.
+        plane_deg = projection_wcs.wcs_world2pix([np.degrees(world_rad)], 0)[0]
+        if not np.all(np.isfinite(plane_deg)):
+            skipped_inverse_samples += 1
+            continue
+        plane_internal = tuple(np.radians(plane_deg) * meta.plane_units_per_rad)
+        inverse_world_rad = project_plane_internal_to_world(plane_internal, meta)
+        inverse_world_deg = (math.degrees(inverse_world_rad[0]), math.degrees(inverse_world_rad[1]))
+
+        plane_deg = (
+            math.degrees(plane_internal[0] / meta.plane_units_per_rad),
+            math.degrees(plane_internal[1] / meta.plane_units_per_rad),
+        )
+        astro_world_deg = projection_wcs.wcs_pix2world([plane_deg], 0)[0]
+        if not np.all(np.isfinite([*inverse_world_deg, *astro_world_deg])):
+            print("FAILED: non-finite inverse coordinates for a valid reference point")
+            return 1
+        inverse_err_deg = max(
+            wrap_angle_diff_deg(inverse_world_deg[0], float(astro_world_deg[0])),
+            abs(inverse_world_deg[1] - astro_world_deg[1]),
+        )
+        inverse_err_max_deg = max(inverse_err_max_deg, inverse_err_deg)
+
+        roundtrip_plane_internal = project_world_to_plane_internal(inverse_world_rad, meta)
+        if not np.all(np.isfinite(roundtrip_plane_internal)):
+            print("FAILED: non-finite inverse round-trip coordinates")
+            return 1
+        roundtrip_err_internal = max(
+            abs(roundtrip_plane_internal[0] - plane_internal[0]),
+            abs(roundtrip_plane_internal[1] - plane_internal[1]),
+        )
+        roundtrip_err_max_internal = max(roundtrip_err_max_internal, roundtrip_err_internal)
+
+        worst_inverse.append((
+            inverse_err_deg,
+            plane_internal,
+            inverse_world_deg,
+            (float(astro_world_deg[0]), float(astro_world_deg[1])),
+        ))
+        valid_inverse_samples += 1
+
+    worst_inverse.sort(key=lambda item: item[0], reverse=True)
+    print(f"file={fits_file}")
+    print(f"mode={mode_name} samples={actual_sample_count} requested_samples={samples} seed={seed}")
+    print(f"valid_samples={valid_inverse_samples}")
+    print(f"skipped_samples={skipped_inverse_samples}")
+    print(f"inverse_world_max_error_deg={inverse_err_max_deg:.6e}")
+    print(f"roundtrip_plane_max_error_internal={roundtrip_err_max_internal:.6e}")
+    print("worst_inverse_samples:")
+    for inverse_err_deg, plane_internal, inverse_world_deg, astro_world_deg in worst_inverse[:report_worst]:
+        print(
+            f"  err={inverse_err_deg:.6e} plane_internal={plane_internal!r} "
+            f"inverse={inverse_world_deg!r} astropy={astro_world_deg!r}"
+        )
+    # Express the plane residual in degrees, matching the projection-only WCS.
+    roundtrip_error_deg = math.degrees(roundtrip_err_max_internal / meta.plane_units_per_rad)
+    if valid_inverse_samples == 0 or max(inverse_err_max_deg, roundtrip_error_deg) > max_error_deg:
+        print(f"FAILED: inverse or round-trip error exceeds {max_error_deg:.6e} deg, or no samples")
+        return 1
+    return 0
+
+
+def run_forward_validation(
+    fits_file: Path,
+    projection_wcs: WCS,
+    pixel_wcs: WCS,
+    meta: JHVMeta,
+    samples: int,
+    seed: int,
+    report_worst: int,
+    all_pixels: bool,
+    max_error_px: float,
+) -> int:
+    proj_err_max = 0.0
+    pixel_err_max = 0.0
+    worst: list[tuple[float, str, tuple[float, float], tuple[float, float]]] = []
+
+    if all_pixels:
+        worst_pixels: list[tuple[float, tuple[int, int], tuple[float, float], tuple[float, float]]] = []
+        compared_pixels = 0
+        reference_invalid_pixels = 0
+        implementation_invalid_pixels = 0
+        for y in range(meta.pixel_height):
+            fits_y = np.full(meta.pixel_width, y + 1.0, dtype=np.float64)
+            fits_x = np.arange(meta.pixel_width, dtype=np.float64) + 1.0
+            fits_pixels = np.column_stack((fits_x, fits_y))
+            world = pixel_wcs.wcs_pix2world(fits_pixels, 1)
+            reference_valid = np.all(np.isfinite(world), axis=1)
+            reference_invalid_pixels += int(np.count_nonzero(~reference_valid))
+            if not np.any(reference_valid):
+                continue
+
+            valid_indices = np.flatnonzero(reference_valid)
+            jhv_pixel_center = mirrored_world_array_to_pixel_center(world[reference_valid], meta)
+            astro_pixel_center = fits_pixel_to_texture_pixel(fits_pixels[reference_valid], meta)
+            implementation_valid = np.all(np.isfinite(jhv_pixel_center), axis=1)
+            implementation_invalid_pixels += int(np.count_nonzero(~implementation_valid))
+            errors = np.full(len(jhv_pixel_center), math.inf, dtype=np.float64)
+            errors[implementation_valid] = np.array([
+                pixel_center_error_px((float(jx), float(jy)), (float(ax), float(ay)), meta)
+                for (jx, jy), (ax, ay) in zip(
+                    jhv_pixel_center[implementation_valid],
+                    astro_pixel_center[implementation_valid],
+                    strict=True,
+                )
+            ], dtype=np.float64)
+            compared_pixels += len(errors)
+            row_max = float(np.max(errors))
+            pixel_err_max = max(pixel_err_max, row_max)
+            if report_worst > 0:
+                idx = int(np.argmax(errors))
+                worst_pixels.append((
+                    float(errors[idx]),
+                    (int(valid_indices[idx]), y),
+                    (float(jhv_pixel_center[idx, 0]), float(jhv_pixel_center[idx, 1])),
+                    (float(astro_pixel_center[idx, 0]), float(astro_pixel_center[idx, 1])),
+                ))
+
+        worst_pixels.sort(key=lambda item: item[0], reverse=True)
+        print(f"file={fits_file}")
+        print("mode=all_pixels")
+        print(f"compared_pixels={compared_pixels}")
+        print(f"reference_invalid_pixels={reference_invalid_pixels}")
+        print(f"implementation_invalid_pixels={implementation_invalid_pixels}")
+        print(f"pixel_center_max_error_px={pixel_err_max:.6e}")
+        print("worst_pixels:")
+        for pixel_err, pixel_xy, jhv_pixel_center, astro_pixel_center in worst_pixels[:report_worst]:
+            print(
+                f"  err={pixel_err:.6e} pixel={pixel_xy!r} "
+                f"jhv={jhv_pixel_center!r} astropy={astro_pixel_center!r}"
+            )
+        if compared_pixels == 0:
+            print("FAILED: no pixels with a finite Astropy reference")
+            return 1
+        if implementation_invalid_pixels:
+            print("FAILED: JHV produced non-finite pixels for finite Astropy coordinates")
+            return 1
+        if pixel_err_max > max_error_px:
+            print(f"FAILED: pixel_center_max_error_px exceeds {max_error_px:.6e}")
+            return 1
+        return 0
+
+    valid_samples = 0
+    skipped_samples = 0
+    if meta.projection in PIXEL_SAMPLED_FORWARD_PROJECTIONS:
+        world_samples = sample_worlds_from_pixels(pixel_wcs, meta, samples)
+    else:
+        world_samples = [world2helioprojective(point_xyz, meta.observer_distance) for point_xyz in sample_points(samples, seed)]
+    actual_sample_count = len(world_samples)
+
+    for world_rad in world_samples:
+        world_deg = [math.degrees(world_rad[0]), math.degrees(world_rad[1])]
+
+        astro_plane_deg = projection_wcs.wcs_world2pix([world_deg], 0)[0]
+        if not np.all(np.isfinite(astro_plane_deg)):
+            skipped_samples += 1
+            continue
+        jhv_plane_internal = mirrored_world_to_plane_internal(world_rad, meta)
+        jhv_pixel_center = mirrored_world_to_pixel_center(world_rad, meta)
+        if not np.all(np.isfinite([*jhv_plane_internal, *jhv_pixel_center])):
+            print("FAILED: JHV produced non-finite coordinates for a valid Astropy point")
+            return 1
+        astro_plane_internal = (
+            astro_plane_deg[0] * meta.plane_units_per_rad / (180.0 / math.pi),
+            astro_plane_deg[1] * meta.plane_units_per_rad / (180.0 / math.pi),
+        )
+        proj_err = max(
+            abs(jhv_plane_internal[0] - astro_plane_internal[0]),
+            abs(jhv_plane_internal[1] - astro_plane_internal[1]),
+        )
+        proj_err_max = max(proj_err_max, proj_err)
+
+        astro_pixel_center = pixel_wcs.wcs_world2pix([world_deg], 1)[0]
+        if not np.all(np.isfinite(astro_pixel_center)):
+            skipped_samples += 1
+            continue
+        astro_pixel_center = fits_pixel_to_texture_pixel(astro_pixel_center, meta)
+        pixel_err = pixel_center_error_px(jhv_pixel_center, astro_pixel_center, meta)
+        pixel_err_max = max(pixel_err_max, pixel_err)
+
+        worst.append((
+            pixel_err,
+            f"world_deg=({world_deg[0]:.12f}, {world_deg[1]:.12f})",
+            jhv_pixel_center,
+            astro_pixel_center,
+        ))
+        valid_samples += 1
+
+    worst.sort(key=lambda item: item[0], reverse=True)
+
+    print(f"file={fits_file}")
+    print(f"samples={actual_sample_count} requested_samples={samples} seed={seed}")
+    print(f"valid_samples={valid_samples}")
+    print(f"skipped_samples={skipped_samples}")
+    print(f"projection_max_error_internal={proj_err_max:.6e}")
+    print(f"pixel_center_max_error_px={pixel_err_max:.6e}")
+    print("worst_samples:")
+    for pixel_err, sample_desc, jhv_pixel_center, astro_pixel_center in worst[:report_worst]:
+        print(
+            f"  err={pixel_err:.6e} {sample_desc} "
+            f"jhv={jhv_pixel_center!r} astropy={astro_pixel_center!r}"
+        )
+
+    if valid_samples == 0 or pixel_err_max > max_error_px:
+        print(f"FAILED: pixel_center_max_error_px exceeds {max_error_px:.6e}")
+        return 1
+    return 0
+
+
+# CLI/bootstrap helpers.
+
+def build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Validate the current JHV image/WCS projection code paths against astropy.wcs. "
+            "The script covers the formal TAN/ARC/AZP/ZPN/CAR/CEA image path, the inverse TAN/ARC/AZP/ZPN/CAR/CEA branches "
+            "implemented by JHV where the validator has coverage, the centered HPC display-bounds logic, and the existing orthographic/HPC/TAN "
+            "comparison modes already used by this branch. It does not validate newer Java overlay-only behavior "
+            "such as viewpoint-space external-point projection or visible-hemisphere clipping."
+        )
+    )
+    parser.add_argument("fits_file", type=Path)
+    parser.add_argument("--hdu", type=int, default=None, help="Explicit FITS HDU index to use")
+    parser.add_argument("--samples", type=int, default=1000, help="Number of random 3D samples")
+    parser.add_argument("--seed", type=int, default=0, help="Random seed")
+    parser.add_argument("--report-worst", type=int, default=5, help="How many worst samples to print")
+    parser.add_argument("--max-error-px", type=float, default=0.5, help="Maximum Astropy pixel-coordinate error for correctness comparisons")
+    parser.add_argument("--max-inverse-error-deg", type=float, default=1e-7, help="Maximum inverse and plane round-trip error in degrees")
+    parser.add_argument("--all-pixels", action="store_true", help="Validate all pixel centers instead of random 3D samples")
+    parser.add_argument("--inverse-tan", action="store_true", help="Validate the TAN inverse plane->world mapping")
+    parser.add_argument("--inverse-arc", action="store_true", help="Validate the ARC inverse plane->world mapping")
+    parser.add_argument("--inverse-azp", action="store_true", help="Validate the AZP inverse plane->world mapping")
+    parser.add_argument("--inverse-zpn", action="store_true", help="Validate the primary-branch ZPN inverse plane->world mapping")
+    parser.add_argument("--inverse-car", action="store_true", help="Validate the CAR inverse plane->world mapping")
+    parser.add_argument("--inverse-cea", action="store_true", help="Validate the CEA inverse plane->world mapping")
+    parser.add_argument("--hpc-render-compare", action="store_true", help="Render a bounded HPC screen through JHV and Astropy mappings and write diagnostic PNGs")
+    parser.add_argument("--hpc-bounds-compare", action="store_true", help="Report the raw and centered HPC bounds used by the current JHV display logic")
+    parser.add_argument("--latitudinal-render", action="store_true", help="Render the CAR/CEA latitudinal surface-map path mirrored from imageLati.frag")
+    parser.add_argument("--surface-map-render-compare", action="store_true", help="Render CAR/CEA surface maps through JHV and Astropy over a dense lon/lat grid and write diagnostic PNGs")
+    parser.add_argument("--latitudinal-zenithal-render", action="store_true", help="Render the legacy zenithal latitudinal path mirrored from imageLati.frag")
+    parser.add_argument("--orthographic-render", action="store_true", help="Render the orthographic path mirrored from imageOrtho.frag")
+    parser.add_argument("--hpc-diff-selfcheck", action="store_true", help="Exercise the mirrored HPC diff branch with identical source/meta on both sides")
+    parser.add_argument("--latitudinal-diff-selfcheck", action="store_true", help="Exercise the mirrored Latitudinal diff branch with identical source/meta on both sides")
+    parser.add_argument("--orthographic-diff-selfcheck", action="store_true", help="Exercise the mirrored Orthographic diff branch with identical source/meta on both sides")
+    parser.add_argument("--ortho-vs-hpc-screen-compare", action="store_true", help="Compare formal-TAN in Orthographic mode against JHV HPC over the full rendered comparison frame")
+    parser.add_argument("--compare-initial-tan-image-frame", action="store_true", help="Compare simple-TAN against formal-TAN over the full image frame")
+    parser.add_argument("--compare-initial-tan-vs-hpc", action="store_true", help="Compare simple-TAN against the JHV HPC display sampling over the full rendered comparison frame")
+    parser.add_argument("--render-size", type=int, default=512, help="Square output size for HPC diagnostic renderings")
+    parser.add_argument("--surface-map-grid-factor", type=int, default=4, help="Render CAR/CEA validation images at this multiple of the source width/height")
+    parser.add_argument("--output-dir", type=Path, default=Path("extra/test/out"), help="Directory for diagnostic PNGs")
+    return parser
+
+
+def load_validation_context(
+    fits_file: Path,
+    hdu_index: int | None,
+) -> tuple[np.ndarray, JHVMeta, WCS, WCS]:
+    with fits.open(fits_file) as hdul:
+        hdu = find_image_hdu(hdul, hdu_index)
+        header = hdu.header
+        image_data = np.squeeze(np.asarray(hdu.data, dtype=np.float64))
+
+    ensure_supported_projection(header)
+    meta = build_jhv_meta(header)
+    projection_wcs = build_projection_only_wcs(header)
+    pixel_wcs = build_astropy_pixel_wcs(header)
+    return image_data, meta, projection_wcs, pixel_wcs
+
+
+# Main CLI entry point.
+
+def main() -> int:
+    args = build_arg_parser().parse_args()
+
+    image_data, meta, projection_wcs, pixel_wcs = load_validation_context(args.fits_file, args.hdu)
+
+    if args.hpc_bounds_compare:
+        return run_hpc_bounds_compare(args.fits_file, meta)
+
+    if args.latitudinal_render:
+        return run_latitudinal_render(args.fits_file, args.output_dir, args.render_size, meta, image_data)
+
+    if args.surface_map_render_compare:
+        return run_surface_map_render_compare(
+            args.fits_file, args.output_dir, args.surface_map_grid_factor,
+            meta, image_data, pixel_wcs, args.max_error_px)
+
+    if args.latitudinal_zenithal_render:
+        return run_latitudinal_zenithal_render(args.fits_file, args.output_dir, args.render_size, meta, image_data)
+
+    if args.orthographic_render:
+        return run_orthographic_render(args.fits_file, args.output_dir, args.render_size, meta, image_data)
+
+    if args.hpc_diff_selfcheck:
+        return run_hpc_diff_selfcheck(args.fits_file, args.output_dir, args.render_size, meta, image_data)
+
+    if args.latitudinal_diff_selfcheck:
+        return run_latitudinal_diff_selfcheck(args.fits_file, args.output_dir, args.render_size, meta, image_data)
+
+    if args.orthographic_diff_selfcheck:
+        return run_orthographic_diff_selfcheck(args.fits_file, args.output_dir, args.render_size, meta, image_data)
+
+    if args.hpc_render_compare:
+        return run_hpc_render_compare(
+            args.fits_file,
+            args.output_dir,
+            args.render_size,
+            meta,
+            image_data,
+            pixel_wcs,
+            args.max_error_px,
+        )
+
+    if args.ortho_vs_hpc_screen_compare:
+        return run_ortho_vs_hpc_screen_compare(
+            args.fits_file,
+            args.output_dir,
+            args.render_size,
+            meta,
+            image_data,
+        )
+
+    if args.compare_initial_tan_image_frame:
+        return run_compare_initial_tan_image_frame(
+            args.fits_file,
+            args.output_dir,
+            meta,
+            image_data,
+            pixel_wcs,
+        )
+
+    if args.compare_initial_tan_vs_hpc:
+        return run_compare_initial_tan_vs_hpc(
+            args.fits_file,
+            args.output_dir,
+            meta,
+            image_data,
+        )
+
+    if args.inverse_tan or args.inverse_azp or args.inverse_zpn or args.inverse_arc or args.inverse_car or args.inverse_cea:
+        return run_inverse_validation(
+            args.fits_file,
+            projection_wcs,
+            pixel_wcs,
+            meta,
+            args.samples,
+            args.seed,
+            args.report_worst,
+            args.inverse_tan,
+            args.inverse_azp,
+            args.inverse_zpn,
+            args.inverse_arc,
+            args.inverse_car,
+            args.inverse_cea,
+            args.max_inverse_error_deg,
+        )
+
+    return run_forward_validation(
+        args.fits_file,
+        projection_wcs,
+        pixel_wcs,
+        meta,
+        args.samples,
+        args.seed,
+        args.report_worst,
+        args.all_pixels,
+        args.max_error_px,
+    )
+
+
+if __name__ == "__main__":
+    sys.exit(main())

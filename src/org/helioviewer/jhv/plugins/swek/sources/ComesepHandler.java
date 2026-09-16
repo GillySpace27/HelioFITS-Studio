@@ -5,12 +5,13 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import org.helioviewer.jhv.app.Log;
-import org.helioviewer.jhv.event.JHVEvent;
-import org.helioviewer.jhv.event.SWEK;
+import org.helioviewer.jhv.event.EventMetadata;
 import org.helioviewer.jhv.event.SWEKHandler;
 import org.helioviewer.jhv.event.SWEKSupplier;
+import org.helioviewer.jhv.event.SolarEvent;
 import org.helioviewer.jhv.io.JSONUtils;
 import org.helioviewer.jhv.time.TimeUtils;
 
@@ -45,38 +46,36 @@ public class ComesepHandler extends SWEKHandler {
             long archiv = start;
             String uid = result.getString("alertid");
             try (ByteArrayOutputStream baos = JSONUtils.compressJSON(result)) {
-                event2dbList.add(new SWEKHandler.RemoteEvent(baos.toByteArray(), start, end, archiv, uid, List.of()));
+                event2dbList.add(new SWEKHandler.RemoteEvent(baos.toByteArray(), start, end, archiv, uid, Map.of()));
             }
         }
         return new RemotePage(eventJSON.optBoolean("overmax", false), event2dbList, parseAssociations(eventJSON));
     }
 
-    private static List<JHVEvent.LinkRef> parseAssociations(JSONObject eventJSON) {
+    private static List<SolarEvent.LinkRef> parseAssociations(JSONObject eventJSON) {
         JSONArray associations = eventJSON.getJSONArray("associations");
         int len = associations.length();
-        List<JHVEvent.LinkRef> links = new ArrayList<>(len);
+        List<SolarEvent.LinkRef> links = new ArrayList<>(len);
         for (int i = 0; i < len; i++) {
             JSONObject asobj = associations.getJSONObject(i);
-            links.add(new JHVEvent.LinkRef(asobj.getString("parent"), asobj.getString("child")));
+            links.add(new SolarEvent.LinkRef(asobj.getString("parent"), asobj.getString("child")));
         }
         return links;
     }
 
     @Override
-    protected URI createURI(SWEKSupplier supplier, long start, long end, List<SWEK.Param> params, int page) throws Exception {
+    protected URI createURI(SWEKSupplier supplier, long start, long end, int page) throws Exception {
         return new URI(BASE_URL + "model=" + supplier.supplierName() + "&startdate=" + TimeUtils.format(start) + "&enddate=" + TimeUtils.format(end));
     }
 
     @Override
-    public JHVEvent parseEventJSON(JSONObject json, SWEKSupplier supplier, int id, long start, long end, boolean full) throws JSONException {
-        JHVEvent currentEvent = new JHVEvent(supplier, id, start, end);
-        parseResult(json, currentEvent);
-        currentEvent.finishParams();
-
-        return currentEvent;
+    public SolarEvent parseEventJSON(JSONObject json, SWEKSupplier supplier, int id, long start, long end, boolean full) throws JSONException {
+        EventMetadata.Builder metadata = new EventMetadata.Builder(supplier, true);
+        parseResult(json, metadata);
+        return new SolarEvent(supplier, id, start, end, null, SolarEvent.CMEParameters.DEFAULT, metadata.build());
     }
 
-    private static void parseResult(JSONObject result, JHVEvent currentEvent) throws JSONException {
+    private static void parseResult(JSONObject result, EventMetadata.Builder metadata) throws JSONException {
         Iterator<String> keys = result.keys();
         while (keys.hasNext()) {
             String key = keys.next();
@@ -94,7 +93,7 @@ public class ComesepHandler extends SWEKHandler {
                             value = TimeUtils.format(Long.parseLong(value) * 1000L);
                         } catch (Exception ignore) {}
                     }
-                    currentEvent.addParameter(lowKey, value, true);
+                    metadata.add(lowKey, value);
                 }
             }
         }

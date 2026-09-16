@@ -1,31 +1,25 @@
 package org.helioviewer.jhv.layers.selector;
 
 import java.awt.BorderLayout;
-import java.awt.EventQueue;
 
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JToggleButton;
-import javax.swing.event.PopupMenuEvent;
-import javax.swing.event.PopupMenuListener;
 
-import org.helioviewer.jhv.gui.Interfaces;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.component.CadencePanel;
-import org.helioviewer.jhv.gui.component.ImageSelectorPanel;
 import org.helioviewer.jhv.gui.component.MoviePanel;
 import org.helioviewer.jhv.gui.component.SplitButton;
 import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.timelines.draw.DrawController;
 
 @SuppressWarnings("serial")
-public final class LayersSectionPanel extends JPanel implements Interfaces.ObservationSelector {
+public final class LayersSectionPanel extends JPanel {
 
     private final CadencePanel cadencePanel;
-    private final ImageSelectorPanel imageSelectorPanel;
     private final SplitButton addLayerButton;
 
     public LayersSectionPanel() {
@@ -33,22 +27,11 @@ public final class LayersSectionPanel extends JPanel implements Interfaces.Obser
 
         // request cadence for the next layer, sourced against the master time range
         cadencePanel = new CadencePanel(MoviePanel.getInstance().getTimeSelectorPanel());
-        imageSelectorPanel = new ImageSelectorPanel(this);
 
         addLayerButton = new SplitButton(Buttons.newLayer);
         addLayerButton.setText("New Layer");
         addLayerButton.setAlwaysDropdown(true);
         addLayerButton.addItem(buildSourcePanel());
-        addLayerButton.getPopupMenu().addPopupMenuListener(new PopupMenuListener() {
-            @Override
-            public void popupMenuWillBecomeVisible(PopupMenuEvent e) {
-                EventQueue.invokeLater(() -> imageSelectorPanel.getFocused().grabFocus());
-            }
-            @Override
-            public void popupMenuWillBecomeInvisible(PopupMenuEvent e) {}
-            @Override
-            public void popupMenuCanceled(PopupMenuEvent e) {}
-        });
 
         JPanel addLayerRow = new JPanel(new BorderLayout());
         addLayerRow.add(addLayerButton, BorderLayout.LINE_START);
@@ -68,7 +51,7 @@ public final class LayersSectionPanel extends JPanel implements Interfaces.Obser
      */
     private JPanel buildSourcePanel() {
         JPanel cards = new JPanel(new java.awt.CardLayout());
-        cards.add(imageSelectorPanel, "JP2");
+        cards.add(buildJp2Panel(), "JP2");
         cards.add(new org.helioviewer.jhv.gui.component.VsoSelectorPanel(this::getStartTime, this::getEndTime), "VSO");
         cards.add(buildNativePanel(), "NATIVE");
 
@@ -92,6 +75,26 @@ public final class LayersSectionPanel extends JPanel implements Interfaces.Obser
         JPanel panel = new JPanel(new BorderLayout());
         panel.add(chooser, BorderLayout.PAGE_START);
         panel.add(cards, BorderLayout.CENTER);
+        return panel;
+    }
+
+    /**
+     * The JP2 card: the way into the dataset dialog.
+     *
+     * <p>The dataset tree used to sit inline here, as ImageSelectorPanel. Upstream retired that
+     * panel in favour of the New Image Layer dialog, which takes several datasets at once, so the
+     * card is the button that opens it rather than a second copy of the tree.
+     */
+    private JPanel buildJp2Panel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(javax.swing.BorderFactory.createEmptyBorder(6, 8, 6, 8));
+        JButton choose = new JButton("Choose datasets…");
+        choose.setToolTipText("Pick one or more Helioviewer datasets; several can be added in one go");
+        choose.addActionListener(e -> {
+            addLayerButton.doClickOnMenu(); // close this dropdown, or it sits on top of the dialog
+            MoviePanel.getInstance().showNewLayerSelector();
+        });
+        panel.add(choose, BorderLayout.CENTER);
         return panel;
     }
 
@@ -152,7 +155,6 @@ public final class LayersSectionPanel extends JPanel implements Interfaces.Obser
         return true;
     }
 
-    @Override
     public int getCadence() {
         return cadencePanel.getCadence();
     }
@@ -161,29 +163,21 @@ public final class LayersSectionPanel extends JPanel implements Interfaces.Obser
         cadencePanel.setCadence(seconds);
     }
 
-    @Override
+    /** Whether the cadence control is asking for a single frame; MoviePanel's loads honour it. */
+    public boolean isSingleFrame() {
+        return cadencePanel.isSingleFrame();
+    }
+
     public void setTime(long start, long end) {
         MoviePanel.getInstance().setTime(start, end);
     }
 
-    @Override
     public long getStartTime() {
         return MoviePanel.getInstance().getStartTime();
     }
 
-    @Override
     public long getEndTime() {
         return MoviePanel.getInstance().getEndTime();
     }
 
-    @Override
-    public void load(String server, int sourceId) {
-        addLayerButton.doClickOnMenu();
-        if (checkSanity()) {
-            imageSelectorPanel.load(null, server, sourceId, getStartTime(), getEndTime(), getCadence());
-        }
-    }
-
-    @Override
-    public void setAvailabilityEnabled(boolean enable) {}
 }

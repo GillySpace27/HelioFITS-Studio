@@ -8,7 +8,7 @@ import org.helioviewer.jhv.display.HdrTransfer;
 import org.lwjgl.system.MemoryUtil;
 
 final class GLFrameCapture {
-    private static final int[] DEPTH_FORMATS = {GL.DEPTH_COMPONENT32, GL.DEPTH_COMPONENT24, GL.DEPTH_COMPONENT16};
+    private static final int[] DEPTH_FORMATS = {GL.DEPTH_COMPONENT32F, GL.DEPTH_COMPONENT24, GL.DEPTH_COMPONENT16};
     private static final int EXPORT_SAMPLES = 4;
 
     private final int width;
@@ -29,7 +29,7 @@ final class GLFrameCapture {
     private final int bytesPerPixel;
 
     private final int resolveFramebuffer;
-    private final int resolveTexture;
+    private final int resolveColorRenderbuffer;
     private final int drawFramebuffer;
     private final int drawColorRenderbuffer;
     private final int drawDepthRenderbuffer;
@@ -42,9 +42,8 @@ final class GLFrameCapture {
         int frameHeight = Math.max(1, captureH);
         int frameSamples = Math.clamp(EXPORT_SAMPLES, 0, GL.glGetInteger(GL.MAX_SAMPLES));
         int colorInternalFormat = wantHighBitDepth ? GL.RGBA16F : GL.RGB8;
-        int colorPixelFormat = wantHighBitDepth ? GL.RGBA : GL.RGB;
         int resolveFbo = 0;
-        int resolveTex = 0;
+        int resolveColorRbo = 0;
         int drawFbo = 0;
         int drawColorRbo = 0;
         int drawDepthRbo = 0;
@@ -57,15 +56,10 @@ final class GLFrameCapture {
             resolveFbo = GL.glGenFramebuffer();
             GL.glBindFramebuffer(GL.FRAMEBUFFER, resolveFbo);
 
-            resolveTex = GL.glGenTexture();
-            GL.glBindTexture(GL.TEXTURE_2D, resolveTex);
-            GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_MAG_FILTER, GL.LINEAR);
-            GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_MIN_FILTER, GL.LINEAR);
-            GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_WRAP_S, GL.CLAMP_TO_EDGE);
-            GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_WRAP_T, GL.CLAMP_TO_EDGE);
-            GL.glTexImage2D(GL.TEXTURE_2D, 0, colorInternalFormat, frameWidth, frameHeight, 0, colorPixelFormat,
-                    wantHighBitDepth ? GL.HALF_FLOAT : GL.UNSIGNED_BYTE, (ByteBuffer) null);
-            GL.glFramebufferTexture2D(GL.FRAMEBUFFER, GL.COLOR_ATTACHMENT0, GL.TEXTURE_2D, resolveTex, 0);
+            resolveColorRbo = GL.glGenRenderbuffer();
+            GL.glBindRenderbuffer(GL.RENDERBUFFER, resolveColorRbo);
+            GL.glRenderbufferStorage(GL.RENDERBUFFER, colorInternalFormat, frameWidth, frameHeight);
+            GL.glFramebufferRenderbuffer(GL.FRAMEBUFFER, GL.COLOR_ATTACHMENT0, GL.RENDERBUFFER, resolveColorRbo);
             checkFramebufferComplete("resolve"); // fails here if RGBA16F is not colour-renderable
 
             if (frameSamples > 0) {
@@ -110,8 +104,8 @@ final class GLFrameCapture {
                 GL.glDeleteRenderbuffer(drawColorRbo);
             if (drawFbo != resolveFbo)
                 GL.glDeleteFramebuffer(drawFbo);
-            if (resolveTex != 0)
-                GL.glDeleteTexture(resolveTex);
+            if (resolveColorRbo != 0)
+                GL.glDeleteRenderbuffer(resolveColorRbo);
             if (resolveFbo != 0)
                 GL.glDeleteFramebuffer(resolveFbo);
             if (buffer != null)
@@ -119,12 +113,11 @@ final class GLFrameCapture {
             throw e;
         } finally {
             GL.glBindRenderbuffer(GL.RENDERBUFFER, 0);
-            GL.glBindTexture(GL.TEXTURE_2D, 0);
             GL.glBindFramebuffer(GL.FRAMEBUFFER, 0);
         }
 
         resolveFramebuffer = resolveFbo;
-        resolveTexture = resolveTex;
+        resolveColorRenderbuffer = resolveColorRbo;
         drawFramebuffer = drawFbo;
         drawColorRenderbuffer = drawColorRbo;
         drawDepthRenderbuffer = drawDepthRbo;
@@ -138,7 +131,7 @@ final class GLFrameCapture {
         int depthFormat = chosenDepthFormat;
         Log.info("GLFrameCapture config: size=" + width + "x" + height
                 + " samples=" + samples
-                + " depth=" + depthBits(depthFormat)
+                + " depth=" + depthFormatName(depthFormat)
                 + " color=" + (highBitDepth ? "RGBA16F -> rgb48le" : "RGB8 -> rgb24"));
     }
 
@@ -200,6 +193,10 @@ final class GLFrameCapture {
     }
 
     void readPixels(ByteBuffer buffer) {
+        int outputSize = width * height * bytesPerPixel;
+        if (buffer.capacity() < outputSize)
+            throw new IllegalArgumentException("Buffer capacity " + buffer.capacity() + " is less than " + outputSize);
+
         resolveAndRead();
 
         buffer.clear();
@@ -212,7 +209,6 @@ final class GLFrameCapture {
             buffer.put(outputRow);
         }
         buffer.flip();
-        GL.glBindFramebuffer(GL.FRAMEBUFFER, 0);
     }
 
     // RGBA8 -> rgb24, dropping alpha.
@@ -266,8 +262,8 @@ final class GLFrameCapture {
             GL.glDeleteRenderbuffer(drawColorRenderbuffer);
         if (drawFramebuffer != resolveFramebuffer)
             GL.glDeleteFramebuffer(drawFramebuffer);
-        if (resolveTexture != 0)
-            GL.glDeleteTexture(resolveTexture);
+        if (resolveColorRenderbuffer != 0)
+            GL.glDeleteRenderbuffer(resolveColorRenderbuffer);
         if (resolveFramebuffer != 0)
             GL.glDeleteFramebuffer(resolveFramebuffer);
         if (readback != null)
@@ -297,11 +293,11 @@ final class GLFrameCapture {
         return 0;
     }
 
-    private static int depthBits(int depthFormat) {
+    private static String depthFormatName(int depthFormat) {
         return switch (depthFormat) {
-            case GL.DEPTH_COMPONENT32 -> 32;
-            case GL.DEPTH_COMPONENT24 -> 24;
-            default -> 16;
+            case GL.DEPTH_COMPONENT32F -> "32F";
+            case GL.DEPTH_COMPONENT24 -> "24";
+            default -> "16";
         };
     }
 

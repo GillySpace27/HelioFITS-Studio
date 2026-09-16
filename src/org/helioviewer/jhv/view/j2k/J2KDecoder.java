@@ -2,7 +2,6 @@ package org.helioviewer.jhv.view.j2k;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CancellationException;
 
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.image.DecodedImage;
@@ -13,16 +12,11 @@ import org.helioviewer.jhv.metadata.Region;
 
 import org.lwjgl.system.MemoryUtil;
 
-//import com.google.common.base.Stopwatch;
-//import com.google.common.math.StatsAccumulator;
-
-import kdu_jni.Jpx_source;
 import kdu_jni.KduException;
 import kdu_jni.Kdu_compositor_buf;
 import kdu_jni.Kdu_coords;
 import kdu_jni.Kdu_dims;
 import kdu_jni.Kdu_global;
-import kdu_jni.Kdu_ilayer_ref;
 import kdu_jni.Kdu_quality_limiter;
 import kdu_jni.Kdu_region_compositor;
 import kdu_jni.Kdu_thread_env;
@@ -35,11 +29,7 @@ record J2KDecoder(J2KSource src, J2KParams.Decode params, int numComps, ImageFil
     private static final Kdu_quality_limiter qualityLow = new Kdu_quality_limiter(2f / 256);
     private static final Kdu_quality_limiter qualityHigh = new Kdu_quality_limiter(1f / 256);
 
-    private static final ThreadLocal<Kdu_thread_env> localThread = ThreadLocal.withInitial(J2KDecoder::createThreadEnv);
     private static final ThreadLocal<DecodeScratch> localScratch = ThreadLocal.withInitial(DecodeScratch::new);
-
-    //private final Stopwatch sw = Stopwatch.createUnstarted();
-    //private static final ThreadLocal<StatsAccumulator> localAcc = ThreadLocal.withInitial(StatsAccumulator::new);
 
     private static final class DecodeScratch {
         final Kdu_dims empty = new Kdu_dims();
@@ -49,27 +39,40 @@ record J2KDecoder(J2KSource src, J2KParams.Decode params, int numComps, ImageFil
     }
 
     @Override
-    public DecodedImage call() throws Exception {
-        boolean sourceInUse = false;
-        boolean sourceOpened = false;
-        boolean recreateThreadEnv = false;
-        Kdu_region_compositor compositor = null;
-        try {
-            sourceInUse = src.beginUse();
-            if (!sourceInUse)
-                throw new CancellationException("Decode cancelled after source close");
-            if (src.isJP2()) {
+    @SuppressWarnings("try")
+    public DecodedImage call() throws KduException {
+        try (J2KSource.Use ignored = src.use()) {
+            if (src.isJP2())
                 src.open();
-                sourceOpened = true;
+            try {
+                return decode();
+            } finally {
+                if (src.isJP2())
+                    src.close();
             }
-            Jpx_source source = src.jpxSource();
+        }
+    }
+
+    private DecodedImage decode() throws KduException {
+        // Measurements for compositor on 4k AIA tiles were up to about 10x faster than
+        // kdu_region_decompressor/region output (~23ms vs ~200ms). Compositor stays on
+        // Kakadu's optimized 32-bit path; region uses general channel-buffer conversion.
+        Kdu_region_compositor compositor = new Kdu_region_compositor();
+        Kdu_thread_env environment = null;
+        try {
+            environment = new Kdu_thread_env();
+            environment.Create();
+            int numThreads = Math.min(8, Kdu_global.Kdu_get_num_processors());
+            for (int i = 1; i < numThreads; i++)
+                environment.Add_thread();
+
+            compositor.Create(src.jpxSource());
+            compositor.Set_surface_initialization_mode(false);
+            compositor.Set_quality_limiting(params.factor < 1 ? qualityLow : qualityHigh, -1, -1);
+            compositor.Set_thread_env(environment, null);
 
             J2KParams.SubImage subImage = params.subImage;
             int frame = params.frame;
-            // Measurements for compositor on 4k AIA tiles were up to about 10x faster than
-            // kdu_region_decompressor/region output (~23ms vs ~200ms). Compositor stays on
-            // Kakadu's optimized 32-bit path; region uses general channel-buffer conversion.
-            compositor = createCompositor(source, params.factor < 1 ? qualityLow : qualityHigh);
             DecodeScratch scratch = localScratch.get();
 
             Kdu_dims empty = scratch.empty;
@@ -109,61 +112,33 @@ record J2KDecoder(J2KSource src, J2KParams.Decode params, int numComps, ImageFil
             ImageBuffer.WriteBuffer outBuffer = ImageBuffer.createWriteBuffer(actualWidth, actualHeight, format, filter);
             ByteBuffer outByteBuffer = outBuffer.byteBuffer();
 
-            Kdu_dims newRegion = scratch.newRegion;
-            newRegion.From_u32(0, 0, 0, 0);
-            //sw.reset().start();
+            // With surface initialization disabled, only the completed buffer is ready to copy.
             while (!compositor.Is_processing_complete()) {
-                if (!compositor.Process(MAX_RENDER_SAMPLES, newRegion))
+                if (!compositor.Process(MAX_RENDER_SAMPLES, scratch.newRegion))
                     throw new KduException("JPEG 2000 rendering failed, invalid scale code "
                             + compositor.Check_invalid_scale_code());
-
-                Kdu_coords newSize = newRegion.Access_size();
-                int newWidth = newSize.Get_x();
-                int newHeight = newSize.Get_y();
-                if (newWidth * newHeight == 0)
-                    continue;
-
-                Kdu_coords newOffset = newRegion.Access_pos();
-                int newX = newOffset.Get_x() - actualX;
-                int newY = newOffset.Get_y() - actualY;
-
-                int dstIdx = newX + newY * actualWidth;
-                int srcIdx = 0;
-
-                if (gray) {
-                    gatherGray(nativeBuffer, outByteBuffer, srcStride[0], actualWidth, srcIdx, dstIdx, newWidth, newHeight);
-                } else {
-                    for (int j = 0; j < newHeight; ++j, dstIdx += actualWidth, srcIdx += srcStride[0]) {
-                        outByteBuffer.put(4 * dstIdx, nativeBuffer, 4 * srcIdx, 4 * newWidth);
-                    }
-                }
             }
-/*
-        StatsAccumulator acc = localAcc.get();
-        acc.add(sw.elapsed().toNanos() / 1e9);
-        if (view.getMaximumFrameNumber() > 0 && acc.count() == view.getMaximumFrameNumber() + 1)
-            System.out.println(">>> mean: " + acc.mean() + " stddev: " + acc.sampleStandardDeviation());
-*/
+            if (gray) {
+                gatherGray(nativeBuffer, outByteBuffer, srcStride[0], actualWidth, actualHeight);
+            } else {
+                for (int row = 0; row < actualHeight; row++)
+                    outByteBuffer.put(4 * row * actualWidth, nativeBuffer, 4 * row * srcStride[0], 4 * actualWidth);
+            }
             return new DecodedImage(outBuffer.finish(), imageRegion);
-        } catch (KduException e) {
-            recreateThreadEnv = true;
-            throw e;
         } finally {
-            if (compositor != null)
-                destroyCompositor(compositor);
-            if (sourceInUse)
-                src.endUse();
-            if (sourceOpened)
-                src.close();
-            if (recreateThreadEnv)
-                resetThreadEnv();
+            // Kakadu's destructor stops processing and releases layers and buffers.
+            try {
+                compositor.Native_destroy();
+            } finally {
+                destroyThreadEnv(environment);
+            }
         }
     }
 
-    private static void gatherGray(ByteBuffer src, ByteBuffer dst, int srcStride, int dstStride,
-                                   int srcIdx, int dstIdx, int width, int height) {
-        for (int j = 0; j < height; ++j, dstIdx += dstStride, srcIdx += srcStride) {
-            int srcByte = 4 * srcIdx;
+    private static void gatherGray(ByteBuffer src, ByteBuffer dst, int srcStride, int width, int height) {
+        for (int row = 0; row < height; row++) {
+            int dstIdx = row * width;
+            int srcByte = 4 * row * srcStride;
             int i = 0;
             for (; i <= width - 4; i += 4, srcByte += 16) { // doesn't help much, more is definitely harmful
                 dst.put(dstIdx + i, src.get(srcByte));
@@ -176,56 +151,14 @@ record J2KDecoder(J2KSource src, J2KParams.Decode params, int numComps, ImageFil
         }
     }
 
-    private static Kdu_region_compositor createCompositor(Jpx_source source, Kdu_quality_limiter quality) throws KduException {
-        Kdu_region_compositor krc = new Kdu_region_compositor();
-        krc.Create(source);
-        krc.Set_surface_initialization_mode(false);
-        krc.Set_quality_limiting(quality, -1, -1);
-        krc.Set_thread_env(localThread.get(), null);
-        return krc;
-    }
-
-    private static void destroyCompositor(Kdu_region_compositor krc) {
-        try {
-            krc.Halt_processing();
-            krc.Remove_ilayer(new Kdu_ilayer_ref(), true);
-            krc.Set_thread_env(null, null);
-            krc.Native_destroy();
-        } catch (KduException e) {
-            Log.warn("Failed to destroy Kakadu compositor", e);
-        }
-    }
-
-    private static Kdu_thread_env createThreadEnv() {
-        try {
-            Kdu_thread_env kte = new Kdu_thread_env();
-            kte.Create();
-            int numThreads = Math.min(8, Kdu_global.Kdu_get_num_processors());
-            for (int i = 1; i < numThreads; i++)
-                kte.Add_thread();
-            return kte;
-        } catch (KduException e) {
-            Log.warn("Failed to create Kakadu thread environment", e);
-        }
-        return null;
-    }
-
-    private static void resetThreadEnv() {
-        Kdu_thread_env current = localThread.get();
-        destroyThreadEnv(current);
-        localThread.remove();
-
-        Kdu_thread_env replacement = createThreadEnv();
-        if (replacement != null) localThread.set(replacement);
-    }
-
     private static void destroyThreadEnv(Kdu_thread_env kte) {
         if (kte == null) return;
         try {
             kte.Destroy();
-            kte.Native_destroy();
         } catch (KduException e) {
             Log.warn("Failed to destroy Kakadu thread environment", e);
+        } finally {
+            kte.Native_destroy();
         }
     }
 

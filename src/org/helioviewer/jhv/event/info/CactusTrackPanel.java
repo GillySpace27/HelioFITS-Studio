@@ -19,13 +19,13 @@ import javax.swing.table.DefaultTableModel;
 import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.display.CMETracker;
 import org.helioviewer.jhv.display.MapMode;
-import org.helioviewer.jhv.event.JHVEvent;
-import org.helioviewer.jhv.event.JHVEventCache;
-import org.helioviewer.jhv.event.JHVEventListener;
-import org.helioviewer.jhv.event.JHVEventParameter;
-import org.helioviewer.jhv.event.JHVRelatedEvents;
+import org.helioviewer.jhv.event.EventCache;
+import org.helioviewer.jhv.event.EventListener;
+import org.helioviewer.jhv.event.RelatedEvents;
 import org.helioviewer.jhv.event.SWEKCatalog;
+import org.helioviewer.jhv.event.SWEKDownloader;
 import org.helioviewer.jhv.event.SWEKSupplier;
+import org.helioviewer.jhv.event.SolarEvent;
 import org.helioviewer.jhv.gui.component.RightSidebar;
 import org.helioviewer.jhv.gui.component.Palette;
 import org.helioviewer.jhv.movie.Player;
@@ -47,7 +47,7 @@ import org.helioviewer.jhv.time.TimeUtils;
  * panel's Track button calls in from the plugin side.
  */
 @SuppressWarnings("serial")
-public final class CactusTrackPanel extends JPanel implements JHVEventListener.Handle, JHVEventListener.Highlight {
+public final class CactusTrackPanel extends JPanel implements EventListener.Handle, EventListener.Highlight {
 
     private static final String[] COLUMNS = {"Onset (UTC)", "km/s", "Width°", "PA°", "Source"};
 
@@ -83,7 +83,7 @@ public final class CactusTrackPanel extends JPanel implements JHVEventListener.H
     private final DefaultTableModel model;
     private final JTable table;
     private final JLabel status;
-    private final List<JHVRelatedEvents> rows = new ArrayList<>(); // aligned with model rows
+    private final List<RelatedEvents> rows = new ArrayList<>(); // aligned with model rows
     private boolean syncingSelection; // guard against the table<->canvas highlight feedback loop
 
     private CactusTrackPanel() {
@@ -116,7 +116,7 @@ public final class CactusTrackPanel extends JPanel implements JHVEventListener.H
         // mirroring a canvas-driven highlight, so the two directions don't ping-pong).
         table.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting() && !syncingSelection)
-                JHVEventCache.highlight(selected());
+                EventCache.highlight(selected());
         });
 
         status = new JLabel(" ");
@@ -151,8 +151,8 @@ public final class CactusTrackPanel extends JPanel implements JHVEventListener.H
         addAncestorListener(new javax.swing.event.AncestorListener() {
             @Override
             public void ancestorAdded(javax.swing.event.AncestorEvent e) {
-                JHVEventCache.registerHandler(CactusTrackPanel.this);
-                JHVEventCache.addHighlightListener(CactusTrackPanel.this);
+                EventCache.registerHandler(CactusTrackPanel.this);
+                EventCache.addHighlightListener(CactusTrackPanel.this);
                 // Here as well as on show: docked at launch, the palette is shown while the toolbar is
                 // built, before the SWEK plugin has loaded the catalog, so that request finds no CACTus
                 // and quietly does nothing. The window going on screen comes after the plugins.
@@ -162,8 +162,8 @@ public final class CactusTrackPanel extends JPanel implements JHVEventListener.H
 
             @Override
             public void ancestorRemoved(javax.swing.event.AncestorEvent e) {
-                JHVEventCache.unregisterHandler(CactusTrackPanel.this);
-                JHVEventCache.removeHighlightListener(CactusTrackPanel.this);
+                EventCache.unregisterHandler(CactusTrackPanel.this);
+                EventCache.removeHighlightListener(CactusTrackPanel.this);
             }
 
             @Override
@@ -171,25 +171,20 @@ public final class CactusTrackPanel extends JPanel implements JHVEventListener.H
         });
     }
 
-    // Make the dialog self-sufficient: if CACTus isn't an active supplier yet, activate it and
+    // Make the panel self-sufficient: if CACTus isn't an active supplier yet, activate it and
     // request the current movie range, rather than requiring the user to tick it in the SWEK tree
-    // first. The download is async; the Handle callbacks below refresh the table when it arrives.
+    // first. The download is async; cacheUpdated below refreshes the table when it arrives.
     private void ensureCactusLoaded() {
         SWEKSupplier cactus = SWEKCatalog.findCactus();
         if (cactus == null)
             return;
-        if (!JHVEventCache.isSupplierActive(cactus))
-            JHVEventCache.setSupplierActive(cactus, true);
-        JHVEventCache.requestForInterval(Player.getStartTime(), Player.getEndTime(), this);
+        if (!SWEKDownloader.isSupplierActive(cactus))
+            SWEKDownloader.setSupplierActive(cactus, true);
+        SWEKDownloader.requestForInterval(Player.getStartTime(), Player.getEndTime());
     }
 
     @Override
     public void cacheUpdated() {
-        java.awt.EventQueue.invokeLater(this::reload);
-    }
-
-    @Override
-    public void newEventsReceived() {
         java.awt.EventQueue.invokeLater(this::reload);
     }
 
@@ -198,7 +193,7 @@ public final class CactusTrackPanel extends JPanel implements JHVEventListener.H
     @Override
     public void highlightChanged() {
         java.awt.EventQueue.invokeLater(() -> {
-            JHVRelatedEvents hl = JHVEventCache.getHighlighted();
+            RelatedEvents hl = EventCache.getHighlighted();
             int modelRow = hl == null ? -1 : rows.indexOf(hl);
             syncingSelection = true;
             try {
@@ -220,19 +215,20 @@ public final class CactusTrackPanel extends JPanel implements JHVEventListener.H
         model.setRowCount(0);
         rows.clear();
 
-        List<JHVRelatedEvents> events = JHVEventCache.getEvents(Player.getStartTime(), Player.getEndTime());
+        List<RelatedEvents> events = EventCache.getEvents(Player.getStartTime(), Player.getEndTime());
         events.stream()
-                .filter(re -> re.getSupplier().isCactus() && !re.getEvents().isEmpty())
+                .filter(re -> representative(re).isCactus())
                 .sorted((a, b) -> Long.compare(representative(a).start, representative(b).start))
                 .forEach(re -> {
-                    JHVEvent evt = representative(re);
+                    SolarEvent evt = representative(re);
+                    SolarEvent.CMEParameters cme = evt.getCMEParameters();
                     rows.add(re);
                     model.addRow(new Object[]{
                             TimeUtils.formatShort(evt.start),
-                            intParam(evt, "cme_radiallinvel"),
-                            intParam(evt, "cme_angularwidth"),
-                            intParam(evt, "event_coord1"),
-                            re.getSupplier().displayName()});
+                            (int) Math.round(cme.speedKmPerSecond()),
+                            (int) Math.round(cme.angularWidthDegree()),
+                            (int) Math.round(cme.principalAngleDegree()),
+                            evt.getSupplier().displayName()});
                 });
         syncingSelection = false;
         highlightChanged(); // restore the row selection to whatever wedge is currently highlighted
@@ -265,7 +261,7 @@ public final class CactusTrackPanel extends JPanel implements JHVEventListener.H
         return new Dimension(0, getPreferredSize().height);
     }
 
-    private JHVRelatedEvents selected() {
+    private RelatedEvents selected() {
         int viewRow = table.getSelectedRow();
         if (viewRow < 0)
             return null;
@@ -273,58 +269,34 @@ public final class CactusTrackPanel extends JPanel implements JHVEventListener.H
     }
 
     private void trackSelected(CMETracker.Mode mode) {
-        JHVRelatedEvents re = selected();
+        RelatedEvents re = selected();
         if (re == null)
             return;
         if (!Player.isAvailable()) { // setTime would silently no-op; don't switch projection / engage against a stale time
             status.setText("Load a coronagraph movie first: there is no movie to jump to.");
             return;
         }
-        JHVEvent evt = representative(re);
-        CMETracker.stop();                           // disengage first: setTime fires listeners synchronously,
-        CMETracker.setMode(mode);                    // ...and pick the knob before engaging
-        Player.setTime(new JHVTime(evt.start));      // so a still-registered tracker must not solve with stale params
+        SolarEvent evt = representative(re);
+        SolarEvent.CMEParameters cme = evt.getCMEParameters();
+        CMETracker.stop();                            // disengage first: setTime fires listeners synchronously,
+        CMETracker.setMode(mode);                     // ...and pick the knob before engaging
+        Player.setTime(new JHVTime(evt.start));       // so a still-registered tracker must not solve with stale params
         ViewState.setProjection(MapMode.Helioradial); // no-op if already there; fits on entry
-        CMETracker.track(speedOf(evt), evt.start, paOf(evt)); // re-engage with this CME's params
-        JHVEventCache.highlight(re);
+        CMETracker.track(cme.speedKmPerSecond(), evt.start, cme.principalAngleDegree()); // re-engage with this CME's params
+        EventCache.highlight(re);
     }
 
     private void detailsSelected() {
-        JHVRelatedEvents re = selected();
+        RelatedEvents re = selected();
         if (re == null)
             return;
         new SWEKEventInformationDialog(re, representative(re)).setVisible(true);
     }
 
-    // The time-earliest variant, so its start matches JHVRelatedEvents' interval start (get(0) is
-    // merge/insertion order, which can differ after events associate) — used for onset + sorting.
-    private static JHVEvent representative(JHVRelatedEvents re) {
-        JHVEvent earliest = re.getEvents().get(0);
-        for (JHVEvent e : re.getEvents())
-            if (e.start < earliest.start)
-                earliest = e;
-        return earliest;
-    }
-
-    private static double speedOf(JHVEvent evt) {
-        Integer s = intParam(evt, "cme_radiallinvel");
-        return s == null ? 500 : s; // matches the arc renderer's fallback
-    }
-
-    private static double paOf(JHVEvent evt) {
-        Integer pa = intParam(evt, "event_coord1"); // CACTus principal angle
-        return pa == null ? 0 : pa;
-    }
-
-    private static Integer intParam(JHVEvent evt, String key) {
-        JHVEventParameter p = evt.getParameter(key);
-        if (p == null)
-            return null;
-        try {
-            return (int) Math.round(Double.parseDouble(p.getParameterValue()));
-        } catch (NumberFormatException e) {
-            return null;
-        }
+    // The time-earliest member, so its start matches the group's interval start (insertion order can
+    // differ after events associate). Used for onset, sorting and the CME parameters.
+    private static SolarEvent representative(RelatedEvents re) {
+        return re.getClosestTo(re.getStart());
     }
 
 }

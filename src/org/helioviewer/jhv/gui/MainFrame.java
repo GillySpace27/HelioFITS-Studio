@@ -307,7 +307,7 @@ public final class MainFrame {
 
         ToolBar toolBar = new ToolBar();
 
-        menuBar = new MenuBar(toolBar);
+        menuBar = new MenuBar(toolBar, statusPanel);
         mainFrame.setJMenuBar(menuBar);
 
         toolBarPanel = new JPanel(new BorderLayout());
@@ -345,7 +345,7 @@ public final class MainFrame {
     }
 
     private static void startAngleWarmup() {
-        Task.submit("angle-warmup", () -> {
+        Task.submitBackground("angle-warmup", () -> {
             if (Platform.isMacOS())
                 MacAngleBridge.prewarm();
             AngleRenderer.prewarm();
@@ -366,6 +366,7 @@ public final class MainFrame {
         canvas.addMouseMotionListener(awtInputAdapter);
         canvas.addMouseWheelListener(awtInputAdapter);
         canvas.addKeyListener(awtInputAdapter);
+        canvas.addFocusListener(awtInputAdapter);
         // The canvas is a heavyweight AWT child, so the frame's drop target does not cover it;
         // it gets its own.
         FileDropHandler.attach(canvas);

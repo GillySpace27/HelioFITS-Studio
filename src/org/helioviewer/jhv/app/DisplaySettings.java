@@ -6,17 +6,15 @@ public class DisplaySettings {
 
     private static boolean normalizeAIA;
     private static boolean normalizeRadius;
-    private static TimeMode timeMode;
+    private static TimeMode timeMode = TimeMode.Observer;
 
     static {
         normalizeAIA = Boolean.parseBoolean(Settings.getProperty("display.normalizeAIA"));
         normalizeRadius = Boolean.parseBoolean(Settings.getProperty("display.normalizeRadius"));
 
-        TimeMode setTimeMode = TimeMode.Observer;
         try {
-            setTimeMode = TimeMode.valueOf(Settings.getProperty("display.time"));
+            timeMode = TimeMode.valueOf(Settings.getProperty("display.time"));
         } catch (Exception ignore) {}
-        timeMode = setTimeMode;
     }
 
     public static boolean getNormalizeAIA() {

@@ -2,10 +2,10 @@ package org.helioviewer.jhv.view.uri;
 
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
-import java.awt.Window;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.EnumMap;
@@ -13,267 +13,254 @@ import java.util.function.DoubleConsumer;
 
 import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
-import javax.swing.JDialog;
 import javax.swing.JFormattedTextField;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
-import javax.swing.JSlider;
 
-import org.helioviewer.jhv.gui.Interfaces;
-import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.gui.component.JHVSlider;
 import org.helioviewer.jhv.gui.component.TerminatedFormatterFactory;
+import org.helioviewer.jhv.image.ImageProcessingSettings;
 
 import com.formdev.flatlaf.FlatClientProperties;
 
 @SuppressWarnings("serial")
-public final class FITSSettings {
+public final class FITSSettings extends JPanel implements ImageProcessingSettings.FITSListener {
 
-    public static final class SettingsDialog extends JDialog implements Interfaces.ShowableDialog, FITSViewState.Listener {
+    private final ImageProcessingSettings state;
+    private boolean syncing;
+    private final JRadioButton gammaButton = new JRadioButton("γ");
+    private final JRadioButton betaButton = new JRadioButton("β");
+    private final JRadioButton alphaButton = new JRadioButton("α");
+    private final JHVSlider gammaSlider;
+    private final JLabel gammaLabel = new JLabel("", JLabel.RIGHT);
+    private final JHVSlider betaSlider;
+    private final JLabel betaLabel = new JLabel("", JLabel.RIGHT);
+    private final JHVSlider alphaSlider;
+    private final JLabel alphaLabel = new JLabel("", JLabel.RIGHT);
+    private final JFormattedTextField minClip = new JFormattedTextField(new TerminatedFormatterFactory("%g", "", -ImageProcessingSettings.CLIP_LIMIT, ImageProcessingSettings.CLIP_LIMIT));
+    private final JFormattedTextField maxClip = new JFormattedTextField(new TerminatedFormatterFactory("%g", "", -ImageProcessingSettings.CLIP_LIMIT, ImageProcessingSettings.CLIP_LIMIT));
+    private final EnumMap<ImageProcessingSettings.ClippingMode, JRadioButton> clippingButtons = new EnumMap<>(ImageProcessingSettings.ClippingMode.class);
 
-        private final JRadioButton gammaButton = new JRadioButton("γ");
-        private final JRadioButton betaButton = new JRadioButton("β");
-        private final JRadioButton alphaButton = new JRadioButton("α");
-        private final JHVSlider gammaSlider;
-        private final JLabel gammaLabel = new JLabel("", JLabel.RIGHT);
-        private final JHVSlider betaSlider;
-        private final JLabel betaLabel = new JLabel("", JLabel.RIGHT);
-        private final JHVSlider alphaSlider;
-        private final JLabel alphaLabel = new JLabel("", JLabel.RIGHT);
-        private final JFormattedTextField minClip = new JFormattedTextField(new TerminatedFormatterFactory("%g", "", -FITSViewState.CLIP_LIMIT, FITSViewState.CLIP_LIMIT));
-        private final JFormattedTextField maxClip = new JFormattedTextField(new TerminatedFormatterFactory("%g", "", -FITSViewState.CLIP_LIMIT, FITSViewState.CLIP_LIMIT));
-        private final JHVSlider contrastSlider;
-        private final EnumMap<FITSViewState.ClippingMode, JRadioButton> clippingButtons = new EnumMap<>(FITSViewState.ClippingMode.class);
+    private static JPanel createScalingPanel(JRadioButton button, JHVSlider slider, JLabel label) {
+        JPanel panel = new JPanel(new BorderLayout(5, 0));
+        panel.setBorder(BorderFactory.createEmptyBorder(0, 5, 0, 5));
+        panel.add(button, BorderLayout.LINE_START);
+        panel.add(slider, BorderLayout.CENTER);
+        panel.add(label, BorderLayout.LINE_END);
+        return panel;
+    }
 
-        private static JPanel createScalingPanel(JRadioButton button, JHVSlider slider, JLabel label) {
-            JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 5, 0));
-            panel.add(button);
-            panel.add(slider);
-            panel.add(label);
-            return panel;
-        }
-
-        private static void bindSelectionControls(JRadioButton button, Component... components) {
-            for (Component component : components) {
-                component.addMouseListener(new MouseAdapter() {
-                    @Override
-                    public void mousePressed(MouseEvent e) {
-                        if (!button.isSelected()) {
-                            button.setSelected(true);
-                        }
+    private static void bindSelectionControls(JRadioButton button, Component... components) {
+        for (Component component : components) {
+            component.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mousePressed(MouseEvent e) {
+                    if (!button.isSelected()) {
+                        button.setSelected(true);
                     }
-                });
+                }
+            });
+        }
+    }
+
+    private void bindScalingMode(JRadioButton button, JHVSlider slider, ImageProcessingSettings.ScalingMode mode) {
+        bindSelectionControls(button, slider);
+        button.addItemListener(e -> {
+            if (!syncing && button.isSelected())
+                state.setScalingMode(mode);
+        });
+    }
+
+    public FITSSettings(ImageProcessingSettings _state) {
+        state = _state;
+        ImageProcessingSettings.FITSParameters initialState = state.fitsParameters();
+        gammaSlider = createSlider(gammaIndex(ImageProcessingSettings.GAMMA_MAX),
+                gammaIndex(ImageProcessingSettings.GAMMA_MIN), gammaIndex(initialState.gamma()));
+        betaSlider = createSlider(betaIndex(ImageProcessingSettings.BETA_MAX),
+                betaIndex(ImageProcessingSettings.BETA_MIN), betaIndex(initialState.beta()));
+        alphaSlider = createSlider(alphaIndex(ImageProcessingSettings.ALPHA_MIN),
+                alphaIndex(ImageProcessingSettings.ALPHA_MAX), alphaIndex(initialState.alpha()));
+        state.addFITSListener(this);
+
+        gammaButton.setToolTipText("<html><body>pixel<sup>1/γ</sup>");
+        betaButton.setToolTipText("<html><body>asinh(pixel / 2<sup>β</sup>)");
+        alphaButton.setToolTipText("<html><body>log1p(10<sup>α</sup>⋅pixel) / log1p(10<sup>α</sup>)");
+
+        ButtonGroup scalingGroup = new ButtonGroup();
+        scalingGroup.add(gammaButton);
+        scalingGroup.add(betaButton);
+        scalingGroup.add(alphaButton);
+
+        gammaSlider.addChangeListener(e -> {
+            int value = gammaSlider.getValue();
+            if (!syncing)
+                state.setGamma(10. / value);
+        });
+        betaSlider.addChangeListener(e -> {
+            int value = betaSlider.getValue();
+            if (!syncing)
+                state.setBeta(1. / (1 << value));
+        });
+        alphaSlider.addChangeListener(e -> {
+            int value = alphaSlider.getValue();
+            if (!syncing)
+                state.setAlpha(Math.pow(10, value));
+        });
+
+        bindScalingMode(gammaButton, gammaSlider, ImageProcessingSettings.ScalingMode.Gamma);
+        bindScalingMode(betaButton, betaSlider, ImageProcessingSettings.ScalingMode.Beta);
+        bindScalingMode(alphaButton, alphaSlider, ImageProcessingSettings.ScalingMode.Alpha);
+
+        JPanel gammaPanel = createScalingPanel(gammaButton, gammaSlider, gammaLabel);
+        JPanel betaPanel = createScalingPanel(betaButton, betaSlider, betaLabel);
+        JPanel alphaPanel = createScalingPanel(alphaButton, alphaSlider, alphaLabel);
+
+        minClip.setColumns(5);
+        minClip.addPropertyChangeListener("value", e -> {
+            applyClipValue(minClip, state::setClippingMin);
+            markClipRange();
+        });
+        maxClip.setColumns(5);
+        maxClip.addPropertyChangeListener("value", e -> {
+            applyClipValue(maxClip, state::setClippingMax);
+            markClipRange();
+        });
+
+        JPanel rangePanel = new JPanel(new BorderLayout());
+        rangePanel.add(minClip, BorderLayout.LINE_START);
+        rangePanel.add(maxClip, BorderLayout.LINE_END);
+
+        //
+        JPanel content = new JPanel(new GridBagLayout());
+        content.setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3));
+
+        GridBagConstraints c = new GridBagConstraints();
+        c.fill = GridBagConstraints.BOTH;
+        c.gridx = 0;
+        c.gridy = 0;
+        content.add(new JLabel("Clipping:", JLabel.RIGHT), c);
+
+        ButtonGroup clippingGroup = new ButtonGroup();
+        c.gridx = 1;
+        c.weightx = 1;
+        for (ImageProcessingSettings.ClippingMode clipping : ImageProcessingSettings.ClippingMode.values()) {
+            JRadioButton radio = new JRadioButton(clipping.toString(), clipping == initialState.clippingMode());
+            clippingButtons.put(clipping, radio);
+            boolean rangeMode = clipping == ImageProcessingSettings.ClippingMode.Range;
+            if (rangeMode) {
+                bindSelectionControls(radio, minClip, maxClip);
             }
-        }
-
-        private static void bindScalingMode(JRadioButton button, JHVSlider slider, FITSViewState.ScalingMode mode) {
-            bindSelectionControls(button, slider);
-            button.addItemListener(e -> {
-                if (button.isSelected())
-                    FITSViewState.setScalingMode(mode);
+            radio.addItemListener(e -> {
+                if (!syncing && radio.isSelected())
+                    state.setClippingMode(clipping);
             });
-        }
+            clippingGroup.add(radio);
 
-        public SettingsDialog() {
-            super(MainFrame.get(), "FITS Settings", false);
-            FITSViewState.Data initialState = FITSViewState.data();
-            gammaSlider = createSlider(FITSViewState.GAMMA, initialState.gammaIndex());
-            betaSlider = createSlider(FITSViewState.BETA, initialState.betaIndex());
-            alphaSlider = createSlider(FITSViewState.ALPHA, initialState.alphaIndex());
-            contrastSlider = createSlider(FITSViewState.Z_CONTRAST, initialState.zContrastIndex());
-            setLocationRelativeTo(MainFrame.get());
-            setType(Window.Type.UTILITY);
-            setResizable(false);
-            FITSViewState.addListener(this);
-
-            gammaButton.setToolTipText("<html><body>pixel<sup>1/γ</sup>");
-            betaButton.setToolTipText("<html><body>asinh(pixel / 2<sup>β</sup>)");
-            alphaButton.setToolTipText("<html><body>log1p(10<sup>α</sup>⋅pixel) / log1p(10<sup>α</sup>)");
-
-            ButtonGroup scalingGroup = new ButtonGroup();
-            scalingGroup.add(gammaButton);
-            scalingGroup.add(betaButton);
-            scalingGroup.add(alphaButton);
-
-            gammaSlider.addChangeListener(e -> {
-                int value = gammaSlider.getValue();
-                FITSViewState.setGammaIndex(value);
-            });
-            betaSlider.addChangeListener(e -> {
-                int value = betaSlider.getValue();
-                FITSViewState.setBetaIndex(value);
-            });
-            alphaSlider.addChangeListener(e -> {
-                int value = alphaSlider.getValue();
-                FITSViewState.setAlphaIndex(value);
-            });
-
-            bindScalingMode(gammaButton, gammaSlider, FITSViewState.ScalingMode.Gamma);
-            bindScalingMode(betaButton, betaSlider, FITSViewState.ScalingMode.Beta);
-            bindScalingMode(alphaButton, alphaSlider, FITSViewState.ScalingMode.Alpha);
-
-            JPanel gammaPanel = createScalingPanel(gammaButton, gammaSlider, gammaLabel);
-            JPanel betaPanel = createScalingPanel(betaButton, betaSlider, betaLabel);
-            JPanel alphaPanel = createScalingPanel(alphaButton, alphaSlider, alphaLabel);
-
-            minClip.setColumns(10);
-            minClip.addPropertyChangeListener("value", e -> {
-                applyClipValue(minClip, FITSViewState::setClippingMin);
-                markClipRange();
-            });
-            maxClip.setColumns(10);
-            maxClip.addPropertyChangeListener("value", e -> {
-                applyClipValue(maxClip, FITSViewState::setClippingMax);
-                markClipRange();
-            });
-
-            JPanel rangePanel = new JPanel(new BorderLayout());
-            rangePanel.add(minClip, BorderLayout.LINE_START);
-            rangePanel.add(maxClip, BorderLayout.LINE_END);
-            contrastSlider.addChangeListener(e -> FITSViewState.setZContrastIndex(contrastSlider.getValue()));
-
-            //
-            JPanel content = new JPanel(new GridBagLayout());
-            content.setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3));
-
-            GridBagConstraints c = new GridBagConstraints();
-            c.fill = GridBagConstraints.BOTH;
-            c.gridx = 0;
-            c.gridy = 0;
-            content.add(new JLabel("Clipping:", JLabel.RIGHT), c);
-
-            ButtonGroup clippingGroup = new ButtonGroup();
-            c.gridx = 1;
-            for (FITSViewState.ClippingMode clipping : FITSViewState.ClippingMode.values()) {
-                JRadioButton radio = new JRadioButton(clipping.toString(), clipping == initialState.clippingMode());
-                clippingButtons.put(clipping, radio);
-                boolean rangeMode = clipping == FITSViewState.ClippingMode.Range;
-                boolean zscaleMode = clipping == FITSViewState.ClippingMode.ZScale;
-                if (zscaleMode) {
-                    bindSelectionControls(radio, contrastSlider);
-                }
-                if (rangeMode) {
-                    bindSelectionControls(radio, minClip, maxClip);
-                }
-                radio.addItemListener(e -> {
-                    if (radio.isSelected())
-                        FITSViewState.setClippingMode(clipping);
-                });
-                clippingGroup.add(radio);
-
-                JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 5, 0));
-                panel.add(radio, c);
-                if (rangeMode) {
-                    panel.add(rangePanel);
-                }
-                if (zscaleMode) {
-                    panel.add(contrastSlider);
-                }
-                content.add(panel, c);
-                c.gridy++;
+            JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 5, 0));
+            panel.add(radio, c);
+            if (rangeMode) {
+                panel.add(rangePanel);
             }
-
-            c.gridx = 0;
-            content.add(new JLabel("Scaling:", JLabel.RIGHT), c);
-
-            c.gridx = 1;
-            content.add(gammaPanel, c);
+            content.add(panel, c);
             c.gridy++;
-            content.add(betaPanel, c);
-            c.gridy++;
-            content.add(alphaPanel, c);
-            c.gridy++;
-
-            add(content);
-            fitsViewStateChanged();
-            pack(); // hack: fixes first visible layout on Windows at 150% scale
         }
 
-        @Override
-        public void fitsViewStateChanged() {
-            FITSViewState.Data data = FITSViewState.data();
+        c.gridx = 0;
+        c.weightx = 0;
+        content.add(new JLabel("Scaling:", JLabel.RIGHT), c);
 
-            gammaButton.setSelected(data.scalingMode() == FITSViewState.ScalingMode.Gamma);
-            betaButton.setSelected(data.scalingMode() == FITSViewState.ScalingMode.Beta);
-            alphaButton.setSelected(data.scalingMode() == FITSViewState.ScalingMode.Alpha);
+        c.gridx = 1;
+        c.weightx = 1;
+        content.add(gammaPanel, c);
+        c.gridy++;
+        content.add(betaPanel, c);
+        c.gridy++;
+        content.add(alphaPanel, c);
+        c.gridy++;
+
+        setLayout(new BorderLayout());
+        add(content);
+        fitsParametersChanged();
+    }
+
+    @Override
+    public void fitsParametersChanged() {
+        syncing = true;
+        try {
+            ImageProcessingSettings.FITSParameters data = state.fitsParameters();
+
+            gammaButton.setSelected(data.scalingMode() == ImageProcessingSettings.ScalingMode.Gamma);
+            betaButton.setSelected(data.scalingMode() == ImageProcessingSettings.ScalingMode.Beta);
+            alphaButton.setSelected(data.scalingMode() == ImageProcessingSettings.ScalingMode.Alpha);
             clippingButtons.forEach((mode, button) -> button.setSelected(mode == data.clippingMode()));
 
-            syncControl(gammaSlider, gammaLabel, data.gammaIndex(), String.valueOf(data.gammaDisplayValue()));
-            syncControl(betaSlider, betaLabel, data.betaIndex());
-            syncControl(alphaSlider, alphaLabel, data.alphaIndex());
+            gammaSlider.setValue(gammaIndex(data.gamma()));
+            betaSlider.setValue(betaIndex(data.beta()));
+            alphaSlider.setValue(alphaIndex(data.alpha()));
+            gammaLabel.setText(String.valueOf(gammaSlider.getValue() / 10.));
+            betaLabel.setText(String.valueOf(betaSlider.getValue()));
+            alphaLabel.setText(String.valueOf(alphaSlider.getValue()));
 
             if (differentDoubleValue(minClip.getValue(), data.clippingMin()))
                 minClip.setValue(data.clippingMin());
             if (differentDoubleValue(maxClip.getValue(), data.clippingMax()))
                 maxClip.setValue(data.clippingMax());
 
-            syncControl(contrastSlider, null, data.zContrastIndex());
-
-            boolean rangeMode = data.clippingMode() == FITSViewState.ClippingMode.Range;
+            boolean rangeMode = data.clippingMode() == ImageProcessingSettings.ClippingMode.Range;
             minClip.setEditable(rangeMode);
             maxClip.setEditable(rangeMode);
             markClipRange(); // the mode decides whether the pair is in force, so it decides the outline
+        } finally {
+            syncing = false;
         }
-
-        @Override
-        public void showDialog() {
-            fitsViewStateChanged();
-            pack();
-            setVisible(true);
-        }
-
-        @Override
-        public void dispose() {
-            FITSViewState.removeListener(this);
-            super.dispose();
-        }
-
-        private static boolean differentDoubleValue(Object value, double expected) {
-            return !(value instanceof Number number) || number.doubleValue() != expected;
-        }
-
-        /**
-         * Outline the pair when the low clip is not below the high one.
-         *
-         * <p>Nothing rejects it: both values are accepted independently and clamped only against
-         * the absolute limit, so an inverted or empty range is taken as given and the image comes
-         * out flat, with no indication that the two numbers are the reason. A warning rather than
-         * an error, because the pair is legal to type and only wrong once it is used, which is why
-         * it is only marked in Range mode, where the fields are live.
-         */
-        private void markClipRange() {
-            boolean rangeMode = FITSViewState.data().clippingMode() == FITSViewState.ClippingMode.Range;
-            boolean inverted = rangeMode
-                    && minClip.getValue() instanceof Number min && maxClip.getValue() instanceof Number max
-                    && min.doubleValue() >= max.doubleValue();
-            Object outline = inverted ? FlatClientProperties.OUTLINE_WARNING : null;
-            minClip.putClientProperty(FlatClientProperties.OUTLINE, outline);
-            maxClip.putClientProperty(FlatClientProperties.OUTLINE, outline);
-        }
-
-        private static void applyClipValue(JFormattedTextField field, DoubleConsumer setter) {
-            Object value = field.getValue();
-            if (value instanceof Number number)
-                setter.accept(number.doubleValue());
-        }
-
-        private static JHVSlider createSlider(FITSViewState.IndexedParameter parameter, int value) {
-            return new JHVSlider(parameter.minIndex(), parameter.maxIndex(), value);
-        }
-
-        private static void syncControl(JSlider slider, JLabel label, int value) {
-            syncControl(slider, label, value, String.valueOf(value));
-        }
-
-        private static void syncControl(JSlider slider, JLabel label, int value, String text) {
-            if (slider.getValue() != value)
-                slider.setValue(value);
-            if (label != null)
-                label.setText(text);
-        }
-
     }
 
-    private FITSSettings() {}
+    private static boolean differentDoubleValue(Object value, double expected) {
+        return !(value instanceof Number number) || number.doubleValue() != expected;
+    }
+
+    /**
+     * Outline the pair when the low clip is not below the high one.
+     *
+     * <p>Nothing rejects it: both values are accepted independently and clamped only against
+     * the absolute limit, so an inverted or empty range is taken as given and the image comes
+     * out flat, with no indication that the two numbers are the reason. A warning rather than
+     * an error, because the pair is legal to type and only wrong once it is used, which is why
+     * it is only marked in Range mode, where the fields are live.
+     */
+    private void markClipRange() {
+        boolean rangeMode = state.fitsParameters().clippingMode() == ImageProcessingSettings.ClippingMode.Range;
+        boolean inverted = rangeMode
+                && minClip.getValue() instanceof Number min && maxClip.getValue() instanceof Number max
+                && min.doubleValue() >= max.doubleValue();
+        Object outline = inverted ? FlatClientProperties.OUTLINE_WARNING : null;
+        minClip.putClientProperty(FlatClientProperties.OUTLINE, outline);
+        maxClip.putClientProperty(FlatClientProperties.OUTLINE, outline);
+    }
+
+    private void applyClipValue(JFormattedTextField field, DoubleConsumer setter) {
+        Object value = field.getValue();
+        if (!syncing && value instanceof Number number)
+            setter.accept(number.doubleValue());
+    }
+
+    private static int gammaIndex(double value) {
+        return (int) Math.round(10. / value);
+    }
+
+    private static int betaIndex(double value) {
+        return (int) Math.round(Math.log(1 / value) / Math.log(2));
+    }
+
+    private static int alphaIndex(double value) {
+        return (int) Math.round(Math.log10(value));
+    }
+
+    private static JHVSlider createSlider(int min, int max, int value) {
+        JHVSlider slider = new JHVSlider(min, max, Math.clamp(value, min, max));
+        slider.setPreferredSize(new Dimension(100, slider.getPreferredSize().height));
+        return slider;
+    }
+
 }

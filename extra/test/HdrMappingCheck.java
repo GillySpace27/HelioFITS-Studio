@@ -3,7 +3,7 @@ package org.helioviewer.jhv.display;
 import org.helioviewer.jhv.image.lut.LUT;
 
 /**
- * The HDR mapping maths of solarCommon.frag, ported line for line, so the claims made about each
+ * The HDR mapping maths of imageCommon.frag, ported line for line, so the claims made about each
  * mode are tested instead of asserted.
  *
  * <p>The failure this exists to catch already happened: the roll-to-white was guarded by
@@ -24,7 +24,7 @@ public final class HdrMappingCheck {
 
     private static final int LINEAR = 0, HARD_KNEE = 1, SOFT_KNEE = 2, BEYOND = 3, UNIFORM = 4;
 
-    /** solarCommon.frag, from the sRGB decode to the last lin *= ..., in linear light. */
+    /** imageCommon.frag, from the sRGB decode to the last lin *= ..., in linear light. */
     private static double[] map(double[] rgb8, double value, int mode, double gain, double knee) {
         return map(rgb8, value, mode, gain, knee, 0);
     }
@@ -61,7 +61,7 @@ public final class HdrMappingCheck {
         return lin;
     }
 
-    /** solarCommon.frag's two-sided gamma, the RHEF path. */
+    /** imageCommon.frag's two-sided gamma, the RHEF path. */
     private static double upsilon(double value, double low, double high) {
         double over = Math.max(value - 1, 0), under = Math.min(value, 0);
         double v = Math.clamp(value, 0, 1);
@@ -69,7 +69,7 @@ public final class HdrMappingCheck {
         return v + over + under;
     }
 
-    /** solarCommon.frag's clipped-pixel test: strictly outside the range. */
+    /** imageCommon.frag's clipped-pixel test: strictly outside the range. */
     private static boolean clipped(double value) {
         return value > 1 || value < 0;
     }

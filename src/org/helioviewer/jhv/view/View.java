@@ -41,11 +41,21 @@ public interface View {
     // Set a shared fixed [min, max] display range across this view's frames (FITS only); no-op otherwise
     default void setRange(double min, double max) {}
 
-    void setFilter(ImageFilter.Type t);
+    // The filter now lives in the layer's ImageProcessingSettings rather than on the view itself.
+    // These bridge to it, so a caller holding only a View still reads and sets the real filter;
+    // BaseView overrides them, and a view with no settings of its own stays unfiltered.
+    default void setFilter(ImageFilter.Type t) {}
 
-    ImageFilter.Type getFilter();
+    default ImageFilter.Type getFilter() {
+        return ImageFilter.Type.None;
+    }
 
-    default void decode(Position viewpoint, double pixFactor, float factor) {}
+    default void decode(Position viewpoint, double pixFactor, float factor, @Nullable ClipSet.Range clipRange) {}
+
+    @Nullable
+    default ClipSet getClipSet() {
+        return null;
+    }
 
     @Nullable
     default String getBaseName() {
@@ -78,6 +88,10 @@ public interface View {
     @Nullable
     default LUT getDefaultLUT() {
         return null;
+    }
+
+    default boolean hasFITS() {
+        return false;
     }
 
     default boolean isMultiFrame() {
@@ -145,11 +159,6 @@ public interface View {
     }
 
     /**
-     * One frame's unfiltered decode, synchronously, for a sequence filter that needs every frame
-     * at once. Null when the view cannot provide it: a JPEG 2000 stream decodes on demand at the
-     * zoom's resolution level, and there is no whole frame to hand over. Called off the EDT.
-     */
-    /**
      * A stable identity for what is behind a frame (the file's URI), or null when frames have
      * none (a stream). The computed-frame cache keys on it, so it must change whenever the pixels
      * could.
@@ -159,6 +168,11 @@ public interface View {
         return null;
     }
 
+    /**
+     * One frame's unfiltered decode, synchronously, for a sequence filter that needs every frame
+     * at once. Null when the view cannot provide it: a JPEG 2000 stream decodes on demand at the
+     * zoom's resolution level, and there is no whole frame to hand over. Called off the EDT.
+     */
     @Nullable
     default org.helioviewer.jhv.image.DecodedImage frameImage(int frame) {
         return null;

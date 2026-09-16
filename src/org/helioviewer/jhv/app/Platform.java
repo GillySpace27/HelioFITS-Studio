@@ -65,7 +65,8 @@ public class Platform {
         } else if (isLinux && "amd64".equals(jhvArch)) {
             return prefix + "linux-amd64/";
         }
-        return prefix;
+        throw new IllegalStateException("JHelioviewer does not provide native libraries for "
+                + System.getProperty("os.name") + " " + System.getProperty("os.arch"));
     }
 
 }

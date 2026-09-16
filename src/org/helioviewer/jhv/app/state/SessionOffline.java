@@ -101,7 +101,7 @@ public final class SessionOffline {
         for (ImageLayer layer : layers)
             layer.startDownload(new SilentProgress());
         for (URI uri : uris)
-            Task.submit("cache " + uri,
+            Task.submitBackground("cache " + uri,
                     () -> NetFileCache.get(uri),
                     Task::doNothing,
                     (context, t) -> Log.warn("Could not cache " + context, t));

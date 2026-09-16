@@ -21,10 +21,10 @@ import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.app.state.State;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
+import org.helioviewer.jhv.gui.component.MoviePanel;
 import org.helioviewer.jhv.gui.dialog.AspiicsDialog;
 import org.helioviewer.jhv.gui.dialog.LoadStateDialog;
 import org.helioviewer.jhv.gui.dialog.NewVersionDialog;
-import org.helioviewer.jhv.gui.dialog.ObservationDialog;
 import org.helioviewer.jhv.gui.dialog.PunchDialog;
 import org.helioviewer.jhv.gui.dialog.SoarDialog;
 import org.helioviewer.jhv.gui.dialog.SynopticDialog;
@@ -34,7 +34,10 @@ import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layer;
 import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.layers.Layers;
+import org.helioviewer.jhv.layers.ModelLayer;
+import org.helioviewer.jhv.movie.ExportMovie;
 import org.helioviewer.jhv.movie.Player;
+import org.helioviewer.jhv.thread.Task;
 import org.helioviewer.jhv.time.TimeUtils;
 import org.helioviewer.jhv.timelines.Timelines;
 
@@ -44,6 +47,7 @@ public final class Actions {
     public static final AbstractAction PLAY_PAUSE = new PlayPauseAction();
     public static final AbstractAction PREVIOUS_FRAME = new PreviousFrameAction();
     public static final AbstractAction NEXT_FRAME = new NextFrameAction();
+    public static final AbstractAction RECORD = new RecordAction();
     public static final AbstractAction TRIM_START = new TrimStartAction();
     public static final AbstractAction TRIM_END = new TrimEndAction();
     public static final AbstractAction TRIM_RESET = new TrimResetAction();
@@ -134,7 +138,7 @@ public final class Actions {
 
         @Override
         public void actionPerformed(ActionEvent e) {
-            if (ExitHooks.exitProgram())
+            if (ExitHooks.exitProgram()) // the unsaved-changes prompt can still cancel the quit
                 System.exit(0);
         }
     }
@@ -161,7 +165,7 @@ public final class Actions {
 
         @Override
         public void actionPerformed(ActionEvent e) {
-            ObservationDialog.getInstance().showDialog(true, null);
+            MoviePanel.getInstance().showNewLayerSelector();
         }
     }
 
@@ -267,6 +271,33 @@ public final class Actions {
         }
     }
 
+    public static class OpenModel extends AbstractAction {
+        public OpenModel() {
+            super("Open Model Layer...");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            FileDialog fileDialog = new FileDialog(MainFrame.get(), "Choose a 3D model", FileDialog.LOAD);
+            fileDialog.setFilenameFilter(ExtensionFileFilter.Model);
+            fileDialog.setDirectory(Settings.getProperty("path.local"));
+            fileDialog.setVisible(true);
+
+            String directory = fileDialog.getDirectory();
+            String fileName = fileDialog.getFile();
+            if (directory == null || fileName == null)
+                return;
+
+            Settings.setProperty("path.local", directory);
+            File file = new File(directory, fileName);
+            if (!file.isFile() || !file.canRead())
+                return;
+
+            URI uri = file.toURI();
+            Task.submitBackground(uri.toString(), () -> new ModelLayer(uri), Layers::add, "Error loading model");
+        }
+    }
+
     public static class OpenURLinBrowser extends AbstractAction {
         private final String urlToOpen;
 
@@ -305,7 +336,8 @@ public final class Actions {
 
     public static class ReloadSources extends AbstractKeyAction {
         public ReloadSources() {
-            super("Reload Datasets Listings", KeyStroke.getKeyStroke(KeyEvent.VK_R, DesktopIntegration.menuShortcutMask));
+            super("Reload Datasets Listings",
+                    KeyStroke.getKeyStroke(KeyEvent.VK_R, DesktopIntegration.menuShortcutMask | InputEvent.SHIFT_DOWN_MASK));
         }
 
         @Override
@@ -385,6 +417,20 @@ public final class Actions {
             if (Player.isPlaying())
                 Commands.pause();
             Commands.nextFrame();
+        }
+    }
+
+    private static class RecordAction extends AbstractKeyAction {
+        RecordAction() {
+            super("Start/Stop Recording", KeyStroke.getKeyStroke(KeyEvent.VK_R, DesktopIntegration.menuShortcutMask));
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            if (ExportMovie.isRecording())
+                Commands.recordStop();
+            else
+                Commands.recordStart(CompletionNotifications.recordingContext(), null);
         }
     }
 

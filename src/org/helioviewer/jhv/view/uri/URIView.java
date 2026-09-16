@@ -1,8 +1,6 @@
 package org.helioviewer.jhv.view.uri;
 
-import java.awt.EventQueue;
 import java.io.File;
-import java.util.concurrent.Callable;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -13,6 +11,7 @@ import org.helioviewer.jhv.image.DecodedImage;
 import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.ImageBufferCache;
 import org.helioviewer.jhv.image.ImageFilter;
+import org.helioviewer.jhv.image.ImageProcessingSettings;
 import org.helioviewer.jhv.image.lut.LUT;
 import org.helioviewer.jhv.io.DataUri;
 import org.helioviewer.jhv.metadata.BasicMetaData;
@@ -22,46 +21,47 @@ import org.helioviewer.jhv.metadata.Region;
 import org.helioviewer.jhv.metadata.XMLMetaDataContainer;
 import org.helioviewer.jhv.thread.LatestWorker;
 import org.helioviewer.jhv.view.BaseView;
-import org.helioviewer.jhv.view.View;
+import org.helioviewer.jhv.view.ClipSet;
 
 public final class URIView extends BaseView {
 
-    static void clearURICache() {
-        ImageBufferCache.invalidateIf(key -> key instanceof URIDecodeKey);
-    }
+    public record SourceInfo(@Nullable String xml, int width, int height, @Nullable LUT lut, @Nullable ClipSet clipSet) {}
 
-    private final URIImageReader reader;
+    private final @Nullable ClipSet clipSet;
+    private @Nullable ClipSet.Range clipRange;
+    // Optional shared [min, max] display range for this layer's FITS frames. When set it overrides
+    // the range the layer would otherwise pick, so a multi-frame layer (e.g. a PUNCH movie) does
+    // not strobe as each frame normalizes to its own extremes.
+    @Nullable
+    private volatile ClipSet.Range fixedRange;
     private final String xml;
     private final Region imageRegion;
 
-    public URIView(LatestWorker<DecodedImage> _executor, DataUri _dataUri) throws Exception {
-        super(_executor, _dataUri);
-
-        reader = dataUri.format() == DataUri.Format.Image.FITS ? new FITSImage() : new GenericImage();
+    public URIView(LatestWorker<DecodedImage> _executor, DataUri _dataUri, ImageProcessingSettings _processingSettings) throws Exception {
+        super(_executor, _dataUri, _processingSettings);
 
         try {
             MetaData m;
-            URIImageReader.Image image = reader.readImage(dataUri.file());
-            ImageBuffer buffer = image.buffer();
+            File file = dataUri.file();
+            SourceInfo info = hasFITS() ? FITSImage.readInfo(file) : GenericImage.readInfo(file);
+            clipSet = info.clipSet();
 
-            String readXml = image.xml();
+            String readXml = info.xml();
             try {
                 if (readXml == null)
                     throw new Exception("Missing XML metadata");
                 m = new FitsMetaData(new XMLMetaDataContainer(readXml), dataUri.sourceUri());
             } catch (Exception e) {
                 readXml = EMPTY_METAXML;
-                m = new BasicMetaData(buffer.width, buffer.height, dataUri.baseName(), dataUri.sourceUri());
+                m = new BasicMetaData(info.width(), info.height(), dataUri.baseName(), dataUri.sourceUri());
                 Log.warn("Helioviewer metadata missing for " + dataUri.baseName(), e);
             }
             xml = readXml;
 
-            imageRegion = m.roiToRegion(0, 0, buffer.width, buffer.height, 1, 1);
+            imageRegion = m.roiToRegion(0, 0, info.width(), info.height(), 1, 1);
             metaData[0] = m;
-            if (!buffer.isProvisional())
-                ImageBufferCache.put(decodeKey(ImageFilter.Type.None), new DecodedImage(buffer, imageRegion));
 
-            LUT lut = image.lut();
+            LUT lut = info.lut();
             if (lut != null)
                 builtinLUT = lut;
         } catch (Exception e) {
@@ -70,32 +70,51 @@ public final class URIView extends BaseView {
     }
 
     @Override
-    public void decode(Position viewpoint, double pixFactor, float factor) {
-        URIDecodeKey key = decodeKey(filterType);
+    public void decode(Position viewpoint, double pixFactor, float factor, @Nullable ClipSet.Range range) {
+        ClipSet.Range fixed = fixedRange;
+        clipRange = hasFITS() ? (fixed != null ? fixed : range) : null;
+        DecodeKey key = decodeKey();
         DecodedImage image = ImageBufferCache.get(key);
         if (image != null) {
             // Mark running decodes stale before publishing this cached result.
-            executor.cancel();
-            sendDataToHandler(image, viewpoint);
+            executor.invalidate();
+            sendDataToHandler(0, viewpoint, image, () -> key.equals(decodeKey()));
             return;
         }
-        executor.submit(new Decoder(dataUri.file(), reader, createFilter(filterType), imageRegion, fixedRange), new Callback(key, viewpoint));
+        ImageFilter filter = createFilter(key.filter());
+        executor.submit(() -> decodeImage(key, filter), new Callback(key, viewpoint));
+    }
+
+    // Pin every frame of this layer to one display range, overriding the clipping the layer would
+    // otherwise supply to decode().
+    @Override
+    public void setRange(double min, double max) {
+        fixedRange = new ClipSet.Range((float) min, (float) max);
+        abolish(); // drop cached decodes for this file so they re-decode with the new range
     }
 
     /**
      * The unfiltered frame for a sequence filter, on the caller's (job) thread. A fresh key rather
-     * than decodeKey(): that one caches into fields the EDT also writes. A miss is the normal case
+     * than decodeKey(): that one caches into a field the EDT also writes. A miss is the normal case
      * after any filter switch, since clearCache() drops every key for this file, None included.
      */
     @Nullable
     @Override
     public DecodedImage frameImage(int frame) {
-        URIDecodeKey key = new URIDecodeKey(dataUri, ImageFilter.Type.None);
+        ImageProcessingSettings.FITSParameters data = null;
+        ClipSet.Range range = null;
+        if (hasFITS()) {
+            data = processingSettings.fitsParameters();
+            ClipSet.Range fixed = fixedRange;
+            range = fixed != null ? fixed : data.clipRange(clipSet);
+        }
+
+        DecodeKey key = new DecodeKey(dataUri, ImageFilter.Type.None, data, range);
         DecodedImage image = ImageBufferCache.get(key);
         if (image != null)
             return image;
         try {
-            image = new Decoder(dataUri.file(), reader, createFilter(ImageFilter.Type.None), imageRegion, fixedRange).call();
+            image = decodeImage(key, createFilter(ImageFilter.Type.None));
         } catch (Exception e) {
             Log.warn("Could not re-read " + dataUri.baseName(), e);
             return null;
@@ -114,52 +133,48 @@ public final class URIView extends BaseView {
         return ImageFilter.of(type, imageRegion, metaData[0]);
     }
 
-    private ImageFilter.Type decodeKeyFilter;
-    private URIDecodeKey decodeKey;
-
-    private URIDecodeKey decodeKey(ImageFilter.Type filter) {
-        if (decodeKey == null || decodeKeyFilter != filter) {
-            decodeKeyFilter = filter;
-            decodeKey = new URIDecodeKey(dataUri, filter);
-        }
-        return decodeKey;
+    @Nullable
+    @Override
+    public ClipSet getClipSet() {
+        return clipSet;
     }
-
-    // Optional shared [min, max] display range for this layer's FITS frames. When set, every frame
-    // normalizes to it instead of per-frame auto, so a multi-frame layer does not strobe.
-    private volatile float[] fixedRange;
 
     @Override
-    public void setRange(double min, double max) {
-        fixedRange = new float[]{(float) min, (float) max};
-        // drop cached decodes for this file so they re-decode with the new range (caller re-renders)
-        ImageBufferCache.invalidateIf(k -> k instanceof URIDecodeKey key && key.uri() == dataUri);
+    public boolean hasFITS() {
+        return dataUri.format() == DataUri.Format.FITS;
     }
 
-    private record Decoder(File file, URIImageReader reader, ImageFilter filter, Region imageRegion, float[] clip) implements Callable<DecodedImage> {
-        @Nonnull
-        @Override
-        public DecodedImage call() throws Exception {
-            ImageBuffer imageBuffer = reader.readImageBuffer(file, filter, clip);
-            if (imageBuffer == null) // e.g. FITS
-                throw new Exception("Could not read: " + file);
-            return new DecodedImage(imageBuffer, imageRegion);
-        }
+    private record DecodeKey(DataUri uri, ImageFilter.Type filter, @Nullable ImageProcessingSettings.FITSParameters fitsData,
+                             @Nullable ClipSet.Range clipRange) {}
+
+    private DecodeKey decodeKey() {
+        ImageProcessingSettings.FITSParameters data = hasFITS() ? processingSettings.fitsParameters() : null;
+        return new DecodeKey(dataUri, processingSettings.getFilter(), data, clipRange);
+    }
+
+    private DecodedImage decodeImage(DecodeKey key, ImageFilter filter) throws Exception {
+        File file = key.uri().file();
+        ImageBuffer imageBuffer = hasFITS()
+                ? FITSImage.decode(file, filter, key.fitsData(), key.clipRange())
+                : GenericImage.decode(file, filter);
+        if (imageBuffer == null) // e.g. FITS
+            throw new Exception("Could not read: " + file);
+        return new DecodedImage(imageBuffer, imageRegion);
     }
 
     private class Callback implements LatestWorker.Callback<DecodedImage> {
 
-        private final URIDecodeKey key;
+        private final DecodeKey key;
         private final Position viewpoint;
 
-        Callback(URIDecodeKey _key, Position _viewpoint) {
+        Callback(DecodeKey _key, Position _viewpoint) {
             key = _key;
             viewpoint = _viewpoint;
         }
 
         @Override
         public void onSuccess(DecodedImage result, boolean fresh) {
-            if (key.filter() != filterType) return; // filter changed in-flight
+            if (dataHandler == null || !key.equals(decodeKey())) return; // detached or settings changed in-flight
 
             // A provisional frame (its LASCO background could not be fetched) is shown but not kept,
             // so the next request decodes it again and gets the correction once the server is back.
@@ -167,7 +182,7 @@ public final class URIView extends BaseView {
                 ImageBufferCache.put(key, result);
             // This decode was superseded after it started; do not publish it to the layer.
             if (!fresh) return;
-            sendDataToHandler(result, viewpoint);
+            sendDataToHandler(0, viewpoint, result, () -> key.equals(decodeKey()));
         }
 
         @Override
@@ -175,17 +190,6 @@ public final class URIView extends BaseView {
             Log.errorStack(t);
         }
 
-    }
-
-    private void sendDataToHandler(DecodedImage image, Position viewpoint) {
-        image.imageBuffer().protectFromExplicitFree();
-        View.ImageData data = new View.ImageData(image.imageBuffer(), metaData[0], image.region(), viewpoint);
-        EventQueue.invokeLater(() -> {
-            if (dataHandler != null)
-                dataHandler.handleData(data);
-            else
-                image.imageBuffer().allowExplicitFree();
-        });
     }
 
     @Nonnull
@@ -196,7 +200,7 @@ public final class URIView extends BaseView {
 
     @Override
     public void abolish() {
-        ImageBufferCache.invalidateIf(key -> key instanceof URIDecodeKey k && k.uri() == dataUri);
+        ImageBufferCache.invalidateIf(key -> key instanceof DecodeKey k && k.uri() == dataUri);
     }
 
     @Override

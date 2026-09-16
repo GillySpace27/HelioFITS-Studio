@@ -68,7 +68,7 @@ public final class ComputedViewCheck {
         }
 
         @Override
-        public void decode(Position viewpoint, double pixFactor, float factor) {
+        public void decode(Position viewpoint, double pixFactor, float factor, org.helioviewer.jhv.view.ClipSet.Range clipRange) {
             decodeCalls++;
         }
 
@@ -176,7 +176,7 @@ public final class ComputedViewCheck {
         expect("times and counts are the wrapped view's", view.getMaximumFrameNumber() == 15 && view.getFrameTime(5).equals(stub.getFrameTime(5)) && view.getFilter() == ImageFilter.Type.None);
 
         stub.setNearestFrame(stub.getFrameTime(7));
-        view.decode(new Position(stub.getFrameTime(7), 1, 0, 0), 1, 1);
+        view.decode(new Position(stub.getFrameTime(7), 1, 0, 0), 1, 1, null);
         EventQueue.invokeAndWait(() -> {});
         expect("decode publishes the computed frame 7 without touching the source", received.get() != null && received.get().imageBuffer() == out[7].imageBuffer() && stub.decodeCalls == 0);
 
@@ -184,7 +184,7 @@ public final class ComputedViewCheck {
         expect("dispose drops the computed frames and never abolishes the wrapped view",
                 !view.isReady() && ImageBufferCache.get(new ComputedView.ComputedKey(view, 3, ImageFilter.Type.None)) == null && stub.abolishCalls == 0 && view.frameImage(3) == stub.frames[3]);
         received.set(null);
-        view.decode(new Position(stub.getFrameTime(7), 1, 0, 0), 1, 1);
+        view.decode(new Position(stub.getFrameTime(7), 1, 0, 0), 1, 1, null);
         expect("after dispose decode passes through to the source", stub.decodeCalls == 1);
 
         view.abolish();

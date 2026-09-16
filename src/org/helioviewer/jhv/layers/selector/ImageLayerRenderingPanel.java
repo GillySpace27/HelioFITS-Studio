@@ -7,23 +7,27 @@ import java.util.List;
 
 import javax.swing.BorderFactory;
 import javax.swing.JPanel;
+import javax.swing.JToggleButton;
 
 import org.helioviewer.jhv.gui.ComponentUtils;
+import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.image.lut.LUTLabels;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layer;
 import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.layers.filters.ChannelMixerPanel;
+import org.helioviewer.jhv.layers.filters.ContrastPanel;
 import org.helioviewer.jhv.layers.filters.DifferencePanel;
 import org.helioviewer.jhv.layers.filters.FilterDetails;
 import org.helioviewer.jhv.layers.filters.ImageFilterPanel;
 import org.helioviewer.jhv.layers.filters.LUTPanel;
-import org.helioviewer.jhv.layers.filters.ContrastPanel;
-import org.helioviewer.jhv.layers.filters.LevelsPanel;
+import org.helioviewer.jhv.layers.filters.RangeSliderFilterPanel;
 import org.helioviewer.jhv.layers.filters.SliderFilterPanel;
+import org.helioviewer.jhv.view.uri.FITSSettings;
 
 // Rendering controls for the selected image layer: difference, opacity, blend, sharpen,
-// levels, colormap (LUT), channels, filter. Shown in the "Layer options" wrapper.
+// levels, colormap (LUT), channels, filter, and the FITS clipping/scaling disclosure for a
+// layer that has FITS behind it. Shown in the "Layer options" wrapper.
 @SuppressWarnings("serial")
 final class ImageLayerRenderingPanel extends JPanel {
 
@@ -31,10 +35,11 @@ final class ImageLayerRenderingPanel extends JPanel {
     // the RHEF/MGN/WOW filter and its enhance/upsilon curves) or distorts the LUT's output color
     // afterward (the channel mixer). Either way a categorical layer's index -> colour promise no
     // longer holds, so these are the controls refresh() greys out for one. Opacity and Blend are
-    // deliberately not in this list: they scale the whole premultiplied colour uniformly (see
-    // GLImage's color[]), so they fade a swatch but never turn it into a different one.
+    // deliberately not in this list: they scale the whole premultiplied colour uniformly (see the
+    // color[] GLSLImage builds from ImageDisplaySettings), so they fade a swatch but never turn it
+    // into a different one.
     private final LUTPanel lutPanel;
-    private final LevelsPanel levelsPanel;
+    private final RangeSliderFilterPanel.Levels levelsPanel;
     private final ContrastPanel contrastPanel;
     private final FilterDetails sharpenPanel;
     private final DifferencePanel differencePanel;
@@ -42,21 +47,28 @@ final class ImageLayerRenderingPanel extends JPanel {
     private final ImageFilterPanel imageFilterPanel;
     private final SequencePointer sequencePanel; // the Fourier row: a readout and the way to the palette, not a second copy of it
 
+    // How a FITS frame is clipped and scaled before any of the above touches it. Upstream moved
+    // these out of a global preferences page and into the layer, which is where they belong: two
+    // FITS layers in one scene rarely want the same clip.
+    private final FITSSettings fitsSettings;
+    private final JToggleButton fitsButton = Buttons.flatToggle(Buttons.fitsRight);
+
     ImageLayerRenderingPanel(ImageLayer layer) {
         differencePanel = new DifferencePanel(layer);
-        FilterDetails opacityPanel = new SliderFilterPanel.Opacity(layer);
-        FilterDetails blendPanel = new SliderFilterPanel.Blend(layer);
+        FilterDetails opacityPanel = SliderFilterPanel.opacity(layer);
+        FilterDetails blendPanel = SliderFilterPanel.blend(layer);
         channelMixerPanel = new ChannelMixerPanel(layer);
-        // The callback must not touch lutPanel/the combo itself: LUTPanel.setLUT() (called from
+        // The callback must not touch lutPanel/the combo itself: LUTPanel.refresh() (called from
         // refresh() below) fires this same listener, and looping back into the combo from here
         // reopened that cycle -- a real infinite recursion that crashed the app (StackOverflow
         // through FlatLaf's caret code, itself just a bystander walking an already-huge stack).
         lutPanel = new LUTPanel(layer, () -> applyIndexedGating(layer));
-        levelsPanel = new LevelsPanel(layer);
+        levelsPanel = RangeSliderFilterPanel.levels(layer);
         contrastPanel = new ContrastPanel(layer);
-        sharpenPanel = new SliderFilterPanel.Sharpen(layer);
+        sharpenPanel = SliderFilterPanel.sharpen(layer);
         imageFilterPanel = new ImageFilterPanel(layer);
         sequencePanel = new SequencePointer(layer);
+        fitsSettings = new FITSSettings(layer.getProcessingSettings());
 
         setLayout(new GridBagLayout());
         setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
@@ -90,13 +102,29 @@ final class ImageLayerRenderingPanel extends JPanel {
         c.gridy++;
         FilterRowLayout.addFilterRow(this, c, sequencePanel);
 
+        fitsButton.addActionListener(e -> {
+            boolean expanded = fitsButton.isSelected();
+            fitsButton.setText(expanded ? Buttons.fitsDown : Buttons.fitsRight);
+            fitsSettings.setVisible(expanded);
+        });
+        c.gridy++;
+        c.gridx = 0;
+        c.gridwidth = 3;
+        c.weightx = 1;
+        c.weighty = 0;
+        c.anchor = GridBagConstraints.LINE_START;
+        c.fill = GridBagConstraints.HORIZONTAL;
+        add(fitsButton, c);
+        c.gridy++;
+        add(fitsSettings, c);
+
         // Usually refreshed through ImageLayer activation; initialize here too in case that activation already happened before panel creation.
         refresh(layer);
     }
 
     void refresh(Layer layer) {
         ImageLayer imageLayer = (ImageLayer) layer;
-        lutPanel.setLUT(imageLayer.getView().getDefaultLUT());
+        lutPanel.refresh();
         // refresh() also fires from layerUpdated, which arrives while a multi-selection may be
         // live. Gating on this one layer there would re-enable controls the selection as a whole
         // disqualifies, so defer to the selection whenever this layer is part of one.
@@ -109,6 +137,10 @@ final class ImageLayerRenderingPanel extends JPanel {
         levelsPanel.refresh(imageLayer); // Levels move from outside this row: Contrast, a restored session
         contrastPanel.refresh(imageLayer);
         imageFilterPanel.syncFromLayer(imageLayer); // a computed sequence takes the per-frame filter on top, like a raw frame
+
+        boolean hasFITS = imageLayer.getView().hasFITS();
+        fitsButton.setVisible(hasFITS);
+        fitsSettings.setVisible(hasFITS && fitsButton.isSelected());
     }
 
     // Gate on the LUT currently in use, not the FITS product: the same indexed data reads fine
@@ -124,12 +156,12 @@ final class ImageLayerRenderingPanel extends JPanel {
     // worse than one that is visibly unavailable.
     void refreshForSelection(List<Layer> selection) {
         boolean anyIndexed = selection.stream()
-                .anyMatch(l -> l instanceof ImageLayer il && LUTLabels.isCategorical(il.getGLImage().getLUT()));
+                .anyMatch(l -> l instanceof ImageLayer il && LUTLabels.isCategorical(il.getDisplaySettings().getLUT()));
         setIndexedGating(anyIndexed, selection.size());
     }
 
     private void applyIndexedGating(ImageLayer imageLayer) {
-        setIndexedGating(LUTLabels.isCategorical(imageLayer.getGLImage().getLUT()), 1);
+        setIndexedGating(LUTLabels.isCategorical(imageLayer.getDisplaySettings().getLUT()), 1);
     }
 
     private void setIndexedGating(boolean indexed, int selectionSize) {

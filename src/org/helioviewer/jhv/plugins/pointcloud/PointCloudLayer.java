@@ -148,7 +148,7 @@ public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.R
         // Before the empty-cloud bail: the arrow is a direction reference, useful against bare
         // context imagery while working out why a cloud does not sit where it should.
         if (showArrow) {
-            arrowLine.setVertexRepeatable(
+            arrowLine.upload(
                     PointCloudArrow.build(arrowLon, arrowLat, arrowLength, arrowHalfAngle, arrowColor));
             arrowLine.renderLine(vp, arrowWidth * GLSLLine.LINEWIDTH_BASIC);
         }
@@ -195,11 +195,11 @@ public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.R
             return;
         if (readyResult.parameters().equals(parameters)) {
             if (readyResult.points() != null)
-                pointsShape.setVertexRepeatable(readyResult.points());
+                pointsShape.upload(readyResult.points());
             if (readyResult.wire() != null)
-                wireLine.setVertexRepeatable(readyResult.wire());
+                wireLine.upload(readyResult.wire());
             if (readyResult.surface() != null)
-                surfaceShape.setVertexRepeatable(readyResult.surface());
+                surfaceShape.upload(readyResult.surface());
             uploadedParameters = readyResult.parameters();
         }
         readyResult = null;

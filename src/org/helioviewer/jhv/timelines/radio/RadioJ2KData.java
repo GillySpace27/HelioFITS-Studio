@@ -7,12 +7,12 @@ import java.awt.image.ColorModel;
 import java.awt.image.DataBufferByte;
 import java.awt.image.IndexColorModel;
 import java.awt.image.Raster;
-import java.awt.image.SampleModel;
 import java.nio.ByteBuffer;
 
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.image.DecodedImage;
 import org.helioviewer.jhv.image.ImageBuffer;
+import org.helioviewer.jhv.image.ImageProcessingSettings;
 import org.helioviewer.jhv.io.APIRequest;
 import org.helioviewer.jhv.io.DataUri;
 import org.helioviewer.jhv.metadata.Region;
@@ -48,7 +48,8 @@ class RadioJ2KData implements View.DataHandler {
         owner = _owner;
         J2KViewCallisto v = null;
         try {
-            v = new J2KViewCallisto(executor, req, dataUri);
+            ImageProcessingSettings processingSettings = new ImageProcessingSettings(() -> {});
+            v = new J2KViewCallisto(executor, req, dataUri, processingSettings);
 
             ResolutionSet.Level resLevel = v.getResolutionLevel(0, 0);
             j2kWidth = resLevel.width();
@@ -67,7 +68,7 @@ class RadioJ2KData implements View.DataHandler {
             willDraw = startDate == req.startTime(); // didn't get closest
             view = v;
         } catch (Exception e) {
-            executor.abolish();
+            executor.dispose();
             if (v != null) {
                 v.setDataHandler(null);
                 v.abolish();
@@ -81,7 +82,7 @@ class RadioJ2KData implements View.DataHandler {
             return;
         }
         disposed = true;
-        executor.abolish();
+        executor.dispose();
         view.setDataHandler(null);
         view.abolish();
         bufferedImage = null;
@@ -90,30 +91,32 @@ class RadioJ2KData implements View.DataHandler {
     @Override
     public void handleData(View.ImageData imageData) {
         ImageBuffer imageBuffer = imageData.imageBuffer();
-        int w = imageBuffer.width;
-        int h = imageBuffer.height;
-        if (w < 1 || h < 1) {
-            Log.error("width: " + w + " height: " + h);
-            return;
-        }
+        try {
+            int w = imageBuffer.width;
+            int h = imageBuffer.height;
+            if (w < 1 || h < 1) {
+                Log.error("width: " + w + " height: " + h);
+                return;
+            }
 
-        region = imageData.region();
-        boolean hadData = bufferedImage != null;
-        bufferedImage = createIndexedImage((ByteBuffer) imageBuffer.buffer, w, h, owner.getColorModel());
-        imageBuffer.allowExplicitFree();
-        if (!hadData)
-            owner.dataUpdated();
-        DrawController.drawRequest();
+            region = imageData.region();
+            boolean hadData = bufferedImage != null;
+            bufferedImage = createIndexedImage((ByteBuffer) imageBuffer.buffer, w, h, owner.getColorModel());
+            if (!hadData)
+                owner.dataUpdated();
+            DrawController.drawRequest();
+        } finally {
+            imageBuffer.allowExplicitFree();
+        }
     }
 
     private static BufferedImage createIndexedImage(ByteBuffer byteBuffer, int width, int height, IndexColorModel colorModel) {
         byte[] pixels = new byte[byteBuffer.remaining()];
-        byteBuffer.slice().get(pixels);
+        byteBuffer.get(byteBuffer.position(), pixels);
 
-        BufferedImage sample = new BufferedImage(1, 1, BufferedImage.TYPE_BYTE_INDEXED, colorModel);
-        SampleModel sampleModel = sample.getSampleModel().createCompatibleSampleModel(width, height);
         DataBufferByte dataBuffer = new DataBufferByte(pixels, pixels.length);
-        return new BufferedImage(colorModel, Raster.createWritableRaster(sampleModel, dataBuffer, null), false, null);
+        return new BufferedImage(colorModel,
+                Raster.createInterleavedRaster(dataBuffer, width, height, width, 1, new int[]{0}, null), false, null);
     }
 
     void requestData(TimeAxis xAxis) {
@@ -121,7 +124,7 @@ class RadioJ2KData implements View.DataHandler {
             Rectangle roi = getROI(xAxis);
             if (roi != null) {
                 view.setDecodeRegion(roi.x, roi.y, roi.width, roi.height);
-                view.decode(null, 1, lastState.resolution);
+                view.decode(null, 1, lastState.resolution, null);
             }
         }
     }

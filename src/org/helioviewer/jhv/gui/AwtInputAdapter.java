@@ -2,6 +2,8 @@ package org.helioviewer.jhv.gui;
 
 import java.awt.Component;
 import java.awt.Point;
+import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.event.MouseAdapter;
@@ -14,7 +16,7 @@ import org.helioviewer.jhv.input.KeyInputEvent;
 import org.helioviewer.jhv.input.PointerEvent;
 import org.helioviewer.jhv.input.ScrollEvent;
 
-public final class AwtInputAdapter extends MouseAdapter implements KeyListener {
+public final class AwtInputAdapter extends MouseAdapter implements KeyListener, FocusListener {
 
     private static PointerEvent synthesizePointer(MouseEvent e) {
         return new PointerEvent(
@@ -38,6 +40,9 @@ public final class AwtInputAdapter extends MouseAdapter implements KeyListener {
             case KeyEvent.VK_SPACE -> KeyInputEvent.Key.SPACE;
             case KeyEvent.VK_N -> KeyInputEvent.Key.N;
             case KeyEvent.VK_P -> KeyInputEvent.Key.P;
+            case KeyEvent.VK_X -> KeyInputEvent.Key.X;
+            case KeyEvent.VK_Y -> KeyInputEvent.Key.Y;
+            case KeyEvent.VK_Z -> KeyInputEvent.Key.Z;
             default -> KeyInputEvent.Key.OTHER;
         }, e.isShiftDown(), e.isMetaDown(), e.isAltDown(), e.isControlDown());
     }
@@ -100,5 +105,13 @@ public final class AwtInputAdapter extends MouseAdapter implements KeyListener {
     @Override
     public void keyReleased(KeyEvent e) {
         InputController.keyReleased(synthesizeKey(e));
+    }
+
+    @Override
+    public void focusGained(FocusEvent e) {}
+
+    @Override
+    public void focusLost(FocusEvent e) {
+        InputController.focusLost();
     }
 }

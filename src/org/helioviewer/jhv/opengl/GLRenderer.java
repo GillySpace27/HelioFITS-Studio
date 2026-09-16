@@ -1,12 +1,15 @@
 package org.helioviewer.jhv.opengl;
 
+import java.util.Arrays;
+import java.util.List;
+
 import org.helioviewer.jhv.annotation.Annotations;
+import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.astronomy.Sun;
 import org.helioviewer.jhv.automation.Automation;
-import org.helioviewer.jhv.display.Camera;
-import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.base.Colors;
+import org.helioviewer.jhv.display.Camera;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.GridType;
 import org.helioviewer.jhv.display.MapMode;
@@ -23,15 +26,11 @@ import org.helioviewer.jhv.movie.Player;
 
 public final class GLRenderer {
 
-    private static MapView mapView = initialMapView();
+    private static MapView screenView = createMapView(Display.getCamera(), Sun.StartEarth);
 
-    private static MapView initialMapView() {
-        return createMapView(Display.getCamera(), Sun.StartEarth);
-    }
-
-    private static MapView createMapView(Camera camera, Position viewpoint) {
+    static MapView createMapView(Camera camera, Position viewpoint) {
         MapMode mode = Display.mode;
-        return mode.createMapView(camera, viewpoint, Display.gridType, createScales(mode, Display.getViewports()));
+        return MapView.create(camera, viewpoint, mode, Display.gridType, createScales(mode, Display.getViewports()));
     }
 
     private static MapScale[] createScales(MapMode mode, Viewport[] viewports) {
@@ -60,8 +59,8 @@ public final class GLRenderer {
     private static MapScale[] createHpcScales(Viewport[] viewports) {
         Region bounds = ImageLayers.computeHpcScaleBounds();
         MapScale[] scales = new MapScale[viewports.length];
+        double halfWidth = 0.5 * bounds.width;
         for (Viewport vp : viewports) {
-            double halfWidth = 0.5 * bounds.width;
             double halfHeight = Math.max(0.5 * bounds.height, halfWidth / vp.aspect);
             scales[vp.idx] = MapScale.hpc(halfHeight * vp.aspect, halfHeight);
         }
@@ -88,17 +87,16 @@ public final class GLRenderer {
 
     private static MapScale[] createConstantScales(Viewport[] viewports, MapScale scale) {
         MapScale[] scales = new MapScale[viewports.length];
-        for (Viewport vp : viewports)
-            scales[vp.idx] = scale;
+        Arrays.fill(scales, scale);
         return scales;
     }
 
     public static Position getDisplayedViewpoint() {
-        return mapView.viewpoint();
+        return screenView.viewpoint();
     }
 
     public static MapView getMapView() {
-        return mapView;
+        return screenView;
     }
 
     public static void init() {
@@ -115,19 +113,26 @@ public final class GLRenderer {
         GL.glClearColor(0, 0, 0, 0);
         GL.glClear(GL.COLOR_BUFFER_BIT | GL.DEPTH_BUFFER_BIT);
 
-        GLSLSolar.quad.init();
-        GLSLWarp.init(); // must precede the shaders that bind its block
-        GLSLSolarShader.init();
-        GLSLLineShader.init();
-        GLSLShapeShader.init();
-        GLSLTextureShader.init();
-        GLSLTransitionShader.init();
-        // Never initialised until now: renderPrintableArea() returns early unless
-        // Display.showPrintableArea is on, so the null VBO stayed hidden until someone
-        // ticked the box, and then it threw on every frame and blanked the canvas.
-        printableLine.init();
-
-        Annotations.init();
+        try {
+            GLSLWarp.init(); // must precede the shaders that bind its block
+            GLSLScreenShader.init();
+            GLSLSphereShader.init();
+            GLSLImageShader.init();
+            GLSLLineShader.init();
+            GLSLMeshShader.init();
+            GLSLShapeShader.init();
+            GLSLTextureShader.init();
+            GLSLTransitionShader.init();
+            // Never initialised until this was added: renderPrintableArea() returns early unless
+            // Display.showPrintableArea is on, so the null VBO stayed hidden until someone ticked
+            // the box, and then it threw on every frame and blanked the canvas.
+            printableLine.init();
+            Annotations.init();
+        } catch (RuntimeException | Error e) {
+            Annotations.dispose();
+            disposeShaders();
+            throw e;
+        }
     }
 
     public static void reshape(int glWidth, int glHeight) {
@@ -159,17 +164,15 @@ public final class GLRenderer {
         // After prerender, because that is where each layer's GL init runs: capturing ahead of
         // it drew the outgoing scene through vertex buffers that did not exist yet, which cost
         // the grid its first frame. Before the rebuild, because the snapshot is of the scene
-        // being left behind, and `mapView` and `Display.mode` only still describe it until the
+        // being left behind, and `screenView` and `Display.mode` only still describe it until the
         // next line.
         if (ProjectionTransition.hasPendingSwitch())
             ProjectionTransition.applyPendingSwitch(GLRenderer::captureTransitionSnapshot);
 
-        mapView = createMapView(Display.getCamera(), viewpoint);
-        if (mapView.rendersIn3D()) {
-            renderScene();
+        screenView = createMapView(Display.getCamera(), viewpoint);
+        renderScene(screenView);
+        if (screenView.rendersIn3D())
             RenderGuard.run("miniview", GLRenderer::renderMiniview);
-        } else
-            renderSceneScale();
         renderFullFloatScene();
         if (ProjectionTransition.isActive())
             RenderGuard.run("projection transition", GLRenderer::renderTransitionOverlay);
@@ -184,11 +187,11 @@ public final class GLRenderer {
     private static int transitionFbo, transitionTexture, transitionDepthRbo;
     private static int transitionW = -1, transitionH = -1;
 
-    // Renders the CURRENT (about to become outgoing) mapView into an offscreen texture, for
+    // Renders the CURRENT (about to become outgoing) scene into an offscreen texture, for
     // ProjectionTransition to fade out over the new one. Mirrors GLGrab.renderFrame's pattern
-    // (bind an FBO, call the same renderScene()/renderSceneScale() the visible frame uses) --
-    // the difference is this keeps the render as a GPU texture instead of reading it back to
-    // the CPU, since it only ever needs to be sampled by another shader, never encoded.
+    // (bind an FBO, call the same renderScene() the visible frame uses); the difference is this
+    // keeps the render as a GPU texture instead of reading it back to the CPU, since it only ever
+    // needs to be sampled by another shader, never encoded.
     private static void captureTransitionSnapshot() {
         // Canvas-sized, NOT viewport-sized. renderScene draws each viewport at (vp.x, vp.yGL),
         // which are offsets within the drawable, and with a letterboxed render area those are
@@ -205,10 +208,7 @@ public final class GLRenderer {
         GL.glViewport(0, 0, w, h);
         GL.glClearColor(0, 0, 0, 0);
         GL.glClear(GL.COLOR_BUFFER_BIT | GL.DEPTH_BUFFER_BIT);
-        if (mapView.rendersIn3D())
-            renderScene();
-        else
-            renderSceneScale();
+        renderScene(screenView);
         GL.glBindFramebuffer(GL.FRAMEBUFFER, 0);
     }
 
@@ -271,112 +271,106 @@ public final class GLRenderer {
         ExportMovie.dispose();
         GLText.dispose();
 
-        GLSLSolar.quad.dispose();
-        GLSLSolarShader.dispose();
-        GLSLWarp.dispose();
-        printableLine.dispose();
-        GLSLLineShader.dispose();
-        GLSLShapeShader.dispose();
-        GLSLTextureShader.dispose();
-        GLSLTransitionShader.dispose();
+        disposeShaders();
         disposeTransitionCapture();
+        BufferObject.releaseUploadBuffer();
 
         GLException.checkErrors("GLRenderer.dispose()");
     }
 
-    static void renderScene() {
-        MapView mv = mapView;
+    private static void disposeShaders() {
+        printableLine.dispose();
+        GLSLTransitionShader.dispose();
+        GLSLTextureShader.dispose();
+        GLSLShapeShader.dispose();
+        GLSLMeshShader.dispose();
+        GLSLLineShader.dispose();
+        GLSLImageShader.dispose();
+        GLSLSphereShader.dispose();
+        GLSLScreenShader.dispose();
+        GLSLWarp.dispose();
+    }
+
+    static void renderScene(MapView sceneView) {
+        // Helioradial joins Orthographic in the rotated path because its warp is geometry: the
+        // imagery is a surface mesh, so it shares the ortho path's rotated MVP, depth buffer and
+        // world-space layer rendering. Helioradial Unrolled, HPC, Latitudinal and Observer Sky
+        // stay flat.
+        boolean in3D = sceneView.rendersIn3D();
         for (Viewport vp : Display.getViewports()) {
-            MapScale scale = mv.scale(vp);
+            MapScale scale = sceneView.scale(vp);
             GL.glViewport(vp.x, vp.yGL, vp.width, vp.height);
-            Transform.ortho(vp.aspect, mv.cameraWidth(vp), mv.cameraTranslationX(), mv.cameraTranslationY(), mv.viewRotation());
-            GLSLSolarShader.bindScreen(vp, scale);
+            if (in3D)
+                Transform.ortho(vp.aspect, sceneView.cameraWidth(vp), sceneView.cameraTranslationX(), sceneView.cameraTranslationY(), sceneView.viewRotation());
+            else
+                Transform.ortho2D(vp.aspect, sceneView.cameraWidth(vp), sceneView.cameraTranslationX(), sceneView.cameraTranslationY());
+
+            GLSLScreenShader.setView(sceneView, vp);
+
             // World-space overlays share the imagery's radial compression, so a point cloud sits
-            // where the imagery would put the same direction and distance. Only Helioradial warps;
-            // orthographic passes geometry through untouched.
-            if (mv.isHelioradial())
+            // where the imagery would put the same direction and distance. Only Helioradial
+            // warps; every other projection passes geometry through untouched.
+            if (sceneView.isHelioradial())
                 GLSLWarp.enable(scale);
             else
                 GLSLWarp.disable();
 
-            // Only in true orthographic: solarSphere.frag discards outside radius 1 in view
-            // units, which stops being the limb once the radial warp moves it.
-            if (mv.isOrthographic()) {
-                RenderGuard.run("solar disk", () -> {
-                    // An isolated export pass keeps the disk's occlusion (the far side of the
-                    // grid must still hide) but not its black: a layer written on its own must
-                    // not carry an opaque disk into its alpha.
-                    boolean depthOnly = Layers.captureOnly != null;
-                    if (depthOnly)
-                        GL.glColorMask(false, false, false, false);
-                    GLSLSolarShader.sphere.use();
-                    GLSLSolar.quad.render();
-                    if (depthOnly)
-                        GL.glColorMask(true, true, true, true);
-                });
-            }
+            if (in3D) {
+                // Only in true orthographic: sphere.frag discards outside radius 1 in view units,
+                // which stops being the limb once the radial warp moves it.
+                if (sceneView.isOrthographic())
+                    RenderGuard.run("solar disk", GLRenderer::renderSolarDisk);
+                Layers.render(sceneView, vp);
+            } else
+                Layers.renderScale(sceneView, vp);
 
-            Layers.render(mv, vp);
             if (Layers.captureOnly == null) // hand-drawn annotations are part of the composite only
-                RenderGuard.run("annotations", () -> Annotations.render(mv, vp));
+                RenderGuard.run("annotations", () -> Annotations.render(sceneView, vp));
             // Screen-space HUD (the colour-table legend), drawn in PIXEL coordinates. The warp
             // is a vertex-stage transform on raw vertex values (shape.vert -> warpWorld), so
             // leaving it enabled fed pixel positions to a mapping that expects solar radii and
-            // dragged the legend toward the origin by a lambda-dependent factor -- with its SDF
+            // dragged the legend toward the origin by a lambda-dependent factor, with its SDF
             // labels, which take an unwarped shader, staying put beside it. Same reason
             // renderMiniview and renderFullFloatScene disable it; this one was missed because it
             // is the only screen-space drawing that happens inside renderScene's viewport loop.
             GLSLWarp.disable();
-            Layers.renderFloat(mv, vp);
+            Layers.renderFloat(sceneView, vp);
         }
     }
 
-    private static final MapScale[] miniScales = new MapScale[]{MapScale.ortho};
-
-    private static MapView createMiniMapView(Position viewpoint) {
-        return MapMode.Orthographic.createMapView(
-                Display.getMiniCamera(),
-                viewpoint,
-                GridType.Viewpoint,
-                miniScales
-        );
+    private static void renderSolarDisk() {
+        // An isolated export pass keeps the disk's occlusion (the far side of the grid must still
+        // hide) but not its black: a layer written on its own must not carry an opaque disk into
+        // its alpha.
+        boolean depthOnly = Layers.captureOnly != null;
+        if (depthOnly)
+            GL.glColorMask(false, false, false, false);
+        GLSLSphereShader.render();
+        if (depthOnly)
+            GL.glColorMask(true, true, true, true);
     }
+
+    private static final MapScale[] MINI_SCALES = {MapScale.ortho};
 
     private static void renderMiniview() {
         GLSLWarp.disable(); // an undistorted context view, even while the main scene is warped
 
         MiniviewLayer miniview = Layers.getMiniviewLayer();
-        if (miniview != null && miniview.isEnabled()) {
-            Viewport vp = miniview.getViewport();
-            MapView mv = createMiniMapView(mapView.viewpoint());
+        if (miniview == null || !miniview.isEnabled())
+            return;
 
-            GL.glViewport(vp.x, vp.yGL, vp.width, vp.height);
-            Transform.ortho2D(vp.aspect, mv.cameraWidth(vp), mv.cameraTranslationX(), mv.cameraTranslationY());
-            MapScale scale = mv.scale(vp);
-            GLSLSolarShader.bindScreen(vp, scale);
+        Viewport vp = miniview.getViewport();
+        MapView miniView = MapView.create(Display.getMiniCamera(), screenView.viewpoint(), MapMode.Orthographic, GridType.Viewpoint, MINI_SCALES);
 
-            GL.glDisable(GL.DEPTH_TEST);
-            miniview.renderBackground();
-            Layers.renderMiniview(mv, vp);
-            GL.glEnable(GL.DEPTH_TEST);
-        }
-    }
+        GL.glViewport(vp.x, vp.yGL, vp.width, vp.height);
+        Transform.ortho2D(vp.aspect, miniView.cameraWidth(vp), miniView.cameraTranslationX(), miniView.cameraTranslationY());
 
-    static void renderSceneScale() {
-        GLSLWarp.disable(); // flat projections never warp overlays
+        GLSLScreenShader.setView(miniView, vp);
 
-        MapView mv = mapView;
-        for (Viewport vp : Display.getViewports()) {
-            MapScale scale = mv.scale(vp);
-            GL.glViewport(vp.x, vp.yGL, vp.width, vp.height);
-            Transform.ortho2D(vp.aspect, mv.cameraWidth(vp), mv.cameraTranslationX(), mv.cameraTranslationY());
-            GLSLSolarShader.bindScreen(vp, scale);
-
-            Layers.renderScale(mv, vp);
-            if (Layers.captureOnly == null)
-                RenderGuard.run("annotations", () -> Annotations.render(mv, vp));
-            Layers.renderFloat(mv, vp);
-        }
+        GL.glDisable(GL.DEPTH_TEST);
+        miniview.renderBackground();
+        Layers.renderMiniview(miniView, vp);
+        GL.glEnable(GL.DEPTH_TEST);
     }
 
     private static void renderFullFloatScene() {
@@ -389,11 +383,8 @@ public final class GLRenderer {
     }
 
     private static final GLSLLine printableLine = new GLSLLine(true);
-    private static final BufVertex printableBuf = new BufVertex(1024 * GLSLLine.stride);
+    private static final BufVertex printableBuf = new BufVertex(1024);
 
-    // Dashed frame of the region the recorded video will capture. The export preserves the camera's
-    // vertical extent and changes the horizontal with the output aspect, so the printable width is
-    // the canvas width scaled by (outputAspect / canvasAspect), full height, centred.
     /**
      * Draw the region that recording will actually capture.
      *
@@ -434,6 +425,10 @@ public final class GLRenderer {
         byte[] col = Colors.bytes(255, 230, 60, 235);
         byte[] nul = Colors.Null;
 
+        // Refilled from scratch every frame, so it has to be emptied first: without this the
+        // buffer kept every previous frame's outline and drew them all again on top.
+        printableBuf.clear();
+
         dashedEdge(x0, y0, x1, y0, col, nul);
         dashedEdge(x1, y0, x1, y1, col, nul);
         dashedEdge(x1, y1, x0, y1, col, nul);
@@ -450,11 +445,7 @@ public final class GLRenderer {
         Transform.setOrtho2DProjection(0, vp.width, 0, vp.height);
         Transform.pushView();
         Transform.setIdentityView();
-        // setVertex, NOT setVertexRepeatable: "repeatable" means the buffer is kept so it can be
-        // re-uploaded unchanged next frame, and this one is refilled from scratch every frame.
-        // Using it here appended a whole new outline per frame forever, so every previous frame's
-        // border stayed in the buffer and got drawn again on top of the current one.
-        printableLine.setVertex(printableBuf);
+        printableLine.upload(printableBuf);
         // Thickness is a FRACTION OF VIEWPORT HEIGHT, not pixels (line.vert: halfWidthPixels =
         // thickness * viewportSize.y * 0.5). This read 2, i.e. two viewport heights, so the
         // "frame" painted the entire canvas yellow instead of outlining anything.
@@ -462,7 +453,7 @@ public final class GLRenderer {
         Transform.popView();
         Transform.popProjection();
 
-        GLText.drawTextFloat(vp, java.util.List.of(out.width() + " \u00d7 " + out.height()),
+        GLText.drawTextFloat(vp, List.of(out.width() + " × " + out.height()),
                              (int) x0 + 6, vp.height - (int) y1 + 6);
     }
 
@@ -486,7 +477,7 @@ public final class GLRenderer {
             printableBuf.putVertex((float) (ax + ux * s), (float) (ay + uy * s), 0, 1, nul);
             printableBuf.putVertex((float) (ax + ux * s), (float) (ay + uy * s), 0, 1, col);
             printableBuf.putVertex((float) (ax + ux * e), (float) (ay + uy * e), 0, 1, col);
-            printableBuf.repeatVertex(nul);
+            printableBuf.endLine(); // repeats the last position transparent, closing the segment
         }
     }
 

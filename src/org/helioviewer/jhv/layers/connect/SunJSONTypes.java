@@ -39,8 +39,8 @@ public class SunJSONTypes {
                     pointsList.add(buf.vexBuf);
                 }
             }
-            Multimaps.asMap(linesWidths).forEach((w, l) -> linesMap.put(w, new DirectBufVertex(BufVertex.join(l))));
-            pointsBuf = pointsList.isEmpty() ? null : new DirectBufVertex(BufVertex.join(pointsList));
+            Multimaps.asMap(linesWidths).forEach((w, l) -> linesMap.put(w, new DirectBufVertex(l)));
+            pointsBuf = pointsList.isEmpty() ? null : new DirectBufVertex(pointsList);
         }
 
         public JHVTime time() {
@@ -49,11 +49,11 @@ public class SunJSONTypes {
 
         public void render(GLSLLine lines, GLSLShape points, Viewport vp, double factor) {
             linesMap.forEach((thickness, vexBuf) -> {
-                lines.setVertexRepeatable(vexBuf);
+                lines.upload(vexBuf);
                 lines.renderLine(vp, thickness * factor * 0.5e-2 /* TBD */);
             });
             if (pointsBuf != null) {
-                points.setVertexRepeatable(pointsBuf);
+                points.upload(pointsBuf);
                 points.renderPoints(factor);
             }
         }
@@ -89,13 +89,13 @@ public class SunJSONTypes {
 
         if (colors.isEmpty())
             colors.add(Colors.Green.bytes());
-        adjustColorsSize(type, coordinates, colors);
+        validateCoordinates(type, coordinates);
 
         BufVertex vexBuf = getVertices(type, coordinates, colors, thickness);
         return new GeometryBuffer(type == GeometryType.point ? BufType.point : BufType.line, thickness, vexBuf);
     }
 
-    private static int getCoordsSize(GeometryType type, List<Vec3> coords) {
+    private static void validateCoordinates(GeometryType type, List<Vec3> coords) {
         int coordsSize = coords.size();
         switch (type) {
             case point -> {
@@ -111,19 +111,6 @@ public class SunJSONTypes {
                     throw new IllegalArgumentException("Ellipse type needs exactly three coordinates");
             }
         }
-        return coordsSize;
-    }
-
-    private static void adjustColorsSize(GeometryType type, List<Vec3> coords, List<byte[]> colors) { // modifies colors
-        int coordsSize = getCoordsSize(type, coords);
-        int colorsSize = colors.size();
-        if (colorsSize < coordsSize) {
-            byte[] last = colors.get(colorsSize - 1);
-            for (int i = 0; i < (coordsSize - colorsSize); i++) {
-                colors.add(last);
-            }
-        } else if (colorsSize > coordsSize)
-            colors.subList(coordsSize, colorsSize).clear();
     }
 
     private static BufVertex getVertices(GeometryType type, List<Vec3> coordinates, List<byte[]> colors, double thickness) {
@@ -136,34 +123,33 @@ public class SunJSONTypes {
 
     private static BufVertex getVerticesPoint(List<Vec3> coordinates, List<byte[]> colors, double thickness) {
         int num = coordinates.size();
-        BufVertex vexBuf = new BufVertex(num * GLSLShape.stride);
+        BufVertex vexBuf = new BufVertex(num);
 
         float pointSize = (float) (2 * thickness);
         for (int i = 0; i < num; i++) {
             Vec3 v = coordinates.get(i);
-            vexBuf.putVertex((float) v.x, (float) v.y, (float) v.z, pointSize, colors.get(i));
+            vexBuf.putVertex((float) v.x, (float) v.y, (float) v.z, pointSize, colors.get(Math.min(i, colors.size() - 1)));
         }
         return vexBuf;
     }
 
     private static BufVertex getVerticesLine(List<Vec3> coordinates, List<byte[]> colors) {
         int num = coordinates.size();
-        BufVertex vexBuf = new BufVertex((num + 2) * GLSLLine.stride);
+        BufVertex vexBuf = new BufVertex(num + 2);
 
         Vec3 v = coordinates.getFirst();
-        vexBuf.putVertex(v, Colors.Null);
-        vexBuf.repeatVertex(colors.getFirst());
+        vexBuf.startLine(v, colors.getFirst());
         for (int i = 1; i < num; i++) {
-            vexBuf.putVertex(coordinates.get(i), colors.get(i));
+            vexBuf.putVertex(coordinates.get(i), colors.get(Math.min(i, colors.size() - 1)));
         }
-        vexBuf.repeatVertex(Colors.Null);
+        vexBuf.endLine();
         return vexBuf;
     }
 
     private static final int SUBDIVISIONS = 360;
 
     private static BufVertex getVerticesEllipse(List<Vec3> coordinates, List<byte[]> colors) {
-        BufVertex vexBuf = new BufVertex((SUBDIVISIONS + 1 + 2) * GLSLLine.stride);
+        BufVertex vexBuf = new BufVertex(SUBDIVISIONS + 3);
 
         Vec3 c = coordinates.get(0);
         Vec3 u = coordinates.get(1);
@@ -181,10 +167,11 @@ public class SunJSONTypes {
             double y = c.y + cost * du.y + sint * dv.y;
             double z = c.z + cost * du.z + sint * dv.z;
             if (i == 0)
-                vexBuf.putVertex((float) x, (float) y, (float) z, 1, Colors.Null);
-            vexBuf.putVertex((float) x, (float) y, (float) z, 1, color);
+                vexBuf.startLine((float) x, (float) y, (float) z, 1, color);
+            else
+                vexBuf.putVertex((float) x, (float) y, (float) z, 1, color);
         }
-        vexBuf.repeatVertex(Colors.Null);
+        vexBuf.endLine();
         return vexBuf;
     }
 

@@ -2,7 +2,6 @@ package org.helioviewer.jhv.io;
 
 import java.io.InputStream;
 import java.net.URI;
-import java.util.concurrent.Callable;
 
 import javax.annotation.Nonnull;
 
@@ -18,35 +17,28 @@ import org.json.JSONObject;
 
 class LoadSources {
 
-    static void submit(@Nonnull String server) {
-        Task.submit(server, new SourcesLoad(server), DataSources::setupSources, LoadSources::onFailure);
+    static void submit(@Nonnull String serverName, @Nonnull DataSources.Server server) {
+        Task.submitBackground(serverName, () -> load(serverName, server), DataSources::setupSources, LoadSources::onFailure);
     }
 
-    private record SourcesLoad(String server) implements Callable<DataSourcesParser> {
-        @Override
-        public DataSourcesParser call() throws Exception {
-            String serverUrl = DataSources.getServerSetting(server, "API.getDataSources");
-            if (serverUrl == null) // can't happen
-                throw new Exception("Unknown server: " + server);
-
-            Schema schema;
-            try (InputStream is = FileUtils.getResource("/data/sources_v1.0.json")) { // off-load main thread
-                JSONObject rawSchema = JSONUtils.get(is);
-                SchemaLoader schemaLoader = SchemaLoader.builder().schemaJson(rawSchema).addFormatValidator(new TimeUtils.SQLDateTimeFormatValidator()).build();
-                schema = schemaLoader.load().build();
-            }
-
-            JSONObject jo = JSONUtils.getUncached(new URI(serverUrl));
-            Validator.builder().failEarly().build().performValidation(schema, jo);
-
-            return new DataSourcesParser(server).parse(jo);
+    private static DataSourcesParser load(String serverName, DataSources.Server server) throws Exception {
+        Schema schema;
+        try (InputStream is = FileUtils.getResource("/data/sources_v1.0.json")) { // off-load main thread
+            JSONObject rawSchema = JSONUtils.get(is);
+            SchemaLoader schemaLoader = SchemaLoader.builder().schemaJson(rawSchema).addFormatValidator(new TimeUtils.SQLDateTimeFormatValidator()).build();
+            schema = schemaLoader.load().build();
         }
+
+        JSONObject jo = JSONUtils.getUncached(new URI(server.catalogURL()));
+        Validator.builder().failEarly().build().performValidation(schema, jo);
+
+        return new DataSourcesParser(serverName, jo);
     }
 
-    private static void onFailure(String server, Throwable t) {
+    private static void onFailure(String serverName, Throwable t) {
         DataSources.setupSources(null); // signal failure
-        DataSourcesTree.markServerFailed(server); // an empty expandable node explains nothing
-        Log.error(server, t);
+        DataSourcesTree.markServerFailed(serverName); // an empty expandable node explains nothing
+        Log.error(serverName, t);
         if (t instanceof ValidationException ve) {
             ve.getCausingExceptions().stream().map(ValidationException::getMessage).forEach(Log::error);
         }

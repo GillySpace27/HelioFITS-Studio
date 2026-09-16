@@ -1,74 +1,66 @@
 package org.helioviewer.jhv.layers.filters;
 
-import java.awt.Component;
 import java.util.function.IntConsumer;
 import java.util.function.IntFunction;
 
+import javax.annotation.Nullable;
 import javax.swing.JLabel;
 
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.component.JHVSlider;
+import org.helioviewer.jhv.image.ImageDisplaySettings;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layers;
-import org.helioviewer.jhv.opengl.GLImage;
 
-public class SliderFilterPanel {
+public final class SliderFilterPanel {
 
-    public static class Blend extends AbstractSliderFilterPanel {
-        public Blend(ImageLayer layer) {
-            super("Blend ",
-                    0, 100, (int) (layer.getGLImage().getBlend() * 100),
-                    LevelsPanel::formatPercent,
-                    value -> Layers.applyToSelected(layer, gl -> gl.setBlend(value / 100.)));
-            animates("layer:" + layer.getId() + "/blend");
-        }
+    private SliderFilterPanel() {
     }
 
-    public static class DeltaCROTA extends AbstractSliderFilterPanel {
-        public DeltaCROTA(ImageLayer layer) {
-            super("δCROTA",
-                    GLImage.MIN_DCROTA * 10, GLImage.MAX_DCROTA * 10, (int) (layer.getGLImage().getDeltaCROTA() * 10),
-                    value -> formatDegree(value / 10.0),
-                    value -> Layers.applyToSelected(layer, gl -> gl.setDeltaCROTA(value / 10.0)));
-        }
+    public static FilterDetails blend(ImageLayer layer) {
+        ImageDisplaySettings settings = layer.getDisplaySettings();
+        return create("Blend ", 0, 100, (int) (settings.getBlend() * 100),
+                SliderFilterPanel::formatPercent,
+                value -> Layers.applyToSelected(layer, s -> s.setBlend(value / 100.)),
+                "layer:" + layer.getId() + "/blend");
     }
 
-    public static class DeltaCRVAL1 extends AbstractSliderFilterPanel {
-        public DeltaCRVAL1(ImageLayer layer) {
-            super("δCRVAL1",
-                    GLImage.MIN_DCRVAL, GLImage.MAX_DCRVAL, layer.getGLImage().getDeltaCRVAL1(),
-                    SliderFilterPanel::formatArcsec,
-                    value -> Layers.applyToSelected(layer, gl -> gl.setDeltaCRVAL1(value)));
-        }
+    public static FilterDetails deltaCROTA(ImageLayer layer) {
+        ImageDisplaySettings settings = layer.getDisplaySettings();
+        return create("δCROTA", ImageDisplaySettings.MIN_DCROTA * 10, ImageDisplaySettings.MAX_DCROTA * 10,
+                (int) (settings.getDeltaCROTA() * 10),
+                value -> formatDegree(value / 10.0),
+                value -> Layers.applyToSelected(layer, s -> s.setDeltaCROTA(value / 10.0)));
     }
 
-    public static class DeltaCRVAL2 extends AbstractSliderFilterPanel {
-        public DeltaCRVAL2(ImageLayer layer) {
-            super("δCRVAL2",
-                    GLImage.MIN_DCRVAL, GLImage.MAX_DCRVAL, layer.getGLImage().getDeltaCRVAL2(),
-                    SliderFilterPanel::formatArcsec,
-                    value -> Layers.applyToSelected(layer, gl -> gl.setDeltaCRVAL2(value)));
-        }
+    public static FilterDetails deltaCRVAL1(ImageLayer layer) {
+        ImageDisplaySettings settings = layer.getDisplaySettings();
+        return create("δCRVAL1", ImageDisplaySettings.MIN_DCRVAL, ImageDisplaySettings.MAX_DCRVAL,
+                settings.getDeltaCRVAL1(), SliderFilterPanel::formatArcsec,
+                value -> Layers.applyToSelected(layer, s -> s.setDeltaCRVAL1(value)));
     }
 
-    public static class Opacity extends AbstractSliderFilterPanel {
-        public Opacity(ImageLayer layer) {
-            super("Opacity ",
-                    0, 100, (int) (layer.getGLImage().getOpacity() * 100),
-                    LevelsPanel::formatPercent,
-                    value -> Layers.applyToSelected(layer, gl -> gl.setOpacity(value / 100.)));
-            animates("layer:" + layer.getId() + "/opacity");
-        }
+    public static FilterDetails deltaCRVAL2(ImageLayer layer) {
+        ImageDisplaySettings settings = layer.getDisplaySettings();
+        return create("δCRVAL2", ImageDisplaySettings.MIN_DCRVAL, ImageDisplaySettings.MAX_DCRVAL,
+                settings.getDeltaCRVAL2(), SliderFilterPanel::formatArcsec,
+                value -> Layers.applyToSelected(layer, s -> s.setDeltaCRVAL2(value)));
     }
 
-    public static class Sharpen extends AbstractSliderFilterPanel {
-        public Sharpen(ImageLayer layer) {
-            super("Sharpen ",
-                    -100, 100, (int) (layer.getGLImage().getSharpen() * 100),
-                    LevelsPanel::formatPercent,
-                    value -> Layers.applyToSelected(layer, gl -> gl.setSharpen(value / 100.)));
-            animates("layer:" + layer.getId() + "/sharpen");
-        }
+    public static FilterDetails opacity(ImageLayer layer) {
+        ImageDisplaySettings settings = layer.getDisplaySettings();
+        return create("Opacity ", 0, 100, (int) (settings.getOpacity() * 100),
+                SliderFilterPanel::formatPercent,
+                value -> Layers.applyToSelected(layer, s -> s.setOpacity(value / 100.)),
+                "layer:" + layer.getId() + "/opacity");
+    }
+
+    public static FilterDetails sharpen(ImageLayer layer) {
+        ImageDisplaySettings settings = layer.getDisplaySettings();
+        return create("Sharpen ", -100, 100, (int) (settings.getSharpen() * 100),
+                SliderFilterPanel::formatPercent,
+                value -> Layers.applyToSelected(layer, s -> s.setSharpen(value / 100.)),
+                "layer:" + layer.getId() + "/sharpen");
     }
 
     private static String formatDegree(double value) {
@@ -79,55 +71,41 @@ public class SliderFilterPanel {
         return "<html><p align='right'>" + value + "″</p>";
     }
 
-    private static abstract class AbstractSliderFilterPanel implements FilterDetails {
+    static String formatPercent(int value) {
+        return "<html><p align='right'>" + value + "%</p>";
+    }
 
-        private final JLabel title;
-        private final JHVSlider slider;
-        private final JLabel label;
+    static FilterDetails create(
+            String titleText,
+            int min, int max, int initial,
+            IntFunction<String> formatter,
+            IntConsumer onValueChange) {
+        return create(titleText, min, max, initial, formatter, onValueChange, null);
+    }
 
-        protected AbstractSliderFilterPanel(
-                String titleText,
-                int min, int max, int initial,
-                IntFunction<String> formatter,
-                IntConsumer onValueChange) {
-            title = new JLabel(titleText, JLabel.RIGHT);
-            slider = new JHVSlider(min, max, initial);
-            label = new JLabel(formatter.apply(initial), JLabel.RIGHT);
-
-            slider.addChangeListener(e -> {
-                int value = slider.getValue();
-                onValueChange.accept(value);
-                label.setText(formatter.apply(value));
-                DisplayController.display();
-            });
-        }
-
-        @Override
-        public Component getFirst() {
-            return title;
-        }
-
-        @Override
-        public Component getSecond() {
-            return slider;
-        }
-
-        @Override
-        public Component getThird() {
-            return label;
-        }
-
-        /** Marks this row's slider animatable. Here rather than in the constructor's signature so
-         *  the five geometry panels that have no track key keep the argument list they had. */
-        protected void animates(String paramKey) {
+    /**
+     * A slider row. {@code paramKey} binds it to an automation track, so the value can be a
+     * function of time rather than a constant; null for the rows that have no track, which is the
+     * geometry set (δCROTA, δCRVAL) and the sector.
+     */
+    static FilterDetails create(
+            String titleText,
+            int min, int max, int initial,
+            IntFunction<String> formatter,
+            IntConsumer onValueChange,
+            @Nullable String paramKey) {
+        JLabel title = new JLabel(titleText, JLabel.RIGHT);
+        JHVSlider slider = new JHVSlider(min, max, initial);
+        JLabel label = new JLabel(formatter.apply(initial), JLabel.RIGHT);
+        if (paramKey != null)
             slider.animates(paramKey).readout(label);
-        }
-
-        public void setVisible(boolean visible) {
-            title.setVisible(visible);
-            slider.setVisible(visible);
-            label.setVisible(visible);
-        }
+        slider.addChangeListener(e -> {
+            int value = slider.getValue();
+            onValueChange.accept(value);
+            label.setText(formatter.apply(value));
+            DisplayController.display();
+        });
+        return new FilterRow(title, slider, label);
     }
 
 }

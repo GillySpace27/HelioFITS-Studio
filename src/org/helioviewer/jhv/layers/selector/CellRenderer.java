@@ -40,16 +40,16 @@ class CellRenderer {
         if (!(value instanceof ImageLayer layer))
             return null;
         DataUri.Format format = layer.getView().getFormat();
-        if (!(format instanceof DataUri.Format.Image image))
+        if (format == null)
             return null;
-        return switch (image) {
+        return switch (format) {
             // Calibrated, full depth. Green because it is the one that kept everything.
             case FITS -> new java.awt.Color(0x35, 0xA0, 0x6A);
             // Helioviewer's browse products: streamed, and 8-bit before they ever arrive.
             case JPIP, JP2, JPX -> new java.awt.Color(0x3A, 0x7B, 0xD5);
             // Already-rendered pictures rather than data.
             case PNG, JPEG -> new java.awt.Color(0xC0, 0x7A, 0x22);
-            case ZIP -> null;
+            default -> null;
         };
     }
 
@@ -73,16 +73,16 @@ class CellRenderer {
         if (!(value instanceof ImageLayer layer))
             return null;
         DataUri.Format format = layer.getView().getFormat();
-        if (!(format instanceof DataUri.Format.Image image))
+        if (format == null)
             return null;
-        return switch (image) {
+        return switch (format) {
             case FITS -> "FITS";
             case JPIP -> "JPEG 2000 (streamed)";
             case JP2 -> "JP2";
             case JPX -> "JPX";
             case PNG -> "PNG";
             case JPEG -> "JPEG";
-            case ZIP -> null;
+            default -> null;
         };
     }
 

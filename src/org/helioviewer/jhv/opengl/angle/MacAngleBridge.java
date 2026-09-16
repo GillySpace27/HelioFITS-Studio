@@ -9,8 +9,6 @@ import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 
-import org.helioviewer.jhv.app.Log;
-
 @SuppressWarnings("restricted")
 public final class MacAngleBridge {
     public record Host(long handle, long layer) {}
@@ -25,18 +23,12 @@ public final class MacAngleBridge {
                     ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE));
     private static final MethodHandle GET_LAYER = downcall("jhv_metal_host_get_layer",
             FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
-    private static final MethodHandle SET_FRAME = downcall("jhv_metal_host_set_frame",
-            FunctionDescriptor.ofVoid(ValueLayout.ADDRESS,
-                    ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE));
-    private static final MethodHandle SET_FRAME_SYNC = downcall("jhv_metal_host_set_frame_sync",
-            FunctionDescriptor.ofVoid(ValueLayout.ADDRESS,
-                    ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE, ValueLayout.JAVA_DOUBLE));
+    private static final MethodHandle SET_SCALE = downcall("jhv_metal_host_set_scale",
+            FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.JAVA_DOUBLE));
     private static final MethodHandle SET_VISIBLE = downcall("jhv_metal_host_set_visible",
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
     private static final MethodHandle DESTROY = downcall("jhv_metal_host_destroy",
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
-    private static final MethodHandle DEVICE_INFO = downcall("jhv_metal_device_info",
-            FunctionDescriptor.of(ValueLayout.ADDRESS));
     private static final MethodHandle PREPARE_DEEP = downcall("jhv_metal_host_prepare_deep",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
     private static final MethodHandle RESET_DEEP = downcall("jhv_metal_host_reset_deep",
@@ -55,18 +47,6 @@ public final class MacAngleBridge {
 
     public static void prewarm() {
         // Force class initialization and native symbol resolution before the first canvas attach.
-        Log.info("Metal device: " + deviceInfo());
-    }
-
-    private static String deviceInfo() {
-        try {
-            MemorySegment info = (MemorySegment) DEVICE_INFO.invokeExact();
-            if (info.address() == 0L)
-                return "unavailable";
-            return info.reinterpret(Long.MAX_VALUE).getString(0);
-        } catch (Throwable t) {
-            throw new RuntimeException("Failed to query Metal device info", t);
-        }
     }
 
     public static Host create(Canvas canvas, double x, double y, double width, double height) {
@@ -83,11 +63,8 @@ public final class MacAngleBridge {
 
                 MemorySegment metalHost = MemorySegment.ofAddress(handle);
                 long layer = ((MemorySegment) GET_LAYER.invokeExact(metalHost)).address();
-                if (layer == 0L) {
-                    DESTROY.invokeExact(metalHost);
-                    handle = 0L;
+                if (layer == 0L)
                     throw new IllegalStateException("Metal host did not expose a CAMetalLayer");
-                }
                 return new Host(handle, layer);
             } catch (Throwable t) {
                 if (handle != 0L)
@@ -97,22 +74,12 @@ public final class MacAngleBridge {
         });
     }
 
-    public static void setFrame(long handle, double x, double y, double width, double height) {
+    public static void setScale(long handle, double scale) {
         try {
             MemorySegment metalHost = MemorySegment.ofAddress(handle);
-            SET_FRAME.invokeExact(metalHost, x, y, width, height);
+            SET_SCALE.invokeExact(metalHost, scale);
         } catch (Throwable t) {
-            throw new RuntimeException("Failed to resize Metal host layer", t);
-        }
-    }
-
-    // Blocks until the layer frame + drawableSize are updated, so an immediate render is at-size.
-    public static void setFrameSync(long handle, double x, double y, double width, double height) {
-        try {
-            MemorySegment metalHost = MemorySegment.ofAddress(handle);
-            SET_FRAME_SYNC.invokeExact(metalHost, x, y, width, height);
-        } catch (Throwable t) {
-            throw new RuntimeException("Failed to resize Metal host layer", t);
+            throw new RuntimeException("Failed to scale Metal host layer", t);
         }
     }
 

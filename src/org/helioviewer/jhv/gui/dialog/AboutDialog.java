@@ -24,6 +24,7 @@ import org.helioviewer.jhv.gui.component.HTMLPane;
 import org.helioviewer.jhv.io.FileUtils;
 import org.helioviewer.jhv.opengl.GL;
 
+import com.google.common.html.HtmlEscapers;
 import com.jidesoft.dialog.ButtonPanel;
 import com.jidesoft.dialog.StandardDialog;
 
@@ -59,7 +60,8 @@ public final class AboutDialog extends StandardDialog implements Interfaces.Show
                 "<li><a href=\"https://nom-tam-fits.github.io/nom-tam-fits\">FITS</a> in Java public domain library.</li>" +
                 "<li><a href=\"https://tika.apache.org\">Apache Tika</a>, a content analysis toolkit.</li>" +
                 "<li><a href=\"https://github.com/xerial/sqlite-jdbc\">Xerial</a> SQLite JDBC driver.</li>" +
-                "<li><a href=\"https://www.ej-technologies.com/products/install4j/overview.html\">install4j</a>, the multi-platform installer builder.</li>";
+                "<li><a href=\"https://www.ej-technologies.com/products/install4j/overview.html\">install4j</a>, the multi-platform installer builder.</li></ul>" +
+                "<center>Third-party licenses and notices can be found inside <code>HFStudio.jar</code> and in the source tree.</center>";
 
         HTMLPane pane = new HTMLPane();
         pane.setText(text);
@@ -72,10 +74,12 @@ public final class AboutDialog extends StandardDialog implements Interfaces.Show
     public JComponent createBannerPanel() {
         int delta = 3;
         int fontSize = UIGlobals.uiFont.getSize();
+        String graphicsInfo = HtmlEscapers.htmlEscaper().escape(GL.version) + "<br/>"
+                + HtmlEscapers.htmlEscaper().escape(GL.renderer);
         String text = "<center><b><span style='font-size:" + (fontSize + delta) + "pt'>" +
                 AppInfo.programName + "</span><br/>" +
                 "Version " + AppInfo.version + '.' + AppInfo.revision + "</b><br/>" +
-                "<span style='font-size:" + (fontSize - delta) + "pt'>" + AppInfo.versionDetail + "<br/>" + GL.version + "</span><br/><br/>" +
+                "<span style='font-size:" + (fontSize - delta) + "pt'>" + AppInfo.versionDetail + "<br/>" + graphicsInfo + "</span><br/><br/>" +
                 "A fork of <a href='https://www.jhelioviewer.org'>JHelioviewer</a>, carrying its own<br/>" +
                 "changes to projection, filtering and export.<br/><br/>" +
                 "JHelioviewer is © 2026 the <a href='https://www.jhelioviewer.org/about.html'>ESA JHelioviewer Team</a>,<br/>" +
@@ -118,7 +122,7 @@ public final class AboutDialog extends StandardDialog implements Interfaces.Show
                 String res = e.getDescription();
                 String name = res.substring(Math.max(0, res.lastIndexOf('/') + 1));
                 try {
-                    new TextDialog("License - " + name.substring(0, name.indexOf('.')), FileUtils.readResourceString(res), true).showDialog();
+                    new TextDialog(name.substring(0, name.indexOf('.')), FileUtils.readResourceString(res), true).showDialog();
                 } catch (Exception ex) {
                     Log.error(ex);
                 }

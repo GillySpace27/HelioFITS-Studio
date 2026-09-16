@@ -63,7 +63,7 @@ public final class StarLayer extends AbstractLayer implements ViewpointListener,
             return;
 
         if (vexBuf != uploadedBuf) {
-            points.setVertexRepeatable(vexBuf);
+            points.upload(vexBuf);
             uploadedBuf = vexBuf;
         }
 

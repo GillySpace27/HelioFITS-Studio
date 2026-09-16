@@ -9,6 +9,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.InflaterInputStream;
 
@@ -17,7 +18,6 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
 import org.helioviewer.jhv.app.AppInfo;
-import org.helioviewer.jhv.base.Regex;
 import org.helioviewer.jhv.io.ProxySettings;
 
 public class HTTPSocket {
@@ -98,8 +98,11 @@ public class HTTPSocket {
             case "identity" -> {
                 String contentLength = hdr.get("Content-Length");
                 try {
-                    transferStream = new FixedSizedInputStream(inputStream, Integer.parseInt(contentLength));
-                } catch (Exception e) {
+                    int length = Integer.parseInt(contentLength);
+                    if (length < 0)
+                        throw new NumberFormatException("Negative length");
+                    transferStream = new FixedSizedInputStream(inputStream, length);
+                } catch (NumberFormatException e) {
                     throw new IOException("Invalid Content-Length header: " + contentLength);
                 }
             }
@@ -121,16 +124,16 @@ public class HTTPSocket {
             throw new IOException("Invalid HTTP response: " + line);
 
         // Parses HTTP headers
-        Map<String, String> hdr = new HashMap<>();
+        Map<String, String> hdr = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         while (true) {
             line = LineRead.readAsciiLine(inputStream);
             if (line.isEmpty())
                 return hdr;
 
-            String[] parts = Regex.HttpField.split(line);
-            if (parts.length != 2)
+            int separator = line.indexOf(':');
+            if (separator < 0)
                 throw new IOException("Invalid HTTP header field: " + line);
-            hdr.put(parts[0], parts[1]);
+            hdr.put(line.substring(0, separator), line.substring(separator + 1).stripLeading());
         }
     }
 

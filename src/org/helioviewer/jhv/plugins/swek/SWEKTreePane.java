@@ -12,7 +12,6 @@ import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.util.Enumeration;
 import java.util.IdentityHashMap;
 import java.util.List;
 
@@ -30,7 +29,6 @@ import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
 
-import org.helioviewer.jhv.event.JHVEventCache;
 import org.helioviewer.jhv.event.SWEKCatalog;
 import org.helioviewer.jhv.event.SWEKDownloader;
 import org.helioviewer.jhv.event.SWEKGroup;
@@ -101,14 +99,10 @@ final class SWEKTreePane extends JPanel {
 
     private void repaintBusyGroups() {
         boolean anyBusy = false;
-        Enumeration<?> children = ((DefaultMutableTreeNode) treeModel.getRoot()).children();
-        while (children.hasMoreElements()) {
-            Object child = children.nextElement();
-            if (child instanceof DefaultMutableTreeNode groupNode && groupNode.getUserObject() instanceof SWEKGroup group) {
-                if (SWEKDownloader.isGroupBusy(group)) {
-                    anyBusy = true;
-                    repaintGroup(groupNode);
-                }
+        for (var entry : groupNodes.entrySet()) {
+            if (SWEKDownloader.isGroupBusy(entry.getKey())) {
+                anyBusy = true;
+                repaintGroup(entry.getValue());
             }
         }
 
@@ -134,7 +128,7 @@ final class SWEKTreePane extends JPanel {
         } else if (value instanceof DefaultMutableTreeNode node && node.getUserObject() instanceof SWEKSupplier supplier) {
             component = supplierComponents.computeIfAbsent(supplier, this::createSupplierComponent);
             if (component instanceof JPanel panel && panel.getComponent(0) instanceof JCheckBox checkBox)
-                checkBox.setSelected(JHVEventCache.isSupplierActive(supplier));
+                checkBox.setSelected(SWEKDownloader.isSupplierActive(supplier));
         }
 
         if (component != null)
@@ -165,8 +159,8 @@ final class SWEKTreePane extends JPanel {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setOpaque(false);
 
-        JCheckBox checkBox = new JCheckBox(supplier.displayName(), JHVEventCache.isSupplierActive(supplier));
-        checkBox.addActionListener(e -> JHVEventCache.setSupplierActive(supplier, checkBox.isSelected()));
+        JCheckBox checkBox = new JCheckBox(supplier.displayName(), SWEKDownloader.isSupplierActive(supplier));
+        checkBox.addActionListener(e -> SWEKDownloader.setSupplierActive(supplier, checkBox.isSelected()));
         checkBox.setFocusPainted(false);
         checkBox.setOpaque(false);
         panel.add(checkBox, BorderLayout.LINE_START);

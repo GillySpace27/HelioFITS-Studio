@@ -1,50 +1,55 @@
 package org.helioviewer.jhv.opengl;
 
 import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
 
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.display.Viewport;
 
-public class GLSLLine extends VAO implements GLSLVertexReceiver {
+public class GLSLLine extends VertexArrayObject implements GLSLVertexReceiver {
 
     public static final double LINEWIDTH_BASIC = 0.002;
-
-    private static final int size0 = 4;
-    private static final int size1 = 4;
-    public static final int stride = 4 * size0 + size1;
 
     private int count;
 
     public GLSLLine(boolean _dynamic) {
-        super(2, _dynamic, new VAA[]{
-                new VAA(0, size0, false, 0, 0, 1), new VAA(1, size1, true, 0, 0, 1),
-                new VAA(2, size0, false, 0, 4 * size0, 1), new VAA(3, size1, true, 0, size1, 1),
-                new VAA(4, size0, false, 0, 8 * size0, 1), new VAA(5, size1, true, 0, 2 * size1, 1),
-                new VAA(6, size0, false, 0, 12 * size0, 1), new VAA(7, size1, true, 0, 3 * size1, 1)});
+        super(_dynamic,
+                positionAttribute(0, 0), colorAttribute(1, 0),
+                positionAttribute(2, 1), colorAttribute(3, 1),
+                positionAttribute(4, 2), colorAttribute(5, 2),
+                positionAttribute(6, 3), colorAttribute(7, 3));
+    }
+
+    private static VertexAttribute positionAttribute(int index, int vertex) {
+        return VertexAttribute.instancedFloats(index, BufVertex.POSITION_COMPONENTS, BufVertex.BYTES_PER_VERTEX, vertex * (long) BufVertex.BYTES_PER_VERTEX);
+    }
+
+    private static VertexAttribute colorAttribute(int index, int vertex) {
+        return VertexAttribute.instancedNormalizedUnsignedBytes(index, BufVertex.COLOR_COMPONENTS, BufVertex.BYTES_PER_VERTEX,
+                vertex * (long) BufVertex.BYTES_PER_VERTEX + BufVertex.POSITION_BYTES);
     }
 
     @Override
-    public void setVertexRepeatable(BufVertex vexBuf) {
-        count = vexBuf.getCount();
-        setVertexRepeatable(vexBuf.toVertexBuffer(), vexBuf.toColorBuffer());
+    public void upload(BufVertex vertices) {
+        count = vertices.getCount();
+        upload(vertices.toBuffer());
     }
 
     @Override
-    public void setVertexRepeatable(DirectBufVertex vexBuf) {
-        count = vexBuf.count();
-        setVertexRepeatable(vexBuf.vertexBuffer(), vexBuf.colorBuffer());
+    public void upload(DirectBufVertex vertices) {
+        count = vertices.count();
+        upload(vertices.buffer());
     }
 
-    private void setVertexRepeatable(ByteBuffer vertexBuffer, ByteBuffer colorBuffer) {
-        if (count == 0)
-            return;
-        vbo[0].setBufferData(vertexBuffer.capacity(), vertexBuffer);
-        vbo[1].setBufferData(colorBuffer.capacity(), colorBuffer);
+    private void upload(ByteBuffer vertices) {
         if (count < 4) {
-            Log.warn("GLSLLine requires at least two visible vertices padded by transparent sentinels; count=" + count + ", emitter=" + getEmitter());
+            if (count != 0)
+                Log.warn("GLSLLine requires at least two visible vertices padded by transparent sentinels; count=" + count + ", emitter=" + getEmitter());
             count = 0;
-        } else
+        } else {
+            uploadVertexBuffer(vertices);
             count -= 3;
+        }
     }
 
     private static String getEmitter() {
@@ -58,14 +63,24 @@ public class GLSLLine extends VAO implements GLSLVertexReceiver {
     }
 
     public void renderLine(Viewport vp, double thickness) {
+        renderLine(vp, thickness, Transform.get());
+    }
+
+    void renderLine(Viewport vp, double thickness, FloatBuffer mvp) {
         if (count == 0)
             return;
 
         GLSLLineShader.line.use();
-        GLSLLineShader.line.bindParams(vp, thickness);
+        GLSLLineShader.line.bindParams(vp, thickness, mvp);
 
         bind();
-        // Keep depth testing, but do not let translucent AA fringe pixels write depth.
+
+        // Let fully opaque line cores occlude later geometry. The second pass
+        // adds translucent colors and antialiasing without writing their depth.
+        GLSLLineShader.line.bindOpaquePass(true);
+        GL.glDrawArraysInstanced(GL.TRIANGLE_STRIP, 0, 4, count);
+
+        GLSLLineShader.line.bindOpaquePass(false);
         GL.glDepthMask(false);
         GL.glDrawArraysInstanced(GL.TRIANGLE_STRIP, 0, 4, count);
         GL.glDepthMask(true);

@@ -76,6 +76,14 @@ public class Buttons {
     // own font, which an Icon cannot follow.
     public static final String filtered = MaterialDesign.FILTER.toString();
 
+    // Disclosure captions that are still a whole button's worth of HTML: the glyph rides inside
+    // the label rather than beside it, so there is no Icon slot to put it in. Upstream added the
+    // FITS pair for the layer options pane's new FITS section.
+    public static final String fitsRight = "<html>FITS Settings<font face='Material Design Icons' size=4>" +
+            MaterialDesign.CHEVRON_RIGHT;
+    public static final String fitsDown = "<html>FITS Settings<font face='Material Design Icons' size=4>" +
+            MaterialDesign.CHEVRON_DOWN;
+
     public static final GlyphIcon play = icon(MaterialDesign.PLAY, INLINE);
     public static final GlyphIcon pause = icon(MaterialDesign.PAUSE, INLINE);
     public static final GlyphIcon backward = icon(MaterialDesign.STEP_BACKWARD, INLINE);

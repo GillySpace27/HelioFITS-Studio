@@ -7,15 +7,20 @@ class GLSLTextureShader extends GLSLShader {
 
     private int refModelViewProjectionMatrix;
     private int colorRef;
-    private int unitRangeRef;
+    private int unitRangeRef = -1;
 
     private GLSLTextureShader(String vertex, String fragment) {
         super(vertex, fragment);
     }
 
     public static void init() {
-        texture._init(false);
-        sdf._init(false);
+        try {
+            texture._init();
+            sdf._init();
+        } catch (RuntimeException | Error e) {
+            dispose();
+            throw e;
+        }
     }
 
     public static void dispose() {
@@ -25,9 +30,10 @@ class GLSLTextureShader extends GLSLShader {
 
     @Override
     protected void initUniforms(int id) {
-        refModelViewProjectionMatrix = GL.glGetUniformLocation(id, "ModelViewProjectionMatrix");
-        colorRef = GL.glGetUniformLocation(id, "color");
-        unitRangeRef = GL.glGetUniformLocation(id, "unitRange");
+        refModelViewProjectionMatrix = requiredUniform(id, "ModelViewProjectionMatrix");
+        colorRef = requiredUniform(id, "color");
+        if (this == sdf)
+            unitRangeRef = requiredUniform(id, "unitRange");
         setTextureUnit(id, "image", GLTexture.Unit.THREE);
     }
 

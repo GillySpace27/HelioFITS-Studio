@@ -7,8 +7,12 @@ import java.nio.ShortBuffer;
 
 import org.lwjgl.opengles.GLES30;
 
+// Application-facing OpenGL ES 3.0 API, keeping LWJGL calls in one place.
 public final class GL {
     public static final int SAMPLES = 0; // values greater than 1 request MSAA.
+    public static String renderer = "";
+    public static String shadingLanguageVersion = "";
+    public static String vendor = "";
     public static String version = "";
     public static int maxTextureSize;
 
@@ -24,11 +28,11 @@ public final class GL {
     public static final int DEPTH_BUFFER_BIT = GLES30.GL_DEPTH_BUFFER_BIT;
     public static final int DEPTH_COMPONENT16 = GLES30.GL_DEPTH_COMPONENT16;
     public static final int DEPTH_COMPONENT24 = GLES30.GL_DEPTH_COMPONENT24;
-    // Keep the 32-bit integer depth format candidate for renderbuffer allocation because it seems to work on ANGLE.
-    public static final int DEPTH_COMPONENT32 = 0x81A7;
+    public static final int DEPTH_COMPONENT32F = GLES30.GL_DEPTH_COMPONENT32F;
     public static final int DEPTH_TEST = GLES30.GL_DEPTH_TEST;
     public static final int DRAW_FRAMEBUFFER = GLES30.GL_DRAW_FRAMEBUFFER;
     public static final int DYNAMIC_DRAW = GLES30.GL_DYNAMIC_DRAW;
+    public static final int ELEMENT_ARRAY_BUFFER = GLES30.GL_ELEMENT_ARRAY_BUFFER;
     public static final int FLOAT = GLES30.GL_FLOAT;
     public static final int FRAGMENT_SHADER = GLES30.GL_FRAGMENT_SHADER;
     public static final int FRAMEBUFFER = GLES30.GL_FRAMEBUFFER;
@@ -43,22 +47,27 @@ public final class GL {
     public static final int LEQUAL = GLES30.GL_LEQUAL;
     public static final int LINEAR = GLES30.GL_LINEAR;
     public static final int LINEAR_MIPMAP_LINEAR = GLES30.GL_LINEAR_MIPMAP_LINEAR;
+    public static final int LINEAR_MIPMAP_NEAREST = GLES30.GL_LINEAR_MIPMAP_NEAREST;
     public static final int LINK_STATUS = GLES30.GL_LINK_STATUS;
     public static final int MAX_SAMPLES = GLES30.GL_MAX_SAMPLES;
     public static final int MAX_TEXTURE_SIZE = GLES30.GL_MAX_TEXTURE_SIZE;
+    public static final int MIRRORED_REPEAT = GLES30.GL_MIRRORED_REPEAT;
     public static final int NEAREST = GLES30.GL_NEAREST;
+    public static final int NEAREST_MIPMAP_LINEAR = GLES30.GL_NEAREST_MIPMAP_LINEAR;
+    public static final int NEAREST_MIPMAP_NEAREST = GLES30.GL_NEAREST_MIPMAP_NEAREST;
     public static final int NO_ERROR = GLES30.GL_NO_ERROR;
     public static final int ONE = GLES30.GL_ONE;
     public static final int ONE_MINUS_SRC_ALPHA = GLES30.GL_ONE_MINUS_SRC_ALPHA;
     public static final int OUT_OF_MEMORY = GLES30.GL_OUT_OF_MEMORY;
-    public static final int PACK_ALIGNMENT = GLES30.GL_PACK_ALIGNMENT;
     public static final int PIXEL_UNPACK_BUFFER = GLES30.GL_PIXEL_UNPACK_BUFFER;
     public static final int POINTS = GLES30.GL_POINTS;
     public static final int R8 = GLES30.GL_R8;
     public static final int R16F = GLES30.GL_R16F;
     public static final int READ_FRAMEBUFFER = GLES30.GL_READ_FRAMEBUFFER;
     public static final int RED = GLES30.GL_RED;
+    public static final int RENDERER = GLES30.GL_RENDERER;
     public static final int RENDERBUFFER = GLES30.GL_RENDERBUFFER;
+    public static final int REPEAT = GLES30.GL_REPEAT;
     public static final int RGB = GLES30.GL_RGB;
     public static final int RGB8 = GLES30.GL_RGB8;
     public static final int RGBA16F = GLES30.GL_RGBA16F;
@@ -67,6 +76,8 @@ public final class GL {
     public static final int IMPLEMENTATION_COLOR_READ_FORMAT = GLES30.GL_IMPLEMENTATION_COLOR_READ_FORMAT;
     public static final int IMPLEMENTATION_COLOR_READ_TYPE = GLES30.GL_IMPLEMENTATION_COLOR_READ_TYPE;
     public static final int RGBA = GLES30.GL_RGBA;
+    public static final int RGBA8 = GLES30.GL_RGBA8;
+    public static final int SHADING_LANGUAGE_VERSION = GLES30.GL_SHADING_LANGUAGE_VERSION;
     public static final int STATIC_DRAW = GLES30.GL_STATIC_DRAW;
     public static final int STREAM_DRAW = GLES30.GL_STREAM_DRAW;
     public static final int TEXTURE0 = GLES30.GL_TEXTURE0;
@@ -79,20 +90,36 @@ public final class GL {
     public static final int TEXTURE_WRAP_T = GLES30.GL_TEXTURE_WRAP_T;
     public static final int TRIANGLES = GLES30.GL_TRIANGLES;
     public static final int TRIANGLE_STRIP = GLES30.GL_TRIANGLE_STRIP;
+    public static final int UNIFORM_BLOCK_DATA_SIZE = GLES30.GL_UNIFORM_BLOCK_DATA_SIZE;
     public static final int UNIFORM_BUFFER = GLES30.GL_UNIFORM_BUFFER;
     public static final int UNPACK_ALIGNMENT = GLES30.GL_UNPACK_ALIGNMENT;
+    public static final int PACK_ALIGNMENT = GLES30.GL_PACK_ALIGNMENT;
     public static final int UNPACK_ROW_LENGTH = GLES30.GL_UNPACK_ROW_LENGTH;
     public static final int UNSIGNED_BYTE = GLES30.GL_UNSIGNED_BYTE;
+    public static final int UNSIGNED_INT = GLES30.GL_UNSIGNED_INT;
+    public static final int VENDOR = GLES30.GL_VENDOR;
     public static final int VERSION = GLES30.GL_VERSION;
     public static final int VERTEX_SHADER = GLES30.GL_VERTEX_SHADER;
 
-    public static String formatVersionString(String version) {
-        return version != null && version.startsWith("OpenGL ") ? version : "OpenGL " + version;
+    private static String formatVersionString(String version) {
+        if (version == null)
+            return "";
+        return version.startsWith("OpenGL ") ? version : "OpenGL " + version;
     }
 
     public static void initInfo() {
+        vendor = glGetString(VENDOR);
+        renderer = glGetString(RENDERER);
         version = formatVersionString(glGetString(VERSION));
+        shadingLanguageVersion = glGetString(SHADING_LANGUAGE_VERSION);
         maxTextureSize = glGetInteger(MAX_TEXTURE_SIZE);
+    }
+
+    public static String contextDescription() {
+        return "vendor=" + vendor
+                + ", renderer=" + renderer
+                + ", version=" + version
+                + ", shadingLanguageVersion=" + shadingLanguageVersion;
     }
 
     public static void glActiveTexture(int unit) {
@@ -141,6 +168,22 @@ public final class GL {
 
     public static void glBufferData(int target, int size, int usage) {
         GLES30.glBufferData(target, size, usage);
+    }
+
+    public static void glBufferData(int target, ByteBuffer buffer, int usage) {
+        GLES30.glBufferData(target, buffer, usage);
+    }
+
+    public static void glBufferData(int target, FloatBuffer buffer, int usage) {
+        GLES30.glBufferData(target, buffer, usage);
+    }
+
+    public static void glBufferData(int target, IntBuffer buffer, int usage) {
+        GLES30.glBufferData(target, buffer, usage);
+    }
+
+    public static void glBufferData(int target, ShortBuffer buffer, int usage) {
+        GLES30.glBufferData(target, buffer, usage);
     }
 
     public static void glBufferSubData(int target, long offset, ByteBuffer buffer) {
@@ -243,6 +286,10 @@ public final class GL {
         GLES30.glDrawArraysInstanced(mode, first, count, primcount);
     }
 
+    public static void glDrawElements(int mode, int count, int type, long offset) {
+        GLES30.glDrawElements(mode, count, type, offset);
+    }
+
     public static void glEnable(int cap) {
         GLES30.glEnable(cap);
     }
@@ -281,6 +328,10 @@ public final class GL {
 
     public static void glGenerateMipmap(int target) {
         GLES30.glGenerateMipmap(target);
+    }
+
+    public static int glGetActiveUniformBlocki(int program, int blockIndex, int pname) {
+        return GLES30.glGetActiveUniformBlocki(program, blockIndex, pname);
     }
 
     public static int glGetError() {
@@ -353,10 +404,6 @@ public final class GL {
 
     public static void glTexParameteri(int target, int pname, int value) {
         GLES30.glTexParameteri(target, pname, value);
-    }
-
-    public static void glTexSubImage2D(int target, int level, int x, int y, int width, int height, int inputFormat, int inputType, ByteBuffer buffer) {
-        GLES30.glTexSubImage2D(target, level, x, y, width, height, inputFormat, inputType, buffer);
     }
 
     public static void glTexSubImage2D(int target, int level, int x, int y, int width, int height, int inputFormat, int inputType, long offset) {

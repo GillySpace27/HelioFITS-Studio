@@ -95,8 +95,8 @@ public final class AppInit {
                 "solo_ANC_soc-sc-fk_V09.tf",
                 "solo_ANC_soc-sci-fk_V08.tf",
                 "solo_ANC_soc-sclk-fict_20000101_V01.tsc",
-                "solo_ANC_soc-orbit-stp_20200210-20301120_416_V1_00544_V01.bsp",
-                "solo_ANC_soc-default-att-stp_20200210-20301120_416_V1_00544_V01.bc");
+                "solo_ANC_soc-orbit-stp_20200210-20301120_422_V1_00553_V01.bsp",
+                "solo_ANC_soc-default-att-stp_20200210-20301120_422_V1_00553_V01.bc");
 
         // Optional because it is a build product, not a source file: extra/tools builds it from
         // JPL's de440s and it is not in git. It extends the outer planets past de432s_reduced's

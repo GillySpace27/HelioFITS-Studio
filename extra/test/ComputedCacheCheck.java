@@ -73,7 +73,7 @@ public final class ComputedCacheCheck {
         }
 
         // The rest is unused by the cache.
-        @Override public void decode(Position viewpoint, double pixFactor, float factor) {}
+        @Override public void decode(Position viewpoint, double pixFactor, float factor, org.helioviewer.jhv.view.ClipSet.Range clipRange) {}
         @Override public void setDataHandler(DataHandler dataHandler) {}
         @Override public void abolish() {}
         @Override public void clearCache() {}

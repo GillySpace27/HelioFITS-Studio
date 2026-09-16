@@ -20,6 +20,7 @@ public class Settings {
             setProperty("startup.sampHub", "true");
             setProperty("display.normalizeAIA", "true");
             setProperty("display.normalizeRadius", "false");
+            setProperty("display.statusbar.visible", "true");
             setProperty("display.toolbar", "iconandtext");
             setProperty("display.toolbar.visible", "true");
             setProperty("display.time", "Observer");
@@ -59,7 +60,7 @@ public class Settings {
         if (getProperty("path.state") == null)
             setProperty("path.state", Directories.STATES.getPath());
         String server = getProperty("dataSources.defaultServer");
-        if (server == null || DataSources.getServerSetting(server, "API.getDataSources") == null)
+        if (DataSources.getServer(server) == null)
             setProperty("dataSources.defaultServer", "IAS");
     }
 

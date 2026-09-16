@@ -154,10 +154,10 @@ final class SequencePaletteContent {
             boundOnce = true;
             sequencePanel = target == null ? null : new SequencePanel(target);
             // Only for a layer with pixels. While a session restores, the active layer is the registry's
-            // placeholder, which has no GLImage, and ImageFilterPanel reads its enhance and Υ values
+            // placeholder, which has no frame yet, and ImageFilterPanel reads its enhance and Υ values
             // straight off it: the first launch with RHEF in here threw on exactly that. Throwing here
             // also left boundLayer set, so the palette would not have rebuilt until the layer changed.
-            filterPanel = target == null || target.getGLImage() == null ? null : new ImageFilterPanel(target);
+            filterPanel = target == null || !target.hasPixels() ? null : new ImageFilterPanel(target);
             // Deliberately no setPreferredSize here. Pinning the height froze the palette at
             // whatever the readout said when it was built, and the readout gains two lines the
             // moment a kind is chosen: the last line and the run button under it ended up outside
@@ -180,7 +180,7 @@ final class SequencePaletteContent {
             filterPanel.syncFromLayer(boundLayer); // RHEF may have been changed from the Image Layers row
             // Greyed for a categorical colour table, as the Image Layers row greys it: a table that promises
             // each value is exactly one colour is broken by anything that remaps values, RHEF included.
-            boolean categorical = org.helioviewer.jhv.image.lut.LUTLabels.isCategorical(boundLayer.getGLImage().getLUT());
+            boolean categorical = org.helioviewer.jhv.image.lut.LUTLabels.isCategorical(boundLayer.getDisplaySettings().getLUT());
             for (Component part : new Component[]{filterPanel.getFirst(), filterPanel.getSecond(), filterPanel.getThird()})
                 org.helioviewer.jhv.gui.ComponentUtils.setEnabled(part, !categorical);
             if (filterPanel.getFirst() instanceof javax.swing.JComponent label)

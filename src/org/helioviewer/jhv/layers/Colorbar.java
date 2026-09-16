@@ -16,16 +16,15 @@ import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.lut.LUT;
 import org.helioviewer.jhv.image.lut.LUTLabels;
 import org.helioviewer.jhv.input.InputController;
-import org.helioviewer.jhv.input.InputPointerListener;
-import org.helioviewer.jhv.input.InputPointerMotionListener;
+import org.helioviewer.jhv.input.InputMouseListener;
 import org.helioviewer.jhv.input.PointerEvent;
 import org.helioviewer.jhv.metadata.DetectorMask;
 import org.helioviewer.jhv.opengl.BufVertex;
 import org.helioviewer.jhv.opengl.GL;
-import org.helioviewer.jhv.opengl.GLImage;
+import org.helioviewer.jhv.image.ImageDisplaySettings;
+import org.helioviewer.jhv.opengl.GLSLImage;
+import org.helioviewer.jhv.opengl.GLSLImageShader;
 import org.helioviewer.jhv.opengl.GLSLShape;
-import org.helioviewer.jhv.opengl.GLSLSolar;
-import org.helioviewer.jhv.opengl.GLSLSolarShader;
 import org.helioviewer.jhv.opengl.GLTexture;
 import org.helioviewer.jhv.opengl.GLText;
 import org.helioviewer.jhv.opengl.Transform;
@@ -57,7 +56,7 @@ public final class Colorbar {
     private static final byte[] PANEL_BG = Colors.bytes(18, 18, 20, 235);
     private static final byte[] OVER_RANGE_EDGE = Colors.bytes(200, 200, 210, 235);
     private static final byte[] KNEE_MARK = Colors.bytes(230, 230, 240, 235);
-    // The picture's own clipping flags (solarCommon.frag): green below the range, magenta above it.
+    // The picture's own clipping flags (imageCommon.frag): green below the range, magenta above it.
     private static final byte[] CLIP_UNDER = Colors.bytes(0, 255, 0);
     private static final byte[] CLIP_OVER = Colors.bytes(255, 0, 255);
     private static final double PANEL_PAD = 4; // px of breathing room around the swatches
@@ -74,10 +73,11 @@ public final class Colorbar {
     private static final int HOVER_OFFSET_Y = 20; // subtracted from mouseY, so the tooltip sits above the cursor -- the bar itself is already near the bottom edge
 
     private final GLSLShape quads = new GLSLShape(true);
-    private final BufVertex vex = new BufVertex(8 * 1024 * GLSLShape.stride);
+    // Capacity is a vertex count, not a byte count: upstream's BufVertex sizes itself in vertices.
+    private final BufVertex vex = new BufVertex(8 * 1024);
 
     // The continuous bar is not painted from the table's 256 entries any more. It is a one-row
-    // half-float texture of the VALUES the bar stands for, drawn through GLSLSolarShader.legend,
+    // half-float texture of the VALUES the bar stands for, drawn through GLSLImageShader's legend,
     // which is getColor() and nothing else: Levels, response, the colour table, the HDR gain, its
     // mode and its knee are all applied by the same code that applies them to the picture. That is
     // what lets the bar be brighter than SDR white on the EDR canvas, and what makes the
@@ -92,7 +92,7 @@ public final class Colorbar {
     // the first real mouseMoved arrives.
     private int mouseX = -1, mouseY = -1;
 
-    private final class HoverListener implements InputPointerListener, InputPointerMotionListener {
+    private final class HoverListener implements InputMouseListener {
         @Override
         public void mouseMoved(PointerEvent e) {
             mouseX = e.x();
@@ -109,9 +109,9 @@ public final class Colorbar {
 
     private final HoverListener hoverListener = new HoverListener();
 
-    void render(Viewport vp, GLImage glImage, View.ImageData imageData, boolean rhefActive, int slot) {
-        LUT lut = glImage.getLUT();
-        boolean inverted = glImage.getInvertLUT();
+    void render(Viewport vp, ImageDisplaySettings settings, GLSLImage glImage, View.ImageData imageData, boolean rhefActive, int slot) {
+        LUT lut = settings.getLUT();
+        boolean inverted = settings.getInvertLUT();
         if (lut == null)
             return;
 
@@ -154,7 +154,7 @@ public final class Colorbar {
         // over the top of the range is the Levels window itself; raw data has its own values above
         // it (FITSImage.OVER_RANGE_CEILING) and needs no help. Without this the bar offered a
         // headroom section that nothing in a RHEF picture could ever reach.
-        boolean canExceed = !rhefActive || glImage.getBrightOffset() + glImage.getBrightScale() > 1;
+        boolean canExceed = !rhefActive || settings.getBrightOffset() + settings.getBrightScale() > 1;
         boolean headroom = gain > 1 && groups == null && canExceed;
         double xSplit = headroom ? x0 + (x1 - x0) / OVER_RANGE_SPAN : x1;
 
@@ -178,7 +178,7 @@ public final class Colorbar {
 
         // 2. A continuous table's ramp, through the picture's own pipeline.
         if (groups == null)
-            drawRamp(vp, glImage, imageData, rhefActive, x0, xSplit, x1, yBar, yTop, headroom ? gain : 1);
+            drawRamp(vp, glImage, settings, imageData, rhefActive, x0, xSplit, x1, yBar, yTop, headroom ? gain : 1);
 
         // 3. The marks on top: the knee, and the edge of the headroom section.
         if (groups == null) {
@@ -200,7 +200,7 @@ public final class Colorbar {
         GL.glEnable(GL.DEPTH_TEST);
 
         drawLabels(vp, lut, groups, x0, x1, yBar, labelH);
-        updateHover(vp, lut, groups, glImage, imageData, rhefActive, x0, xSplit, x1, yBar, yTop, labelH, headroom ? gain : 1);
+        updateHover(vp, lut, groups, settings, imageData, rhefActive, x0, xSplit, x1, yBar, yTop, labelH, headroom ? gain : 1);
     }
 
     // Hovering a categorical block exposes the raw index it covers (several pixel values can share
@@ -210,7 +210,7 @@ public final class Colorbar {
     // FITSImage.inverseMapping); when that is not possible -- a server/JPX-backed layer never had
     // FITS DN to begin with, or RHEF's rank transform and difference deltas have no simple inverse
     // -- it falls back to the plain display-range percentage.
-    private void updateHover(Viewport vp, LUT lut, List<LUTLabels.Group> groups, GLImage glImage, View.ImageData imageData,
+    private void updateHover(Viewport vp, LUT lut, List<LUTLabels.Group> groups, ImageDisplaySettings settings, View.ImageData imageData,
                              boolean rhefActive, double x0, double xSplit, double x1, double yBar, double yTop, double labelH, float gain) {
         if (!vp.contains(mouseX, mouseY))
             return;
@@ -227,15 +227,15 @@ public final class Colorbar {
                 : 1 + (localX - xSplit) / (x1 - xSplit) * (gain - 1);
         String text;
         if (groups == null) {
-            String physical = physicalValueText(frac, glImage, imageData, rhefActive);
+            String physical = physicalValueText(frac, settings, imageData, rhefActive);
             if (physical != null)
                 text = physical + " · " + lut.name();
             else if (rhefActive) {
                 // RHEF's output IS a percentage: the pixel's rank within its annulus. Report it as
                 // that rather than as a bare "%", and undo Levels first so it is the rank the
                 // filter produced and not where the Levels window happens to put it.
-                double denom = glImage.getBrightScale();
-                double rank = denom == 0 ? frac : (frac - glImage.getBrightOffset()) / denom;
+                double denom = settings.getBrightScale();
+                double rank = denom == 0 ? frac : (frac - settings.getBrightOffset()) / denom;
                 text = String.format("rank %.2f%% · %s", 100 * rank, lut.name());
             } else
                 // Two decimals because one is coarser than a pixel of a bar this wide, and a
@@ -261,20 +261,20 @@ public final class Colorbar {
 
     // frac is the value the shader fed into the LUT lookup: display-space, after this layer's own
     // Levels (brightOffset/brightScale) and, for AIA, its instrument response-factor correction --
-    // see GLImage.applyFilters. Undo that first to get back to the decoder's raw [0,1] texture
+    // see GLSLImage.applyFilters. Undo that first to get back to the decoder's raw [0,1] texture
     // value, then hand it to ImageBuffer.PhysicalScale to undo the stretch and min/max normalize.
     @Nullable
-    private static String physicalValueText(double frac, GLImage glImage, View.ImageData imageData, boolean rhefActive) {
-        if (rhefActive || glImage.getDifferenceMode() != GLImage.DifferenceMode.None)
+    private static String physicalValueText(double frac, ImageDisplaySettings settings, View.ImageData imageData, boolean rhefActive) {
+        if (rhefActive || settings.getDifferenceMode() != ImageDisplaySettings.DifferenceMode.None)
             return null; // RHEF's rank transform and difference deltas have no simple physical inverse
         ImageBuffer.PhysicalScale scale = imageData.imageBuffer().physicalScale();
         if (scale == null)
             return null; // server/JPX-backed layer: the client never had the original FITS DN
 
-        double denom = glImage.getBrightScale() * imageData.metaData().getResponseFactor();
+        double denom = settings.getBrightScale() * imageData.metaData().getResponseFactor();
         if (denom == 0)
             return null;
-        double texRaw = (frac - glImage.getBrightOffset()) / denom;
+        double texRaw = (frac - settings.getBrightOffset()) / denom;
         if (texRaw < 0)
             return null; // below this layer's Levels window: no one value corresponds
 
@@ -300,7 +300,7 @@ public final class Colorbar {
         Transform.setOrtho2DProjection(0, vp.width, 0, vp.height);
         Transform.pushView();
         Transform.setIdentityView();
-        quads.setVertexRepeatable(vex);
+        quads.upload(vex);
         quads.renderShape(GL.TRIANGLES);
         Transform.popView();
         Transform.popProjection();
@@ -312,16 +312,16 @@ public final class Colorbar {
      * <p>The bar's horizontal axis is the value the colour table is indexed by, after Levels:
      * 0 to 1 across the table's part and 1 to the gain across the headroom. The shader applies
      * Levels itself, so what the texture holds is the value BEFORE them, worked back through the
-     * same offset and scale GLImage binds. Then the bar and the picture disagree only if
+     * same offset and scale GLSLImage binds. Then the bar and the picture disagree only if
      * getColor() disagrees with itself.
      *
      * <p>The full-screen strip is drawn into a viewport set to the bar's own rectangle, which is
      * how a quad in clip space becomes a bar in pixels without a second vertex buffer.
      */
-    private void drawRamp(Viewport vp, GLImage glImage, View.ImageData imageData, boolean rhefActive,
+    private void drawRamp(Viewport vp, GLSLImage glImage, ImageDisplaySettings settings, View.ImageData imageData, boolean rhefActive,
                           double x0, double xSplit, double x1, double yBar, double yTop, float gain) {
-        double offset = glImage.getBrightOffset();
-        double scale = glImage.getBrightScale() * (rhefActive ? 1 : imageData.metaData().getResponseFactor());
+        double offset = settings.getBrightOffset();
+        double scale = settings.getBrightScale() * (rhefActive ? 1 : imageData.metaData().getResponseFactor());
         if (scale == 0)
             return;
         double split = (xSplit - x0) / (x1 - x0);
@@ -337,12 +337,12 @@ public final class Colorbar {
                 ramp.put(Float.floatToFloat16((float) ((indexed - offset) / scale)));
             }
             ramp.flip();
-            rampTex.bind();
-            GLTexture.copyHalfImage(RAMP_TEXELS, 1, GL.LINEAR, ramp);
+            rampTex.upload2D(GLTexture.Format.R16F, RAMP_TEXELS, 1, GL.LINEAR, ramp);
         }
 
-        GLSLSolarShader.legend.use();
-        glImage.applyFilters(rhefActive, true); // display block and colour table; not its image or mask
+        GLSLImageShader.useLegend();
+        // Display block and colour table; not its image or mask, which the two binds below replace.
+        glImage.applyFilters(imageData.imageBuffer(), imageData.metaData(), rhefActive, true);
         rampTex.bind();
         blankMask.bind();
 
@@ -351,7 +351,7 @@ public final class Colorbar {
         if (pw < 1 || ph < 1)
             return;
         GL.glViewport(px, py, pw, ph);
-        GLSLSolar.quad.render();
+        GLSLImageShader.drawLegend();
         GL.glViewport(vp.x, vp.yGL, vp.width, vp.height);
     }
 
@@ -469,8 +469,8 @@ public final class Colorbar {
         quads.init();
         rampTex = new GLTexture(GL.TEXTURE_2D, GLTexture.Unit.ZERO);
         blankMask = new GLTexture(GL.TEXTURE_2D, GLTexture.Unit.THREE);
-        blankMask.bind();
-        blankMask.copyImageBuffer(DetectorMask.NONE.getImageBuffer(), GL.NEAREST);
+        ImageBuffer maskBuffer = DetectorMask.NONE.getImageBuffer();
+        blankMask.upload2D(GLTexture.Format.R8, maskBuffer.width, maskBuffer.height, GL.NEAREST, maskBuffer.buffer);
         rampOffset = rampScale = rampGain = rampSplit = Double.NaN; // texture objects are new: upload again
         InputController.addListener(hoverListener);
     }

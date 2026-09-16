@@ -44,7 +44,7 @@ public final class LascoClient {
     private static final Pattern FILE_PATTERN = Pattern.compile("href=\"(\\d+\\.fts)\"");
 
     public static void submitResolve(@Nonnull FitsRequest request, @Nonnull Consumer<List<URI>> receiver) {
-        Task.submit("lasco", new Resolve(request), receiver::accept, "Error listing the LASCO archive");
+        Task.submitBackground("lasco", new Resolve(request), receiver::accept, "Error listing the LASCO archive");
     }
 
     private record Resolve(FitsRequest request) implements Callable<List<URI>> {

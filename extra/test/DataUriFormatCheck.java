@@ -28,14 +28,14 @@ public final class DataUriFormatCheck {
         File notFits = gzipped("this is not a FITS".getBytes(StandardCharsets.US_ASCII));
 
         check("gzipped FITS named .fits.gz at source",
-                format("https://example.org/OR_SUVI-L1b-Fe195.fits.gz", cached), DataUri.Format.Image.FITS);
+                format("https://example.org/OR_SUVI-L1b-Fe195.fits.gz", cached), DataUri.Format.FITS);
         check("gzipped FITS named .fts.gz at source",
-                format("https://example.org/frame.fts.gz", cached), DataUri.Format.Image.FITS);
+                format("https://example.org/frame.fts.gz", cached), DataUri.Format.FITS);
         // The source name says nothing, so only looking inside can answer.
         check("gzipped FITS with no telltale name",
-                format("https://example.org/download?id=7", cached), DataUri.Format.Image.FITS);
-        check("plain FITS", format("https://example.org/frame.fts", plain), DataUri.Format.Image.FITS);
-        check("gzip that is not FITS", format("https://example.org/notes.gz", notFits) == DataUri.Format.Image.FITS, false);
+                format("https://example.org/download?id=7", cached), DataUri.Format.FITS);
+        check("plain FITS", format("https://example.org/frame.fts", plain), DataUri.Format.FITS);
+        check("gzip that is not FITS", format("https://example.org/notes.gz", notFits) == DataUri.Format.FITS, false);
 
         System.out.println(failures == 0 ? "DataUriFormatCheck: PASS" : "DataUriFormatCheck: FAIL");
         if (failures != 0)

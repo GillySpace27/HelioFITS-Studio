@@ -1,12 +1,13 @@
 package org.helioviewer.jhv.opengl;
 
 import java.nio.ByteBuffer;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 import javax.annotation.Nullable;
 
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.display.Display;
+import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.layers.Layer;
 import org.helioviewer.jhv.layers.Layers;
 
@@ -54,8 +55,8 @@ public class GLGrab {
     }
 
     public void renderFrame(ByteBuffer buffer) {
-        inCaptureState(() -> {
-            renderScene();
+        inCaptureState(view -> {
+            renderScene(view);
             capture.readPixels(buffer);
             return null;
         });
@@ -69,18 +70,18 @@ public class GLGrab {
      * <p>The returned array is reused by the next pass (it is 268 MB at 4K), so a caller takes
      * its channels out before rendering again.
      */
-    public float[] renderPass(@Nullable Layer only, GLImage.Capture mode) {
-        return inCaptureState(() -> {
+    public float[] renderPass(@Nullable Layer only, GLSLImage.Capture mode) {
+        return inCaptureState(view -> {
             Layers.captureOnly = only;
-            GLImage.capture = mode;
+            GLSLImage.capture = mode;
             try {
                 if (only != null) // a layer on its own sits on transparent black, whatever the screen shows behind it
                     GL.glClearColor(0, 0, 0, 0);
-                renderScene();
+                renderScene(view);
                 return capture.readFloats();
             } finally {
                 Layers.captureOnly = null;
-                GLImage.capture = GLImage.Capture.NONE;
+                GLSLImage.capture = GLSLImage.Capture.NONE;
                 if (only != null) { // what display() had set
                     float bg = Display.whiteBackground ? 1 : 0;
                     GL.glClearColor(bg, bg, bg, 0);
@@ -89,16 +90,12 @@ public class GLGrab {
         });
     }
 
-    private static void renderScene() {
+    private static void renderScene(MapView view) {
         GL.glClear(GL.COLOR_BUFFER_BIT | GL.DEPTH_BUFFER_BIT);
-        if (GLRenderer.getMapView().rendersIn3D()) { // must match display()'s fork, or export takes the wrong path
-            GLRenderer.renderScene();
-        } else {
-            GLRenderer.renderSceneScale();
-        }
+        GLRenderer.renderScene(view);
     }
 
-    private <T> T inCaptureState(Supplier<T> render) {
+    private <T> T inCaptureState(Function<MapView, T> render) {
         if (capture == null)
             init();
 
@@ -121,10 +118,14 @@ public class GLGrab {
             Display.setGLSize(0, 0, w, h);
             Display.reshapeAll();
             Display.captureScale = Display.fullViewport.height / (double) _renderHeight;
+            // The scene the export composes, built after the capture-sized reshape, so it is a
+            // view of the output rather than of the window.
+            MapView exportView = GLRenderer.createMapView(Display.getCamera(), GLRenderer.getDisplayedViewpoint());
 
             capture.bindForRender();
-            return render.get();
+            return render.apply(exportView);
         } finally {
+            GL.glBindFramebuffer(GL.FRAMEBUFFER, 0);
             Display.captureScale = _captureScale;
             Display.highBitDepthCapture = _high;
             Display.outputFitSuppressed = _suppressed;

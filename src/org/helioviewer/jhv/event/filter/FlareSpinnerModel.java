@@ -13,10 +13,14 @@ class FlareSpinnerModel extends AbstractSpinnerModel {
     private final double max;
 
     FlareSpinnerModel(double start, double _min, double _max, double _step) {
-        min = _min;
-        max = _max;
+        min = displayedValue(_min);
+        max = displayedValue(_max);
         step = _step;
         curval = GOESLevel.getStringValue(Math.clamp(start, min, max));
+    }
+
+    private static double displayedValue(double value) {
+        return GOESLevel.getFloatValue(GOESLevel.getStringValue(value));
     }
 
     @Override
@@ -26,7 +30,11 @@ class FlareSpinnerModel extends AbstractSpinnerModel {
 
     @Override
     public void setValue(Object value) {
-        curval = value.toString();
+        String stringValue = value.toString();
+        double numericValue = GOESLevel.getFloatValue(stringValue);
+        if (numericValue < min || numericValue > max)
+            throw new IllegalArgumentException("GOES class outside filter range: " + stringValue);
+        curval = stringValue;
         fireStateChanged();
     }
 

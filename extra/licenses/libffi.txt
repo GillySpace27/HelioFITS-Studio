@@ -1,0 +1,9 @@
+libffi (included in LWJGL)
+==========================
+
+Source: https://github.com/LWJGL/lwjgl3/blob/30fac9b95f99cda97312232be25ba55297bf9951/modules/lwjgl/core/src/main/c/libffi/ffi.h
+
+Copyright (c) 2011, 2014, 2019, 2021, 2022, 2024, 2025, 2026 Anthony Green
+Copyright (c) 1996-2003, 2007, 2008 Red Hat, Inc.
+
+Licensed under the MIT License, included in MIT.txt.

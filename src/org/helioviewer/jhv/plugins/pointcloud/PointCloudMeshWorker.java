@@ -28,7 +28,7 @@ final class PointCloudMeshWorker {
     }
 
     void cancel() {
-        worker.cancel();
+        worker.invalidate();
         submittedParameters = null;
     }
 

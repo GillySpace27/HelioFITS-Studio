@@ -13,10 +13,10 @@ import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.image.DecodedImage;
 import org.helioviewer.jhv.image.ImageBufferCache;
+import org.helioviewer.jhv.image.ImageProcessingSettings;
 import org.helioviewer.jhv.image.lut.LUT;
 import org.helioviewer.jhv.io.APIRequest;
 import org.helioviewer.jhv.io.DataUri;
-import org.helioviewer.jhv.io.DataUri.Format.Image;
 import org.helioviewer.jhv.metadata.BasicMetaData;
 import org.helioviewer.jhv.metadata.FitsMetaData;
 import org.helioviewer.jhv.metadata.MetaData;
@@ -28,7 +28,7 @@ import org.helioviewer.jhv.thread.LatestWorker;
 import org.helioviewer.jhv.time.JHVTime;
 import org.helioviewer.jhv.time.TimeMap;
 import org.helioviewer.jhv.view.BaseView;
-import org.helioviewer.jhv.view.View;
+import org.helioviewer.jhv.view.ClipSet;
 
 import kdu_jni.KduException;
 
@@ -54,22 +54,24 @@ public class J2KView extends BaseView {
 
     protected final J2KReader reader;
 
-    public J2KView(LatestWorker<DecodedImage> _executor, APIRequest _request, DataUri _dataUri) throws Exception {
-        super(_executor, _dataUri);
+    public J2KView(LatestWorker<DecodedImage> _executor, APIRequest _request, DataUri _dataUri, ImageProcessingSettings _processingSettings) throws Exception {
+        super(_executor, _dataUri, _processingSettings);
         serial = globalSerial.incrementAndGet();
         request = _request;
 
+        J2KSource acquiredSource = null;
+        J2KReader acquiredReader = null;
         try {
-            boolean isJP2 = dataUri.format() == Image.JP2;
+            boolean isJP2 = dataUri.format() == DataUri.Format.JP2;
             switch (dataUri.format()) {
-                case Image.JPIP -> {
+                case JPIP -> {
                     J2KSource.Remote remote = new J2KSource.Remote();
-                    reader = new J2KReader(dataUri.uri(), remote);
-                    source = remote;
+                    source = acquiredSource = remote;
+                    reader = acquiredReader = new J2KReader(dataUri.uri(), remote);
                 }
-                case Image.JP2, Image.JPX -> {
+                case JP2, JPX -> {
                     reader = null;
-                    source = new J2KSource.Local(dataUri.file().toString(), isJP2);
+                    source = acquiredSource = new J2KSource.Local(dataUri.file().toString(), isJP2);
                 }
                 default -> throw new Exception("Unknown image type");
             }
@@ -118,6 +120,14 @@ public class J2KView extends BaseView {
 
             abolishable = reaper.register(cleanerToken, new J2KAbolisher(serial, reader, source));
         } catch (Exception e) {
+            try {
+                if (acquiredReader != null)
+                    acquiredReader.stop();
+                if (acquiredSource != null)
+                    acquiredSource.destroy();
+            } catch (Exception cleanupFailure) {
+                e.addSuppressed(cleanupFailure);
+            }
             String msg = e instanceof KduException ? "Kakadu error" : e.getMessage();
             throw new Exception(msg + ": " + dataUri, e);
         }
@@ -136,11 +146,11 @@ public class J2KView extends BaseView {
                     if (aReader != null) {
                         aReader.stop();
                     }
-                    aSource.closeWhenUnused();
                     aSource.destroy();
-                    clearCache(aSerial);
                 } catch (KduException e) {
                     Log.error(e);
+                } finally {
+                    clearCache(aSerial);
                 }
             }, "HFS-J2KAbolisher").start();
         }
@@ -250,7 +260,7 @@ public class J2KView extends BaseView {
 
     private int currentLevel = 10000;
 
-    protected void signalReader(J2KParams.Decode decodeParams, Position viewpoint) {
+    private void signalReader(J2KParams.Decode decodeParams, Position viewpoint) {
         int level = decodeParams.level;
         boolean priority = !Player.isPlaying();
 
@@ -261,7 +271,7 @@ public class J2KView extends BaseView {
     }
 
     @Override
-    public void decode(Position viewpoint, double pixFactor, float factor) {
+    public void decode(Position viewpoint, double pixFactor, float factor, @Nullable ClipSet.Range clipRange) {
         J2KParams.Decode decodeParams = getDecodeParams(targetFrame, pixFactor, factor);
         AtomicBoolean status = source.getFrameStatus(decodeParams.frame, decodeParams.level); // before signalling to reader
         boolean cacheResult = status != null && status.get();
@@ -269,12 +279,12 @@ public class J2KView extends BaseView {
             signalReader(decodeParams, viewpoint);
         }
 
-        J2KDecodeKey key = new J2KDecodeKey(serial, decodeParams, filterType);
+        J2KDecodeKey key = new J2KDecodeKey(serial, decodeParams, processingSettings.getFilter());
         DecodedImage image = ImageBufferCache.get(key);
         if (image != null) {
             // Mark running decodes stale before publishing this cached result.
-            executor.cancel();
-            sendDataToHandler(decodeParams.frame, viewpoint, image);
+            executor.invalidate();
+            sendDataToHandler(decodeParams.frame, viewpoint, image, () -> key.filter() == processingSettings.getFilter());
             return;
         }
         submitDecode(decodeParams, viewpoint, cacheResult);
@@ -289,13 +299,13 @@ public class J2KView extends BaseView {
     }
 
     private void submitDecode(J2KParams.Decode decodeParams, Position viewpoint, boolean cacheResult) {
-        J2KDecodeKey key = new J2KDecodeKey(serial, decodeParams, filterType);
+        J2KDecodeKey key = new J2KDecodeKey(serial, decodeParams, processingSettings.getFilter());
         int numComps = source.resolutionSet(decodeParams.frame).numComps;
         int frame = decodeParams.frame;
         ResolutionSet.Level resolution = getResolutionLevel(frame, decodeParams.level);
         try {
             executor.submit(
-                    new J2KDecoder(source, decodeParams, numComps, filterType, metaData[frame], resolution.factorX(), resolution.factorY()),
+                    new J2KDecoder(source, decodeParams, numComps, key.filter(), metaData[frame], resolution.factorX(), resolution.factorY()),
                     new J2KCallback(key, viewpoint, cacheResult));
         } catch (RejectedExecutionException ignore) {
             // Teardown may shut the executor down before a late refresh/resubmit reaches this point.
@@ -316,12 +326,12 @@ public class J2KView extends BaseView {
 
         @Override
         public void onSuccess(DecodedImage result, boolean fresh) {
-            if (key.filter() != filterType) return; // filter changed in-flight
+            if (dataHandler == null || key.filter() != processingSettings.getFilter()) return; // detached or filter changed in-flight
             if (cacheResult) ImageBufferCache.put(key, result);
 
             // This decode was superseded after it started; do not publish it to the layer.
             if (!fresh) return;
-            sendDataToHandler(key.params().frame, viewpoint, result);
+            sendDataToHandler(key.params().frame, viewpoint, result, () -> key.filter() == processingSettings.getFilter());
         }
 
         @Override
@@ -329,19 +339,6 @@ public class J2KView extends BaseView {
             Log.errorStack(t);
         }
 
-    }
-
-    private void sendDataToHandler(int frame, Position viewpoint, DecodedImage image) {
-        image.imageBuffer().protectFromExplicitFree();
-        MetaData m = metaData[frame];
-
-        View.ImageData data = new View.ImageData(image.imageBuffer(), m, image.region(), viewpoint);
-        EventQueue.invokeLater(() -> {
-            if (dataHandler != null)
-                dataHandler.handleData(data);
-            else
-                image.imageBuffer().allowExplicitFree();
-        });
     }
 
     @Nullable

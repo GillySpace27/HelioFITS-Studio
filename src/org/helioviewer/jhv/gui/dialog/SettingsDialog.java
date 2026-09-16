@@ -61,7 +61,7 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
     private final JLabel cacheSizeLabel = new JLabel(cacheSizeText("--.-"), JLabel.RIGHT);
 
     private void updateCacheSize() {
-        Task.submit("cache-size",
+        Task.submitBackground("cache-size",
                 JPIPCacheManager::getSize,
                 size -> cacheSizeLabel.setText(cacheSizeText(String.format("%.1f", size / (1024 * 1024 * 1024.)))),
                 Log::error);
@@ -250,7 +250,7 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         JButton clearCache = new JButton("Clear Cache");
         clearCache.addActionListener(e -> {
             clearCache.setEnabled(false);
-            Task.submit("clear-cache", () -> {
+            Task.submitBackground("clear-cache", () -> {
                 JPIPCacheManager.clear();
                 return null;
             }, _ -> {
@@ -326,13 +326,7 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
             grid = new JTable(model) {
                 @Override
                 public TableCellEditor getCellEditor(int row, int column) {
-                    if (row == 1 && column == 1) {
-                        Object val = getValueAt(1, 1);
-                        if (val instanceof String str)
-                            passField.setText(str);
-                        return passEditor;
-                    } else
-                        return super.getCellEditor(row, column);
+                    return row == 1 && column == 1 ? passEditor : super.getCellEditor(row, column);
                 }
             };
             grid.getColumnModel().getColumn(1).setCellRenderer(new DefaultTableCellRenderer() {
@@ -360,6 +354,9 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         }
 
         void saveSettings() {
+            if (grid.isEditing())
+                grid.getCellEditor().stopCellEditing();
+
             Object val0 = model.getValueAt(0, 1);
             if (val0 instanceof String str)
                 Settings.setProperty("proxy.username", str);

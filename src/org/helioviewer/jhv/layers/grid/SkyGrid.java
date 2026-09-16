@@ -1,6 +1,5 @@
 package org.helioviewer.jhv.layers.grid;
 
-import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.MapScale;
 import org.helioviewer.jhv.display.MapView;
@@ -108,7 +107,7 @@ public final class SkyGrid {
     private void updateLine(int ringCount, double spokeStep, byte[] color) {
         int spokes = (int) Math.round(360 / spokeStep);
         int noPoints = ringCount * (SUBDIVISIONS + 3) + 4 * spokes;
-        BufVertex vexBuf = new BufVertex(noPoints * GLSLLine.stride);
+        BufVertex vexBuf = new BufVertex(noPoints);
 
         for (int i = 0; i < ringCount; i++) {
             float radius = (float) ringRadii[i];
@@ -117,10 +116,11 @@ public final class SkyGrid {
                 float x = (float) (radius * Math.cos(a));
                 float y = (float) (radius * Math.sin(a));
                 if (j == 0)
-                    vexBuf.putVertex(x, y, 0, 1, Colors.Null);
-                vexBuf.putVertex(x, y, 0, 1, color);
+                    vexBuf.startLine(x, y, 0, 1, color);
+                else
+                    vexBuf.putVertex(x, y, 0, 1, color);
                 if (j == SUBDIVISIONS)
-                    vexBuf.putVertex(x, y, 0, 1, Colors.Null);
+                    vexBuf.endLine();
             }
         }
 
@@ -132,12 +132,11 @@ public final class SkyGrid {
         for (int s = 0; s < spokes; s++) {
             double a = Math.toRadians(s * spokeStep);
             double sin = Math.sin(a), cos = Math.cos(a);
-            vexBuf.putVertex((float) (-inner * sin), (float) (inner * cos), 0, 1, Colors.Null);
-            vexBuf.repeatVertex(color);
+            vexBuf.startLine((float) (-inner * sin), (float) (inner * cos), 0, 1, color);
             vexBuf.putVertex((float) (-outer * sin), (float) (outer * cos), 0, 1, color);
-            vexBuf.repeatVertex(Colors.Null);
+            vexBuf.endLine();
         }
-        line.setVertex(vexBuf);
+        line.uploadAndClear(vexBuf);
     }
 
     private void drawLabels(MapView mv, Viewport vp, int ringCount, float[] color, double labelSize, double labelAngle) {

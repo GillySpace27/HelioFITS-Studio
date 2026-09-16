@@ -34,26 +34,12 @@ interface BandCache {
         }
 
         void serialize(JSONArray ja, double f) {
-            ja.put(new JSONArray().put(milli / 1000L).put(value * f));
+            ja.put(new JSONArray().put(milli / 1000.).put(value * f));
         }
 
         @Override
         public int compareTo(@Nonnull DateValue o) {
             return Long.compare(milli, o.milli);
-        }
-
-        @Override
-        public final boolean equals(Object o) {
-            if (this == o)
-                return true;
-            if (o instanceof DateValue v)
-                return milli == v.milli;
-            return false;
-        }
-
-        @Override
-        public int hashCode() {
-            return Long.hashCode(milli);
         }
 
     }

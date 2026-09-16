@@ -26,7 +26,7 @@ class FilterPanel extends JPanel {
     private final FilterDialog filterDialog;
     private final SWEK.Operand operand;
 
-    FilterPanel(SWEKSupplier _supplier, SWEK.Parameter _parameter, JHVSpinner _spinner, FilterDialog _filterDialog, SWEK.Operand _operand, boolean _enabled) {
+    FilterPanel(SWEKSupplier _supplier, SWEK.Parameter _parameter, JHVSpinner _spinner, FilterDialog _filterDialog, SWEK.Operand _operand) {
         operand = _operand;
         filterDialog = _filterDialog;
         spinner = _spinner;
@@ -38,9 +38,6 @@ class FilterPanel extends JPanel {
         label = new JLabel(parameter.displayName() + ' ' + operand.representation);
         spinner.setEnabled(enabled);
         label.setEnabled(enabled);
-
-        if (_enabled)
-            enableButton.doClick();
 
         setLayout(new GridBagLayout());
         GridBagConstraints c = new GridBagConstraints();
@@ -57,9 +54,9 @@ class FilterPanel extends JPanel {
     void addFilter() {
         if (enabled) {
             Object oval = spinner.getValue();
-            String pval = oval instanceof String str ? String.valueOf(GOESLevel.getFloatValue(str)) : String.valueOf(oval);
-            SWEK.Param param = new SWEK.Param(parameter.name(), pval, operand);
-            FilterManager.addFilter(supplier, parameter, param);
+            double value = oval instanceof String str ? GOESLevel.getFloatValue(str) : ((Number) oval).doubleValue();
+            SWEK.Param param = new SWEK.Param(parameter.name(), value, operand);
+            FilterManager.addFilter(supplier, param);
         }
     }
 

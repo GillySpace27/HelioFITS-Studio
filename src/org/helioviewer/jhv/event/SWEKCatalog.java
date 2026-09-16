@@ -1,36 +1,37 @@
 package org.helioviewer.jhv.event;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 public final class SWEKCatalog {
 
     private static final HashMap<String, SWEKSupplier> suppliers = new HashMap<>();
     private static final HashMap<SWEKGroup, List<SWEKSupplier>> suppliersByGroup = new HashMap<>();
-    private static final HashMap<SWEKSupplier, Map<String, String>> databaseFieldsBySupplier = new HashMap<>();
-    private static final HashMap<SWEKGroup, Map<String, String>> relationDatabaseFieldsByGroup = new HashMap<>();
-    private static List<SWEK.RelatedEvents> relatedEvents = List.of();
+    private static final HashMap<SWEKSupplier, Map<String, SWEK.NumericType>> indexedParametersBySupplier = new HashMap<>();
+    private static List<SWEK.Relation> relations = List.of();
 
     private SWEKCatalog() {
     }
 
     public static void add(SWEKSupplier supplier) {
-        suppliers.put(key(supplier), supplier);
+        if (suppliers.putIfAbsent(supplier.id(), supplier) != null)
+            throw new IllegalArgumentException("Duplicate supplier ID: " + supplier.id());
         suppliersByGroup.computeIfAbsent(supplier.group(), _ -> new ArrayList<>()).add(supplier);
     }
 
     public static void clear() {
         suppliers.clear();
         suppliersByGroup.clear();
-        databaseFieldsBySupplier.clear();
-        relationDatabaseFieldsByGroup.clear();
-        relatedEvents = List.of();
+        indexedParametersBySupplier.clear();
+        relations = List.of();
     }
 
-    public static SWEKSupplier getSupplier(String key) {
-        return suppliers.get(key);
+    public static SWEKSupplier getSupplier(String id) {
+        return suppliers.get(id);
     }
 
     public static List<SWEKSupplier> getSuppliers(SWEKGroup group) {
@@ -46,58 +47,56 @@ public final class SWEKCatalog {
         return null;
     }
 
-    public static void setRelatedEvents(List<SWEK.RelatedEvents> events) {
-        relatedEvents = events;
-        updateDatabaseFields();
-    }
-
-    public static List<SWEK.RelatedEvents> getRelatedEvents() {
-        return relatedEvents;
-    }
-
-    public static Map<String, String> relationDatabaseFields(SWEKGroup group) {
-        return relationDatabaseFieldsByGroup.getOrDefault(group, Map.of());
-    }
-
-    public static Map<String, String> databaseFields(SWEKSupplier supplier) {
-        return databaseFieldsBySupplier.getOrDefault(supplier, Map.of());
-    }
-
-    private static void updateDatabaseFields() {
-        relationDatabaseFieldsByGroup.clear();
-        databaseFieldsBySupplier.clear();
-
-        for (SWEKSupplier supplier : suppliers.values()) {
-            relationDatabaseFieldsByGroup.computeIfAbsent(supplier.group(), SWEKCatalog::createRelationDatabaseFields);
-            databaseFieldsBySupplier.put(supplier, createDatabaseFields(supplier));
-        }
-    }
-
-    private static Map<String, String> createRelationDatabaseFields(SWEKGroup group) {
-        HashMap<String, String> fields = new HashMap<>();
-        for (SWEK.RelatedEvents re : relatedEvents) {
-            if (re.group() == group) {
-                re.relatedOnList().forEach(swon -> fields.put(swon.parameterFrom().intern(), swon.dbType()));
-            }
-            if (re.relatedWith() == group) {
-                re.relatedOnList().forEach(swon -> fields.put(swon.parameterWith().intern(), swon.dbType()));
+    public static void setRelations(List<SWEK.Relation> definitions) {
+        HashMap<SWEKSupplier, Map<String, SWEK.NumericType>> fields = new HashMap<>();
+        for (SWEKSupplier supplier : suppliers.values())
+            fields.put(supplier, createIndexedParameters(supplier, definitions));
+        for (SWEK.Relation relation : definitions) {
+            for (SWEKSupplier from : getSuppliers(relation.group())) {
+                for (SWEKSupplier with : getSuppliers(relation.relatedWith())) {
+                    for (SWEK.RelatedOn field : relation.relatedOnList()) {
+                        if (from.source().numericParameters().get(field.parameterFrom()) != with.source().numericParameters().get(field.parameterWith()))
+                            throw new IllegalArgumentException("Incompatible numeric types for relationship " + field + " between " + from.id() + " and " + with.id());
+                    }
+                }
             }
         }
-        return Map.copyOf(fields);
+        relations = List.copyOf(definitions);
+        indexedParametersBySupplier.clear();
+        indexedParametersBySupplier.putAll(fields);
     }
 
-    private static Map<String, String> createDatabaseFields(SWEKSupplier supplier) {
-        HashMap<String, String> fields = new HashMap<>();
-        for (SWEK.Parameter p : supplier.getParameterList()) {
-            SWEK.ParameterFilter pf = p.filter();
-            if (pf != null)
-                fields.put(p.name().intern(), pf.dbType());
+    public static List<SWEK.Relation> getRelations() {
+        return relations;
+    }
+
+    public static Map<String, SWEK.NumericType> indexedParameters(SWEKSupplier supplier) {
+        return indexedParametersBySupplier.getOrDefault(supplier, Map.of());
+    }
+
+    private static Map<String, SWEK.NumericType> createIndexedParameters(SWEKSupplier supplier, List<SWEK.Relation> definitions) {
+        Map<String, SWEK.NumericType> fields = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        for (SWEK.Parameter parameter : supplier.getParameterList()) {
+            SWEK.ParameterFilter filter = parameter.filter();
+            if (filter != null)
+                addIndexedParameter(fields, supplier, parameter.name());
         }
-        fields.putAll(relationDatabaseFields(supplier.group()));
-        return Map.copyOf(fields);
+        for (SWEK.Relation relation : definitions) {
+            for (SWEK.RelatedOn field : relation.relatedOnList()) {
+                if (relation.group() == supplier.group())
+                    addIndexedParameter(fields, supplier, field.parameterFrom());
+                if (relation.relatedWith() == supplier.group())
+                    addIndexedParameter(fields, supplier, field.parameterWith());
+            }
+        }
+        return Collections.unmodifiableMap(fields);
     }
 
-    public static String key(SWEKSupplier supplier) {
-        return supplier.supplierName() + supplier.source().name() + supplier.dbName();
+    private static void addIndexedParameter(Map<String, SWEK.NumericType> fields, SWEKSupplier supplier, String name) {
+        SWEK.NumericType type = supplier.source().numericParameters().get(name);
+        if (type == null)
+            throw new IllegalArgumentException("Missing numeric definition for " + name + " in " + supplier.source().name());
+        fields.putIfAbsent(name, type);
     }
+
 }

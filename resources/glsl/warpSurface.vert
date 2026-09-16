@@ -14,7 +14,7 @@
 
 layout(location = 0) in vec4 Vertex;
 
-out vec2 normalizedScreenpos; // solarCommon.frag declares this; it must be fed to link
+out vec2 normalizedScreenpos; // imageCommon.frag declares this; it must be fed to link
 out vec3 vWorld;              // the UNWARPED surface point, which is what the fragment samples by
 // How far past the Thomson sphere's domain this vertex is: radius / D, or 0 on the plane of sky.
 // The sphere has diameter D and its mapping r = D sin(e) saturates at r = D, so a point further
@@ -31,34 +31,34 @@ uniform float observerDistance;
 // compared against 1; making it a blend turns the same expression into an animation, because the
 // depth law is linear in it. See SurfaceTransition.
 uniform float surfaceModel;
-// The Crop, in solar radii, or 0 for no crop. Separate from screen.yStop, which is the full
-// loaded field the warp is normalized over: the crop must cut the picture WITHOUT renormalizing
-// the mapping or moving the camera, or it is a zoom rather than a crop.
+// The Crop, in solar radii, or 0 for no crop. Separate from the mapped outer radius, which is the
+// full loaded field the warp is normalized over: the crop must cut the picture WITHOUT
+// renormalizing the mapping or moving the camera, or it is a zoom rather than a crop.
 uniform float cropRadius;
 
-// Must match the ScreenBlock in solarCommon.frag member for member.
+// Must match the ScreenBlock in imageCommon.frag member for member.
 layout(std140) uniform ScreenBlock {
     mat4 inverseMVP;
+    vec4 mapBounds; // xStart, xStop, yStart, yStop
+    vec2 latiOrigin;
     float iaspect;
-    float xStart;
-    float xStop;
-    float yStart;
-    float yStop;
     float lambda;
     float limb;
+    float padding0;
+    float padding1;
+    float padding2;
 } screen;
 
 const float TWO_PI = 6.2831853;
-const float SURFACE_THOMSON_SPHERE = 1.;
 
 float limbPosition(const float outerRadius) {
     return screen.limb > 0. ? screen.limb : 1. / outerRadius;
 }
 
 // Normalized warp radius back to physical solar radii. Twin of unwarpRadius() in
-// solarCommon.frag and of MapScale.BoxCoxRadialScale.toMapY.
+// imageCommon.frag and of MapScale.BoxCoxRadialScale.toMapY.
 float unwarpRadius(const float normalizedRadius) {
-    float outerRadius = screen.yStop;
+    float outerRadius = screen.mapBounds.w;
     float limbPos = limbPosition(outerRadius);
     if (outerRadius <= 1. || normalizedRadius <= limbPos)
         return normalizedRadius / limbPos;
@@ -71,7 +71,7 @@ float unwarpRadius(const float normalizedRadius) {
 }
 
 void main(void) {
-    float outerRadius = screen.yStop;
+    float outerRadius = screen.mapBounds.w;
     float positionAngle = Vertex.x * TWO_PI;
     float t = Vertex.y; // normalized warped radius
 

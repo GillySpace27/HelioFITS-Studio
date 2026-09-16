@@ -8,13 +8,16 @@
 #import <QuartzCore/CAMetalLayer.h>
 
 @interface JHVMetalHostBox : NSObject
-@property(nonatomic, strong) CALayer *windowLayer;
+@property(nonatomic, strong) id<JAWT_SurfaceLayers> surfaceLayers;
+@property(nonatomic, strong) CALayer *rootLayer;
 @property(nonatomic, strong) CAMetalLayer *metalLayer;
 @end
 
 @implementation JHVMetalHostBox
 @end
 
+// Layer property changes are implicitly animated; the deep and EDR paths reconfigure a live layer,
+// where an animated pixel format or transform is a visible glitch rather than a transition.
 static void jhv_run_without_actions(void (^block)(void)) {
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
@@ -22,22 +25,8 @@ static void jhv_run_without_actions(void (^block)(void)) {
     [CATransaction commit];
 }
 
-static void jhv_set_metal_layer_frame(CAMetalLayer *metalLayer, CGRect frame) {
-    jhv_run_without_actions(^{
-        if (!CGRectEqualToRect(metalLayer.frame, frame))
-            metalLayer.frame = frame;
-
-        CGSize drawableSize = CGSizeMake(frame.size.width * metalLayer.contentsScale, frame.size.height * metalLayer.contentsScale);
-        if (!CGSizeEqualToSize(metalLayer.drawableSize, drawableSize))
-            metalLayer.drawableSize = drawableSize;
-    });
-}
-
-static CAMetalLayer *jhv_create_metal_layer(id<MTLDevice> device, CGFloat contentsScale, CGRect frame) {
+static CAMetalLayer *jhv_create_metal_layer(CGFloat contentsScale, CGSize size) {
     CAMetalLayer *metalLayer = [CAMetalLayer layer];
-    metalLayer.device = device;
-    metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
-    metalLayer.framebufferOnly = NO;
     metalLayer.opaque = YES;
     metalLayer.contentsScale = contentsScale;
     // Without this the layer defaults to kCAGravityResize: when the layer is resized, Core Animation
@@ -55,8 +44,17 @@ static CAMetalLayer *jhv_create_metal_layer(id<MTLDevice> device, CGFloat conten
     // atomic native resize-and-render, and every route to that dispatches synchronously to the main
     // thread, which deadlocks against AppKit.
     metalLayer.contentsGravity = kCAGravityCenter;
-    jhv_set_metal_layer_frame(metalLayer, frame);
+    metalLayer.frame = CGRectMake(0.0, 0.0, size.width, size.height);
+    metalLayer.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
     return metalLayer;
+}
+
+static CALayer *jhv_create_root_layer(CAMetalLayer *metalLayer, CGRect frame) {
+    CALayer *rootLayer = [CALayer layer];
+    rootLayer.masksToBounds = YES;
+    rootLayer.frame = frame;
+    [rootLayer addSublayer:metalLayer];
+    return rootLayer;
 }
 
 static void jhv_run_on_main_sync(void (^block)(void)) {
@@ -67,7 +65,7 @@ static void jhv_run_on_main_sync(void (^block)(void)) {
 
     // A plain dispatch_sync(main) from the EDT deadlocks against AWT: LWCToolkit.invokeAndWait
     // pumps the main thread in its private "AWTRunLoopMode", which does NOT drain the main dispatch
-    // queue — so if the AppKit thread is inside invokeAndWait while we hold the sync, neither side
+    // queue, so if the AppKit thread is inside invokeAndWait while we hold the sync, neither side
     // advances. (Reliably hit when a second GUI process attaches its Metal layer.) Schedule the
     // block on the main run loop in both the default and the AWT modes so it runs even during
     // invokeAndWait, and wait on a semaphore. CFRunLoopPerformBlock runs the block once, in the
@@ -106,8 +104,6 @@ static id<JAWT_SurfaceLayers> jhv_surface_layers(void *surfaceLayersPtr) {
 }
 
 static CGFloat jhv_layer_y(CALayer *windowLayer, double y, double height) {
-    if (windowLayer == nil)
-        return 0.0;
     return windowLayer.geometryFlipped ? y : (windowLayer.bounds.size.height - y - height);
 }
 
@@ -131,25 +127,6 @@ static CGFloat jhv_window_scale(CALayer *windowLayer) {
     return windowScale;
 }
 
-const char *jhv_metal_device_info(void) {
-    static char info[256];
-
-    @autoreleasepool {
-        id<MTLDevice> device = MTLCreateSystemDefaultDevice();
-        if (device == nil) {
-            snprintf(info, sizeof(info), "available=false reason=no default Metal device");
-            return info;
-        }
-
-        const char *name = device.name.UTF8String;
-        snprintf(info, sizeof(info),
-                 "MTLGPUFamilyMac2=%s name=\"%s\"",
-                 [device supportsFamily:MTLGPUFamilyMac2] ? "true" : "false",
-                 name != NULL ? name : "");
-        return info;
-    }
-}
-
 void *jhv_metal_host_create(void *surfaceLayersPtr, double x, double y, double width, double height) {
     __block void *result = NULL;
     jhv_run_on_main_sync(^{
@@ -162,58 +139,31 @@ void *jhv_metal_host_create(void *surfaceLayersPtr, double x, double y, double w
             if (windowLayer == nil)
                 return;
 
-            id<MTLDevice> device = MTLCreateSystemDefaultDevice();
-            if (device == nil)
-                return;
-
             JHVMetalHostBox *box = [JHVMetalHostBox new];
-            CGFloat layerY = jhv_layer_y(windowLayer, y, height);
             CGFloat windowScale = jhv_window_scale(windowLayer);
-            CGRect frame = CGRectMake(x, layerY, width, height);
-            box.windowLayer = windowLayer;
-            box.metalLayer = jhv_create_metal_layer(device, windowScale, frame);
-            [windowLayer addSublayer:box.metalLayer];
+            CGRect frame = CGRectMake(x, jhv_layer_y(windowLayer, y, height), width, height);
+            box.surfaceLayers = surfaceLayers;
+            box.metalLayer = jhv_create_metal_layer(windowScale, frame.size);
+            box.rootLayer = jhv_create_root_layer(box.metalLayer, frame);
+            surfaceLayers.layer = box.rootLayer;
             result = (__bridge_retained void *)box;
         }
     });
     return result;
 }
 
-static void jhv_apply_frame(JHVMetalHostBox *retainedBox, double x, double y, double width, double height) {
-    @try {
-        CGFloat layerY = jhv_layer_y(retainedBox.windowLayer, y, height);
-        CGFloat windowScale = jhv_window_scale(retainedBox.windowLayer);
-        if (retainedBox.metalLayer.contentsScale != windowScale)
-            retainedBox.metalLayer.contentsScale = windowScale;
-        CGRect frame = CGRectMake(x, layerY, width, height);
-        jhv_set_metal_layer_frame(retainedBox.metalLayer, frame);
-    } @finally {
-        CFRelease((__bridge CFTypeRef)retainedBox);
-    }
-}
-
-void jhv_metal_host_set_frame(void *boxPtr, double x, double y, double width, double height) {
+// The layer frame follows the Canvas through JAWT now, so only the backing scale is pushed from
+// Java: a monitor switch changes it without changing the bounds.
+void jhv_metal_host_set_scale(void *boxPtr, double scale) {
     if (boxPtr == NULL)
         return;
 
     JHVMetalHostBox *box = (__bridge JHVMetalHostBox *)boxPtr;
-    CFRetain((__bridge CFTypeRef)box);
-    jhv_run_on_main_async(^{
-        @autoreleasepool { jhv_apply_frame(box, x, y, width, height); }
-    });
-}
-
-// Synchronous variant: the CAMetalLayer frame AND drawableSize are updated before returning, so a
-// render issued immediately afterwards draws at the new resolution (no oblate frame, no flash).
-// Used for programmatic resizes (collapsing the sidebar), not the frequent window-drag path.
-void jhv_metal_host_set_frame_sync(void *boxPtr, double x, double y, double width, double height) {
-    if (boxPtr == NULL)
-        return;
-
-    JHVMetalHostBox *box = (__bridge JHVMetalHostBox *)boxPtr;
-    CFRetain((__bridge CFTypeRef)box);
     jhv_run_on_main_sync(^{
-        @autoreleasepool { jhv_apply_frame(box, x, y, width, height); }
+        @autoreleasepool {
+            if (box.metalLayer.contentsScale != scale)
+                box.metalLayer.contentsScale = scale;
+        }
     });
 }
 
@@ -222,12 +172,9 @@ void jhv_metal_host_set_visible(void *boxPtr, int visible) {
         return;
 
     JHVMetalHostBox *box = (__bridge JHVMetalHostBox *)boxPtr;
-    CFRetain((__bridge CFTypeRef)box);
     jhv_run_on_main_async(^{
         @autoreleasepool {
-            JHVMetalHostBox *retainedBox = box;
-            retainedBox.metalLayer.hidden = visible == 0;
-            CFRelease((__bridge CFTypeRef)retainedBox);
+            box.metalLayer.hidden = visible == 0;
         }
     });
 }
@@ -354,6 +301,14 @@ int jhv_metal_host_prepare_deep(void *layerPtr, int edr) {
         @autoreleasepool {
             CAMetalLayer *layer = (__bridge CAMetalLayer *)layerPtr;
             jhv_run_without_actions(^{
+                // Upstream's JAWT root layer arrives without a Metal device, and the fork used to
+                // supply one when it created the layer itself. Without a device there is no command
+                // queue, so every deep present fails. framebufferOnly must go too: the non-EDR path
+                // blits into the drawable, which a framebuffer-only texture refuses.
+                if (layer.device == nil)
+                    layer.device = MTLCreateSystemDefaultDevice();
+                layer.framebufferOnly = NO;
+
                 if (edr) {
                     layer.pixelFormat = MTLPixelFormatRGBA16Float;
                     layer.wantsExtendedDynamicRangeContent = YES;
@@ -480,6 +435,13 @@ int jhv_metal_host_present_deep(void *layerPtr, void *surfPtr, int width, int he
                 return 0;
         }
 
+        // AWT owns the layer's frame since upstream moved to a JAWT root layer, and nothing else
+        // sets the drawable size any more: without this nextDrawable returns nil on every frame
+        // and the deep canvas presents nothing. The canvas was rendered at exactly this size.
+        CGSize wanted = CGSizeMake(width, height);
+        if (!CGSizeEqualToSize(layer.drawableSize, wanted))
+            jhv_run_without_actions(^{ layer.drawableSize = wanted; });
+
         id<CAMetalDrawable> drawable = [layer nextDrawable];
         if (drawable == nil)
             return 0;
@@ -576,7 +538,8 @@ void jhv_metal_host_destroy(void *boxPtr) {
     jhv_run_on_main_sync(^{
         @autoreleasepool {
             JHVMetalHostBox *box = (__bridge_transfer JHVMetalHostBox *)boxPtr;
-            [box.metalLayer removeFromSuperlayer];
+            if (box.surfaceLayers.layer == box.rootLayer)
+                box.surfaceLayers.layer = nil;
         }
     });
 }

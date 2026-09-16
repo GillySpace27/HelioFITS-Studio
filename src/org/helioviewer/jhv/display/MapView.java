@@ -17,8 +17,10 @@ public abstract class MapView {
     private final MapScale[] scales;
     private final Quat dragRotation;
     private final Quat viewRotation;
+    private final double latiLongitudeOrigin;
+    private final double latiLatitudeOrigin;
 
-    private MapView(Camera _camera, Position _viewpoint, MapMode _mode, GridType _gridType, MapScale[] _scales) {
+    MapView(Camera _camera, Position _viewpoint, MapMode _mode, GridType _gridType, MapScale[] _scales) {
         camera = _camera;
         viewpoint = _viewpoint;
         mode = _mode;
@@ -26,9 +28,11 @@ public abstract class MapView {
         scales = _scales;
         dragRotation = camera.getDragRotation();
         viewRotation = Quat.rotate(dragRotation, viewpoint.toQuat());
+        latiLongitudeOrigin = mode == MapMode.Latitudinal ? gridType.toLongitude(viewpoint) : 0;
+        latiLatitudeOrigin = mode == MapMode.Latitudinal ? gridType.toLatitude(viewpoint) : 0;
     }
 
-    static MapView create(Camera camera, Position viewpoint, GridType gridType, MapMode mode, MapScale[] scales) {
+    public static MapView create(Camera camera, Position viewpoint, MapMode mode, GridType gridType, MapScale[] scales) {
         // A 3D mode needs the world-space view: its layers emit raw 3D vertices and let the
         // rotated MVP project them. Handing Helioradial a ProjectedView would give those layers
         // flat screen coordinates to draw through a 3D matrix.
@@ -63,6 +67,14 @@ public abstract class MapView {
 
     public Quat viewRotation() {
         return viewRotation;
+    }
+
+    public double latiLongitudeOrigin() {
+        return latiLongitudeOrigin;
+    }
+
+    public double latiLatitudeOrigin() {
+        return latiLatitudeOrigin;
     }
 
     public MapScale scale(Viewport vp) {
@@ -136,84 +148,4 @@ public abstract class MapView {
     public abstract void emitMapLine(Viewport vp, List<Vec3> vertices, double radius, byte[] color, BufVertex vexBuf);
 
     public abstract void emitMapPoints(Viewport vp, List<Vec3> vertices, double size, double radius, byte[] color, BufVertex vexBuf);
-
-    private static final class OrthographicView extends MapView {
-
-        OrthographicView(Camera _camera, Position _viewpoint, GridType _gridType, MapMode _mode, MapScale[] _scales) {
-            super(_camera, _viewpoint, _mode, _gridType, _scales);
-        }
-
-        @Override
-        public Vec2 projectToScreen(Viewport vp, Vec3 v) {
-            throw new UnsupportedOperationException("Orthographic mode does not support projectToScreen()");
-        }
-
-        @Override
-        public Vec2 mouseToMap(Viewport vp, int x, int y) {
-            return OrthographicMap.mouseToMap(camera, viewpoint, cameraWidth(vp), vp, gridType, x, y);
-        }
-
-        @Override
-        public Vec3 mouseToSurface(Viewport vp, int x, int y) {
-            return OrthographicMap.mouseToSurface(camera, viewpoint, cameraWidth(vp), vp, x, y);
-        }
-
-        @Override
-        public Vec2 mouseToScreen(Viewport vp, int x, int y) {
-            throw new UnsupportedOperationException("Orthographic mode does not support mouseToScreen()");
-        }
-
-        @Override
-        public void emitMapLine(Viewport vp, List<Vec3> vertices, double radius, byte[] color, BufVertex vexBuf) {
-            OrthographicMap.emitMapLine(vertices, radius, color, vexBuf);
-        }
-
-        @Override
-        public void emitMapPoints(Viewport vp, List<Vec3> vertices, double size, double radius, byte[] color, BufVertex vexBuf) {
-            OrthographicMap.emitMapPoints(vertices, size, radius, color, vexBuf);
-        }
-    }
-
-    private static final class ProjectedView extends MapView {
-
-        private final Quat rotation;
-
-        ProjectedView(Camera _camera, Position _viewpoint, GridType _gridType, MapMode _mode, MapScale[] _scales) {
-            super(_camera, _viewpoint, _mode, _gridType, _scales);
-            rotation = _gridType.mapRotation(viewpoint);
-        }
-
-        @Override
-        public Vec2 projectToScreen(Viewport vp, Vec3 v) {
-            return ProjectedMap.projectToScreen(mode, viewpoint, scale(vp), rotation, vp, v);
-        }
-
-        @Override
-        public Vec2 mouseToMap(Viewport vp, int x, int y) {
-            return ProjectedMap.mouseToMap(mode, camera, cameraWidth(vp), vp, scale(vp), x, y);
-        }
-
-        @Override
-        public Vec3 mouseToSurface(Viewport vp, int x, int y) {
-            return ProjectedMap.unproject(mode, viewpoint, rotation, mouseToMap(vp, x, y));
-        }
-
-        @Override
-        public Vec2 mouseToScreen(Viewport vp, int x, int y) {
-            double width = cameraWidth(vp);
-            return new Vec2(
-                    ViewportMath.computeUpX(vp, width, camera.getTranslationX(), x),
-                    ViewportMath.computeUpY(vp, width, camera.getTranslationY(), y));
-        }
-
-        @Override
-        public void emitMapLine(Viewport vp, List<Vec3> vertices, double radius, byte[] color, BufVertex vexBuf) {
-            ProjectedMap.emitMapLine(mode, viewpoint, scale(vp), rotation, vp, vertices, color, vexBuf);
-        }
-
-        @Override
-        public void emitMapPoints(Viewport vp, List<Vec3> vertices, double size, double radius, byte[] color, BufVertex vexBuf) {
-            ProjectedMap.emitMapPoints(mode, viewpoint, scale(vp), rotation, vp, vertices, size, color, vexBuf);
-        }
-    }
 }

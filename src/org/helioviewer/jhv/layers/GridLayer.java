@@ -143,7 +143,7 @@ public final class GridLayer extends AbstractLayer {
      * handed a radius of 1 and place the observer at the limb.
      */
     private final GLSLShape observerPoint = new GLSLShape(false);
-    private final BufVertex observerBuf = new BufVertex(GLSLShape.stride); // one vertex
+    private final BufVertex observerBuf = new BufVertex(1); // one vertex
     private static final byte[] OBSERVER_COLOR = Colors.Blue.bytes();
     // As a fraction of the camera width, so the dot keeps a constant size on screen: the point
     // shader multiplies by pixels-per-scene-unit, and this view's camera spans hundreds of solar
@@ -153,7 +153,7 @@ public final class GridLayer extends AbstractLayer {
     // observer distance and the field size, the ecliptic on the time, and rebuilding a few
     // thousand vertices per frame for geometry that changes on a scrub is wasted work.
     private final GLSLShape planetPoints = new GLSLShape(false);
-    private final BufVertex planetBuf = new BufVertex(32 * GLSLShape.stride);
+    private final BufVertex planetBuf = new BufVertex(32);
     private final GLSLLine planetOrbitLine = new GLSLLine(false);
     private long planetOrbitsBuiltDay = Long.MIN_VALUE;
     private double planetOrbitsBuiltAlpha = -1;
@@ -429,7 +429,7 @@ public final class GridLayer extends AbstractLayer {
         float size = (float) (OBSERVER_POINT_FRACTION * cameraWidth);
         for (org.helioviewer.jhv.layers.grid.PlanetMarkers.Marker m : planetMarkers)
             planetBuf.putVertex((float) m.position().x, (float) m.position().y, (float) m.position().z, size, m.color());
-        planetPoints.setVertex(planetBuf);
+        planetPoints.uploadAndClear(planetBuf);
 
         // Markers are positions, not surfaces: depth-testing them against the modelled surface
         // would hide a planet exactly when it passes behind it, which is the case worth seeing.
@@ -530,7 +530,7 @@ public final class GridLayer extends AbstractLayer {
             return;
         observerBuf.putVertex(0, 0, (float) viewpoint.distance,
                 (float) (OBSERVER_POINT_FRACTION * cameraWidth), OBSERVER_COLOR);
-        observerPoint.setVertex(observerBuf);
+        observerPoint.uploadAndClear(observerBuf);
 
         Transform.pushView();
         Transform.rotateViewInverse(viewpoint.toQuat());

@@ -21,34 +21,34 @@ public final class InputController {
     public static void mouseClicked(PointerEvent e) {
         Display.setActiveViewport(e.x(), e.y());
         interaction.mouseClicked(e);
-        pointerListeners.forEach(listener -> listener.mouseClicked(e));
+        mouseListeners.forEach(listener -> listener.mouseClicked(e));
     }
 
     public static void mouseExited(PointerEvent e) {
-        pointerListeners.forEach(listener -> listener.mouseExited(e));
+        mouseListeners.forEach(listener -> listener.mouseExited(e));
     }
 
     public static void mousePressed(PointerEvent e) {
         Viewport vp = Display.setActiveViewport(e.x(), e.y());
         interaction.mousePressed(e, vp);
-        pointerListeners.forEach(listener -> listener.mousePressed(e));
+        mouseListeners.forEach(listener -> listener.mousePressed(e));
     }
 
     public static void mouseReleased(PointerEvent e) {
         interaction.mouseReleased();
-        pointerListeners.forEach(listener -> listener.mouseReleased(e));
+        mouseListeners.forEach(listener -> listener.mouseReleased(e));
     }
 
     public static void mouseDragged(PointerEvent e) {
-        Viewport vp = Display.setActiveViewport(e.x(), e.y());
-        interaction.mouseDragged(e, vp);
-        pointerMotionListeners.forEach(listener -> listener.mouseDragged(e));
+        Display.setActiveViewport(e.x(), e.y());
+        interaction.mouseDragged(e);
+        mouseListeners.forEach(listener -> listener.mouseDragged(e));
     }
 
     public static void mouseMoved(PointerEvent e) {
         Display.setActiveViewport(e.x(), e.y());
         interaction.mouseMoved(e);
-        pointerMotionListeners.forEach(listener -> listener.mouseMoved(e));
+        mouseListeners.forEach(listener -> listener.mouseMoved(e));
     }
 
     /** Told whenever the mode in effect changes, including a momentary one held on a modifier key. */
@@ -69,21 +69,18 @@ public final class InputController {
         interaction.keyReleased(e);
     }
 
-    private static final HashSet<InputPointerListener> pointerListeners = new HashSet<>();
-    private static final HashSet<InputPointerMotionListener> pointerMotionListeners = new HashSet<>();
-
-    public static void addListener(Object listener) {
-        if (listener instanceof InputPointerListener pointerListener)
-            pointerListeners.add(pointerListener);
-        if (listener instanceof InputPointerMotionListener pointerMotionListener)
-            pointerMotionListeners.add(pointerMotionListener);
+    public static void focusLost() {
+        interaction.focusLost();
     }
 
-    public static void removeListener(Object listener) {
-        if (listener instanceof InputPointerListener pointerListener)
-            pointerListeners.remove(pointerListener);
-        if (listener instanceof InputPointerMotionListener pointerMotionListener)
-            pointerMotionListeners.remove(pointerMotionListener);
+    private static final HashSet<InputMouseListener> mouseListeners = new HashSet<>();
+
+    public static void addListener(InputMouseListener listener) {
+        mouseListeners.add(listener);
+    }
+
+    public static void removeListener(InputMouseListener listener) {
+        mouseListeners.remove(listener);
     }
 
     private InputController() {}

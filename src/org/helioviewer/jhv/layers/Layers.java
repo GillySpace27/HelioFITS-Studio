@@ -462,11 +462,11 @@ public final class Layers {
      * selection. An edit on a layer that is not itself selected stays local, which is what
      * happens when a panel is driven programmatically rather than by a click.
      */
-    public static void applyToSelected(ImageLayer origin, Consumer<org.helioviewer.jhv.opengl.GLImage> edit) {
-        applyToSelectedLayers(origin, il -> edit.accept(il.getGLImage()));
+    public static void applyToSelected(ImageLayer origin, Consumer<org.helioviewer.jhv.image.ImageDisplaySettings> edit) {
+        applyToSelectedLayers(origin, il -> edit.accept(il.getDisplaySettings()));
     }
 
-    /** As {@link #applyToSelected}, for edits that touch the layer or its View rather than its GLImage. */
+    /** As {@link #applyToSelected}, for edits that touch the layer or its View rather than its display settings. */
     public static void applyToSelectedLayers(ImageLayer origin, Consumer<ImageLayer> edit) {
         edit.accept(origin);
         if (!selection.contains(origin))

@@ -1,0 +1,52 @@
+#version 300 es
+
+precision highp float;
+
+in vec4 vertexColor;
+in vec3 worldNormal;
+in vec2 texturePosition;
+out vec4 outColor;
+
+layout(std140) uniform FrameBlock {
+    mat4 worldToClip;
+    vec3 lightDirection;
+} frame;
+
+layout(std140) uniform MaterialBlock {
+    vec4 baseColor;
+    float alphaCutoff;
+    float alphaMode;
+    float hasTexture;
+    float unlit;
+} material;
+
+uniform sampler2D baseColorTexture;
+
+const float ALPHA_OPAQUE = 0.;
+const float ALPHA_MASK = 1.;
+const float AMBIENT_LIGHT = 0.3;
+const float DIFFUSE_LIGHT = 0.7;
+
+void main(void) {
+    vec4 color = material.baseColor * vertexColor;
+    if (material.hasTexture != 0.)
+        color *= texture(baseColorTexture, texturePosition);
+
+    if (material.unlit == 0.) {
+        vec3 normal = normalize(worldNormal);
+        if (!gl_FrontFacing)
+            normal = -normal;
+        color.rgb *= AMBIENT_LIGHT + DIFFUSE_LIGHT * max(dot(normal, frame.lightDirection), 0.);
+    }
+
+    if (material.alphaMode == ALPHA_OPAQUE) {
+        color.a = 1.;
+    } else if (material.alphaMode == ALPHA_MASK) {
+        if (color.a < material.alphaCutoff)
+            discard;
+        color.a = 1.;
+    } else {
+        color.rgb *= color.a;
+    }
+    outColor = color;
+}

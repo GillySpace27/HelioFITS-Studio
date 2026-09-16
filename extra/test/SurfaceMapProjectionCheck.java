@@ -18,8 +18,8 @@ import java.util.Map;
  * <p>Orthographic, Latitudinal and both Helioradial implementations were given surface-map paths
  * one at a time. HPC, Helioradial Unrolled and Observer Sky were not, and went on sampling as if
  * every image were a picture taken of the Sun. That is the fault this pins: the sight-line modes
- * all sample through the one shared sampleLayerTexcoord, and none of them calls the observer-image
- * sampler directly any more.
+ * all reach imagery through the one shared sampleHpcTexcoord, and that sampler hands a surface map
+ * to the sight-line surface sampler before it does anything else, so no mode has to remember.
  *
  * <p>The mode table is checked against MapMode.values(), so a projection added later fails here
  * until someone has said which of the two routes it takes.
@@ -48,12 +48,12 @@ public final class SurfaceMapProjectionCheck {
     static {
         // Reconstructs a world point from screen space rather than a sight line, so it samples
         // lon/lat directly and needs no shared helper.
-        MODES.put("Orthographic", new Mode(Route.OWN_BRANCH, "solarOrtho.frag"));
-        MODES.put("HPC", new Mode(Route.SIGHT_LINE, "solarHpc.frag"));
-        MODES.put("Helioradial", new Mode(Route.SIGHT_LINE, "solarRadialWarp.frag", "warpSurface.frag"));
-        MODES.put("HelioradialUnrolled", new Mode(Route.SIGHT_LINE, "solarRectWarp.frag"));
+        MODES.put("Orthographic", new Mode(Route.OWN_BRANCH, "imageOrtho.frag"));
+        MODES.put("HPC", new Mode(Route.SIGHT_LINE, "imageHpc.frag"));
+        MODES.put("Helioradial", new Mode(Route.SIGHT_LINE, "imageRadialWarp.frag", "warpSurface.frag"));
+        MODES.put("HelioradialUnrolled", new Mode(Route.SIGHT_LINE, "imageRectWarp.frag"));
         // Its page IS longitude and latitude, so there is no sight line anywhere in it.
-        MODES.put("Latitudinal", new Mode(Route.OWN_BRANCH, "solarLati.frag"));
+        MODES.put("Latitudinal", new Mode(Route.OWN_BRANCH, "imageLati.frag"));
         MODES.put("ObserverSky", new Mode(Route.SIGHT_LINE, "solarSky.frag"));
     }
 
@@ -69,12 +69,15 @@ public final class SurfaceMapProjectionCheck {
                     MODES.containsKey(mode.name()));
         expect("and nothing is listed that is not a projection", MODES.size() == MapMode.values().length);
 
-        String common = Files.readString(glsl.resolve("solarCommon.frag"));
-        expect("the shared sampler exists", common.contains("vec2 sampleLayerTexcoord("));
-        expect("and the surface-map sampler it delegates to", common.contains("bool sampleSurfaceMapTexcoord("));
+        String common = Files.readString(glsl.resolve("imageCommon.frag"));
+        expect("the shared sight-line sampler exists", common.contains("vec2 sampleHpcTexcoord("));
+        expect("and the surface-map sampler it delegates to",
+                common.contains("vec2 sampleSightLineSurfaceMapTexcoord("));
+        expect("a surface map leaves the observer-image path before anything else touches it",
+                samplerBody(common).contains("sampleSightLineSurfaceMapTexcoord("));
         // GLSL has no forward declarations here: a callee defined below its caller does not link.
-        expect("the shared sampler is defined below the observer-image one it calls",
-                common.indexOf("vec2 sampleHpcTexcoord(") < common.indexOf("vec2 sampleLayerTexcoord("));
+        expect("the surface-map sampler is defined above the sampler that calls it",
+                common.indexOf("vec2 sampleSightLineSurfaceMapTexcoord(") < common.indexOf("vec2 sampleHpcTexcoord("));
         expect("the observer-image path still has no CAR branch, which is why the split exists",
                 !projectionBody(common).contains("WCS_PROJECTION_CAR"));
 
@@ -83,18 +86,28 @@ public final class SurfaceMapProjectionCheck {
             for (String file : mode.shaders()) {
                 String src = Files.readString(glsl.resolve(file));
                 if (mode.route() == Route.SIGHT_LINE) {
-                    expect(file + " samples through the shared sampler", src.contains("sampleLayerTexcoord("));
+                    expect(file + " reaches imagery through the shared sight-line sampler",
+                            src.contains("sampleHpcTexcoord(") || src.contains("sampleWarpedHpcColor("));
+                } else {
+                    expect(file + " samples a surface map by longitude and latitude",
+                            src.contains("sampleSurfaceMapTexcoord("));
                     expect(file + " never samples as if every image were an observer image",
                             !src.contains("sampleHpcTexcoord("));
-                } else {
-                    expect(file + " carries its own CAR branch", src.contains("WCS_PROJECTION_CAR"));
-                    expect(file + " carries its own CEA branch", src.contains("WCS_PROJECTION_CEA"));
                 }
             }
         }
 
         System.out.println(failures == 0 ? "SurfaceMapProjectionCheck: PASS" : "SurfaceMapProjectionCheck: " + failures + " FAILURE(S)");
         System.exit(failures == 0 ? 0 : 1);
+    }
+
+    /** The body of sampleHpcTexcoord, where the surface-map hand-off has to happen. */
+    private static String samplerBody(String common) {
+        int start = common.indexOf("vec2 sampleHpcTexcoord(");
+        if (start < 0)
+            return ""; // gone or renamed: fail loudly rather than pass by accident
+        int end = common.indexOf("\n}", start);
+        return end < 0 ? common.substring(start) : common.substring(start, end);
     }
 
     /** The body of projectHelioprojectiveToWcsPlane, the function that must NOT grow such a branch. */

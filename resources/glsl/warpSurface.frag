@@ -1,6 +1,6 @@
 // Samples the source image for the warped surface mesh.
 //
-// Identical in substance to solarRadialWarp.frag, with one difference that is the whole point of
+// Identical in substance to imageRadialWarp.frag, with one difference that is the whole point of
 // this phase: the helioprojective direction comes from an interpolated world position supplied by
 // the vertex stage, not from reconstructing a screen position through inverseMVP. That is what
 // lets the geometry be rotated -- a screen-space inverse map has no surface for a camera to
@@ -10,7 +10,7 @@ in vec3 vWorld;
 in float vSurfaceExcess;
 in float vCropExcess;
 
-// Sampling is sampleLayerTexcoord in solarCommon.frag, as in every other sight-line mode. Worth
+// Sampling is sampleHpcTexcoord in imageCommon.frag, as in every other sight-line mode. Worth
 // stating for the CAR/CEA half of it: on this mesh the vertex stage already places on-disk
 // vertices on the unit sphere, so re-deriving the surface point from the sight line agrees with
 // the geometry there, and correctly finds no surface beyond the limb, where the mesh has left the
@@ -29,19 +29,19 @@ void main(void) {
         discard;
 
     vec4 color;
-    float observerDistance = projection[0].observerDistance;
+    float observerDistance = images[0].observerDistance;
 
     // Sampled straight from the mesh position, with NO camera-rotation compensation, and that
     // is deliberate. The surface is a physical placement of the observed brightness: the mesh
     // sits still in the observer frame of the image it carries, and dragging orbits the camera
     // around it. The texture is therefore glued to the surface, exactly as it would be on any
-    // other textured object. Applying wcs.cameraDiff here (as solarOrtho.frag must, because it
+    // other textured object. Applying cameraDiff here (as imageOrtho.frag must, because it
     // reconstructs its hit point from screen space) would counter-rotate the texture against
     // the mesh as soon as the view was dragged.
     vec3 sampleWorld = vWorld;
 
     // The surface point already carries its depth, so ask for its true helioprojective direction
-    // rather than assuming the plane of sky the way hpcXYToHelioprojective() does.
+    // rather than assuming the plane of sky the way a plane-of-sky inverse would.
     vec2 helioprojective = worldToHelioprojective(sampleWorld, observerDistance);
 
     // hpcXY is still wanted for clipping and the off-limb enhancement factor, both of which are
@@ -51,14 +51,14 @@ void main(void) {
 
     float enhancementFactor;
     bool diffMode = display.isDiff != NODIFFERENCE;
-    clipHpcGeometry(hpcXY);
-    vec2 texCoord = sampleLayerTexcoord(wcs[0], projection[0], helioprojective, hpcXY, wcs[0].deltaT, pv0, enhancementFactor);
+    clipPlanarMasks(hpcXY);
+    vec2 texCoord = sampleHpcTexcoord(images[0], helioprojective, hpcXY, pv0, enhancementFactor);
     if (!diffMode) {
         color = getColor(texCoord, texCoord, enhancementFactor);
     } else {
-        vec2 diffHelioprojective = worldToHelioprojective(vWorld, projection[1].observerDistance);
+        vec2 diffHelioprojective = worldToHelioprojective(vWorld, images[1].observerDistance);
         float diffEnhancementFactor;
-        vec2 diffTexCoord = sampleLayerTexcoord(wcs[1], projection[1], diffHelioprojective, hpcXY, wcs[1].deltaT, pv1, diffEnhancementFactor);
+        vec2 diffTexCoord = sampleHpcTexcoord(images[1], diffHelioprojective, hpcXY, pv1, diffEnhancementFactor);
         color = getColor(texCoord, diffTexCoord, max(enhancementFactor, diffEnhancementFactor));
     }
     outColor = color;

@@ -11,8 +11,6 @@ import org.helioviewer.jhv.astronomy.PositionLoad;
 import org.helioviewer.jhv.astronomy.PositionResponse;
 import org.helioviewer.jhv.opengl.BufVertex;
 import org.helioviewer.jhv.opengl.DirectBufVertex;
-import org.helioviewer.jhv.opengl.GLSLLine;
-import org.helioviewer.jhv.opengl.GLSLShape;
 import org.helioviewer.jhv.thread.LatestWorker;
 
 final class ViewpointOrbitWorker {
@@ -39,7 +37,7 @@ final class ViewpointOrbitWorker {
     }
 
     void cancel() {
-        worker.cancel();
+        worker.invalidate();
         submittedParameters = null;
     }
 
@@ -64,15 +62,22 @@ final class ViewpointOrbitWorker {
         @Nonnull
         @Override
         public Prepared call() {
-            BufVertex orbitBuf = new BufVertex(3276 * GLSLLine.stride); // pre-allocate 64k
-            BufVertex planetBuf = new BufVertex(Math.max(parameters.entries.size(), 1) * GLSLShape.stride);
-            float[] currentPoint = {0, 0, 0, 1};
-
             ArrayList<PositionLoad> positionLoads = new ArrayList<>(parameters.entries.size());
+            ArrayList<ViewpointOrbitTrail> trails = new ArrayList<>(parameters.entries.size());
+            int orbitVertexCount = 0;
             for (Entry entry : parameters.entries) {
                 positionLoads.add(entry.positionLoad);
                 ViewpointOrbitTrail trail = orbitTrails.get(entry.positionLoad, entry.response, parameters.start, parameters.end);
-                trail.putVertices(orbitBuf, currentPoint, entry.color, parameters.time);
+                trails.add(trail);
+                orbitVertexCount += trail.vertexCount(parameters.time);
+            }
+
+            BufVertex orbitBuf = new BufVertex(orbitVertexCount);
+            BufVertex planetBuf = new BufVertex(parameters.entries.size());
+            float[] currentPoint = {0, 0, 0, 1};
+            for (int i = 0; i < parameters.entries.size(); i++) {
+                Entry entry = parameters.entries.get(i);
+                trails.get(i).putVertices(orbitBuf, currentPoint, entry.color, parameters.time);
                 planetBuf.putVertex(currentPoint[0], currentPoint[1], currentPoint[2], SIZE_PLANET, entry.color);
             }
             orbitTrails.prune(positionLoads);

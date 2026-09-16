@@ -38,9 +38,10 @@ class SWEKConfig {
             List<SWEKGroup> groups = new ArrayList<>();
 
             parseGroups(jo, sources, groupsByName, groups);
-            SWEKCatalog.setRelatedEvents(parseRelatedEvents(jo, groupsByName));
+            SWEKCatalog.setRelations(parseRelations(jo, groupsByName));
             return groups;
         } catch (Exception e) {
+            SWEKCatalog.clear();
             Log.error(e);
             return List.of();
         }
@@ -61,12 +62,20 @@ class SWEKConfig {
     private static SWEK.Source parseSource(JSONObject obj) {
         String name = obj.getString("name");
         //if ("COMESEP".equals(name))
-        //    return new SWEK.Source(name, parseParameters(obj.getJSONArray("general_parameters")), new ComesepHandler());
+        //    return new SWEK.Source(name, parseParameters(obj.getJSONArray("general_parameters")), new ComesepHandler(), Map.of());
         //if ("FHNW".equals(name))
-        //    return new SWEK.Source(name, parseParameters(obj.getJSONArray("general_parameters")), new FHNWHandler());
+        //    return new SWEK.Source(name, parseParameters(obj.getJSONArray("general_parameters")), new FHNWHandler(), Map.of());
         if ("HEK".equals(name))
-            return new SWEK.Source(name, parseParameters(obj.getJSONArray("general_parameters")), new HEKHandler());
+            return new SWEK.Source(name, parseParameters(obj.getJSONArray("general_parameters")), new HEKHandler(), parseNumericParameters(obj));
         return null;
+    }
+
+    private static Map<String, SWEK.NumericType> parseNumericParameters(JSONObject source) {
+        JSONObject definitions = source.getJSONObject("numeric_parameters");
+        Map<String, SWEK.NumericType> types = new HashMap<>();
+        for (String name : definitions.keySet())
+            types.put(name, SWEK.NumericType.valueOf(definitions.getString(name).toUpperCase()));
+        return types;
     }
 
     private static List<SWEK.Parameter> parseParameters(JSONArray parameterArray) {
@@ -92,13 +101,8 @@ class SWEKConfig {
 
     private static void parseGroups(JSONObject obj, Map<String, SWEK.Source> sources, Map<String, SWEKGroup> groupsByName, List<SWEKGroup> groups) {
         JSONArray eventJSONArray = obj.getJSONArray("events_types");
-        for (int i = 0; i < eventJSONArray.length(); i++) {
-            try {
-                addGroup(eventJSONArray.getJSONObject(i), sources, groupsByName, groups);
-            } catch (Exception e) { // allow continuing when a source is disabled
-                Log.error(e);
-            }
-        }
+        for (int i = 0; i < eventJSONArray.length(); i++)
+            addGroup(eventJSONArray.getJSONObject(i), sources, groupsByName, groups);
     }
 
     private static void addGroup(JSONObject obj, Map<String, SWEK.Source> sources, Map<String, SWEKGroup> groupsByName, List<SWEKGroup> groups) {
@@ -116,7 +120,7 @@ class SWEKConfig {
                 continue;
 
             List<SWEK.Parameter> parameters = parseSupplierParameters(supplier, defaultParameters);
-            SWEKSupplier supplierObj = new SWEKSupplier(group, supplierName, supplier.getString("supplier_display_name"), source, supplier.getString("db"), parameters);
+            SWEKSupplier supplierObj = new SWEKSupplier(group, supplierName, supplier.getString("supplier_display_name"), source, supplier.getString("id"), parameters);
             SWEKCatalog.add(supplierObj);
         }
         if (SWEKCatalog.getSuppliers(group).isEmpty())
@@ -142,20 +146,21 @@ class SWEKConfig {
         JSONObject filter = obj.optJSONObject("filter");
         if (filter == null)
             return null;
-        return new SWEK.ParameterFilter(filter.getString("filter_type"), filter.getDouble("min"), filter.getDouble("max"), filter.getDouble("start_value"), filter.getDouble("step_size"), filter.getString("units"), filter.getString("dbtype"));
+        return new SWEK.ParameterFilter(filter.getString("filter_type"), filter.getDouble("min"), filter.getDouble("max"), filter.getDouble("start_value"),
+                filter.getDouble("step_size"), filter.getString("units"));
     }
 
-    private static List<SWEK.RelatedEvents> parseRelatedEvents(JSONObject obj, Map<String, SWEKGroup> groupsByName) {
-        JSONArray relatedEventsArray = obj.getJSONArray("related_events");
-        List<SWEK.RelatedEvents> relatedEventsList = new ArrayList<>(relatedEventsArray.length());
-        for (int i = 0; i < relatedEventsArray.length(); i++) {
-            JSONObject relatedEvent = relatedEventsArray.getJSONObject(i);
-            SWEKGroup group = groupsByName.get(relatedEvent.getString("event_name"));
-            SWEKGroup relatedWith = groupsByName.get(relatedEvent.getString("related_with"));
+    private static List<SWEK.Relation> parseRelations(JSONObject obj, Map<String, SWEKGroup> groupsByName) {
+        JSONArray relationsArray = obj.getJSONArray("related_events");
+        List<SWEK.Relation> relations = new ArrayList<>(relationsArray.length());
+        for (int i = 0; i < relationsArray.length(); i++) {
+            JSONObject relation = relationsArray.getJSONObject(i);
+            SWEKGroup group = groupsByName.get(relation.getString("event_name"));
+            SWEKGroup relatedWith = groupsByName.get(relation.getString("related_with"));
             if (group != null && relatedWith != null)
-                relatedEventsList.add(new SWEK.RelatedEvents(group, relatedWith, parseRelatedOnList(relatedEvent)));
+                relations.add(new SWEK.Relation(group, relatedWith, parseRelatedOnList(relation)));
         }
-        return relatedEventsList;
+        return relations;
     }
 
     private static List<SWEK.RelatedOn> parseRelatedOnList(JSONObject obj) {
@@ -165,7 +170,7 @@ class SWEKConfig {
             JSONObject relatedOn = relatedOnArray.getJSONObject(i);
             String parameterFrom = relatedOn.getString("parameter_from").toLowerCase();
             String parameterWith = relatedOn.getString("parameter_with").toLowerCase();
-            relatedOnList.add(new SWEK.RelatedOn(parameterFrom, parameterWith, relatedOn.getString("dbtype")));
+            relatedOnList.add(new SWEK.RelatedOn(parameterFrom, parameterWith));
         }
         return relatedOnList;
     }

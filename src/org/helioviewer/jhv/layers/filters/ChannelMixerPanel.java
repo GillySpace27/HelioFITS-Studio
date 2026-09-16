@@ -1,6 +1,5 @@
 package org.helioviewer.jhv.layers.filters;
 
-import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.FlowLayout;
 import java.awt.event.ActionListener;
@@ -10,29 +9,32 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 
 import org.helioviewer.jhv.display.DisplayController;
+import org.helioviewer.jhv.image.ImageDisplaySettings;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layers;
 
-public class ChannelMixerPanel implements FilterDetails {
+public final class ChannelMixerPanel implements FilterDetails {
 
     private final JPanel boxPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
+    private final JPanel emptyPanel = new JPanel();
     private final JLabel title = new JLabel("Channels ", JLabel.RIGHT);
 
     public ChannelMixerPanel(ImageLayer layer) {
-        JCheckBox redCheckBox = new JCheckBox("Red", layer.getGLImage().getRed());
+        ImageDisplaySettings settings = layer.getDisplaySettings();
+        JCheckBox redCheckBox = new JCheckBox("Red", settings.getRed());
         redCheckBox.setToolTipText("Toggle red channel");
-        boxPanel.add(redCheckBox, BorderLayout.LINE_START);
+        boxPanel.add(redCheckBox);
 
-        JCheckBox greenCheckBox = new JCheckBox("Green", layer.getGLImage().getGreen());
+        JCheckBox greenCheckBox = new JCheckBox("Green", settings.getGreen());
         greenCheckBox.setToolTipText("Toggle green channel");
-        boxPanel.add(greenCheckBox, BorderLayout.CENTER);
+        boxPanel.add(greenCheckBox);
 
-        JCheckBox blueCheckBox = new JCheckBox("Blue", layer.getGLImage().getBlue());
+        JCheckBox blueCheckBox = new JCheckBox("Blue", settings.getBlue());
         blueCheckBox.setToolTipText("Toggle blue channel");
-        boxPanel.add(blueCheckBox, BorderLayout.LINE_END);
+        boxPanel.add(blueCheckBox);
 
         ActionListener listener = e -> {
-            Layers.applyToSelected(layer, gl -> gl.setColor(redCheckBox.isSelected() ? 1 : 0,
+            Layers.applyToSelected(layer, s -> s.setColor(redCheckBox.isSelected() ? 1 : 0,
                     greenCheckBox.isSelected() ? 1 : 0,
                     blueCheckBox.isSelected() ? 1 : 0));
             DisplayController.display();
@@ -54,7 +56,7 @@ public class ChannelMixerPanel implements FilterDetails {
 
     @Override
     public Component getThird() {
-        return new JPanel();
+        return emptyPanel;
     }
 
 }

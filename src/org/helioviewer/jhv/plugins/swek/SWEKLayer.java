@@ -16,15 +16,16 @@ import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.MapScale;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
-import org.helioviewer.jhv.event.JHVEvent;
-import org.helioviewer.jhv.event.JHVEventCache;
-import org.helioviewer.jhv.event.JHVEventListener;
-import org.helioviewer.jhv.event.JHVPositionInformation;
-import org.helioviewer.jhv.event.JHVRelatedEvents;
+import org.helioviewer.jhv.event.EventCache;
+import org.helioviewer.jhv.event.EventGeometry;
+import org.helioviewer.jhv.event.EventListener;
+import org.helioviewer.jhv.event.RelatedEvents;
+import org.helioviewer.jhv.event.SWEKDownloader;
 import org.helioviewer.jhv.event.SWEKGroup;
+import org.helioviewer.jhv.event.SolarEvent;
 import org.helioviewer.jhv.image.nio.NativeImageFactory;
-import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.layers.AbstractLayer;
+import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.math.MathUtils;
 import org.helioviewer.jhv.math.PolarBasis;
 import org.helioviewer.jhv.math.Quat;
@@ -43,18 +44,23 @@ import org.helioviewer.jhv.time.TimeListener;
 import org.json.JSONObject;
 
 // has to be public for state
-public final class SWEKLayer extends AbstractLayer implements JHVEventListener.Handle, TimeListener.Range {
+public final class SWEKLayer extends AbstractLayer implements EventListener.Handle, TimeListener.Range {
+    record ActiveEvent(RelatedEvents relatedEvents, SolarEvent event) {}
+
     private record CactusArcParams(double angularWidthDegree, double principalAngleDegree, double distSun) {}
 
     private static final int DIVPOINTS = 10;
     private static final double LINEWIDTH = GLSLLine.LINEWIDTH_BASIC;
     private static final double LINEWIDTH_HIGHLIGHT = 4 * LINEWIDTH; // selection has to read at a glance
     private static final double POLYGON_RADIUS = Sun.Radius * 1.01;
-    private static final double DIST_SUN_BEGIN = 2.4;
     private static final long CACTUS_MAX_TRAVEL_MS = 14L * 24 * 3600 * 1000; // lookback for propagated fronts (covers slow CMEs)
 
-    private static final byte[] TRACK_FRONT = Colors.bytes(255, 140, 0);  // orange dot at the tracked CME's calculated front
+    private static final byte[] TRACK_FRONT = Colors.bytes(255, 140, 0);   // orange dot at the tracked CME's calculated front
     private static final byte[] TRACK_FREEZE = Colors.bytes(170, 60, 230); // purple circle at the freeze location (SCREEN_FRACTION)
+
+    private static final double EXTEND_DIST_MIN = 2;
+    private static final double EXTEND_DIST_MAX = 200;
+    private static final double EXTEND_DIST_FALLBACK = 60; // only until something is loaded
 
     private static final HashMap<String, GLTexture> iconCacheId = new HashMap<>();
     private static final double ICON_ALPHA = 0.7;
@@ -62,10 +68,6 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
     private static final double ICON_SIZE_HIGHLIGHTED = 0.16;
 
     private static final float[][] texCoord = {{0, 1}, {1, 1}, {0, 0}, {1, 0}};
-
-    private static final double EXTEND_DIST_MIN = 2;
-    private static final double EXTEND_DIST_MAX = 200;
-    private static final double EXTEND_DIST_FALLBACK = 60; // only until something is loaded
 
     private SWEKContext swekContext;
     private boolean icons = true;
@@ -75,22 +77,20 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
     private double extendDistance = 0;
 
     private final GLSLLine lineEvent = new GLSLLine(true);
-    private final BufVertex bufEvent = new BufVertex(512 * GLSLLine.stride); // pre-allocate
+    private final BufVertex bufEvent = new BufVertex();
     private final GLSLLine lineThick = new GLSLLine(true);
-    private final BufVertex bufThick = new BufVertex(64 * GLSLLine.stride); // pre-allocate
+    private final BufVertex bufThick = new BufVertex();
 
     private final GLSLTexture glslTexture = new GLSLTexture();
     private final BufCoord texBuf = new BufCoord(4 * 8);
 
     private long cachedEventsTime = Long.MIN_VALUE;
-    private long cachedEventsStart = Long.MIN_VALUE;
-    private long cachedEventsEnd = Long.MIN_VALUE;
-    private List<JHVRelatedEvents> cachedActiveEvents = List.of();
+    private List<ActiveEvent> cachedActiveEvents = List.of();
 
     private long cachedPropTime = Long.MIN_VALUE;
     private long cachedPropStart, cachedPropEnd;
     private double cachedPropFov = Double.NaN;
-    private List<JHVRelatedEvents> cachedProp = List.of();
+    private List<ActiveEvent> cachedProp = List.of();
 
     public SWEKLayer(JSONObject jo) {
         if (jo != null) {
@@ -129,10 +129,9 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
                 }
 
                 tex = new GLTexture(GL.TEXTURE_2D, GLTexture.Unit.THREE);
-                tex.bind();
 
                 ByteBuffer data = NativeImageFactory.getByteBuffer(bi);
-                GLTexture.copyByteImage(bi.getWidth(), bi.getHeight(), GL.LINEAR, data);
+                tex.upload2D(GLTexture.Format.RGBA8, bi.getWidth(), bi.getHeight(), GL.LINEAR, data);
             } finally {
                 NativeImageFactory.free(bi);
             }
@@ -150,23 +149,22 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
 
             Vec3 res = q.rotateInverseVector(PolarBasis.vec3(r, theta));
 
-            if (i == 0) {
-                vexBuf.putVertex(res, Colors.Null);
-            }
-            vexBuf.putVertex(res, color);
+            if (i == 0)
+                vexBuf.startLine(res, color);
+            else
+                vexBuf.putVertex(res, color);
         }
-        vexBuf.repeatVertex(Colors.Null);
+        vexBuf.endLine();
     }
 
-    private static CactusArcParams cactusArcParams(JHVEvent evt, long timestamp) {
-        double angularWidthDegree = SWEKData.readCMEAngularWidthDegree(evt);
-        double principalAngleDegree = SWEKData.readCMEPrincipalAngleDegree(evt);
-        double speed = SWEKData.readCMESpeed(evt);
-        double distSun = DIST_SUN_BEGIN + speed * (timestamp - evt.start) / Sun.RadiusMeter;
+    private static CactusArcParams cactusArcParams(SolarEvent evt, long timestamp) {
+        double angularWidthDegree = evt.getCMEParameters().angularWidthDegree();
+        double principalAngleDegree = evt.getCMEParameters().principalAngleDegree();
+        double distSun = SWEKData.cactusDistance(evt, timestamp);
         return new CactusArcParams(angularWidthDegree, principalAngleDegree, distSun);
     }
 
-    private void drawCactusArc(JHVRelatedEvents evtr, JHVEvent evt, long timestamp) {
+    private void drawCactusArc(RelatedEvents relatedEvents, SolarEvent evt, long timestamp) {
         CactusArcParams params = cactusArcParams(evt, timestamp);
         double angularWidthDegree = params.angularWidthDegree();
         double angularWidth = Math.toRadians(angularWidthDegree);
@@ -180,17 +178,17 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         double thetaStart = principalAngle - angularWidth / 2.;
         double thetaEnd = principalAngle + angularWidth / 2.;
 
-        BufVertex vexBuf = evtr.isHighlighted() ? bufThick : bufEvent;
-        byte[] color = Colors.bytes(evtr.getColor());
+        BufVertex vexBuf = relatedEvents.isHighlighted() ? bufThick : bufEvent;
+        byte[] color = Colors.bytes(relatedEvents.getColor());
 
         drawInterpolated(angularResolution, distSun, distSun, thetaStart, principalAngle, q, color, vexBuf);
         drawInterpolated(angularResolution, distSun, distSun, principalAngle, thetaEnd, q, color, vexBuf);
-        drawInterpolated(lineResolution, DIST_SUN_BEGIN, distSun + 0.05, thetaStart, thetaStart, q, color, vexBuf);
-        drawInterpolated(lineResolution, DIST_SUN_BEGIN, distSun + 0.05, principalAngle, principalAngle, q, color, vexBuf);
-        drawInterpolated(lineResolution, DIST_SUN_BEGIN, distSun + 0.05, thetaEnd, thetaEnd, q, color, vexBuf);
+        drawInterpolated(lineResolution, SWEKData.CACTUS_START_RADIUS, distSun + 0.05, thetaStart, thetaStart, q, color, vexBuf);
+        drawInterpolated(lineResolution, SWEKData.CACTUS_START_RADIUS, distSun + 0.05, principalAngle, principalAngle, q, color, vexBuf);
+        drawInterpolated(lineResolution, SWEKData.CACTUS_START_RADIUS, distSun + 0.05, thetaEnd, thetaEnd, q, color, vexBuf);
 
         if (icons) {
-            double sz = evtr.isHighlighted() ? ICON_SIZE_HIGHLIGHTED : ICON_SIZE;
+            double sz = relatedEvents.isHighlighted() ? ICON_SIZE_HIGHLIGHTED : ICON_SIZE;
             for (float[] el : texCoord) {
                 double deltatheta = sz / distSun * (el[0] * 2 - 1);
                 double deltar = sz * (el[1] * 2 - 1);
@@ -202,8 +200,8 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         }
     }
 
-    private void drawPolygon(MapView mv, Viewport vp, JHVRelatedEvents evtr, JHVEvent evt) {
-        JHVPositionInformation pi = evt.getPositionInformation();
+    private void drawPolygon(MapView mv, Viewport vp, RelatedEvents relatedEvents, SolarEvent evt) {
+        EventGeometry pi = evt.getPositionInformation();
         if (pi == null)
             return;
 
@@ -212,25 +210,22 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
             return;
         }
 
-        BufVertex vexBuf = evtr.isHighlighted() ? bufThick : bufEvent;
-        byte[] color = Colors.bytes(evtr.getColor());
+        BufVertex vexBuf = relatedEvents.isHighlighted() ? bufThick : bufEvent;
+        byte[] color = Colors.bytes(relatedEvents.getColor());
 
         // draw bounds
-        float[] oldBoundaryPoint3d = new float[0];
         int plen = points.length / 3;
-        for (int i = 0; i < plen; i++) {
-            if (oldBoundaryPoint3d.length != 0) {
-                for (int j = 0; j <= DIVPOINTS; j++) {
-                    double alpha = 1. - j / (double) DIVPOINTS;
-                    double xnew = alpha * oldBoundaryPoint3d[0] + (1 - alpha) * points[3 * i];
-                    double ynew = alpha * oldBoundaryPoint3d[1] + (1 - alpha) * points[3 * i + 1];
-                    double znew = alpha * oldBoundaryPoint3d[2] + (1 - alpha) * points[3 * i + 2];
-                    double r = Math.sqrt(xnew * xnew + ynew * ynew + znew * znew);
-                    vertices.set(j, new Vec3(xnew / r, ynew / r, znew / r));
-                }
-                mv.emitMapLine(vp, vertices, POLYGON_RADIUS, color, vexBuf);
+        for (int i = 1; i < plen; i++) {
+            int previous = 3 * (i - 1), current = 3 * i;
+            for (int j = 0; j <= DIVPOINTS; j++) {
+                double alpha = 1. - j / (double) DIVPOINTS;
+                double xnew = alpha * points[previous] + (1 - alpha) * points[current];
+                double ynew = alpha * points[previous + 1] + (1 - alpha) * points[current + 1];
+                double znew = alpha * points[previous + 2] + (1 - alpha) * points[current + 2];
+                double r = Math.sqrt(xnew * xnew + ynew * ynew + znew * znew);
+                vertices.set(j, new Vec3(xnew / r, ynew / r, znew / r));
             }
-            oldBoundaryPoint3d = new float[]{points[3 * i], points[3 * i + 1], points[3 * i + 2]};
+            mv.emitMapLine(vp, vertices, POLYGON_RADIUS, color, vexBuf);
         }
     }
 
@@ -264,14 +259,14 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         texBuf.putCoord(p3, texCoord[3]);
     }
 
-    private void drawIcon(JHVRelatedEvents evtr, JHVEvent evt) {
-        JHVPositionInformation pi = evt.getPositionInformation();
+    private void drawIcon(RelatedEvents relatedEvents, SolarEvent evt) {
+        EventGeometry pi = evt.getPositionInformation();
         if (pi == null)
             return;
 
         Vec3 pt = pi.centralPoint();
         if (pt != null) {
-            double sz = evtr.isHighlighted() ? ICON_SIZE_HIGHLIGHTED : ICON_SIZE;
+            double sz = relatedEvents.isHighlighted() ? ICON_SIZE_HIGHLIGHTED : ICON_SIZE;
             drawImage3d(pt.x, pt.y, pt.z, sz, sz);
         }
     }
@@ -286,71 +281,77 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         texBuf.putCoord((float) (theta + width2), (float) (r + height2), 0, 1, texCoord[3]);
     }
 
-    private void drawIconScale(MapView mv, Viewport vp, JHVRelatedEvents evtr, JHVEvent evt) {
-        JHVPositionInformation pi = evt.getPositionInformation();
+    private void drawIconScale(MapView mv, Viewport vp, RelatedEvents relatedEvents, SolarEvent evt) {
+        EventGeometry pi = evt.getPositionInformation();
         if (pi == null)
             return;
 
         Vec3 pt = pi.centralPoint();
         if (pt != null) {
             Vec2 tf = mv.projectToScreen(vp, pt);
-            double sz = evtr.isHighlighted() ? ICON_SIZE_HIGHLIGHTED : ICON_SIZE;
+            double sz = relatedEvents.isHighlighted() ? ICON_SIZE_HIGHLIGHTED : ICON_SIZE;
             drawImageScale(tf.x, tf.y, sz, sz);
         }
     }
 
-    // Warped screen radius of physical radius r on the Sun-centered disk; matches
-    // HelioradialGrid.ringRho so arcs and markers sit exactly on the grid rings.
+    private static void putLineScale(BufVertex vexBuf, float x0, float y0, float x1, float y1, byte[] color) {
+        vexBuf.startLine(x0, y0, 0, 1, color);
+        vexBuf.putVertex(x1, y1, 0, 1, color);
+        vexBuf.endLine();
+    }
+
+    // Warped screen radius of physical radius r on the Sun-centered disk; matches the disk grid's
+    // own ring placement so arcs and markers sit exactly on the grid rings.
     private static double ringRho(MapScale scale, double r) {
         return .5 * scale.toUnitY(r);
     }
 
-    // CACTus arc for the Sun-centered disk projection (Helioradial): same wedge as the
-    // orthographic arc, but placed in the disk's world coordinates — physical radius r
-    // maps to the warped screen radius ringRho(scale, r), and PolarBasis puts the
-    // angle at north-up/CCW, matching the disk grid. The front sits on the grid ring at
-    // distSun, so with CME tracking engaged it holds a fixed screen radius.
-    private void drawCactusArcDisk(JHVRelatedEvents evtr, JHVEvent evt, long timestamp, MapScale scale) {
+    // CACTus arc for the Sun-centered disk projection (Helioradial): the same wedge as the
+    // orthographic arc, but placed in the disk's world coordinates. Physical radius r maps to the
+    // warped screen radius ringRho(scale, r), and PolarBasis puts the angle at north-up/CCW,
+    // matching the disk grid. The front sits on the grid ring at distSun, so with CME tracking
+    // engaged it holds a fixed screen radius.
+    private void drawCactusArcDisk(RelatedEvents relatedEvents, SolarEvent evt, long timestamp, MapScale scale) {
         CactusArcParams params = cactusArcParams(evt, timestamp);
         double principalAngle = Math.toRadians(params.principalAngleDegree());
         double halfWidth = Math.toRadians(params.angularWidthDegree()) / 2.;
         double thetaStart = principalAngle - halfWidth;
         double thetaEnd = principalAngle + halfWidth;
         double rhoFront = ringRho(scale, params.distSun());
-        double rhoInner = ringRho(scale, DIST_SUN_BEGIN);
+        double rhoInner = ringRho(scale, SWEKData.CACTUS_START_RADIUS);
 
-        BufVertex vexBuf = evtr.isHighlighted() ? bufThick : bufEvent;
-        byte[] color = Colors.bytes(evtr.getColor());
+        BufVertex vexBuf = relatedEvents.isHighlighted() ? bufThick : bufEvent;
+        byte[] color = Colors.bytes(relatedEvents.getColor());
 
         // outer arc: sweep the angle at the front radius
         int steps = Math.max(2, (int) (params.angularWidthDegree() / 2));
         for (int i = 0; i <= steps; i++) {
             Vec3 p = PolarBasis.vec3(rhoFront, thetaStart + (thetaEnd - thetaStart) * i / steps);
             if (i == 0)
-                vexBuf.putVertex(p, Colors.Null);
-            vexBuf.putVertex(p, color);
+                vexBuf.startLine(p, color);
+            else
+                vexBuf.putVertex(p, color);
         }
-        vexBuf.repeatVertex(Colors.Null);
+        vexBuf.endLine();
 
         // radial spokes at both edges and the principal angle, inner edge to front
         for (double theta : new double[]{thetaStart, principalAngle, thetaEnd}) {
-            vexBuf.putVertex(PolarBasis.vec3(rhoInner, theta), Colors.Null);
-            vexBuf.putVertex(PolarBasis.vec3(rhoInner, theta), color);
+            vexBuf.startLine(PolarBasis.vec3(rhoInner, theta), color);
             vexBuf.putVertex(PolarBasis.vec3(rhoFront, theta), color);
-            vexBuf.repeatVertex(Colors.Null);
+            vexBuf.endLine();
         }
 
         if (icons) { // marker at the front, so a disk wedge is as findable as one in the other modes
-            double sz = evtr.isHighlighted() ? ICON_SIZE_HIGHLIGHTED : ICON_SIZE;
+            double sz = relatedEvents.isHighlighted() ? ICON_SIZE_HIGHLIGHTED : ICON_SIZE;
             Vec3 at = PolarBasis.vec3(rhoFront, principalAngle);
             drawImageScale(at.x, at.y, sz, sz);
         }
     }
 
-    // While CME tracking is engaged (Helioradial or HelioradialUnrolled), mark it: an orange dot at the
-    // front's calculated location (physical radius -> warped screen position) and a purple circle
-    // at the fixed "freeze" screen radius (SCREEN_FRACTION), both on the tracked position angle.
-    // If the solve is right, the front sits on the freeze radius and the two are concentric.
+    // While CME tracking is engaged (Helioradial or HelioradialUnrolled), mark it: an orange dot at
+    // the front's calculated location (physical radius to warped screen position) and a purple
+    // circle at the fixed "freeze" screen radius (SCREEN_FRACTION), both on the tracked position
+    // angle. If the solve is right, the front sits on the freeze radius and the two are concentric.
     private void drawTrackerMarkers(MapView mv, Viewport vp, MapScale scale) {
         double paDeg = CMETracker.positionAngleDeg();
         double frac = CMETracker.screenFraction();
@@ -367,7 +368,7 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
             front = new Vec3(x, scale.toUnitY(rCme) - 0.5, 0);
         }
         ringInto(freeze, 0.028, TRACK_FREEZE); // the freeze location
-        ringInto(front, 0.007, TRACK_FRONT);   // the calculated front (small -> reads as a dot)
+        ringInto(front, 0.007, TRACK_FRONT);   // the calculated front (small, so it reads as a dot)
     }
 
     private void ringInto(Vec3 center, double radius, byte[] color) {
@@ -376,13 +377,14 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
             double a = 2 * Math.PI * i / n;
             Vec3 p = new Vec3(center.x + radius * Math.cos(a), center.y + radius * Math.sin(a), 0);
             if (i == 0)
-                bufEvent.putVertex(p, Colors.Null);
-            bufEvent.putVertex(p, color);
+                bufEvent.startLine(p, color);
+            else
+                bufEvent.putVertex(p, color);
         }
-        bufEvent.repeatVertex(Colors.Null);
+        bufEvent.endLine();
     }
 
-    private void drawCactusArcScale(Viewport vp, JHVRelatedEvents evtr, JHVEvent evt, long timestamp, MapScale scale) {
+    private void drawCactusArcScale(Viewport vp, RelatedEvents relatedEvents, SolarEvent evt, long timestamp, MapScale scale) {
         CactusArcParams params = cactusArcParams(evt, timestamp);
         double angularWidthDegree = params.angularWidthDegree();
         double principalAngleDegree = params.principalAngleDegree();
@@ -391,46 +393,26 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         double thetaStart = MathUtils.mapTo0To360(principalAngleDegree - angularWidthDegree / 2.);
         double thetaEnd = MathUtils.mapTo0To360(principalAngleDegree + angularWidthDegree / 2.);
 
-        BufVertex vexBuf = evtr.isHighlighted() ? bufThick : bufEvent;
-        byte[] color = Colors.bytes(evtr.getColor());
+        BufVertex vexBuf = relatedEvents.isHighlighted() ? bufThick : bufEvent;
+        byte[] color = Colors.bytes(relatedEvents.getColor());
 
         float x = (float) ((scale.toUnitX(thetaStart) - 0.5) * vp.aspect);
-        float y = (float) (scale.toUnitY(DIST_SUN_BEGIN) - 0.5);
-        vexBuf.putVertex(x, y, 0, 1, Colors.Null);
-        vexBuf.repeatVertex(color);
-
-        y = (float) (scale.toUnitY(distSun + 0.05) - 0.5);
-        vexBuf.putVertex(x, y, 0, 1, color);
-        vexBuf.repeatVertex(Colors.Null);
+        float y = (float) (scale.toUnitY(SWEKData.CACTUS_START_RADIUS) - 0.5);
+        putLineScale(vexBuf, x, y, x, (float) (scale.toUnitY(distSun + 0.05) - 0.5), color);
 
         x = (float) ((scale.toUnitX(principalAngleDegree) - 0.5) * vp.aspect);
-        y = (float) (scale.toUnitY(DIST_SUN_BEGIN) - 0.5);
-        vexBuf.putVertex(x, y, 0, 1, Colors.Null);
-        vexBuf.repeatVertex(color);
-
-        y = (float) (scale.toUnitY(distSun + 0.05) - 0.5);
-        vexBuf.putVertex(x, y, 0, 1, color);
-        vexBuf.repeatVertex(Colors.Null);
+        y = (float) (scale.toUnitY(SWEKData.CACTUS_START_RADIUS) - 0.5);
+        putLineScale(vexBuf, x, y, x, (float) (scale.toUnitY(distSun + 0.05) - 0.5), color);
 
         x = (float) ((scale.toUnitX(thetaEnd) - 0.5) * vp.aspect);
-        y = (float) (scale.toUnitY(DIST_SUN_BEGIN) - 0.5);
-        vexBuf.putVertex(x, y, 0, 1, Colors.Null);
-        vexBuf.repeatVertex(color);
-
-        y = (float) (scale.toUnitY(distSun + 0.05) - 0.5);
-        vexBuf.putVertex(x, y, 0, 1, color);
-        vexBuf.repeatVertex(Colors.Null);
+        y = (float) (scale.toUnitY(SWEKData.CACTUS_START_RADIUS) - 0.5);
+        putLineScale(vexBuf, x, y, x, (float) (scale.toUnitY(distSun + 0.05) - 0.5), color);
 
         y = (float) (scale.toUnitY(distSun) - 0.5);
-        vexBuf.putVertex(x, y, 0, 1, Colors.Null);
-        vexBuf.repeatVertex(color);
-
-        x = (float) ((scale.toUnitX(thetaStart) - 0.5) * vp.aspect);
-        vexBuf.putVertex(x, y, 0, 1, color);
-        vexBuf.repeatVertex(Colors.Null);
+        putLineScale(vexBuf, x, y, (float) ((scale.toUnitX(thetaStart) - 0.5) * vp.aspect), y, color);
 
         if (icons) {
-            double sz = evtr.isHighlighted() ? ICON_SIZE_HIGHLIGHTED : ICON_SIZE;
+            double sz = relatedEvents.isHighlighted() ? ICON_SIZE_HIGHLIGHTED : ICON_SIZE;
             drawImageScale((scale.toUnitX(principalAngleDegree) - 0.5) * vp.aspect,
                     scale.toUnitY(distSun) - 0.5, sz, sz);
         }
@@ -439,38 +421,43 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
     private static final int MOUSE_OFFSET_X = 25;
     private static final int MOUSE_OFFSET_Y = 25;
 
-    private void drawText(Viewport vp, JHVRelatedEvents mouseOverJHVEvent, int x, int y, long currentTime) {
-        GLText.drawTextFloat(vp, SWEKData.visibleParameterLines(mouseOverJHVEvent.getClosestTo(currentTime)), x + MOUSE_OFFSET_X, y + MOUSE_OFFSET_Y);
+    private void drawText(Viewport vp, RelatedEvents mouseOverEvents, int x, int y, long currentTime) {
+        GLText.drawTextFloat(vp, SWEKData.visibleParameterLines(mouseOverEvents.getClosestTo(currentTime)), x + MOUSE_OFFSET_X, y + MOUSE_OFFSET_Y);
     }
 
     private void renderEvents(Viewport vp) {
-        lineEvent.setVertex(bufEvent);
-        lineThick.setVertex(bufThick);
+        lineEvent.uploadAndClear(bufEvent);
+        lineThick.uploadAndClear(bufThick);
         lineEvent.renderLine(vp, LINEWIDTH);
         lineThick.renderLine(vp, LINEWIDTH_HIGHLIGHT);
     }
 
-    private void renderIcons(MapView mv, List<JHVRelatedEvents> evs, long currentTime) {
+    private void renderIcons(MapView mv, List<ActiveEvent> evs) {
         glslTexture.setCoord(texBuf);
         int idx = 0;
-        for (JHVRelatedEvents evtr : evs) {
-            JHVEvent evt = evtr.getClosestTo(currentTime);
+        for (ActiveEvent active : evs) {
+            RelatedEvents relatedEvents = active.relatedEvents();
+            SolarEvent evt = active.event();
             if (mv.isLatitudinal() && evt.isCactus()) // no icon quad emitted for CACTus there
                 continue;
-            bindTexture(evtr.getSupplier().group());
-            glslTexture.renderTexture(GL.TRIANGLE_STRIP, Colors.floats(evtr.getColor(), ICON_ALPHA), idx, 4);
+            if (!evt.isCactus()) {
+                EventGeometry pi = evt.getPositionInformation();
+                if (pi == null || pi.centralPoint() == null)
+                    continue;
+            }
+            bindTexture(evt.getSupplier().group());
+            glslTexture.renderTexture(GL.TRIANGLE_STRIP, Colors.floats(relatedEvents.getColor(), ICON_ALPHA), idx, 4);
             idx += 4;
         }
     }
 
-    private List<JHVRelatedEvents> activeEvents(long time) {
-        long start = Player.getStartTime();
-        long end = Player.getEndTime();
-        if (time != cachedEventsTime || start != cachedEventsStart || end != cachedEventsEnd) {
+    List<ActiveEvent> activeEvents(long time) {
+        if (time != cachedEventsTime) {
+            List<ActiveEvent> active = new ArrayList<>();
+            for (RelatedEvents relatedEvents : EventCache.getEvents(time, time))
+                active.add(new ActiveEvent(relatedEvents, relatedEvents.getClosestTo(time)));
+            cachedActiveEvents = active;
             cachedEventsTime = time;
-            cachedEventsStart = start;
-            cachedEventsEnd = end;
-            cachedActiveEvents = JHVEventCache.getEvents(time, time);
         }
         return cachedActiveEvents;
     }
@@ -480,18 +467,18 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         cachedPropTime = Long.MIN_VALUE;
     }
 
-    // CACTus events past their catalog end whose front, propagated at the catalog radial speed,
-    // is still within the user's extend distance. Empty unless the "extend" toggle is on. Disjoint
+    // CACTus events past their catalog end whose front, propagated at the catalog radial speed, is
+    // still within the user's extend distance. Empty unless the "extend" toggle is on. Disjoint
     // from activeEvents() (which ends at the LASCO edge), so drawing both never double-counts one.
     // NB: the front here is a constant-speed extrapolation beyond where LASCO measured the CME.
-    private List<JHVRelatedEvents> propagatingCactus(long time) {
+    private List<ActiveEvent> propagatingCactus(long time) {
         if (!extendCactus)
             return List.of();
         double fov = effectiveExtendDistance();
-        if (fov <= DIST_SUN_BEGIN)
+        if (fov <= SWEKData.CACTUS_START_RADIUS)
             return List.of();
         // Memoized on (time, movie range, fov) like activeEvents(), so the repeated per-viewport /
-        // per-frame calls during playback don't re-scan + re-parse the event set every frame.
+        // per-frame calls during playback don't re-scan the event set every frame.
         long start = Player.getStartTime();
         long end = Player.getEndTime();
         if (time != cachedPropTime || start != cachedPropStart || end != cachedPropEnd || fov != cachedPropFov) {
@@ -499,17 +486,30 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
             cachedPropStart = start;
             cachedPropEnd = end;
             cachedPropFov = fov;
-            List<JHVRelatedEvents> out = new ArrayList<>();
-            for (JHVRelatedEvents evtr : JHVEventCache.getEvents(time - CACTUS_MAX_TRAVEL_MS, time)) {
-                if (evtr.getEnd() >= time) // still within its catalog window -> already drawn by activeEvents
+            List<ActiveEvent> out = new ArrayList<>();
+            for (RelatedEvents relatedEvents : EventCache.getEvents(time - CACTUS_MAX_TRAVEL_MS, time)) {
+                if (relatedEvents.getEnd() >= time) // still within its catalog window, so activeEvents already drew it
                     continue;
-                JHVEvent evt = evtr.getClosestTo(time);
-                if (evt.isCactus() && cactusArcParams(evt, time).distSun() <= fov)
-                    out.add(evtr);
+                SolarEvent evt = relatedEvents.getClosestTo(time);
+                if (evt.isCactus() && SWEKData.cactusDistance(evt, time) <= fov)
+                    out.add(new ActiveEvent(relatedEvents, evt));
             }
             cachedProp = out;
         }
         return cachedProp;
+    }
+
+    // evs + prop without copying when one side is empty; renderIcons walks the icon buffer in the
+    // same order the draw calls filled it, so the two lists have to agree.
+    private static List<ActiveEvent> concat(List<ActiveEvent> a, List<ActiveEvent> b) {
+        if (b.isEmpty())
+            return a;
+        if (a.isEmpty())
+            return b;
+        List<ActiveEvent> out = new ArrayList<>(a.size() + b.size());
+        out.addAll(a);
+        out.addAll(b);
+        return out;
     }
 
     @Override
@@ -517,45 +517,33 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         if (!isVisible[vp.idx])
             return;
         long currentTime = mv.viewpoint().time.milli;
-        List<JHVRelatedEvents> evs = activeEvents(currentTime);
-        List<JHVRelatedEvents> prop = propagatingCactus(currentTime); // empty unless the extend toggle is on
+        List<ActiveEvent> evs = activeEvents(currentTime);
+        List<ActiveEvent> prop = propagatingCactus(currentTime); // empty unless the extend toggle is on
         if (evs.isEmpty() && prop.isEmpty())
             return;
 
-        for (JHVRelatedEvents evtr : evs) {
-            JHVEvent evt = evtr.getClosestTo(currentTime);
+        for (ActiveEvent active : evs) {
+            RelatedEvents relatedEvents = active.relatedEvents();
+            SolarEvent evt = active.event();
             if (evt.isCactus()) {
-                drawCactusArc(evtr, evt, currentTime);
+                drawCactusArc(relatedEvents, evt, currentTime);
             } else {
-                drawPolygon(mv, vp, evtr, evt);
+                drawPolygon(mv, vp, relatedEvents, evt);
                 if (icons) {
-                    drawIcon(evtr, evt);
+                    drawIcon(relatedEvents, evt);
                 }
             }
         }
         // Extended fronts keep their icon too, so a wedge stays just as findable (and clickable)
         // after it passes the catalog window as it was before.
-        for (JHVRelatedEvents evtr : prop)
-            drawCactusArc(evtr, evtr.getClosestTo(currentTime), currentTime);
+        for (ActiveEvent active : prop)
+            drawCactusArc(active.relatedEvents(), active.event(), currentTime);
 
         renderEvents(vp);
-        List<JHVRelatedEvents> iconEvents = concat(evs, prop); // must match what emitted icon quads
+        List<ActiveEvent> iconEvents = concat(evs, prop); // must match what emitted icon quads
         if (icons && !iconEvents.isEmpty()) {
-            renderIcons(mv, iconEvents, currentTime);
+            renderIcons(mv, iconEvents);
         }
-    }
-
-    // evs + prop without copying when one side is empty; renderIcons walks the icon buffer in the
-    // same order the draw calls filled it, so the two lists have to agree.
-    private static List<JHVRelatedEvents> concat(List<JHVRelatedEvents> a, List<JHVRelatedEvents> b) {
-        if (b.isEmpty())
-            return a;
-        if (a.isEmpty())
-            return b;
-        List<JHVRelatedEvents> out = new ArrayList<>(a.size() + b.size());
-        out.addAll(a);
-        out.addAll(b);
-        return out;
     }
 
     @Override
@@ -563,41 +551,41 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         if (!isVisible[vp.idx])
             return;
         long currentTime = mv.viewpoint().time.milli;
-        List<JHVRelatedEvents> evs = activeEvents(currentTime);
+        List<ActiveEvent> evs = activeEvents(currentTime);
         boolean radial = mv.isHelioradialUnrolled() || mv.isHelioradial();
-        List<JHVRelatedEvents> prop = radial ? propagatingCactus(currentTime) : List.of(); // empty unless extend toggle on
+        List<ActiveEvent> prop = radial ? propagatingCactus(currentTime) : List.of(); // empty unless extend toggle on
         boolean markers = radial && CMETracker.isTracking();
         if (evs.isEmpty() && prop.isEmpty() && !markers)
             return;
 
         MapScale scale = mv.scale(vp);
-        for (JHVRelatedEvents evtr : evs) {
-            JHVEvent evt = evtr.getClosestTo(currentTime);
+        for (ActiveEvent active : evs) {
+            RelatedEvents relatedEvents = active.relatedEvents();
+            SolarEvent evt = active.event();
             if (evt.isCactus() && mv.isHelioradialUnrolled()) {
-                drawCactusArcScale(vp, evtr, evt, currentTime, scale);
+                drawCactusArcScale(vp, relatedEvents, evt, currentTime, scale);
             } else if (evt.isCactus() && mv.isHelioradial()) {
-                drawCactusArcDisk(evtr, evt, currentTime, scale);
+                drawCactusArcDisk(relatedEvents, evt, currentTime, scale);
             } else {
-                drawPolygon(mv, vp, evtr, evt);
+                drawPolygon(mv, vp, relatedEvents, evt);
                 if (icons) {
-                    drawIconScale(mv, vp, evtr, evt);
+                    drawIconScale(mv, vp, relatedEvents, evt);
                 }
             }
         }
-        for (JHVRelatedEvents evtr : prop) { // extrapolated CACTus fronts past the LASCO edge, out to the loaded FOV
-            JHVEvent evt = evtr.getClosestTo(currentTime);
+        for (ActiveEvent active : prop) { // extrapolated CACTus fronts past the LASCO edge, out to the loaded FOV
             if (mv.isHelioradialUnrolled())
-                drawCactusArcScale(vp, evtr, evt, currentTime, scale);
+                drawCactusArcScale(vp, active.relatedEvents(), active.event(), currentTime, scale);
             else
-                drawCactusArcDisk(evtr, evt, currentTime, scale);
+                drawCactusArcDisk(active.relatedEvents(), active.event(), currentTime, scale);
         }
         if (markers)
             drawTrackerMarkers(mv, vp, scale);
 
         renderEvents(vp);
-        List<JHVRelatedEvents> iconEvents = concat(evs, prop);
+        List<ActiveEvent> iconEvents = concat(evs, prop);
         if (icons && !iconEvents.isEmpty()) {
-            renderIcons(mv, iconEvents, currentTime);
+            renderIcons(mv, iconEvents);
         }
     }
 
@@ -605,8 +593,8 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
     public void renderFullFloat(Viewport vp) {
         if (!enabled)
             return;
-        if (swekContext != null && swekContext.mouseOverJHVEvent() != null) {
-            drawText(vp, swekContext.mouseOverJHVEvent(), swekContext.mouseOverX(), swekContext.mouseOverY(), swekContext.mouseOverTime());
+        if (swekContext != null && swekContext.mouseOverEvents() != null) {
+            drawText(vp, swekContext.mouseOverEvents(), swekContext.mouseOverX(), swekContext.mouseOverY(), swekContext.mouseOverTime());
         }
     }
 
@@ -626,14 +614,14 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         super.setEnabled(_enabled);
 
         if (enabled) {
-            JHVEventCache.registerHandler(this);
+            EventCache.registerHandler(this);
             Player.addTimeRangeListener(this);
             requestEvents(true, Player.getStartTime(), Player.getEndTime());
         } else {
             invalidateActiveEvents();
-            JHVEventCache.highlight(null);
+            EventCache.highlight(null);
             Player.removeTimeRangeListener(this);
-            JHVEventCache.unregisterHandler(this);
+            EventCache.unregisterHandler(this);
         }
         SWEKPlugin.layerStateChanged(this);
     }
@@ -661,7 +649,7 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
         if (force || start < startTime || end > endTime) {
             startTime = start;
             endTime = end;
-            JHVEventCache.requestForInterval(start, end, this);
+            SWEKDownloader.requestForInterval(start, end);
         }
     }
 
@@ -672,25 +660,12 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
     }
 
     @Override
-    public void newEventsReceived() {
-        if (enabled) {
-            invalidateActiveEvents();
-            DisplayController.display();
-        }
-    }
-
-    @Override
     public void cacheUpdated() {
         if (!enabled)
             return;
         invalidateActiveEvents();
         requestEvents(true, Player.getStartTime(), Player.getEndTime());
-    }
-
-    // The extended fronts currently drawn. The picker needs the same set the renderer uses, or a
-    // wedge past its catalog window stays visible but stops being selectable.
-    List<JHVRelatedEvents> propagatingNow(long time) {
-        return propagatingCactus(time);
+        DisplayController.display();
     }
 
     boolean isIcons() {
@@ -700,6 +675,12 @@ public final class SWEKLayer extends AbstractLayer implements JHVEventListener.H
     void setIcons(boolean _icons) {
         icons = _icons;
         DisplayController.display();
+    }
+
+    // The extended fronts currently drawn. The picker needs the same set the renderer uses, or a
+    // wedge past its catalog window stays visible but stops being selectable.
+    List<ActiveEvent> propagatingNow(long time) {
+        return propagatingCactus(time);
     }
 
     boolean isExtendCactus() {

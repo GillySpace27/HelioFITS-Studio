@@ -14,7 +14,7 @@ import java.util.Random;
  * the same amplitude as the terrace it was meant to hide. The numbers are below so the next person
  * to have the idea can see the result without rebuilding it.
  *
- * <p>What the dither in solarCommon.frag DOES do is the one case where the information still
+ * <p>What the dither in imageCommon.frag DOES do is the one case where the information still
  * exists: the final quantization to an 8-bit framebuffer, applied to a value that is still
  * continuous at that point. There the noise decorrelates the rounding error and the local mean
  * moves onto the true ramp, which is measured here too.
@@ -47,7 +47,7 @@ public final class DitherCheck {
         Random random = new Random(11);
         for (int i = 0; i < N; i++) {
             plain[i] = Math.round(truth[i] * 255) / 255.;
-            // solarCommon.frag's dither(): uniform over +/- one screen step.
+            // imageCommon.frag's dither(): uniform over +/- one screen step.
             dithered[i] = Math.round(Math.clamp(truth[i] + (2 * random.nextDouble() - 1) / 255, 0, 1) * 255) / 255.;
         }
         double plainError = meanLocalError(plain, truth);

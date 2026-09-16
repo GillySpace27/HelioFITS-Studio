@@ -3,7 +3,7 @@
 
 ## HelioFITS Studio 0.8.0 (pre-release, 2026-09-15)
 
-The first pre-release under the HelioFITS Studio name, for testing ahead of 1.0. It joins the PUNCH and coronagraph work of the preview builds with upstream JHelioviewer's development through July 2026 in a single line. Every entry from this heading down to the JHelioviewer 5.5.0 heading belongs to this release.
+The first pre-release under the HelioFITS Studio name, for testing ahead of 1.0. It joins the PUNCH and coronagraph work of the preview builds with upstream JHelioviewer's development through 14 September 2026 in a single line. Every entry from this heading down to the JHelioviewer 5.5.0 heading belongs to this release.
 
 ### Consolidation
 - Merge upstream JHelioviewer's timeline overhaul (HAPI catalogs, stacked and predefined plots, warning levels), its export refactor with failure reporting, the LWJGL and ANGLE updates, toolbar visibility and timeline maximize controls, and its grid allocation work
@@ -16,24 +16,48 @@ The first pre-release under the HelioFITS Studio name, for testing ahead of 1.0.
 - The update check reads the released VERSION file; it used to build a malformed address
 - Rename the application's threads, default export name, icon and launch scripts to HelioFITS Studio, and move files that belonged to upstream JHelioviewer or to the preview builds into `archive/`
 
+## JHelioviewer 5.11.0 (pending)
 
 ### Display and rendering
-- Add options to choose colors and line thickness for annotations (fixes #156)
-- Draw the active annotation thicker instead of forcing it to red
+- Add glTF/GLB model layers with surfaces, lines, points, textures, transparency, and lighting
+- Improve rendering quality, performance, and memory handling
+- Use consistent percentile clipping across FITS sequences to reduce brightness flicker, and remove ZScale
+- Fix MGN numerical artifacts and refresh queued and difference images when changing filters
+
+### Interaction and UI
+- Improve mouse interaction and allow holding X, Y, or Z to override the default rotation axis (normally Y) in Rotate Axis mode
+- Allow multiple dataset selections in the New Image Layer and New Timeline Layer dialogs
+- Add general and timeline interaction guides to the Help menu
+- Move FITS clipping and scaling controls into image-layer options, with SAMP settings supplied through layer `imageParams` instead of the global FITS command
+
+### Timeline and events
+- Allow additional HAPI servers to be configured by user in `sources.json`, alongside image API servers
+- Allow HAPI timelines to be loaded at full time resolution and significantly improve timeline loading and drawing performance
+- Improve SWEK event loading, filtering, display, and related-event handling, with more reliable updates
+
+### Technical
+- Document the heliocentric 3D data interface and add a COCONUT conversion example
+- Improve JPIP movie download throughput, cache memory handling, cancellation, and JPEG 2000 resource cleanup
+- Accelerate Rice-compressed 16-bit FITS decoding
+- Expand rendering, WCS, JPIP retrieval and cache restoration, and Callisto decoding regression coverage
+- Update bundled libraries
+- Various bug fixes, cleanups, and internal refactoring
+
+## JHelioviewer 5.10.0 (pending)
+
+### Display and rendering
+- Add annotation color and line-thickness controls, and draw the active annotation thicker instead of forcing it to red (fixes #156)
 - Improve thick-line joins, rectangle corners, annotation loops, and FOV outline rendering
 - Improve flat-grid stability and grid label formatting
 - Adjust trajectory colors for white canvas (fixes #260)
 - Add a `New PUNCH Layer` source that loads FITS frames from the PUNCH archive at `umbra.nascom.nasa.gov/punch` (by @GillySpace27)
 - Add `RHEF` radial histogram equalizing filter with an Upsilon midtone control (by @GillySpace27)
-- Add `RadialWarp` and `RectWarp` views for exploring wide-field solar images.
-  `RadialWarp` keeps the view circular, while `RectWarp` unwraps it into angle
-  versus distance from the Sun. The λ slider controls how distances beyond the
-  solar limb are displayed: λ = 1 is linear, λ = 0 is logarithmic, and λ = −1
-  gives the strongest compression of the outer corona. Lower values give more
-  screen space to structures near the Sun while keeping the solar disk linear. (by @GillySpace27)
-- Remove the redundant Polar and LogPolar projections, subsumed by RectWarp
+- Add `RadialWarp` (circular) and `RectWarp` (angle versus solar distance)
+  wide-field views with λ-controlled outer-corona compression while keeping
+  the solar disk linear (λ = 1 linear, 0 logarithmic, −1 strongest), replacing
+  the redundant Polar and LogPolar projections (by @GillySpace27)
 - Add grid line color, opacity and width controls to the grid layer (by @GillySpace27)
-- Show the JHelioviewer icon in the macOS Dock and the Windows taskbar instead of the generic Java icon
+- Show the application's own icon in the macOS Dock and the Windows taskbar instead of the generic Java icon
 - Add `Track CME`: animate the warp lambda so a CACTus CME front stays at a fixed screen radius while the corona rubber-bands around it; engage from a CACTus event dialog or the Track picker, disengage by moving the lambda slider or leaving the warp projections
 - Add a SWEK option to extend CACTus CME wedges past the LASCO catalog edge, out to the loaded field of view
 - Add a cadence control and a large-download confirmation to the ASPIICS layer dialog
@@ -42,30 +66,34 @@ The first pre-release under the HelioFITS Studio name, for testing ahead of 1.0.
 - Pin a multi-frame FITS layer to one shared display range so a PUNCH movie does not strobe as each frame auto-normalizes
 - Improve FITS WCS interpretation of angular units, including surface maps,
   and full `PCi_j` and `CDi_j` linear transformations
+- Add image-layer controls for outer-radius masking and for sector direction and opening
+- Improve image canvas positioning and resizing on macOS
 
 ### Timeline, events, and UI
 - Add a stacked timeline mode with independent vertical scales, scrolling when
   the plots no longer fit vertically, and a control to maximize and restore the
   timeline panel
-- Allow timeline datasets to be loaded from multiple HAPI catalogs, with
-  predefined layouts supplied by HAPI metadata, including ordered groups and
-  membership in multiple groups
+- Expand HAPI timelines with datasets from multiple catalogs, predefined plots
+  from HAPI metadata, and catalog/group browsing in the New Timeline Layer dialog
 - Support HAPI-defined bar plots, value-level colors, warning thresholds, and
   switching between multicolor and single-color rendering
-- Add controls to collapse the sidebar and hide the toolbar or its text
+- Add frame-count sampling and use the selected sampling setting when adding,
+  replacing, and synchronizing image layers
+- Add a Movie menu command and `Cmd-R` shortcut to start or stop recording
+- Add controls to collapse the sidebar and hide the status bar, the toolbar, or the toolbar text
 - Show the original image URI in the Image Information dialog
-- Map HEK Flare Trigger events to Flare events (fixes #105)
-- Fix CACTus event loading from HEK (fixes #190)
-- Filter HEK events by supplier and improve SWEK event loading, paging, storage, and cancellation
-- Move SWEK event indexing, highlight dispatch, and supplier configuration into clearer event-cache/catalog code
+- Improve HEK event handling by mapping Flare Trigger events to Flare events
+  (fixes #105) and fixing CACTus event loading (fixes #190)
+- Improve SWEK supplier filtering and configuration, loading, paging, storage,
+  cancellation, indexing, and highlight dispatch
 - Disable COMESEP event source
 - Improve layer-table update/repaint behavior when layer names or metadata change
 
 ### Performance and data
-- Offload viewpoint orbit trail and PFSS coordinate preparation from the rendering thread
-- Cache viewpoint orbit trail samples
+- Offload and cache viewpoint orbit-trail preparation, and offload PFSS
+  coordinate preparation, from the rendering thread
 - Reduce allocations in status panels, grid labels, FITS scaling, time maps, and interpolation paths
-- Update bundled libraries, SPICE kernels, and supporting build tools
+- Update bundled libraries, FFmpeg (9.0.1), SPICE kernels, and supporting build tools
 
 ### Technical
 - Reorganize core packages and simplify application, GUI, event, image, movie, thread, and metadata internals

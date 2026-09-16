@@ -8,8 +8,8 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -29,24 +29,31 @@ import javax.swing.JToggleButton;
 import javax.swing.JToolBar;
 import javax.swing.SpinnerNumberModel;
 
-import org.helioviewer.jhv.app.Commands;
 import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.gui.Actions;
-import org.helioviewer.jhv.gui.CompletionNotifications;
 import org.helioviewer.jhv.gui.ComponentUtils;
+import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.gui.UIGlobals;
+import org.helioviewer.jhv.gui.dialog.ImageDialog;
 import org.helioviewer.jhv.gui.time.TimeSelectorPanel;
+import org.helioviewer.jhv.io.APIRequest;
+import org.helioviewer.jhv.io.DataSourcesTree;
+import org.helioviewer.jhv.layers.ImageLayer;
+import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.layers.Layers;
+import org.helioviewer.jhv.layers.selector.LayersSectionPanel;
 import org.helioviewer.jhv.movie.ExportFormat;
 import org.helioviewer.jhv.movie.ExportMovie;
 import org.helioviewer.jhv.movie.ExportPreset;
 import org.helioviewer.jhv.movie.Player;
+import org.helioviewer.jhv.time.TimeUtils;
+import org.helioviewer.jhv.timelines.draw.DrawController;
 
 import com.formdev.flatlaf.FlatClientProperties;
 
 @SuppressWarnings("serial")
-public class MoviePanel extends JPanel implements Player.StatusListener, ExportMovie.StatusListener, ViewState.PlaybackConfigListener, ViewState.RecordingConfigListener {
+public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.StatusListener, ExportMovie.StatusListener, ViewState.PlaybackConfigListener, ViewState.RecordingConfigListener {
 
     private static final int FRAME_HOLD_REPEAT_MS = 125;
     // The transport glyph sizes, which used to be a font size on the button and are now the
@@ -56,6 +63,11 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
     private int fixedPreferredWidth = -1;
 
     private final TimeSelectorPanel timeSelectorPanel = new TimeSelectorPanel();
+    // Upstream's SamplingPanel is not here: the fork's master cadence control is CadencePanel,
+    // which sits in the Layers section beside the master time range, and two sampling controls
+    // could only disagree with each other. getCadence below reads that one.
+    private final ImageDialog imageDialog;
+    private ImageLayer layerToReplace;
 
     private static TimeSlider timeSlider;
     private final JButton playButton;
@@ -167,7 +179,7 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         setLayout(new BoxLayout(this, BoxLayout.PAGE_AXIS));
 
         // Time slider
-        timeSlider = new TimeSlider(TimeSlider.HORIZONTAL, 0, 0, 0);
+        timeSlider = new TimeSlider(0, 0, 0);
 
         // Control buttons: play is the big one, the steppers and the record dot sit either side
         buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 1, 0));
@@ -397,6 +409,11 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         syncPresetList(null);
 
         timeSelectorPanel.addListener(Layers.timeSelectionListener);
+
+        // Upstream's dataset selector, which replaced ObservationDialog and the inline
+        // ImageSelectorPanel and can take several datasets at once. It calls back through the
+        // ImageDialog.Handler methods below.
+        imageDialog = new ImageDialog(this);
 
         Player.addStatusListener(this);
         ExportMovie.addStatusListener(this);
@@ -678,7 +695,7 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
         return northTransport;
     }
 
-    private static class RecordButton extends JToggleButton implements ActionListener {
+    private static class RecordButton extends JToggleButton {
 
         // Armed and rolling, as on anything else that records. The dark red is the dot sitting
         // there available; the bright one is the dot meaning tape is moving. A toolbar toggle's
@@ -695,7 +712,7 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
             setRequestFocusEnabled(false);
             setForeground(IDLE);
             setToolTipText("Record movie");
-            addActionListener(this);
+            addActionListener(Actions.RECORD); // one place decides start or stop, shared with the Movie menu and its shortcut
         }
 
         void setRolling(boolean rolling) {
@@ -703,13 +720,81 @@ public class MoviePanel extends JPanel implements Player.StatusListener, ExportM
             setToolTipText(rolling ? "Recording; click to stop" : "Record movie");
         }
 
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            if (isSelected()) {
-                Commands.recordStart(CompletionNotifications.recordingContext(), null);
-            } else {
-                Commands.recordStop();
+    }
+
+    /**
+     * The cadence new layers are requested at.
+     *
+     * <p>Upstream reads this off a SamplingPanel of its own; here it is the master cadence beside
+     * the time range in the Layers section. That panel does not exist while the window is still
+     * being built, or at all when headless, so fall back to the default for the range.
+     */
+    private int getCadence() {
+        LayersSectionPanel panel = MainFrame.getLayersSectionPanel();
+        return panel == null ? TimeUtils.defaultCadence(getStartTime(), getEndTime()) : panel.getCadence();
+    }
+
+    /** Whether one frame was asked for, in which case a load collapses the range to its start. */
+    private boolean isSingleFrame() {
+        LayersSectionPanel panel = MainFrame.getLayersSectionPanel();
+        return panel != null && panel.isSingleFrame();
+    }
+
+    @Override
+    public void setDefaultTimeRange(long start, long end) {
+        setTime(start, end);
+    }
+
+    @Override
+    public void loadDatasets(List<DataSourcesTree.SourceItem> items) {
+        ImageLayer target = layerToReplace;
+        layerToReplace = null;
+        if (checkSanity()) {
+            long start = getStartTime();
+            long end = isSingleFrame() ? start : getEndTime();
+            int cadence = getCadence();
+            for (DataSourcesTree.SourceItem item : items) {
+                ImageLayer imageLayer = target == null ? ImageLayer.create(null) : target;
+                imageLayer.load(new APIRequest(item.server, item.sourceId, start, end, cadence));
             }
+        }
+    }
+
+    public void showNewLayerSelector() {
+        layerToReplace = null;
+        imageDialog.showDialog(false);
+    }
+
+    public void changeDataset(ImageLayer layer) {
+        layerToReplace = layer;
+        APIRequest req = layer.getView().getAPIRequest();
+        if (req != null)
+            imageDialog.selectDataset(req.server(), req.sourceId());
+        imageDialog.showDialog(true);
+    }
+
+    private boolean checkSanity() {
+        long start = getStartTime();
+        long end = getEndTime();
+        if (start > end) {
+            setTime(end, end);
+            JOptionPane.showMessageDialog(null, "End date is before start date", "Error", JOptionPane.ERROR_MESSAGE);
+            return false;
+        }
+        return true;
+    }
+
+    public void syncLayersSpan(long start, long end) {
+        setTime(start, end);
+        syncLayersSpan();
+    }
+
+    private void syncLayersSpan() {
+        if (checkSanity()) {
+            long start = getStartTime();
+            long end = isSingleFrame() ? start : getEndTime();
+            DrawController.setSelectedInterval(start, end);
+            ImageLayers.syncLayersSpan(start, end, getCadence());
         }
     }
 

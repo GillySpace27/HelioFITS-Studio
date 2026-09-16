@@ -73,7 +73,7 @@ public final class VsoClient {
     public record Record(String fileid, String provider, long milli) {}
 
     public static void submitResolve(@Nonnull FitsRequest request, @Nonnull Consumer<List<URI>> receiver) {
-        Task.submit("vso", new Resolve(request), receiver::accept, "Error querying the VSO");
+        Task.submitBackground("vso", new Resolve(request), receiver::accept, "Error querying the VSO");
     }
 
     private record Resolve(FitsRequest request) implements Callable<List<URI>> {

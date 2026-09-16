@@ -37,10 +37,10 @@ public class ContrastPanel implements FilterDetails {
             label.setText(String.format("%.2f", g));
             if (syncing)
                 return; // mirroring the layer, not editing it
-            double offset = layer.getGLImage().getBrightOffset();
-            double scale = layer.getGLImage().getBrightScale();
+            double offset = layer.getDisplaySettings().getBrightOffset();
+            double scale = layer.getDisplaySettings().getBrightScale();
             double centre = offset + scale / 2;
-            Layers.applyToSelected(layer, gl -> gl.setBrightness(centre - g / 2, g));
+            Layers.applyToSelected(layer, s -> s.setBrightness(centre - g / 2, g));
             Layers.fireLayerUpdated(layer); // so the Levels row follows
             DisplayController.display();
         });
@@ -49,7 +49,7 @@ public class ContrastPanel implements FilterDetails {
 
     /** Mirror the layer's Levels width into the slider; Levels can move without this row. */
     public void refresh(ImageLayer layer) {
-        int g = (int) Math.round(layer.getGLImage().getBrightScale() * 100);
+        int g = (int) Math.round(layer.getDisplaySettings().getBrightScale() * 100);
         if (slider.getValue() == g)
             return;
         syncing = true;

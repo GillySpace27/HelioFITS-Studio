@@ -45,6 +45,9 @@ public final class MainContentPanel extends JPanel {
         collapsiblePane.toggleButton.addActionListener(e -> updateLayout());
 
         maximizeButton = Buttons.flat(Buttons.maximizePanel);
+        // Upstream pinned the old CollapsiblePaneButton to 28px so the glyph did not shift as the
+        // chevron changed direction. A flat button with an Icon is already sized by the icon, and
+        // both chevrons measure the same, so there is nothing left to pin.
         maximizeButton.addActionListener(e -> togglePluginMaximized());
         collapsiblePane.setAccessory(maximizeButton);
         updateMaximizeButton();

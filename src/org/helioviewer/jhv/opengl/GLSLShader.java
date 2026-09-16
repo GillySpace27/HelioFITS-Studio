@@ -1,113 +1,128 @@
 package org.helioviewer.jhv.opengl;
 
-import org.helioviewer.jhv.app.Log;
+import java.io.IOException;
+
 import org.helioviewer.jhv.io.FileUtils;
 
 abstract class GLSLShader {
-    private static final String COMMON_FRAGMENT = "/glsl/solarCommon.frag";
-    // Vertex-stage counterpart, carrying the world-space warp shared by the overlay shaders.
+
+    // Vertex-stage counterpart of the fragment commons, carrying the world-space warp shared by
+    // the overlay shaders (line, point, shape). The fragment side needs no constant here: a
+    // program lists its own fragment sources and they are concatenated in order, so the common
+    // is simply the first entry (see GLSLImageShader).
     private static final String COMMON_VERTEX = "/glsl/warpCommon.vert";
+    // A vertex shader that calls this needs the prelude that defines it, so the prelude is keyed
+    // on the source rather than declared per program. Declaring it per program is what this
+    // replaces, and the failure mode there is unusually bad: a new overlay shader that starts
+    // using the warp without its owner remembering to ask for the prelude still compiles in the
+    // validator (which splices unconditionally) and fails only at link time on a real GL context,
+    // so it reaches a user rather than the build.
+    private static final String WARP_MARKER = "warpWorld";
 
-    protected static final class UBO {
-        static final int WCS = 0;
-        static final int PROJECTION = 1;
-        static final int SOLAR_SCREEN = 2;
-        static final int DISPLAY = 3;
-        static final int LINE_SCREEN = 4;
-        static final int WARP = 5;
-
-        private UBO() {
-        }
-    }
-
-    protected static void setupUBO(int programID, String blockName, int uboID, int binding) {
-        int blockIndex = GL.glGetUniformBlockIndex(programID, blockName);
+    protected static void setupUniformBlock(int programID, UniformBlockLayout block) {
+        int blockIndex = GL.glGetUniformBlockIndex(programID, block.glslName);
         if (blockIndex < 0)
-            return;
-        GL.glUniformBlockBinding(programID, blockIndex, binding);
-        GL.glBindBufferBase(GL.UNIFORM_BUFFER, binding, uboID);
+            throw new GLException("Required uniform block not found: " + block.glslName);
+        int blockSize = GL.glGetActiveUniformBlocki(programID, blockIndex, GL.UNIFORM_BLOCK_DATA_SIZE);
+        // A program may use only a prefix of a buffer shared with another program, as the solar sphere does.
+        if (blockSize > block.byteSize())
+            throw new GLException("Uniform block " + block.glslName + " requires " + blockSize + " bytes, buffer has " + block.byteSize());
+        GL.glUniformBlockBinding(programID, blockIndex, block.binding);
     }
 
-    private int progID;
-    private int vertexID;
-    private int fragmentID;
-
-    private final String vertex;
-    private final String fragment;
-
-    GLSLShader(String _vertex, String _fragment) {
-        vertex = _vertex;
-        fragment = _fragment;
-    }
-
-    protected final void _init(boolean common) {
-        _init(common, false);
+    protected static int requiredUniform(int programID, String name) {
+        int location = GL.glGetUniformLocation(programID, name);
+        if (location < 0)
+            throw new GLException("Required uniform not found: " + name);
+        return location;
     }
 
     /**
-     * @param commonFragment prepend solarCommon.frag to the fragment stage
-     * @param commonVertex   prepend warpCommon.vert to the vertex stage
+     * A uniform that only some programs sharing a common source declare.
+     *
+     * <p>Distinct from {@link #requiredUniform}, which throws: the shared fragment common is used
+     * by programs with genuinely different geometry, so the sky's aim and the warp surface's model
+     * exist on one program each. glUniform on -1 is a documented no-op, which is what lets the
+     * binding calls stay unconditional at the call site.
      */
-    protected final void _init(boolean commonFragment, boolean commonVertex) {
+    protected static int optionalUniform(int programID, String name) {
+        return GL.glGetUniformLocation(programID, name);
+    }
+
+    private int progID;
+
+    private final String vertex;
+    private final String[] fragments;
+
+    GLSLShader(String _vertex, String... _fragments) {
+        vertex = _vertex;
+        fragments = _fragments;
+    }
+
+    protected final void _init() {
+        int vertexID = 0;
+        int fragmentID = 0;
         try {
-            String vertexText = FileUtils.readResourceString(vertex);
-            if (commonVertex) {
-                // The #version line has to stay first, so splice the common in after it rather
-                // than in front of it.
-                String common = FileUtils.readResourceString(COMMON_VERTEX);
-                int nl = vertexText.indexOf('\n');
-                vertexText = nl < 0 ? common + vertexText
-                        : vertexText.substring(0, nl + 1) + common + vertexText.substring(nl + 1);
-            }
-            vertexID = attachShader(GL.VERTEX_SHADER, vertexText);
+            vertexID = compileShader(GL.VERTEX_SHADER, "vertex shader " + vertex, vertexSource());
 
-            String fragmentText = FileUtils.readResourceString(fragment);
-            if (commonFragment)
-                fragmentText = FileUtils.readResourceString(COMMON_FRAGMENT) + fragmentText;
-            fragmentID = attachShader(GL.FRAGMENT_SHADER, fragmentText);
+            StringBuilder fragmentText = new StringBuilder();
+            for (String fragment : fragments)
+                fragmentText.append(readSource(fragment));
+            fragmentID = compileShader(GL.FRAGMENT_SHADER, "fragment shader " + String.join(", ", fragments), fragmentText.toString());
 
-            progID = initializeProgram();
+            progID = initializeProgram(vertexID, fragmentID);
             use();
             initUniforms(progID);
-        } catch (Exception e) {
+        } catch (RuntimeException | Error e) {
             _dispose();
-            throw new GLException("Cannot load shader", e);
+            throw e;
+        } finally {
+            if (vertexID != 0)
+                GL.glDeleteShader(vertexID);
+            if (fragmentID != 0)
+                GL.glDeleteShader(fragmentID);
+        }
+    }
+
+    private String vertexSource() {
+        String text = readSource(vertex);
+        if (!text.contains(WARP_MARKER))
+            return text;
+        // The #version line has to stay first, so splice the common in after it rather than in
+        // front of it. This is why the vertex commons cannot simply be concatenated the way the
+        // fragment ones are, where the common carries the #version itself.
+        String common = readSource(COMMON_VERTEX);
+        int nl = text.indexOf('\n');
+        return nl < 0 ? common + text : text.substring(0, nl + 1) + common + text.substring(nl + 1);
+    }
+
+    private static String readSource(String resource) {
+        try {
+            return FileUtils.readResourceString(resource);
+        } catch (IOException e) {
+            throw new GLException("Cannot read shader resource " + resource, e);
         }
     }
 
     protected final void _dispose() {
         if (progID != 0) {
             GL.glUseProgram(0);
-        }
-        if (vertexID != 0) {
-            GL.glDeleteShader(vertexID);
-            vertexID = 0;
-        }
-        if (fragmentID != 0) {
-            GL.glDeleteShader(fragmentID);
-            fragmentID = 0;
-        }
-        if (progID != 0) {
             GL.glDeleteProgram(progID);
             progID = 0;
         }
     }
 
-    public final void use() {
+    final void use() {
         GL.glUseProgram(progID);
     }
 
     protected abstract void initUniforms(int id);
 
     protected static void setTextureUnit(int id, String texname, GLTexture.Unit unit) {
-        int loc = GL.glGetUniformLocation(id, texname);
-        if (loc != -1)
-            GL.glUniform1i(loc, unit.ordinal());
-        else
-            Log.error("Invalid texture " + texname);
+        GL.glUniform1i(requiredUniform(id, texname), unit.ordinal());
     }
 
-    private static int attachShader(int shaderType, String text) {
+    private static int compileShader(int shaderType, String description, String text) {
         int id = GL.glCreateShader(shaderType);
         try {
             GL.glShaderSource(id, text);
@@ -115,23 +130,18 @@ abstract class GLSLShader {
 
             int compileStatus = GL.glGetShaderi(id, GL.COMPILE_STATUS);
             if (compileStatus != 1) {
-                Log.error("Shader compile status: " + compileStatus);
                 int infoLogLength = GL.glGetShaderi(id, GL.INFO_LOG_LENGTH);
-                if (infoLogLength > 0) {
-                    String log = GL.glGetShaderInfoLog(id, infoLogLength);
-                    Log.error(log);
-                    throw new GLException("Cannot compile shader: " + log);
-                } else
-                    throw new GLException("Cannot compile shader: unknown reason");
+                String log = infoLogLength > 0 ? GL.glGetShaderInfoLog(id, infoLogLength) : "unknown reason";
+                throw new GLException("Cannot compile " + description + ": " + log);
             }
             return id;
-        } catch (Exception e) {
+        } catch (RuntimeException | Error e) {
             GL.glDeleteShader(id);
             throw e;
         }
     }
 
-    private int initializeProgram() {
+    private int initializeProgram(int vertexID, int fragmentID) {
         int id = GL.glCreateProgram();
         try {
             GL.glAttachShader(id, vertexID);
@@ -140,24 +150,15 @@ abstract class GLSLShader {
 
             int linkStatus = GL.glGetProgrami(id, GL.LINK_STATUS);
             if (linkStatus != 1) {
-                Log.error("Shader link status: " + linkStatus);
                 int infoLogLength = GL.glGetProgrami(id, GL.INFO_LOG_LENGTH);
-                if (infoLogLength > 0) {
-                    String log = GL.glGetProgramInfoLog(id, infoLogLength);
-                    Log.error(log);
-                    throw new GLException("Cannot link shader: " + log);
-                } else
-                    throw new GLException("Cannot link shader: unknown reason");
+                String log = infoLogLength > 0 ? GL.glGetProgramInfoLog(id, infoLogLength) : "unknown reason";
+                throw new GLException("Cannot link shader program " + vertex + " + " + String.join(" + ", fragments) + ": " + log);
             }
 
             GL.glDetachShader(id, vertexID);
-            GL.glDeleteShader(vertexID);
-            vertexID = 0;
             GL.glDetachShader(id, fragmentID);
-            GL.glDeleteShader(fragmentID);
-            fragmentID = 0;
             return id;
-        } catch (Exception e) {
+        } catch (RuntimeException | Error e) {
             GL.glDeleteProgram(id);
             throw e;
         }

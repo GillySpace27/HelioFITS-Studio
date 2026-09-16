@@ -2,13 +2,13 @@ package org.helioviewer.jhv.opengl;
 
 interface GLSLVertexReceiver {
 
-    void setVertexRepeatable(BufVertex vexBuf);
+    void upload(BufVertex vertices);
 
-    void setVertexRepeatable(DirectBufVertex vexBuf);
+    void upload(DirectBufVertex vertices);
 
-    default void setVertex(BufVertex vexBuf) { // default method clears buffer for safety
-        setVertexRepeatable(vexBuf);
-        vexBuf.clear();
+    default void uploadAndClear(BufVertex vertices) {
+        upload(vertices);
+        vertices.clear();
     }
 
 }

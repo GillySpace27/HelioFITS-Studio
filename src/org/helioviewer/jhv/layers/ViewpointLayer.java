@@ -17,8 +17,7 @@ import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.display.ViewportMath;
 import org.helioviewer.jhv.input.InputController;
-import org.helioviewer.jhv.input.InputPointerListener;
-import org.helioviewer.jhv.input.InputPointerMotionListener;
+import org.helioviewer.jhv.input.InputMouseListener;
 import org.helioviewer.jhv.input.PointerEvent;
 import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.movie.Player;
@@ -48,7 +47,7 @@ public class ViewpointLayer extends AbstractLayer {
     private ViewpointOrbitWorker.Prepared readyOrbits;
 
     private final GLSLLine spiral = new GLSLLine(true);
-    private final BufVertex spiralBuf = new BufVertex(SPIRAL_ARMS * (2 * SPIRAL_DIVISIONS + 1 + 2) * GLSLLine.stride);
+    private final BufVertex spiralBuf = new BufVertex(SPIRAL_ARMS * (2 * SPIRAL_DIVISIONS + 1 + 2));
     private final byte[] spiralColor = Colors.ReducedGreen.bytes();
 
     private final double[] lati = new double[3];
@@ -60,7 +59,7 @@ public class ViewpointLayer extends AbstractLayer {
     private final ViewpointLayerOptions options;
     private final HoverListener hoverListener = new HoverListener();
 
-    private final class HoverListener implements InputPointerListener, InputPointerMotionListener {
+    private final class HoverListener implements InputMouseListener {
         @Override
         public void mouseMoved(PointerEvent e) {
             handleMouseMoved(e);
@@ -352,8 +351,8 @@ public class ViewpointLayer extends AbstractLayer {
             return;
 
         if (parameters.compatibleWith(readyOrbits.parameters())) {
-            orbits.setVertexRepeatable(readyOrbits.orbitVertices());
-            planets.setVertexRepeatable(readyOrbits.planetVertices());
+            orbits.upload(readyOrbits.orbitVertices());
+            planets.upload(readyOrbits.planetVertices());
             uploadedParameters = readyOrbits.parameters();
         }
         readyOrbits = null;
@@ -370,11 +369,14 @@ public class ViewpointLayer extends AbstractLayer {
         orbitWorker.cancel();
     }
 
-    private void spiralPutVertex(double rad, double lon, double lat, byte[] color) {
+    private void spiralPutVertex(double rad, double lon, double lat, byte[] color, boolean startLine) {
         float x = (float) (rad * Math.cos(lat) * Math.cos(lon));
         float y = (float) (rad * Math.cos(lat) * Math.sin(lon));
         float z = (float) (rad * Math.sin(lat));
-        spiralBuf.putVertex(x, y, z, 1, color);
+        if (startLine)
+            spiralBuf.startLine(x, y, z, 1, color);
+        else
+            spiralBuf.putVertex(x, y, z, 1, color);
     }
 
     private void renderSpiral(Viewport vp, double[] spiralLati, int speed) {
@@ -391,12 +393,7 @@ public class ViewpointLayer extends AbstractLayer {
                 if (rad > SPIRAL_RADIUS)
                     break;
                 double lon = lona - (rad - rad0) / sr;
-                if (i == 0) {
-                    spiralPutVertex(rad, lon, lat0, Colors.Null);
-                    spiralBuf.repeatVertex(spiralColor);
-                } else {
-                    spiralPutVertex(rad, lon, lat0, spiralColor);
-                }
+                spiralPutVertex(rad, lon, lat0, spiralColor, i == 0);
             }
             // after control point
             for (int i = 0; i <= SPIRAL_DIVISIONS; i++) {
@@ -404,12 +401,12 @@ public class ViewpointLayer extends AbstractLayer {
                 if (rad > SPIRAL_RADIUS)
                     break;
                 double lon = lona - (rad - rad0) / sr;
-                spiralPutVertex(rad, lon, lat0, spiralColor);
+                spiralPutVertex(rad, lon, lat0, spiralColor, false);
             }
-            spiralBuf.repeatVertex(Colors.Null);
+            spiralBuf.endLine();
         }
 
-        spiral.setVertex(spiralBuf);
+        spiral.uploadAndClear(spiralBuf);
         spiral.renderLine(vp, LINEWIDTH_SPIRAL);
     }
 }

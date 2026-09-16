@@ -1,6 +1,5 @@
 package org.helioviewer.jhv.opengl;
 
-import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.math.Quat;
 
 public class GLHelper {
@@ -26,29 +25,31 @@ public class GLHelper {
                 z = 0;
             }
 
+            byte[] color = i % 2 == 0 ? evenColor : oddColor;
             if (i == startStep)
-                vexBuf.putVertex(x, y, z, 1, Colors.Null);
-            vexBuf.putVertex(x, y, z, 1, i % 2 == 0 ? evenColor : oddColor);
+                vexBuf.startLine(x, y, z, 1, color);
+            else
+                vexBuf.putVertex(x, y, z, 1, color);
             if (i == endStep)
-                vexBuf.putVertex(x, y, z, 1, Colors.Null);
+                vexBuf.endLine();
         }
     }
 
     public static void initCircleFront(GLSLShape circle, double x, double y, double r, int segments, byte[] color) {
         int no_points = 2 * (segments + 1);
-        BufVertex vexBuf = new BufVertex(no_points * GLSLShape.stride);
+        BufVertex vexBuf = new BufVertex(no_points);
         for (int i = 0; i <= segments; ++i) {
             double t = 2 * Math.PI * i / segments;
             vexBuf.putVertex((float) (x + Math.sin(t) * r), (float) (y + Math.cos(t) * r), 0, 1, color);
             vexBuf.putVertex((float) x, (float) y, 0, 1, color);
         }
-        circle.setVertex(vexBuf);
+        circle.uploadAndClear(vexBuf);
     }
 
     public static void initRectangleFront(GLSLShape rectangle, double x0, double y0, double w, double h, byte[] color) {
-        BufVertex vexBuf = new BufVertex(4 * GLSLShape.stride);
+        BufVertex vexBuf = new BufVertex(4);
         vexBuf.putQuad2DStrip((float) x0, (float) y0, (float) (x0 + w), (float) (y0 + h), color);
-        rectangle.setVertex(vexBuf);
+        rectangle.uploadAndClear(vexBuf);
     }
 
 }

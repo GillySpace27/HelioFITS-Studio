@@ -2,14 +2,10 @@ package org.helioviewer.jhv.opengl;
 
 import java.awt.Canvas;
 import java.awt.Color;
-import java.awt.Component;
-import java.awt.Container;
 import java.awt.EventQueue;
 import java.awt.Graphics;
 import java.awt.GraphicsConfiguration;
-import java.awt.IllegalComponentStateException;
 import java.awt.Point;
-import java.awt.Rectangle;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.HierarchyBoundsAdapter;
@@ -21,7 +17,6 @@ import javax.swing.SwingUtilities;
 
 import org.helioviewer.jhv.app.Platform;
 import org.helioviewer.jhv.astronomy.Position;
-import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.opengl.angle.AngleRenderer;
 import org.helioviewer.jhv.opengl.angle.MacAngleBridge;
@@ -31,7 +26,6 @@ import org.helioviewer.jhv.opengl.angle.X11AngleBridge;
 @SuppressWarnings("serial")
 public final class AngleCanvas extends Canvas {
     private long macHostHandle;
-    private long nativeWindowHandle;
     private AngleRenderer angleRenderer;
     private boolean displayPending;
     private Position pendingViewpoint;
@@ -42,10 +36,11 @@ public final class AngleCanvas extends Canvas {
     private long fpsTime = System.currentTimeMillis();
     private int lastGlWidth = -1;
     private int lastGlHeight = -1;
-    private Rectangle lastHostBounds;
     private boolean hostResyncPending; // suppress renders that would draw at a size the drawable lacks
     private boolean hostVisible = true;
     private boolean nativeHostVisible = true;
+    private double nativeHostScale = Double.NaN;
+    private boolean attachmentFailed;
 
     public AngleCanvas() {
         setFocusable(true);
@@ -62,7 +57,6 @@ public final class AngleCanvas extends Canvas {
                 // Force a redraw after AWT resize so the GL pixel size is recomputed
                 // immediately and the aspect ratio does not lag behind the canvas size.
                 invalidateGlSize();
-                refreshPixelScale();
                 scheduleHostUpdate(true);
             }
         });
@@ -71,38 +65,13 @@ public final class AngleCanvas extends Canvas {
             public void ancestorMoved(HierarchyEvent e) {
                 scheduleHostUpdate(false);
             }
-
-            @Override
-            public void ancestorResized(HierarchyEvent e) {
-                scheduleHostUpdate(true);
-            }
         });
     }
 
     @Override
     public void addNotify() {
         super.addNotify();
-        refreshPixelScale();
         scheduleHostUpdate(true);
-    }
-
-    @Override
-    public void setBounds(int x, int y, int width, int height) {
-        int oldX = getX();
-        int oldY = getY();
-        int oldWidth = getWidth();
-        int oldHeight = getHeight();
-        boolean changed = x != oldX || y != oldY || width != oldWidth || height != oldHeight;
-        boolean sizeChanged = width != oldWidth || height != oldHeight;
-        super.setBounds(x, y, width, height);
-        if (!changed)
-            return;
-
-        if (sizeChanged) {
-            invalidateGlSize();
-            refreshPixelScale();
-        }
-        scheduleHostUpdate(sizeChanged);
     }
 
     @Override
@@ -124,30 +93,20 @@ public final class AngleCanvas extends Canvas {
         paint(g);
     }
 
-    // Synchronously resize the native host frame to the current canvas bounds and re-render, in the
-    // same event. Needed after a programmatic layout change (e.g. collapsing the sidebar): the
-    // ordinary resize path is deferred, so AWT paints the old framebuffer stretched to the new width
-    // before the correct frame lands. Doing it inline here removes both the stretch and the flash.
+    // Bring the canvas to its current size and re-render in the same event. Needed after a
+    // programmatic layout change (e.g. collapsing the sidebar): the ordinary resize path is
+    // deferred, so AWT paints the old framebuffer stretched to the new width before the correct
+    // frame lands. Doing it inline here removes both the stretch and the flash. The JAWT layer's
+    // frame is AWT's to set, so all that is forced here is the pixel scale and the GL reshape.
     public void refreshHost() {
         if (getWidth() <= 0 || getHeight() <= 0)
             return;
-        lastHostBounds = null; // force MacAngleBridge.setFrame even if bounds look unchanged
-        invalidateGlSize();    // force GLRenderer.reshape in renderNow
+        invalidateGlSize(); // force GLRenderer.reshape in renderNow
         refreshPixelScale();
-        if (nativeWindowHandle == 0L) {
-            attachIfNeeded();
-            if (nativeWindowHandle == 0L)
-                return;
-        }
+        attachIfNeeded();
         if (angleRenderer == null)
             return;
 
-        Rectangle bounds = hostBounds();
-        if (Platform.isMacOS())
-            // Synchronous so the native drawable is resized before we render — otherwise the frame
-            // renders at the old resolution (oblate) until a later native cycle (a click) fixes it.
-            MacAngleBridge.setFrameSync(macHostHandle, bounds.x, bounds.y, bounds.width, bounds.height);
-        lastHostBounds = bounds;
         renderNow(GLRenderer.getDisplayedViewpoint());
     }
 
@@ -163,23 +122,17 @@ public final class AngleCanvas extends Canvas {
             return;
         }
         attachIfNeeded();
-        if (nativeWindowHandle == 0L || angleRenderer == null) {
+        if (angleRenderer == null) {
             hostResyncPending = false;
             return;
         }
 
         refreshPixelScale();
-        Rectangle bounds = hostBounds();
-        // Asynchronous, always. A synchronous dispatch to the main thread from here deadlocks against
-        // AppKit -- it does it when collapsing, and it does it when expanding.
-        if (Platform.isMacOS())
-            MacAngleBridge.setFrame(macHostHandle, bounds.x, bounds.y, bounds.width, bounds.height);
-        lastHostBounds = bounds;
         invalidateGlSize();
 
-        // Give the queued native resize a moment to land, then draw. Until it does, renders stay
-        // suppressed, so no frame is drawn at a size the drawable has not reached.
-        javax.swing.Timer timer = new javax.swing.Timer(16, e -> { // one frame: long enough for the queued native resize, short enough not to be seen
+        // Give AWT's own resize of the JAWT layer a moment to land, then draw. Until it does,
+        // renders stay suppressed, so no frame is drawn at a size the drawable has not reached.
+        javax.swing.Timer timer = new javax.swing.Timer(16, e -> { // one frame: long enough for the layer resize, short enough not to be seen
             hostResyncPending = false;
             renderNow(GLRenderer.getDisplayedViewpoint());
         });
@@ -193,11 +146,15 @@ public final class AngleCanvas extends Canvas {
 
     public void requestRender(Position viewpoint) {
         pendingViewpoint = viewpoint;
+        queueRender();
+    }
+
+    private void queueRender() {
         if (displayPending)
             return;
 
         if (angleRenderer == null) {
-            scheduleHostUpdate(true, viewpoint);
+            scheduleHostUpdate(true);
             return;
         }
 
@@ -240,11 +197,12 @@ public final class AngleCanvas extends Canvas {
         if (!hostVisible)
             return;
 
+        refreshPixelScale();
         attachIfNeeded();
         if (angleRenderer == null)
             return;
 
-        refreshPixelScale();
+        syncHostScale();
         int glWidth = (int) (getWidth() * Display.pixelScale[0] + .5);
         int glHeight = (int) (getHeight() * Display.pixelScale[1] + .5);
         if (glWidth != lastGlWidth || glHeight != lastGlHeight) {
@@ -264,21 +222,23 @@ public final class AngleCanvas extends Canvas {
 
     // Create the platform-native host/window handle and ANGLE renderer on first use.
     private void attachIfNeeded() {
-        if (nativeWindowHandle != 0L || !isDisplayable() || getWidth() <= 0 || getHeight() <= 0)
+        if (angleRenderer != null || attachmentFailed || !isDisplayable() || getWidth() <= 0 || getHeight() <= 0)
             return;
 
-        Rectangle bounds = hostBounds();
-        long newHostHandle = 0L;
         long newNativeWindowHandle = 0L;
         try {
             if (Platform.isMacOS()) {
-                MacAngleBridge.Host host = MacAngleBridge.create(this, bounds.x, bounds.y, bounds.width, bounds.height);
+                JRootPane rootPane = SwingUtilities.getRootPane(this);
+                Point location = rootPane == null ? getLocation() :
+                        SwingUtilities.convertPoint(this, 0, 0, rootPane.getContentPane());
+                MacAngleBridge.Host host = MacAngleBridge.create(
+                        this, location.x, location.y, getWidth(), getHeight());
                 if (host == null)
                     return;
-                newHostHandle = host.handle();
+                macHostHandle = host.handle();
                 newNativeWindowHandle = host.layer();
                 if (!hostVisible)
-                    MacAngleBridge.setVisible(newHostHandle, false);
+                    MacAngleBridge.setVisible(macHostHandle, false);
             } else if (Platform.isWindows()) {
                 newNativeWindowHandle = WinAngleBridge.hwnd(this);
             } else if (Platform.isLinux()) {
@@ -287,51 +247,49 @@ public final class AngleCanvas extends Canvas {
             if (newNativeWindowHandle == 0L)
                 return;
 
-            AngleRenderer renderer = AngleRenderer.window(newNativeWindowHandle);
-            macHostHandle = newHostHandle;
-            nativeWindowHandle = newNativeWindowHandle;
-            angleRenderer = renderer;
-            lastHostBounds = bounds;
+            // The factory, not the constructor: it is what drops from EDR to deep colour to 8 bits
+            // when a driver refuses the deeper canvas.
+            angleRenderer = AngleRenderer.window(newNativeWindowHandle);
             nativeHostVisible = hostVisible;
+            if (Platform.isMacOS())
+                nativeHostScale = Display.pixelScale[0];
             invalidateGlSize();
         } catch (RuntimeException | Error e) {
-            if (newHostHandle != 0L)
-                MacAngleBridge.destroy(newHostHandle);
+            // Keep the macOS host until removeNotify so its JAWT layer is cleared only during Canvas teardown.
+            attachmentFailed = true;
             throw e;
         }
     }
 
-    // Push the current AWT bounds to the native host, then trigger a redraw if needed.
-    private void updateHostFrame(boolean renderNeeded, Position viewpoint) {
+    // Keep native scale and visibility synchronized, then trigger a redraw if needed.
+    private void updateHost(boolean renderNeeded) {
         if (getWidth() <= 0 || getHeight() <= 0)
             return;
 
         boolean pixelScaleChanged = refreshPixelScale();
 
-        if (nativeWindowHandle == 0L) {
+        if (angleRenderer == null) {
             attachIfNeeded();
-            if (nativeWindowHandle == 0L)
+            if (angleRenderer == null)
                 return;
         }
-        if (angleRenderer == null)
-            return;
 
-        Rectangle bounds = hostBounds();
         if (Platform.isMacOS()) {
-            if (!bounds.equals(lastHostBounds) || pixelScaleChanged)
-                MacAngleBridge.setFrame(macHostHandle, bounds.x, bounds.y, bounds.width, bounds.height);
+            syncHostScale();
             if (hostVisible != nativeHostVisible) {
                 MacAngleBridge.setVisible(macHostHandle, hostVisible);
                 nativeHostVisible = hostVisible;
             }
         }
-        lastHostBounds = bounds;
-        if (hostVisible && (renderNeeded || pixelScaleChanged || lastGlWidth < 0 || lastGlHeight < 0))
-            requestRender(viewpoint);
+        if (hostVisible && (renderNeeded || pixelScaleChanged || lastGlWidth < 0 || lastGlHeight < 0)) {
+            if (pendingViewpoint == null)
+                pendingViewpoint = GLRenderer.getDisplayedViewpoint();
+            queueRender();
+        }
     }
 
     // Coalesce host updates onto the EDT so move/resize bursts become one native update.
-    private void scheduleHostUpdate(boolean renderNeeded, Position viewpoint) {
+    private void scheduleHostUpdate(boolean renderNeeded) {
         hostRenderPending |= renderNeeded;
         if (hostUpdatePending || !isDisplayable())
             return;
@@ -341,12 +299,8 @@ public final class AngleCanvas extends Canvas {
             hostUpdatePending = false;
             boolean render = hostRenderPending;
             hostRenderPending = false;
-            updateHostFrame(render, viewpoint);
+            updateHost(render);
         });
-    }
-
-    private void scheduleHostUpdate(boolean renderNeeded) {
-        scheduleHostUpdate(renderNeeded, GLRenderer.getDisplayedViewpoint());
     }
 
     // Tear down renderer and native host state, even if part of the shutdown path fails.
@@ -361,10 +315,9 @@ public final class AngleCanvas extends Canvas {
                     MacAngleBridge.destroy(macHostHandle);
             } finally {
                 macHostHandle = 0L;
-                nativeWindowHandle = 0L;
                 nativeHostVisible = true;
+                nativeHostScale = Double.NaN;
                 displayPending = hostUpdatePending = hostRenderPending = false;
-                lastHostBounds = null;
                 invalidateGlSize();
             }
         }
@@ -375,17 +328,17 @@ public final class AngleCanvas extends Canvas {
         lastGlHeight = -1;
     }
 
+    private void syncHostScale() {
+        if (!Platform.isMacOS() || nativeHostScale == Display.pixelScale[0])
+            return;
+
+        MacAngleBridge.setScale(macHostHandle, Display.pixelScale[0]);
+        nativeHostScale = Display.pixelScale[0];
+    }
+
     // Keep the shared pixel scale in sync and invalidate the GL size if a monitor switch
     // changed the backing pixel ratio.
     private boolean refreshPixelScale() {
-        boolean changed = updatePixelScale();
-        if (changed)
-            invalidateGlSize();
-        return changed;
-    }
-
-    // Track the current HiDPI scale so GL sizes and UI coordinate conversion stay aligned.
-    private boolean updatePixelScale() {
         GraphicsConfiguration graphicsConfiguration = getGraphicsConfiguration();
         double scaleX = 1;
         double scaleY = 1;
@@ -400,30 +353,8 @@ public final class AngleCanvas extends Canvas {
 
         Display.pixelScale[0] = scaleX;
         Display.pixelScale[1] = scaleY;
+        invalidateGlSize();
         return true;
     }
 
-    // Express the canvas bounds relative to the Swing content pane for native host placement.
-    private Rectangle hostBounds() {
-        int width = getWidth();
-        int height = getHeight();
-        JRootPane rootPane = SwingUtilities.getRootPane(this);
-        if (rootPane == null)
-            return new Rectangle(0, 0, width, height);
-
-        Container contentPane = rootPane.getContentPane();
-        try {
-            Point canvasOnScreen = getLocationOnScreen();
-            Point contentOnScreen = contentPane.getLocationOnScreen();
-            return new Rectangle(canvasOnScreen.x - contentOnScreen.x, canvasOnScreen.y - contentOnScreen.y, width, height);
-        } catch (IllegalComponentStateException ignore) {}
-
-        int x = 0;
-        int y = 0;
-        for (Component current = this; current != null && current != contentPane; current = current.getParent()) {
-            x += current.getX();
-            y += current.getY();
-        }
-        return new Rectangle(x, y, width, height);
-    }
 }

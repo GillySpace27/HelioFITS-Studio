@@ -7,7 +7,7 @@ package org.helioviewer.jhv.display;
  * different places:
  *
  * <ul>
- * <li>the imagery mesh reads {@code ScreenBlock.yStop}, which GLSLSolarShader.bindScreen fills
+ * <li>the imagery mesh reads {@code ScreenBlock.yStop}, which the screen uniform block fills
  * with {@code scale.toMapY(1)};
  * <li>every world-space overlay (grid, point clouds, PFSS, FOV boxes, annotations) reads
  * {@code WarpBlock.outerRadius}, which GLSLWarp.enable fills with

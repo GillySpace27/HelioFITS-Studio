@@ -1,18 +1,22 @@
 package org.helioviewer.jhv.display.interaction;
 
+import java.util.LinkedHashSet;
 import java.util.function.Consumer;
 
 import javax.annotation.Nullable;
 
 import org.helioviewer.jhv.annotation.Annotations;
+import org.helioviewer.jhv.app.Commands;
 import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.display.Camera;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
+import org.helioviewer.jhv.display.MapMode;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.input.KeyInputEvent;
 import org.helioviewer.jhv.input.PointerEvent;
 import org.helioviewer.jhv.input.ScrollEvent;
+import org.helioviewer.jhv.math.Vec3;
 
 public final class Interaction {
 
@@ -35,12 +39,19 @@ public final class Interaction {
     private final InteractionZoom interactionZoom;
     private final Zoom zoom;
 
+    private final LinkedHashSet<KeyInputEvent.Key> axisKeys = new LinkedHashSet<>();
+
     private Mode mode = Mode.ROTATE; // the mode chosen on the toolbar, and remembered
     @Nullable
     private Mode held; // a mode held on a modifier key, over the chosen one, until the key is let go
-    private boolean annotating = false;
     @Nullable
     private Consumer<Mode> modeListener;
+    // The handler that took the press, kept for the whole gesture: whatever the modifiers or the
+    // projection do mid-drag, the drag finishes in the handler that started it.
+    @Nullable
+    private Type activeDrag;
+    @Nullable
+    private Viewport dragViewport;
 
     public Interaction() {
         Camera camera = Display.getCamera();
@@ -120,7 +131,7 @@ public final class Interaction {
         // The observer's sky has nothing to orbit: the observer stays put and a drag changes which
         // way it is facing. So the rotate tool becomes a look-around there, which is what a user
         // reaching for the rotate tool in that mode is asking for. Pan still pans the page.
-        if (Display.mode == org.helioviewer.jhv.display.MapMode.ObserverSky && effective != Mode.PAN && effective != Mode.ZOOM)
+        if (Display.mode == MapMode.ObserverSky && effective != Mode.PAN && effective != Mode.ZOOM)
             return interactionSkyLook;
         return switch (effective) {
             case PAN -> interactionPan;
@@ -130,8 +141,10 @@ public final class Interaction {
         };
     }
 
-    private boolean isAnnotating() {
-        return annotating || Annotations.hasPending();
+    // Shift starts an annotation; a pending one keeps the handler afterwards, because a
+    // multi-point annotation is finished with further presses once the key has been let go.
+    private boolean annotating(boolean shiftDown) {
+        return shiftDown || Annotations.hasPending();
     }
 
     public void mouseWheelMoved(ScrollEvent e, Viewport vp) {
@@ -142,19 +155,17 @@ public final class Interaction {
         hold(e.metaDown(), e.altDown(), e.ctrlDown());
     }
 
-    public void mouseDragged(PointerEvent e, Viewport vp) {
-        if (isAnnotating())
-            interactionAnnotate.mouseDragged(e, vp);
-        else
-            getType().mouseDragged(e, vp);
+    public void mouseDragged(PointerEvent e) {
+        if (activeDrag != null)
+            activeDrag.mouseDragged(e, dragViewport);
     }
 
     public void mouseReleased() {
-        if (isAnnotating())
-            interactionAnnotate.mouseReleased();
-        else
-            getType().mouseReleased();
-        annotating = false;
+        Type drag = activeDrag;
+        activeDrag = null;
+        dragViewport = null;
+        if (drag != null)
+            drag.mouseReleased();
     }
 
     public void mouseClicked(PointerEvent e) {
@@ -166,32 +177,48 @@ public final class Interaction {
 
     public void mousePressed(PointerEvent e, Viewport vp) {
         hold(e.metaDown(), e.altDown(), e.ctrlDown()); // decided at the press, so the whole drag agrees
-        if (e.shiftDown()) {
-            annotating = true;
-        }
-        if (annotating)
-            interactionAnnotate.mousePressed(e, vp);
-        else
-            getType().mousePressed(e, vp);
+        mouseReleased();
+        dragViewport = vp;
+        activeDrag = annotating(e.shiftDown()) ? interactionAnnotate : getType();
+        activeDrag.mousePressed(e, vp);
     }
 
     public void keyPressed(KeyInputEvent e) {
         hold(e.metaDown(), e.altDown(), e.ctrlDown());
-        if (e.shiftDown()) {
-            annotating = true;
-        }
-        if (annotating)
+        if (annotating(e.shiftDown())) {
             interactionAnnotate.keyPressed(e);
-        // Space toggles playback when the canvas has focus, matching every video app; Cmd+P
-        // stays in the Play/Pause menu item as the legacy accelerator, off the Print collision
-        // only because this app has no print command to collide with.
-        else if (e.key() == KeyInputEvent.Key.SPACE && !e.metaDown() && !e.ctrlDown() && !e.altDown())
-            org.helioviewer.jhv.app.Commands.togglePlayback();
+        } else if (e.key() == KeyInputEvent.Key.X || e.key() == KeyInputEvent.Key.Y || e.key() == KeyInputEvent.Key.Z) {
+            if (axisKeys.add(e.key()))
+                updateAxis();
+        } else if (e.key() == KeyInputEvent.Key.SPACE && !e.metaDown() && !e.ctrlDown() && !e.altDown()) {
+            // Space toggles playback when the canvas has focus, matching every video app; Cmd+P
+            // stays in the Play/Pause menu item as the legacy accelerator, off the Print collision
+            // only because this app has no print command to collide with.
+            Commands.togglePlayback();
+        }
     }
 
     public void keyReleased(KeyInputEvent e) {
         hold(e.metaDown(), e.altDown(), e.ctrlDown()); // the event's modifiers no longer include the released key
-        annotating = e.shiftDown();
+        if (axisKeys.remove(e.key()))
+            updateAxis();
+    }
+
+    public void focusLost() {
+        axisKeys.clear();
+        updateAxis();
+        hold(false, false, false); // no release event arrives for a key let go elsewhere
+        mouseReleased();
+    }
+
+    private void updateAxis() {
+        Vec3 axis = axisKeys.isEmpty() ? null : switch (axisKeys.getLast()) {
+            case X -> Vec3.XAxis;
+            case Y -> Vec3.YAxis;
+            case Z -> Vec3.ZAxis;
+            default -> null;
+        };
+        interactionAxis.setAxisOverride(axis);
     }
 
 }

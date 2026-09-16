@@ -1,13 +1,12 @@
 package org.helioviewer.jhv.io;
 
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.List;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.swing.JTree;
 import javax.swing.ToolTipManager;
@@ -15,12 +14,10 @@ import javax.swing.text.Position;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
-import javax.swing.tree.DefaultTreeSelectionModel;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 
 import org.helioviewer.jhv.app.Settings;
-import org.helioviewer.jhv.gui.Interfaces;
 
 @SuppressWarnings("serial")
 public final class DataSourcesTree extends JTree {
@@ -48,15 +45,13 @@ public final class DataSourcesTree extends JTree {
         public final int sourceId;
         public final long start;
         public final long end;
-        public final boolean defaultItem;
 
-        public SourceItem(String _server, String _name, String _description, int _sourceId, long _start, long _end, boolean _defaultItem) {
+        public SourceItem(String _server, String _name, String _description, int _sourceId, long _start, long _end) {
             super(_name, _description);
             server = _server;
             sourceId = _sourceId;
             start = _start;
             end = _end;
-            defaultItem = _defaultItem;
         }
 
     }
@@ -87,17 +82,18 @@ public final class DataSourcesTree extends JTree {
         expandPath(new TreePath(node.getPath()));
     }
 
-    public DataSourcesTree(Interfaces.ObservationSelector selector) {
+    public DataSourcesTree(Runnable activationHandler) {
         nodeRoot = new DefaultMutableTreeNode("Datasets");
 
         for (String serverName : DataSources.getServers()) {
-            DefaultMutableTreeNode node = new DefaultMutableTreeNode(new Item(serverName, DataSources.getServerSetting(serverName, "label")));
+            DefaultMutableTreeNode node = new DefaultMutableTreeNode(new Item(serverName, DataSources.getServer(serverName).label()));
             nodes.put(serverName, node);
             nodeRoot.add(node);
         }
 
         setModel(new DefaultTreeModel(nodeRoot));
-        // setRootVisible(false);
+        setRootVisible(false);
+        setShowsRootHandles(true);
 
         if (getCellRenderer() instanceof DefaultTreeCellRenderer defaultRenderer) {
             defaultRenderer.setOpenIcon(null);
@@ -106,31 +102,25 @@ public final class DataSourcesTree extends JTree {
         }
 
         instances.add(this);
-        setSelectionModel(new OneLeafTreeSelectionModel(selector));
+        getSelectionModel().setSelectionMode(TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION);
         ToolTipManager.sharedInstance().registerComponent(this);
         com.jidesoft.swing.SearchableUtils.installSearchable(this).setRecursive(true);
 
         addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                TreePath path;
-                if (e.getClickCount() == 2 && getRowForLocation(e.getX(), e.getY()) != -1 && (path = getPathForLocation(e.getX(), e.getY())) != null) {
-                    Object obj = ((DefaultMutableTreeNode) path.getLastPathComponent()).getUserObject();
-                    if (obj instanceof SourceItem si)
-                        selector.load(si.server, si.sourceId);
-                }
+                if (e.getClickCount() == 2 && getItemAt(e) instanceof SourceItem)
+                    activationHandler.run();
             }
         });
-        addKeyListener(new KeyAdapter() {
-            @Override
-            public void keyPressed(KeyEvent e) {
-                if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-                    SourceItem item = getSelectedItem();
-                    if (item != null)
-                        selector.load(item.server, item.sourceId);
-                }
-            }
-        });
+    }
+
+    @Nullable
+    private Item getItemAt(MouseEvent e) {
+        TreePath path = getPathForLocation(e.getX(), e.getY());
+        if (path != null && ((DefaultMutableTreeNode) path.getLastPathComponent()).getUserObject() instanceof Item item)
+            return item;
+        return null;
     }
 
     @Nullable
@@ -139,46 +129,29 @@ public final class DataSourcesTree extends JTree {
         return null; // disable builtin search
     }
 
-    private static DefaultMutableTreeNode copyNode(DefaultMutableTreeNode src) {
-        DefaultMutableTreeNode copy = new DefaultMutableTreeNode(src.getUserObject());
-        if (src.isLeaf()) {
-            return copy;
-        } else {
-            int cc = src.getChildCount();
-            for (int i = 0; i < cc; i++) {
-                copy.add(copyNode((DefaultMutableTreeNode) src.getChildAt(i)));
-            }
-            return copy;
-        }
-    }
-
     private static void reattach(DefaultMutableTreeNode tgt, DefaultMutableTreeNode src) {
         tgt.removeAllChildren();
-        Enumeration<?> children = src.children();
-        while (children.hasMoreElements()) {
-            tgt.add(copyNode((DefaultMutableTreeNode) children.nextElement()));
-        }
+        while (src.getChildCount() > 0)
+            tgt.add((DefaultMutableTreeNode) src.getFirstChild());
     }
 
-    public boolean setParsedData(DataSourcesParser parser) {
+    @Nullable
+    public SourceItem setParsedData(DataSourcesParser parser) {
         String server = parser.getRoot().toString();
-        for (String serverName : DataSources.getServers()) {
-            if (serverName.equals(server)) {
-                DefaultMutableTreeNode node = nodes.get(serverName);
-                reattach(node, parser.getRoot());
-                ((DefaultTreeModel) getModel()).nodeStructureChanged(node);
-                break;
-            }
+        DefaultMutableTreeNode node = nodes.get(server);
+        if (node != null) {
+            reattach(node, parser.getRoot());
+            ((DefaultTreeModel) getModel()).nodeStructureChanged(node);
         }
 
         boolean preferred = server.equals(Settings.getProperty("dataSources.defaultServer"));
-        if (preferred && parser.getDefault() != null) {
-            Object obj = parser.getDefault().getUserObject();
-            if (obj instanceof SourceItem si) {
-                setSelectedItem(si.server, si.sourceId);
-            }
-        }
-        return preferred;
+        if (!preferred)
+            return null;
+
+        SourceItem defaultItem = parser.getDefault();
+        if (defaultItem != null)
+            setSelectedItem(defaultItem.server, defaultItem.sourceId);
+        return defaultItem;
     }
 
     public void setSelectedItem(String server, int sourceId) {
@@ -194,15 +167,18 @@ public final class DataSourcesTree extends JTree {
         }
     }
 
-    @Nullable
-    public SourceItem getSelectedItem() {
-        TreePath path = getSelectionPath();
-        if (path != null) {
-            Object obj = ((DefaultMutableTreeNode) path.getLastPathComponent()).getUserObject();
-            if (obj instanceof SourceItem si)
-                return si;
+    public List<SourceItem> getSelectedItems() {
+        TreePath[] paths = getSelectionPaths();
+        if (paths == null)
+            return List.of();
+
+        List<SourceItem> items = new ArrayList<>();
+        for (TreePath path : paths) {
+            DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
+            if (node.getUserObject() instanceof SourceItem item)
+                items.add(item);
         }
-        return null; // only on source load error
+        return List.copyOf(items);
     }
 
     @Nullable
@@ -211,59 +187,8 @@ public final class DataSourcesTree extends JTree {
         if (e == null) // may receive null according to docs
             return null;
 
-        TreePath path;
-        if (getRowForLocation(e.getX(), e.getY()) == -1 || (path = getPathForLocation(e.getX(), e.getY())) == null)
-            return null;
-
-        Object obj = ((DefaultMutableTreeNode) path.getLastPathComponent()).getUserObject();
-        if (obj instanceof Item item)
-            return item.description;
-        return null;
-    }
-
-    private static class OneLeafTreeSelectionModel extends DefaultTreeSelectionModel {
-
-        private final Interfaces.ObservationSelector selector;
-        private TreePath selectedPath;
-
-        OneLeafTreeSelectionModel(Interfaces.ObservationSelector _selector) {
-            selector = _selector;
-            setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
-        }
-
-        private void setSelectionPathInternal(@Nonnull TreePath path) {
-            DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
-            if (node.isLeaf() && node.getUserObject() instanceof SourceItem) {
-                super.setSelectionPath(path);
-                selectedPath = path;
-                selector.setAvailabilityEnabled(DataSources.getServerSetting(((SourceItem) node.getUserObject()).server, "availability.images") != null);
-            }
-        }
-
-        @Override
-        public void setSelectionPath(TreePath path) {
-            if (path == null)
-                return;
-            setSelectionPathInternal(path);
-        }
-
-        @Override
-        public void addSelectionPath(TreePath path) {
-            if (path == null)
-                return;
-            setSelectionPathInternal(path);
-        }
-
-        @Override
-        public void resetRowSelection() {
-            super.resetRowSelection();
-            if (selectedPath != null && selection == null)
-                selection = new TreePath[]{selectedPath};
-        }
-
-        @Override
-        public void clearSelection() {}
-
+        Item item = getItemAt(e);
+        return item == null ? null : item.description;
     }
 
 }

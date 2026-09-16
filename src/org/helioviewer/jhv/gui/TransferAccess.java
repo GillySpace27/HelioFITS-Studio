@@ -8,7 +8,7 @@ import java.util.List;
 
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.io.TransferLoad;
-import org.helioviewer.jhv.thread.AppThread;
+import org.helioviewer.jhv.thread.Task;
 
 public final class TransferAccess {
 
@@ -21,11 +21,17 @@ public final class TransferAccess {
         try {
             if (transferable.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
                 List<?> objects = (List<?>) transferable.getTransferData(DataFlavor.javaFileListFlavor);
-                AppThread.create(() -> TransferLoad.transferFileList(objects), "HFS-TransferFileList").start(); // avoid file system operations on EDT
+                Task.submitBackground(() -> {
+                    TransferLoad.transferFileList(objects);
+                    return null;
+                }, Task::doNothing, t -> Log.warn("Import error", t));
                 return true;
             } else if (transferable.isDataFlavorSupported(DataFlavor.stringFlavor)) {
                 String loc = (String) transferable.getTransferData(DataFlavor.stringFlavor);
-                AppThread.create(() -> TransferLoad.transferStringArray(loc), "HFS-TransferStringArray").start(); // avoid file system operations on EDT
+                Task.submitBackground(() -> {
+                    TransferLoad.transferStringArray(loc);
+                    return null;
+                }, Task::doNothing, t -> Log.warn("Import error", t));
                 return true;
             }
         } catch (Exception e) {

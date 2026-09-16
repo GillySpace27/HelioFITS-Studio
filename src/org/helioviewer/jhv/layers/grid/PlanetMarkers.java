@@ -175,7 +175,7 @@ public final class PlanetMarkers {
      */
     public static void buildOrbits(GLSLLine line, JHVTime time, double alpha, boolean followSolarRotation) {
         List<SpaceObject> bodies = bodies();
-        BufVertex buf = new BufVertex(bodies.size() * (ORBIT_SAMPLES + 3) * GLSLLine.stride);
+        BufVertex buf = new BufVertex(bodies.size() * (ORBIT_SAMPLES + 3));
         // ONE offset, taken at the display time and held for every sample. Recomputing it per
         // sample would fold the solar rotation back into the curve and reproduce the star polygon
         // this replaced: the ellipse is a fixed shape that the frame carries around, not a path
@@ -194,13 +194,14 @@ public final class PlanetMarkers {
                     continue;
                 Vec3 p = toDisplay(v, offset);
                 if (i == 0)
-                    buf.putVertex((float) p.x, (float) p.y, (float) p.z, 1, Colors.Null);
-                buf.putVertex((float) p.x, (float) p.y, (float) p.z, 1, color);
+                    buf.startLine((float) p.x, (float) p.y, (float) p.z, 1, color);
+                else
+                    buf.putVertex((float) p.x, (float) p.y, (float) p.z, 1, color);
                 if (i == ORBIT_SAMPLES)
-                    buf.putVertex((float) p.x, (float) p.y, (float) p.z, 1, Colors.Null);
+                    buf.endLine();
             }
         }
-        line.setVertex(buf);
+        line.uploadAndClear(buf);
     }
 
     /**

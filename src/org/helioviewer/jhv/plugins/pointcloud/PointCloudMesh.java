@@ -7,8 +7,6 @@ import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.image.lut.LUT;
 import org.helioviewer.jhv.opengl.BufVertex;
 import org.helioviewer.jhv.opengl.DirectBufVertex;
-import org.helioviewer.jhv.opengl.GLSLLine;
-import org.helioviewer.jhv.opengl.GLSLShape;
 
 // Turns a PointCloudData plus display parameters into ready-to-upload vertex buffers.
 // The alpha-shape is not triangulated here: the producer shipped the Delaunay
@@ -115,7 +113,7 @@ final class PointCloudMesh {
     }
 
     private static DirectBufVertex buildPoints(PointCloudData d, byte[][] colorOf, double size) {
-        BufVertex buf = new BufVertex(d.numPoints() * GLSLShape.stride);
+        BufVertex buf = new BufVertex(d.numPoints());
         float[] pos = d.scenePos();
         for (int i = 0; i < d.numPoints(); i++)
             buf.putVertex(pos[3 * i], pos[3 * i + 1], pos[3 * i + 2], (float) size, colorOf[i]);
@@ -125,7 +123,7 @@ final class PointCloudMesh {
     private static DirectBufVertex buildSurface(PointCloudData d, long[] faces, LUT lut, boolean colorByValue, double opacity) {
         int a255 = (int) Math.round(Math.clamp(opacity, 0, 1) * 255);
         byte[][] colorOf = pointColors(d, lut, colorByValue, a255); // Colors.bytes premultiplies alpha
-        BufVertex buf = new BufVertex(3 * faces.length * GLSLShape.stride);
+        BufVertex buf = new BufVertex(3 * faces.length);
         float[] pos = d.scenePos();
         for (long f : faces) {
             emitVertex(buf, pos, PointCloudLoader.faceA(f), colorOf);
@@ -140,7 +138,7 @@ final class PointCloudMesh {
     }
 
     // Wireframe = the distinct edges of the boundary triangles (not all Delaunay edges).
-    // Each edge is one GLSLLine polyline: Colors.Null sentinel, v0, v1, Colors.Null.
+    // Each edge is one GLSLLine polyline: startLine(v0), putVertex(v1), endLine.
     private static DirectBufVertex buildWire(PointCloudData d, long[] faces) {
         long[] edges = new long[3 * faces.length];
         int n = 0;
@@ -152,7 +150,7 @@ final class PointCloudMesh {
         }
         Arrays.sort(edges);
 
-        BufVertex buf = new BufVertex(4 * faces.length * GLSLLine.stride);
+        BufVertex buf = new BufVertex(4 * faces.length);
         float[] pos = d.scenePos();
         byte[] col = Colors.Blue.bytes();
         long prev = -1;
@@ -161,10 +159,9 @@ final class PointCloudMesh {
                 continue;
             prev = e;
             int i = (int) (e >>> 21), j = (int) (e & 0x1FFFFF);
-            buf.putVertex(pos[3 * i], pos[3 * i + 1], pos[3 * i + 2], 1, Colors.Null);
-            buf.putVertex(pos[3 * i], pos[3 * i + 1], pos[3 * i + 2], 1, col);
+            buf.startLine(pos[3 * i], pos[3 * i + 1], pos[3 * i + 2], 1, col);
             buf.putVertex(pos[3 * j], pos[3 * j + 1], pos[3 * j + 2], 1, col);
-            buf.putVertex(pos[3 * j], pos[3 * j + 1], pos[3 * j + 2], 1, Colors.Null);
+            buf.endLine();
         }
         return new DirectBufVertex(buf);
     }

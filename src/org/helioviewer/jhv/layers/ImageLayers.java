@@ -37,7 +37,9 @@ public final class ImageLayers {
             int idx = layer.isVisibleIdx();
             if (idx != -1) {
                 double pixFactor = DisplayController.getImagePixelFactor(Display.getViewport(idx));
-                layer.getView().decode(viewpoint, pixFactor * warpMagnification(layer), factor);
+                // Through the layer, so the decode carries the FITS clipping range; the warp
+                // correction stays on pixFactor, which is what picks the resolution level.
+                layer.decode(viewpoint, pixFactor * warpMagnification(layer), factor);
                 decoded = true;
             }
         }

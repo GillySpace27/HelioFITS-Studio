@@ -14,9 +14,9 @@ import javax.annotation.Nullable;
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.image.DecodedImage;
+import org.helioviewer.jhv.image.ImageProcessingSettings;
 import org.helioviewer.jhv.io.APIRequest;
 import org.helioviewer.jhv.io.DataUri;
-import org.helioviewer.jhv.io.DataUri.Format.Image;
 import org.helioviewer.jhv.io.DownloadLayer;
 import org.helioviewer.jhv.io.FileUtils;
 import org.helioviewer.jhv.io.JSONUtils;
@@ -35,6 +35,7 @@ import org.json.JSONObject;
 final class ImageLayerLoader {
 
     private final LatestWorker<DecodedImage> executor = new LatestWorker<>("View-Decoder");
+    private final ImageProcessingSettings processingSettings;
     private final Consumer<View> onViewLoaded;
     private final Consumer<View> onPreviewLoaded; // the first frame, while the rest are still arriving
     private final Runnable onUnload;
@@ -45,8 +46,10 @@ final class ImageLayerLoader {
     private Future<?> downloadFuture;
     private int loadGeneration;
 
-    ImageLayerLoader(@Nonnull Consumer<View> _onViewLoaded, @Nonnull Consumer<View> _onPreviewLoaded, @Nonnull Runnable _onUnload,
-                      @Nonnull Consumer<String> _statusSink, @Nonnull Consumer<List<URI>> _onFailedUris) {
+    ImageLayerLoader(ImageProcessingSettings _processingSettings,
+                     @Nonnull Consumer<View> _onViewLoaded, @Nonnull Consumer<View> _onPreviewLoaded, @Nonnull Runnable _onUnload,
+                     @Nonnull Consumer<String> _statusSink, @Nonnull Consumer<List<URI>> _onFailedUris) {
+        processingSettings = _processingSettings;
         onViewLoaded = _onViewLoaded;
         onPreviewLoaded = _onPreviewLoaded;
         onUnload = _onUnload;
@@ -57,12 +60,12 @@ final class ImageLayerLoader {
     void load(APIRequest req) {
         cancelLoad();
         int gen = ++loadGeneration;
-        loadFuture = Task.submit("request", () -> {
-                    statusSink.accept("Contacting server\u2026");
+        loadFuture = Task.submitBackground("request", () -> {
+                    statusSink.accept("Contacting server…");
                     URI uri = requestAPI(req.toJpipRequest());
                     if (uri == null)
                         return null;
-                    statusSink.accept("Opening image stream\u2026");
+                    statusSink.accept("Opening image stream…");
                     return createView(req, uri);
                 },
                 result -> onSuccess(result, gen),
@@ -73,7 +76,7 @@ final class ImageLayerLoader {
         cancelLoad();
         onFailedUris.accept(List.of()); // clear any stale failures from a previous load
         int gen = ++loadGeneration;
-        loadFuture = Task.submit(uriList.toString(),
+        loadFuture = Task.submitBackground(uriList.toString(),
                 () -> loadUri(uriList, view -> EventQueue.invokeLater(() -> onPreview(view, gen))),
                 result -> onSuccess(result, gen),
                 (logContext, t) -> onFailure(t, gen, failureTitle(uriList)));
@@ -138,7 +141,7 @@ final class ImageLayerLoader {
     void abolish() {
         cancelLoad();
         cancelDownload();
-        executor.abolish();
+        executor.dispose();
     }
 
     private void onSuccess(View result, int gen) {
@@ -174,11 +177,11 @@ final class ImageLayerLoader {
     private View loadUri(List<URI> uriList, Consumer<View> preview) throws Exception {
         int total = uriList.size();
         if (total == 1) {
-            statusSink.accept("Connecting\u2026");
+            statusSink.accept("Connecting…");
             return createView(null, uriList.getFirst());
         } else {
             // ponytail: frame-count granularity only; per-file byte progress needs NetFileCache changes
-            statusSink.accept("Connecting: 0/" + total + " frames\u2026");
+            statusSink.accept("Connecting: 0/" + total + " frames…");
             // One frame is enough to stop the canvas being empty for the length of the download,
             // which for a hundred coronagraph frames is a couple of hundred megabytes. Failure
             // here is not worth reporting: the same URI is about to be tried again in the batch.
@@ -191,16 +194,16 @@ final class ImageLayerLoader {
             List<View> views = uriList.parallelStream().map(uri -> {
                 try {
                     View v = createView(null, uri);
-                    statusSink.accept("Retrieving: " + done.incrementAndGet() + "/" + total + " frames\u2026");
+                    statusSink.accept("Retrieving: " + done.incrementAndGet() + "/" + total + " frames…");
                     return v;
                 } catch (Exception e) {
                     Log.warn(uri.toString(), e);
                     failed.add(uri); // remembered so the layer can report it as retryable, not just absent
-                    statusSink.accept("Retrieving: " + done.incrementAndGet() + "/" + total + " frames\u2026");
+                    statusSink.accept("Retrieving: " + done.incrementAndGet() + "/" + total + " frames…");
                     return null;
                 }
             }).filter(Objects::nonNull).toList();
-            statusSink.accept("Assembling " + views.size() + " frames\u2026");
+            statusSink.accept("Assembling " + views.size() + " frames…");
             onFailedUris.accept(failed);
             return new ManyView(views);
         }
@@ -209,9 +212,9 @@ final class ImageLayerLoader {
     private View createView(APIRequest req, URI uri) throws Exception {
         DataUri dataUri = NetFileCache.get(uri);
         return switch (dataUri.format()) {
-            case Image.JPIP, Image.JP2, Image.JPX -> new J2KView(executor, req, dataUri);
-            case Image.FITS, Image.PNG, Image.JPEG -> new URIView(executor, dataUri);
-            case Image.ZIP -> loadZip(dataUri.uri());
+            case JPIP, JP2, JPX -> new J2KView(executor, req, dataUri, processingSettings);
+            case FITS, PNG, JPEG -> new URIView(executor, dataUri, processingSettings);
+            case ZIP -> loadZip(dataUri.uri());
             default -> throw new Exception("Unknown image type");
         };
     }

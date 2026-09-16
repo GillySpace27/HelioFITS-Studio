@@ -1,6 +1,8 @@
 package org.helioviewer.jhv.timelines.chart;
 
 import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Point;
@@ -14,7 +16,6 @@ import java.util.List;
 import org.helioviewer.jhv.gui.UIGlobals;
 import org.helioviewer.jhv.time.TimeUtils;
 import org.helioviewer.jhv.timelines.TimelineLayer;
-import org.helioviewer.jhv.timelines.TimelineLayers;
 import org.helioviewer.jhv.timelines.draw.DrawConstants;
 import org.helioviewer.jhv.timelines.draw.GraphGeometry;
 import org.helioviewer.jhv.timelines.draw.TimeAxis;
@@ -41,7 +42,7 @@ final class TimelineLabelPainter {
         }
     }
 
-    void drawMouseValues(Graphics2D g, GraphGeometry geometry, TimeAxis xAxis, Point mousePosition) {
+    void drawMouseValues(Graphics2D g, GraphGeometry geometry, TimeAxis xAxis, Point mousePosition, List<TimelineLayer> layers) {
         g.setFont(DrawConstants.font);
         Rectangle graphArea = geometry.area();
         if (mousePosition == null || !graphArea.contains(mousePosition))
@@ -52,9 +53,10 @@ final class TimelineLabelPainter {
         int y = DrawConstants.GRAPH_TOP_SPACE / 2;
 
         g.setColor(UIGlobals.TL_LABEL_TEXT_COLOR);
-        int currWidth = drawString(g, "(" + TimeUtils.format(TimeUtils.sqlTimeFormatter, ts), x, y);
+        FontMetrics fontMetrics = g.getFontMetrics();
+        int currWidth = drawString(g, fontMetrics, "(" + TimeUtils.format(TimeUtils.sqlTimeFormatter, ts), x, y);
 
-        for (TimelineLayer tl : TimelineLayers.get()) {
+        for (TimelineLayer tl : layers) {
             if (!tl.isEnabled()) {
                 continue;
             }
@@ -62,15 +64,15 @@ final class TimelineLabelPainter {
             String value = tl.getStringValue(ts);
             if (value != null) {
                 g.setColor(UIGlobals.TL_LABEL_TEXT_COLOR);
-                currWidth += drawString(g, ", ", x + currWidth, y);
+                currWidth += drawString(g, fontMetrics, ", ", x + currWidth, y);
 
                 g.setColor(tl.getDataColor());
-                currWidth += drawString(g, value, x + currWidth, y);
+                currWidth += drawString(g, fontMetrics, value, x + currWidth, y);
             }
         }
 
         g.setColor(UIGlobals.TL_LABEL_TEXT_COLOR);
-        drawString(g, ")", x + currWidth, y);
+        drawString(g, fontMetrics, ")", x + currWidth, y);
     }
 
     private void drawTimeLabels(Graphics2D g, GraphGeometry geometry, TimeAxis xAxis) {
@@ -81,10 +83,8 @@ final class TimelineLabelPainter {
     }
 
     private void drawYAxisLabels(Graphics2D g, GraphGeometry geometry) {
-        for (GraphGeometry.LayerLayout layout : geometry.getLayerLayouts()) {
-            TimelineLayer layer = layout.layer();
-            drawVerticalLabels(g, geometry, layer, layout.axisIndex(), layer.getYAxis().isHighlighted());
-        }
+        for (GraphGeometry.LayerLayout layout : geometry.getLayerLayouts())
+            drawVerticalLabels(g, geometry, layout);
     }
 
     private void drawStackedLabels(Graphics2D g, GraphGeometry geometry, TimeAxis xAxis) {
@@ -93,7 +93,7 @@ final class TimelineLabelPainter {
         drawTimeLabels(g, geometry, xAxis);
 
         for (GraphGeometry.LayerLayout layout : layerLayouts)
-            drawStackedVerticalLabels(g, geometry, layout.area(), layout.layer());
+            drawStackedVerticalLabels(g, geometry, layout);
 
         g.setColor(UIGlobals.TL_TICK_LINE_COLOR);
         for (int i = 1; i < layerLayouts.size(); i++) {
@@ -104,11 +104,12 @@ final class TimelineLabelPainter {
         }
     }
 
-    private void drawStackedVerticalLabels(Graphics2D g, GraphGeometry geometry, Rectangle stripArea, TimelineLayer tl) {
+    private void drawStackedVerticalLabels(Graphics2D g, GraphGeometry geometry, GraphGeometry.LayerLayout layout) {
+        Rectangle stripArea = layout.area();
         int axisX = stripArea.x;
 
-        g.setColor(tl.getDataColor());
-        YAxis yAxis = tl.getYAxis();
+        g.setColor(layout.layer().getDataColor());
+        YAxis yAxis = layout.yAxis();
         YAxis.Mapper yMapper = geometry.yMapper(yAxis, stripArea);
         YAxis.Ticks ticks = yAxis.ticks(yMapper);
 
@@ -129,7 +130,7 @@ final class TimelineLabelPainter {
         Rectangle2D bounds = g.getFontMetrics().getStringBounds(tickText, g);
 
         if (stripArea.y < y && y < stripArea.y + stripArea.height) {
-            java.awt.Color lineColor = g.getColor();
+            Color lineColor = g.getColor();
             g.setColor(UIGlobals.TL_TICK_LINE_COLOR);
             g.drawLine(axisX + 1, y, stripArea.x + stripArea.width, y);
             g.setColor(lineColor);
@@ -139,9 +140,9 @@ final class TimelineLabelPainter {
         g.drawString(tickText, xText, y + (int) (bounds.getHeight() / 2));
     }
 
-    private static int drawString(Graphics2D g, String text, int x, int y) {
+    private static int drawString(Graphics2D g, FontMetrics fontMetrics, String text, int x, int y) {
         g.drawString(text, x, y);
-        return (int) g.getFontMetrics().getStringBounds(text, g).getWidth();
+        return fontMetrics.stringWidth(text);
     }
 
     private static void drawRotatedLabel(Graphics2D g, String label, int axisX, Rectangle stripArea) {
@@ -216,15 +217,17 @@ final class TimelineLabelPainter {
         }
     }
 
-    private void drawVerticalLabels(Graphics2D g, GraphGeometry geometry, TimelineLayer tl, int leftSide, boolean highlight) {
+    private void drawVerticalLabels(Graphics2D g, GraphGeometry geometry, GraphGeometry.LayerLayout layout) {
         Rectangle graphArea = geometry.area();
+        int leftSide = layout.axisIndex();
         int axisX = graphArea.x;
         if (leftSide != -1) {
             axisX += graphArea.width + leftSide * DrawConstants.RIGHT_AXIS_WIDTH;
         }
 
-        g.setColor(tl.getDataColor());
-        YAxis yAxis = tl.getYAxis();
+        g.setColor(layout.layer().getDataColor());
+        YAxis yAxis = layout.yAxis();
+        boolean highlight = yAxis.isHighlighted();
         YAxis.Mapper yMapper = geometry.yMapper(yAxis);
         YAxis.Ticks ticks = yAxis.ticks(yMapper);
 
@@ -241,19 +244,18 @@ final class TimelineLabelPainter {
     }
 
     private void drawVerticalTitle(Graphics2D g, Rectangle graphArea, int axisX, String verticalLabel, boolean highlight) {
-        Rectangle2D verticalLabelBounds = g.getFontMetrics().getStringBounds(verticalLabel, g);
-        int vWidth = (int) verticalLabelBounds.getWidth();
-        int vHeight = (int) verticalLabelBounds.getHeight();
-        int labelCompensation = vWidth / 2;
-
         Stroke stroke = g.getStroke();
         if (highlight) {
             g.setStroke(boldStroke);
             g.setFont(DrawConstants.fontBold);
         }
 
+        Rectangle2D verticalLabelBounds = g.getFontMetrics().getStringBounds(verticalLabel, g);
+        int vWidth = (int) verticalLabelBounds.getWidth();
+        int vHeight = (int) verticalLabelBounds.getHeight();
+
         g.drawLine(axisX, graphArea.y, axisX, graphArea.y + graphArea.height + 3);
-        g.drawString(verticalLabel, axisX - labelCompensation, vHeight);
+        g.drawString(verticalLabel, axisX - vWidth / 2, vHeight);
 
         if (highlight) {
             g.setStroke(stroke);
@@ -264,25 +266,21 @@ final class TimelineLabelPainter {
     private static void drawHorizontalTickline(Graphics g, Rectangle graphArea, YAxis.Mapper yMapper, double tick, int axisX, int leftSide, boolean needTxt, boolean highlight) {
         String tickText = DrawConstants.valueFormatter.format(tick);
         int y = yMapper.scaledToPixel(tick);
+        if (needTxt && highlight)
+            g.setFont(DrawConstants.fontBold);
+
         Rectangle2D bounds = g.getFontMetrics().getStringBounds(tickText, g);
-        int xText;
         if (leftSide == -1) {
-            xText = axisX - 6 - (int) bounds.getWidth();
-            java.awt.Color lineColor = g.getColor();
+            Color lineColor = g.getColor();
             g.setColor(UIGlobals.TL_TICK_LINE_COLOR);
             g.drawLine(axisX - 3, y, graphArea.x + graphArea.width, y);
             g.setColor(lineColor);
-        } else {
-            xText = axisX;
         }
         if (needTxt) {
-            if (highlight) {
-                g.setFont(DrawConstants.fontBold);
-            }
+            int xText = leftSide == -1 ? axisX - 6 - (int) bounds.getWidth() : axisX;
             g.drawString(tickText, xText, y + (int) (bounds.getHeight() / 2));
-            if (highlight) {
+            if (highlight)
                 g.setFont(DrawConstants.font);
-            }
         }
     }
 

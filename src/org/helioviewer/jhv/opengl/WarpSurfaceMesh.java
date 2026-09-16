@@ -18,7 +18,7 @@ import org.helioviewer.jhv.base.BufferUtils;
  * the Box-Cox law compresses hardest, and starve the disk, which is the part anyone is looking
  * at.
  */
-class WarpSurfaceMesh extends VAO1 {
+class WarpSurfaceMesh extends VertexArrayObject {
 
     static final WarpSurfaceMesh mesh = new WarpSurfaceMesh();
 
@@ -30,7 +30,7 @@ class WarpSurfaceMesh extends VAO1 {
     private static final int VERTEX_COUNT = ANGULAR * RADIAL * 6;
 
     private WarpSurfaceMesh() {
-        super(false, new VAA[]{new VAA(0, 4, false, 0, 0, 0)});
+        super(false, VertexAttribute.floats(0, 4, 0, 0));
     }
 
     void render() {
@@ -60,7 +60,7 @@ class WarpSurfaceMesh extends VAO1 {
             }
         }
         buf.flip();
-        vbo.setBufferData(VERTEX_COUNT * 16, buf); // capacity in bytes: 4 floats per vertex
+        uploadVertexBuffer(buf);
     }
 
     private static void put(FloatBuffer buf, float angle, float radius) {

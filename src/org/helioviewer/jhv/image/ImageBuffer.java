@@ -9,6 +9,8 @@ import java.util.function.DoubleUnaryOperator;
 
 import javax.annotation.Nullable;
 
+import org.helioviewer.jhv.thread.ParallelRange;
+
 import org.lwjgl.system.MemoryUtil;
 
 public final class ImageBuffer {
@@ -186,16 +188,32 @@ public final class ImageBuffer {
     public static ImageBuffer fromBytes(int width, int height, Format format, byte[] data, ImageFilter filter) {
         if (format == Format.Gray16F)
             throw new IllegalArgumentException("Gray16F image buffers must be created from half-float data");
-        if (!shouldFilter(format, filter))
+        if (canUseDirectBuffer(format, filter))
             return new ImageBuffer(width, height, format, allocateFrom(data));
-        return new ImageBuffer(width, height, Format.Gray16F, allocateFrom(filter.apply(data, width, height)));
+        return fromFloats(width, height, filter.apply(data, width, height));
     }
 
     public static ImageBuffer fromShorts(int width, int height, Format format, short[] data, ImageFilter filter) {
         if (format != Format.Gray16F)
             throw new IllegalArgumentException("Only Gray16F image buffers can be created from half-float data");
-        short[] out = shouldFilter(format, filter) ? filter.apply(data, width, height) : data;
-        return new ImageBuffer(width, height, format, allocateFrom(out));
+        if (canUseDirectBuffer(format, filter))
+            return new ImageBuffer(width, height, format, allocateFrom(data));
+        return fromFloats(width, height, filter.apply(data, width, height));
+    }
+
+    private static ImageBuffer fromFloats(int width, int height, float[] data) {
+        ImageBuffer image = allocate(width, height, Format.Gray16F);
+        ShortBuffer buffer = (ShortBuffer) image.buffer;
+        ParallelRange.run(height, (from, to) -> {
+            for (int y = from; y < to; y++) {
+                int rowBase = y * width;
+                int rowEnd = rowBase + width;
+                for (int idx = rowBase; idx < rowEnd; idx++) {
+                    buffer.put(idx, Float.floatToFloat16(Math.clamp(data[idx], 0f, 1f)));
+                }
+            }
+        });
+        return image;
     }
 
     /**
@@ -269,8 +287,6 @@ public final class ImageBuffer {
         private final Format inputFormat;
         private final ImageFilter filter;
         private final ImageBuffer directBuffer;
-        private final byte[] byteArray;
-        private final short[] shortArray;
         private final Buffer writeBuffer;
 
         private WriteBuffer(int _width, int _height, Format _format, ImageFilter _filter) {
@@ -279,21 +295,15 @@ public final class ImageBuffer {
             inputFormat = _format;
             filter = _filter;
 
-            if (!ImageBuffer.shouldFilter(inputFormat, filter)) {
+            if (ImageBuffer.canUseDirectBuffer(inputFormat, filter)) {
                 directBuffer = allocate(width, height, inputFormat);
-                byteArray = null;
-                shortArray = null;
                 writeBuffer = directBuffer.buffer;
             } else if (inputFormat == Format.Gray16F) {
                 directBuffer = null;
-                byteArray = null;
-                shortArray = new short[width * height];
-                writeBuffer = ShortBuffer.wrap(shortArray);
+                writeBuffer = ShortBuffer.allocate(Math.multiplyExact(width, height));
             } else {
                 directBuffer = null;
-                byteArray = new byte[byteSize(width, height, inputFormat)];
-                shortArray = null;
-                writeBuffer = ByteBuffer.wrap(byteArray);
+                writeBuffer = ByteBuffer.allocate(byteSize(width, height, inputFormat));
             }
         }
 
@@ -308,25 +318,25 @@ public final class ImageBuffer {
         public WriteBuffer clearPixels() {
             if (directBuffer != null)
                 MemoryUtil.memSet(MemoryUtil.memAddress(writeBuffer), 0, directBuffer.byteSize());
-            else if (byteArray != null)
-                Arrays.fill(byteArray, (byte) 0);
+            else if (writeBuffer instanceof ByteBuffer bytes)
+                Arrays.fill(bytes.array(), (byte) 0);
             else
-                Arrays.fill(shortArray, (short) 0);
+                Arrays.fill(shortBuffer().array(), (short) 0);
             return this;
         }
 
         public ImageBuffer finish() {
             if (directBuffer != null)
                 return directBuffer;
-            return shortArray != null
-                    ? fromShorts(width, height, inputFormat, shortArray, filter)
-                    : fromBytes(width, height, inputFormat, byteArray, filter);
+            return writeBuffer instanceof ShortBuffer shorts
+                    ? fromShorts(width, height, inputFormat, shorts.array(), filter)
+                    : fromBytes(width, height, inputFormat, byteBuffer().array(), filter);
         }
 
     }
 
-    private static boolean shouldFilter(Format format, ImageFilter filter) {
-        return format != Format.RGBA32 && !filter.isNone();
+    private static boolean canUseDirectBuffer(Format format, ImageFilter filter) {
+        return format == Format.RGBA32 || filter.isNone();
     }
 
     private static final class BufferState implements Runnable {
@@ -366,7 +376,7 @@ public final class ImageBuffer {
     }
 
     private static int byteSize(int width, int height, Format format) {
-        return width * height * format.bytes;
+        return Math.multiplyExact(Math.multiplyExact(width, height), format.bytes);
     }
 
 }

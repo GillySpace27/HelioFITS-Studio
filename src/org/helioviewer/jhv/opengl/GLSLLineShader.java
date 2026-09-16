@@ -2,44 +2,52 @@ package org.helioviewer.jhv.opengl;
 
 import java.nio.FloatBuffer;
 
-import org.helioviewer.jhv.base.BufferUtils;
 import org.helioviewer.jhv.display.Viewport;
 
 class GLSLLineShader extends GLSLShader {
 
     static final GLSLLineShader line = new GLSLLineShader("/glsl/line.vert", "/glsl/line.frag");
 
-    private static GLBO screenBO;
-    private static final FloatBuffer screenBuf = BufferUtils.newFloatBuffer(16 + 4 + 4);
-    private static final int SCREEN_SIZE = screenBuf.capacity() * 4;
+    private static final UniformBufferObject screenBuffer = new UniformBufferObject(UniformBlockLayout.LINE, GL.STREAM_DRAW);
+
+    private int opaquePassRef;
 
     private GLSLLineShader(String vertex, String fragment) {
         super(vertex, fragment);
     }
 
     public static void init() {
-        screenBO = new GLBO(GL.UNIFORM_BUFFER, GL.STREAM_DRAW);
-        line._init(false, true);
+        screenBuffer.init();
+        try {
+            screenBuffer.bind();
+            line._init();
+        } catch (RuntimeException | Error e) {
+            screenBuffer.dispose();
+            throw e;
+        }
     }
 
     public static void dispose() {
         line._dispose();
-        screenBO.delete();
+        screenBuffer.dispose();
     }
 
     @Override
     protected void initUniforms(int id) {
-        setupUBO(id, "ScreenBlock", screenBO.getID(), UBO.LINE_SCREEN);
-        GLSLWarp.setupBlock(id);
+        setupUniformBlock(id, UniformBlockLayout.LINE);
+        GLSLWarp.setupBlock(id); // line.vert calls warpWorld(), so the warp block has to be bound here too
+        opaquePassRef = requiredUniform(id, "opaquePass");
     }
 
-    void bindParams(Viewport vp, double _thickness) {
-        FloatBuffer mvp = Transform.get();
-        screenBuf.put(mvp);
-        mvp.flip();
-        screenBuf.put(vp.glslArray).put((float) (0.5 * _thickness)); // +3 floats padding
-        screenBuf.flip();
-        screenBO.setBufferData(SCREEN_SIZE, screenBuf); // always changes
+    void bindParams(Viewport vp, double _thickness, FloatBuffer mvp) {
+        FloatBuffer values = screenBuffer.begin(mvp);
+        values.put(vp.glslArray).put((float) (0.5 * _thickness));
+        values.put(0).put(0).put(0); // std140 padding
+        screenBuffer.upload();
+    }
+
+    void bindOpaquePass(boolean opaque) {
+        GL.glUniform1i(opaquePassRef, opaque ? 1 : 0);
     }
 
 }

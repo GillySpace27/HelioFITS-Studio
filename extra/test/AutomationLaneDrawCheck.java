@@ -111,7 +111,6 @@ public final class AutomationLaneDrawCheck {
         @Override public boolean hasData() { return false; }
         @Override public javax.swing.JPanel getOptionsPanel() { return null; }
         @Override public boolean isDeletable() { return false; }
-        @Override public boolean hasYAxis() { return false; }
         @Override public void draw(java.awt.Graphics2D g, Rectangle graphArea, TimeAxis timeAxis, java.awt.Point mousePosition) {}
         @Override public org.helioviewer.jhv.timelines.draw.YAxis getYAxis() { return null; }
         @Override public void fetchData(TimeAxis selectedAxis) {}

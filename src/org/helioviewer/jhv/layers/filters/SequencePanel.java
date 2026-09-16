@@ -487,7 +487,7 @@ public class SequencePanel implements FilterDetails {
         if (view == null || preview != null || previewPrep != null || !(paramsFromWidgets() instanceof FourierParams p))
             return;
         spectrumDialog.setStatus("Preparing the live preview\u2026");
-        previewPrep = Task.submit("fourier preview prepare",
+        previewPrep = Task.submitBackground("fourier preview prepare",
                 () -> FourierPreview.prepare(view.wrapped(), p, st -> {}),
                 fp -> {
                     previewPrep = null;
@@ -522,7 +522,7 @@ public class SequencePanel implements FilterDetails {
         long started = System.currentTimeMillis();
         // The band change is one mask over the cube; the frames then come out of it in the
         // background (ComputedView.setPreviewSource), the one on screen first.
-        Task.submit("fourier preview", () -> { fp.filter(p); return fp; },
+        Task.submitBackground("fourier preview", () -> { fp.filter(p); return fp; },
                 filtered -> {
                     previewBusy = false;
                     if (preview == fp) { // still the same preview: the dialog has not closed

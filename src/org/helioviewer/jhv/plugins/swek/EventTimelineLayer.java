@@ -12,28 +12,28 @@ import javax.annotation.Nullable;
 import javax.swing.ImageIcon;
 import javax.swing.JPanel;
 
-import org.helioviewer.jhv.event.JHVEventCache;
-import org.helioviewer.jhv.event.JHVEventListener;
-import org.helioviewer.jhv.event.JHVRelatedEvents;
+import org.helioviewer.jhv.event.EventCache;
+import org.helioviewer.jhv.event.EventListener;
+import org.helioviewer.jhv.event.RelatedEvents;
+import org.helioviewer.jhv.event.SWEKDownloader;
+import org.helioviewer.jhv.event.SolarEvent;
 import org.helioviewer.jhv.event.info.SWEKEventInformationDialog;
 import org.helioviewer.jhv.gui.UIGlobals;
-import org.helioviewer.jhv.time.TimeUtils;
+import org.helioviewer.jhv.time.Interval;
 import org.helioviewer.jhv.timelines.TimelineLayer;
 import org.helioviewer.jhv.timelines.draw.ClickableDrawable;
 import org.helioviewer.jhv.timelines.draw.DrawConstants;
 import org.helioviewer.jhv.timelines.draw.DrawController;
 import org.helioviewer.jhv.timelines.draw.TimeAxis;
-import org.helioviewer.jhv.timelines.draw.YAxis;
-import org.helioviewer.jhv.timelines.draw.YAxis.YAxisIdentityScale;
 
 import org.json.JSONObject;
 
 // has to be public for state
-public final class EventTimelineLayer extends TimelineLayer implements JHVEventListener.Handle {
+public final class EventTimelineLayer extends TimelineLayer implements EventListener.Handle {
 
-    private final YAxis yAxis = new YAxis(0, 0, new YAxisIdentityScale("Events"));
     private EventPlotConfiguration eventUnderMouse;
-    private List<JHVRelatedEvents> visibleEvents = Collections.emptyList();
+    private final List<EventPlotConfiguration> eventPlots = new ArrayList<>();
+    private List<RelatedEvents> visibleEvents = Collections.emptyList();
 
     EventTimelineLayer() {
         registerAndRefresh();
@@ -49,14 +49,8 @@ public final class EventTimelineLayer extends TimelineLayer implements JHVEventL
 
     @Override
     public void fetchData(TimeAxis selectedAxis) {
-        visibleEvents = JHVEventCache.getEvents(selectedAxis.start(), selectedAxis.end());
-        JHVEventCache.requestForInterval(selectedAxis.start() - TimeUtils.DAY_IN_MILLIS * 3, selectedAxis.end(), this);
-    }
-
-    @Override
-    public void newEventsReceived() {
-        if (enabled)
-            DrawController.drawRequest();
+        visibleEvents = EventCache.getEvents(selectedAxis.start(), selectedAxis.end());
+        SWEKDownloader.requestForInterval(selectedAxis.start(), selectedAxis.end());
     }
 
     @Override
@@ -66,12 +60,12 @@ public final class EventTimelineLayer extends TimelineLayer implements JHVEventL
         if (enabled) {
             registerAndRefresh();
         } else {
-            JHVEventCache.unregisterHandler(this);
+            EventCache.unregisterHandler(this);
         }
     }
 
     private void registerAndRefresh() {
-        JHVEventCache.registerHandler(this);
+        EventCache.registerHandler(this);
         cacheUpdated();
     }
 
@@ -79,10 +73,9 @@ public final class EventTimelineLayer extends TimelineLayer implements JHVEventL
     public void cacheUpdated() {
         if (!enabled) return;
         TimeAxis xAxis = DrawController.selectedAxis;
-        visibleEvents = JHVEventCache.getEvents(xAxis.start(), xAxis.end());
-        JHVEventCache.requestForInterval(xAxis.start(), xAxis.end(), this);
-        if (enabled)
-            DrawController.drawRequest();
+        visibleEvents = EventCache.getEvents(xAxis.start(), xAxis.end());
+        SWEKDownloader.requestForInterval(xAxis.start(), xAxis.end());
+        DrawController.drawRequest();
     }
 
     @Override
@@ -91,59 +84,59 @@ public final class EventTimelineLayer extends TimelineLayer implements JHVEventL
             return;
 
         eventUnderMouse = null;
-        List<JHVRelatedEvents> events = visibleEvents;
+        eventPlots.clear();
+        List<RelatedEvents> events = visibleEvents;
         if (events.isEmpty()) {
             if (mousePosition != null) {
-                JHVEventCache.highlight(null);
+                EventCache.highlight(null);
             }
             return;
         }
 
         ArrayList<Long> endDates = new ArrayList<>();
         TimeAxis.Mapper xMapper = xAxis.mapper(graphArea.x, graphArea.width);
-        int nrLines = 0;
 
-        for (JHVRelatedEvents event : events) {
+        for (RelatedEvents event : events) {
             long eventStart = event.getStart();
             long eventEnd = event.getEnd();
             int i = 0;
-            while (i < nrLines && endDates.get(i) >= eventStart) {
+            while (i < endDates.size() && endDates.get(i) >= eventStart) {
                 i++;
             }
-            if (i == nrLines) {
+            if (i == endDates.size()) {
                 endDates.add(eventEnd);
             } else {
                 endDates.set(i, eventEnd);
             }
             int eventPosition = i;
-            nrLines = Math.max(nrLines, endDates.size());
 
-            int x0 = xMapper.toPixel(eventStart);
-            int x1 = xMapper.toPixel(eventEnd);
-            JHVRelatedEvents rEvent = drawEvent(graphArea, event, x0, x1, eventPosition, g, mousePosition);
-            if (rEvent != null) {
-                eventUnderMouse = new EventPlotConfiguration(rEvent, x0, x1, eventPosition);
+            for (Interval interval : event.getIntervals()) {
+                if (interval.end() < xAxis.start() || interval.start() > xAxis.end())
+                    continue;
+                int x0 = xMapper.toPixel(interval.start());
+                int x1 = xMapper.toPixel(interval.end());
+                long middle = interval.start() + (interval.end() - interval.start()) / 2;
+                EventPlotConfiguration plot = createEventPlot(graphArea, event, x0, x1, eventPosition, middle);
+                eventPlots.add(plot);
+                drawEvent(graphArea, plot, g, mousePosition);
+                if (plot.contains(mousePosition))
+                    eventUnderMouse = plot;
             }
         }
 
         if (mousePosition != null) {
             if (eventUnderMouse != null) {
-                drawEvent(graphArea, eventUnderMouse.event, eventUnderMouse.x0, eventUnderMouse.x1, eventUnderMouse.yPosition, g, mousePosition);
-                JHVEventCache.highlight(eventUnderMouse.event);
+                drawEvent(graphArea, eventUnderMouse, g, mousePosition);
+                EventCache.highlight(eventUnderMouse.event);
             } else {
-                JHVEventCache.highlight(null);
+                EventCache.highlight(null);
             }
         }
     }
 
     @Override
-    public YAxis getYAxis() {
-        return yAxis;
-    }
-
-    @Override
     public void remove() {
-        JHVEventCache.unregisterHandler(this);
+        EventCache.unregisterHandler(this);
     }
 
     @Override
@@ -178,25 +171,32 @@ public final class EventTimelineLayer extends TimelineLayer implements JHVEventL
         return false;
     }
 
-    @Override
-    public boolean hasYAxis() {
-        return false;
+    private record EventPlotConfiguration(RelatedEvents event, int x, int y, int width, int height, long time) {
+        boolean contains(Point point) {
+            return containsPoint(point, x - 1, y - 1, width + 2, height + 2);
+        }
     }
 
-    private record EventPlotConfiguration(JHVRelatedEvents event, int x0, int x1, int yPosition) {}
-
-    @Nullable
-    private static JHVRelatedEvents drawEvent(Rectangle graphArea, JHVRelatedEvents event, int x0, int x1, int yPosition, Graphics2D g, Point mousePosition) {
-        int spacePerLine = Math.max(2, DrawConstants.getBarHeight() - 2);
-        int y = graphArea.y + spacePerLine * 2 * yPosition + DrawConstants.EVENT_OFFSET;
+    private static EventPlotConfiguration createEventPlot(Rectangle graphArea, RelatedEvents event, int x0, int x1, int yPosition, long time) {
         int w = Math.max(x1 - x0, 1);
-        int h = spacePerLine;
         if (w < 5) {
             x0 -= 5 / w;
             w = 5;
         }
+        // Bar height follows the timelines' global bar slider, as every other timeline layer does.
+        int spacePerLine = Math.max(2, DrawConstants.getBarHeight() - 2);
+        int y = graphArea.y + spacePerLine * 2 * yPosition + DrawConstants.EVENT_OFFSET;
+        return new EventPlotConfiguration(event, x0, y, w, spacePerLine, time);
+    }
 
-        boolean containsMouse = containsPoint(mousePosition, x0 - 1, y - 1, w + 2, h + 2);
+    private static void drawEvent(Rectangle graphArea, EventPlotConfiguration plot, Graphics2D g, Point mousePosition) {
+        RelatedEvents event = plot.event;
+        int x0 = plot.x;
+        int y = plot.y;
+        int w = plot.width;
+        int h = plot.height;
+        int spacePerLine = h;
+        boolean containsMouse = plot.contains(mousePosition);
         boolean hl = event.isHighlighted() && (mousePosition == null || containsMouse); // null mousePosition from image canvas
         int sz = Math.min(w, 8);
         if (hl) {
@@ -210,19 +210,18 @@ public final class EventTimelineLayer extends TimelineLayer implements JHVEventL
         g.setColor(event.getColor());
         g.fillRect(x0, y, w, spacePerLine);
 
-        ImageIcon icon = SWEKIconBank.getIcon(event.getGroup().getIconKey());
+        ImageIcon icon = SWEKIconBank.getIcon(event.getClosestTo(plot.time).getSupplier().group().getIconKey());
         g.drawImage(icon.getImage(), x0 + w / 2 - sz / 2, y + h / 2 - sz / 2, x0 + w / 2 + sz / 2, y + h / 2 + sz / 2, 0, 0, icon.getIconWidth(), icon.getIconHeight(), null);
 
         if (hl && mousePosition != null) {
             drawText(graphArea, g, event, y, mousePosition.x);
         }
-
-        return containsMouse ? event : null;
     }
 
-    private static void drawText(Rectangle graphArea, Graphics2D g, JHVRelatedEvents event, int y, int mouseX) {
+    private static void drawText(Rectangle graphArea, Graphics2D g, RelatedEvents event, int y, int mouseX) {
         long ts = DrawController.selectedAxis.mapper(graphArea.x, graphArea.width).toValue(mouseX);
-        List<String> txts = SWEKData.visibleParameterLines(event.getClosestTo(ts));
+        SolarEvent closestEvent = event.getClosestTo(ts);
+        List<String> txts = SWEKData.visibleParameterLines(closestEvent);
         int width = 1;
         for (String text : txts) {
             width = Math.max(width, g.getFontMetrics().stringWidth(text));
@@ -232,7 +231,7 @@ public final class EventTimelineLayer extends TimelineLayer implements JHVEventL
         g.setColor(UIGlobals.TL_TEXT_COLOR);
 
         y += 5;
-        ImageIcon icon = SWEKIconBank.getIcon(event.getGroup().getIconKey());
+        ImageIcon icon = SWEKIconBank.getIcon(closestEvent.getSupplier().group().getIconKey());
         g.drawImage(icon.getImage(), mouseX + 8, y - 2, mouseX + 24, y + 14, 0, 0, icon.getIconWidth(), icon.getIconHeight(), null);
 
         for (String txt : txts) {
@@ -248,9 +247,21 @@ public final class EventTimelineLayer extends TimelineLayer implements JHVEventL
     public boolean highlightChanged(Point p) {
         if (!enabled)
             return false;
-        if (eventUnderMouse == null)
-            return true;
-        return !(eventUnderMouse.x0 <= p.x && p.x <= eventUnderMouse.x1 && eventUnderMouse.yPosition - 4 <= p.y && p.y <= eventUnderMouse.yPosition + 5);
+
+        EventPlotConfiguration current = null;
+        for (int i = eventPlots.size() - 1; i >= 0; i--) {
+            EventPlotConfiguration plot = eventPlots.get(i);
+            if (plot.contains(p)) {
+                current = plot;
+                break;
+            }
+        }
+
+        boolean changed = current != eventUnderMouse;
+        eventUnderMouse = current;
+        EventCache.highlight(current == null ? null : current.event);
+        // Event details depend on the time beneath the pointer.
+        return changed || current != null;
     }
 
     @Nullable
@@ -259,7 +270,7 @@ public final class EventTimelineLayer extends TimelineLayer implements JHVEventL
         if (eventUnderMouse == null)
             return null;
 
-        JHVRelatedEvents event = eventUnderMouse.event;
+        RelatedEvents event = eventUnderMouse.event;
         return (location, timestamp) -> {
             SWEKEventInformationDialog dialog = new SWEKEventInformationDialog(event, event.getClosestTo(timestamp));
             dialog.pack();

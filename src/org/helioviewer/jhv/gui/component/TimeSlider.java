@@ -72,8 +72,8 @@ public final class TimeSlider extends JSlider implements Interfaces.LazyComponen
     private boolean hovering;  // mouse is over the track, so key press/release should refresh the cursor
     private int lastX;         // last hover x, so a modifier keypress can recompute the cursor in place
 
-    public TimeSlider(int _orientation, int min, int max, int value) {
-        super(_orientation, min, max, value);
+    public TimeSlider(int min, int max, int value) {
+        super(HORIZONTAL, min, max, value);
         setSnapToTicks(true);
 
         sliderUI = new TimeSliderUI(this);
@@ -139,7 +139,6 @@ public final class TimeSlider extends JSlider implements Interfaces.LazyComponen
         Commands.setPlaybackRange(
                 Math.clamp(Math.min(min, max), getMinimum(), getMaximum()),
                 Math.clamp(Math.max(min, max), getMinimum(), getMaximum()));
-        repaint();
     }
 
     // Overrides updateUI, to keep own SliderUI
@@ -266,7 +265,6 @@ public final class TimeSlider extends JSlider implements Interfaces.LazyComponen
         dragAnchorValue = sliderUI.valueForXPosition(e.getX());
         dragRangeMin = getPlaybackFirstFrame();
         dragRangeMax = getPlaybackLastFrame();
-        setCursor(cursorFor(e));
         mouseDragged(e);
     }
 
@@ -355,10 +353,8 @@ public final class TimeSlider extends JSlider implements Interfaces.LazyComponen
     @Override
     public void movieStatusChanged() {
         int maximum = Player.isAvailable() ? Player.getMaximumFrameNumber() : 0;
-        if (getMaximum() != maximum) {
+        if (getMaximum() != maximum)
             setMaximum(maximum);
-            repaint();
-        }
     }
 
     private static final class FrameNumberPanel extends JComponent {

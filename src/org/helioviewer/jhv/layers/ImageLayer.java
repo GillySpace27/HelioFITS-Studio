@@ -13,25 +13,25 @@ import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.display.DisplayController;
-import org.helioviewer.jhv.display.GridType;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.image.ImageBuffer;
-import org.helioviewer.jhv.metadata.Region;
-import org.helioviewer.jhv.math.Vec2;
+import org.helioviewer.jhv.image.ImageDisplaySettings;
+import org.helioviewer.jhv.image.ImageDisplaySettings.DifferenceMode;
 import org.helioviewer.jhv.image.ImageFilter;
+import org.helioviewer.jhv.image.ImageProcessingSettings;
 import org.helioviewer.jhv.image.fourier.SequenceParams;
-import org.helioviewer.jhv.io.DataUri;
 import org.helioviewer.jhv.io.APIRequest;
-import org.helioviewer.jhv.io.FitsRequest;
+import org.helioviewer.jhv.io.DataUri;
 import org.helioviewer.jhv.io.DownloadLayer;
+import org.helioviewer.jhv.io.FitsRequest;
 import org.helioviewer.jhv.math.Mat2;
 import org.helioviewer.jhv.math.Quat;
+import org.helioviewer.jhv.math.Vec2;
 import org.helioviewer.jhv.metadata.MetaData;
-import org.helioviewer.jhv.opengl.GLImage;
-import org.helioviewer.jhv.opengl.GLImage.DifferenceMode;
-import org.helioviewer.jhv.opengl.GLSLSolar;
-import org.helioviewer.jhv.opengl.GLSLSolarShader;
+import org.helioviewer.jhv.metadata.Region;
+import org.helioviewer.jhv.opengl.GLSLImage;
+import org.helioviewer.jhv.opengl.GLSLImageShader;
 import org.helioviewer.jhv.opengl.Transform;
 import org.helioviewer.jhv.view.BaseView;
 import org.helioviewer.jhv.view.ComputedView;
@@ -43,7 +43,9 @@ import org.json.JSONObject;
 
 public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
-    private final GLImage glImage;
+    private final ImageDisplaySettings displaySettings = new ImageDisplaySettings();
+    private final ImageProcessingSettings processingSettings = new ImageProcessingSettings(this::refreshImage);
+    private final GLSLImage glImage;
     private final Colorbar colorbar = new Colorbar();
     private final ImageLayerLoader loader;
 
@@ -77,8 +79,8 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             apiRequest = pendingRequest;
         if (apiRequest != null) {
             jo.put("APIRequest", apiRequest.toJson());
-            jo.put("imageParams", glImage.toJson());
-            jo.put("filter", view.getFilter().name());
+            jo.put("imageParams", imageParams());
+            jo.put("filter", getFilter().name());
         } else if (sourceUris != null && !sourceUris.isEmpty() || fitsRequest != null) {
             // Direct-URI layers (e.g. PUNCH FITS) have no server request; persist the remote
             // URIs so a restored session reloads them — from the persistent cache, no re-download.
@@ -93,8 +95,8 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             }
             if (fitsRequest != null)
                 jo.put("fitsRequest", fitsRequest.toJson());
-            jo.put("imageParams", glImage.toJson());
-            jo.put("filter", view.getFilter().name());
+            jo.put("imageParams", imageParams());
+            jo.put("filter", getFilter().name());
             if (fixedRange != null) // keep the shared FITS range so a restored PUNCH movie does not strobe
                 jo.put("fixedRange", new JSONArray().put(fixedRange[0]).put(fixedRange[1]));
             if (sequenceParams != null)
@@ -102,11 +104,19 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         }
     }
 
+    // Display state and FITS clipping/scaling share one object in the session file, as upstream
+    // writes them; the per-frame filter is named beside it because it is the layer's, not the view's.
+    private JSONObject imageParams() {
+        JSONObject imageParams = displaySettings.toJson();
+        processingSettings.serialize(imageParams);
+        return imageParams;
+    }
+
     // Constructor for NullImageLayer
     protected ImageLayer(View _view) {
         view = _view;
         glImage = null;
-        loader = new ImageLayerLoader(v -> {}, v -> {}, () -> {}, st -> {}, failed -> {});
+        loader = new ImageLayerLoader(processingSettings, v -> {}, v -> {}, () -> {}, st -> {}, failed -> {});
     }
 
     private ImageLayer(JSONObject jo) {
@@ -117,22 +127,17 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         fitOnLoad = jo == null;
         if (jo != null)
             fitPending = false; // a restored session has framed the scene itself; leave it alone
-        try {
-            view = new BaseView(null, null);
-        } catch (Exception e) { // impossible
-            e.printStackTrace();
-        }
 
-        glImage = new GLImage();
-        loader = new ImageLayerLoader(this::setView, this::setPreviewView, this::unload, this::setLoadStatus, this::setFailedUris);
+        view = new BaseView(null, null, processingSettings);
+        glImage = new GLSLImage(displaySettings);
+        loader = new ImageLayerLoader(processingSettings, this::setView, this::setPreviewView, this::unload, this::setLoadStatus, this::setFailedUris);
 
         if (jo != null) {
             applyImageParams(jo.optJSONObject("imageParams"));
             sequenceParams = SequenceParams.fromJson(jo.optJSONObject("sequence")); // applied once the full movie arrives
             try {
-                restoredFilter = ImageFilter.Type.valueOf(jo.optString("filter", "None"));
-            } catch (IllegalArgumentException e) {
-                restoredFilter = null;
+                setFilter(ImageFilter.Type.valueOf(jo.optString("filter", "None")));
+            } catch (IllegalArgumentException ignore) {
             }
 
             JSONObject apiRequest = jo.optJSONObject("APIRequest");
@@ -162,8 +167,34 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     }
 
     public void applyImageParams(@Nullable JSONObject imageParams) {
-        if (imageParams != null)
-            glImage.fromJson(imageParams);
+        if (imageParams != null) {
+            displaySettings.fromJson(imageParams);
+            processingSettings.fromJson(imageParams);
+        }
+    }
+
+    public ImageFilter.Type getFilter() {
+        return processingSettings.getFilter();
+    }
+
+    public void setFilter(ImageFilter.Type type) {
+        processingSettings.setFilter(type);
+    }
+
+    void decode(Position viewpoint, double pixFactor, float factor) {
+        view.decode(viewpoint, pixFactor, factor, processingSettings.fitsParameters().clipRange(view.getClipSet()));
+    }
+
+    public ImageProcessingSettings getProcessingSettings() {
+        return processingSettings;
+    }
+
+    private void refreshImage() {
+        if (removed)
+            return;
+        view.clearCache();
+        imageData = prevImageData = baseImageData = null;
+        DisplayController.render(1);
     }
 
     public void load(APIRequest req) {
@@ -364,7 +395,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     /** Whether the view can hand a sequence filter whole frames (FITS, PNG, JPEG); a JPEG 2000 stream cannot. */
     public boolean sourceHasFrames() {
         DataUri.Format format = view.getFormat();
-        return format == DataUri.Format.Image.FITS || format == DataUri.Format.Image.PNG || format == DataUri.Format.Image.JPEG;
+        return format == DataUri.Format.FITS || format == DataUri.Format.PNG || format == DataUri.Format.JPEG;
     }
 
     /**
@@ -403,8 +434,6 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     }
 
     private double[] fixedRange; // optional shared FITS display range applied to all the layer's frames
-    @Nullable
-    private ImageFilter.Type restoredFilter; // a session's per-frame filter, applied to the first view that arrives
 
     // Pin all of this layer's frames to a fixed [min, max] display range (FITS only), so a
     // multi-frame layer (e.g. a PUNCH movie) does not strobe as each frame auto-normalizes.
@@ -426,20 +455,19 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     private static boolean fitPending = true;
 
     private void replaceView(View newView) {
-        ImageFilter.Type filterType = restoredFilter != null ? restoredFilter : view.getFilter();
-        restoredFilter = null;
         unsetView();
         view = newView;
         viewLoaded = true;
         loader.clearLoadFuture();
-        view.setFilter(filterType);
         view.setDataHandler(this);
     }
 
     private boolean viewActivatedBefore; // the first view of a layer may claim the clock; later ones only keep it
 
     private void activateView() {
-        glImage.setDefaultLUT(view.getDefaultLUT(), glImage.getInvertLUT());
+        // setDefaultLUT, not setLUT: a table a session restored for this layer outranks the one a
+        // newly arriving view brings with it.
+        displaySettings.setDefaultLUT(view.getDefaultLUT(), displaySettings.getInvertLUT());
         setEnabled(true);
 
         DisplayController.zoomMiniToFit();
@@ -476,9 +504,9 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
     @Override
     public void renderFloat(MapView mv, Viewport vp) {
-        if (!isVisible[vp.idx] || !glImage.getShowColorbar() || imageData == null)
+        if (!isVisible[vp.idx] || !displaySettings.getShowColorbar() || imageData == null)
             return;
-        colorbar.render(vp, glImage, imageData, view.getFilter() == ImageFilter.Type.RHEF, colorbarSlot());
+        colorbar.render(vp, displaySettings, glImage, imageData, getFilter() == ImageFilter.Type.RHEF, colorbarSlot());
     }
 
     // Legends stack upward from the bottom, so each enabled layer needs a distinct slot. Counting
@@ -488,7 +516,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         for (ImageLayer il : Layers.getImageLayers()) {
             if (il == this)
                 break;
-            if (il.glImage.getShowColorbar())
+            if (il.displaySettings.getShowColorbar())
                 slot++;
         }
         return slot;
@@ -499,7 +527,10 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         if (imageData == null) {
             return;
         }
-        glImage.streamImage(imageData, prevImageData, baseImageData);
+        View.ImageData comparisonData = comparisonImageData();
+        ImageBuffer differenceBuffer = displaySettings.getDifferenceMode() == DifferenceMode.None || comparisonData == null
+                ? null : comparisonData.imageBuffer();
+        glImage.streamImages(imageData.imageBuffer(), differenceBuffer);
     }
 
     @Override
@@ -514,8 +545,6 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
     private final float[] crval0 = new float[2];
     private final float[] crval1 = new float[2];
-    private final float[] latiGrid0 = new float[3];
-    private final float[] latiGrid1 = new float[3];
 
     @Override
     public void render(MapView mv, Viewport vp) {
@@ -525,13 +554,11 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         if (!isVisible[vp.idx])
             return;
 
-        GLSLSolarShader shader = mv.mode().shader();
-        shader.use();
-        glImage.applyFilters(view.getFilter() == ImageFilter.Type.RHEF);
-
         MetaData meta0 = imageData.metaData();
+        glImage.applyFilters(imageData.imageBuffer(), meta0, getFilter() == ImageFilter.Type.RHEF);
+
         Position metaViewpoint0 = meta0.getViewpoint();
-        View.ImageData imageDataDiff = glImage.getDifferenceMode() == DifferenceMode.Base ? baseImageData : prevImageData;
+        View.ImageData imageDataDiff = comparisonImageData();
         MetaData meta1 = imageDataDiff.metaData();
         Position metaViewpoint1 = meta1.getViewpoint();
         WcsHeader wcs0 = meta0.getWcsHeader();
@@ -543,7 +570,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
         Mat2 planeToImage0 = wcs0.planeToImage;
         Mat2 planeToImage1 = wcs1.planeToImage;
-        double deltaCROTA = glImage.getDeltaCROTA();
+        double deltaCROTA = displaySettings.getDeltaCROTA();
         if (deltaCROTA != 0) {
             // The user rotation follows the metadata image-to-plane transform,
             // so it precedes that transform's inverse in plane-to-image order.
@@ -552,7 +579,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             planeToImage1 = Mat2.multiply(planeToImage1, inverseAdjustment);
         }
 
-        int deltaCRVAL1 = glImage.getDeltaCRVAL1();
+        int deltaCRVAL1 = displaySettings.getDeltaCRVAL1();
         if (deltaCRVAL1 == 0) {
             crval0[0] = (float) wcs0.crval.x;
             crval1[0] = (float) wcs1.crval.x;
@@ -561,7 +588,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             crval1[0] = (float) (wcs1.crval.x + deltaCRVAL1 * meta1.getUnitPerArcsec());
         }
 
-        int deltaCRVAL2 = glImage.getDeltaCRVAL2();
+        int deltaCRVAL2 = displaySettings.getDeltaCRVAL2();
         if (deltaCRVAL2 == 0) {
             crval0[1] = (float) wcs0.crval.y;
             crval1[1] = (float) wcs1.crval.y;
@@ -577,42 +604,31 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             deltaT1 = (float) ((renderViewpoint.time.milli - metaViewpoint1.time.milli) * 1e-9);
         }
 
-        GLSLSolarShader.bindWCS(
-                cameraDiff0, imageData.region(), planeToImage0, crval0, (float) wcs0.zpnUpperEta, deltaT0,
-                cameraDiff1, imageDataDiff.region(), planeToImage1, crval1, (float) wcs1.zpnUpperEta, deltaT1);
-        shader.bindPV(wcs0.pv2, wcs1.pv2);
-
         Quat sourceView0 = wcs0.projection.isSurfaceMap() ? q : metaViewpoint0.toQuat();
         Quat sourceView1 = wcs1.projection.isSurfaceMap() ? q : metaViewpoint1.toQuat();
-        Quat displayMap0 = Quat.ZERO;
-        Quat displayMap1 = Quat.ZERO;
-        if (mv.isLatitudinal()) {
-            GridType gridType = mv.gridType();
-            displayMap0 = displayMap1 = gridType.mapRotation(renderViewpoint);
-            latiGrid0[0] = (float) latiLongitude(gridType, renderViewpoint, metaViewpoint0);
-            latiGrid0[1] = (float) gridType.toLatitude(metaViewpoint0);
-            latiGrid0[2] = (float) metaViewpoint0.lat;
-            latiGrid1[0] = (float) latiLongitude(gridType, renderViewpoint, metaViewpoint1);
-            latiGrid1[1] = (float) gridType.toLatitude(metaViewpoint1);
-            latiGrid1[2] = (float) metaViewpoint1.lat;
-        }
-        shader.bindLatiGrid(latiGrid0, latiGrid1);
-        shader.bindSkyLook(
+
+        // Selects and binds the program for this projection. Everything bound or drawn below acts
+        // on whatever this chose, so it comes first. The latitudinal grid the fork used to bind
+        // here is gone: upstream carries the same information in each image's sourceView.
+        GLSLImageShader.useImage(mv.mode(), wcs0.pv2, wcs1.pv2);
+        GLSLImageShader.bindImages(
+                imageData.region(), planeToImage0, crval0, wcs0,
+                (float) metaViewpoint0.distance, deltaT0, cameraDiff0, sourceView0,
+                imageDataDiff.region(), planeToImage1, crval1, wcs1,
+                (float) metaViewpoint1.distance, deltaT1, cameraDiff1, sourceView1);
+
+        GLSLImageShader.bindSkyLook(
                 (float) org.helioviewer.jhv.display.Display.getSkyLookLon(),
                 (float) org.helioviewer.jhv.display.Display.getSkyLookLat(),
                 org.helioviewer.jhv.display.Display.getSkyProjection().shaderCode());
         org.helioviewer.jhv.display.MapScale composed = org.helioviewer.jhv.display.Display.skyComposeScale();
-        shader.bindSkyWarp(composed == null ? 0 : (float) composed.warpOuterRadius(),
+        GLSLImageShader.bindSkyWarp(composed == null ? 0 : (float) composed.warpOuterRadius(),
                 composed == null ? 0 : (float) composed.warpLimb(),
                 composed == null ? 0 : (float) composed.warpLambda());
 
-        GLSLSolarShader.bindProjection(
-                wcs0.projection, (float) wcs0.unitsPerRad, (float) metaViewpoint0.distance, sourceView0, displayMap0,
-                wcs1.projection, (float) wcs1.unitsPerRad, (float) metaViewpoint1.distance, sourceView1, displayMap1);
-
         // The warped modes draw a surface mesh; everything else reconstructs geometry per
         // fragment from a full-screen quad.
-        if (shader == GLSLSolarShader.warpSurface) {
+        if (mv.mode().usesWarpSurface()) {
             // The mesh is built in (position angle, elongation), which is the OBSERVER's frame,
             // so the viewpoint rotation carried by the shared view matrix has to come back off.
             // Without this the surface is swung by the observer's Carrington orientation while
@@ -625,16 +641,14 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             // The model is never downgraded here. Past r = D it has no surface, and the fragment
             // stage discards those pixels rather than drawing the flat sheet the clamp produces,
             // so choosing the Thomson sphere costs the outer field rather than the whole mode.
-            shader.renderWarpSurface(renderViewpoint.distance, org.helioviewer.jhv.display.Display.getSurfaceModel());
+            GLSLImageShader.renderWarpSurface(renderViewpoint.distance, org.helioviewer.jhv.display.Display.getSurfaceModel());
             Transform.popView();
         } else
-            GLSLSolar.quad.render();
+            GLSLImageShader.drawImage();
     }
 
-    private static double latiLongitude(GridType gridType, Position decodeViewpoint, Position metaViewpoint) {
-        double gridLon = gridType.toLongitude(metaViewpoint);
-        double lon = gridType == GridType.Viewpoint ? gridLon - decodeViewpoint.lon : metaViewpoint.lon - gridLon;
-        return (lon + 3. * Math.PI) % (2. * Math.PI); // centered
+    private View.ImageData comparisonImageData() {
+        return displaySettings.getDifferenceMode() == DifferenceMode.Base ? baseImageData : prevImageData;
     }
 
     @Override
@@ -682,7 +696,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
         imageData = newImageData;
         // A categorical map is unreadable without its legend, so show it unless told otherwise.
-        glImage.setShowColorbarDefault(newImageData.metaData().isIndexedSurfaceMap());
+        displaySettings.setShowColorbarDefault(newImageData.metaData().isIndexedSurfaceMap());
     }
 
     @Nullable
@@ -742,8 +756,6 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             retained.add(prevImageData.imageBuffer());
         if (baseImageData != null)
             retained.add(baseImageData.imageBuffer());
-        if (glImage != null)
-            glImage.collectImageBuffers(retained);
     }
 
     @Nonnull
@@ -753,11 +765,11 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
     @Override
     public void handleData(View.ImageData newImageData) {
+        newImageData.imageBuffer().allowExplicitFree();
         if (removed)
             return;
         String oldName = getName();
 
-        newImageData.imageBuffer().allowExplicitFree();
         // Count the frame's distinct values here, where the buffer is certainly still alive; the
         // readout that displays it runs later and must never touch a buffer the cache may have
         // freed underneath it. Cached in the buffer, so this is once per frame.
@@ -809,8 +821,13 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     }
 
     @Nonnull
-    public GLImage getGLImage() {
-        return glImage;
+    /** False while this is still the empty layer the constructor builds, before any frame has arrived. */
+    public boolean hasPixels() {
+        return viewLoaded;
+    }
+
+    public ImageDisplaySettings getDisplaySettings() {
+        return displaySettings;
     }
 
     @Nonnull

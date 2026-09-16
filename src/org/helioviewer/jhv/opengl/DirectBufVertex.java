@@ -1,33 +1,43 @@
 package org.helioviewer.jhv.opengl;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 
 import org.helioviewer.jhv.base.BufferUtils;
 
 public final class DirectBufVertex {
 
-    private final ByteBuffer vertexBuffer;
-    private final ByteBuffer colorBuffer;
+    private final ByteBuffer buffer;
     private final int count;
 
-    public DirectBufVertex(BufVertex buf) {
-        vertexBuffer = copy(buf.toVertexBuffer(), buf.vertexByteLength());
-        colorBuffer = copy(buf.toColorBuffer(), buf.colorByteLength());
-        count = buf.getCount();
+    public DirectBufVertex(BufVertex vertices) {
+        buffer = copy(vertices.toBuffer());
+        count = vertices.getCount();
     }
 
-    private static ByteBuffer copy(ByteBuffer buffer, int size) {
-        ByteBuffer ret = BufferUtils.newByteBuffer(size);
-        ret.put(buffer.duplicate());
-        return ret.flip();
+    public DirectBufVertex(List<BufVertex> vertices) {
+        if (vertices.isEmpty())
+            throw new IllegalArgumentException("Empty BufVertex list");
+
+        int totalCount = 0;
+        for (BufVertex source : vertices)
+            totalCount = Math.addExact(totalCount, source.getCount());
+        count = totalCount;
+        buffer = BufferUtils.newByteBuffer(Math.multiplyExact(count, BufVertex.BYTES_PER_VERTEX));
+        for (BufVertex source : vertices) {
+            ByteBuffer data = source.toBuffer();
+            BufferUtils.putRange(buffer, data, 0, data.limit());
+        }
+        buffer.flip();
     }
 
-    ByteBuffer vertexBuffer() {
-        return vertexBuffer;
+    private static ByteBuffer copy(ByteBuffer buffer) {
+        ByteBuffer ret = BufferUtils.newByteBuffer(buffer.remaining());
+        return BufferUtils.putRemaining(ret, buffer).flip();
     }
 
-    ByteBuffer colorBuffer() {
-        return colorBuffer;
+    ByteBuffer buffer() {
+        return buffer;
     }
 
     int count() {

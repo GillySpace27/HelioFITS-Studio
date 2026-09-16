@@ -71,13 +71,13 @@ public record LUT(String name, ByteBuffer rgba) {
     }
 
     public int[] lut8() {
-        ByteBuffer source = rgba.duplicate();
-        int[] lut8 = new int[source.remaining() / 4];
+        int[] lut8 = new int[rgba.remaining() / 4];
+        int position = rgba.position();
         for (int i = 0; i < lut8.length; i++) {
-            int red = source.get() & 0xFF;
-            int green = source.get() & 0xFF;
-            int blue = source.get() & 0xFF;
-            int alpha = source.get() & 0xFF;
+            int red = rgba.get(position++) & 0xFF;
+            int green = rgba.get(position++) & 0xFF;
+            int blue = rgba.get(position++) & 0xFF;
+            int alpha = rgba.get(position++) & 0xFF;
             lut8[i] = (alpha << 24) | (red << 16) | (green << 8) | blue;
         }
         return lut8;
@@ -89,13 +89,12 @@ public record LUT(String name, ByteBuffer rgba) {
     }
 
     public ByteBuffer rgbaInv() {
-        ByteBuffer source = rgba.duplicate();
-        ByteBuffer inverted = BufferUtils.newByteBuffer(source.remaining());
-        for (int pos = source.limit() - 4; pos >= 0; pos -= 4) {
-            inverted.put(source.get(pos))
-                    .put(source.get(pos + 1))
-                    .put(source.get(pos + 2))
-                    .put(source.get(pos + 3));
+        ByteBuffer inverted = BufferUtils.newByteBuffer(rgba.remaining());
+        for (int pos = rgba.limit() - 4; pos >= rgba.position(); pos -= 4) {
+            inverted.put(rgba.get(pos))
+                    .put(rgba.get(pos + 1))
+                    .put(rgba.get(pos + 2))
+                    .put(rgba.get(pos + 3));
         }
         inverted.flip();
         return inverted;

@@ -26,7 +26,7 @@ class PointCloudLoader {
     }
 
     static void submit(@Nonnull URI uri, @Nonnull Receiver receiver) {
-        Task.submit("pointcloud", new Load(uri), receiver::setCloud, PointCloudLoader::onFailure);
+        Task.submitBackground("pointcloud", new Load(uri), receiver::setCloud, PointCloudLoader::onFailure);
     }
 
     private record Load(URI uri) implements Callable<PointCloudData> {

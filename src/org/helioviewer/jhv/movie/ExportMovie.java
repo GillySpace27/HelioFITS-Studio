@@ -3,7 +3,6 @@ package org.helioviewer.jhv.movie;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 
 import javax.annotation.Nullable;
@@ -38,8 +37,7 @@ public final class ExportMovie {
     // frame is hundreds of megabytes at 4K and the writer is slower than the renderer, so an
     // unbounded queue filled a 30 GB heap in a dozen frames. The GL thread waits instead.
     private static final int EXR_IN_FLIGHT = 2;
-    private static final ExecutorService encodeExecutor = Executors.newSingleThreadExecutor(
-            new AppThread.NamedThreadFactory("HFS-EncodeMovie"));
+    private static final ExecutorService encodeExecutor = AppThread.createIdleExecutor("HFS-EncodeMovie", 1);
     private static final ArrayList<StatusListener> statusListeners = new ArrayList<>();
 
     private static @Nullable RecordingSession recordingSession;

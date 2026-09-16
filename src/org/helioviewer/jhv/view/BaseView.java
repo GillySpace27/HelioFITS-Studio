@@ -1,9 +1,14 @@
 package org.helioviewer.jhv.view;
 
+import java.awt.EventQueue;
+import java.util.function.BooleanSupplier;
+
 import javax.annotation.Nullable;
 
+import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.image.DecodedImage;
 import org.helioviewer.jhv.image.ImageFilter;
+import org.helioviewer.jhv.image.ImageProcessingSettings;
 import org.helioviewer.jhv.image.lut.LUT;
 import org.helioviewer.jhv.io.DataUri;
 import org.helioviewer.jhv.metadata.BasicMetaData;
@@ -17,13 +22,14 @@ public class BaseView implements View {
     protected final LatestWorker<DecodedImage> executor;
     protected final DataUri dataUri;
 
-    protected ImageFilter.Type filterType = ImageFilter.Type.None;
+    protected final ImageProcessingSettings processingSettings;
     protected LUT builtinLUT;
     protected MetaData[] metaData = {BasicMetaData.EMPTY}; // paranoia
 
-    public BaseView(LatestWorker<DecodedImage> _executor, DataUri _dataUri) {
+    public BaseView(LatestWorker<DecodedImage> _executor, DataUri _dataUri, ImageProcessingSettings _processingSettings) {
         executor = _executor;
         dataUri = _dataUri;
+        processingSettings = _processingSettings;
     }
 
     @Nullable
@@ -36,6 +42,17 @@ public class BaseView implements View {
     @Override
     public org.helioviewer.jhv.io.DataUri.Format getFormat() {
         return dataUri == null ? null : dataUri.format();
+    }
+
+    // The filter belongs to the layer's settings; a view only forwards to them.
+    @Override
+    public void setFilter(ImageFilter.Type t) {
+        processingSettings.setFilter(t);
+    }
+
+    @Override
+    public ImageFilter.Type getFilter() {
+        return processingSettings.getFilter();
     }
 
     @Override
@@ -94,14 +111,17 @@ public class BaseView implements View {
         dataHandler = _dataHandler;
     }
 
-    @Override
-    public void setFilter(ImageFilter.Type t) {
-        filterType = t;
-    }
+    protected final void sendDataToHandler(int frame, Position viewpoint, DecodedImage image, BooleanSupplier isCurrent) {
+        image.imageBuffer().protectFromExplicitFree();
+        MetaData m = metaData[frame];
 
-    @Override
-    public ImageFilter.Type getFilter() {
-        return filterType;
+        View.ImageData data = new View.ImageData(image.imageBuffer(), m, image.region(), viewpoint);
+        EventQueue.invokeLater(() -> {
+            if (dataHandler != null && isCurrent.getAsBoolean())
+                dataHandler.handleData(data);
+            else
+                image.imageBuffer().allowExplicitFree();
+        });
     }
 
 }

@@ -3,7 +3,6 @@ package org.helioviewer.jhv.event.info;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Window;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 
@@ -17,44 +16,38 @@ import javax.swing.WindowConstants;
 
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.state.ViewState;
+import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.database.EventDatabase;
 import org.helioviewer.jhv.display.CMETracker;
 import org.helioviewer.jhv.display.MapMode;
-import org.helioviewer.jhv.event.JHVEvent;
-import org.helioviewer.jhv.event.JHVEventCache;
-import org.helioviewer.jhv.event.JHVEventParameter;
-import org.helioviewer.jhv.event.JHVRelatedEvents;
+import org.helioviewer.jhv.event.EventCache;
+import org.helioviewer.jhv.event.RelatedEvents;
+import org.helioviewer.jhv.event.SolarEvent;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.thread.Task;
 
 // Popup displaying information about a HEK event.
 // This panel is a JDialog so it can appear above the heavyweight render surface.
 @SuppressWarnings("serial")
-public final class SWEKEventInformationDialog extends JDialog implements DataCollapsiblePanelModel.Listener {
+public final class SWEKEventInformationDialog extends JDialog {
 
     private JPanel allTablePanel;
 
     private DataCollapsiblePanel standardParameters;
     private DataCollapsiblePanel allParameters;
-    private DataCollapsiblePanel precedingEventsPanel;
-    private DataCollapsiblePanel followingEventsPanel;
+    private DataCollapsiblePanel relatedEventsPanel;
     private DataCollapsiblePanel otherRelatedEventsPanel;
 
-    private final JHVEvent event;
-    private final JHVRelatedEvents rEvent;
+    private SolarEvent event;
+    private final RelatedEvents related;
 
-    private final DataCollapsiblePanelModel model;
-
-    public SWEKEventInformationDialog(JHVRelatedEvents revent, JHVEvent _event) {
-        super(MainFrame.get(), revent.getSupplier().group().getName());
+    public SWEKEventInformationDialog(RelatedEvents _related, SolarEvent _event) {
+        super(MainFrame.get(), _event.getSupplier().group().getName());
         setType(Window.Type.UTILITY); // avoids tab on macOS when Prefer tabs is always
         setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
 
         event = _event;
-        rEvent = revent;
-
-        model = new DataCollapsiblePanelModel();
-        model.addListener(this);
+        related = _related;
 
         initAllTablePanel();
         initParameterCollapsiblePanels();
@@ -70,7 +63,7 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
         eventDescriptionConstraint.anchor = GridBagConstraints.LINE_START;
         eventDescriptionConstraint.fill = GridBagConstraints.BOTH;
 
-        add(new EventDescriptionPanel(revent, event), eventDescriptionConstraint);
+        add(new EventDescriptionPanel(_related, event), eventDescriptionConstraint);
 
         GridBagConstraints allTablePanelConstraint = new GridBagConstraints();
         allTablePanelConstraint.gridx = 0;
@@ -91,14 +84,14 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
             add(createTrackButtons(event), trackConstraint);
         }
 
-        Task.submit("event-info", new DatabaseCallable(event), this::onSuccessDatabase, SWEKEventInformationDialog::onFailureDatabase);
+        Task.submitBackground("event-info", new DatabaseCallable(event), this::onSuccessDatabase, SWEKEventInformationDialog::onFailureDatabase);
     }
 
     // Hold this CME front at a fixed screen radius, by either of the two knobs: WARP animates the
     // Box-Cox lambda so the corona rubber-bands around a stationary front, CROP holds lambda and
     // widens the outer crop instead (a zoom-out that follows the front). Transient, like camera
     // tracking: moving the driven slider or leaving the warp projections disengages.
-    private static JPanel createTrackButtons(JHVEvent event) {
+    private static JPanel createTrackButtons(SolarEvent event) {
         JPanel panel = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.TRAILING, 4, 0));
         JButton warpButton = new JButton();
         JButton cropButton = new JButton();
@@ -129,7 +122,7 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
         return CMETracker.isTracking() && CMETracker.getMode() == mode;
     }
 
-    private static void toggleTracking(JHVEvent event, CMETracker.Mode mode) {
+    private static void toggleTracking(SolarEvent event, CMETracker.Mode mode) {
         if (trackingIn(mode)) {
             CMETracker.stop();
             return;
@@ -137,56 +130,24 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
         CMETracker.stop(); // switching modes mid-track: disengage before re-engaging on the other knob
         CMETracker.setMode(mode);
         ViewState.setProjection(MapMode.Helioradial); // no-op if already there; fits on entry
-        CMETracker.track(readCMESpeed(event), event.start, readCMEDouble(event, "event_coord1"));
+        SolarEvent.CMEParameters cme = event.getCMEParameters();
+        CMETracker.track(cme.speedKmPerSecond(), event.start, cme.principalAngleDegree());
     }
 
-    private static double readCMESpeed(JHVEvent event) { // mirrors SWEKData.readCMESpeed (plugin-private)
-        return readCMEDouble(event, "cme_radiallinvel", 500);
-    }
-
-    private static double readCMEDouble(JHVEvent event, String key) {
-        return readCMEDouble(event, key, 0);
-    }
-
-    private static double readCMEDouble(JHVEvent event, String key, double fallback) {
-        JHVEventParameter p = event.getParameter(key);
-        if (p == null)
-            return fallback;
-        try {
-            return Double.parseDouble(p.getParameterValue());
-        } catch (NumberFormatException e) {
-            return fallback;
-        }
-    }
-
-    private record DatabaseCallable(JHVEvent qEvent) implements Callable<List<JHVEvent>> {
+    private record DatabaseCallable(SolarEvent event) implements Callable<EventDatabase.EventDetails> {
         @Override
-        public List<JHVEvent> call() throws Exception {
-            return EventDatabase.getOtherRelations(qEvent.getUniqueID(), qEvent.getSupplier(), false, true);
+        public EventDatabase.EventDetails call() throws Exception {
+            return EventDatabase.getEventDetails(event.getUniqueID());
         }
     }
 
-    private void onSuccessDatabase(@Nonnull List<JHVEvent> result) {
-        result.forEach(JHVEventCache::addEvent);
+    private void onSuccessDatabase(@Nonnull EventDatabase.EventDetails details) {
+        event = details.event();
+        List<SolarEvent> relatedEvents = details.relatedEvents();
+        if (!relatedEvents.isEmpty())
+            otherRelatedEventsPanel = createOtherRelatedEventsCollapsiblePane(relatedEvents);
 
-        List<JHVRelatedEvents> rEvents = new ArrayList<>();
-        int id = event.getUniqueID();
-        for (JHVEvent jhvEvent : result) {
-            int jid = jhvEvent.getUniqueID();
-            //if (jid == id)
-            //    event = jhvEvent;
-            //else
-            if (jid != id)
-                rEvents.add(JHVEventCache.getRelatedEvents(jid));
-        }
-
-        if (!rEvents.isEmpty())
-            otherRelatedEventsPanel = createOtherRelatedEventsCollapsiblePane("Other Related Events", rEvents);
-
-        allTablePanel.removeAll();
         initParameterCollapsiblePanels();
-        setCollapsiblePanels();
-
         repack();
         repaint();
     }
@@ -201,20 +162,14 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
 
     private void initParameterCollapsiblePanels() {
         ParameterTablePanel standardParameterPanel = new ParameterTablePanel(event.getVisibleEventParameters());
-        standardParameters = new DataCollapsiblePanel("Standard Parameters", standardParameterPanel, true, model);
+        standardParameters = new DataCollapsiblePanel("Standard Parameters", standardParameterPanel, true, this::repack);
 
         ParameterTablePanel allEventsPanel = new ParameterTablePanel(event.getAllEventParameters());
-        allParameters = new DataCollapsiblePanel("All Parameters", allEventsPanel, false, model);
+        allParameters = new DataCollapsiblePanel("All Parameters", allEventsPanel, false, this::repack);
 
-        List<JHVEvent> precedingEvents = rEvent.getPreviousEvents(event);
-        if (!precedingEvents.isEmpty()) {
-            precedingEventsPanel = createRelatedEventsCollapsiblePane("Preceding Events", rEvent, precedingEvents);
-        }
-
-        List<JHVEvent> nextEvents = rEvent.getNextEvents(event);
-        if (!nextEvents.isEmpty()) {
-            followingEventsPanel = createRelatedEventsCollapsiblePane("Following Events", rEvent, nextEvents);
-        }
+        List<SolarEvent> relatedEvents = related.getAssociatedEvents(event);
+        if (!relatedEvents.isEmpty())
+            relatedEventsPanel = createRelatedEventsCollapsiblePane(related, relatedEvents);
     }
 
     private void setCollapsiblePanels() {
@@ -233,17 +188,10 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
 
         int gridYPosition = 2;
 
-        if (precedingEventsPanel != null) {
+        if (relatedEventsPanel != null) {
             gc.gridy = gridYPosition;
-            gc.weighty = precedingEventsPanel.isExpanded() ? 1 : 0;
-            allTablePanel.add(precedingEventsPanel, gc);
-            gridYPosition++;
-        }
-
-        if (followingEventsPanel != null) {
-            gc.gridy = gridYPosition;
-            gc.weighty = followingEventsPanel.isExpanded() ? 1 : 0;
-            allTablePanel.add(followingEventsPanel, gc);
+            gc.weighty = relatedEventsPanel.isExpanded() ? 1 : 0;
+            allTablePanel.add(relatedEventsPanel, gc);
             gridYPosition++;
         }
 
@@ -255,29 +203,30 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
         }
     }
 
-    private DataCollapsiblePanel createRelatedEventsCollapsiblePane(String relation, JHVRelatedEvents rEvents, List<JHVEvent> relations) {
-        JPanel allPrecedingEvents = new JPanel();
-        allPrecedingEvents.setLayout(new BoxLayout(allPrecedingEvents, BoxLayout.PAGE_AXIS));
-        relations.forEach(ev -> allPrecedingEvents.add(createEventPanel(rEvents, ev)));
-        return new DataCollapsiblePanel(relation, new JScrollPane(allPrecedingEvents), false, model);
+    private DataCollapsiblePanel createRelatedEventsCollapsiblePane(RelatedEvents related, List<SolarEvent> relations) {
+        JPanel eventPanels = new JPanel();
+        eventPanels.setLayout(new BoxLayout(eventPanels, BoxLayout.PAGE_AXIS));
+        relations.forEach(ev -> eventPanels.add(createEventPanel(related, ev)));
+        return new DataCollapsiblePanel("Related Events", new JScrollPane(eventPanels), false, this::repack);
     }
 
-    private DataCollapsiblePanel createOtherRelatedEventsCollapsiblePane(String relation, List<JHVRelatedEvents> rEvents) {
-        JPanel allPrecedingEvents = new JPanel();
-        allPrecedingEvents.setLayout(new BoxLayout(allPrecedingEvents, BoxLayout.PAGE_AXIS));
-        for (JHVRelatedEvents rev : rEvents) {
-            List<JHVEvent> evs = rev.getEvents();
-            if (!evs.isEmpty()) {
-                allPrecedingEvents.add(createEventPanel(rev, evs.getFirst()));
-            }
+    private DataCollapsiblePanel createOtherRelatedEventsCollapsiblePane(List<SolarEvent> events) {
+        JPanel eventPanels = new JPanel();
+        eventPanels.setLayout(new BoxLayout(eventPanels, BoxLayout.PAGE_AXIS));
+        Colors.Data colors = new Colors.Data();
+        for (SolarEvent relatedEvent : events) {
+            RelatedEvents relatedEvents = EventCache.getRelatedEvents(relatedEvent.getUniqueID());
+            if (relatedEvents == null)
+                relatedEvents = new RelatedEvents(relatedEvent, colors.getNextColor());
+            eventPanels.add(createEventPanel(relatedEvents, relatedEvent));
         }
-        return new DataCollapsiblePanel(relation, new JScrollPane(allPrecedingEvents), false, model);
+        return new DataCollapsiblePanel("Other Related Events", new JScrollPane(eventPanels), false, this::repack);
     }
 
-    private static JPanel createEventPanel(JHVRelatedEvents rEvents, JHVEvent event) {
+    private static JPanel createEventPanel(RelatedEvents related, SolarEvent event) {
         JButton detailsButton = new JButton("Details…");
         detailsButton.addActionListener(e -> {
-            SWEKEventInformationDialog dialog = new SWEKEventInformationDialog(rEvents, event);
+            SWEKEventInformationDialog dialog = new SWEKEventInformationDialog(related, event);
             dialog.pack();
             dialog.setVisible(true);
         });
@@ -291,7 +240,7 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
         c.anchor = GridBagConstraints.CENTER;
         c.weightx = 1;
         c.weighty = 1;
-        eventAndButtonPanel.add(new EventDescriptionPanel(rEvents, event), c);
+        eventAndButtonPanel.add(new EventDescriptionPanel(related, event), c);
 
         c.gridy = 1;
         c.fill = GridBagConstraints.NONE;
@@ -303,8 +252,7 @@ public final class SWEKEventInformationDialog extends JDialog implements DataCol
         return eventAndButtonPanel;
     }
 
-    @Override
-    public void repack() {
+    private void repack() {
         allTablePanel.removeAll();
         setCollapsiblePanels();
         pack();
