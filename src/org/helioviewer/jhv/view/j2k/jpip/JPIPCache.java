@@ -44,7 +44,7 @@ public class JPIPCache {
     JPIPStream scan(int frame) {
         JPIPStream stream = new JPIPStream();
         for (DataBinCache.BinId id : bins.contents()) {
-            if (id.codestream() != frame || id.klass() == Constants.KDU.META_DATABIN)
+            if (id.codestream() != frame || id.klass() == Constants.Bin.META_DATABIN)
                 continue;
             byte[] data = bins.bytes(id.klass(), id.codestream(), id.id());
             stream.databins.add(new JPIPStream.Databin(id.klass(), id.id(),

@@ -14,6 +14,8 @@ The first pre-release under the HelioFITS Studio name, for testing ahead of 1.0.
 - Every product code in the PUNCH dialog explains itself on hover
 - Grid labels and viewpoint markers keep their share of the frame in exported movies and images
 - The update check reads the released VERSION file; it used to build a malformed address
+- Decode JPEG 2000 with OpenJPEG instead of Kakadu, whose non-commercial licence does not reach a fork: the JPIP cache, the codestream rebuild, the box reader, the image source and the decoder are all new, and a fully delivered frame decodes pixel for pixel identically to the same frame's file
+- Frame a newly opened dataset the way Reset View does, with View > Reset View for New Layers to turn it off
 - Rename the application's threads, default export name, icon and launch scripts to HelioFITS Studio, and move files that belonged to upstream JHelioviewer or to the preview builds into `archive/`
 
 ## JHelioviewer 5.11.0 (pending)

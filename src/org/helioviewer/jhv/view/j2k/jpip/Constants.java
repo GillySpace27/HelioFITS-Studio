@@ -46,7 +46,12 @@ class Constants {
         static final int EOR_NON_SPECIFIED = 0xFF;
     }
 
-    static class KDU {
+    /**
+     * How this client numbers bin classes internally, which is not how JPIP numbers them on the
+     * wire: the mapping below is the translation. The numbering is Kakadu's, kept because the
+     * disk cache written by earlier versions uses it.
+     */
+    static class Bin {
         static final int PRECINCT_DATABIN = 0;
         static final int TILE_HEADER_DATABIN = 1;
         static final int TILE_DATABIN = 2;
@@ -59,11 +64,11 @@ class Constants {
 
     static int getKlass(int classID) {
         return switch (classID) {
-            case JPIP.PRECINCT_DATA_BIN_CLASS -> KDU.PRECINCT_DATABIN;
-            case JPIP.TILE_HEADER_DATA_BIN_CLASS -> KDU.TILE_HEADER_DATABIN;
-            case JPIP.TILE_DATA_BIN_CLASS -> KDU.TILE_DATABIN;
-            case JPIP.MAIN_HEADER_DATA_BIN_CLASS -> KDU.MAIN_HEADER_DATABIN;
-            case JPIP.META_DATA_BIN_CLASS -> KDU.META_DATABIN;
+            case JPIP.PRECINCT_DATA_BIN_CLASS -> Bin.PRECINCT_DATABIN;
+            case JPIP.TILE_HEADER_DATA_BIN_CLASS -> Bin.TILE_HEADER_DATABIN;
+            case JPIP.TILE_DATA_BIN_CLASS -> Bin.TILE_DATABIN;
+            case JPIP.MAIN_HEADER_DATA_BIN_CLASS -> Bin.MAIN_HEADER_DATABIN;
+            case JPIP.META_DATA_BIN_CLASS -> Bin.META_DATABIN;
             default -> UNKNOWN_DATABIN;
         };
     }
