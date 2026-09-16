@@ -51,7 +51,8 @@ public final class OpenJpeg {
                        MethodHandle setSkipFunction, MethodHandle setSeekFunction, MethodHandle setUserData,
                        MethodHandle setUserDataLength, MethodHandle readHeader, MethodHandle setResolutionFactor,
                        MethodHandle decode, MethodHandle endDecompress, MethodHandle imageDestroy,
-                       MethodHandle streamDestroy, MethodHandle destroyCodec, MethodHandle version) {}
+                       MethodHandle streamDestroy, MethodHandle destroyCodec, MethodHandle setErrorHandler,
+                       MethodHandle setStrictMode, MethodHandle version) {}
 
     private static final class Holder {
         private static final Arena ARENA = Arena.ofShared();
@@ -98,6 +99,8 @@ public final class OpenJpeg {
                 bind(linker, opj, "opj_image_destroy", FunctionDescriptor.ofVoid(A)),
                 bind(linker, opj, "opj_stream_destroy", FunctionDescriptor.ofVoid(A)),
                 bind(linker, opj, "opj_destroy_codec", FunctionDescriptor.ofVoid(A)),
+                bind(linker, opj, "opj_set_error_handler", FunctionDescriptor.of(I32, A, A, A)),
+                bind(linker, opj, "opj_decoder_set_strict_mode", FunctionDescriptor.of(I32, A, I32)),
                 bind(linker, opj, "opj_version", FunctionDescriptor.of(A)));
     }
 
@@ -138,11 +141,23 @@ public final class OpenJpeg {
 
             MemorySegment imagePtr = arena.allocate(ValueLayout.ADDRESS);
             MemorySegment image = MemorySegment.NULL;
+            // Without this, a refusal arrives as a bare false and the reason goes to nobody.
+            StringBuilder complaints = new StringBuilder();
+            Message onError = (text, user) -> complaints.append(text.reinterpret(Long.MAX_VALUE).getString(0).strip()).append("; ");
+            int handled = (int) api.setErrorHandler().invokeExact(codec,
+                    upcall(Linker.nativeLinker(), arena, onError, Message.class, "message",
+                            FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.ADDRESS)),
+                    MemorySegment.NULL);
             try {
                 MemorySegment parameters = arena.allocate(PARAMETERS_BYTES);
                 api.defaultParameters().invokeExact(parameters);
                 if (0 == (int) api.setupDecoder().invokeExact(codec, parameters))
                     throw new IllegalStateException("OpenJPEG rejected the decoder parameters");
+                // A codestream rebuilt from a partly delivered frame ends early on purpose, which
+                // strict mode treats as corruption. Decoding what arrived is the whole point of JPIP.
+                int lenient = (int) api.setStrictMode().invokeExact(codec, 0);
+                if (lenient == 0)
+                    complaints.append("this build cannot decode truncated codestreams; ");
                 // invokeExact is exact about the return type too, so these ints are read even when ignored.
                 if (threads > 0) {
                     int threaded = (int) api.setThreads().invokeExact(codec, threads);
@@ -151,13 +166,13 @@ public final class OpenJpeg {
                 }
 
                 if (0 == (int) api.readHeader().invokeExact(stream, codec, imagePtr))
-                    throw new IllegalStateException("OpenJPEG could not read the header");
+                    throw new IllegalStateException("OpenJPEG could not read the header: " + complaints);
                 image = imagePtr.get(ValueLayout.ADDRESS, 0);
                 if (reduce > 0 && 0 == (int) api.setResolutionFactor().invokeExact(codec, reduce))
                     throw new IllegalStateException("OpenJPEG refused resolution factor " + reduce);
 
                 if (0 == (int) api.decode().invokeExact(codec, stream, image))
-                    throw new IllegalStateException("OpenJPEG could not decode the image");
+                    throw new IllegalStateException("OpenJPEG could not decode the image: " + complaints);
                 int ended = (int) api.endDecompress().invokeExact(codec, stream);
                 if (ended == 0)
                     throw new IllegalStateException("OpenJPEG could not finish the codestream");
@@ -218,6 +233,11 @@ public final class OpenJpeg {
         api.setUserData().invokeExact(stream, MemorySegment.NULL, MemorySegment.NULL);
         api.setUserDataLength().invokeExact(stream, length);
         return stream;
+    }
+
+    @FunctionalInterface
+    private interface Message {
+        void message(MemorySegment text, MemorySegment user);
     }
 
     @FunctionalInterface
