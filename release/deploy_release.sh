@@ -237,7 +237,13 @@ publish() {
 # App is arm64 (matches the JDK/dylib we build). Intel Macs need a separate
 # amd64 dylib + JDK; a later add; ponytail: arm64 only until someone asks.
 BUNDLE_ID="space.gilly.hfstudio"
+# jpackage refuses any app-version whose first number is zero, and this project ships 0.x on
+# purpose, so it is handed a version it accepts and the real one is written into the bundle
+# afterwards, before signing. macOS itself is content with 0.8.0; only jpackage objects.
 APP_VERSION="$VERSION"         # jpackage requires a numeric version; checked at the top
+case "$VERSION" in
+    0.*) APP_VERSION="1.0.0" ;;
+esac
 DMG="$HERE/$TOP.dmg"
 ARCH_RES="jhv/macos-arm64"    # resource path AngleLibraries extracts the dylib from
 DYLIB="lib/natives-macos/libjhvmetalhost.dylib"
@@ -391,6 +397,12 @@ PLIST
         --dest "$OUT"
     APP="$OUT/$BUNDLE_NAME.app"
     [ -d "$APP" ] || { echo "!! jpackage produced no .app"; exit 1; }
+
+    if [ "$APP_VERSION" != "$VERSION" ]; then
+        echo "==> writing the real version $VERSION into the bundle (jpackage was given $APP_VERSION)"
+        /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
+        /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$APP/Contents/Info.plist"
+    fi
 
     # Prove the bundled app actually starts (catches missing deps / broken native load)
     # before spending a multi-minute notary round-trip on it.
