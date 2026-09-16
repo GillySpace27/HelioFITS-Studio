@@ -1,6 +1,6 @@
 package org.helioviewer.jhv.view.j2k;
 
-import java.nio.charset.StandardCharsets;
+import java.io.IOException;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -8,29 +8,22 @@ import javax.annotation.Nullable;
 
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.image.lut.LUT;
-import org.helioviewer.jhv.math.MathUtils;
-import org.helioviewer.jhv.view.View;
 import org.helioviewer.jhv.view.j2k.jpip.JPIPCache;
 
-import kdu_jni.Jp2_input_box;
-import kdu_jni.Jp2_palette;
-import kdu_jni.Jp2_threadsafe_family_src;
-import kdu_jni.Jpx_codestream_source;
-import kdu_jni.Jpx_input_box;
-import kdu_jni.Jpx_meta_manager;
-import kdu_jni.Jpx_metanode;
-import kdu_jni.Jpx_source;
-import kdu_jni.KduException;
-import kdu_jni.Kdu_channel_mapping;
-import kdu_jni.Kdu_codestream;
-import kdu_jni.Kdu_coords;
-import kdu_jni.Kdu_dims;
-import kdu_jni.Kdu_global;
-
+/**
+ * One JPEG 2000 image, as a file or as a JPIP session, without Kakadu.
+ *
+ * <p>The lifecycle is unchanged, because the rest of the viewer depends on it: a source is opened,
+ * used under a guard that keeps it alive while a decode is running, and destroyed once when the
+ * layer goes. What has changed is what is underneath. There are no native objects to open, close
+ * or destroy any more; {@link OpjSource} reads the boxes and the codestream headers, and a frame's
+ * codestream is either in the file or rebuilt from the data bins that have arrived.
+ *
+ * <p>Closing is therefore cheap rather than a release of native memory, and reopening is free. The
+ * guard stays because a decode still must not run against a source a layer has abandoned.
+ */
 abstract class J2KSource {
 
-    private final Jp2_threadsafe_family_src jp2Src = new Jp2_threadsafe_family_src();
-    private final Jpx_source jpxSrc = new Jpx_source();
     private final boolean isJP2;
     private boolean isClosed = true;
     private boolean closing;
@@ -38,54 +31,35 @@ abstract class J2KSource {
     private int maxFrame;
     private boolean resolutionStateInitialized;
 
+    @Nullable
+    private OpjSource opj;
+
     private J2KSource(boolean _isJP2) {
         isJP2 = _isJP2;
     }
 
     // Source lifecycle
 
-    final void open() throws KduException {
+    final void open() throws IOException {
         if (!isClosed)
             return;
         isClosed = false;
         try {
-            doOpenFamilySource();
-            jpxSrc.Open(jp2Src, false);
+            opj = createSource();
             initResolutionStateOnce();
-        } catch (KduException | RuntimeException e) {
-            try {
-                close();
-            } catch (KduException cleanupFailure) {
-                e.addSuppressed(cleanupFailure);
-            }
+        } catch (IOException | RuntimeException e) {
+            close();
             throw e;
         }
     }
 
-    // Temporary close: JP2 sources reopen for the next decode.
-    final void close() throws KduException {
-        if (isClosed)
-            return;
-        KduException failure = null;
-        try {
-            jpxSrc.Close();
-        } catch (KduException e) {
-            failure = e;
-        }
-        try {
-            jp2Src.Close();
-        } catch (KduException e) {
-            if (failure == null)
-                throw e;
-            failure.addSuppressed(e);
-        }
-        if (failure != null)
-            throw failure;
+    // Temporary close: a JP2 source reopens for the next decode, which now costs a file read.
+    final void close() {
         isClosed = true;
     }
 
-    // Terminal cleanup: wait for active users before releasing owned native resources.
-    void destroy() throws KduException {
+    // Terminal cleanup: wait for active users, as a decode may still be reading this.
+    void destroy() {
         boolean interrupted = false;
         synchronized (this) {
             closing = true;
@@ -99,15 +73,11 @@ abstract class J2KSource {
         }
         if (interrupted)
             Thread.currentThread().interrupt();
-        try {
-            close();
-        } finally {
-            jpxSrc.Native_destroy();
-            jp2Src.Native_destroy();
-        }
+        close();
+        opj = null;
     }
 
-    // Native access guards
+    // Access guards
 
     synchronized Use use() {
         if (closing)
@@ -129,123 +99,47 @@ abstract class J2KSource {
         }
     }
 
-    // Source information and native handles
+    // Source information
 
     int maxFrame() {
         return maxFrame;
     }
 
-    ResolutionSet readResolutionSet(int frame) throws KduException {
-        Jpx_codestream_source xstream = jpxSrc.Access_codestream(frame);
-        if (!xstream.Exists())
-            throw new KduException(">> stream does not exist " + frame);
-
-        Jpx_input_box inputBox = new Jpx_input_box();
-        Kdu_codestream stream = new Kdu_codestream();
-        Kdu_dims dims = new Kdu_dims();
-        try {
-            if (xstream.Open_stream(inputBox) == null)
-                throw new KduException(">> stream is not ready " + frame);
-            stream.Create(inputBox);
-
-            // Since it gets tricky here I am just grabbing a bunch of values
-            // and taking the max of them. It is acceptable to think that an
-            // image is color when it's not monochromatic, but not the other way
-            // around... so this is just playing it safe.
-            int maxComponents;
-            Kdu_channel_mapping cmap = new Kdu_channel_mapping();
-            try {
-                cmap.Configure(stream);
-
-                maxComponents = MathUtils.max(
-                        cmap.Get_num_channels(), cmap.Get_num_colour_channels(),
-                        stream.Get_num_components(true), stream.Get_num_components(false));
-                // numComponents = maxComponents == 1 ? 1 : 3;
-                // With new file formats we may have 2 components
-            } finally {
-                cmap.Native_destroy();
-            }
-
-            int maxDWT = stream.Get_min_dwt_levels();
-            ResolutionSet res = new ResolutionSet(maxDWT + 1, maxComponents);
-
-            stream.Get_dims(0, dims);
-            Kdu_coords siz = dims.Access_size();
-            int width0 = siz.Get_x(), height0 = siz.Get_y();
-            res.addLevel(0, width0, height0, 1, 1);
-
-            for (int i = 1; i <= maxDWT; i++) {
-                stream.Apply_input_restrictions(0, 0, i, 0, null, Kdu_global.KDU_WANT_CODESTREAM_COMPONENTS);
-                stream.Get_dims(0, dims);
-                siz = dims.Access_size();
-                int width = siz.Get_x(), height = siz.Get_y();
-                res.addLevel(i, width, height, width0 / (double) width, height0 / (double) height);
-            }
-
-            return res;
-        } finally {
-            try {
-                if (stream.Exists())
-                    stream.Destroy();
-            } catch (KduException ignore) {}
-            dims.Native_destroy();
-            inputBox.Native_destroy();
-        }
+    /** The image itself, for the decoder. Null only before the first open. */
+    @Nullable
+    OpjSource source() {
+        return opj;
     }
 
     @Nullable
-    LUT getLUT() throws KduException {
-        Jpx_codestream_source xstream = jpxSrc.Access_codestream(0);
-        if (!xstream.Exists()) {
-            throw new KduException(">> stream does not exist");
-        }
-        Jp2_palette palette = xstream.Access_palette();
-
-        int numLUTs = palette.Get_num_luts();
-        if (numLUTs == 0)
-            return null;
-
-        int len = palette.Get_num_entries();
-        float[] red = new float[len];
-        float[] green = new float[len];
-        float[] blue = new float[len];
-
-        palette.Get_lut(0, red, Kdu_global.JP2_CHANNEL_FORMAT_DEFAULT);
-        palette.Get_lut(1, green, Kdu_global.JP2_CHANNEL_FORMAT_DEFAULT);
-        palette.Get_lut(2, blue, Kdu_global.JP2_CHANNEL_FORMAT_DEFAULT);
-
-        return LUT.fromOpaqueRgb("built-in", red, green, blue);
+    ResolutionSet readResolutionSet(int frame) throws IOException {
+        OpjSource source = current();
+        ResolutionSet set = source.resolutionSet(frame);
+        if (set == null && frame == 0)
+            throw new IOException("The image's first frame has not arrived");
+        return set;
     }
 
-    private static final long[] xmlFilter = {Kdu_global.jp2_xml_4cc};
-
-    void extractMetaData(String[] xmlMetaData) throws KduException {
-        Jpx_meta_manager metaManager = jpxSrc.Access_meta_manager();
-        Jpx_metanode node = new Jpx_metanode();
-        int i = 0;
-
-        Jp2_input_box xmlBox = new Jp2_input_box();
-        try {
-            while ((node = metaManager.Peek_and_clear_touched_nodes(1, xmlFilter, node)).Exists()) {
-                if (i == xmlMetaData.length)
-                    break;
-                if (node.Open_existing(xmlBox)) {
-                    xmlMetaData[i] = xmlBox2String(xmlBox);
-                    xmlBox.Close();
-                }
-                i++;
-            }
-        } finally {
-            xmlBox.Native_destroy();
-        }
+    @Nullable
+    LUT getLUT() throws IOException {
+        return current().lut();
     }
 
-    Jpx_source jpxSource() {
-        return jpxSrc;
+    void extractMetaData(String[] xmlMetaData) throws IOException {
+        OpjSource source = current();
+        for (int i = 0; i < xmlMetaData.length; i++)
+            xmlMetaData[i] = source.header(i);
     }
 
     boolean isJP2() {
         return isJP2;
+    }
+
+    private OpjSource current() throws IOException {
+        OpjSource source = opj;
+        if (source == null)
+            throw new IOException("The source is not open");
+        return source;
     }
 
     // Progressive completion state
@@ -261,25 +155,17 @@ abstract class J2KSource {
 
     // Initialization internals
 
-    private void initResolutionStateOnce() throws KduException {
+    private void initResolutionStateOnce() throws IOException {
         if (resolutionStateInitialized)
             return;
-        maxFrame = getNumberLayers() - 1;
+        maxFrame = current().frameCount() - 1;
         doInitResolutionState();
         resolutionStateInitialized = true;
     }
 
-    private int getNumberLayers() throws KduException {
-        int[] temp = new int[1];
-        jpxSrc.Count_compositing_layers(temp);
-        return temp[0];
-    }
+    abstract OpjSource createSource() throws IOException;
 
-    // Internal subclass hooks
-
-    abstract void doOpenFamilySource() throws KduException;
-
-    abstract void doInitResolutionState() throws KduException;
+    abstract void doInitResolutionState() throws IOException;
 
     private static final AtomicBoolean full = new AtomicBoolean(true);
 
@@ -294,16 +180,17 @@ abstract class J2KSource {
         }
 
         @Override
-        void doOpenFamilySource() throws KduException {
-            super.jp2Src.Open(path, true);
+        OpjSource createSource() throws IOException {
+            return OpjSource.ofFile(path);
         }
 
         @Override
-        void doInitResolutionState() throws KduException {
+        void doInitResolutionState() throws IOException {
             resolutionSet = new ResolutionSet[maxFrame() + 1];
             for (int i = 0; i <= maxFrame(); ++i) {
                 resolutionSet[i] = readResolutionSet(i);
-                resolutionSet[i].setComplete(0);
+                if (resolutionSet[i] != null)
+                    resolutionSet[i].setComplete(0);
             }
         }
 
@@ -333,14 +220,8 @@ abstract class J2KSource {
     static class Remote extends J2KSource {
 
         private final JPIPCache cache = new JPIPCache();
-
-        /** The same bins in Java, while the replacement for Kakadu is being proved. Null unless asked for. */
-        @javax.annotation.Nullable
-        org.helioviewer.jhv.view.j2k.opj.DataBinCache bins() {
-            return cache.shadow();
-        }
         private ResolutionSet[] resolutionSet;
-        private int partialUntil = 0;
+        private int partialUntil;
         private boolean fullyComplete;
 
         Remote() {
@@ -352,21 +233,14 @@ abstract class J2KSource {
         }
 
         @Override
-        void doOpenFamilySource() throws KduException {
-            super.jp2Src.Open(cache);
+        OpjSource createSource() {
+            // Rebuilt from whatever the session holds now: the frame count and the headers come
+            // out of the metadata bin, which arrives before anything is decoded.
+            return OpjSource.ofCache(cache.bins());
         }
 
         @Override
-        void destroy() throws KduException {
-            try {
-                super.destroy();
-            } finally {
-                cache.Native_destroy();
-            }
-        }
-
-        @Override
-        void doInitResolutionState() throws KduException {
+        void doInitResolutionState() throws IOException {
             resolutionSet = new ResolutionSet[maxFrame() + 1];
             resolutionSet[0] = readResolutionSet(0);
         }
@@ -419,7 +293,7 @@ abstract class J2KSource {
         }
 
         @SuppressWarnings("try")
-        void setFramePartial(int frame) throws KduException {
+        void setFramePartial(int frame) throws IOException {
             if (resolutionSet[frame] == null) {
                 try (Use ignored = use()) {
                     resolutionSet[frame] = readResolutionSet(frame);
@@ -427,7 +301,7 @@ abstract class J2KSource {
             }
         }
 
-        void setFrameComplete(int frame, int level) throws KduException {
+        void setFrameComplete(int frame, int level) throws IOException {
             setFramePartial(frame);
             if (fullyComplete)
                 return;
@@ -436,15 +310,6 @@ abstract class J2KSource {
                 resolutionSet[frame].setComplete(level);
         }
 
-    }
-
-    private static String xmlBox2String(Jp2_input_box xmlBox) throws KduException {
-        int len = (int) xmlBox.Get_remaining_bytes();
-        if (len <= 0)
-            return View.EMPTY_METAXML;
-        byte[] buf = new byte[len];
-        xmlBox.Read(buf, len);
-        return new String(buf, StandardCharsets.UTF_8).trim().replace("&", "&amp;");
     }
 
 }

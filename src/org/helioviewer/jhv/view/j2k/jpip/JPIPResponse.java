@@ -8,14 +8,12 @@ import java.net.ProtocolException;
 
 import javax.annotation.Nullable;
 
-import kdu_jni.KduException;
-
 // A response to a JPIPRequest, encapsulates the JPIPSegments
 public class JPIPResponse {
 
     @FunctionalInterface
     interface Sink {
-        void put(JPIPSegment seg) throws KduException;
+        void put(JPIPSegment seg);
     }
 
     // The status: could be EOR_WINDOW_DONE or EOR_IMAGE_DONE
@@ -123,11 +121,11 @@ public class JPIPResponse {
         return seg;
     }
 
-    void readSegments(InputStream in, JPIPCache cache, int frame) throws KduException, IOException {
+    void readSegments(InputStream in, JPIPCache cache, int frame) throws IOException {
         readSegments(in, seg -> cache.put(frame, seg));
     }
 
-    void readSegments(InputStream in, Sink sink) throws KduException, IOException {
+    void readSegments(InputStream in, Sink sink) throws IOException {
         JPIPSegment pending = null;
         ByteArrayOutputStream buf = null;
         try {
@@ -163,7 +161,7 @@ public class JPIPResponse {
         put(sink, pending, buf);
     }
 
-    private static void put(Sink sink, JPIPSegment seg, ByteArrayOutputStream buf) throws KduException {
+    private static void put(Sink sink, JPIPSegment seg, ByteArrayOutputStream buf) {
         if (seg != null) {
             if (buf != null)
                 seg.data = buf.toByteArray();

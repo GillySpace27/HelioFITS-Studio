@@ -34,10 +34,14 @@ final class OpjSource {
 
     @Nullable
     private final DataBinCache bins;      // a JPIP session, or null for a file
-    private final byte[] boxes;           // the file, or the metadata bin
     private final List<byte[]> inline;    // codestreams the file carries, empty over JPIP
-    private final List<String> headers;   // one FITS header per frame, in frame order
-    private final int frames;
+
+    // A file's boxes never change. A session's do: the metadata bin arrives in pieces and grows,
+    // so it is re-read when it has, and the frame count and headers with it. Re-reading four
+    // kilobytes is cheaper than being wrong about how many frames a movie has.
+    private byte[] boxes;
+    private List<String> headers;
+    private int frames;
 
     private OpjSource(@Nullable DataBinCache _bins, byte[] _boxes, List<byte[]> _inline, List<String> _headers, int _frames) {
         bins = _bins;
@@ -45,6 +49,18 @@ final class OpjSource {
         inline = _inline;
         headers = _headers;
         frames = _frames;
+    }
+
+    private synchronized void refresh() {
+        if (bins == null)
+            return;
+        byte[] metadata = bins.bytes(METADATA_BIN, 0, 0);
+        if (metadata == null || metadata.length == boxes.length)
+            return;
+
+        boxes = metadata;
+        headers = Jp2Boxes.xmls(metadata);
+        frames = Math.max(1, Math.max(Jp2Boxes.placeholders(metadata), headers.size()));
     }
 
     static OpjSource ofFile(String path) throws IOException {
@@ -69,6 +85,7 @@ final class OpjSource {
     }
 
     int frameCount() {
+        refresh();
         return frames;
     }
 
@@ -83,6 +100,7 @@ final class OpjSource {
     /** The frame's FITS header, or null when this image carries none. */
     @Nullable
     String header(int frame) {
+        refresh();
         return frame >= 0 && frame < headers.size() ? headers.get(frame) : null;
     }
 
@@ -123,6 +141,7 @@ final class OpjSource {
      */
     @Nullable
     LUT lut() {
+        refresh();
         for (Jp2Boxes.Box box : Jp2Boxes.walk(boxes))
             if ("jp2h".equals(box.type()))
                 for (Jp2Boxes.Box inner : Jp2Boxes.walk(boxes, box.contentAt(), box.contentAt() + box.contentLength()))

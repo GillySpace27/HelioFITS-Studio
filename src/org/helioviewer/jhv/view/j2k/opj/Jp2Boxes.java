@@ -78,7 +78,7 @@ public final class Jp2Boxes {
             return null;
         for (Box box : walk(data, from, to)) {
             if ("xml ".equals(box.type()))
-                return new String(data, box.contentAt(), box.contentLength(), StandardCharsets.UTF_8);
+                return text(data, box.contentAt(), box.contentLength());
             if ("asoc".equals(box.type()) || "jp2h".equals(box.type())) {
                 String nested = xml(data, box.contentAt(), box.contentAt() + box.contentLength(), depth + 1);
                 if (nested != null)
@@ -100,10 +100,27 @@ public final class Jp2Boxes {
             return;
         for (Box box : walk(data, from, to)) {
             if ("xml ".equals(box.type()))
-                out.add(new String(data, box.contentAt(), box.contentLength(), StandardCharsets.UTF_8));
+                out.add(text(data, box.contentAt(), box.contentLength()));
             else if ("asoc".equals(box.type()) || "jp2h".equals(box.type()))
                 collectXml(data, box.contentAt(), box.contentAt() + box.contentLength(), depth + 1, out);
         }
+    }
+
+    /**
+     * The text of an XML box.
+     *
+     * <p>These archives write the document with a trailing null, C fashion, and an XML parser
+     * rejects anything after the root element closes. Stopping at the null is what Kakadu did for
+     * us, and without it every Helioviewer frame arrives with no metadata at all.
+     */
+    private static String text(byte[] data, int at, int length) {
+        int end = at + length;
+        for (int i = at; i < end; i++)
+            if (data[i] == 0) {
+                end = i;
+                break;
+            }
+        return new String(data, at, end - at, StandardCharsets.UTF_8);
     }
 
     /** Placeholder boxes, one per codestream JPIP has not sent inline, which is how a movie's frames are counted. */

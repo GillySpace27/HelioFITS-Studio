@@ -12,7 +12,6 @@ import org.helioviewer.jhv.view.j2k.jpip.JPIPCache;
 import org.helioviewer.jhv.view.j2k.jpip.JPIPCacheManager;
 import org.helioviewer.jhv.view.j2k.jpip.JPIPSocket;
 
-import kdu_jni.KduException;
 
 class J2KReader implements Runnable {
 
@@ -24,7 +23,7 @@ class J2KReader implements Runnable {
     private volatile JPIPSocket socket;
     private String[] cacheKey;
 
-    J2KReader(URI _uri, J2KSource.Remote source) throws KduException, IOException {
+    J2KReader(URI _uri, J2KSource.Remote source) throws IOException {
         uri = _uri;
 
         JPIPCache cache = source.cache();
@@ -90,7 +89,7 @@ class J2KReader implements Runnable {
     }
 
     @SuppressWarnings("try")
-    private boolean restoreFrame(J2KSource.Remote source, int frame, int level) throws KduException {
+    private boolean restoreFrame(J2KSource.Remote source, int frame, int level) throws IOException {
         try (J2KSource.Use ignored = source.use()) {
             AtomicBoolean status = source.getFrameStatus(frame, level);
             if (status != null && status.get())
@@ -108,7 +107,7 @@ class J2KReader implements Runnable {
     }
 
     @SuppressWarnings("try")
-    private JPIPSocket.FrameResponse receiveFrame(J2KSource.Remote source, int level) throws KduException, IOException {
+    private JPIPSocket.FrameResponse receiveFrame(J2KSource.Remote source, int level) throws IOException {
         JPIPSocket.FrameResponse response;
         try (J2KSource.Use ignored = source.use()) {
             JPIPCache cache = source.cache();
@@ -128,7 +127,7 @@ class J2KReader implements Runnable {
         return isAbolished || !signalQueue.isEmpty() || Thread.interrupted();
     }
 
-    private boolean readFrames(J2KParams.Read params, String size, boolean singleFrame) throws KduException, IOException {
+    private boolean readFrames(J2KParams.Read params, String size, boolean singleFrame) throws IOException {
         J2KSource.Remote source = params.source();
         J2KParams.Decode decode = params.decodeParams();
         ArrayDeque<Integer> remaining = new ArrayDeque<>();

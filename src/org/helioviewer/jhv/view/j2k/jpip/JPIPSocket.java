@@ -9,7 +9,6 @@ import java.util.Map;
 
 import org.helioviewer.jhv.view.j2k.jpip.http.HTTPSocket;
 
-import kdu_jni.KduException;
 
 // Assumes a persistent HTTP connection
 public final class JPIPSocket extends HTTPSocket {
@@ -33,7 +32,7 @@ public final class JPIPSocket extends HTTPSocket {
     // could change it. The Kakadu server seems to change it to /jpip.
     private String jpipPath;
 
-    public JPIPSocket(URI uri, JPIPCache cache) throws KduException, IOException {
+    public JPIPSocket(URI uri, JPIPCache cache) throws IOException {
         super(uri);
         try {
             jpipPath = uri.getPath();
@@ -57,7 +56,7 @@ public final class JPIPSocket extends HTTPSocket {
                 throw new IOException("The client only supports HTTP transport");
 
             jpipPath = '/' + path;
-        } catch (KduException | IOException | RuntimeException | Error e) {
+        } catch (IOException | RuntimeException | Error e) {
             try {
                 super.close();
             } catch (IOException ignore) {
@@ -101,7 +100,7 @@ public final class JPIPSocket extends HTTPSocket {
         return createQuery(FRAME_RESPONSE_LIMIT, "stream", String.valueOf(frame), "fsiz", size + ",closest", "rsiz", size, "roff", "0,0");
     }
 
-    public void init(JPIPCache cache) throws KduException, IOException {
+    public void init(JPIPCache cache) throws IOException {
         JPIPResponse res;
         String req = createQuery(META_REQUEST_LEN, "stream", "0", "metareq", "[*]!!");
         do {
@@ -120,7 +119,7 @@ public final class JPIPSocket extends HTTPSocket {
         pendingFrames.addLast(frame);
     }
 
-    public FrameResponse receiveFrame(JPIPCache cache) throws KduException, IOException {
+    public FrameResponse receiveFrame(JPIPCache cache) throws IOException {
         int frame = pendingFrames.getFirst();
         JPIPResponse response = receive(cache, frame);
         pendingFrames.removeFirst();
@@ -138,12 +137,12 @@ public final class JPIPSocket extends HTTPSocket {
         write("GET " + jpipPath + '?' + queryStr + httpHeader);
     }
 
-    private JPIPResponse requestInitialization(String queryStr, JPIPCache cache) throws KduException, IOException {
+    private JPIPResponse requestInitialization(String queryStr, JPIPCache cache) throws IOException {
         writeRequest(queryStr);
         return receive(cache, 0);
     }
 
-    private JPIPResponse receive(JPIPCache cache, int frame) throws KduException, IOException {
+    private JPIPResponse receive(JPIPCache cache, int frame) throws IOException {
         Map<String, String> header = readHeader();
         if (!"image/jpp-stream".equals(header.get("Content-Type")))
             throw new IOException("Expected image/jpp-stream content");

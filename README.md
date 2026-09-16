@@ -40,7 +40,7 @@ The first time it runs, HelioFITS Studio copies your settings and saved states f
 
 HelioFITS Studio is released under the Mozilla Public License 2.0, the same licence as JHelioviewer (see [LICENSE](LICENSE)). Files that came from JHelioviewer keep that licence and their notices. The complete source of every release is this repository, and each entry on the Releases page carries the source it was built from.
 
-The downloads also bundle libraries and native programs that carry their own licences, and the About dialog credits each of them. One deserves a mention here. The Kakadu JPEG 2000 codec, which decodes Helioviewer's JPEG 2000 images, is proprietary software licensed from NewSouth Innovations Ltd under non-commercial terms, and we intend to remove it before 1.0.
+The downloads also bundle libraries and native programs that carry their own licences, and the About dialog credits each of them. JPEG 2000 images are decoded by OpenJPEG under the BSD 2-clause licence, rather than by the proprietary Kakadu codec that JHelioviewer uses: that is what makes this fork's binaries ours to give away.
 
 The name JHelioviewer appears here only to say where this software comes from. It belongs to its project, and the MPL grants no rights in it.
 

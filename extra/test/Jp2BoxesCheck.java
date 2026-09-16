@@ -73,6 +73,10 @@ public final class Jp2BoxesCheck {
 
         String xml = Jp2Boxes.xml(meta);
         expect("the frame's FITS header comes out of the XML box", xml != null && xml.contains("<fits>"));
+        // These archives write the document with a trailing null, and an XML parser refuses
+        // anything after the root element closes: every frame arrived without metadata until this.
+        expect("and ends where the document does, with nothing after it",
+                xml != null && xml.stripTrailing().endsWith("</meta>") && xml.indexOf(0) < 0);
         expect("and says what the frame is: " + summarise(xml),
                 xml != null && xml.contains("<NAXIS1>1024</NAXIS1>") && xml.contains("LASCO"));
 

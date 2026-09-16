@@ -23,7 +23,6 @@ import org.helioviewer.jhv.io.FileUtils;
 import org.helioviewer.jhv.io.samp.SampClient;
 import org.helioviewer.jhv.metadata.AIAResponse;
 import org.helioviewer.jhv.metadata.DetectorMask;
-import org.helioviewer.jhv.view.j2k.KakaduMessageSystem;
 import org.helioviewer.jhv.view.j2k.jpip.JPIPCacheManager;
 
 import nom.tam.fits.FitsFactory;
@@ -35,7 +34,6 @@ public final class AppInit {
         ExitHooks.attach();
 
         loadLibs(Platform.getResourceDir());
-        KakaduMessageSystem.startKduMessageSystem();
 
         // The Ehcache JPIP store takes an exclusive dir lock, which only the primary instance can
         // hold. Secondary windows skip it (memory-only JPIP) rather than log a scary lock error.
@@ -57,6 +55,25 @@ public final class AppInit {
         DetectorMask.loadBuiltins();
     }
 
+    /**
+     * The JPEG 2000 decoder this build carries, if it carries one.
+     *
+     * <p>It is not loaded here: OpenJPEG is called through the foreign function interface, which
+     * opens the library itself, so all that is needed is to put the file where it can be found and
+     * say where that is. A build without it falls back to a system-installed copy, which is how a
+     * development tree on a machine with Homebrew works.
+     */
+    private static void unpackOpenJpeg(String resourceDir) {
+        String libraryName = System.mapLibraryName("openjp2");
+        try (InputStream in = FileUtils.getResource(resourceDir + libraryName)) {
+            Path path = Path.of(Directories.libCacheDir, libraryName);
+            Files.copy(in, path, StandardCopyOption.REPLACE_EXISTING);
+            System.setProperty("jhv.openjpeg", path.toString());
+        } catch (Exception e) {
+            Log.info("This build carries no OpenJPEG; falling back to a system-installed one");
+        }
+    }
+
     @SuppressWarnings("restricted")
     private static void loadLib(String name, String resourceDir) throws Exception {
         String libraryName = System.mapLibraryName(name);
@@ -68,10 +85,7 @@ public final class AppInit {
     }
 
     private static void loadLibs(String resourceDir) throws Exception {
-        if (Platform.isWindows()) {
-            loadLib("kdu_v7AR", resourceDir);
-        }
-        loadLib("kdu_jni", resourceDir);
+        unpackOpenJpeg(resourceDir);
 
         Path ffmpegPath = Path.of(Directories.libCacheDir, "ffmpeg");
         try (InputStream in = FileUtils.getResource(resourceDir + "ffmpeg")) {

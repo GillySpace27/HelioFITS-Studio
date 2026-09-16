@@ -185,9 +185,9 @@ sha256  $SHA  $TOP.zip
 ### Licensing
 
 Licensed under MPL 2.0, the same as JHelioviewer; the source of this release is this repository at
-tag $TAG. The downloads bundle third-party components under their own licences, among them the
-proprietary Kakadu JPEG 2000 codec (non-commercial licence, NewSouth Innovations Ltd), which we
-intend to remove before 1.0. The About dialog credits them all.
+tag $TAG. JPEG 2000 decoding is OpenJPEG under the BSD 2-clause licence, in place of the
+proprietary Kakadu codec JHelioviewer uses, which is what makes these binaries ours to give away.
+Other bundled components keep their own licences and the About dialog credits them all.
 EOF
     echo "$NOTES"
 }

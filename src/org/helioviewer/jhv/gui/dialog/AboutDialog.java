@@ -44,7 +44,7 @@ public final class AboutDialog extends StandardDialog implements Interfaces.Show
     @Override
     public JComponent createContentPanel() {
         String text = "<center>HelioFITS Studio is built on <a href=\"https://github.com/Helioviewer-Project/JHelioviewer-SWHV\">" + "JHelioviewer</a>, and on several further components:</center><ul>" +
-                "<li><a href=\"https://kakadusoftware.com\">Kakadu</a> JPEG2000 Toolkit, © 2015, <a href='/licenses/Kakadu.txt'>licensed</a> from NewSouth Innovations Ltd.</li>" +
+                "<li><a href=\"https://www.openjpeg.org\">OpenJPEG</a> JPEG 2000 codec, © 2002-2014 Université catholique de Louvain and others (<a href='/licenses/OpenJPEG.txt'>licence</a>).</li>" +
                 "<li><a href=\"https://www.lwjgl.org\">LWJGL</a> Java 3D graphics libraries and <a href=\"https://chromium.googlesource.com/angle/angle\">ANGLE</a> cross-platform GLES translation layer.</li>" +
                 "<li><a href=\"https://github.com/JOML-CI/JOML\">JOML</a>, a Java math library for GL rendering calculations.</li>" +
                 "<li><a href=\"https://naif.jpl.nasa.gov/naif/\">SPICE</a>, the observation geometry system for space science missions.</li>" +

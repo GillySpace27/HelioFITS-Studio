@@ -1,72 +1,56 @@
 package org.helioviewer.jhv.view.j2k.jpip;
 
-import javax.annotation.Nullable;
-
 import org.helioviewer.jhv.view.j2k.opj.DataBinCache;
 
-import kdu_jni.KduException;
-import kdu_jni.Kdu_cache;
-import kdu_jni.Kdu_global;
+/**
+ * The data bins of a JPIP session, held in Java.
+ *
+ * <p>This was Kakadu's cache, which both accumulated the bins and rebuilt codestreams from them.
+ * The accumulating is {@link DataBinCache} and the rebuilding is
+ * {@link org.helioviewer.jhv.view.j2k.opj.Codestream}; what stays here is the shape the rest of
+ * the JPIP code already speaks: segments in, and a snapshot that the disk cache can keep and a
+ * later session can replay.
+ */
+public class JPIPCache {
 
-public class JPIPCache extends Kdu_cache {
+    private final DataBinCache bins = new DataBinCache();
+
+    /** The bins themselves, for the source and for the codestream rebuild. */
+    public DataBinCache bins() {
+        return bins;
+    }
+
+    boolean isDataBinCompleted(int klassID, long streamID, long binID) {
+        return bins.isComplete(klassID, streamID, binID);
+    }
+
+    void put(int frame, JPIPSegment seg) {
+        if (seg.data.length > 0 || seg.isFinal)
+            bins.put(seg.klassID, frame, seg.binID, seg.offset, seg.data, seg.isFinal);
+    }
+
+    /** Replay a snapshot the disk cache kept from an earlier session. */
+    public void put(int frame, JPIPStream stream) {
+        for (JPIPStream.Databin databin : stream.databins)
+            bins.put(databin.klassID(), frame, databin.binID(), 0, databin.data(), databin.complete());
+    }
 
     /**
-     * The same bins, kept a second time in Java, while the replacement for Kakadu is proved.
+     * A snapshot of one frame, for the disk cache.
      *
-     * <p>Off unless -Djhv.opj.verify is set, because it doubles what a JPIP session holds. With
-     * it on, every frame the application decodes is also rebuilt and decoded by the new path and
-     * the two are compared, which is a far wider test than any fixture: whatever the archives
-     * actually serve, in whatever order a real session asks for it.
+     * <p>Metadata bins are left out, as they were when Kakadu kept this: they describe the file
+     * rather than a frame, and a live session is sent them again before anything is decoded.
      */
-    public static final boolean VERIFY = System.getProperty("jhv.opj.verify") != null;
-
-    @Nullable
-    private final DataBinCache shadow = VERIFY ? new DataBinCache() : null;
-
-    @Nullable
-    public DataBinCache shadow() {
-        return shadow;
-    }
-
-    boolean isDataBinCompleted(int klassID, long streamID, long binID) throws KduException {
-        boolean[] complete = new boolean[1];
-        Get_databin_length(klassID, streamID, binID, complete);
-        return complete[0];
-    }
-
-    JPIPStream scan(int frame) throws KduException {
-        int flags = Kdu_global.KDU_CACHE_SCAN_START | Kdu_global.KDU_CACHE_SCAN_FIX_CODESTREAM;
-        int[] klassID = new int[1];
-        long[] codestreamID = {frame};
-        long[] binID = new long[1];
-        int[] binLen = new int[1];
-        boolean[] complete = new boolean[1];
-
+    JPIPStream scan(int frame) {
         JPIPStream stream = new JPIPStream();
-        while (Scan_databins(flags, klassID, codestreamID, binID, binLen, complete, null, 0)) {
-            flags &= ~Kdu_global.KDU_CACHE_SCAN_START;
-            if (klassID[0] == Constants.KDU.META_DATABIN)
+        for (DataBinCache.BinId id : bins.contents()) {
+            if (id.codestream() != frame || id.klass() == Constants.KDU.META_DATABIN)
                 continue;
-
-            byte[] data = new byte[binLen[0]];
-            if (!Scan_databins(flags | Kdu_global.KDU_CACHE_SCAN_NO_ADVANCE, klassID, codestreamID, binID, binLen, complete, data, binLen[0]))
-                break;
-
-            stream.databins.add(new JPIPStream.Databin(klassID[0], binID[0], complete[0], data));
+            byte[] data = bins.bytes(id.klass(), id.codestream(), id.id());
+            stream.databins.add(new JPIPStream.Databin(id.klass(), id.id(),
+                    bins.isComplete(id.klass(), id.codestream(), id.id()), data == null ? new byte[0] : data));
         }
         return stream;
-    }
-
-    void put(int frame, JPIPSegment seg) throws KduException {
-        Add_to_databin(seg.klassID, frame, seg.binID, seg.data, seg.offset, seg.length, seg.isFinal, true, false);
-        if (shadow != null && seg.data != null)
-            shadow.put(seg.klassID, frame, seg.binID, seg.offset, seg.data, seg.isFinal);
-    }
-
-    public void put(int frame, JPIPStream stream) throws KduException {
-        for (JPIPStream.Databin databin : stream.databins)
-            Add_to_databin(databin.klassID(), frame, databin.binID(), databin.data(), 0,
-                    databin.data().length, databin.complete(), true, false);
     }
 
 }

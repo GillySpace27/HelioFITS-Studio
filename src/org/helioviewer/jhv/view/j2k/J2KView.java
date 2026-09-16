@@ -30,7 +30,6 @@ import org.helioviewer.jhv.time.TimeMap;
 import org.helioviewer.jhv.view.BaseView;
 import org.helioviewer.jhv.view.ClipSet;
 
-import kdu_jni.KduException;
 
 public class J2KView extends BaseView {
 
@@ -128,8 +127,7 @@ public class J2KView extends BaseView {
             } catch (Exception cleanupFailure) {
                 e.addSuppressed(cleanupFailure);
             }
-            String msg = e instanceof KduException ? "Kakadu error" : e.getMessage();
-            throw new Exception(msg + ": " + dataUri, e);
+            throw new Exception(e.getMessage() + ": " + dataUri, e);
         }
     }
 
@@ -147,7 +145,7 @@ public class J2KView extends BaseView {
                         aReader.stop();
                     }
                     aSource.destroy();
-                } catch (KduException e) {
+                } catch (RuntimeException e) {
                     Log.error(e);
                 } finally {
                     clearCache(aSerial);
@@ -305,7 +303,7 @@ public class J2KView extends BaseView {
         ResolutionSet.Level resolution = getResolutionLevel(frame, decodeParams.level);
         try {
             executor.submit(
-                    new J2KDecoder(source, decodeParams, numComps, key.filter(), metaData[frame], resolution.factorX(), resolution.factorY()),
+                    new OpjDecoder(source.source(), decodeParams, numComps, key.filter(), metaData[frame], resolution.factorX(), resolution.factorY()),
                     new J2KCallback(key, viewpoint, cacheResult));
         } catch (RejectedExecutionException ignore) {
             // Teardown may shut the executor down before a late refresh/resubmit reaches this point.
