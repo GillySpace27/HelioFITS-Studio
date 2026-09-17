@@ -1,0 +1,55 @@
+name: checks
+
+# The self-checks in extra/test, run on Linux.
+#
+# This exists because nothing had ever run the JPEG 2000 decoder outside macOS. Since Kakadu
+# went, decoding is OpenJPEG called through the foreign function interface, and the libraries
+# we ship for Linux are amd64: an Apple Silicon Mac cannot exercise them at all, under a VM or
+# otherwise. A runner can, natively and for free.
+#
+# Windows is deliberately not here yet. Add a second job once this one is green. Note when you
+# do that a green Windows run will NOT prove openjp2.dll loads on a user's machine: runners
+# carry the Visual C++ runtime, and a bare Windows install may not.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # Shallow by default, which matters here: the repository packs to roughly 3 GB.
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'   # build.xml compiles with release="25"
+
+      # ant may already be on the image and xvfb probably is; installing both is one line and
+      # costs about twenty seconds, which is cheaper than a first run that fails on a guess.
+      # Trim this once the log shows what the image already had.
+      - name: Install ant and a virtual display
+        run: sudo apt-get update && sudo apt-get install -y ant xvfb
+
+      # The point of the whole job. OpenJpeg.lookup() knows only macOS paths by default, so on
+      # Linux it falls through to dlopen("libopenjp2.so"). Unpack the natives we actually ship
+      # and put them on the loader's path, so the checks exercise our binary rather than
+      # Debian's packaged OpenJPEG, or nothing at all. JNISpice.so and ANGLE come along for the
+      # checks that reach for them.
+      - name: Unpack the Linux natives we ship
+        run: |
+          mkdir -p natives
+          unzip -j -o lib/jhv/jhv-natives-linux.jar 'jhv/linux-amd64/*' -d natives
+          ls -l natives
+          echo "LD_LIBRARY_PATH=$PWD/natives" >> "$GITHUB_ENV"
+
+      # extra/run-checks.sh runs each check headless first and retries with a display only when
+      # one throws HeadlessException, so xvfb has to be there for the retry to mean anything.
+      - name: Run the checks
+        run: xvfb-run -a ant test
