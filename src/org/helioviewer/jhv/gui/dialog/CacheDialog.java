@@ -111,7 +111,7 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
         }
         top.add(filters, BorderLayout.CENTER);
 
-        status.setForeground(UIGlobals.foreColor);
+        UIGlobals.themed(status, c -> c.setForeground(UIGlobals.foreColor));
         top.add(status, BorderLayout.PAGE_END);
         return top;
     }

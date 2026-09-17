@@ -107,11 +107,17 @@ public final class GlyphIcon implements Icon, FlatLaf.DisabledIconProvider {
             if (Toolkit.getDefaultToolkit().getDesktopProperty("awt.font.desktophints") instanceof Map<?, ?> hints)
                 g2.addRenderingHints((Map<?, ?>) hints);
             g2.setFont(font);
-            g2.setColor(disabled ? disabledColor() : c.getForeground());
+            // ponytail: c is null when the macOS screen menu bar rasterizes the icon offscreen (AquaIcon.getImageForIcon)
+            g2.setColor(disabled ? disabledColor() : c == null ? defaultColor() : c.getForeground());
             g2.drawString(glyph, x, y + baseline);
         } finally {
             g2.dispose();
         }
+    }
+
+    private static Color defaultColor() {
+        Color color = UIManager.getColor("MenuItem.foreground");
+        return color == null ? Color.BLACK : color;
     }
 
     private static Color disabledColor() {

@@ -24,6 +24,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTree;
 import javax.swing.Timer;
+import javax.swing.UIManager;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
@@ -38,6 +39,7 @@ import org.helioviewer.jhv.event.filter.FilterDialog;
 import org.helioviewer.jhv.event.info.CactusTrackPanel;
 import org.helioviewer.jhv.gui.component.BusyIndicator;
 import org.helioviewer.jhv.gui.component.Buttons;
+import org.helioviewer.jhv.gui.UIGlobals;
 
 @SuppressWarnings("serial")
 final class SWEKTreePane extends JPanel {
@@ -173,18 +175,19 @@ final class SWEKTreePane extends JPanel {
         if (supplier.isCactus()) {
             JButton trackButton = Buttons.flat("Track");
             trackButton.setToolTipText("Browse the loaded CACTus CMEs and track one through the corona");
-            Color defaultFg = trackButton.getForeground();
             Font baseFont = trackButton.getFont();
             // Reflect the live tracking state: orange bold "Tracking" while engaged. Components are
             // cached per supplier for the panel's life, so this one listener registration is bounded.
             Runnable sync = () -> {
                 boolean t = CMETracker.isTracking();
                 trackButton.setText(t ? "Tracking" : "Track");
-                trackButton.setForeground(t ? TRACK_ACTIVE : defaultFg);
+                // Asked now, not captured at build: the button outlives a theme switch, and a
+                // foreground captured once is the old theme's for the rest of the session.
+                trackButton.setForeground(t ? TRACK_ACTIVE : UIManager.getColor("Button.foreground"));
                 trackButton.setFont(baseFont.deriveFont(t ? Font.BOLD : Font.PLAIN));
                 tree.repaint(); // the cell component is an orphan renderer stamp; force the JTree to re-stamp
             };
-            sync.run();
+            UIGlobals.themed(trackButton, c -> sync.run()); // also runs it once
             CMETracker.addChangeListener(sync);
             trackerListeners.add(sync); // released in removeNotify()
             trackButton.addMouseListener(new MouseAdapter() {
