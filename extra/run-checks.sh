@@ -28,7 +28,16 @@ if [ ! -d bin ]; then
 fi
 
 OUT=extra/test-classes
-CP="bin:$OUT:resources:$(find lib -name '*.jar' | tr '\n' ':')"
+# Separator: a Windows JVM wants ';' between classpath entries, and Git Bash does not rewrite
+# this one on the way through, so a colon-joined path arrives as a single meaningless entry and
+# every application class goes missing at once. Forward slashes inside the entries are fine on
+# all three platforms; only the separator differs.
+SEP=':'
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) SEP=';' ;;
+esac
+
+CP="bin${SEP}${OUT}${SEP}resources${SEP}$(find lib -name '*.jar' | tr '\n' "$SEP")"
 
 # One JVM for both halves. Ant runs on a Homebrew JDK 26 while a plain shell here finds Temurin
 # 25, so compiling with whatever javac is on PATH and running with whatever java is on PATH can

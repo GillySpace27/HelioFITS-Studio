@@ -61,7 +61,8 @@ jobs:
       - name: Prove the decoder actually ran
         run: |
           CP="bin:extra/test-classes:resources:$(find lib -name '*.jar' | tr '\n' ':')"
-          java -cp "$CP" org.helioviewer.jhv.view.j2k.opj.OpenJpegDecodeCheck | tee decode.log
+          java -Djhv.openjpeg="$PWD/natives/libopenjp2.so" -cp "$CP" \
+               org.helioviewer.jhv.view.j2k.opj.OpenJpegDecodeCheck | tee decode.log
           if grep -q SKIPPED decode.log; then
             echo "::error::OpenJPEG did not load, so the decode check skipped itself"
             exit 1
@@ -106,8 +107,61 @@ jobs:
         shell: bash
         run: |
           CP="bin;extra/test-classes;resources;$(find lib -name '*.jar' | tr '\n' ';')"
-          java -cp "$CP" org.helioviewer.jhv.view.j2k.opj.OpenJpegDecodeCheck | tee decode.log
+          java -Djhv.openjpeg="$(pwd -W)/natives/openjp2.dll" -cp "$CP" \
+               org.helioviewer.jhv.view.j2k.opj.OpenJpegDecodeCheck | tee decode.log
           if grep -q SKIPPED decode.log; then
             echo "::error::OpenJPEG did not load, which on Windows usually means the Visual C++ runtime is missing"
+            exit 1
+          fi
+
+  # macOS was left out at first on the grounds that it is tested by hand every day. That was wrong
+  # in one specific way: OpenJpeg.lookup() prefers /opt/homebrew/opt/openjpeg before anything else,
+  # so a local run links Homebrew's copy and the dylib that actually ships in the dmg is never
+  # exercised. These jobs name the shipped one outright. Intel is here because an Apple Silicon Mac
+  # cannot run jhv-natives-macos.jar at all, and we ship it.
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest              # Apple Silicon
+            jar: jhv-natives-macos-arm64.jar
+            entry: 'jhv/macos-arm64/*'
+          - runner: macos-13                  # the last Intel image; revisit when it retires
+            jar: jhv-natives-macos.jar
+            entry: 'jhv/macos-amd64/*'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Install ant
+        run: brew install ant
+
+      - name: Unpack the macOS natives we ship
+        run: |
+          mkdir -p natives
+          unzip -j -o lib/jhv/${{ matrix.jar }} '${{ matrix.entry }}' -d natives
+          ls -l natives
+
+      # This also compiles native/macos/jhv_metal_host.m, which nothing off a Mac ever builds.
+      - name: Run the checks
+        run: ant test
+
+      # -Djhv.openjpeg rather than a search path: a runner carrying Homebrew's openjpeg would
+      # otherwise shadow ours silently, which is the exact trap that hid this gap on the laptop.
+      - name: Prove the decoder actually ran
+        run: |
+          CP="bin:extra/test-classes:resources:$(find lib -name '*.jar' | tr '\n' ':')"
+          java -Djhv.openjpeg="$PWD/natives/libopenjp2.dylib" -cp "$CP" \
+               org.helioviewer.jhv.view.j2k.opj.OpenJpegDecodeCheck | tee decode.log
+          if grep -q SKIPPED decode.log; then
+            echo "::error::OpenJPEG did not load from the dylib we ship"
             exit 1
           fi
