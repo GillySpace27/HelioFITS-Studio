@@ -24,9 +24,9 @@ jobs:
 
     steps:
       # Shallow by default, which matters here: the repository packs to roughly 3 GB.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '25'   # build.xml compiles with release="25"
@@ -53,3 +53,16 @@ jobs:
       # one throws HeadlessException, so xvfb has to be there for the retry to mean anything.
       - name: Run the checks
         run: xvfb-run -a ant test
+
+      # A passing suite is not enough on its own. OpenJpegDecodeCheck and JpipRebuildCheck exit 0
+      # and print SKIPPED when OpenJPEG will not load, and run-checks.sh shows a check's output
+      # only when it fails, so "106 passed" is also what a run that never loaded the decoder looks
+      # like. On CI that skip IS the failure, so run the decode check again where we can see it.
+      - name: Prove the decoder actually ran
+        run: |
+          CP="bin:extra/test-classes:resources:$(find lib -name '*.jar' | tr '\n' ':')"
+          java -cp "$CP" org.helioviewer.jhv.view.j2k.opj.OpenJpegDecodeCheck | tee decode.log
+          if grep -q SKIPPED decode.log; then
+            echo "::error::OpenJPEG did not load, so the decode check skipped itself"
+            exit 1
+          fi
