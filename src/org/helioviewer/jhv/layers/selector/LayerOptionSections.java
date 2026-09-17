@@ -30,7 +30,7 @@ public final class LayerOptionSections implements Layers.Listener, Interfaces.La
     private final JPanel manageWrapper;
     private final Map<ImageLayer, ImagePanels> cache = new IdentityHashMap<>();
     @Nullable
-    private ImageLayerManagePanel currentManage; // the manage panel currently shown, polled for live readout
+    private ImagePanels current; // the panels currently shown, polled for the live readout and the section badges
 
     public LayerOptionSections(JPanel layerOptionsWrapper, JPanel geometryWrapper, JPanel manageWrapper) {
         this.layerOptionsWrapper = layerOptionsWrapper;
@@ -40,11 +40,34 @@ public final class LayerOptionSections implements Layers.Listener, Interfaces.La
         UITimer.register(this); // poll the readout so its frame count updates live as a download lands
     }
 
-    // Called ~10 Hz by UITimer; updateReadout is memoized, so it only rebuilds when the count changes.
+    // Called ~10 Hz by UITimer; updateReadout and updateBadge are memoized on what they last
+    // produced, so each only touches Swing when the text it would print has actually changed.
+    // The badges are polled rather than pushed because a section's values move from outside its
+    // own rows too: the Filters palette, an automation curve, a fan-out from another layer.
     @Override
     public void lazyRepaint() {
-        if (currentManage != null)
-            currentManage.updateReadout();
+        if (current != null) {
+            current.manage().updateReadout();
+            current.rendering().updateBadges();
+            current.geometry().updateBadges();
+        }
+    }
+
+    /**
+     * Throw this layer's cached panels away and show it again.
+     *
+     * <p>What a section's revert button needs: it moves rows across several panels at once, and
+     * every row reads its layer in its constructor, so a fresh panel is correct by construction
+     * and a synced one would be six more places to keep in step. Peers reached by the fan-out are
+     * already marked, and rebuild themselves the next time they are shown.
+     */
+    private void rebuild(ImageLayer layer) {
+        cache.remove(layer);
+        List<Layer> selection = Layers.getSelection();
+        if (selection.size() > 1 && selection.contains(layer))
+            setSelection(selection);
+        else
+            setSelectedLayer(layer);
     }
 
     /**
@@ -73,7 +96,7 @@ public final class LayerOptionSections implements Layers.Listener, Interfaces.La
             layerOptionsWrapper.removeAll();
             geometryWrapper.removeAll();
             manageWrapper.removeAll();
-            currentManage = null;
+            current = null;
             geometryWrapper.setVisible(false);
             JLabel note = new JLabel("No options apply to all " + selection.size() + " selected layers");
             note.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
@@ -106,7 +129,20 @@ public final class LayerOptionSections implements Layers.Listener, Interfaces.La
         layerOptionsWrapper.removeAll();
         geometryWrapper.removeAll();
         manageWrapper.removeAll();
-        currentManage = null;
+        current = null;
+
+        // Retitle the enclosing "Layer options" section to match the selected layer, e.g.
+        // "SUVI 171 Layer Options", "Grid Layer Options" -- and open it, before anything is put in
+        // rather than after. Opening a section runs a recursive setVisible over its contents, so
+        // done afterwards it also un-hid whatever the panels had just decided to hide: the FITS
+        // disclosure of a layer whose toggle is closed, for one.
+        CollapsiblePane optionsPane = enclosingPane(layerOptionsWrapper);
+        if (optionsPane != null) {
+            optionsPane.setTitle(layer == null ? "Layer Options" : layer.getName() + " Layer Options");
+            // Default the options open on every layer switch; hiding them is opt-in each time.
+            if (layer != null)
+                optionsPane.setExpanded(true);
+        }
 
         if (layer instanceof ImageLayer il) {
             // A layer edited through a multi-selection had its GLImage changed behind its own
@@ -115,7 +151,10 @@ public final class LayerOptionSections implements Layers.Listener, Interfaces.La
             // fresh one is correct by construction.
             if (Layers.consumeFannedEdit(il))
                 cache.remove(il);
-            ImagePanels p = cache.computeIfAbsent(il, k -> new ImagePanels(new ImageLayerRenderingPanel(il), new ImageLayerGeometryPanel(il), new ImageLayerManagePanel(il)));
+            ImagePanels p = cache.computeIfAbsent(il, k -> new ImagePanels(
+                    new ImageLayerRenderingPanel(il, () -> rebuild(il)),
+                    new ImageLayerGeometryPanel(il, () -> rebuild(il)),
+                    new ImageLayerManagePanel(il)));
             ComponentUtils.setEnabled(p.rendering(), il.isEnabled());
             ComponentUtils.setEnabled(p.geometry(), il.isEnabled());
             ComponentUtils.setEnabled(p.manage(), il.isEnabled());
@@ -130,7 +169,7 @@ public final class LayerOptionSections implements Layers.Listener, Interfaces.La
             layerOptionsWrapper.add(p.rendering());
             geometryWrapper.add(p.geometry());
             manageWrapper.add(p.manage());
-            currentManage = p.manage();
+            current = p;
             p.manage().updateReadout();
         } else if (layer != null) {
             Component generic = LayerOptions.getOptionsPanel(layer);
@@ -139,16 +178,6 @@ public final class LayerOptionSections implements Layers.Listener, Interfaces.La
                 layerOptionsWrapper.add(generic);
             }
         }
-        // Retitle the enclosing "Layer options" section to match the selected layer, e.g.
-        // "SUVI 171 Layer Options", "Grid Layer Options".
-        CollapsiblePane optionsPane = enclosingPane(layerOptionsWrapper);
-        if (optionsPane != null) {
-            optionsPane.setTitle(layer == null ? "Layer Options" : layer.getName() + " Layer Options");
-            // Default the options open on every layer switch; hiding them is opt-in each time.
-            if (layer != null)
-                optionsPane.setExpanded(true);
-        }
-
         // Hide the geometry controls entirely (not just leave them empty) unless the selected layer
         // actually has geometry options.
         geometryWrapper.setVisible(layer instanceof ImageLayer);

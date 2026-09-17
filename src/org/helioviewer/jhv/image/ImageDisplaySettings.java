@@ -33,7 +33,12 @@ public final class ImageDisplaySettings {
     private double brightOffset;
     private double brightScale = 1;
     private double opacity = 1;
-    private double blend = .5;
+    // Full over, not the half-ghost upstream defaults to. Alpha is opacity * blend against
+    // GL_ONE / GL_ONE_MINUS_SRC_ALPHA, so at 1 the topmost layer owns its footprint outright and
+    // a stack reads as a ladder of instruments rather than as everything averaged together. What
+    // each layer contributes is then the Mask row's business, which is where it belongs: a
+    // masked fragment is discarded and occludes nothing.
+    private double blend = 1;
     private double sharpen;
     private double enhanced;
     // RHEF two-sided midtone control (Upsilon), AIA 171 defaults (Gilly & DeForest 2024, §3.2,
