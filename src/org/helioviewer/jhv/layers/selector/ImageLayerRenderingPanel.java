@@ -2,15 +2,21 @@ package org.helioviewer.jhv.layers.selector;
 
 import java.awt.Component;
 import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.StringJoiner;
 
 import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
 import javax.swing.JPanel;
 import javax.swing.JToggleButton;
 
+import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.ComponentUtils;
 import org.helioviewer.jhv.gui.component.Buttons;
+import org.helioviewer.jhv.image.ImageDisplaySettings;
+import org.helioviewer.jhv.image.ImageFilter;
+import org.helioviewer.jhv.image.lut.LUT;
 import org.helioviewer.jhv.image.lut.LUTLabels;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layer;
@@ -25,19 +31,31 @@ import org.helioviewer.jhv.layers.filters.RangeSliderFilterPanel;
 import org.helioviewer.jhv.layers.filters.SliderFilterPanel;
 import org.helioviewer.jhv.view.uri.FITSSettings;
 
-// Rendering controls for the selected image layer: difference, opacity, blend, sharpen,
-// levels, colormap (LUT), channels, filter, and the FITS clipping/scaling disclosure for a
-// layer that has FITS behind it. Shown in the "Layer options" wrapper.
+/**
+ * Rendering controls for the selected image layer, in two sections.
+ *
+ * <p><b>Display</b> is how the layer is coloured and composited over the ones beneath it: opacity,
+ * blend, colour table, channels. <b>Intensity</b> is what a pixel value becomes before any of that
+ * happens: difference, levels, contrast, sharpen, the per-frame filter and the Fourier sequence,
+ * with the FITS clipping and scaling that feed them at the bottom. Within each section the rows
+ * run in pipeline order, which the single flat column they replace did not.
+ *
+ * <p>Both sections state in their header what they hold that is off its default, so either can be
+ * collapsed without hiding why the picture looks as it does. See {@link LayerSection}.
+ */
 @SuppressWarnings("serial")
 final class ImageLayerRenderingPanel extends JPanel {
 
-    // Everything here changes the pixel value before the LUT lookup (levels, sharpen, difference,
-    // the RHEF/MGN/WOW filter and its enhance/upsilon curves) or distorts the LUT's output color
-    // afterward (the channel mixer). Either way a categorical layer's index -> colour promise no
-    // longer holds, so these are the controls refresh() greys out for one. Opacity and Blend are
-    // deliberately not in this list: they scale the whole premultiplied colour uniformly (see the
-    // color[] GLSLImage builds from ImageDisplaySettings), so they fade a swatch but never turn it
-    // into a different one.
+    /** What every row here reads at rest: one pristine settings object, so nothing restates a default. */
+    private static final ImageDisplaySettings DEFAULTS = new ImageDisplaySettings();
+
+    // Everything in Intensity changes the pixel value before the LUT lookup (levels, sharpen,
+    // difference, the RHEF/MGN/WOW filter and its enhance/upsilon curves) or distorts the LUT's
+    // output color afterward (the channel mixer). Either way a categorical layer's index -> colour
+    // promise no longer holds, so these are the controls refresh() greys out for one. Opacity and
+    // Blend are deliberately not in this list: they scale the whole premultiplied colour uniformly
+    // (see the color[] GLSLImage builds from ImageDisplaySettings), so they fade a swatch but
+    // never turn it into a different one.
     private final LUTPanel lutPanel;
     private final RangeSliderFilterPanel.Levels levelsPanel;
     private final ContrastPanel contrastPanel;
@@ -53,7 +71,11 @@ final class ImageLayerRenderingPanel extends JPanel {
     private final FITSSettings fitsSettings;
     private final JToggleButton fitsButton = Buttons.flatToggle(Buttons.fitsRight);
 
-    ImageLayerRenderingPanel(ImageLayer layer) {
+    private final LayerSection displaySection;
+    private final LayerSection intensitySection;
+
+    /** @param rebuild rebuild this layer's options from current state; a revert moves rows this panel does not own */
+    ImageLayerRenderingPanel(ImageLayer layer, Runnable rebuild) {
         differencePanel = new DifferencePanel(layer);
         FilterDetails opacityPanel = SliderFilterPanel.opacity(layer);
         FilterDetails blendPanel = SliderFilterPanel.blend(layer);
@@ -70,53 +92,45 @@ final class ImageLayerRenderingPanel extends JPanel {
         sequencePanel = new SequencePointer(layer);
         fitsSettings = new FITSSettings(layer.getProcessingSettings());
 
-        setLayout(new GridBagLayout());
-        setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
-
-        GridBagConstraints c = new GridBagConstraints();
-        c.anchor = GridBagConstraints.CENTER;
-        c.fill = GridBagConstraints.HORIZONTAL;
-
-        c.weightx = 1;
-        c.weighty = 1;
-        c.gridx = 0;
-
-        c.gridy = 0;
-        FilterRowLayout.addFilterRow(this, c, differencePanel);
-        c.gridy++;
-        FilterRowLayout.addFilterRow(this, c, opacityPanel);
-        c.gridy++;
-        FilterRowLayout.addFilterRow(this, c, blendPanel);
-        c.gridy++;
-        FilterRowLayout.addFilterRow(this, c, sharpenPanel);
-        c.gridy++;
-        FilterRowLayout.addFilterRow(this, c, levelsPanel);
-        c.gridy++;
-        FilterRowLayout.addFilterRow(this, c, contrastPanel);
-        c.gridy++;
-        FilterRowLayout.addFilterRow(this, c, lutPanel);
-        c.gridy++;
-        FilterRowLayout.addFilterRow(this, c, channelMixerPanel);
-        c.gridy++;
-        FilterRowLayout.addFilterRow(this, c, imageFilterPanel);
-        c.gridy++;
-        FilterRowLayout.addFilterRow(this, c, sequencePanel);
-
         fitsButton.addActionListener(e -> {
             boolean expanded = fitsButton.isSelected();
             fitsButton.setText(expanded ? Buttons.fitsDown : Buttons.fitsRight);
             fitsSettings.setVisible(expanded);
         });
-        c.gridy++;
+
+        FilterDetails[] intensityRows = {differencePanel, levelsPanel, contrastPanel, sharpenPanel, imageFilterPanel, sequencePanel};
+        JPanel intensityContent = FilterRowLayout.rows(intensityRows);
+        // The FITS disclosure is the bottom of Intensity rather than a section of its own: it is
+        // the same question as Levels asked one step earlier, on the data rather than on the
+        // display, and only a layer with FITS behind it has it at all.
+        GridBagConstraints c = new GridBagConstraints();
         c.gridx = 0;
         c.gridwidth = 3;
         c.weightx = 1;
         c.weighty = 0;
         c.anchor = GridBagConstraints.LINE_START;
         c.fill = GridBagConstraints.HORIZONTAL;
-        add(fitsButton, c);
+        c.gridy = intensityRows.length;
+        intensityContent.add(fitsButton, c);
         c.gridy++;
-        add(fitsSettings, c);
+        intensityContent.add(fitsSettings, c);
+
+        displaySection = new LayerSection("Display", "layer_display",
+                FilterRowLayout.rows(opacityPanel, blendPanel, lutPanel, channelMixerPanel), true,
+                () -> displaySummary(layer), () -> {
+            revertDisplay(layer);
+            rebuild.run();
+        });
+        intensitySection = new LayerSection("Intensity", "layer_intensity", intensityContent, true,
+                () -> intensitySummary(layer), () -> {
+            revertIntensity(layer);
+            rebuild.run();
+        });
+
+        setLayout(new BoxLayout(this, BoxLayout.PAGE_AXIS));
+        setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
+        add(displaySection);
+        add(intensitySection);
 
         // Usually refreshed through ImageLayer activation; initialize here too in case that activation already happened before panel creation.
         refresh(layer);
@@ -141,7 +155,97 @@ final class ImageLayerRenderingPanel extends JPanel {
         boolean hasFITS = imageLayer.getView().hasFITS();
         fitsButton.setVisible(hasFITS);
         fitsSettings.setVisible(hasFITS && fitsButton.isSelected());
+        updateBadges();
     }
+
+    /** Both headers, re-read from the layer. Polled while this panel is the one on screen. */
+    void updateBadges() {
+        displaySection.updateBadge();
+        intensitySection.updateBadge();
+    }
+
+    // ---- what each section says about itself ---------------------------------------------------
+
+    private static String displaySummary(ImageLayer layer) {
+        ImageDisplaySettings s = layer.getDisplaySettings();
+        StringJoiner joiner = new StringJoiner(" · ");
+        if (s.getOpacity() != DEFAULTS.getOpacity())
+            joiner.add("Opacity " + percent(s.getOpacity()));
+        if (s.getBlend() != DEFAULTS.getBlend())
+            joiner.add("Blend " + percent(s.getBlend()));
+        // A view that names no table is read through grey, which is then this layer's default too.
+        LUT def = layer.getView().getDefaultLUT();
+        if (!s.getLUT().name().equals(def == null ? LUT.gray().name() : def.name()))
+            joiner.add(s.getLUT().name());
+        if (s.getInvertLUT())
+            joiner.add("inverted");
+        List<String> off = new ArrayList<>(3);
+        if (!s.getRed())
+            off.add("R");
+        if (!s.getGreen())
+            off.add("G");
+        if (!s.getBlue())
+            off.add("B");
+        if (!off.isEmpty())
+            joiner.add(String.join("", off) + " off");
+        return joiner.toString();
+    }
+
+    private static String intensitySummary(ImageLayer layer) {
+        ImageDisplaySettings s = layer.getDisplaySettings();
+        StringJoiner joiner = new StringJoiner(" · ");
+        if (s.getDifferenceMode() != DEFAULTS.getDifferenceMode())
+            joiner.add(s.getDifferenceMode() + " diff");
+        if (s.getBrightOffset() != DEFAULTS.getBrightOffset() || s.getBrightScale() != DEFAULTS.getBrightScale())
+            joiner.add("Levels " + percent(s.getBrightOffset()) + "–" + percent(s.getBrightOffset() + s.getBrightScale()));
+        if (s.getSharpen() != DEFAULTS.getSharpen())
+            joiner.add("Sharpen " + percent(s.getSharpen()));
+        if (layer.getFilter() != ImageFilter.Type.None)
+            joiner.add(layer.getFilter().toString());
+        if (s.getEnhanced() != DEFAULTS.getEnhanced())
+            joiner.add("Enhance");
+        if (layer.getSequence() != null)
+            joiner.add("Fourier");
+        return joiner.toString();
+    }
+
+    private static String percent(double value) {
+        return Math.round(value * 100) + "%";
+    }
+
+    // ---- and how to put it back ----------------------------------------------------------------
+
+    private static void revertDisplay(ImageLayer layer) {
+        // The colour table's default is the view's, not a constant: a dataset arrives with the one
+        // it is read through, and reverting to grey would be reverting to something that never was.
+        Layers.applyToSelectedLayers(layer, il -> {
+            ImageDisplaySettings s = il.getDisplaySettings();
+            s.setOpacity(DEFAULTS.getOpacity());
+            s.setBlend(DEFAULTS.getBlend());
+            s.setColor(1, 1, 1);
+            s.setLUT(il.getView().getDefaultLUT(), false);
+        });
+        DisplayController.display();
+    }
+
+    private static void revertIntensity(ImageLayer layer) {
+        Layers.applyToSelectedLayers(layer, il -> {
+            ImageDisplaySettings s = il.getDisplaySettings();
+            s.setDifferenceMode(DEFAULTS.getDifferenceMode());
+            s.setBrightness(DEFAULTS.getBrightOffset(), DEFAULTS.getBrightScale());
+            s.setSharpen(DEFAULTS.getSharpen());
+            s.setEnhanced(DEFAULTS.getEnhanced());
+            s.setUpsilon(DEFAULTS.getUpsilonLow(), DEFAULTS.getUpsilonHigh());
+            il.setFilter(ImageFilter.Type.None);
+            if (il.getSequence() != null)
+                il.setSequence(null); // abolishes the computed view; not free, so only when there is one
+        });
+        // The FITS clip and scale are not reverted with this: they say what the data means rather
+        // than how it is shown, and they keep their own disclosure to say so.
+        DisplayController.render(1);
+    }
+
+    // ---- gating for a categorical colour table -------------------------------------------------
 
     // Gate on the LUT currently in use, not the FITS product: the same indexed data reads fine
     // through a continuous LUT (e.g. inspecting raw category IDs as a heatmap), and a categorical

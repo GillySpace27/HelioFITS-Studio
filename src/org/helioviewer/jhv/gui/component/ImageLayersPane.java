@@ -37,9 +37,10 @@ public final class ImageLayersPane extends JPanel {
         add(timeRow);
         add(layers);
 
-        // Layer options holds the rendering controls plus the geometry/crop controls (no separate
-        // title). Collapsing Layer options hides both; geometry hides entirely when the selected
-        // layer has none (LayerOptionSections toggles geometryWrapper's visibility).
+        // Layer options holds the layer's own sections: the manage readout, then Display and
+        // Intensity, then Geometry. Collapsing Layer options hides all of them at once; geometry
+        // hides entirely when the selected layer has none (LayerOptionSections toggles
+        // geometryWrapper's visibility).
         JPanel layerOptionsContent = new JPanel();
         layerOptionsContent.setLayout(new BoxLayout(layerOptionsContent, BoxLayout.PAGE_AXIS));
         layerOptionsContent.add(manageWrapper); // readout + download/metadata/refresh, at the top

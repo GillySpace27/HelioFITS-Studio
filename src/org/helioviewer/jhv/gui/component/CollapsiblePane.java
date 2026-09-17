@@ -181,8 +181,30 @@ public class CollapsiblePane extends JComponent implements ActionListener {
 
     public void setExpanded(boolean expanded) {
         ComponentUtils.setVisible(managed, expanded);
+        if (expanded)
+            restoreNested(managed);
         toggleButton.setSelected(expanded);
         setTitle(title);
+    }
+
+    /**
+     * Give nested sections their own fold state back.
+     *
+     * <p>ComponentUtils.setVisible above is recursive, which is what a section needs for content
+     * that hides parts of itself, and is exactly wrong for content that is another section: opening
+     * a parent opened every child inside it, whatever the child's chevron said. A layer's options
+     * are three sections inside one, so this is the difference between the fold state meaning
+     * something and it being reset on every layer you click.
+     */
+    private static void restoreNested(java.awt.Component c) {
+        if (c instanceof CollapsiblePane pane) {
+            ComponentUtils.setVisible(pane.managed, pane.isExpanded());
+            if (pane.isExpanded())
+                restoreNested(pane.managed);
+        } else if (c instanceof java.awt.Container cont) {
+            for (java.awt.Component child : cont.getComponents())
+                restoreNested(child);
+        }
     }
 
     /**
