@@ -1,15 +1,15 @@
 name: checks
 
-# The self-checks in extra/test, run on Linux.
+# The self-checks in extra/test, run on Linux and Windows.
 #
 # This exists because nothing had ever run the JPEG 2000 decoder outside macOS. Since Kakadu
 # went, decoding is OpenJPEG called through the foreign function interface, and the libraries
-# we ship for Linux are amd64: an Apple Silicon Mac cannot exercise them at all, under a VM or
+# we ship for both are amd64: an Apple Silicon Mac cannot exercise them at all, under a VM or
 # otherwise. A runner can, natively and for free.
 #
-# Windows is deliberately not here yet. Add a second job once this one is green. Note when you
-# do that a green Windows run will NOT prove openjp2.dll loads on a user's machine: runners
-# carry the Visual C++ runtime, and a bare Windows install may not.
+# One thing a green Windows run does NOT prove: that openjp2.dll loads on a user's machine.
+# Runners carry the Visual C++ runtime and a bare Windows install may not, so the README's
+# warning about it stands whatever this job says.
 
 on:
   push:
@@ -64,5 +64,50 @@ jobs:
           java -cp "$CP" org.helioviewer.jhv.view.j2k.opj.OpenJpegDecodeCheck | tee decode.log
           if grep -q SKIPPED decode.log; then
             echo "::error::OpenJPEG did not load, so the decode check skipped itself"
+            exit 1
+          fi
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Install ant
+        run: choco install -y ant --no-progress
+
+      # Windows resolves a bare DLL name through PATH, which is where LoadLibrary looks, so the
+      # natives go there rather than onto a library path. pwd -W because GITHUB_PATH wants a
+      # Windows path and Git Bash's $PWD is /d/a/... which Windows cannot follow.
+      - name: Unpack the Windows natives we ship
+        shell: bash
+        run: |
+          mkdir -p natives
+          unzip -j -o lib/jhv/jhv-natives-windows.jar 'jhv/windows-amd64/*' -d natives
+          ls -l natives
+          echo "$(pwd -W)/natives" >> "$GITHUB_PATH"
+
+      # bash rather than PowerShell because ant runs extra/run-checks.sh through <exec
+      # executable="sh">, and sh is only on PATH inside Git Bash.
+      - name: Run the checks
+        shell: bash
+        run: ant test
+
+      # As on Linux, and more load-bearing here: this is the only step that can tell a working
+      # DLL apart from a missing Visual C++ runtime, because the check itself treats both as a
+      # skip and exits zero. Semicolons because a Windows JVM wants them in a classpath.
+      - name: Prove the decoder actually ran
+        shell: bash
+        run: |
+          CP="bin;extra/test-classes;resources;$(find lib -name '*.jar' | tr '\n' ';')"
+          java -cp "$CP" org.helioviewer.jhv.view.j2k.opj.OpenJpegDecodeCheck | tee decode.log
+          if grep -q SKIPPED decode.log; then
+            echo "::error::OpenJPEG did not load, which on Windows usually means the Visual C++ runtime is missing"
             exit 1
           fi
