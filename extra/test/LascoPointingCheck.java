@@ -114,6 +114,35 @@ public final class LascoPointingCheck {
         double nearer = angle(c2("2025/08/31", "23:36:06.830", "0.00000000000", "512.5", "512.5"));
         expect("C3 4 min away beats C2 12 min away: -179.300 + 0.732 = -178.568, got " + nearer, Math.abs(nearer + 178.568) < 1e-6);
 
+        // The session cache: what the probe worked out survives a save and reload, so a restored
+        // session needs no header probe. A fresh process is stood in for by clearing the table.
+        org.json.JSONObject saved = LascoPointing.toJson("C2");
+        expect("the saved table holds only C2 keys, got " + saved.keySet(),
+                saved.keySet().stream().allMatch(k -> k.startsWith("C2 ")));
+        expect("the saved table carries the 08-26 C3-lent frame", saved.has("C2 2025/08/26 08:12:05.585"));
+
+        LascoPointing.forget();
+        double lost = angle(c2("2025/08/26", "08:12:05.585", "0.00000000000", "512.5", "512.5"));
+        expect("with the table cleared the frame is unrotated again, got " + lost, Math.abs(lost) < 1e-9);
+
+        LascoPointing.restore(saved);
+        double back = angle(c2("2025/08/26", "08:12:05.585", "0.00000000000", "512.5", "512.5"));
+        expect("restored from the session file it is -177.888 again, got " + back, Math.abs(back + 177.888) < 1e-6);
+
+        // CRPIX is NaN when nothing of the right size could lend it, and JSON has no NaN: it has to
+        // come back as "leave CRPIX alone", not as a zero that puts the Sun in the corner.
+        LascoPointing.forget();
+        LascoPointing.lend(List.of(
+                frame("C2", "24000464.fts", "2025/08/26", "08:12:05.585", 1024, 0, 512.5, 512.5)), List.of(
+                frame("C3", "32830760.fts", "2025/08/26", "08:42:05.464", 1024, -178.620, 519.2, 533.5)));
+        org.json.JSONObject nan = LascoPointing.toJson("C2");
+        LascoPointing.forget();
+        LascoPointing.restore(nan);
+        Map<String, String> h = c2("2025/08/26", "08:12:05.585", "0.00000000000", "512.5", "512.5");
+        var filled = LascoPointing.fill(new MapMetaDataContainer(h));
+        expect("a borrowed entry with no CRPIX leaves CRPIX1 at the header's 512.5, got " + filled.getDouble("CRPIX1"),
+                Math.abs(filled.getDouble("CRPIX1").orElse(Double.NaN) - 512.5) < 1e-9);
+
         System.out.println(failures == 0 ? "LascoPointingCheck: ok" : "LascoPointingCheck: " + failures + " FAIL");
         System.exit(failures == 0 ? 0 : 1);
     }

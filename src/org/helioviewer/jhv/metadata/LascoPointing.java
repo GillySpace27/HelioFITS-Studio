@@ -11,6 +11,9 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import org.helioviewer.jhv.app.Log;
 
 /**
@@ -102,6 +105,49 @@ public final class LascoPointing {
             Log.info(String.format(Locale.ROOT, "LASCO %s: using borrowed CROTA %.3f from %s, %s", key, p.crota(), p.from(),
                     Double.isNaN(p.crpix1()) ? "CRPIX left at the image centre" : String.format(Locale.ROOT, "CRPIX (%.1f, %.1f)", p.crpix1(), p.crpix2())));
         return new Filled(m, p);
+    }
+
+    /**
+     * The table so far, for the session file, narrowed to one telescope.
+     *
+     * <p>Lending needs a header probe of every frame, which a session restored from its cached URI
+     * list has no other reason to do. Saving what the probe concluded makes the restore free: the
+     * keys name a frame exactly (detector, date, time), so an entry can only ever match the frame it
+     * came from and carrying the whole table costs nothing but bytes.
+     */
+    @Nonnull
+    public static JSONObject toJson(String detector) {
+        String prefix = norm(detector) + ' ';
+        JSONObject jo = new JSONObject();
+        lent.forEach((key, p) -> {
+            if (key.startsWith(prefix))
+                // CRPIX is NaN when no frame of the right size could lend it, and JSON has no NaN.
+                jo.put(key, new JSONArray().put(p.crota()).put(num(p.crpix1())).put(num(p.crpix2())).put(p.from()));
+        });
+        return jo;
+    }
+
+    /** Put a saved table back, without displacing anything this process worked out for itself. */
+    public static void restore(@Nonnull JSONObject jo) {
+        for (String key : jo.keySet()) {
+            JSONArray a = jo.optJSONArray(key);
+            if (a != null && a.length() == 4)
+                lent.putIfAbsent(key, new Pointing(a.getDouble(0), dbl(a, 1), dbl(a, 2), a.getString(3)));
+        }
+    }
+
+    /** Drop the table, so a check can stand in a fresh process. Package-private: nothing else wants it. */
+    static void forget() {
+        lent.clear();
+        reported.clear();
+    }
+
+    private static Object num(double d) {
+        return Double.isNaN(d) ? JSONObject.NULL : d;
+    }
+
+    private static double dbl(JSONArray a, int i) {
+        return a.isNull(i) ? Double.NaN : a.getDouble(i);
     }
 
     private static Optional<Frame> nearest(Stream<Frame> lenders, Frame f) {

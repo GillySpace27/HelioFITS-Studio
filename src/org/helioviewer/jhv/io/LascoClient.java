@@ -47,6 +47,35 @@ public final class LascoClient {
         Task.submitBackground("lasco", new Resolve(request), receiver::accept, "Error listing the LASCO archive");
     }
 
+    /**
+     * Lend pointing to a URI list that was not produced by {@link #query}, then hand the same list back.
+     *
+     * <p>A session restored from its cached URI list reloads the frames directly and never re-runs the
+     * query, so the header probe that fills {@link LascoPointing}'s table never happened and every
+     * placeholder frame came back unrotated: a movie spanning the 2025-08 C2 gap flipped 178 degrees
+     * partway through. The probe is the same one the query does, over the restored URIs rather than a
+     * fresh listing.
+     */
+    public static void submitLend(@Nonnull FitsRequest request, @Nonnull List<URI> uris, @Nonnull Consumer<List<URI>> receiver) {
+        Task.submitBackground("lasco", new Lend(request, uris), receiver::accept, "Error reading LASCO headers");
+    }
+
+    private record Lend(FitsRequest request, List<URI> uris) implements Callable<List<URI>> {
+        @Override
+        public List<URI> call() {
+            // The list is handed back whatever happens: a probe that could not reach the archive is a
+            // reason to show the frames unrotated, not a reason to leave the layer at "Loading..."
+            // for the rest of the session.
+            try {
+                List<LascoPointing.Frame> frames = probe(uris).stream().map(Probe::frame).filter(Objects::nonNull).toList();
+                LascoPointing.lend(frames, otherTelescope(request, frames));
+            } catch (Exception e) {
+                Log.error("Could not read LASCO headers to lend pointing; frames with none will show unrotated", e);
+            }
+            return uris;
+        }
+    }
+
     private record Resolve(FitsRequest request) implements Callable<List<URI>> {
         @Override
         public List<URI> call() throws Exception {

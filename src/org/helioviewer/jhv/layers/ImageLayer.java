@@ -51,6 +51,8 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
     private boolean removed;
     private boolean viewLoaded; // a real view has replaced the empty placeholder built in the constructor
+    private boolean lendPending; // a LASCO header probe is in flight and the load has not started yet
+    private boolean pointingKnown; // this layer has a LASCO pointing table worth writing back: probed here, or restored non-empty
     @Nullable private List<URI> sourceUris; // remote URIs for a direct-URI layer (no APIRequest), for state persistence
     @Nullable private APIRequest pendingRequest; // the request we asked for, before the view carries it
     @Nullable private FitsRequest fitsRequest;   // the re-issuable query behind a native-FITS layer
@@ -95,6 +97,15 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             }
             if (fitsRequest != null)
                 jo.put("fitsRequest", fitsRequest.toJson());
+            // What the header probe worked out, so a restore need not re-read every header. The key
+            // being present is the record that the probe ran: an empty object means it ran and found
+            // nothing to lend, which is as much a result as a full one.
+            // Only when this run actually established the pointing. Writing an empty table on a run
+            // that failed to lend would be read back as "probed, nothing to lend", which skips both
+            // the cache and the probe: one bad run would disable the correction in this session file
+            // permanently, and every later run would look identical to the unfixed one.
+            if (pointingKnown && fitsRequest != null && fitsRequest.archive() == FitsRequest.Archive.LASCO)
+                jo.put("lascoPointing", org.helioviewer.jhv.metadata.LascoPointing.toJson(fitsRequest.product()));
             jo.put("imageParams", imageParams());
             jo.put("filter", getFilter().name());
             if (fixedRange != null) // keep the shared FITS range so a restored PUNCH movie does not strobe
@@ -155,8 +166,37 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
                     List<URI> list = new ArrayList<>(uris.length());
                     for (Object o : uris)
                         list.add(URI.create(o.toString()));
-                    if (!list.isEmpty())
-                        load(list);
+                    // A LASCO list has to have pointing lent to it before the frames are read, or
+                    // the headers with no CROTA render unrotated; the query path does this and a
+                    // restore from the cached list bypassed it. A session that saved the table needs
+                    // no probe at all: same URIs, therefore the same conclusions.
+                    JSONObject pointing = jo.optJSONObject("lascoPointing");
+                    if (fitsRequest != null && fitsRequest.archive() == FitsRequest.Archive.LASCO)
+                        Log.info("LASCO restore " + fitsRequest.product() + ": " + list.size() + " uris, saved pointing "
+                                + (pointing == null ? "absent, probing" : pointing.isEmpty() ? "empty, probing" : pointing.length() + " entries"));
+                    boolean haveTable = pointing != null && !pointing.isEmpty();
+                    if (haveTable) {
+                        org.helioviewer.jhv.metadata.LascoPointing.restore(pointing);
+                        pointingKnown = true;
+                    }
+
+                    if (!list.isEmpty()) {
+                        if (!haveTable && fitsRequest != null && fitsRequest.archive() == FitsRequest.Archive.LASCO) {
+                            // Marked before the probe is submitted, because State's post-restore prune
+                            // removes any layer that has not loaded yet and the probe takes seconds: a
+                            // layer waiting on one had not started loading, so the prune deleted both
+                            // LASCO layers and the next save wrote the scene without them.
+                            lendPending = true;
+                            org.helioviewer.jhv.io.LascoClient.submitLend(fitsRequest, list, uriList -> {
+                                lendPending = false;
+                                pointingKnown = true; // the probe ran, so an empty result is a result
+                                if (!removed)
+                                    load(uriList);
+                            });
+                        }
+                        else
+                            load(list);
+                    }
 
                     JSONArray range = jo.optJSONArray("fixedRange");
                     if (range != null && range.length() == 2)
@@ -230,9 +270,16 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         return fitsRequest;
     }
 
-    /** True while frames of the current query are still arriving. */
+    /**
+     * True while frames of the current query are still arriving.
+     *
+     * <p>A pending LASCO header probe counts: it is the first stage of the load, not idleness. Read
+     * as idle, a layer waiting on one was re-issued a full archive query by
+     * {@link ImageLayers#syncLayersSpan} the moment the restored time range was applied, so every
+     * header got probed twice and the directory listing ran twice over.
+     */
     public boolean isLoadingView() {
-        return loader.isLoading();
+        return lendPending || loader.isLoading();
     }
 
     /**
@@ -271,6 +318,10 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
                 Layers.remove(this);
                 return;
             }
+            // The LASCO query lends pointing before it hands the list back, so what this layer knows
+            // is worth saving even though no restore-time probe ran.
+            if (request.archive() == FitsRequest.Archive.LASCO)
+                pointingKnown = true;
             load(uris);
         };
         switch (request.archive()) {
@@ -292,9 +343,10 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         // getBaseName defaults to null for anything not backed by a single DataUri. So the old
         // test read every successfully loaded multi-file layer as a failure, and State's
         // post-restore prune deleted it the moment it finished loading: it appeared, then vanished.
-        if (!viewLoaded)
+        if (!viewLoaded && !lendPending)
             Layers.remove(this);
-        loader.cancelLoad();
+        if (!lendPending)
+            loader.cancelLoad();
     }
 
     @Override
