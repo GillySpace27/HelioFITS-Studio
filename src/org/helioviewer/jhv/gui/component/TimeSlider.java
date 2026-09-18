@@ -141,9 +141,21 @@ public final class TimeSlider extends JSlider implements Interfaces.LazyComponen
                 Math.clamp(Math.max(min, max), getMinimum(), getMaximum()));
     }
 
-    // Overrides updateUI, to keep own SliderUI
+    /**
+     * Keep the custom SliderUI across a theme switch, but not at the cost of the colours.
+     *
+     * <p>Deliberately not calling super: that would install the look-and-feel's own SliderUI and
+     * throw {@link TimeSliderUI} away. Swallowing the call whole, however, also swallowed the half
+     * of it that re-reads the look-and-feel's colours, and {@code updateComponentTreeUI} has no
+     * other way in. The track palette was covered by {@link #refreshColors}, but the strip the
+     * thumb slides along is this component's own background, and it stayed in the previous theme
+     * until the next restart. installColorsAndFont replaces only what is null or came from the
+     * look-and-feel, so anything set deliberately survives.
+     */
     @Override
-    public void updateUI() {}
+    public void updateUI() {
+        javax.swing.LookAndFeel.installColorsAndFont(this, "Slider.background", "Slider.foreground", "Slider.font");
+    }
 
     /** Re-read the track palette after a theme switch; updateUI above is deliberately a no-op. */
     public static void refreshColors() {
