@@ -6,11 +6,12 @@ name: launch
 # This job does what a user does: starts it through the launcher the zip ships (run.sh, run.bat),
 # opens a bundled image with -load, waits for the renderer, and takes a screenshot of the screen.
 #
-# Pass means: the main window came up, a graphics context was created, and the process was still
-# alive when the screenshot was taken. Whether the image actually drew is in the screenshot, which
-# is uploaded for a person to look at; a pixel check can be added once we know what a good run
-# looks like on each runner. Neither runner has a GPU: Linux draws through Mesa's software OpenGL
-# under Xvfb, Windows through Microsoft's software renderer. A pass there is necessary for a real
+# Pass means: the main window came up, a graphics context was created, nothing went uncaught, the
+# process was still alive, and the screenshot holds the drawn image (extra/launch-pixels.py counts
+# its sun-coloured pixels). The screenshot is uploaded either way.
+#
+# Neither runner has a GPU: Linux draws through Mesa's software OpenGL under Xvfb, Windows through
+# Microsoft's software renderer. A pass there is necessary for a real
 # machine to work, not sufficient.
 
 on:
@@ -39,7 +40,7 @@ jobs:
       - name: Install ant, a virtual display, software OpenGL and a screenshot tool
         run: |
           sudo apt-get update
-          sudo apt-get install -y ant xvfb imagemagick libgl1 libgl1-mesa-dri libglx-mesa0 libegl1
+          sudo apt-get install -y ant xvfb imagemagick libgl1 libgl1-mesa-dri libglx-mesa0 libegl1 python3-pil
 
       - name: Build
         run: ant jar
@@ -67,6 +68,11 @@ jobs:
         if: always()
         run: extra/launch-judge.sh app-linux.log alive.txt app.out
 
+      # Xvfb's root window is black and the app's chrome is purple and grey, so the whole screen is
+      # fair to count here; measured at 8529 drawn pixels against 162 from the interface.
+      - name: Did the image draw
+        run: python3 extra/launch-pixels.py shot-linux.png 1500
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -87,8 +93,41 @@ jobs:
           distribution: temurin
           java-version: '25'
 
-      - name: Install ant
-        run: choco install -y ant --no-progress
+      - name: Install ant and Pillow
+        run: |
+          choco install -y ant --no-progress
+          python -m pip install --quiet pillow
+
+      # The runner's screen is 1024x768, where the sidebars leave the image a strip 30 pixels
+      # wide: it drew, but too small to judge. ChangeDisplaySettings is the only way in on a
+      # machine with no display settings UI to click.
+      - name: Raise the screen to 1920x1080
+        shell: pwsh
+        run: |
+          Add-Type @"
+          using System; using System.Runtime.InteropServices;
+          public class Res {
+            [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+            public struct DEVMODE {
+              [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmDeviceName;
+              public short dmSpecVersion, dmDriverVersion, dmSize, dmDriverExtra;
+              public int dmFields, dmPositionX, dmPositionY, dmDisplayOrientation, dmDisplayFixedOutput;
+              public short dmColor, dmDuplex, dmYResolution, dmTTOption, dmCollate;
+              [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmFormName;
+              public short dmLogPixels;
+              public int dmBitsPerPel, dmPelsWidth, dmPelsHeight, dmDisplayFlags, dmDisplayFrequency,
+                         dmICMMethod, dmICMIntent, dmMediaType, dmDitherType, dmReserved1, dmReserved2,
+                         dmPanningWidth, dmPanningHeight;
+            }
+            [DllImport("user32.dll")] public static extern int EnumDisplaySettings(string d, int m, ref DEVMODE dm);
+            [DllImport("user32.dll")] public static extern int ChangeDisplaySettings(ref DEVMODE dm, int f);
+          }
+          "@
+          $dm = New-Object Res+DEVMODE
+          $dm.dmSize = [Runtime.InteropServices.Marshal]::SizeOf($dm)
+          [Res]::EnumDisplaySettings($null, -1, [ref]$dm) | Out-Null
+          $dm.dmPelsWidth = 1920; $dm.dmPelsHeight = 1080; $dm.dmFields = 0x180000
+          "ChangeDisplaySettings returned $([Res]::ChangeDisplaySettings([ref]$dm, 0)) (0 is success)"
 
       - name: Build
         shell: bash
@@ -109,11 +148,18 @@ jobs:
             sleep 1
           done
           sleep $SETTLE
+          # The app window only: the desktop behind it (wallpaper, icons) measured 6592 warm
+          # pixels, enough to pass the pixel check with nothing drawn at all.
           powershell -NoProfile -Command '
-            Add-Type -AssemblyName System.Windows.Forms, System.Drawing
-            $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-            $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
-            [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+            Add-Type -AssemblyName System.Drawing
+            Add-Type "using System; using System.Runtime.InteropServices;
+              public class W { [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; }
+                [DllImport(""user32.dll"")] public static extern bool GetWindowRect(IntPtr h, out R r); }"
+            $p = Get-Process java | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+            $r = New-Object W+R; [W]::GetWindowRect($p.MainWindowHandle, [ref]$r) | Out-Null
+            $w = $r.Rt - $r.L; $h = $r.B - $r.T; "app window ${w}x${h} at $($r.L),$($r.T)"
+            $bmp = New-Object System.Drawing.Bitmap $w, $h
+            [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size)
             $bmp.Save("shot-windows.png")' || true
           tasklist //FI "IMAGENAME eq java.exe" | grep -qi java.exe && echo alive > alive.txt
           taskkill //F //IM java.exe > /dev/null 2>&1 || true
@@ -123,6 +169,10 @@ jobs:
         if: always()
         shell: bash
         run: extra/launch-judge.sh app-windows.log alive.txt app.out
+
+      - name: Did the image draw
+        shell: bash
+        run: python extra/launch-pixels.py shot-windows.png 1500
 
       - uses: actions/upload-artifact@v4
         if: always()
