@@ -42,18 +42,31 @@ stale when a new release is cut, and it doubles as the way back to a previous
 build. GitHub Pages is case-sensitive, so `/jhv` and `/JHV` are separate paths;
 both exist and both were fixed. Only ever hand out the lowercase form.
 
-Five assets:
+Seven assets, five from `publish` on the Mac and two added by CI:
 
 - `HFStudio-<version>.dmg`: signed, notarized, stapled macOS app with an
   embedded JRE. **Apple Silicon only.** Double-click, no Java, no Gatekeeper
   prompt. This is what almost everyone should get.
 - `HFStudio-<version>.zip`: cross-platform, needs the user to install Java 25.
-  Carries Linux and Windows launchers that **have never been run**.
+  The Intel Mac route; its Linux and Windows launchers are checked in CI
+  (`launch.yml`) but have not been used on real hardware.
+- `HFStudio-<version>-windows.zip` and `HFStudio-<version>-linux.tar.gz`:
+  self-contained app-images with embedded Java, built by
+  `release/package-app.sh` in CI (`.github/workflows/package.yml`) and
+  **attached by CI about ten minutes after `publish`**, only if each package
+  started, drew an image and decoded a JPEG 2000 file with its own bundled
+  OpenJPEG. x86-64 only. The Windows build is not code-signed, so SmartScreen
+  warns on first run. CI draws in software; nobody has used them on real
+  hardware yet.
 - `HFStudio-Guide.pdf` / `.md`: the field guide, generated from
   `guide_content.json` + `guide_assets/`.
 - `fabric_suvi.json.gz`: demo point cloud, opened from the Point Cloud layer.
 
-**macOS arm64 is the only tested platform.** Say so when sharing.
+**macOS arm64 is the only platform used on real hardware.** Say so when sharing.
+The download page's Windows and Linux tiles stay off until a person has
+confirmed that platform's package and set its `confirmed` flag in
+`hfs/index.html` (the `GillySpace27.github.io` repository), and the release
+also carries that platform's file.
 
 ## Legacy names
 
@@ -219,7 +232,20 @@ There is no tag override: the tag comes from `VERSION` alone.
 The short link needs no update: it points at `/releases`, which always shows the
 newest.
 
+Publishing fires GitHub's `release: published` event, which runs
+`package.yml` on the new tag. Its `attach` job uploads the Windows and Linux
+packages and appends their checksums to the release notes, never replacing a
+file already there. It needs nothing from you, but step 7 has to wait for it.
+If a platform's checks fail, that package is simply absent from the release;
+the run's evidence artifacts (screenshot, log) say why.
+
 ### 7. Confirm what actually landed
+
+Wait for CI first:
+
+```sh
+gh run list --repo GillySpace27/HFStudio --workflow package.yml --event release --limit 1
+```
 
 ```sh
 gh release view "v$(cat ../VERSION)" --repo GillySpace27/HFStudio \
@@ -227,7 +253,9 @@ gh release view "v$(cat ../VERSION)" --repo GillySpace27/HFStudio \
 ```
 
 Every asset's `updatedAt` should be from this run. An asset with an older date
-was not replaced, which is the exact failure logged for 2026-07-14 below.
+was not replaced, which is the exact failure logged for 2026-07-14 below. Seven
+assets once CI has finished; five means the Windows and Linux packages are
+missing, and the `package` run for the tag says why.
 
 ## Hand-off boundary
 

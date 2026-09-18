@@ -56,7 +56,8 @@ they package whatever jar is on disk and upload whatever dmg already exists. So:
 4. `notarize` (produces the dmg)
 5. smoke-test the app **inside the dmg**
 6. **gate**, then `publish`
-7. confirm asset dates changed
+7. wait for CI's `package` run on the tag, which attaches the Windows and
+   Linux packages, then confirm asset dates changed (seven assets)
 
 Skipping step 4 before step 6 is how a month-old dmg got shipped on 2026-07-14
 with nothing failing and nothing warning.
@@ -102,7 +103,9 @@ looked at something.
 
 The runbook ends when the release carries the assets just built. It does
 **not** notify anyone (that is a separate email), does not touch the upstream
-PRs, and does not cover Linux or Windows, whose launchers ship untested.
+PRs, and does not build Linux or Windows itself: CI does, on the published tag,
+and attaches them only if they pass its launch checks. Neither has been used on
+real hardware yet.
 
 ## Credentials
 

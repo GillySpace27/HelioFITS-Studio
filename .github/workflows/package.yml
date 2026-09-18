@@ -5,13 +5,26 @@ name: package
 # user would start it and judged exactly as launch.yml judges the zip: main window, graphics
 # context, nothing uncaught, the JPEG 2000 decoder loaded, still running, and the image drawn.
 # A JPEG 2000 file is opened alongside the FITS one, since the decoder is the native most likely
-# to be missing on a user's machine. The package is kept as a build artifact; putting it on a
-# release is a separate step.
+# to be missing on a user's machine.
+#
+# On every push the packages are only kept as build artifacts. When a release is published
+# (deploy_release.sh publish), this runs on the release's tag and the attach job puts both
+# packages on that release, but only if every check on both passed: a platform that fails has no
+# file on the release, so its download button cannot light up whatever the page says.
 
 on:
   push:
     branches: [master]
+  release:
+    types: [published]
+  # A manual run with a release name attaches to that release too. Meant for trying the attach step
+  # against a draft release, which is private and never fires "published".
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release to attach the packages to (e.g. a draft to test with). Empty: build and check only."
+        required: false
+        default: ""
 
 env:
   FITS: extra/test/data/syn_AIA_171_2026-01-12T00-00-00_f_V3.fits
@@ -175,3 +188,52 @@ jobs:
           path: HFStudio-*-windows.zip
           compression-level: 0
           retention-days: 14
+
+  attach:
+    needs: [linux, windows]
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write   # to upload release assets
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: package-*   # the two packages, plus their evidence, which is harmless here
+          merge-multiple: true
+
+      # The packages' names come from VERSION at the commit that was built. On a release event
+      # that is the tag's commit, so the names must carry the tag's version: packages from any
+      # other version are refused rather than attached to the wrong release. A suffix after the
+      # version is allowed so a test draft (v0.8.2-attach-test) can be used.
+      - name: Check the packages belong to this release
+        run: |
+          ls -l HFStudio-*
+          VERSION="${TAG#v}"; VERSION="${VERSION%%-*}"
+          for f in "HFStudio-$VERSION-windows.zip" "HFStudio-$VERSION-linux.tar.gz"; do
+            [ -f "$f" ] || { echo "::error::expected $f for $TAG; the build produced $(ls HFStudio-* | tr '\n' ' ')"; exit 1; }
+          done
+
+      # Never --clobber: a release's files are fixed once published, and replacing one is how a
+      # collaborator loses the build that worked for them. A second run fails here instead.
+      - name: Attach to the release
+        run: |
+          gh release upload "$TAG" HFStudio-*-windows.zip HFStudio-*-linux.tar.gz --repo "$GITHUB_REPOSITORY"
+
+      # The notes are written before these files exist, so their checksums are added now, in the
+      # same form the Mac files' checksums take.
+      - name: Add the checksums to the release notes
+        run: |
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq .body > notes.md
+          {
+            echo
+            echo "Windows and Linux packages, added by the build service from commit ${GITHUB_SHA:0:9}:"
+            echo '```'
+            sha256sum HFStudio-*-windows.zip HFStudio-*-linux.tar.gz | sed 's/^/sha256  /'
+            echo '```'
+          } >> notes.md
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file notes.md
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[] | "\(.name)  \(.size)"'

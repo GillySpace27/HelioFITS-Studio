@@ -90,7 +90,7 @@ repackage() {
 notes_file() {
     NOTES="$(mktemp)"
     DMGSHA="$([ -f "$DMG" ] && shasum -a 256 "$DMG" | awk '{print $1}' || echo '(built by: ./deploy_release.sh notarize)')"
-    PRE_NOTE=""; [ -n "$PRERELEASE" ] && PRE_NOTE="This is a pre-release, published for testing ahead of 1.0. Only macOS has been tried; please report anything that breaks."
+    PRE_NOTE=""; [ -n "$PRERELEASE" ] && PRE_NOTE="This is a pre-release, published for testing ahead of 1.0. It is used daily on Apple Silicon Macs; Windows and Linux are new. Please report anything that breaks."
     cat > "$NOTES" <<EOF
 **$APP_NAME $VERSION**
 
@@ -166,14 +166,21 @@ and it carries its own Java runtime, so there is nothing else to install. Just d
 **Intel Mac:** download **$TOP.zip**. It needs **Java 25+** (https://adoptium.net "Temurin 25",
 or \`brew install openjdk@25\`). Unzip, then double-click \`run.command\`.
 
-Only macOS is tested so far. The zip also carries Linux and Windows launchers, but we have not
-run it on those platforms, so treat them as untried.
+**Windows and Linux (early):** download **$TOP-windows.zip** or **$TOP-linux.tar.gz**. Each carries
+its own Java, so there is nothing else to install: unzip and run \`HFStudio\\HFStudio.exe\`, or untar
+and run \`HFStudio/bin/HFStudio\`. 64-bit Intel and AMD machines only. The Windows build is not
+code-signed yet, so Windows may say it "protected your PC"; choose More info, then Run anyway.
+Our build service adds these two to this page about ten minutes after it is published, and only
+once each has been started, drawn an image and decoded a JPEG 2000 file on a Windows and a Linux
+machine without a graphics card. Nobody has used them on real hardware yet, so please tell us
+how they do.
 
 The full walkthrough is the **${PDF##*/}** asset on this release (also as \`.md\`).
 
 ### Files
 - \`$TOP.dmg\`: macOS app, Apple Silicon (signed + notarized, embedded Java; sha256 below)
 - \`$TOP.zip\`: Intel Mac, run with your own Java 25 (sha256 below)
+- \`$TOP-windows.zip\` / \`$TOP-linux.tar.gz\`: Windows and Linux, embedded Java, added by the build service (sha256 appended below when they land)
 - \`${PDF##*/}\` / \`.md\`: the field guide (updated independently of the binary)
 - \`fabric_suvi.json.gz\`: demo point cloud; Open… it in the Point Cloud layer
 
