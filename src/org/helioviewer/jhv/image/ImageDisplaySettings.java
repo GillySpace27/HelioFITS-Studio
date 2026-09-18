@@ -14,7 +14,6 @@ public final class ImageDisplaySettings {
     public static final int MAX_DCROTA = 15;
     public static final int MIN_DCRVAL = -180;
     public static final int MAX_DCRVAL = 180;
-    public static final int MAX_MASK = 32;
 
     private float red = 1;
     private float green = 1;
@@ -68,9 +67,14 @@ public final class ImageDisplaySettings {
         deltaCRVAL2 = Math.clamp(delta, MIN_DCRVAL, MAX_DCRVAL);
     }
 
+    // No upper bound. There was one, 32 solar radii, sized for LASCO C3, and it quietly clamped
+    // everything the mask slider sent for a wider field: on a PUNCH mosaic, which reaches past 460,
+    // the inner handle stopped doing anything 7% of the way along and the outer handle, one step
+    // below "no mask", jumped to 32 and masked the whole image. GLSLImage already limits the outer
+    // mask to the radius the file declares, which is the ceiling that actually means something.
     public void setMask(double inner, double outer) {
-        innerMask = Math.clamp(inner, 0, MAX_MASK);
-        outerMask = Double.isFinite(outer) ? Math.clamp(outer, innerMask, MAX_MASK) : Double.POSITIVE_INFINITY;
+        innerMask = Math.max(inner, 0);
+        outerMask = Double.isFinite(outer) ? Math.max(outer, innerMask) : Double.POSITIVE_INFINITY;
     }
 
     public void setSlit(double left, double right) {

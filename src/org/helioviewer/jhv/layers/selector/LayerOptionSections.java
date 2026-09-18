@@ -23,7 +23,15 @@ import org.helioviewer.jhv.layers.Layers;
 // generic options panel in the Layer options wrapper only.
 public final class LayerOptionSections implements Layers.Listener, Interfaces.LazyComponent {
 
-    private record ImagePanels(ImageLayerRenderingPanel rendering, ImageLayerGeometryPanel geometry, ImageLayerManagePanel manage) {}
+    // extent: the frame's corner radius the panels were built against. The Mask row is a fraction
+    // of it, read once in the row's constructor, so it is what decides whether the row is stale.
+    private record ImagePanels(ImageLayerRenderingPanel rendering, ImageLayerGeometryPanel geometry, ImageLayerManagePanel manage,
+                               double extent) {}
+
+    private static double extent(ImageLayer layer) {
+        double r = org.helioviewer.jhv.wcs.ImageBounds.radial(layer.getMetaData());
+        return r > 0 ? r : 1; // the Mask row's own fallback, so the two agree on what "unknown" is
+    }
 
     private final JPanel layerOptionsWrapper;
     private final JPanel geometryWrapper;
@@ -154,7 +162,8 @@ public final class LayerOptionSections implements Layers.Listener, Interfaces.La
             ImagePanels p = cache.computeIfAbsent(il, k -> new ImagePanels(
                     new ImageLayerRenderingPanel(il, () -> rebuild(il)),
                     new ImageLayerGeometryPanel(il, () -> rebuild(il)),
-                    new ImageLayerManagePanel(il)));
+                    new ImageLayerManagePanel(il),
+                    extent(il)));
             ComponentUtils.setEnabled(p.rendering(), il.isEnabled());
             ComponentUtils.setEnabled(p.geometry(), il.isEnabled());
             ComponentUtils.setEnabled(p.manage(), il.isEnabled());
@@ -221,6 +230,18 @@ public final class LayerOptionSections implements Layers.Listener, Interfaces.La
     @Override
     public void layerUpdated(Layer layer) {
         if (layer instanceof ImageLayer il && cache.get(il) instanceof ImagePanels p) {
+            // A panel built before the layer's first frame landed was scaled against empty metadata,
+            // so its Mask row spread 1000 steps over 0 to 1 solar radius instead of out to the frame
+            // corner, and being cached it stayed that way for the session. Rebuild once the real
+            // extent differs; the 5% margin keeps a playing movie, whose frames differ by a pixel
+            // or two of pointing, from rebuilding on every frame.
+            if (Math.abs(extent(il) / p.extent() - 1) > 0.05) {
+                if (current == p)
+                    rebuild(il);
+                else
+                    cache.remove(il);
+                return;
+            }
             p.rendering().refresh(layer);
             p.manage().refresh(layer);
             p.manage().forceReadoutRefresh();
