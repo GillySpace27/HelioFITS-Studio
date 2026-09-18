@@ -16,7 +16,8 @@ name: launch
 
 on:
   push:
-    branches: ['ci/launch-smoke']
+    branches: [master]
+  pull_request:
   workflow_dispatch:
 
 env:
