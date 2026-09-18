@@ -1,5 +1,7 @@
 # HelioFITS Studio
 
+[![checks](https://github.com/GillySpace27/HelioFITS-Studio/actions/workflows/checks.yml/badge.svg?branch=master)](https://github.com/GillySpace27/HelioFITS-Studio/actions/workflows/checks.yml)
+
 HelioFITS Studio is a desktop viewer for solar and heliospheric imagery, built around coronagraph and wide-field data such as NASA's PUNCH mission, SOHO/LASCO and PROBA-3/ASPIICS. It is a fork of [JHelioviewer](https://www.jhelioviewer.org), the open-source solar image browser of the ESA/NASA Helioviewer Project. We kept JHelioviewer's 3-D view of the Sun, its timelines and its event overlays, and added the tools we needed to work with the outer corona.
 
 **Status: pre-release.** Version 0.8.0 is the first release under this name, published so that it can be tried, and broken, ahead of 1.0. We use it every day on Apple Silicon Macs. On Intel Macs, Linux and Windows, our automated checks run on every change and pass, including the JPEG 2000 decoder bundled for each; however, nobody has yet used the application itself on those systems. Please tell us what goes wrong (see [Reporting problems](#reporting-problems)).
