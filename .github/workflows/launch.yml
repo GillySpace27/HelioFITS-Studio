@@ -1,0 +1,134 @@
+name: launch
+
+# Starts the whole application on Linux and Windows and looks at it.
+#
+# checks.yml proves the libraries load; nothing had ever run the application itself off a Mac.
+# This job does what a user does: starts it through the launcher the zip ships (run.sh, run.bat),
+# opens a bundled image with -load, waits for the renderer, and takes a screenshot of the screen.
+#
+# Pass means: the main window came up, a graphics context was created, and the process was still
+# alive when the screenshot was taken. Whether the image actually drew is in the screenshot, which
+# is uploaded for a person to look at; a pixel check can be added once we know what a good run
+# looks like on each runner. Neither runner has a GPU: Linux draws through Mesa's software OpenGL
+# under Xvfb, Windows through Microsoft's software renderer. A pass there is necessary for a real
+# machine to work, not sufficient.
+
+on:
+  push:
+    branches: ['ci/launch-smoke']
+  workflow_dispatch:
+
+env:
+  IMAGE: extra/test/data/syn_AIA_171_2026-01-12T00-00-00_f_V3.fits
+  WAIT_FOR_GL: 180   # seconds to wait for the graphics context before calling it a failure
+  SETTLE: 25         # seconds after that for the image to load and draw
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      # Mesa supplies the software OpenGL that ANGLE's Linux backend draws through.
+      - name: Install ant, a virtual display, software OpenGL and a screenshot tool
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ant xvfb imagemagick libgl1 libgl1-mesa-dri libglx-mesa0 libegl1
+
+      - name: Build
+        run: ant jar
+
+      - name: Launch and screenshot
+        run: |
+          export HOME_DIR="$RUNNER_TEMP/home"; mkdir -p "$HOME_DIR"
+          # A fresh home, so no earlier session is restored and the log is this run's alone.
+          export JAVA_TOOL_OPTIONS="-Duser.home=$HOME_DIR"
+          xvfb-run -a -s "-screen 0 1600x1000x24" bash -c '
+            ./run.sh -load "$PWD/$IMAGE" > app.out 2>&1 &
+            APP=$!
+            for i in $(seq 1 $WAIT_FOR_GL); do
+              grep -qs "OpenGL context" "$HOME_DIR"/HFStudio/Logs/*.log && break
+              kill -0 $APP 2>/dev/null || break
+              sleep 1
+            done
+            sleep $SETTLE
+            import -window root shot-linux.png || true
+            if kill -0 $APP 2>/dev/null; then echo alive > alive.txt; kill $APP; fi
+            true'
+          cp "$HOME_DIR"/HFStudio/Logs/*.log app-linux.log 2>/dev/null || true
+
+      - name: Judge
+        if: always()
+        run: extra/launch-judge.sh app-linux.log alive.txt app.out
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: launch-linux
+          path: |
+            shot-linux.png
+            app-linux.log
+            app.out
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Install ant
+        run: choco install -y ant --no-progress
+
+      - name: Build
+        shell: bash
+        run: ant jar
+
+      # Git Bash for the waiting, cmd for run.bat itself, PowerShell only for the screenshot.
+      - name: Launch and screenshot
+        shell: bash
+        run: |
+          HOME_DIR="$(cygpath -w "$RUNNER_TEMP")\\home"; mkdir -p "$(cygpath -u "$HOME_DIR")"
+          export JAVA_TOOL_OPTIONS="-Duser.home=$HOME_DIR"
+          LOGS="$(cygpath -u "$HOME_DIR")/HFStudio/Logs"
+          cmd //c "run.bat -load $(cygpath -w "$PWD/$IMAGE")" > app.out 2>&1 &
+          APP=$!
+          for i in $(seq 1 $WAIT_FOR_GL); do
+            grep -qs "OpenGL context" "$LOGS"/*.log && break
+            tasklist //FI "IMAGENAME eq java.exe" | grep -qi java.exe || break
+            sleep 1
+          done
+          sleep $SETTLE
+          powershell -NoProfile -Command '
+            Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+            $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+            $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+            [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+            $bmp.Save("shot-windows.png")' || true
+          tasklist //FI "IMAGENAME eq java.exe" | grep -qi java.exe && echo alive > alive.txt
+          taskkill //F //IM java.exe > /dev/null 2>&1 || true
+          cp "$LOGS"/*.log app-windows.log 2>/dev/null || true
+
+      - name: Judge
+        if: always()
+        shell: bash
+        run: extra/launch-judge.sh app-windows.log alive.txt app.out
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: launch-windows
+          path: |
+            shot-windows.png
+            app-windows.log
+            app.out
