@@ -57,10 +57,19 @@ public final class OpenJpeg {
     private static final class Holder {
         private static final Arena ARENA = Arena.ofShared();
         private static final Api API = link(ARENA);
+
+        // Said once, when the first JPEG 2000 file opens. A decoder that fails to load is logged
+        // loudly; one that loads said nothing, so neither a user's report nor CI could tell which
+        // copy was in use, or that a JPEG 2000 file had been decoded at all.
+        static {
+            org.helioviewer.jhv.app.Log.info("OpenJPEG " + version() + " loaded from " + loadedFrom);
+        }
     }
 
     private static final ValueLayout.OfInt I32 = ValueLayout.JAVA_INT;
     private static final ValueLayout.OfLong I64 = ValueLayout.JAVA_LONG;
+
+    private static String loadedFrom = "the system's library path"; // for the log line in Holder
 
     private static SymbolLookup lookup(Arena arena) {
         // Where the library is, in the order it is worth looking: an explicit override, the copy
@@ -70,8 +79,10 @@ public final class OpenJpeg {
                 : List.of("/opt/homebrew/opt/openjpeg/lib/libopenjp2.dylib", "/usr/local/lib/libopenjp2.dylib");
         for (String candidate : candidates) {
             Path path = Path.of(candidate);
-            if (Files.isReadable(path))
+            if (Files.isReadable(path)) {
+                loadedFrom = path.toString();
                 return SymbolLookup.libraryLookup(path, arena);
+            }
         }
         try {
             return SymbolLookup.libraryLookup(System.mapLibraryName("openjp2"), arena);
