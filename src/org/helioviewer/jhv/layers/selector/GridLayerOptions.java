@@ -61,6 +61,7 @@ public final class GridLayerOptions extends JPanel {
         // position marker for the planets. The ecliptic plane gets none, because nothing in the
         // set means a plane and a wrong glyph is worse than no glyph.
         add(new CollapsiblePane("Grid", gridSection(layer), true, true, Buttons.grid));
+        add(new CollapsiblePane("Solar limb", limbSection(layer), false, true));
         add(new CollapsiblePane("Thomson sphere", thomsonSection(layer), false, true, Buttons.projection));
         add(new CollapsiblePane("Celestial sphere", celestialSection(layer), false, true, Buttons.rotate));
         add(new CollapsiblePane("Ecliptic plane", eclipticSection(layer), false, true));
@@ -74,8 +75,12 @@ public final class GridLayerOptions extends JPanel {
         c.weightx = 1;
 
         c.gridy = 0;
-        c.gridx = 1;
+        c.gridx = 0;
         c.anchor = GridBagConstraints.LINE_END;
+        JCheckBox gridToggle = createToggle("Main grid", layer.isShowGrid(), layer::setShowGrid);
+        gridToggle.setToolTipText("The grid itself: latitude and longitude on the Sun, and in the helioradial view the rings and spokes, with their labels. Turning this off leaves the limb, spheres, planets and the rest as they are; the layer's own checkbox still hides everything.");
+        panel.add(gridToggle, c);
+        c.gridx = 1;
         panel.add(createToggle("Solar axis", layer.isShowAxis(), layer::setShowAxis), c);
         c.gridx = 3;
         panel.add(createToggle("Grid labels", layer.isShowLabels(), layer::setShowLabels), c);
@@ -143,6 +148,16 @@ public final class GridLayerOptions extends JPanel {
                 "Extent ", extent);
     }
 
+    private JPanel limbSection(GridLayer layer) {
+        JCheckBox toggle = createToggle("Show", layer.isShowLimb(), layer::setShowLimb);
+        toggle.setToolTipText("The Sun's outline as seen from the camera: a dashed circle of one solar radius, round from every angle, to show where the Sun is and how big.");
+        return surfacePanel(toggle,
+                createSurfaceColorBox(layer.getLimbColor(), layer::setLimbColor),
+                createOpacitySlider(layer.getLimbAlpha(), layer::setLimbAlpha),
+                createScaleSlider(layer.getLimbLineScale(), layer::setLimbLineScale),
+                null);
+    }
+
     private JPanel eclipticSection(GridLayer layer) {
         JCheckBox toggle = createToggle("Show", layer.isShowEcliptic(), layer::setShowEcliptic);
         toggle.setToolTipText("The plane the planets orbit in, taken from Earth's own orbit rather than a tabulated inclination, so it passes through the Earth marker by construction.");
@@ -176,11 +191,13 @@ public final class GridLayerOptions extends JPanel {
         panel.add(color, c);
 
         JPanel rows = new JPanel(new GridBagLayout());
-        addAdjustmentRow(rows, "Opacity ", opacity, 0);
-        addAdjustmentRow(rows, "Line width ", lineWidth, 1);
-        addAdjustmentRow(rows, "Density ", density, 2);
+        int row = 0;
+        addAdjustmentRow(rows, "Opacity ", opacity, row++);
+        addAdjustmentRow(rows, "Line width ", lineWidth, row++);
+        if (density != null) // the limb is a circle: nothing to make denser
+            addAdjustmentRow(rows, "Density ", density, row++);
         if (extra != null)
-            addAdjustmentRow(rows, extraLabel, extra, 3);
+            addAdjustmentRow(rows, extraLabel, extra, row);
 
         c.gridy = 1;
         c.gridx = 0;

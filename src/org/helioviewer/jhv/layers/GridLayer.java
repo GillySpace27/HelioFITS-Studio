@@ -61,6 +61,7 @@ public final class GridLayer extends AbstractLayer {
     private double latStep = 20;
     private boolean gridNeedsInit = true;
 
+    private boolean showGrid = true; // the main grid: lat/lon on the sphere, or the helioradial rings and spokes; not the overlays
     private boolean showAxis = true;
     private boolean showLabels = true;
     private boolean showRadial = false;
@@ -69,18 +70,22 @@ public final class GridLayer extends AbstractLayer {
     // the picture, and drawing them unasked would clutter every ordinary view.
     private boolean showThomson = false;
     private boolean showEcliptic = false;
+    private boolean showLimb = false;
     private boolean showCelestial = false;
     private Colors thomsonColor = Colors.Cyan;
     private Colors eclipticColor = Colors.Yellow;
+    private Colors limbColor = Colors.White;
     private Colors celestialColor = Colors.Magenta;
     // Same affordances the grid itself has, per surface: with two wireframes and a grid overlaid
     // on the imagery, colour alone does not separate them -- opacity is what stops a dense mesh
     // burying the data, and width is what keeps a sparse one visible over bright corona.
     private double thomsonAlpha = 0.7;
     private double eclipticAlpha = 0.7;
+    private double limbAlpha = 0.7;
     private double celestialAlpha = 0.7;
     private double thomsonLineScale = 1;
     private double eclipticLineScale = 1;
+    private double limbLineScale = 1;
     private double celestialLineScale = 1;
     // Planets, drawn here beside the Earth marker rather than by ViewpointLayer, which only
     // renders them in its Heliosphere camera mode and so charges a camera for the privilege.
@@ -162,6 +167,7 @@ public final class GridLayer extends AbstractLayer {
 
     private final GLSLLine thomsonLine = new GLSLLine(false);
     private final GLSLLine eclipticLine = new GLSLLine(false);
+    private final GLSLLine limbLine = new GLSLLine(false);
     private final GLSLLine celestialLine = new GLSLLine(false);
     private double thomsonBuiltDistance = -1, thomsonBuiltOuter = -1;
     private byte[] thomsonBuiltColor;
@@ -194,6 +200,7 @@ public final class GridLayer extends AbstractLayer {
     public void serialize(JSONObject jo) {
         jo.put("lonStep", lonStep);
         jo.put("latStep", latStep);
+        jo.put("showGrid", showGrid);
         jo.put("showAxis", showAxis);
         jo.put("showLabels", showLabels);
         jo.put("showRadial", showRadial);
@@ -206,15 +213,19 @@ public final class GridLayer extends AbstractLayer {
         jo.put("labelAngle", gridLabelAngle);
         jo.put("showThomson", showThomson);
         jo.put("showEcliptic", showEcliptic);
+        jo.put("showLimb", showLimb);
         jo.put("showCelestial", showCelestial);
         jo.put("thomsonColor", thomsonColor.name());
         jo.put("eclipticColor", eclipticColor.name());
+        jo.put("limbColor", limbColor.name());
         jo.put("celestialColor", celestialColor.name());
         jo.put("thomsonAlpha", thomsonAlpha);
         jo.put("eclipticAlpha", eclipticAlpha);
+        jo.put("limbAlpha", limbAlpha);
         jo.put("celestialAlpha", celestialAlpha);
         jo.put("thomsonLineScale", thomsonLineScale);
         jo.put("eclipticLineScale", eclipticLineScale);
+        jo.put("limbLineScale", limbLineScale);
         jo.put("celestialLineScale", celestialLineScale);
         jo.put("showPlanets", showPlanets);
         jo.put("showPlanetOrbits", showPlanetOrbits);
@@ -231,6 +242,7 @@ public final class GridLayer extends AbstractLayer {
         lonStep = Math.clamp(jo.optDouble("lonStep", lonStep), GRID_STEP_MIN, GRID_STEP_MAX);
         latStep = Math.clamp(jo.optDouble("latStep", latStep), GRID_STEP_MIN, GRID_STEP_MAX);
 
+        showGrid = jo.optBoolean("showGrid", showGrid);
         showAxis = jo.optBoolean("showAxis", showAxis);
         showLabels = jo.optBoolean("showLabels", showLabels);
         showRadial = jo.optBoolean("showRadial", showRadial);
@@ -249,15 +261,19 @@ public final class GridLayer extends AbstractLayer {
         } catch (Exception ignore) {}
         showThomson = jo.optBoolean("showThomson", showThomson);
         showEcliptic = jo.optBoolean("showEcliptic", showEcliptic);
+        showLimb = jo.optBoolean("showLimb", showLimb);
         showCelestial = jo.optBoolean("showCelestial", showCelestial);
         thomsonColor = Colors.parse(jo.optString("thomsonColor", thomsonColor.name()), thomsonColor);
         eclipticColor = Colors.parse(jo.optString("eclipticColor", eclipticColor.name()), eclipticColor);
+        limbColor = Colors.parse(jo.optString("limbColor", limbColor.name()), limbColor);
         celestialColor = Colors.parse(jo.optString("celestialColor", celestialColor.name()), celestialColor);
         thomsonAlpha = Math.clamp(jo.optDouble("thomsonAlpha", thomsonAlpha), 0, 1);
         eclipticAlpha = Math.clamp(jo.optDouble("eclipticAlpha", eclipticAlpha), 0, 1);
+        limbAlpha = Math.clamp(jo.optDouble("limbAlpha", limbAlpha), 0, 1);
         celestialAlpha = Math.clamp(jo.optDouble("celestialAlpha", celestialAlpha), 0, 1);
         thomsonLineScale = Math.clamp(jo.optDouble("thomsonLineScale", thomsonLineScale), 0.25, 4);
         eclipticLineScale = Math.clamp(jo.optDouble("eclipticLineScale", eclipticLineScale), 0.25, 4);
+        limbLineScale = Math.clamp(jo.optDouble("limbLineScale", limbLineScale), 0.25, 4);
         celestialLineScale = Math.clamp(jo.optDouble("celestialLineScale", celestialLineScale), 0.25, 4);
         showPlanets = jo.optBoolean("showPlanets", showPlanets);
         showPlanetOrbits = jo.optBoolean("showPlanetOrbits", showPlanetOrbits);
@@ -298,10 +314,12 @@ public final class GridLayer extends AbstractLayer {
         // correct order: grid lines -> Earth indicators -> axis -> grid labels -> radial grid
         Quat gridQuat = mv.gridType().toCarrington(viewpoint);
 
-        Transform.pushView();
-        Transform.rotateViewInverse(gridQuat);
-        gridLine.renderLine(vp, LINEWIDTH * gridLineScale);
-        Transform.popView();
+        if (showGrid) {
+            Transform.pushView();
+            Transform.rotateViewInverse(gridQuat);
+            gridLine.renderLine(vp, LINEWIDTH * gridLineScale);
+            Transform.popView();
+        }
 
         drawEarthCircles(vp, pixFactor, Sun.getEarth(viewpoint.time));
         if (mv.isHelioradial() && mv.rendersIn3D())
@@ -315,11 +333,13 @@ public final class GridLayer extends AbstractLayer {
             drawCelestialSphere(mv, vp, viewpoint);
         if (showEcliptic)
             drawEcliptic(mv, vp, viewpoint);
+        if (showLimb)
+            drawLimb(mv, vp);
 
         if (showAxis)
             axesLine.renderLine(vp, LINEWIDTH_AXES);
 
-        if (showLabels) {
+        if (showLabels && showGrid) { // these label the lat/lon lines, so they go with them
             Transform.pushView();
             Transform.rotateViewInverse(gridQuat);
             // The lat/lon grid sits on the r = 1 sphere and its LINES are warped by the vertex
@@ -356,7 +376,8 @@ public final class GridLayer extends AbstractLayer {
         // Helioradial now renders here rather than through renderScale, and the rings and spokes
         // that used to come from the flat path went with it. Emitted as world-space geometry in
         // the plane of sky, so the vertex-stage warp compresses them along with the imagery.
-        if (mv.isHelioradial()) {
+        // The helioradial rings and spokes are this view's main grid, so the same switch owns them.
+        if (mv.isHelioradial() && showGrid) {
             Transform.pushView();
             Transform.rotateViewInverse(viewpoint.toQuat());
             helioradialGrid.renderWorld(mv, vp, showLabels, lonStep, gridColorBytes, gridLineScale, labelColor, gridLabelSize, gridLabelAngle);
@@ -500,6 +521,28 @@ public final class GridLayer extends AbstractLayer {
         Transform.popView();
     }
 
+    private byte[] limbBuiltColor;
+
+    /**
+     * The limb circle, facing the camera from wherever it is.
+     *
+     * <p>Its job is to show someone new to the picture where the Sun is and how big, so it has to
+     * be the Sun's outline as seen, not a line fixed on the Sun. Undoing the whole view rotation,
+     * drag included, puts the circle in eye space: round from every angle, never an ellipse, never
+     * turning with the Sun. Rebuilt only when its colour changes, since it has no geometry to follow.
+     */
+    private void drawLimb(MapView mv, Viewport vp) {
+        byte[] color = Colors.bytes(limbColor.awtColor(), limbAlpha);
+        if (!java.util.Arrays.equals(color, limbBuiltColor)) {
+            ReferenceSurfaces.buildLimb(limbLine, color);
+            limbBuiltColor = color;
+        }
+        Transform.pushView();
+        Transform.rotateViewInverse(mv.viewRotation());
+        limbLine.renderLine(vp, LINEWIDTH * limbLineScale);
+        Transform.popView();
+    }
+
     private void drawEcliptic(MapView mv, Viewport vp, Position viewpoint) {
         double outer = referenceOuterRadius(mv, vp);
         byte[] color = Colors.bytes(eclipticColor.awtColor(), eclipticAlpha);
@@ -604,6 +647,7 @@ public final class GridLayer extends AbstractLayer {
         planetOrbitLine.init();
         thomsonLine.init();
         eclipticLine.init();
+        limbLine.init();
         celestialLine.init();
         GridMath.initEarthPoint(earthPoint);
 
@@ -630,6 +674,7 @@ public final class GridLayer extends AbstractLayer {
         planetOrbitLine.dispose();
         thomsonLine.dispose();
         eclipticLine.dispose();
+        limbLine.dispose();
         celestialLine.dispose();
         radialCircleLine.dispose();
         radialThickLine.dispose();
@@ -652,6 +697,16 @@ public final class GridLayer extends AbstractLayer {
 
     public boolean isShowAxis() {
         return showAxis;
+    }
+
+    public boolean isShowGrid() {
+        return showGrid;
+    }
+
+    /** The main grid alone, sphere or helioradial; the layer's own checkbox is still the master switch for everything it draws. */
+    public void setShowGrid(boolean v) {
+        showGrid = v;
+        DisplayController.display();
     }
 
     public void setShowAxis(boolean _showAxis) {
@@ -820,6 +875,42 @@ public final class GridLayer extends AbstractLayer {
 
     public void setThomsonColor(Colors c) {
         thomsonColor = c;
+        DisplayController.display();
+    }
+
+    public boolean isShowLimb() {
+        return showLimb;
+    }
+
+    public void setShowLimb(boolean v) {
+        showLimb = v;
+        DisplayController.display();
+    }
+
+    public Colors getLimbColor() {
+        return limbColor;
+    }
+
+    public void setLimbColor(Colors c) {
+        limbColor = c;
+        DisplayController.display();
+    }
+
+    public double getLimbAlpha() {
+        return limbAlpha;
+    }
+
+    public void setLimbAlpha(double v) {
+        limbAlpha = v;
+        DisplayController.display();
+    }
+
+    public double getLimbLineScale() {
+        return limbLineScale;
+    }
+
+    public void setLimbLineScale(double v) {
+        limbLineScale = v;
         DisplayController.display();
     }
 

@@ -8,7 +8,7 @@ import org.helioviewer.jhv.opengl.GLSLLine;
 import org.helioviewer.jhv.time.JHVTime;
 
 /**
- * Two reference surfaces drawn as wireframes: the Thomson sphere and the ecliptic plane.
+ * Reference surfaces drawn as wireframes: the Thomson sphere, the ecliptic plane and the limb.
  *
  * <p>Both are emitted as world-space geometry in solar radii, which matters more than it sounds.
  * The vertex stage warps a raw vertex before the MVP, so a wireframe carrying true heliocentric
@@ -216,6 +216,34 @@ public final class ReferenceSurfaces {
             putPlanePoint(buf, u, v, cx, cy, color, false, true);
         }
 
+        line.uploadAndClear(buf);
+    }
+
+    private static final int LIMB_DASHES = 72;
+
+    /**
+     * The solar limb as a dashed circle of radius 1, in the x-y plane. The caller undoes the view
+     * rotation so that plane is the screen and the circle faces the camera from any angle.
+     *
+     * <p>Dashed rather than solid on purpose: the limb is the one place where an overlay is most
+     * likely to be mistaken for something in the data, and a broken line cannot be read as an
+     * edge in the image. Half of each segment is drawn and half left out.
+     *
+     * <p>Emitted at radius 1 in world space, so the vertex stage warps it by the same radial law
+     * as the imagery and it stays on the limb at any lambda. Strictly the limb of a sphere seen
+     * from a finite distance is slightly inside radius 1, by about one part in 10^5 at 1 AU, which
+     * is far below a pixel; this draws the photospheric radius, which is what the imagery is
+     * scaled to.
+     */
+    public static void buildLimb(GLSLLine line, byte[] color) {
+        BufVertex buf = new BufVertex(LIMB_DASHES * 3);
+        for (int i = 0; i < LIMB_DASHES; i++) {
+            double a0 = 2 * Math.PI * i / LIMB_DASHES;
+            double a1 = a0 + Math.PI / LIMB_DASHES; // half on, half off
+            buf.startLine((float) Math.cos(a0), (float) Math.sin(a0), 0, 1, color);
+            buf.putVertex((float) Math.cos(a1), (float) Math.sin(a1), 0, 1, color);
+            buf.endLine();
+        }
         line.uploadAndClear(buf);
     }
 
