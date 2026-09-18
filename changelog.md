@@ -1,7 +1,12 @@
 
 # Revision history
 
-## HelioFITS Studio 0.8.1 (pre-release, 2026-09-18)
+## Unreleased
+
+- Rename the application to HFStudio. HelioFITS Studio was too easily confused with the HelioFITS preview plugin. The repository is now `GillySpace27/HFStudio`, and GitHub forwards the old addresses
+- Register with SAMP as `HFStudio`, so a script that finds the application by its old name needs the new one
+
+## HFStudio 0.8.1 (pre-release, 2026-09-18)
 
 Fixes found in use of 0.8.0, mostly on LASCO and PUNCH data, and a clearer layer options panel.
 
@@ -16,9 +21,9 @@ Fixes found in use of 0.8.0, mostly on LASCO and PUNCH data, and a clearer layer
 - A layer's options are grouped into sections whose headers say what each one holds and what is changed
 - Switching theme no longer crashes from the macOS menu bar, and the playhead strip, the cache dialog's status line and the CACTus Track button follow the new theme without a restart
 
-## HelioFITS Studio 0.8.0 (pre-release, 2026-09-16)
+## HFStudio 0.8.0 (pre-release, 2026-09-16)
 
-The first pre-release under the HelioFITS Studio name, for testing ahead of 1.0. It joins the PUNCH and coronagraph work of the preview builds with upstream JHelioviewer's development through 14 September 2026 in a single line. Every entry from this heading down to the JHelioviewer 5.5.0 heading belongs to this release.
+The first pre-release under its own name (then HelioFITS Studio), for testing ahead of 1.0. It joins the PUNCH and coronagraph work of the preview builds with upstream JHelioviewer's development through 14 September 2026 in a single line. Every entry from this heading down to the JHelioviewer 5.5.0 heading belongs to this release.
 
 ### Consolidation
 - Merge upstream JHelioviewer's timeline overhaul (HAPI catalogs, stacked and predefined plots, warning levels), its export refactor with failure reporting, the LWJGL and ANGLE updates, toolbar visibility and timeline maximize controls, and its grid allocation work

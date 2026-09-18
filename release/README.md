@@ -1,6 +1,6 @@
 # release/
 
-The build and release tooling for HelioFITS Studio: the signed and notarized
+The build and release tooling for HFStudio: the signed and notarized
 macOS `.dmg`, the cross-platform `.zip`, and the field guide. The application
 source is the repository root; nothing in this folder is application code.
 
@@ -21,13 +21,12 @@ incident log, is in [RELEASING.md](RELEASING.md).** Read it before shipping.
 - `fabric_suvi.json.gz`: the demo point cloud attached to every release.
 - `skills/ship-hfstudio/`: the release tracker (`scripts/status.py`) and the
   assistant runbook that drives it.
-- `heliofits-studio-launcher.sh`: a development convenience, not part of the
+- `hfstudio-dev-launcher.sh`: a development convenience, not part of the
   release. It is the source of the script inside
-  `/Applications/HelioFITS Studio.app/Contents/MacOS/heliofits-studio`, a Dock
+  `/Applications/HFStudio Dev.app/Contents/MacOS/hfstudio-dev`, a Dock
   tile that rebuilds the main checkout and runs it. It hardcodes one source path
-  and one Homebrew JDK, so it works on one machine on purpose. The notarized
-  app in the release dmg has the same bundle name, so installing it on this
-  machine replaces the tile.
+  and one Homebrew JDK, so it works on one machine on purpose. The release
+  app is `HFStudio.app`, a different name, so the two sit side by side.
 
 ## Pipeline
 
@@ -54,7 +53,7 @@ tracker and the guide read it from there.
 
 ## Release
 
-Releases: <https://github.com/GillySpace27/HelioFITS-Studio/releases>.
+Releases: <https://github.com/GillySpace27/HFStudio/releases>.
 Shareable short link: <https://gilly.space/hfs>, which redirects to that index.
 
 ## History

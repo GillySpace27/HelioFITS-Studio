@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Release progress tracker for HelioFITS Studio.
+"""Release progress tracker for HFStudio.
 
 Checks REAL state: the jar's embedded revision against git, the dylib on disk,
 the notarization ticket stapled into the dmg, the asset timestamps on the live
@@ -31,7 +31,7 @@ import sys
 
 # ─────────────────────────── CONFIG ───────────────────────────
 
-TITLE = "Release HelioFITS Studio"
+TITLE = "Release HFStudio"
 
 # This script lives at <repo>/release/skills/ship-hfstudio/scripts/, so the tooling and the
 # source it packages are found from here rather than from a hardcoded checkout path.
@@ -54,6 +54,10 @@ DMG_NAME = f"HFStudio-{VERSION}.dmg"
 ZIP_NAME = f"HFStudio-{VERSION}.zip"
 PDF_NAME = "HFStudio-Guide.pdf"
 
+# The slug lives in deploy_release.sh, as build_guide.py already reads it, so a rename is one edit.
+with open(os.path.join(DEPLOY, "deploy_release.sh")) as _f:
+    REPO = re.search(r'^REPO="([^"]+)"', _f.read(), re.M).group(1)
+
 JAR = f"{SRC}/HFStudio.jar"
 DYLIB = f"{SRC}/lib/natives-macos/libjhvmetalhost.dylib"
 DMG = f"{DEPLOY}/{DMG_NAME}"
@@ -61,7 +65,7 @@ ZIP = f"{DEPLOY}/{ZIP_NAME}"
 PDF = f"{DEPLOY}/{PDF_NAME}"
 
 # Identify the candidate by the commit being shipped, not just the procedure
-# name. On a dashboard of several runbooks "Release HelioFITS Studio" alone cannot
+# name. On a dashboard of several runbooks "Release HFStudio" alone cannot
 # tell you whether the card is today's work or last month's.
 SUBTITLE_CMD = (
     f"cd {SRC} && echo \"candidate $(git rev-parse --short HEAD)"
@@ -113,27 +117,27 @@ EOF
 """
 
 
-# Follow gilly.space/jhv to wherever it actually sends people and confirm that page
-# offers the dmg. The redirect is a static HTML page with a meta-refresh and a
-# location.replace, so curl -L does NOT follow it: the target has to be scraped out
-# and fetched. This is the check that would have caught the dead-tag redirect.
+# gilly.space/hfs is a download page, not a redirect (/jhv, /hfstudio and /HFS forward to
+# it), and it names no release: every release so far is a pre-release, which GitHub's
+# releases/latest skips, so the page asks for the newest one when it loads. Check both
+# halves of that: the page is up and still asks this repository, and the newest release
+# carries this build's dmg. This is the check that would have caught the dead-tag redirect.
 _SHORTLINK_SERVES_DMG = r"""
 python3 - <<'EOF'
-import re, subprocess, sys
+import json, subprocess, sys
 def get(u):
     r = subprocess.run(["curl", "-fsSL", "--max-time", "25", u],
                        capture_output=True, text=True, timeout=40)
     return r.stdout if r.returncode == 0 else ""
-page = get("https://gilly.space/jhv/")
-if not page:
+if "api.github.com/repos/@REPO@/releases" not in get("https://gilly.space/hfs/"):
     sys.exit(1)
-m = re.findall(r'https://github\.com/[^"\'<>\s]*/releases[^"\'<>\s]*', page)
-if not m:
+try:
+    newest = json.loads(get("https://api.github.com/repos/@REPO@/releases?per_page=1"))[0]
+except Exception:
     sys.exit(1)
-target = get(sorted(set(m), key=len)[0])
-sys.exit(0 if "@DMG_NAME@" in target else 1)
+sys.exit(0 if any(a["name"] == "@DMG_NAME@" for a in newest["assets"]) else 1)
 EOF
-""".strip().replace("@DMG_NAME@", DMG_NAME)
+""".strip().replace("@DMG_NAME@", DMG_NAME).replace("@REPO@", REPO)
 
 # The dmg on disk is the one a notarize run stapled and validated, and is not
 # older than the jar it should contain.
@@ -214,7 +218,7 @@ MILESTONES = [
      _PUBLISHED),
 
     # Deliberately ANDed with the published check. On its own "the release
-    # exists and gilly.space/jhv answers 200" is green before the release even
+    # exists and gilly.space/hfs answers 200" is green before the release even
     # starts, because the previous release is always sitting there. That would
     # show a reassuring final tick for work not yet done, which is precisely
     # the failure this whole pattern exists to prevent.
@@ -285,17 +289,17 @@ HOW = {
 
     "smoketest": ("human",
         "Mount the dmg and launch the app inside it, not the jar you just built.\n"
-        "Quit any running HelioFITS Studio first: a second instance cannot take the JPIP\n"
+        "Quit any running HFStudio first: a second instance cannot take the JPIP\n"
         "ehcache lock, and the failure is not contained (levelCache stays null, every\n"
         "image read throws, and it presents as a rendering bug).\n"
         "Run it from the mounted image. HFStudio.app sits beside the launcher tile\n"
-        "HelioFITS Studio.app in /Applications rather than replacing it.\n"
+        "HFStudio Dev.app in /Applications rather than replacing it.\n"
         "Then pass --done smoketest."),
 
     "published": ("gate",
         "PUBLIC. Ask Gilly in chat, this release, every time: a yes for one never\n"
         "carries to the next. Name the new tag AND the commit, e.g. 'this publishes a\n"
-        "new release <tag> from commit <sha>, which becomes what gilly.space/jhv\n"
+        "new release <tag> from commit <sha>, which becomes what gilly.space/hfs\n"
         "offers first'. Say which release stays behind it as the way back.\n"
         "The link has been sent to Sarah Gibson, Ian Hewins, Yara De Leo, Curt de Koning.\n"
         "Releases are immutable: the tag comes from VERSION, so bump it for a new one;\n"
@@ -431,7 +435,7 @@ def main():
         ident = f"{sha} r{rev}" if sha else "no candidate"
         snap = {
             "name": "ship-hfstudio",
-            "title": f"HelioFITS Studio {TAG}, candidate {ident}",
+            "title": f"HFStudio {TAG}, candidate {ident}",
             "checked_at": datetime.datetime.now(datetime.timezone.utc)
                             .isoformat(timespec="seconds"),
             "complete": sum(1 for k, _, _ in MILESTONES if state.get(k)),

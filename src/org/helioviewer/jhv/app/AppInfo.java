@@ -5,20 +5,20 @@ import java.util.Properties;
 
 public final class AppInfo {
 
-    public static final String programName = "HelioFITS Studio";
+    public static final String programName = "HFStudio";
 
     /**
      * Where a user of THIS build should go, which is not where a user of JHelioviewer should go.
      *
-     * <p>HelioFITS Studio is a fork. Its bugs are almost all its own, and sending them to the upstream
+     * <p>HFStudio is a fork. Its bugs are almost all its own, and sending them to the upstream
      * tracker spends the time of people who cannot reproduce them and did not write the code in
      * question. The download and documentation links stay pointed at SWHV until this build has
      * somewhere of its own to point at; they describe the shared ancestry accurately enough.
      */
-    public static final String sourceURL = "https://github.com/GillySpace27/HelioFITS-Studio"; // MPL 2.0 section 3.2: say where the source is
-    public static final String bugURL = "https://github.com/GillySpace27/HelioFITS-Studio/issues";
-    public static final String downloadURL = "https://github.com/GillySpace27/HelioFITS-Studio/releases";
-    public static final String versionURL = "https://raw.githubusercontent.com/GillySpace27/HelioFITS-Studio/master/VERSION";
+    public static final String sourceURL = "https://github.com/GillySpace27/HFStudio"; // MPL 2.0 section 3.2: say where the source is
+    public static final String bugURL = "https://github.com/GillySpace27/HFStudio/issues";
+    public static final String downloadURL = "https://github.com/GillySpace27/HFStudio/releases";
+    public static final String versionURL = "https://raw.githubusercontent.com/GillySpace27/HFStudio/master/VERSION";
     // The field guide (HFStudio-Guide.pdf) ships as an asset of every release, so the releases
     // page is the one place that documents this build rather than upstream JHelioviewer.
     public static final String documentationURL = downloadURL;

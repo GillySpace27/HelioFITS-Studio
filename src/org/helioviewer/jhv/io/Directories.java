@@ -12,7 +12,7 @@ public enum Directories {
     /**
      * The folder everything persistent lives in, and the one name in this file worth arguing about.
      *
-     * <p>HelioFITS Studio keeps its own rather than sharing JHelioviewer's. Sharing sounds like a kindness
+     * <p>HFStudio keeps its own rather than sharing JHelioviewer's. Sharing sounds like a kindness
      * (one file cache, no re-downloading) and is a trap: the two applications have already diverged
      * on settings keys and on what a saved session contains, so a shared folder means each one
      * quietly rewriting state the other wrote. Two folders cost disk; one folder costs correctness.
@@ -125,7 +125,7 @@ public enum Directories {
 
             File f = dir.getFile();
             if (!f.isDirectory() && !f.mkdirs())
-                throw new IllegalStateException("HelioFITS Studio cannot create its folder " + f + ". Check that the location is writable and has free space.");
+                throw new IllegalStateException("HFStudio cannot create its folder " + f + ". Check that the location is writable and has free space.");
         }
     }
 
@@ -133,11 +133,11 @@ public enum Directories {
         File cacheDir = Directories.CACHE.getFile();
         try {
             if (!cacheDir.isDirectory() && !cacheDir.mkdirs())
-                throw new IllegalStateException("HelioFITS Studio cannot create its folder " + cacheDir + ". Check that the location is writable and has free space.");
+                throw new IllegalStateException("HFStudio cannot create its folder " + cacheDir + ". Check that the location is writable and has free space.");
 
             File downloadsDir = Directories.DOWNLOADS.getFile();
             if (!downloadsDir.isDirectory() && !downloadsDir.mkdirs())
-                throw new IllegalStateException("HelioFITS Studio cannot create its folder " + downloadsDir + ". Check that the location is writable and has free space.");
+                throw new IllegalStateException("HFStudio cannot create its folder " + downloadsDir + ". Check that the location is writable and has free space.");
 
             libCacheDir = FileUtils.tempDir(cacheDir, "lib").getAbsolutePath();
             dataCacheDir = FileUtils.tempDir(cacheDir, "data").getAbsolutePath();
@@ -145,7 +145,7 @@ public enum Directories {
             clientCacheDir = FileUtils.tempDir(cacheDir, "client");
             exportCacheDir = FileUtils.tempDir(cacheDir, "export");
         } catch (Exception e) {
-            throw new IllegalStateException("HelioFITS Studio cannot set up its cache folder " + cacheDir + ". Check that the location is writable and has free space.", e);
+            throw new IllegalStateException("HFStudio cannot set up its cache folder " + cacheDir + ". Check that the location is writable and has free space.", e);
         }
     }
 
@@ -176,7 +176,7 @@ public enum Directories {
         if (isUsableAsciiDirectory(root))
             return root;
 
-        throw new IllegalStateException("HelioFITS Studio could not find a writable folder for temporary files whose path uses only plain "
+        throw new IllegalStateException("HFStudio could not find a writable folder for temporary files whose path uses only plain "
                 + "ASCII characters. Install it under a path without accented or non-Latin characters "
                 + "(or point the Java property java.io.tmpdir at one).");
     }

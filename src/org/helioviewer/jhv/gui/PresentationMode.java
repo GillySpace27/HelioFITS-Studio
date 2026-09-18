@@ -305,7 +305,7 @@ public final class PresentationMode {
     // component, the canvas, stays exactly where it is.
     /** @param carried what each panel's visibility said before {@link MainFrame#setChromeVisible} hid them */
     private static JFrame buildPresenterWindow(GraphicsDevice on, java.util.Map<Component, Boolean> carried) {
-        JFrame window = new JFrame("HelioFITS Studio: Presenter", on.getDefaultConfiguration());
+        JFrame window = new JFrame("HFStudio: Presenter", on.getDefaultConfiguration());
         window.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE); // closing it would strand the chrome
         // Toolbar and transport stack at the top at their natural height; the sidebar takes
         // everything left over. BorderLayout.NORTH is what enforces "natural height" here -- a

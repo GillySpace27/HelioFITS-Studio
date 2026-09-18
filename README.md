@@ -1,20 +1,20 @@
-# HelioFITS Studio
+# HFStudio
 
-[![checks](https://github.com/GillySpace27/HelioFITS-Studio/actions/workflows/checks.yml/badge.svg?branch=master)](https://github.com/GillySpace27/HelioFITS-Studio/actions/workflows/checks.yml)
+[![checks](https://github.com/GillySpace27/HFStudio/actions/workflows/checks.yml/badge.svg?branch=master)](https://github.com/GillySpace27/HFStudio/actions/workflows/checks.yml)
 
-HelioFITS Studio is a desktop viewer for solar and heliospheric imagery, built around coronagraph and wide-field data such as NASA's PUNCH mission, SOHO/LASCO and PROBA-3/ASPIICS. It is a fork of [JHelioviewer](https://www.jhelioviewer.org), the open-source solar image browser of the ESA/NASA Helioviewer Project. We kept JHelioviewer's 3-D view of the Sun, its timelines and its event overlays, and added the tools we needed to work with the outer corona.
+HFStudio is a desktop viewer for solar and heliospheric imagery, built around coronagraph and wide-field data such as NASA's PUNCH mission, SOHO/LASCO and PROBA-3/ASPIICS. It is a fork of [JHelioviewer](https://www.jhelioviewer.org), the open-source solar image browser of the ESA/NASA Helioviewer Project. We kept JHelioviewer's 3-D view of the Sun, its timelines and its event overlays, and added the tools we needed to work with the outer corona.
 
-**Status: pre-release.** Version 0.8.0 is the first release under this name, published so that it can be tried, and broken, ahead of 1.0. We use it every day on Apple Silicon Macs. On Intel Macs, Linux and Windows, our automated checks run on every change and pass, including the JPEG 2000 decoder bundled for each; however, nobody has yet used the application itself on those systems. Please tell us what goes wrong (see [Reporting problems](#reporting-problems)).
+**Status: pre-release.** The 0.8 releases are published so that they can be tried, and broken, ahead of 1.0. We use it every day on Apple Silicon Macs. On Intel Macs, Linux and Windows, our automated checks run on every change and pass, including the JPEG 2000 decoder bundled for each; however, nobody has yet used the application itself on those systems. Please tell us what goes wrong (see [Reporting problems](#reporting-problems)).
 
 ## Why this fork exists
 
-We work with NASA's PUNCH mission and the wider coronagraph record, and that work needed several things JHelioviewer did not do: load PUNCH data, read calibrated LASCO FITS straight from NRL, stretch the outer corona so that it has room to read, and equalize its steep radial falloff. HelioFITS Studio is where we build those tools and share them with other researchers.
+We work with NASA's PUNCH mission and the wider coronagraph record, and that work needed several things JHelioviewer did not do: load PUNCH data, read calibrated LASCO FITS straight from NRL, stretch the outer corona so that it has room to read, and equalize its steep radial falloff. HFStudio is where we build those tools and share them with other researchers.
 
-We distribute it as a separate application under its own name so that it is not mistaken for an official JHelioviewer release, and so that problems with our additions come to us rather than to the JHelioviewer team, who did not write that code. Earlier builds were published on this repository as the *JHelioviewer PUNCH & Coronal Research Distribution* (tagged v5.6a to v5.6d); HelioFITS Studio continues that line.
+We distribute it as a separate application under its own name so that it is not mistaken for an official JHelioviewer release, and so that problems with our additions come to us rather than to the JHelioviewer team, who did not write that code. Earlier builds were published on this repository as the *JHelioviewer PUNCH & Coronal Research Distribution* (tagged v5.6a to v5.6d); HFStudio continues that line. For a few days in September 2026 it was called HelioFITS Studio; we dropped that name because it was too easily confused with the [HelioFITS](https://gilly.space/heliofits/) preview plugin, which is a separate project.
 
 ## Relationship to JHelioviewer
 
-JHelioviewer is developed by the ESA JHelioviewer team as part of the ESA/NASA Helioviewer Project, and was enhanced at ROB/SIDC. HelioFITS Studio is not affiliated with or endorsed by that project. We do intend to stay close to it, in both directions: we merge JHelioviewer's own development into this fork (version 0.8.0 includes it up to 28 July 2026), and we offer back what is of general use.
+JHelioviewer is developed by the ESA JHelioviewer team as part of the ESA/NASA Helioviewer Project, and was enhanced at ROB/SIDC. HFStudio is not affiliated with or endorsed by that project. We do intend to stay close to it, in both directions: we merge JHelioviewer's own development into this fork (version 0.8.0 includes it up to 28 July 2026), and we offer back what is of general use.
 
 Several of our additions have already been taken into JHelioviewer's development line and are credited in its pending 5.10.0 changelog: the PUNCH layer and its colormap, the RHEF filter, the two wide-field projections (called RadialWarp and RectWarp there, Helioradial and Helioradial Unrolled here) and the grid colour controls. Smaller fixes have followed, and further changes are open as [pull requests](https://github.com/Helioviewer-Project/JHelioviewer-SWHV/pulls?q=is%3Apr+author%3AGillySpace27).
 
@@ -30,17 +30,17 @@ The full record, including the JHelioviewer changes merged here, is in [changelo
 
 ## Installing
 
-On an Apple Silicon Mac, the simplest route is the signed and notarized `.dmg` from the [Releases page](https://github.com/GillySpace27/HelioFITS-Studio/releases). It carries its own Java runtime, so there is nothing else to install.
+On an Apple Silicon Mac, the simplest route is the signed and notarized `.dmg` from the [Releases page](https://github.com/GillySpace27/HFStudio/releases). It carries its own Java runtime, so there is nothing else to install.
 
 Everywhere else, download the `.zip` from the same page, install Java 25 or newer (for example Temurin 25 from [adoptium.net](https://adoptium.net), or `brew install openjdk@25`), and start `run.command` on macOS, `run.sh` on Linux or `run.bat` on Windows. The zip carries the JPEG 2000 decoder for each platform; on Windows that decoder needs Microsoft's Visual C++ runtime, which most machines already have. Our automated checks, and that decoder with them, pass on Linux and Windows, but we have not yet used the application on either system, so we would especially like to hear how it goes there.
 
 ## Coming from JHelioviewer
 
-The first time it runs, HelioFITS Studio copies your settings and saved states from `~/JHelioviewer-SWHV` into `~/HFStudio` and leaves the originals alone, so JHelioviewer keeps working beside it. The copy only happens while `~/HFStudio` does not exist yet. Old sessions can always be opened directly with File > Load State.
+The first time it runs, HFStudio copies your settings and saved states from `~/JHelioviewer-SWHV` into `~/HFStudio` and leaves the originals alone, so JHelioviewer keeps working beside it. The copy only happens while `~/HFStudio` does not exist yet. Old sessions can always be opened directly with File > Load State.
 
 ## Licence, source code and bundled components
 
-HelioFITS Studio is released under the Mozilla Public License 2.0, the same licence as JHelioviewer (see [LICENSE](LICENSE)). Files that came from JHelioviewer keep that licence and their notices. The complete source of every release is this repository, and each entry on the Releases page carries the source it was built from.
+HFStudio is released under the Mozilla Public License 2.0, the same licence as JHelioviewer (see [LICENSE](LICENSE)). Files that came from JHelioviewer keep that licence and their notices. The complete source of every release is this repository, and each entry on the Releases page carries the source it was built from.
 
 The downloads also bundle libraries and native programs that carry their own licences, and the About dialog credits each of them. JPEG 2000 images are decoded by OpenJPEG under the BSD 2-clause licence, rather than by the proprietary Kakadu codec that JHelioviewer uses: that is what makes this fork's binaries ours to give away.
 
@@ -48,11 +48,11 @@ The name JHelioviewer appears here only to say where this software comes from. I
 
 ## Citing
 
-If HelioFITS Studio helps your research, please cite the JHelioviewer paper it is built on: Müller et al. (2017), Astronomy & Astrophysics, https://doi.org/10.1051/0004-6361/201730893. A dedicated HFS methods paper is in prep for publication. 
+If HFStudio helps your research, please cite the JHelioviewer paper it is built on: Müller et al. (2017), Astronomy & Astrophysics, https://doi.org/10.1051/0004-6361/201730893. A dedicated HFStudio methods paper is in prep for publication. 
 
 ## Reporting problems
 
-Please report problems on this repository's [issue tracker](https://github.com/GillySpace27/HelioFITS-Studio/issues), or write to gilly@nwra.com. The JHelioviewer team did not write the code added here, so problems with HelioFITS Studio should not go to them.
+Please report problems on this repository's [issue tracker](https://github.com/GillySpace27/HFStudio/issues), or write to gilly@nwra.com. The JHelioviewer team did not write the code added here, so problems with HFStudio should not go to them.
 
 ## Building from source
 

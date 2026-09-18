@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build and publish a HelioFITS Studio release: the notarized macOS dmg, the zip, and the guide.
+# Build and publish a HFStudio release: the notarized macOS dmg, the zip, and the guide.
 #
 #   ./deploy_release.sh package   # rebuild guide + repackage the zip locally (no network)
 #   ./deploy_release.sh guide     # re-upload ONLY the guide PDF+MD to the release (fast iterate)
@@ -22,8 +22,8 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 SRC="$(cd "$HERE/.." && pwd)"
 # The GitHub repository, defined once. build_guide.py and the ship-hfstudio tracker read it from
 # this line, so keep it in the form REPO="owner/name".
-REPO="GillySpace27/HelioFITS-Studio"
-APP_NAME="HelioFITS Studio"
+REPO="GillySpace27/HFStudio"
+APP_NAME="HFStudio"
 BUNDLE_NAME="HFStudio"   # the .app on disk, kept free of spaces; APP_NAME stays the display name
 # macOS 26 (Tahoe) enforces the squircle on app-bundle icons: a bare circular icon gets shrunk onto a
 # grey squircle ("squircle jail"). This is the hv orb composed onto a proper squircle tile, so the

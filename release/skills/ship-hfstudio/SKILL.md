@@ -1,9 +1,9 @@
 ---
 name: ship-hfstudio
-description: Release HelioFITS Studio to its public GitHub release. Use when Gilly wants to ship, publish, cut, or refresh a HelioFITS Studio release, update the release assets or the field guide, notarize the macOS dmg, or asks what state the HelioFITS Studio release is in. Covers the build from the repository root, the tooling in release/, notarization, and the gated publish. Do NOT use for upstream PRs to Helioviewer-Project, or for feature work that is not being released.
+description: Release HFStudio to its public GitHub release. Use when Gilly wants to ship, publish, cut, or refresh a HFStudio release, update the release assets or the field guide, notarize the macOS dmg, or asks what state the HFStudio release is in. Covers the build from the repository root, the tooling in release/, notarization, and the gated publish. Do NOT use for upstream PRs to Helioviewer-Project, or for feature work that is not being released.
 ---
 
-# Ship HelioFITS Studio
+# Ship HFStudio
 
 **`release/RELEASING.md` is authoritative.** Read it when anything here is
 ambiguous. If the two disagree, the procedure doc wins and this file gets fixed.

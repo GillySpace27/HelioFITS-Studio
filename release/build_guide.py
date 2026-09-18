@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the HelioFITS Studio field guide.
+"""Build the HFStudio field guide.
 
 Content lives in guide_content.json (title/subtitle/byline + an ordered list of
 blocks). This script renders that single source to BOTH
@@ -144,7 +144,7 @@ def footer(canvas, doc):
     canvas.setFont("Helvetica", 7.5)
     canvas.setFillColor(colors.HexColor("#7a8493"))
     canvas.drawString(0.9 * inch, 0.55 * inch,
-                      "HelioFITS Studio %s field guide  -  github.com/%s" % (VERSION, REPO))
+                      "HFStudio %s field guide  -  github.com/%s" % (VERSION, REPO))
     canvas.drawRightString(7.6 * inch, 0.55 * inch, "Page %d" % doc.page)
     canvas.setStrokeColor(BOX_BORDER)
     canvas.setLineWidth(0.5)
@@ -156,7 +156,7 @@ def build_pdf(doc_data):
     pdf = BaseDocTemplate(PDF_OUT, pagesize=letter,
                           leftMargin=0.9 * inch, rightMargin=0.9 * inch,
                           topMargin=0.8 * inch, bottomMargin=0.9 * inch,
-                          title=doc_data.get("title", "HelioFITS Studio"),
+                          title=doc_data.get("title", "HFStudio"),
                           author="Gilly, NWRA")
     frame = Frame(pdf.leftMargin, pdf.bottomMargin, pdf.width, pdf.height, id="main")
     pdf.addPageTemplates([PageTemplate(id="all", frames=[frame], onPage=footer)])

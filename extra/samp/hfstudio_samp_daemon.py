@@ -30,7 +30,7 @@ class Pending:
 
 class JHVSampQueue:
     def __init__(self) -> None:
-        self.client = SAMPIntegratedClient(name="HelioFITS Studio SAMP queue")
+        self.client = SAMPIntegratedClient(name="HFStudio SAMP queue")
         self.client_id = None
         self.jhv_id = None
         self.pending = {}
@@ -48,9 +48,9 @@ class JHVSampQueue:
 
     def find_jhv(self):
         for client_id in self.client.get_registered_clients():
-            if self.client.get_metadata(client_id).get("samp.name") == "HelioFITS Studio":
+            if self.client.get_metadata(client_id).get("samp.name") == "HFStudio":
                 return client_id
-        raise RuntimeError("HelioFITS Studio SAMP client not found")
+        raise RuntimeError("HFStudio SAMP client not found")
 
     def execute(self, commands: list[dict]) -> list[dict]:
         results = []
@@ -155,7 +155,7 @@ def stop(signum, frame) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Queue SAMP commands to HelioFITS Studio")
+    parser = argparse.ArgumentParser(description="Queue SAMP commands to HFStudio")
     parser.add_argument("--socket", default=SOCKET)
     args = parser.parse_args()
 

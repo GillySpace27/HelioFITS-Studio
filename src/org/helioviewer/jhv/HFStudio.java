@@ -50,7 +50,7 @@ public class HFStudio {
         // touches AWT and why a theme switch made later in the session cannot move it: the rest
         // of the interface changes immediately, the window frame follows on the next launch.
         System.setProperty("apple.awt.application.appearance", appearance(Theme.startupIsDark()));
-        System.setProperty("apple.awt.application.name", "HelioFITS Studio");
+        System.setProperty("apple.awt.application.name", "HFStudio");
         System.setProperty("apple.laf.useScreenMenuBar", "true");
         System.setProperty("sun.awt.noerasebackground", "true");
         //System.setProperty("org.lwjgl.util.NoChecks", "true");
@@ -74,7 +74,7 @@ public class HFStudio {
         // Create transient cache directories after logging is available. On Windows this may need an ASCII-safe path.
         Directories.createCacheDirs();
         // Information log message
-        Log.info("HelioFITS Studio started with command-line options: " + String.join(" ", args));
+        Log.info("HFStudio started with command-line options: " + String.join(" ", args));
         if (Directories.migrationNote != null)
             Log.info(Directories.migrationNote);
 
@@ -182,7 +182,7 @@ public class HFStudio {
 
     private static void onFailureInit(String ignoredLogContext, Throwable t) {
         Log.error(t);
-        Message.err("HelioFITS Studio could not finish starting", t.getMessage() == null ? "See the log for details." : t.getMessage());
+        Message.err("HFStudio could not finish starting", t.getMessage() == null ? "See the log for details." : t.getMessage());
     }
 
     /**

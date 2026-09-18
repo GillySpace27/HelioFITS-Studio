@@ -6,7 +6,7 @@ import java.io.File;
 // the pattern). Guards Directories.isInsideCache, which is the containment test standing between
 // the "delete this layer's cached files" button and the rest of the filesystem.
 //
-// The button only ever hands it paths HelioFITS Studio itself built, so in normal use this never refuses
+// The button only ever hands it paths HFStudio itself built, so in normal use this never refuses
 // anything. That is precisely why it needs a test: nothing in day-to-day use would notice if it
 // started saying yes to everything.
 public final class CacheDeleteGuardCheck {
@@ -29,7 +29,7 @@ public final class CacheDeleteGuardCheck {
         no(downloads, "the Downloads root itself");
 
         // Anywhere else, however close by.
-        no(home, "the HelioFITS Studio home directory");
+        no(home, "the HFStudio home directory");
         no(new File(home, "Settings/user.properties"), "settings next door to the cache");
         no(new File(System.getProperty("user.home"), "Documents/thesis.tex"), "an unrelated document");
         no(new File("/etc/passwd"), "a system file");

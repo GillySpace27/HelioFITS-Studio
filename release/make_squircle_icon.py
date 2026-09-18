@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the Tahoe-compliant squircle app icon from the HelioFITS Studio sun-pie mark.
+"""Build the Tahoe-compliant squircle app icon from the HFStudio sun-pie mark.
 
 macOS 26 enforces the squircle on app-bundle icons: a bare circular icon is shrunk
 onto a grey squircle ("squircle jail"). This composes the mark, unmodified, onto a

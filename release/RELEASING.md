@@ -1,6 +1,6 @@
-# Releasing HelioFITS Studio
+# Releasing HFStudio
 
-Authoritative procedure for shipping a HelioFITS Studio release. If this file
+Authoritative procedure for shipping a HFStudio release. If this file
 and `skills/ship-hfstudio/SKILL.md` ever disagree, **this file wins** and the
 skill gets fixed.
 
@@ -8,7 +8,7 @@ Gilly can follow this by hand with no assistant present. That is the point.
 
 ## What ships, and from where
 
-One repository, **`GillySpace27/HelioFITS-Studio`**:
+One repository, **`GillySpace27/HFStudio`**:
 
 | | Path | Holds |
 |---|---|---|
@@ -66,13 +66,17 @@ second half, not a string edit.
   Store the credential under the new name first (the command is in the
   2026-08-23 credentials entry below), then change the default. Changing only
   the script breaks `notarize`.
-- **`gilly.space/hfs`** (and its `/HFS` duplicate), the short link handed to
-  collaborators. It is a redirect hosted on gilly.space, outside this
-  repository, and the tracker's `live` check follows it. A new short link needs
-  its redirect created there first, and the old one kept working, since it has
-  been sent to people.
-- **`GillySpace27/HelioFITS-Studio`**, the repository slug. Kept for now; see
-  above for the two places it lives.
+- **`gilly.space/hfs`**, the download page handed to collaborators, with
+  `/hfstudio`, `/HFStudio`, `/HFS` and the older `/jhv` forwarding to it. It
+  lives in the site repository (`GillySpace27.github.io`), outside this one. It
+  asks GitHub for the newest release when it loads, so a release needs no edit
+  there; its fixed fallback links (used only when GitHub cannot be reached)
+  still name 0.8.1. The tracker's `live` check reads it. The old links have been
+  sent to people, so keep them all working.
+- **`GillySpace27/HFStudio`**, the repository slug, renamed from
+  `HelioFITS-Studio` on 2026-09-18. GitHub forwards the old web, git, API and
+  raw addresses, and the update check in 0.8.0 and 0.8.1 depends on that. Never
+  create a repository under the old name: doing so ends the forwarding.
 - **`org.helioviewer.jhv`, `libjhvmetalhost.dylib`, the `jhv/macos-arm64`
   resource path**: application identifiers that `deploy_release.sh` has to
   match (`--main-class`, `DYLIB`, `ARCH_RES`). They change with the app code or
@@ -186,10 +190,10 @@ Mount the dmg and launch the app it contains, not the jar you built. This is
 the step that catches a bundle that is signed correctly and still broken.
 
 Run it from the mounted image. The bundle is named `HFStudio.app`, so on the
-development Mac it sits beside the launcher tile `HelioFITS Studio.app` in
-`/Applications` (`heliofits-studio-launcher.sh`) instead of replacing it.
+development Mac it sits beside the launcher tile `HFStudio Dev.app` in
+`/Applications` (`hfstudio-dev-launcher.sh`) instead of replacing it.
 
-Quit any running HelioFITS Studio first. A second instance cannot take the JPIP
+Quit any running HFStudio first. A second instance cannot take the JPIP
 ehcache persistence lock, and the failure is not contained: `levelCache` stays
 null and every image read throws, which presents as a rendering bug rather than
 an "already running" message.
@@ -218,7 +222,7 @@ newest.
 ### 7. Confirm what actually landed
 
 ```sh
-gh release view "v$(cat ../VERSION)" --repo GillySpace27/HelioFITS-Studio \
+gh release view "v$(cat ../VERSION)" --repo GillySpace27/HFStudio \
   --json assets --jq '.assets[] | "\(.name)  \(.size)  \(.updatedAt)"'
 ```
 
