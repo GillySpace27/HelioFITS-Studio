@@ -13,7 +13,12 @@
     <fileset id="libfiles" dir="./">
         <include name="lib/**/*.jar"/>
     </fileset>
-    <loadfile property="version" srcFile="VERSION"/>
+    <!-- Stripped: a trailing newline in VERSION, which most editors add, went into the jar manifest
+         as a blank line, and a blank line ends the manifest's main section. The 0.8.1 bundle then
+         could not load its own main class. -->
+    <loadfile property="version" srcFile="VERSION">
+        <filterchain><striplinebreaks/></filterchain>
+    </loadfile>
     <exec executable="sh" outputproperty="revision">
         <arg value="-c"/>
         <arg value="git rev-list --count HEAD || echo 0"/>
