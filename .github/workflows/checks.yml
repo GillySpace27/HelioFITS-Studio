@@ -119,15 +119,26 @@ jobs:
   # so a local run links Homebrew's copy and the dylib that actually ships in the dmg is never
   # exercised. These jobs name the shipped one outright. Intel is here because an Apple Silicon Mac
   # cannot run jhv-natives-macos.jar at all, and we ship it.
+  #
+  # A matrix because these two are the same job on two architectures; Linux and Windows differ in
+  # install, library path, shell and separator, so folding them in would cost a conditional on
+  # most steps. fail-fast is off so one architecture failing never cancels the other.
   macos:
+    name: macos-${{ matrix.arch }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-latest              # Apple Silicon
+          - arch: arm64
+            runner: macos-latest
             jar: jhv-natives-macos-arm64.jar
             entry: 'jhv/macos-arm64/*'
-          - runner: macos-13                  # the last Intel image; revisit when it retires
+          # macos-13 was retired and a job asking for it queues silently rather than failing, so
+          # it sat five hours without starting. macOS 26 is the last release Apple ships for
+          # Intel, so this is the longest-lived x64 label there will be. Not -large: that suffix
+          # is a paid larger runner.
+          - arch: x64
+            runner: macos-26-intel
             jar: jhv-natives-macos.jar
             entry: 'jhv/macos-amd64/*'
     runs-on: ${{ matrix.runner }}
