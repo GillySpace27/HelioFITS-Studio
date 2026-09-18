@@ -25,10 +25,21 @@ public final class ImageFilterPanel implements FilterDetails {
     private JComboBox<ImageFilter.Type> filterCombo;
     private SplitButton upsilonButton;
 
-    /** Mirrors the layer's filter in the combo (a sequence filter forces it to None); the listener no-ops on an equal value. */
+    // Programmatic sync of the combo to the layer. setSelectedItem fires the combo's listener, and
+    // this runs from inside that listener's own fan-out (fireLayerUpdated), so without the flag the
+    // listener re-entered applyToSelectedLayers mid-iteration: ConcurrentModificationException.
+    private boolean syncing;
+
+    /** Mirrors the layer's filter in the combo (a sequence filter forces it to None) without fanning it out. */
     public void syncFromLayer(ImageLayer layer) {
-        if (filterCombo != null && filterCombo.getSelectedItem() != layer.getFilter())
-            filterCombo.setSelectedItem(layer.getFilter());
+        if (filterCombo != null && filterCombo.getSelectedItem() != layer.getFilter()) {
+            syncing = true;
+            try {
+                filterCombo.setSelectedItem(layer.getFilter());
+            } finally {
+                syncing = false;
+            }
+        }
         // Here as well as in the combo's listener: that one returns early on an equal value, which is
         // exactly what a sync produces, so a copy of this panel brought into step from elsewhere (the
         // Filters palette and the Image Layers row are two copies of one setting) kept the wrong Υ.
@@ -115,6 +126,8 @@ public final class ImageFilterPanel implements FilterDetails {
             if (filterCombo.getSelectedItem() instanceof ImageFilter.Type type) {
                 filterCombo.setToolTipText(type.description);
                 upsilonButton.setVisible(type == ImageFilter.Type.RHEF);
+                if (syncing)
+                    return;
                 Layers.applyToSelectedLayers(layer, il -> {
                     // The filter lives on the layer's processing settings now, and setting it
                     // already drops the decoded frames and re-renders; the view follows from there.
