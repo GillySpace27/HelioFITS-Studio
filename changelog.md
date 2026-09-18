@@ -1,6 +1,21 @@
 
 # Revision history
 
+## HelioFITS Studio 0.8.1 (pre-release, 2026-09-18)
+
+Fixes found in use of 0.8.0, mostly on LASCO and PUNCH data, and a clearer layer options panel.
+
+### Coronagraph data
+- LASCO frames whose header lost its pointing keep the borrowed roll when a session is restored, not only when the data is first queried; a movie across the 2025-08 C2 gap no longer flips 178° partway through. The borrowed pointing is saved with the session, so a restore needs no extra header reads
+- The mask reaches the whole field of wide-field data: masks were capped at 32 R☉, so on a PUNCH mosaic the outer handle blanked the image one step from the top and the inner handle stopped halfway
+- The mask slider rescales once a layer's first frame arrives, rather than keeping a 0 to 1 R☉ scale for the session
+- Sector direction and opening apply to every selected layer, like the other rows, each keeping its own other half
+
+### Display
+- Grid: a dashed solar limb circle that faces the camera from any angle, to show where the Sun is and how big, and a Main grid switch that hides the grid itself (or the helioradial rings and spokes) while leaving the other overlays up
+- A layer's options are grouped into sections whose headers say what each one holds and what is changed
+- Switching theme no longer crashes from the macOS menu bar, and the playhead strip, the cache dialog's status line and the CACTus Track button follow the new theme without a restart
+
 ## HelioFITS Studio 0.8.0 (pre-release, 2026-09-16)
 
 The first pre-release under the HelioFITS Studio name, for testing ahead of 1.0. It joins the PUNCH and coronagraph work of the preview builds with upstream JHelioviewer's development through 14 September 2026 in a single line. Every entry from this heading down to the JHelioviewer 5.5.0 heading belongs to this release.
