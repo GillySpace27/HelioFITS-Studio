@@ -1,0 +1,177 @@
+name: package
+
+# Builds the self-contained Windows and Linux packages (release/package-app.sh): the application
+# with its own Java, which is what the Mac dmg already is. Each package is then started the way a
+# user would start it and judged exactly as launch.yml judges the zip: main window, graphics
+# context, nothing uncaught, the JPEG 2000 decoder loaded, still running, and the image drawn.
+# A JPEG 2000 file is opened alongside the FITS one, since the decoder is the native most likely
+# to be missing on a user's machine. The package is kept as a build artifact; putting it on a
+# release is a separate step.
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+env:
+  FITS: extra/test/data/syn_AIA_171_2026-01-12T00-00-00_f_V3.fits
+  JP2: extra/test/j2k/lasco-c2-256.jp2
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Full history, but only this commit's files: the build records `git rev-list --count
+          # HEAD` as the revision, which a shallow clone reports as 1. The files are what make the
+          # repository 3 GB, not the history.
+          fetch-depth: 0
+          filter: blob:none
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Install ant, a virtual display, software OpenGL, a screenshot tool and Pillow
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ant xvfb imagemagick libgl1 libgl1-mesa-dri libglx-mesa0 libegl1 python3-pil
+
+      - name: Build
+        run: ant clean jar
+
+      - name: Package
+        run: release/package-app.sh linux
+
+      - name: Launch the package and screenshot
+        run: |
+          xvfb-run -a -s "-screen 0 1600x1000x24" \
+            extra/launch-shot.sh linux-pkg pkg-out/HFStudio/bin/HFStudio -load "$PWD/$FITS" -load "$PWD/$JP2"
+
+      - name: Judge
+        if: always()
+        run: extra/launch-judge.sh app-linux-pkg.log alive-linux-pkg.txt app-linux-pkg.out
+
+      - name: Did the image draw
+        run: python3 extra/launch-pixels.py shot-linux-pkg.png 1500
+
+      # The JPEG 2000 file must have been decoded by the copy the package carries, which AppInit
+      # unpacks under the app's own folder, not by one the runner happens to have.
+      - name: Did the bundled JPEG 2000 decoder load
+        run: |
+          grep -E 'OpenJPEG .* loaded from .*HFStudio' app-linux-pkg.log \
+            || { echo "::error::no JPEG 2000 file was decoded by the bundled OpenJPEG"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: package-linux-evidence
+          path: |
+            shot-linux-pkg.png
+            app-linux-pkg.log
+            app-linux-pkg.out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-linux
+          path: HFStudio-*-linux.tar.gz
+          compression-level: 0   # already compressed
+          retention-days: 14
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Install ant and Pillow
+        run: |
+          choco install -y ant --no-progress
+          python -m pip install --quiet pillow
+
+      # As in launch.yml: at the runner's 1024x768 the image is a 30-pixel strip.
+      - name: Raise the screen to 1920x1080
+        shell: pwsh
+        run: |
+          Add-Type @"
+          using System; using System.Runtime.InteropServices;
+          public class Res {
+            [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+            public struct DEVMODE {
+              [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmDeviceName;
+              public short dmSpecVersion, dmDriverVersion, dmSize, dmDriverExtra;
+              public int dmFields, dmPositionX, dmPositionY, dmDisplayOrientation, dmDisplayFixedOutput;
+              public short dmColor, dmDuplex, dmYResolution, dmTTOption, dmCollate;
+              [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmFormName;
+              public short dmLogPixels;
+              public int dmBitsPerPel, dmPelsWidth, dmPelsHeight, dmDisplayFlags, dmDisplayFrequency,
+                         dmICMMethod, dmICMIntent, dmMediaType, dmDitherType, dmReserved1, dmReserved2,
+                         dmPanningWidth, dmPanningHeight;
+            }
+            [DllImport("user32.dll")] public static extern int EnumDisplaySettings(string d, int m, ref DEVMODE dm);
+            [DllImport("user32.dll")] public static extern int ChangeDisplaySettings(ref DEVMODE dm, int f);
+          }
+          "@
+          $dm = New-Object Res+DEVMODE
+          $dm.dmSize = [Runtime.InteropServices.Marshal]::SizeOf($dm)
+          [Res]::EnumDisplaySettings($null, -1, [ref]$dm) | Out-Null
+          $dm.dmPelsWidth = 1920; $dm.dmPelsHeight = 1080; $dm.dmFields = 0x180000
+          "ChangeDisplaySettings returned $([Res]::ChangeDisplaySettings([ref]$dm, 0)) (0 is success)"
+
+      - name: Build
+        shell: bash
+        run: ant clean jar
+
+      - name: Package
+        shell: bash
+        run: release/package-app.sh windows
+
+      - name: Launch the package and screenshot
+        shell: bash
+        run: |
+          extra/launch-shot.sh windows-pkg pkg-out/HFStudio/HFStudio.exe \
+            -load "$(cygpath -w "$PWD/$FITS")" -load "$(cygpath -w "$PWD/$JP2")"
+
+      - name: Judge
+        if: always()
+        shell: bash
+        run: extra/launch-judge.sh app-windows-pkg.log alive-windows-pkg.txt app-windows-pkg.out
+
+      - name: Did the image draw
+        shell: bash
+        run: python extra/launch-pixels.py shot-windows-pkg.png 1500
+
+      # The JPEG 2000 file must have been decoded by the copy the package carries, which AppInit
+      # unpacks under the app's own folder, not by one the runner happens to have.
+      - name: Did the bundled JPEG 2000 decoder load
+        shell: bash
+        run: |
+          grep -E 'OpenJPEG .* loaded from .*HFStudio' app-windows-pkg.log \
+            || { echo "::error::no JPEG 2000 file was decoded by the bundled OpenJPEG"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: package-windows-evidence
+          path: |
+            shot-windows-pkg.png
+            app-windows-pkg.log
+            app-windows-pkg.out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-windows
+          path: HFStudio-*-windows.zip
+          compression-level: 0
+          retention-days: 14

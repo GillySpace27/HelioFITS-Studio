@@ -25,6 +25,11 @@ grep -q 'OpenGL context' "$LOG"    || { say "FAIL no graphics context was create
 if grep -q 'Uncaught exception' "$LOG"; then
     say "FAIL an exception went uncaught"; fail=1
 fi
+# OpenJpeg's own message when the bundled decoder will not load, which on Windows usually means
+# the Visual C++ runtime is missing. The app keeps running without it, so only the log says so.
+if grep -q 'No JPEG 2000 decoder' "$LOG"; then
+    say "FAIL the JPEG 2000 decoder did not load"; fail=1
+fi
 
 # SEVERE lines and the exception each names, not every WARNING: a network retry is not news.
 echo "--- SEVERE (first 20, each with the line after) ---"

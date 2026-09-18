@@ -22,8 +22,6 @@ on:
 
 env:
   IMAGE: extra/test/data/syn_AIA_171_2026-01-12T00-00-00_f_V3.fits
-  WAIT_FOR_GL: 180   # seconds to wait for the graphics context before calling it a failure
-  SETTLE: 25         # seconds after that for the image to load and draw
 
 jobs:
   linux:
@@ -47,30 +45,12 @@ jobs:
         run: ant jar
 
       - name: Launch and screenshot
-        run: |
-          export HOME_DIR="$RUNNER_TEMP/home"; mkdir -p "$HOME_DIR"
-          # A fresh home, so no earlier session is restored and the log is this run's alone.
-          export JAVA_TOOL_OPTIONS="-Duser.home=$HOME_DIR"
-          xvfb-run -a -s "-screen 0 1600x1000x24" bash -c '
-            ./run.sh -load "$PWD/$IMAGE" > app.out 2>&1 &
-            APP=$!
-            for i in $(seq 1 $WAIT_FOR_GL); do
-              grep -qs "OpenGL context" "$HOME_DIR"/HFStudio/Logs/*.log && break
-              kill -0 $APP 2>/dev/null || break
-              sleep 1
-            done
-            sleep $SETTLE
-            import -window root shot-linux.png || true
-            if kill -0 $APP 2>/dev/null; then echo alive > alive.txt; kill $APP; fi
-            true'
-          cp "$HOME_DIR"/HFStudio/Logs/*.log app-linux.log 2>/dev/null || true
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" extra/launch-shot.sh linux ./run.sh -load "$PWD/$IMAGE"
 
       - name: Judge
         if: always()
-        run: extra/launch-judge.sh app-linux.log alive.txt app.out
+        run: extra/launch-judge.sh app-linux.log alive-linux.txt app-linux.out
 
-      # Xvfb's root window is black and the app's chrome is purple and grey, so the whole screen is
-      # fair to count here; measured at 8529 drawn pixels against 162 from the interface.
       - name: Did the image draw
         run: python3 extra/launch-pixels.py shot-linux.png 1500
 
@@ -81,7 +61,7 @@ jobs:
           path: |
             shot-linux.png
             app-linux.log
-            app.out
+            app-linux.out
 
   windows:
     runs-on: windows-latest
@@ -134,42 +114,14 @@ jobs:
         shell: bash
         run: ant jar
 
-      # Git Bash for the waiting, cmd for run.bat itself, PowerShell only for the screenshot.
       - name: Launch and screenshot
         shell: bash
-        run: |
-          HOME_DIR="$(cygpath -w "$RUNNER_TEMP")\\home"; mkdir -p "$(cygpath -u "$HOME_DIR")"
-          export JAVA_TOOL_OPTIONS="-Duser.home=$HOME_DIR"
-          LOGS="$(cygpath -u "$HOME_DIR")/HFStudio/Logs"
-          cmd //c "run.bat -load $(cygpath -w "$PWD/$IMAGE")" > app.out 2>&1 &
-          APP=$!
-          for i in $(seq 1 $WAIT_FOR_GL); do
-            grep -qs "OpenGL context" "$LOGS"/*.log && break
-            tasklist //FI "IMAGENAME eq java.exe" | grep -qi java.exe || break
-            sleep 1
-          done
-          sleep $SETTLE
-          # The app window only: the desktop behind it (wallpaper, icons) measured 6592 warm
-          # pixels, enough to pass the pixel check with nothing drawn at all.
-          powershell -NoProfile -Command '
-            Add-Type -AssemblyName System.Drawing
-            Add-Type "using System; using System.Runtime.InteropServices;
-              public class W { [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; }
-                [DllImport(""user32.dll"")] public static extern bool GetWindowRect(IntPtr h, out R r); }"
-            $p = Get-Process java | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
-            $r = New-Object W+R; [W]::GetWindowRect($p.MainWindowHandle, [ref]$r) | Out-Null
-            $w = $r.Rt - $r.L; $h = $r.B - $r.T; "app window ${w}x${h} at $($r.L),$($r.T)"
-            $bmp = New-Object System.Drawing.Bitmap $w, $h
-            [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size)
-            $bmp.Save("shot-windows.png")' || true
-          tasklist //FI "IMAGENAME eq java.exe" | grep -qi java.exe && echo alive > alive.txt
-          taskkill //F //IM java.exe > /dev/null 2>&1 || true
-          cp "$LOGS"/*.log app-windows.log 2>/dev/null || true
+        run: extra/launch-shot.sh windows cmd //c "run.bat -load $(cygpath -w "$PWD/$IMAGE")"
 
       - name: Judge
         if: always()
         shell: bash
-        run: extra/launch-judge.sh app-windows.log alive.txt app.out
+        run: extra/launch-judge.sh app-windows.log alive-windows.txt app-windows.out
 
       - name: Did the image draw
         shell: bash
@@ -182,4 +134,4 @@ jobs:
           path: |
             shot-windows.png
             app-windows.log
-            app.out
+            app-windows.out
