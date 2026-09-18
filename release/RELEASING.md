@@ -377,3 +377,27 @@ release object; the next preview would have been `v5.6b-coronal-research`.
   had moved to `archive/preview/` (commit `65b4bbbf9`), which would have aborted
   `package` under `set -e`. `repackage` now copies a root `README.txt` or
   `README.md` if one exists and warns loudly if neither does.
+
+- **2026-09-18: a trailing newline in `VERSION` broke the bundle.** Bumping
+  to 0.8.1 wrote the file with the newline most editors add; `build.xml`
+  loaded it verbatim into the jar manifest as a blank line after `version:`,
+  and a blank line ends a manifest's main section. The packaged app could not
+  find `org.helioviewer.jhv.HFStudio`. `notarize`'s own launch test caught it
+  before anything went to Apple. `build.xml` now strips line breaks from
+  `VERSION` (`0c7ae4192`).
+
+- **2026-09-18: `notarize` failed with "No Keychain password item found for
+  profile: jhv-notary" because the screen had locked.** The same profile had
+  worked twenty minutes earlier. `notarytool` keeps the credential in the
+  data-protection keychain, which is unreadable while the screen is locked,
+  even though `security show-keychain-info` reports the login keychain
+  unlocked. Nothing is wrong with the credential; unlock and rerun. An
+  unattended overnight release has to wait for a login, and did: a watcher
+  polled `CGSSessionScreenIsLocked` and started `notarize` at the next unlock.
+
+- **2026-09-18: `publish` does not check that the dmg is notarized.** It
+  attaches whatever `HFStudio-<version>.dmg` exists in `release/`. The failed
+  run above left a signed but un-notarized 0.8.1 dmg there, which `publish`
+  would have shipped to collaborators' Macs for Gatekeeper to reject. It was
+  renamed aside by hand. Until `publish` verifies `.notarize-run.json`'s
+  sha256 against the dmg, check with `spctl` (step 4) before publishing.
