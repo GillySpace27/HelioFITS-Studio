@@ -248,7 +248,6 @@ public final class Theme {
         return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
     }
 
-    /** WCAG 2.1 contrast ratio, 1 to 21. */
     /**
      * The ground under a nested section's contents: the panel, stepped down.
      *
@@ -274,6 +273,7 @@ public final class Theme {
     /** How far a nested body is stepped toward black, at most. Subtle: a step, not a well. */
     private static final double NEST_STEP = 0.18;
 
+    /** WCAG 2.1 contrast ratio, 1 to 21. */
     public static double contrast(Color a, Color b) {
         double la = luminance(a), lb = luminance(b);
         return la > lb ? (la + 0.05) / (lb + 0.05) : (lb + 0.05) / (la + 0.05);

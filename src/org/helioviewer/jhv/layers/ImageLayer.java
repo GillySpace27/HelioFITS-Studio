@@ -878,12 +878,12 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         return view.getAPIRequest() == null;
     }
 
-    @Nonnull
     /** False while this is still the empty layer the constructor builds, before any frame has arrived. */
     public boolean hasPixels() {
         return viewLoaded;
     }
 
+    @Nonnull
     public ImageDisplaySettings getDisplaySettings() {
         return displaySettings;
     }

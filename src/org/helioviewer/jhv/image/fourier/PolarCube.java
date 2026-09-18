@@ -172,9 +172,8 @@ public final class PolarCube {
     /**
      * The cube at fractional time index u back on a pixel grid, NaN outside [rIn, rIn + nR dr] or
      * where the cube is invalid; addMean puts the subtracted time mean back (a NOTCH output).
-     */
-    /**
-     * Back to a frame's pixel grid. Measured at 233 ms for one 4096 x 4096 frame against a
+     *
+     * <p>Measured at 233 ms for one 4096 x 4096 frame against a
      * 1024 x 512 x 256 cube, which over 245 frames was 57 s of a 114 s run: the whole rest of the
      * filter, the transform included, is a rounding error beside it. Hence the two things below.
      *

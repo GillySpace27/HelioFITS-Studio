@@ -1428,23 +1428,6 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private JLabel diskValue;
 
     /**
-     * How much of the radial axis the solar disk gets, as a multiple of the nominal Box-Cox
-     * anchor, separated from the warp exponent that used to decide it as a side effect.
-     *
-     * <p>Runs the same way as Warp, Crop and Zoom: further right is a bigger disk, because on those
-     * three further right is a tighter field and so a larger apparent size.
-     *
-     * <p><b>No sentinel, deliberately.</b> A discrete "auto" position adjacent to a continuous
-     * range is a discontinuity by construction: one pixel of travel would jump the disk from the
-     * nominal share to the top of the range. Making 1.0 an ordinary value on the scale removes the
-     * jump entirely, and it costs nothing, because 1.0 IS the automatic behaviour -- the anchor is
-     * returned untouched there. Nominal therefore sits near the right rather than at it, about four
-     * fifths of the way along, which is where log-spacing puts it between 0.05 and 2.
-     *
-     * <p>Logarithmic for the usual reason: a multiplier's useful travel is in ratios, so a linear
-     * scale would give the whole range below 1.0 a tenth of the track.
-     */
-    /**
      * The Observer Sky controls: which zenithal projection, how wide a field, and where it is aimed.
      *
      * <p>Grouped in one bordered block rather than added as three more loose sliders, because they
@@ -1601,6 +1584,23 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         return String.format("%+.1f\u00b0, %+.1f\u00b0", lon, lat);
     }
 
+    /**
+     * How much of the radial axis the solar disk gets, as a multiple of the nominal Box-Cox
+     * anchor, separated from the warp exponent that used to decide it as a side effect.
+     *
+     * <p>Runs the same way as Warp, Crop and Zoom: further right is a bigger disk, because on those
+     * three further right is a tighter field and so a larger apparent size.
+     *
+     * <p><b>No sentinel, deliberately.</b> A discrete "auto" position adjacent to a continuous
+     * range is a discontinuity by construction: one pixel of travel would jump the disk from the
+     * nominal share to the top of the range. Making 1.0 an ordinary value on the scale removes the
+     * jump entirely, and it costs nothing, because 1.0 IS the automatic behaviour -- the anchor is
+     * returned untouched there. Nominal therefore sits near the right rather than at it, about four
+     * fifths of the way along, which is where log-spacing puts it between 0.05 and 2.
+     *
+     * <p>Logarithmic for the usual reason: a multiplier's useful travel is in ratios, so a linear
+     * scale would give the whole range below 1.0 a tenth of the track.
+     */
     private JPanel createDiskPanel() {
         diskSlider = new JHVSlider(0, 1000, diskScaleToSlider(Display.getDiskScale())).animates("display.diskScale");
         diskSlider.setToolTipText("Size of the solar disk as a multiple of the nominal Box-Cox warp: 1.00\u00d7 is the warp untouched, right is bigger, left is smaller. Double-click to return to nominal. (available in Helioradial projections)");

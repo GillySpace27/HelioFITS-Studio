@@ -70,15 +70,6 @@ public final class LascoBackground {
     };
 
     /**
-     * The background for one frame, in DN per second, or null when there is nothing to subtract.
-     *
-     * @param detector "C2" or "C3"
-     * @param filter   FITS FILTER, e.g. "Orange" or "Clear"
-     * @param polar    FITS POLAR, e.g. "Clear"
-     * @param milli    the frame's observation time
-     * @param pixels   how many pixels the frame has, so a mismatched background is refused
-     */
-    /**
      * A background this frame should have had could not be fetched right now.
      *
      * <p>Distinct from the null return, which means there is nothing to subtract for this product
@@ -99,6 +90,15 @@ public final class LascoBackground {
     private static final long RETRY_AFTER_MILLI = 30_000;
     private static long failedUntil;
 
+    /**
+     * The background for one frame, in DN per second, or null when there is nothing to subtract.
+     *
+     * @param detector "C2" or "C3"
+     * @param filter   FITS FILTER, e.g. "Orange" or "Clear"
+     * @param polar    FITS POLAR, e.g. "Clear"
+     * @param milli    the frame's observation time
+     * @param pixels   how many pixels the frame has, so a mismatched background is refused
+     */
     @Nullable
     public static synchronized float[] perSecond(String detector, String filter, String polar, long milli, int pixels) {
         if (!enabled())

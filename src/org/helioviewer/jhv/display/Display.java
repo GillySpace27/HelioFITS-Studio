@@ -496,6 +496,15 @@ public final class Display {
         Settings.setProperty("display.showClipping", Boolean.toString(show));
     }
 
+    /** Below this the disk is a speck; above it there is not much corona left to look at. */
+    public static final double DISK_SCALE_MIN = 0.05;
+    public static final double DISK_SCALE_MAX = 2;
+    /** The multiplier that returns the Box-Cox anchor untouched. */
+    public static final double DISK_SCALE_NOMINAL = 1;
+    // 0.5 rather than nominal: half the anchor reads better at every field size tried, which is
+    // unsurprising -- the nominal value was never chosen, it fell out of the Box-Cox algebra.
+    public static final double DEFAULT_DISK_SCALE = 0.5;
+
     /**
      * A multiplier on the nominal Box-Cox limb anchor, deciding how much of the radial axis the
      * solar disk takes. 1.0 is the nominal warp exactly.
@@ -512,15 +521,6 @@ public final class Display {
      * value rather than a sentinel-plus-range, because a sentinel is a discontinuity by
      * construction: stepping off it would jump the disk in one pixel of travel.
      */
-    /** Below this the disk is a speck; above it there is not much corona left to look at. */
-    public static final double DISK_SCALE_MIN = 0.05;
-    public static final double DISK_SCALE_MAX = 2;
-    /** The multiplier that returns the Box-Cox anchor untouched. */
-    public static final double DISK_SCALE_NOMINAL = 1;
-    // 0.5 rather than nominal: half the anchor reads better at every field size tried, which is
-    // unsurprising -- the nominal value was never chosen, it fell out of the Box-Cox algebra.
-    public static final double DEFAULT_DISK_SCALE = 0.5;
-
     private static double diskScale = DEFAULT_DISK_SCALE;
 
     public static double getDiskScale() {

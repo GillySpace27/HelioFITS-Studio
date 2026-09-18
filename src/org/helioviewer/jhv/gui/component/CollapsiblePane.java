@@ -32,10 +32,10 @@ public class CollapsiblePane extends JComponent implements ActionListener {
     private static final int CHILD_INDENT = 12; // how far a nested section steps in from its parent
 
     final CollapsiblePaneButton toggleButton;
-    /** Carries the band's fill behind whatever sits beside the title, so there is no notch in it. */
     /** Ground under a top-level section, between its last control and the next section's band. */
     private static final int SECTION_GAP = 5;
 
+    /** Carries the band's fill behind whatever sits beside the title, so there is no notch in it. */
     private final JPanel header = new JPanel(new BorderLayout());
     @Nullable
     private JComponent accessory;

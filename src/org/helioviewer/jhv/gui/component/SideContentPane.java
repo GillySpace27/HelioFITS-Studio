@@ -88,13 +88,6 @@ public final class SideContentPane extends JComponent {
             pane.setAccessory(accessory);
     }
 
-    /**
-     * Move a section one place up or down among the sections here.
-     *
-     * <p>Past whatever is next to it, a plugin's section included. This pane is shared and the
-     * plugins add to it, so "up" cannot mean "up among the palettes only" without leaving a section
-     * that refuses to pass the one above it for reasons nothing on screen explains.
-     */
     /** The section's pane, for anything that has to draw or measure the section as a whole. */
     @Nullable
     public CollapsiblePane paneFor(JComponent managed) {
@@ -121,6 +114,13 @@ public final class SideContentPane extends JComponent {
         Dosido.swap(pane, other, () -> move(managed, delta));
     }
 
+    /**
+     * Move a section one place up or down among the sections here.
+     *
+     * <p>Past whatever is next to it, a plugin's section included. This pane is shared and the
+     * plugins add to it, so "up" cannot mean "up among the palettes only" without leaving a section
+     * that refuses to pass the one above it for reasons nothing on screen explains.
+     */
     public void move(JComponent managed, int delta) {
         CollapsiblePane pane = map.get(managed);
         int from = indexOf(managed);

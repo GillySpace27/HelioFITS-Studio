@@ -174,13 +174,6 @@ public final class Palette {
     }
 
     /**
-     * Show the palette with this title, wherever it lives. Used by the layer rows.
-     *
-     * <p>Goes through the instance method rather than testing isOpen and toggling: a docked
-     * palette counts as open, so the old test made this a dead button the moment the palette was
-     * moved into the sidebar. "Show it" means reveal the section there, or raise the window here.
-     */
-    /**
      * Carry a palette's remembered state across a change of title, once.
      *
      * <p>Everything a palette remembers is keyed by its title: whether it is open, where it lives,
@@ -215,6 +208,13 @@ public final class Palette {
             Settings.setProperty(to, value);
     }
 
+    /**
+     * Show the palette with this title, wherever it lives. Used by the layer rows.
+     *
+     * <p>Goes through the instance method rather than testing isOpen and toggling: a docked
+     * palette counts as open, so the old test made this a dead button the moment the palette was
+     * moved into the sidebar. "Show it" means reveal the section there, or raise the window here.
+     */
     public static void open(String title) {
         for (Palette p : palettes)
             if (p.title.equals(title))

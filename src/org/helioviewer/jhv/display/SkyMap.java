@@ -53,13 +53,6 @@ final class SkyMap {
     }
 
     /**
-     * Where a world point lands on the page, in normalized map coordinates centred on zero.
-     *
-     * @return null when the point is outside what this projection can draw, which the callers
-     * must treat as a break in a line rather than as a coordinate
-     */
-    @Nullable
-    /**
      * The composed sky, as a pair of maps on the elongation, twinned with solarSky.frag's skyWarp
      * block. The overlays go through these so the grid stays on the picture: the shader's comment
      * there is the geometry, this is the same arithmetic in the other direction.
@@ -124,6 +117,13 @@ final class SkyMap {
         return atElongation(ray, eDome);
     }
 
+    /**
+     * Where a world point lands on the page, in normalized map coordinates centred on zero.
+     *
+     * @return null when the point is outside what this projection can draw, which the callers
+     * must treat as a break in a line rather than as a coordinate
+     */
+    @Nullable
     static Vec2 project(Position viewpoint, MapScale scale, SkyProjection projection,
                         double lookLon, double lookLat, Vec3 world) {
         Vec3 view = viewpoint.toQuat().rotateVector(world);

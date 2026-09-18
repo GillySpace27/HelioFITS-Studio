@@ -90,18 +90,6 @@ public final class ImageBuffer {
     private static final int SAMPLE_STEP = 104729;
 
     /**
-     * How many distinct sample values this frame actually holds.
-     *
-     * <p>The container's depth cannot answer that. A JP2 browse product byte-scaled at ingest and
-     * the calibrated FITS of the same instrument both arrive here as Gray16F, and only one of them
-     * carries more than 256 levels. Counting the values present is the one statement about
-     * quantization that does not take a header's word for it.
-     *
-     * <p>Sampled rather than exhaustive, so it is cheap enough to run on every displayed frame. A
-     * sample can only ever undercount, which is the safe direction: a frame reported as having
-     * more than 256 levels certainly has them.
-     */
-    /**
      * The stored display fraction at one pixel, or NaN where there is nothing to read.
      *
      * <p>The fraction is what the decoder wrote: after its own stretch, before any layer-level
@@ -127,6 +115,18 @@ public final class ImageBuffer {
         }
     }
 
+    /**
+     * How many distinct sample values this frame actually holds.
+     *
+     * <p>The container's depth cannot answer that. A JP2 browse product byte-scaled at ingest and
+     * the calibrated FITS of the same instrument both arrive here as Gray16F, and only one of them
+     * carries more than 256 levels. Counting the values present is the one statement about
+     * quantization that does not take a header's word for it.
+     *
+     * <p>Sampled rather than exhaustive, so it is cheap enough to run on every displayed frame. A
+     * sample can only ever undercount, which is the safe direction: a frame reported as having
+     * more than 256 levels certainly has them.
+     */
     public int measuredLevels() {
         if (measuredLevels < 0)
             measuredLevels = countLevels();
