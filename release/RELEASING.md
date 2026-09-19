@@ -46,7 +46,11 @@ Eight assets, six from `publish` on the Mac and two added by CI:
 
 - `HFStudio-<version>-intel.dmg`: the same for Intel Macs, built on the Apple
   Silicon Mac from an Intel JDK under Rosetta (step 4). Tested under Rosetta,
-  not yet on an Intel Mac. Optional: `publish` attaches it only if it exists,
+  not yet on an Intel Mac. CI (`package.yml`, job `macos-intel`) builds the
+  same bundle unsigned and starts it on GitHub's Intel Mac runner, but that
+  runner's virtual GPU lacks Metal's mac2 family, so ANGLE cannot draw there:
+  CI shows it starts as Intel code, reaches its window and decodes with the
+  bundled OpenJPEG, and nothing about graphics. Optional: `publish` attaches it only if it exists,
   and the release notes point Intel users at the zip otherwise.
 - `HFStudio-<version>.dmg`: signed, notarized, stapled macOS app with an
   embedded JRE. **Apple Silicon only.** Double-click, no Java, no Gatekeeper

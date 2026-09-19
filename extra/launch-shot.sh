@@ -7,7 +7,7 @@
 # Leaves shot-<name>.png, app-<name>.log, app-<name>.out and, if the app was still running when
 # the screenshot was taken, alive-<name>.txt, for extra/launch-judge.sh and launch-pixels.py.
 # On Linux run it inside xvfb-run. On Windows it runs under Git Bash and uses PowerShell only to
-# capture the window.
+# capture the window. On macOS it captures the whole screen with screencapture.
 set -u
 NAME="$1"; shift
 WAIT_FOR_GL="${WAIT_FOR_GL:-180}"   # seconds to wait for a graphics context
@@ -46,6 +46,10 @@ if [ "$WINDOWS" = 1 ]; then
       $bmp = New-Object System.Drawing.Bitmap $w, $h
       [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size)
       $bmp.Save("shot-'"$NAME"'.png")' || true
+elif [ "$(uname -s)" = Darwin ]; then
+    # The whole screen: a runner's desktop is whatever it is, so launch-pixels.py's verdict here
+    # is only as good as that background is plain. Look at the picture.
+    screencapture -x "shot-$NAME.png" || true
 else
     # Xvfb's root window is black and the app's chrome is purple and grey, so the whole screen
     # is fair to count: 8529 drawn pixels against 162 from the interface on the first run.
@@ -57,7 +61,10 @@ if kill -0 "$APP" 2>/dev/null; then
     if [ "$WINDOWS" = 1 ]; then
         taskkill //F //T //PID "$(cat /proc/$APP/winpid)" > /dev/null 2>&1 || true
     else
+        # SIGTERM runs the app's shutdown hooks, which take a few seconds; then insist.
         kill "$APP"
+        for _ in $(seq 1 10); do kill -0 "$APP" 2>/dev/null || break; sleep 1; done
+        kill -9 "$APP" 2>/dev/null || true
     fi
 fi
 cp "$LOGS"/*.log "app-$NAME.log" 2>/dev/null || true

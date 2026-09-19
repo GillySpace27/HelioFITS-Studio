@@ -189,6 +189,93 @@ jobs:
           compression-level: 0
           retention-days: 14
 
+  # The Intel Mac build, started on an Intel Mac. Not a package anyone downloads: the Intel dmg
+  # is built and signed on the Mac by `MAC_ARCH=x64 deploy_release.sh notarize`, which stages it
+  # the same way, so this builds that bundle unsigned and starts it. It does not gate the attach
+  # job, which only handles the two packages CI builds itself.
+  macos-intel:
+    runs-on: macos-26-intel   # the longest-lived Intel label; see checks.yml
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Install ant and Pillow
+        run: |
+          brew install ant
+          python3 -m pip install --quiet --break-system-packages pillow || python3 -m pip install --quiet pillow
+
+      - name: Build
+        run: ant clean jar
+
+      - name: Package (unsigned app bundle)
+        run: release/package-app.sh macos-x64
+
+      # ANGLE draws through Metal on a Mac, so say what graphics device this runner offers. Measured
+      # 2026-09-19: an "Apple Paravirtualized Graphics Device" with Metal but without the mac2 GPU
+      # family (common1 and common2 only), on which ANGLE's Metal display will not initialise:
+      # eglGetPlatformDisplay fails, although the same Intel ANGLE draws fine under Rosetta on an
+      # Apple Silicon Mac. So the graphics checks run only when the device has mac2, and switch
+      # back on by themselves if the runner ever gets one.
+      - name: What graphics does this runner have
+        run: |
+          system_profiler SPDisplaysDataType | grep -iE 'chipset|model|vendor|metal|vram|resolution|display type' || true
+          swift -e 'import Metal
+          if let d = MTLCreateSystemDefaultDevice() {
+            print("Metal device:", d.name)
+            for (n, f) in [("mac2", MTLGPUFamily.mac2), ("common1", .common1), ("common2", .common2), ("common3", .common3), ("metal3", .metal3)] { print("  supports \(n):", d.supportsFamily(f)) }
+          } else { print("Metal device: none") }' 2>&1 | tail -8 | tee metal.txt || true
+          if grep -q 'supports mac2: true' metal.txt; then echo "HAS_MAC2=true" >> "$GITHUB_ENV"; else echo "HAS_MAC2=false" >> "$GITHUB_ENV"; fi
+
+      - name: Launch the bundle and screenshot
+        run: |
+          extra/launch-shot.sh macos-intel pkg-out/HFStudio.app/Contents/MacOS/HFStudio \
+            -load "$PWD/$FITS" -load "$PWD/$JP2"
+
+      - name: Judge
+        if: always() && env.HAS_MAC2 == 'true'
+        run: extra/launch-judge.sh app-macos-intel.log alive-macos-intel.txt app-macos-intel.out
+
+      # Without mac2, everything short of drawing: it started as Intel code, reached its main
+      # window, and its one SEVERE is the known display failure. Anything else still fails here.
+      - name: Judge what this runner can show
+        if: always() && env.HAS_MAC2 != 'true'
+        run: |
+          L=app-macos-intel.log; fail=0
+          grep -q 'loadVersion.*x86_64' "$L" || { echo "FAIL did not run as Intel (x86_64) code"; fail=1; }
+          grep -q 'Start main window' "$L"   || { echo "FAIL main window never started"; fail=1; }
+          other=$(grep -A1 SEVERE "$L" | grep -vE 'SEVERE|eglGetPlatformDisplay failed|^--$' || true)
+          [ -z "$other" ] || { echo "FAIL a SEVERE other than the known display failure:"; echo "$other"; fail=1; }
+          grep -E 'loadVersion|Start main window' "$L" | cut -c1-200
+          [ $fail = 0 ] && echo "PASS as far as a runner without mac2 Metal can show; graphics untested here"
+          exit $fail
+      - name: Did the bundled JPEG 2000 decoder load
+        run: |
+          grep -E 'OpenJPEG .* loaded from .*HFStudio' app-macos-intel.log \
+            || { echo "::error::no JPEG 2000 file was decoded by the bundled OpenJPEG"; exit 1; }
+
+      # The whole screen is captured, so a desktop background counts too; revisit the threshold
+      # with a screenshot in hand if this ever runs on a runner with mac2.
+      - name: Did the image draw
+        if: env.HAS_MAC2 == 'true'
+        run: python3 extra/launch-pixels.py shot-macos-intel.png 1500
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: package-macos-intel-evidence
+          path: |
+            shot-macos-intel.png
+            app-macos-intel.log
+            app-macos-intel.out
+
   attach:
     needs: [linux, windows]
     if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
