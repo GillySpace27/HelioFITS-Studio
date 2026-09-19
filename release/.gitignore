@@ -17,6 +17,7 @@ __pycache__/
 .cs.err
 .np.err
 .notarize-run.json
+.notarize-run-intel.json
 
 # guide content backups
 guide_content.bak.json
@@ -26,3 +27,4 @@ guide_content.prepanel.json
 *.log
 *.bak
 .DS_Store
+.jdk-x64/

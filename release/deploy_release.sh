@@ -90,6 +90,19 @@ repackage() {
 notes_file() {
     NOTES="$(mktemp)"
     DMGSHA="$([ -f "$DMG" ] && shasum -a 256 "$DMG" | awk '{print $1}' || echo '(built by: ./deploy_release.sh notarize)')"
+    # The Intel dmg is optional: the notes point Intel Macs at it only if it was built for this release.
+    if [ -f "$DMG_INTEL" ]; then
+        INTEL_INSTALL="**Intel Mac:** download **${DMG_INTEL##*/}**, open it, and drag **$BUNDLE_NAME** into your
+Applications folder. Signed and notarized, with its own Java, like the Apple Silicon one. It has
+been built and tested under Rosetta on an Apple Silicon Mac but not yet used on an Intel Mac, so
+please tell us how it does."
+        INTEL_FILE="- \`${DMG_INTEL##*/}\`: macOS app, Intel (signed + notarized, embedded Java; sha256 below)"
+        INTEL_SHA="sha256  $(shasum -a 256 "$DMG_INTEL" | awk '{print $1}')  ${DMG_INTEL##*/}"
+    else
+        INTEL_INSTALL="**Intel Mac:** download **$TOP.zip**. It needs **Java 25+** (https://adoptium.net \"Temurin 25\",
+or \`brew install openjdk@25\`). Unzip, then double-click \`run.command\`."
+        INTEL_FILE=""; INTEL_SHA=""
+    fi
     PRE_NOTE=""; [ -n "$PRERELEASE" ] && PRE_NOTE="This is a pre-release, published for testing ahead of 1.0. It is used daily on Apple Silicon Macs; Windows and Linux are new. Please report anything that breaks."
     cat > "$NOTES" <<EOF
 **$APP_NAME $VERSION**
@@ -163,8 +176,7 @@ this repository explains the fork, its relationship to JHelioviewer and its lice
 into your Applications folder. It is signed and notarized, so it opens with no security warning,
 and it carries its own Java runtime, so there is nothing else to install. Just double-click.
 
-**Intel Mac:** download **$TOP.zip**. It needs **Java 25+** (https://adoptium.net "Temurin 25",
-or \`brew install openjdk@25\`). Unzip, then double-click \`run.command\`.
+$INTEL_INSTALL
 
 **Windows and Linux (early):** download **$TOP-windows.zip** or **$TOP-linux.tar.gz**. Each carries
 its own Java, so there is nothing else to install: unzip and run \`HFStudio\\HFStudio.exe\`, or untar
@@ -179,13 +191,15 @@ The full walkthrough is the **${PDF##*/}** asset on this release (also as \`.md\
 
 ### Files
 - \`$TOP.dmg\`: macOS app, Apple Silicon (signed + notarized, embedded Java; sha256 below)
-- \`$TOP.zip\`: Intel Mac, run with your own Java 25 (sha256 below)
+$INTEL_FILE
+- \`$TOP.zip\`: any system with your own Java 25 installed (sha256 below)
 - \`$TOP-windows.zip\` / \`$TOP-linux.tar.gz\`: Windows and Linux, embedded Java, added by the build service (sha256 appended below when they land)
 - \`${PDF##*/}\` / \`.md\`: the field guide (updated independently of the binary)
 - \`fabric_suvi.json.gz\`: demo point cloud; Open… it in the Point Cloud layer
 
 \`\`\`
 sha256  $DMGSHA  $TOP.dmg
+$INTEL_SHA
 sha256  $SHA  $TOP.zip
 \`\`\`
 
@@ -227,6 +241,7 @@ publish() {
     # Include the notarized macOS .dmg when it's been built (via `notarize`); the notes
     # reference it, so ship it alongside the zip.
     DMG_ASSET=""; [ -f "$DMG" ] && DMG_ASSET="$DMG"
+    [ -f "$DMG_INTEL" ] && [ "$DMG_INTEL" != "$DMG" ] && DMG_ASSET="$DMG_ASSET $DMG_INTEL"
     CLOUD_ASSET=""; [ -f "$CLOUD" ] && CLOUD_ASSET="$CLOUD"
     echo "==> creating release $TAG"
     gh release create "$TAG" "$ZIP" "$PDF" "$MD" $DMG_ASSET $CLOUD_ASSET \
@@ -241,8 +256,10 @@ publish() {
 # .dmg. Config via env (or it auto-detects the first Developer ID it finds):
 #   DEV_ID_APP     "Developer ID Application: NAME (TEAMID)"  (from: security find-identity -v -p codesigning)
 #   NOTARY_PROFILE keychain profile name for notarytool        (default: jhv-notary, a legacy name; see RELEASING.md)
-# App is arm64 (matches the JDK/dylib we build). Intel Macs need a separate
-# amd64 dylib + JDK; a later add; ponytail: arm64 only until someone asks.
+#   MAC_ARCH       arm64 (default) or x64. x64 builds the Intel Mac dmg, HFStudio-<v>-intel.dmg,
+#                  from an Intel JDK (release/.jdk-x64, Temurin 25 for mac/x64, run under Rosetta):
+#                  jlink and jpackage have to be the target architecture's. The Metal host
+#                  dylib is already built for both architectures.
 BUNDLE_ID="space.gilly.hfstudio"
 # jpackage refuses any app-version whose first number is zero, and this project ships 0.x on
 # purpose, so it is handed a version it accepts and the real one is written into the bundle
@@ -251,8 +268,17 @@ APP_VERSION="$VERSION"         # jpackage requires a numeric version; checked at
 case "$VERSION" in
     0.*) APP_VERSION="1.0.0" ;;
 esac
-DMG="$HERE/$TOP.dmg"
-ARCH_RES="jhv/macos-arm64"    # resource path AngleLibraries extracts the dylib from
+MAC_ARCH="${MAC_ARCH:-arm64}"
+case "$MAC_ARCH" in
+    arm64) DMG="$HERE/$TOP.dmg";       ARCH_RES="jhv/macos-arm64"; STAGE_PLATFORM=macos-arm64; RECEIPT="$HERE/.notarize-run.json" ;;
+    x64)   DMG="$HERE/$TOP-intel.dmg"; ARCH_RES="jhv/macos-amd64"; STAGE_PLATFORM=macos-x64;   RECEIPT="$HERE/.notarize-run-intel.json"
+           [ -n "${JAVA_HOME:-}" ] && [ "$(file -b "$JAVA_HOME/bin/java" 2>/dev/null | grep -c x86_64)" = 1 ] \
+               || JAVA_HOME="$HERE/.jdk-x64/Contents/Home"
+           [ -x "$JAVA_HOME/bin/jpackage" ] || { echo "!! MAC_ARCH=x64 needs an Intel JDK 25 at release/.jdk-x64: unpack Temurin 25's mac/x64 JDK there (api.adoptium.net, checksum-verify it; RELEASING.md has the commands)" >&2; exit 2; } ;;
+    *) echo "!! MAC_ARCH must be arm64 or x64, not '$MAC_ARCH'" >&2; exit 2 ;;
+esac
+DMG_INTEL="$HERE/$TOP-intel.dmg"   # publish attaches it when it exists, whichever MAC_ARCH is set
+# ARCH_RES is the resource path AngleLibraries extracts the dylib from.
 DYLIB="lib/natives-macos/libjhvmetalhost.dylib"
 
 notarize_preconditions() {
@@ -366,7 +392,7 @@ notarize_mac() {
 
     # Everything jpackage bundles is the classpath: the main jar and the dependency jars (the
     # manifest Class-Path points at lib/), with only this platform's natives (stage-app.sh).
-    ( cd "$SRC" && "$HERE/stage-app.sh" macos-arm64 "$APPSTAGE" )
+    ( cd "$SRC" && "$HERE/stage-app.sh" "$STAGE_PLATFORM" "$APPSTAGE" )
 
     # Inject the native dylib into the main jar at the resource path AngleLibraries reads,
     # because a .app runs with cwd=/ so the cwd-relative lib/natives-macos lookup can't
@@ -391,7 +417,9 @@ PLIST
     sign_jar_natives "$APPSTAGE"
 
     echo "==> jlinking the trimmed runtime from $JAVA_HOME"
-    "$HERE/make-runtime.sh" "$HERE/.runtime"
+    # Passed explicitly: JAVA_HOME may have been chosen in this script (MAC_ARCH=x64, or found by
+    # notarize_preconditions) rather than exported by the caller.
+    JAVA_HOME="$JAVA_HOME" "$HERE/make-runtime.sh" "$HERE/.runtime"
     echo "==> jpackage app-image (embeds the trimmed runtime)"
     "$JAVA_HOME/bin/jpackage" \
         --type app-image --name "$BUNDLE_NAME" --app-version "$APP_VERSION" \
@@ -487,7 +515,7 @@ PLIST
     # 2026-08-23. A check that intermittently calls a good dmg unnotarized is one you
     # learn to ignore. Everything above this line ran under `set -e`, so reaching here
     # means the staple and the validate both succeeded.
-    cat > "$HERE/.notarize-run.json" <<EOF
+    cat > "$RECEIPT" <<EOF
 {
   "dmg_sha256": "$(shasum -a 256 "$DMG" | awk '{print $1}')",
   "build_sha": "$(cd "$SRC" && git rev-parse HEAD)",
@@ -495,7 +523,7 @@ PLIST
   "notarized_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 EOF
-    echo "==> receipt written: .notarize-run.json"
+    echo "==> receipt written: ${RECEIPT##*/}"
 
     rm -rf "$APPSTAGE" "$OUT" "$ENT"
     echo "==> done: $DMG  ($(du -h "$DMG" | awk '{print $1}'))"

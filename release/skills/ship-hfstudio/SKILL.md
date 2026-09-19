@@ -53,11 +53,12 @@ they package whatever jar is on disk and upload whatever dmg already exists. So:
 1. commit + push the source to `master`
 2. `ant clean jar build-metal-host`
 3. regenerate the guide
-4. `notarize` (produces the dmg)
+4. `notarize` (produces the dmg), then `MAC_ARCH=x64 ... notarize` for the
+   Intel dmg (needs the Intel JDK at `release/.jdk-x64`; RELEASING.md step 4)
 5. smoke-test the app **inside the dmg**
 6. **gate**, then `publish`
 7. wait for CI's `package` run on the tag, which attaches the Windows and
-   Linux packages, then confirm asset dates changed (seven assets)
+   Linux packages, then confirm asset dates changed (eight assets, seven without an Intel dmg)
 
 Skipping step 4 before step 6 is how a month-old dmg got shipped on 2026-07-14
 with nothing failing and nothing warning.

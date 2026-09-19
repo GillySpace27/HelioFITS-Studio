@@ -3,7 +3,7 @@
 # libraries for every other platform left out. Used by deploy_release.sh (the Mac dmg) and
 # package-app.sh (Windows, Linux).
 #
-#   release/stage-app.sh macos-arm64|windows|linux <stage directory>    (from the repository root)
+#   release/stage-app.sh macos-arm64|macos-x64|windows|linux <stage directory>    (from the repository root)
 #
 # lib/ carries natives for four platforms, about 200 MB of which any one package uses a quarter.
 # Native jars are named for their platform (jhv-natives-windows.jar, lwjgl-*-natives-linux.jar,
@@ -17,7 +17,9 @@ case "$PLATFORM" in
     linux)       KEEP=(-name '*-natives-linux.jar') ;;
     # sqlite's Mac jar holds both architectures in one file.
     macos-arm64) KEEP=(-name '*-natives-macos-arm64.jar' -o -name 'sqlite-jdbc-*-natives-macos.jar') ;;
-    *) echo "usage: $0 macos-arm64|windows|linux <stage directory>" >&2; exit 2 ;;
+    # The Intel Mac jars are the unsuffixed *-natives-macos.jar ones (jhv's is macos-amd64 inside).
+    macos-x64)   KEEP=(-name '*-natives-macos.jar') ;;
+    *) echo "usage: $0 macos-arm64|macos-x64|windows|linux <stage directory>" >&2; exit 2 ;;
 esac
 
 rm -rf "$STAGE"; mkdir -p "$STAGE"

@@ -42,8 +42,12 @@ stale when a new release is cut, and it doubles as the way back to a previous
 build. GitHub Pages is case-sensitive, so `/jhv` and `/JHV` are separate paths;
 both exist and both were fixed. Only ever hand out the lowercase form.
 
-Seven assets, five from `publish` on the Mac and two added by CI:
+Eight assets, six from `publish` on the Mac and two added by CI:
 
+- `HFStudio-<version>-intel.dmg`: the same for Intel Macs, built on the Apple
+  Silicon Mac from an Intel JDK under Rosetta (step 4). Tested under Rosetta,
+  not yet on an Intel Mac. Optional: `publish` attaches it only if it exists,
+  and the release notes point Intel users at the zip otherwise.
 - `HFStudio-<version>.dmg`: signed, notarized, stapled macOS app with an
   embedded JRE. **Apple Silicon only.** Double-click, no Java, no Gatekeeper
   prompt. This is what almost everyone should get.
@@ -197,6 +201,28 @@ spctl -a -t open --context context:primary-signature -v "HFStudio-$(cat ../VERSI
 # want: accepted / source=Notarized Developer ID
 ```
 
+Then the Intel dmg, the same way with `MAC_ARCH=x64`. It needs an Intel
+JDK 25 unpacked at `release/.jdk-x64` (git-ignored): jlink and jpackage have to
+be the target architecture's, and they run fine under Rosetta. The Metal host
+dylib is already built for both architectures. Once per JDK update:
+
+```sh
+cd ~/Documents/NWRA/PUNCH_Science/JHelioviewer-SWHV/release
+API="https://api.adoptium.net/v3/assets/latest/25/hotspot?architecture=x64&image_type=jdk&os=mac"
+URL=$(curl -s "$API" | python3 -c "import json,sys; print(json.load(sys.stdin)[0]['binary']['package']['link'])")
+SUM=$(curl -s "$API" | python3 -c "import json,sys; print(json.load(sys.stdin)[0]['binary']['package']['checksum'])")
+curl -L -o jdk-x64.tar.gz "$URL"
+[ "$(shasum -a 256 jdk-x64.tar.gz | cut -d' ' -f1)" = "$SUM" ] && echo checksum OK
+rm -rf .jdk-x64 && mkdir .jdk-x64 && tar -xzf jdk-x64.tar.gz -C .jdk-x64 --strip-components 1 && rm jdk-x64.tar.gz
+```
+
+```sh
+MAC_ARCH=x64 ./deploy_release.sh notarize      # writes HFStudio-<version>-intel.dmg
+spctl -a -t open --context context:primary-signature -v "HFStudio-$(cat ../VERSION)-intel.dmg"
+```
+
+Its receipt is `.notarize-run-intel.json`, beside the Apple Silicon one.
+
 ### 5. Smoke-test the actual artifact
 
 Mount the dmg and launch the app it contains, not the jar you built. This is
@@ -253,9 +279,10 @@ gh release view "v$(cat ../VERSION)" --repo GillySpace27/HFStudio \
 ```
 
 Every asset's `updatedAt` should be from this run. An asset with an older date
-was not replaced, which is the exact failure logged for 2026-07-14 below. Seven
-assets once CI has finished; five means the Windows and Linux packages are
-missing, and the `package` run for the tag says why.
+was not replaced, which is the exact failure logged for 2026-07-14 below. Eight
+assets once CI has finished (seven if no Intel dmg was built); two fewer means
+the Windows and Linux packages are missing, and the `package` run for the tag
+says why.
 
 ## Hand-off boundary
 
