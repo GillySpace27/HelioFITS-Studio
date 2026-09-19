@@ -1,10 +1,24 @@
 
 # Revision history
 
-## Unreleased
+## HFStudio 0.8.2 (pre-release, 2026-09-19)
 
+A new name and icon, and a download for every platform that carries its own Java.
+
+### Name and icon
 - Rename the application to HFStudio. HelioFITS Studio was too easily confused with the HelioFITS preview plugin. The repository is now `GillySpace27/HFStudio`, and GitHub forwards the old addresses
 - Register with SAMP as `HFStudio`, so a script that finds the application by its old name needs the new one
+- A new icon that fills the macOS squircle and reads HFS. macOS 26 had been shrinking the old one onto a grey plate on every fresh install
+
+### Downloads
+- A signed and notarized dmg for Intel Macs beside the Apple Silicon one, built from an Intel JDK and tested under Rosetta, not yet on an Intel Mac
+- Windows and Linux packages that carry their own Java, attached to the release by CI only once each has started, drawn an image and decoded a JPEG 2000 file with its bundled OpenJPEG. Nobody has used them on real hardware yet, and the Windows build is not code-signed, so SmartScreen warns on first run
+- Every package carries a trimmed Java runtime and only its own platform's native libraries, roughly halving it: the Mac app bundle goes from 319 MB to 153 MB
+
+### Fixes
+- Changing the filter with two or more image layers selected no longer throws
+- When a computer's graphics cannot start (Metal, Direct3D 11 or OpenGL), HFStudio says so in words and says where the log is, instead of showing a stack trace
+- The log records which OpenJPEG was loaded, and from where
 
 ## HFStudio 0.8.1 (pre-release, 2026-09-18)
 

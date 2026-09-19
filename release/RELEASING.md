@@ -35,11 +35,10 @@ Tags follow `VERSION`: `v0.8.0`, then whatever the next bump is. Versions below 
 bumping `VERSION` first. To correct a mistake on the newest release, delete that
 release deliberately by hand first.
 
-Public link: **<https://gilly.space/hfs>**, which redirects to the repo's
-**`/releases` index**, not to any single tag. That page always shows the newest
-release with its assets and lists the older ones underneath, so it cannot go
-stale when a new release is cut, and it doubles as the way back to a previous
-build. GitHub Pages is case-sensitive, so `/jhv` and `/JHV` are separate paths;
+Public link: **<https://gilly.space/hfs>**, a download page that asks GitHub
+for the newest release each time it loads, so it cannot go stale when a new
+release is cut. Older builds stay on the repository's `/releases` page, which is
+the way back to a previous one. GitHub Pages is case-sensitive, so `/jhv` and `/JHV` are separate paths;
 both exist and both were fixed. Only ever hand out the lowercase form.
 
 Eight assets, six from `publish` on the Mac and two added by CI:
@@ -259,8 +258,8 @@ This tags the current commit as `v<version>`, pushes the tag, and creates a
 **new** release. It will refuse outright if that tag already has a release.
 There is no tag override: the tag comes from `VERSION` alone.
 
-The short link needs no update: it points at `/releases`, which always shows the
-newest.
+The short link needs no update: the download page finds the newest release by
+itself.
 
 Publishing fires GitHub's `release: published` event, which runs
 `package.yml` on the new tag. Its `attach` job uploads the Windows and Linux
