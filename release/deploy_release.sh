@@ -264,9 +264,10 @@ notarize_preconditions() {
         done
     fi
     [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/jpackage" ] || { echo "!! set JAVA_HOME to a JDK 25 (needs jpackage)"; exit 2; }
-    # We hand jpackage the whole JDK as --runtime-image (it copies it as the bundled
-    # runtime) rather than jlinking, so jmods aren't required. Prefer a real .jdk
-    # bundle (Temurin) over the Homebrew keg, whose symlinked layout breaks the copy.
+    # The bundled runtime is jlinked from this JDK by make-runtime.sh: the modules the app
+    # uses, not the whole JDK (54 MB against 295 MB on Temurin 25). Java 25's jlink can link
+    # from an installed JDK without its jmods. Prefer a real .jdk bundle (Temurin) over the
+    # Homebrew keg, whose symlinked layout jpackage has tripped on before.
     command -v xcrun >/dev/null 2>&1 || { echo "!! Xcode command-line tools required (xcrun not found)"; exit 2; }
     "$JAVA_HOME/bin/jpackage" --version >/dev/null 2>&1 || { echo "!! jpackage not found under JAVA_HOME=$JAVA_HOME"; exit 2; }
 
@@ -361,12 +362,11 @@ notarize_mac() {
     [ -f "$SRC/$DYLIB" ] || { echo "!! $DYLIB missing after build"; exit 1; }
 
     APPSTAGE="$HERE/.app_stage"; OUT="$HERE/.app_out"; ENT="$HERE/.entitlements.plist"
-    rm -rf "$APPSTAGE" "$OUT"; mkdir -p "$APPSTAGE"
+    rm -rf "$OUT"
 
-    # Everything jpackage bundles is the classpath. Copy the main jar AND all dependency
-    # jars (the manifest Class-Path points at lib/…) or the app launches with no deps.
-    cp "$SRC/HFStudio.jar" "$APPSTAGE/HFStudio.jar"
-    cp -R "$SRC/lib" "$APPSTAGE/lib"
+    # Everything jpackage bundles is the classpath: the main jar and the dependency jars (the
+    # manifest Class-Path points at lib/), with only this platform's natives (stage-app.sh).
+    ( cd "$SRC" && "$HERE/stage-app.sh" macos-arm64 "$APPSTAGE" )
 
     # Inject the native dylib into the main jar at the resource path AngleLibraries reads,
     # because a .app runs with cwd=/ so the cwd-relative lib/natives-macos lookup can't
@@ -390,7 +390,9 @@ PLIST
     echo "==> signing native libraries inside the bundled jars"
     sign_jar_natives "$APPSTAGE"
 
-    echo "==> jpackage app-image (embeds the full JDK at $JAVA_HOME as the runtime)"
+    echo "==> jlinking the trimmed runtime from $JAVA_HOME"
+    "$HERE/make-runtime.sh" "$HERE/.runtime"
+    echo "==> jpackage app-image (embeds the trimmed runtime)"
     "$JAVA_HOME/bin/jpackage" \
         --type app-image --name "$BUNDLE_NAME" --app-version "$APP_VERSION" \
         --input "$APPSTAGE" --main-jar HFStudio.jar \
@@ -400,7 +402,7 @@ PLIST
         --java-options "--add-exports=java.desktop/sun.swing=ALL-UNNAMED" \
         --mac-package-identifier "$BUNDLE_ID" \
         --icon "$ICNS" \
-        --runtime-image "$JAVA_HOME" \
+        --runtime-image "$HERE/.runtime" \
         --dest "$OUT"
     APP="$OUT/$BUNDLE_NAME.app"
     [ -d "$APP" ] || { echo "!! jpackage produced no .app"; exit 1; }

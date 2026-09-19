@@ -16,11 +16,10 @@ case "$OS" in windows|linux) ;; *) echo "usage: $0 windows|linux" >&2; exit 2 ;;
 VERSION="$(tr -d '[:space:]' < VERSION)"
 [ -f HFStudio.jar ] || { echo "!! no HFStudio.jar: run 'ant jar' first" >&2; exit 1; }
 
-rm -rf pkg-stage pkg-out; mkdir -p pkg-stage pkg-out
-# Everything jpackage bundles is the classpath: the main jar and every dependency jar, natives
-# for all platforms included, as the Mac bundle does. AppInit unpacks this platform's own.
-cp HFStudio.jar pkg-stage/
-cp -R lib pkg-stage/lib
+rm -rf pkg-out; mkdir -p pkg-out
+# Everything jpackage bundles is the classpath: the main jar and the dependency jars, with only
+# this platform's natives (stage-app.sh). AppInit unpacks them at start.
+release/stage-app.sh "$OS" pkg-stage
 
 # The Mac icon, redrawn at the sizes each system asks for.
 PY="$(command -v python3 || command -v python)"
@@ -37,6 +36,9 @@ else:
     im.resize((512, 512)).save(out)
 EOF
 
+# The same trimmed runtime as the Mac bundle: see make-runtime.sh for what is in it and why.
+release/make-runtime.sh pkg-runtime
+
 # The same launch options as the Mac bundle. The jar's manifest says Add-Exports, but that is only
 # honoured for `java -jar`; a native launcher starts the main class and needs them spelled out.
 jpackage --type app-image --name HFStudio --app-version "$VERSION" \
@@ -45,13 +47,14 @@ jpackage --type app-image --name HFStudio --app-version "$VERSION" \
     --java-options "--add-exports=java.desktop/sun.awt=ALL-UNNAMED" \
     --java-options "--add-exports=java.desktop/sun.swing=ALL-UNNAMED" \
     --icon "$ICON" \
-    --runtime-image "$JAVA_HOME" \
+    --runtime-image pkg-runtime \
     --dest pkg-out
 
 if [ "$OS" = windows ]; then
     # The bundled JPEG 2000 decoder imports vcruntime140.dll. The JVM loads the copy in its own
     # runtime first, and Windows then reuses it, so a machine without the Visual C++
-    # redistributable still decodes. That holds only while the runtime carries the file.
+    # redistributable still decodes. That holds only while the runtime carries the file, which
+    # after trimming means only while jlink keeps it with java.base.
     [ -f pkg-out/HFStudio/runtime/bin/vcruntime140.dll ] \
         || { echo "!! the bundled runtime has no vcruntime140.dll; OpenJPEG would not load on a bare Windows" >&2; exit 1; }
     ARCHIVE="HFStudio-$VERSION-windows.zip"

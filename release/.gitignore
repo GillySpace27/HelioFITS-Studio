@@ -8,6 +8,7 @@ __pycache__/
 # scratch dirs and files the package/notarize/icon steps create
 .release_stage/
 .app_stage/
+.runtime/
 .app_out/
 .dmg_stage/
 .HFStudio.iconset/

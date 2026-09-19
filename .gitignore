@@ -18,3 +18,11 @@ __pycache__/
 extra/test/.java-bin
 AGENTS.md
 extra/test/out
+
+# release/package-app.sh (Windows and Linux packages, normally built in CI)
+pkg-stage/
+pkg-out/
+pkg-runtime/
+pkg-icon.*
+HFStudio-*-windows.zip
+HFStudio-*-linux.tar.gz
