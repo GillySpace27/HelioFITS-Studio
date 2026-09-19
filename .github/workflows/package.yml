@@ -251,7 +251,12 @@ jobs:
           L=app-macos-intel.log; fail=0
           grep -q 'loadVersion.*x86_64' "$L" || { echo "FAIL did not run as Intel (x86_64) code"; fail=1; }
           grep -q 'Start main window' "$L"   || { echo "FAIL main window never started"; fail=1; }
-          other=$(grep -A1 SEVERE "$L" | grep -vE 'SEVERE|eglGetPlatformDisplay failed|^--$' || true)
+          # The failure must take the graceful path: said once, in words, not thrown at the user.
+          grep -q 'Graphics could not start' "$L" || { echo "FAIL no graceful graphics-unsupported report"; fail=1; }
+          ! grep -q 'Uncaught exception' "$L"     || { echo "FAIL the graphics failure went uncaught"; fail=1; }
+          # SEVERE lines themselves: the graceful report carries its cause on the same line, and an
+          # uncaught one is already caught above, so the line after a SEVERE proves nothing.
+          other=$(grep SEVERE "$L" | grep -v 'eglGetPlatformDisplay failed' || true)
           [ -z "$other" ] || { echo "FAIL a SEVERE other than the known display failure:"; echo "$other"; fail=1; }
           grep -E 'loadVersion|Start main window' "$L" | cut -c1-200
           [ $fail = 0 ] && echo "PASS as far as a runner without mac2 Metal can show; graphics untested here"

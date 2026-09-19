@@ -254,11 +254,34 @@ public final class AngleCanvas extends Canvas {
             if (Platform.isMacOS())
                 nativeHostScale = Display.pixelScale[0];
             invalidateGlSize();
+        } catch (AngleRenderer.GraphicsUnavailableException e) {
+            // The system's graphics would not start. That used to escape to the uncaught-exception
+            // handler, whose dialog is a stack trace, for something no user can fix by reading one.
+            // Say it once in plain words (attachmentFailed stops the retries) and keep the details
+            // in the log. Later, not here: this runs inside layout and painting, where a modal
+            // dialog would re-enter them.
+            attachmentFailed = true;
+            org.helioviewer.jhv.app.Log.error("Graphics could not start; images cannot be shown", e);
+            EventQueue.invokeLater(AngleCanvas::sayGraphicsUnsupported);
         } catch (RuntimeException | Error e) {
+            // Anything else is a fault in HFStudio (a missing library, a bug), not the machine's
+            // graphics, and keeps the crash report that says so.
             // Keep the macOS host until removeNotify so its JAWT layer is cleared only during Canvas teardown.
             attachmentFailed = true;
             throw e;
         }
+    }
+
+    private static void sayGraphicsUnsupported() {
+        String api = Platform.isMacOS() ? "Metal" : Platform.isWindows() ? "Direct3D 11" : "OpenGL";
+        org.helioviewer.jhv.app.Message.err("Graphics not supported",
+                "HFStudio could not start its graphics on this computer, so it cannot show images.\n\n"
+                        + "It draws through " + api + ", and this system's graphics would not start it. That usually "
+                        + "means the graphics hardware or its driver is too old, or that this is a virtual machine "
+                        + "without full graphics support.\n\n"
+                        + "If it happens on a computer you expect to work, please send the log from\n"
+                        + org.helioviewer.jhv.io.Directories.LOGS.getPath() + "\n"
+                        + "to gilly@nwra.com or https://github.com/GillySpace27/HFStudio/issues");
     }
 
     // Keep native scale and visibility synchronized, then trigger a redraw if needed.

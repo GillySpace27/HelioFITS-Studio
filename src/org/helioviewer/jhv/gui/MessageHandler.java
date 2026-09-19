@@ -116,8 +116,13 @@ final class MessageHandler implements Message.Handler {
             } else {
                 textArea.setOpaque(false);
                 textArea.setBorder(null);
-                if (text.length() > 45)
+                if (text.length() > 45) {
                     textArea.setColumns(45);
+                    // A wrapped text area only knows its height once it knows its width. Without a
+                    // size, the dialog was packed to the unwrapped height and every message longer
+                    // than a few lines pushed its Close button off the bottom of the window.
+                    textArea.setSize(textArea.getPreferredSize().width, Short.MAX_VALUE);
+                }
                 body = textArea;
             }
 

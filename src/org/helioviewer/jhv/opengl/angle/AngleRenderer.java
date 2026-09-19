@@ -529,11 +529,24 @@ public final class AngleRenderer {
         return value.get(0);
     }
 
-    private RuntimeException eglError(String step) {
+    private GraphicsUnavailableException eglError(String step) {
         int code = EGL15.eglGetError();
         if (code == EGL15.EGL_SUCCESS)
-            return new RuntimeException(step + " failed without EGL error; backend=" + backend.label);
-        return new RuntimeException(step + " failed with EGL error 0x" + Integer.toHexString(code) + "; backend=" + backend.label);
+            return new GraphicsUnavailableException(step + " failed without EGL error; backend=" + backend.label);
+        return new GraphicsUnavailableException(step + " failed with EGL error 0x" + Integer.toHexString(code) + "; backend=" + backend.label);
+    }
+
+    /**
+     * The system's graphics refused ANGLE: an EGL call failed, as opposed to HFStudio being broken.
+     *
+     * <p>Its own type so that a caller can tell "this computer's graphics will not start" from a
+     * bug by the exception rather than by its wording. Measured case: GitHub's Intel Mac runner,
+     * whose virtual GPU lacks Metal's mac2 family, fails at eglGetPlatformDisplay.
+     */
+    public static final class GraphicsUnavailableException extends RuntimeException {
+        GraphicsUnavailableException(String message) {
+            super(message);
+        }
     }
 
 }
