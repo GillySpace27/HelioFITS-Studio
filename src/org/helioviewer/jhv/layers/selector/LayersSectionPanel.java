@@ -102,9 +102,17 @@ public final class LayersSectionPanel extends JPanel {
     private void addLascoLayer(String detector) {
         long start = getStartTime();
         long end = getEndTime();
+        // The Time step / Frame count control above decides this, as it does for a dataset added
+        // from the tree. It used to take defaultCadence, which aims at 96 frames over the range
+        // whatever the control says, so a LASCO layer came back at 90 minute spacing over a week
+        // and the spinner looked broken: asking for a thousand frames still gave about a hundred.
+        // "Get all" means every frame the archive holds, which for LZ is roughly 110 a day per
+        // telescope, so a week is some 1500 files rather than 96. That is the asking price of
+        // asking for all of them, and it is now the user's to name.
+        int cadence = getCadence(); // seconds, or APIRequest.CADENCE_ALL
+        long millis = cadence == org.helioviewer.jhv.io.APIRequest.CADENCE_ALL ? 0 : 1000L * cadence;
         org.helioviewer.jhv.layers.ImageLayer.create(null).load(new org.helioviewer.jhv.io.FitsRequest(
-                org.helioviewer.jhv.io.FitsRequest.Archive.LASCO, "lz", detector, "",
-                1000L * org.helioviewer.jhv.time.TimeUtils.defaultCadence(start, end), start, end));
+                org.helioviewer.jhv.io.FitsRequest.Archive.LASCO, "lz", detector, "", millis, start, end));
     }
 
     private JPanel buildNativePanel() {
@@ -114,9 +122,9 @@ public final class LayersSectionPanel extends JPanel {
                 {"PUNCH (SDAC)\u2026", (Runnable) () -> org.helioviewer.jhv.gui.dialog.PunchDialog.getInstance().showDialog()},
                 {"Solar Orbiter (SOAR)\u2026", (Runnable) () -> org.helioviewer.jhv.gui.dialog.SoarDialog.getInstance().showDialog()},
                 {"Proba-3 ASPIICS\u2026", (Runnable) () -> org.helioviewer.jhv.gui.dialog.AspiicsDialog.getInstance().showDialog()},
-                // No dialog: the master range and its default cadence are the whole question, like
-                // the VSO tree's Add button. NRL because the VSO's LASCO catalog stops in early
-                // 2025 while the LZ archive is current; see LascoClient.
+                // No dialog: the master range and cadence are the whole question, like the VSO
+                // tree's Add button. NRL because the VSO's LASCO catalog stops in early 2025
+                // while the LZ archive is current; see LascoClient.
                 {"LASCO C2 (NRL)", (Runnable) () -> addLascoLayer("C2")},
                 {"LASCO C3 (NRL)", (Runnable) () -> addLascoLayer("C3")},
         };
