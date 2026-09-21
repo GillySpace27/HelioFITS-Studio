@@ -147,6 +147,23 @@ public final class Session {
         restorePending = true;
     }
 
+    /**
+     * Point this window at the session the command line asked it to open.
+     *
+     * <p>Loading a session and autosaving to one are separate decisions here, and -state used to make
+     * only the first: the window went on writing to whatever file it remembered from last time, so
+     * "-state A" loaded A and then, on the next autosave or on quit, wrote A's scene over B. The file
+     * named on the command line is the session the window is in, which is what every other route to
+     * opening one already means.
+     */
+    public static void adoptSessionFile(File file) {
+        ensureSessionFile();
+        if (file.equals(sessionFile))
+            return; // the automatic restore of this window's own file: already pointed at it
+        Log.info("Session file follows the command line: " + file);
+        setSessionFile(file, !isAutoFile(file));
+    }
+
     // Point this window at a named .jhv (after Save As / Load), so autosave follows it and the
     // name shows in the title. Keeps the reopen registry pointing at the new path.
     public static void setSessionFile(File file, boolean isNamed) {

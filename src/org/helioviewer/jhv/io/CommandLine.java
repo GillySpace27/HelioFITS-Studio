@@ -27,7 +27,8 @@ public class CommandLine {
                    Load a request file and issue a request at program start. The option can be used multiple times.
             
             -state   state file
-                   Load state file.""";
+                   Load state file. The window then belongs to that session, so autosave and quit
+                   write back to it.""";
 
     private static final Set<String> uriSchemes = Set.of("jpip", "jpips", "http", "https", "file");
 
@@ -74,7 +75,16 @@ public class CommandLine {
         }
         // -state
         for (URI uri : getURIOptionValues("-state")) {
+            // Hold the automatic saves until the scene really is this session's, and keep holding them
+            // if the load fails: a restore that never happened must not be written over anything.
+            org.helioviewer.jhv.app.Session.expectStateLoad();
+            org.helioviewer.jhv.app.Session.onNextStateLoad(success -> {
+                if (!success)
+                    org.helioviewer.jhv.app.Session.expectStateLoad();
+            });
             Commands.loadState(uri);
+            if ("file".equals(uri.getScheme()))
+                org.helioviewer.jhv.app.Session.adoptSessionFile(new java.io.File(uri));
             break;
         }
     }
