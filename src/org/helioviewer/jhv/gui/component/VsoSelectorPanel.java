@@ -16,8 +16,11 @@ import javax.swing.tree.DefaultTreeSelectionModel;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 
+import org.helioviewer.jhv.gui.MainFrame;
+import org.helioviewer.jhv.io.APIRequest;
 import org.helioviewer.jhv.io.FitsRequest;
 import org.helioviewer.jhv.layers.ImageLayer;
+import org.helioviewer.jhv.layers.selector.LayersSectionPanel;
 
 /**
  * Staging for native FITS out of the VSO, which is the federated route and covers most missions
@@ -118,7 +121,7 @@ public final class VsoSelectorPanel extends JPanel {
         tree.setToolTipText("Calibrated FITS at full bit depth. Larger and slower to load than the JP2 of the same frame.");
 
         JButton add = new JButton("Add FITS layer");
-        add.setToolTipText("Query the VSO over the master time range and load what it returns");
+        add.setToolTipText("Query the VSO over the master time range, at the time step or frame count set beside it");
         add.setEnabled(false);
         add.addActionListener(e -> {
             Source source = getSelected();
@@ -126,14 +129,21 @@ public final class VsoSelectorPanel extends JPanel {
                 return;
             // The request goes onto the layer before any file is resolved, which is what lets the
             // time-range sync re-issue it later. Detector rides in the level field, the fileid
-            // token in the version field; see FitsRequest and VsoClient.filterRecords. Cadence is
-            // the span's default, never 0: "every frame" over a two-week master range is tens of
-            // thousands of FITS downloads presenting as a layer that loads forever.
+            // token in the version field; see FitsRequest and VsoClient.filterRecords.
             long start = startTime.getAsLong();
             long end = endTime.getAsLong();
+            // The Time step / Frame count control beside the time range, as the LASCO buttons and
+            // the dataset tree use. This used to force the span's default so that "get all" could
+            // not be asked for here: unlike LASCO, the VSO thins on a grid across the whole range
+            // rather than per day, so every frame of a two-week span is tens of thousands of FITS.
+            // That is a real cost, but it is the user's to weigh, and refusing to pass the setting
+            // on made the control look broken rather than protective.
+            LayersSectionPanel layers = MainFrame.getLayersSectionPanel();
+            int cadence = layers == null // absent while the window is being built, and when headless
+                    ? org.helioviewer.jhv.time.TimeUtils.defaultCadence(start, end) : layers.getCadence();
+            long millis = cadence == APIRequest.CADENCE_ALL ? 0 : 1000L * cadence;
             ImageLayer.create(null).load(new FitsRequest(FitsRequest.Archive.VSO,
-                    source.detector, source.instrument, source.fileidToken,
-                    1000L * org.helioviewer.jhv.time.TimeUtils.defaultCadence(start, end), start, end));
+                    source.detector, source.instrument, source.fileidToken, millis, start, end));
         });
         tree.addTreeSelectionListener(e -> add.setEnabled(getSelected() != null));
 
