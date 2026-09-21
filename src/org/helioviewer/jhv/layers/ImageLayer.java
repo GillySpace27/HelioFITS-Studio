@@ -174,8 +174,8 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
                     JSONObject pointing = jo.optJSONObject("lascoPointing");
                     if (fitsRequest != null && fitsRequest.archive() == FitsRequest.Archive.LASCO)
                         Log.info("LASCO restore " + fitsRequest.product() + ": " + list.size() + " uris, saved pointing "
-                                + (pointing == null ? "absent, probing" : pointing.isEmpty() ? "empty, probing" : pointing.length() + " entries"));
-                    boolean haveTable = pointing != null && !pointing.isEmpty();
+                                + (pointing == null ? "absent, probing" : pointing.isEmpty() ? "empty: probed, nothing to lend" : pointing.length() + " entries"));
+                    boolean haveTable = !needsProbe(pointing);
                     if (haveTable) {
                         org.helioviewer.jhv.metadata.LascoPointing.restore(pointing);
                         pointingKnown = true;
@@ -205,6 +205,19 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
                 }
             }
         }
+    }
+
+    /**
+     * Whether a restored LASCO layer still has to read every header to work out its pointing.
+     *
+     * <p>The key's presence is the record that a probe ran, which is why serialize writes it only on a
+     * run that actually established the table. An empty table is the ordinary answer and a complete
+     * one: most requests hold no frame missing its pointing at all, and only the 2025-08 C2 gap and
+     * its kind produce entries. Requiring a non-empty table to skip the probe therefore re-read every
+     * header on every restore of every LASCO session, which is what the cache exists to avoid.
+     */
+    public static boolean needsProbe(@Nullable JSONObject savedPointing) {
+        return savedPointing == null;
     }
 
     public void applyImageParams(@Nullable JSONObject imageParams) {
