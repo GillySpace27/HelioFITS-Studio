@@ -21,9 +21,6 @@ incident log, is in [RELEASING.md](RELEASING.md).** Read it before shipping.
   and an .ico for Windows, plus the asset catalog source that
   `deploy_release.sh` compiles into the bundle so macOS does not put the icon on
   a grey plate.
-- `make_heliofits_iris.py`, `heliofits_iris.icns`, `heliofits_iris_1024.png`:
-  the HFS mark this application used to wear, kept because it is going to the
-  HelioFITS preview plugin.
 - `fabric_suvi.json.gz`: the demo point cloud attached to every release.
 - `skills/ship-punchstudio/`: the release tracker (`scripts/status.py`) and the
   assistant runbook that drives it.
