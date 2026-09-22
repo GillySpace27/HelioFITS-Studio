@@ -537,7 +537,7 @@ public final class AngleRenderer {
     }
 
     /**
-     * The system's graphics refused ANGLE: an EGL call failed, as opposed to HFStudio being broken.
+     * The system's graphics refused ANGLE: an EGL call failed, as opposed to PUNCHStudio being broken.
      *
      * <p>Its own type so that a caller can tell "this computer's graphics will not start" from a
      * bug by the exception rather than by its wording. Measured case: GitHub's Intel Mac runner,

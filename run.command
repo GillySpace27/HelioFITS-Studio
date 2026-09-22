@@ -1,5 +1,5 @@
 #!/bin/sh
-# HFStudio 1.0.  Needs Java 25 or newer.
+# PUNCHStudio 1.0.  Needs Java 25 or newer.
 # Double-click on macOS, or run ./run.command (or ./run.sh) from a terminal.
 cd "$(dirname "$0")" || exit 1
 
@@ -25,7 +25,7 @@ find_java() {
 JAVA=$(find_java)
 if [ -z "$JAVA" ] || ! "$JAVA" -version >/dev/null 2>&1; then
     echo "" >&2
-    echo "HFStudio needs Java 25 or newer, which was not found." >&2
+    echo "PUNCHStudio needs Java 25 or newer, which was not found." >&2
     echo "Install it, then run this again:" >&2
     echo "  - any system:      https://adoptium.net   (download Temurin 25)" >&2
     echo "  - macOS + Homebrew: brew install openjdk@25" >&2
@@ -33,4 +33,4 @@ if [ -z "$JAVA" ] || ! "$JAVA" -version >/dev/null 2>&1; then
     exit 1
 fi
 
-exec "$JAVA" --enable-native-access=ALL-UNNAMED -jar HFStudio.jar "$@"
+exec "$JAVA" --enable-native-access=ALL-UNNAMED -jar PUNCHStudio.jar "$@"

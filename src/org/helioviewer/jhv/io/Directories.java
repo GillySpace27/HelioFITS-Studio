@@ -12,7 +12,7 @@ public enum Directories {
     /**
      * The folder everything persistent lives in, and the one name in this file worth arguing about.
      *
-     * <p>HFStudio keeps its own rather than sharing JHelioviewer's. Sharing sounds like a kindness
+     * <p>PUNCHStudio keeps its own rather than sharing JHelioviewer's. Sharing sounds like a kindness
      * (one file cache, no re-downloading) and is a trap: the two applications have already diverged
      * on settings keys and on what a saved session contains, so a shared folder means each one
      * quietly rewriting state the other wrote. Two folders cost disk; one folder costs correctness.
@@ -125,7 +125,7 @@ public enum Directories {
 
             File f = dir.getFile();
             if (!f.isDirectory() && !f.mkdirs())
-                throw new IllegalStateException("HFStudio cannot create its folder " + f + ". Check that the location is writable and has free space.");
+                throw new IllegalStateException("PUNCHStudio cannot create its folder " + f + ". Check that the location is writable and has free space.");
         }
     }
 
@@ -133,11 +133,11 @@ public enum Directories {
         File cacheDir = Directories.CACHE.getFile();
         try {
             if (!cacheDir.isDirectory() && !cacheDir.mkdirs())
-                throw new IllegalStateException("HFStudio cannot create its folder " + cacheDir + ". Check that the location is writable and has free space.");
+                throw new IllegalStateException("PUNCHStudio cannot create its folder " + cacheDir + ". Check that the location is writable and has free space.");
 
             File downloadsDir = Directories.DOWNLOADS.getFile();
             if (!downloadsDir.isDirectory() && !downloadsDir.mkdirs())
-                throw new IllegalStateException("HFStudio cannot create its folder " + downloadsDir + ". Check that the location is writable and has free space.");
+                throw new IllegalStateException("PUNCHStudio cannot create its folder " + downloadsDir + ". Check that the location is writable and has free space.");
 
             libCacheDir = FileUtils.tempDir(cacheDir, "lib").getAbsolutePath();
             dataCacheDir = FileUtils.tempDir(cacheDir, "data").getAbsolutePath();
@@ -145,7 +145,7 @@ public enum Directories {
             clientCacheDir = FileUtils.tempDir(cacheDir, "client");
             exportCacheDir = FileUtils.tempDir(cacheDir, "export");
         } catch (Exception e) {
-            throw new IllegalStateException("HFStudio cannot set up its cache folder " + cacheDir + ". Check that the location is writable and has free space.", e);
+            throw new IllegalStateException("PUNCHStudio cannot set up its cache folder " + cacheDir + ". Check that the location is writable and has free space.", e);
         }
     }
 
@@ -176,7 +176,7 @@ public enum Directories {
         if (isUsableAsciiDirectory(root))
             return root;
 
-        throw new IllegalStateException("HFStudio could not find a writable folder for temporary files whose path uses only plain "
+        throw new IllegalStateException("PUNCHStudio could not find a writable folder for temporary files whose path uses only plain "
                 + "ASCII characters. Install it under a path without accented or non-Latin characters "
                 + "(or point the Java property java.io.tmpdir at one).");
     }
@@ -196,13 +196,17 @@ public enum Directories {
     }
 
     /** The folder name, in one place, so the two call sites above cannot drift apart. */
-    private static final String NAME = "HFStudio";
-
-    /** What the folder was called before the rename, and is still called by a stock install. */
-    private static final String LEGACY_NAME = "JHelioviewer-SWHV";
+    private static final String NAME = "PUNCHStudio";
 
     /**
-     * Copy a JHelioviewer install's settings and sessions across, once.
+     * What the folder was called before, newest first: the 0.8.0 to 0.8.2 name, then the name a
+     * stock JHelioviewer still uses. Newest first so a user who has both keeps their own settings
+     * rather than the ones they left behind two names ago.
+     */
+    private static final String[] LEGACY_NAMES = {"HFStudio", "JHelioviewer-SWHV"};
+
+    /**
+     * Copy an earlier install's settings and sessions across, once.
      *
      * <p>Copy rather than move, because the old folder may belong to a JHelioviewer that is still
      * installed and still being used. Taking its settings away would be a rename reaching outside
@@ -215,15 +219,24 @@ public enum Directories {
      * them. Runs only when the new folder does not exist yet, so it happens exactly once and
      * never overwrites anything the user has done since.
      */
-    // What the migration did, kept so HFStudio can write it to the log file once Log.init has run;
+    // What the migration did, kept so PUNCHStudio can write it to the log file once Log.init has run;
     // the migration itself runs before logging exists, so its own Log.info reaches only the console.
     public static String migrationNote;
 
     public static void migrateLegacyHome() {
         java.nio.file.Path home = java.nio.file.Path.of(System.getProperty("user.home"));
         java.nio.file.Path target = home.resolve(NAME);
-        java.nio.file.Path legacy = home.resolve(LEGACY_NAME);
-        if (java.nio.file.Files.exists(target) || !java.nio.file.Files.isDirectory(legacy))
+        if (java.nio.file.Files.exists(target))
+            return;
+        java.nio.file.Path legacy = null;
+        for (String name : LEGACY_NAMES) {
+            java.nio.file.Path candidate = home.resolve(name);
+            if (java.nio.file.Files.isDirectory(candidate)) {
+                legacy = candidate;
+                break;
+            }
+        }
+        if (legacy == null)
             return;
 
         String[] carry = {"Settings", "States"};

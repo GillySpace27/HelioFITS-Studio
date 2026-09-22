@@ -1,6 +1,16 @@
 
 # Revision history
 
+## PUNCHStudio 0.8.3 (unreleased)
+
+### Name
+- Rename the application to PUNCHStudio, settled with the PUNCH PI and carried into the mission's reporting. HFStudio said nothing about what the application is for; this name says who it was built with
+- The repository is now `GillySpace27/PUNCHStudio`, and GitHub forwards the addresses of both earlier names
+- The download page is now `gilly.space/punchstudio`. `/hfs`, `/hfstudio`, `/HFStudio`, `/HFS`, `/jhv` and `/JHV` all forward to it, because those links have been sent to people
+- Register with SAMP as `PUNCHStudio`, so a script that finds the application by an older name needs the new one
+- Settings and saved states are carried over from an `HFStudio` folder the first time this version runs, as they were carried over from JHelioviewer's folder before. Caches and exports are left where they are
+- The application icon still reads HFS. A coronagraph-forward icon is being drawn for this name, and the HFS mark moves to the HelioFITS preview plugin
+
 ## HFStudio 0.8.2 (pre-release, 2026-09-19)
 
 A new name and icon, and a download for every platform that carries its own Java.

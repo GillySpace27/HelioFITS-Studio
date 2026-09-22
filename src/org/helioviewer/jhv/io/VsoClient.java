@@ -52,7 +52,7 @@ public final class VsoClient {
      * is ever sent anywhere. A placeholder goes here deliberately rather than the user's real
      * address: the field is load-bearing for the protocol and meaningless for this method.
      */
-    private static final String INFO_EMAIL = "hfstudio@localhost";
+    private static final String INFO_EMAIL = "punchstudio@localhost";
 
     // Parsed per <recorditem>, never globally. VSO does not keep a stable element order inside a
     // record -- one comes back physobs/provider/.../time/.../fileid and the next

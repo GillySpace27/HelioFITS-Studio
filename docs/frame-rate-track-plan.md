@@ -153,8 +153,8 @@ frames of a recording differ because the solar data differs, so "the frames chan
    with it live it moved monotonically 6, 12, 24, 40, 54. Flat versus monotonic is the result.
 
 `ffmpeg` lives in the app's own cache, not on the PATH:
-`find ~/HFStudio/Cache -name ffmpeg -maxdepth 2`. It is recent enough that `-vsync` is gone; use
-`-fps_mode passthrough`. Recordings land in `~/HFStudio/Exports`.
+`find ~/PUNCHStudio/Cache -name ffmpeg -maxdepth 2`. It is recent enough that `-vsync` is gone; use
+`-fps_mode passthrough`. Recordings land in `~/PUNCHStudio/Exports`.
 
 ## What is not settled
 

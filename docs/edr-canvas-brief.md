@@ -161,7 +161,7 @@ canvas verified at or below 1.0 for every frame. It is harmless (values at or be
 as SDR either way) and it is not this app's content; it looks like the compositor keeping a
 screen in EDR mode for a while after any EDR content has been shown.
 
-**To run it:** `HFStudio (edr).app` on the Desktop builds and launches this worktree; `HFStudio
+**To run it:** `PUNCHStudio (edr).app` on the Desktop builds and launches this worktree; `PUNCHStudio
 (dev).app` still builds `jhv-demo`. View menu: HDR Canvas, HDR Brightness.
 
 ## Revision, 2026-09-04 evening: three mappings

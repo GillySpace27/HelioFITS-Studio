@@ -29,12 +29,12 @@ import org.helioviewer.jhv.app.Message;
 public final class MessageDialogFitCheck {
 
     private static final String TITLE = "Fit check";
-    private static final String TEXT = "HFStudio could not start its graphics on this computer, so it cannot show images.\n\n"
+    private static final String TEXT = "PUNCHStudio could not start its graphics on this computer, so it cannot show images.\n\n"
             + "It draws through Metal, and this system's graphics would not start it. That usually means the graphics "
             + "hardware or its driver is too old, or that this is a virtual machine without full graphics support.\n\n"
             + "If it happens on a computer you expect to work, please send the log from\n"
-            + "/Users/someone/HFStudio/Logs/\n"
-            + "to gilly@nwra.com or https://github.com/GillySpace27/HFStudio/issues";
+            + "/Users/someone/PUNCHStudio/Logs/\n"
+            + "to gilly@nwra.com or https://github.com/GillySpace27/PUNCHStudio/issues";
 
     public static void main(String[] args) throws Exception {
         if (java.awt.GraphicsEnvironment.isHeadless())

@@ -12,7 +12,7 @@ from threading import Event
 
 from astropy.samp import SAMPIntegratedClient
 
-SOCKET = "/tmp/hfstudio-samp.sock"
+SOCKET = "/tmp/punchstudio-samp.sock"
 
 COMPLETIONS = {
     "jhv.load.image": "jhv.load.image.completed",
@@ -30,7 +30,7 @@ class Pending:
 
 class JHVSampQueue:
     def __init__(self) -> None:
-        self.client = SAMPIntegratedClient(name="HFStudio SAMP queue")
+        self.client = SAMPIntegratedClient(name="PUNCHStudio SAMP queue")
         self.client_id = None
         self.jhv_id = None
         self.pending = {}
@@ -48,9 +48,9 @@ class JHVSampQueue:
 
     def find_jhv(self):
         for client_id in self.client.get_registered_clients():
-            if self.client.get_metadata(client_id).get("samp.name") == "HFStudio":
+            if self.client.get_metadata(client_id).get("samp.name") == "PUNCHStudio":
                 return client_id
-        raise RuntimeError("HFStudio SAMP client not found")
+        raise RuntimeError("PUNCHStudio SAMP client not found")
 
     def execute(self, commands: list[dict]) -> list[dict]:
         results = []
@@ -155,7 +155,7 @@ def stop(signum, frame) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Queue SAMP commands to HFStudio")
+    parser = argparse.ArgumentParser(description="Queue SAMP commands to PUNCHStudio")
     parser.add_argument("--socket", default=SOCKET)
     args = parser.parse_args()
 

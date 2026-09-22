@@ -43,7 +43,7 @@ public final class SettingsWriteGuardCheck {
                 "Orthographic".equals(Settings.getProperty("display.skyBase")));
 
         // What the application does, in its order: load() validates the stored data server against
-        // the sources, so they come first, exactly as in HFStudio.main.
+        // the sources, so they come first, exactly as in PUNCHStudio.main.
         org.helioviewer.jhv.io.DataSources.initSources();
         Settings.load();
         Settings.setProperty("ui.palette.Track_CME.sidebar", "right");

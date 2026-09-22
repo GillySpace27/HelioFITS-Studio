@@ -81,7 +81,7 @@ public final class JHVUncaughtExceptionHandler {
                 @Override
                 public void mousePressed(MouseEvent me) {
                     TransferAccess.writeClipboard(msg);
-                    JOptionPane.showMessageDialog(null, "Error report copied to clipboard.", "HFStudio", JOptionPane.INFORMATION_MESSAGE);
+                    JOptionPane.showMessageDialog(null, "Error report copied to clipboard.", "PUNCHStudio", JOptionPane.INFORMATION_MESSAGE);
                 }
             });
 
@@ -97,10 +97,10 @@ public final class JHVUncaughtExceptionHandler {
             JOptionPane optionPane = new JOptionPane();
             optionPane.setMessage(objects);
             optionPane.setMessageType(JOptionPane.ERROR_MESSAGE);
-            optionPane.setOptions(new String[]{"Quit HFStudio", "Continue"});
-            optionPane.createDialog("HFStudio: Fatal Error").setVisible(true);
+            optionPane.setOptions(new String[]{"Quit PUNCHStudio", "Continue"});
+            optionPane.createDialog("PUNCHStudio: Fatal Error").setVisible(true);
 
-            if ("Quit HFStudio".equals(optionPane.getValue()))
+            if ("Quit PUNCHStudio".equals(optionPane.getValue()))
                 System.exit(1);
         }
     }

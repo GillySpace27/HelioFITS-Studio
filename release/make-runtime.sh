@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build the trimmed Java runtime every HFStudio package carries: the Mac dmg (deploy_release.sh)
+# Build the trimmed Java runtime every PUNCHStudio package carries: the Mac dmg (deploy_release.sh)
 # and the Windows and Linux packages (package-app.sh).
 #
 #   release/make-runtime.sh <output directory>     (uses the JDK at $JAVA_HOME)

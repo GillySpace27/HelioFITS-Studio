@@ -1,9 +1,9 @@
 ---
-name: ship-hfstudio
-description: Release HFStudio to its public GitHub release. Use when Gilly wants to ship, publish, cut, or refresh a HFStudio release, update the release assets or the field guide, notarize the macOS dmg, or asks what state the HFStudio release is in. Covers the build from the repository root, the tooling in release/, notarization, and the gated publish. Do NOT use for upstream PRs to Helioviewer-Project, or for feature work that is not being released.
+name: ship-punchstudio
+description: Release PUNCHStudio to its public GitHub release. Use when Gilly wants to ship, publish, cut, or refresh a PUNCHStudio release, update the release assets or the field guide, notarize the macOS dmg, or asks what state the PUNCHStudio release is in. Covers the build from the repository root, the tooling in release/, notarization, and the gated publish. Do NOT use for upstream PRs to Helioviewer-Project, or for feature work that is not being released.
 ---
 
-# Ship HFStudio
+# Ship PUNCHStudio
 
 **`release/RELEASING.md` is authoritative.** Read it when anything here is
 ambiguous. If the two disagree, the procedure doc wins and this file gets fixed.
@@ -13,14 +13,14 @@ Code looks for project skills under `.claude/skills/`, so to use it from a
 checkout, link it there:
 
 ```sh
-mkdir -p .claude/skills && ln -s ../../release/skills/ship-hfstudio .claude/skills/ship-hfstudio
+mkdir -p .claude/skills && ln -s ../../release/skills/ship-punchstudio .claude/skills/ship-punchstudio
 ```
 
 ## Render the tracker after every milestone
 
 ```sh
 cd ~/Documents/NWRA/PUNCH_Science/JHelioviewer-SWHV/release
-python3 skills/ship-hfstudio/scripts/status.py [--done smoketest]
+python3 skills/ship-punchstudio/scripts/status.py [--done smoketest]
 ```
 
 The tracker finds the repository from its own location, so it grades whichever
@@ -40,7 +40,7 @@ claimed.
 - **`release/`** is the packaging tooling, the guide, the icon and this skill.
   No app code.
 - **`VERSION`** at the root sets the release: tag `v<version>`, assets
-  `HFStudio-<version>.dmg` and `HFStudio-<version>.zip`.
+  `PUNCHStudio-<version>.dmg` and `PUNCHStudio-<version>.zip`.
 
 Before 0.8 these were two repos (`jhv-demo` on `demo-all`, and
 `preview-deploy`). Older entries in `RELEASING.md` use those names.

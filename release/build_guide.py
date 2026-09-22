@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Build the HFStudio field guide.
+"""Build the PUNCHStudio field guide.
 
 Content lives in guide_content.json (title/subtitle/byline + an ordered list of
 blocks). This script renders that single source to BOTH
-  - HFStudio-Guide.pdf   (reportlab, the polished handout)
-  - HFStudio-Guide.md    (GitHub-friendly text companion)
+  - PUNCHStudio-Guide.pdf   (reportlab, the polished handout)
+  - PUNCHStudio-Guide.md    (GitHub-friendly text companion)
 so the two can never drift, and the prose can be edited/regenerated independently.
 
-Run: python3 build_guide.py   ->   HFStudio-Guide.pdf + HFStudio-Guide.md
+Run: python3 build_guide.py   ->   PUNCHStudio-Guide.pdf + PUNCHStudio-Guide.md
 
 Block kinds: title/subtitle/byline (top-level), then blocks of kind
   rule | spacer{points} | h1{text} | h2{text} | p{text} |
@@ -38,8 +38,8 @@ from reportlab.lib.enums import TA_LEFT, TA_CENTER
 HERE = os.path.dirname(os.path.abspath(__file__))
 ASSETS = os.path.join(HERE, "guide_assets")
 CONTENT_JSON = os.path.join(HERE, "guide_content.json")
-PDF_OUT = os.path.join(HERE, "HFStudio-Guide.pdf")
-MD_OUT = os.path.join(HERE, "HFStudio-Guide.md")
+PDF_OUT = os.path.join(HERE, "PUNCHStudio-Guide.pdf")
+MD_OUT = os.path.join(HERE, "PUNCHStudio-Guide.md")
 
 # Both are defined once elsewhere: the version in the repository's VERSION file, the GitHub
 # repository in deploy_release.sh. Read them rather than repeating them here.
@@ -144,7 +144,7 @@ def footer(canvas, doc):
     canvas.setFont("Helvetica", 7.5)
     canvas.setFillColor(colors.HexColor("#7a8493"))
     canvas.drawString(0.9 * inch, 0.55 * inch,
-                      "HFStudio %s field guide  -  github.com/%s" % (VERSION, REPO))
+                      "PUNCHStudio %s field guide  -  github.com/%s" % (VERSION, REPO))
     canvas.drawRightString(7.6 * inch, 0.55 * inch, "Page %d" % doc.page)
     canvas.setStrokeColor(BOX_BORDER)
     canvas.setLineWidth(0.5)
@@ -156,7 +156,7 @@ def build_pdf(doc_data):
     pdf = BaseDocTemplate(PDF_OUT, pagesize=letter,
                           leftMargin=0.9 * inch, rightMargin=0.9 * inch,
                           topMargin=0.8 * inch, bottomMargin=0.9 * inch,
-                          title=doc_data.get("title", "HFStudio"),
+                          title=doc_data.get("title", "PUNCHStudio"),
                           author="Gilly, NWRA")
     frame = Frame(pdf.leftMargin, pdf.bottomMargin, pdf.width, pdf.height, id="main")
     pdf.addPageTemplates([PageTemplate(id="all", frames=[frame], onPage=footer)])

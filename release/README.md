@@ -1,6 +1,6 @@
 # release/
 
-The build and release tooling for HFStudio: the signed and notarized
+The build and release tooling for PUNCHStudio: the signed and notarized
 macOS `.dmg`, the cross-platform `.zip`, and the field guide. The application
 source is the repository root; nothing in this folder is application code.
 
@@ -14,19 +14,19 @@ incident log, is in [RELEASING.md](RELEASING.md).** Read it before shipping.
   gone wrong.
 - `build_guide.py`, `guide_content.json`, `guide_assets/`: the field guide.
   The script renders the prose in `guide_content.json` and the figures in
-  `guide_assets/` into `HFStudio-Guide.pdf` and `HFStudio-Guide.md`.
-- `make_squircle_icon.py`, `HFStudio_icon_squircle.icns`,
-  `HFStudio_icon_squircle_1024.png`: the macOS app icon and the script that
+  `guide_assets/` into `PUNCHStudio-Guide.pdf` and `PUNCHStudio-Guide.md`.
+- `make_squircle_icon.py`, `PUNCHStudio_icon_squircle.icns`,
+  `PUNCHStudio_icon_squircle_1024.png`: the macOS app icon and the script that
   composes it.
 - `fabric_suvi.json.gz`: the demo point cloud attached to every release.
-- `skills/ship-hfstudio/`: the release tracker (`scripts/status.py`) and the
+- `skills/ship-punchstudio/`: the release tracker (`scripts/status.py`) and the
   assistant runbook that drives it.
-- `hfstudio-dev-launcher.sh`: a development convenience, not part of the
+- `punchstudio-dev-launcher.sh`: a development convenience, not part of the
   release. It is the source of the script inside
-  `/Applications/HFStudio Dev.app/Contents/MacOS/hfstudio-dev`, a Dock
+  `/Applications/PUNCHStudio Dev.app/Contents/MacOS/punchstudio-dev`, a Dock
   tile that rebuilds the main checkout and runs it. It hardcodes one source path
   and one Homebrew JDK, so it works on one machine on purpose. The release
-  app is `HFStudio.app`, a different name, so the two sit side by side.
+  app is `PUNCHStudio.app`, a different name, so the two sit side by side.
 
 ## Pipeline
 
@@ -37,8 +37,8 @@ incident log, is in [RELEASING.md](RELEASING.md).** Read it before shipping.
 ./deploy_release.sh notarize   # build a signed + notarized + stapled macOS .app inside a .dmg
 ```
 
-The version is read from `../VERSION`. Assets are named `HFStudio-<version>.dmg`
-and `HFStudio-<version>.zip`, and the release tag is `v<version>`. The GitHub
+The version is read from `../VERSION`. Assets are named `PUNCHStudio-<version>.dmg`
+and `PUNCHStudio-<version>.zip`, and the release tag is `v<version>`. The GitHub
 repository is set once, as `REPO` near the top of `deploy_release.sh`; the
 tracker and the guide read it from there.
 
@@ -53,8 +53,8 @@ tracker and the guide read it from there.
 
 ## Release
 
-Releases: <https://github.com/GillySpace27/HFStudio/releases>.
-Shareable short link: <https://gilly.space/hfs>, which redirects to that index.
+Releases: <https://github.com/GillySpace27/PUNCHStudio/releases>.
+Shareable short link: <https://gilly.space/punchstudio>, which redirects to that index.
 
 ## History
 

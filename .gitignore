@@ -3,6 +3,7 @@
 bin
 cov-int
 gradle
+PUNCHStudio.jar
 HFStudio.jar
 *.iml
 .DS_Store
@@ -24,5 +25,7 @@ pkg-stage/
 pkg-out/
 pkg-runtime/
 pkg-icon.*
+PUNCHStudio-*-windows.zip
+PUNCHStudio-*-linux.tar.gz
 HFStudio-*-windows.zip
 HFStudio-*-linux.tar.gz

@@ -1,4 +1,4 @@
-# Brief: take upstream's WCS rework into HFStudio
+# Brief: take upstream's WCS rework into PUNCHStudio
 
 ## The task
 

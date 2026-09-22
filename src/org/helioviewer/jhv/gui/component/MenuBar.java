@@ -257,7 +257,7 @@ public final class MenuBar extends JMenuBar {
 
         JCheckBoxMenuItem hdrCanvas = new JCheckBoxMenuItem("HDR Canvas", HdrGain.canvasEnabled());
         hdrCanvas.setToolTipText("Render image layers into the display's extended range, so the corona can be "
-                + "brighter than the window. Needs an EDR display; takes effect the next time HFStudio starts.");
+                + "brighter than the window. Needs an EDR display; takes effect the next time PUNCHStudio starts.");
         hdrCanvas.addItemListener(e -> {
             HdrGain.setCanvasEnabled(hdrCanvas.getState()); // also parks the brightness at 1x, or restores it
             DisplayController.display();
@@ -387,7 +387,7 @@ public final class MenuBar extends JMenuBar {
         helpMenu.add(new Actions.ShowDialog("Interaction Guide...", new TextDialog("Interaction Guide", interactionHelp(), true)));
         helpMenu.add(new Actions.ShowDialog("Timeline Interaction...", new TextDialog("Timeline Interaction", timelineHelp(), true)));
 
-        Actions.ShowDialog aboutAction = new Actions.ShowDialog("About HFStudio...", new AboutDialog());
+        Actions.ShowDialog aboutAction = new Actions.ShowDialog("About PUNCHStudio...", new AboutDialog());
         if (Platform.isMacOS()) {
             DesktopIntegration.setAboutHandler(e -> aboutAction.actionPerformed(null));
         } else {
@@ -395,7 +395,7 @@ public final class MenuBar extends JMenuBar {
         }
 
         helpMenu.add(new Actions.OpenURLinBrowser("Open User Manual", AppInfo.documentationURL));
-        helpMenu.add(new Actions.OpenURLinBrowser("Open Change Log", "https://github.com/GillySpace27/HFStudio/blob/master/changelog.md"));
+        helpMenu.add(new Actions.OpenURLinBrowser("Open Change Log", "https://github.com/GillySpace27/PUNCHStudio/blob/master/changelog.md"));
         helpMenu.add(new Actions.CheckForUpdates());
         helpMenu.addSeparator();
         helpMenu.add(new Actions.ShowDialog("Show Log...", new LogDialog()));

@@ -39,7 +39,7 @@ public class LogDialog implements Interfaces.ShowableDialog {
             @Override
             public void mousePressed(MouseEvent e) {
                 TransferAccess.writeClipboard(log);
-                JOptionPane.showMessageDialog(null, "Log copied to clipboard.", "HFStudio", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(null, "Log copied to clipboard.", "PUNCHStudio", JOptionPane.INFORMATION_MESSAGE);
             }
         });
 
@@ -53,7 +53,7 @@ public class LogDialog implements Interfaces.ShowableDialog {
         optionPane.setMessage(new Object[]{report, copyToClipboard, new JSeparator(), scrollPane});
         optionPane.setMessageType(JOptionPane.INFORMATION_MESSAGE);
         optionPane.setOptions(new String[]{"Close"});
-        optionPane.createDialog(MainFrame.get(), "HFStudio Log").setVisible(true);
+        optionPane.createDialog(MainFrame.get(), "PUNCHStudio Log").setVisible(true);
     }
 
 }
