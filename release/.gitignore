@@ -16,6 +16,8 @@ __pycache__/
 .app_out/
 .dmg_stage/
 .PUNCHStudio.iconset/
+.heliofits_iris.iconset/
+.appicon/
 .entitlements.plist
 .app_smoke.log
 .cs.err

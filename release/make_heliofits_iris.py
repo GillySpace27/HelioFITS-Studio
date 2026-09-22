@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Build the PUNCHStudio app icon: the sun-pie mark as full-bleed squircle art, reading HFS.
+"""Build the HFS iris mark: the sun-pie as full-bleed squircle art, reading HFS.
+
+This was the application's icon while it was called HFStudio. It is kept because the mark is
+going to the HelioFITS preview plugin, replacing the AIA 171 image it uses now. The application
+itself is drawn by make_punch_icon.py.
 
 macOS 26 enforces the squircle on app-bundle icons: an icon that does not fill it is shrunk onto
 a grey squircle ("squircle jail"). The previous icon met that by setting the round mark on a black
@@ -12,15 +16,14 @@ the shape already seen to escape the jail (issue #7).
 The hexagon's "HF" becomes "HFS": the old letters are inpainted away, so the hexagon's faint
 radial gradient fills back in, and HFS is set in the same heavy grotesque.
 
-  python3 make_squircle_icon.py <orb.png>  ->  PUNCHStudio_icon_squircle_1024.png + PUNCHStudio_icon_squircle.icns
-  and resources/images/PUNCHStudio_icon_512.png, the same art for the jar's Dock, window and About icon
+  python3 make_heliofits_iris.py <orb.png>  ->  heliofits_iris_1024.png + heliofits_iris.icns
 
 The orb is the bare 1024 px circular mark, deleted with release/install4j. Recover it first:
 
   git show "$(git log --all --format=%h -1 -- release/install4j/resources/HFS_icon.png)^:release/install4j/resources/HFS_icon.png" > /tmp/HFS_icon.png
   python3 make_squircle_icon.py /tmp/HFS_icon.png
 
-Do not pass resources/images/PUNCHStudio_icon_512.png: that is this script's own output.
+Do not pass heliofits_iris_1024.png: that is this script's own output.
 """
 import math, subprocess, sys, os
 from PIL import Image, ImageChops, ImageDraw, ImageFont
@@ -113,13 +116,12 @@ px = np.array(icon); px[px[..., 3] == 0, :3] = 0   # no colour left under full t
 icon = Image.fromarray(px)                          # that ignores alpha would otherwise show the disk
 print(f"orb scaled {k:.3f}x to a {2 * cover:.0f} px disk under an {S * BODY:.0f} px squircle")
 
-icon.save(os.path.join(HERE, "PUNCHStudio_icon_squircle_1024.png"))
-icon.resize((512, 512), Image.LANCZOS).save(os.path.join(HERE, "..", "resources", "images", "PUNCHStudio_icon_512.png"))
+icon.save(os.path.join(HERE, "heliofits_iris_1024.png"))
 
-iconset = os.path.join(HERE, ".PUNCHStudio.iconset"); os.makedirs(iconset, exist_ok=True)
+iconset = os.path.join(HERE, ".heliofits_iris.iconset"); os.makedirs(iconset, exist_ok=True)
 for base in (16, 32, 128, 256, 512):
     icon.resize((base, base), Image.LANCZOS).save(f"{iconset}/icon_{base}x{base}.png")
     icon.resize((base * 2, base * 2), Image.LANCZOS).save(f"{iconset}/icon_{base}x{base}@2x.png")
-subprocess.run(["iconutil", "-c", "icns", iconset, "-o", os.path.join(HERE, "PUNCHStudio_icon_squircle.icns")], check=True)
+subprocess.run(["iconutil", "-c", "icns", iconset, "-o", os.path.join(HERE, "heliofits_iris.icns")], check=True)
 subprocess.run(["rm", "-rf", iconset])
-print("wrote PUNCHStudio_icon_squircle_1024.png + PUNCHStudio_icon_squircle.icns + resources/images/PUNCHStudio_icon_512.png")
+print("wrote heliofits_iris_1024.png + heliofits_iris.icns")

@@ -25,10 +25,15 @@ SRC="$(cd "$HERE/.." && pwd)"
 REPO="GillySpace27/PUNCHStudio"
 APP_NAME="PUNCHStudio"
 BUNDLE_NAME="PUNCHStudio"   # the .app on disk, kept free of spaces; APP_NAME stays the display name
-# macOS 26 (Tahoe) enforces the squircle on app-bundle icons: a bare circular icon gets shrunk onto a
-# grey squircle ("squircle jail"). This is the hv orb composed onto a proper squircle tile, so the
-# bundled .app looks native. Regenerate with make_squircle_icon.py.
-ICNS="$HERE/PUNCHStudio_icon_squircle.icns"
+# macOS 26 (Tahoe) enforces the squircle on app-bundle icons: art that does not fill it gets shrunk
+# onto a grey plate ("squircle jail"). This art fills it. Regenerate both this and the asset catalog
+# beside it with make_punch_icon.py.
+#
+# The .icns alone is not enough. At 16 and 32 pixels macOS 26 plates a bundle whose icon is only an
+# .icns no matter what the art does, so the catalog below is compiled in as well; the .icns stays
+# for the disk image's volume icon and for older systems.
+ICNS="$HERE/PUNCHStudio_icon.icns"
+APPICONSET="$HERE/AppIcon.appiconset"
 # The repository's VERSION file names the release: the tag, the asset names, the bundle version.
 # Each release gets its OWN tag, v<version>, cut at the commit it was built from, and its own
 # release object. Assets are never clobbered in place: the previous release keeps its binaries
@@ -440,6 +445,27 @@ PLIST
         /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
         /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$APP/Contents/Info.plist"
     fi
+
+    # The icon, a second time, as a compiled asset catalog. jpackage only knows about --icon, and a
+    # bundle carrying just a .icns is drawn on a grey plate at 16 and 32 pixels by macOS 26: every
+    # application on this machine with a catalog fills the frame there, every .icns-only one does
+    # not. This has to happen before signing, since it puts a file inside the bundle.
+    echo "==> compiling the icon asset catalog"
+    ACTOOL="$(xcrun --find actool 2>/dev/null || command -v actool || true)"
+    "$ACTOOL" --version --output-format xml1 >/dev/null 2>&1 \
+        || { echo "!! actool does not run. It comes with Xcode, not the command line tools:"
+             echo "   install Xcode, then: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer"; exit 1; }
+    CATOUT="$HERE/.appicon"; rm -rf "$CATOUT"; mkdir -p "$CATOUT/Assets.xcassets"
+    cp -R "$APPICONSET" "$CATOUT/Assets.xcassets/"
+    "$ACTOOL" --compile "$CATOUT" --app-icon AppIcon --platform macosx \
+        --minimum-deployment-target 11.0 --output-partial-info-plist "$CATOUT/partial.plist" \
+        "$CATOUT/Assets.xcassets" >/dev/null
+    [ -f "$CATOUT/Assets.car" ] || { echo "!! actool produced no Assets.car"; exit 1; }
+    cp "$CATOUT/Assets.car" "$APP/Contents/Resources/Assets.car"
+    /usr/libexec/PlistBuddy -c "Add :CFBundleIconName string AppIcon" "$APP/Contents/Info.plist" 2>/dev/null \
+        || /usr/libexec/PlistBuddy -c "Set :CFBundleIconName AppIcon" "$APP/Contents/Info.plist"
+    rm -rf "$CATOUT"
+    echo "   Assets.car in the bundle, CFBundleIconName set"
 
     # Prove the bundled app actually starts (catches missing deps / broken native load)
     # before spending a multi-minute notary round-trip on it.

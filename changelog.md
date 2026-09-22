@@ -9,7 +9,12 @@
 - The download page is now `gilly.space/punchstudio`. `/hfs`, `/hfstudio`, `/HFStudio`, `/HFS`, `/jhv` and `/JHV` all forward to it, because those links have been sent to people
 - Register with SAMP as `PUNCHStudio`, so a script that finds the application by an older name needs the new one
 - Settings and saved states are carried over from an `HFStudio` folder the first time this version runs, as they were carried over from JHelioviewer's folder before. Caches and exports are left where they are
-- The application icon still reads HFS. A coronagraph-forward icon is being drawn for this name, and the HFS mark moves to the HelioFITS preview plugin
+
+### Icon
+- A new icon: the instrument ladder this application composites, drawn as the occulted Sun with each field of view as a ring around it. The HFS mark it replaces goes to the HelioFITS preview plugin
+- Three artworks in one icon, chosen by size, because four rings and a ray texture average into a grey square inside 16 pixels: the full art at 256 and above, three fields with dark gaps at 128 and 64, two fields and a large core at 32 and 16
+- The Mac bundle now carries a compiled asset catalog as well as the .icns, because macOS 26 draws a .icns-only application on a grey plate at 16 and 32 pixels whatever its artwork does. The catalog is given the art unmasked, since macOS applies its own shape and insets anything that arrives already shaped
+- Windows gets a .ico with the same per-size artwork, so its small icons are not shrunken copies of the large one either
 
 ## HFStudio 0.8.2 (pre-release, 2026-09-19)
 

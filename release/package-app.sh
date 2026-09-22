@@ -24,21 +24,16 @@ rm -rf pkg-out; mkdir -p pkg-out
 # this platform's natives (stage-app.sh). AppInit unpacks them at start.
 release/stage-app.sh "$OS" pkg-stage
 
-# The Mac icon, redrawn at the sizes each system asks for.
-PY="$(command -v python3 || command -v python)"
-if [ "$OS" = windows ]; then ICON=pkg-icon.ico; else ICON=pkg-icon.png; fi
-[ "$OS" = macos-x64 ] && ICON=release/PUNCHStudio_icon_squircle.icns
-[ "$OS" = macos-x64 ] || "$PY" - "$ICON" <<'EOF'
-import sys
-from PIL import Image
-im = Image.open("release/PUNCHStudio_icon_squircle.icns")
-im.load()
-out = sys.argv[1]
-if out.endswith(".ico"):
-    im.save(out, sizes=[(256, 256), (64, 64), (48, 48), (32, 32), (16, 16)])
-else:
-    im.resize((512, 512)).save(out)
-EOF
+# The icon, per platform. make_punch_icon.py has already drawn each one: the .icns and the .ico
+# both carry one artwork per size, so a 16 pixel icon is not a shrunken copy of the 1024 one. The
+# macOS bundle built here is for checking, never for shipping, so it does not get the asset catalog
+# that deploy_release.sh compiles into the signed one.
+case "$OS" in
+    windows)   ICON=release/PUNCHStudio_icon.ico ;;
+    macos-x64) ICON=release/PUNCHStudio_icon.icns ;;
+    *)         ICON=resources/images/PUNCHStudio_icon_512.png ;;
+esac
+[ -f "$ICON" ] || { echo "!! no icon at $ICON: run release/make_punch_icon.py" >&2; exit 1; }
 
 # A .app runs with its working directory at /, so the Metal host dylib cannot be found beside the
 # app; it goes into the main jar at the resource path AngleLibraries reads, as deploy_release.sh
