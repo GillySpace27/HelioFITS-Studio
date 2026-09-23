@@ -16,6 +16,7 @@ import javax.swing.JToggleButton;
 
 import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.gui.CompletionNotifications;
+import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.component.CircularProgressUI;
 import org.helioviewer.jhv.gui.dialog.MetaDataDialog;
@@ -140,6 +141,7 @@ final class ImageLayerManagePanel extends JPanel {
         icons.add(cacheButton);
         icons.add(deleteCacheButton);
         icons.add(makeRefreshButton());
+        icons.add(makeSyncButton());
         icons.add(metaButton);
 
         readout.setBorder(BorderFactory.createEmptyBorder(8, 0, 8, 0)); // let the readout breathe
@@ -165,6 +167,15 @@ final class ImageLayerManagePanel extends JPanel {
      * missing from the movie in front of you. Re-reading the sources is what fills those in:
      * the frames already on disk come back from the file cache, and only the gaps cross the wire.
      */
+    // Lives with the layer's other actions, beside Refresh. It used to sit at the end of the
+    // Difference row, where nothing about it is specific to differencing.
+    private JButton makeSyncButton() {
+        JButton sync = Buttons.flat(Buttons.sync);
+        sync.setToolTipText("Synchronize time intervals of other layers");
+        sync.addActionListener(e -> MainFrame.getLayersSectionPanel().syncLayersSpan(layer.getStartTime(), layer.getEndTime()));
+        return sync;
+    }
+
     private JButton makeRefreshButton() {
         refreshButton = Buttons.flat(Buttons.refresh);
         refreshButton.setToolTipText("Fetch the frames that did not arrive, then check the archive for new ones");
