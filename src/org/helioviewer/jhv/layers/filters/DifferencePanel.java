@@ -1,18 +1,14 @@
 package org.helioviewer.jhv.layers.filters;
 
-import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.FlowLayout;
 
 import javax.swing.ButtonGroup;
-import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 
 import org.helioviewer.jhv.display.DisplayController;
-import org.helioviewer.jhv.gui.MainFrame;
-import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.image.ImageDisplaySettings;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layers;
@@ -20,7 +16,7 @@ import org.helioviewer.jhv.layers.Layers;
 public final class DifferencePanel implements FilterDetails {
 
     private final JPanel modePanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
-    private final JPanel buttonPanel = new JPanel(new BorderLayout());
+    private final JPanel buttonPanel = new JPanel(); // the sync button moved to the layer's action icons
     private final JLabel title = new JLabel(" Difference ", JLabel.RIGHT);
 
     public DifferencePanel(ImageLayer layer) {
@@ -38,10 +34,6 @@ public final class DifferencePanel implements FilterDetails {
             modePanel.add(item);
         }
 
-        JButton syncButton = Buttons.flat(Buttons.sync);
-        syncButton.setToolTipText("Synchronize time intervals of other layers");
-        syncButton.addActionListener(e -> MainFrame.getLayersSectionPanel().syncLayersSpan(layer.getStartTime(), layer.getEndTime()));
-        buttonPanel.add(syncButton, BorderLayout.LINE_END);
     }
 
     @Override
