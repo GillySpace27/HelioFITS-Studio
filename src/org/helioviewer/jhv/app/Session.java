@@ -361,12 +361,30 @@ public final class Session {
         return new File(Directories.STATES.getPath(), "windows-live.json");
     }
 
+    // A window that is killed or crashes never gets to remove its entry, so the file grows without
+    // bound; worse, the OS recycles pids, so a stale entry silently relabels an unrelated future
+    // window with a dead session's name. Drop the dead entries on every read and every write, so
+    // the file heals itself rather than needing anyone to clean it up.
+    static org.json.JSONObject pruneDead(org.json.JSONObject map) {
+        for (String key : new ArrayList<>(map.keySet())) {
+            boolean alive;
+            try {
+                alive = ProcessHandle.of(Long.parseLong(key)).map(ProcessHandle::isAlive).orElse(false);
+            } catch (NumberFormatException e) {
+                alive = false; // not a pid at all
+            }
+            if (!alive)
+                map.remove(key);
+        }
+        return map;
+    }
+
     private static synchronized org.json.JSONObject readLive() {
         File f = liveFile();
         if (!f.isFile())
             return new org.json.JSONObject();
         try {
-            return new org.json.JSONObject(new JSONTokener(Files.readString(f.toPath(), StandardCharsets.UTF_8)));
+            return pruneDead(new org.json.JSONObject(new JSONTokener(Files.readString(f.toPath(), StandardCharsets.UTF_8))));
         } catch (Exception e) {
             return new org.json.JSONObject();
         }
@@ -374,7 +392,7 @@ public final class Session {
 
     private static synchronized void writeLive(org.json.JSONObject map) {
         try {
-            Files.writeString(liveFile().toPath(), map.toString(), StandardCharsets.UTF_8);
+            Files.writeString(liveFile().toPath(), pruneDead(map).toString(), StandardCharsets.UTF_8);
         } catch (IOException e) {
             Log.warn(e);
         }
@@ -390,29 +408,14 @@ public final class Session {
         writeLive(map);
     }
 
-    // Currently-alive windows across all processes; prunes entries whose process is gone.
+    // Currently-alive windows across all processes; readLive has already dropped the dead ones.
     public static synchronized List<WindowInfo> liveWindows() {
         org.json.JSONObject map = readLive();
         List<WindowInfo> out = new ArrayList<>();
-        boolean changed = false;
-        for (String key : new ArrayList<>(map.keySet())) {
-            long p;
-            try {
-                p = Long.parseLong(key);
-            } catch (NumberFormatException e) {
-                map.remove(key);
-                changed = true;
-                continue;
-            }
-            if (ProcessHandle.of(p).isPresent())
-                out.add(new WindowInfo(p, map.optString(key, "Untitled"), p == pid()));
-            else {
-                map.remove(key);
-                changed = true;
-            }
+        for (String key : map.keySet()) {
+            long p = Long.parseLong(key); // pruneDead removed anything that is not a pid
+            out.add(new WindowInfo(p, map.optString(key, "Untitled"), p == pid()));
         }
-        if (changed)
-            writeLive(map);
         out.sort((a, b) -> Long.compare(a.pid(), b.pid())); // stable order
         return out;
     }
