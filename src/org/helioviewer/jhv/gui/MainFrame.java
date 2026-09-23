@@ -300,8 +300,10 @@ public final class MainFrame {
         statusPanel = new StatusPanel(5, 5);
         // First, at the far left: spinning while anything is still arriving or computing, a check when it has all landed.
         statusPanel.addPlugin(new org.helioviewer.jhv.gui.status.ActivityStatusPanel(), StatusPanel.Alignment.LEFT);
-        // ponytail: FramerateStatusPanel (FPS readout) is left out of the default bar, a developer
-        // number with no audience in a finished build. Add it back here if that changes.
+        // Then the render rate. It was dropped once as a developer number with no audience; it turns
+        // out to have one, because a frame that is not advancing and a frame that is advancing
+        // slowly look the same without it.
+        statusPanel.addPlugin(new org.helioviewer.jhv.gui.status.FramerateStatusPanel(), StatusPanel.Alignment.LEFT);
         statusPanel.addPlugin(positionStatus, StatusPanel.Alignment.RIGHT);
         statusPanel.addPlugin(viewpointStatus, StatusPanel.Alignment.RIGHT);
 

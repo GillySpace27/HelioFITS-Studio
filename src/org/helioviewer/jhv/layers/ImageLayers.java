@@ -145,13 +145,54 @@ public final class ImageLayers {
         return new Region(minX, minY, Math.max(Math.nextUp(0.0), maxX - minX), Math.max(Math.nextUp(0.0), maxY - minY));
     }
 
+    /**
+     * How long the coalesced draw may wait for the slowest layer before going ahead without it.
+     *
+     * <p>Longer than a decode that is merely working and shorter than a movie frame at the default
+     * twenty per second, so a layer that is about to answer still gets to, and one that never will
+     * costs a single late frame rather than every frame after it.
+     */
+    private static final int SYNC_GRACE_MILLI = 120;
+
+    private static Position awaitedViewpoint;
+    private static final EDTTimer syncWatchdog = new EDTTimer(SYNC_GRACE_MILLI, ImageLayers::drawWithoutTheStragglers);
+
+    static {
+        syncWatchdog.setRepeats(false);
+    }
+
+    /**
+     * Draw once every enabled layer holds data for this same viewpoint, so layers do not tear
+     * against each other.
+     *
+     * <p>Waiting for all of them cannot be allowed to become waiting forever. A layer that never
+     * delivers for a viewpoint -- its frame timed out on the wire, its decode failed, it simply has
+     * nothing at that time -- held back not only that frame but every frame after it, because the
+     * next viewpoint's check still found that same layer holding something older. The picture then
+     * only advanced when some unrelated path asked for a draw, and the one the user reliably
+     * reaches for is moving the mouse over the canvas: hence a movie that steps forward when you
+     * jiggle the mouse and sits still when you do not. The wait is now bounded.
+     */
     static void displaySynced(Position viewpoint) { // coalesce layers
         for (ImageLayer layer : Layers.getImageLayers()) {
             View.ImageData id;
-            if (layer.isEnabled() && (id = layer.getImageData()) != null && viewpoint != id.viewpoint() /* deliberate on reference */)
+            if (layer.isEnabled() && (id = layer.getImageData()) != null && viewpoint != id.viewpoint() /* deliberate on reference */) {
+                awaitedViewpoint = viewpoint;
+                syncWatchdog.restart(); // each arrival resets the grace: the stragglers are still moving
                 return;
+            }
         }
+        awaitedViewpoint = null;
+        syncWatchdog.stop();
         DisplayController.display(viewpoint);
+    }
+
+    /** The grace ran out: show the newest viewpoint anyway rather than showing nothing at all. */
+    private static void drawWithoutTheStragglers() {
+        Position viewpoint = awaitedViewpoint;
+        awaitedViewpoint = null;
+        if (viewpoint != null)
+            DisplayController.display(viewpoint);
     }
 
     public record WaitUntilLoaded(Collection<ImageLayer> newLayers) implements Callable<Void> {

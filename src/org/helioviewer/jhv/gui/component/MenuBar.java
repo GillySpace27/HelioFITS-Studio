@@ -22,6 +22,7 @@ import org.helioviewer.jhv.gui.PresentationMode;
 import org.helioviewer.jhv.gui.UIGlobals;
 import org.helioviewer.jhv.gui.dialog.AboutDialog;
 import org.helioviewer.jhv.gui.dialog.LogDialog;
+import org.helioviewer.jhv.gui.dialog.LogWindow;
 import org.helioviewer.jhv.gui.dialog.SettingsDialog;
 import org.helioviewer.jhv.gui.dialog.TextDialog;
 import org.helioviewer.jhv.gui.dialog.ThemeDialog;
@@ -62,12 +63,12 @@ public final class MenuBar extends JMenuBar {
                 for (ToolBar.Tool tool : ToolBar.allTools())
                     toolsMenu.add(toolItem(tool, onBar.contains(tool.id())));
                 toolsMenu.addSeparator();
-                // Below the tools: a command that loads the CACTus events and then opens the
-                // Track CME palette (the toolbar toggle above only shows the palette), and two
+                // Below the tools: commands that load a catalog and then open the palette that
+                // browses it (the toolbar toggle above only shows the palette), and two
                 // dialogs with no toolbar button. They were in View, which is where a thing you
                 // look through goes, not a thing you work with.
                 toolsMenu.add(new Actions.TrackCME());
-                toolsMenu.add(new Actions.ShowDialog("Load from Cache...", new org.helioviewer.jhv.gui.dialog.CacheDialog()));
+                toolsMenu.add(new Actions.TrackComet());
                 toolsMenu.addSeparator();
                 JMenuItem edit = new JMenuItem("Edit Toolbar...");
                 edit.setIcon(Buttons.editToolbar);
@@ -340,6 +341,10 @@ public final class MenuBar extends JMenuBar {
         layersMenu.add(new Actions.NewPointCloudLayer());
         layersMenu.add(new Actions.OpenLocalFile());
         layersMenu.add(new Actions.OpenModel());
+        layersMenu.addSeparator();
+        // Loading something already downloaded is a way of adding a layer, not a tool: it was under
+        // Tools only because that is where the dialog was written.
+        layersMenu.add(new Actions.ShowDialog("Load from Cache...", new org.helioviewer.jhv.gui.dialog.CacheDialog()));
         add(layersMenu);
 
         // Beside Layers, because it answers the same kind of question: Layers is what is in the
@@ -368,6 +373,8 @@ public final class MenuBar extends JMenuBar {
             windowMenu.addSeparator();
             windowMenu.add(new Actions.WindowMinimize());
             windowMenu.add(new Actions.WindowZoom());
+            windowMenu.addSeparator();
+            windowMenu.add(new Actions.ShowDialog("Live Log...", LogWindow.get()));
             windowMenu.addSeparator();
             int fixedCount = windowMenu.getItemCount(); // items above the live window list
             windowMenu.addMenuListener(new javax.swing.event.MenuListener() {
@@ -398,7 +405,9 @@ public final class MenuBar extends JMenuBar {
         helpMenu.add(new Actions.OpenURLinBrowser("Open Change Log", "https://github.com/GillySpace27/PUNCHStudio/blob/master/changelog.md"));
         helpMenu.add(new Actions.CheckForUpdates());
         helpMenu.addSeparator();
-        helpMenu.add(new Actions.ShowDialog("Show Log...", new LogDialog()));
+        helpMenu.add(new Actions.ShowDialog("Show Log...", new LogDialog())); // a snapshot, for attaching to a report
+        if (!Platform.isMacOS()) // where there is no Window menu to put it in
+            helpMenu.add(new Actions.ShowDialog("Live Log...", LogWindow.get()));
         JMenuItem probe = new JMenuItem("Report Clipped Controls");
         probe.setToolTipText("List every control on screen that is narrower than it asked to be, into the log");
         probe.addActionListener(e -> org.helioviewer.jhv.gui.LayoutProbe.logReport());

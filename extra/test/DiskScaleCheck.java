@@ -90,6 +90,7 @@ public final class DiskScaleCheck {
         Display.applyDiskScale(Display.DISK_SCALE_NOMINAL);
 
         onlyTheWarpScalesListen();
+        theTrackerSolvesAgainstTheDrawnMap();
 
         if (failures != 0)
             throw new AssertionError(failures + " disk-scale failure(s)");
@@ -126,6 +127,59 @@ public final class DiskScaleCheck {
         expect(MapScale.boxCoxRadial(R).warpLimb() > small,
                 "the warp scale must still answer to the disk control");
         Display.applyDiskScale(Display.DISK_SCALE_NOMINAL);
+    }
+
+    /**
+     * What the tracker solves for is where the feature is actually drawn.
+     *
+     * <p>CMETracker pins a feature at a fixed fraction of the radial axis by solving the radial
+     * map for either lambda or the crop. It used to solve a private copy of that map, and the copy
+     * had been written before the disk control existed: it anchored the limb at the bare
+     * max(1/R, 1/(1 + boxcox)) and never multiplied by the disk scale, which ships at 0.5. So the
+     * solve was against a map nobody was drawing, and a tracked feature sat up to 0.08 of the axis
+     * away from the ring that claimed to hold it. A CME front cannot show that, having no true
+     * position to be wrong about. A comet, which has one, did.
+     *
+     * <p>Stated as a round trip rather than as "no copy exists", so it holds however the solve is
+     * implemented: solve for the knob, then ask the real scale where the feature landed.
+     */
+    private static void theTrackerSolvesAgainstTheDrawnMap() {
+        double target = CMETracker.screenFraction();
+        for (double scale : new double[]{0.5, Display.DISK_SCALE_NOMINAL, 2}) {
+            Display.applyDiskScale(scale);
+            for (double lambda : new double[]{-0.5, 0, 0.5}) {
+                for (double r : new double[]{5, 10}) {
+                    // Crop mode: solve the outer radius, holding lambda. Both solves saturate at
+                    // their bounds for some of these combinations -- a warp that compresses the
+                    // outer corona can put a 5 R_sun feature beyond 0.6 of every field there is --
+                    // and saturating is correct behaviour, so only an interior answer is a claim
+                    // about the map, and only an interior answer is checked.
+                    double maxOut = 100;
+                    double out = CMETracker.solveOuter(r, lambda, maxOut);
+                    if (out < maxOut - 1e-6) {
+                        double landedCrop = MapScale.boxCoxRadial(out, lambda).toUnitY(r);
+                        expect(Math.abs(landedCrop - target) < 1e-6,
+                                "crop solve at disk " + scale + " lambda " + lambda + " r " + r
+                                        + " lands at " + landedCrop + ", not " + target);
+                    } else {
+                        expect(MapScale.boxCoxRadial(maxOut, lambda).toUnitY(r) >= target,
+                                "crop solve gave up at disk " + scale + " lambda " + lambda + " r " + r
+                                        + " where the widest field would have reached the target");
+                    }
+
+                    // Warp mode: solve lambda, holding a 30 R_sun field.
+                    double lam = CMETracker.solve(r, 30);
+                    if (Math.abs(lam) < 1 - 1e-6) {
+                        double landedWarp = MapScale.boxCoxRadial(30, lam).toUnitY(r);
+                        expect(Math.abs(landedWarp - target) < 1e-6,
+                                "warp solve at disk " + scale + " r " + r
+                                        + " lands at " + landedWarp + ", not " + target);
+                    }
+                }
+            }
+        }
+        Display.applyDiskScale(Display.DISK_SCALE_NOMINAL);
+        Display.setWarpLambda(0);
     }
 
     private static double[][] sample(MapScale[] scales) {

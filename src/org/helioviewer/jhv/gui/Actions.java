@@ -131,6 +131,17 @@ public final class Actions {
         }
     }
 
+    public static class TrackComet extends AbstractAction {
+        public TrackComet() {
+            super("Find Comets to Track...");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            org.helioviewer.jhv.event.info.CometTrackPanel.open();
+        }
+    }
+
     public static class ExitProgram extends AbstractKeyAction {
         public ExitProgram() {
             super("Quit", KeyStroke.getKeyStroke(KeyEvent.VK_Q, DesktopIntegration.menuShortcutMask));
