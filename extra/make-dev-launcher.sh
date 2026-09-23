@@ -92,13 +92,23 @@ fi
 
 # Merges are pushed to GitHub, not into this checkout, so bring it up to origin/master first.
 # Fast-forward only, and only on a clean master: anything else is someone's work in progress, and
-# the build then runs on what is there rather than touch it. Best effort: offline, or a stalled
-# connection (given up after 10 s under 1 kB/s), just builds what is already here.
-if [ "\$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" = master ] &&
-   [ -z "\$(git status --porcelain --untracked-files=no 2>/dev/null)" ]; then
-    git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=10 fetch -q origin master >/dev/null 2>&1 &&
-        git merge -q --ff-only origin/master >/dev/null 2>&1
-fi
+# the build then runs on what is there rather than touch it. The fetch is best effort (a stalled
+# connection is given up after 10 s under 1 kB/s), and the fast-forward is tried either way,
+# because every push from a worktree already moves the origin/master this checkout can see.
+# Everything is written to the build log: this step once failed without a trace.
+{
+    echo "== \$(date '+%Y-%m-%d %H:%M:%S') updating \$checkout"
+    if [ "\$(git rev-parse --abbrev-ref HEAD)" != master ]; then
+        echo "not on master: building it as it is"
+    elif [ -n "\$(git status --porcelain --untracked-files=no)" ]; then
+        echo "master has uncommitted changes: building it as it is"
+    else
+        git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=10 fetch origin master ||
+            echo "fetch failed: using the origin/master already known here"
+        git merge --ff-only origin/master || echo "could not fast-forward: building it as it is"
+    fi
+    echo "== building \$(git log -1 --format='%h %s')"
+} >"\$buildlog" 2>&1
 
 if ! command -v ant >/dev/null 2>&1; then
     say "ant is not on the path this launcher was given, so the build cannot run.
@@ -111,12 +121,16 @@ fi
 # costs nothing and does not steal focus the way a dialog would.
 osascript -e 'display notification "Updating master and building…" with title "PUNCHStudio (dev)"' >/dev/null 2>&1
 
-if ! ant jar >"\$buildlog" 2>&1; then
+if ! ant jar >>"\$buildlog" 2>&1; then
     say "The build failed. Opening the log.
 
 Nothing was launched, so what is running (if anything) is still the previous build."
     open -e "\$buildlog" >/dev/null 2>&1
     exit 1
+fi
+
+if [ "\$(git rev-parse HEAD 2>/dev/null)" != "\$(git rev-parse origin/master 2>/dev/null)" ]; then
+    osascript -e "display notification \"This is \$(git log -1 --format=%h), not the newest master. The build log says why.\" with title \"PUNCHStudio (dev)\"" >/dev/null 2>&1
 fi
 
 # run.sh is not used, and cannot be: an unsigned bundle is refused ("Operation not permitted")
