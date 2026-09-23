@@ -75,6 +75,11 @@ public class Log {
         return sw.toString();
     }
 
+    /** The file this session is logging to, for anything that wants to watch it being written. */
+    public static String filename() {
+        return filename;
+    }
+
     public static String get() {
         try {
             Path path = Path.of(filename);

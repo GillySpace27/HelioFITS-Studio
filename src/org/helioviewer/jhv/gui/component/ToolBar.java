@@ -680,6 +680,10 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         JToggleButton trackCmeButton = toolToggleButton(TRACK_CME);
         org.helioviewer.jhv.event.info.CactusTrackPanel.palette().bind(trackCmeButton);
         register("trackCme", TRACK_CME, trackCmeButton);
+        // Track Comet has no button of its own, but a palette takes its place in the sidebar when it
+        // is built, so building it here is what puts the two of them in this order. Left to the menu
+        // it was built whenever it was first opened, and landed wherever that happened to be.
+        org.helioviewer.jhv.event.info.CometTrackPanel.palette();
 
         // Colour settings are per view, not per layer: they decide how every frame of every movie
         // is shown, so they belong beside Projection rather than inside a layer's own row.
