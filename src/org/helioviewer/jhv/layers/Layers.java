@@ -66,8 +66,6 @@ public final class Layers {
         // Replacing the placeholder NullView also needs a full Movie resync when it is active.
         if (activeLayer == nullImageLayer)
             Player.setMaster(activeLayer);
-        else
-            Player.timeRangeChanged();
     }
 
     public static ImageLayer getActiveImageLayer() {
