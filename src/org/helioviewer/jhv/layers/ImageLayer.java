@@ -592,6 +592,15 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             ImageLayers.arrangeMultiView(true);
         }
         Layers.fireLayerUpdated(this);
+        // A view arriving is new pixels, so ask for a frame. This used to happen only by accident,
+        // through Player.setMaster -> syncTime, which runs only when the layer claims the clock: the
+        // first layer in an empty scene did, and every layer added after it did not. Its imagery
+        // then waited for whatever redrew the viewport next, which with no other trigger meant the
+        // user moving the mouse over the canvas. A JP2 layer hid this, because UITimer pokes the
+        // viewport ten times a second while a J2K reader is caching frames; nothing sets that flag
+        // for FITS, so LASCO, PUNCH and VSO layers showed it plainly. Coalesced in AngleCanvas, so
+        // the duplicate on the path that did render costs nothing.
+        DisplayController.render(1);
     }
 
     private void unsetView() {
