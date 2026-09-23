@@ -62,7 +62,7 @@ final class GenericImage {
                 Log.error(file.toString(), e);
             }
             LUT lut = readLUT(reader.getImageTypes(0).next().getColorModel());
-            return new URIView.SourceInfo(xml, reader.getWidth(0), reader.getHeight(0), lut, null);
+            return new URIView.SourceInfo(xml, reader.getWidth(0), reader.getHeight(0), lut, null, java.util.List.of());
         });
     }
 

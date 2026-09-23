@@ -1003,7 +1003,10 @@ public final class MainFrame {
         pane.setLayout(new javax.swing.BoxLayout(pane, javax.swing.BoxLayout.PAGE_AXIS));
         pane.setBorder(BorderFactory.createEmptyBorder(0, 12, 0, 0));
         pane.add(list);
-        pane.add(new org.helioviewer.jhv.gui.component.CollapsiblePane(optionsTitle, optionsWrapper, true, true));
+        org.helioviewer.jhv.gui.component.CollapsiblePane options =
+                new org.helioviewer.jhv.gui.component.CollapsiblePane(optionsTitle, optionsWrapper, true, true);
+        options.pinOpen(); // the controls for the selected row; see CollapsiblePane.pinOpen
+        pane.add(options);
         return pane;
     }
 

@@ -2,6 +2,7 @@ package org.helioviewer.jhv.gui.component;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
+import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
 
 import javax.annotation.Nullable;
@@ -69,7 +70,7 @@ public final class VsoSelectorPanel extends JPanel {
 
     private final JTree tree;
 
-    public VsoSelectorPanel(LongSupplier startTime, LongSupplier endTime) {
+    public VsoSelectorPanel(LongSupplier startTime, LongSupplier endTime, IntSupplier cadence) {
         setLayout(new BorderLayout());
         setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
 
@@ -127,13 +128,14 @@ public final class VsoSelectorPanel extends JPanel {
             // The request goes onto the layer before any file is resolved, which is what lets the
             // time-range sync re-issue it later. Detector rides in the level field, the fileid
             // token in the version field; see FitsRequest and VsoClient.filterRecords. Cadence is
-            // the span's default, never 0: "every frame" over a two-week master range is tens of
-            // thousands of FITS downloads presenting as a layer that loads forever.
+            // the master control's, so the frame count asked for there is the frame count fetched;
+            // "get all" reaches here as 0, which over a two-week range is tens of thousands of
+            // FITS downloads presenting as a layer that loads forever.
             long start = startTime.getAsLong();
             long end = endTime.getAsLong();
             ImageLayer.create(null).load(new FitsRequest(FitsRequest.Archive.VSO,
                     source.detector, source.instrument, source.fileidToken,
-                    1000L * org.helioviewer.jhv.time.TimeUtils.defaultCadence(start, end), start, end));
+                    FitsRequest.cadenceMillis(cadence.getAsInt()), start, end));
         });
         tree.addTreeSelectionListener(e -> add.setEnabled(getSelected() != null));
 

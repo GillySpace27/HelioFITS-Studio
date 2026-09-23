@@ -19,37 +19,99 @@ public class ManyView implements View {
 
     private record FrameInfo(View view, JHVTime timeView, int idxView) {}
 
-    private final TimeMap<FrameInfo> frameMap = new TimeMap<>();
-    private final boolean hasFITS;
-    private final @Nullable ClipSet clipSet;
+    /**
+     * Published whole and replaced whole, never edited in place.
+     *
+     * <p>Frames arrive while the movie is being drawn and scrubbed, and a TimeMap is a TreeMap
+     * with an index array beside it: a reader crossing a write can see a half-linked tree, or an
+     * index that does not match the keys it is indexing. Rebuilding a fresh map and swapping the
+     * reference costs a copy of a few hundred entries per batch of arrivals and leaves every
+     * reader holding something internally consistent. Each method below snapshots it once.
+     */
+    private volatile TimeMap<FrameInfo> frameMap;
+    private volatile boolean hasFITS;
+    private volatile @Nullable ClipSet clipSet;
     private final @Nullable View firstView;
-    private int targetFrame;
+    @Nullable
+    private View.DataHandler dataHandler; // remembered, so frames arriving later are wired up too
+    private volatile int targetFrame;
+
+    /**
+     * The median stops moving once this many frames have been seen.
+     *
+     * <p>The display range is the median over the frames, so while they are still arriving it
+     * changes with every batch, and everything already on screen is re-stretched under the
+     * viewer. A handful of frames settles the median well enough; letting it follow all forty-five
+     * is a movie that visibly shifts brightness for as long as the download lasts.
+     */
+    private static final int CLIP_SAMPLE = 8;
+    private int clipFrames; // how many frames the current clipSet was computed over
 
     public ManyView(List<View> views) throws IOException {
         if (views.isEmpty())
             throw new IOException("Empty list of views");
         firstView = views.getFirst();
 
+        TimeMap<FrameInfo> map = new TimeMap<>();
         hasFITS = views.stream().anyMatch(View::hasFITS);
-        views.forEach(this::putDates);
-        frameMap.buildIndex();
-        List<ClipSet> clipSets = new ArrayList<>();
-        for (FrameInfo frameInfo : frameMap.values()) {
-            clipSets.add(frameInfo.view.getClipSet());
-        }
-        clipSet = ClipSet.median(clipSets);
+        views.forEach(v -> putDates(map, v));
+        map.buildIndex();
+        frameMap = map;
+        recomputeClipSet(map);
         // unused J2KViews should be abolished by their reaper
     }
 
-    private void putDates(View v) {
+    /**
+     * Take frames that arrived after this view was published.
+     *
+     * <p>A movie used to appear all at once: every frame was built before the wrapper existed, so
+     * a forty-five frame PUNCH load was minutes of one still image with a counter under it. The
+     * wrapper is published on the first frame now and grows, which is what puts each frame into
+     * the transport and the coverage timeline as it lands.
+     *
+     * <p>Call from one thread only (the loader marshals to the EDT). Readers need no lock.
+     */
+    public void addFrames(List<View> views) {
+        if (views.isEmpty())
+            return;
+
+        TimeMap<FrameInfo> map = new TimeMap<>();
+        map.putAll(frameMap);
+        // The playhead is an index into a map ordered by time, so a frame that lands out of order
+        // renumbers every frame after it. Remember where the viewer is by its moment, not its
+        // number, or a download reshuffles the picture under them.
+        JHVTime at = frameMap.key(targetFrame);
+        for (View v : views) {
+            hasFITS |= v.hasFITS();
+            putDates(map, v);
+            if (dataHandler != null)
+                v.setDataHandler(dataHandler);
+        }
+        map.buildIndex();
+        frameMap = map;
+        targetFrame = map.nearestIndex(at);
+        if (clipFrames < CLIP_SAMPLE)
+            recomputeClipSet(map);
+    }
+
+    private void recomputeClipSet(TimeMap<FrameInfo> map) {
+        List<ClipSet> clipSets = new ArrayList<>();
+        for (FrameInfo frameInfo : map.values()) {
+            clipSets.add(frameInfo.view.getClipSet());
+        }
+        clipFrames = clipSets.size();
+        clipSet = ClipSet.median(clipSets);
+    }
+
+    private static void putDates(TimeMap<FrameInfo> map, View v) {
         if (v instanceof ManyView manyView) {
-            frameMap.putAll(manyView.frameMap);
+            map.putAll(manyView.frameMap);
             return;
         }
         int m = v.getMaximumFrameNumber();
         for (int i = 0; i <= m; i++) {
             JHVTime t = v.getFrameTime(i);
-            frameMap.put(t, new FrameInfo(v, t, i));
+            map.put(t, new FrameInfo(v, t, i));
         }
     }
 
@@ -80,6 +142,8 @@ public class ManyView implements View {
 
     @Override
     public void decode(Position viewpoint, double pixFactor, float factor, @Nullable ClipSet.Range clipRange) {
+        // indexedValue clamps through key(), so a targetFrame left over from a shorter map is
+        // pulled into range rather than reaching past the end of the index.
         frameMap.indexedValue(targetFrame).view.decode(viewpoint, pixFactor, factor, clipRange);
     }
 
@@ -123,8 +187,9 @@ public class ManyView implements View {
     }
 
     @Override
-    public void setDataHandler(View.DataHandler dataHandler) {
-        frameMap.values().forEach(frameInfo -> frameInfo.view.setDataHandler(dataHandler));
+    public void setDataHandler(View.DataHandler _dataHandler) {
+        dataHandler = _dataHandler; // kept, so frames added later are wired up the same way
+        frameMap.values().forEach(frameInfo -> frameInfo.view.setDataHandler(_dataHandler));
     }
 
     @Nullable
@@ -165,8 +230,9 @@ public class ManyView implements View {
 
     @Override
     public boolean setNearestFrame(JHVTime time) {
-        int frame = frameMap.nearestIndex(time);
-        FrameInfo frameInfo = frameMap.indexedValue(frame);
+        TimeMap<FrameInfo> map = frameMap;
+        int frame = map.nearestIndex(time);
+        FrameInfo frameInfo = map.indexedValue(frame);
         if (frameInfo.view.setNearestFrame(frameInfo.timeView)) {
             targetFrame = frame;
             return true;

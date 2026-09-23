@@ -61,6 +61,23 @@ final class ImageLayerManagePanel extends JPanel {
             size.height = tallest;
             return size;
         }
+
+        /**
+         * The minimum has to hold the mark too, or the label still jumps.
+         *
+         * <p>Preferred alone was not enough: BoxLayout and GridBagLayout both fall back to
+         * minimum sizes the moment a container is short of its preferred size, which the sidebar
+         * always is in width. So the label was pinned tall when asked one way and allowed to
+         * collapse when asked the other, and during a download, where this text is rebuilt on
+         * every frame that lands and its lines re-wrap as the digits change, that is a readout
+         * that flickers up and down and drags every control under it with it.
+         */
+        @Override
+        public Dimension getMinimumSize() {
+            Dimension size = super.getMinimumSize();
+            size.height = Math.max(size.height, tallest);
+            return size;
+        }
     };
     private long lastReadoutSig = Long.MIN_VALUE; // memoize: skip rebuild when nothing shown changed
     private final JToggleButton downloadButton = Buttons.flatToggle(Buttons.download, false);
@@ -136,17 +153,36 @@ final class ImageLayerManagePanel extends JPanel {
         updateReadout();
     }
 
-    // Only PUNCH layers carry a remembered query; the button stays hidden otherwise
+    private JButton refreshButton;
+
+    /**
+     * Fetch what this layer is still missing, and only then look for frames it never asked for.
+     *
+     * <p>The two are not the same thing and the button used to do only the second. A load that
+     * came up short (measured 2026-09-22: 25 of 45 PUNCH frames timed out) has already recorded
+     * every one of those URIs as asked-for, so the archive diff found nothing new and the button
+     * answered "No new frames in the archive for this layer" while twenty-five frames were
+     * missing from the movie in front of you. Re-reading the sources is what fills those in:
+     * the frames already on disk come back from the file cache, and only the gaps cross the wire.
+     */
     private JButton makeRefreshButton() {
-        JButton refreshButton = Buttons.flat(Buttons.refresh);
-        refreshButton.setToolTipText("Check the PUNCH archive for new frames in this layer's time range");
-        refreshButton.setVisible(PunchClient.hasRememberedQuery(layer));
+        refreshButton = Buttons.flat(Buttons.refresh);
+        refreshButton.setToolTipText("Fetch the frames that did not arrive, then check the archive for new ones");
+        updateRefreshVisible();
         JProgressBar refreshSpinner = new JProgressBar();
         refreshSpinner.setUI(new CircularProgressUI());
         refreshSpinner.setIndeterminate(true);
         refreshSpinner.setVisible(false);
         refreshSpinner.setPreferredSize(new Dimension(20, 20));
         refreshButton.addActionListener(e -> {
+            int missing = layer.getFailedUris().size();
+            if (missing > 0) {
+                layer.reloadSources();
+                Message.info("PUNCH Refresh", String.format(
+                        "Fetching %d frame%s that did not arrive. The rest come back from the cache.",
+                        missing, missing == 1 ? "" : "s"));
+                return;
+            }
             refreshButton.setEnabled(false);
             refreshButton.setIcon(null);
             refreshButton.add(refreshSpinner);
@@ -173,6 +209,16 @@ final class ImageLayerManagePanel extends JPanel {
         boolean hasCache = !imageLayer.isLocal();
         cacheButton.setVisible(hasCache);
         deleteCacheButton.setVisible(hasCache);
+        updateRefreshVisible();
+    }
+
+    /**
+     * A remembered archive query is one reason to offer Refresh; frames that did not arrive are
+     * the other, and a layer can have the second without the first (a VSO or LASCO movie).
+     */
+    private void updateRefreshVisible() {
+        if (refreshButton != null)
+            refreshButton.setVisible(PunchClient.hasRememberedQuery(layer) || !layer.getFailedUris().isEmpty());
     }
 
     // Everything this layer has put on disk. There are two separate stores and a layer uses one
@@ -274,13 +320,19 @@ final class ImageLayerManagePanel extends JPanel {
     }
 
     void updateReadout() {
+        updateRefreshVisible(); // failures land after the panel is built, and they decide the button
         String loadStatus = layer.getLoadStatus();
-        if (loadStatus != null) { // frames still on the wire: show the load stage, not "0/0"
+        View view = layer.getView();
+        // Only until the movie has something in it. The loader used to build every frame before
+        // the layer saw any of them, so there was nothing here but "0/0" and the stage text was
+        // the only thing worth showing; now the movie grows as frames land, so the real readout
+        // has real content from the second frame on. Past that the stage text is just the row
+        // above repeated underneath itself.
+        if (loadStatus != null && view.getMaximumFrameNumber() == 0) {
             lastReadoutSig = Long.MIN_VALUE; // recompute the real readout once frames land
             readout.setText("<html><i>" + loadStatus + "</i></html>");
             return;
         }
-        View view = layer.getView();
         int max = view.getMaximumFrameNumber();
         int total = max + 1;
         boolean downloading = layer.isDownloading();
@@ -303,9 +355,9 @@ final class ImageLayerManagePanel extends JPanel {
                 ? (max == 0 ? "0/0 frames" : done + "/" + total + " frames") // scope not yet known
                 : total + (total == 1 ? " frame" : " frames");
         String duration = TimeUtils.formatDurationSig(end - start);
-        String text = String.format("<html>%s – %s<br>cadence %s · %s · %s total<br>%s<br>%s</html>",
+        String text = String.format("<html>%s – %s<br>cadence %s · %s · %s total<br>%s<br>%s%s</html>",
                 TimeUtils.format(start), TimeUtils.format(end), cadence, frames, duration,
-                describeData(view), describeCache());
+                describeData(view), describeCache(), describeMissing());
         if (!text.equals(lastReadoutText)) {
             lastReadoutText = text;
             readout.setText(text);
@@ -314,6 +366,21 @@ final class ImageLayerManagePanel extends JPanel {
 
     private String cadenceText = "n/a";
     private String lastReadoutText;
+
+    /**
+     * What the last load asked for and did not get.
+     *
+     * <p>A load that comes up short is otherwise silent: the frames that timed out are dropped,
+     * the status text clears, and the layer settles into a shorter movie than was asked for with
+     * nothing to say why. Measured 2026-09-22 against umbra, 25 of 45 PUNCH PAM frames timed out
+     * and the only trace was a warning in the log. These URIs were found in the archive and did
+     * not arrive, so every one of them is retryable, which is what Refresh does.
+     */
+    private String describeMissing() {
+        int missing = layer.getFailedUris().size();
+        return missing == 0 ? ""
+                : "<br>" + missing + (missing == 1 ? " frame" : " frames") + " did not arrive; Refresh retries them";
+    }
 
     /**
      * The pipeline version a native-FITS layer was loaded at (PUNCH's own vocabulary calls this

@@ -62,6 +62,19 @@ public record FitsRequest(@Nonnull Archive archive, @Nonnull String level, @Nonn
         return new FitsRequest(archive, level, product, version, cadence, start, end);
     }
 
+    /** The same query over a new span at a new cadence, for a resync to the master controls. */
+    public FitsRequest withSpan(long start, long end, long newCadence) {
+        return new FitsRequest(archive, level, product, version, newCadence, start, end);
+    }
+
+    /**
+     * The master cadence control's value (seconds, or {@link APIRequest#CADENCE_ALL}) as the
+     * milliseconds this record measures in. "Get all" means every frame in range, which is 0 here.
+     */
+    public static long cadenceMillis(int seconds) {
+        return seconds == APIRequest.CADENCE_ALL ? 0 : seconds * 1000L;
+    }
+
     public JSONObject toJson() {
         JSONObject jo = new JSONObject();
         jo.put("archive", archive.name());

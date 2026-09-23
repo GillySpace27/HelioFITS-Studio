@@ -2,6 +2,8 @@ package org.helioviewer.jhv.view.uri;
 
 import java.io.File;
 import java.nio.Buffer;
+import java.util.Arrays;
+import java.util.List;
 
 import javax.annotation.Nullable;
 
@@ -30,21 +32,25 @@ public final class FITSImage {
 
     private FITSImage() {}
 
-    public static URIView.SourceInfo readInfo(File file) throws Exception {
-        FITSData data = readData(file);
-        return new URIView.SourceInfo(getHeaderAsXML(data.header()), data.width(), data.height(), null, data.calculateClipSet());
+    public static URIView.SourceInfo readInfo(File file, int plane) throws Exception {
+        FITSData data = readData(file, plane);
+        return new URIView.SourceInfo(getHeaderAsXML(data.header()), data.width(), data.height(), null,
+                data.calculateClipSet(), planeLabels(data.header()));
     }
 
     public static ImageBuffer decode(File file, ImageFilter filter, ImageProcessingSettings.FITSParameters state, @Nullable ClipSet.Range clipRange) throws Exception {
-        return readData(file).decode(filter, state, clipRange);
+        return readData(file, state.plane()).decode(filter, state, clipRange);
     }
 
-    private static FITSData readData(File file) throws Exception {
+    private static FITSData readData(File file, int plane) throws Exception {
         try (Fits f = new Fits(file)) {
             BasicHDU<?> hdu = findHDU(f);
             Header header = imageHeader(hdu);
             int[] axes = imageAxes(header);
-            Object pixels = readFlatPixels(hdu, axes);
+            // A plane out of range is a stale setting (a cube's layer count remembered against a
+            // plain image, or a different product), not a reason to refuse the file.
+            int planes = planeCount(header);
+            Object pixels = readFlatPixels(hdu, axes, plane < 0 || plane >= planes ? 0 : plane);
             boolean hasBlank = header.containsKey(Standard.BLANK);
             long blank = hasBlank ? header.getLongValue(Standard.BLANK) : 0;
             double bzero = header.getDoubleValue(Standard.BZERO, 0);
@@ -162,25 +168,82 @@ public final class FITSImage {
         }
     }
 
+    /**
+     * The image's own two axes. Anything beyond them is a stack of such images; see {@link #planeCount}.
+     *
+     * <p>This used to insist on NAXIS == 2, which refused every polarized PUNCH product outright:
+     * PTM and CTM are 4096 x 4096 x 3, the B / pB / pBp triplet, and the refusal arrived two
+     * milliseconds after the file was opened.
+     */
     private static int[] imageAxes(Header header) throws Exception {
-        int nAxis = header.getIntValue("NAXIS", 0);
-        if (nAxis != 2)
-            throw new Exception("Only 2D FITS files supported");
+        if (header.getIntValue("NAXIS", 0) < 2)
+            throw new Exception("Not a FITS image: fewer than two axes");
         int[] axes = {header.getIntValue("NAXIS2", 0), header.getIntValue("NAXIS1", 0)};
         if (axes[0] <= 0 || axes[1] <= 0)
-            throw new Exception("Only 2D FITS files supported");
+            throw new Exception("Unusable FITS image size: NAXIS1 x NAXIS2 = " + axes[1] + " x " + axes[0]);
         return axes;
     }
 
+    /** How many images the file holds at that size: 1 for a plain image, NAXIS3 x NAXIS4 ... for a cube. */
+    private static int planeCount(Header header) {
+        int planes = 1;
+        for (int axis = 3, nAxis = header.getIntValue("NAXIS", 0); axis <= nAxis; axis++)
+            planes *= Math.max(1, header.getIntValue("NAXIS" + axis, 1));
+        return planes;
+    }
+
+    /**
+     * One label per plane, or an empty list when the file holds a single image.
+     *
+     * <p>PUNCH names the layers of its cubes: OBSLAYR1 = "Polar_B", OBSLAYR2 = "Polar_pB",
+     * OBSLAYR3 = "Polar_pBp" (read from PUNCH_L3_PTM_20260421000230_v0l.fits). A file that names
+     * nothing gets ordinals, which is still enough to choose by.
+     */
+    static List<String> planeLabels(Header header) {
+        int planes = planeCount(header);
+        if (planes < 2)
+            return List.of();
+        String[] labels = new String[planes];
+        for (int i = 0; i < planes; i++) {
+            String named = header.getStringValue("OBSLAYR" + (i + 1));
+            labels[i] = named == null || named.isBlank() ? "Plane " + (i + 1) : named.trim();
+        }
+        return List.of(labels);
+    }
+
     @SuppressWarnings("deprecation")
-    private static Object readFlatPixels(BasicHDU<?> hdu, int[] axes) throws Exception {
+    private static Object readFlatPixels(BasicHDU<?> hdu, int[] axes, int plane) throws Exception {
+        int count = axes[0] * axes[1];
         if (hdu instanceof CompressedImageHDU chdu) {
-            return unwrapPixelBuffer(chdu.getUncompressedData(), axes[0] * axes[1]);
+            // A compressed cube decompresses whole and flat, plane-major, so the requested plane is
+            // a slice of it. Asking unwrap for one plane more than we want is also the bounds check.
+            Object all = unwrapPixelBuffer(chdu.getUncompressedData(), count * (plane + 1));
+            return plane == 0 && java.lang.reflect.Array.getLength(all) == count ? all : slice(all, plane * count, count);
         } else if (hdu instanceof ImageHDU ihdu) {
-            return ihdu.getData().getTiler().getTile(new int[]{0, 0}, axes);
+            int nAxis = ihdu.getHeader().getIntValue("NAXIS", 2);
+            if (nAxis == 2)
+                return ihdu.getData().getTiler().getTile(new int[]{0, 0}, axes);
+            // ponytail: the tiler indexes the cube's axes slowest first, so one plane is a 1-deep
+            // tile of a three-axis cube. Deeper uncompressed cubes are rejected rather than
+            // guessed at; no instrument in hand writes one.
+            if (nAxis > 3)
+                throw new Exception("Uncompressed FITS cubes deeper than three axes are not supported (NAXIS = " + nAxis + ')');
+            return ihdu.getData().getTiler().getTile(new int[]{plane, 0, 0}, new int[]{1, axes[0], axes[1]});
         } else {
             throw new Exception("Unsupported FITS HDU: " + hdu.getClass().getSimpleName());
         }
+    }
+
+    private static Object slice(Object all, int from, int count) throws Exception {
+        return switch (all) {
+            case byte[] p -> Arrays.copyOfRange(p, from, from + count);
+            case short[] p -> Arrays.copyOfRange(p, from, from + count);
+            case int[] p -> Arrays.copyOfRange(p, from, from + count);
+            case long[] p -> Arrays.copyOfRange(p, from, from + count);
+            case float[] p -> Arrays.copyOfRange(p, from, from + count);
+            case double[] p -> Arrays.copyOfRange(p, from, from + count);
+            default -> throw new Exception("Unsupported FITS pixel type: " + all.getClass().getSimpleName());
+        };
     }
 
     private static Object unwrapPixelBuffer(Buffer buffer, int expectedPixels) throws Exception {

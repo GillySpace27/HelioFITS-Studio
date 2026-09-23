@@ -117,13 +117,22 @@ public final class Layers {
 
     /**
      * A layer just got a view. It takes the clock if it already holds it (its frames grew and the
-     * player must learn), if no image layer holds it and no timeline source was claimed, or if it
-     * is brand new and nobody has chosen a master. Otherwise the clock stays where it was.
+     * player must learn), if it is the only imagery there is, if no image layer holds it and no
+     * timeline source was claimed, or if it is brand new and nobody has chosen a master.
+     * Otherwise the clock stays where it was.
+     *
+     * <p>The only-imagery case is not covered by the others: a restored session can come back
+     * with a master already chosen for a layer that is no longer there, and then the one layer in
+     * the window shows its radio selected while the clock is somewhere else entirely. Playback
+     * does nothing and clicking the already-selected radio is the only way out, which is not a
+     * thing anyone should have to discover. Nothing is taken from another image layer here
+     * because there is no other one; a timeline that owns the clock keeps it.
      */
     public static void viewActivated(ImageLayer layer, boolean firstView) {
         boolean holds = activeLayer == layer;
         boolean vacant = activeLayer == nullImageLayer && masterTimelineSource == null;
-        if (holds || vacant || (firstView && !masterChosen)) {
+        boolean soleImagery = masterTimelineSource == null && getImageLayers().size() == 1;
+        if (holds || vacant || soleImagery || (firstView && !masterChosen)) {
             masterTimelineSource = null;
             activeLayer = layer;
             Player.setMaster(layer);

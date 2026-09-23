@@ -46,6 +46,8 @@ public final class ImageLayersPane extends JPanel {
         layerOptionsContent.add(manageWrapper); // readout + download/metadata/refresh, at the top
         layerOptionsContent.add(layerOptionsWrapper);
         layerOptionsContent.add(geometryWrapper);
-        add(new CollapsiblePane("Layer options", layerOptionsContent, true, true));
+        CollapsiblePane layerOptions = new CollapsiblePane("Layer options", layerOptionsContent, true, true);
+        layerOptions.pinOpen(); // the controls for the selected layer; see CollapsiblePane.pinOpen
+        add(layerOptions);
     }
 }

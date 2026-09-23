@@ -108,6 +108,39 @@ public final class DrawController implements Interfaces.LazyComponent, Interface
         listeners.remove(listener);
     }
 
+    /**
+     * Put the loaded imagery back in view when none of it is.
+     *
+     * <p>The timeline window and the layers are set independently: a layer loaded for a date the
+     * window is not looking at draws nothing, and the coverage row is an empty lane with a label
+     * on it. That reads as a broken coverage display rather than as a window pointed somewhere
+     * else, and the way out (pan the timeline a month) is not one anybody guesses.
+     *
+     * <p>Only when NOTHING overlaps. A window showing part of the data is a window somebody
+     * chose, and moving it under them would be worse than the empty lane.
+     *
+     * @return whether the window was moved
+     */
+    public static boolean showLoadedDataIfNothingInView() {
+        long first = Long.MAX_VALUE, last = Long.MIN_VALUE;
+        for (org.helioviewer.jhv.layers.ImageLayer layer : org.helioviewer.jhv.layers.Layers.getImageLayers()) {
+            org.helioviewer.jhv.view.View view = layer.getView();
+            if (view.getMaximumFrameNumber() < 0)
+                continue;
+            first = Math.min(first, view.getFirstTime().milli);
+            last = Math.max(last, view.getLastTime().milli);
+        }
+        if (first > last)
+            return false; // nothing loaded to aim at
+        if (first <= selectedAxis.end() && last >= selectedAxis.start())
+            return false; // some of it is already on screen; the window is the user's
+
+        // A single frame has no span of its own; give it an hour of context either side.
+        long pad = Math.max(TimeUtils.MINUTE_IN_MILLIS * 60, (last - first) / 20);
+        setSelectedInterval(first - pad, last + pad);
+        return true;
+    }
+
     public static void setSelectedInterval(long start, long end) {
         if (start != selectedAxis.start() || end != selectedAxis.end()) {
             selectedAxis.set(start, end);

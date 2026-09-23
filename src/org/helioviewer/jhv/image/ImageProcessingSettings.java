@@ -1,6 +1,7 @@
 package org.helioviewer.jhv.image;
 
 import java.util.ArrayList;
+import java.util.List;
 
 import javax.annotation.Nullable;
 
@@ -56,7 +57,8 @@ public final class ImageProcessingSettings {
             ScalingMode scalingMode,
             double gamma,
             double beta,
-            double alpha) {
+            double alpha,
+            int plane) {
 
         @Nullable
         public ClipSet.Range clipRange(@Nullable ClipSet clipSet) {
@@ -73,8 +75,27 @@ public final class ImageProcessingSettings {
 
     private double clippingMin = -500;
     private double clippingMax = 500;
-    private ClippingMode clippingMode = ClippingMode.Percentile001;
+    /*
+     * 0.5%, as asked for on 2026-09-22, and the trade is worth writing down because it is not
+     * free. Measured that day, as where the median sits in the display range and how much clips
+     * at the bright end:
+     *
+     *     STEREO COR2 frame      0.001%: median 43.8%, 0.001% clipped high, low bound 256
+     *                            0.5%:   median 23.1%, 0.353% clipped high, low bound 4134
+     *     PUNCH Polar_pB         0.001%: zero sits at 84.8% of the range (sky renders near white)
+     *                            0.5%:   zero sits at 59.5%
+     *
+     * PUNCH's polarized planes need the narrow range: their 0.001% bounds are set by a long tail
+     * of negative noise, and the wide range leaves the sky near white with everything above it
+     * clipped. A coronagraph frame in DN pays for that with a low bound an order of magnitude
+     * higher and three hundred times as many saturated pixels.
+     *
+     * Choosing the percentile from the data's own shape would serve both and is the real fix.
+     */
+    private ClippingMode clippingMode = ClippingMode.Percentile05;
 
+    private int plane; // which image of a datacube this layer shows; 0 unless the file is one
+    private List<String> planes = List.of(); // that cube's layer names, empty unless the file is one
     private ScalingMode scalingMode = ScalingMode.Gamma;
     private double gamma = 1. / 2.2;
     private double beta = 1. / (1 << 6);
@@ -99,7 +120,7 @@ public final class ImageProcessingSettings {
     }
 
     private FITSParameters createFITSParameters() {
-        return new FITSParameters(clippingMode, clippingMin, clippingMax, scalingMode, gamma, beta, alpha);
+        return new FITSParameters(clippingMode, clippingMin, clippingMax, scalingMode, gamma, beta, alpha, plane);
     }
 
     public void serialize(JSONObject jo) {
@@ -111,6 +132,11 @@ public final class ImageProcessingSettings {
         jo.put("gamma", current.gamma());
         jo.put("beta", current.beta());
         jo.put("alpha", current.alpha());
+        jo.put("plane", current.plane());
+        // Saved so a restored session does not ask again for a choice it already holds; the
+        // loader takes an unchanged list to mean it is looking at the same product.
+        if (!planes.isEmpty())
+            jo.put("planes", new org.json.JSONArray(planes));
     }
 
     public void fromJson(JSONObject jo) {
@@ -125,6 +151,14 @@ public final class ImageProcessingSettings {
         gamma = Math.clamp(jo.optDouble("gamma", gamma), GAMMA_MIN, GAMMA_MAX);
         beta = Math.clamp(jo.optDouble("beta", beta), BETA_MIN, BETA_MAX);
         alpha = Math.clamp(jo.optDouble("alpha", alpha), ALPHA_MIN, ALPHA_MAX);
+        plane = Math.max(0, jo.optInt("plane", plane));
+        org.json.JSONArray storedPlanes = jo.optJSONArray("planes");
+        if (storedPlanes != null) {
+            List<String> read = new ArrayList<>(storedPlanes.length());
+            for (int i = 0; i < storedPlanes.length(); i++)
+                read.add(storedPlanes.optString(i, "Plane " + (i + 1)));
+            planes = List.copyOf(read);
+        }
 
         if (!old.equals(createFITSParameters())) {
             notifyFITSListeners();
@@ -176,6 +210,32 @@ public final class ImageProcessingSettings {
         double newAlpha = Math.clamp(value, ALPHA_MIN, ALPHA_MAX);
         if (updateAlpha(newAlpha) && scalingMode == ScalingMode.Alpha)
             onChange.run();
+    }
+
+    /** The names of the images a datacube holds, empty when the file is a single image. */
+    public List<String> planes() {
+        return planes;
+    }
+
+    /**
+     * Record what the file turned out to hold, and pull a stale plane back into range.
+     *
+     * <p>Only the names; the plane itself is chosen elsewhere. Notifying is what puts the chooser
+     * in the layer's options panel, so this belongs on the EDT like the other setters.
+     */
+    public void setPlanes(List<String> newPlanes) {
+        planes = List.copyOf(newPlanes);
+        plane = planes.size() < 2 ? 0 : Math.clamp(plane, 0, planes.size() - 1);
+        notifyFITSListeners();
+    }
+
+    /** Which image of a datacube to show. A value past the file's last plane decodes plane 0. */
+    public void setPlane(int newPlane) {
+        if (plane == newPlane)
+            return;
+        plane = Math.max(0, newPlane);
+        notifyFITSListeners();
+        onChange.run();
     }
 
     public void addFITSListener(FITSListener listener) {

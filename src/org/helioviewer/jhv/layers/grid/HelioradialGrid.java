@@ -4,6 +4,7 @@ import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.MapScale;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.WarpGeometry;
+import org.helioviewer.jhv.opengl.GLSLWarp;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.layers.GridLayer;
 import org.helioviewer.jhv.math.FastFormat;
@@ -34,13 +35,30 @@ public final class HelioradialGrid {
         line.dispose();
     }
 
+    /**
+     * The flat helioradial grid, drawn in normalized screen coordinates.
+     *
+     * <p>Warped once, not twice. {@code toUnitY} IS the radial mapping: a ring's position already
+     * has lambda in it. But GLRenderer enables the vertex-stage warp for every helioradial mode,
+     * 2D included, so these vertices went through the Box-Cox transform a second time on the GPU
+     * while the imagery beneath them went through it once. At lambda = 0 the two agree and
+     * nothing looks wrong; move the slider and the rings slide off the features they label.
+     *
+     * <p>The colour-table legend hit the same fault for the same reason (see GLRenderer, where
+     * the HUD disables the warp before drawing in pixel coordinates). This is that fix, here.
+     */
     public void render(MapView mv, Viewport vp, boolean showLabels, double spokeStep, byte[] color, double lineScale, float[] labelColor, double labelSize, double labelAngle) {
         MapScale scale = mv.scale(vp);
         int ringCount = chooseRings(scale);
         updateLine(scale, ringCount, spokeStep, color);
-        line.renderLine(vp, GridMath.LINEWIDTH * lineScale);
-        if (showLabels)
-            drawLabels(mv, vp, scale, ringCount, labelColor, labelSize, labelAngle);
+        GLSLWarp.disable();
+        try {
+            line.renderLine(vp, GridMath.LINEWIDTH * lineScale);
+            if (showLabels)
+                drawLabels(mv, vp, scale, ringCount, labelColor, labelSize, labelAngle);
+        } finally {
+            GLSLWarp.enable(scale); // the caller left it on; leave it as we found it
+        }
     }
 
     /**

@@ -175,9 +175,15 @@ public final class HdrGain {
         Settings.setProperty(KEY_IN_RANGE, Float.toString(inRange));
     }
 
-    /** Whether the EDR rung is asked for at the next canvas attach; the renderer reads the same key. */
+    /**
+     * Whether the EDR rung is asked for at the next canvas attach; the renderer reads the same key.
+     *
+     * <p>Opt-in, not opt-out. An EDR canvas is gain-mapped against the screen it is on, so the
+     * same scene is a different picture on a projector, in a screen share, or once the window
+     * moves; the HDR palette turns it on for the display that can actually show it.
+     */
     public static boolean canvasEnabled() {
-        return !"false".equals(Settings.getProperty(KEY_CANVAS));
+        return "true".equals(Settings.getProperty(KEY_CANVAS));
     }
 
     /**

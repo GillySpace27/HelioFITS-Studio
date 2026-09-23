@@ -9,7 +9,6 @@ import java.util.StringJoiner;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.JPanel;
-import javax.swing.JToggleButton;
 
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.ComponentUtils;
@@ -69,8 +68,8 @@ final class ImageLayerRenderingPanel extends JPanel {
     // these out of a global preferences page and into the layer, which is where they belong: two
     // FITS layers in one scene rarely want the same clip.
     private final FITSSettings fitsSettings;
-    private final JToggleButton fitsButton = Buttons.flatToggle(Buttons.fitsRight);
 
+    private final org.helioviewer.jhv.layers.filters.PlanePanel planePanel;
     private final LayerSection displaySection;
     private final LayerSection intensitySection;
 
@@ -91,18 +90,15 @@ final class ImageLayerRenderingPanel extends JPanel {
         imageFilterPanel = new ImageFilterPanel(layer);
         sequencePanel = new SequencePointer(layer);
         fitsSettings = new FITSSettings(layer.getProcessingSettings());
-
-        fitsButton.addActionListener(e -> {
-            boolean expanded = fitsButton.isSelected();
-            fitsButton.setText(expanded ? Buttons.fitsDown : Buttons.fitsRight);
-            fitsSettings.setVisible(expanded);
-        });
+        planePanel = new org.helioviewer.jhv.layers.filters.PlanePanel(layer.getProcessingSettings(), layer::reloadSources);
 
         FilterDetails[] intensityRows = {differencePanel, levelsPanel, contrastPanel, sharpenPanel, imageFilterPanel, sequencePanel};
         JPanel intensityContent = FilterRowLayout.rows(intensityRows);
-        // The FITS disclosure is the bottom of Intensity rather than a section of its own: it is
+        // The FITS rows are the bottom of Intensity rather than a section of their own: they are
         // the same question as Levels asked one step earlier, on the data rather than on the
-        // display, and only a layer with FITS behind it has it at all.
+        // display, and only a layer with FITS behind it has them at all. Not behind a disclosure:
+        // the clip and the stretch are what a FITS layer is adjusted with, and hiding them one
+        // click deep meant every layer opened needing that click first.
         GridBagConstraints c = new GridBagConstraints();
         c.gridx = 0;
         c.gridwidth = 3;
@@ -111,12 +107,12 @@ final class ImageLayerRenderingPanel extends JPanel {
         c.anchor = GridBagConstraints.LINE_START;
         c.fill = GridBagConstraints.HORIZONTAL;
         c.gridy = intensityRows.length;
-        intensityContent.add(fitsButton, c);
-        c.gridy++;
         intensityContent.add(fitsSettings, c);
 
+        // Straight after the colour table: both answer "what am I looking at", one by choosing
+        // the image and one by choosing how it is painted.
         displaySection = new LayerSection("Display", "layer_display",
-                FilterRowLayout.rows(opacityPanel, blendPanel, lutPanel, channelMixerPanel), true,
+                FilterRowLayout.rows(opacityPanel, blendPanel, lutPanel, planePanel, channelMixerPanel), true,
                 () -> displaySummary(layer), () -> {
             revertDisplay(layer);
             rebuild.run();
@@ -126,6 +122,12 @@ final class ImageLayerRenderingPanel extends JPanel {
             revertIntensity(layer);
             rebuild.run();
         });
+
+        // Held open, like the Layer options section around them: these are the controls for the
+        // layer that is selected, not asides to be tidied away, and folding one hid why the
+        // picture looks as it does with nothing on screen saying so.
+        displaySection.pinOpen();
+        intensitySection.pinOpen();
 
         setLayout(new BoxLayout(this, BoxLayout.PAGE_AXIS));
         setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
@@ -153,8 +155,9 @@ final class ImageLayerRenderingPanel extends JPanel {
         imageFilterPanel.syncFromLayer(imageLayer); // a computed sequence takes the per-frame filter on top, like a raw frame
 
         boolean hasFITS = imageLayer.getView().hasFITS();
-        fitsButton.setVisible(hasFITS);
-        fitsSettings.setVisible(hasFITS && fitsButton.isSelected());
+        fitsSettings.setVisible(hasFITS);
+        // planePanel decides its own visibility: what the file holds is not known until the load
+        // says so, which is after this runs.
         updateBadges();
     }
 

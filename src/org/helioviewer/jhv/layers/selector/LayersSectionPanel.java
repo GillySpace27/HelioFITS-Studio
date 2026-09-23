@@ -52,7 +52,7 @@ public final class LayersSectionPanel extends JPanel {
     private JPanel buildSourcePanel() {
         JPanel cards = new JPanel(new java.awt.CardLayout());
         cards.add(buildJp2Panel(), "JP2");
-        cards.add(new org.helioviewer.jhv.gui.component.VsoSelectorPanel(this::getStartTime, this::getEndTime), "VSO");
+        cards.add(new org.helioviewer.jhv.gui.component.VsoSelectorPanel(this::getStartTime, this::getEndTime, this::getCadence), "VSO");
         cards.add(buildNativePanel(), "NATIVE");
 
         JPanel chooser = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEADING, 0, 2));
@@ -104,7 +104,7 @@ public final class LayersSectionPanel extends JPanel {
         long end = getEndTime();
         org.helioviewer.jhv.layers.ImageLayer.create(null).load(new org.helioviewer.jhv.io.FitsRequest(
                 org.helioviewer.jhv.io.FitsRequest.Archive.LASCO, "lz", detector, "",
-                1000L * org.helioviewer.jhv.time.TimeUtils.defaultCadence(start, end), start, end));
+                org.helioviewer.jhv.io.FitsRequest.cadenceMillis(getCadence()), start, end));
     }
 
     private JPanel buildNativePanel() {
@@ -114,8 +114,8 @@ public final class LayersSectionPanel extends JPanel {
                 {"PUNCH (SDAC)\u2026", (Runnable) () -> org.helioviewer.jhv.gui.dialog.PunchDialog.getInstance().showDialog()},
                 {"Solar Orbiter (SOAR)\u2026", (Runnable) () -> org.helioviewer.jhv.gui.dialog.SoarDialog.getInstance().showDialog()},
                 {"Proba-3 ASPIICS\u2026", (Runnable) () -> org.helioviewer.jhv.gui.dialog.AspiicsDialog.getInstance().showDialog()},
-                // No dialog: the master range and its default cadence are the whole question, like
-                // the VSO tree's Add button. NRL because the VSO's LASCO catalog stops in early
+                // No dialog: the master range and cadence are the whole question, like the VSO
+                // tree's Add button. NRL because the VSO's LASCO catalog stops in early
                 // 2025 while the LZ archive is current; see LascoClient.
                 {"LASCO C2 (NRL)", (Runnable) () -> addLascoLayer("C2")},
                 {"LASCO C3 (NRL)", (Runnable) () -> addLascoLayer("C3")},

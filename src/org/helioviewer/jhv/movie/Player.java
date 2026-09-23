@@ -87,6 +87,29 @@ public class Player {
         timeRangeChanged();
     }
 
+    /**
+     * The master movie got longer while the clock was already on it.
+     *
+     * <p>setMaster reads the length once, so a movie that grows as its frames download left the
+     * transport reading 1/1 over a forty-five frame load and the playback range pinned to the one
+     * frame that existed when the layer was handed the clock. This is setMaster without the
+     * syncTime: the length is re-read, the playhead is left exactly where the viewer put it.
+     *
+     * <p>It does reset a playback sub-range to the whole movie. While frames are still arriving
+     * that range is still being defined, so there is nothing yet to preserve.
+     */
+    public static void movieLengthChanged() {
+        ImageLayer layer = Layers.getActiveImageLayer();
+        if (layer == null)
+            return;
+        View view = layer.getView();
+        playbackFirstTime = view.getFirstTime();
+        playbackLastTime = view.getLastTime();
+        ViewState.setPlaybackRange(0, view.getMaximumFrameNumber());
+        notifyStatusChanged();
+        timeRangeChanged();
+    }
+
     public static void setPlaybackRange(int firstFrame, int lastFrame) {
         ImageLayer layer = Layers.getActiveImageLayer();
         if (layer == null) {
