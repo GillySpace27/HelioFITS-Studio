@@ -16,6 +16,10 @@
 - The Mac bundle now carries a compiled asset catalog as well as the .icns, because macOS 26 draws a .icns-only application on a grey plate at 16 and 32 pixels whatever its artwork does. The catalog is given the art unmasked, since macOS applies its own shape and insets anything that arrives already shaped
 - Windows gets a .ico with the same per-size artwork, so its small icons are not shrunken copies of the large one either
 
+### Fixes
+- Restoring a session with LASCO layers no longer re-reads every header. 0.8.1 saved what the pointing probe concluded but only believed it back if it had found something to lend, and a movie clear of the 2025-08 gap has nothing to lend, so the usual case probed again on every restore
+- `-state` opens a session and the window now belongs to it, so autosave and quit write back to that file. It used to load the named session but keep saving to whichever session the window remembered from the previous launch, so opening A and quitting wrote A's scene over B
+
 ## HFStudio 0.8.2 (pre-release, 2026-09-19)
 
 A new name and icon, and a download for every platform that carries its own Java.
@@ -31,8 +35,6 @@ A new name and icon, and a download for every platform that carries its own Java
 - Every package carries a trimmed Java runtime and only its own platform's native libraries, roughly halving it: the Mac app bundle goes from 319 MB to 153 MB
 
 ### Fixes
-- Restoring a session with LASCO layers no longer re-reads every header. 0.8.1 saved what the pointing probe concluded but only believed it back if it had found something to lend, and a movie clear of the 2025-08 gap has nothing to lend, so the usual case probed again on every restore
-- `-state` opens a session and the window now belongs to it, so autosave and quit write back to that file. It used to load the named session but keep saving to whichever session the window remembered from the previous launch, so opening A and quitting wrote A's scene over B
 - Changing the filter with two or more image layers selected no longer throws
 - When a computer's graphics cannot start (Metal, Direct3D 11 or OpenGL), HFStudio says so in words and says where the log is, instead of showing a stack trace
 - The log records which OpenJPEG was loaded, and from where
