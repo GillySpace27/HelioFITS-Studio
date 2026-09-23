@@ -73,9 +73,9 @@ if [ "$OS" = windows ]; then
     [ -f pkg-out/HFStudio/runtime/bin/vcruntime140.dll ] \
         || { echo "!! the bundled runtime has no vcruntime140.dll; OpenJPEG would not load on a bare Windows" >&2; exit 1; }
     ARCHIVE="HFStudio-$VERSION-windows.zip"
-    ( cd pkg-out && 7z a -tzip -mx=7 "../$ARCHIVE" HelioFITS Studio > /dev/null )
+    ( cd pkg-out && 7z a -tzip -mx=7 "../$ARCHIVE" HFStudio > /dev/null )
 else
     ARCHIVE="HFStudio-$VERSION-linux.tar.gz"
-    tar -C pkg-out -czf "$ARCHIVE" HelioFITS Studio
+    tar -C pkg-out -czf "$ARCHIVE" HFStudio
 fi
 echo "==> $ARCHIVE ($(du -h "$ARCHIVE" | cut -f1))"
