@@ -85,7 +85,7 @@ public final class LogWindow implements Interfaces.ShowableDialog {
         content.add(scroller, BorderLayout.CENTER);
         content.add(buttons, BorderLayout.PAGE_END);
 
-        dialog = new JDialog(MainFrame.get(), "HFStudio Log", false); // never modal: the point is to watch
+        dialog = new JDialog(MainFrame.get(), org.helioviewer.jhv.app.AppInfo.programName + " Log", false); // never modal: the point is to watch
         dialog.setType(Window.Type.UTILITY); // avoids a tab on macOS when Prefer tabs is always
         dialog.setDefaultCloseOperation(WindowConstants.HIDE_ON_CLOSE);
         dialog.setContentPane(content);
