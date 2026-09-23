@@ -236,19 +236,23 @@ public final class CMETracker implements TimeListener.Change {
     }
 
     /**
-     * Normalized radial screen position of physical radius r, asked of the renderer's own scale
-     * with lambda as a free variable so it can be solved for.
+     * Normalized radial screen position of physical radius r with the view cut at rOut, for a
+     * given lambda, asked of the renderer's own scale with lambda as a free variable so it can be
+     * solved for. Orthographic has no warp, and its crop sizes a linear camera, so there it is
+     * simply r / rOut.
      *
-     * <p>This used to be a hand copy of BoxCoxRadialScale.toUnitY, and the copy was wrong: it
-     * anchored the limb at max(1/R, 1/(1 + boxcox)) and stopped there, while the real scale
-     * multiplies that anchor by the disk scale and clamps it. The disk scale ships at 0.5, so
-     * every solve was against a map nobody was drawing, by 0.08 in normalized radius near the
-     * occulter and 0.006 out at 25 solar radii. A CME front cannot falsify that, having no true
-     * position to be wrong about; a comet can, and did. Asking the scale is also cheaper to
-     * believe than a comment claiming the copy is exact.
+     * <p>This used to be a hand copy of BoxCoxRadialScale.toUnitY, and the copy was wrong twice
+     * over. It anchored the limb at max(1/R, 1/(1 + boxcox)) and stopped there, while the real
+     * scale multiplies that anchor by the disk scale (0.5 as shipped) and clamps it, so every
+     * solve was against a map nobody was drawing: by 0.08 in normalized radius near the occulter
+     * and 0.006 out at 25 solar radii. A CME front cannot falsify that, having no true position to
+     * be wrong about; a comet can, and did. And it modelled the old Crop, which renormalized the
+     * warp to the crop, where the Crop now only cuts a warp normalized over the full field.
      */
     private static double unitY(double r, double rOut, double lambda) {
-        return MapScale.boxCoxRadial(rOut, lambda).toUnitY(r);
+        if (!Display.mode.usesWarpLambda())
+            return r / rOut;
+        return MapScale.boxCoxRadialCrop(Display.fullWarpFieldRadius(), rOut, lambda).toUnitY(r);
     }
 
     // Find lambda in [-1, 1] such that the front lands at SCREEN_FRACTION of the outer FOV

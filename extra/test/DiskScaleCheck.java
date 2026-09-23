@@ -142,8 +142,17 @@ public final class DiskScaleCheck {
      *
      * <p>Stated as a round trip rather than as "no copy exists", so it holds however the solve is
      * implemented: solve for the knob, then ask the real scale where the feature landed.
+     *
+     * <p>The real scale is the one Display.warpScale draws: since the Crop became a cut of a warp
+     * normalized over the full field rather than a warp over the crop, that is boxCoxRadialCrop
+     * over the loaded field, so each half sets the field it means (headless, the layer stack that
+     * would supply it cannot load). And it runs in Helioradial: the Crop fix taught the tracker
+     * that Orthographic has no warp and crops linearly, and the headless default is Orthographic.
      */
     private static void theTrackerSolvesAgainstTheDrawnMap() {
+        java.util.function.DoubleSupplier field = Display.fieldRadius;
+        MapMode mode = Display.mode;
+        Display.mode = MapMode.Helioradial; // the tracker solves the Box-Cox map only where it is drawn
         double target = CMETracker.screenFraction();
         for (double scale : new double[]{0.5, Display.DISK_SCALE_NOMINAL, 2}) {
             Display.applyDiskScale(scale);
@@ -155,22 +164,24 @@ public final class DiskScaleCheck {
                     // and saturating is correct behaviour, so only an interior answer is a claim
                     // about the map, and only an interior answer is checked.
                     double maxOut = 100;
+                    Display.fieldRadius = () -> maxOut; // a field as wide as the widest crop
                     double out = CMETracker.solveOuter(r, lambda, maxOut);
                     if (out < maxOut - 1e-6) {
-                        double landedCrop = MapScale.boxCoxRadial(out, lambda).toUnitY(r);
+                        double landedCrop = MapScale.boxCoxRadialCrop(maxOut, out, lambda).toUnitY(r);
                         expect(Math.abs(landedCrop - target) < 1e-6,
                                 "crop solve at disk " + scale + " lambda " + lambda + " r " + r
                                         + " lands at " + landedCrop + ", not " + target);
                     } else {
-                        expect(MapScale.boxCoxRadial(maxOut, lambda).toUnitY(r) >= target,
+                        expect(MapScale.boxCoxRadialCrop(maxOut, maxOut, lambda).toUnitY(r) >= target,
                                 "crop solve gave up at disk " + scale + " lambda " + lambda + " r " + r
                                         + " where the widest field would have reached the target");
                     }
 
                     // Warp mode: solve lambda, holding a 30 R_sun field.
+                    Display.fieldRadius = () -> 30; // no crop: the field is the view
                     double lam = CMETracker.solve(r, 30);
                     if (Math.abs(lam) < 1 - 1e-6) {
-                        double landedWarp = MapScale.boxCoxRadial(30, lam).toUnitY(r);
+                        double landedWarp = MapScale.boxCoxRadialCrop(30, 30, lam).toUnitY(r);
                         expect(Math.abs(landedWarp - target) < 1e-6,
                                 "warp solve at disk " + scale + " r " + r
                                         + " lands at " + landedWarp + ", not " + target);
@@ -180,6 +191,8 @@ public final class DiskScaleCheck {
         }
         Display.applyDiskScale(Display.DISK_SCALE_NOMINAL);
         Display.setWarpLambda(0);
+        Display.fieldRadius = field;
+        Display.mode = mode;
     }
 
     private static double[][] sample(MapScale[] scales) {

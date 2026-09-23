@@ -1752,7 +1752,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
 
     private JPanel createWarpCropPanel() {
         warpCropSlider = new JHVSlider(0, 1000, CROP_SLIDER_AUTO).animates("display.warpOuterRadius");
-        warpCropSlider.setToolTipText("Circular crop, in solar radii: cuts the picture to a disc without moving the camera or changing the warp. Zoom magnifies instead; leftmost is auto, no crop.");
+        warpCropSlider.setToolTipText("Circular crop, in solar radii: cuts the picture to a disc and frames that disc, without changing the warp. Zoom magnifies with no edge; leftmost is auto, no crop.");
         warpCropSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, warpCropSlider.getPreferredSize().height));
         JLabel label = new JLabel("Crop");
         warpCropValue = new JLabel("auto", JLabel.RIGHT);

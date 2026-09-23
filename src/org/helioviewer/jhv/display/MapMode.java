@@ -86,15 +86,14 @@ public enum MapMode {
 
     public double baseCameraWidth(Camera camera) {
         return switch (this) {
-            // The crop sizes the helioradial camera, so closing it magnifies. The warp itself
-            // is normalized over the full loaded field (Display.fullWarpFieldRadius) and never
-            // sees this number, so the mapping holds still while the framing tightens.
+            // The camera frames the Crop's circle, so closing it magnifies; the fragment discard
+            // at the crop radius (warpSurface.vert/.frag) makes the edge a hard circle. The circle
+            // is the difference from Zoom, which magnifies with no boundary at all. The warp is
+            // normalized over the full field (Display.fullWarpFieldRadius) and never sees the crop.
             //
-            // On its own that was indistinguishable from the Zoom slider, which is the complaint
-            // this addresses: both simply made everything bigger. What separates them is the
-            // fragment-stage discard at the crop radius (warpSurface.vert/.frag). The crop now
-            // cuts the picture to a hard circle AND magnifies it, which is a zoom by crop; Zoom
-            // magnifies with no boundary at all. Same direction, visibly different operations.
+            // Framed on where the circle lands on the WARPED surface, not on the crop radius
+            // itself. Those are equal only at lambda = 1; under a warp the physical radius frames
+            // the wrong extent, the circle falls off the screen, and the Crop reads as a zoom.
             //
             // Sizing the camera by the full field instead was tried and is worse in two ways: it
             // shrinks the picture rather than magnifying it, and it makes this method reach the
@@ -103,7 +102,7 @@ public enum MapMode {
             // Flat: the fragment-space map fills a fixed normalized disk, so the camera is the
             // constant it always was.
             case Helioradial -> Display.isHelioradial3D()
-                    ? HELIORADIAL_MARGIN * 2 * Display.effectiveWarpOuterRadius()
+                    ? HELIORADIAL_MARGIN * 2 * Display.warpedCropRadius()
                     : HELIORADIAL_MARGIN;
             case HelioradialUnrolled -> 1.0;
             // The crop reaches Orthographic too, sizing the camera exactly as in 3D

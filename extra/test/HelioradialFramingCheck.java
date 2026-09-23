@@ -33,6 +33,7 @@ public final class HelioradialFramingCheck {
         // original fixed-disk framing, which is a different contract.
         Display.setHelioradial3D(true);
         Display.setWarpLambda(0);
+        Display.fieldRadius = () -> 180; // the layer stack cannot load headless
 
         // The warp is normalized over the loaded field, which the crop must never move.
         // fullWarpFieldRadius reads the layer stack, whose initialization needs SPICE natives
@@ -63,13 +64,20 @@ public final class HelioradialFramingCheck {
             Display.setWarpOuterRadius(crop);
             double cameraWidth = MapMode.Helioradial.baseCameraWidth(null);
 
-            // Closing the crop must shrink the camera in proportion, which is what magnifies
-            // everything. Compared across iterations, not against itself.
+            // The camera frames where the crop's circle lands on the warped surface, so the
+            // circle sits at the same place in the frame whatever the crop. Framing on the
+            // physical radius instead is only right at lambda = 1 (this runs at 0): under a warp
+            // it put the circle off the edge of the screen and the crop read as a zoom.
+            double circle = WarpGeometry.warpRadius(scale, crop, full);
             if (widthPerCrop < 0)
-                widthPerCrop = cameraWidth / crop;
+                widthPerCrop = cameraWidth / circle;
             else
-                near(cameraWidth / crop, widthPerCrop, 1e-12,
-                     "camera width stays a fixed multiple of the crop at " + crop);
+                near(cameraWidth / circle, widthPerCrop, 1e-12,
+                     "the crop's circle holds its place in the frame at " + crop);
+            if (!(circle / cameraWidth < 0.5)) {
+                System.out.printf("FAIL: at crop %.0f the circle is off-frame (%.4f)%n", crop, circle / cameraWidth);
+                failures++;
+            }
 
             double feature = WarpGeometry.warpRadius(scale, 10, full) / cameraWidth;
             double rim = WarpGeometry.warpRadius(scale, full, full) / cameraWidth;

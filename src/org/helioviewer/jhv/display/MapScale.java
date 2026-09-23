@@ -61,6 +61,29 @@ public interface MapScale {
         return new BoxCoxRadialScale(Math.max(radialSize, 1), lambda);
     }
 
+    /**
+     * The warp over the whole loaded field {@code full}, cut to a circle at {@code crop} and
+     * scaled so that circle is the rim. 0 or less for {@code crop} is no cut.
+     *
+     * <p>Handing the crop to {@link #boxCoxRadial} as if it were the field, which is what the
+     * Crop used to do, renormalizes the warp: the limb anchor is recomputed from the crop, so
+     * tightening it moves structure around inside a rim that stays put, and the result reads as
+     * a second zoom rather than a cut. At lambda = 1 the two agree exactly (the anchor is 1/R
+     * either way), which is why the Crop only looked right with the warp off.
+     *
+     * <p>Cutting the full-field mapping needs no new shader parameter. The cut is the full
+     * mapping divided by its value at the crop, u(r) / u(crop), and for r past the limb that is
+     * itself a Box-Cox scale with outer radius {@code crop}, the same lambda, and the limb at
+     * limb / u(crop). So everything downstream (shaders, grid, labels, the CME tracker) reads it
+     * as an ordinary scale and gets the cut for free.
+     */
+    static MapScale boxCoxRadialCrop(double full, double crop, double lambda) {
+        BoxCoxRadialScale field = new BoxCoxRadialScale(Math.max(full, 1), lambda);
+        if (crop <= 0)
+            return field;
+        return new BoxCoxRadialScale(Math.max(crop, 1), lambda, field.warpLimb() / field.toUnitY(crop));
+    }
+
     final class LinearMapScale implements MapScale {
 
         private final double xStart;
@@ -117,8 +140,17 @@ public interface MapScale {
         private final double lambda;
 
         BoxCoxRadialScale(double _radialSize, double _lambda) {
+            this(_radialSize, _lambda, autoLimb(_radialSize, _lambda));
+        }
+
+        // An explicit limb: a cropped view keeps the limb of the field it was cut from.
+        BoxCoxRadialScale(double _radialSize, double _lambda, double _limb) {
             radialSize = _radialSize;
             lambda = _lambda;
+            limb = _limb;
+        }
+
+        private static double autoLimb(double _radialSize, double _lambda) {
             // The limb's screen position. This restores the original origin-anchored warp: the
             // full radial axis is normalized by warp(R), so the limb sits at
             // warp(1)/warp(R) = 1/(1 + boxcox(R, lambda)) and the disk's share GROWS as lambda
@@ -141,7 +173,7 @@ public interface MapScale {
             // picking one. The true size wins there, because it is a fact and the ceiling is a
             // preference.
             double trueLimb = 1 / _radialSize;
-            limb = Math.clamp(auto * Display.getDiskScale(), trueLimb, Math.max(0.9, trueLimb));
+            return Math.clamp(auto * Display.getDiskScale(), trueLimb, Math.max(0.9, trueLimb));
         }
 
         @Override

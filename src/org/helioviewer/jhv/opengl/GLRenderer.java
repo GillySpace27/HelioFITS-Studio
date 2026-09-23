@@ -38,14 +38,14 @@ public final class GLRenderer {
             case Orthographic -> createConstantScales(viewports, MapScale.ortho);
             case HPC -> createHpcScales(viewports);
             case Latitudinal -> createConstantScales(viewports, MapScale.lati);
-            // In 3D, Helioradial normalizes the warp over the whole loaded field and lets the
-            // camera do the cropping, so the crop is a zoom. Flat, there is no camera to crop
-            // with (the map fills a fixed disk), so the crop has to act through the scale, which
-            // is what it has always done and what the published figures were made with. The
-            // unrolled layout is flat for the same reason.
-            case Helioradial -> createConstantScales(viewports, MapScale.boxCoxRadial(
-                    Display.isHelioradial3D() ? Display.fullWarpFieldRadius() : effectiveOuterRadius()));
-            case HelioradialUnrolled -> createConstantScales(viewports, MapScale.boxCoxRadial(effectiveOuterRadius()));
+            // The warp is normalized over the whole loaded field in every layout, and the Crop
+            // is a circular cut of it. In 3D the cut is the fragment discard at the crop radius
+            // and the camera frames it (MapMode); flat, the map fills a fixed disk, so the cut
+            // travels in the scale (Display.warpScale), which keeps the full field's mapping and
+            // only moves the rim.
+            case Helioradial -> createConstantScales(viewports, Display.isHelioradial3D()
+                    ? MapScale.boxCoxRadial(Display.fullWarpFieldRadius()) : Display.warpScale());
+            case HelioradialUnrolled -> createConstantScales(viewports, Display.warpScale());
             case ObserverSky -> createSkyScales(viewports);
         };
     }

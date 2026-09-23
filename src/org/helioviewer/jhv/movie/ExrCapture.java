@@ -126,7 +126,8 @@ final class ExrCapture {
                 .put("alpha", "premultiplied")
                 .put("colorspace", "R,G,B and overlay colours are linear (sRGB EOTF applied to the display-referred render); .Y and .V are data, untouched");
         if (mv.isHelioradial() || mv.isHelioradialUnrolled())
-            frame.put("warpLambda", Display.getWarpLambda()).put("warpOuterRadiusRsun", Display.effectiveWarpOuterRadius());
+            frame.put("warpLambda", Display.getWarpLambda()).put("warpOuterRadiusRsun", Display.effectiveWarpOuterRadius())
+                    .put("warpFieldRadiusRsun", Display.fullWarpFieldRadius()); // the warp's own extent; the crop only cuts it
         exr.attribute("jhv", frame.toString());
         exr.attribute("capDate", TimeUtils.format(CAP_DATE, viewpoint.time.milli));
         exr.attribute("utcOffset", 0f);
