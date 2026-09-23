@@ -33,7 +33,7 @@ import org.helioviewer.jhv.plugins.pointcloud.PointCloudPlugin;
 import org.helioviewer.jhv.plugins.swek.SWEKPlugin;
 import org.helioviewer.jhv.thread.Task;
 
-public class PUNCHStudio {
+public class HFStudio {
 
     static void main(String[] args) throws Exception {
         // Before the theme is peeked at, because the peek reads user.properties in the new home
@@ -50,7 +50,7 @@ public class PUNCHStudio {
         // touches AWT and why a theme switch made later in the session cannot move it: the rest
         // of the interface changes immediately, the window frame follows on the next launch.
         System.setProperty("apple.awt.application.appearance", appearance(Theme.startupIsDark()));
-        System.setProperty("apple.awt.application.name", "PUNCHStudio");
+        System.setProperty("apple.awt.application.name", "HelioFITS Studio");
         System.setProperty("apple.laf.useScreenMenuBar", "true");
         System.setProperty("sun.awt.noerasebackground", "true");
         //System.setProperty("org.lwjgl.util.NoChecks", "true");
@@ -74,7 +74,7 @@ public class PUNCHStudio {
         // Create transient cache directories after logging is available. On Windows this may need an ASCII-safe path.
         Directories.createCacheDirs();
         // Information log message
-        Log.info("PUNCHStudio started with command-line options: " + String.join(" ", args));
+        Log.info("HelioFITS Studio started with command-line options: " + String.join(" ", args));
         if (Directories.migrationNote != null)
             Log.info(Directories.migrationNote);
 
@@ -172,7 +172,7 @@ public class PUNCHStudio {
         Task.submitBackground("init", () -> {
             AppInit.init(webProfilePopup);
             return null;
-        }, PUNCHStudio::onSuccessInit, PUNCHStudio::onFailureInit);
+        }, HFStudio::onSuccessInit, HFStudio::onFailureInit);
     }
 
     private static void onSuccessInit(Void ignoredResult) {
@@ -182,7 +182,7 @@ public class PUNCHStudio {
 
     private static void onFailureInit(String ignoredLogContext, Throwable t) {
         Log.error(t);
-        Message.err("PUNCHStudio could not finish starting", t.getMessage() == null ? "See the log for details." : t.getMessage());
+        Message.err("HelioFITS Studio could not finish starting", t.getMessage() == null ? "See the log for details." : t.getMessage());
     }
 
     /**

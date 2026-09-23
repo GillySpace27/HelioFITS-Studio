@@ -1,9 +1,9 @@
 #!/bin/sh
-# PUNCHStudio dev launcher: rebuild from source, then run whatever that produced.
+# HelioFITS Studio dev launcher: rebuild from source, then run whatever that produced.
 #
-# The copy that runs lives in ~/Desktop/PUNCHStudio (dev).app/Contents/MacOS/launch; this is the source
+# The copy that runs lives in ~/Desktop/HelioFITS Studio (dev).app/Contents/MacOS/launch; this is the source
 # of it, kept here so it is not the only copy. After editing, copy it back into the bundle and
-# re-sign: codesign --force --deep -s - "$HOME/Desktop/PUNCHStudio (dev).app"
+# re-sign: codesign --force --deep -s - "$HOME/Desktop/HelioFITS Studio (dev).app"
 #
 # The JHelioviewer (dev) launcher this replaces only ran the jar it found, so opening it after a
 # source change quietly gave the previous build. This one runs `ant jar` first, which is 2 to 3
@@ -14,9 +14,9 @@
 # launch also gets a bare PATH (/usr/bin:/bin:/usr/sbin:/sbin), so every tool is found by
 # absolute path or by asking the OS.
 BUILD="$HOME/Documents/NWRA/PUNCH_Science/JHelioviewer-SWHV"
-JAR="PUNCHStudio.jar"
-LOG="/tmp/punchstudio-dev-build.log"
-LOCK="/tmp/punchstudio-dev-build.lock"
+JAR="HFStudio.jar"
+LOG="/tmp/hfstudio-dev-build.log"
+LOCK="/tmp/hfstudio-dev-build.lock"
 
 alert() { # title, message
     osascript -e "display alert \"$1\" message \"$2\"" >/dev/null 2>&1
@@ -39,7 +39,7 @@ find_ant() {
     command -v ant 2>/dev/null
 }
 
-[ -d "$BUILD" ] || { alert "PUNCHStudio source not found" "Expected $BUILD"; exit 1; }
+[ -d "$BUILD" ] || { alert "HelioFITS Studio source not found" "Expected $BUILD"; exit 1; }
 cd "$BUILD" || exit 1
 
 JH=$(find_java_home)
@@ -74,7 +74,7 @@ fi
 if [ "$built" = yes ] && [ $status -ne 0 ]; then
     tail=$(grep -m 3 -E 'error:|BUILD FAILED' "$LOG" | tr '"' "'" | tr '\n' ' ')
     if [ -f "$JAR" ]; then
-        answer=$(osascript -e "display alert \"PUNCHStudio build failed\" message \"$tail
+        answer=$(osascript -e "display alert \"HelioFITS Studio build failed\" message \"$tail
 
 Log: $LOG\" buttons {\"Cancel\", \"Launch previous build\"} default button \"Cancel\"" 2>/dev/null)
         case "$answer" in
@@ -82,12 +82,12 @@ Log: $LOG\" buttons {\"Cancel\", \"Launch previous build\"} default button \"Can
             *) exit 1 ;;
         esac
     else
-        alert "PUNCHStudio build failed" "$tail
+        alert "HelioFITS Studio build failed" "$tail
 
 Log: $LOG"
         exit 1
     fi
 fi
 
-[ -f "$JAR" ] || { alert "PUNCHStudio build not found" "Expected $BUILD/$JAR"; exit 1; }
+[ -f "$JAR" ] || { alert "HelioFITS Studio build not found" "Expected $BUILD/$JAR"; exit 1; }
 exec "$JH/bin/java" --enable-native-access=ALL-UNNAMED -jar "$JAR" "$@"

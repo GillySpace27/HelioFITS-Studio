@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build and publish a PUNCHStudio release: the notarized macOS dmg, the zip, and the guide.
+# Build and publish a HelioFITS Studio release: the notarized macOS dmg, the zip, and the guide.
 #
 #   ./deploy_release.sh package   # rebuild guide + repackage the zip locally (no network)
 #   ./deploy_release.sh guide     # re-upload ONLY the guide PDF+MD to the release (fast iterate)
@@ -20,19 +20,22 @@ set -eu
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SRC="$(cd "$HERE/.." && pwd)"
-# The GitHub repository, defined once. build_guide.py and the ship-punchstudio tracker read it from
+# The GitHub repository, defined once. build_guide.py and the ship-hfstudio tracker read it from
 # this line, so keep it in the form REPO="owner/name".
-REPO="GillySpace27/PUNCHStudio"
-APP_NAME="PUNCHStudio"
-BUNDLE_NAME="PUNCHStudio"   # the .app on disk, kept free of spaces; APP_NAME stays the display name
+REPO="GillySpace27/HelioFITS-Studio"
+APP_NAME="HelioFITS Studio"
+BUNDLE_NAME="HelioFITS Studio"   # the .app on disk, so Applications and the Dock read the product name.
+# It has a space in it: every use of it and of $APP below is quoted, and the loops over files
+# inside the bundle read with `while IFS= read -r`, so keep it that way. Files and folders keep the
+# one-word HFStudio (TOP, the jar, the icons), as does the Windows and Linux package.
 # macOS 26 (Tahoe) enforces the squircle on app-bundle icons: art that does not fill it gets shrunk
 # onto a grey plate ("squircle jail"). This art fills it. Regenerate both this and the asset catalog
-# beside it with make_punch_icon.py.
+# beside it with make_app_icon.py.
 #
 # The .icns alone is not enough. At 16 and 32 pixels macOS 26 plates a bundle whose icon is only an
 # .icns no matter what the art does, so the catalog below is compiled in as well; the .icns stays
 # for the disk image's volume icon and for older systems.
-ICNS="$HERE/PUNCHStudio_icon.icns"
+ICNS="$HERE/HFStudio_icon.icns"
 APPICONSET="$HERE/AppIcon.appiconset"
 # The repository's VERSION file names the release: the tag, the asset names, the bundle version.
 # Each release gets its OWN tag, v<version>, cut at the commit it was built from, and its own
@@ -50,10 +53,10 @@ TAG="v$VERSION"
 # 0.x versions are pre-releases; 1.0 and later publish as normal releases
 PRERELEASE=""; [ "${VERSION%%.*}" = "0" ] && PRERELEASE="--prerelease"
 TITLE="$APP_NAME $VERSION"
-TOP="PUNCHStudio-$VERSION"
+TOP="HFStudio-$VERSION"
 ZIP="$HERE/$TOP.zip"
-PDF="$HERE/PUNCHStudio-Guide.pdf"
-MD="$HERE/PUNCHStudio-Guide.md"
+PDF="$HERE/HFStudio-Guide.pdf"
+MD="$HERE/HFStudio-Guide.md"
 CLOUD="$HERE/fabric_suvi.json.gz"   # demo point cloud for the Point Cloud layer (Open… it there)
 STAGE="$HERE/.release_stage"
 
@@ -69,7 +72,7 @@ repackage() {
     rm -rf "$STAGE"
     mkdir -p "$STAGE/$TOP"
     # binary + all platform natives
-    cp "$SRC/PUNCHStudio.jar" "$STAGE/$TOP/"
+    cp "$SRC/HFStudio.jar" "$STAGE/$TOP/"
     cp -R "$SRC/lib" "$STAGE/$TOP/lib"
     # launchers + docs
     cp "$SRC/run.command" "$SRC/run.sh" "$SRC/run.bat" "$STAGE/$TOP/"
@@ -184,8 +187,8 @@ and it carries its own Java runtime, so there is nothing else to install. Just d
 $INTEL_INSTALL
 
 **Windows and Linux (early):** download **$TOP-windows.zip** or **$TOP-linux.tar.gz**. Each carries
-its own Java, so there is nothing else to install: unzip and run \`PUNCHStudio\\PUNCHStudio.exe\`, or untar
-and run \`PUNCHStudio/bin/PUNCHStudio\`. 64-bit Intel and AMD machines only. The Windows build is not
+its own Java, so there is nothing else to install: unzip and run \`HFStudio\HFStudio.exe\`, or untar
+and run \`HFStudio/bin/HFStudio\`. 64-bit Intel and AMD machines only. The Windows build is not
 code-signed yet, so Windows may say it "protected your PC"; choose More info, then Run anyway.
 Our build service adds these two to this page about ten minutes after it is published, and only
 once each has been started, drawn an image and decoded a JPEG 2000 file on a Windows and a Linux
@@ -253,19 +256,19 @@ publish() {
         --repo "$REPO" --title "$TITLE" --notes-file "$NOTES" $PRERELEASE
     rm -f "$NOTES"
     echo "==> done: https://github.com/$REPO/releases/tag/$TAG"
-    echo "    gilly.space/punchstudio is a download page: it asks GitHub for the newest release itself."
+    echo "    gilly.space/heliofits-studio is a download page: it asks GitHub for the newest release itself."
 }
 
 # ---- macOS signing + notarization ------------------------------------------
-# Produces a Gatekeeper-clean PUNCHStudio.app (embedded JRE) inside a stapled
+# Produces a Gatekeeper-clean HelioFITS Studio.app (embedded JRE) inside a stapled
 # .dmg. Config via env (or it auto-detects the first Developer ID it finds):
 #   DEV_ID_APP     "Developer ID Application: NAME (TEAMID)"  (from: security find-identity -v -p codesigning)
 #   NOTARY_PROFILE keychain profile name for notarytool        (default: jhv-notary, a legacy name; see RELEASING.md)
-#   MAC_ARCH       arm64 (default) or x64. x64 builds the Intel Mac dmg, PUNCHStudio-<v>-intel.dmg,
+#   MAC_ARCH       arm64 (default) or x64. x64 builds the Intel Mac dmg, HFStudio-<v>-intel.dmg,
 #                  from an Intel JDK (release/.jdk-x64, Temurin 25 for mac/x64, run under Rosetta):
 #                  jlink and jpackage have to be the target architecture's. The Metal host
 #                  dylib is already built for both architectures.
-BUNDLE_ID="space.gilly.punchstudio"
+BUNDLE_ID="space.gilly.hfstudio"
 # jpackage refuses any app-version whose first number is zero, and this project ships 0.x on
 # purpose, so it is handed a version it accepts and the real one is written into the bundle
 # afterwards, before signing. macOS itself is content with 0.8.0; only jpackage objects.
@@ -403,7 +406,7 @@ notarize_mac() {
     # because a .app runs with cwd=/ so the cwd-relative lib/natives-macos lookup can't
     # fire; the classpath-resource fallback is the only cwd-independent path.
     tmp="$(mktemp -d)"; mkdir -p "$tmp/$ARCH_RES"; cp "$SRC/$DYLIB" "$tmp/$ARCH_RES/"
-    ( cd "$tmp" && "$JAVA_HOME/bin/jar" uf "$APPSTAGE/PUNCHStudio.jar" "$ARCH_RES/$(basename "$DYLIB")" )
+    ( cd "$tmp" && "$JAVA_HOME/bin/jar" uf "$APPSTAGE/HFStudio.jar" "$ARCH_RES/$(basename "$DYLIB")" )
     rm -rf "$tmp"
 
     # Hardened-runtime entitlements: the JVM JITs, and natives get extracted from jars, so
@@ -428,8 +431,8 @@ PLIST
     echo "==> jpackage app-image (embeds the trimmed runtime)"
     "$JAVA_HOME/bin/jpackage" \
         --type app-image --name "$BUNDLE_NAME" --app-version "$APP_VERSION" \
-        --input "$APPSTAGE" --main-jar PUNCHStudio.jar \
-        --main-class org.helioviewer.jhv.PUNCHStudio \
+        --input "$APPSTAGE" --main-jar HFStudio.jar \
+        --main-class org.helioviewer.jhv.HFStudio \
         --java-options "--enable-native-access=ALL-UNNAMED" \
         --java-options "--add-exports=java.desktop/sun.awt=ALL-UNNAMED" \
         --java-options "--add-exports=java.desktop/sun.swing=ALL-UNNAMED" \

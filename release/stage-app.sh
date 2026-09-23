@@ -23,7 +23,7 @@ case "$PLATFORM" in
 esac
 
 rm -rf "$STAGE"; mkdir -p "$STAGE"
-cp PUNCHStudio.jar "$STAGE/"
+cp HFStudio.jar "$STAGE/"
 cp -R lib "$STAGE/lib"
 find "$STAGE/lib" -name '*-natives-*.jar' ! \( "${KEEP[@]}" \) -delete
 echo "==> staged for $PLATFORM: $(find "$STAGE/lib" -name '*-natives-*.jar' | sed 's|.*/||' | tr '\n' ' ')"

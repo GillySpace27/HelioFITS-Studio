@@ -1,14 +1,12 @@
 
 # Revision history
 
-## PUNCHStudio 0.8.3 (unreleased)
+## HelioFITS Studio 0.8.3 (unreleased)
 
 ### Name
-- Rename the application to PUNCHStudio, settled with the PUNCH PI and carried into the mission's reporting. HFStudio said nothing about what the application is for; this name says who it was built with
-- The repository is now `GillySpace27/PUNCHStudio`, and GitHub forwards the addresses of both earlier names
-- The download page is now `gilly.space/punchstudio`. `/hfs`, `/hfstudio`, `/HFStudio`, `/HFS`, `/jhv` and `/JHV` all forward to it, because those links have been sent to people
-- Register with SAMP as `PUNCHStudio`, so a script that finds the application by an older name needs the new one
-- Settings and saved states are carried over from an `HFStudio` folder the first time this version runs, as they were carried over from JHelioviewer's folder before. Caches and exports are left where they are
+- The application is called HelioFITS Studio again, and installs as `HelioFITS Studio.app`. HFStudio stays its technical name, as in 0.8.0 to 0.8.2: the downloads are still `HFStudio-<version>`, the settings folder is still `~/HFStudio` and SAMP still sees `HFStudio`, so nothing a 0.8.2 user has needs to move
+- The repository is `GillySpace27/HelioFITS-Studio`, its original name, and the download page is `gilly.space/heliofits-studio`. Every earlier address forwards: the repository's names since September, and `/hfs`, `/hfstudio`, `/punchstudio`, `/jhv` and their capitalized forms on the site
+- Between 2026-09-21 and 2026-09-23 the development builds were called PUNCHStudio. Nothing was released under that name; settings those builds wrote to `~/PUNCHStudio` are carried into `~/HFStudio` if that folder does not exist yet
 
 ### Icon
 - A new icon: the instrument ladder this application composites, drawn as the occulted Sun with each field of view as a ring around it. The HFS mark it replaces has gone to the HelioFITS preview plugin, re-lettered HF, and its generator went with it

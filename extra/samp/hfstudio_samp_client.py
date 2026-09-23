@@ -7,7 +7,7 @@ import socket
 from pathlib import Path
 from urllib.parse import urlparse
 
-SOCKET = "/tmp/punchstudio-samp.sock"
+SOCKET = "/tmp/hfstudio-samp.sock"
 
 
 def send(commands: list[dict], socket_path: str = SOCKET) -> list[dict]:
@@ -18,7 +18,7 @@ def send(commands: list[dict], socket_path: str = SOCKET) -> list[dict]:
     if not isinstance(response, dict):
         raise RuntimeError(f"Unexpected daemon response: {response!r}")
     if not response.get("ok"):
-        raise RuntimeError(response.get("error", "PUNCHStudio SAMP request failed"))
+        raise RuntimeError(response.get("error", "HelioFITS Studio SAMP request failed"))
     return response["results"]
 
 
@@ -43,7 +43,7 @@ def movie_commands(path: str, size: str) -> list[dict]:
             },
         ),
         # clipping and scaling are per-layer imageParams below, not a global FITS command
-        # PUNCHStudio will recurse if it's a directory
+        # HelioFITS Studio will recurse if it's a directory
         # use "url": [ as_url("arg1"), as_url("arg2"), ..., ] for multiple arguments
         command(
             "jhv.load.image",
@@ -85,7 +85,7 @@ def commands_from_json(value: str) -> list[dict]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Send queued SAMP commands to PUNCHStudio"
+        description="Send queued SAMP commands to HelioFITS Studio"
     )
     parser.add_argument("--socket", default=SOCKET)
     subparsers = parser.add_subparsers(dest="mode", required=True)

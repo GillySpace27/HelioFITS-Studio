@@ -14,7 +14,7 @@
 - Settings keys: `display.edrCanvas` (default true), `display.hdrGain` (`auto` or a number in [1, 16], default `auto`). `display.deepColorCanvas` keeps its meaning.
 - Fallback ladder: EDR → 10-bit deep → 8-bit, each step logged with what it got.
 - Gain is applied to RGB only, never alpha, and is 1 whenever `GLImage.capture != Capture.NONE`.
-- No em dashes anywhere. Jar is `PUNCHStudio.jar` (`ant jar`). Run with `java --enable-native-access=ALL-UNNAMED -jar PUNCHStudio.jar`.
+- No em dashes anywhere. Jar is `HFStudio.jar` (`ant jar`). Run with `java --enable-native-access=ALL-UNNAMED -jar HFStudio.jar`.
 - Probes under `extra/test` are compiled ad hoc: `javac -d extra/test-classes -cp "bin:$(find lib -name '*.jar' | tr '\n' ':')" extra/test/<Name>.java`, run with `java --enable-native-access=ALL-UNNAMED -cp "extra/test-classes:bin:resources:$(find lib -name '*.jar' | tr '\n' ':')" org.helioviewer.jhv.<pkg>.<Name>`.
 
 ---
@@ -554,7 +554,7 @@ In `createDeepSurface` replace the `deepCanvasCreate` call and the attrs:
 
 - [ ] **Step 7: Compile and run once, check the log**
 
-Run: `ant jar && (java --enable-native-access=ALL-UNNAMED -jar PUNCHStudio.jar & sleep 25; pkill -f PUNCHStudio.jar)`
+Run: `ant jar && (java --enable-native-access=ALL-UNNAMED -jar HFStudio.jar & sleep 25; pkill -f HFStudio.jar)`
 Then: `grep -h -E 'EDR canvas|EDR headroom|Deep-colour' "$(ls -t ~/JHelioviewer-SWHV/Logs/*.log | head -1)"`
 Expected: the `EDR canvas:` line, and an `EDR headroom now <value> SDR whites` line with value > 1 (10.85 measured at the brightness used on 2026-09-04). If the headroom line says 1.0, the layer is not engaging EDR; stop and check `prepare_deep` ran with `edr = 1` (the `EDR canvas:` line proves the Java side asked for it).
 
@@ -759,7 +759,7 @@ Expected: the validator reports no errors; the jar builds.
 
 - [ ] **Step 8: Run and look**
 
-Run: `java --enable-native-access=ALL-UNNAMED -jar PUNCHStudio.jar`
+Run: `java --enable-native-access=ALL-UNNAMED -jar HFStudio.jar`
 Load any image layer. Expected: the image is visibly brighter than the menu bar and the timestamp; the Swing chrome is unchanged. Check the log for `EDR headroom now` > 1.
 
 - [ ] **Step 9: Commit**
@@ -811,7 +811,7 @@ and add `import org.helioviewer.jhv.display.HdrGain;` with the display imports.
 
 - [ ] **Step 2: Build, run, exercise**
 
-Run: `ant jar && java --enable-native-access=ALL-UNNAMED -jar PUNCHStudio.jar`
+Run: `ant jar && java --enable-native-access=ALL-UNNAMED -jar HFStudio.jar`
 Expected: View menu shows "HDR Canvas" (checked) and "HDR Brightness" with Auto selected. Picking "1x (no HDR)" makes the image match the window's white again; picking "8x" makes it brighter; Auto returns it to the display maximum. `~/JHelioviewer-SWHV/Settings/user.properties` gains `display.hdrGain=8` after picking 8x.
 
 - [ ] **Step 3: Commit**
@@ -846,7 +846,7 @@ git commit -m "View menu: HDR Canvas toggle and HDR Brightness stops"
 set -e
 case "$1" in
   capture)
-    WID=$(osascript -e 'tell application "System Events" to get id of first window of (first process whose name contains "java" or name contains "PUNCHStudio")' 2>/dev/null || true)
+    WID=$(osascript -e 'tell application "System Events" to get id of first window of (first process whose name contains "java" or name contains "HelioFITS Studio")' 2>/dev/null || true)
     [ -n "$WID" ] || { echo "no JHV window found"; exit 1; }
     screencapture -x -l "$WID" "$2" && echo "captured $2 (window $WID)";;
   compare)

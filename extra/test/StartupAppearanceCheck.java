@@ -27,7 +27,7 @@ import org.helioviewer.jhv.io.Directories;
  * <p>Including the case that made the ordering matter: an install being carried over from
  * JHelioviewer has its theme in the old folder only, so the appearance cannot be chosen until
  * {@code Directories.migrateLegacyHome} has run. This check does those two in the order
- * {@code PUNCHStudio.main} does them and holds the carried-over theme to being visible.
+ * {@code HFStudio.main} does them and holds the carried-over theme to being visible.
  *
  * <p>It runs against a temporary home rather than the real one, so it writes no settings anybody
  * is using.
@@ -66,8 +66,8 @@ public final class StartupAppearanceCheck {
     }
 
     private static void run(Path home) throws IOException {
-        equal(PUNCHStudio.appearance(true), "NSAppearanceNameDarkAqua", "a dark theme asks for the dark appearance");
-        equal(PUNCHStudio.appearance(false), "NSAppearanceNameAqua", "a light theme asks for the light one");
+        equal(HFStudio.appearance(true), "NSAppearanceNameDarkAqua", "a dark theme asks for the dark appearance");
+        equal(HFStudio.appearance(false), "NSAppearanceNameAqua", "a light theme asks for the light one");
 
         // Nothing stored anywhere: the shipped default, which is a dark theme.
         expect(Theme.startupIsDark(), "an install with nothing stored starts dark");
@@ -77,7 +77,7 @@ public final class StartupAppearanceCheck {
         write(home.resolve(LEGACY_HOME).resolve("Settings").resolve("user.properties"), "classic-light");
         Directories.migrateLegacyHome();
         expect(!Theme.startupIsDark(), "a carried-over Classic Light install starts light");
-        equal(PUNCHStudio.appearance(Theme.startupIsDark()), "NSAppearanceNameAqua",
+        equal(HFStudio.appearance(Theme.startupIsDark()), "NSAppearanceNameAqua",
                 "and the frame it asks for is the light one");
 
         Path settings = Path.of(Directories.SETTINGS.getPath(), "user.properties");

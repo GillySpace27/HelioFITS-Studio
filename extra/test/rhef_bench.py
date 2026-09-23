@@ -14,7 +14,7 @@ import sunpy.map, sunkit_image, sunkit_image.radial as radial
 from scipy import __version__ as scipy_version
 
 W = 4096
-SRC = "/Users/gilly/PUNCHStudio/FileCache/ac078ff0288c51fd3bb85bb64db1579117172c951c529a18b417c94809119d0a"
+SRC = "/Users/gilly/HFStudio/FileCache/ac078ff0288c51fd3bb85bb64db1579117172c951c529a18b417c94809119d0a"
 
 data = np.fromfile("punch_normalised.f32", dtype=np.float32).reshape(W, W)
 java = np.fromfile("punch_rhef_java.f32", dtype=np.float32).reshape(W, W)

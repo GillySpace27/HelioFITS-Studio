@@ -300,7 +300,7 @@ public final class Session {
             int choice = JOptionPane.showOptionDialog(MainFrame.get(),
                     "Save \"" + displayName() + "\" as a project before closing?\n\n" +
                             "It is auto-restored on the next launch either way.",
-                    "PUNCHStudio", JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE,
+                    "HelioFITS Studio", JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE,
                     null, options, options[0]);
             if (choice == JOptionPane.CANCEL_OPTION || choice == JOptionPane.CLOSED_OPTION) {
                 if (autosaveTimer != null)
@@ -347,7 +347,7 @@ public final class Session {
             } else {
                 cmd.add("-cp");
                 cmd.add(classPath);
-                cmd.add("org.helioviewer.jhv.PUNCHStudio");
+                cmd.add("org.helioviewer.jhv.HFStudio");
             }
             new ProcessBuilder(cmd).inheritIO().start();
         } catch (Exception e) {

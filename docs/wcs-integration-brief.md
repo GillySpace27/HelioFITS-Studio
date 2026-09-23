@@ -1,4 +1,4 @@
-# Brief: take upstream's WCS rework into PUNCHStudio
+# Brief: take upstream's WCS rework into HelioFITS Studio
 
 ## The task
 

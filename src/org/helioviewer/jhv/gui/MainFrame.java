@@ -419,8 +419,8 @@ public final class MainFrame {
 
         frame.setMinimumSize(minSize);
 
-        int preferredWidth = readSizeEnv("PUNCHSTUDIO_PREFERRED_WIDTH", maxSize.width - 100);
-        int preferredHeight = readSizeEnv("PUNCHSTUDIO_PREFERRED_HEIGHT", maxSize.height - 100);
+        int preferredWidth = readSizeEnv("HFSTUDIO_PREFERRED_WIDTH", maxSize.width - 100);
+        int preferredHeight = readSizeEnv("HFSTUDIO_PREFERRED_HEIGHT", maxSize.height - 100);
         preferredWidth = Math.min(preferredWidth, maxSize.width);
         preferredHeight = Math.min(preferredHeight, maxSize.height);
         frame.setPreferredSize(new Dimension(preferredWidth, preferredHeight));

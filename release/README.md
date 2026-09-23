@@ -1,6 +1,6 @@
 # release/
 
-The build and release tooling for PUNCHStudio: the signed and notarized
+The build and release tooling for HelioFITS Studio: the signed and notarized
 macOS `.dmg`, the cross-platform `.zip`, and the field guide. The application
 source is the repository root; nothing in this folder is application code.
 
@@ -14,22 +14,22 @@ incident log, is in [RELEASING.md](RELEASING.md).** Read it before shipping.
   gone wrong.
 - `build_guide.py`, `guide_content.json`, `guide_assets/`: the field guide.
   The script renders the prose in `guide_content.json` and the figures in
-  `guide_assets/` into `PUNCHStudio-Guide.pdf` and `PUNCHStudio-Guide.md`.
-- `make_punch_icon.py`, `PUNCHStudio_icon.icns`, `PUNCHStudio_icon.ico`,
-  `AppIcon.appiconset/`, `PUNCHStudio_icon_1024.png`: the app icon and the
+  `guide_assets/` into `HFStudio-Guide.pdf` and `HFStudio-Guide.md`.
+- `make_app_icon.py`, `HFStudio_icon.icns`, `HFStudio_icon.ico`,
+  `AppIcon.appiconset/`, `HFStudio_icon_1024.png`: the app icon and the
   script that draws it. Three artworks, assigned by size, in an .icns for macOS
   and an .ico for Windows, plus the asset catalog source that
   `deploy_release.sh` compiles into the bundle so macOS does not put the icon on
   a grey plate.
 - `fabric_suvi.json.gz`: the demo point cloud attached to every release.
-- `skills/ship-punchstudio/`: the release tracker (`scripts/status.py`) and the
+- `skills/ship-hfstudio/`: the release tracker (`scripts/status.py`) and the
   assistant runbook that drives it.
-- `punchstudio-dev-launcher.sh`: a development convenience, not part of the
+- `hfstudio-dev-launcher.sh`: a development convenience, not part of the
   release. It is the source of the script inside
-  `/Applications/PUNCHStudio Dev.app/Contents/MacOS/punchstudio-dev`, a Dock
+  `/Applications/HFStudio Dev.app/Contents/MacOS/hfstudio-dev`, a Dock
   tile that rebuilds the main checkout and runs it. It hardcodes one source path
   and one Homebrew JDK, so it works on one machine on purpose. The release
-  app is `PUNCHStudio.app`, a different name, so the two sit side by side.
+  app is `HelioFITS Studio.app`, a different name, so the two sit side by side.
 
 ## Pipeline
 
@@ -40,8 +40,8 @@ incident log, is in [RELEASING.md](RELEASING.md).** Read it before shipping.
 ./deploy_release.sh notarize   # build a signed + notarized + stapled macOS .app inside a .dmg
 ```
 
-The version is read from `../VERSION`. Assets are named `PUNCHStudio-<version>.dmg`
-and `PUNCHStudio-<version>.zip`, and the release tag is `v<version>`. The GitHub
+The version is read from `../VERSION`. Assets are named `HFStudio-<version>.dmg`
+and `HFStudio-<version>.zip`, and the release tag is `v<version>`. The GitHub
 repository is set once, as `REPO` near the top of `deploy_release.sh`; the
 tracker and the guide read it from there.
 
@@ -56,8 +56,8 @@ tracker and the guide read it from there.
 
 ## Release
 
-Releases: <https://github.com/GillySpace27/PUNCHStudio/releases>.
-Shareable short link: <https://gilly.space/punchstudio>, which redirects to that index.
+Releases: <https://github.com/GillySpace27/HelioFITS-Studio/releases>.
+Shareable short link: <https://gilly.space/heliofits-studio>, which redirects to that index.
 
 ## History
 

@@ -87,7 +87,7 @@ public class JPIPCacheManager {
                             .withValueSerializer(new EntrySerializer()))
                     .build(true);
         } catch (Exception e) { // disk cache locked by another running instance
-            Log.warn("JPIP disk cache is in use by another PUNCHStudio instance, using a memory-only cache for this session", e);
+            Log.warn("JPIP disk cache is in use by another HelioFITS Studio instance, using a memory-only cache for this session", e);
             close();
             cacheManager = CacheManagerBuilder.newCacheManagerBuilder()
                     .withCache("JPIPStream", CacheConfigurationBuilder

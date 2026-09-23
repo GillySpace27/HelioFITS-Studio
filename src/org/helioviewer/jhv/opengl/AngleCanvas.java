@@ -264,7 +264,7 @@ public final class AngleCanvas extends Canvas {
             org.helioviewer.jhv.app.Log.error("Graphics could not start; images cannot be shown", e);
             EventQueue.invokeLater(AngleCanvas::sayGraphicsUnsupported);
         } catch (RuntimeException | Error e) {
-            // Anything else is a fault in PUNCHStudio (a missing library, a bug), not the machine's
+            // Anything else is a fault in HelioFITS Studio (a missing library, a bug), not the machine's
             // graphics, and keeps the crash report that says so.
             // Keep the macOS host until removeNotify so its JAWT layer is cleared only during Canvas teardown.
             attachmentFailed = true;
@@ -275,13 +275,13 @@ public final class AngleCanvas extends Canvas {
     private static void sayGraphicsUnsupported() {
         String api = Platform.isMacOS() ? "Metal" : Platform.isWindows() ? "Direct3D 11" : "OpenGL";
         org.helioviewer.jhv.app.Message.err("Graphics not supported",
-                "PUNCHStudio could not start its graphics on this computer, so it cannot show images.\n\n"
+                "HelioFITS Studio could not start its graphics on this computer, so it cannot show images.\n\n"
                         + "It draws through " + api + ", and this system's graphics would not start it. That usually "
                         + "means the graphics hardware or its driver is too old, or that this is a virtual machine "
                         + "without full graphics support.\n\n"
                         + "If it happens on a computer you expect to work, please send the log from\n"
                         + org.helioviewer.jhv.io.Directories.LOGS.getPath() + "\n"
-                        + "to gilly@nwra.com or https://github.com/GillySpace27/PUNCHStudio/issues");
+                        + "to gilly@nwra.com or https://github.com/GillySpace27/HelioFITS-Studio/issues");
     }
 
     // Keep native scale and visibility synchronized, then trigger a redraw if needed.

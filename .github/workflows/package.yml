@@ -62,7 +62,7 @@ jobs:
       - name: Launch the package and screenshot
         run: |
           xvfb-run -a -s "-screen 0 1600x1000x24" \
-            extra/launch-shot.sh linux-pkg pkg-out/PUNCHStudio/bin/PUNCHStudio -load "$PWD/$FITS" -load "$PWD/$JP2"
+            extra/launch-shot.sh linux-pkg pkg-out/HFStudio/bin/HFStudio -load "$PWD/$FITS" -load "$PWD/$JP2"
 
       - name: Judge
         if: always()
@@ -75,7 +75,7 @@ jobs:
       # unpacks under the app's own folder, not by one the runner happens to have.
       - name: Did the bundled JPEG 2000 decoder load
         run: |
-          grep -E 'OpenJPEG .* loaded from .*PUNCHStudio' app-linux-pkg.log \
+          grep -E 'OpenJPEG .* loaded from .*HFStudio' app-linux-pkg.log \
             || { echo "::error::no JPEG 2000 file was decoded by the bundled OpenJPEG"; exit 1; }
 
       - uses: actions/upload-artifact@v4
@@ -90,7 +90,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: package-linux
-          path: PUNCHStudio-*-linux.tar.gz
+          path: HFStudio-*-linux.tar.gz
           compression-level: 0   # already compressed
           retention-days: 14
 
@@ -153,7 +153,7 @@ jobs:
       - name: Launch the package and screenshot
         shell: bash
         run: |
-          extra/launch-shot.sh windows-pkg pkg-out/PUNCHStudio/PUNCHStudio.exe \
+          extra/launch-shot.sh windows-pkg pkg-out/HFStudio/HFStudio.exe \
             -load "$(cygpath -w "$PWD/$FITS")" -load "$(cygpath -w "$PWD/$JP2")"
 
       - name: Judge
@@ -170,7 +170,7 @@ jobs:
       - name: Did the bundled JPEG 2000 decoder load
         shell: bash
         run: |
-          grep -E 'OpenJPEG .* loaded from .*PUNCHStudio' app-windows-pkg.log \
+          grep -E 'OpenJPEG .* loaded from .*HFStudio' app-windows-pkg.log \
             || { echo "::error::no JPEG 2000 file was decoded by the bundled OpenJPEG"; exit 1; }
 
       - uses: actions/upload-artifact@v4
@@ -185,7 +185,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: package-windows
-          path: PUNCHStudio-*-windows.zip
+          path: HFStudio-*-windows.zip
           compression-level: 0
           retention-days: 14
 
@@ -236,7 +236,7 @@ jobs:
 
       - name: Launch the bundle and screenshot
         run: |
-          extra/launch-shot.sh macos-intel pkg-out/PUNCHStudio.app/Contents/MacOS/PUNCHStudio \
+          extra/launch-shot.sh macos-intel pkg-out/HFStudio.app/Contents/MacOS/HFStudio \
             -load "$PWD/$FITS" -load "$PWD/$JP2"
 
       - name: Judge
@@ -263,7 +263,7 @@ jobs:
           exit $fail
       - name: Did the bundled JPEG 2000 decoder load
         run: |
-          grep -E 'OpenJPEG .* loaded from .*PUNCHStudio' app-macos-intel.log \
+          grep -E 'OpenJPEG .* loaded from .*HFStudio' app-macos-intel.log \
             || { echo "::error::no JPEG 2000 file was decoded by the bundled OpenJPEG"; exit 1; }
 
       # The whole screen is captured, so a desktop background counts too; revisit the threshold
@@ -303,17 +303,17 @@ jobs:
       # version is allowed so a test draft (v0.8.2-attach-test) can be used.
       - name: Check the packages belong to this release
         run: |
-          ls -l PUNCHStudio-*
+          ls -l HFStudio-*
           VERSION="${TAG#v}"; VERSION="${VERSION%%-*}"
-          for f in "PUNCHStudio-$VERSION-windows.zip" "PUNCHStudio-$VERSION-linux.tar.gz"; do
-            [ -f "$f" ] || { echo "::error::expected $f for $TAG; the build produced $(ls PUNCHStudio-* | tr '\n' ' ')"; exit 1; }
+          for f in "HFStudio-$VERSION-windows.zip" "HFStudio-$VERSION-linux.tar.gz"; do
+            [ -f "$f" ] || { echo "::error::expected $f for $TAG; the build produced $(ls HFStudio-* | tr '\n' ' ')"; exit 1; }
           done
 
       # Never --clobber: a release's files are fixed once published, and replacing one is how a
       # collaborator loses the build that worked for them. A second run fails here instead.
       - name: Attach to the release
         run: |
-          gh release upload "$TAG" PUNCHStudio-*-windows.zip PUNCHStudio-*-linux.tar.gz --repo "$GITHUB_REPOSITORY"
+          gh release upload "$TAG" HFStudio-*-windows.zip HFStudio-*-linux.tar.gz --repo "$GITHUB_REPOSITORY"
 
       # The notes are written before these files exist, so their checksums are added now, in the
       # same form the Mac files' checksums take.
@@ -324,7 +324,7 @@ jobs:
             echo
             echo "Windows and Linux packages, added by the build service from commit ${GITHUB_SHA:0:9}:"
             echo '```'
-            sha256sum PUNCHStudio-*-windows.zip PUNCHStudio-*-linux.tar.gz | sed 's/^/sha256  /'
+            sha256sum HFStudio-*-windows.zip HFStudio-*-linux.tar.gz | sed 's/^/sha256  /'
             echo '```'
           } >> notes.md
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file notes.md

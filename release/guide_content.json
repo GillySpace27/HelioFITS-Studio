@@ -1,5 +1,5 @@
 {
- "title": "PUNCHStudio @VERSION@",
+ "title": "HelioFITS Studio @VERSION@",
  "subtitle": "A field guide: installing it, and the tools it adds to JHelioviewer",
  "byline": "Compiled by Gilly, NWRA",
  "blocks": [
@@ -13,10 +13,10 @@
   },
   {
    "kind": "callout",
-   "title": "What PUNCHStudio is",
+   "title": "What HelioFITS Studio is",
    "paras": [
-    "**PUNCHStudio** is a solar image browser built on JHelioviewer, the open-source viewer from the ESA/NASA Helioviewer Project. It adds a handful of tools for coronal research: a Sun-centered radial projection (Helioradial) that gives the outer corona the space it never gets in a normal view, a rectangular unwrap of the same stretch (Helioradial Unrolled), support for NASA's PUNCH mission data and ESA's PROBA-3/ASPIICS coronagraph, a radial enhancement filter, CME tracking, adjustable coordinate grids, a Point Cloud layer that drops a 3-D reconstruction into the scene alongside the imagery, hand-drawn synoptic maps wrapped onto the solar globe, and a colour-table legend so a map's colours can actually be read.",
-    "Several of these, among them the PUNCH layer, the RHEF filter, the Helioradial projections and the grid controls, have since been taken into JHelioviewer's own development line, and others were submitted there as pull requests (see the last page). PUNCHStudio is maintained at `github.com/@REPO@`; please report problems and requests on that repository's issue tracker, which the app also opens from **Help > Report Bug/Request Feature**."
+    "**HelioFITS Studio** is a solar image browser built on JHelioviewer, the open-source viewer from the ESA/NASA Helioviewer Project. It adds a handful of tools for coronal research: a Sun-centered radial projection (Helioradial) that gives the outer corona the space it never gets in a normal view, a rectangular unwrap of the same stretch (Helioradial Unrolled), support for NASA's PUNCH mission data and ESA's PROBA-3/ASPIICS coronagraph, a radial enhancement filter, CME tracking, adjustable coordinate grids, a Point Cloud layer that drops a 3-D reconstruction into the scene alongside the imagery, hand-drawn synoptic maps wrapped onto the solar globe, and a colour-table legend so a map's colours can actually be read.",
+    "Several of these, among them the PUNCH layer, the RHEF filter, the Helioradial projections and the grid controls, have since been taken into JHelioviewer's own development line, and others were submitted there as pull requests (see the last page). HelioFITS Studio is maintained at `github.com/@REPO@`; please report problems and requests on that repository's issue tracker, which the app also opens from **Help > Report Bug/Request Feature**."
    ]
   },
   {
@@ -29,7 +29,7 @@
   },
   {
    "kind": "p",
-   "text": "PUNCHStudio is tested on macOS. Apple Silicon Macs get a signed app; Intel Macs run the same build from a zip with Java. (The zip also carries Linux and Windows launchers, but we have not tried them, so treat those as untested.)"
+   "text": "HelioFITS Studio is tested on macOS. Apple Silicon Macs get a signed app; Intel Macs run the same build from a zip with Java. (The zip also carries Linux and Windows launchers, but we have not tried them, so treat those as untested.)"
   },
   {
    "kind": "h2",
@@ -37,7 +37,7 @@
   },
   {
    "kind": "p",
-   "text": "Download `PUNCHStudio-@VERSION@.dmg` from the GitHub release (`github.com/@REPO@/releases`). Open it and drag PUNCHStudio into your Applications folder. It is signed and notarized, so it opens with no security warning, and it carries its own Java runtime, so there is nothing else to install. Double-click to run."
+   "text": "Download `HFStudio-@VERSION@.dmg` from the GitHub release (`github.com/@REPO@/releases`). Open it and drag HelioFITS Studio into your Applications folder. It is signed and notarized, so it opens with no security warning, and it carries its own Java runtime, so there is nothing else to install. Double-click to run."
   },
   {
    "kind": "h2",
@@ -45,7 +45,7 @@
   },
   {
    "kind": "p",
-   "text": "Download `PUNCHStudio-@VERSION@.zip` from the same release. This one needs Java 25 or newer; the free Eclipse Temurin distribution works well (`adoptium.net`, or `brew install openjdk@25`). Unzip it somewhere convenient, then double-click `run.command`. The launcher finds your Java 25 for you, including a Homebrew install that is not on your PATH; if it cannot find one, it prints how to install it."
+   "text": "Download `HFStudio-@VERSION@.zip` from the same release. This one needs Java 25 or newer; the free Eclipse Temurin distribution works well (`adoptium.net`, or `brew install openjdk@25`). Unzip it somewhere convenient, then double-click `run.command`. The launcher finds your Java 25 for you, including a Homebrew install that is not on your PATH; if it cannot find one, it prints how to install it."
   },
   {
    "kind": "h1",
@@ -53,7 +53,7 @@
   },
   {
    "kind": "p",
-   "text": "First, a 30-second orientation. When PUNCHStudio opens you see a 3-D view of the Sun in the center, a toolbar of view controls across the top, and a panel on the right that lists your image **layers**: each data source you load is one layer. To try the tools below you need at least one layer: the quickest is **File > New Layer…**, pick an instrument such as SDO/AIA 171, and click **Add**, and an image appears. Click a layer's name to select it; its options (filters, opacity, and so on) show in the panel below the list. Everything that follows acts on the selected layer or on the overall view."
+   "text": "First, a 30-second orientation. When HelioFITS Studio opens you see a 3-D view of the Sun in the center, a toolbar of view controls across the top, and a panel on the right that lists your image **layers**: each data source you load is one layer. To try the tools below you need at least one layer: the quickest is **File > New Layer…**, pick an instrument such as SDO/AIA 171, and click **Add**, and an image appears. Click a layer's name to select it; its options (filters, opacity, and so on) show in the panel below the list. Everything that follows acts on the selected layer or on the overall view."
   },
   {
    "kind": "p",
@@ -91,7 +91,7 @@
   },
   {
    "kind": "p",
-   "text": "PUNCH is NASA's four-spacecraft mission that images the solar corona and the young solar wind across a remarkably wide field; from the low corona out toward Earth. PUNCHStudio can pull PUNCH images straight from the public archive and play them as a movie."
+   "text": "PUNCH is NASA's four-spacecraft mission that images the solar corona and the young solar wind across a remarkably wide field; from the low corona out toward Earth. HelioFITS Studio can pull PUNCH images straight from the public archive and play them as a movie."
   },
   {
    "kind": "p",
@@ -129,11 +129,11 @@
   },
   {
    "kind": "p",
-   "text": "Everything above is an image of the Sun as seen from somewhere. A **synoptic map** is the other kind of picture: a whole Carrington rotation flattened into one 360°×180° chart, built up over the ~27 days the far side takes to come around. PUNCHStudio recognises those maps and wraps them back onto the sphere they came from, so instead of reading a rectangle you turn the globe and see the corona where it actually sits. Rotate past the limb and the far side is there too; the map covers all longitudes, which no single observation ever does."
+   "text": "Everything above is an image of the Sun as seen from somewhere. A **synoptic map** is the other kind of picture: a whole Carrington rotation flattened into one 360°×180° chart, built up over the ~27 days the far side takes to come around. HelioFITS Studio recognises those maps and wraps them back onto the sphere they came from, so instead of reading a rectangle you turn the globe and see the corona where it actually sits. Rotate past the limb and the far side is there too; the map covers all longitudes, which no single observation ever does."
   },
   {
    "kind": "p",
-   "text": "The immediate case is the **McIntosh Archive** hand-drawn charts (Ian Hewins, Sarah Gibson and colleagues), where an analyst has traced coronal holes, magnetic polarity, filaments and the neutral line by hand. Those are **categorical** images: a pixel does not carry a brightness, it carries a label; \"this is a negative-polarity coronal hole\". PUNCHStudio renders them with the exact colours the analyst assigned, without the smoothing and contrast handling that would quietly corrupt a category into its neighbour."
+   "text": "The immediate case is the **McIntosh Archive** hand-drawn charts (Ian Hewins, Sarah Gibson and colleagues), where an analyst has traced coronal holes, magnetic polarity, filaments and the neutral line by hand. Those are **categorical** images: a pixel does not carry a brightness, it carries a label; \"this is a negative-polarity coronal hole\". HelioFITS Studio renders them with the exact colours the analyst assigned, without the smoothing and contrast handling that would quietly corrupt a category into its neighbour."
   },
   {
    "kind": "p",
@@ -162,7 +162,7 @@
   },
   {
    "kind": "p",
-   "text": "The ramp itself still carries **no printed numbers**, and that is deliberate: a scale drawn along the bar would have to freeze one moment's brightness and contrast and then go on claiming it after you had moved them. The hovered value is computed fresh instead, and for a layer opened directly from a FITS file it is a real physical value: the layer's Levels and instrument-response adjustment are undone, then the decoder's own stretch and min/max normalisation, arriving back at the number stored in the file. PUNCHStudio does not yet read the unit from the header, so that number is shown unlabelled. Where the chain cannot be inverted the reading falls back to a plain percentage of the display range, rather than dressing a display coordinate up as physics: server-streamed movies (AIA, SUVI, LASCO and the rest) never carried the original FITS numbers to your machine at all, and RHEF's rank transform and difference mode have no single value to invert back to."
+   "text": "The ramp itself still carries **no printed numbers**, and that is deliberate: a scale drawn along the bar would have to freeze one moment's brightness and contrast and then go on claiming it after you had moved them. The hovered value is computed fresh instead, and for a layer opened directly from a FITS file it is a real physical value: the layer's Levels and instrument-response adjustment are undone, then the decoder's own stretch and min/max normalisation, arriving back at the number stored in the file. HelioFITS Studio does not yet read the unit from the header, so that number is shown unlabelled. Where the chain cannot be inverted the reading falls back to a plain percentage of the display range, rather than dressing a display coordinate up as physics: server-streamed movies (AIA, SUVI, LASCO and the rest) never carried the original FITS numbers to your machine at all, and RHEF's rank transform and difference mode have no single value to invert back to."
   },
   {
    "kind": "figure",
@@ -222,11 +222,11 @@
   },
   {
    "kind": "p",
-   "text": "Every other layer in PUNCHStudio is 2-D imagery mapped onto the sky. This one is different: it drops a **3-D point cloud**: a scattered set of points in space, each optionally carrying a data value; into the same view as your coronagraph frames, so a reconstruction can be seen against the imagery it came from. The natural sources are things that live as scattered samples rather than pictures: a modeled flux-rope surface, a triangulated CME front, feature positions from multi-viewpoint tracking. An **alpha-shape** control then wraps a surface around the points, so a folded sheet reads as a surface instead of a haze of dots. Sort of like shrink-wrapping the cloud at a tightness you set by hand: pulled all the way in it is the convex hull, and as you loosen it the real folds and concavities separate out."
+   "text": "Every other layer in HelioFITS Studio is 2-D imagery mapped onto the sky. This one is different: it drops a **3-D point cloud**: a scattered set of points in space, each optionally carrying a data value; into the same view as your coronagraph frames, so a reconstruction can be seen against the imagery it came from. The natural sources are things that live as scattered samples rather than pictures: a modeled flux-rope surface, a triangulated CME front, feature positions from multi-viewpoint tracking. An **alpha-shape** control then wraps a surface around the points, so a folded sheet reads as a surface instead of a haze of dots. Sort of like shrink-wrapping the cloud at a tightness you set by hand: pulled all the way in it is the convex hull, and as you loosen it the real folds and concavities separate out."
   },
   {
    "kind": "p",
-   "text": "**How:** open **File > New Point Cloud Layer…** and choose one or more cloud files (each is a small `.json` or `.json.gz`); selecting several at once loads them as a **time series** that steps with the movie clock, so a reconstruction can animate. To try it with nothing of your own, the release ships a demo; `fabric_suvi.json.gz`, a rippled sheet placed in the GOES-R SUVI field of view; right beside the app download; grab it and open it here. Once a cloud is loaded, its options give you **Points** with a **Size**, and **Color by data** with a **Colormap** to shade the points by their value; the **Alpha** slider to wrap a surface (drag right toward the convex hull, left to let the folds open up; double-click to reset); **Wireframe** and **Surface** with an **Opacity**, to show the mesh as lines, as a translucent skin, or both at once; and a **sync** button that snaps the movie interval to the cloud's own time span. You never triangulate anything yourself; a file is just a list of `[x, y, z]` points (with optional per-point values) in heliocentric coordinates, and PUNCHStudio builds the mesh internally. The full format is written up in the point-cloud hand-off note."
+   "text": "**How:** open **File > New Point Cloud Layer…** and choose one or more cloud files (each is a small `.json` or `.json.gz`); selecting several at once loads them as a **time series** that steps with the movie clock, so a reconstruction can animate. To try it with nothing of your own, the release ships a demo; `fabric_suvi.json.gz`, a rippled sheet placed in the GOES-R SUVI field of view; right beside the app download; grab it and open it here. Once a cloud is loaded, its options give you **Points** with a **Size**, and **Color by data** with a **Colormap** to shade the points by their value; the **Alpha** slider to wrap a surface (drag right toward the convex hull, left to let the folds open up; double-click to reset); **Wireframe** and **Surface** with an **Opacity**, to show the mesh as lines, as a translucent skin, or both at once; and a **sync** button that snaps the movie interval to the cloud's own time span. You never triangulate anything yourself; a file is just a list of `[x, y, z]` points (with optional per-point values) in heliocentric coordinates, and HelioFITS Studio builds the mesh internally. The full format is written up in the point-cloud hand-off note."
   },
   {
    "kind": "figure",
@@ -291,7 +291,7 @@
   },
   {
    "kind": "p",
-   "text": "A raw C3 frame is dominated by the static K-corona, F-corona and stray light, which is why an 8-bit browse JPEG can look better than the 16-bit FITS behind it: the browse products are background-subtracted and the raw file is not. Level-1 calibration does not remove any of it either. PUNCHStudio fetches NRL's monthly minimum images, interpolates the two that bracket each frame the way NRL's own getbkgimg.pro does, and subtracts in DN before anything is normalized, leaving the frames of a movie on one photometric footing."
+   "text": "A raw C3 frame is dominated by the static K-corona, F-corona and stray light, which is why an 8-bit browse JPEG can look better than the 16-bit FITS behind it: the browse products are background-subtracted and the raw file is not. Level-1 calibration does not remove any of it either. HelioFITS Studio fetches NRL's monthly minimum images, interpolates the two that bracket each frame the way NRL's own getbkgimg.pro does, and subtracts in DN before anything is normalized, leaving the frames of a movie on one photometric footing."
   },
   {
    "kind": "p",
@@ -312,10 +312,10 @@
     "**PUNCH mosaics composite cleanly.** A PUNCH mosaic's central no-data region used to paint an opaque black disk over anything beneath it; it now carries an inner radius, so it layers over LASCO or AIA without hiding them; which is what makes the multi-instrument composites on the cover possible.",
     "**Faster reopen.** Downloaded frames are cached to disk between launches, so reopening a saved session loads from disk instead of re-fetching everything over the network.",
     "**Playback that fails out loud.** If a frame's data never arrives, playback pauses and tells you which frame, instead of silently freezing the playhead.",
-    "**Its own icon.** The app shows the PUNCHStudio icon in the Dock and taskbar rather than the generic Java coffee cup.",
+    "**Its own icon.** The app shows the HelioFITS Studio icon in the Dock and taskbar rather than the generic Java coffee cup.",
     "**A clock on the timestamp.** The timestamp overlay has a small dial whose hand tracks the displayed frame's UTC hour of day, a quick cue that playback is running and roughly where in the day it is.",
     "**The export frame, previewed truthfully.** Output size is an aspect and a long side, and locking an aspect letterboxes the canvas to exactly what the export will contain, so you compose the recording before you record it.",
-    "**Two instances coexist.** A second copy of PUNCHStudio used to flood the log because the first held the disk cache; it now says so once and runs with a memory-only cache for the session.",
+    "**Two instances coexist.** A second copy of HelioFITS Studio used to flood the log because the first held the disk cache; it now says so once and runs with a memory-only cache for the session.",
     "**Layers added from the File menu follow the master range**, including the cadence, exactly like layers added from the sidebar.",
     "**The colour legend is a true gradient** rather than 128 flat steps, and durations in the movie bar read `5.08s / 12.3s`.",
     "**Imagery appears while the rest is still arriving.** A multi-frame layer used to show nothing at all until every frame had been fetched; the first frame now lands in well under a second and the movie fills in behind it.",
@@ -343,7 +343,7 @@
    "kind": "callout",
    "title": "Credit, and what went upstream",
    "paras": [
-    "PUNCHStudio is a fork of JHelioviewer, the open-source solar image browser from the ESA/NASA Helioviewer Project, at `github.com/Helioviewer-Project/JHelioviewer-SWHV`. The tools described here are built on it.",
+    "HelioFITS Studio is a fork of JHelioviewer, the open-source solar image browser from the ESA/NASA Helioviewer Project, at `github.com/Helioviewer-Project/JHelioviewer-SWHV`. The tools described here are built on it.",
     "Four additions have been taken into JHelioviewer's development line and are credited in its pending 5.10.0 changelog: the New PUNCH Layer source (with the PUNCH colormap), the RHEF radial-histogram filter, the Helioradial and Helioradial Unrolled projections (RadialWarp and RectWarp there), and the grid colour, opacity and width controls.",
     "Others were submitted there as a series of focused pull requests: PROBA-3/ASPIICS support, grid label controls, the per-layer PUNCH refresh, a shared display range that keeps PUNCH movies from strobing, the reorganized layer panel, timeline navigation improvements, the Point Cloud layer (proposed on its own, since it is a larger addition), synoptic-map support, and the colour-table legend. You can browse them under that repository's Pull requests tab.",
     "Licensed under MPL 2.0, the same as JHelioviewer itself."

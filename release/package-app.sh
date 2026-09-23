@@ -1,5 +1,5 @@
 #!/bin/bash
-# Package PUNCHStudio for Windows or Linux with its own Java, so nobody has to install anything:
+# Package HelioFITS Studio for Windows or Linux with its own Java, so nobody has to install anything:
 # the counterpart of what `deploy_release.sh notarize` builds for the Mac.
 #
 #   release/package-app.sh windows|linux|macos-x64     (run from the repository root, after `ant jar`)
@@ -7,33 +7,33 @@
 # jpackage only builds for the system it runs on, which is why this runs in CI
 # (.github/workflows/package.yml) rather than on the Mac. Output, named so the download page's
 # platform tiles recognise it:
-#   PUNCHStudio-<version>-windows.zip     unzip anywhere, run PUNCHStudio\PUNCHStudio.exe
-#   PUNCHStudio-<version>-linux.tar.gz    untar anywhere, run PUNCHStudio/bin/PUNCHStudio
+#   HFStudio-<version>-windows.zip     unzip anywhere, run HFStudio\HFStudio.exe
+#   HFStudio-<version>-linux.tar.gz    untar anywhere, run HFStudio/bin/HFStudio
 # An app-image rather than an installer: no WiX toolchain, no admin rights, nothing to uninstall.
-# macos-x64 builds an UNSIGNED pkg-out/PUNCHStudio.app and no archive: it exists so CI can start the
+# macos-x64 builds an UNSIGNED pkg-out/HFStudio.app and no archive: it exists so CI can start the
 # Intel Mac build on an Intel Mac. The dmg people download is built and signed by
 # `MAC_ARCH=x64 deploy_release.sh notarize`, which stages it the same way.
 set -euo pipefail
 OS="$1"
 case "$OS" in windows|linux|macos-x64) ;; *) echo "usage: $0 windows|linux|macos-x64" >&2; exit 2 ;; esac
 VERSION="$(tr -d '[:space:]' < VERSION)"
-[ -f PUNCHStudio.jar ] || { echo "!! no PUNCHStudio.jar: run 'ant jar' first" >&2; exit 1; }
+[ -f HFStudio.jar ] || { echo "!! no HFStudio.jar: run 'ant jar' first" >&2; exit 1; }
 
 rm -rf pkg-out; mkdir -p pkg-out
 # Everything jpackage bundles is the classpath: the main jar and the dependency jars, with only
 # this platform's natives (stage-app.sh). AppInit unpacks them at start.
 release/stage-app.sh "$OS" pkg-stage
 
-# The icon, per platform. make_punch_icon.py has already drawn each one: the .icns and the .ico
+# The icon, per platform. make_app_icon.py has already drawn each one: the .icns and the .ico
 # both carry one artwork per size, so a 16 pixel icon is not a shrunken copy of the 1024 one. The
 # macOS bundle built here is for checking, never for shipping, so it does not get the asset catalog
 # that deploy_release.sh compiles into the signed one.
 case "$OS" in
-    windows)   ICON=release/PUNCHStudio_icon.ico ;;
-    macos-x64) ICON=release/PUNCHStudio_icon.icns ;;
-    *)         ICON=resources/images/PUNCHStudio_icon_512.png ;;
+    windows)   ICON=release/HFStudio_icon.ico ;;
+    macos-x64) ICON=release/HFStudio_icon.icns ;;
+    *)         ICON=resources/images/HFStudio_icon_512.png ;;
 esac
-[ -f "$ICON" ] || { echo "!! no icon at $ICON: run release/make_punch_icon.py" >&2; exit 1; }
+[ -f "$ICON" ] || { echo "!! no icon at $ICON: run release/make_app_icon.py" >&2; exit 1; }
 
 # A .app runs with its working directory at /, so the Metal host dylib cannot be found beside the
 # app; it goes into the main jar at the resource path AngleLibraries reads, as deploy_release.sh
@@ -41,7 +41,7 @@ esac
 if [ "$OS" = macos-x64 ]; then
     tmp="$(mktemp -d)"; mkdir -p "$tmp/jhv/macos-amd64"
     cp lib/natives-macos/libjhvmetalhost.dylib "$tmp/jhv/macos-amd64/"
-    ( cd "$tmp" && jar uf "$OLDPWD/pkg-stage/PUNCHStudio.jar" jhv/macos-amd64/libjhvmetalhost.dylib )
+    ( cd "$tmp" && jar uf "$OLDPWD/pkg-stage/HFStudio.jar" jhv/macos-amd64/libjhvmetalhost.dylib )
     rm -rf "$tmp"
 fi
 
@@ -52,8 +52,8 @@ release/make-runtime.sh pkg-runtime
 # honoured for `java -jar`; a native launcher starts the main class and needs them spelled out.
 # jpackage on macOS refuses a version whose first number is zero; the bundle is never shipped.
 APP_VERSION="$VERSION"; [ "$OS" = macos-x64 ] && case "$VERSION" in 0.*) APP_VERSION=1.0.0 ;; esac
-jpackage --type app-image --name PUNCHStudio --app-version "$APP_VERSION" \
-    --input pkg-stage --main-jar PUNCHStudio.jar --main-class org.helioviewer.jhv.PUNCHStudio \
+jpackage --type app-image --name HFStudio --app-version "$APP_VERSION" \
+    --input pkg-stage --main-jar HFStudio.jar --main-class org.helioviewer.jhv.HFStudio \
     --java-options "--enable-native-access=ALL-UNNAMED" \
     --java-options "--add-exports=java.desktop/sun.awt=ALL-UNNAMED" \
     --java-options "--add-exports=java.desktop/sun.swing=ALL-UNNAMED" \
@@ -62,7 +62,7 @@ jpackage --type app-image --name PUNCHStudio --app-version "$APP_VERSION" \
     --dest pkg-out
 
 if [ "$OS" = macos-x64 ]; then
-    echo "==> pkg-out/PUNCHStudio.app (unsigned, for testing) $(du -sh pkg-out/PUNCHStudio.app | cut -f1)"
+    echo "==> pkg-out/HFStudio.app (unsigned, for testing) $(du -sh pkg-out/HFStudio.app | cut -f1)"
     exit 0
 fi
 if [ "$OS" = windows ]; then
@@ -70,12 +70,12 @@ if [ "$OS" = windows ]; then
     # runtime first, and Windows then reuses it, so a machine without the Visual C++
     # redistributable still decodes. That holds only while the runtime carries the file, which
     # after trimming means only while jlink keeps it with java.base.
-    [ -f pkg-out/PUNCHStudio/runtime/bin/vcruntime140.dll ] \
+    [ -f pkg-out/HFStudio/runtime/bin/vcruntime140.dll ] \
         || { echo "!! the bundled runtime has no vcruntime140.dll; OpenJPEG would not load on a bare Windows" >&2; exit 1; }
-    ARCHIVE="PUNCHStudio-$VERSION-windows.zip"
-    ( cd pkg-out && 7z a -tzip -mx=7 "../$ARCHIVE" PUNCHStudio > /dev/null )
+    ARCHIVE="HFStudio-$VERSION-windows.zip"
+    ( cd pkg-out && 7z a -tzip -mx=7 "../$ARCHIVE" HelioFITS Studio > /dev/null )
 else
-    ARCHIVE="PUNCHStudio-$VERSION-linux.tar.gz"
-    tar -C pkg-out -czf "$ARCHIVE" PUNCHStudio
+    ARCHIVE="HFStudio-$VERSION-linux.tar.gz"
+    tar -C pkg-out -czf "$ARCHIVE" HelioFITS Studio
 fi
 echo "==> $ARCHIVE ($(du -h "$ARCHIVE" | cut -f1))"

@@ -16,8 +16,8 @@ SETTLE="${SETTLE:-25}"              # seconds after that for the image to load a
 # A fresh home, so no earlier session is restored and the log is this run's alone.
 # JAVA_TOOL_OPTIONS reaches the JVM whether it was started by a script or a native launcher.
 case "$(uname -s)" in
-    MINGW*|MSYS*|CYGWIN*) WINDOWS=1; HOME_DIR="$(cygpath -w "$RUNNER_TEMP")\\home-$NAME"; LOGS="$(cygpath -u "$HOME_DIR")/PUNCHStudio/Logs" ;;
-    *)                    WINDOWS=0; HOME_DIR="$RUNNER_TEMP/home-$NAME";                 LOGS="$HOME_DIR/PUNCHStudio/Logs" ;;
+    MINGW*|MSYS*|CYGWIN*) WINDOWS=1; HOME_DIR="$(cygpath -w "$RUNNER_TEMP")\\home-$NAME"; LOGS="$(cygpath -u "$HOME_DIR")/HFStudio/Logs" ;;
+    *)                    WINDOWS=0; HOME_DIR="$RUNNER_TEMP/home-$NAME";                 LOGS="$HOME_DIR/HFStudio/Logs" ;;
 esac
 mkdir -p "$LOGS/.."
 export JAVA_TOOL_OPTIONS="-Duser.home=$HOME_DIR"
@@ -39,8 +39,8 @@ if [ "$WINDOWS" = 1 ]; then
       Add-Type "using System; using System.Runtime.InteropServices;
         public class W { [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; }
           [DllImport(""user32.dll"")] public static extern bool GetWindowRect(IntPtr h, out R r); }"
-      $p = Get-Process | Where-Object { $_.MainWindowTitle -like "*PUNCHStudio*" } | Select-Object -First 1
-      if (-not $p) { "no PUNCHStudio window found"; exit 1 }
+      $p = Get-Process | Where-Object { $_.MainWindowTitle -like "*HelioFITS Studio*" } | Select-Object -First 1
+      if (-not $p) { "no HelioFITS Studio window found"; exit 1 }
       $r = New-Object W+R; [W]::GetWindowRect($p.MainWindowHandle, [ref]$r) | Out-Null
       $w = $r.Rt - $r.L; $h = $r.B - $r.T; "window of $($p.ProcessName): ${w}x${h} at $($r.L),$($r.T)"
       $bmp = New-Object System.Drawing.Bitmap $w, $h

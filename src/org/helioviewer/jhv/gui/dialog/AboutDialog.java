@@ -32,7 +32,7 @@ import com.jidesoft.dialog.StandardDialog;
 public final class AboutDialog extends StandardDialog implements Interfaces.ShowableDialog, HyperlinkListener {
 
     public AboutDialog() {
-        super(MainFrame.get(), "About PUNCHStudio", true);
+        super(MainFrame.get(), "About HelioFITS Studio", true);
         setResizable(false);
     }
 
@@ -43,7 +43,7 @@ public final class AboutDialog extends StandardDialog implements Interfaces.Show
 
     @Override
     public JComponent createContentPanel() {
-        String text = "<center>PUNCHStudio is built on <a href=\"https://github.com/Helioviewer-Project/JHelioviewer-SWHV\">" + "JHelioviewer</a>, and on several further components:</center><ul>" +
+        String text = "<center>HelioFITS Studio is built on <a href=\"https://github.com/Helioviewer-Project/JHelioviewer-SWHV\">" + "JHelioviewer</a>, and on several further components:</center><ul>" +
                 "<li><a href=\"https://www.openjpeg.org\">OpenJPEG</a> JPEG 2000 codec, © 2002-2014 Université catholique de Louvain and others (<a href='/licenses/OpenJPEG.txt'>licence</a>).</li>" +
                 "<li><a href=\"https://www.lwjgl.org\">LWJGL</a> Java 3D graphics libraries and <a href=\"https://chromium.googlesource.com/angle/angle\">ANGLE</a> cross-platform GLES translation layer.</li>" +
                 "<li><a href=\"https://github.com/JOML-CI/JOML\">JOML</a>, a Java math library for GL rendering calculations.</li>" +
@@ -61,7 +61,7 @@ public final class AboutDialog extends StandardDialog implements Interfaces.Show
                 "<li><a href=\"https://tika.apache.org\">Apache Tika</a>, a content analysis toolkit.</li>" +
                 "<li><a href=\"https://github.com/xerial/sqlite-jdbc\">Xerial</a> SQLite JDBC driver.</li>" +
                 "<li><a href=\"https://www.ej-technologies.com/products/install4j/overview.html\">install4j</a>, the multi-platform installer builder.</li></ul>" +
-                "<center>Third-party licenses and notices can be found inside <code>PUNCHStudio.jar</code> and in the source tree.</center>";
+                "<center>Third-party licenses and notices can be found inside <code>HFStudio.jar</code> and in the source tree.</center>";
 
         HTMLPane pane = new HTMLPane();
         pane.setText(text);

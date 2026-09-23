@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the PUNCHStudio app icon: nested instrument fields, drawn three times for three size bands.
+"""Build the HelioFITS Studio app icon: nested instrument fields, drawn three times for three size bands.
 
 The picture is the ladder this application composites: the occulted Sun, then each instrument's
 field of view as a ring around it, fainter as it goes out, with the corona running through all of
@@ -18,8 +18,8 @@ Nobody ever sees two of them at once. macOS picks by size, and so does Windows' 
 The body is 824 of 1024 at exponent 4.6, the shape already seen to escape macOS 26's squircle
 jail (issue #7), and the art fills it rather than sitting on a tile.
 
-  python3 make_punch_icon.py   ->  PUNCHStudio_icon.icns, AppIcon.appiconset/,
-                                  PUNCHStudio_icon_1024.png, resources/images/PUNCHStudio_icon_512.png
+  python3 make_app_icon.py   ->  HFStudio_icon.icns, AppIcon.appiconset/,
+                                  HFStudio_icon_1024.png, resources/images/HFStudio_icon_512.png
 """
 import json, math, os, shutil, subprocess, sys
 import cv2
@@ -153,11 +153,11 @@ def unmasked(img):
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    iconset = os.path.join(OUT, ".PUNCHStudio.iconset")
+    iconset = os.path.join(OUT, ".HFStudio.iconset")
     os.makedirs(iconset, exist_ok=True)
     for name, px in ICONSET:
         small_first(px).save(f"{iconset}/{name}.png")
-    icns = os.path.join(OUT, "PUNCHStudio_icon.icns")
+    icns = os.path.join(OUT, "HFStudio_icon.icns")
     subprocess.run(["iconutil", "-c", "icns", iconset, "-o", icns], check=True)
     shutil.rmtree(iconset)
 
@@ -170,7 +170,7 @@ def main():
         small_first(px, unmasked(BY_SIZE[px])).save(os.path.join(aset, fn))
         images.append({"idiom": "mac", "size": size, "scale": scale, "filename": fn})
     with open(os.path.join(aset, "Contents.json"), "w") as f:
-        json.dump({"images": images, "info": {"version": 1, "author": "make_punch_icon.py"}}, f, indent=2)
+        json.dump({"images": images, "info": {"version": 1, "author": "make_app_icon.py"}}, f, indent=2)
         f.write("\n")
 
     # Windows reads a .ico, which holds one image per size exactly as the .icns does, so the small
@@ -178,13 +178,13 @@ def main():
     win = {16: SMALL, 32: SMALL, 48: MID, 64: MID, 128: MID, 256: FULL}
     # Largest first: Pillow writes the file from that one and skips any size bigger than it.
     imgs = [small_first(px, art) for px, art in sorted(win.items(), reverse=True)]
-    ico = os.path.join(OUT, "PUNCHStudio_icon.ico")
+    ico = os.path.join(OUT, "HFStudio_icon.ico")
     imgs[0].save(ico, format="ICO", sizes=[(px, px) for px in sorted(win)], append_images=imgs[1:])
 
-    FULL.save(os.path.join(OUT, "PUNCHStudio_icon_1024.png"))
+    FULL.save(os.path.join(OUT, "HFStudio_icon_1024.png"))
     BY_SIZE[512].resize((512, 512), Image.LANCZOS).save(
-        os.path.join(OUT, "..", "resources", "images", "PUNCHStudio_icon_512.png"))
-    print(f"wrote {icns}, {ico}, {aset}/ and resources/images/PUNCHStudio_icon_512.png")
+        os.path.join(OUT, "..", "resources", "images", "HFStudio_icon_512.png"))
+    print(f"wrote {icns}, {ico}, {aset}/ and resources/images/HFStudio_icon_512.png")
     print("  full art  1024, 512, 256")
     print("  mid art   128, 64")
     print("  small art 32, 16")

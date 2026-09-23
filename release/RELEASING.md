@@ -1,14 +1,14 @@
-# Releasing PUNCHStudio
+# Releasing HelioFITS Studio
 
-Authoritative procedure for shipping a PUNCHStudio release. If this file
-and `skills/ship-punchstudio/SKILL.md` ever disagree, **this file wins** and the
+Authoritative procedure for shipping a HelioFITS Studio release. If this file
+and `skills/ship-hfstudio/SKILL.md` ever disagree, **this file wins** and the
 skill gets fixed.
 
 Gilly can follow this by hand with no assistant present. That is the point.
 
 ## What ships, and from where
 
-One repository, **`GillySpace27/PUNCHStudio`**:
+One repository, **`GillySpace27/HelioFITS-Studio`**:
 
 | | Path | Holds |
 |---|---|---|
@@ -35,7 +35,7 @@ Tags follow `VERSION`: `v0.8.0`, then whatever the next bump is. Versions below 
 bumping `VERSION` first. To correct a mistake on the newest release, delete that
 release deliberately by hand first.
 
-Public link: **<https://gilly.space/punchstudio>**, a download page that asks GitHub
+Public link: **<https://gilly.space/heliofits-studio>**, a download page that asks GitHub
 for the newest release each time it loads, so it cannot go stale when a new
 release is cut. Older builds stay on the repository's `/releases` page, which is
 the way back to a previous one. GitHub Pages is case-sensitive, so `/jhv` and `/JHV` are separate paths;
@@ -43,7 +43,7 @@ both exist and both were fixed. Only ever hand out the lowercase form.
 
 Eight assets, six from `publish` on the Mac and two added by CI:
 
-- `PUNCHStudio-<version>-intel.dmg`: the same for Intel Macs, built on the Apple
+- `HFStudio-<version>-intel.dmg`: the same for Intel Macs, built on the Apple
   Silicon Mac from an Intel JDK under Rosetta (step 4). Tested under Rosetta,
   not yet on an Intel Mac. CI (`package.yml`, job `macos-intel`) builds the
   same bundle unsigned and starts it on GitHub's Intel Mac runner, but that
@@ -51,13 +51,13 @@ Eight assets, six from `publish` on the Mac and two added by CI:
   CI shows it starts as Intel code, reaches its window and decodes with the
   bundled OpenJPEG, and nothing about graphics. Optional: `publish` attaches it only if it exists,
   and the release notes point Intel users at the zip otherwise.
-- `PUNCHStudio-<version>.dmg`: signed, notarized, stapled macOS app with an
+- `HFStudio-<version>.dmg`: signed, notarized, stapled macOS app with an
   embedded JRE. **Apple Silicon only.** Double-click, no Java, no Gatekeeper
   prompt. This is what almost everyone should get.
-- `PUNCHStudio-<version>.zip`: cross-platform, needs the user to install Java 25.
+- `HFStudio-<version>.zip`: cross-platform, needs the user to install Java 25.
   The Intel Mac route; its Linux and Windows launchers are checked in CI
   (`launch.yml`) but have not been used on real hardware.
-- `PUNCHStudio-<version>-windows.zip` and `PUNCHStudio-<version>-linux.tar.gz`:
+- `HFStudio-<version>-windows.zip` and `HFStudio-<version>-linux.tar.gz`:
   self-contained app-images with embedded Java, built by
   `release/package-app.sh` in CI (`.github/workflows/package.yml`) and
   **attached by CI about ten minutes after `publish`**, only if each package
@@ -65,7 +65,7 @@ Eight assets, six from `publish` on the Mac and two added by CI:
   OpenJPEG. x86-64 only. The Windows build is not code-signed, so SmartScreen
   warns on first run. CI draws in software; nobody has used them on real
   hardware yet.
-- `PUNCHStudio-Guide.pdf` / `.md`: the field guide, generated from
+- `HFStudio-Guide.pdf` / `.md`: the field guide, generated from
   `guide_content.json` + `guide_assets/`.
 - `fabric_suvi.json.gz`: demo point cloud, opened from the Point Cloud layer.
 
@@ -86,19 +86,23 @@ second half, not a string edit.
   Store the credential under the new name first (the command is in the
   2026-08-23 credentials entry below), then change the default. Changing only
   the script breaks `notarize`.
-- **`gilly.space/punchstudio`**, the download page handed to collaborators, with
-  `/PUNCHStudio`, the older `/hfs`, `/hfstudio`, `/HFStudio`, `/HFS` and the
-  oldest `/jhv` and `/JHV` all forwarding to it. It
+- **`gilly.space/heliofits-studio`**, the download page handed to collaborators, with
+  every earlier address forwarding to it: `/punchstudio` and `/PUNCHStudio`, `/hfs`,
+  `/hfstudio`, `/HFStudio` and `/HFS`, and the oldest `/jhv` and `/JHV`. It
   lives in the site repository (`GillySpace27.github.io`), outside this one. It
   asks GitHub for the newest release when it loads, so a release needs no edit
   there; its fixed fallback links (used only when GitHub cannot be reached)
   still name 0.8.1. The tracker's `live` check reads it. The old links have been
   sent to people, so keep them all working.
-- **`GillySpace27/PUNCHStudio`**, the repository slug, renamed from
-  `HelioFITS-Studio` on 2026-09-18, then from `HFStudio` on 2026-09-21. GitHub
-  forwards the old web, git, API and raw addresses, and the update check in
-  0.8.0 through 0.8.2 depends on that. Never create a repository under either
-  old name: doing so ends the forwarding for that name.
+- **`GillySpace27/HelioFITS-Studio`**, the repository slug. It began as
+  `HelioFITS-Studio`, became `HFStudio` on 2026-09-18 and `PUNCHStudio` on
+  2026-09-21, and returned to `HelioFITS-Studio` on 2026-09-23. GitHub forwards
+  the web, git, API and raw addresses of every earlier name, and the update
+  check in 0.8.0 through 0.8.2 depends on that. Never create a repository
+  under `HFStudio` or `PUNCHStudio`: doing so ends the forwarding for that
+  name. The application's technical name is `HFStudio` again (the jar, the
+  class, the settings folder, the bundle id, the asset names), as it was in
+  0.8.0 to 0.8.2; people read "HelioFITS Studio".
 - **`org.helioviewer.jhv`, `libjhvmetalhost.dylib`, the `jhv/macos-arm64`
   resource path**: application identifiers that `deploy_release.sh` has to
   match (`--main-class`, `DYLIB`, `ARCH_RES`). They change with the app code or
@@ -119,7 +123,7 @@ The asymmetry that bites people:
   build-metal-host` at the repository root), so its `.dmg` is always built from
   the current working tree.
 - **`package` and `publish` do NOT build anything.** They repackage whatever
-  `PUNCHStudio.jar` is sitting at the repository root, and `publish` uploads
+  `HFStudio.jar` is sitting at the repository root, and `publish` uploads
   whatever `.dmg` already exists in `release/`. A stale jar or a stale dmg ships
   silently.
 
@@ -160,7 +164,7 @@ naming the target explicitly costs nothing.
 Confirm the jar records the commit you just pushed:
 
 ```sh
-unzip -p PUNCHStudio.jar META-INF/MANIFEST.MF | grep -i revision
+unzip -p HFStudio.jar META-INF/MANIFEST.MF | grep -i revision
 git rev-list --count HEAD          # must match
 ```
 
@@ -201,8 +205,8 @@ service). Both are network steps that fail transiently; see the incident log.
 Verify before going further:
 
 ```sh
-xcrun stapler validate "PUNCHStudio-$(cat ../VERSION).dmg"
-spctl -a -t open --context context:primary-signature -v "PUNCHStudio-$(cat ../VERSION).dmg"
+xcrun stapler validate "HFStudio-$(cat ../VERSION).dmg"
+spctl -a -t open --context context:primary-signature -v "HFStudio-$(cat ../VERSION).dmg"
 # want: accepted / source=Notarized Developer ID
 ```
 
@@ -222,8 +226,8 @@ rm -rf .jdk-x64 && mkdir .jdk-x64 && tar -xzf jdk-x64.tar.gz -C .jdk-x64 --strip
 ```
 
 ```sh
-MAC_ARCH=x64 ./deploy_release.sh notarize      # writes PUNCHStudio-<version>-intel.dmg
-spctl -a -t open --context context:primary-signature -v "PUNCHStudio-$(cat ../VERSION)-intel.dmg"
+MAC_ARCH=x64 ./deploy_release.sh notarize      # writes HFStudio-<version>-intel.dmg
+spctl -a -t open --context context:primary-signature -v "HFStudio-$(cat ../VERSION)-intel.dmg"
 ```
 
 Its receipt is `.notarize-run-intel.json`, beside the Apple Silicon one.
@@ -233,11 +237,11 @@ Its receipt is `.notarize-run-intel.json`, beside the Apple Silicon one.
 Mount the dmg and launch the app it contains, not the jar you built. This is
 the step that catches a bundle that is signed correctly and still broken.
 
-Run it from the mounted image. The bundle is named `PUNCHStudio.app`, so on the
-development Mac it sits beside the launcher tile `PUNCHStudio Dev.app` in
-`/Applications` (`punchstudio-dev-launcher.sh`) instead of replacing it.
+Run it from the mounted image. The bundle is named `HelioFITS Studio.app`, so on the
+development Mac it sits beside the launcher tile `HelioFITS Studio Dev.app` in
+`/Applications` (`hfstudio-dev-launcher.sh`) instead of replacing it.
 
-Quit any running PUNCHStudio first. A second instance cannot take the JPIP
+Quit any running HelioFITS Studio first. A second instance cannot take the JPIP
 ehcache persistence lock, and the failure is not contained: `levelCache` stays
 null and every image read throws, which presents as a rendering bug rather than
 an "already running" message.
@@ -275,11 +279,11 @@ the run's evidence artifacts (screenshot, log) say why.
 Wait for CI first:
 
 ```sh
-gh run list --repo GillySpace27/PUNCHStudio --workflow package.yml --event release --limit 1
+gh run list --repo GillySpace27/HelioFITS-Studio --workflow package.yml --event release --limit 1
 ```
 
 ```sh
-gh release view "v$(cat ../VERSION)" --repo GillySpace27/PUNCHStudio \
+gh release view "v$(cat ../VERSION)" --repo GillySpace27/HelioFITS-Studio \
   --json assets --jq '.assets[] | "\(.name)  \(.size)  \(.updatedAt)"'
 ```
 
@@ -386,7 +390,7 @@ release object; the next preview would have been `v5.6b-coronal-research`.
   to ignore, which is worse than not having it.
 
 - **2026-08-23: the shareable link had been sending people to a page with
-  nothing on it.** `gilly.space/jhv` (and the `/JHV` duplicate, both now forwarding to `/punchstudio`) redirected to
+  nothing on it.** `gilly.space/jhv` (and the `/JHV` duplicate, both now forwarding to `/hfstudio`) redirected to
   `releases/tag/v5.6.0-punch-preview`, retired when the release was retagged.
   That URL still returns **200**, because GitHub renders a page for any tag that
   exists, so every naive check passed. It is a bare tag page: no release, no
@@ -434,7 +438,7 @@ release object; the next preview would have been `v5.6b-coronal-research`.
   `preview-deploy` assumed the source at `../jhv-demo`, and that worktree was
   being removed. The tooling now lives in `release/`, builds from the repository
   root, reads the version from `VERSION`, tags `v<version>`, names the assets
-  `PUNCHStudio-<version>.*` and the guide `PUNCHStudio-Guide.*`, and publishes
+  `HFStudio-<version>.*` and the guide `HFStudio-Guide.*`, and publishes
   versions below 1.0 as pre-releases. `RELEASE_TAG` is gone because
   `VERSION` now supplies the tag; `publish` still refuses an existing release.
   At the same time the root `README.txt` that `repackage` copied into the zip
@@ -446,7 +450,7 @@ release object; the next preview would have been `v5.6b-coronal-research`.
   to 0.8.1 wrote the file with the newline most editors add; `build.xml`
   loaded it verbatim into the jar manifest as a blank line after `version:`,
   and a blank line ends a manifest's main section. The packaged app could not
-  find `org.helioviewer.jhv.PUNCHStudio`. `notarize`'s own launch test caught it
+  find `org.helioviewer.jhv.HFStudio`. `notarize`'s own launch test caught it
   before anything went to Apple. `build.xml` now strips line breaks from
   `VERSION` (`0c7ae4192`).
 
@@ -460,7 +464,7 @@ release object; the next preview would have been `v5.6b-coronal-research`.
   polled `CGSSessionScreenIsLocked` and started `notarize` at the next unlock.
 
 - **2026-09-18: `publish` does not check that the dmg is notarized.** It
-  attaches whatever `PUNCHStudio-<version>.dmg` exists in `release/`. The failed
+  attaches whatever `HFStudio-<version>.dmg` exists in `release/`. The failed
   run above left a signed but un-notarized 0.8.1 dmg there, which `publish`
   would have shipped to collaborators' Macs for Gatekeeper to reject. It was
   renamed aside by hand. Until `publish` verifies `.notarize-run.json`'s
