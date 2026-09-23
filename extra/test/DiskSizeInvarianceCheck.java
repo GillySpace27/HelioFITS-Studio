@@ -31,9 +31,10 @@ public final class DiskSizeInvarianceCheck {
         near(Display.limbFractionAtUnitZoom(MapMode.Orthographic, vp),
                 2 / (1.1 * 2 * 6), 1e-12, "orthographic disk under a crop");
 
-        // Flat Helioradial at lambda = 1 with a 6 Rsun field: the Box-Cox limb anchor is 1/6
-        // of the unit map, inside the fixed 1.1-margin disk. (Crop kept at 6 so the scale is
-        // pinned without consulting the loaded layers, which a headless run cannot.)
+        // Flat Helioradial at lambda = 1 cut at 6 Rsun: the limb sits at 1/6 of the unit map,
+        // inside the fixed 1.1-margin disk. The crop is a cut of the full field's warp, so the
+        // field is needed; a headless run cannot load the layer stack, so it is stood in for.
+        Display.fieldRadius = () -> 215;
         Display.setWarpLambda(1);
         near(Display.limbFractionAtUnitZoom(MapMode.Helioradial, vp),
                 (1. / 6) / 1.1, 1e-12, "flat helioradial disk at lambda=1");

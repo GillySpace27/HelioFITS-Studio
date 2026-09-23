@@ -44,7 +44,11 @@ public final class HelioradialModeCheck {
         expect(MapMode.Helioradial.rendersIn3D(), "3D takes the 3D render path");
         expect(MapMode.Helioradial.usesWarpSurface(), "3D uses the surface-mesh shader");
 
-        // 3D framing is physical: the camera follows the crop.
+        // 3D framing follows the crop. At lambda = 1 the warped surface is the physical one,
+        // so the ratio is exact; under a warp the camera frames where the circle lands instead
+        // (HelioradialFramingCheck).
+        Display.fieldRadius = () -> 215; // the layer stack cannot load headless
+        Display.setWarpLambda(1);
         Display.setWarpOuterRadius(180);
         double wide = MapMode.Helioradial.baseCameraWidth(null);
         Display.setWarpOuterRadius(90);

@@ -39,6 +39,10 @@ public final class CropScopeCheck {
         Display.setWarpOuterRadius(60);
         double wider = MapMode.Orthographic.baseCameraWidth(null);
         near(wider / cropped, 2, 1e-12, "orthographic camera follows the crop");
+        // With the warp off the two agree exactly; under a warp 3D frames where the crop's circle
+        // lands on the warped surface, which is a different radius on purpose.
+        Display.fieldRadius = () -> 215; // the layer stack cannot load headless
+        Display.setWarpLambda(1);
         Display.setHelioradial3D(true);
         near(cropped, MapMode.Helioradial.baseCameraWidth(null) / 2, 1e-12,
                 "orthographic and 3D helioradial frame the same crop identically"); // 60 vs 30

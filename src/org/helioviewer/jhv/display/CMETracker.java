@@ -223,21 +223,15 @@ public final class CMETracker implements TimeListener.Change {
         Display.setWarpOuterRadius(solveOuter(r, lambda, maxOut));
     }
 
-    // Normalized radial screen position of physical radius r for a given lambda: an exact copy of
-    // MapScale.BoxCoxRadialScale.toUnitY, but with lambda as a free variable so it can be solved
-    // for, instead of reading the Display global.
+    // Normalized radial screen position of physical radius r with the view cut at rOut, for a
+    // given lambda. Asked of the renderer's own scale rather than a copy of its formula: the copy
+    // modelled the old Crop, which renormalized the warp, and would have gone on steering the
+    // tracker to where fronts used to land. Orthographic has no warp, and its crop sizes a
+    // linear camera, so there it is simply r / rOut.
     private static double unitY(double r, double rOut, double lambda) {
-        // Same limb anchor as BoxCoxRadialScale: the lambda-dependent origin-anchored
-        // position (limb varies with the solve's trial lambda — still monotone).
-        double bc = rOut <= 1 ? 0
-                : (lambda == 0 ? Math.log(rOut) : (Math.pow(rOut, lambda) - 1) / lambda);
-        double limb = Math.max(1 / rOut, 1 / (1 + bc));
-        if (rOut <= 1 || r <= 1)
-            return r * limb;
-        double u = lambda == 0
-                ? Math.log(r) / Math.log(rOut)
-                : (Math.pow(r, lambda) - 1) / (Math.pow(rOut, lambda) - 1);
-        return limb + u * (1 - limb);
+        if (!Display.mode.usesWarpLambda())
+            return r / rOut;
+        return MapScale.boxCoxRadialCrop(Display.fullWarpFieldRadius(), rOut, lambda).toUnitY(r);
     }
 
     // Find lambda in [-1, 1] such that the front lands at SCREEN_FRACTION of the outer FOV

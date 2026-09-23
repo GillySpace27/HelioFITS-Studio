@@ -78,7 +78,7 @@ public final class Display {
                     yield 2 * MapScale.boxCoxRadial(full).warpLimb() * full / m.baseCameraWidth(getCamera());
                 }
                 // Flat: the disk spans limb * (unit map height) inside the fixed normalized disk.
-                yield MapScale.boxCoxRadial(effectiveWarpOuterRadius()).warpLimb() / m.baseCameraWidth(getCamera());
+                yield warpScale().warpLimb() / m.baseCameraWidth(getCamera());
             }
             case HPC -> {
                 double d = org.helioviewer.jhv.opengl.GLRenderer.getDisplayedViewpoint().distance;
@@ -102,7 +102,7 @@ public final class Display {
                 // mode by the time it captures the limb of the view being left.
                 double limbAngle = Math.asin(1 / d);
                 if (isSkyCompose())
-                    limbAngle = SkyMap.warpElongation(limbAngle, d, surfaceModel, MapScale.boxCoxRadial(effectiveWarpOuterRadius()));
+                    limbAngle = SkyMap.warpElongation(limbAngle, d, surfaceModel, warpScale());
                 double limbRadius = Math.toDegrees(getSkyProjection().radiusFromAngle(limbAngle));
                 double halfHeight = Math.toDegrees(
                         getSkyProjection().radiusFromAngle(Math.toRadians(getSkyFieldDegrees())));
@@ -177,9 +177,9 @@ public final class Display {
         }
     }
 
-    // The Crop control: the outer boundary of the warp projections in solar radii. 0 = auto:
-    // the largest radial size among the loaded layers. Lowering it is a radial crop, a linear
-    // zoom-in independent of the lambda warp, and makes that boundary itself mutable.
+    // The Crop control: a circular cut at this radius, in solar radii. 0 = auto, no cut: the
+    // whole loaded field. It never changes the warp, which is always normalized over the full
+    // field; it only decides where the picture stops, and the view is framed on that circle.
     private static double warpOuterRadius = 0.0;
 
     public static double getWarpOuterRadius() {
@@ -218,7 +218,33 @@ public final class Display {
      * much of it the camera shows, so cropping magnifies everything uniformly.
      */
     public static double fullWarpFieldRadius() {
-        return Math.max(ImageLayers.getLargestRadialSize(), 1.1);
+        return Math.max(fieldRadius.getAsDouble(), 1.1);
+    }
+
+    // ponytail: a seam for the headless checks, which cannot initialize the layer stack (it needs
+    // SPICE natives) and now need the field whenever a crop is set, because the crop is a cut of
+    // the field's warp. Production never reassigns it. The lambda body is what names ImageLayers,
+    // so Display's own initialization still does not drag the layer stack in.
+    static java.util.function.DoubleSupplier fieldRadius = ImageLayers::getLargestRadialSize;
+
+    /**
+     * The helioradial warp as drawn flat: normalized over the full field and cut at the Crop.
+     * See {@link MapScale#boxCoxRadialCrop} for why that is not the same as a warp over the crop.
+     */
+    public static MapScale warpScale() {
+        return MapScale.boxCoxRadialCrop(fullWarpFieldRadius(), warpOuterRadius, getWarpLambda());
+    }
+
+    /**
+     * Where the Crop's circle lands on the warped 3D surface, in solar radii: the extent the
+     * camera frames. Not the crop itself, which is a physical radius; the surface puts that
+     * radius wherever the warp does, and only at lambda = 1 is that the same number. Framing on
+     * the physical radius is what pushed the circle off the edge of the screen under a warp, so
+     * that all anyone saw was magnification.
+     */
+    public static double warpedCropRadius() {
+        double full = fullWarpFieldRadius();
+        return warpOuterRadius > 0 ? WarpGeometry.warpRadius(MapScale.boxCoxRadial(full), warpOuterRadius, full) : full;
     }
 
     // The render area: the part of the drawable actually drawn into. Equal to the canvas unless
@@ -643,7 +669,7 @@ public final class Display {
      */
     @javax.annotation.Nullable
     public static MapScale skyComposeScale() {
-        return isSkyCompose() && mode == MapMode.ObserverSky ? MapScale.boxCoxRadial(effectiveWarpOuterRadius()) : null;
+        return isSkyCompose() && mode == MapMode.ObserverSky ? warpScale() : null;
     }
 
     public static double getSkyLookLon() {
