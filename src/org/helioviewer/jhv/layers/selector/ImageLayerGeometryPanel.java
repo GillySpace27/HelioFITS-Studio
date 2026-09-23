@@ -53,6 +53,10 @@ final class ImageLayerGeometryPanel extends JPanel {
             revert(layer);
             rebuild.run();
         });
+        // Held open like Display and Intensity: the controls for the selected layer, not an aside.
+        // Alignment above stays foldable; it is a rarely-touched corner of Geometry rather than
+        // one of the three things a layer is adjusted with.
+        section.pinOpen();
 
         setLayout(new BoxLayout(this, BoxLayout.PAGE_AXIS));
         setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));

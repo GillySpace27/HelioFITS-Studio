@@ -127,7 +127,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     protected ImageLayer(View _view) {
         view = _view;
         glImage = null;
-        loader = new ImageLayerLoader(processingSettings, v -> {}, v -> {}, () -> {}, st -> {}, failed -> {});
+        loader = new ImageLayerLoader(processingSettings, v -> {}, v -> {}, () -> {}, st -> {}, failed -> {}, () -> {});
     }
 
     private ImageLayer(JSONObject jo) {
@@ -141,7 +141,8 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
         view = new BaseView(null, null, processingSettings);
         glImage = new GLSLImage(displaySettings);
-        loader = new ImageLayerLoader(processingSettings, this::setView, this::setPreviewView, this::unload, this::setLoadStatus, this::setFailedUris);
+        loader = new ImageLayerLoader(processingSettings, this::setView, this::setPreviewView, this::unload,
+                this::setLoadStatus, this::setFailedUris, this::frameArrived);
 
         if (jo != null) {
             applyImageParams(jo.optJSONObject("imageParams"));
@@ -265,6 +266,20 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         Layers.fireLayerUpdated(this); // give feedback asap
     }
 
+    /**
+     * Read the layer's files again from scratch.
+     *
+     * <p>For a change that lands before the display range is worked out, which a plane change
+     * does: the clip set is sampled off the pixels when a frame's view is built, so B's
+     * percentiles would otherwise go on stretching pB. The files themselves are already local,
+     * so this costs a decode, not a download, and it deliberately does not re-run an archive
+     * query -- the answer to that has not changed.
+     */
+    public void reloadSources() {
+        if (!removed && sourceUris != null && !sourceUris.isEmpty())
+            load(sourceUris);
+    }
+
     @Nullable
     public FitsRequest getFitsRequest() {
         return fitsRequest;
@@ -385,11 +400,35 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         activateView();
     }
 
+    /**
+     * A frame of a streaming load has joined the movie: redraw, and tell everything that counts
+     * frames (the transport, the coverage timeline) that there is one more.
+     */
+    private void frameArrived() {
+        if (removed)
+            return;
+        // The transport reads the movie's length once, when the layer is handed the clock; a
+        // movie that grows has to say so or it stays at 1/1 for the whole download. The coverage
+        // timeline re-reads on its own second-by-second while anything is downloading.
+        org.helioviewer.jhv.movie.Player.movieLengthChanged();
+        DisplayController.render(1);
+        Layers.fireLayerUpdated(this);
+    }
+
     void setView(View _view) {
         if (removed) //!
             return;
 
-        replaceView(_view);
+        // The streaming loader publishes the movie on its first frame and has been growing it
+        // ever since, so the view it finishes with is the one already installed. Replacing it
+        // with itself would abolish every frame in it on the way past.
+        if (_view == view) {
+            viewLoaded = true;
+            loader.clearLoadFuture();
+            view.setDataHandler(this);
+        } else {
+            replaceView(_view);
+        }
         // Framing, now that there is something to frame. Until this moment the layer is an empty
         // placeholder with no physical size, which is why a camera reset before it lands does
         // nothing useful and a freshly opened dataset arrives framed for whatever came before it.
@@ -527,6 +566,10 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         // newly arriving view brings with it.
         displaySettings.setDefaultLUT(view.getDefaultLUT(), displaySettings.getInvertLUT());
         setEnabled(true);
+        // Imagery just landed; if the timeline is looking somewhere else entirely, aim it here.
+        // A no-op whenever any of the loaded data is already on screen, so a window the user
+        // chose is never moved out from under them.
+        org.helioviewer.jhv.timelines.draw.DrawController.showLoadedDataIfNothingInView();
 
         DisplayController.zoomMiniToFit();
         Layers.viewActivated(this, !viewActivatedBefore);

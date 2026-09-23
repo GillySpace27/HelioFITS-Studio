@@ -18,12 +18,16 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 
 import okio.BufferedSink;
+import okio.BufferedSource;
 import okio.Okio;
 
 public class NetFileCache {
 
+    /** For every caller that is not reporting progress, which is most of them. */
+    private static final java.util.function.LongConsumer NO_PROGRESS = bytes -> {};
+
     private static final LoadingCache<URI, DataUri> cache = Caffeine.newBuilder().softValues().
-            build(NetFileCache::fetch);
+            build(uri -> fetch(uri, NO_PROGRESS));
 
     // Download temp files that a process which died mid-download (a quit, a kill, a crash) left
     // behind, swept on first use of the cache. Only old ones: a second running instance's download
@@ -31,6 +35,7 @@ public class NetFileCache {
     // before an hour, so an hour without a write means nobody is writing it.
     // ponytail: once per launch, so an orphan younger than the cutoff waits for a later launch.
     private static final long ORPHAN_AGE_MS = 3600_000L;
+    private static final long COPY_CHUNK = 1 << 20;
 
     static {
         long cutoff = System.currentTimeMillis() - ORPHAN_AGE_MS;
@@ -45,7 +50,7 @@ public class NetFileCache {
             Log.info("Swept " + swept + " abandoned download temp file(s) from " + Directories.FILECACHE.getFile());
     }
 
-    private static DataUri fetch(URI uri) throws IOException {
+    private static DataUri fetch(URI uri, java.util.function.LongConsumer onBytes) throws IOException {
         String scheme = uri.getScheme().toLowerCase();
         if ("jpip".equals(scheme) || "jpips".equals(scheme))
             return new DataUri(uri, uri, null);
@@ -68,7 +73,14 @@ public class NetFileCache {
         Path tmp = Files.createTempFile(dir, "dl", null);
         try {
             try (NetClient nc = NetClient.of(uri, false, NetClient.NetCache.BYPASS); BufferedSink sink = Okio.buffer(Okio.sink(tmp))) {
-                sink.writeAll(nc.getSource());
+                // A chunked copy rather than sink.writeAll, which is one opaque call for a file
+                // that can take minutes: these reports are the only thing that can say it is alive.
+                BufferedSource source = nc.getSource();
+                long read;
+                while ((read = source.read(sink.getBuffer(), COPY_CHUNK)) != -1) {
+                    sink.emitCompleteSegments();
+                    onBytes.accept(read);
+                }
             }
 
             Path target = cached.toPath();
@@ -108,8 +120,26 @@ public class NetFileCache {
     }
 
     public static DataUri get(@Nonnull URI uri) throws IOException {
+        return get(uri, NO_PROGRESS);
+    }
+
+    /**
+     * @param onBytes told about each chunk of this URI as it lands off the network.
+     *
+     * <p>Per caller rather than a global counter, because two layers loading at once would
+     * otherwise each report the other's bytes as their own. A URI already in the cache, or one
+     * another thread is fetching, reports nothing: no bytes are crossing the wire for this
+     * caller, which is what the readout is about.
+     */
+    public static DataUri get(@Nonnull URI uri, @Nonnull java.util.function.LongConsumer onBytes) throws IOException {
         try {
-            return cache.get(uri);
+            return cache.get(uri, key -> {
+                try {
+                    return fetch(key, onBytes);
+                } catch (IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                }
+            });
         } catch (Exception e) {
             throw new IOException(e);
         }

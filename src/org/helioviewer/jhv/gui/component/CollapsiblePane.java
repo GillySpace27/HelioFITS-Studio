@@ -175,11 +175,33 @@ public class CollapsiblePane extends JComponent implements ActionListener {
         title = _title;
         // Icon and title, not one string: concatenating them put the chevron's HTML in front of
         // the text and left the gap between them spelled as a non-breaking space.
-        toggleButton.setIcons(toggleButton.isSelected() ? Buttons.chevronDown : Buttons.chevronRight, sectionIcon);
+        if (pinned) // no chevron: there is nothing to click, so nothing should invite a click
+            toggleButton.setIcons(sectionIcon, null);
+        else
+            toggleButton.setIcons(toggleButton.isSelected() ? Buttons.chevronDown : Buttons.chevronRight, sectionIcon);
         toggleButton.setText(title);
     }
 
+    private boolean pinned;
+
+    /**
+     * Hold this section open for good: no chevron, no click, no remembered fold state.
+     *
+     * <p>For a section whose whole job is to be the controls for what is selected above it. A
+     * layer's options are not an aside to be tidied away; folding them left a layer selected with
+     * no way to adjust it and nothing on screen saying why. If the options are in the way, the
+     * section they belong to (Image Layers, Overlays) closes and takes them with it.
+     */
+    public void pinOpen() {
+        pinned = true;
+        setExpanded(true);
+        toggleButton.removeActionListener(this);
+        setTitle(title); // redraw without the chevron
+    }
+
     public void setExpanded(boolean expanded) {
+        if (pinned)
+            expanded = true; // PresentationMode.openEverything only ever opens; nothing else may close this
         ComponentUtils.setVisible(managed, expanded);
         if (expanded)
             restoreNested(managed);
@@ -269,6 +291,8 @@ public class CollapsiblePane extends JComponent implements ActionListener {
 
     @Override
     public void actionPerformed(ActionEvent e) {
+        if (pinned)
+            return;
         boolean expanded = !managed.isVisible();
         setExpanded(expanded);
         Settings.setProperty(key(), Boolean.toString(expanded)); // a click is a preference; setExpanded from code is not

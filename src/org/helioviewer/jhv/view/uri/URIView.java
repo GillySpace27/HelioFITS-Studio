@@ -1,6 +1,7 @@
 package org.helioviewer.jhv.view.uri;
 
 import java.io.File;
+import java.util.List;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -25,7 +26,9 @@ import org.helioviewer.jhv.view.ClipSet;
 
 public final class URIView extends BaseView {
 
-    public record SourceInfo(@Nullable String xml, int width, int height, @Nullable LUT lut, @Nullable ClipSet clipSet) {}
+    /** @param planes one label per image in a datacube, empty when the file holds a single image */
+    public record SourceInfo(@Nullable String xml, int width, int height, @Nullable LUT lut, @Nullable ClipSet clipSet,
+                             List<String> planes) {}
 
     private final @Nullable ClipSet clipSet;
     private @Nullable ClipSet.Range clipRange;
@@ -36,6 +39,7 @@ public final class URIView extends BaseView {
     private volatile ClipSet.Range fixedRange;
     private final String xml;
     private final Region imageRegion;
+    private final List<String> planes;
 
     public URIView(LatestWorker<DecodedImage> _executor, DataUri _dataUri, ImageProcessingSettings _processingSettings) throws Exception {
         super(_executor, _dataUri, _processingSettings);
@@ -43,8 +47,9 @@ public final class URIView extends BaseView {
         try {
             MetaData m;
             File file = dataUri.file();
-            SourceInfo info = hasFITS() ? FITSImage.readInfo(file) : GenericImage.readInfo(file);
+            SourceInfo info = hasFITS() ? FITSImage.readInfo(file, _processingSettings.fitsParameters().plane()) : GenericImage.readInfo(file);
             clipSet = info.clipSet();
+            planes = info.planes();
 
             String readXml = info.xml();
             try {
@@ -137,6 +142,16 @@ public final class URIView extends BaseView {
     @Override
     public ClipSet getClipSet() {
         return clipSet;
+    }
+
+    /**
+     * One label per image this file holds, empty unless it is a datacube.
+     *
+     * <p>Read once here so the loader can ask which plane a layer wants before it builds the rest
+     * of the frames; the frames themselves are built in parallel and must not ask anything.
+     */
+    public List<String> planes() {
+        return planes;
     }
 
     @Override

@@ -90,12 +90,26 @@ public final class ImageLayers {
         return size;
     }
 
+    /**
+     * How far out the loaded layers actually reach: the outer edge of the widest field.
+     *
+     * <p>The edge, not the corner. A frame's corner is further from the Sun than its edge by
+     * tan(a√2)/tan(a), which for a PUNCH mosaic is 474 R☉ against 227 R☉, and only four
+     * shrinking wedges of the frame hold data in between. Sizing the view on the corner put the
+     * mosaic in the middle third of the page with nothing around it, which is what "why is this
+     * the default r-range" was asking about.
+     *
+     * <p>A layer whose field does not enclose the Sun has no inscribed radius at all, so it
+     * falls back to its corner rather than contributing nothing and being cropped away.
+     */
     public static double getLargestRadialSize() {
         double size = 0;
         for (ImageLayer layer : Layers.getImageLayers()) {
             if (!layer.isEnabled())
                 continue;
-            size = Math.max(size, ImageBounds.radial(layer.getMetaData()));
+            MetaData metaData = layer.getMetaData();
+            double radius = ImageBounds.inscribed(metaData);
+            size = Math.max(size, radius > 0 ? radius : ImageBounds.radial(metaData));
         }
         return size;
     }
@@ -199,7 +213,7 @@ public final class ImageLayers {
             // is picked up by the next sync once it has landed. Interrupting it here restarted
             // the load on every snap of the timeline.
             if (fits != null && !layer.isLoadingView())
-                layer.load(fits.withSpan(startTime, endTime));
+                layer.load(fits.withSpan(startTime, endTime, FitsRequest.cadenceMillis(cadence)));
         }
     }
 

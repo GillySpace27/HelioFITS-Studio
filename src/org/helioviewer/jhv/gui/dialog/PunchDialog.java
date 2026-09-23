@@ -28,7 +28,7 @@ import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.gui.component.HTMLPane;
 import org.helioviewer.jhv.gui.component.MoviePanel;
 import org.helioviewer.jhv.gui.time.TimeSelectorPanel;
-import org.helioviewer.jhv.io.APIRequest;
+import org.helioviewer.jhv.io.FitsRequest;
 import org.helioviewer.jhv.io.PunchClient;
 import org.helioviewer.jhv.time.TimeUtils;
 
@@ -279,7 +279,7 @@ public class PunchDialog extends StandardDialog implements PunchClient.ReceiverI
     // asking for a step finer than the product's native cadence just keeps every available frame.
     private void applyRequestCadence() {
         int reqSec = MainFrame.getLayersSectionPanel().getCadence();
-        long reqMilli = reqSec == APIRequest.CADENCE_ALL ? 0 : reqSec * 1000L;
+        long reqMilli = FitsRequest.cadenceMillis(reqSec);
 
         if (requestCadence != null) { // drop any stale inserted entry from a previous open
             cadenceCombo.removeItem(requestCadence);

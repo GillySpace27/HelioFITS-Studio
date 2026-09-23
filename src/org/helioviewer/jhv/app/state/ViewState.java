@@ -219,7 +219,9 @@ public final class ViewState {
     // 16:9 rather than "On screen", so a recording is the same video whatever the window is
     // doing. "On screen" ties the output's resolution to the window and stays available for
     // anyone who wants that, but it is a poor default: it makes the file depend on furniture.
-    private static RecordingAspect recordingAspect = RecordingAspect.WIDE;
+    // 1:1: a coronagraph frame is square and the Sun is at the centre of it, so a 16:9 master
+    // spends a third of its width on empty sky and crops the top and bottom of the field.
+    private static RecordingAspect recordingAspect = RecordingAspect.SQUARE;
 
     static {
         // The field initializer above bypasses setRecordingAspect, which is what normally pushes

@@ -39,6 +39,8 @@ public final class LayerOptionSections implements Layers.Listener, Interfaces.La
     private final Map<ImageLayer, ImagePanels> cache = new IdentityHashMap<>();
     @Nullable
     private ImagePanels current; // the panels currently shown, polled for the live readout and the section badges
+    @Nullable
+    private Layer titledLayer; // whose name the enclosing section is currently wearing
 
     public LayerOptionSections(JPanel layerOptionsWrapper, JPanel geometryWrapper, JPanel manageWrapper) {
         this.layerOptionsWrapper = layerOptionsWrapper;
@@ -144,6 +146,7 @@ public final class LayerOptionSections implements Layers.Listener, Interfaces.La
         // rather than after. Opening a section runs a recursive setVisible over its contents, so
         // done afterwards it also un-hid whatever the panels had just decided to hide: the FITS
         // disclosure of a layer whose toggle is closed, for one.
+        titledLayer = layer;
         CollapsiblePane optionsPane = enclosingPane(layerOptionsWrapper);
         if (optionsPane != null) {
             optionsPane.setTitle(layer == null ? "Layer Options" : layer.getName() + " Layer Options");
@@ -224,11 +227,53 @@ public final class LayerOptionSections implements Layers.Listener, Interfaces.La
         cache.clear();
     }
 
+    /**
+     * A layer selected before its first frame landed was titled "Loading... Layer Options", and
+     * stayed that way for the rest of the session: the title is written once, at selection, and a
+     * layer picked up from a restored session or a slow archive is named only when a frame arrives.
+     */
     @Override
-    public void nameUpdated(Layer layer) {}
+    public void nameUpdated(Layer layer) {
+        if (layer != titledLayer)
+            return;
+        CollapsiblePane optionsPane = enclosingPane(layerOptionsWrapper);
+        if (optionsPane != null)
+            optionsPane.setTitle(layer.getName() + " Layer Options");
+    }
+
+    /**
+     * Whether the user is inside a menu or a dropdown right now.
+     *
+     * <p>Refreshing these panels reaches into the combos they own, and setting a model or a
+     * selection on a combo whose popup is showing closes the popup. A layer fires an update on
+     * every frame that arrives, so during a download every dropdown in the sidebar shut itself
+     * within a fraction of a second of being opened: the list appeared and vanished before it
+     * could be read, which is what made them unusable rather than merely twitchy.
+     *
+     * <p>Two kinds to ask about. A JPopupMenu (the New Layer menu, the time-span menu) registers
+     * with the MenuSelectionManager; a JComboBox popup does not, and has to be asked directly.
+     */
+    private boolean menuOpen() {
+        return javax.swing.MenuSelectionManager.defaultManager().getSelectedPath().length > 0
+                || comboOpen(layerOptionsWrapper) || comboOpen(geometryWrapper) || comboOpen(manageWrapper);
+    }
+
+    private static boolean comboOpen(java.awt.Component c) {
+        if (c instanceof javax.swing.JComboBox<?> combo && combo.isPopupVisible())
+            return true;
+        if (c instanceof java.awt.Container container)
+            for (java.awt.Component child : container.getComponents())
+                if (comboOpen(child))
+                    return true;
+        return false;
+    }
 
     @Override
     public void layerUpdated(Layer layer) {
+        // Nothing here is urgent enough to close a menu the user is reading. A download fires
+        // another of these within half a second, and the readouts catch up then.
+        if (menuOpen())
+            return;
         if (layer instanceof ImageLayer il && cache.get(il) instanceof ImagePanels p) {
             // A panel built before the layer's first frame landed was scaled against empty metadata,
             // so its Mask row spread 1000 steps over 0 to 1 solar radius instead of out to the frame
@@ -250,6 +295,8 @@ public final class LayerOptionSections implements Layers.Listener, Interfaces.La
 
     @Override
     public void timeUpdated(Layer layer) {
+        if (menuOpen()) // same reason as layerUpdated: a readout is not worth a closed dropdown
+            return;
         if (layer instanceof ImageLayer il && cache.get(il) instanceof ImagePanels p) {
             p.manage().updateReadout();
         }
