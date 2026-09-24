@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-"""Build the HelioFITS Studio app icon: the sun-pie iris, unlettered.
+"""Build the HelioFITS Studio app icon: the sun-pie iris, lettered HFS.
 
 Six wedges of the Sun at six wavelengths around a dark hexagon: an aperture made of solar images,
 the mark for an application that composites them. It was this application's icon (lettered HFS)
 until 2026-09-22, went to the HelioFITS plugin for a day, and came back; HelioFITS kept its AIA 171
-Sun. Nothing is lettered: "HF" would mark the family, not the product, and is unreadable at 32 px.
+Sun. Lettered HFS, its technical name, at 128 px and above; plain below, where letters only smudge.
 
 iris_plain_1024.png is the full-square art, letters already removed. It was produced by the
 HelioFITS repo's tools/make_app_icon.py (commit 773a575 there), which repaints the hexagon fill
-and scales the orb to cover macOS's squircle. One artwork serves every size: the six wedges still
-read as a rosette at 16 px.
+and scales the orb to cover macOS's squircle. The plain art is what 64 px and below get: the six
+wedges still read as a rosette at 16 px.
 
   python3 make_app_icon.py   ->  HFStudio_icon.icns, AppIcon.appiconset/,
                                   HFStudio_icon_1024.png, resources/images/HFStudio_icon_512.png
 """
 import json, math, os, shutil, subprocess, sys
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 S = 1024
 BODY = 824 / 1024
@@ -49,10 +49,37 @@ def masked(img):
     return Image.fromarray(px)
 
 
-FULL = MID = SMALL = masked(Image.open(os.path.join(HERE, "iris_plain_1024.png")))
+PLAIN = Image.open(os.path.join(HERE, "iris_plain_1024.png"))
+
+# HFS in the hexagon, as large as it allows: at the letters' top and bottom the hexagon is narrower
+# than across its middle, so the width check is made there. Hexagon measured on iris_plain_1024.png:
+# centre 511.5, flat top and bottom, fill reaching 199 px from the centre.
+HEX_C, HEX_APOTHEM, FONT, TEXT = 511.5, 199, "/System/Library/Fonts/Supplemental/Arial Black.ttf", "HFS"
+
+
+def lettered(img):
+    img = img.convert("RGBA").copy()
+    size = 400
+    while True:
+        font = ImageFont.truetype(FONT, size)
+        hb = font.getbbox("H")
+        cap = hb[3] - hb[1]
+        x0, _, x1, _ = font.getbbox(TEXT)
+        half = HEX_APOTHEM / math.cos(math.radians(30)) - (cap / 2) / math.tan(math.radians(60))
+        if x1 - x0 <= 0.80 * 2 * half:
+            break
+        size -= 2
+    ImageDraw.Draw(img).text((HEX_C - (x0 + x1) / 2, HEX_C - (hb[1] + hb[3]) / 2), TEXT, font=font,
+                             fill=(255, 255, 255, 255))
+    return img
+
+
+# Lettered at 128 and above; plain at 64 and below, where HFS cannot be read and only smudges.
+FULL = MID = masked(lettered(PLAIN))
+SMALL = masked(PLAIN)
 
 # (pixels, artwork): what macOS will actually draw at each size it asks for.
-BY_SIZE = {1024: FULL, 512: FULL, 256: FULL, 128: MID, 64: MID, 32: SMALL, 16: SMALL}
+BY_SIZE = {1024: FULL, 512: FULL, 256: FULL, 128: MID, 64: SMALL, 32: SMALL, 16: SMALL}
 ICONSET = [("icon_16x16", 16), ("icon_16x16@2x", 32), ("icon_32x32", 32), ("icon_32x32@2x", 64),
            ("icon_128x128", 128), ("icon_128x128@2x", 256), ("icon_256x256", 256),
            ("icon_256x256@2x", 512), ("icon_512x512", 512), ("icon_512x512@2x", 1024)]
@@ -110,7 +137,7 @@ def main():
 
     # Windows reads a .ico, which holds one image per size exactly as the .icns does, so the small
     # sizes there get the small artwork too rather than a shrunken copy of the large one.
-    win = {16: SMALL, 32: SMALL, 48: MID, 64: MID, 128: MID, 256: FULL}
+    win = {16: SMALL, 32: SMALL, 48: SMALL, 64: SMALL, 128: MID, 256: FULL}
     # Largest first: Pillow writes the file from that one and skips any size bigger than it.
     imgs = [small_first(px, art) for px, art in sorted(win.items(), reverse=True)]
     ico = os.path.join(OUT, "HFStudio_icon.ico")
