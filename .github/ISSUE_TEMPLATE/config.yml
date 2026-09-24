@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: A problem with HelioFITS, the Finder and Quick Look extension?
+    url: https://github.com/GillySpace27/HelioFITS/issues/new
+    about: This tracker is for HelioFITS Studio, the desktop application. The HelioFITS Quick Look extension has its own.
+  - name: A problem with JHelioviewer itself?
+    url: https://github.com/Helioviewer-Project/JHelioviewer-SWHV/issues
+    about: Only if it also happens in upstream JHelioviewer; problems with Studio's additions belong here.

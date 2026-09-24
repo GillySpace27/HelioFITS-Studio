@@ -16,8 +16,8 @@ incident log, is in [RELEASING.md](RELEASING.md).** Read it before shipping.
   The script renders the prose in `guide_content.json` and the figures in
   `guide_assets/` into `HFStudio-Guide.pdf` and `HFStudio-Guide.md`.
 - `make_app_icon.py`, `HFStudio_icon.icns`, `HFStudio_icon.ico`,
-  `AppIcon.appiconset/`, `HFStudio_icon_1024.png`: the app icon and the
-  script that draws it. Three artworks, assigned by size, in an .icns for macOS
+  `AppIcon.appiconset/`, `HFStudio_icon_1024.png`, `iris_plain_1024.png`: the
+  app icon, its source art and the script that builds it. Lettered at 128 px and up, plain below, in an .icns for macOS
   and an .ico for Windows, plus the asset catalog source that
   `deploy_release.sh` compiles into the bundle so macOS does not put the icon on
   a grey plate.

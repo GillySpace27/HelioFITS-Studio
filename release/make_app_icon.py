@@ -1,66 +1,28 @@
 #!/usr/bin/env python3
-"""Build the HelioFITS Studio app icon: nested instrument fields, drawn three times for three size bands.
+"""Build the HelioFITS Studio app icon: the sun-pie iris, lettered HFS.
 
-The picture is the ladder this application composites: the occulted Sun, then each instrument's
-field of view as a ring around it, fainter as it goes out, with the corona running through all of
-them. Nothing is lettered, so it needs no translation and no explaining at 16 pixels.
+Six wedges of the Sun at six wavelengths around a dark hexagon: an aperture made of solar images,
+the mark for an application that composites them. It was this application's icon (lettered HFS)
+until 2026-09-22, went to the HelioFITS plugin for a day, and came back; HelioFITS kept its AIA 171
+Sun. Lettered HFS, its technical name, at 128 px and above; plain below, where letters only smudge.
 
-An icon is not one image. The .icns carries ten, and the same artwork cannot serve 1024 and 16:
-four rings and a ray texture average into one grey square when they land inside 16 pixels. So
-three artworks are drawn and assigned by how many pixels they will actually have:
-
-  1024, 512, 256   full     four fields, ray texture, thin bright field edges
-  128, 64          mid      three fields, dark gaps between them, softer texture
-  32, 16           small    two fields, no texture, large bright core
-
-Nobody ever sees two of them at once. macOS picks by size, and so does Windows' .ico.
-
-The body is 824 of 1024 at exponent 4.6, the shape already seen to escape macOS 26's squircle
-jail (issue #7), and the art fills it rather than sitting on a tile.
+iris_plain_1024.png is the full-square art, letters already removed. It was produced by the
+HelioFITS repo's tools/make_app_icon.py (commit 773a575 there), which repaints the hexagon fill
+and scales the orb to cover macOS's squircle. The plain art is what 64 px and below get: the six
+wedges still read as a rosette at 16 px.
 
   python3 make_app_icon.py   ->  HFStudio_icon.icns, AppIcon.appiconset/,
                                   HFStudio_icon_1024.png, resources/images/HFStudio_icon_512.png
 """
 import json, math, os, shutil, subprocess, sys
-import cv2
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 S = 1024
 BODY = 824 / 1024
 N = 4.6
-OUT = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else os.path.dirname(os.path.abspath(__file__))
-
-yy, xx = np.mgrid[0:S, 0:S].astype(np.float32)
-cx = cy = (S - 1) / 2
-R = np.hypot(xx - cx, yy - cy) / (S / 2)
-TH = np.arctan2(-(yy - cy), xx - cx)
-TN, RN = 1440, 320
-_ti = (((TH + math.pi) / (2 * math.pi)) * TN).astype(np.int32) % TN
-_ri = np.clip((R / 1.5) * RN, 0, RN - 1).astype(np.int32)
-
-SPACE = np.array([6, 9, 20], np.float32)
-DISK = np.array([8, 10, 18], np.float32)
-PHOTOSPHERE = np.array([238, 242, 250], np.float32)
-
-
-def rays(angular=6.0, radial=55.0, seed=13):
-    """Noise coherent along each radius: rays, not static. Exponentiated, so it never goes dark."""
-    rng = np.random.default_rng(seed)
-    pol = rng.random((TN, RN)).astype(np.float32)
-    pol = np.vstack([pol[-TN // 4:], pol, pol[:TN // 4]])          # pad so the seam wraps
-    sm = cv2.GaussianBlur(pol, (0, 0), sigmaX=radial, sigmaY=angular, borderType=cv2.BORDER_REFLECT)
-    sm = sm[TN // 4:TN // 4 + TN]
-    return ((sm - sm.mean()) / (sm.std() + 1e-6))[_ti, _ri]
-
-
-def streamers(spec):
-    """A few streamers, wider further out, as the real ones are."""
-    out = np.zeros_like(TH)
-    for a, w, amp in spec:
-        d = np.abs(np.mod(TH - math.radians(a) + math.pi, 2 * math.pi) - math.pi)
-        out += amp * np.exp(-(d / (w * (1 + 0.45 * R))) ** 2)
-    return out
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else HERE
 
 
 def squircle(size=S, frac=BODY, n=N, ss=4):
@@ -78,46 +40,46 @@ def squircle(size=S, frac=BODY, n=N, ss=4):
     return m.resize((size, size), Image.BOX)   # area coverage: LANCZOS would ring
 
 
-MASK = squircle()
-ST = 0.55 + 0.9 * streamers([(8, 0.30, 1.0), (188, 0.32, 0.9)])
-
-
-def art(rings, tex=0.0, edges=None, gap=0.0, core=0.0, occ=0.17):
-    r = np.maximum(R, 1e-3)
-    rgb = np.zeros((S, S, 3), np.float32) + SPACE
-    texture = np.exp(tex * rays()) if tex else 1.0
-    for r0, r1, tint, amp in rings:
-        band = ((r >= r0) & (r < r1)).astype(np.float32)
-        fade = np.clip((r1 - r) / (r1 - r0), 0, 1) ** 0.6
-        rgb += (band * fade * amp * texture * ST)[..., None] * np.array(tint, np.float32)
-        if edges == "bright":
-            rgb[np.abs(r - r1) < 0.005] = np.array(tint, np.float32) * 0.85
-        elif edges == "gap":
-            rgb[np.abs(r - r1) < gap] = DISK
-    if core:
-        rgb += (np.exp(-((r - occ) / 0.09) ** 2) * core)[..., None] * np.array([255, 226, 170], np.float32)
-    rgb[R <= occ] = DISK
-    rgb[np.abs(R - occ * 0.58) < 0.0055] = PHOTOSPHERE    # the photosphere, as a coronagraph marks it
-    img = Image.fromarray(np.clip(rgb, 0, 255).astype(np.uint8), "RGB").convert("RGBA")
-    img.putalpha(MASK)
+def masked(img):
+    """The squircle the .icns needs; the asset catalog gets unmasked() instead."""
+    img = img.convert("RGBA")
+    img.putalpha(squircle())
     px = np.array(img)
     px[px[..., 3] == 0, :3] = 0    # no colour under full transparency
     return Image.fromarray(px)
 
 
-FULL = art([(0.17, 0.30, (255, 214, 150), 1.00), (0.30, 0.52, (150, 190, 255), 0.66),
-            (0.52, 0.78, (126, 226, 216), 0.44), (0.78, 1.45, (196, 176, 255), 0.30)],
-           tex=0.34, edges="bright")
+PLAIN = Image.open(os.path.join(HERE, "iris_plain_1024.png"))
 
-MID = art([(0.20, 0.42, (255, 220, 160), 1.15), (0.44, 0.74, (138, 184, 255), 0.66),
-           (0.76, 1.45, (124, 218, 212), 0.34)],
-          tex=0.30, edges="gap", gap=0.012, occ=0.20)
+# HFS in the hexagon, as large as it allows: at the letters' top and bottom the hexagon is narrower
+# than across its middle, so the width check is made there. Hexagon measured on iris_plain_1024.png:
+# centre 511.5, flat top and bottom, fill reaching 199 px from the centre.
+HEX_C, HEX_APOTHEM, FONT, TEXT = 511.5, 199, "/System/Library/Fonts/Supplemental/Arial Black.ttf", "HFS"
 
-SMALL = art([(0.24, 0.56, (255, 214, 148), 1.35), (0.56, 1.45, (126, 182, 250), 0.52)],
-            core=0.34, occ=0.24)
+
+def lettered(img):
+    img = img.convert("RGBA").copy()
+    size = 400
+    while True:
+        font = ImageFont.truetype(FONT, size)
+        hb = font.getbbox("H")
+        cap = hb[3] - hb[1]
+        x0, _, x1, _ = font.getbbox(TEXT)
+        half = HEX_APOTHEM / math.cos(math.radians(30)) - (cap / 2) / math.tan(math.radians(60))
+        if x1 - x0 <= 0.80 * 2 * half:
+            break
+        size -= 2
+    ImageDraw.Draw(img).text((HEX_C - (x0 + x1) / 2, HEX_C - (hb[1] + hb[3]) / 2), TEXT, font=font,
+                             fill=(255, 255, 255, 255))
+    return img
+
+
+# Lettered at 128 and above; plain at 64 and below, where HFS cannot be read and only smudges.
+FULL = MID = masked(lettered(PLAIN))
+SMALL = masked(PLAIN)
 
 # (pixels, artwork): what macOS will actually draw at each size it asks for.
-BY_SIZE = {1024: FULL, 512: FULL, 256: FULL, 128: MID, 64: MID, 32: SMALL, 16: SMALL}
+BY_SIZE = {1024: FULL, 512: FULL, 256: FULL, 128: MID, 64: SMALL, 32: SMALL, 16: SMALL}
 ICONSET = [("icon_16x16", 16), ("icon_16x16@2x", 32), ("icon_32x32", 32), ("icon_32x32@2x", 64),
            ("icon_128x128", 128), ("icon_128x128@2x", 256), ("icon_256x256", 256),
            ("icon_256x256@2x", 512), ("icon_512x512", 512), ("icon_512x512@2x", 1024)]
@@ -175,7 +137,7 @@ def main():
 
     # Windows reads a .ico, which holds one image per size exactly as the .icns does, so the small
     # sizes there get the small artwork too rather than a shrunken copy of the large one.
-    win = {16: SMALL, 32: SMALL, 48: MID, 64: MID, 128: MID, 256: FULL}
+    win = {16: SMALL, 32: SMALL, 48: SMALL, 64: SMALL, 128: MID, 256: FULL}
     # Largest first: Pillow writes the file from that one and skips any size bigger than it.
     imgs = [small_first(px, art) for px, art in sorted(win.items(), reverse=True)]
     ico = os.path.join(OUT, "HFStudio_icon.ico")
@@ -185,9 +147,6 @@ def main():
     BY_SIZE[512].resize((512, 512), Image.LANCZOS).save(
         os.path.join(OUT, "..", "resources", "images", "HFStudio_icon_512.png"))
     print(f"wrote {icns}, {ico}, {aset}/ and resources/images/HFStudio_icon_512.png")
-    print("  full art  1024, 512, 256")
-    print("  mid art   128, 64")
-    print("  small art 32, 16")
 
 
 if __name__ == "__main__":
