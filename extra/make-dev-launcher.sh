@@ -96,18 +96,32 @@ fi
 # connection is given up after 10 s under 1 kB/s), and the fast-forward is tried either way,
 # because every push from a worktree already moves the origin/master this checkout can see.
 # Everything is written to the build log: this step once failed without a trace.
+#
+# Not /usr/bin/git. That is Xcode's xcrun shim, and started from this bundle it failed on its first
+# line with "Unable to read current working directory: Operation not permitted", inside the very
+# checkout that java and ant, started the same way, read and write without trouble. Why is not
+# proven; the likeliest reason is that macOS does not count the real git the shim hands off to as
+# part of this app, so it does not get this app's Documents permission. So call a real git binary
+# directly, and when it still cannot run, say so rather than read its silence as "not on master".
+GIT=""
+for g in /opt/homebrew/bin/git /usr/local/bin/git /Applications/Xcode.app/Contents/Developer/usr/bin/git \\
+         /Library/Developer/CommandLineTools/usr/bin/git /usr/bin/git; do
+    [ -x "\$g" ] && { GIT="\$g"; break; }
+done
 {
-    echo "== \$(date '+%Y-%m-%d %H:%M:%S') updating \$checkout"
-    if [ "\$(git rev-parse --abbrev-ref HEAD)" != master ]; then
-        echo "not on master: building it as it is"
-    elif [ -n "\$(git status --porcelain --untracked-files=no)" ]; then
+    echo "== \$(date '+%Y-%m-%d %H:%M:%S') updating \$checkout with \${GIT:-no git}"
+    if ! branch=\$("\$GIT" rev-parse --abbrev-ref HEAD 2>&1); then
+        echo "git could not run (\$branch): building the checkout as it is"
+    elif [ "\$branch" != master ]; then
+        echo "on \$branch, not master: building it as it is"
+    elif [ -n "\$("\$GIT" status --porcelain --untracked-files=no)" ]; then
         echo "master has uncommitted changes: building it as it is"
     else
-        git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=10 fetch origin master ||
+        "\$GIT" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=10 fetch origin master ||
             echo "fetch failed: using the origin/master already known here"
-        git merge --ff-only origin/master || echo "could not fast-forward: building it as it is"
+        "\$GIT" merge --ff-only origin/master || echo "could not fast-forward: building it as it is"
     fi
-    echo "== building \$(git log -1 --format='%h %s')"
+    echo "== building \$("\$GIT" log -1 --format='%h %s' 2>&1)"
 } >"\$buildlog" 2>&1
 
 if ! command -v ant >/dev/null 2>&1; then
@@ -129,8 +143,13 @@ Nothing was launched, so what is running (if anything) is still the previous bui
     exit 1
 fi
 
-if [ "\$(git rev-parse HEAD 2>/dev/null)" != "\$(git rev-parse origin/master 2>/dev/null)" ]; then
-    osascript -e "display notification \"This is \$(git log -1 --format=%h), not the newest master. The build log says why.\" with title \"HelioFITS Studio (dev)\"" >/dev/null 2>&1
+# Two empty answers compare equal, so a git that cannot run would pass this silently: check that
+# it answered at all before comparing what it said.
+here=\$("\$GIT" rev-parse HEAD 2>/dev/null); newest=\$("\$GIT" rev-parse origin/master 2>/dev/null)
+if [ -z "\$here" ] || [ -z "\$newest" ]; then
+    osascript -e "display notification \\"Could not check this is the newest master. The build log says why.\\" with title \\"HelioFITS Studio (dev)\\"" >/dev/null 2>&1
+elif [ "\$here" != "\$newest" ]; then
+    osascript -e "display notification \\"This is \$("\$GIT" log -1 --format=%h), not the newest master. The build log says why.\\" with title \\"HelioFITS Studio (dev)\\"" >/dev/null 2>&1
 fi
 
 # run.sh is not used, and cannot be: an unsigned bundle is refused ("Operation not permitted")
