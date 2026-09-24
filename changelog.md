@@ -9,8 +9,8 @@
 - Between 2026-09-21 and 2026-09-23 the development builds were called PUNCHStudio. Nothing was released under that name; settings those builds wrote to `~/PUNCHStudio` are carried into `~/HFStudio` if that folder does not exist yet
 
 ### Icon
-- A new icon: the instrument ladder this application composites, drawn as the occulted Sun with each field of view as a ring around it. The HFS mark it replaces has gone to the HelioFITS preview plugin, re-lettered HF, and its generator went with it
-- Three artworks in one icon, chosen by size, because four rings and a ray texture average into a grey square inside 16 pixels: the full art at 256 and above, three fields with dark gaps at 128 and 64, two fields and a large core at 32 and 16
+- The icon is the sun-pie iris again, unlettered: six wedges of the Sun at six wavelengths around a dark hexagon, an aperture made of solar images. It went to the HelioFITS plugin for a day and came back; HelioFITS keeps its AIA 171 Sun. A ladder of instrument rings was drawn for this release and dropped, because below 64 pixels it read as a grey target
+- No lettering. HFS marked the family rather than the product and could not be read at 32 pixels; the six wedges still read as a rosette at 16. `release/iris_plain_1024.png` is the source art
 - The Mac bundle now carries a compiled asset catalog as well as the .icns, because macOS 26 draws a .icns-only application on a grey plate at 16 and 32 pixels whatever its artwork does. The catalog is given the art unmasked, since macOS applies its own shape and insets anything that arrives already shaped
 - Windows gets a .ico with the same per-size artwork, so its small icons are not shrunken copies of the large one either
 
