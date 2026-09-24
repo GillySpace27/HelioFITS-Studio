@@ -469,3 +469,17 @@ release object; the next preview would have been `v5.6b-coronal-research`.
   would have shipped to collaborators' Macs for Gatekeeper to reject. It was
   renamed aside by hand. Until `publish` verifies `.notarize-run.json`'s
   sha256 against the dmg, check with `spctl` (step 4) before publishing.
+
+- **2026-09-23: `notarytool submit --wait` died with `Bus error: 10` mid-upload,
+  and a submission that never arrived looked like one Apple was slow on.** Both
+  0.8.3 dmgs got a `Submission ID received`, then the tool crashed. `notarytool
+  info` reported the IDs as `In Progress` for over an hour, which read as a
+  long Apple queue, and they later answered "Submission does not exist" because
+  the upload had never completed. A watcher that treated a missing status line
+  as still pending then polled them for 13 hours; the Deploy session caught it.
+  Resubmitting the same dmgs **without** `--wait` printed `Successfully uploaded
+  file`, and both were Accepted within two minutes. So: an ID alone does not
+  mean the upload finished; only `Successfully uploaded file` does. If the tool
+  crashes, resubmit without `--wait`, poll `notarytool info <id>`, and treat
+  "does not exist" as a failure, never as pending. Then staple, validate,
+  `spctl`, and write `.notarize-run.json` by hand as `notarize_mac` would.
