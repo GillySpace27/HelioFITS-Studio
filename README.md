@@ -2,6 +2,9 @@
 
 [![checks](https://github.com/GillySpace27/HelioFITS-Studio/actions/workflows/checks.yml/badge.svg?branch=master)](https://github.com/GillySpace27/HelioFITS-Studio/actions/workflows/checks.yml)
 
+> **HelioFITS** previews solar FITS files in Finder and Quick Look. **HelioFITS Studio** is the full desktop application for working with coronagraph and wide-field solar imagery.
+> Looking for the Finder and Quick Look previews? See [HelioFITS](https://gilly.space/heliofits/).
+
 HelioFITS Studio is a desktop viewer for solar and heliospheric imagery, built around coronagraph and wide-field data such as NASA's PUNCH mission, SOHO/LASCO and PROBA-3/ASPIICS. It is a fork of [JHelioviewer](https://www.jhelioviewer.org), the open-source solar image browser of the ESA/NASA Helioviewer Project. We kept JHelioviewer's 3-D view of the Sun, its timelines and its event overlays, and added the tools we needed to work with the outer corona.
 
 **Status: pre-release.** The 0.8 releases are published so that they can be tried, and broken, ahead of 1.0. We use it every day on Apple Silicon Macs. Since 0.8.2 there are also packages for Intel Macs, Windows and Linux; our automated checks build and start each of them on every release, but nobody has yet used the application itself on those systems. Please tell us what goes wrong (see [Reporting problems](#reporting-problems)).
@@ -10,7 +13,7 @@ HelioFITS Studio is a desktop viewer for solar and heliospheric imagery, built a
 
 We work with NASA's PUNCH mission and the wider coronagraph record, and that work needed several things JHelioviewer did not do: load PUNCH data, read calibrated LASCO FITS straight from NRL, stretch the outer corona so that it has room to read, and equalize its steep radial falloff. HelioFITS Studio is where we build those tools and share them with other researchers.
 
-We distribute it as a separate application under its own name so that it is not mistaken for an official JHelioviewer release, and so that problems with our additions come to us rather than to the JHelioviewer team, who did not write that code. Earlier builds were published on this repository as the *JHelioviewer PUNCH & Coronal Research Distribution* (tagged v5.6a to v5.6d); HelioFITS Studio continues that line. During September 2026 it was called HFStudio and then, briefly, PUNCHStudio, before coming back to this name; the [HelioFITS](https://gilly.space/heliofits/) preview plugin is a separate project. HFStudio remains its short technical name, which is why the downloads and the settings folder carry it.
+We distribute it as a separate application under its own name so that it is not mistaken for an official JHelioviewer release, and so that problems with our additions come to us rather than to the JHelioviewer team, who did not write that code. Earlier builds were published on this repository as the *JHelioviewer PUNCH & Coronal Research Distribution* (tagged v5.6a to v5.6d); HelioFITS Studio continues that line. During September 2026 it was called HFStudio and then, briefly, PUNCHStudio, before coming back to this name; the [HelioFITS](https://gilly.space/heliofits/) Quick Look extension is a separate project. HFStudio remains its short technical name, which is why the downloads and the settings folder carry it.
 
 ## Relationship to JHelioviewer
 
