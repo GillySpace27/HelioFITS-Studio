@@ -111,11 +111,21 @@ please tell us how it does."
 or \`brew install openjdk@25\`). Unzip, then double-click \`run.command\`."
         INTEL_FILE=""; INTEL_SHA=""
     fi
+    # What is new in this version, lifted from changelog.md so the release page and the changelog
+    # cannot disagree. Its ### headings drop a level to sit under the page's own.
+    WHATSNEW="$(awk -v v="$VERSION" 'index($0, "## ") == 1 { if (on) exit; on = index($0, " " v " ") > 0; next } on' "$SRC/changelog.md" | sed 's/^### /#### /')"
+    [ -n "$WHATSNEW" ] || { echo "changelog.md has no section for $VERSION; write one before publishing" >&2; exit 1; }
     PRE_NOTE=""; [ -n "$PRERELEASE" ] && PRE_NOTE="This is a pre-release, published for testing ahead of 1.0. It is used daily on Apple Silicon Macs; Windows and Linux are new. Please report anything that breaks."
     cat > "$NOTES" <<EOF
 **$APP_NAME $VERSION**
 
 $PRE_NOTE
+
+### New in $VERSION
+
+$WHATSNEW
+
+### About $APP_NAME
 
 $APP_NAME is a fork of JHelioviewer, the open-source solar image browser from the ESA/NASA
 Helioviewer Project. It streams decades of full-disk and coronagraph imagery from the major

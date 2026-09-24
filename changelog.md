@@ -1,7 +1,42 @@
 
 # Revision history
 
-## HelioFITS Studio 0.8.3 (unreleased)
+## HelioFITS Studio 0.8.3 (pre-release, 2026-09-23)
+
+### Multilayer FITS, including PUNCH
+- FITS files that hold more than one image now load. PUNCH's polarized mosaics (PAM, PTM) carry two or three images in one file, and earlier builds refused them. Each image is named from the file's own `OBSLAYR` keywords, such as Polar_B and Polar_pB
+- The first time such a file is loaded, HelioFITS Studio asks which image to show. Afterwards, the **Image** row in the layer's Display section, just below Color, switches between them. A saved session remembers the choice and does not ask again
+- PUNCH files that are already downloaded load the same way, from the cache or from disk
+- Known issue: while a layer is still downloading, the dropdowns in its options are hard to open and can close by themselves. Choose the image before starting a long download, or let the download finish first
+
+### Loading
+- Multi-frame FITS layers (PUNCH, LASCO, VSO) grow as they download. Each frame joins the movie and the timeline as it arrives, rather than everything appearing at the end, and the playhead stays where it is
+- The layer's status says what is happening: Connecting, Restoring from cache, Downloading (frames downloaded and frames read from the cache counted separately, with the transfer rate), and Waiting on host when the archive has sent nothing for five seconds
+- At most four frames download at once, so they finish one after another instead of all crawling in together
+- Frames that fail to arrive are listed on the layer, and its Refresh button fetches them again
+- The frame count sets how many LASCO and SUVI frames are requested from the VSO. It had been stuck near 97
+
+### Display defaults
+- FITS clipping defaults to the 0.5 % percentile instead of 0.001 %. The narrower range keeps PUNCH's polarized planes from rendering near white, at the cost of saturating slightly more of a bright coronagraph frame
+- The HDR canvas is off until it is turned on, so a picture looks the same on a projector or in a screen share as on the Mac's own display
+- Exports default to a square (1:1) frame
+- The automatic crop frames the edge of the widest field rather than its corner, so a PUNCH mosaic fills the view (about 227 R☉ rather than 474)
+
+### Projections
+- The Crop is a circular cut at every warp setting. It used to renormalize the warp, which made it behave like a second zoom whenever the warp was not linear; now the warp stays fixed by the loaded data and the Crop only decides where the picture stops. A flat Helioradial figure made with both a crop and a non-linear warp will look different from before; with the warp linear nothing changes
+- The radial grid lines up with the image under a warp in flat Helioradial, where it had been warped twice
+
+### Comet tracking
+- A Track Comet panel beside Track CME lists the comets that could be in the field during the movie, and marks where the chosen one is in each frame. The list follows the movie's time range
+
+### Interface
+- The layer options, Display and Intensity sections stay open
+- Scrolling a sidebar scrolls it, instead of being caught by whichever slider or dropdown passes under the pointer
+- A layer alone in the scene drives the movie, so it plays without first being selected
+- The time-sync button sits with the layer's other buttons, beside Refresh
+- When nothing loaded is in view, the timeline trims itself to the loaded data
+- The movie no longer waits for the mouse when one layer is slow to deliver (the wait is capped at 120 ms), and a new layer's first picture appears as soon as it arrives
+- Window > Log shows the log as it is being written. Load from Cache has moved to the Layers menu
 
 ### Name
 - The application is called HelioFITS Studio again, and installs as `HelioFITS Studio.app`. HFStudio stays its technical name, as in 0.8.0 to 0.8.2: the downloads are still `HFStudio-<version>`, the settings folder is still `~/HFStudio` and SAMP still sees `HFStudio`, so nothing a 0.8.2 user has needs to move
