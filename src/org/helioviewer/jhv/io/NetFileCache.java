@@ -103,8 +103,44 @@ public class NetFileCache {
         return persistentPath(uri);
     }
 
+    /**
+     * The file's own name with a short hash of its URL before the extension, so the cache is a
+     * folder other programs can use: PUNCH_L3_CAM_20260326062334_v0l_1a2b3c4d5e6f.fits rather than
+     * a bare 64-hex digest. The hash keeps two URLs that end in the same name apart (LASCO reuses
+     * frame numbers across months), and the name is still a pure function of the URL, so a lookup
+     * never needs an index.
+     *
+     * <p>Files cached before 2026-09-28 are named by the whole digest, which is one-way, so they
+     * cannot be renamed in bulk; each is renamed the first time its URL is asked for again.
+     */
     private static File persistentPath(URI uri) {
-        return new File(Directories.FILECACHE.getFile(), sha256(uri.toString()));
+        File dir = Directories.FILECACHE.getFile();
+        String hash = sha256(uri.toString());
+        File file = new File(dir, readableName(uri, hash));
+        if (!file.exists()) {
+            File legacy = new File(dir, hash);
+            if (legacy.isFile() && !legacy.renameTo(file))
+                return legacy; // could not rename (another process holds it?): use it where it is
+        }
+        return file;
+    }
+
+    static String readableName(URI uri, String hash) {
+        String path = uri.getPath();
+        String name = path == null ? "" : path.substring(path.lastIndexOf('/') + 1);
+        name = name.replaceAll("[^A-Za-z0-9._-]", "_");
+        // Keep a compound extension whole, so .fits.gz stays openable as what it is.
+        int dot = name.lastIndexOf('.');
+        if (dot > 0 && name.substring(dot).matches("\\.(gz|bz2|Z|fz)")) {
+            int inner = name.lastIndexOf('.', dot - 1);
+            if (inner > 0)
+                dot = inner;
+        }
+        String stem = dot > 0 ? name.substring(0, dot) : name;
+        String ext = dot > 0 ? name.substring(dot) : "";
+        if (stem.length() > 120) // ponytail: long enough for every archive name seen; keeps paths well under OS limits
+            stem = stem.substring(0, 120);
+        return (stem.isEmpty() ? "" : stem + "_") + hash.substring(0, 12) + ext;
     }
 
     private static String sha256(String s) {

@@ -11,6 +11,9 @@
 ### Sidebars
 - Dragging either sidebar's edge resizes it. The width changed underneath but the layout did not follow, except when something unrelated happened to refresh it
 
+### Downloaded data
+- Files in the download cache (`~/HFStudio/FileCache`) are named after the file they came from, with a short hash before the extension, such as `PUNCH_L3_CAM_20260326062334_v0l_1a2b3c4d5e6f.fits`, so other programs can find and open them. Files cached by earlier versions are renamed the first time they are used again. An earlier version of HelioFITS Studio does not know the new names and downloads such a file again
+
 ## HelioFITS Studio 0.8.3 (pre-release, 2026-09-23)
 
 ### Multilayer FITS, including PUNCH
