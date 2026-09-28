@@ -58,10 +58,11 @@ public final class LascoBackground {
      * through a new pair every week; a movie needs only the two bracketing whatever frame is
      * being decoded, and playback revisits them constantly, so a handful is plenty.
      */
-    // Eight, not four: C2 and C3 in one movie bracket up to six files across a week boundary,
-    // and with four slots the two detectors' frames evicted each other's pair on every decode
-    // (99 loads of 6 files for one short movie, measured 2026-09-01).
-    private static final int MAX_CACHED = 8;
+    // Sixty-four (256 MB), not eight. Eight covered C2 and C3 bracketing one week boundary (four
+    // slots had cost 99 loads of 6 files for one short movie, 2026-09-01), but a movie's frames are
+    // built in parallel and out of time order when it loads, and prefetch decodes ahead across weeks,
+    // so a two-month C2+C3 session reloaded backgrounds 2,423 times (2026-09-28).
+    private static final int MAX_CACHED = 64;
     private static final Map<String, float[]> images = new LinkedHashMap<>(8, .75f, true) {
         @Override
         protected boolean removeEldestEntry(Map.Entry<String, float[]> eldest) {
@@ -88,7 +89,12 @@ public final class LascoBackground {
     // decoders would each block on the same unreachable host. Fail fast for a while instead; the
     // uncached frames retry on their own once this passes.
     private static final long RETRY_AFTER_MILLI = 30_000;
-    private static long failedUntil;
+    private static volatile long failedUntil;
+
+    // One lock per background file while it is fetched and decoded, so different files load side by
+    // side and a frame whose pair is already cached never waits on another frame's fetch. This used
+    // to be a single lock over perSecond, which serialized every LASCO decode behind every fetch.
+    private static final java.util.concurrent.ConcurrentHashMap<String, Object> loading = new java.util.concurrent.ConcurrentHashMap<>();
 
     /**
      * The background for one frame, in DN per second, or null when there is nothing to subtract.
@@ -100,7 +106,7 @@ public final class LascoBackground {
      * @param pixels   how many pixels the frame has, so a mismatched background is refused
      */
     @Nullable
-    public static synchronized float[] perSecond(String detector, String filter, String polar, long milli, int pixels) {
+    public static float[] perSecond(String detector, String filter, String polar, long milli, int pixels) {
         if (!enabled())
             return null;
 
@@ -198,6 +204,12 @@ public final class LascoBackground {
     }
 
     private static NavigableMap<Long, String> catalog(String key) throws Exception {
+        synchronized (catalogs) { // once per product; holding it across the index fetch keeps that to one fetch
+            return catalogLocked(key);
+        }
+    }
+
+    private static NavigableMap<Long, String> catalogLocked(String key) throws Exception {
         NavigableMap<Long, String> cached = catalogs.get(key);
         if (cached != null)
             return cached;
@@ -237,13 +249,27 @@ public final class LascoBackground {
         }
     }
 
-    /** Background pixels divided by their own exposure, so a frame can subtract per second. Called under perSecond's lock. */
+    /** Background pixels divided by their own exposure, so a frame can subtract per second. */
     @Nullable
     private static float[] image(String name, int pixels) throws Exception {
-        float[] cached = images.get(name);
+        float[] cached;
+        synchronized (images) {
+            cached = images.get(name);
+        }
         if (cached != null)
             return cached.length == pixels ? cached : null;
+        synchronized (loading.computeIfAbsent(name, k -> new Object())) {
+            synchronized (images) {
+                cached = images.get(name); // loaded by whoever held this file's lock before us
+            }
+            if (cached != null)
+                return cached.length == pixels ? cached : null;
+            return load(name, pixels);
+        }
+    }
 
+    @Nullable
+    private static float[] load(String name, int pixels) throws Exception {
         float[] data;
         try (NetClient nc = NetClient.of(URI.create(BASE_URL + name), true, NetClient.NetCache.CACHE)) {
             if (!nc.isSuccessful())
@@ -262,7 +288,9 @@ public final class LascoBackground {
         }
         if (data == null)
             return null;
-        images.put(name, data);
+        synchronized (images) {
+            images.put(name, data);
+        }
         Log.info("LASCO background " + name + " loaded");
         return data;
     }

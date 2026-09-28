@@ -8,6 +8,8 @@
 - Every layer shows every frame. The movie waits on each frame until all layers have drawn it, so a slow layer such as a PUNCH mosaic with RHEF is no longer skipped; a layer that has not answered in two seconds is left behind for that frame so it cannot stop the movie
 - Upcoming frames are decoded in parallel ahead of the playhead, so PUNCH with RHEF plays at the movie's own rate once the first frames are in. Decoded frames stay in memory, so a movie replays without decoding again
 - Decoded frames may now use up to 40% of the computer's memory (at least 4 GB) instead of a fixed 8 GB. A 4096 x 4096 PUNCH movie of about a thousand frames needs about 31 GB; with 8 GB the cache filled partway through, then threw away frames decoded ahead of the playhead before they were shown, and playback fell to about 4 frames a second
+- Frames are decoded ahead in whichever direction the movie is going, so a movie playing backwards or swinging, or a scrub to the left, gets the same lookahead as forward playback
+- LASCO monthly backgrounds stay loaded (up to 64 of them) and load independently of one another. Every LASCO frame used to wait behind any background being fetched, and a two-month C2 and C3 session loaded its backgrounds 2,423 times
 
 ### Sidebars
 - Dragging either sidebar's edge resizes it. The width changed underneath but the layout did not follow, except when something unrelated happened to refresh it

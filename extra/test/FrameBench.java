@@ -70,6 +70,7 @@ public final class FrameBench {
         Path baseline = Path.of(Directories.HOME.getPath(), "bench", "frame-identity.tsv");
         Map<String, String> expected = new HashMap<>();
         List<File> files = new ArrayList<>();
+        Map<File, String> names = new HashMap<>(); // file on disk now -> name the baseline recorded
         if (record) {
             files = corpus();
         } else {
@@ -85,8 +86,11 @@ public final class FrameBench {
                 expected.put(f[0] + "\t" + f[1], line);
                 seen.put(f[0], true);
             }
-            for (String name : seen.keySet())
-                files.add(new File(Directories.FILECACHE.getFile(), name));
+            for (String name : seen.keySet()) {
+                File file = resolve(name);
+                files.add(file);
+                names.put(file, name);
+            }
         }
 
         Field regionField = URIView.class.getDeclaredField("imageRegion");
@@ -102,6 +106,7 @@ public final class FrameBench {
                 missing++;
                 continue;
             }
+            String recorded = record ? file.getName() : names.get(file);
             ImageProcessingSettings ps = new ImageProcessingSettings(() -> {});
             URIView view = new URIView(new LatestWorker<>("bench"), NetFileCache.get(file.toURI()), ps);
             Region region = (Region) regionField.get(view);
@@ -128,13 +133,13 @@ public final class FrameBench {
 
                 ByteBuffer bytes = image.buffer instanceof ShortBuffer s ? MemoryUtil.memByteBuffer(s) : (ByteBuffer) image.buffer;
                 sha.update(bytes.duplicate());
-                String line = String.join("\t", file.getName(), type.name(), String.valueOf(image.width), String.valueOf(image.height),
+                String line = String.join("\t", recorded, type.name(), String.valueOf(image.width), String.valueOf(image.height),
                         image.format.name(), range == null ? "-" : range.lower() + ".." + range.upper(),
                         image.isProvisional() ? "provisional" : "final", HexFormat.of().formatHex(sha.digest()));
                 out.add(line);
 
                 if (!record) {
-                    String was = expected.get(file.getName() + "\t" + type.name());
+                    String was = expected.get(recorded + "\t" + type.name());
                     if (was == null)
                         continue;
                     compared++;
@@ -185,6 +190,18 @@ public final class FrameBench {
                 files.add(all.get(order.get(order.size() / 2)));
         }
         return files;
+    }
+
+    // A file recorded under its old bare-digest name may since have been renamed on first use to
+    // <name>_<first 12 hex of the digest>.<ext> (NetFileCache.readableName); follow it there.
+    private static File resolve(String name) {
+        File dir = Directories.FILECACHE.getFile();
+        File file = new File(dir, name);
+        if (file.isFile() || !name.matches("[0-9a-f]{64}"))
+            return file;
+        String tag = "_" + name.substring(0, 12);
+        File[] renamed = dir.listFiles((d, n) -> n.contains(tag + ".") || n.endsWith(tag));
+        return renamed != null && renamed.length == 1 ? renamed[0] : file;
     }
 
     private static double median(double[] v) {
