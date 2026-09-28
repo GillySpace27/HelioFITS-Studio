@@ -42,7 +42,7 @@ public final class FITSImage {
         return readData(file, state.plane()).decode(filter, state, clipRange);
     }
 
-    private static FITSData readData(File file, int plane) throws Exception {
+    static FITSData readData(File file, int plane) throws Exception { // package-private for FrameBench's stage timing
         try (Fits f = new Fits(file)) {
             BasicHDU<?> hdu = findHDU(f);
             Header header = imageHeader(hdu);
