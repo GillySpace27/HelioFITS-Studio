@@ -26,11 +26,10 @@ class FilterRHEF implements ImageFilter.Algorithm {
         sunCenteredRegion = _sunCenteredRegion;
     }
 
-    @Override
-    public float[] filter(float[] data, int width, int height) {
-        if (width < 1 || height < 1)
-            return data;
+    /** Which annulus each pixel is in, and the pixels grouped by annulus: what both paths rank over. */
+    private record Annuli(int numBins, int[] offset, int[] order) {}
 
+    private Annuli annuli(int width, int height) {
         // Buffer geometry in physical units; the region origin sits at the Sun center.
         // Without a region, assume the Sun at the image center with pixel units.
         Region region = sunCenteredRegion == null ? null : sunCenteredRegion.region();
@@ -70,17 +69,51 @@ class FilterRHEF implements ImageFilter.Algorithm {
             }
         });
 
-        // Counting sort of pixel indices by annulus
+        // Counting sort of pixel indices by annulus, in parallel over blocks of rows. Each block
+        // counts its own pixels per annulus, and within an annulus the blocks are laid down in row
+        // order, so the result is the same array the serial two-pass sort produced: every annulus
+        // holds its pixels in ascending index order.
+        int blocks = Math.min(PROCESSORS, height);
+        int[][] count = new int[blocks][numBins];
+        ParallelRange.run(blocks, (from, to) -> {
+            for (int b = from; b < to; b++) {
+                int[] c = count[b];
+                for (int i = b * height / blocks * width, end = (b + 1) * height / blocks * width; i < end; i++)
+                    c[binOf[i]]++;
+            }
+        });
         int[] offset = new int[numBins + 1];
-        for (int i = 0; i < length; i++)
-            offset[binOf[i] + 1]++;
-        for (int b = 0; b < numBins; b++)
-            offset[b + 1] += offset[b];
-
+        for (int bin = 0; bin < numBins; bin++) {
+            int at = offset[bin];
+            for (int b = 0; b < blocks; b++) {
+                int c = count[b][bin];
+                count[b][bin] = at; // from here on, where block b writes its next pixel of this annulus
+                at += c;
+            }
+            offset[bin + 1] = at;
+        }
         int[] order = new int[length];
-        int[] cursor = Arrays.copyOf(offset, numBins);
-        for (int i = 0; i < length; i++)
-            order[cursor[binOf[i]]++] = i;
+        ParallelRange.run(blocks, (from, to) -> {
+            for (int b = from; b < to; b++) {
+                int[] cursor = count[b];
+                for (int i = b * height / blocks * width, end = (b + 1) * height / blocks * width; i < end; i++)
+                    order[cursor[binOf[i]]++] = i;
+            }
+        });
+        return new Annuli(numBins, offset, order);
+    }
+
+    private static final int PROCESSORS = Runtime.getRuntime().availableProcessors();
+
+    @Override
+    public float[] filter(float[] data, int width, int height) {
+        if (width < 1 || height < 1)
+            return data;
+
+        Annuli a = annuli(width, height);
+        int numBins = a.numBins();
+        int[] offset = a.offset();
+        int[] order = a.order();
 
         ParallelRange.run(numBins, (from, to) -> {
             // One 65536-entry table per worker, reused across that worker's annuli and cleared
@@ -140,6 +173,110 @@ class FilterRHEF implements ImageFilter.Algorithm {
             }
         });
         return data;
+    }
+
+    /**
+     * The same ranks, straight from the half floats ImageFilter was given.
+     *
+     * <p>filter() receives these as floats and turns each one back into its half-float bit pattern
+     * twice; the pattern is exactly the half the value came from, so this path starts from the
+     * halves. What it returns is what filter() returned for the same input: the rank for every
+     * positive pixel of an annulus with enough of them, and the value as a float everywhere else.
+     * "Positive" is the half pattern 0x0001 to 0x7C00 (infinity included), which is what v > 0
+     * selects from the floats; zero, negatives and NaN stay as they are.
+     *
+     * <p>The distinct values of an annulus come out of a bitset in ascending order instead of being
+     * sorted, and an annulus's halves are gathered once into a scratch array instead of being read
+     * twice from wherever its pixels lie in the image. Annuli are handed out by pixel count rather
+     * than by index, since the rings near the corners hold many more pixels than the ones near the
+     * center.
+     */
+    @Override
+    public float[] filterHalf(short[] halves, int width, int height) {
+        int length = width * height;
+        float[] out = new float[length];
+        ParallelRange.run(height, (from, to) -> {
+            for (int i = from * width, end = to * width; i < end; i++)
+                out[i] = Float.float16ToFloat(halves[i]);
+        });
+        if (width < 1 || height < 1)
+            return out;
+
+        Annuli a = annuli(width, height);
+        int numBins = a.numBins();
+        int[] offset = a.offset();
+        int[] order = a.order();
+
+        int parts = Math.min(PROCESSORS * 4, numBins);
+        int[] firstBin = new int[parts + 1];
+        for (int k = 1, bin = 0; k < parts; k++) {
+            long target = (long) length * k / parts;
+            while (bin < numBins && offset[bin] < target)
+                bin++;
+            firstBin[k] = bin;
+        }
+        firstBin[parts] = numBins;
+
+        ParallelRange.run(parts, (from, to) -> {
+            int[] counts = new int[1 << 16];
+            float[] rankOf = new float[1 << 16];
+            long[] present = new long[1 << 10];
+            short[] ring = new short[0];
+            for (int k = from; k < to; k++) {
+                for (int bin = firstBin[k]; bin < firstBin[k + 1]; bin++) {
+                    int lo = offset[bin];
+                    int hi = offset[bin + 1];
+                    if (hi - lo < MIN_BIN_COUNT)
+                        continue;
+                    if (ring.length < hi - lo)
+                        ring = new short[hi - lo];
+
+                    int n = 0, minWord = Integer.MAX_VALUE, maxWord = -1;
+                    for (int j = lo; j < hi; j++) {
+                        short h = halves[order[j]];
+                        ring[j - lo] = h;
+                        int bits = h & 0xFFFF;
+                        if (((bits - 1) & 0xFFFF) >= 0x7C00) // not in 0x0001..0x7C00 (zero wraps to 0xFFFF): not positive
+                            continue;
+                        if (counts[bits]++ == 0) {
+                            int w = bits >>> 6;
+                            present[w] |= 1L << bits;
+                            minWord = Math.min(minWord, w);
+                            maxWord = Math.max(maxWord, w);
+                        }
+                        n++;
+                    }
+
+                    boolean rank = n >= MIN_BIN_COUNT;
+                    float invRange = 1f / (n - 1);
+                    int cumulative = 0;
+                    for (int w = minWord; w <= maxWord; w++) {
+                        long word = present[w];
+                        present[w] = 0;
+                        while (word != 0) {
+                            int bits = w << 6 | Long.numberOfTrailingZeros(word);
+                            word &= word - 1;
+                            int c = counts[bits];
+                            counts[bits] = 0;
+                            if (rank) {
+                                // The average rank of a run of equal values, as filter() computes it.
+                                rankOf[bits] = .5f * (2 * cumulative + c - 1) * invRange;
+                                cumulative += c;
+                            }
+                        }
+                    }
+                    if (!rank)
+                        continue;
+
+                    for (int j = lo; j < hi; j++) {
+                        int bits = ring[j - lo] & 0xFFFF;
+                        if (((bits - 1) & 0xFFFF) < 0x7C00)
+                            out[order[j]] = rankOf[bits];
+                    }
+                }
+            }
+        });
+        return out;
     }
 
 }

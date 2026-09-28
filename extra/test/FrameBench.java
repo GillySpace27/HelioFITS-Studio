@@ -59,6 +59,8 @@ public final class FrameBench {
         List<String> argv = List.of(args);
         boolean record = argv.contains("--record");
         int reps = argv.contains("--reps") ? Integer.parseInt(argv.get(argv.indexOf("--reps") + 1)) : 1;
+        int throughput = argv.contains("--throughput") ? Integer.parseInt(argv.get(argv.indexOf("--throughput") + 1)) : 0;
+        int rice = argv.contains("--rice") ? Integer.parseInt(argv.get(argv.indexOf("--rice") + 1)) : 0;
 
         if (System.getProperty("user.timezone") == null)
             System.setProperty("user.timezone", "UTC");
@@ -66,6 +68,13 @@ public final class FrameBench {
         Directories.createPersistentDirs();
         Directories.createCacheDirs();
         org.helioviewer.jhv.app.AppInit.loadSpice();
+
+        if (throughput > 0) {
+            throughput(throughput);
+            System.exit(0);
+        }
+        if (rice > 0)
+            System.exit(rice(rice, record));
 
         Path baseline = Path.of(Directories.HOME.getPath(), "bench", "frame-identity.tsv");
         Map<String, String> expected = new HashMap<>();
@@ -170,6 +179,92 @@ public final class FrameBench {
         System.out.println(compared + " decoded frames compared, " + different + " different, " + incomparable + " not comparable, " + missing + " files missing");
         System.out.println(different == 0 ? "FrameBench: IDENTICAL" : "FrameBench: VALUES CHANGED");
         System.exit(different == 0 ? 0 : 1);
+    }
+
+    /**
+     * Frames per second through the app's own prefetch path: n PUNCH CAM frames (RHEF, the default
+     * clip) handed to URIView.prefetch at once, timed until the pool has decoded them all. The views
+     * are built first and not timed, since building one reads the file for its clip set.
+     */
+    @SuppressWarnings("unchecked")
+    private static void throughput(int n) throws Exception {
+        File[] punch = Directories.FILECACHE.getFile().listFiles((d, name) -> name.startsWith("PUNCH_L3_CAM_") && name.endsWith(".fits"));
+        if (punch == null || punch.length == 0) {
+            System.out.println("No PUNCH_L3_CAM files in the cache");
+            return;
+        }
+        Arrays.sort(punch);
+        List<URIView> views = new ArrayList<>();
+        List<ClipSet.Range> ranges = new ArrayList<>();
+        for (int i = 0; i < Math.min(n, punch.length); i++) {
+            ImageProcessingSettings ps = new ImageProcessingSettings(() -> {});
+            ps.setFilter(ImageFilter.Type.RHEF);
+            URIView view = new URIView(new LatestWorker<>("bench"), NetFileCache.get(punch[i].toURI()), ps);
+            views.add(view);
+            ranges.add(ps.fitsParameters().clipRange(view.getClipSet()));
+        }
+        Field f = URIView.class.getDeclaredField("prefetching");
+        f.setAccessible(true);
+        java.util.Set<Object> inFlight = (java.util.Set<Object>) f.get(null);
+        System.gc();
+        long t0 = System.nanoTime();
+        for (int i = 0; i < views.size(); i++) {
+            while (inFlight.size() >= 48) // the prefetcher refuses work past 64 queued, so feed it as room frees up
+                Thread.sleep(1);
+            views.get(i).prefetch(ranges.get(i));
+        }
+        while (!inFlight.isEmpty())
+            Thread.sleep(5);
+        double s = (System.nanoTime() - t0) / 1e9;
+        System.out.printf("throughput: %d PUNCH CAM frames (RHEF) in %.2f s = %.1f frames/s on %d cores%n",
+                views.size(), s, views.size() / s, Runtime.getRuntime().availableProcessors());
+    }
+
+    /**
+     * The raw pixels FITSImage.readData decompresses, before any scaling, for n PUNCH CAM files,
+     * hashed. Record with -Dhfs.fastRice=false (nom.tam decodes everything itself), then verify with
+     * the fast decoder on; a separate JVM for each, so nothing nom.tam cached can mix the two. Also
+     * times the reads, which is the point of the fast decoder.
+     */
+    private static int rice(int n, boolean record) throws Exception {
+        Path file = Path.of(Directories.HOME.getPath(), "bench", "rice-raw.tsv");
+        File[] punch = Directories.FILECACHE.getFile().listFiles((d, name) -> name.startsWith("PUNCH_L3_CAM_") && name.endsWith(".fits"));
+        Arrays.sort(punch);
+        Map<String, String> expected = new HashMap<>();
+        if (!record)
+            for (String line : Files.readAllLines(file))
+                expected.put(line.split("\t")[0], line);
+        List<String> out = new ArrayList<>();
+        MessageDigest sha = MessageDigest.getInstance("SHA-256");
+        double[] ms = new double[Math.min(n, punch.length)];
+        int different = 0;
+        for (int i = 0; i < ms.length; i++) {
+            long t0 = System.nanoTime();
+            FITSData data = FITSImage.readData(punch[i], 0);
+            ms[i] = (System.nanoTime() - t0) / 1e6;
+            if (!(data.pixels() instanceof float[] px))
+                throw new IllegalStateException(punch[i].getName() + ": expected float pixels, got " + data.pixels().getClass());
+            ByteBuffer bytes = ByteBuffer.allocate(px.length * 4);
+            bytes.asFloatBuffer().put(px); // raw IEEE bits, NaN payloads included
+            String line = punch[i].getName() + "\t" + px.length + "\t" + HexFormat.of().formatHex(sha.digest(bytes.array()));
+            out.add(line);
+            if (!record && !line.equals(expected.get(punch[i].getName()))) {
+                different++;
+                System.out.println("  DIFFERENT " + line + "\n    was " + expected.get(punch[i].getName()));
+            }
+        }
+        System.out.printf("read + decompress, median of %d PUNCH CAM files: %.0f ms (fast Rice %s)%n",
+                ms.length, median(Arrays.copyOfRange(ms, Math.min(2, ms.length - 1), ms.length)),
+                "false".equals(System.getProperty("hfs.fastRice")) ? "off" : "on");
+        if (record) {
+            Files.createDirectories(file.getParent());
+            Files.write(file, out);
+            System.out.println("Recorded raw pixels of " + out.size() + " files to " + file);
+            return 0;
+        }
+        System.out.println(out.size() + " files compared, " + different + " different");
+        System.out.println(different == 0 ? "FrameBench --rice: IDENTICAL" : "FrameBench --rice: VALUES CHANGED");
+        return different == 0 ? 0 : 1;
     }
 
     // Two frames of every dataset, first and middle, in a fixed order.

@@ -2,10 +2,15 @@ package org.helioviewer.jhv.view.uri;
 
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
 import java.nio.ShortBuffer;
 import java.util.logging.Logger;
 
 import nom.tam.fits.compression.algorithm.api.ICompressOption;
+import nom.tam.fits.compression.algorithm.api.ICompressor;
+import nom.tam.fits.compression.algorithm.quant.QuantizeOption;
+import nom.tam.fits.compression.algorithm.quant.QuantizeProcessor;
 import nom.tam.fits.compression.algorithm.api.ICompressorControl;
 import nom.tam.fits.compression.algorithm.rice.RiceCompressOption;
 import nom.tam.fits.compression.algorithm.rice.RiceCompressor;
@@ -18,6 +23,11 @@ public final class FastRiceProvider implements ICompressorProvider {
     private static final int BYTE_MASK = 0xff;
     private static final int FS_BITS_FOR_SHORT = 4;
     private static final int FS_MAX_FOR_SHORT = 14;
+    private static final int FS_BITS_FOR_INT = 5;
+    private static final int FS_MAX_FOR_INT = 25;
+
+    /** -Dhfs.fastRice=false makes nom.tam decode everything itself; FrameBench --rice compares the two bit for bit. */
+    private static final boolean enabled = !"false".equals(System.getProperty("hfs.fastRice"));
     private static final Logger LOG = Logger.getLogger(FastRiceProvider.class.getName());
 
     public FastRiceProvider() {}
@@ -29,7 +39,16 @@ public final class FastRiceProvider implements ICompressorProvider {
             return null;
         }
 
-        return quantAlgorithm == null && baseType == short.class ? new Control() : null;
+        if (!enabled)
+            return null;
+        if (quantAlgorithm == null && baseType == short.class)
+            return new Control();
+        // Quantized floats (PUNCH): nom.tam's own FloatQuantCompressor, exactly as its default control
+        // builds it, around a faster decoder for the 32-bit Rice codes underneath. The unquantize step,
+        // where the floats come from, stays nom.tam's.
+        if (quantAlgorithm != null && baseType == float.class)
+            return new QuantizedFloatControl();
+        return null;
     }
 
     private static final class Control implements ICompressorControl {
@@ -52,6 +71,59 @@ public final class FastRiceProvider implements ICompressorProvider {
         @Override
         public ICompressOption option() {
             return new RiceCompressOption();
+        }
+    }
+
+    private static final class QuantizedFloatControl implements ICompressorControl {
+
+        @Override
+        public boolean compress(Buffer in, ByteBuffer out, ICompressOption option) {
+            return false;
+        }
+
+        @Override
+        public void decompress(ByteBuffer in, Buffer out, ICompressOption option) {
+            QuantizeOption quant = option.unwrap(QuantizeOption.class);
+            RiceCompressOption rice = option.unwrap(RiceCompressOption.class);
+            new QuantizeProcessor.FloatQuantCompressor(quant, new IntRice(rice)).decompress(in, (FloatBuffer) out);
+        }
+
+        @Override
+        public ICompressOption option() {
+            return new QuantizeOption(new RiceCompressOption());
+        }
+    }
+
+    private record IntRice(RiceCompressOption option) implements ICompressor<IntBuffer> {
+
+        @Override
+        public boolean compress(IntBuffer in, ByteBuffer out) {
+            return false;
+        }
+
+        @Override
+        public void decompress(ByteBuffer in, IntBuffer out) {
+            if (option.getBytePix() != Integer.BYTES) { // encoded width differs from the int output: nom.tam's way
+                new RiceCompressor.IntRiceCompressor(option).decompress(in, out);
+                return;
+            }
+            Decoder decoder = new Decoder(in, option, FS_BITS_FOR_INT, FS_MAX_FOR_INT);
+            int last = decoder.firstInt();
+            int length = out.remaining();
+            if (out.hasArray())
+                decoder.decodeIntArray(last, out.array(), out.arrayOffset() + out.position(), length);
+            else
+                for (int i = 0; i < length; ) {
+                    int fs = decoder.readFs();
+                    int end = decoder.blockEnd(i, length);
+                    for (; i < end; i++) {
+                        if (fs >= 0)
+                            last += map(fs == decoder.fsMax ? decoder.readDirect() : decoder.readRice(fs));
+                        out.put(out.position() + i, last);
+                    }
+                }
+            out.position(out.position() + length);
+            decoder.finish();
         }
     }
 
@@ -151,6 +223,101 @@ public final class FastRiceProvider implements ICompressorProvider {
             int first = getByte() << BITS_PER_BYTE | getByte();
             initBits();
             return first;
+        }
+
+        private int firstInt() {
+            int first = getByte() << 24 | getByte() << 16 | getByte() << BITS_PER_BYTE | getByte();
+            initBits();
+            return first;
+        }
+
+        // decodeShortArray for 32-bit codes: the same bit handling with int output. The refill-ahead
+        // keeps the buffer under 64 bits (under 16 held plus 32 added), and the byte-wise loops after
+        // it make up whatever a long code still needs.
+        private void decodeIntArray(int last, int[] out, int offset, int length) {
+            byte[] input = inArray;
+            if (input == null) {
+                for (int i = 0; i < length; ) {
+                    int fs = readFs();
+                    int end = blockEnd(i, length);
+                    for (; i < end; i++) {
+                        if (fs >= 0)
+                            last += map(fs == fsMax ? readDirect() : readRice(fs));
+                        out[offset + i] = last;
+                    }
+                }
+                return;
+            }
+
+            int position = inPosition;
+            int limit = inArrayOffset + in.limit();
+            long bitBuffer = bits;
+            int bitCount = nbits;
+
+            for (int i = 0; i < length; ) {
+                bitCount -= fsBits;
+                while (bitCount < 0) {
+                    bitBuffer = bitBuffer << BITS_PER_BYTE | (input[position++] & BYTE_MASK);
+                    bitCount += BITS_PER_BYTE;
+                }
+
+                int fs = (int) ((bitBuffer >>> bitCount) - 1L);
+                bitBuffer &= (1L << bitCount) - 1L;
+
+                int end = Math.min(i + blockSize, length);
+                if (fs < 0) {
+                    for (; i < end; i++)
+                        out[offset + i] = last;
+                } else if (fs == fsMax) {
+                    for (; i < end; i++) {
+                        while (bitCount < bBits) {
+                            bitBuffer = bitBuffer << BITS_PER_BYTE | (input[position++] & BYTE_MASK);
+                            bitCount += BITS_PER_BYTE;
+                        }
+                        bitCount -= bBits;
+                        int diff = (int) (bitBuffer >>> bitCount);
+                        bitBuffer &= (1L << bitCount) - 1L;
+
+                        last += map(diff);
+                        out[offset + i] = last;
+                    }
+                } else {
+                    for (; i < end; i++) {
+                        if (bitCount < Short.SIZE && position <= limit - Integer.BYTES) {
+                            int word = (input[position] & BYTE_MASK) << 24 | (input[position + 1] & BYTE_MASK) << 16
+                                    | (input[position + 2] & BYTE_MASK) << 8 | (input[position + 3] & BYTE_MASK);
+                            bitBuffer = bitBuffer << Integer.SIZE | Integer.toUnsignedLong(word);
+                            position += Integer.BYTES;
+                            bitCount += Integer.SIZE;
+                        }
+                        while (bitBuffer == 0) {
+                            bitCount += BITS_PER_BYTE;
+                            bitBuffer = input[position++] & BYTE_MASK;
+                        }
+                        int nzero = bitCount - (Long.SIZE - Long.numberOfLeadingZeros(bitBuffer));
+                        bitCount -= nzero + 1;
+                        bitBuffer ^= 1L << bitCount;
+
+                        bitCount -= fs;
+                        while (bitCount < 0) {
+                            bitBuffer = bitBuffer << BITS_PER_BYTE | (input[position++] & BYTE_MASK);
+                            bitCount += BITS_PER_BYTE;
+                        }
+
+                        int diff = (int) ((long) nzero << fs | bitBuffer >>> bitCount);
+                        bitBuffer &= (1L << bitCount) - 1L;
+
+                        last += map(diff);
+                        out[offset + i] = last;
+                    }
+                }
+            }
+
+            inPosition = position - bitCount / BITS_PER_BYTE;
+            bitBuffer >>>= bitCount / BITS_PER_BYTE * BITS_PER_BYTE;
+            bitCount %= BITS_PER_BYTE;
+            bits = bitBuffer;
+            nbits = bitCount;
         }
 
         private void initBits() {

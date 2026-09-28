@@ -27,6 +27,21 @@ public class ImageFilter {
 
     interface Algorithm {
         float[] filter(float[] data, int width, int height);
+
+        /** For half-float input. The default widens to floats and filters those; RHEF works on the halves themselves. */
+        default float[] filterHalf(short[] halves, int width, int height) {
+            float[] data = new float[width * height];
+            ParallelRange.run(height, (from, to) -> {
+                for (int y = from; y < to; y++) {
+                    int rowBase = y * width;
+                    int rowEnd = rowBase + width;
+                    for (int idx = rowBase; idx < rowEnd; idx++) {
+                        data[idx] = Float.float16ToFloat(halves[idx]);
+                    }
+                }
+            });
+            return filter(data, width, height);
+        }
     }
 
     private final Algorithm algorithm;
@@ -73,19 +88,7 @@ public class ImageFilter {
     }
 
     float[] apply(short[] array, int width, int height) {
-        int length = width * height;
-
-        float[] data = new float[length];
-        ParallelRange.run(height, (from, to) -> {
-            for (int y = from; y < to; y++) {
-                int rowBase = y * width;
-                int rowEnd = rowBase + width;
-                for (int idx = rowBase; idx < rowEnd; idx++) {
-                    data[idx] = Float.float16ToFloat(array[idx]);
-                }
-            }
-        });
-        return algorithm.filter(data, width, height);
+        return algorithm.filterHalf(array, width, height);
     }
 
 }
