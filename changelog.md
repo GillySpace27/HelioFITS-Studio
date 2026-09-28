@@ -10,6 +10,7 @@
 - Decoded frames may now use up to 40% of the computer's memory (at least 4 GB) instead of a fixed 8 GB. A 4096 x 4096 PUNCH movie of about a thousand frames needs about 31 GB; with 8 GB the cache filled partway through, then threw away frames decoded ahead of the playhead before they were shown, and playback fell to about 4 frames a second
 - Frames are decoded ahead in whichever direction the movie is going, so a movie playing backwards or swinging, or a scrub to the left, gets the same lookahead as forward playback
 - LASCO monthly backgrounds stay loaded (up to 64 of them) and load independently of one another. Every LASCO frame used to wait behind any background being fetched, and a two-month C2 and C3 session loaded its backgrounds 2,423 times
+- PUNCH frames decode several times faster, with every value unchanged: RHEF works directly on the half-float image and sorts and ranks each ring with less work, and PUNCH's compressed tiles are unpacked by the app's own fast decoder. A first pass through a 4096 x 4096 PUNCH movie with RHEF and two LASCO layers now keeps up with 30 frames a second
 
 ### Sidebars
 - Dragging either sidebar's edge resizes it. The width changed underneath but the layout did not follow, except when something unrelated happened to refresh it
