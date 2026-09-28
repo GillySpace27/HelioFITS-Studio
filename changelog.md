@@ -7,6 +7,7 @@
 - A movie plays without the mouse over the picture. One layer slower to decode than a movie frame used to hold the whole picture still until something else asked for a redraw, which in practice meant moving the mouse
 - Every layer shows every frame. The movie waits on each frame until all layers have drawn it, so a slow layer such as a PUNCH mosaic with RHEF is no longer skipped; a layer that has not answered in two seconds is left behind for that frame so it cannot stop the movie
 - Upcoming frames are decoded in parallel ahead of the playhead, so PUNCH with RHEF plays at the movie's own rate once the first frames are in. Decoded frames stay in memory, so a movie replays without decoding again
+- Decoded frames may now use up to 40% of the computer's memory (at least 4 GB) instead of a fixed 8 GB. A 4096 x 4096 PUNCH movie of about a thousand frames needs about 31 GB; with 8 GB the cache filled partway through, then threw away frames decoded ahead of the playhead before they were shown, and playback fell to about 4 frames a second
 
 ### Sidebars
 - Dragging either sidebar's edge resizes it. The width changed underneath but the layout did not follow, except when something unrelated happened to refresh it

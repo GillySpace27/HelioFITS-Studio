@@ -13,7 +13,21 @@ import com.github.benmanes.caffeine.cache.RemovalCause;
 
 public final class ImageBufferCache {
 
-    private static final long MAX_CACHE_BYTES = 8L * 1024 * 1024 * 1024;
+    /**
+     * 40% of physical memory, and never less than 4 GiB.
+     *
+     * <p>The decoded frames are native memory (MemoryUtil), outside the Java heap, so what bounds
+     * them is the machine, not -Xmx. A fixed 8 GiB held about a quarter of one 983-frame PUNCH CAM
+     * movie (4096 x 4096 half floats, 32 MiB a frame), so every loop decoded every frame again.
+     */
+    private static final long MAX_CACHE_BYTES = cacheBytes();
+
+    private static long cacheBytes() {
+        long physical = ((com.sun.management.OperatingSystemMXBean) java.lang.management.ManagementFactory.getOperatingSystemMXBean()).getTotalMemorySize();
+        long bytes = Math.max(4L << 30, (long) (physical * 0.4));
+        org.helioviewer.jhv.app.Log.info("Decoded-frame cache: up to " + (bytes >> 30) + " GiB of " + (physical >> 30) + " GiB physical memory");
+        return bytes;
+    }
     private static final ArrayList<WeakReference<ImageBuffer>> retired = new ArrayList<>();
 
     private static final Cache<Object, DecodedImage> cache = Caffeine.newBuilder()
