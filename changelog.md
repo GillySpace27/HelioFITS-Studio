@@ -1,6 +1,16 @@
 
 # Revision history
 
+## HelioFITS Studio 0.8.4 (unreleased)
+
+### Playback
+- A movie plays without the mouse over the picture. One layer slower to decode than a movie frame used to hold the whole picture still until something else asked for a redraw, which in practice meant moving the mouse
+- Every layer shows every frame. The movie waits on each frame until all layers have drawn it, so a slow layer such as a PUNCH mosaic with RHEF is no longer skipped; a layer that has not answered in two seconds is left behind for that frame so it cannot stop the movie
+- Upcoming frames are decoded in parallel ahead of the playhead, so PUNCH with RHEF plays at the movie's own rate once the first frames are in. Decoded frames stay in memory, so a movie replays without decoding again
+
+### Sidebars
+- Dragging either sidebar's edge resizes it. The width changed underneath but the layout did not follow, except when something unrelated happened to refresh it
+
 ## HelioFITS Studio 0.8.3 (pre-release, 2026-09-23)
 
 ### Multilayer FITS, including PUNCH

@@ -9,6 +9,7 @@ import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.layers.ImageLayer;
+import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.thread.EDTTimer;
 import org.helioviewer.jhv.time.JHVTime;
@@ -160,7 +161,30 @@ public class Player {
     private static int stuckTicks;
     private static final int STUCK_TICK_LIMIT = 5;
 
+    // How long a tick may wait for the slowest layer before the movie moves on without it. Long
+    // enough for a RHEF'd PUNCH mosaic to decode; a layer that never answers costs this once per frame.
+    private static final int LAYER_WAIT_MAX_MILLI = 2000;
+    private static long waitingSince;
+
+    // Hold the movie on this frame until every layer has shown it, so a slow layer is not overtaken
+    // by the next request before its decode can land (see ImageLayers.waitingForLayers).
+    private static boolean waitForSlowLayers() {
+        if (!ImageLayers.waitingForLayers()) {
+            waitingSince = 0;
+            return false;
+        }
+        long now = System.currentTimeMillis();
+        if (waitingSince == 0)
+            waitingSince = now;
+        if (now - waitingSince < LAYER_WAIT_MAX_MILLI)
+            return true;
+        waitingSince = 0;
+        return false;
+    }
+
     private static void relativeTimeAdvance() {
+        if (waitForSlowLayers())
+            return;
         ImageLayer layer = Layers.getActiveImageLayer();
         if (layer != null) {
             View view = layer.getView();
@@ -215,6 +239,8 @@ public class Player {
     }
 
     private static void absoluteTimeAdvance() {
+        if (waitForSlowLayers())
+            return;
         ImageLayer layer = Layers.getActiveImageLayer();
         if (layer != null) {
             JHVTime next = nextTime(advanceMode, lastTimestamp,

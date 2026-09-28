@@ -90,6 +90,36 @@ public final class URIView extends BaseView {
         executor.submit(() -> decodeImage(key, filter), new Callback(key, viewpoint));
     }
 
+    // Frame-level parallelism for playback: a RHEF'd PUNCH mosaic takes far longer to decode than a
+    // movie frame lasts, and the layer's own worker decodes one frame at a time. Prefetches only
+    // fill ImageBufferCache, never publish, so they cannot put a frame on screen out of order.
+    private static final java.util.concurrent.ExecutorService prefetchPool = org.helioviewer.jhv.thread.AppThread.createIdleExecutor(
+            "View-Prefetch", Math.max(1, Runtime.getRuntime().availableProcessors() / 2));
+    private static final java.util.Set<DecodeKey> prefetching = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private static final int PREFETCH_QUEUE_MAX = 64; // ponytail: past this, a lookahead request is simply dropped
+
+    @Override
+    public void prefetch(@Nullable ClipSet.Range range) {
+        ClipSet.Range fixed = fixedRange;
+        DecodeKey key = new DecodeKey(dataUri, processingSettings.getFilter(), hasFITS() ? processingSettings.fitsParameters() : null,
+                hasFITS() ? (fixed != null ? fixed : range) : null);
+        if (ImageBufferCache.get(key) != null || prefetching.size() >= PREFETCH_QUEUE_MAX || !prefetching.add(key))
+            return;
+        prefetchPool.execute(() -> {
+            try {
+                if (ImageBufferCache.get(key) == null) {
+                    DecodedImage image = decodeImage(key, createFilter(key.filter()));
+                    if (!image.imageBuffer().isProvisional())
+                        ImageBufferCache.put(key, image);
+                }
+            } catch (Exception e) {
+                Log.warn("Could not prefetch " + dataUri.baseName(), e); // the on-demand decode will try again and say so
+            } finally {
+                prefetching.remove(key);
+            }
+        });
+    }
+
     // Pin every frame of this layer to one display range, overriding the clipping the layer would
     // otherwise supply to decode().
     @Override

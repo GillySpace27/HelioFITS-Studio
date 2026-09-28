@@ -52,6 +52,9 @@ public interface View {
 
     default void decode(Position viewpoint, double pixFactor, float factor, @Nullable ClipSet.Range clipRange) {}
 
+    /** Decode this frame into the image cache in the background, ahead of being asked for it. Shows nothing. */
+    default void prefetch(@Nullable ClipSet.Range clipRange) {}
+
     @Nullable
     default ClipSet getClipSet() {
         return null;

@@ -144,8 +144,18 @@ public class ManyView implements View {
     public void decode(Position viewpoint, double pixFactor, float factor, @Nullable ClipSet.Range clipRange) {
         // indexedValue clamps through key(), so a targetFrame left over from a shorter map is
         // pulled into range rather than reaching past the end of the index.
-        frameMap.indexedValue(targetFrame).view.decode(viewpoint, pixFactor, factor, clipRange);
+        TimeMap<FrameInfo> map = frameMap;
+        map.indexedValue(targetFrame).view.decode(viewpoint, pixFactor, factor, clipRange);
+        // The frames after this one, wrapping as a looping movie does. Already-cached frames cost
+        // a lookup; the rest decode in parallel, so playback finds them ready instead of waiting on
+        // one decode at a time.
+        int frames = map.maxIndex() + 1;
+        for (int i = 1; i <= Math.min(PREFETCH_AHEAD, frames - 1); i++)
+            map.indexedValue((targetFrame + i) % frames).view.prefetch(clipRange);
     }
+
+    // ponytail: forward only; a movie swinging backwards gets no lookahead on the way back.
+    private static final int PREFETCH_AHEAD = 16;
 
     @Nullable
     @Override
