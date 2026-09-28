@@ -31,7 +31,10 @@ import org.astrogrid.samp.SampUtils;
 
 public final class ImageLayers {
 
+    private static Position requestedViewpoint; // the viewpoint the layers were last asked to decode for
+
     public static boolean decode(float factor, Position viewpoint) {
+        requestedViewpoint = viewpoint;
         boolean decoded = false;
         for (ImageLayer layer : Layers.getImageLayers()) {
             int idx = layer.isVisibleIdx();
@@ -178,13 +181,37 @@ public final class ImageLayers {
             View.ImageData id;
             if (layer.isEnabled() && (id = layer.getImageData()) != null && viewpoint != id.viewpoint() /* deliberate on reference */) {
                 awaitedViewpoint = viewpoint;
-                syncWatchdog.restart(); // each arrival resets the grace: the stragglers are still moving
+                // Started once, never pushed back. Restarting it on every arrival meant a movie at
+                // 20 fps (an arrival every 50 ms) never let the 120 ms run out, so one layer slower
+                // than a frame froze the picture again until the mouse moved.
+                if (!syncWatchdog.isRunning())
+                    syncWatchdog.start();
                 return;
             }
         }
         awaitedViewpoint = null;
         syncWatchdog.stop();
         DisplayController.display(viewpoint);
+    }
+
+    /**
+     * Whether some enabled layer has not yet delivered the viewpoint it was last asked for.
+     *
+     * <p>The player waits on this. A layer decodes one frame at a time and throws away a result
+     * that a newer request overtook, so a player that moves on every tick starves any layer whose
+     * decode is slower than a tick: a PUNCH mosaic with RHEF never showed a single frame while the
+     * movie ran.
+     */
+    public static boolean waitingForLayers() {
+        Position wanted = requestedViewpoint;
+        if (wanted == null)
+            return false;
+        for (ImageLayer layer : Layers.getImageLayers()) {
+            View.ImageData id;
+            if (layer.isEnabled() && (id = layer.getImageData()) != null && id.viewpoint() != wanted /* deliberate on reference */)
+                return true;
+        }
+        return false;
     }
 
     /** The grace ran out: show the newest viewpoint anyway rather than showing nothing at all. */

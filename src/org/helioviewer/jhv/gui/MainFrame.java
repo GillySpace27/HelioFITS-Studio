@@ -75,7 +75,13 @@ public final class MainFrame {
         }
 
         void setFixedWidth(int width) {
+            if (width == fixedWidth)
+                return;
             fixedWidth = width;
+            // Up the whole chain, not just this panel: the wrapper it sits in caches its preferred
+            // size while it is valid, so revalidating only the panel above left the sidebar at its
+            // old width until something unrelated happened to invalidate the wrapper.
+            invalidate();
         }
 
         @Override
