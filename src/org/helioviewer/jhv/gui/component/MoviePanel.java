@@ -214,7 +214,7 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         northTransport.add(timeSlider, BorderLayout.CENTER);
         northTransport.add(frameNumberPanel, BorderLayout.LINE_END);
 
-        // The pane is four labelled rows deep -- Play, Record, Output, Preset -- with the encoding
+        // The pane is five labelled rows deep -- Play, Clock, Record, Output, Preset -- with the encoding
         // choices behind a nested disclosure under them. The label column is a real GridBag column
         // with insets, in place of the right-aligned glue column and the space-padded label
         // strings it replaces, so the rows align on the left and the spacing is not baked into the
@@ -238,6 +238,13 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         advanceModeButtons.setToolTipText("What happens when playback reaches the end");
         addRow(optionsPanel, 0, "Play", row(speedSpinner, speedUnitComboBox, advanceModeButtons));
 
+        Segmented<Player.Clock> clockButtons = new Segmented<>(Player.Clock.values(), Player.getClock(), Player::setClock);
+        clockButtons.setToolTipText("<html>Which clock paces playback, to compare them.<br><br><b>Fixed rate</b> ticks at exactly the Play rate."
+                + "<br><b>Swing timer</b> is the clock playback used before. It schedules each tick from when the previous one actually fired, "
+                + "so every late tick delays the rest and it runs slow (34 fps played at about 30).<br><br>"
+                + "The FPS readout at the bottom left shows the rate you are getting.</html>");
+        addRow(optionsPanel, 1, "Clock", row(clockButtons));
+
         recordModeButtons = new Segmented<>(ViewState.RecordingMode.values(), ViewState.recordingData().mode(), ViewState::setRecordingMode);
         recordModeButtons.setToolTipText("One loop records the movie once through; Screenshot writes a single still; Unlimited records until it is stopped");
 
@@ -248,7 +255,7 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
             org.helioviewer.jhv.display.Display.showPrintableArea = printableToggle.isSelected();
             org.helioviewer.jhv.display.DisplayController.display();
         });
-        addRow(optionsPanel, 1, "Record", row(recordModeButtons, printableToggle));
+        addRow(optionsPanel, 2, "Record", row(recordModeButtons, printableToggle));
 
         // Aspect and resolution are separate choices, and the short side is derived from them
         // rather than typed. That makes an inconsistent width/height pair unrepresentable, and
@@ -275,7 +282,7 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         recordDerivedLabel = new JLabel();
         recordDerivedLabel.setFont(UIGlobals.uiFontSmall);
         recordDerivedLabel.setToolTipText("The size that will actually be written");
-        addRow(optionsPanel, 2, "Output", row(recordAspectComboBox, recordLongSideLabel, recordLongSideComboBox, recordDerivedLabel));
+        addRow(optionsPanel, 3, "Output", row(recordAspectComboBox, recordLongSideLabel, recordLongSideComboBox, recordDerivedLabel));
 
         // Format sits with the record controls rather than in Settings, where it was: it is a
         // per-recording decision made at the same moment as aspect and resolution, not a
@@ -340,7 +347,7 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         presetMenuButton.addActionListener(e -> presetActions.show(presetMenuButton, 0, presetMenuButton.getHeight()));
 
         presetRow = row(recordPresetComboBox, presetMenuButton);
-        presetLabel = addRow(optionsPanel, 3, "Preset", presetRow);
+        presetLabel = addRow(optionsPanel, 4, "Preset", presetRow);
 
         recordFormatComboBox = new JComboBox<>(ExportFormat.values());
         recordFormatComboBox.setSelectedItem(storedFormat());

@@ -11,6 +11,7 @@
 - Frames are decoded ahead in whichever direction the movie is going, so a movie playing backwards or swinging, or a scrub to the left, gets the same lookahead as forward playback
 - LASCO monthly backgrounds stay loaded (up to 64 of them) and load independently of one another. Every LASCO frame used to wait behind any background being fetched, and a two-month C2 and C3 session loaded its backgrounds 2,423 times
 - PUNCH frames decode several times faster, with every value unchanged: RHEF works directly on the half-float image and sorts and ranks each ring with less work, and PUNCH's compressed tiles are unpacked by the app's own fast decoder. A first pass through a 4096 x 4096 PUNCH movie with RHEF and two LASCO layers now keeps up with 30 frames a second
+- A movie plays at the rate set under Play. The clock used to schedule each frame from when the previous one actually fired, so every late frame delayed the rest, and 34 frames a second played at about 30. A Clock switch under Play keeps the old clock (Swing timer) for comparison with the new one (Fixed rate)
 
 ### Sidebars
 - Dragging either sidebar's edge resizes it. The width changed underneath but the layout did not follow, except when something unrelated happened to refresh it
