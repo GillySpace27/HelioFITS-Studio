@@ -12,6 +12,7 @@ import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.thread.EDTTimer;
+import org.helioviewer.jhv.thread.FixedRateTimer;
 import org.helioviewer.jhv.time.JHVTime;
 import org.helioviewer.jhv.time.TimeListener;
 import org.helioviewer.jhv.time.TimeUtils;
@@ -21,6 +22,22 @@ public class Player {
 
     public enum AdvanceMode {
         Loop, Stop, Swing, SwingDown
+    }
+
+    /** Which clock drives playback. Both are kept so they can be compared side by side. */
+    public enum Clock {
+        Fixed("Fixed rate"), SwingTimer("Swing timer");
+
+        private final String label;
+
+        Clock(String _label) {
+            label = _label;
+        }
+
+        @Override
+        public String toString() {
+            return label;
+        }
     }
 
     public interface Listener {
@@ -265,22 +282,62 @@ public class Player {
         }
     }
 
-    private static final EDTTimer movieTimer = new EDTTimer(1000 / FPS_RELATIVE_DEFAULT, Player::relativeTimeAdvance);
+    // Fixed rate is FixedRateTimer: ticks due at whole periods from the start, so the Play rate is the
+    // rate. Swing timer is the javax.swing.Timer the movie used before: each tick scheduled a delay
+    // after the previous one actually fired, so lateness piled up and 34 fps ran at about 30. Both
+    // are set up alike, and the Clock choice says which one play() starts.
+    private static final FixedRateTimer fixedTimer = new FixedRateTimer(FPS_RELATIVE_DEFAULT, Player::relativeTimeAdvance);
+    private static final EDTTimer swingTimer = new EDTTimer(1000 / FPS_RELATIVE_DEFAULT, Player::relativeTimeAdvance);
+    private static Clock clock = clockSetting();
+
+    private static Clock clockSetting() {
+        try {
+            return Clock.valueOf(org.helioviewer.jhv.app.Settings.getProperty("playback.clock"));
+        } catch (RuntimeException e) { // unset or unknown
+            return Clock.Fixed;
+        }
+    }
+
+    public static Clock getClock() {
+        return clock;
+    }
+
+    /** Switch clocks, mid-playback included: the movie carries straight on under the other one. */
+    public static void setClock(Clock c) {
+        boolean playing = isPlaying();
+        stopClocks();
+        clock = c;
+        org.helioviewer.jhv.app.Settings.setProperty("playback.clock", c.name());
+        if (playing)
+            startClock();
+    }
+
+    private static void startClock() {
+        if (clock == Clock.Fixed)
+            fixedTimer.restart();
+        else
+            swingTimer.restart();
+    }
+
+    private static void stopClocks() {
+        fixedTimer.stop();
+        swingTimer.stop();
+    }
 
     public static boolean isPlaying() {
-        return movieTimer.isRunning();
+        return fixedTimer.isRunning() || swingTimer.isRunning();
     }
 
     public static void play() {
         ImageLayer layer = Layers.getActiveImageLayer();
         if (layer != null && layer.getView().isMultiFrame()) {
-            movieTimer.restart();
+            startClock();
             notifyStatusChanged();
         }
     }
 
     public static void pause() {
-        movieTimer.stop();
+        stopClocks();
         notifyStatusChanged();
         DisplayController.render(1); /* ! force update for on the fly resolution change */
     }
@@ -461,14 +518,18 @@ public class Player {
     }
 
     public static void setDesiredRelativeSpeed(int fps) {
-        movieTimer.setTask(Player::relativeTimeAdvance);
-        movieTimer.setDelay(1000 / fps);
+        fixedTimer.setTask(Player::relativeTimeAdvance);
+        fixedTimer.setRate(fps);
+        swingTimer.setTask(Player::relativeTimeAdvance);
+        swingTimer.setDelay(1000 / fps);
         deltaT = 0;
     }
 
     public static void setDesiredAbsoluteSpeed(int sec) {
-        movieTimer.setTask(Player::absoluteTimeAdvance);
-        movieTimer.setDelay(1000 / FPS_ABSOLUTE);
+        fixedTimer.setTask(Player::absoluteTimeAdvance);
+        fixedTimer.setRate(FPS_ABSOLUTE);
+        swingTimer.setTask(Player::absoluteTimeAdvance);
+        swingTimer.setDelay(1000 / FPS_ABSOLUTE);
         deltaT = 1000 / FPS_ABSOLUTE * sec;
     }
 
