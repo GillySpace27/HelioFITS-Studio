@@ -849,5 +849,64 @@ class ShipTest(unittest.TestCase):
         self.assertEqual(self.ship("ship-it").returncode, 2)
 
 
+@unittest.skipIf(os.name == "nt", "SKIP: needs a POSIX sh and executable shims")
+class GuideUploadGateTest(unittest.TestCase):
+    """deploy_release.sh guide (the one upload that replaces files on a release) in a throwaway copy with a recording gh."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="hfs-guide-gate-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.repo = self.tmp / "repo"
+        (self.repo / "release").mkdir(parents=True)
+        for name in ("deploy_release.sh", "assets.txt"):
+            shutil.copy2(RELEASE / name, self.repo / "release" / name)
+        (self.repo / "release" / "build_guide.py").write_text("print('guide built')\n")
+        (self.repo / "VERSION").write_text("9.9.9")
+        self.bin = self.tmp / "bin"
+        self.bin.mkdir()
+        self.log = self.tmp / "gh.log"
+        shim(self.bin, "gh", 'echo "$*" >> "$GH_LOG"\nexit 0\n')
+
+    def guide(self, **extra):
+        env = {k: v for k, v in env_with(self.bin, GH_LOG=str(self.log)).items() if not k.startswith("HFS_")}
+        env.update(extra)
+        return subprocess.run(["sh", "release/deploy_release.sh", "guide"], cwd=self.repo, env=env,
+                              stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60)
+
+    def uploads(self):
+        return [l for l in (self.log.read_text().splitlines() if self.log.exists() else []) if "release upload" in l]
+
+    def test_no_terminal_and_no_approval_uploads_nothing(self):
+        r = self.guide()
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("HFS_GUIDE_APPROVED=v9.9.9", r.stderr)
+        self.assertEqual(self.uploads(), [])
+
+    def test_approval_names_one_release(self):
+        self.assertEqual(self.guide(HFS_GUIDE_APPROVED="v9.9.8").returncode, 2)
+        self.assertEqual(self.uploads(), [])
+        r = self.guide(HFS_GUIDE_APPROVED="v9.9.9")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(len(self.uploads()), 1)
+        self.assertIn("release upload v9.9.9", self.uploads()[0])
+
+
+class LaneRunbookTest(unittest.TestCase):
+    def test_runbook_and_skill_name_the_lane(self):
+        releasing = (RELEASE / "RELEASING.md").read_text()
+        for needle in ("release/ship.sh", "notarize-resume", "verify_signatures.sh", "build_guide.py --strict",
+                       "HFS_PUBLISH_APPROVED", "HFS_GUIDE_APPROVED", "--selftest"):
+            self.assertIn(needle, releasing, "RELEASING.md")
+        skill = (RELEASE / "skills" / "ship-hfstudio" / "SKILL.md").read_text()
+        for needle in ("release/ship.sh", "notarize-resume", "HFS_PUBLISH_APPROVED"):
+            self.assertIn(needle, skill, "SKILL.md")
+
+    def test_notarization_files_are_ignored(self):
+        lines = (RELEASE / ".gitignore").read_text().splitlines()
+        for name in (".notarize-pending.json", ".notarize-pending-intel.json", ".notarize-submit.json",
+                     ".notarize-info.json", ".notarize-log-*.json"):
+            self.assertIn(name, lines)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -191,6 +191,20 @@ EOF
 }
 
 upload_guide_only() {
+    # The single upload that replaces files on a published release, and only the guide's two, never a
+    # binary. Outward like publish, so the same per-action gate: the exact tag typed at a terminal, or,
+    # with no terminal, HFS_GUIDE_APPROVED set to that tag for this one run after Gilly's yes in chat.
+    if [ -n "${HFS_GUIDE_APPROVED:-}" ]; then
+        [ "$HFS_GUIDE_APPROVED" = "$TAG" ] \
+            || { echo "!! HFS_GUIDE_APPROVED is '$HFS_GUIDE_APPROVED', not $TAG; a yes is for one release" >&2; exit 2; }
+    elif [ -t 0 ]; then
+        printf 'Replace HFStudio-Guide.pdf and .md on the published %s? Type the tag: ' "$TAG"
+        read -r _typed
+        [ "$_typed" = "$TAG" ] || { echo "!! typed '$_typed', not $TAG; nothing uploaded" >&2; exit 2; }
+    else
+        echo "!! no terminal: the guide upload runs only with HFS_GUIDE_APPROVED=$TAG, after Gilly's yes" >&2
+        exit 2
+    fi
     echo "==> uploading guide assets only (--clobber)"
     gh release upload "$TAG" "$PDF" "$MD" --clobber --repo "$REPO"
 }
