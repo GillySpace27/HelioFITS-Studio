@@ -346,9 +346,21 @@ preflight_publish() {
     done
 
     # No release on a Friday afternoon (v5.6e was held on principle). HFS_ALLOW_FRIDAY=1 lifts it for
-    # one run. HFS_FAKE_DOW and HFS_FAKE_HOUR stand in for the clock in extra/test/test_release_assets.py.
-    _dow="${HFS_FAKE_DOW:-$(date +%u)}"; _hour="${HFS_FAKE_HOUR:-$(date +%H)}"
-    if [ "$_dow" = 5 ] && [ "$_hour" -ge 12 ] && [ "${HFS_ALLOW_FRIDAY:-}" != 1 ]; then
+    # one run. HFS_FAKE_DOW and HFS_FAKE_HOUR stand in for the clock in extra/test/test_release_assets.py
+    # and only count when HFS_TEST_CLOCK=1 is set too; they are integers (1 to 7 with 5 = Friday, 0 to 23),
+    # and anything else is refused rather than read as "not Friday".
+    _dow="$(date +%u)"; _hour="$(date +%H)"
+    if [ -n "${HFS_FAKE_DOW:-}${HFS_FAKE_HOUR:-}" ]; then
+        if [ "${HFS_TEST_CLOCK:-}" = 1 ]; then
+            _dow="${HFS_FAKE_DOW:-$_dow}"; _hour="${HFS_FAKE_HOUR:-$_hour}"
+            case "$_dow" in [1-7]) ;; *) refuse "HFS_FAKE_DOW must be an integer from 1 to 7, not '$_dow'" 6 ;; esac
+            case "$_hour" in ""|*[!0-9]*) refuse "HFS_FAKE_HOUR must be an integer from 0 to 23, not '$_hour'" 6 ;;
+                *) [ "$_hour" -le 23 ] || refuse "HFS_FAKE_HOUR must be an integer from 0 to 23, not '$_hour'" 6 ;; esac
+        else
+            echo "   ignoring HFS_FAKE_DOW and HFS_FAKE_HOUR: they only count with HFS_TEST_CLOCK=1" >&2
+        fi
+    fi
+    if [ "$REFUSED" = 0 ] && [ "$_dow" = 5 ] && [ "$_hour" -ge 12 ] && [ "${HFS_ALLOW_FRIDAY:-}" != 1 ]; then
         refuse "it is Friday afternoon; release another day, or set HFS_ALLOW_FRIDAY=1 for this one run" 6
     fi
 
