@@ -117,6 +117,7 @@ public final class ActionCatalog {
         put("rotate90Z", new Actions.Rotate90Camera("Z Axis", "Z"), "", "Rotate the view 90° about Z");
         put("zoomFovAnnotation", new Actions.ZoomFOVAnnotation(), "", "");
         put("copyProvenance", new Actions.CopyProvenance(), "File/Copy Provenance", "");
+        put("sendFeedback", new org.helioviewer.jhv.gui.dialog.FeedbackDialog.Open(), "Help/Send Feedback...", "Send a problem, a request or a question to the developer; no account needed");
     }
 
     /**

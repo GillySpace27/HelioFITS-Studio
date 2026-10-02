@@ -138,6 +138,7 @@ public class HFStudio {
                         System.exit(0);
                 }).start();
             org.helioviewer.jhv.app.Session.init(); // session dirty-tracking + autosave timer
+            org.helioviewer.jhv.io.FeedbackReport.retryInBackground(); // the outbox, on its own thread; never headless
 
             startInitialization(true);
         });
