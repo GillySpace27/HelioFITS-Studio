@@ -825,9 +825,18 @@ class NotesTest(unittest.TestCase):
 
     def test_em_dashes_stop_publish_before_the_tag(self):
         body = re.search(r"^publish\(\) \{\n(.*?)^\}", (RELEASE / "deploy_release.sh").read_text(), re.S | re.M).group(1)
-        self.assertIn("\\342\\200\\224", body)
-        self.assertLess(body.index("\\342\\200\\224"), body.index("git tag -a"))
+        self.assertIn("scan_em_dash", body)
+        self.assertLess(body.index("scan_em_dash"), body.index("git tag -a"))
         self.assertLess(body.index('NOTES="$(notes_file)"'), body.index("git tag -a"))
+
+    def test_the_scan_is_one_function_publish_and_guide_both_call(self):
+        text = (RELEASE / "deploy_release.sh").read_text()
+        scan = re.search(r"^scan_em_dash\(\) \{\n(.*?)^\}", text, re.S | re.M).group(1)
+        self.assertIn("\\342\\200\\224", scan)
+        self.assertIn("could not scan", scan)
+        publish = re.search(r"^publish\(\) \{\n(.*?)^\}", text, re.S | re.M).group(1)
+        self.assertLess(publish.index("scan_em_dash"), publish.index("git tag -a"))
+        self.assertRegex(text, r"guide\)\s+build_guide --strict; scan_em_dash [^;]*\$MD[^;]*; upload_guide_only")
 
     @unittest.skipIf(os.name == "nt", "SKIP: needs a POSIX sh")
     def test_notes_mode_prints_the_filled_in_prose(self):
@@ -922,15 +931,26 @@ class GuideUploadGateTest(unittest.TestCase):
         (self.repo / "release").mkdir(parents=True)
         for name in ("deploy_release.sh", "assets.txt"):
             shutil.copy2(RELEASE / name, self.repo / "release" / name)
-        (self.repo / "release" / "build_guide.py").write_text("print('guide built')\n")
+        # Stands in for build_guide.py: logs its arguments, fails under --strict when told the figures are
+        # missing (the real one exits 1 then), and writes the two files unless told not to.
+        (self.repo / "release" / "build_guide.py").write_text(
+            "import os, sys\n"
+            "open(os.environ['GUIDE_LOG'], 'a').write(' '.join(sys.argv[1:]) + '\\n')\n"
+            "if '--strict' in sys.argv and os.environ.get('FAKE_MISSING_FIGURES'):\n"
+            "    sys.stderr.write('!! 6 figure(s) named in guide_content.json have no file\\n'); sys.exit(1)\n"
+            "if not os.environ.get('FAKE_NO_GUIDE_FILES'):\n"
+            "    open('HFStudio-Guide.pdf', 'w').write('pdf')\n"
+            "    open('HFStudio-Guide.md', 'w').write('guide ' + os.environ.get('FAKE_GUIDE_TEXT', 'text') + '\\n')\n")
         (self.repo / "VERSION").write_text("9.9.9")
         self.bin = self.tmp / "bin"
         self.bin.mkdir()
         self.log = self.tmp / "gh.log"
+        self.guide_log = self.tmp / "guide.log"
         shim(self.bin, "gh", 'echo "$*" >> "$GH_LOG"\nexit 0\n')
 
     def guide(self, **extra):
-        env = {k: v for k, v in env_with(self.bin, GH_LOG=str(self.log)).items() if not k.startswith("HFS_")}
+        env = {k: v for k, v in env_with(self.bin, GH_LOG=str(self.log), GUIDE_LOG=str(self.guide_log)).items()
+               if not k.startswith("HFS_")}
         env.update(extra)
         return subprocess.run(["sh", "release/deploy_release.sh", "guide"], cwd=self.repo, env=env,
                               stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60)
@@ -951,6 +971,30 @@ class GuideUploadGateTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(len(self.uploads()), 1)
         self.assertIn("release upload v9.9.9", self.uploads()[0])
+
+    def test_guide_is_built_strictly(self):
+        r = self.guide(HFS_GUIDE_APPROVED="v9.9.9")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.guide_log.read_text().split("\n")[0], "--strict")
+
+    def test_a_guide_with_missing_figures_is_never_uploaded(self):
+        r = self.guide(HFS_GUIDE_APPROVED="v9.9.9", FAKE_MISSING_FIGURES="1")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("figure(s) named in guide_content.json have no file", r.stderr)
+        self.assertEqual(self.uploads(), [])
+
+    def test_a_guide_with_an_em_dash_is_never_uploaded(self):
+        r = self.guide(HFS_GUIDE_APPROVED="v9.9.9", FAKE_GUIDE_TEXT="a " + chr(0x2014) + " b")
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("em dash (U+2014)", r.stderr)
+        self.assertEqual(self.uploads(), [])
+
+    def test_a_scan_that_cannot_read_the_guide_is_a_failure_not_a_pass(self):
+        # grep exits 2 for a missing file; that used to read as "no em dash found".
+        r = self.guide(HFS_GUIDE_APPROVED="v9.9.9", FAKE_NO_GUIDE_FILES="1")
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("could not scan", r.stderr)
+        self.assertEqual(self.uploads(), [])
 
 
 class LaneRunbookTest(unittest.TestCase):
