@@ -279,7 +279,7 @@ public final class AngleCanvas extends Canvas {
                         + "It draws through " + api + ", and this system's graphics would not start it. That usually "
                         + "means the graphics hardware or its driver is too old, or that this is a virtual machine "
                         + "without full graphics support.\n\n"
-                        + "If it happens on a computer you expect to work, please send the log from\n"
+                        + "If it happens on a computer you expect to work, press Report this..., which sends the log with your note, or send the log from\n"
                         + org.helioviewer.jhv.io.Directories.LOGS.getPath() + "\n"
                         + "to gilly@nwra.com or https://github.com/GillySpace27/HelioFITS-Studio/issues");
     }

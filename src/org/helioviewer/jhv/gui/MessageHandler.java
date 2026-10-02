@@ -11,6 +11,7 @@ import javax.swing.JTextArea;
 
 import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.gui.component.HTMLPane;
+import org.helioviewer.jhv.gui.dialog.FeedbackDialog;
 
 final class MessageHandler implements Message.Handler {
 
@@ -148,8 +149,13 @@ final class MessageHandler implements Message.Handler {
             JOptionPane optionPane = new JOptionPane();
             optionPane.setMessage(report == null ? new Object[]{body} : new Object[]{report, body});
             optionPane.setMessageType(type);
-            optionPane.setOptions(new String[]{"Close"});
+            // An error or a warning can be reported from where it is shown (FeedbackDialog); Close stays the default.
+            String[] options = type == JOptionPane.INFORMATION_MESSAGE ? new String[]{"Close"} : new String[]{FeedbackDialog.REPORT_THIS, "Close"};
+            optionPane.setOptions(options);
+            optionPane.setInitialValue(options[options.length - 1]);
             optionPane.createDialog(MainFrame.get(), title).setVisible(true);
+            if (FeedbackDialog.REPORT_THIS.equals(optionPane.getValue()))
+                FeedbackDialog.report(title, text, cause);
         });
     }
 
