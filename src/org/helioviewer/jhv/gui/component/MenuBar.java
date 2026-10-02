@@ -200,12 +200,12 @@ public final class MenuBar extends JMenuBar {
 
         JMenu editMenu = new JMenu("Edit");
         editMenu.setMnemonic(KeyEvent.VK_E);
-        editMenu.add(new Actions.Paste());
+        catalogItem(editMenu, "paste");
         editMenu.addSeparator();
         // Rubbing out what you drew is an edit of the scene, not a way of looking at it. It sat
         // in View because Annotation used to live on the toolbar's More menu and this was the
         // only other place it could be reached from.
-        editMenu.add(new Actions.ClearAnnotations());
+        catalogItem(editMenu, "clearAnnotations");
         add(editMenu);
 
         JMenu viewMenu = new JMenu("View");
