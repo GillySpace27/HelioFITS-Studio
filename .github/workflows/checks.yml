@@ -1,6 +1,7 @@
 name: checks
 
-# The self-checks in extra/test, run on Linux and Windows.
+# The self-checks in extra/test, run on Linux, Windows and macOS, plus the whole offline gate
+# (ant check-all, strict) on Linux, Error Prone, and the repository guards.
 #
 # This exists because nothing had ever run the JPEG 2000 decoder outside macOS. Since Kakadu
 # went, decoding is OpenJPEG called through the foreign function interface, and the libraries
@@ -10,6 +11,10 @@ name: checks
 # One thing a green Windows run does NOT prove: that openjp2.dll loads on a user's machine.
 # Runners carry the Visual C++ runtime and a bare Windows install may not, so the README's
 # warning about it stands whatever this job says.
+#
+# Setup (Temurin 25, ant, the natives we ship) is one composite action:
+# .github/actions/setup-hfstudio. Third-party actions are pinned by full SHA with a version
+# comment; Dependabot (.github/dependabot.yml) proposes the bumps.
 
 on:
   push:
@@ -17,47 +22,41 @@ on:
   pull_request:
   workflow_dispatch:
 
+# A newer push to the same branch or PR makes the older run moot.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   linux:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
-      # Shallow by default, which matters here: the repository packs to roughly 3 GB.
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-java@v5
+      # Full history, but only this commit's files: guards.py diffs against origin/master. The
+      # files are what make the repository about 3 GB, not the history.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
-          distribution: temurin
-          java-version: '25'   # build.xml compiles with release="25"
+          fetch-depth: 0
+          filter: blob:none
 
-      # ant may already be on the image and xvfb probably is; installing both is one line and
-      # costs about twenty seconds, which is cheaper than a first run that fails on a guess.
-      # Trim this once the log shows what the image already had.
-      - name: Install ant and a virtual display
-        run: sudo apt-get update && sudo apt-get install -y ant xvfb
+      # xvfb for the HeadlessException retry in run-checks.sh; glslang-tools for the shaders step;
+      # python3-pil for the ANGLE updater's tests. LD_LIBRARY_PATH points at the natives we ship.
+      - uses: ./.github/actions/setup-hfstudio
+        with:
+          linux-packages: xvfb glslang-tools python3-pil
 
-      # The point of the whole job. OpenJpeg.lookup() knows only macOS paths by default, so on
-      # Linux it falls through to dlopen("libopenjp2.so"). Unpack the natives we actually ship
-      # and put them on the loader's path, so the checks exercise our binary rather than
-      # Debian's packaged OpenJPEG, or nothing at all. JNISpice.so and ANGLE come along for the
-      # checks that reach for them.
-      - name: Unpack the Linux natives we ship
+      # The whole gate, strict: a check that prints SKIP fails here unless extra/test/ci-skips.txt
+      # names it with a reason. ruff comes from pip because the image does not carry it.
+      - name: Run ant check-all (strict)
+        env:
+          CHECKS_STRICT: '1'
         run: |
-          mkdir -p natives
-          unzip -j -o lib/jhv/jhv-natives-linux.jar 'jhv/linux-amd64/*' -d natives
-          ls -l natives
-          echo "LD_LIBRARY_PATH=$PWD/natives" >> "$GITHUB_ENV"
+          python3 -m pip install --quiet --user ruff
+          xvfb-run -a ant check-all
 
-      # extra/run-checks.sh runs each check headless first and retries with a display only when
-      # one throws HeadlessException, so xvfb has to be there for the retry to mean anything.
-      - name: Run the checks
-        run: xvfb-run -a ant test
-
-      # A passing suite is not enough on its own. OpenJpegDecodeCheck and JpipRebuildCheck exit 0
-      # and print SKIPPED when OpenJPEG will not load, and run-checks.sh shows a check's output
-      # only when it fails, so "106 passed" is also what a run that never loaded the decoder looks
-      # like. On CI that skip IS the failure, so run the decode check again where we can see it.
+      # Kept for one release beside the strict gate: OpenJpegDecodeCheck and JpipRebuildCheck exit 0
+      # and print SKIPPED when OpenJPEG will not load, so name the shipped library outright here.
       - name: Prove the decoder actually ran
         run: |
           CP="bin:extra/test-classes:resources:$(find lib -name '*.jar' | tr '\n' ':')"
@@ -73,26 +72,9 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '25'
-
-      - name: Install ant
-        run: choco install -y ant --no-progress
-
-      # Windows resolves a bare DLL name through PATH, which is where LoadLibrary looks, so the
-      # natives go there rather than onto a library path. pwd -W because GITHUB_PATH wants a
-      # Windows path and Git Bash's $PWD is /d/a/... which Windows cannot follow.
-      - name: Unpack the Windows natives we ship
-        shell: bash
-        run: |
-          mkdir -p natives
-          unzip -j -o lib/jhv/jhv-natives-windows.jar 'jhv/windows-amd64/*' -d natives
-          ls -l natives
-          echo "$(pwd -W)/natives" >> "$GITHUB_PATH"
+      - uses: ./.github/actions/setup-hfstudio
 
       # bash rather than PowerShell because ant runs extra/run-checks.sh through <exec
       # executable="sh">, and sh is only on PATH inside Git Bash.
@@ -100,9 +82,9 @@ jobs:
         shell: bash
         run: ant test
 
-      # As on Linux, and more load-bearing here: this is the only step that can tell a working
-      # DLL apart from a missing Visual C++ runtime, because the check itself treats both as a
-      # skip and exits zero. Semicolons because a Windows JVM wants them in a classpath.
+      # The only step that can tell a working DLL apart from a missing Visual C++ runtime, because
+      # the check itself treats both as a skip and exits zero. Semicolons because a Windows JVM
+      # wants them in a classpath.
       - name: Prove the decoder actually ran
         shell: bash
         run: |
@@ -118,11 +100,8 @@ jobs:
   # in one specific way: OpenJpeg.lookup() prefers /opt/homebrew/opt/openjpeg before anything else,
   # so a local run links Homebrew's copy and the dylib that actually ships in the dmg is never
   # exercised. These jobs name the shipped one outright. Intel is here because an Apple Silicon Mac
-  # cannot run jhv-natives-macos.jar at all, and we ship it.
-  #
-  # A matrix because these two are the same job on two architectures; Linux and Windows differ in
-  # install, library path, shell and separator, so folding them in would cost a conditional on
-  # most steps. fail-fast is off so one architecture failing never cancels the other.
+  # cannot run jhv-natives-macos.jar at all, and we ship it. The setup action picks the natives jar
+  # from runner.arch.
   macos:
     name: macos-${{ matrix.arch }}
     strategy:
@@ -131,35 +110,19 @@ jobs:
         include:
           - arch: arm64
             runner: macos-latest
-            jar: jhv-natives-macos-arm64.jar
-            entry: 'jhv/macos-arm64/*'
           # macos-13 was retired and a job asking for it queues silently rather than failing, so
           # it sat five hours without starting. macOS 26 is the last release Apple ships for
           # Intel, so this is the longest-lived x64 label there will be. Not -large: that suffix
           # is a paid larger runner.
           - arch: x64
             runner: macos-26-intel
-            jar: jhv-natives-macos.jar
-            entry: 'jhv/macos-amd64/*'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '25'
-
-      - name: Install ant
-        run: brew install ant
-
-      - name: Unpack the macOS natives we ship
-        run: |
-          mkdir -p natives
-          unzip -j -o lib/jhv/${{ matrix.jar }} '${{ matrix.entry }}' -d natives
-          ls -l natives
+      - uses: ./.github/actions/setup-hfstudio
 
       # This also compiles native/macos/jhv_metal_host.m, which nothing off a Mac ever builds.
       - name: Run the checks
@@ -176,3 +139,36 @@ jobs:
             echo "::error::OpenJPEG did not load from the dylib we ship"
             exit 1
           fi
+
+  # Error Prone 2.50.0 (ant prone, 7 checks off in build.xml). Informational until a baseline of
+  # its upstream warnings is recorded; a red run here does not fail the workflow.
+  prone:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: ./.github/actions/setup-hfstudio
+        with:
+          natives: 'false'
+          linux-packages: ''
+
+      - name: Error Prone
+        run: ant prone
+
+  # The repository guards alone, fast and without a Java build, so a frozen identifier, an added
+  # em dash or a new --clobber shows as its own red line.
+  guards:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Guards
+        run: |
+          python3 extra/ci/guards.py diff --base origin/master
+          python3 extra/ci/guards.py count
