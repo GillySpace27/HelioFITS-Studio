@@ -13,6 +13,13 @@
 - PUNCH frames decode several times faster, with every value unchanged: RHEF works directly on the half-float image and sorts and ranks each ring with less work, and PUNCH's compressed tiles are unpacked by the app's own fast decoder. A first pass through a 4096 x 4096 PUNCH movie with RHEF and two LASCO layers now keeps up with 30 frames a second
 - A movie plays at the rate set under Play. The clock used to schedule each frame from when the previous one actually fired, so every late frame delayed the rest, and 34 frames a second played at about 30. A Clock switch under Play keeps the old clock (Swing timer) for comparison with the new one (Fixed rate)
 
+### Undo and redo
+- Edit > Undo and Edit > Redo (Cmd-Z and Shift-Cmd-Z), and Undo and Redo buttons at the left of the toolbar. The menu names the step, such as "Undo Levels change" or "Undo Colormap change"
+- A layer's colormap, Levels and other display settings, its filter, showing or hiding it, adding or removing a layer, the grid, the camera's settings, the projection, annotations, and the playback and recording settings can be undone. A drag is one step, taken when the mouse is released, and edits made in quick succession are one step. Up to 50 steps are kept
+- Undoing a display change keeps the loaded movie; nothing is downloaded or read again. Undoing the removal of a layer reads its files back from the cache
+- Not undone: changing what a layer loads (its time range, cadence or dataset), the master time range, timelines and automation tracks, PFSS, event, point-cloud and model layers, and panning or zooming the view
+- Opening a session, Start New Session and Revert to Saved start a new history. While you are typing in a text field, Cmd-Z belongs to the field
+
 ### Sidebars
 - Dragging either sidebar's edge resizes it. The width changed underneath but the layout did not follow, except when something unrelated happened to refresh it
 
