@@ -16,6 +16,7 @@ import org.helioviewer.jhv.app.Theme;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.HdrGain;
+import org.helioviewer.jhv.gui.ActionCatalog;
 import org.helioviewer.jhv.gui.Actions;
 import org.helioviewer.jhv.gui.DesktopIntegration;
 import org.helioviewer.jhv.gui.PresentationMode;
@@ -145,28 +146,43 @@ public final class MenuBar extends JMenuBar {
         return comp;
     }
 
+    // The catalogued action for an id (HS-8). An unknown id is a programming error, caught by
+    // ActionCatalogCheck, which reads every id this file names.
+    private static javax.swing.Action catalogAction(String id) {
+        ActionCatalog.Entry entry = ActionCatalog.get(id);
+        if (entry == null)
+            throw new IllegalStateException("no catalogued action " + id);
+        return entry.action();
+    }
+
+    // A catalogued action as a menu item named by its id, so ActionCatalog.find, help search and tours reach it.
+    private static JMenuItem catalogItem(JMenu menu, String id) {
+        JMenuItem item = menu.add(catalogAction(id));
+        item.setName(id);
+        return item;
+    }
+
     public MenuBar(ToolBar toolBar, StatusPanel statusPanel) {
         JMenu fileMenu = new JMenu("File");
         fileMenu.setMnemonic(KeyEvent.VK_F);
         // The layer-creation items upstream keeps here live in the Layers menu below.
-        fileMenu.add(new Actions.NewSession());
-        fileMenu.add(new Actions.LoadState());
+        catalogItem(fileMenu, "newSession");
+        catalogItem(fileMenu, "openSession");
         fileMenu.add(buildOpenRecentMenu());
-        fileMenu.add(new Actions.CloseWindow());
+        catalogItem(fileMenu, "closeWindow");
         fileMenu.addSeparator();
-        fileMenu.add(new Actions.SaveState());
-        fileMenu.add(new Actions.SaveStateAs());
-        fileMenu.add(new Actions.RevertToSaved());
+        catalogItem(fileMenu, "saveSession");
+        catalogItem(fileMenu, "saveSessionAs");
+        catalogItem(fileMenu, "revertToSaved");
         fileMenu.addSeparator();
-        fileMenu.add(new Actions.SetDefaultSession());
-        fileMenu.add(new Actions.ClearDefaultSession());
+        catalogItem(fileMenu, "setDefaultSession");
+        catalogItem(fileMenu, "clearDefaultSession");
         fileMenu.addSeparator();
-        fileMenu.add(new Actions.ReloadSources());
-        fileMenu.add(new Actions.CopyProvenance());
+        catalogItem(fileMenu, "reloadSources");
+        catalogItem(fileMenu, "copyProvenance");
         if (!Platform.isMacOS())
-            fileMenu.add(new Actions.NewWindow()); // no Window menu off macOS
+            catalogItem(fileMenu, "newWindow"); // no Window menu off macOS
 
-        Actions.ExitProgram exitAction = new Actions.ExitProgram();
         if (Platform.isMacOS()) {
             // Honor the quit response so a cancelled quit reports back to macOS as refused
             // ("<app> blocked shutdown") instead of hanging or forcing.
@@ -178,7 +194,7 @@ public final class MenuBar extends JMenuBar {
             });
         } else {
             fileMenu.addSeparator();
-            fileMenu.add(exitAction);
+            catalogItem(fileMenu, "quit");
         }
         add(fileMenu);
 
@@ -513,7 +529,7 @@ public final class MenuBar extends JMenuBar {
                 for (String path : recents)
                     recent.add(new javax.swing.JMenuItem(new Actions.OpenRecent(new java.io.File(path))));
                 recent.addSeparator();
-                recent.add(new javax.swing.JMenuItem(new Actions.ClearRecents()));
+                catalogItem(recent, "clearRecents");
             }
 
             @Override public void menuDeselected(javax.swing.event.MenuEvent e) {}
