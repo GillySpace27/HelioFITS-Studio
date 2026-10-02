@@ -6,6 +6,7 @@
 #   ./deploy_release.sh publish   # repackage + tag + create the GitHub release (outward)
 #   ./deploy_release.sh publish --dry-run  # publish's checks and the gate text; tags, pushes, uploads nothing
 #   ./deploy_release.sh notarize  # build a signed + notarized + stapled macOS .app/.dmg (Gatekeeper-clean)
+#   ./deploy_release.sh notarize-resume  # finish the submission recorded in release/.notarize-pending*.json
 #   ./deploy_release.sh assets [local|ci|all]  # the release's asset names, from release/assets.txt
 #
 # The `notarize` mode needs an Apple Developer ID cert + a notarytool keychain
@@ -471,6 +472,9 @@ case "$MAC_ARCH" in
     *) echo "!! MAC_ARCH must be arm64 or x64, not '$MAC_ARCH'" >&2; exit 2 ;;
 esac
 DMG_INTEL="$HERE/$TOP-intel.dmg"   # publish attaches it when it exists, whichever MAC_ARCH is set
+# The submission in flight for this MAC_ARCH: written by notarize, read by notarize-resume, never
+# removed by a script (git-ignored; the next submission for the same arch replaces it).
+PENDING="$HERE/.notarize-pending.json"; [ "$MAC_ARCH" = x64 ] && PENDING="$HERE/.notarize-pending-intel.json"
 # ARCH_RES is the resource path AngleLibraries extracts the dylib from.
 DYLIB="lib/natives-macos/libjhvmetalhost.dylib"
 
@@ -571,6 +575,166 @@ sign_jar_natives() {
         done || exit 1
         rm -rf "$_d"
     done
+}
+
+# ---- notarization that cannot lie ------------------------------------------------------------
+# 2026-09-23: `submit --wait` died mid-upload after printing an id, and a watcher read "does not
+# exist" as "still queued" for 13 hours. So the submission runs without --wait and is believed only
+# when notarytool says "Successfully uploaded file"; its id goes into a pending receipt; then
+# `notarytool info` is polled every HFS_NOTARY_POLL_SECS (30) within HFS_NOTARY_LIMIT_SECS (600,
+# the old --wait alarm). Accepted continues; Invalid or Rejected saves Apple's log and fails;
+# "does not exist" is re-polled once after HFS_NOTARY_REPOLL_SECS (60, an estimate) and then fails.
+# notarize-resume picks a pending id up again. HFS_NOTARY_WAIT=1 keeps the old --wait path for one
+# release. The JSON field names (id, message, status) are notarytool's --output-format json names
+# as documented, not yet seen in a real run here: pin them against the first real
+# .notarize-submit.json and .notarize-info.json (RELEASING.md step 4).
+NOTARY_POLL_SECS="${HFS_NOTARY_POLL_SECS:-30}"
+NOTARY_REPOLL_SECS="${HFS_NOTARY_REPOLL_SECS:-60}"
+NOTARY_LIMIT_SECS="${HFS_NOTARY_LIMIT_SECS:-600}"
+
+# One top-level field of the JSON object on stdin, or nothing.
+json_field() {
+    python3 -c 'import json, sys
+try:
+    print(json.loads(sys.stdin.read()).get(sys.argv[1], ""))
+except Exception:
+    print("")' "$1"
+}
+
+# notarytool reports a locked screen as a missing profile (2026-09-18): name the real cause.
+notary_explain() {
+    if grep -qs 'No Keychain password item found' "$@"; then
+        echo "!! screen locked? notarytool cannot read its keychain profile while the screen is locked; unlock and rerun (2026-09-18)" >&2
+    fi
+}
+
+# Upload $DMG without waiting, and record the submission in $PENDING once the upload is complete.
+notary_submit() {
+    echo "==> submitting ${DMG##*/} to Apple (no --wait; the id is recorded before polling)"
+    if ! perl -e 'alarm shift; exec @ARGV' 600 \
+            xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --output-format json \
+            > "$HERE/.notarize-submit.json" 2> "$HERE/.notarize-submit.err"; then
+        notary_explain "$HERE/.notarize-submit.err" "$HERE/.notarize-submit.json"
+        echo "!! notarytool submit failed; its output is in release/.notarize-submit.err. Nothing is pending: rerun notarize." >&2
+        exit 1
+    fi
+    _id="$(json_field id < "$HERE/.notarize-submit.json")"
+    _msg="$(json_field message < "$HERE/.notarize-submit.json")"
+    [ -n "$_id" ] || { echo "!! notarytool submit printed no id; see release/.notarize-submit.json" >&2; exit 1; }
+    case "$_msg" in
+        *"Successfully uploaded"*) ;;
+        *) echo "!! submission $_id reports '$_msg', not 'Successfully uploaded file': an id alone does not mean the upload finished (2026-09-23). Rerun notarize." >&2
+           exit 1 ;;
+    esac
+    cat > "$PENDING" <<EOF
+{
+  "submission_id": "$_id",
+  "dmg_sha256": "$(shasum -a 256 "$DMG" | awk '{print $1}')",
+  "build_sha": "$(cd "$SRC" && git rev-parse HEAD)",
+  "arch": "$MAC_ARCH",
+  "submitted_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+EOF
+    echo "   submitted $_id; pending receipt ${PENDING##*/}"
+}
+
+# Poll submission $1 until Apple accepts it (return 0) or the answer is a failure (exit 1).
+notary_poll() {
+    _id="$1"; _waited=0; _missing=0
+    while :; do
+        perl -e 'alarm shift; exec @ARGV' 60 \
+            xcrun notarytool info "$_id" --keychain-profile "$NOTARY_PROFILE" --output-format json \
+            > "$HERE/.notarize-info.json" 2> "$HERE/.notarize-info.err" || true
+        _status="$(json_field status < "$HERE/.notarize-info.json")"
+        case "$_status" in
+            Accepted)
+                echo "   $_id: Accepted"
+                return 0 ;;
+            Invalid|Rejected)
+                perl -e 'alarm shift; exec @ARGV' 120 \
+                    xcrun notarytool log "$_id" --keychain-profile "$NOTARY_PROFILE" "$HERE/.notarize-log-$_id.json" \
+                    > /dev/null 2>&1 || true
+                echo "!! submission $_id is $_status; Apple's log: release/.notarize-log-$_id.json" >&2
+                exit 1 ;;
+            "In Progress")
+                _missing=0 ;;
+            *)
+                if grep -qsi 'does not exist' "$HERE/.notarize-info.err" "$HERE/.notarize-info.json"; then
+                    if [ "$_missing" = 1 ]; then
+                        echo "!! submission $_id does not exist, after a re-poll: the upload never completed (2026-09-23). Rerun ./deploy_release.sh notarize." >&2
+                        exit 1
+                    fi
+                    _missing=1
+                    echo "   $_id: does not exist; one re-poll in ${NOTARY_REPOLL_SECS}s"
+                    sleep "$NOTARY_REPOLL_SECS"; _waited=$((_waited + NOTARY_REPOLL_SECS))
+                    continue
+                fi
+                notary_explain "$HERE/.notarize-info.err"
+                echo "!! notarytool info $_id gave no status (release/.notarize-info.err). ${PENDING##*/} stays; rerun ./deploy_release.sh notarize-resume." >&2
+                exit 1 ;;
+        esac
+        if [ "$_waited" -ge "$NOTARY_LIMIT_SECS" ]; then
+            echo "!! $_id is still In Progress after ${_waited}s. ${PENDING##*/} stays; run ./deploy_release.sh notarize-resume later." >&2
+            exit 1
+        fi
+        echo "   $_id: In Progress (${_waited}s)"
+        sleep "$NOTARY_POLL_SECS"; _waited=$((_waited + NOTARY_POLL_SECS))
+    done
+}
+
+# Staple, validate and write the receipt for the dmg built from commit $1. Shared by notarize and
+# notarize-resume.
+staple_and_receipt() {
+    echo "==> stapling the ticket"
+    # Stapling downloads the ticket from Apple's CloudKit, which can hang for minutes even
+    # after the submission is Accepted. Guard each attempt with perl's alarm (no `timeout` on
+    # macOS) so a stuck CloudKit call is killed and retried; the ticket already exists server-side.
+    _stapled=0
+    for _s in 1 2 3 4 5; do
+        if perl -e 'alarm shift; exec @ARGV' 50 xcrun stapler staple "$DMG" 2>&1 | tail -1 | grep -qi 'worked'; then _stapled=1; break; fi
+        echo "   staple attempt $_s failed (network/hang?); retrying in 10s..."; sleep 10
+    done
+    [ "$_stapled" = 1 ] || { echo "!! stapling kept failing. The dmg IS notarized; re-run just:  xcrun stapler staple \"$DMG\""; exit 1; }
+
+    echo "==> verifying"
+    xcrun stapler validate "$DMG"
+    spctl -a -t open --context context:primary-signature -vv "$DMG" || true
+
+    # Receipt: this dmg, by content hash, came out of a run that stapled AND validated.
+    # The tracker needs a way to assert "this exact file is the notarized one" without
+    # re-running `stapler validate`, which talks to Apple's CloudKit and is wildly
+    # non-deterministic: measured 0.3s cached, 30s warm, and 60s-then-exit-68 cold on
+    # 2026-08-23. A check that intermittently calls a good dmg unnotarized is one you
+    # learn to ignore. Everything above this line ran under `set -e`, so reaching here
+    # means the staple and the validate both succeeded.
+    cat > "$RECEIPT" <<EOF
+{
+  "dmg_sha256": "$(shasum -a 256 "$DMG" | awk '{print $1}')",
+  "build_sha": "$1",
+  "build_revision": "$(cd "$SRC" && git rev-list --count "$1")",
+  "notarized_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+EOF
+    echo "==> receipt written: ${RECEIPT##*/}"
+}
+
+# Finish a notarization recorded in $PENDING: after a crash, a locked screen, or a poll that ran out
+# of time. Refuses (exit 2) unless the dmg is the exact file that was submitted.
+notarize_resume() {
+    : "${NOTARY_PROFILE:=jhv-notary}"
+    [ -f "$PENDING" ] || { echo "!! no ${PENDING##*/}: nothing is pending for MAC_ARCH=$MAC_ARCH; run notarize" >&2; exit 2; }
+    _id="$(receipt_key "$PENDING" submission_id)"
+    _want="$(receipt_key "$PENDING" dmg_sha256)"
+    _built="$(receipt_key "$PENDING" build_sha)"
+    [ -n "$_id" ] && [ -n "$_want" ] && [ -n "$_built" ] \
+        || { echo "!! ${PENDING##*/} lacks submission_id, dmg_sha256 or build_sha" >&2; exit 2; }
+    [ -f "$DMG" ] || { echo "!! no ${DMG##*/}: submission $_id was for a dmg that is not here" >&2; exit 2; }
+    _have="$(shasum -a 256 "$DMG" | awk '{print $1}')"
+    [ "$_have" = "$_want" ] \
+        || { echo "!! ${DMG##*/} changed since submission $_id (sha256 $_have, submitted $_want); run notarize again" >&2; exit 2; }
+    echo "==> resuming notarization $_id for ${DMG##*/}"
+    notary_poll "$_id"
+    staple_and_receipt "$_built"
 }
 
 notarize_mac() {
@@ -710,42 +874,18 @@ if got != want:
     done
     [ "$dmg_signed" = 1 ] || echo "   continuing without a dmg signature (not required for notarization)"
 
-    echo "==> notarizing (this waits for Apple; usually a few minutes)"
-    # macOS has no `timeout(1)`; perl's alarm is always present. Guard the wait so a hung
-    # connection to Apple fails the attempt instead of blocking forever.
-    perl -e 'alarm shift; exec @ARGV' 600 \
-        xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
-    echo "==> stapling the ticket"
-    # Stapling downloads the ticket from Apple's CloudKit, which can hang for minutes even
-    # after the submission is Accepted. Guard each attempt with perl's alarm (no `timeout` on
-    # macOS) so a stuck CloudKit call is killed and retried; the ticket already exists server-side.
-    _stapled=0
-    for _s in 1 2 3 4 5; do
-        if perl -e 'alarm shift; exec @ARGV' 50 xcrun stapler staple "$DMG" 2>&1 | tail -1 | grep -qi 'worked'; then _stapled=1; break; fi
-        echo "   staple attempt $_s failed (network/hang?); retrying in 10s..."; sleep 10
-    done
-    [ "$_stapled" = 1 ] || { echo "!! stapling kept failing. The dmg IS notarized; re-run just:  xcrun stapler staple \"$DMG\""; exit 1; }
-
-    echo "==> verifying"
-    xcrun stapler validate "$DMG"
-    spctl -a -t open --context context:primary-signature -vv "$DMG" || true
-
-    # Receipt: this dmg, by content hash, came out of a run that stapled AND validated.
-    # The tracker needs a way to assert "this exact file is the notarized one" without
-    # re-running `stapler validate`, which talks to Apple's CloudKit and is wildly
-    # non-deterministic: measured 0.3s cached, 30s warm, and 60s-then-exit-68 cold on
-    # 2026-08-23. A check that intermittently calls a good dmg unnotarized is one you
-    # learn to ignore. Everything above this line ran under `set -e`, so reaching here
-    # means the staple and the validate both succeeded.
-    cat > "$RECEIPT" <<EOF
-{
-  "dmg_sha256": "$(shasum -a 256 "$DMG" | awk '{print $1}')",
-  "build_sha": "$(cd "$SRC" && git rev-parse HEAD)",
-  "build_revision": "$(cd "$SRC" && git rev-list --count HEAD)",
-  "notarized_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-}
-EOF
-    echo "==> receipt written: ${RECEIPT##*/}"
+    if [ "${HFS_NOTARY_WAIT:-}" = 1 ]; then
+        # The path before submissions were recorded, kept for one release in case polling misreads Apple.
+        echo "==> notarizing with submit --wait (HFS_NOTARY_WAIT=1)"
+        # macOS has no `timeout(1)`; perl's alarm is always present. Guard the wait so a hung
+        # connection to Apple fails the attempt instead of blocking forever.
+        perl -e 'alarm shift; exec @ARGV' 600 \
+            xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
+    else
+        notary_submit
+        notary_poll "$(receipt_key "$PENDING" submission_id)"
+    fi
+    staple_and_receipt "$(cd "$SRC" && git rev-parse HEAD)"
 
     rm -rf "$APPSTAGE" "$OUT"
     echo "==> done: $DMG  ($(du -h "$DMG" | awk '{print $1}'))"
@@ -759,6 +899,7 @@ case "$MODE" in
               if [ -n "$DRY_RUN" ]; then dry_run_report; exit 0; fi
               build_guide; repackage; publish ;;
     notarize) notarize_mac ;;
+    notarize-resume) notarize_resume ;;
     assets)   case "${2:-all}" in local|ci|all) asset_names "${2:-all}" ;; *) echo "usage: $0 assets [local|ci|all]" >&2; exit 2 ;; esac ;;
-    *) echo "usage: $0 {package|guide|publish [--dry-run]|notarize|assets [local|ci|all]}"; exit 2 ;;
+    *) echo "usage: $0 {package|guide|publish [--dry-run]|notarize|notarize-resume|assets [local|ci|all]}"; exit 2 ;;
 esac

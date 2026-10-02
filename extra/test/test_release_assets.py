@@ -410,5 +410,132 @@ class VerifySignaturesTest(unittest.TestCase):
         self.assertIn("no Mach-O found", r.stderr)
 
 
+@unittest.skipIf(os.name == "nt", "SKIP: needs a POSIX sh and executable shims")
+class NotarizeResumeTest(unittest.TestCase):
+    """deploy_release.sh notarize-resume in a throwaway repository with xcrun and spctl replaced.
+
+    The fake notarytool answers `info` according to FAKE_INFO: accepted, invalid, progress, missing
+    (the 2026-09-23 "does not exist") or locked (the 2026-09-18 keychain message).
+    """
+
+    V = "9.9.9"
+    ZEROS = "00000000-0000-0000-0000-000000000000"
+
+    def git(self, *args):
+        return subprocess.run([*GIT, *args], cwd=self.repo, capture_output=True, text=True,
+                              check=True, timeout=60).stdout.strip()
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="hfs-resume-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.repo = self.tmp / "repo"
+        (self.repo / "release").mkdir(parents=True)
+        for name in ("deploy_release.sh", "assets.txt"):
+            shutil.copy2(RELEASE / name, self.repo / "release" / name)
+        (self.repo / "VERSION").write_text(self.V)
+        self.git("init", "-q", "-b", "master")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "built")
+        self.built = self.git("rev-parse", "HEAD")
+        self.git("commit", "-q", "--allow-empty", "-m", "a later commit, so HEAD is not the build")
+        self.dmg = self.repo / "release" / f"HFStudio-{self.V}.dmg"
+        self.dmg.write_bytes(b"the submitted dmg")
+        self.pending = self.repo / "release" / ".notarize-pending.json"
+        self.write_pending(self.ZEROS)
+        self.bin = self.tmp / "bin"
+        self.bin.mkdir()
+        self.log = self.tmp / "xcrun.log"
+        shim(self.bin, "xcrun", 'echo "$*" >> "$XCRUN_LOG"\n'
+             'case "$1 $2" in\n'
+             '  "notarytool info") case "$FAKE_INFO" in\n'
+             '      accepted) echo "{\\"id\\": \\"$3\\", \\"status\\": \\"Accepted\\"}" ;;\n'
+             '      invalid)  echo "{\\"id\\": \\"$3\\", \\"status\\": \\"Invalid\\"}" ;;\n'
+             '      progress) echo "{\\"id\\": \\"$3\\", \\"status\\": \\"In Progress\\"}" ;;\n'
+             '      missing)  echo "Error: Submission does not exist or does not belong to your team." >&2; exit 69 ;;\n'
+             '      locked)   echo "Error: No Keychain password item found for profile: jhv-notary" >&2; exit 69 ;;\n'
+             '    esac ;;\n'
+             '  "notarytool log") echo "{\\"issues\\": []}" > "$6" ;;\n'
+             '  "stapler staple") echo "The staple and validate action worked!" ;;\n'
+             '  "stapler validate") echo "The validate action worked!" ;;\n'
+             '  *) exit 3 ;;\n'
+             'esac\n')
+        shim(self.bin, "spctl", "exit 0\n")
+        if not shutil.which("shasum"):
+            shim(self.bin, "shasum", '[ "$1" = -a ] && shift 2\nexec sha256sum "$@"\n')
+
+    def write_pending(self, sub_id, sha=None):
+        self.pending.write_text(json.dumps({
+            "submission_id": sub_id,
+            "dmg_sha256": sha or hashlib.sha256(self.dmg.read_bytes()).hexdigest(),
+            "build_sha": self.built, "arch": "arm64", "submitted_at": "2026-10-01T00:00:00Z"}))
+
+    def resume(self, info, **extra):
+        env = env_with(self.bin, XCRUN_LOG=str(self.log), FAKE_INFO=info, HFS_NOTARY_POLL_SECS="0",
+                       HFS_NOTARY_REPOLL_SECS="0", **extra)
+        return subprocess.run(["sh", "release/deploy_release.sh", "notarize-resume"], cwd=self.repo,
+                              env=env, capture_output=True, text=True, timeout=120)
+
+    def info_calls(self):
+        return [l for l in self.log.read_text().splitlines() if l.startswith("notarytool info")]
+
+    def test_zero_id_that_does_not_exist_fails_after_one_repoll(self):
+        r = self.resume("missing")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn(f"submission {self.ZEROS} does not exist, after a re-poll", r.stderr)
+        self.assertIn("2026-09-23", r.stderr)
+        self.assertEqual(len(self.info_calls()), 2)
+        self.assertTrue(self.pending.exists(), "the pending receipt was removed")
+        self.assertFalse((self.repo / "release" / ".notarize-run.json").exists())
+
+    def test_changed_dmg_is_refused(self):
+        self.write_pending(self.ZEROS, sha="0" * 64)
+        r = self.resume("accepted")
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("changed since submission", r.stderr)
+        self.assertFalse(self.log.exists(), "Apple was asked about a dmg that is not the one submitted")
+
+    def test_nothing_pending_is_refused(self):
+        self.pending.unlink()
+        r = self.resume("accepted")
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("nothing is pending", r.stderr)
+
+    def test_accepted_staples_and_writes_the_receipt_for_the_submitted_commit(self):
+        r = self.resume("accepted")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        receipt = json.loads((self.repo / "release" / ".notarize-run.json").read_text())
+        self.assertEqual(receipt["dmg_sha256"], hashlib.sha256(self.dmg.read_bytes()).hexdigest())
+        self.assertEqual(receipt["build_sha"], self.built, "the receipt names HEAD, not the submitted build")
+        self.assertIn(f"stapler staple {self.dmg}", self.log.read_text())
+
+    def test_invalid_saves_apples_log_and_fails(self):
+        r = self.resume("invalid")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn(f"submission {self.ZEROS} is Invalid", r.stderr)
+        self.assertTrue((self.repo / "release" / f".notarize-log-{self.ZEROS}.json").exists())
+
+    def test_locked_screen_is_named(self):
+        r = self.resume("locked")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("screen locked? ", r.stderr)
+
+    def test_still_in_progress_keeps_the_pending_receipt(self):
+        r = self.resume("progress", HFS_NOTARY_LIMIT_SECS="0")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("is still In Progress", r.stderr)
+        self.assertTrue(self.pending.exists())
+
+
+class NotarizeSubmitShapeTest(unittest.TestCase):
+    def test_submit_no_longer_waits_by_default(self):
+        body = notarize_body()
+        self.assertIn('if [ "${HFS_NOTARY_WAIT:-}" = 1 ]; then', body)
+        self.assertIn("notary_submit", body)
+        self.assertIn('staple_and_receipt "$(cd "$SRC" && git rev-parse HEAD)"', body)
+        text = (RELEASE / "deploy_release.sh").read_text()
+        self.assertIn("--output-format json", text)
+        self.assertIn("notarize-resume) notarize_resume ;;", text)
+
+
 if __name__ == "__main__":
     unittest.main()
