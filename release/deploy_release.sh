@@ -79,7 +79,7 @@ ASSETS_FILE="$HERE/assets.txt"
 
 build_guide() {
     echo "==> regenerating guide (PDF + MD)"
-    ( cd "$HERE" && python3 build_guide.py )
+    ( cd "$HERE" && python3 build_guide.py "$@" )
 }
 
 repackage() {
@@ -897,7 +897,7 @@ case "$MODE" in
     guide)    build_guide; upload_guide_only ;;
     publish)  preflight_publish
               if [ -n "$DRY_RUN" ]; then dry_run_report; exit 0; fi
-              build_guide; repackage; publish ;;
+              build_guide --strict; repackage; publish ;;
     notarize) notarize_mac ;;
     notarize-resume) notarize_resume ;;
     assets)   case "${2:-all}" in local|ci|all) asset_names "${2:-all}" ;; *) echo "usage: $0 assets [local|ci|all]" >&2; exit 2 ;; esac ;;

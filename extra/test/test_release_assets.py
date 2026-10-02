@@ -626,5 +626,51 @@ class TrackerTest(unittest.TestCase):
             self.assertNotIn(gone, text)
 
 
+class GuideStrictTest(unittest.TestCase):
+    """build_guide.py --strict in a copy of release/, so the real guide_assets/ is never touched."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="hfs-guide-strict-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.rel = self.tmp / "release"
+        shutil.copytree(RELEASE / "guide_assets", self.rel / "guide_assets")
+        for name in ("build_guide.py", "guide_content.json", "deploy_release.sh"):
+            shutil.copy2(RELEASE / name, self.rel / name)
+        shutil.copy2(ROOT / "VERSION", self.tmp / "VERSION")
+        blocks = json.loads((RELEASE / "guide_content.json").read_text())["blocks"]
+        self.figures = [b["file"] for b in blocks if b.get("kind") == "figure"]
+
+    def strict(self):
+        return subprocess.run(["python3", "build_guide.py", "--strict"], cwd=self.rel,
+                              capture_output=True, text=True, timeout=300)
+
+    def test_strict_names_every_missing_figure(self):
+        gone = self.figures[-1]
+        if (self.rel / "guide_assets" / gone).exists():
+            (self.rel / "guide_assets" / gone).unlink()
+        missing = [f for f in self.figures if not (self.rel / "guide_assets" / f).exists()]
+        r = self.strict()
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        for name in missing:
+            self.assertIn(f"missing figure: guide_assets/{name}", r.stderr)
+        self.assertIn(f"!! {len(missing)} figure(s) named in guide_content.json have no file", r.stderr)
+        self.assertFalse((self.rel / "HFStudio-Guide.pdf").exists(), "strict mode built a guide anyway")
+
+    def test_strict_lets_a_complete_guide_through(self):
+        sample = next(p for p in (self.rel / "guide_assets").glob("*.png"))
+        for name in self.figures:
+            if not (self.rel / "guide_assets" / name).exists():
+                shutil.copy2(sample, self.rel / "guide_assets" / name)
+        r = self.strict()
+        self.assertNotIn("missing figure", r.stderr)
+        if r.returncode != 0:   # the build itself needs reportlab, which a CI runner may lack
+            self.assertIn("No module named 'reportlab'", r.stderr)
+
+    def test_publish_builds_the_guide_strictly_and_package_does_not(self):
+        text = (RELEASE / "deploy_release.sh").read_text()
+        self.assertIn("              build_guide --strict; repackage; publish ;;", text)
+        self.assertIn("    package)  build_guide; repackage ;;", text)
+
+
 if __name__ == "__main__":
     unittest.main()
