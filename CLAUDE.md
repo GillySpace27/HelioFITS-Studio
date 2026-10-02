@@ -31,7 +31,7 @@ Java 25 and Apache Ant. `notarize` needs Temurin 25, not Homebrew `openjdk@25` (
 
 ```sh
 ant jar                    # kernels, compile (-Xlint:all), build-metal-host on macOS, HFStudio.jar
-ant test                   # compile, then extra/run-checks.sh; last line "checks: N passed, 0 failed"
+ant test                   # compile, then extra/run-checks.sh; last line "checks: P passed, F failed, S skipped"
 ant prone                  # Error Prone, run by hand
 python3 extra/test/run_tests.py              # legacy suites: maintenance model j2k timelines event
 python3 -m unittest discover -s extra/ffmpeg
@@ -56,6 +56,29 @@ once before making it pass. Fixtures go in `extra/test/data/` with a row in its 
 
 `ant clean` deletes `lib/natives-macos/libjhvmetalhost.dylib`, which is tracked: `ant jar` rebuilds
 it on macOS. Never commit a changed copy (see "Must-nots").
+
+### The gate: `ant check-all`
+
+- `ant test` runs every `extra/test/*Check.java` (unchanged). `ant check-all` is the pre-release
+  gate: the checks, the legacy `run_tests.py` suites, the GLSL validator, the ffmpeg, ANGLE and
+  licence unit tests, `update_ffmpeg.py --check`, `sync_licenses.py --check`, `ruff check .` and
+  `extra/ci/guards.py`. Offline. One line per step (`check-all: <step>: ok|FAIL|SKIPPED: <reason>`),
+  then `check-all: N ok, F failed, S skipped`. Logs in `extra/test-classes/logs/`.
+- `ant check-wcs` runs the WCS validator suite (needs astropy); it is not part of the gate.
+- SKIP convention: a check that cannot run prints a line containing `SKIP` (`SKIP: <reason>` or
+  `<Name>: SKIPPED`) and exits 0. It is counted as skipped, never as passed. `CHECKS_STRICT=1`
+  fails any skip not listed in `extra/test/ci-skips.txt` (`ClassName reason words`). A check that
+  returns early without saying SKIP proves nothing; do not write one.
+- Legacy harnesses that are red for a recorded reason are listed under `## Known red` in
+  `extra/test/LEGACY.md` and reported as SKIPPED. Fix or list; never rename, move or delete one.
+- `python3 extra/ci/guards.py count` must stay green: no new `catch (Exception|Throwable` without a
+  narrower type, no new `System.out`/`System.err` prints, no new em dashes and no new non-final
+  static fields in `src/`. When you remove some, lower `extra/ci/ratchet.json` with
+  `python3 extra/ci/guards.py count --update`; never raise it.
+- `python3 extra/ci/guards.py diff` fails a change that adds an em dash, alters the Main-Class,
+  `Directories.NAME` or `BUNDLE_ID`, brings a `*kdu*` file back under `lib/`, loses
+  `resources/licenses/FFmpeg-Notices.txt` or `GPL-3.0.txt`, or adds `--clobber` outside
+  `upload_guide_only()`.
 
 ## Running the dev build safely
 
@@ -155,6 +178,21 @@ Read results with `gh run list --repo GillySpace27/HelioFITS-Studio --branch <br
 Timing convention (7671c40d9): CI runners' clocks are too coarse to judge rates, so a wall-clock rate
 assertion runs only where the `CI` environment variable is unset and prints a skip line otherwise
 (`FixedRateTimerCheck`). Every other assertion runs everywhere.
+
+- `checks.yml`: Linux runs `CHECKS_STRICT=1 ant check-all`; Windows and both macOS architectures
+  run `ant test` and prove the shipped OpenJPEG loads; `prone` (Error Prone) is informational;
+  `guards` runs `extra/ci/guards.py` alone. `launch.yml` starts the app and judges a screenshot.
+  `package.yml` attaches packages to real releases on `release: published`: change it only on a
+  branch and test it only with `workflow_dispatch` and no tag, with Gilly's yes.
+- Setup is `uses: ./.github/actions/setup-hfstudio` (Temurin 25, ant, the shipped natives); the
+  Windows screen resize is `extra/ci/set-resolution.ps1`. New steps call the action instead of
+  repeating setup.
+- Third-party actions are pinned by full SHA with a `# vX.Y.Z` comment; Dependabot proposes bumps
+  weekly. Pin a new action the same way (`git ls-remote --tags https://github.com/<owner>/<action>`).
+- CI timing convention: a check that asserts a rate or a duration reads `System.getenv("CI")` first
+  and, on a runner, prints a lowercase `skip` line for that one assertion instead of asserting
+  (FixedRateTimerCheck.java:45-48). Uppercase `SKIP` would mark the whole check skipped.
+- Every push starts CI and needs Gilly's yes, per push.
 
 ## Session state (-state)
 

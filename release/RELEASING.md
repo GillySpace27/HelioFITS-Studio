@@ -182,6 +182,18 @@ MacAngleBridge` (2026-08-18, below). In this repository's `build.xml`, `jar`
 depends on `build-metal-host`, so `ant clean jar` produces the dylib as well;
 naming the target explicitly costs nothing.
 
+Then run the gate (it compiles again; nothing is packaged):
+
+```sh
+ant check-all
+```
+
+Every step prints one line, `check-all: <step>: ok|FAIL|SKIPPED: <reason>`, and the last line
+must read `check-all: N ok, 0 failed, S skipped`. Read every SKIPPED line: it names what could
+not run here (glslangValidator, ruff, a check that printed SKIP). Install what is missing and
+rerun rather than ship past it. `ant test` alone is not the gate: it runs only the `*Check`
+classes.
+
 Confirm the jar records the commit you just pushed:
 
 ```sh
