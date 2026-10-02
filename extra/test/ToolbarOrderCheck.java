@@ -25,16 +25,16 @@ public final class ToolbarOrderCheck {
     private static final Set<String> KNOWN = Set.of("present", "zoomIn", "zoomOut", "grid", "more");
 
     private static List<String> resolve(String stored) {
-        return ToolBar.resolveOrder(stored, KNOWN);
+        return ToolbarOrder.resolveOrder(stored, KNOWN);
     }
 
     public static void main(String[] args) {
         List<String> fallback = resolve(null);
         expect("no stored order falls back to the default", fallback.equals(resolve("")));
         expect("and the default is the bar as it has always been, minus what this check pretends exists",
-                fallback.equals(List.of("present", ToolBar.SEPARATOR, "zoomIn", "zoomOut",
-                        ToolBar.SEPARATOR, ToolBar.SEPARATOR, ToolBar.SEPARATOR, ToolBar.SEPARATOR,
-                        "grid", ToolBar.SEPARATOR, ToolBar.MORE_DIVIDER)));
+                fallback.equals(List.of("present", ToolbarOrder.SEPARATOR, "zoomIn", "zoomOut",
+                        ToolbarOrder.SEPARATOR, ToolbarOrder.SEPARATOR, ToolbarOrder.SEPARATOR, ToolbarOrder.SEPARATOR,
+                        "grid", ToolbarOrder.SEPARATOR, ToolbarOrder.MORE_DIVIDER)));
 
         expect("a stored order is honoured as given",
                 resolve("grid|zoomIn").equals(List.of("grid", "zoomIn")));
@@ -43,7 +43,7 @@ public final class ToolbarOrderCheck {
 
         expect("separators survive, and repeat as often as they were placed",
                 resolve("grid|---|---|zoomIn")
-                        .equals(List.of("grid", ToolBar.SEPARATOR, ToolBar.SEPARATOR, "zoomIn")));
+                        .equals(List.of("grid", ToolbarOrder.SEPARATOR, ToolbarOrder.SEPARATOR, "zoomIn")));
 
         // Edit used to be forced onto the end here, because a bar with no editor on it could not
         // be edited back. It is a fixed corner control now, outside the order entirely, so the
@@ -62,7 +62,7 @@ public final class ToolbarOrderCheck {
         // resolveOrder drops, and seeding is about tools that DO exist.
         Set<String> seedKnown = Set.of("pan", "rotate", "multiview", "timelines", "grid");
         java.util.List<String> bar = new java.util.ArrayList<>(java.util.List.of("pan", "rotate", "multiview", "grid"));
-        java.util.List<String> placed = ToolBar.seedNewTools(bar, seedKnown, null);
+        java.util.List<String> placed = ToolbarOrder.seedNewTools(bar, seedKnown, null);
         expect("a tool missing from a saved bar is placed", placed.contains("timelines"));
         expect("beside the neighbour it has in the default order, not at the end",
                 bar.indexOf("timelines") == bar.indexOf("multiview") + 1);
@@ -71,19 +71,19 @@ public final class ToolbarOrderCheck {
         // not be repopulated. Everything a stored order omits, it omits on purpose, EXCEPT the
         // handful of ids that postdate it.
         java.util.List<String> curated = new java.util.ArrayList<>(java.util.List.of("pan", "multiview", "grid"));
-        ToolBar.seedNewTools(curated, seedKnown, null);
+        ToolbarOrder.seedNewTools(curated, seedKnown, null);
         expect("a tool the user took off the bar is not put back",
                 !curated.contains("rotate") && curated.size() == 4);
 
         // Declining it has to stick, or every launch puts it back.
         java.util.List<String> without = new java.util.ArrayList<>(java.util.List.of("pan", "multiview"));
         expect("a tool already offered once is not offered again",
-                !ToolBar.seedNewTools(without, seedKnown, "timelines").contains("timelines"));
+                !ToolbarOrder.seedNewTools(without, seedKnown, "timelines").contains("timelines"));
         expect("and the bar is left as the user left it", !without.contains("timelines"));
 
         // Already on the bar is not "new", whatever the seeded list says.
         java.util.List<String> has = new java.util.ArrayList<>(java.util.List.of("timelines", "pan"));
-        ToolBar.seedNewTools(has, seedKnown, null);
+        ToolbarOrder.seedNewTools(has, seedKnown, null);
         expect("a tool already on the bar is never added twice",
                 has.stream().filter("timelines"::equals).count() == 1);
 
@@ -92,7 +92,7 @@ public final class ToolbarOrderCheck {
         Set<String> cmeKnown = Set.of("projection", "trackCme", "colour", "grid");
         java.util.List<String> palettes = new java.util.ArrayList<>(List.of("projection", "colour", "grid"));
         expect("Track CME is offered to a bar saved before it existed",
-                ToolBar.seedNewTools(palettes, cmeKnown, null).contains("trackCme"));
+                ToolbarOrder.seedNewTools(palettes, cmeKnown, null).contains("trackCme"));
         expect("and lands right after Projection",
                 palettes.indexOf("trackCme") == palettes.indexOf("projection") + 1);
 
@@ -100,63 +100,63 @@ public final class ToolbarOrderCheck {
         // launch (samp, with the SAMP hub off) must come through a seed untouched, or one such launch
         // erases it from the user's bar for good.
         java.util.List<String> withSamp = new java.util.ArrayList<>(List.of("projection", "samp", "colour"));
-        ToolBar.seedNewTools(withSamp, cmeKnown, null);
+        ToolbarOrder.seedNewTools(withSamp, cmeKnown, null);
         expect("a tool not built on this launch survives seeding", withSamp.contains("samp"));
 
         expect("every id in the default order is a tool the bar actually builds, or a separator",
-                java.util.Arrays.stream(ToolBar.DEFAULT_ORDER.split("\\|"))
-                        .allMatch(id -> ToolBar.SEPARATOR.equals(id) || ToolBar.MORE_DIVIDER.equals(id)
+                java.util.Arrays.stream(ToolbarOrder.DEFAULT_ORDER.split("\\|"))
+                        .allMatch(id -> ToolbarOrder.SEPARATOR.equals(id) || ToolbarOrder.MORE_DIVIDER.equals(id)
                                 || DEFAULT_IDS.contains(id)));
 
         // The migration off the old More split button. A saved bar that names "more" must come out
         // with the divider in its place, the three menu-only controls behind it, and Annotation on
         // the bar: what was in More is still in More, and is draggable out of it for the first time.
         Set<String> migrateKnown = Set.of("pan", "annotate", "refresh", "sdoCutout", "samp");
-        String migrated = ToolBar.migrateMore("pan|---|more", migrateKnown);
-        List<String> after = ToolBar.resolveOrder(migrated, migrateKnown);
-        expect("the old More tool becomes the divider", after.contains(ToolBar.MORE_DIVIDER) && !after.contains("more"));
+        String migrated = ToolbarOrder.migrateMore("pan|---|more", migrateKnown);
+        List<String> after = ToolbarOrder.resolveOrder(migrated, migrateKnown);
+        expect("the old More tool becomes the divider", after.contains(ToolbarOrder.MORE_DIVIDER) && !after.contains("more"));
         expect("what was written into More is parked behind it",
-                ToolBar.moreIds(after).equals(List.of("refresh", "sdoCutout", "samp")));
+                ToolbarOrder.moreIds(after).equals(List.of("refresh", "sdoCutout", "samp")));
         expect("and Annotation comes out on the bar, not in More",
-                ToolBar.barIds(after).contains("annotate"));
-        expect("migrating twice changes nothing", ToolBar.migrateMore(migrated, migrateKnown).equals(migrated));
+                ToolbarOrder.barIds(after).contains("annotate"));
+        expect("migrating twice changes nothing", ToolbarOrder.migrateMore(migrated, migrateKnown).equals(migrated));
         expect("a bar that never named More is left alone",
-                ToolBar.migrateMore("pan|annotate", migrateKnown).equals("pan|annotate"));
+                ToolbarOrder.migrateMore("pan|annotate", migrateKnown).equals("pan|annotate"));
 
         // The divider is a place, not a gap. Two of them would make "after it" ambiguous, so the
         // second is dropped rather than honoured.
         Set<String> dividerKnown = Set.of("pan", "rotate", "grid", "camera");
-        List<String> twice = ToolBar.resolveOrder("pan|" + ToolBar.MORE_DIVIDER + "|rotate|"
-                + ToolBar.MORE_DIVIDER + "|grid", dividerKnown);
+        List<String> twice = ToolbarOrder.resolveOrder("pan|" + ToolbarOrder.MORE_DIVIDER + "|rotate|"
+                + ToolbarOrder.MORE_DIVIDER + "|grid", dividerKnown);
         expect("only one More divider survives",
-                twice.stream().filter(ToolBar.MORE_DIVIDER::equals).count() == 1);
+                twice.stream().filter(ToolbarOrder.MORE_DIVIDER::equals).count() == 1);
         expect("and it is the first one, so nothing silently moves into More",
-                twice.indexOf(ToolBar.MORE_DIVIDER) == 1);
+                twice.indexOf(ToolbarOrder.MORE_DIVIDER) == 1);
 
         // The cut: before is the bar, after is More, and the two together are everything placed.
-        List<String> cutOrder = ToolBar.resolveOrder("pan|rotate|" + ToolBar.MORE_DIVIDER + "|grid|camera", dividerKnown);
+        List<String> cutOrder = ToolbarOrder.resolveOrder("pan|rotate|" + ToolbarOrder.MORE_DIVIDER + "|grid|camera", dividerKnown);
         expect("the bar is what comes before the divider",
-                ToolBar.barIds(cutOrder).equals(List.of("pan", "rotate")));
-        expect("More is what comes after it", ToolBar.moreIds(cutOrder).equals(List.of("grid", "camera")));
+                ToolbarOrder.barIds(cutOrder).equals(List.of("pan", "rotate")));
+        expect("More is what comes after it", ToolbarOrder.moreIds(cutOrder).equals(List.of("grid", "camera")));
 
         // No divider at all is the old behaviour: everything on the bar, nothing parked.
-        List<String> noCut = ToolBar.resolveOrder("pan|rotate", dividerKnown);
-        expect("without a divider the whole order is the bar", ToolBar.barIds(noCut).equals(List.of("pan", "rotate")));
-        expect("and nothing is parked in More", ToolBar.moreIds(noCut).isEmpty());
+        List<String> noCut = ToolbarOrder.resolveOrder("pan|rotate", dividerKnown);
+        expect("without a divider the whole order is the bar", ToolbarOrder.barIds(noCut).equals(List.of("pan", "rotate")));
+        expect("and nothing is parked in More", ToolbarOrder.moreIds(noCut).isEmpty());
 
         // Gaps have no meaning past the cut: More is a menu, not a row.
-        List<String> gapPastCut = ToolBar.resolveOrder("pan|" + ToolBar.MORE_DIVIDER + "|---|grid", dividerKnown);
-        expect("a separator after the divider is not a menu item", ToolBar.moreIds(gapPastCut).equals(List.of("grid")));
+        List<String> gapPastCut = ToolbarOrder.resolveOrder("pan|" + ToolbarOrder.MORE_DIVIDER + "|---|grid", dividerKnown);
+        expect("a separator after the divider is not a menu item", ToolbarOrder.moreIds(gapPastCut).equals(List.of("grid")));
 
         // The Tools menu lists every tool exactly once: the ones on the bar as items that click
         // them, the rest as the controls themselves. That is only true while these two are a
         // partition of what exists. A tool in neither would be gone from the bar AND the menu; one
         // in both would appear twice, and the second copy would take the control out of the first.
         for (String stored : new String[]{null, "", "grid|zoomIn|edit", "---|grid|---|---|more",
-                "zoomIn|zoomIn|grid", "nosuchtool|grid", ToolBar.DEFAULT_ORDER}) {
+                "zoomIn|zoomIn|grid", "nosuchtool|grid", ToolbarOrder.DEFAULT_ORDER}) {
             List<String> order = resolve(stored);
-            Set<String> onBar = ToolBar.onBar(order);
-            List<String> missing = ToolBar.missing(order, KNOWN);
+            Set<String> onBar = ToolbarOrder.onBar(order);
+            List<String> missing = ToolbarOrder.missing(order, KNOWN);
             String label = stored == null ? "no stored order" : "\"" + stored + "\"";
             expect(label + ": nothing is both on the bar and missing from it",
                     missing.stream().noneMatch(onBar::contains));
