@@ -238,6 +238,10 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
 
     /** Build a control and record it under an id, without deciding yet whether it is shown. */
     private void register(String id, ButtonText text, JComponent comp) {
+        comp.setName(id); // the persisted toolbar id is the control's name: ActionCatalog.find, help search and tours key on it
+        String spoken = comp.getAccessibleContext().getAccessibleName();
+        if (spoken == null || spoken.isEmpty())
+            comp.getAccessibleContext().setAccessibleName(text.text());
         built.put(id, new Tool(id, text.text(), text.icon(), text.tip(), comp));
     }
 
