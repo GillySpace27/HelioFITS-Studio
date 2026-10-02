@@ -19,6 +19,13 @@
 ### Downloaded data
 - Files in the download cache (`~/HFStudio/FileCache`) are named after the file they came from, with a short hash before the extension, such as `PUNCH_L3_CAM_20260326062334_v0l_1a2b3c4d5e6f.fits`, so other programs can find and open them. Files cached by earlier versions are renamed the first time they are used again. An earlier version of HelioFITS Studio does not know the new names and downloads such a file again
 
+### Export
+- Every export says what made it: the build (version, revision and commit), when, from which data, and the whole scene. Movies carry it in their comment field, PNG frames in a text chunk named hfstudio, EXR frames in an hfstudio attribute beside jhv. Your home folder is written as ~
+- Drop an exported PNG back on the window to reopen the scene it was made from. The scene is saved as a new session file beside your others and opened from there; nothing is overwritten
+- File > Copy Provenance puts a block on the clipboard naming the build, the data and what to cite
+- The timestamp layer's Annotations section has a Credit line, off by default, for talks and shows. With RHEF on it says the picture is not a calibrated radiance
+- The About window shows the build as version, revision and commit, and says when it was built from uncommitted changes
+
 ## HelioFITS Studio 0.8.3 (pre-release, 2026-09-23)
 
 ### Multilayer FITS, including PUNCH
