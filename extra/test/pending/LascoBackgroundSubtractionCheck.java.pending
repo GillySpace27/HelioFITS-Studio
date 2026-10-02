@@ -1,0 +1,78 @@
+package org.helioviewer.jhv.view.uri;
+
+import nom.tam.fits.Header;
+
+/**
+ * A LASCO frame with its monthly background removed must not keep the CCD bias.
+ *
+ * <p>PENDING (HS-6 Task 3 is gated on Gilly's yes). This check is red on purpose until
+ * FITSImage.subtractPerSecond reads OFFSET from the header. It lives here as .java.pending so
+ * that CI, which compiles extra/test/*.java and runs every *Check, stays honest and green. To
+ * activate it after the science-mode check of OFFSET: apply the one-line change in
+ * subtractPerSecond (offset = header.getDoubleValue("OFFSET", 0)), then
+ * git mv extra/test/pending/LascoBackgroundSubtractionCheck.java.pending extra/test/LascoBackgroundSubtractionCheck.java
+ *
+ * <p>Level 0.5 frames carry the bias as OFFSET (DN); the NRL monthly backgrounds do not
+ * (OFFSET = 0), so subtracting one from the other leaves OFFSET / EXPTIME in every pixel. On the
+ * frames where this was found that was 29.8 DN/s for C2 (747.3 DN over 25.1 s) and 23.7 DN/s for
+ * C3 (417.5 over 17.6 s), and the C2 occulter, which should read about 0 DN/s, read 743 DN raw
+ * (read from the vault, projects/jhelioviewer.md:1163-1176, found 2026-09-18). The header here is
+ * synthetic, built from those numbers: no LASCO file is committed, and the real background comes
+ * from NRL, so the subtraction runs through FITSImage.subtractPerSecond with a background given.
+ *
+ * <p>Run: java -cp "bin:extra/test-classes:resources:lib/*" org.helioviewer.jhv.view.uri.LascoBackgroundSubtractionCheck
+ */
+public final class LascoBackgroundSubtractionCheck {
+
+    private static final int BAD_PIXEL = Integer.MIN_VALUE; // FITSImage's blank sentinel
+    private static final short BLANK = -32768;
+
+    private static int failures;
+
+    private static void expect(String what, boolean ok) {
+        System.out.println((ok ? "  ok   " : "  FAIL ") + what);
+        if (!ok)
+            failures++;
+    }
+
+    private static Header c2(boolean withOffset) throws Exception {
+        Header h = new Header();
+        h.addValue("TELESCOP", "SOHO", "");
+        h.addValue("INSTRUME", "LASCO", "");
+        h.addValue("DETECTOR", "C2", "");
+        h.addValue("EXPTIME", 25.1, "");
+        if (withOffset)
+            h.addValue("OFFSET", 747.3, "");
+        return h;
+    }
+
+    public static void main(String[] args) throws Exception {
+        short[] raw = {743, 890, BLANK, 100};
+        float[] none = new float[raw.length];
+
+        float[] out = FITSImage.subtractPerSecond(c2(true), raw, raw.length, true, BLANK, 0, 1, 25.1, none);
+        expect(String.format("C2 occulter: raw 743 DN with OFFSET 747.3 and EXPTIME 25.1 s is about 0 DN/s (got %.4f)", out[0]),
+                Math.abs(out[0]) < 0.5);
+        expect(String.format("C2 corona: raw 890 DN is (890 - 747.3) / 25.1 = 5.6853 DN/s (got %.4f)", out[1]),
+                Math.abs(out[1] - 5.6853) < 1e-3);
+        expect("a BLANK pixel stays the blank sentinel", out[2] == BAD_PIXEL);
+
+        float[] ones = {1, 1, 1, 1};
+        float[] withBackground = FITSImage.subtractPerSecond(c2(true), raw, raw.length, true, BLANK, 0, 1, 25.1, ones);
+        expect(String.format("the background (DN/s) comes off after the division: 5.6853 - 1 (got %.4f)", withBackground[1]),
+                Math.abs(withBackground[1] - 4.6853) < 1e-3);
+
+        float[] unbiased = FITSImage.subtractPerSecond(c2(false), raw, raw.length, true, BLANK, 0, 1, 25.1, none);
+        expect(String.format("a header with no OFFSET is not shifted: 743 / 25.1 = 29.6016 (got %.4f)", unbiased[0]),
+                Math.abs(unbiased[0] - 29.6016) < 1e-3);
+
+        expect("BZERO and BSCALE apply before OFFSET: (500 + 2 * 100 - 747.3) / 25.1 - 1",
+                Math.abs(FITSImage.lascoPerSecond(100, 500, 2, 747.3, 25.1, 1) - ((500 + 2 * 100 - 747.3) / 25.1 - 1)) < 1e-12);
+
+        if (failures != 0) {
+            System.out.println(failures + " LASCO background failure(s)");
+            System.exit(1);
+        }
+    }
+
+}
