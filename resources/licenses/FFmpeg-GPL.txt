@@ -1,3 +1,5 @@
+Superseded by FFmpeg-Notices.txt and GPL-3.0.txt on 2026-10-02; kept for one release.
+
                     GNU GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007
 
