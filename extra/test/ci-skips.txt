@@ -1,0 +1,3 @@
+# Checks allowed to print SKIP when CHECKS_STRICT=1 (CI). One per line: SimpleClassName reason words.
+# Add a line only with the reason the check itself prints, seen in a CI log. A check that runs on CI
+# loses its line here in the same commit.
