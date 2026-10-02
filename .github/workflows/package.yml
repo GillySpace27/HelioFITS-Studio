@@ -297,6 +297,8 @@ jobs:
           pattern: package-*   # the two packages, plus their evidence, which is harmless here
           merge-multiple: true
 
+      # The names CI attaches are the "ci" rows of release/assets.txt at the commit that was built, the
+      # one list publish and the tracker read too. This job has no checkout, so the file comes from the API.
       # The packages' names come from VERSION at the commit that was built. On a release event
       # that is the tag's commit, so the names must carry the tag's version: packages from any
       # other version are refused rather than attached to the wrong release. A suffix after the
@@ -305,15 +307,18 @@ jobs:
         run: |
           ls -l HFStudio-*
           VERSION="${TAG#v}"; VERSION="${VERSION%%-*}"
-          for f in "HFStudio-$VERSION-windows.zip" "HFStudio-$VERSION-linux.tar.gz"; do
+          gh api -H "Accept: application/vnd.github.raw" "repos/$GITHUB_REPOSITORY/contents/release/assets.txt?ref=$GITHUB_SHA" > assets.txt
+          awk '!/^#/ && NF && $2=="ci" {gsub(/[{]v[}]/, v, $1); print $1}' v="$VERSION" assets.txt > ci-assets.txt
+          [ -s ci-assets.txt ] || { echo "::error::release/assets.txt at $GITHUB_SHA lists no ci assets"; exit 1; }
+          while IFS= read -r f; do
             [ -f "$f" ] || { echo "::error::expected $f for $TAG; the build produced $(ls HFStudio-* | tr '\n' ' ')"; exit 1; }
-          done
+          done < ci-assets.txt
 
       # Never --clobber: a release's files are fixed once published, and replacing one is how a
       # collaborator loses the build that worked for them. A second run fails here instead.
       - name: Attach to the release
         run: |
-          gh release upload "$TAG" HFStudio-*-windows.zip HFStudio-*-linux.tar.gz --repo "$GITHUB_REPOSITORY"
+          xargs gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" < ci-assets.txt
 
       # The notes are written before these files exist, so their checksums are added now, in the
       # same form the Mac files' checksums take.
