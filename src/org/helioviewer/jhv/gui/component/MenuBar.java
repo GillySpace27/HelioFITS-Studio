@@ -210,12 +210,12 @@ public final class MenuBar extends JMenuBar {
 
         JMenu viewMenu = new JMenu("View");
         viewMenu.setMnemonic(KeyEvent.VK_V);
-        viewMenu.add(new Actions.ZoomOneToOne());
-        viewMenu.add(new Actions.ZoomFit());
-        viewMenu.add(new Actions.ZoomIn());
-        viewMenu.add(new Actions.ZoomOut());
-        viewMenu.add(new Actions.ResetCameraAxis());
-        viewMenu.add(new Actions.ResetCamera());
+        catalogItem(viewMenu, "zoomOne");
+        catalogItem(viewMenu, "zoomFit");
+        catalogItem(viewMenu, "zoomIn");
+        catalogItem(viewMenu, "zoomOut");
+        catalogItem(viewMenu, "resetAxis");
+        catalogItem(viewMenu, "resetCamera");
 
         JCheckBoxMenuItem autoReset = new JCheckBoxMenuItem("Reset View for New Layers",
                 org.helioviewer.jhv.app.DisplaySettings.getAutoResetView());
@@ -226,7 +226,8 @@ public final class MenuBar extends JMenuBar {
 
         viewMenu.addSeparator();
 
-        JCheckBoxMenuItem separateMultiviewZoom = new JCheckBoxMenuItem(new Actions.SeparateMultiviewZoom());
+        JCheckBoxMenuItem separateMultiviewZoom = new JCheckBoxMenuItem(catalogAction("separateMultiviewZoom"));
+        separateMultiviewZoom.setName("separateMultiviewZoom");
         separateMultiviewZoom.setState(Display.separateViewportZoom);
         viewMenu.add(separateMultiviewZoom);
 
@@ -336,7 +337,7 @@ public final class MenuBar extends JMenuBar {
         // it with. The five palette items that used to follow it are gone, not moved -- the Tools
         // menu lists every toolbar tool, and Projection, HDR, Fourier, Grid and Camera are five of
         // them, so those lines were a second copy that could drift out of step with the first.
-        viewMenu.add(new Actions.TogglePresentationMode());
+        catalogItem(viewMenu, "present");
         viewMenu.add(presentationMenu());
 
         add(viewMenu);
