@@ -50,6 +50,32 @@ public final class AppInfo {
                 System.getProperty("java.vendor") + " JRE " + System.getProperty("java.version");
         versionDetail = String.format("%s %.1fGB %dCPU", userAgent, Runtime.getRuntime().maxMemory() / (1024 * 1024 * 1024.), Runtime.getRuntime().availableProcessors());
         Log.info(versionDetail);
+        Log.info("Build " + buildId());
+    }
+
+    /**
+     * The commit the jar was built from, 12 hex characters, or "unknown" when the build had no
+     * git. Read from the property loadVersion copied out of version.properties each time rather
+     * than kept in a field: HS-4's ratchet allows no new mutable static, and a static final
+     * constant would be inlined across incremental builds.
+     */
+    public static String commit() {
+        String c = System.getProperty("jhv.commit");
+        return c == null || c.isBlank() || c.startsWith("@@") ? "unknown" : c;
+    }
+
+    /** True when src, resources or VERSION had uncommitted changes when the jar was built. */
+    public static boolean dirty() {
+        return Boolean.parseBoolean(System.getProperty("jhv.dirty"));
+    }
+
+    /** One string for the log, the About box and every export: "0.8.4 (r14185, 7671c40d9a1b)". */
+    public static String buildId() {
+        return buildId(version, revision, commit(), dirty());
+    }
+
+    static String buildId(String version, String revision, String commit, boolean dirty) {
+        return version + " (r" + revision + ", " + commit + (dirty ? ", dirty" : "") + ')';
     }
 
     private AppInfo() {}

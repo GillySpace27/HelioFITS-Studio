@@ -34,3 +34,13 @@ guide_content.prepanel.json
 *.bak
 .DS_Store
 .jdk-x64/
+
+# notarization in flight and Apple's answers (deploy_release.sh notarize / notarize-resume).
+# Kept on disk; no script removes them; the next submission for the same arch replaces them.
+.notarize-pending.json
+.notarize-pending-intel.json
+.notarize-submit.json
+.notarize-submit.err
+.notarize-info.json
+.notarize-info.err
+.notarize-log-*.json

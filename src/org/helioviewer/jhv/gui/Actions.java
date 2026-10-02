@@ -657,6 +657,18 @@ public final class Actions {
         }
     }
 
+    // A citation-ready block for the scene on screen: the build, the data, what to cite.
+    public static class CopyProvenance extends AbstractAction {
+        public CopyProvenance() {
+            super("Copy Provenance");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            TransferAccess.writeClipboard(org.helioviewer.jhv.movie.Provenance.citation(org.helioviewer.jhv.movie.Provenance.session()));
+        }
+    }
+
     public static class SDOCutOut extends AbstractAction {
         public SDOCutOut() {
             super("SDO Cut-out");

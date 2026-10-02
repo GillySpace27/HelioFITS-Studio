@@ -1,0 +1,15 @@
+{
+  "20241224_194245_d4c2A.fts": {"width": 2048, "height": 2048, "bitpix": 16, "nanCount": 0, "hash": "0128d36ec7c22203"},
+  "20250622_000831_s4h1A.fts": {"width": 1024, "height": 1024, "bitpix": 32, "nanCount": 0, "hash": "ff81d2562111099b"},
+  "20250622_000851_s4h2A.fts": {"width": 1024, "height": 1024, "bitpix": 32, "nanCount": 0, "hash": "a88be7828f8e1ea2"},
+  "CCOR2_1A_20260902T211514_V00_NC.fits": {"width": 2048, "height": 1920, "bitpix": -32, "nanCount": 0, "hash": "3f1e2111ebe4efdc"},
+  "PUNCH_L3_CAM_20260425001600_v0k.fits": {"width": 4096, "height": 4096, "bitpix": -32, "nanCount": 0, "hash": "842ec58c0d05bfb8"},
+  "mrzqs260301t2314c2308_169.fits": {"width": 360, "height": 180, "bitpix": -32, "nanCount": 0, "hash": "1ef9ecbba6330558"},
+  "psp_L3_wispr_20231227T150508_V1_1211.fits": {"width": 960, "height": 1024, "bitpix": -32, "nanCount": 3964, "hash": "2e6a933fc0e64d1c"},
+  "psp_L3_wispr_20231227T150704_V1_2222.fits": {"width": 960, "height": 1024, "bitpix": -32, "nanCount": 6979, "hash": "5de55fda9fdfec2b"},
+  "sample.171.fits": {"width": 4096, "height": 4096, "bitpix": 16, "nanCount": 0, "hash": "b017948755e10a9d"},
+  "solo_L2_eui-fsi174-image_20251002T150055171_V00.fits": {"width": 3040, "height": 3072, "bitpix": 16, "nanCount": 0, "hash": "838d11e6f2b5c36f"},
+  "sunerf_map.fits": {"width": 720, "height": 360, "bitpix": -64, "nanCount": 0, "hash": "ba4e4c78b1f35946"},
+  "syn_AIA_171_2026-01-12T00-00-00_f_V3.fits": {"width": 1920, "height": 960, "bitpix": -32, "nanCount": 115975, "hash": "215f5884f1e3600f"},
+  "syn_HMI_hmi.m_720s_2026-02-25T00-00-00_a_V1.fits": {"width": 1920, "height": 960, "bitpix": -32, "nanCount": 132015, "hash": "5dc4d27bad44578c"}
+}

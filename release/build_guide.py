@@ -8,6 +8,7 @@ blocks). This script renders that single source to BOTH
 so the two can never drift, and the prose can be edited/regenerated independently.
 
 Run: python3 build_guide.py   ->   HFStudio-Guide.pdf + HFStudio-Guide.md
+     python3 build_guide.py --strict   exits 1, naming them, if any figure file is missing
 
 Block kinds: title/subtitle/byline (top-level), then blocks of kind
   rule | spacer{points} | h1{text} | h2{text} | p{text} |
@@ -15,7 +16,8 @@ Block kinds: title/subtitle/byline (top-level), then blocks of kind
 
 Inline markup (tiny): **bold**, `mono`. Curly quotes and other Unicode are fine.
 Write "Y" for Upsilon (Helvetica lacks the glyph). A figure whose file is
-missing is silently skipped, so the build never breaks.
+missing is skipped with a warning; with --strict (deploy_release.sh publish
+and release/ship.sh gate) the build stops instead, before reportlab is loaded.
 
 @VERSION@ and @REPO@ anywhere in the content are replaced with the repository's
 VERSION file and the REPO defined in deploy_release.sh, so the guide never names
@@ -25,6 +27,33 @@ a stale version or repository.
 import os
 import re
 import json
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ASSETS = os.path.join(HERE, "guide_assets")
+CONTENT_JSON = os.path.join(HERE, "guide_content.json")
+
+
+def missing_figures():
+    """Figure files guide_content.json names that guide_assets/ does not have, in guide order."""
+    with open(CONTENT_JSON) as f:
+        blocks = json.load(f)["blocks"]
+    return [b.get("file", "") for b in blocks
+            if b.get("kind") == "figure" and not os.path.isfile(os.path.join(ASSETS, b.get("file", "")))]
+
+
+if __name__ == "__main__":
+    _missing = missing_figures()
+    for _name in _missing:
+        print(("missing figure: " if "--strict" in sys.argv[1:] else "warning: figure skipped, no file: ")
+              + "guide_assets/" + _name, file=sys.stderr)
+    if _missing and "--strict" in sys.argv[1:]:
+        print(f"!! {len(_missing)} figure(s) named in guide_content.json have no file. Capture them "
+              "(release/capture_guide_shots.sh, or by hand), or, with Gilly's yes, take the figure "
+              "block out of guide_content.json.", file=sys.stderr)
+        sys.exit(1)
+
+# reportlab is imported only after the --strict check, which does not need it.
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.lib import colors
@@ -35,9 +64,6 @@ from reportlab.platypus import (BaseDocTemplate, PageTemplate, Frame, Paragraph,
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_LEFT, TA_CENTER
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-ASSETS = os.path.join(HERE, "guide_assets")
-CONTENT_JSON = os.path.join(HERE, "guide_content.json")
 PDF_OUT = os.path.join(HERE, "HFStudio-Guide.pdf")
 MD_OUT = os.path.join(HERE, "HFStudio-Guide.md")
 

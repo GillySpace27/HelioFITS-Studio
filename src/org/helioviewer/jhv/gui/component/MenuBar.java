@@ -10,12 +10,12 @@ import javax.swing.JMenuItem;
 import javax.swing.JRadioButtonMenuItem;
 import javax.swing.ButtonGroup;
 
-import org.helioviewer.jhv.app.AppInfo;
 import org.helioviewer.jhv.app.Platform;
 import org.helioviewer.jhv.app.Theme;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.HdrGain;
+import org.helioviewer.jhv.gui.ActionCatalog;
 import org.helioviewer.jhv.gui.Actions;
 import org.helioviewer.jhv.gui.DesktopIntegration;
 import org.helioviewer.jhv.gui.PresentationMode;
@@ -67,8 +67,8 @@ public final class MenuBar extends JMenuBar {
                 // browses it (the toolbar toggle above only shows the palette), and two
                 // dialogs with no toolbar button. They were in View, which is where a thing you
                 // look through goes, not a thing you work with.
-                toolsMenu.add(new Actions.TrackCME());
-                toolsMenu.add(new Actions.TrackComet());
+                catalogItem(toolsMenu, "findCmes");
+                catalogItem(toolsMenu, "findComets");
                 toolsMenu.addSeparator();
                 JMenuItem edit = new JMenuItem("Edit Toolbar...");
                 edit.setIcon(Buttons.editToolbar);
@@ -145,27 +145,43 @@ public final class MenuBar extends JMenuBar {
         return comp;
     }
 
+    // The catalogued action for an id (HS-8). An unknown id is a programming error, caught by
+    // ActionCatalogCheck, which reads every id this file names.
+    private static javax.swing.Action catalogAction(String id) {
+        ActionCatalog.Entry entry = ActionCatalog.get(id);
+        if (entry == null)
+            throw new IllegalStateException("no catalogued action " + id);
+        return entry.action();
+    }
+
+    // A catalogued action as a menu item named by its id, so ActionCatalog.find, help search and tours reach it.
+    private static JMenuItem catalogItem(JMenu menu, String id) {
+        JMenuItem item = menu.add(catalogAction(id));
+        item.setName(id);
+        return item;
+    }
+
     public MenuBar(ToolBar toolBar, StatusPanel statusPanel) {
         JMenu fileMenu = new JMenu("File");
         fileMenu.setMnemonic(KeyEvent.VK_F);
         // The layer-creation items upstream keeps here live in the Layers menu below.
-        fileMenu.add(new Actions.NewSession());
-        fileMenu.add(new Actions.LoadState());
+        catalogItem(fileMenu, "newSession");
+        catalogItem(fileMenu, "openSession");
         fileMenu.add(buildOpenRecentMenu());
-        fileMenu.add(new Actions.CloseWindow());
+        catalogItem(fileMenu, "closeWindow");
         fileMenu.addSeparator();
-        fileMenu.add(new Actions.SaveState());
-        fileMenu.add(new Actions.SaveStateAs());
-        fileMenu.add(new Actions.RevertToSaved());
+        catalogItem(fileMenu, "saveSession");
+        catalogItem(fileMenu, "saveSessionAs");
+        catalogItem(fileMenu, "revertToSaved");
         fileMenu.addSeparator();
-        fileMenu.add(new Actions.SetDefaultSession());
-        fileMenu.add(new Actions.ClearDefaultSession());
+        catalogItem(fileMenu, "setDefaultSession");
+        catalogItem(fileMenu, "clearDefaultSession");
         fileMenu.addSeparator();
-        fileMenu.add(new Actions.ReloadSources());
+        catalogItem(fileMenu, "reloadSources");
+        catalogItem(fileMenu, "copyProvenance");
         if (!Platform.isMacOS())
-            fileMenu.add(new Actions.NewWindow()); // no Window menu off macOS
+            catalogItem(fileMenu, "newWindow"); // no Window menu off macOS
 
-        Actions.ExitProgram exitAction = new Actions.ExitProgram();
         if (Platform.isMacOS()) {
             // Honor the quit response so a cancelled quit reports back to macOS as refused
             // ("<app> blocked shutdown") instead of hanging or forcing.
@@ -177,28 +193,28 @@ public final class MenuBar extends JMenuBar {
             });
         } else {
             fileMenu.addSeparator();
-            fileMenu.add(exitAction);
+            catalogItem(fileMenu, "quit");
         }
         add(fileMenu);
 
         JMenu editMenu = new JMenu("Edit");
         editMenu.setMnemonic(KeyEvent.VK_E);
-        editMenu.add(new Actions.Paste());
+        catalogItem(editMenu, "paste");
         editMenu.addSeparator();
         // Rubbing out what you drew is an edit of the scene, not a way of looking at it. It sat
         // in View because Annotation used to live on the toolbar's More menu and this was the
         // only other place it could be reached from.
-        editMenu.add(new Actions.ClearAnnotations());
+        catalogItem(editMenu, "clearAnnotations");
         add(editMenu);
 
         JMenu viewMenu = new JMenu("View");
         viewMenu.setMnemonic(KeyEvent.VK_V);
-        viewMenu.add(new Actions.ZoomOneToOne());
-        viewMenu.add(new Actions.ZoomFit());
-        viewMenu.add(new Actions.ZoomIn());
-        viewMenu.add(new Actions.ZoomOut());
-        viewMenu.add(new Actions.ResetCameraAxis());
-        viewMenu.add(new Actions.ResetCamera());
+        catalogItem(viewMenu, "zoomOne");
+        catalogItem(viewMenu, "zoomFit");
+        catalogItem(viewMenu, "zoomIn");
+        catalogItem(viewMenu, "zoomOut");
+        catalogItem(viewMenu, "resetAxis");
+        catalogItem(viewMenu, "resetCamera");
 
         JCheckBoxMenuItem autoReset = new JCheckBoxMenuItem("Reset View for New Layers",
                 org.helioviewer.jhv.app.DisplaySettings.getAutoResetView());
@@ -209,7 +225,8 @@ public final class MenuBar extends JMenuBar {
 
         viewMenu.addSeparator();
 
-        JCheckBoxMenuItem separateMultiviewZoom = new JCheckBoxMenuItem(new Actions.SeparateMultiviewZoom());
+        JCheckBoxMenuItem separateMultiviewZoom = new JCheckBoxMenuItem(catalogAction("separateMultiviewZoom"));
+        separateMultiviewZoom.setName("separateMultiviewZoom");
         separateMultiviewZoom.setState(Display.separateViewportZoom);
         viewMenu.add(separateMultiviewZoom);
 
@@ -319,7 +336,7 @@ public final class MenuBar extends JMenuBar {
         // it with. The five palette items that used to follow it are gone, not moved -- the Tools
         // menu lists every toolbar tool, and Projection, HDR, Fourier, Grid and Camera are five of
         // them, so those lines were a second copy that could drift out of step with the first.
-        viewMenu.add(new Actions.TogglePresentationMode());
+        catalogItem(viewMenu, "present");
         viewMenu.add(presentationMenu());
 
         add(viewMenu);
@@ -331,16 +348,16 @@ public final class MenuBar extends JMenuBar {
         // Grouped by what the layer actually carries, because that is the choice that decides how
         // much of the measurement survives: a JP2 from Helioviewer is an 8-bit browse product,
         // where a native FITS is the calibrated one. Same missions, different data.
-        layersMenu.add(new Actions.NewLayer());
-        layersMenu.add(new Actions.NewSynopticLayer());
+        catalogItem(layersMenu, "newJp2Layer");
+        catalogItem(layersMenu, "newSynopticLayer");
         layersMenu.addSeparator();
-        layersMenu.add(new Actions.NewPunchLayer());
-        layersMenu.add(new Actions.NewSoarLayer());
-        layersMenu.add(new Actions.NewAspiicsLayer());
+        catalogItem(layersMenu, "newPunchLayer");
+        catalogItem(layersMenu, "newSoarLayer");
+        catalogItem(layersMenu, "newAspiicsLayer");
         layersMenu.addSeparator();
-        layersMenu.add(new Actions.NewPointCloudLayer());
-        layersMenu.add(new Actions.OpenLocalFile());
-        layersMenu.add(new Actions.OpenModel());
+        catalogItem(layersMenu, "newPointCloudLayer");
+        catalogItem(layersMenu, "openImageLayer");
+        catalogItem(layersMenu, "openModel");
         layersMenu.addSeparator();
         // Loading something already downloaded is a way of adding a layer, not a tool: it was under
         // Tools only because that is where the dialog was written.
@@ -356,23 +373,23 @@ public final class MenuBar extends JMenuBar {
 
         JMenu movieMenu = new JMenu("Movie");
         movieMenu.setMnemonic(KeyEvent.VK_M);
-        movieMenu.add(Actions.PLAY_PAUSE);
-        movieMenu.add(Actions.PREVIOUS_FRAME);
-        movieMenu.add(Actions.NEXT_FRAME);
-        movieMenu.add(Actions.RECORD);
+        catalogItem(movieMenu, "playPause");
+        catalogItem(movieMenu, "previousFrame");
+        catalogItem(movieMenu, "nextFrame");
+        catalogItem(movieMenu, "record");
         movieMenu.addSeparator();
-        movieMenu.add(Actions.TRIM_START);
-        movieMenu.add(Actions.TRIM_END);
-        movieMenu.add(Actions.TRIM_RESET);
+        catalogItem(movieMenu, "trimStart");
+        catalogItem(movieMenu, "trimEnd");
+        catalogItem(movieMenu, "trimReset");
         add(movieMenu);
 
         if (Platform.isMacOS()) {
             JMenu windowMenu = new JMenu("Window");
             windowMenu.setMnemonic(KeyEvent.VK_W);
-            windowMenu.add(new Actions.NewWindow());
+            catalogItem(windowMenu, "newWindow");
             windowMenu.addSeparator();
-            windowMenu.add(new Actions.WindowMinimize());
-            windowMenu.add(new Actions.WindowZoom());
+            catalogItem(windowMenu, "windowMinimize");
+            catalogItem(windowMenu, "windowZoom");
             windowMenu.addSeparator();
             windowMenu.add(new Actions.ShowDialog("Live Log...", LogWindow.get()));
             windowMenu.addSeparator();
@@ -401,9 +418,9 @@ public final class MenuBar extends JMenuBar {
             helpMenu.add(aboutAction);
         }
 
-        helpMenu.add(new Actions.OpenURLinBrowser("Open User Manual", AppInfo.documentationURL));
-        helpMenu.add(new Actions.OpenURLinBrowser("Open Change Log", "https://github.com/GillySpace27/HelioFITS-Studio/blob/master/changelog.md"));
-        helpMenu.add(new Actions.CheckForUpdates());
+        catalogItem(helpMenu, "openUserManual");
+        catalogItem(helpMenu, "openChangeLog");
+        catalogItem(helpMenu, "checkForUpdates");
         helpMenu.addSeparator();
         helpMenu.add(new Actions.ShowDialog("Show Log...", new LogDialog())); // a snapshot, for attaching to a report
         if (!Platform.isMacOS()) // where there is no Window menu to put it in
@@ -412,7 +429,7 @@ public final class MenuBar extends JMenuBar {
         probe.setToolTipText("List every control on screen that is narrower than it asked to be, into the log");
         probe.addActionListener(e -> org.helioviewer.jhv.gui.LayoutProbe.logReport());
         helpMenu.add(probe);
-        helpMenu.add(new Actions.OpenURLinBrowser("Report Bug/Request Feature", AppInfo.bugURL));
+        catalogItem(helpMenu, "reportBug");
 
         add(helpMenu);
     }
@@ -512,7 +529,7 @@ public final class MenuBar extends JMenuBar {
                 for (String path : recents)
                     recent.add(new javax.swing.JMenuItem(new Actions.OpenRecent(new java.io.File(path))));
                 recent.addSeparator();
-                recent.add(new javax.swing.JMenuItem(new Actions.ClearRecents()));
+                catalogItem(recent, "clearRecents");
             }
 
             @Override public void menuDeselected(javax.swing.event.MenuEvent e) {}
