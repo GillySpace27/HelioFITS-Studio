@@ -51,6 +51,7 @@ enum MaterialDesign {
     PLUS_ONE("mdi-plus-one", '\uf41b'),
     PROJECTOR_SCREEN("mdi-projector-screen", '\uf42f'),
     RECORD("mdi-record", '\uf44a'),
+    REDO("mdi-redo", '\uf44e'), // verified against the shipped font's cmap and post tables (fontTools)
     REFRESH("mdi-refresh", '\uf450'),
     ROTATE_3D("mdi-rotate-3d", '\uf464'),
     ROTATE_90("mdi-rotate-90", '\uf6a9'),
@@ -64,6 +65,7 @@ enum MaterialDesign {
     STEP_FORWARD("mdi-step-forward", '\uf4d7'),
     STOP("mdi-stop", '\uf4db'), // verified by rasterizing the glyph: a filled square
     SYNC("mdi-sync", '\uf4e6'),
+    UNDO("mdi-undo", '\uf54c'), // verified against the shipped font's cmap and post tables (fontTools)
     // UPLOAD("mdi-upload", '\uf552'),
     VECTOR_CIRCLE_VARIANT("mdi-vector-circle-variant", '\uf557'),
     WEATHER_SUNNY("mdi-weather-sunny", '\uf599'),

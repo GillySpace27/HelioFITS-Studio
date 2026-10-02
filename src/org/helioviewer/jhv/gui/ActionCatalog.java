@@ -127,6 +127,8 @@ public final class ActionCatalog {
             }
         }, "", "Open the Image Layers section, wherever it is docked");
         put("sendFeedback", new org.helioviewer.jhv.gui.dialog.FeedbackDialog.Open(), "Help/Send Feedback...", "Send a problem, a request or a question to the developer; no account needed");
+        put("undo", org.helioviewer.jhv.app.SceneUndo.undoAction(), "Edit/Undo", "Undo the last change to the scene");
+        put("redo", org.helioviewer.jhv.app.SceneUndo.redoAction(), "Edit/Redo", "Redo the last undone change to the scene");
     }
 
     /**
