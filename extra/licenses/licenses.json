@@ -231,17 +231,6 @@
       "native_members": []
     },
     {
-      "path": "lib/formats/kdu_jni.jar",
-      "sha256": "4551012a086eb34dd7ab7aeab982429cd968de403db3ecd4291317358680d4b3",
-      "embedded_notices": [],
-      "declarations": [],
-      "supplemental_notices": [],
-      "external_notices": [
-        "resources/licenses/Kakadu.txt"
-      ],
-      "native_members": []
-    },
-    {
       "path": "lib/formats/nom-tam-fits-1.22.0.jar",
       "sha256": "d87b502a067b4d3d0dbe6870c82d402cdd250fa3b804bda9b299159a06fad0ea",
       "embedded_notices": [
@@ -387,7 +376,7 @@
     },
     {
       "path": "lib/jhv/jhv-natives-linux.jar",
-      "sha256": "1801173bc54bfcf4f4413655dcda13a1d59c347c4b1f11b473b9a42285745271",
+      "sha256": "32c3a87718e2c3225a02e2e460fc1690a9b073d470f845ba51af510206484ce8",
       "embedded_notices": [],
       "declarations": [],
       "supplemental_notices": [
@@ -396,19 +385,19 @@
       ],
       "external_notices": [
         "resources/licenses/FFmpeg-Notices.txt",
-        "resources/licenses/Kakadu.txt"
+        "resources/licenses/OpenJPEG.txt"
       ],
       "native_members": [
         "lib/jhv/jhv-natives-linux.jar!jhv/linux-amd64/ffmpeg",
         "lib/jhv/jhv-natives-linux.jar!jhv/linux-amd64/libEGL.so",
         "lib/jhv/jhv-natives-linux.jar!jhv/linux-amd64/libGLESv2.so",
         "lib/jhv/jhv-natives-linux.jar!jhv/linux-amd64/libJNISpice.so",
-        "lib/jhv/jhv-natives-linux.jar!jhv/linux-amd64/libkdu_jni.so"
+        "lib/jhv/jhv-natives-linux.jar!jhv/linux-amd64/libopenjp2.so"
       ]
     },
     {
       "path": "lib/jhv/jhv-natives-macos-arm64.jar",
-      "sha256": "ed063bd75813b3902396d991c48834003dbf4a9503e8dc80548371f9ee2241d2",
+      "sha256": "c54b1f42d4446f1e95e716e8b79ca2045558003247faeddf53c835f1fb00b96d",
       "embedded_notices": [],
       "declarations": [],
       "supplemental_notices": [
@@ -417,19 +406,19 @@
       ],
       "external_notices": [
         "resources/licenses/FFmpeg-Notices.txt",
-        "resources/licenses/Kakadu.txt"
+        "resources/licenses/OpenJPEG.txt"
       ],
       "native_members": [
         "lib/jhv/jhv-natives-macos-arm64.jar!jhv/macos-arm64/ffmpeg",
         "lib/jhv/jhv-natives-macos-arm64.jar!jhv/macos-arm64/libEGL.dylib",
         "lib/jhv/jhv-natives-macos-arm64.jar!jhv/macos-arm64/libGLESv2.dylib",
         "lib/jhv/jhv-natives-macos-arm64.jar!jhv/macos-arm64/libJNISpice.dylib",
-        "lib/jhv/jhv-natives-macos-arm64.jar!jhv/macos-arm64/libkdu_jni.dylib"
+        "lib/jhv/jhv-natives-macos-arm64.jar!jhv/macos-arm64/libopenjp2.dylib"
       ]
     },
     {
       "path": "lib/jhv/jhv-natives-macos.jar",
-      "sha256": "805699a54a20fd46c3e71b14d0289b875c802338542d837af39b1cbdd7d48bd8",
+      "sha256": "96a0c387361dfa75aa20ef65bf6c7cb78b3bb046905c1a4d03079e79227ccf56",
       "embedded_notices": [],
       "declarations": [],
       "supplemental_notices": [
@@ -438,19 +427,19 @@
       ],
       "external_notices": [
         "resources/licenses/FFmpeg-Notices.txt",
-        "resources/licenses/Kakadu.txt"
+        "resources/licenses/OpenJPEG.txt"
       ],
       "native_members": [
         "lib/jhv/jhv-natives-macos.jar!jhv/macos-amd64/ffmpeg",
         "lib/jhv/jhv-natives-macos.jar!jhv/macos-amd64/libEGL.dylib",
         "lib/jhv/jhv-natives-macos.jar!jhv/macos-amd64/libGLESv2.dylib",
         "lib/jhv/jhv-natives-macos.jar!jhv/macos-amd64/libJNISpice.dylib",
-        "lib/jhv/jhv-natives-macos.jar!jhv/macos-amd64/libkdu_jni.dylib"
+        "lib/jhv/jhv-natives-macos.jar!jhv/macos-amd64/libopenjp2.dylib"
       ]
     },
     {
       "path": "lib/jhv/jhv-natives-windows.jar",
-      "sha256": "e7afd668a4df382fce1a960d113b596e8994228d6617cd4ed6f966b605959556",
+      "sha256": "d67351f5c497d12766741450fa281bc3160c205cbfa210aa7d2af7f027caac82",
       "embedded_notices": [],
       "declarations": [],
       "supplemental_notices": [
@@ -459,15 +448,14 @@
       ],
       "external_notices": [
         "resources/licenses/FFmpeg-Notices.txt",
-        "resources/licenses/Kakadu.txt"
+        "resources/licenses/OpenJPEG.txt"
       ],
       "native_members": [
         "lib/jhv/jhv-natives-windows.jar!jhv/windows-amd64/JNISpice.dll",
         "lib/jhv/jhv-natives-windows.jar!jhv/windows-amd64/ffmpeg",
-        "lib/jhv/jhv-natives-windows.jar!jhv/windows-amd64/kdu_jni.dll",
-        "lib/jhv/jhv-natives-windows.jar!jhv/windows-amd64/kdu_v7AR.dll",
         "lib/jhv/jhv-natives-windows.jar!jhv/windows-amd64/libEGL.dll",
-        "lib/jhv/jhv-natives-windows.jar!jhv/windows-amd64/libGLESv2.dll"
+        "lib/jhv/jhv-natives-windows.jar!jhv/windows-amd64/libGLESv2.dll",
+        "lib/jhv/jhv-natives-windows.jar!jhv/windows-amd64/openjp2.dll"
       ]
     },
     {
