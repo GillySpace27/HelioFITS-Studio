@@ -26,6 +26,11 @@
 - The timestamp layer's Annotations section has a Credit line, off by default, for talks and shows. With RHEF on it says the picture is not a calibrated radiance
 - The About window shows the build as version, revision and commit, and says when it was built from uncommitted changes
 
+### Feedback
+- Help > Send Feedback... sends a problem, a request or a question to the developer from inside the app, with no account and no website. Tick boxes add system info and the last 300 lines of this run's log (on), the current session and a screenshot of the main window (off); Preview shows everything before it is sent, and your home folder is written as ~
+- Error, warning and crash dialogs have a Report this... button that opens the same window with the message and, when there is one, the stack trace filled in
+- This build has nowhere to send reports yet: they are saved in `~/HFStudio/Outbox`, with Copy to Clipboard and Email Instead offered, and a later version sends them when it starts. A sent report moves to `Outbox/sent`; none is deleted
+
 ## HelioFITS Studio 0.8.3 (pre-release, 2026-09-23)
 
 ### Multilayer FITS, including PUNCH
