@@ -18,6 +18,7 @@ import javax.swing.JTextArea;
 import org.helioviewer.jhv.gui.DesktopIntegration;
 import org.helioviewer.jhv.gui.TransferAccess;
 import org.helioviewer.jhv.gui.component.HTMLPane;
+import org.helioviewer.jhv.gui.dialog.FeedbackDialog;
 
 public final class JHVUncaughtExceptionHandler {
 
@@ -41,7 +42,7 @@ public final class JHVUncaughtExceptionHandler {
                 // before logging is up there is nowhere to write it; the report below still goes out
             }
             if (alreadySent.compareAndSet(false, true))
-                handle(format(t, e));
+                handle(format(t, e), e);
         }
 
         // Do not use the logger here; this must work even before logging initialization.
@@ -59,22 +60,22 @@ public final class JHVUncaughtExceptionHandler {
             return msg;
         }
 
-        abstract void handle(String msg);
+        abstract void handle(String msg, Throwable e);
     }
 
     private static final class GUI extends Base {
         @Override
-        void handle(String msg) {
-            EventQueue.invokeLater(() -> showErrorDialog(msg));
+        void handle(String msg, Throwable e) {
+            EventQueue.invokeLater(() -> showErrorDialog(msg, e));
         }
 
-        private static void showErrorDialog(String msg) {
+        private static void showErrorDialog(String msg, Throwable e) {
             HTMLPane report = new HTMLPane();
             report.setOpaque(false);
             report.addHyperlinkListener(DesktopIntegration.hyperOpenURL);
             report.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 10));
             report.setText("Fatal error detected." +
-                    "<p>Please copy this report and open an issue at <a href='" + AppInfo.bugURL + "'>" + AppInfo.bugURL + "</a>.<br/>");
+                    "<p>Please press Report this... to send it to the developer, or copy this report and open an issue at <a href='" + AppInfo.bugURL + "'>" + AppInfo.bugURL + "</a>.<br/>");
 
             JLabel copyToClipboard = new JLabel("<html><a href=''>Click here to copy the error report to the clipboard.");
             copyToClipboard.addMouseListener(new MouseAdapter() {
@@ -97,17 +98,19 @@ public final class JHVUncaughtExceptionHandler {
             JOptionPane optionPane = new JOptionPane();
             optionPane.setMessage(objects);
             optionPane.setMessageType(JOptionPane.ERROR_MESSAGE);
-            optionPane.setOptions(new String[]{"Quit HelioFITS Studio", "Continue"});
+            optionPane.setOptions(new String[]{"Quit HelioFITS Studio", FeedbackDialog.REPORT_THIS, "Continue"});
             optionPane.createDialog("HelioFITS Studio: Fatal Error").setVisible(true);
 
             if ("Quit HelioFITS Studio".equals(optionPane.getValue()))
                 System.exit(1);
+            if (FeedbackDialog.REPORT_THIS.equals(optionPane.getValue()))
+                FeedbackDialog.report("Fatal error", String.valueOf(e), e);
         }
     }
 
     private static final class Headless extends Base {
         @Override
-        void handle(String msg) {
+        void handle(String msg, Throwable e) {
             System.err.println(msg);
             System.exit(1);
         }
