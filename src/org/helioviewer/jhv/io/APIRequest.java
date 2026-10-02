@@ -46,6 +46,28 @@ public record APIRequest(@Nonnull String server, int sourceId, long startTime, l
         return toFileRequest() + jsonReq + "&jpip=true";
     }
 
+    // Helioviewer builds at most 1000 frames per movie and thins the cadence past that ("the
+    // maximum of 1000 frames allowed per request", getJPX, 2026-10-02). ponytail: 900 leaves room
+    // for the server's rounding at the ends; it is not a measured margin.
+    private static final int FRAMES_PER_REQUEST = 900;
+
+    /**
+     * This request as consecutive pieces that each stay under the server's frame cap, split
+     * evenly so no piece is a sliver (a short one would be widened by the constructor). "Get all"
+     * stays whole: its frame count is the server's to know.
+     */
+    public java.util.List<APIRequest> chunks() {
+        long span = endTime - startTime;
+        long step = (long) cadence * 1000 * FRAMES_PER_REQUEST;
+        if (cadence <= 0 || span <= step)
+            return java.util.List.of(this);
+        int n = (int) ((span + step - 1) / step);
+        java.util.List<APIRequest> parts = new java.util.ArrayList<>(n);
+        for (int i = 0; i < n; i++)
+            parts.add(new APIRequest(server, sourceId, startTime + span * i / n, startTime + span * (i + 1) / n, cadence));
+        return parts;
+    }
+
     public JSONObject toJson() {
         JSONObject jo = new JSONObject();
         jo.put("server", server);
