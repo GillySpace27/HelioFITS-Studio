@@ -39,8 +39,8 @@ claimed.
 - **The repository root** is the application. Releases ship from `master`.
 - **`release/`** is the packaging tooling, the guide, the icon and this skill.
   No app code.
-- **`VERSION`** at the root sets the release: tag `v<version>`, assets
-  `HFStudio-<version>.dmg` and `HFStudio-<version>.zip`.
+- **`VERSION`** at the root sets the release: tag `v<version>`, and the asset
+  names in `release/assets.txt` (`{v}` is the version).
 
 Before 0.8 these were two repos (`jhv-demo` on `demo-all`, and
 `preview-deploy`). Older entries in `RELEASING.md` use those names.
@@ -74,7 +74,9 @@ working for. To ship again, bump `VERSION` first:
 ./deploy_release.sh publish     # tags and publishes v<contents of ../VERSION>
 ```
 
-`publish` refuses a tag that already has a release. The short link points at the
+`publish` refuses a tag that already has a release. A release is never deleted:
+to correct the newest one, withdraw it as RELEASING.md "What ships" says (Gilly's
+yes, superseded note, fix, bump, ship). The short link points at the
 `/releases` index rather than any tag, so it never needs updating and always
 offers the older builds underneath the newest.
 
@@ -82,6 +84,11 @@ offers the older builds underneath the newest.
 
 `publish` is public. **Ask Gilly in chat, every release.** A yes for one never
 carries to the next.
+
+Get the gate text from `./deploy_release.sh publish --dry-run` (in `release/`)
+and paste its output verbatim; it names the tag, the commit, the release that
+stays as the way back, and every asset with its sha256. A `!!` line is a
+refusal: fix what it names (RELEASING.md step 6 lists them) before asking.
 
 State plainly what changes, naming both the new tag and the commit: "this
 publishes a new public release `<tag>` from commit `<sha>`, which becomes what

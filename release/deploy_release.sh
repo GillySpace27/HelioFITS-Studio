@@ -399,7 +399,8 @@ publish() {
     # relying on, which is the whole thing per-release tags exist to prevent.
     if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
         echo "!! release $TAG already exists. Releases are immutable here: bump VERSION for a new one." >&2
-        echo "   (To correct notes or a bad asset on the newest release, delete it deliberately by hand first.)" >&2
+        echo "   (To correct the newest release: with Gilly's yes, mark it superseded in its notes, fix, bump VERSION" >&2
+        echo "   and publish the fix as a new release. Releases are never deleted; RELEASING.md, \"What ships\".)" >&2
         exit 2
     fi
 
