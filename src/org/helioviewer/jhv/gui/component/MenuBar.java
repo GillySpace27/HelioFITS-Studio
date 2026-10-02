@@ -10,7 +10,6 @@ import javax.swing.JMenuItem;
 import javax.swing.JRadioButtonMenuItem;
 import javax.swing.ButtonGroup;
 
-import org.helioviewer.jhv.app.AppInfo;
 import org.helioviewer.jhv.app.Platform;
 import org.helioviewer.jhv.app.Theme;
 import org.helioviewer.jhv.display.Display;
@@ -419,9 +418,9 @@ public final class MenuBar extends JMenuBar {
             helpMenu.add(aboutAction);
         }
 
-        helpMenu.add(new Actions.OpenURLinBrowser("Open User Manual", AppInfo.documentationURL));
-        helpMenu.add(new Actions.OpenURLinBrowser("Open Change Log", "https://github.com/GillySpace27/HelioFITS-Studio/blob/master/changelog.md"));
-        helpMenu.add(new Actions.CheckForUpdates());
+        catalogItem(helpMenu, "openUserManual");
+        catalogItem(helpMenu, "openChangeLog");
+        catalogItem(helpMenu, "checkForUpdates");
         helpMenu.addSeparator();
         helpMenu.add(new Actions.ShowDialog("Show Log...", new LogDialog())); // a snapshot, for attaching to a report
         if (!Platform.isMacOS()) // where there is no Window menu to put it in
@@ -430,7 +429,7 @@ public final class MenuBar extends JMenuBar {
         probe.setToolTipText("List every control on screen that is narrower than it asked to be, into the log");
         probe.addActionListener(e -> org.helioviewer.jhv.gui.LayoutProbe.logReport());
         helpMenu.add(probe);
-        helpMenu.add(new Actions.OpenURLinBrowser("Report Bug/Request Feature", AppInfo.bugURL));
+        catalogItem(helpMenu, "reportBug");
 
         add(helpMenu);
     }
