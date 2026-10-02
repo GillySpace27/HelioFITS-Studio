@@ -349,16 +349,16 @@ public final class MenuBar extends JMenuBar {
         // Grouped by what the layer actually carries, because that is the choice that decides how
         // much of the measurement survives: a JP2 from Helioviewer is an 8-bit browse product,
         // where a native FITS is the calibrated one. Same missions, different data.
-        layersMenu.add(new Actions.NewLayer());
-        layersMenu.add(new Actions.NewSynopticLayer());
+        catalogItem(layersMenu, "newJp2Layer");
+        catalogItem(layersMenu, "newSynopticLayer");
         layersMenu.addSeparator();
-        layersMenu.add(new Actions.NewPunchLayer());
-        layersMenu.add(new Actions.NewSoarLayer());
-        layersMenu.add(new Actions.NewAspiicsLayer());
+        catalogItem(layersMenu, "newPunchLayer");
+        catalogItem(layersMenu, "newSoarLayer");
+        catalogItem(layersMenu, "newAspiicsLayer");
         layersMenu.addSeparator();
-        layersMenu.add(new Actions.NewPointCloudLayer());
-        layersMenu.add(new Actions.OpenLocalFile());
-        layersMenu.add(new Actions.OpenModel());
+        catalogItem(layersMenu, "newPointCloudLayer");
+        catalogItem(layersMenu, "openImageLayer");
+        catalogItem(layersMenu, "openModel");
         layersMenu.addSeparator();
         // Loading something already downloaded is a way of adding a layer, not a tool: it was under
         // Tools only because that is where the dialog was written.
