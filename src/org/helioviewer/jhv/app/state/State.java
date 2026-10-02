@@ -106,7 +106,7 @@ public final class State {
     // URIs to re-read. Anything else is a husk -- it restores as a layer with nothing to load,
     // which then gets pruned, so keeping it actively loses the layer instead of preserving it.
     // Consulted on both the write and the read side; see extra/test/SessionStateCheck.java.
-    static boolean hasRestorableData(JSONObject data) {
+    public static boolean hasRestorableData(JSONObject data) {
         if (data.optJSONObject("APIRequest") != null)
             return true;
         if (data.optJSONObject("fitsRequest") != null)
