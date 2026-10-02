@@ -117,6 +117,8 @@ public final class ActionCatalog {
         put("rotate90Z", new Actions.Rotate90Camera("Z Axis", "Z"), "", "Rotate the view 90° about Z");
         put("zoomFovAnnotation", new Actions.ZoomFOVAnnotation(), "", "");
         put("copyProvenance", new Actions.CopyProvenance(), "File/Copy Provenance", "");
+        put("undo", org.helioviewer.jhv.app.SceneUndo.undoAction(), "Edit/Undo", "Undo the last change to the scene");
+        put("redo", org.helioviewer.jhv.app.SceneUndo.redoAction(), "Edit/Redo", "Redo the last undone change to the scene");
     }
 
     /**
