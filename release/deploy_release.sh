@@ -5,6 +5,7 @@
 #   ./deploy_release.sh guide     # re-upload ONLY the guide PDF+MD to the release (fast iterate)
 #   ./deploy_release.sh publish   # repackage + tag + create the GitHub release (outward)
 #   ./deploy_release.sh notarize  # build a signed + notarized + stapled macOS .app/.dmg (Gatekeeper-clean)
+#   ./deploy_release.sh assets [local|ci|all]  # the release's asset names, from release/assets.txt
 #
 # The `notarize` mode needs an Apple Developer ID cert + a notarytool keychain
 # profile (see the preconditions it prints). It builds a self-contained .app
@@ -61,6 +62,9 @@ CLOUD="$HERE/fabric_suvi.json.gz"   # demo point cloud for the Point Cloud layer
 STAGE="$HERE/.release_stage"
 
 MODE="${1:-package}"
+# The release's asset names, kept in one file. publish, the ship-hfstudio tracker and package.yml's
+# attach job read it; nothing else names the assets.
+ASSETS_FILE="$HERE/assets.txt"
 
 build_guide() {
     echo "==> regenerating guide (PDF + MD)"
@@ -236,6 +240,17 @@ upload_guide_only() {
     gh release upload "$TAG" "$PDF" "$MD" --clobber --repo "$REPO"
 }
 
+# Print the asset names from assets.txt with {v} expanded, one per line; $1 is local, ci or all. A row
+# that is not "<pattern> local|ci" stops the script: a misspelt list would ship the wrong files.
+asset_names() {
+    [ -f "$ASSETS_FILE" ] || { echo "!! $ASSETS_FILE is missing" >&2; exit 1; }
+    awk -v v="$VERSION" -v want="$1" '
+        /^#/ || NF == 0 { next }
+        NF != 2 || ($2 != "local" && $2 != "ci") { print "!! assets.txt:" NR ": want <pattern> local|ci, got: " $0 > "/dev/stderr"; bad = 1; next }
+        want == "all" || $2 == want { gsub(/[{]v[}]/, v, $1); print $1 }
+        END { exit bad }' "$ASSETS_FILE"
+}
+
 publish() {
     # Refuse to touch an existing release. Overwriting one destroys the binaries someone may be
     # relying on, which is the whole thing per-release tags exist to prevent.
@@ -252,17 +267,24 @@ publish() {
     BUILD_BRANCH="$(cd "$SRC" && git rev-parse --abbrev-ref HEAD)"
     echo "==> tagging $TAG at $BUILD_SHA ($BUILD_BRANCH)"
     [ "$BUILD_BRANCH" = master ] || echo "   (warning: releases ship from master; this build is from '$BUILD_BRANCH')"
+
+    # Exactly the local rows of assets.txt, gathered before tagging so a missing file cannot strand a
+    # tag. A missing Intel dmg is skipped (the notes then point Intel Macs at the zip).
+    set --
+    for _n in $(asset_names local); do
+        if [ -f "$HERE/$_n" ]; then
+            set -- "$@" "$HERE/$_n"
+        else
+            case "$_n" in *-intel.dmg) ;; *) echo "!! release/$_n is missing; nothing was tagged" >&2; exit 2 ;; esac
+        fi
+    done
+
     ( cd "$SRC" && git tag -a "$TAG" "$BUILD_SHA" -m "$TITLE" && git push origin "$TAG" )
 
     SHA="$(shasum -a 256 "$ZIP" | awk '{print $1}')"
     NOTES="$(notes_file)"
-    # Include the notarized macOS .dmg when it's been built (via `notarize`); the notes
-    # reference it, so ship it alongside the zip.
-    DMG_ASSET=""; [ -f "$DMG" ] && DMG_ASSET="$DMG"
-    [ -f "$DMG_INTEL" ] && [ "$DMG_INTEL" != "$DMG" ] && DMG_ASSET="$DMG_ASSET $DMG_INTEL"
-    CLOUD_ASSET=""; [ -f "$CLOUD" ] && CLOUD_ASSET="$CLOUD"
     echo "==> creating release $TAG"
-    gh release create "$TAG" "$ZIP" "$PDF" "$MD" $DMG_ASSET $CLOUD_ASSET \
+    gh release create "$TAG" "$@" \
         --repo "$REPO" --title "$TITLE" --notes-file "$NOTES" $PRERELEASE
     rm -f "$NOTES"
     echo "==> done: https://github.com/$REPO/releases/tag/$TAG"
@@ -574,5 +596,6 @@ case "$MODE" in
     guide)    build_guide; upload_guide_only ;;
     publish)  build_guide; repackage; publish ;;
     notarize) notarize_mac ;;
-    *) echo "usage: $0 {package|guide|publish|notarize}"; exit 2 ;;
+    assets)   case "${2:-all}" in local|ci|all) asset_names "${2:-all}" ;; *) echo "usage: $0 assets [local|ci|all]" >&2; exit 2 ;; esac ;;
+    *) echo "usage: $0 {package|guide|publish|notarize|assets [local|ci|all]}"; exit 2 ;;
 esac

@@ -90,5 +90,33 @@ class AssetListTest(unittest.TestCase):
             self.assertIn(name, local)
 
 
+def workflow_step(text, name):
+    """The body of the package.yml step called name, up to the next step."""
+    m = re.search(r"- name: " + re.escape(name) + r"\n(.*?)(?=\n      - |\Z)", text, re.S)
+    if not m:
+        raise AssertionError(f"package.yml has no step named {name!r}")
+    return m.group(1)
+
+
+class AttachTest(unittest.TestCase):
+    def test_publish_attaches_the_local_rows(self):
+        out = subprocess.run(["sh", str(RELEASE / "deploy_release.sh"), "assets", "local"],
+                             capture_output=True, text=True, check=True, timeout=60).stdout.split()
+        self.assertEqual(out, [p.replace("{v}", version()) for p, s in rows() if s == "local"])
+        text = (RELEASE / "deploy_release.sh").read_text()
+        body = re.search(r"^publish\(\) \{\n(.*?)^\}", text, re.S | re.M).group(1)
+        self.assertIn("asset_names local", body)
+        self.assertNotIn('"$ZIP" "$PDF" "$MD"', body)
+
+    def test_package_yml_attaches_the_ci_rows(self):
+        text = (ROOT / ".github" / "workflows" / "package.yml").read_text()
+        check = workflow_step(text, "Check the packages belong to this release")
+        attach = workflow_step(text, "Attach to the release")
+        for name, body in (("check", check), ("attach", attach)):
+            self.assertNotRegex(body, r"-windows\.zip|-linux\.tar\.gz", f"the {name} step names an asset itself")
+        self.assertIn("release/assets.txt", check)
+        self.assertIn("ci-assets.txt", attach)
+
+
 if __name__ == "__main__":
     unittest.main()
