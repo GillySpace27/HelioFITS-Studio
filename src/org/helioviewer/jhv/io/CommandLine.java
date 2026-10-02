@@ -34,29 +34,45 @@ public class CommandLine {
 
     private static String[] arguments;
 
+    /** The session a window opens at startup when the command line names none, and why. */
+    public record StartupState(Source source, @Nullable URI uri) {
+        public enum Source { NONE, EXTRA_WINDOW, PINNED, AUTOSAVE, BLANK }
+    }
+
+    /**
+     * Precedence: an explicit -state on the command line, else a GUI-pinned default session
+     * (startup.loadState), else the auto-restored last session. The command line is not an input
+     * here because it always wins: setArguments appends this answer after it and loadRequest()
+     * honors the first -state it sees. Pure, so StartupPrecedenceCheck can pin every combination.
+     *
+     * <p>A spawned window restores only its assigned session file (empty if brand-new); the pinned
+     * default is a primary-window concept. "true" and "false" are the Settings checkbox's values,
+     * not paths, and fall through to the autosave. {@code mode} is startup.mode, which HS-10 gives
+     * a meaning; until then it is ignored and BLANK is never returned.
+     */
+    public static StartupState resolveStartup(boolean extraWindow, @Nullable java.io.File restore,
+                                              @Nullable String loadState, @Nullable String mode) {
+        if (extraWindow)
+            return restore == null ? new StartupState(StartupState.Source.NONE, null)
+                    : new StartupState(StartupState.Source.EXTRA_WINDOW, restore.toURI());
+        if (loadState != null && !"false".equals(loadState) && !"true".equals(loadState))
+            return new StartupState(StartupState.Source.PINNED, Path.of(loadState).toUri());
+        if (restore != null)
+            return new StartupState(StartupState.Source.AUTOSAVE, restore.toURI());
+        return new StartupState(StartupState.Source.NONE, null);
+    }
+
     public static void setArguments(String[] args) {
         arguments = args;
-        // Precedence: an explicit -state on the command line, else a GUI-pinned default session
-        // (startup.loadState), else the auto-restored last session. Command line always wins
-        // because it is appended last and loadRequest() honors the first -state it sees.
-        String stateArg = null;
-        java.io.File restore = org.helioviewer.jhv.app.Session.restoreCandidate();
-        String propState = Settings.getProperty("startup.loadState");
-        if (org.helioviewer.jhv.app.Session.isExtraWindow()) {
-            // A spawned window restores only its assigned session file (empty if brand-new);
-            // the pinned default is a primary-window concept.
-            if (restore != null)
-                stateArg = restore.toURI().toString();
-        } else if (propState != null && !"false".equals(propState) && !"true".equals(propState)) {
-            stateArg = Path.of(propState).toUri().toString();
-        } else if (restore != null) {
-            stateArg = restore.toURI().toString();
-        }
+        StartupState start = resolveStartup(org.helioviewer.jhv.app.Session.isExtraWindow(),
+                org.helioviewer.jhv.app.Session.restoreCandidate(),
+                Settings.getProperty("startup.loadState"), Settings.getProperty("startup.mode"));
+        URI stateArg = start.uri();
         if (stateArg != null) {
             org.helioviewer.jhv.app.Session.expectStateLoad(); // hold the automatic saves until it lands
             arguments = Arrays.copyOf(args, args.length + 2);
             arguments[args.length] = "-state";
-            arguments[args.length + 1] = stateArg;
+            arguments[args.length + 1] = stateArg.toString();
         }
     }
 
@@ -73,20 +89,32 @@ public class CommandLine {
         for (URI uri : getURIOptionValues("-request")) {
             Commands.loadRequest(uri);
         }
-        // -state
-        for (URI uri : getURIOptionValues("-state")) {
-            // Hold the automatic saves until the scene really is this session's, and keep holding them
-            // if the load fails: a restore that never happened must not be written over anything.
-            org.helioviewer.jhv.app.Session.expectStateLoad();
-            org.helioviewer.jhv.app.Session.onNextStateLoad(success -> {
-                if (!success)
-                    org.helioviewer.jhv.app.Session.expectStateLoad();
-            });
-            Commands.loadState(uri);
-            if ("file".equals(uri.getScheme()))
-                org.helioviewer.jhv.app.Session.adoptSessionFile(new java.io.File(uri));
-            break;
-        }
+        openStateArgument(Commands::loadState);
+    }
+
+    /**
+     * -state: the first one on the line, which is the user's when there is one. The window loads it
+     * and then belongs to it, so autosave and quit write back to the file that was opened. Returns
+     * what was handed to {@code load}, or null; {@code load} is a parameter so SessionStateArgCheck
+     * can see which file would load and which file the window then saves to, without loading it.
+     */
+    @Nullable
+    public static URI openStateArgument(java.util.function.Consumer<URI> load) {
+        List<URI> states = getURIOptionValues("-state");
+        if (states.isEmpty())
+            return null;
+        URI uri = states.get(0);
+        // Hold the automatic saves until the scene really is this session's, and keep holding them
+        // if the load fails: a restore that never happened must not be written over anything.
+        org.helioviewer.jhv.app.Session.expectStateLoad();
+        org.helioviewer.jhv.app.Session.onNextStateLoad(success -> {
+            if (!success)
+                org.helioviewer.jhv.app.Session.expectStateLoad();
+        });
+        load.accept(uri);
+        if ("file".equals(uri.getScheme()))
+            org.helioviewer.jhv.app.Session.adoptSessionFile(new java.io.File(uri));
+        return uri;
     }
 
     private static List<URI> getURIOptionValues(String param) {
@@ -128,7 +156,7 @@ public class CommandLine {
      * @param param name of the option.
      * @return the values associated to the option.
      */
-    private static List<String> getOptionValues(String param) {
+    static List<String> getOptionValues(String param) { // package-private for StartupPrecedenceCheck
         List<String> values = new ArrayList<>();
         if (arguments == null)
             return values;
