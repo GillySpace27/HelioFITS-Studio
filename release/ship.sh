@@ -2,7 +2,8 @@
 # RELEASING.md as phases that stop at the first red row. Run from anywhere in the checkout.
 #
 #   release/ship.sh bump <version>   write VERSION (no trailing newline); changelog.md needs its heading
-#   release/ship.sh prepare          tracker green through `pushed`; ant clean check-all; notarize (and the
+#   release/ship.sh prepare          tracker green through `pushed`; the tag typed (or HFS_NOTARIZE_APPROVED) to
+#                                    allow the upload to Apple; ant clean check-all; notarize (and the
 #                                    Intel dmg when release/.jdk-x64 exists); package; tracker rows
 #   release/ship.sh gate             publish --dry-run, the strict guide build, the smoke test typed as
 #                                    done, and the gate text to paste to Gilly
@@ -50,9 +51,28 @@ bump() {
     echo "VERSION is now $_v. Commit it with the source (RELEASING.md step 1); pushing master needs Gilly's yes."
 }
 
+# notarize uploads the build to Apple, an outward act, so it has its own per-tag gate: the tag typed at
+# a terminal, or, with no terminal, HFS_NOTARIZE_APPROVED set to that tag for this one invocation. It is
+# a different question from publish's, so HFS_PUBLISH_APPROVED does not answer it.
+approve_notarize() {
+    _tag="v$(version)"
+    if [ -n "${HFS_NOTARIZE_APPROVED:-}" ]; then
+        [ "$HFS_NOTARIZE_APPROVED" = "$_tag" ] \
+            || { echo "!! HFS_NOTARIZE_APPROVED is '$HFS_NOTARIZE_APPROVED', not $_tag; a yes is for one tag" >&2; exit 2; }
+    elif tty_in; then
+        printf 'prepare uploads the %s build to Apple for notarization. Type the tag to go ahead (%s): ' "$_tag" "$_tag"
+        read -r _answer
+        [ "$_answer" = "$_tag" ] || { echo "!! typed '$_answer', not $_tag; nothing was sent to Apple" >&2; exit 2; }
+    else
+        echo "!! no terminal: prepare uploads to Apple only with HFS_NOTARIZE_APPROVED=$_tag set for this one invocation" >&2
+        exit 2
+    fi
+}
+
 prepare() {
     echo "==> the source is committed and pushed (RELEASING.md step 1)"
     require_rows pushed
+    approve_notarize
     echo "==> ant clean check-all"
     ( cd "$SRC" && ant clean check-all )
     if [ -z "${JAVA_HOME:-}" ] && [ -d /Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home ]; then
