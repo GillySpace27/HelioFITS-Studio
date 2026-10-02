@@ -20,8 +20,11 @@ sunkit-image's, and are applied here so that the vectors test the ranking:
 Inputs are rounded to float16 first, because FilterRHEF ranks half floats.
 
 upsilon-split is different on purpose: its expected vector is sunkit-image's own output, ranks
-over n and sunkit_image.utils.apply_upsilon per annulus (split at the annulus nanmean), so the
-check can pin that the display upsilon (split at 0.5) does not match it.
+over n and sunkit_image.utils.apply_upsilon per annulus, so the check can pin how far the display
+upsilon is from it. That distance is mostly rank normalisation, not the split: FilterRHEF's own ranks,
+(R - 1) / (n - 1), through the shader's split at 0.5 differ by max |d| 0.3078 (ranked pixels), and
+converted to R / n first they differ by about 0.002 (float32 rounding of the top rank, amplified by the
+0.35 power). The split alone, 0.5 against the annulus nanmean, is 5e-7 on rank data. See README.md here.
 
 Before writing anything, sunkit_image.radial.rhef itself is run on the radial-falloff input and
 must agree with the rank rule above (ranks over n) in every annulus that both assign the same

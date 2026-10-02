@@ -16,7 +16,7 @@ import nom.tam.fits.Header;
  * (OFFSET = 0), so subtracting one from the other leaves OFFSET / EXPTIME in every pixel. On the
  * frames where this was found that was 29.8 DN/s for C2 (747.3 DN over 25.1 s) and 23.7 DN/s for
  * C3 (417.5 over 17.6 s), and the C2 occulter, which should read about 0 DN/s, read 743 DN raw
- * (read from the vault, projects/jhelioviewer.md:1163-1176, found 2026-09-18). The header here is
+ * (read from the vault, projects/jhelioviewer.md:1268-1285, the section "LASCO background subtraction leaves the CCD bias in", found 2026-09-18). The header here is
  * synthetic, built from those numbers: no LASCO file is committed, and the real background comes
  * from NRL, so the subtraction runs through FITSImage.subtractPerSecond with a background given.
  *
