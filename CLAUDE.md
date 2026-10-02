@@ -205,9 +205,17 @@ loading only with a throwaway home (above).
 
 `upstream` is `https://github.com/Helioviewer-Project/JHelioviewer-SWHV.git` (add it with
 `git remote add upstream <url>` if a checkout lacks it; never push to it). Master's history was
-rewritten on 2026-09-16, so `git merge-base master upstream/master` is a 2020 commit: upstream fixes
-are ported by hand or cherry-picked, never merged wholesale. Upstream pull requests wait on the
+rewritten on 2026-09-16, so until the ancestry merge in `docs/UPSTREAM.md` is on master,
+`git merge-base master upstream/master` is a 2020 commit and upstream fixes are ported by hand or
+cherry-picked, never merged wholesale. Upstream pull requests wait on the
 upstream maintainer; keep new pull-request branches independent of the open ones.
+
+How to sync, when to cherry-pick, how to prepare an upstream pull request, and which files are
+the fork's own (`docs/fork-owned-files.txt`): `docs/UPSTREAM.md`.
+
+Before a large refactor of a file, run `git log upstream/master -1 -- <path>`. If upstream touched it
+recently, prefer an additive change (a new class beside it, a small hook in it) over rewriting it,
+so the next sync does not conflict on it.
 
 ## Parallel sessions
 
