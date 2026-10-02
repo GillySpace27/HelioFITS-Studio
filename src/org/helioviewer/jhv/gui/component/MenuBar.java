@@ -387,10 +387,10 @@ public final class MenuBar extends JMenuBar {
         if (Platform.isMacOS()) {
             JMenu windowMenu = new JMenu("Window");
             windowMenu.setMnemonic(KeyEvent.VK_W);
-            windowMenu.add(new Actions.NewWindow());
+            catalogItem(windowMenu, "newWindow");
             windowMenu.addSeparator();
-            windowMenu.add(new Actions.WindowMinimize());
-            windowMenu.add(new Actions.WindowZoom());
+            catalogItem(windowMenu, "windowMinimize");
+            catalogItem(windowMenu, "windowZoom");
             windowMenu.addSeparator();
             windowMenu.add(new Actions.ShowDialog("Live Log...", LogWindow.get()));
             windowMenu.addSeparator();
