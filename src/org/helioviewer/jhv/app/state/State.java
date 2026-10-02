@@ -171,7 +171,7 @@ public final class State {
         return new JSONObject().put("org.helioviewer.jhv.state", main);
     }
 
-    private static JSONObject layer2json(Layer layer, boolean master) {
+    static JSONObject layer2json(Layer layer, boolean master) {
         JSONObject jo = new JSONObject().put("className", layer.getClass().getName()).put("name", layer.getName());
         // Stable identity, so an automation track can name this layer across a save and a reload.
         // Neither the name (not unique, and "Loading..." while the view is in flight) nor the list
@@ -199,7 +199,7 @@ public final class State {
     // A session saved before layer ids existed carries none; that layer simply keeps the fresh id
     // its constructor generated, and any track naming an id no layer carries stays unresolved and
     // is written back out unchanged. No migration is needed: no session in existence has a track.
-    private static void restoreId(JSONObject jo, Layer layer) {
+    static void restoreId(JSONObject jo, Layer layer) {
         if (layer instanceof AbstractLayer al)
             al.restoreId(jo.optString("id", ""));
     }
@@ -220,7 +220,7 @@ public final class State {
     }
 
     @Nullable
-    private static Object json2Object(JSONObject json) {
+    static Object json2Object(JSONObject json) {
         JSONObject data = json.optJSONObject("data");
         if (data == null)
             return null;
@@ -430,6 +430,14 @@ public final class State {
             String message = e.getMessage() == null || e.getMessage().isBlank() ? "State load failed." : e.getMessage();
             Commands.notifyLoadStateFinished(context, false, message);
         }
+    }
+
+    /**
+     * Bring the live scene to a snapshot, for scene undo and redo. Unlike load, a layer whose data
+     * source did not change is kept, loaded movie and all, and takes only the snapshot's settings.
+     */
+    public static void apply(JSONObject jo) {
+        StateApply.apply(jo);
     }
 
     private State() {}

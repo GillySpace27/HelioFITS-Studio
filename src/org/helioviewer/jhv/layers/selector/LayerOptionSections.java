@@ -1,9 +1,12 @@
 package org.helioviewer.jhv.layers.selector;
 
 import java.awt.Component;
+import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.WeakHashMap;
 
 import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
@@ -37,6 +40,14 @@ public final class LayerOptionSections implements Layers.Listener, Interfaces.La
     private final JPanel geometryWrapper;
     private final JPanel manageWrapper;
     private final Map<ImageLayer, ImagePanels> cache = new IdentityHashMap<>();
+    // Layers whose settings State.apply (scene undo) replaced wholesale. Every row reads its layer in
+    // its constructor, so their panels are rebuilt on the next update rather than synced row by row.
+    private static final Set<ImageLayer> replaced = Collections.newSetFromMap(new WeakHashMap<>());
+
+    /** For State.apply: this layer's settings changed behind its panels' backs. */
+    public static void settingsReplaced(ImageLayer layer) {
+        replaced.add(layer);
+    }
     @Nullable
     private ImagePanels current; // the panels currently shown, polled for the live readout and the section badges
     @Nullable
@@ -275,6 +286,13 @@ public final class LayerOptionSections implements Layers.Listener, Interfaces.La
         if (menuOpen())
             return;
         if (layer instanceof ImageLayer il && cache.get(il) instanceof ImagePanels p) {
+            if (replaced.remove(il)) {
+                if (current == p)
+                    rebuild(il);
+                else
+                    cache.remove(il);
+                return;
+            }
             // A panel built before the layer's first frame landed was scaled against empty metadata,
             // so its Mask row spread 1000 steps over 0 to 1 solar radius instead of out to the frame
             // corner, and being cached it stayed that way for the session. Rebuild once the real
