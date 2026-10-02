@@ -40,6 +40,7 @@ class LicenseSyncTest(unittest.TestCase):
             "EULA.txt",
             "Kakadu.txt",
             "FFmpeg-Notices.txt",
+            "OpenJPEG.txt",
         ):
             (self.output / name).write_text("Do not alter " + name)
         self.protected = self.snapshot()
@@ -259,6 +260,19 @@ class LicenseSyncTest(unittest.TestCase):
         self.assertIn("Native.txt", self.notices())
         self.assertTrue((self.output / "Native.txt").exists())
 
+    def test_openjpeg_native_uses_the_hand_kept_notice(self):
+        self.jar(
+            "jhv/jhv-natives-test.jar",
+            {"jhv/test/libopenjp2.so": b"openjpeg", "jhv/test/openjp2.dll": b"dll"},
+        )
+        self.run_sync()
+        artifact = self.report()["artifacts"][0]
+        self.assertEqual(
+            artifact["external_notices"], ["resources/licenses/OpenJPEG.txt"]
+        )
+        self.assertIn("Separately maintained notices: OpenJPEG.txt.", self.notices())
+        self.assert_protected()
+
     def test_unknown_binary_is_not_covered_by_a_java_fallback(self):
         self.missing["lwjgl-*.jar"] = "LWJGL.txt"
         (self.sources / "LWJGL.txt").write_text("Copyright LWJGL")
@@ -462,6 +476,8 @@ class LicenseSyncTest(unittest.TestCase):
         for old in (syncer.ROOT / "resources/licenses").glob("*.txt"):
             if old.name.casefold() in syncer.PROTECTED:
                 continue
+            if not old.read_text().startswith(syncer.GENERATED):
+                continue  # unmanaged: the sync never writes or removes it
             for line in old.read_text().splitlines():
                 if re.match(r"\s*copyright\b", line, re.I):
                     self.assertIn(" ".join(line.split()), new_text, (old.name, line))

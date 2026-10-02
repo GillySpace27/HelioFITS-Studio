@@ -26,6 +26,10 @@ on:
         required: false
         default: ""
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
 env:
   FITS: extra/test/data/syn_AIA_171_2026-01-12T00-00-00_f_V3.fits
   JP2: extra/test/j2k/lasco-c2-256.jp2
@@ -35,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           # Full history, but only this commit's files: the build records `git rev-list --count
           # HEAD` as the revision, which a shallow clone reports as 1. The files are what make the
@@ -43,15 +47,10 @@ jobs:
           fetch-depth: 0
           filter: blob:none
 
-      - uses: actions/setup-java@v5
+      - uses: ./.github/actions/setup-hfstudio
         with:
-          distribution: temurin
-          java-version: '25'
-
-      - name: Install ant, a virtual display, software OpenGL, a screenshot tool and Pillow
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ant xvfb imagemagick libgl1 libgl1-mesa-dri libglx-mesa0 libegl1 python3-pil
+          natives: 'false'
+          linux-packages: xvfb imagemagick libgl1 libgl1-mesa-dri libglx-mesa0 libegl1 python3-pil
 
       - name: Build
         run: ant clean jar
@@ -78,7 +77,7 @@ jobs:
           grep -E 'OpenJPEG .* loaded from .*HFStudio' app-linux-pkg.log \
             || { echo "::error::no JPEG 2000 file was decoded by the bundled OpenJPEG"; exit 1; }
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: package-linux-evidence
@@ -87,7 +86,7 @@ jobs:
             app-linux-pkg.log
             app-linux-pkg.out
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: package-linux
           path: HFStudio-*-linux.tar.gz
@@ -98,49 +97,20 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
           filter: blob:none
 
-      - uses: actions/setup-java@v5
+      - uses: ./.github/actions/setup-hfstudio
         with:
-          distribution: temurin
-          java-version: '25'
-
-      - name: Install ant and Pillow
-        run: |
-          choco install -y ant --no-progress
-          python -m pip install --quiet pillow
+          natives: 'false'
+          pillow: 'true'
 
       # As in launch.yml: at the runner's 1024x768 the image is a 30-pixel strip.
       - name: Raise the screen to 1920x1080
         shell: pwsh
-        run: |
-          Add-Type @"
-          using System; using System.Runtime.InteropServices;
-          public class Res {
-            [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
-            public struct DEVMODE {
-              [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmDeviceName;
-              public short dmSpecVersion, dmDriverVersion, dmSize, dmDriverExtra;
-              public int dmFields, dmPositionX, dmPositionY, dmDisplayOrientation, dmDisplayFixedOutput;
-              public short dmColor, dmDuplex, dmYResolution, dmTTOption, dmCollate;
-              [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmFormName;
-              public short dmLogPixels;
-              public int dmBitsPerPel, dmPelsWidth, dmPelsHeight, dmDisplayFlags, dmDisplayFrequency,
-                         dmICMMethod, dmICMIntent, dmMediaType, dmDitherType, dmReserved1, dmReserved2,
-                         dmPanningWidth, dmPanningHeight;
-            }
-            [DllImport("user32.dll")] public static extern int EnumDisplaySettings(string d, int m, ref DEVMODE dm);
-            [DllImport("user32.dll")] public static extern int ChangeDisplaySettings(ref DEVMODE dm, int f);
-          }
-          "@
-          $dm = New-Object Res+DEVMODE
-          $dm.dmSize = [Runtime.InteropServices.Marshal]::SizeOf($dm)
-          [Res]::EnumDisplaySettings($null, -1, [ref]$dm) | Out-Null
-          $dm.dmPelsWidth = 1920; $dm.dmPelsHeight = 1080; $dm.dmFields = 0x180000
-          "ChangeDisplaySettings returned $([Res]::ChangeDisplaySettings([ref]$dm, 0)) (0 is success)"
+        run: ./extra/ci/set-resolution.ps1
 
       - name: Build
         shell: bash
@@ -173,7 +143,7 @@ jobs:
           grep -E 'OpenJPEG .* loaded from .*HFStudio' app-windows-pkg.log \
             || { echo "::error::no JPEG 2000 file was decoded by the bundled OpenJPEG"; exit 1; }
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: package-windows-evidence
@@ -182,7 +152,7 @@ jobs:
             app-windows-pkg.log
             app-windows-pkg.out
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: package-windows
           path: HFStudio-*-windows.zip
@@ -197,20 +167,15 @@ jobs:
     runs-on: macos-26-intel   # the longest-lived Intel label; see checks.yml
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
           filter: blob:none
 
-      - uses: actions/setup-java@v5
+      - uses: ./.github/actions/setup-hfstudio
         with:
-          distribution: temurin
-          java-version: '25'
-
-      - name: Install ant and Pillow
-        run: |
-          brew install ant
-          python3 -m pip install --quiet --break-system-packages pillow || python3 -m pip install --quiet pillow
+          natives: 'false'
+          pillow: 'true'
 
       - name: Build
         run: ant clean jar
@@ -272,7 +237,7 @@ jobs:
         if: env.HAS_MAC2 == 'true'
         run: python3 extra/launch-pixels.py shot-macos-intel.png 1500
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: package-macos-intel-evidence
@@ -292,11 +257,13 @@ jobs:
       TAG: ${{ github.event.release.tag_name || inputs.tag }}
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: package-*   # the two packages, plus their evidence, which is harmless here
           merge-multiple: true
 
+      # The names CI attaches are the "ci" rows of release/assets.txt at the commit that was built, the
+      # one list publish and the tracker read too. This job has no checkout, so the file comes from the API.
       # The packages' names come from VERSION at the commit that was built. On a release event
       # that is the tag's commit, so the names must carry the tag's version: packages from any
       # other version are refused rather than attached to the wrong release. A suffix after the
@@ -305,15 +272,18 @@ jobs:
         run: |
           ls -l HFStudio-*
           VERSION="${TAG#v}"; VERSION="${VERSION%%-*}"
-          for f in "HFStudio-$VERSION-windows.zip" "HFStudio-$VERSION-linux.tar.gz"; do
+          gh api -H "Accept: application/vnd.github.raw" "repos/$GITHUB_REPOSITORY/contents/release/assets.txt?ref=$GITHUB_SHA" > assets.txt
+          awk '!/^#/ && NF && $2=="ci" {gsub(/[{]v[}]/, v, $1); print $1}' v="$VERSION" assets.txt > ci-assets.txt
+          [ -s ci-assets.txt ] || { echo "::error::release/assets.txt at $GITHUB_SHA lists no ci assets"; exit 1; }
+          while IFS= read -r f; do
             [ -f "$f" ] || { echo "::error::expected $f for $TAG; the build produced $(ls HFStudio-* | tr '\n' ' ')"; exit 1; }
-          done
+          done < ci-assets.txt
 
       # Never --clobber: a release's files are fixed once published, and replacing one is how a
       # collaborator loses the build that worked for them. A second run fails here instead.
       - name: Attach to the release
         run: |
-          gh release upload "$TAG" HFStudio-*-windows.zip HFStudio-*-linux.tar.gz --repo "$GITHUB_REPOSITORY"
+          xargs gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" < ci-assets.txt
 
       # The notes are written before these files exist, so their checksums are added now, in the
       # same form the Mac files' checksums take.

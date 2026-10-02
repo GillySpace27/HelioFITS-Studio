@@ -64,7 +64,9 @@ Shared license texts remain until their last user is gone.
 `JHelioviewer.txt`, `EULA.txt`, and `Kakadu.txt` are never written, renamed, or
 deleted. `FFmpeg-Notices.txt` remains owned by `update_ffmpeg.py` and is also left
 untouched. Its shared GPL text stays in the distribution as long as that notice
-exists.
+exists. `OpenJPEG.txt` (the BSD 2-clause notice for the `openjp2` natives in
+`lib/jhv/jhv-natives-*.jar`) is kept by hand the same way and is listed as a
+separately maintained notice for those archives.
 
 Only notice files bearing the script's generated-file header can be replaced or
 removed. Other files are left alone, and an output-name collision stops the sync.

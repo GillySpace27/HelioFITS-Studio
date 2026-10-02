@@ -21,6 +21,8 @@ while reporting success. Asset dates are the only thing that catches that.
 Usage:
     python3 status.py [--done smoketest] [--json] [--emit]
 """
+from __future__ import annotations
+
 import argparse
 import datetime
 import json
@@ -49,6 +51,29 @@ with open(os.path.join(DEPLOY, "deploy_release.sh")) as _f:
 with open(os.path.join(SRC, "VERSION")) as _f:
     VERSION = _f.read().strip()
 TAG = f"v{VERSION}"
+
+# The release's asset names live in one file, release/assets.txt, which deploy_release.sh publish and
+# package.yml's attach job read too.
+ASSETS_TXT = os.path.join(DEPLOY, "assets.txt")
+
+
+def read_assets(version: str, source: str | None = None) -> list[str]:
+    """Names from release/assets.txt with {v} replaced by version, in file order.
+
+    source is "local" (publish attaches it), "ci" (package.yml attaches it) or None for every row.
+    A row that is not "<pattern> local|ci" raises ValueError instead of being skipped.
+    """
+    names = []
+    with open(ASSETS_TXT) as f:
+        for n, line in enumerate(f, 1):
+            if not line.strip() or line.startswith("#"):
+                continue
+            parts = line.split()
+            if len(parts) != 2 or parts[1] not in ("local", "ci"):
+                raise ValueError(f"assets.txt:{n}: want '<pattern> local|ci', got {line.strip()!r}")
+            if source is None or parts[1] == source:
+                names.append(parts[0].replace("{v}", version))
+    return names
 
 DMG_NAME = f"HFStudio-{VERSION}.dmg"
 ZIP_NAME = f"HFStudio-{VERSION}.zip"
@@ -176,6 +201,9 @@ _PUBLISHED = (
         + _asset_current(PDF, PDF_NAME).strip() + "\n)"
 )
 
+# The live release carries every asset publish attaches; the Intel dmg is optional (RELEASING.md).
+_MIN_LIVE_ASSETS = len([n for n in read_assets(VERSION, "local") if not n.endswith("-intel.dmg")])
+
 # (key, label, check)
 MILESTONES = [
     ("pushed", "Source committed and pushed to origin/master",
@@ -236,7 +264,7 @@ MILESTONES = [
      # failure, that read exactly like a missing published asset.
      f"{_PUBLISHED} "
      f"&& gh release view {TAG} --repo {REPO} --json isPrerelease,assets "
-     f"--jq 'select((.isPrerelease == {'true' if TAG.startswith('v0.') else 'false'}) and (.assets|length)>=5)' | grep -q . "
+     f"--jq 'select((.isPrerelease == {'true' if TAG.startswith('v0.') else 'false'}) and (.assets|length)>={_MIN_LIVE_ASSETS})' | grep -q . "
      f"&& {_SHORTLINK_SERVES_DMG}"),
 ]
 

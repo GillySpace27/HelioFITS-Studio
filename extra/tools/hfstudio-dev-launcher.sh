@@ -1,4 +1,6 @@
 #!/bin/sh
+# DEPRECATED: kept in place, not deleted. The current dev launcher is made by
+# extra/make-dev-launcher.sh (HelioFITS Studio (dev).app); use that.
 # HelioFITS Studio dev launcher: rebuild from source, then run whatever that produced.
 #
 # The copy that runs lives in ~/Desktop/HelioFITS Studio (dev).app/Contents/MacOS/launch; this is the source

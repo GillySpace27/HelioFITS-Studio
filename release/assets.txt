@@ -1,0 +1,14 @@
+# Release asset names, one per row: <pattern> <source>.
+# {v} is replaced by the VERSION file. source is "local" (deploy_release.sh publish attaches the file
+# from release/) or "ci" (.github/workflows/package.yml attaches it after the release is published).
+# deploy_release.sh, the ship-hfstudio tracker and package.yml read this file; nothing else names them.
+# A data contract: links already handed out and the download page match these names exactly.
+# Append rows; never rename or remove one.
+HFStudio-{v}.dmg            local
+HFStudio-{v}-intel.dmg      local
+HFStudio-{v}.zip            local
+HFStudio-{v}-windows.zip    ci
+HFStudio-{v}-linux.tar.gz   ci
+HFStudio-Guide.pdf          local
+HFStudio-Guide.md           local
+fabric_suvi.json.gz         local
