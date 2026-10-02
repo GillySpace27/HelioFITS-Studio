@@ -374,14 +374,14 @@ public final class MenuBar extends JMenuBar {
 
         JMenu movieMenu = new JMenu("Movie");
         movieMenu.setMnemonic(KeyEvent.VK_M);
-        movieMenu.add(Actions.PLAY_PAUSE);
-        movieMenu.add(Actions.PREVIOUS_FRAME);
-        movieMenu.add(Actions.NEXT_FRAME);
-        movieMenu.add(Actions.RECORD);
+        catalogItem(movieMenu, "playPause");
+        catalogItem(movieMenu, "previousFrame");
+        catalogItem(movieMenu, "nextFrame");
+        catalogItem(movieMenu, "record");
         movieMenu.addSeparator();
-        movieMenu.add(Actions.TRIM_START);
-        movieMenu.add(Actions.TRIM_END);
-        movieMenu.add(Actions.TRIM_RESET);
+        catalogItem(movieMenu, "trimStart");
+        catalogItem(movieMenu, "trimEnd");
+        catalogItem(movieMenu, "trimReset");
         add(movieMenu);
 
         if (Platform.isMacOS()) {
