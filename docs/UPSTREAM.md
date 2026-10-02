@@ -17,20 +17,26 @@ GitHub fork of JHelioviewer, never from this repository's master.
 
 ## How master relates to upstream
 
-Master's history was rewritten on 2026-09-16 (fork assets purged). The rewrite gave every commit a
-new id, so git stopped seeing that master contains upstream: `git merge-base master upstream/master`
-printed `ea5893037`, a 2020 commit, and the 2026-09-15 sync had 142 conflicts.
-
-`a0f731ad4` ("Merge JHelioviewer through 14 September 2026") has as its second parent `3c1620aa1`,
-master's rewritten copy of upstream `d1d6610c9`. Both have tree `ad5da009c`. The ancestry merge
-`git merge -s ours --no-ff d1d6610c9` records that fact: it adds `d1d6610c9` as a parent and changes
-no file. Check whether it is on master:
+Master's history was rewritten on 2026-09-16 (fork assets purged), and the plan behind this file
+feared that git no longer saw upstream inside master. Measured on `origin/master` (full history, not
+a shallow clone) against `upstream/master` at `6b874317543f` (2026-09-30), the ancestry is intact:
 
 ```sh
-git merge-base master upstream/master    # d1d6610c9... once the ancestry merge is on master
+git merge-base origin/master upstream/master    # 3c1620aa12d5, "Coalesce contiguous JPIP response segments", 2026-09-14
+git log -1 --format=%P a0f731ad4                # 756ab86de... 3c1620aa1...: "Merge JHelioviewer through 14 September 2026"
+git log --oneline 3c1620aa1..upstream/master | wc -l    # 55 upstream commits since
 ```
 
-Until it is, sync by cherry-picking (below), not by merging.
+`3c1620aa1` is an upstream commit, with the same id upstream and here, so no ancestry merge
+(`git merge -s ours`) is needed and none was made. The plan's `d1d6610c9` is not an object in
+upstream as of that fetch. A shallow clone cannot answer the merge-base question (it prints nothing
+and exits 1): run `git fetch --unshallow origin master` first. Run the first command above in your
+own checkout too: the plan behind this file recorded `ea5893037`, a 2020 commit, from a checkout whose
+local master may differ from `origin/master`.
+
+A dry run of the sync on 2026-10-02, `git merge-tree --write-tree --name-only origin/master
+upstream/master`, reports 37 conflicted files (four are the tracked `lib/jhv/jhv-natives-*.jar`
+files, which are binary and cannot be merged as text). It writes objects only.
 
 ## Syncing upstream into master
 
@@ -46,7 +52,7 @@ Never `git rebase` master onto upstream, never `git push --force`, never `filter
 
 Cherry-pick (`git cherry-pick -x <sha>`) instead of merging when:
 
-- master does not yet contain the ancestry merge (above);
+- the dry run above reports conflicts you would rather resolve one fix at a time;
 - the upstream change touches licensing: a new dependency, a vendored library, a file's licence
   header, or `LICENSE*`. Each is reviewed on its own because MPL 2.0 is file-level copyleft and
   the fork's licence inventory (`extra/licenses/`) must be updated with it
