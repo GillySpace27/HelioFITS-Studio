@@ -787,5 +787,67 @@ class NotesTest(unittest.TestCase):
         self.assertNotIn(chr(0x2014), r.stdout)
 
 
+@unittest.skipIf(os.name == "nt", "SKIP: needs a POSIX sh and executable shims")
+class ShipTest(unittest.TestCase):
+    """release/ship.sh in a throwaway copy, with deploy_release.sh and build_guide.py as recorders."""
+
+    V = "9.9.9"
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="hfs-ship-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.repo = self.tmp / "repo"
+        (self.repo / "release").mkdir(parents=True)
+        shutil.copy2(RELEASE / "ship.sh", self.repo / "release" / "ship.sh")
+        (self.repo / "VERSION").write_text(self.V)
+        (self.repo / "changelog.md").write_text("# Changelog\n\n## HelioFITS Studio 9.9.10 (unreleased)\n\n- x\n")
+        self.log = self.tmp / "deploy.log"
+        shim(self.repo / "release", "deploy_release.sh",
+             'echo "$*" >> "$DEPLOY_LOG"\n'
+             '[ "$1 $2" = "publish --dry-run" ] && echo "GATE: publish v9.9.9 at 0123456789ab from master; way back: v9.9.8"\n'
+             'exit 0\n')
+        (self.repo / "release" / "build_guide.py").write_text("import sys\nsys.exit(0)\n")
+
+    def ship(self, *args, **extra):
+        env = {k: v for k, v in os.environ.items() if not k.startswith("HFS_")}
+        env.update(DEPLOY_LOG=str(self.log), **extra)
+        return subprocess.run(["sh", "release/ship.sh", *args], cwd=self.repo, env=env, stdin=subprocess.DEVNULL,
+                              capture_output=True, text=True, timeout=60)
+
+    def deploy_calls(self):
+        return self.log.read_text().splitlines() if self.log.exists() else []
+
+    def test_publish_without_a_terminal_or_approval_is_refused(self):
+        r = self.ship("publish")
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn(f"HFS_PUBLISH_APPROVED=v{self.V}", r.stderr)
+        self.assertEqual(self.deploy_calls(), [])
+
+    def test_approval_is_for_one_exact_tag(self):
+        r = self.ship("publish", HFS_PUBLISH_APPROVED="v9.9.8")
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertEqual(self.deploy_calls(), [])
+        r = self.ship("publish", HFS_PUBLISH_APPROVED=f"v{self.V}")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.deploy_calls(), ["publish"])
+
+    def test_bump_writes_no_trailing_newline_and_needs_the_changelog_heading(self):
+        r = self.ship("bump", "9.9.10")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual((self.repo / "VERSION").read_bytes(), b"9.9.10")
+        self.assertEqual(self.ship("bump", "9.9.11").returncode, 2)
+        self.assertEqual(self.ship("bump", "9.9.x").returncode, 2)
+        self.assertEqual((self.repo / "VERSION").read_bytes(), b"9.9.10")
+
+    def test_gate_without_a_terminal_stops_before_the_smoke_test_is_claimed(self):
+        r = self.ship("gate")
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("the smoke test is typed as done at a terminal", r.stderr)
+        self.assertEqual(self.deploy_calls(), ["publish --dry-run"])
+
+    def test_unknown_phase_is_refused(self):
+        self.assertEqual(self.ship("ship-it").returncode, 2)
+
+
 if __name__ == "__main__":
     unittest.main()
