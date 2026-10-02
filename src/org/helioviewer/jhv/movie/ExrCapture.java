@@ -6,6 +6,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.Set;
 
+import javax.annotation.Nullable;
+
 import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.MapView;
@@ -51,7 +53,7 @@ final class ExrCapture {
     private static final DateTimeFormatter CAP_DATE = DateTimeFormatter.ofPattern("yyyy:MM:dd HH:mm:ss").withZone(ZoneOffset.UTC);
     private static final int MAX_PREFIX = ExrWriter.MAX_NAME - ".meta".length();
 
-    static ExrWriter frame(GLGrab grabber, int fps, int index) {
+    static ExrWriter frame(GLGrab grabber, int fps, int index, @Nullable String provenance) {
         ExrWriter exr = new ExrWriter(grabber.w, grabber.h);
         MapView mv = GLRenderer.getMapView();
 
@@ -107,6 +109,8 @@ final class ExrCapture {
         // unchanged; the layer list is the one thing only this pass knows.
         Position viewpoint = mv.viewpoint();
         exr.attribute("jhv", Provenance.frame(index, opaque).put("layers", layerList).toString());
+        if (provenance != null)
+            exr.attribute(Provenance.PNG_KEYWORD, provenance); // the session: build, scene, sources
         exr.attribute("capDate", TimeUtils.format(CAP_DATE, viewpoint.time.milli));
         exr.attribute("utcOffset", 0f);
         exr.rational("framesPerSecond", fps, 1);

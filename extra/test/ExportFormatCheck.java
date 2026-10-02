@@ -131,6 +131,16 @@ public final class ExportFormatCheck {
         expect(hdrVideoRungs == 1, "exactly one built-in preset is an HDR video (found " + hdrVideoRungs + ")");
         expect(extendedRungs == 2, "two built-in presets carry the extended range, one video and one frame series (found " + extendedRungs + ")");
 
+        // Provenance goes into a movie's comment and nowhere else on the ffmpeg command line: a frame
+        // series gets it per file afterwards (Provenance.writePngChunk for PNG, an attribute for EXR).
+        expect(ExportWriter.metadataArgs(ExportFormat.H264, "{}").equals(List.of("-metadata", "comment={}")),
+                "H.264 carries the provenance comment");
+        expect(ExportWriter.metadataArgs(ExportFormat.FFV1, "{}").equals(List.of("-metadata", "comment={}")),
+                "FFV1 (mkv) carries the provenance comment");
+        expect(ExportWriter.metadataArgs(ExportFormat.PNG, "{}").isEmpty(), "a PNG series takes no -metadata");
+        expect(ExportWriter.metadataArgs(ExportFormat.EXR, "{}").isEmpty(), "an EXR series takes no -metadata");
+        expect(ExportWriter.metadataArgs(ExportFormat.H264, null).isEmpty(), "no provenance, no -metadata");
+
         if (failures != 0)
             throw new AssertionError(failures + " export-format failure(s)");
         System.out.println("ExportFormatCheck: PASS");

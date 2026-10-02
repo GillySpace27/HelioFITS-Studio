@@ -18,6 +18,8 @@ import org.helioviewer.jhv.image.nio.NativeImageFactory;
 import org.helioviewer.jhv.opengl.GLGrab;
 import org.helioviewer.jhv.thread.AppThread;
 
+import org.json.JSONObject;
+
 public final class ExportMovie {
 
     public interface StatusListener {
@@ -142,6 +144,19 @@ public final class ExportMovie {
         }
     }
 
+    // The provenance for every file one recording writes, taken once at its start on the caller's
+    // thread, which is the one the state serializer runs on. A recording must not fail for want of
+    // it, so a scene that cannot be serialized records none and says so in the log.
+    @Nullable
+    private static JSONObject takeProvenance() {
+        try {
+            return Provenance.session();
+        } catch (RuntimeException e) {
+            Log.warn("Export provenance unavailable", e);
+            return null;
+        }
+    }
+
     private static final class RecordingSession {
         private final @Nullable Commands.OperationContext operationContext;
         private final ViewState.RecordingMode mode;
@@ -150,6 +165,8 @@ public final class ExportMovie {
         private final boolean deepOutput;
         private final boolean includeTimelines;
         private final ExportWriter writer;
+        private final @Nullable JSONObject provenance;
+        private final @Nullable String exrProvenance;
         private final Semaphore exrPermits = new Semaphore(EXR_IN_FLIGHT);
 
         private @Nullable GLGrab grabber;
@@ -161,6 +178,8 @@ public final class ExportMovie {
         RecordingSession(@Nullable Commands.OperationContext _operationContext,
                          ViewState.RecordingData recordingData, int fps) {
             operationContext = _operationContext;
+            provenance = takeProvenance();
+            exrProvenance = provenance == null ? null : provenance.toString();
             mode = recordingData.mode();
             if (mode == ViewState.RecordingMode.LOOP && !Player.hasActiveImage())
                 throw new IllegalStateException("Loop recording requires an active image.");
@@ -199,10 +218,10 @@ public final class ExportMovie {
             if (mode == ViewState.RecordingMode.SHOT) {
                 // A snapshot is a PNG regardless, so it takes PNG's own fixed depth and sampling.
                 writer = new ExportWriter(ExportFormat.PNG, ExportFormat.Chroma.RGB, ExportFormat.Depth.SIXTEEN,
-                        width, height, fps, false);
+                        width, height, fps, false, provenance);
             } else {
                 writer = new ExportWriter(format, chroma, depth, width, height, fps,
-                        MoviePanel.isAllIntra());
+                        MoviePanel.isAllIntra(), provenance);
             }
         }
 
@@ -323,7 +342,7 @@ public final class ExportMovie {
             ensureGrabber(height);
             exrPermits.acquireUninterruptibly();
             try {
-                ExrWriter frame = ExrCapture.frame(grabber, writer.fps(), ++exrFrameIndex);
+                ExrWriter frame = ExrCapture.frame(grabber, writer.fps(), ++exrFrameIndex, exrProvenance);
                 encodeExecutor.execute(() -> {
                     try {
                         writer.encodeExr(frame);
