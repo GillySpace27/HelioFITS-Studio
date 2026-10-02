@@ -2,6 +2,7 @@ package org.helioviewer.jhv.movie;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.DirectoryStream;
@@ -13,11 +14,14 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
 
+import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.image.nio.MappedImageFactory;
 import org.helioviewer.jhv.image.nio.NativeImageFactory;
 import org.helioviewer.jhv.io.Directories;
 import org.helioviewer.jhv.io.FileUtils;
 import org.helioviewer.jhv.time.TimeUtils;
+
+import org.json.JSONObject;
 
 class ExportWriter {
 
@@ -32,13 +36,14 @@ class ExportWriter {
     private final boolean allIntra;
     private final ExportFormat.Chroma chroma;
     private final ExportFormat.Depth depth;
+    private final @Nullable JSONObject provenance; // Provenance.session() taken when the recording started
     private int bytesPerPixel = 3; // 3 = rgb24, 6 = rgb48le; set by the first encoded frame
 
     private File tempFile;
     private @Nullable Exception failure;
 
     ExportWriter(ExportFormat _format, ExportFormat.Chroma _chroma, ExportFormat.Depth _depth,
-                 int _w, int _h, int _fps, boolean _allIntra) {
+                 int _w, int _h, int _fps, boolean _allIntra, @Nullable JSONObject _provenance) {
         // Name the export after the current session so a recording is self-identifying.
         String session = org.helioviewer.jhv.app.Session.displayName();
         String base = "Untitled".equals(session) ? "HFStudio" : session.replaceAll("[^A-Za-z0-9._-]", "_");
@@ -50,6 +55,7 @@ class ExportWriter {
         h = _h;
         fps = _fps;
         allIntra = _allIntra;
+        provenance = _provenance;
     }
 
     ExportFormat format() {
@@ -174,6 +180,8 @@ class ExportWriter {
                 outPath = prefix + format.extension;
             }
             runFFmpeg(buildCommand(outPath));
+            if (format == ExportFormat.PNG)
+                stampPngSeries();
             return outPath;
         } catch (Exception e) {
             deleteOutputs();
@@ -227,9 +235,32 @@ class ExportWriter {
             command.add("-sc_threshold");
             command.add("0");
         }
+        command.addAll(metadataArgs(format, provenance == null ? null : Provenance.metadataComment(provenance)));
         command.add("-y");
         command.add(outPath);
         return command;
+    }
+
+    /** ffmpeg's comment for a movie; nothing for a frame series, whose files are stamped one by one. */
+    static List<String> metadataArgs(ExportFormat format, @Nullable String comment) {
+        return format.isSeries() || comment == null ? List.of() : List.of("-metadata", "comment=" + comment);
+    }
+
+    // ffmpeg has written the frames; each gets the session as a tEXt chunk before its IEND. A frame
+    // that cannot take it is logged and left as ffmpeg wrote it: the export itself has succeeded.
+    private void stampPngSeries() {
+        if (provenance == null)
+            return;
+        File[] frames = new File(prefix).listFiles((dir, name) -> name.startsWith("frame") && name.endsWith(".png"));
+        if (frames == null)
+            return;
+        for (File frame : frames) {
+            try {
+                Provenance.writePngChunk(frame.toPath(), provenance);
+            } catch (IOException e) {
+                Log.warn("Provenance not written into " + frame.getName(), e);
+            }
+        }
     }
 
     private void runFFmpeg(List<String> command) throws Exception {
