@@ -32,8 +32,11 @@ reliable way to answer "what source is in this binary?".
 
 Tags follow `VERSION`: `v0.8.0`, then whatever the next bump is. Versions below 1.0 publish as GitHub pre-releases, and 1.0 and later as normal releases. `publish`
 **refuses** to touch a tag that already has a release, so shipping again means
-bumping `VERSION` first. To correct a mistake on the newest release, delete that
-release deliberately by hand first.
+bumping `VERSION` first. A release is never deleted. To correct a mistake on the
+newest release, withdraw it instead: ask Gilly; with his yes for that release, add
+a first line to its notes saying it is superseded and by which version
+(`gh release edit <tag> --notes-file <file>`), fix the problem, bump `VERSION`,
+and ship the fix through this procedure as a new release.
 
 Public link: **<https://gilly.space/heliofits-studio>**, a download page that asks GitHub
 for the newest release each time it loads, so it cannot go stale when a new
@@ -41,7 +44,10 @@ release is cut. Older builds stay on the repository's `/releases` page, which is
 the way back to a previous one. GitHub Pages is case-sensitive, so `/jhv` and `/JHV` are separate paths;
 both exist and both were fixed. Only ever hand out the lowercase form.
 
-Eight assets, six from `publish` on the Mac and two added by CI:
+Eight assets, six from `publish` on the Mac and two added by CI. Their names are
+listed once, in **`release/assets.txt`** (`<pattern> local|ci`, `{v}` for the
+version); `publish`, the tracker and `package.yml` read that file, and rows are
+only ever appended:
 
 - `HFStudio-<version>-intel.dmg`: the same for Intel Macs, built on the Apple
   Silicon Mac from an Intel JDK under Rosetta (step 4). Tested under Rosetta,
@@ -252,17 +258,49 @@ an "already running" message.
 a link that has been sent to colleagues (Sarah Gibson, Ian Hewins, Yara De Leo,
 Curt de Koning). A yes for one release never carries to the next.
 
-State plainly what is about to happen, for example: "this will create the public
-`v0.8.0` pre-release, with the `.dmg`, `.zip` and guide built from commit `<sha>`."
+Get the words from the script, not from memory:
+
+```sh
+cd ~/Documents/NWRA/PUNCH_Science/JHelioviewer-SWHV/release
+./deploy_release.sh publish --dry-run
+```
+
+It makes every check `publish` makes and tags, pushes and uploads nothing. On
+success (exit 0) it prints the gate text:
+
+```
+GATE: publish v0.8.4 at <12-hex commit> from master; way back: v0.8.3
+  <sha256>  HFStudio-0.8.4.dmg
+  (not built; optional)  HFStudio-0.8.4-intel.dmg
+  (rebuilt by publish)  HFStudio-0.8.4.zip
+  (attached by package.yml)  HFStudio-0.8.4-windows.zip
+  ...
+guide will be regenerated
+```
+
+Paste that output to Gilly verbatim as the question. Each `!!` line is a
+refusal (exit 2) naming the step to rerun: a dmg with no receipt, or whose
+sha256 or `build_sha` is not the receipt's and HEAD's (rerun step 4); `spctl`
+rejecting a dmg (step 4); not on `master`, uncommitted `src`, `resources` or
+`VERSION`, or HEAD not equal to `origin/master` (step 1); a jar whose manifest
+revision is not HEAD's count (step 2); the tag already at another commit or the
+release already existing (bump `VERSION`); Friday after 12:00 (step 6: another
+day, or `HFS_ALLOW_FRIDAY=1` for one run with Gilly's yes). Fix what it names
+and run the dry run again.
+
+After Gilly's yes for this tag, and only then:
 
 ```sh
 cd ~/Documents/NWRA/PUNCH_Science/JHelioviewer-SWHV/release
 ./deploy_release.sh publish
 ```
 
-This tags the current commit as `v<version>`, pushes the tag, and creates a
-**new** release. It will refuse outright if that tag already has a release.
-There is no tag override: the tag comes from `VERSION` alone.
+This runs the same checks, tags the current commit as `v<version>`, pushes the
+tag, and creates a **new** release with exactly the `local` rows of
+`assets.txt` (the Intel dmg only if it was built). It will refuse outright if
+that tag already has a release. If the tag already exists at this commit (a
+publish that stopped after tagging), it is reused, never moved. There is no tag
+override: the tag comes from `VERSION` alone.
 
 The short link needs no update: the download page finds the newest release by
 itself.
@@ -483,3 +521,14 @@ release object; the next preview would have been `v5.6b-coronal-research`.
   crashes, resubmit without `--wait`, poll `notarytool info <id>`, and treat
   "does not exist" as a failure, never as pending. Then staple, validate,
   `spctl`, and write `.notarize-run.json` by hand as `notarize_mac` would.
+
+- **2026-10-02: `publish` now proves what it attaches, closing the 2026-09-18
+  entry above.** `deploy_release.sh publish` runs `preflight_publish` first and
+  refuses (exit 2, one `!!` line per reason, each naming the step to rerun)
+  unless every dmg it would attach has a receipt whose `dmg_sha256` is the
+  file's and whose `build_sha` is HEAD, `spctl` accepts it, HEAD is a clean
+  `master` equal to `origin/master`, the jar's manifest revision is HEAD's
+  count, the tag is absent or already at HEAD, and it is not Friday afternoon.
+  `publish --dry-run` prints the gate text for step 6, and the asset names
+  moved into `release/assets.txt`. `extra/test/test_release_assets.py` shows
+  every refusal firing in a throwaway repository.

@@ -289,5 +289,15 @@ class PreflightTest(unittest.TestCase):
         self.refused(self.dry_run(FAKE_GH_LIST_FAIL="1"), "cannot read the previous release")
 
 
+class RunbookTest(unittest.TestCase):
+    def test_runbook_gates_on_the_dry_run(self):
+        for rel in ("release/RELEASING.md", "release/skills/ship-hfstudio/SKILL.md"):
+            self.assertIn("publish --dry-run", (ROOT / rel).read_text(), rel)
+
+    def test_nothing_tells_the_operator_to_delete_a_release(self):
+        for rel in ("release/RELEASING.md", "release/deploy_release.sh"):
+            self.assertNotRegex((ROOT / rel).read_text(), r"delete (that|it)\s+(release\s+)?deliberately", rel)
+
+
 if __name__ == "__main__":
     unittest.main()
