@@ -162,6 +162,7 @@ public final class MenuBar extends JMenuBar {
         fileMenu.add(new Actions.ClearDefaultSession());
         fileMenu.addSeparator();
         fileMenu.add(new Actions.ReloadSources());
+        fileMenu.add(new Actions.CopyProvenance());
         if (!Platform.isMacOS())
             fileMenu.add(new Actions.NewWindow()); // no Window menu off macOS
 
