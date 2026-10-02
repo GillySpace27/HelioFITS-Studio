@@ -134,7 +134,7 @@ Two open decisions for Gilly, recorded here; no step has acted on either:
 ```
 ./deploy_release.sh package     # regenerate guide + repackage zip, locally. No network.
 ./deploy_release.sh guide       # re-upload ONLY the guide PDF+MD. Fast iterate.
-./deploy_release.sh publish     # repackage + tag + create the public release. OUTWARD.
+./deploy_release.sh publish     # repackage + tag + create the public release. OUTWARD; needs the typed tag or HFS_PUBLISH_APPROVED.
 ./deploy_release.sh notarize    # clean rebuild -> signed + notarized + stapled .dmg
 ./deploy_release.sh notarize-resume  # finish a pending submission: poll, staple, receipt
 ./deploy_release.sh notes       # print the release notes publish would post. No network.
@@ -367,8 +367,8 @@ and run the dry run again.
 After Gilly's yes for this tag, and only then:
 
 ```sh
-cd ~/Documents/NWRA/PUNCH_Science/JHelioviewer-SWHV/release
-./deploy_release.sh publish
+cd ~/Documents/NWRA/PUNCH_Science/JHelioviewer-SWHV
+release/ship.sh publish
 ```
 
 This runs the same checks, tags the current commit as `v<version>`, pushes the
@@ -380,14 +380,21 @@ override: the tag comes from `VERSION` alone.
 
 `release/ship.sh publish` runs this step: at a terminal it asks for the tag; with
 none it needs `HFS_PUBLISH_APPROVED=<tag>` set for that one invocation, after Gilly's
-yes, and refuses (exit 2) otherwise. Before anything is tagged, `publish` also refuses
-release notes or a guide containing an em dash (U+2014).
+yes, and refuses (exit 2) otherwise. `deploy_release.sh publish` asks too (after its
+checks, before it builds or tags anything), so calling it directly cannot publish
+without the typed tag or `HFS_PUBLISH_APPROVED=<tag>`; `ship.sh` hands its answer down
+so a human types the tag once. `publish --dry-run` stays read-only and asks nothing.
+Before anything is tagged, `publish` also refuses release notes or a guide containing
+an em dash (U+2014).
 
 `./deploy_release.sh guide` is the one exception to "files on a release are never
 replaced": it re-uploads `HFStudio-Guide.pdf` and `.md` with `--clobber`, nothing else.
-It is gated like `publish`, per release: the tag typed at a terminal, or
-`HFS_GUIDE_APPROVED=<tag>` for one run after Gilly's yes. Do not extend it to any other
-file.
+It is gated like `publish`, per release, with its own variable: the tag typed at a
+terminal, or `HFS_GUIDE_APPROVED=<tag>` for one run after Gilly's yes (not
+`HFS_PUBLISH_APPROVED`, which is for `publish` only). Before it uploads anything it
+builds the guide with `build_guide.py --strict` and scans the notes and the guide for
+an em dash, so a guide with a missing figure or an em dash never replaces the published
+one. Do not extend it to any other file.
 
 The short link needs no update: the download page finds the newest release by
 itself.

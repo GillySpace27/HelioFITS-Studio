@@ -179,6 +179,7 @@ class PreflightTest(unittest.TestCase):
         self.fake("gh", 'echo "$*" >> "$GH_LOG"\ncase "$1 $2" in\n'
                         '  "release view") exit "${FAKE_GH_VIEW_RC:-1}" ;;\n'
                         '  "release list") [ -z "${FAKE_GH_LIST_FAIL:-}" ] || exit 1; echo v9.9.8 ;;\n'
+                        '  "release create") exit 0 ;;\n'   # only the gated direct-publish tests get this far
                         '  *) exit 3 ;;\nesac\n')
         self.fake("spctl", 'exit "${FAKE_SPCTL_RC:-0}"\n')
         if not shutil.which("shasum"):
@@ -202,6 +203,60 @@ class PreflightTest(unittest.TestCase):
 
     def dry_run(self, **env):
         return self.publish("--dry-run", **env)
+
+    def stage_a_real_publish(self):
+        """What a non-dry-run publish needs besides the preflight: a guide builder, the zip's inputs, notes."""
+        rel = self.repo / "release"
+        (rel / "build_guide.py").write_text(
+            "import sys\nopen('HFStudio-Guide.pdf', 'w').write('pdf')\nopen('HFStudio-Guide.md', 'w').write('md')\n")
+        shutil.copy2(RELEASE / "notes-preamble.md", rel / "notes-preamble.md")
+        (rel / "HFStudio_icon.icns").write_bytes(b"icns")
+        (self.repo / "lib").mkdir()
+        (self.repo / "lib" / "native.txt").write_text("n\n")
+        for name in ("run.command", "run.sh", "run.bat"):
+            (self.repo / name).write_text("echo\n")
+        (self.repo / "changelog.md").write_text(f"# Changelog\n\n## HelioFITS Studio {self.V} (2026-10-02)\n\n- x\n")
+
+    def direct_publish(self, **env):
+        """deploy_release.sh publish called straight, with no terminal: the invariants of publish() do not apply."""
+        e = dict(os.environ, PATH=f"{self.bin}{os.pathsep}{os.environ['PATH']}", GH_LOG=str(self.gh_log),
+                 HFS_FAKE_DOW="3", HFS_FAKE_HOUR="10")
+        for k in ("HFS_ALLOW_FRIDAY", "HFS_PUBLISH_APPROVED"):
+            e.pop(k, None)
+        e.update(env)
+        return subprocess.run(["sh", "release/deploy_release.sh", "publish"], cwd=self.repo, env=e,
+                              stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=120)
+
+    def gh_writes(self):
+        return self.gh_log.read_text() if self.gh_log.exists() else ""
+
+    def test_direct_publish_without_the_gate_is_refused(self):
+        self.stage_a_real_publish()
+        r = self.direct_publish()
+        self.refused(r, f"HFS_PUBLISH_APPROVED=v{self.V}")
+        self.assertEqual(self.git("tag", "-l"), "", "a refused publish tagged")
+        self.assertEqual(self.git("ls-remote", "--tags", "origin"), "", "a refused publish pushed a tag")
+        self.assertNotIn("release create", self.gh_writes())
+        self.assertNotIn("regenerating guide", r.stdout, "the gate came after the guide build")
+
+    def test_direct_publish_with_the_wrong_tag_is_refused(self):
+        self.stage_a_real_publish()
+        r = self.direct_publish(HFS_PUBLISH_APPROVED="v9.9.8")
+        self.refused(r, f"HFS_PUBLISH_APPROVED is 'v9.9.8', not v{self.V}")
+        self.assertEqual(self.git("tag", "-l"), "")
+        self.assertEqual(self.git("ls-remote", "--tags", "origin"), "")
+        self.assertNotIn("release create", self.gh_writes())
+
+    def test_direct_publish_with_the_right_tag_tags_pushes_and_creates_the_release(self):
+        self.stage_a_real_publish()
+        r = self.direct_publish(HFS_PUBLISH_APPROVED=f"v{self.V}")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.git("rev-parse", f"v{self.V}^{{commit}}"), self.head)
+        self.assertIn(f"refs/tags/v{self.V}", self.git("ls-remote", "--tags", "origin"))
+        self.assertRegex(self.gh_writes(), rf"release create v{re.escape(self.V)} ")
+
+    def test_the_dry_run_needs_no_approval(self):
+        self.assertEqual(self.dry_run().returncode, 0)
 
     def refused(self, r, text):
         self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
@@ -804,6 +859,7 @@ class ShipTest(unittest.TestCase):
         self.log = self.tmp / "deploy.log"
         shim(self.repo / "release", "deploy_release.sh",
              'echo "$*" >> "$DEPLOY_LOG"\n'
+             'echo "$HFS_PUBLISH_APPROVED" >> "$DEPLOY_LOG.approved"\n'
              '[ "$1 $2" = "publish --dry-run" ] && echo "GATE: publish v9.9.9 at 0123456789ab from master; way back: v9.9.8"\n'
              'exit 0\n')
         (self.repo / "release" / "build_guide.py").write_text("import sys\nsys.exit(0)\n")
@@ -830,6 +886,12 @@ class ShipTest(unittest.TestCase):
         r = self.ship("publish", HFS_PUBLISH_APPROVED=f"v{self.V}")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(self.deploy_calls(), ["publish"])
+
+    def test_ship_hands_its_approval_to_deploy_release(self):
+        # deploy_release.sh publish asks too; ship.sh asked first, so the human is not asked twice.
+        r = self.ship("publish", HFS_PUBLISH_APPROVED=f"v{self.V}")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(Path(str(self.log) + ".approved").read_text().split(), [f"v{self.V}"])
 
     def test_bump_writes_no_trailing_newline_and_needs_the_changelog_heading(self):
         r = self.ship("bump", "9.9.10")
@@ -900,6 +962,20 @@ class LaneRunbookTest(unittest.TestCase):
         skill = (RELEASE / "skills" / "ship-hfstudio" / "SKILL.md").read_text()
         for needle in ("release/ship.sh", "notarize-resume", "HFS_PUBLISH_APPROVED"):
             self.assertIn(needle, skill, "SKILL.md")
+
+    def test_no_runbook_command_publishes_without_the_gate(self):
+        # A line that runs the script's publish bare is a way round ship.sh's typed tag: point at ship.sh.
+        # (A usage listing may name it when the same line says the tag must be typed or HFS_PUBLISH_APPROVED set.)
+        bare = re.compile(r"^(?!.*HFS_PUBLISH_APPROVED)\s*(cd [^&]*&& )?(\./|release/)?deploy_release\.sh publish\s*(#.*)?$", re.M)
+        row = load_status().HOW["published"][1]
+        for rel, text in (("RELEASING.md", (RELEASE / "RELEASING.md").read_text()),
+                          ("SKILL.md", (RELEASE / "skills" / "ship-hfstudio" / "SKILL.md").read_text()),
+                          ("status.py published row", row)):
+            self.assertIsNone(bare.search(text), f"{rel} runs a bare deploy_release.sh publish")
+            if rel != "RELEASING.md":
+                self.assertIn("ship.sh publish", text, rel)
+        releasing = (RELEASE / "RELEASING.md").read_text()
+        self.assertIn("`deploy_release.sh publish` asks too", releasing)
 
     def test_notarization_files_are_ignored(self):
         lines = (RELEASE / ".gitignore").read_text().splitlines()
