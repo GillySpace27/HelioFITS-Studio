@@ -271,7 +271,9 @@ public final class LayersPanel extends JPanel {
             @Override
             public void mouseMoved(MouseEvent e) {
                 int row = grid.rowAtPoint(e.getPoint());
-                grid.setCursor(row >= 0 && grid.getValueAt(row, 0) instanceof Layer
+                // Hand on image rows only, as upstream; it was judged the wrong cursor over overlay
+                // rows (working meeting, 2026-10-02). Every row still drags to reorder.
+                grid.setCursor(row >= 0 && grid.getValueAt(row, 0) instanceof ImageLayer
                         ? UIGlobals.openHandCursor : Cursor.getDefaultCursor());
             }
         });
