@@ -1,11 +1,19 @@
 package org.helioviewer.jhv.layers.filters;
 
 import java.awt.Component;
+import java.awt.Cursor;
+import java.awt.GridLayout;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JTextField;
 
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.component.JHVRangeSlider;
+import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.ImageDisplaySettings;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layers;
@@ -74,9 +82,11 @@ public final class RangeSliderFilterPanel {
         private final JLabel title = new JLabel("Levels ", JLabel.RIGHT);
         private final JHVRangeSlider slider;
         private final JLabel label;
+        private final ImageLayer layer;
         private boolean syncing;
 
         private Levels(ImageLayer layer) {
+            this.layer = layer;
             ImageDisplaySettings settings = layer.getDisplaySettings();
             double offset = settings.getBrightOffset();
             double scale = settings.getBrightScale();
@@ -85,12 +95,78 @@ public final class RangeSliderFilterPanel {
             slider.addChangeListener(e -> {
                 int low = slider.getLowValue();
                 int high = slider.getHighValue();
-                label.setText(formatPercent(low, high));
-                if (syncing)
-                    return; // mirroring the layer, not editing it
-                Layers.applyToSelected(layer, s -> s.setBrightness(low / 100., (high - low) / 100.));
-                DisplayController.display();
+                if (!syncing) { // mirroring the layer is not editing it
+                    Layers.applyToSelected(layer, s -> s.setBrightness(low / 100., (high - low) / 100.));
+                    DisplayController.display();
+                }
+                updateLabel();
             });
+            label.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    typeValues();
+                }
+            });
+            updateLabel();
+        }
+
+        /**
+         * Black and white in the data's units where the frame has them (AbsoluteLevels), else the
+         * handles' percents. Polled with the section badges, so a frame arriving or changing shows.
+         */
+        public void updateLabel() {
+            ImageBuffer.PhysicalScale scale = AbsoluteLevels.scaleOf(layer);
+            ImageDisplaySettings s = layer.getDisplaySettings();
+            String text = scale == null ? formatPercent(slider.getLowValue(), slider.getHighValue())
+                    : AbsoluteLevels.label(scale, s.getBrightOffset(), s.getBrightScale(), AbsoluteLevels.response(layer));
+            if (text.equals(label.getText()))
+                return;
+            label.setText(text);
+            label.setCursor(scale == null ? Cursor.getDefaultCursor() : Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            label.setToolTipText(scale == null
+                    ? "Where the darkest and brightest data land in grey. This layer has no data values to show: server images never had them, and RHEF and differences have no inverse."
+                    : "The data values shown as black (top) and white (bottom). Click to type them.");
+        }
+
+        // Typed black and white, in the data's units. Each selected layer is set through its own
+        // scale, so they all show the same values even where their data ranges differ.
+        private void typeValues() {
+            ImageBuffer.PhysicalScale scale = AbsoluteLevels.scaleOf(layer);
+            if (scale == null || !label.isEnabled())
+                return;
+            ImageDisplaySettings s = layer.getDisplaySettings();
+            double[] w = AbsoluteLevels.window(s.getBrightOffset(), s.getBrightScale(), AbsoluteLevels.response(layer));
+            JTextField black = new JTextField(AbsoluteLevels.format(scale.toPhysical(Math.max(0, w[0]))), 12);
+            JTextField white = new JTextField(AbsoluteLevels.format(scale.toPhysical(w[1])), 12);
+            JPanel fields = new JPanel(new GridLayout(2, 2, 6, 6));
+            fields.add(new JLabel("Black"));
+            fields.add(black);
+            fields.add(new JLabel("White"));
+            fields.add(white);
+            if (JOptionPane.showConfirmDialog(label, fields, "Levels in data units", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION)
+                return;
+            double b, wh;
+            try {
+                b = Double.parseDouble(black.getText().trim());
+                wh = Double.parseDouble(white.getText().trim());
+            } catch (NumberFormatException e) {
+                JOptionPane.showMessageDialog(label, "Black and white must be numbers, such as 1.5e-12.", "Levels in data units", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            if (!(wh > b)) {
+                JOptionPane.showMessageDialog(label, "Black must be below white.", "Levels in data units", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            Layers.applyToSelectedLayers(layer, il -> {
+                ImageBuffer.PhysicalScale sc = AbsoluteLevels.scaleOf(il);
+                double[] bs = sc == null ? null : AbsoluteLevels.brightness(
+                        AbsoluteLevels.toTexture(sc, b), AbsoluteLevels.toTexture(sc, wh), AbsoluteLevels.response(il));
+                if (bs != null)
+                    il.getDisplaySettings().setBrightness(bs[0], bs[1]);
+            });
+            refresh(layer);
+            updateLabel();
+            DisplayController.display();
         }
 
         /** Mirror the layer's window into the slider. */
@@ -105,6 +181,7 @@ public final class RangeSliderFilterPanel {
             slider.setLowValue(low);
             slider.setHighValue(high);
             syncing = false;
+            updateLabel();
         }
 
         @Override
