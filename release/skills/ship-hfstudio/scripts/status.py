@@ -502,7 +502,8 @@ HOW = {
         "The link has been sent to Sarah Gibson, Ian Hewins, Yara De Leo, Curt de Koning.\n"
         "Releases are immutable: the tag comes from VERSION, so bump it for a new one;\n"
         "publish refuses a tag that already has a release.\n"
-        f"cd {DEPLOY} && ./deploy_release.sh publish    # creates {TAG}"),
+        "Type the tag at the prompt, or set HFS_PUBLISH_APPROVED=<tag> for that one run:\n"
+        f"{DEPLOY}/ship.sh publish    # creates {TAG}"),
 
     "live": ("shell",
         f"gh release view {TAG} --repo {REPO} \\\n"

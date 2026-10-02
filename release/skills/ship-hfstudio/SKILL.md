@@ -86,7 +86,7 @@ replaced in place, so the previous build stays downloadable for anyone it was
 working for. To ship again, bump `VERSION` first:
 
 ```sh
-./deploy_release.sh publish     # tags and publishes v<contents of ../VERSION>
+release/ship.sh publish         # asks for the tag, then tags and publishes v<contents of VERSION>
 ```
 
 `publish` refuses a tag that already has a release. A release is never deleted:

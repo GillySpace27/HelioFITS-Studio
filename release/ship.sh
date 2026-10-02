@@ -109,7 +109,8 @@ publish() {
         echo "!! no terminal: publish runs only with HFS_PUBLISH_APPROVED=$_tag set for this one invocation, after Gilly's yes in chat" >&2
         exit 2
     fi
-    "$HERE/deploy_release.sh" publish
+    # Handed down so deploy_release.sh's own gate (which a direct call hits) is answered by this one.
+    HFS_PUBLISH_APPROVED="$_tag" "$HERE/deploy_release.sh" publish
     echo "publish: done. Next: release/ship.sh confirm"
 }
 

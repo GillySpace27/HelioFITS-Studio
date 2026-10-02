@@ -209,6 +209,24 @@ upload_guide_only() {
     gh release upload "$TAG" "$PDF" "$MD" --clobber --repo "$REPO"
 }
 
+# The per-tag gate on the outward half of publish (the tag push and the release), the same shape as the
+# one upload_guide_only has: the exact tag typed at a terminal, or, with no terminal, HFS_PUBLISH_APPROVED
+# set to that tag for this one run after Gilly's yes in chat. release/ship.sh publish asks the same
+# question first and hands its answer down in HFS_PUBLISH_APPROVED, so a human types the tag once.
+approve_publish() {
+    if [ -n "${HFS_PUBLISH_APPROVED:-}" ]; then
+        [ "$HFS_PUBLISH_APPROVED" = "$TAG" ] \
+            || { echo "!! HFS_PUBLISH_APPROVED is '$HFS_PUBLISH_APPROVED', not $TAG; a yes is for one tag" >&2; exit 2; }
+    elif [ -t 0 ]; then
+        printf 'Gilly said yes to publishing exactly this tag. Type it (%s): ' "$TAG"
+        read -r _typed
+        [ "$_typed" = "$TAG" ] || { echo "!! typed '$_typed', not $TAG; nothing published" >&2; exit 2; }
+    else
+        echo "!! no terminal: publish runs only with HFS_PUBLISH_APPROVED=$TAG set for this one invocation, after Gilly's yes in chat" >&2
+        exit 2
+    fi
+}
+
 # Print the asset names from assets.txt with {v} expanded, one per line; $1 is local, ci or all. A row
 # that is not "<pattern> local|ci" stops the script: a misspelt list would ship the wrong files.
 asset_names() {
@@ -861,6 +879,7 @@ case "$MODE" in
     guide)    build_guide; upload_guide_only ;;
     publish)  preflight_publish
               if [ -n "$DRY_RUN" ]; then dry_run_report; exit 0; fi
+              approve_publish
               build_guide --strict; repackage; publish ;;
     notarize) notarize_mac ;;
     notarize-resume) notarize_resume ;;
