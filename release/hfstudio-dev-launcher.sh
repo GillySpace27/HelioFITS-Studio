@@ -1,4 +1,6 @@
 #!/bin/bash
+# DEPRECATED: kept in place, not deleted. The current dev launcher is made by
+# extra/make-dev-launcher.sh (HelioFITS Studio (dev).app); use that.
 # Build from source, then run: clicking this always launches the newest code in
 # the main checkout (on master), not a snapshot taken whenever someone last packaged it.
 # ant's run target depends on jar, which depends on compile, so one call does it.
