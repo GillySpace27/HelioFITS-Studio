@@ -4,6 +4,7 @@
 #   ./deploy_release.sh package   # rebuild guide + repackage the zip locally (no network)
 #   ./deploy_release.sh guide     # re-upload ONLY the guide PDF+MD to the release (fast iterate)
 #   ./deploy_release.sh publish   # repackage + tag + create the GitHub release (outward)
+#   ./deploy_release.sh publish --dry-run  # publish's checks and the gate text; tags, pushes, uploads nothing
 #   ./deploy_release.sh notarize  # build a signed + notarized + stapled macOS .app/.dmg (Gatekeeper-clean)
 #   ./deploy_release.sh assets [local|ci|all]  # the release's asset names, from release/assets.txt
 #
@@ -62,6 +63,15 @@ CLOUD="$HERE/fabric_suvi.json.gz"   # demo point cloud for the Point Cloud layer
 STAGE="$HERE/.release_stage"
 
 MODE="${1:-package}"
+# publish --dry-run runs every check publish makes and prints the gate text for Gilly, then stops.
+# Any other second argument to publish is refused: a mistyped flag must not fall through to a real publish.
+DRY_RUN=""
+case "$MODE:${2:-}" in
+    *:) ;;
+    publish:--dry-run) DRY_RUN=1 ;;
+    assets:*) ;;
+    *) echo "!! unknown option '$2' for $MODE (only publish takes one: --dry-run)" >&2; exit 2 ;;
+esac
 # The release's asset names, kept in one file. publish, the ship-hfstudio tracker and package.yml's
 # attach job read it; nothing else names the assets.
 ASSETS_FILE="$HERE/assets.txt"
@@ -251,6 +261,139 @@ asset_names() {
         END { exit bad }' "$ASSETS_FILE"
 }
 
+# The receipt notarize_mac writes for a dmg (see the receipt writer at the end of notarize_mac).
+receipt_for() {
+    case "$1" in
+        *-intel.dmg) echo "$HERE/.notarize-run-intel.json" ;;
+        *)           echo "$HERE/.notarize-run.json" ;;
+    esac
+}
+
+# One key of a receipt, or nothing when the file or key is missing or the JSON does not parse.
+receipt_key() {
+    python3 -c 'import json, sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ""))' "$1" "$2" 2>/dev/null || true
+}
+
+# One main-section attribute of the jar's manifest, or nothing.
+manifest_attr() {
+    unzip -p "$SRC/HFStudio.jar" META-INF/MANIFEST.MF 2>/dev/null | tr -d '\r' | awk -F': ' -v k="$1" '$1 == k { print $2; exit }'
+}
+
+# The commit tag $TAG names, locally ($1 = local) or on origin ($1 = origin); nothing when absent.
+tag_target() {
+    if [ "$1" = local ]; then
+        ( cd "$SRC" && git rev-parse -q --verify "refs/tags/$TAG^{commit}" ) || true
+    else
+        ( cd "$SRC" && git ls-remote --tags origin "refs/tags/$TAG" "refs/tags/$TAG^{}" 2>/dev/null ) \
+            | awk -v t="refs/tags/$TAG" '$2 == t "^{}" { p = $1 } $2 == t { l = $1 } END { print (p != "" ? p : l) }'
+    fi
+}
+
+# Record one reason preflight_publish will refuse; $2 is the RELEASING.md step that fixes it.
+refuse() {
+    echo "!! $1; rerun RELEASING.md step $2" >&2
+    REFUSED=1
+}
+
+# Everything publish has to be able to prove before it tags or uploads anything. Every failed check
+# is reported, then it exits 2. Sets WAY_BACK, the release that stays behind this one.
+preflight_publish() {
+    REFUSED=0
+    _head="$(cd "$SRC" && git rev-parse HEAD)"
+    _branch="$(cd "$SRC" && git rev-parse --abbrev-ref HEAD)"
+    [ "$_branch" = master ] || refuse "on branch '$_branch'; releases ship from master" 1
+    [ -z "$(cd "$SRC" && git status --porcelain src resources VERSION)" ] \
+        || refuse "uncommitted changes in src, resources or VERSION would ship without a commit" 1
+    _remote="$(cd "$SRC" && git ls-remote origin refs/heads/master 2>/dev/null | awk '{ print $1 }')"
+    [ "$_remote" = "$_head" ] || refuse "HEAD $_head is not origin/master (${_remote:-unreadable})" 1
+
+    # The jar records the commit it was built from (build.xml); it has to be this one.
+    if [ -f "$SRC/HFStudio.jar" ]; then
+        _rev="$(manifest_attr revision)"
+        _count="$(cd "$SRC" && git rev-list --count HEAD)"
+        [ "$_rev" = "$_count" ] || refuse "HFStudio.jar has revision '${_rev:-none}', HEAD is $_count" 2
+        # commit and dirty are in the manifest once build.xml stamps them; before that, not checked.
+        _mcommit="$(manifest_attr commit)"
+        if [ -n "$_mcommit" ]; then
+            [ "$_mcommit" = "$(cd "$SRC" && git rev-parse --short=12 HEAD)" ] \
+                || refuse "HFStudio.jar was built from commit $_mcommit, not HEAD" 2
+            [ "$(manifest_attr dirty)" = false ] || refuse "HFStudio.jar was built from a dirty tree" 2
+        fi
+    else
+        refuse "no HFStudio.jar at the repository root" 2
+    fi
+
+    # Every dmg publish would attach is the file a notarize run stapled and validated, from this commit.
+    # The zip and the guide are rebuilt by publish right after this; the rest must already exist.
+    _names="$(asset_names local)"
+    for _n in $_names; do
+        case "$_n" in
+            *.dmg)
+                _f="$HERE/$_n"; _r="$(receipt_for "$_n")"
+                if [ ! -f "$_f" ]; then
+                    case "$_n" in *-intel.dmg) continue ;; esac   # optional: the notes then send Intel Macs to the zip
+                    refuse "no $_n in release/; notarize builds it" 4; continue
+                fi
+                if [ ! -f "$_r" ]; then
+                    refuse "$_n has no receipt ${_r##*/}, so no notarize run vouches for it" 4; continue
+                fi
+                _want="$(receipt_key "$_r" dmg_sha256)"
+                _built="$(receipt_key "$_r" build_sha)"
+                _have="$(shasum -a 256 "$_f" | awk '{ print $1 }')"
+                [ "$_have" = "$_want" ] || refuse "$_n (sha256 $_have) is not the notarized one in ${_r##*/} (${_want:-none})" 4
+                [ "$_built" = "$_head" ] || refuse "$_n was notarized from ${_built:-an unknown commit}, not HEAD $_head" 4
+                if command -v spctl >/dev/null 2>&1; then
+                    spctl -a -t open --context context:primary-signature "$_f" >/dev/null 2>&1 \
+                        || refuse "spctl rejects $_n" 4
+                else
+                    refuse "spctl not found; publish runs on the Mac" 4
+                fi ;;
+            "${ZIP##*/}"|"${PDF##*/}"|"${MD##*/}") ;;
+            *) [ -f "$HERE/$_n" ] || refuse "release/$_n is listed in assets.txt but missing" 1 ;;
+        esac
+    done
+
+    # No release on a Friday afternoon (v5.6e was held on principle). HFS_ALLOW_FRIDAY=1 lifts it for
+    # one run. HFS_FAKE_DOW and HFS_FAKE_HOUR stand in for the clock in extra/test/test_release_assets.py.
+    _dow="${HFS_FAKE_DOW:-$(date +%u)}"; _hour="${HFS_FAKE_HOUR:-$(date +%H)}"
+    if [ "$_dow" = 5 ] && [ "$_hour" -ge 12 ] && [ "${HFS_ALLOW_FRIDAY:-}" != 1 ]; then
+        refuse "it is Friday afternoon; release another day, or set HFS_ALLOW_FRIDAY=1 for this one run" 6
+    fi
+
+    # The tag is absent, or already at HEAD (a publish that stopped after tagging). It is never moved.
+    for _where in local origin; do
+        _t="$(tag_target "$_where")"
+        [ -z "$_t" ] || [ "$_t" = "$_head" ] \
+            || refuse "tag $TAG already exists ($_where) at $_t, not HEAD; bump VERSION" 1
+    done
+    if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+        refuse "release $TAG already exists; releases are never replaced, so bump VERSION" 1
+    fi
+    WAY_BACK="$(gh release list --repo "$REPO" --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || true)"
+    [ -n "$WAY_BACK" ] || refuse "cannot read the previous release from GitHub (gh release list)" 6
+
+    [ "$REFUSED" = 0 ] || exit 2
+}
+
+# The gate text publish --dry-run prints. Gilly gets it verbatim, for this tag only (RELEASING.md step 6).
+dry_run_report() {
+    echo "GATE: publish $TAG at $(cd "$SRC" && git rev-parse --short=12 HEAD) from master; way back: $WAY_BACK"
+    _ci="$(asset_names ci)"
+    for _n in $(asset_names all); do
+        case "$_n" in
+            "${ZIP##*/}"|"${PDF##*/}"|"${MD##*/}") echo "  (rebuilt by publish)  $_n" ;;
+            *)  if [ -f "$HERE/$_n" ]; then
+                    echo "  $(shasum -a 256 "$HERE/$_n" | awk '{ print $1 }')  $_n"
+                elif printf '%s\n' "$_ci" | grep -qxF "$_n"; then
+                    echo "  (attached by package.yml)  $_n"
+                else
+                    echo "  (not built; optional)  $_n"
+                fi ;;
+        esac
+    done
+    echo "guide will be regenerated"
+}
+
 publish() {
     # Refuse to touch an existing release. Overwriting one destroys the binaries someone may be
     # relying on, which is the whole thing per-release tags exist to prevent.
@@ -279,7 +422,16 @@ publish() {
         fi
     done
 
-    ( cd "$SRC" && git tag -a "$TAG" "$BUILD_SHA" -m "$TITLE" && git push origin "$TAG" )
+    # A publish that stopped after tagging left the tag at this commit: reuse it, never move it.
+    # preflight_publish has already refused a tag at any other commit.
+    if [ "$(tag_target origin)" = "$BUILD_SHA" ]; then
+        echo "   $TAG is already on origin at $BUILD_SHA; not tagging again"
+    elif [ "$(tag_target local)" = "$BUILD_SHA" ]; then
+        echo "   $TAG already exists here at $BUILD_SHA; pushing it"
+        ( cd "$SRC" && git push origin "$TAG" )
+    else
+        ( cd "$SRC" && git tag -a "$TAG" "$BUILD_SHA" -m "$TITLE" && git push origin "$TAG" )
+    fi
 
     SHA="$(shasum -a 256 "$ZIP" | awk '{print $1}')"
     NOTES="$(notes_file)"
@@ -594,8 +746,10 @@ EOF
 case "$MODE" in
     package)  build_guide; repackage ;;
     guide)    build_guide; upload_guide_only ;;
-    publish)  build_guide; repackage; publish ;;
+    publish)  preflight_publish
+              if [ -n "$DRY_RUN" ]; then dry_run_report; exit 0; fi
+              build_guide; repackage; publish ;;
     notarize) notarize_mac ;;
     assets)   case "${2:-all}" in local|ci|all) asset_names "${2:-all}" ;; *) echo "usage: $0 assets [local|ci|all]" >&2; exit 2 ;; esac ;;
-    *) echo "usage: $0 {package|guide|publish|notarize|assets [local|ci|all]}"; exit 2 ;;
+    *) echo "usage: $0 {package|guide|publish [--dry-run]|notarize|assets [local|ci|all]}"; exit 2 ;;
 esac
