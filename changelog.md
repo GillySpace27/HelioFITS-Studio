@@ -19,6 +19,13 @@
 - Reset All on an image layer's Layer Options header puts Display, Intensity and Geometry back to their defaults in one click, for every selected layer. The FITS clip and scale stay, as with Intensity's own revert
 - The open hand shows only over image-layer rows; overlay and camera rows keep the arrow. Every row still drags to reorder
 
+### Undo and redo
+- Edit > Undo and Edit > Redo (Cmd-Z and Shift-Cmd-Z), and Undo and Redo buttons at the left of the toolbar. The menu names the step, such as "Undo Levels change" or "Undo Colormap change"
+- A layer's colormap, Levels and other display settings, its filter, showing or hiding it, adding or removing a layer, the grid, the camera's settings, the projection, annotations, and the playback and recording settings can be undone. A drag is one step, taken when the mouse is released, and edits made in quick succession are one step. Up to 50 steps are kept
+- Undoing a display change keeps the loaded movie; nothing is downloaded or read again. Undoing the removal of a layer reads its files back from the cache
+- Not undone: changing what a layer loads (its time range, cadence or dataset), the master time range, timelines and automation tracks, PFSS, event, point-cloud and model layers, and panning or zooming the view
+- Opening a session, Start New Session and Revert to Saved start a new history. While you are typing in a text field, Cmd-Z belongs to the field
+
 ### Sidebars
 - Dragging either sidebar's edge resizes it. The width changed underneath but the layout did not follow, except when something unrelated happened to refresh it
 

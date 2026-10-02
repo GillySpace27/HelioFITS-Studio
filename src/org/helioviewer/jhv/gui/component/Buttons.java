@@ -258,6 +258,8 @@ public class Buttons {
     public static final GlyphIcon rotate90 = icon(MaterialDesign.ROTATE_90, TOOLBAR);
     public static final GlyphIcon samp = icon(MaterialDesign.SHARE_VARIANT, TOOLBAR);
     public static final GlyphIcon track = icon(MaterialDesign.CROSSHAIRS_GPS, TOOLBAR);
+    public static final GlyphIcon undo = icon(MaterialDesign.UNDO, TOOLBAR);
+    public static final GlyphIcon redo = icon(MaterialDesign.REDO, TOOLBAR);
     public static final GlyphIcon zoomFit = icon(MaterialDesign.CROP_LANDSCAPE, TOOLBAR);
     public static final GlyphIcon zoomIn = icon(MaterialDesign.MAGNIFY_PLUS, TOOLBAR);
     public static final GlyphIcon zoomOne = icon(MaterialDesign.PLUS_ONE, TOOLBAR);

@@ -97,6 +97,7 @@ public final class Session {
         autosaveTimer = new Timer(AUTOSAVE_INTERVAL_MS, e -> autosaveIfChanged());
         autosaveTimer.setRepeats(true);
         autosaveTimer.start();
+        SceneUndo.install();
 
         updateLive(true); // announce this window to the Window menu
     }
@@ -112,6 +113,7 @@ public final class Session {
 
     public static void fireStateLoadComplete(boolean success) {
         restorePending = false; // the scene is now this session's, however the load went
+        SceneUndo.reset(); // opening or reverting a session starts its undo history
         List<java.util.function.Consumer<Boolean>> copy = new ArrayList<>(stateLoadListeners);
         stateLoadListeners.clear();
         for (java.util.function.Consumer<Boolean> r : copy)
@@ -206,6 +208,7 @@ public final class Session {
         String assigned = System.getProperty("jhv.sessionFile");
         sessionFile = assigned != null ? new File(assigned) : new File(Directories.STATES.getPath(), MAIN_FILE);
         named = false;
+        SceneUndo.reset(); // a new session has nothing to undo
         if (assigned == null)
             Settings.setProperty("session.mainFile", ""); // primary: forget the named file
         markSaved();
