@@ -1,6 +1,8 @@
 # Additional data servers
 
-Add servers to `~/JHelioviewer-SWHV/Settings/sources.json` and restart JHelioviewer.
+Add servers to `~/HFStudio/Settings/sources.json` and restart HelioFITS Studio. (A JHelioviewer install keeps its own
+`~/JHelioviewer-SWHV/Settings/sources.json`; HelioFITS Studio copies that Settings folder into
+`~/HFStudio` once, on the first start when `~/HFStudio` does not exist yet.)
 The file can contain both image API servers and HAPI servers, as illustrated in
 [`extra/sources.json`](../extra/sources.json).
 

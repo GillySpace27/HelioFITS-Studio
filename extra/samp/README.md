@@ -1,27 +1,28 @@
 # SAMP automation
 
-These scripts control a running JHelioviewer through SAMP. They are automation
+These scripts control a running HelioFITS Studio through SAMP. They are automation
 tools, not regression tests.
 
-- `jhv_samp_daemon.py` connects to a running SAMP hub, finds JHelioviewer, and
+- `hfstudio_samp_daemon.py` connects to a running SAMP hub, finds HelioFITS Studio
+  (SAMP name `HFStudio`), and
   accepts queued commands through a local Unix socket. It requires Astropy.
-- `jhv_samp_client.py` sends commands to that socket. It uses only the Python
+- `hfstudio_samp_client.py` sends commands to that socket. It uses only the Python
   standard library.
 
-Start JHelioviewer and connect it to a SAMP hub before starting the daemon:
+Start HelioFITS Studio and connect it to a SAMP hub before starting the daemon:
 
 ```sh
-~/jhv-validator/bin/python extra/samp/jhv_samp_daemon.py
+~/jhv-validator/bin/python extra/samp/hfstudio_samp_daemon.py
 ```
 
 Use a Python environment containing Astropy. The daemon uses
-`/tmp/jhv-samp.sock` by default. Both scripts accept `--socket PATH` to select
+`/tmp/hfstudio-samp.sock` by default. Both scripts accept `--socket PATH` to select
 another socket. Run one daemon per socket. These scripts require Unix sockets.
 
 From another terminal, send a command:
 
 ```sh
-python3 extra/samp/jhv_samp_client.py raw \
+python3 extra/samp/hfstudio_samp_client.py raw \
   '{"mtype":"jhv.playback.pause"}'
 ```
 
@@ -34,7 +35,7 @@ only confirms dispatch. The client prints the results as JSON.
 ## Movie example
 
 ```sh
-python3 extra/samp/jhv_samp_client.py movie /path/to/fits/files --size H1080
+python3 extra/samp/hfstudio_samp_client.py movie /path/to/fits/files --size H1080
 ```
 
 This clears the current image layers, loads the supplied file or directory,

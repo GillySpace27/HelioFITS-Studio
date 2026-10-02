@@ -1,5 +1,5 @@
 #!/bin/sh
-# HelioFITS Studio 1.0.  Needs Java 25 or newer.
+# HelioFITS Studio.  Needs Java 25 or newer.
 # Double-click on macOS, or run ./run.command (or ./run.sh) from a terminal.
 cd "$(dirname "$0")" || exit 1
 

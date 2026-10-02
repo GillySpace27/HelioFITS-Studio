@@ -24,12 +24,13 @@ incident log, is in [RELEASING.md](RELEASING.md).** Read it before shipping.
 - `fabric_suvi.json.gz`: the demo point cloud attached to every release.
 - `skills/ship-hfstudio/`: the release tracker (`scripts/status.py`) and the
   assistant runbook that drives it.
-- `hfstudio-dev-launcher.sh`: a development convenience, not part of the
-  release. It is the source of the script inside
-  `/Applications/HFStudio Dev.app/Contents/MacOS/hfstudio-dev`, a Dock
-  tile that rebuilds the main checkout and runs it. It hardcodes one source path
-  and one Homebrew JDK, so it works on one machine on purpose. The release
-  app is `HelioFITS Studio.app`, a different name, so the two sit side by side.
+- `hfstudio-dev-launcher.sh`: deprecated, kept in place (its header says so).
+  It was the source of an older Dock tile, `/Applications/HFStudio Dev.app`,
+  that ran `ant run` with one hardcoded Homebrew JDK. The current dev launcher
+  is made by `extra/make-dev-launcher.sh`: `HelioFITS Studio (dev).app` in
+  `~/Applications`, which fast-forwards master, runs `ant jar` and starts that
+  jar. The release app is `HelioFITS Studio.app`, a different name, so the two
+  sit side by side.
 
 ## Pipeline
 
@@ -48,7 +49,7 @@ tracker and the guide read it from there.
 ## Prerequisites
 
 - **Java 25** for the build (`brew install openjdk@25`).
-- `reportlab` for `build_guide.py`; Pillow and numpy for `make_squircle_icon.py`.
+- `reportlab` for `build_guide.py`; Pillow and numpy for `make_app_icon.py`.
 - For `notarize`: a full **Temurin 25** JDK (jpackage embeds it as the app's
   runtime, and Homebrew's `openjdk@25` ships without the needed jmods), an Apple
   **Developer ID Application** certificate, and a `notarytool` keychain profile
@@ -57,7 +58,8 @@ tracker and the guide read it from there.
 ## Release
 
 Releases: <https://github.com/GillySpace27/HelioFITS-Studio/releases>.
-Shareable short link: <https://gilly.space/heliofits-studio>, which redirects to that index.
+Shareable short link: <https://gilly.space/heliofits-studio>, a download page that asks GitHub
+for the newest release each time it loads, with that index as the way back to older builds.
 
 ## History
 
