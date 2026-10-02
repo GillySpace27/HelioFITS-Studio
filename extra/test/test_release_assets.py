@@ -299,5 +299,116 @@ class RunbookTest(unittest.TestCase):
             self.assertNotRegex((ROOT / rel).read_text(), r"delete (that|it)\s+(release\s+)?deliberately", rel)
 
 
+SHIM_ENV_DROP = ("JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS")
+
+
+def shim(folder, name, body):
+    """Write an executable /bin/sh stand-in for a tool, first on PATH in the tests below."""
+    path = Path(folder) / name
+    path.write_text("#!/bin/sh\n" + body)
+    path.chmod(0o755)
+    return path
+
+
+def env_with(bin_dir, **extra):
+    e = {k: v for k, v in os.environ.items() if k not in SHIM_ENV_DROP}
+    e["PATH"] = f"{bin_dir}{os.pathsep}{e['PATH']}"
+    e.update(extra)
+    return e
+
+
+def notarize_body():
+    text = (RELEASE / "deploy_release.sh").read_text()
+    return re.search(r"^notarize_mac\(\) \{\n(.*?)^\}", text, re.S | re.M).group(1)
+
+
+class EntitlementsTest(unittest.TestCase):
+    def test_tracked_plist_holds_the_three_keys(self):
+        import plistlib
+        with open(RELEASE / "entitlements.plist", "rb") as f:
+            got = plistlib.load(f)
+        self.assertEqual(got, {"com.apple.security.cs.allow-jit": True,
+                               "com.apple.security.cs.allow-unsigned-executable-memory": True,
+                               "com.apple.security.cs.disable-library-validation": True})
+
+    def test_notarize_signs_with_the_tracked_file_and_verifies_first(self):
+        body = notarize_body()
+        self.assertFalse("<<'PLIST'" in body, "the entitlements are still a heredoc")
+        self.assertIn('ENT="$HERE/entitlements.plist"', body)
+        for line in body.splitlines():
+            if line.strip().startswith("rm "):
+                self.assertNotIn("$ENT", line, "notarize would remove the tracked entitlements")
+        self.assertLess(body.index("update_ffmpeg.py --check"), body.index("notarize_preconditions"))
+        self.assertLess(body.index("sync_licenses.py --check"), body.index("notarize_preconditions"))
+        self.assertLess(body.index('verify_signatures.sh" "$APP"'), body.index("hdiutil create"))
+        self.assertLess(body.index("--entitlements - --xml"), body.index("hdiutil create"))
+
+
+@unittest.skipIf(os.name == "nt", "SKIP: needs a POSIX sh and executable shims")
+class VerifySignaturesTest(unittest.TestCase):
+    """verify_signatures.sh against a fake bundle, with codesign and file replaced by shims."""
+
+    def setUp(self):
+        if not shutil.which("jar"):
+            self.skipTest("SKIP: no jar tool (JDK) on PATH")
+        self.tmp = Path(tempfile.mkdtemp(prefix="hfs-verify-test-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.bin = self.tmp / "bin"
+        self.bin.mkdir()
+        shim(self.bin, "file", '[ "$1" = -b ] && shift\n'
+                               'head -c5 "$1" | grep -q MACHO && echo "Mach-O 64-bit dynamically linked shared library arm64" || echo data\n')
+        shim(self.bin, "codesign",
+             'f=""; for a in "$@"; do f="$a"; done\n'
+             'if grep -q TEAMSIGNED "$f"; then printf "CodeDirectory v=20500 size=1 flags=0x10000(runtime) hashes=1\\nTeamIdentifier=UB45PPC2JS\\n" >&2\n'
+             'elif grep -q ADHOC "$f"; then printf "CodeDirectory v=20400 size=1 flags=0x2(adhoc) hashes=1\\nTeamIdentifier=not set\\n" >&2\n'
+             'else echo "$f: code object is not signed at all" >&2; exit 1; fi\n')
+        self.app = self.tmp / "HelioFITS Studio.app"
+        (self.app / "Contents" / "MacOS").mkdir(parents=True)
+        (self.app / "Contents" / "app").mkdir(parents=True)
+        (self.app / "Contents" / "Info.plist").write_text("not a binary")
+        self.exe = self.app / "Contents" / "MacOS" / "HelioFITS Studio"
+        self.exe.write_text("MACHO TEAMSIGNED")
+        self.make_jar("MACHO TEAMSIGNED")
+
+    def make_jar(self, dylib_text):
+        with zipfile.ZipFile(self.app / "Contents" / "app" / "natives.jar", "w") as z:
+            z.writestr("jhv/macos-arm64/libjhvmetalhost.dylib", dylib_text)
+            z.writestr("README.txt", "not a binary")
+
+    def verify(self, path=None):
+        before = sorted((p.relative_to(self.app), p.read_bytes()) for p in self.app.rglob("*") if p.is_file())
+        r = subprocess.run(["sh", str(RELEASE / "verify_signatures.sh"), str(path or self.app)],
+                           capture_output=True, text=True, timeout=120, env=env_with(self.bin))
+        after = sorted((p.relative_to(self.app), p.read_bytes()) for p in self.app.rglob("*") if p.is_file())
+        self.assertEqual(before, after, "verify_signatures.sh changed the bundle")
+        return r
+
+    def test_signed_bundle_passes(self):
+        r = self.verify()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("verify_signatures: 2 Mach-O checked, 0 failed", r.stdout)
+
+    def test_unsigned_library_inside_a_jar_fails(self):
+        self.make_jar("MACHO")
+        r = self.verify()
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("natives.jar!/jhv/macos-arm64/libjhvmetalhost.dylib: team is not UB45PPC2JS", r.stdout)
+
+    def test_ad_hoc_executable_fails(self):
+        # What jpackage leaves when nothing signs the bundle (package-app.sh macos-x64).
+        self.exe.write_text("MACHO ADHOC")
+        r = self.verify()
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("(TeamIdentifier=not set); no hardened runtime", r.stdout)
+
+    def test_folder_without_mach_o_fails(self):
+        empty = self.tmp / "Empty.app"
+        empty.mkdir()
+        r = subprocess.run(["sh", str(RELEASE / "verify_signatures.sh"), str(empty)],
+                           capture_output=True, text=True, timeout=60, env=env_with(self.bin))
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("no Mach-O found", r.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
