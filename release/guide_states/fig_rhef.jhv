@@ -1,0 +1,1 @@
+{"org.helioviewer.jhv.state": {"layers": [], "imageLayers": [{"className": "org.helioviewer.jhv.layers.ImageLayer", "name": "PUNCH CAM", "data": {"uris": ["file:@SRC@/extra/test/data/PUNCH_L3_CAM_20260425001600_v0k.fits"], "filter": "RHEF"}, "enabled": true, "master": true}]}}

@@ -6,11 +6,11 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.Set;
 
-import org.helioviewer.jhv.app.AppInfo;
+import javax.annotation.Nullable;
+
 import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.MapView;
-import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.ImageDisplaySettings;
 import org.helioviewer.jhv.image.ImageFilter;
@@ -53,7 +53,7 @@ final class ExrCapture {
     private static final DateTimeFormatter CAP_DATE = DateTimeFormatter.ofPattern("yyyy:MM:dd HH:mm:ss").withZone(ZoneOffset.UTC);
     private static final int MAX_PREFIX = ExrWriter.MAX_NAME - ".meta".length();
 
-    static ExrWriter frame(GLGrab grabber, int fps, int index) {
+    static ExrWriter frame(GLGrab grabber, int fps, int index, @Nullable String provenance) {
         ExrWriter exr = new ExrWriter(grabber.w, grabber.h);
         MapView mv = GLRenderer.getMapView();
 
@@ -105,30 +105,12 @@ final class ExrCapture {
             layerList.put(prefix);
         }
 
-        // 3. The frame itself.
+        // 3. The frame itself: Provenance.frame is the block that was built inline here, moved
+        // unchanged; the layer list is the one thing only this pass knows.
         Position viewpoint = mv.viewpoint();
-        Viewport[] viewports = Display.getViewports();
-        JSONObject frame = new JSONObject()
-                .put("writer", "HelioFITS Studio " + AppInfo.version + '.' + AppInfo.revision)
-                .put("frame", index)
-                .put("time", viewpoint.time.toString())
-                .put("projection", Display.mode.toString())
-                .put("gridType", Display.gridType.toString())
-                .put("viewpoint", new JSONObject()
-                        .put("location", viewpoint.getLocation())
-                        .put("lonDeg", Math.toDegrees(viewpoint.lon))
-                        .put("latDeg", Math.toDegrees(viewpoint.lat))
-                        .put("distanceRsun", viewpoint.distance))
-                .put("cameraWidth", viewports.length > 0 ? mv.cameraWidth(viewports[0]) : JSONObject.NULL) // solar radii in the Sun-centred projections, strip units when unrolled
-                .put("viewports", viewports.length)
-                .put("whiteBackground", opaque)
-                .put("layers", layerList)
-                .put("alpha", "premultiplied")
-                .put("colorspace", "R,G,B and overlay colours are linear (sRGB EOTF applied to the display-referred render); .Y and .V are data, untouched");
-        if (mv.isHelioradial() || mv.isHelioradialUnrolled())
-            frame.put("warpLambda", Display.getWarpLambda()).put("warpOuterRadiusRsun", Display.effectiveWarpOuterRadius())
-                    .put("warpFieldRadiusRsun", Display.fullWarpFieldRadius()); // the warp's own extent; the crop only cuts it
-        exr.attribute("jhv", frame.toString());
+        exr.attribute("jhv", Provenance.frame(index, opaque).put("layers", layerList).toString());
+        if (provenance != null)
+            exr.attribute(Provenance.PNG_KEYWORD, provenance); // the session: build, scene, sources
         exr.attribute("capDate", TimeUtils.format(CAP_DATE, viewpoint.time.milli));
         exr.attribute("utcOffset", 0f);
         exr.rational("framesPerSecond", fps, 1);

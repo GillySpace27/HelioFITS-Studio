@@ -2,10 +2,13 @@
 # Build and publish a HelioFITS Studio release: the notarized macOS dmg, the zip, and the guide.
 #
 #   ./deploy_release.sh package   # rebuild guide + repackage the zip locally (no network)
-#   ./deploy_release.sh guide     # re-upload ONLY the guide PDF+MD to the release (fast iterate)
-#   ./deploy_release.sh publish   # repackage + tag + create the GitHub release (outward)
+#   ./deploy_release.sh guide     # re-upload ONLY the guide PDF+MD to the release (fast iterate); strict build,
+#                                 # em-dash scan, then the typed tag or HFS_GUIDE_APPROVED
+#   ./deploy_release.sh publish   # repackage + tag + create the GitHub release (outward; typed tag or HFS_PUBLISH_APPROVED)
 #   ./deploy_release.sh publish --dry-run  # publish's checks and the gate text; tags, pushes, uploads nothing
 #   ./deploy_release.sh notarize  # build a signed + notarized + stapled macOS .app/.dmg (Gatekeeper-clean)
+#   ./deploy_release.sh notarize-resume  # finish the submission recorded in release/.notarize-pending*.json
+#   ./deploy_release.sh notes     # print the release notes publish would post (no network)
 #   ./deploy_release.sh assets [local|ci|all]  # the release's asset names, from release/assets.txt
 #
 # The `notarize` mode needs an Apple Developer ID cert + a notarytool keychain
@@ -78,7 +81,7 @@ ASSETS_FILE="$HERE/assets.txt"
 
 build_guide() {
     echo "==> regenerating guide (PDF + MD)"
-    ( cd "$HERE" && python3 build_guide.py )
+    ( cd "$HERE" && python3 build_guide.py "$@" )
 }
 
 repackage() {
@@ -130,6 +133,10 @@ or \`brew install openjdk@25\`). Unzip, then double-click \`run.command\`."
     WHATSNEW="$(awk -v v="$VERSION" 'index($0, "## ") == 1 { if (on) exit; on = index($0, " " v " ") > 0; next } on' "$SRC/changelog.md" | sed 's/^### /#### /')"
     [ -n "$WHATSNEW" ] || { echo "changelog.md has no section for $VERSION; write one before publishing" >&2; exit 1; }
     PRE_NOTE=""; [ -n "$PRERELEASE" ] && PRE_NOTE="This is a pre-release, published for testing ahead of 1.0. It is used daily on Apple Silicon Macs; Windows and Linux are new. Please report anything that breaks."
+    # The fork's standing description, kept as prose in notes-preamble.md; @APP_NAME@ and @REPO@ in it
+    # are filled in here. Command substitution drops its trailing newlines; the heredoc puts them back.
+    [ -f "$HERE/notes-preamble.md" ] || { echo "!! release/notes-preamble.md is missing" >&2; exit 1; }
+    PREAMBLE="$(sed -e "s|@APP_NAME@|$APP_NAME|g" -e "s|@REPO@|$REPO|g" "$HERE/notes-preamble.md")"
     cat > "$NOTES" <<EOF
 **$APP_NAME $VERSION**
 
@@ -139,68 +146,7 @@ $PRE_NOTE
 
 $WHATSNEW
 
-### About $APP_NAME
-
-$APP_NAME is a fork of JHelioviewer, the open-source solar image browser from the ESA/NASA
-Helioviewer Project. It streams decades of full-disk and coronagraph imagery from the major
-solar observatories and plays it back as movies. It is maintained separately from JHelioviewer,
-so please report problems and requests on this repository's issue tracker:
-https://github.com/$REPO/issues
-
-### Why a fork
-
-We work with NASA's PUNCH mission and the wider coronagraph record, and JHelioviewer did not do
-several things that work needed: load PUNCH data, stretch the outer corona so it has room to read,
-equalize the steep radial falloff, and a few more. $APP_NAME adds them. Several of those pieces
-have since been taken into JHelioviewer's own development line (the PUNCH layer, RHEF, the
-Helioradial projections and the grid colour controls), and others were submitted there as pull
-requests. Earlier builds were published here as the JHelioviewer PUNCH & Coronal Research
-Distribution (v5.6a to v5.6d); $APP_NAME continues that line under its own name. The README on
-this repository explains the fork, its relationship to JHelioviewer and its licensing in full.
-
-### What $APP_NAME adds
-
-**Projections**
-- **Helioradial**: a Sun-centered radial re-stretch that gives the outer corona room, on one knob from linear through logarithmic to inverse. The disk itself is left unwarped.
-- **Helioradial Unrolled**: the same radial stretch unrolled into a position-angle strip (earlier-stage draft).
-- The redundant Polar and LogPolar projections are removed, subsumed by these.
-- **Observer Sky** (experimental): a projection that looks out from the observer's own position instead of at the Sun, with the coronagraph reference surfaces along for the ride.
-
-**Data sources**
-- **PUNCH**: load NASA PUNCH mosaics from the public archive and play them as movies. (also merged into JHelioviewer, Helioviewer-Project/JHelioviewer-SWHV#328)
-- **PROBA-3 / ASPIICS**: ESA's formation-flying coronagraph; loads an orbit's frames, with a cadence control and a confirmation before a multi-gigabyte download.
-- A PUNCH pipeline-version selector (keeps a movie to one calibration), a per-layer archive-refresh button, and a shared display range that stops PUNCH movies strobing.
-- **Coronagraph and EUV data at full depth.** LASCO C2 and C3 straight from NRL's level-0.5 archive (the VSO's LASCO catalogue stops in early 2025; NRL's is current), GOES SUVI as native L1b per channel, and AIA per channel. The layer readout states the depth measured from the pixels beside the depth the file claims, so an 8-bit browse product is named as one however wide the buffer holding it.
-- **Native FITS from the VSO**: a FITS (VSO) card on the add-layer button pulls calibrated full-bit-depth FITS for most missions (LASCO, EIT, AIA, HMI, SECCHI, XRT, EIS), plus **GOES SUVI** channel by channel as native L1b, for when the 8-bit JP2 browse products band under a hard stretch.
-
-**Image processing**
-- **RHEF**: the Radial Histogram Equalization Filter, with an Upsilon control for shadows and highlights. (also taken into JHelioviewer's development line)
-- **C3 with its background removed.** NRL's monthly minimum images are fetched automatically, the two bracketing each frame interpolated as their own getbkgimg.pro does, and subtracted in DN before normalization, which also puts a movie's frames on one photometric footing.
-
-**Display**
-- **HDR canvas (macOS)**: image layers render into the display's extended range, so the corona can be brighter than the window. Needs an EDR display.
-
-**Overlays**
-- Adjustable coordinate grid: color, opacity, line width, label size, and radial-label angle.
-
-**CME tracking**
-- Pick a CACTus eruption and hold its leading front at a fixed screen radius while it propagates, so you watch it evolve rather than recede.
-
-**Point clouds**
-- **Point Cloud layer**: render a scattered 3D point cloud over the Sun, colored by a per-point value, with an alpha-shape surface slider that recovers a folded surface from the points (convex hull at 100 %, the folds resolving as you drag down). Load the included \`fabric_suvi.json.gz\` demo; a rippled sheet placed in the GOES-R SUVI field of view; via the layer's **Open…** button.
-
-**Interface**
-- Reorganized layer panel: a full-width docked transport bar, a collapsible sidebar, and nested layer options.
-- Discoverable timeline trim and move gestures.
-- **Imagery appears while the rest is still loading** instead of after the last frame, and frames with no picture in them (SUVI darks, LASCO's daily filter sequence) are recognized and replaced by the nearest good frame.
-- **Truthful export framing**: output size is an aspect plus a long side, and locking the aspect letterboxes the canvas to exactly what the export will contain.
-- **Quality of life**: a small clock dial on the timestamp overlay; the colour legend as a true gradient; layers added from the File menu follow the master range including cadence; a second running instance degrades to a memory-only cache instead of flooding the log; saving a session by hand pulls its data down; assorted smaller fixes.
-
-**Reliability**
-- Gzipped FITS from NOAA load; VSO queries ask for the one channel wanted, a day at a time, so a SUVI query takes seconds rather than appearing to hang; an unreachable IPv6 address no longer fails PUNCH loads at random; files dropped on the window load themselves.
-
-**Packaging**
-- Signed and notarized macOS \`.app\` with an embedded Java runtime, so it opens with no security warning and needs no separate Java install.
+$PREAMBLE
 
 ### Install
 
@@ -245,9 +191,55 @@ EOF
     echo "$NOTES"
 }
 
+# Exit 2 when any file named after $1 (the verb for what was not done) holds an em dash (U+2014) or
+# cannot be scanned. grep exits 0 for a match, 1 for none and 2 for an error such as a missing file;
+# only 1 passes, so a file that is not there can never read as "no em dash".
+scan_em_dash() {
+    _what="$1"; shift
+    _rc=0
+    LC_ALL=C grep -n "$(printf '\342\200\224')" "$@" >&2 || _rc=$?
+    case "$_rc" in
+        1) ;;
+        0) echo "!! em dash (U+2014) in the release notes or guide ($*; lines above); fix the source, nothing was $_what" >&2; exit 2 ;;
+        *) echo "!! could not scan $* for em dashes (grep exit $_rc); nothing was $_what" >&2; exit 2 ;;
+    esac
+}
+
 upload_guide_only() {
+    # The single upload that replaces files on a published release, and only the guide's two, never a
+    # binary. Outward like publish, so the same per-action gate: the exact tag typed at a terminal, or,
+    # with no terminal, HFS_GUIDE_APPROVED set to that tag for this one run after Gilly's yes in chat.
+    if [ -n "${HFS_GUIDE_APPROVED:-}" ]; then
+        [ "$HFS_GUIDE_APPROVED" = "$TAG" ] \
+            || { echo "!! HFS_GUIDE_APPROVED is '$HFS_GUIDE_APPROVED', not $TAG; a yes is for one release" >&2; exit 2; }
+    elif [ -t 0 ]; then
+        printf 'Replace HFStudio-Guide.pdf and .md on the published %s? Type the tag: ' "$TAG"
+        read -r _typed
+        [ "$_typed" = "$TAG" ] || { echo "!! typed '$_typed', not $TAG; nothing uploaded" >&2; exit 2; }
+    else
+        echo "!! no terminal: the guide upload runs only with HFS_GUIDE_APPROVED=$TAG, after Gilly's yes" >&2
+        exit 2
+    fi
     echo "==> uploading guide assets only (--clobber)"
     gh release upload "$TAG" "$PDF" "$MD" --clobber --repo "$REPO"
+}
+
+# The per-tag gate on the outward half of publish (the tag push and the release), the same shape as the
+# one upload_guide_only has: the exact tag typed at a terminal, or, with no terminal, HFS_PUBLISH_APPROVED
+# set to that tag for this one run after Gilly's yes in chat. release/ship.sh publish asks the same
+# question first and hands its answer down in HFS_PUBLISH_APPROVED, so a human types the tag once.
+approve_publish() {
+    if [ -n "${HFS_PUBLISH_APPROVED:-}" ]; then
+        [ "$HFS_PUBLISH_APPROVED" = "$TAG" ] \
+            || { echo "!! HFS_PUBLISH_APPROVED is '$HFS_PUBLISH_APPROVED', not $TAG; a yes is for one tag" >&2; exit 2; }
+    elif [ -t 0 ]; then
+        printf 'Gilly said yes to publishing exactly this tag. Type it (%s): ' "$TAG"
+        read -r _typed
+        [ "$_typed" = "$TAG" ] || { echo "!! typed '$_typed', not $TAG; nothing published" >&2; exit 2; }
+    else
+        echo "!! no terminal: publish runs only with HFS_PUBLISH_APPROVED=$TAG set for this one invocation, after Gilly's yes in chat" >&2
+        exit 2
+    fi
 }
 
 # Print the asset names from assets.txt with {v} expanded, one per line; $1 is local, ci or all. A row
@@ -354,9 +346,21 @@ preflight_publish() {
     done
 
     # No release on a Friday afternoon (v5.6e was held on principle). HFS_ALLOW_FRIDAY=1 lifts it for
-    # one run. HFS_FAKE_DOW and HFS_FAKE_HOUR stand in for the clock in extra/test/test_release_assets.py.
-    _dow="${HFS_FAKE_DOW:-$(date +%u)}"; _hour="${HFS_FAKE_HOUR:-$(date +%H)}"
-    if [ "$_dow" = 5 ] && [ "$_hour" -ge 12 ] && [ "${HFS_ALLOW_FRIDAY:-}" != 1 ]; then
+    # one run. HFS_FAKE_DOW and HFS_FAKE_HOUR stand in for the clock in extra/test/test_release_assets.py
+    # and only count when HFS_TEST_CLOCK=1 is set too; they are integers (1 to 7 with 5 = Friday, 0 to 23),
+    # and anything else is refused rather than read as "not Friday".
+    _dow="$(date +%u)"; _hour="$(date +%H)"
+    if [ -n "${HFS_FAKE_DOW:-}${HFS_FAKE_HOUR:-}" ]; then
+        if [ "${HFS_TEST_CLOCK:-}" = 1 ]; then
+            _dow="${HFS_FAKE_DOW:-$_dow}"; _hour="${HFS_FAKE_HOUR:-$_hour}"
+            case "$_dow" in [1-7]) ;; *) refuse "HFS_FAKE_DOW must be an integer from 1 to 7, not '$_dow'" 6 ;; esac
+            case "$_hour" in ""|*[!0-9]*) refuse "HFS_FAKE_HOUR must be an integer from 0 to 23, not '$_hour'" 6 ;;
+                *) [ "$_hour" -le 23 ] || refuse "HFS_FAKE_HOUR must be an integer from 0 to 23, not '$_hour'" 6 ;; esac
+        else
+            echo "   ignoring HFS_FAKE_DOW and HFS_FAKE_HOUR: they only count with HFS_TEST_CLOCK=1" >&2
+        fi
+    fi
+    if [ "$REFUSED" = 0 ] && [ "$_dow" = 5 ] && [ "$_hour" -ge 12 ] && [ "${HFS_ALLOW_FRIDAY:-}" != 1 ]; then
         refuse "it is Friday afternoon; release another day, or set HFS_ALLOW_FRIDAY=1 for this one run" 6
     fi
 
@@ -423,6 +427,11 @@ publish() {
         fi
     done
 
+    # The notes are written, and they and the guide are scanned for em dashes, before the tag exists.
+    SHA="$(shasum -a 256 "$ZIP" | awk '{print $1}')"
+    NOTES="$(notes_file)"
+    scan_em_dash tagged "$NOTES" "$MD"
+
     # A publish that stopped after tagging left the tag at this commit: reuse it, never move it.
     # preflight_publish has already refused a tag at any other commit.
     if [ "$(tag_target origin)" = "$BUILD_SHA" ]; then
@@ -434,8 +443,6 @@ publish() {
         ( cd "$SRC" && git tag -a "$TAG" "$BUILD_SHA" -m "$TITLE" && git push origin "$TAG" )
     fi
 
-    SHA="$(shasum -a 256 "$ZIP" | awk '{print $1}')"
-    NOTES="$(notes_file)"
     echo "==> creating release $TAG"
     gh release create "$TAG" "$@" \
         --repo "$REPO" --title "$TITLE" --notes-file "$NOTES" $PRERELEASE
@@ -471,6 +478,9 @@ case "$MAC_ARCH" in
     *) echo "!! MAC_ARCH must be arm64 or x64, not '$MAC_ARCH'" >&2; exit 2 ;;
 esac
 DMG_INTEL="$HERE/$TOP-intel.dmg"   # publish attaches it when it exists, whichever MAC_ARCH is set
+# The submission in flight for this MAC_ARCH: written by notarize, read by notarize-resume, never
+# removed by a script (git-ignored; the next submission for the same arch replaces it).
+PENDING="$HERE/.notarize-pending.json"; [ "$MAC_ARCH" = x64 ] && PENDING="$HERE/.notarize-pending-intel.json"
 # ARCH_RES is the resource path AngleLibraries extracts the dylib from.
 DYLIB="lib/natives-macos/libjhvmetalhost.dylib"
 
@@ -573,14 +583,179 @@ sign_jar_natives() {
     done
 }
 
+# ---- notarization that cannot lie ------------------------------------------------------------
+# 2026-09-23: `submit --wait` died mid-upload after printing an id, and a watcher read "does not
+# exist" as "still queued" for 13 hours. So the submission runs without --wait and is believed only
+# when notarytool says "Successfully uploaded file"; its id goes into a pending receipt; then
+# `notarytool info` is polled every HFS_NOTARY_POLL_SECS (30) within HFS_NOTARY_LIMIT_SECS (600,
+# the old --wait alarm). Accepted continues; Invalid or Rejected saves Apple's log and fails;
+# "does not exist" is re-polled once after HFS_NOTARY_REPOLL_SECS (60, an estimate) and then fails.
+# notarize-resume picks a pending id up again. HFS_NOTARY_WAIT=1 keeps the old --wait path for one
+# release. The JSON field names (id, message, status) are notarytool's --output-format json names
+# as documented, not yet seen in a real run here: pin them against the first real
+# .notarize-submit.json and .notarize-info.json (RELEASING.md step 4).
+NOTARY_POLL_SECS="${HFS_NOTARY_POLL_SECS:-30}"
+NOTARY_REPOLL_SECS="${HFS_NOTARY_REPOLL_SECS:-60}"
+NOTARY_LIMIT_SECS="${HFS_NOTARY_LIMIT_SECS:-600}"
+
+# One top-level field of the JSON object on stdin, or nothing.
+json_field() {
+    python3 -c 'import json, sys
+try:
+    print(json.loads(sys.stdin.read()).get(sys.argv[1], ""))
+except Exception:
+    print("")' "$1"
+}
+
+# notarytool reports a locked screen as a missing profile (2026-09-18): name the real cause.
+notary_explain() {
+    if grep -qs 'No Keychain password item found' "$@"; then
+        echo "!! screen locked? notarytool cannot read its keychain profile while the screen is locked; unlock and rerun (2026-09-18)" >&2
+    fi
+}
+
+# Upload $DMG without waiting, and record the submission in $PENDING once the upload is complete.
+notary_submit() {
+    echo "==> submitting ${DMG##*/} to Apple (no --wait; the id is recorded before polling)"
+    if ! perl -e 'alarm shift; exec @ARGV' 600 \
+            xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --output-format json \
+            > "$HERE/.notarize-submit.json" 2> "$HERE/.notarize-submit.err"; then
+        notary_explain "$HERE/.notarize-submit.err" "$HERE/.notarize-submit.json"
+        echo "!! notarytool submit failed; its output is in release/.notarize-submit.err. Nothing is pending: rerun notarize." >&2
+        exit 1
+    fi
+    _id="$(json_field id < "$HERE/.notarize-submit.json")"
+    _msg="$(json_field message < "$HERE/.notarize-submit.json")"
+    [ -n "$_id" ] || { echo "!! notarytool submit printed no id; see release/.notarize-submit.json" >&2; exit 1; }
+    case "$_msg" in
+        *"Successfully uploaded"*) ;;
+        *) echo "!! submission $_id reports '$_msg', not 'Successfully uploaded file': an id alone does not mean the upload finished (2026-09-23). Rerun notarize." >&2
+           exit 1 ;;
+    esac
+    cat > "$PENDING" <<EOF
+{
+  "submission_id": "$_id",
+  "dmg_sha256": "$(shasum -a 256 "$DMG" | awk '{print $1}')",
+  "build_sha": "$(cd "$SRC" && git rev-parse HEAD)",
+  "arch": "$MAC_ARCH",
+  "submitted_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+EOF
+    echo "   submitted $_id; pending receipt ${PENDING##*/}"
+}
+
+# Poll submission $1 until Apple accepts it (return 0) or the answer is a failure (exit 1).
+notary_poll() {
+    _id="$1"; _waited=0; _missing=0
+    while :; do
+        perl -e 'alarm shift; exec @ARGV' 60 \
+            xcrun notarytool info "$_id" --keychain-profile "$NOTARY_PROFILE" --output-format json \
+            > "$HERE/.notarize-info.json" 2> "$HERE/.notarize-info.err" || true
+        _status="$(json_field status < "$HERE/.notarize-info.json")"
+        case "$_status" in
+            Accepted)
+                echo "   $_id: Accepted"
+                return 0 ;;
+            Invalid|Rejected)
+                perl -e 'alarm shift; exec @ARGV' 120 \
+                    xcrun notarytool log "$_id" --keychain-profile "$NOTARY_PROFILE" "$HERE/.notarize-log-$_id.json" \
+                    > /dev/null 2>&1 || true
+                echo "!! submission $_id is $_status; Apple's log: release/.notarize-log-$_id.json" >&2
+                exit 1 ;;
+            "In Progress")
+                _missing=0 ;;
+            *)
+                if grep -qsi 'does not exist' "$HERE/.notarize-info.err" "$HERE/.notarize-info.json"; then
+                    if [ "$_missing" = 1 ]; then
+                        echo "!! submission $_id does not exist, after a re-poll: the upload never completed (2026-09-23). Rerun ./deploy_release.sh notarize." >&2
+                        exit 1
+                    fi
+                    _missing=1
+                    echo "   $_id: does not exist; one re-poll in ${NOTARY_REPOLL_SECS}s"
+                    sleep "$NOTARY_REPOLL_SECS"; _waited=$((_waited + NOTARY_REPOLL_SECS))
+                    continue
+                fi
+                notary_explain "$HERE/.notarize-info.err"
+                echo "!! notarytool info $_id gave no status (release/.notarize-info.err). ${PENDING##*/} stays; rerun ./deploy_release.sh notarize-resume." >&2
+                exit 1 ;;
+        esac
+        if [ "$_waited" -ge "$NOTARY_LIMIT_SECS" ]; then
+            echo "!! $_id is still In Progress after ${_waited}s. ${PENDING##*/} stays; run ./deploy_release.sh notarize-resume later." >&2
+            exit 1
+        fi
+        echo "   $_id: In Progress (${_waited}s)"
+        sleep "$NOTARY_POLL_SECS"; _waited=$((_waited + NOTARY_POLL_SECS))
+    done
+}
+
+# Staple, validate and write the receipt for the dmg built from commit $1. Shared by notarize and
+# notarize-resume.
+staple_and_receipt() {
+    echo "==> stapling the ticket"
+    # Stapling downloads the ticket from Apple's CloudKit, which can hang for minutes even
+    # after the submission is Accepted. Guard each attempt with perl's alarm (no `timeout` on
+    # macOS) so a stuck CloudKit call is killed and retried; the ticket already exists server-side.
+    _stapled=0
+    for _s in 1 2 3 4 5; do
+        if perl -e 'alarm shift; exec @ARGV' 50 xcrun stapler staple "$DMG" 2>&1 | tail -1 | grep -qi 'worked'; then _stapled=1; break; fi
+        echo "   staple attempt $_s failed (network/hang?); retrying in 10s..."; sleep 10
+    done
+    [ "$_stapled" = 1 ] || { echo "!! stapling kept failing. The dmg IS notarized; re-run just:  xcrun stapler staple \"$DMG\""; exit 1; }
+
+    echo "==> verifying"
+    xcrun stapler validate "$DMG"
+    spctl -a -t open --context context:primary-signature -vv "$DMG" || true
+
+    # Receipt: this dmg, by content hash, came out of a run that stapled AND validated.
+    # The tracker needs a way to assert "this exact file is the notarized one" without
+    # re-running `stapler validate`, which talks to Apple's CloudKit and is wildly
+    # non-deterministic: measured 0.3s cached, 30s warm, and 60s-then-exit-68 cold on
+    # 2026-08-23. A check that intermittently calls a good dmg unnotarized is one you
+    # learn to ignore. Everything above this line ran under `set -e`, so reaching here
+    # means the staple and the validate both succeeded.
+    cat > "$RECEIPT" <<EOF
+{
+  "dmg_sha256": "$(shasum -a 256 "$DMG" | awk '{print $1}')",
+  "build_sha": "$1",
+  "build_revision": "$(cd "$SRC" && git rev-list --count "$1")",
+  "notarized_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+EOF
+    echo "==> receipt written: ${RECEIPT##*/}"
+}
+
+# Finish a notarization recorded in $PENDING: after a crash, a locked screen, or a poll that ran out
+# of time. Refuses (exit 2) unless the dmg is the exact file that was submitted.
+notarize_resume() {
+    : "${NOTARY_PROFILE:=jhv-notary}"
+    [ -f "$PENDING" ] || { echo "!! no ${PENDING##*/}: nothing is pending for MAC_ARCH=$MAC_ARCH; run notarize" >&2; exit 2; }
+    _id="$(receipt_key "$PENDING" submission_id)"
+    _want="$(receipt_key "$PENDING" dmg_sha256)"
+    _built="$(receipt_key "$PENDING" build_sha)"
+    [ -n "$_id" ] && [ -n "$_want" ] && [ -n "$_built" ] \
+        || { echo "!! ${PENDING##*/} lacks submission_id, dmg_sha256 or build_sha" >&2; exit 2; }
+    [ -f "$DMG" ] || { echo "!! no ${DMG##*/}: submission $_id was for a dmg that is not here" >&2; exit 2; }
+    _have="$(shasum -a 256 "$DMG" | awk '{print $1}')"
+    [ "$_have" = "$_want" ] \
+        || { echo "!! ${DMG##*/} changed since submission $_id (sha256 $_have, submitted $_want); run notarize again" >&2; exit 2; }
+    echo "==> resuming notarization $_id for ${DMG##*/}"
+    notary_poll "$_id"
+    staple_and_receipt "$_built"
+}
+
 notarize_mac() {
+    # Offline, before anything is built or sent to Apple: the bundled ffmpeg is the GPL build its
+    # manifest names, and the licence notices match the jars.
+    echo "==> checking the ffmpeg and licence manifests"
+    ( cd "$SRC" && python3 extra/ffmpeg/update_ffmpeg.py --check && python3 extra/licenses/sync_licenses.py --check ) \
+        || { echo "!! the ffmpeg or licence manifest check failed; nothing was built or sent" >&2; exit 1; }
     notarize_preconditions
 
     echo "==> building a fresh jar + dylib"
     ( cd "$SRC" && ant clean jar build-metal-host >/dev/null )
     [ -f "$SRC/$DYLIB" ] || { echo "!! $DYLIB missing after build"; exit 1; }
 
-    APPSTAGE="$HERE/.app_stage"; OUT="$HERE/.app_out"; ENT="$HERE/.entitlements.plist"
+    APPSTAGE="$HERE/.app_stage"; OUT="$HERE/.app_out"; ENT="$HERE/entitlements.plist"
     rm -rf "$OUT"
 
     # Everything jpackage bundles is the classpath: the main jar and the dependency jars (the
@@ -594,17 +769,9 @@ notarize_mac() {
     ( cd "$tmp" && "$JAVA_HOME/bin/jar" uf "$APPSTAGE/HFStudio.jar" "$ARCH_RES/$(basename "$DYLIB")" )
     rm -rf "$tmp"
 
-    # Hardened-runtime entitlements: the JVM JITs, and natives get extracted from jars, so
-    # library validation is relaxed. Applied to the main executable only.
-    cat > "$ENT" <<'PLIST'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-  <key>com.apple.security.cs.allow-jit</key><true/>
-  <key>com.apple.security.cs.allow-unsigned-executable-memory</key><true/>
-  <key>com.apple.security.cs.disable-library-validation</key><true/>
-</dict></plist>
-PLIST
+    # Hardened-runtime entitlements, from the tracked release/entitlements.plist: the JVM JITs, and
+    # natives get extracted from jars, so library validation is relaxed. Main executable only.
+    [ -f "$ENT" ] || { echo "!! $ENT is missing" >&2; exit 1; }
 
     echo "==> signing native libraries inside the bundled jars"
     sign_jar_natives "$APPSTAGE"
@@ -679,6 +846,17 @@ PLIST
     done
     CS_ENT="--entitlements $ENT"; retry_codesign "$APP" || exit 1
     codesign --verify --deep --strict --verbose=2 "$APP"
+    # Signed with exactly the tracked entitlements, and every Mach-O in the bundle and in its jars
+    # carries the team and the hardened runtime, before a dmg is built or Apple is asked.
+    codesign -d --entitlements - --xml "$APP" 2>/dev/null | python3 -c '
+import plistlib, sys
+data = sys.stdin.buffer.read()
+got = plistlib.loads(data) if data.strip() else None
+want = plistlib.load(open(sys.argv[1], "rb"))
+if got != want:
+    sys.exit("!! the app was signed with entitlements %r; release/entitlements.plist says %r" % (got, want))
+' "$ENT"
+    "$HERE/verify_signatures.sh" "$APP"
 
     echo "==> building + signing the .dmg"
     rm -f "$DMG"
@@ -702,55 +880,35 @@ PLIST
     done
     [ "$dmg_signed" = 1 ] || echo "   continuing without a dmg signature (not required for notarization)"
 
-    echo "==> notarizing (this waits for Apple; usually a few minutes)"
-    # macOS has no `timeout(1)`; perl's alarm is always present. Guard the wait so a hung
-    # connection to Apple fails the attempt instead of blocking forever.
-    perl -e 'alarm shift; exec @ARGV' 600 \
-        xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
-    echo "==> stapling the ticket"
-    # Stapling downloads the ticket from Apple's CloudKit, which can hang for minutes even
-    # after the submission is Accepted. Guard each attempt with perl's alarm (no `timeout` on
-    # macOS) so a stuck CloudKit call is killed and retried; the ticket already exists server-side.
-    _stapled=0
-    for _s in 1 2 3 4 5; do
-        if perl -e 'alarm shift; exec @ARGV' 50 xcrun stapler staple "$DMG" 2>&1 | tail -1 | grep -qi 'worked'; then _stapled=1; break; fi
-        echo "   staple attempt $_s failed (network/hang?); retrying in 10s..."; sleep 10
-    done
-    [ "$_stapled" = 1 ] || { echo "!! stapling kept failing. The dmg IS notarized; re-run just:  xcrun stapler staple \"$DMG\""; exit 1; }
+    if [ "${HFS_NOTARY_WAIT:-}" = 1 ]; then
+        # The path before submissions were recorded, kept for one release in case polling misreads Apple.
+        echo "==> notarizing with submit --wait (HFS_NOTARY_WAIT=1)"
+        # macOS has no `timeout(1)`; perl's alarm is always present. Guard the wait so a hung
+        # connection to Apple fails the attempt instead of blocking forever.
+        perl -e 'alarm shift; exec @ARGV' 600 \
+            xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
+    else
+        notary_submit
+        notary_poll "$(receipt_key "$PENDING" submission_id)"
+    fi
+    staple_and_receipt "$(cd "$SRC" && git rev-parse HEAD)"
 
-    echo "==> verifying"
-    xcrun stapler validate "$DMG"
-    spctl -a -t open --context context:primary-signature -vv "$DMG" || true
-
-    # Receipt: this dmg, by content hash, came out of a run that stapled AND validated.
-    # The tracker needs a way to assert "this exact file is the notarized one" without
-    # re-running `stapler validate`, which talks to Apple's CloudKit and is wildly
-    # non-deterministic: measured 0.3s cached, 30s warm, and 60s-then-exit-68 cold on
-    # 2026-08-23. A check that intermittently calls a good dmg unnotarized is one you
-    # learn to ignore. Everything above this line ran under `set -e`, so reaching here
-    # means the staple and the validate both succeeded.
-    cat > "$RECEIPT" <<EOF
-{
-  "dmg_sha256": "$(shasum -a 256 "$DMG" | awk '{print $1}')",
-  "build_sha": "$(cd "$SRC" && git rev-parse HEAD)",
-  "build_revision": "$(cd "$SRC" && git rev-list --count HEAD)",
-  "notarized_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-}
-EOF
-    echo "==> receipt written: ${RECEIPT##*/}"
-
-    rm -rf "$APPSTAGE" "$OUT" "$ENT"
+    rm -rf "$APPSTAGE" "$OUT"
     echo "==> done: $DMG  ($(du -h "$DMG" | awk '{print $1}'))"
     echo "    publish attaches it to the release automatically when it exists."
 }
 
 case "$MODE" in
     package)  build_guide; repackage ;;
-    guide)    build_guide; upload_guide_only ;;
+    guide)    build_guide --strict; scan_em_dash uploaded "$MD"; upload_guide_only ;;
     publish)  preflight_publish
               if [ -n "$DRY_RUN" ]; then dry_run_report; exit 0; fi
-              build_guide; repackage; publish ;;
+              approve_publish
+              build_guide --strict; repackage; publish ;;
     notarize) notarize_mac ;;
+    notarize-resume) notarize_resume ;;
+    notes)    SHA="$(if [ -f "$ZIP" ]; then shasum -a 256 "$ZIP" | awk '{print $1}'; else echo '(zip not built)'; fi)"
+              _notes="$(notes_file)"; cat "$_notes"; rm -f "$_notes" ;;
     assets)   case "${2:-all}" in local|ci|all) asset_names "${2:-all}" ;; *) echo "usage: $0 assets [local|ci|all]" >&2; exit 2 ;; esac ;;
-    *) echo "usage: $0 {package|guide|publish [--dry-run]|notarize|assets [local|ci|all]}"; exit 2 ;;
+    *) echo "usage: $0 {package|guide|publish [--dry-run]|notarize|notarize-resume|notes|assets [local|ci|all]}"; exit 2 ;;
 esac

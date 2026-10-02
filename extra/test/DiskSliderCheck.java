@@ -23,9 +23,9 @@ public final class DiskSliderCheck {
 
     public static void main(String[] args) {
         // Direction: further RIGHT is a bigger disk, matching Warp, Crop and Zoom.
-        double left = ToolBar.sliderToDiskScale(0);
-        double middle = ToolBar.sliderToDiskScale(500);
-        double right = ToolBar.sliderToDiskScale(1000);
+        double left = ProjectionPaletteContent.sliderToDiskScale(0);
+        double middle = ProjectionPaletteContent.sliderToDiskScale(500);
+        double right = ProjectionPaletteContent.sliderToDiskScale(1000);
         expect(left < middle && middle < right, "the disk grows left to right: " + left + " " + middle + " " + right);
 
         // The ends reach the stated limits, or the slider cannot express its own range.
@@ -34,29 +34,29 @@ public final class DiskSliderCheck {
 
         // Continuity: no step along the track may change the scale by more than a few percent,
         // which is what "no visual discontinuity anywhere" reduces to on a 1000-step slider.
-        double previous = ToolBar.sliderToDiskScale(0);
+        double previous = ProjectionPaletteContent.sliderToDiskScale(0);
         for (int v = 1; v <= 1000; v++) {
-            double now = ToolBar.sliderToDiskScale(v);
+            double now = ProjectionPaletteContent.sliderToDiskScale(v);
             expect(now > previous && now / previous < 1.02,
                     "step " + v + " jumps from " + previous + " to " + now);
             previous = now;
         }
 
         // Nominal is reachable, and sits near the right rather than at an end.
-        int nominal = ToolBar.diskScaleToSlider(Display.DISK_SCALE_NOMINAL);
-        expect(Math.abs(ToolBar.sliderToDiskScale(nominal) - Display.DISK_SCALE_NOMINAL) < 5e-3,
-                "the nominal position really is nominal, got " + ToolBar.sliderToDiskScale(nominal));
+        int nominal = ProjectionPaletteContent.diskScaleToSlider(Display.DISK_SCALE_NOMINAL);
+        expect(Math.abs(ProjectionPaletteContent.sliderToDiskScale(nominal) - Display.DISK_SCALE_NOMINAL) < 5e-3,
+                "the nominal position really is nominal, got " + ProjectionPaletteContent.sliderToDiskScale(nominal));
         expect(nominal > 0 && nominal < 1000, "nominal is not stuck at an end: " + nominal);
 
         // Round trip: rebuilding the palette must not nudge the handle.
         for (int v = 0; v <= 1000; v += 37) {
-            int back = ToolBar.diskScaleToSlider(ToolBar.sliderToDiskScale(v));
+            int back = ProjectionPaletteContent.diskScaleToSlider(ProjectionPaletteContent.sliderToDiskScale(v));
             expect(Math.abs(back - v) <= 1, "round trip at " + v + " came back as " + back);
         }
 
         // Out-of-range input is clamped rather than extrapolated off the ends of the scale.
-        expect(ToolBar.sliderToDiskScale(-50) == left, "below the left end clamps to the minimum");
-        expect(ToolBar.sliderToDiskScale(1050) == right, "past the right end clamps to the maximum");
+        expect(ProjectionPaletteContent.sliderToDiskScale(-50) == left, "below the left end clamps to the minimum");
+        expect(ProjectionPaletteContent.sliderToDiskScale(1050) == right, "past the right end clamps to the maximum");
 
         if (failures != 0)
             throw new AssertionError(failures + " disk-slider failure(s)");

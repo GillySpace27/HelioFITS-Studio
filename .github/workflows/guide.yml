@@ -1,0 +1,36 @@
+name: guide
+
+# Captures the guide figures that tracked state files can reproduce (release/guide_states/*.jhv) on
+# a Linux virtual display and uploads the PNGs as an artifact for Gilly to review. Started by hand
+# only. It writes nothing to the repository or to any release; a picture goes into
+# release/guide_assets/ only after Gilly has looked at it. Mesa draws in software and Xvfb has no
+# extended range, so this cannot judge colour depth or EDR.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: ./.github/actions/setup-hfstudio
+        with:
+          linux-packages: xvfb imagemagick libgl1 libgl1-mesa-dri libglx-mesa0 libegl1
+
+      - name: Build
+        run: ant jar
+
+      - name: Capture the figures from copies of the tracked states
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" release/capture_guide_shots.sh "$RUNNER_TEMP/guide-shots"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: guide-shots
+          path: ${{ runner.temp }}/guide-shots/

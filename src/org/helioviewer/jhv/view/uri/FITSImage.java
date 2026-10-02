@@ -122,6 +122,17 @@ public final class FITSImage {
         if (background == null)
             return null;
 
+        return subtractPerSecond(header, pixels, count, hasBlank, blank, bzero, bscale, exposure, background);
+    }
+
+    /**
+     * The subtraction itself, given the background: DN per second, blank and NaN pixels as
+     * BAD_PIXEL. Separate from subtractBackground so a check can run it on a synthetic header
+     * without fetching a background from NRL.
+     */
+    static float[] subtractPerSecond(Header header, Object pixels, int count, boolean hasBlank, long blank,
+                                     double bzero, double bscale, double exposure, float[] background) {
+        double offset = 0; // the CCD bias is not removed yet: HS-6 Task 3 is gated on Gilly's yes (science-mode check of OFFSET)
         float[] out = new float[count];
         for (int i = 0; i < count; i++) {
             double raw = rawAt(pixels, i);
@@ -129,9 +140,14 @@ public final class FITSImage {
                 out[i] = BAD_PIXEL;
                 continue;
             }
-            out[i] = (float) ((bzero + raw * bscale) / exposure - background[i]);
+            out[i] = (float) lascoPerSecond(raw, bzero, bscale, offset, exposure, background[i]);
         }
         return out;
+    }
+
+    /** One LASCO pixel in DN per second with its background removed: (BZERO + raw * BSCALE - OFFSET) / EXPTIME - background. */
+    static double lascoPerSecond(double raw, double bzero, double bscale, double offset, double exposure, double background) {
+        return (bzero + raw * bscale - offset) / exposure - background;
     }
 
     private static double rawAt(Object pixels, int i) {

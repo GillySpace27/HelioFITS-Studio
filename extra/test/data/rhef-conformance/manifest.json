@@ -1,0 +1,76 @@
+{
+  "sunkit_image_version": "0.6.1",
+  "numpy_version": "2.4.6",
+  "scipy_version": "1.17.1",
+  "tolerance": 0.0001,
+  "generator": "extra/test/rhef/make_vectors.py",
+  "crosscheck": {
+    "pixels": 65528,
+    "max_abs_diff": 0.0
+  },
+  "cases": [
+    {
+      "name": "radial-falloff-256",
+      "width": 256,
+      "height": 256,
+      "params": {
+        "normalisation": "(R - 1) / (n - 1)",
+        "ranked": "finite and > 0",
+        "minBinCount": 5,
+        "annulus": "floor(hypot(x + 0.5 - W/2, y + 0.5 - H/2))",
+        "input": "rounded to float16"
+      },
+      "input": "radial-falloff-256.input.f32",
+      "expected": "radial-falloff-256.expected.f32"
+    },
+    {
+      "name": "punch-crop-256",
+      "width": 256,
+      "height": 256,
+      "params": {
+        "normalisation": "(R - 1) / (n - 1)",
+        "ranked": "finite and > 0",
+        "minBinCount": 5,
+        "annulus": "floor(hypot(x + 0.5 - W/2, y + 0.5 - H/2))",
+        "input": "rounded to float16",
+        "source": "PUNCH_L3_CAM_20260425001600_v0k.fits",
+        "crop": "rows H/2+872 to H/2+1128, columns W/2-128 to W/2+128, scaled to 0..1"
+      },
+      "input": "punch-crop-256.input.f32",
+      "expected": "punch-crop-256.expected.f32"
+    },
+    {
+      "name": "ties-and-nans",
+      "width": 96,
+      "height": 80,
+      "params": {
+        "normalisation": "(R - 1) / (n - 1)",
+        "ranked": "finite and > 0",
+        "minBinCount": 5,
+        "annulus": "floor(hypot(x + 0.5 - W/2, y + 0.5 - H/2))",
+        "input": "rounded to float16"
+      },
+      "input": "ties-and-nans.input.f32",
+      "expected": "ties-and-nans.expected.f32"
+    },
+    {
+      "name": "upsilon-split",
+      "width": 256,
+      "height": 256,
+      "params": {
+        "normalisation": "R / n",
+        "ranked": "finite and > 0",
+        "minBinCount": 5,
+        "annulus": "floor(hypot(x + 0.5 - W/2, y + 0.5 - H/2))",
+        "input": "rounded to float16",
+        "upsilon": [
+          0.35,
+          0.35
+        ],
+        "split": "annulus nanmean (sunkit_image.utils.apply_upsilon)"
+      },
+      "input": "radial-falloff-256.input.f32",
+      "expected": "upsilon-split.expected.f32"
+    }
+  ]
+}

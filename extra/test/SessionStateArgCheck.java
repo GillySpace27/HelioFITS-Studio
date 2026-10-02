@@ -60,6 +60,24 @@ public final class SessionStateArgCheck {
         Session.adoptSessionFile(auto);
         expect("the window's own autosave file stays Untitled", !Session.isNamedSession());
 
+        // The E28 launch (vault projects/jhelioviewer.md:1110-1161): the window remembers one project
+        // and the command line names another. Through the real argument path, the named file must be
+        // the one loaded AND the one the window then writes to; before 3ceee8478 it loaded the named
+        // file and saved over the remembered one.
+        File e28 = new File(states, "E28_ladder.jhv");
+        java.nio.file.Files.writeString(e28.toPath(), "{}"); // -state only takes a readable file
+        java.nio.file.Files.writeString(remembered.toPath(), "{}"); // so the restore candidate exists too
+        Session.setSessionFile(remembered, true); // where the last launch left the window
+        org.helioviewer.jhv.io.CommandLine.setArguments(new String[] {"-state", e28.getPath()});
+        java.util.List<java.net.URI> loaded = new java.util.ArrayList<>();
+        org.helioviewer.jhv.io.CommandLine.openStateArgument(loaded::add);
+        expect("E28: the -state file is the one loaded, got " + loaded,
+                loaded.size() == 1 && e28.getAbsoluteFile().equals(new File(loaded.get(0))));
+        expect("E28: and the window then saves to it, not the remembered one, got " + Session.currentSessionFile(),
+                e28.getAbsoluteFile().equals(Session.currentSessionFile()));
+        expect("E28: and the next plain launch reopens it, got " + Settings.getProperty("session.mainFile"),
+                e28.getAbsolutePath().equals(Settings.getProperty("session.mainFile")));
+
         System.out.println(failures == 0 ? "SessionStateArgCheck: ok" : "SessionStateArgCheck: " + failures + " FAIL");
         System.exit(failures == 0 ? 0 : 1);
     }

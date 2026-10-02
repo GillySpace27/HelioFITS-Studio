@@ -24,6 +24,7 @@ public class Settings {
             setProperty("display.toolbar", "iconandtext");
             setProperty("display.toolbar.visible", "true");
             setProperty("display.time", "Observer");
+            setProperty("display.creditLine", "false");
             setProperty("video.format", "H264");
             setProperty("dataSources.defaultServer", "IAS");
         }
