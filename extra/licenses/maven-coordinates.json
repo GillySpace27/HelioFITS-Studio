@@ -1,0 +1,8 @@
+{
+  "about": "Hand-filled Maven Central coordinates for JARs whose own pom.properties does not name them. freshness.py uses a row only when Central's published SHA-1 for it equals the local JAR's SHA-1; otherwise it prints 'not verified'.",
+  "artifacts": {
+    "lib/ehcache-3.12.0.jar": {"group": "org.ehcache", "artifact": "ehcache", "version": "3.12.0"},
+    "lib/joml-1.10.9.jar": {"group": "org.joml", "artifact": "joml", "version": "1.10.9"},
+    "lib/square/okhttp-jvm-5.4.0.jar": {"group": "com.squareup.okhttp3", "artifact": "okhttp-jvm", "version": "5.4.0"}
+  }
+}
