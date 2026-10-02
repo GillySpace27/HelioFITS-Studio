@@ -31,6 +31,7 @@ public final class LayersSectionPanel extends JPanel {
         addLayerButton = new SplitButton(Buttons.newLayer);
         addLayerButton.setText("New Layer");
         addLayerButton.setAlwaysDropdown(true);
+        addLayerButton.setName("imageLayersNew"); // tour target
         addLayerButton.addItem(buildSourcePanel());
 
         JPanel addLayerRow = new JPanel(new BorderLayout());

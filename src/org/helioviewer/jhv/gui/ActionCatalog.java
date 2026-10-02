@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nullable;
+import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.JMenu;
 
@@ -117,6 +118,14 @@ public final class ActionCatalog {
         put("rotate90Z", new Actions.Rotate90Camera("Z Axis", "Z"), "", "Rotate the view 90° about Z");
         put("zoomFovAnnotation", new Actions.ZoomFOVAnnotation(), "", "");
         put("copyProvenance", new Actions.CopyProvenance(), "File/Copy Provenance", "");
+        // Guided tour (HS-15): the menu item, and the reveal its steps run before spotlighting
+        put("takeTour", org.helioviewer.jhv.gui.search.Tour.action(), "Help/Take the Tour", "Step through the main controls, one at a time");
+        put("showImageLayers", new AbstractAction("Show Image Layers") {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                org.helioviewer.jhv.gui.component.Palette.open("Image Layers"); // wherever it is docked or floating
+            }
+        }, "", "Open the Image Layers section, wherever it is docked");
     }
 
     /**
