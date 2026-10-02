@@ -115,6 +115,11 @@ public final class State {
         return uris != null && !uris.isEmpty();
     }
 
+    /** The session as save() would write it, for an export's provenance (HS-5) and, later, undo. */
+    public static JSONObject snapshot() {
+        return toJson();
+    }
+
     private static JSONObject toJson() {
         JSONObject main = new JSONObject();
         main.put("time", Player.getTime());
