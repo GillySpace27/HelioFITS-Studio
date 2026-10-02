@@ -25,7 +25,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 RATCHET = ROOT / "extra/ci/ratchet.json"
-EM_DASH = "—"
+EM_DASH = "\u2014"
 SELF = "extra/ci/guards.py"
 FROZEN = {
     "build.xml": '<attribute name="Main-Class" value="org.helioviewer.jhv.HFStudio"/>',
