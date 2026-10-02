@@ -20,6 +20,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# A newer push to the same branch or PR makes the older run moot.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   IMAGE: extra/test/data/syn_AIA_171_2026-01-12T00-00-00_f_V3.fits
 
@@ -28,18 +33,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '25'
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       # Mesa supplies the software OpenGL that ANGLE's Linux backend draws through.
-      - name: Install ant, a virtual display, software OpenGL and a screenshot tool
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ant xvfb imagemagick libgl1 libgl1-mesa-dri libglx-mesa0 libegl1 python3-pil
+      - uses: ./.github/actions/setup-hfstudio
+        with:
+          natives: 'false'
+          linux-packages: xvfb imagemagick libgl1 libgl1-mesa-dri libglx-mesa0 libegl1 python3-pil
 
       - name: Build
         run: ant jar
@@ -54,7 +54,7 @@ jobs:
       - name: Did the image draw
         run: python3 extra/launch-pixels.py shot-linux.png 1500
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: launch-linux
@@ -67,48 +67,19 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      - uses: actions/setup-java@v5
+      - uses: ./.github/actions/setup-hfstudio
         with:
-          distribution: temurin
-          java-version: '25'
-
-      - name: Install ant and Pillow
-        run: |
-          choco install -y ant --no-progress
-          python -m pip install --quiet pillow
+          natives: 'false'
+          pillow: 'true'
 
       # The runner's screen is 1024x768, where the sidebars leave the image a strip 30 pixels
       # wide: it drew, but too small to judge. ChangeDisplaySettings is the only way in on a
       # machine with no display settings UI to click.
       - name: Raise the screen to 1920x1080
         shell: pwsh
-        run: |
-          Add-Type @"
-          using System; using System.Runtime.InteropServices;
-          public class Res {
-            [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
-            public struct DEVMODE {
-              [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmDeviceName;
-              public short dmSpecVersion, dmDriverVersion, dmSize, dmDriverExtra;
-              public int dmFields, dmPositionX, dmPositionY, dmDisplayOrientation, dmDisplayFixedOutput;
-              public short dmColor, dmDuplex, dmYResolution, dmTTOption, dmCollate;
-              [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmFormName;
-              public short dmLogPixels;
-              public int dmBitsPerPel, dmPelsWidth, dmPelsHeight, dmDisplayFlags, dmDisplayFrequency,
-                         dmICMMethod, dmICMIntent, dmMediaType, dmDitherType, dmReserved1, dmReserved2,
-                         dmPanningWidth, dmPanningHeight;
-            }
-            [DllImport("user32.dll")] public static extern int EnumDisplaySettings(string d, int m, ref DEVMODE dm);
-            [DllImport("user32.dll")] public static extern int ChangeDisplaySettings(ref DEVMODE dm, int f);
-          }
-          "@
-          $dm = New-Object Res+DEVMODE
-          $dm.dmSize = [Runtime.InteropServices.Marshal]::SizeOf($dm)
-          [Res]::EnumDisplaySettings($null, -1, [ref]$dm) | Out-Null
-          $dm.dmPelsWidth = 1920; $dm.dmPelsHeight = 1080; $dm.dmFields = 0x180000
-          "ChangeDisplaySettings returned $([Res]::ChangeDisplaySettings([ref]$dm, 0)) (0 is success)"
+        run: ./extra/ci/set-resolution.ps1
 
       - name: Build
         shell: bash
@@ -127,7 +98,7 @@ jobs:
         shell: bash
         run: python extra/launch-pixels.py shot-windows.png 1500
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: launch-windows
