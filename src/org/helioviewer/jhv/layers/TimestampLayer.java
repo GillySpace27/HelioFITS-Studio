@@ -6,6 +6,7 @@ import java.util.List;
 import javax.annotation.Nullable;
 
 import org.helioviewer.jhv.app.AppInfo;
+import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.astronomy.Sun;
 import org.helioviewer.jhv.base.Colors;
@@ -15,8 +16,10 @@ import org.helioviewer.jhv.display.MapMode;
 import org.helioviewer.jhv.display.MapScale;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
+import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.image.fourier.SequenceParams;
 import org.helioviewer.jhv.math.Vec2;
+import org.helioviewer.jhv.movie.Provenance;
 import org.helioviewer.jhv.opengl.BufVertex;
 import org.helioviewer.jhv.opengl.GL;
 import org.helioviewer.jhv.opengl.GLSLShape;
@@ -68,6 +71,9 @@ public final class TimestampLayer extends AbstractLayer {
     private boolean showProjection = false;
     private boolean showFilter = false;
     private boolean showObserver = false;
+    // Unlike the four above, a preference rather than part of the session: a talk or a dome show
+    // wants the credit on every movie made on this machine, whichever session it comes from.
+    private boolean showCredit = Boolean.parseBoolean(Settings.getProperty("display.creditLine"));
 
     @Override
     public void serialize(JSONObject jo) {
@@ -191,10 +197,10 @@ public final class TimestampLayer extends AbstractLayer {
      * which is the default, it allocates nothing at all.
      */
     private List<String> annotationLines(MapView mv, Position viewpoint) {
-        if (!(showVersion || showProjection || showFilter || showObserver))
+        if (!(showVersion || showProjection || showFilter || showObserver || showCredit))
             return List.of();
 
-        List<String> lines = new ArrayList<>(4);
+        List<String> lines = new ArrayList<>(5);
         if (showVersion)
             lines.add(versionLine());
         if (showProjection)
@@ -208,7 +214,28 @@ public final class TimestampLayer extends AbstractLayer {
             lines.add(String.format("Observer: %s | %.4fau", location == null ? "unknown" : location,
                     viewpoint.distance * Sun.MeanEarthDistanceInv));
         }
+        if (showCredit)
+            lines.add(creditLine());
         return lines;
+    }
+
+    // The master layer's name and whether RHEF is on it, compared each frame; formatted only on a change.
+    @Nullable
+    private String creditName;
+    private boolean creditRhef;
+    @Nullable
+    private String creditCache;
+
+    private String creditLine() {
+        ImageLayer master = Layers.getActiveImageLayer();
+        String name = master == null || master.getImageData() == null ? "" : master.getName();
+        boolean rhef = master != null && master.getFilter() == ImageFilter.Type.RHEF;
+        if (creditCache == null || !name.equals(creditName) || rhef != creditRhef) {
+            creditName = name;
+            creditRhef = rhef;
+            creditCache = Provenance.creditLine(name, rhef);
+        }
+        return creditCache;
     }
 
     @Nullable
@@ -469,6 +496,16 @@ public final class TimestampLayer extends AbstractLayer {
 
     public void setShowObserver(boolean _showObserver) {
         showObserver = _showObserver;
+        DisplayController.display();
+    }
+
+    public boolean isShowCredit() {
+        return showCredit;
+    }
+
+    public void setShowCredit(boolean _showCredit) {
+        showCredit = _showCredit;
+        Settings.setProperty("display.creditLine", String.valueOf(_showCredit));
         DisplayController.display();
     }
 
