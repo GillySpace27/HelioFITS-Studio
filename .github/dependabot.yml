@@ -1,0 +1,10 @@
+# Proposes bumps for the SHA-pinned GitHub Actions, in the workflows and in the composite action.
+# Opening a PR is all it does; merging one is Gilly's call.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /.github/actions/setup-hfstudio
+    schedule:
+      interval: weekly

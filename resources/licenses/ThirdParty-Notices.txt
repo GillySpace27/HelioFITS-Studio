@@ -169,11 +169,6 @@ https://github.com/stleary/JSON-java/blob/master/LICENSE
 
 Supplemental notices: JSON.txt.
 
-lib/formats/kdu_jni.jar
------------------------
-
-Separately maintained notices: Kakadu.txt.
-
 lib/formats/nom-tam-fits-1.22.0.jar
 -----------------------------------
 
@@ -384,28 +379,28 @@ lib/jhv/jhv-natives-linux.jar
 
 Supplemental notices: ANGLE.txt, SPICE.txt.
 
-Separately maintained notices: FFmpeg-Notices.txt, Kakadu.txt.
+Separately maintained notices: FFmpeg-Notices.txt, OpenJPEG.txt.
 
 lib/jhv/jhv-natives-macos-arm64.jar
 -----------------------------------
 
 Supplemental notices: ANGLE.txt, SPICE.txt.
 
-Separately maintained notices: FFmpeg-Notices.txt, Kakadu.txt.
+Separately maintained notices: FFmpeg-Notices.txt, OpenJPEG.txt.
 
 lib/jhv/jhv-natives-macos.jar
 -----------------------------
 
 Supplemental notices: ANGLE.txt, SPICE.txt.
 
-Separately maintained notices: FFmpeg-Notices.txt, Kakadu.txt.
+Separately maintained notices: FFmpeg-Notices.txt, OpenJPEG.txt.
 
 lib/jhv/jhv-natives-windows.jar
 -------------------------------
 
 Supplemental notices: ANGLE.txt, SPICE.txt.
 
-Separately maintained notices: FFmpeg-Notices.txt, Kakadu.txt.
+Separately maintained notices: FFmpeg-Notices.txt, OpenJPEG.txt.
 
 lib/jnispice.jar
 ----------------

@@ -43,13 +43,22 @@ public final class AboutDialog extends StandardDialog implements Interfaces.Show
 
     @Override
     public JComponent createContentPanel() {
-        String text = "<center>HelioFITS Studio is built on <a href=\"https://github.com/Helioviewer-Project/JHelioviewer-SWHV\">" + "JHelioviewer</a>, and on several further components:</center><ul>" +
+        HTMLPane pane = new HTMLPane();
+        pane.setText(credits());
+        pane.addHyperlinkListener(this);
+        pane.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        return new JScrollPane(pane);
+    }
+
+    // The credits list with its licence links; package-private so AboutLicenceLinksCheck can read it.
+    static String credits() {
+        return "<center>HelioFITS Studio is built on <a href=\"https://github.com/Helioviewer-Project/JHelioviewer-SWHV\">" + "JHelioviewer</a>, and on several further components:</center><ul>" +
                 "<li><a href=\"https://www.openjpeg.org\">OpenJPEG</a> JPEG 2000 codec, © 2002-2014 Université catholique de Louvain and others (<a href='/licenses/OpenJPEG.txt'>licence</a>).</li>" +
                 "<li><a href=\"https://www.lwjgl.org\">LWJGL</a> Java 3D graphics libraries and <a href=\"https://chromium.googlesource.com/angle/angle\">ANGLE</a> cross-platform GLES translation layer.</li>" +
                 "<li><a href=\"https://github.com/JOML-CI/JOML\">JOML</a>, a Java math library for GL rendering calculations.</li>" +
                 "<li><a href=\"https://naif.jpl.nasa.gov/naif/\">SPICE</a>, the observation geometry system for space science missions.</li>" +
                 "<li><a href=\"https://ffmpeg.org\">FFmpeg</a> for movie and PNG export " +
-                "(<a href='/licenses/FFmpeg-GPL.txt'>license</a>, <a href='/licenses/FFmpeg.txt'>build details</a>).</li>" +
+                "(<a href='/licenses/GPL-3.0.txt'>license</a>, <a href='/licenses/FFmpeg-Notices.txt'>build details</a>).</li>" +
                 "<li><a href=\"https://github.com/square/okio\">Okio</a> and <a href=\"https://github.com/square/okhttp\">OkHttp</a> libraries by Square, Inc.</li>" +
                 "<li><a href=\"https://github.com/google/guava\">Guava</a>, Google core libraries for Java.</li>" +
                 "<li><a href=\"https://github.com/ben-manes/caffeine\">Caffeine</a> and <a href=\"https://www.ehcache.org\">Ehcache</a> caching libraries.</li>" +
@@ -62,12 +71,6 @@ public final class AboutDialog extends StandardDialog implements Interfaces.Show
                 "<li><a href=\"https://github.com/xerial/sqlite-jdbc\">Xerial</a> SQLite JDBC driver.</li>" +
                 "<li><a href=\"https://www.ej-technologies.com/products/install4j/overview.html\">install4j</a>, the multi-platform installer builder.</li></ul>" +
                 "<center>Third-party licenses and notices can be found inside <code>HFStudio.jar</code> and in the source tree.</center>";
-
-        HTMLPane pane = new HTMLPane();
-        pane.setText(text);
-        pane.addHyperlinkListener(this);
-        pane.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-        return new JScrollPane(pane);
     }
 
     @Override
@@ -126,7 +129,7 @@ public final class AboutDialog extends StandardDialog implements Interfaces.Show
                 String res = e.getDescription();
                 String name = res.substring(Math.max(0, res.lastIndexOf('/') + 1));
                 try {
-                    new TextDialog(name.substring(0, name.indexOf('.')), FileUtils.readResourceString(res), true).showDialog();
+                    new TextDialog(name.substring(0, name.lastIndexOf('.')), FileUtils.readResourceString(res), true).showDialog();
                 } catch (Exception ex) {
                     Log.error(ex);
                 }

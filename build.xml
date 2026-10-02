@@ -198,5 +198,28 @@
         </exec>
     </target>
 
+    <!--
+      The pre-release gate. Everything offline the repository can check: the self-checks above,
+      the legacy run_tests.py suites, the GLSL validator, the ffmpeg, ANGLE and licence unit tests
+      and their check modes, ruff, and extra/ci/guards.py. One line per step, then a total. A check
+      that prints SKIP is counted as skipped, never passed; CHECKS_STRICT=1 (CI) fails a skip
+      that extra/test/ci-skips.txt does not list. `ant test` is unchanged.
+    -->
+    <target name="check-all" depends="compile" description="the pre-release gate: every offline check, skips counted">
+        <exec executable="sh" failonerror="true">
+            <arg value="extra/run-checks.sh"/>
+            <arg value="--all"/>
+        </exec>
+    </target>
+
+    <!-- The WCS validator suite needs astropy (and part of it a WebGL harness), so it stays out of check-all. -->
+    <target name="check-wcs" depends="compile" description="WCS validator suite (needs astropy)">
+        <exec executable="python3" failonerror="true">
+            <arg value="extra/test/run_tests.py"/>
+            <arg value="--no-build"/>
+            <arg value="wcs"/>
+        </exec>
+    </target>
+
     <target name="all" depends="jar"/>
 </project>

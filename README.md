@@ -72,6 +72,8 @@ We build with Apache Ant and Java 25.
 ant run
 ```
 
+Working with an AI agent, or new here: read [`CLAUDE.md`](CLAUDE.md) first. It names the safe way to run a development build (a throwaway home, never the installed app), the checks, and what must not change.
+
 `ant run` compiles the application, packages `HFStudio.jar` and starts it. `ant jar` stops after packaging, and `ant test` compiles and runs every self-check in `extra/test`. On macOS the build also compiles the small Metal host library in `native/macos` that the HDR canvas needs. Release packaging, signing and the field guide live in `release/`.
 
 ## Repository layout
