@@ -537,5 +537,94 @@ class NotarizeSubmitShapeTest(unittest.TestCase):
         self.assertIn("notarize-resume) notarize_resume ;;", text)
 
 
+OLD_KEYS = ["pushed", "jar", "dylib", "guide", "dmg", "zip", "smoketest", "published", "live"]
+NEW_KEYS = ["dmg_intel", "ci_package", "assets_all", "page_fallback"]
+
+
+class TrackerTest(unittest.TestCase):
+    """The tracker's checks, with its two network doors (gh_json, http_get) replaced: nothing here
+    reaches GitHub or gilly.space."""
+
+    def setUp(self):
+        self.status = load_status()
+        self.status._release_cache.clear()
+        self.offline()
+
+    def offline(self):
+        self.status.gh_json = lambda args: ("unreachable", None)
+        self.status.http_get = lambda url: ("unreachable", None)
+
+    def selftest(self, milestones=None):
+        import contextlib
+        import io
+        with contextlib.redirect_stdout(io.StringIO()):
+            return self.status.selftest(milestones)
+
+    def test_keys_keep_their_order_and_four_are_appended(self):
+        keys = [k for k, _, _ in self.status.MILESTONES]
+        self.assertEqual(keys, OLD_KEYS + NEW_KEYS)
+        for _key, _label, check in self.status.MILESTONES:
+            self.assertTrue(check is None or callable(check), f"{_key} is still a shell string")
+
+    def test_json_has_done_as_a_bool_and_a_result(self):
+        state = self.status.evaluate(set())
+        for key in OLD_KEYS + NEW_KEYS:
+            result, detail = state[key]
+            self.assertIn(result, ("PASS", "FAIL", "UNCHECKED"), key)
+            self.assertIs(self.status.is_done(state, key), result == "PASS")
+        self.assertEqual(state["smoketest"][0], "UNCHECKED")
+        self.assertEqual(self.status.evaluate({"smoketest"})["smoketest"][0], "PASS")
+
+    def test_selftest_passes_when_every_check_fails_or_is_unchecked(self):
+        self.assertEqual(self.selftest(), 0)
+
+    def test_selftest_catches_a_check_that_cannot_fail(self):
+        broken = [(k, lb, (lambda t: ("PASS", "always")) if k == "zip" else c)
+                  for k, lb, c in self.status.MILESTONES]
+        self.assertEqual(self.selftest(broken), 1)
+
+    def test_selftest_catches_a_check_that_raises(self):
+        def boom(t):
+            raise KeyError("assets")
+        broken = [(k, lb, boom if k == "assets_all" else c) for k, lb, c in self.status.MILESTONES]
+        self.assertEqual(self.selftest(broken), 1)
+
+    def test_assets_all_counts_the_listed_assets(self):
+        v = "0.8.3"
+        names = self.status.read_assets(v)
+        self.status.gh_json = lambda args: ("ok", {"assets": [{"name": n} for n in names],
+                                                  "isPrerelease": True, "tagName": "v" + v})
+        t = self.status.Target("v" + v, v, str(ROOT), str(RELEASE), self.status.REPO)
+        self.assertEqual(self.status.check_assets_all(t),
+                         ("PASS", f"8 of 8 assets in release/assets.txt are on v{v}"))
+        self.status._release_cache.clear()
+        self.status.gh_json = lambda args: ("ok", {"assets": [{"name": n} for n in names[:-1]]})
+        self.assertEqual(self.status.check_assets_all(t)[0], "FAIL")
+        self.status._release_cache.clear()
+        self.status.gh_json = lambda args: ("missing", None)
+        self.assertEqual(self.status.check_assets_all(t), ("FAIL", f"no release v{v}"))
+
+    def test_page_fallback_names_the_release(self):
+        page = '<a href="https://github.com/o/r/releases/download/v0.8.2/HFStudio-0.8.2.dmg">'
+        self.status.http_get = lambda url: ("ok", page)
+        t = self.status.Target("v0.8.3", "0.8.3", str(ROOT), str(RELEASE), self.status.REPO)
+        self.assertEqual(self.status.check_page_fallback(t), ("FAIL", "fallback links name v0.8.2, not v0.8.3"))
+        t2 = self.status.Target("v0.8.2", "0.8.2", str(ROOT), str(RELEASE), self.status.REPO)
+        self.assertEqual(self.status.check_page_fallback(t2)[0], "PASS")
+
+    def test_ci_package_reads_the_run_for_the_tag(self):
+        self.status.gh_json = lambda args: ("ok", [{"headBranch": "v0.8.3", "status": "completed",
+                                                    "conclusion": "success", "url": "u"}])
+        t = self.status.Target("v0.8.3", "0.8.3", str(ROOT), str(RELEASE), self.status.REPO)
+        self.assertEqual(self.status.check_ci_package(t), ("PASS", "u"))
+        t2 = self.status.Target("v0.8.4", "0.8.4", str(ROOT), str(RELEASE), self.status.REPO)
+        self.assertEqual(self.status.check_ci_package(t2)[0], "FAIL")
+
+    def test_no_shell_strings_left_in_the_checks(self):
+        text = (RELEASE / "skills" / "ship-hfstudio" / "scripts" / "status.py").read_text()
+        for gone in ("_JAR_FRESH", "_DMG_NOTARIZED", "_SHORTLINK_SERVES_DMG", "def _asset_current", "<<'EOF'"):
+            self.assertNotIn(gone, text)
+
+
 if __name__ == "__main__":
     unittest.main()
