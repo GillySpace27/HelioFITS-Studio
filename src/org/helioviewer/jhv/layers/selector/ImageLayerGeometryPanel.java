@@ -82,7 +82,7 @@ final class ImageLayerGeometryPanel extends JPanel {
         return joiner.toString();
     }
 
-    private static void revert(ImageLayer layer) {
+    static void revert(ImageLayer layer) {
         Layers.applyToSelected(layer, s -> {
             s.setMask(DEFAULTS.getInnerMask(), DEFAULTS.getOuterMask());
             s.setSector(DEFAULTS.getSectorCenter(), DEFAULTS.getSectorWidth());
