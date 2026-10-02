@@ -34,7 +34,9 @@ say what is being shipped or which candidate, and being legible at a glance is
 the whole point.
 
 The tracker checks real state. It does not believe anything an earlier turn
-claimed.
+claimed. Each row is PASS, FAIL or UNCHECKED (could not look: no network, not a
+Mac); only PASS counts as done. `status.py --selftest` must exit 0: it shows every
+check failing on a tag that does not exist.
 
 ## Where things live
 
@@ -64,6 +66,17 @@ they package whatever jar is on disk and upload whatever dmg already exists. So:
 
 Skipping step 4 before step 6 is how a month-old dmg got shipped on 2026-07-14
 with nothing failing and nothing warning.
+
+## Phases
+
+`release/ship.sh` runs RELEASING.md in phases that stop at the first red tracker
+row: `bump <version>`, `prepare`, `gate`, `publish`, `confirm` (RELEASING.md, "The
+phases"). `gate` ends with the text to paste to Gilly. `publish` needs the tag typed
+at a terminal or, with none, `HFS_PUBLISH_APPROVED=<tag>` for that one invocation:
+set it only after his yes in chat, only to that tag, never for another.
+
+A notarization that stops with a submission pending is finished with
+`./deploy_release.sh notarize-resume`, never by rebuilding.
 
 ## Releases are immutable
 

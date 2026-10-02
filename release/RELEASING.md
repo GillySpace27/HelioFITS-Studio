@@ -129,13 +129,15 @@ Two open decisions for Gilly, recorded here; no step has acted on either:
   them to an archive folder outside the repository. `extra/tools/worktree_report.sh
   --release-dir` lists them with sizes; it never moves them.
 
-## The four modes
+## The modes
 
 ```
 ./deploy_release.sh package     # regenerate guide + repackage zip, locally. No network.
 ./deploy_release.sh guide       # re-upload ONLY the guide PDF+MD. Fast iterate.
 ./deploy_release.sh publish     # repackage + tag + create the public release. OUTWARD.
 ./deploy_release.sh notarize    # clean rebuild -> signed + notarized + stapled .dmg
+./deploy_release.sh notarize-resume  # finish a pending submission: poll, staple, receipt
+./deploy_release.sh notes       # print the release notes publish would post. No network.
 ```
 
 The asymmetry that bites people:
@@ -149,6 +151,23 @@ The asymmetry that bites people:
   silently.
 
 Hence the ordering rule below.
+
+## The phases (`release/ship.sh`)
+
+`release/ship.sh` runs the procedure below in five phases. Each stops at the
+first tracker row that is not PASS and prints that row's next step. The steps
+stay the procedure; the phases only run them in order.
+
+| Phase | What it runs | Steps |
+|---|---|---|
+| `release/ship.sh bump <version>` | writes `VERSION` with no trailing newline; refuses without a `## ... <version> ...` heading in `changelog.md` | before 1 |
+| `release/ship.sh prepare` | tracker row `pushed`; `ant clean check-all`; `notarize`, and `MAC_ARCH=x64 notarize` when `release/.jdk-x64` exists; `package`; tracker rows `pushed` to `zip` | 1 (checked, not pushed), 2, 3, 4 |
+| `release/ship.sh gate` | `publish --dry-run`; `build_guide.py --strict`; the smoke test, typed as `smoke-tested`; prints the gate text for Gilly | 5, 6 (the question) |
+| `release/ship.sh publish` | the tag typed at a terminal, or `HFS_PUBLISH_APPROVED=<tag>` for that one run; then `deploy_release.sh publish` | 6 (after his yes) |
+| `release/ship.sh confirm` | waits up to 30 minutes for `package.yml` on the tag; tracker rows `published`, `live`, `ci_package`, `assets_all` | 7 |
+
+Nothing in `ship.sh` pushes a branch. `HFS_PUBLISH_APPROVED` is set only after
+Gilly's yes in chat, only to that exact tag, and only for that one invocation.
 
 ## Procedure
 
@@ -215,9 +234,17 @@ python3 build_guide.py
 Screenshots in `guide_assets/` are captured by hand from a running build. If a
 feature changed how something looks, recapture before regenerating, or the
 guide documents a version that no longer exists. A figure named in
-`guide_content.json` with no file in `guide_assets/` is skipped without a
-warning; as of the move into this repository, six of them are (`fig_punch_dialog`,
-`fig_aspiics`, `fig_rhef`, `fig_grid`, `fig_trackcme`, `fig_pointcloud`).
+`guide_content.json` with no file in `guide_assets/` is skipped with a
+warning; `python3 build_guide.py --strict`, which `publish` and `ship.sh gate` run, stops
+instead and names them. Six were missing when the check was added (`fig_punch_dialog`,
+`fig_aspiics`, `fig_rhef`, `fig_grid`, `fig_trackcme`, `fig_pointcloud`). Three can be drawn
+from tracked state files: `release/capture_guide_shots.sh` (Linux under `xvfb-run`, or the
+`guide` workflow, started by hand) opens a copy of each of
+`release/guide_states/fig_grid.jhv`, `fig_rhef.jhv` and `fig_pointcloud.jhv` and leaves the
+screenshots for review; a picture goes into `guide_assets/` only after Gilly has looked at
+it. On a Mac it photographs the whole screen, so it refuses unless `HFS_CAPTURE_ON_MAC=1`.
+`fig_trackcme` needs the CACTus and LASCO servers, and `fig_aspiics` and
+`fig_punch_dialog` are captured by hand. Capturing or dropping each is Gilly's call.
 
 `build_guide.py` supports `**bold**` and `` `mono` `` only. `*italic*` renders
 literally. `@VERSION@` and `@REPO@` in `guide_content.json` are replaced with
@@ -234,6 +261,28 @@ JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home \
 
 Takes several minutes and talks to Apple twice (timestamping, then the notary
 service). Both are network steps that fail transiently; see the incident log.
+
+Before the dmg is built, `notarize` checks the ffmpeg and licence manifests
+(`--check`, offline), signs with the tracked `release/entitlements.plist`, and runs
+`release/verify_signatures.sh` on the app: every Mach-O in the bundle and inside its
+jars must carry team `UB45PPC2JS` and the hardened runtime. Then it submits without
+`--wait`, believes the upload only when notarytool says `Successfully uploaded file`,
+records the submission in `release/.notarize-pending.json` (`-intel.json` for
+`MAC_ARCH=x64`), and polls `notarytool info` every 30 s for up to 600 s. `Accepted`
+goes on to staple; `Invalid` or `Rejected` saves Apple's log as
+`release/.notarize-log-<id>.json` and fails; "does not exist" is polled once more, then
+fails. If it stops with a submission pending (a locked screen, a slow queue), do not
+rebuild; with the same `JAVA_HOME` and `MAC_ARCH`:
+
+```sh
+./deploy_release.sh notarize-resume
+```
+
+It refuses if the dmg is not the file that was submitted. `HFS_NOTARY_WAIT=1` brings
+back the old `submit --wait` for one release. The JSON field names it reads (`id`,
+`message`, `status`) had not been seen in a real run when this was written: after the
+first one, compare `release/.notarize-submit.json` and `release/.notarize-info.json`
+with `deploy_release.sh` and note the result in the incident log below.
 
 Verify before going further:
 
@@ -329,6 +378,17 @@ that tag already has a release. If the tag already exists at this commit (a
 publish that stopped after tagging), it is reused, never moved. There is no tag
 override: the tag comes from `VERSION` alone.
 
+`release/ship.sh publish` runs this step: at a terminal it asks for the tag; with
+none it needs `HFS_PUBLISH_APPROVED=<tag>` set for that one invocation, after Gilly's
+yes, and refuses (exit 2) otherwise. Before anything is tagged, `publish` also refuses
+release notes or a guide containing an em dash (U+2014).
+
+`./deploy_release.sh guide` is the one exception to "files on a release are never
+replaced": it re-uploads `HFStudio-Guide.pdf` and `.md` with `--clobber`, nothing else.
+It is gated like `publish`, per release: the tag typed at a terminal, or
+`HFS_GUIDE_APPROVED=<tag>` for one run after Gilly's yes. Do not extend it to any other
+file.
+
 The short link needs no update: the download page finds the newest release by
 itself.
 
@@ -357,6 +417,13 @@ was not replaced, which is the exact failure logged for 2026-07-14 below. Eight
 assets once CI has finished (seven if no Intel dmg was built); two fewer means
 the Windows and Linux packages are missing, and the `package` run for the tag
 says why.
+
+`release/ship.sh confirm` does this wait (30 minutes at most) and then runs the tracker,
+whose `ci_package` and `assets_all` rows grade the CI run and every name in
+`release/assets.txt`, and whose `page_fallback` row says whether the download page's
+fixed fallback links name this release. `python3 skills/ship-hfstudio/scripts/status.py
+--selftest` grades every check against a tag that never existed and a retired one, and
+exits 1 if any check passes there.
 
 ## Hand-off boundary
 
@@ -559,3 +626,14 @@ release object; the next preview would have been `v5.6b-coronal-research`.
   `publish --dry-run` prints the gate text for step 6, and the asset names
   moved into `release/assets.txt`. `extra/test/test_release_assets.py` shows
   every refusal firing in a throwaway repository.
+
+- **2026-10-02: notarization records what it submitted, and the tracker grades every
+  asset, closing the 2026-09-23 entry above.** `notarize` submits without `--wait`,
+  keeps the id in `release/.notarize-pending.json`, polls, fails on "does not exist"
+  after one re-poll, and `notarize-resume` finishes a pending submission. Before
+  Apple sees anything, `verify_signatures.sh` proves team and hardened runtime on
+  every Mach-O, and the entitlements are a tracked file. The tracker's checks are
+  Python functions with PASS, FAIL or UNCHECKED, `--selftest` shows each one
+  failing on a bogus tag, and it now grades the Intel dmg, the CI run, every asset
+  in `release/assets.txt` and the page's fallback links. `release/ship.sh` runs the
+  procedure as phases. Tests: `extra/test/test_release_assets.py`.
