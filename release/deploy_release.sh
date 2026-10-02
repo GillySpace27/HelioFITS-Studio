@@ -574,13 +574,18 @@ sign_jar_natives() {
 }
 
 notarize_mac() {
+    # Offline, before anything is built or sent to Apple: the bundled ffmpeg is the GPL build its
+    # manifest names, and the licence notices match the jars.
+    echo "==> checking the ffmpeg and licence manifests"
+    ( cd "$SRC" && python3 extra/ffmpeg/update_ffmpeg.py --check && python3 extra/licenses/sync_licenses.py --check ) \
+        || { echo "!! the ffmpeg or licence manifest check failed; nothing was built or sent" >&2; exit 1; }
     notarize_preconditions
 
     echo "==> building a fresh jar + dylib"
     ( cd "$SRC" && ant clean jar build-metal-host >/dev/null )
     [ -f "$SRC/$DYLIB" ] || { echo "!! $DYLIB missing after build"; exit 1; }
 
-    APPSTAGE="$HERE/.app_stage"; OUT="$HERE/.app_out"; ENT="$HERE/.entitlements.plist"
+    APPSTAGE="$HERE/.app_stage"; OUT="$HERE/.app_out"; ENT="$HERE/entitlements.plist"
     rm -rf "$OUT"
 
     # Everything jpackage bundles is the classpath: the main jar and the dependency jars (the
@@ -594,17 +599,9 @@ notarize_mac() {
     ( cd "$tmp" && "$JAVA_HOME/bin/jar" uf "$APPSTAGE/HFStudio.jar" "$ARCH_RES/$(basename "$DYLIB")" )
     rm -rf "$tmp"
 
-    # Hardened-runtime entitlements: the JVM JITs, and natives get extracted from jars, so
-    # library validation is relaxed. Applied to the main executable only.
-    cat > "$ENT" <<'PLIST'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-  <key>com.apple.security.cs.allow-jit</key><true/>
-  <key>com.apple.security.cs.allow-unsigned-executable-memory</key><true/>
-  <key>com.apple.security.cs.disable-library-validation</key><true/>
-</dict></plist>
-PLIST
+    # Hardened-runtime entitlements, from the tracked release/entitlements.plist: the JVM JITs, and
+    # natives get extracted from jars, so library validation is relaxed. Main executable only.
+    [ -f "$ENT" ] || { echo "!! $ENT is missing" >&2; exit 1; }
 
     echo "==> signing native libraries inside the bundled jars"
     sign_jar_natives "$APPSTAGE"
@@ -679,6 +676,17 @@ PLIST
     done
     CS_ENT="--entitlements $ENT"; retry_codesign "$APP" || exit 1
     codesign --verify --deep --strict --verbose=2 "$APP"
+    # Signed with exactly the tracked entitlements, and every Mach-O in the bundle and in its jars
+    # carries the team and the hardened runtime, before a dmg is built or Apple is asked.
+    codesign -d --entitlements - --xml "$APP" 2>/dev/null | python3 -c '
+import plistlib, sys
+data = sys.stdin.buffer.read()
+got = plistlib.loads(data) if data.strip() else None
+want = plistlib.load(open(sys.argv[1], "rb"))
+if got != want:
+    sys.exit("!! the app was signed with entitlements %r; release/entitlements.plist says %r" % (got, want))
+' "$ENT"
+    "$HERE/verify_signatures.sh" "$APP"
 
     echo "==> building + signing the .dmg"
     rm -f "$DMG"
@@ -739,7 +747,7 @@ PLIST
 EOF
     echo "==> receipt written: ${RECEIPT##*/}"
 
-    rm -rf "$APPSTAGE" "$OUT" "$ENT"
+    rm -rf "$APPSTAGE" "$OUT"
     echo "==> done: $DMG  ($(du -h "$DMG" | awk '{print $1}'))"
     echo "    publish attaches it to the release automatically when it exists."
 }
