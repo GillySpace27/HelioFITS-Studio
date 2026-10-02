@@ -902,6 +902,42 @@ class ShipTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(Path(str(self.log) + ".approved").read_text().split(), [f"v{self.V}"])
 
+    def stage_prepare(self):
+        """Stand-ins for what prepare calls besides deploy_release.sh: the tracker, ant, a JDK."""
+        keys = "pushed jar dylib guide dmg zip smoketest published live ci_package assets_all".split()
+        scripts = self.repo / "release" / "skills" / "ship-hfstudio" / "scripts"
+        scripts.mkdir(parents=True)
+        (scripts / "status.py").write_text(
+            "import json\nprint(json.dumps({'milestones': [{'key': k, 'label': k, 'result': 'PASS', 'detail': 'ok', 'how': ''}"
+            " for k in %r]}))\n" % keys)
+        self.bin = self.tmp / "bin"
+        self.bin.mkdir()
+        shim(self.bin, "ant", 'echo "ant $*" >> "$DEPLOY_LOG"\nexit 0\n')
+
+    def prepare(self, **extra):
+        return self.ship("prepare", PATH=f"{self.bin}{os.pathsep}{os.environ['PATH']}", JAVA_HOME="/stand/in/jdk", **extra)
+
+    def test_prepare_asks_before_it_uploads_to_apple(self):
+        self.stage_prepare()
+        r = self.prepare()
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn(f"HFS_NOTARIZE_APPROVED=v{self.V}", r.stderr)
+        self.assertEqual(self.deploy_calls(), [], "notarize ran without the confirmation")
+
+    def test_notarize_approval_is_for_one_exact_tag(self):
+        self.stage_prepare()
+        r = self.prepare(HFS_NOTARIZE_APPROVED="v9.9.8")
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("not v9.9.9", r.stderr)
+        self.assertEqual(self.deploy_calls(), [])
+        # HFS_PUBLISH_APPROVED is a different question and does not answer this one.
+        r = self.prepare(HFS_PUBLISH_APPROVED=f"v{self.V}")
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertEqual(self.deploy_calls(), [])
+        r = self.prepare(HFS_NOTARIZE_APPROVED=f"v{self.V}")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.deploy_calls(), ["ant clean check-all", "notarize", "package"])
+
     def test_bump_writes_no_trailing_newline_and_needs_the_changelog_heading(self):
         r = self.ship("bump", "9.9.10")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
@@ -1001,7 +1037,7 @@ class LaneRunbookTest(unittest.TestCase):
     def test_runbook_and_skill_name_the_lane(self):
         releasing = (RELEASE / "RELEASING.md").read_text()
         for needle in ("release/ship.sh", "notarize-resume", "verify_signatures.sh", "build_guide.py --strict",
-                       "HFS_PUBLISH_APPROVED", "HFS_GUIDE_APPROVED", "--selftest"):
+                       "HFS_PUBLISH_APPROVED", "HFS_GUIDE_APPROVED", "HFS_NOTARIZE_APPROVED", "--selftest"):
             self.assertIn(needle, releasing, "RELEASING.md")
         skill = (RELEASE / "skills" / "ship-hfstudio" / "SKILL.md").read_text()
         for needle in ("release/ship.sh", "notarize-resume", "HFS_PUBLISH_APPROVED"):
