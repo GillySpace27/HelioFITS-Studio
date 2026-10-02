@@ -429,6 +429,7 @@ public final class MenuBar extends JMenuBar {
         probe.setToolTipText("List every control on screen that is narrower than it asked to be, into the log");
         probe.addActionListener(e -> org.helioviewer.jhv.gui.LayoutProbe.logReport());
         helpMenu.add(probe);
+        catalogItem(helpMenu, "sendFeedback");
         catalogItem(helpMenu, "reportBug");
 
         add(helpMenu);

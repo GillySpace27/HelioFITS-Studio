@@ -1,0 +1,342 @@
+package org.helioviewer.jhv.gui.dialog;
+
+import java.awt.AWTException;
+import java.awt.BorderLayout;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Image;
+import java.awt.Insets;
+import java.awt.Robot;
+import java.awt.Window;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.annotation.Nullable;
+import javax.swing.AbstractAction;
+import javax.swing.BorderFactory;
+import javax.swing.ImageIcon;
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
+import javax.swing.JComponent;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
+import javax.swing.JTextField;
+import javax.swing.KeyStroke;
+import javax.swing.Timer;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+
+import org.helioviewer.jhv.app.AppInfo;
+import org.helioviewer.jhv.app.Log;
+import org.helioviewer.jhv.app.state.State;
+import org.helioviewer.jhv.gui.DesktopIntegration;
+import org.helioviewer.jhv.gui.MainFrame;
+import org.helioviewer.jhv.gui.TransferAccess;
+import org.helioviewer.jhv.io.FeedbackReport;
+import org.helioviewer.jhv.movie.Provenance;
+import org.helioviewer.jhv.thread.Task;
+
+import org.json.JSONObject;
+
+/**
+ * Help &gt; Send Feedback..., and what Report this... on an error or warning dialog opens.
+ *
+ * <p>A report reaches Gilly without the user finding a website or having an account. Each tick box
+ * adds one item, and Preview shows every item in full before anything leaves the machine. Not modal,
+ * so the user can go on, reproduce the problem and come back, and so the dialog can step out of its
+ * own screenshot.
+ */
+@SuppressWarnings("serial")
+public final class FeedbackDialog extends JDialog {
+
+    /** The button an error or warning dialog offers, here so its label is written once. */
+    public static final String REPORT_THIS = "Report this...";
+
+    private final JComboBox<FeedbackReport.Category> category = new JComboBox<>(FeedbackReport.Category.values());
+    private final JTextArea message = new JTextArea(8, 56);
+    private final JTextField replyTo = new JTextField();
+    private final JCheckBox errorBox = new JCheckBox("The error shown and its stack trace", true);
+    private final JCheckBox systemBox = new JCheckBox("System info: version, revision and commit, operating system, Java, graphics", true);
+    private final JCheckBox logBox = new JCheckBox("The last " + FeedbackReport.LOG_LINES + " lines of this run's log", true);
+    private final JCheckBox sessionBox = new JCheckBox("The current session: layers, times and view, as the autosave writes it", false);
+    private final JCheckBox screenshotBox = new JCheckBox("A screenshot of the main window", false);
+    private final JButton send = new JButton("Send");
+    @Nullable
+    private final FeedbackReport.ErrorContext error;
+    @Nullable
+    private BufferedImage screenshot;
+
+    /** The Help menu's command. */
+    public static final class Open extends AbstractAction {
+        public Open() {
+            super("Send Feedback...");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            new FeedbackDialog(null, "").setVisible(true);
+        }
+    }
+
+    /** About an error the user has just been shown: its text in the message, its stack as an item. */
+    public static void report(String title, String text, @Nullable Throwable cause) {
+        new FeedbackDialog(FeedbackReport.ErrorContext.of(title, text, cause), title + ": " + text + "\n\n").setVisible(true);
+    }
+
+    private FeedbackDialog(@Nullable FeedbackReport.ErrorContext _error, String prefill) {
+        super(MainFrame.get(), "Send Feedback", false);
+        error = _error;
+        if (error != null)
+            category.setSelectedItem(FeedbackReport.Category.BUG);
+        message.setText(prefill);
+        message.setLineWrap(true);
+        message.setWrapStyleWord(true);
+
+        JPanel form = new JPanel(new GridBagLayout());
+        GridBagConstraints c = new GridBagConstraints();
+        c.gridx = 0;
+        c.gridy = GridBagConstraints.RELATIVE;
+        c.anchor = GridBagConstraints.WEST;
+        c.fill = GridBagConstraints.HORIZONTAL;
+        c.weightx = 1;
+        c.insets = new Insets(2, 0, 2, 0);
+
+        JPanel kind = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
+        kind.add(new JLabel("Kind: "));
+        kind.add(category);
+        form.add(kind, c);
+        form.add(new JLabel("What happened, or what would you like? (required)"), c);
+        c.fill = GridBagConstraints.BOTH;
+        c.weighty = 1;
+        form.add(new JScrollPane(message), c);
+        c.fill = GridBagConstraints.HORIZONTAL;
+        c.weighty = 0;
+        form.add(new JLabel("Your email, if you would like a reply (optional)"), c);
+        form.add(replyTo, c);
+        c.insets = new Insets(8, 0, 0, 0);
+        form.add(new JLabel("Also send:"), c);
+        c.insets = new Insets(0, 0, 0, 0);
+        if (error != null)
+            form.add(errorBox, c);
+        form.add(systemBox, c);
+        form.add(logBox, c);
+        form.add(sessionBox, c);
+        form.add(screenshotBox, c);
+        c.insets = new Insets(8, 0, 0, 0);
+        form.add(new JLabel("<html><div style='width:420px'>" + destination() + "</div>"), c);
+
+        JButton preview = new JButton("Preview");
+        preview.setToolTipText("Show everything this report will contain");
+        preview.addActionListener(e -> preview());
+        JButton cancel = new JButton("Cancel");
+        cancel.addActionListener(e -> dispose());
+        send.addActionListener(e -> send());
+        JPanel buttons = new JPanel(new BorderLayout());
+        buttons.add(preview, BorderLayout.LINE_START);
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.TRAILING, 6, 0));
+        right.add(cancel);
+        right.add(send);
+        buttons.add(right, BorderLayout.LINE_END);
+        buttons.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
+
+        JPanel content = new JPanel(new BorderLayout());
+        content.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        content.add(form, BorderLayout.CENTER);
+        content.add(buttons, BorderLayout.PAGE_END);
+        setContentPane(content);
+
+        screenshotBox.addActionListener(e -> {
+            if (screenshotBox.isSelected())
+                capture();
+            else
+                screenshot = null;
+        });
+        DocumentListener validate = new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                updateSend();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                updateSend();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                updateSend();
+            }
+        };
+        message.getDocument().addDocumentListener(validate);
+        replyTo.getDocument().addDocumentListener(validate);
+        updateSend();
+        getRootPane().registerKeyboardAction(e -> dispose(), KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_IN_FOCUSED_WINDOW);
+        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+
+        pack();
+        setLocationRelativeTo(MainFrame.get());
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowOpened(WindowEvent e) { // not before: a window not yet shown cannot take focus
+                message.requestFocusInWindow();
+                message.setCaretPosition(message.getDocument().getLength());
+            }
+        });
+    }
+
+    /** Where a report goes, in words, and that the home folder never does. */
+    private static String destination() {
+        String where = FeedbackReport.endpoint().isBlank()
+                ? "This build has no address to send reports to yet: Send saves the report in ~/HFStudio/Outbox, and a later version sends it. You can also email it."
+                : "Send delivers the report to the developer of " + AppInfo.programName + ".";
+        return where + " Your home folder is written as ~ in everything sent. Preview shows all of it.";
+    }
+
+    private void updateSend() {
+        String email = replyTo.getText().strip();
+        boolean emailOk = email.isEmpty() || email.matches("[^@\\s]+@[^@\\s]+\\.[^@\\s]+");
+        boolean described = !message.getText().isBlank();
+        send.setEnabled(described && emailOk);
+        send.setToolTipText(!described ? "Describe the problem or the request first" : emailOk ? null : "That email address looks incomplete");
+    }
+
+    /**
+     * The main window as it is on screen. This dialog steps aside first, so it is not in the picture,
+     * and comes back when the capture is taken.
+     */
+    private void capture() {
+        Window main = MainFrame.get();
+        if (main == null || !main.isShowing()) {
+            screenshotBox.setSelected(false);
+            return;
+        }
+        setVisible(false);
+        Timer later = new Timer(400, e -> {
+            try {
+                screenshot = new Robot().createScreenCapture(main.getBounds());
+                screenshotBox.setText("A screenshot of the main window (" + screenshot.getWidth() + " x " + screenshot.getHeight() + ", see Preview)");
+            } catch (AWTException | SecurityException ex) {
+                Log.warn("No screenshot for feedback: " + ex);
+                screenshot = null;
+                screenshotBox.setSelected(false);
+                screenshotBox.setText("A screenshot of the main window (not available here)");
+            }
+            setVisible(true);
+        });
+        later.setRepeats(false);
+        later.start();
+    }
+
+    /** Exactly what is ticked, built now. On the EDT, which the session snapshot needs. */
+    private JSONObject payload() throws IOException {
+        JSONObject session = null;
+        if (sessionBox.isSelected()) {
+            try {
+                session = State.snapshot();
+            } catch (RuntimeException e) { // a report about a broken session must still go out
+                session = new JSONObject().put("unavailable", String.valueOf(e));
+            }
+        }
+        JSONObject p = FeedbackReport.build((FeedbackReport.Category) category.getSelectedItem(), message.getText(), replyTo.getText(),
+                errorBox.isSelected() ? error : null,
+                systemBox.isSelected() ? FeedbackReport.systemInfo() : null,
+                logBox.isSelected() ? FeedbackReport.logTail(FeedbackReport.LOG_LINES) : null,
+                session);
+        if (screenshotBox.isSelected() && screenshot != null)
+            FeedbackReport.attachScreenshot(p, screenshot);
+        return p;
+    }
+
+    private void preview() {
+        JSONObject p;
+        try {
+            p = payload();
+        } catch (IOException e) {
+            Log.warn("Feedback preview failed: " + e);
+            return;
+        }
+        JTextArea text = new JTextArea(FeedbackReport.asText(p));
+        text.setEditable(false);
+        text.setLineWrap(true);
+        text.setCaretPosition(0);
+        JScrollPane scroll = new JScrollPane(text);
+        scroll.setPreferredSize(new Dimension(640, 420));
+        List<Object> parts = new ArrayList<>();
+        parts.add(new JLabel("This is the whole report, sent as JSON. Untick an item to leave it out."));
+        parts.add(scroll);
+        if (p.has("screenshot") && screenshot != null)
+            parts.add(new JLabel(new ImageIcon(screenshot.getScaledInstance(320, -1, Image.SCALE_SMOOTH))));
+        JOptionPane pane = new JOptionPane(parts.toArray(), JOptionPane.PLAIN_MESSAGE);
+        String[] close = {"Close"};
+        pane.setOptions(close);
+        pane.setInitialValue(close[0]);
+        pane.createDialog(this, "What will be sent").setVisible(true);
+    }
+
+    private void send() {
+        JSONObject p;
+        try {
+            p = payload();
+        } catch (IOException e) {
+            Log.warn("Feedback not built: " + e);
+            return;
+        }
+        String endpoint = FeedbackReport.endpoint();
+        send.setEnabled(false);
+        send.setText("Sending...");
+        Task.submitBackground(() -> FeedbackReport.submit(p, endpoint), d -> {
+            dispose();
+            if (d.sent())
+                JOptionPane.showMessageDialog(MainFrame.get(), "Thank you. Your report was sent.", "Send Feedback", JOptionPane.INFORMATION_MESSAGE);
+            else
+                afterward(p, d.file(), "Report saved", (endpoint.isBlank() ? "This build has no address to send reports to yet." : "The report could not be sent just now.")
+                        + " It is saved as\n" + Provenance.stripHome(d.file().toString(), System.getProperty("user.home", ""))
+                        + "\nand will be sent automatically " + (endpoint.isBlank() ? "by a later version." : "the next time " + AppInfo.programName + " starts."));
+        }, t -> {
+            dispose();
+            Log.warn("Feedback not saved: " + t);
+            afterward(p, null, "Report not saved", "The report could not be saved: " + t.getMessage() + "\nCopy it to the clipboard to keep it.");
+        });
+    }
+
+    /** What the user can still do with a report that did not go: copy it, or email it (only when it was saved, to be attached). */
+    private static void afterward(JSONObject p, @Nullable Path file, String title, String text) {
+        JTextArea words = new JTextArea(text);
+        words.setEditable(false);
+        words.setOpaque(false);
+        words.setFocusable(false);
+        JButton copy = new JButton("Copy to Clipboard");
+        copy.addActionListener(e -> {
+            TransferAccess.writeClipboard(FeedbackReport.asText(p));
+            copy.setText("Copied");
+        });
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
+        actions.add(copy);
+        if (file != null) {
+            JButton email = new JButton("Email Instead");
+            email.setToolTipText("Write to " + AppInfo.emailAddress + "; attach the saved file to the email");
+            email.addActionListener(e -> DesktopIntegration.openURL(FeedbackReport.mailto(p, file)));
+            actions.add(email);
+        }
+        JOptionPane pane = new JOptionPane(new Object[]{words, actions}, JOptionPane.INFORMATION_MESSAGE);
+        String[] ok = {"OK"};
+        pane.setOptions(ok);
+        pane.setInitialValue(ok[0]); // Return dismisses; it never opens the mail client
+        pane.createDialog(MainFrame.get(), title).setVisible(true);
+    }
+
+}
