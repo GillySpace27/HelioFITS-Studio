@@ -26,6 +26,10 @@
 - The timestamp layer's Annotations section has a Credit line, off by default, for talks and shows. With RHEF on it says the picture is not a calibrated radiance
 - The About window shows the build as version, revision and commit, and says when it was built from uncommitted changes
 
+### Help
+- Help > Take the Tour points out the main controls one at a time: the picture, adding a layer, the layer list and its options, playback, the Timelines pane, Projection, recording, and where to find help. The rest of the window is dimmed while each control is shown. Esc leaves the tour; the arrow keys or Enter step through it
+- The first launch offers the tour once, in a small card in the corner of the picture. Not now leaves it in the Help menu
+
 ## HelioFITS Studio 0.8.3 (pre-release, 2026-09-23)
 
 ### Multilayer FITS, including PUNCH
