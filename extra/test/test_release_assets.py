@@ -672,5 +672,91 @@ class GuideStrictTest(unittest.TestCase):
         self.assertIn("    package)  build_guide; repackage ;;", text)
 
 
+GUIDE_STATES = ("fig_grid", "fig_rhef", "fig_pointcloud")
+
+
+class GuideStatesTest(unittest.TestCase):
+    """The tracked guide states load on any checkout: paths are @SRC@-relative and point at tracked files."""
+
+    def test_each_state_is_portable_json(self):
+        for fig in GUIDE_STATES:
+            path = RELEASE / "guide_states" / f"{fig}.jhv"
+            self.assertTrue(path.is_file(), f"no release/guide_states/{fig}.jhv")
+            text = path.read_text()
+            self.assertIn("@SRC@/", text, f"{fig}: names no file in the checkout")
+            for machine in ("/Users/", "/home/", "/private/", "/var/folders/", "/tmp/"):
+                self.assertNotIn(machine, text, f"{fig}: a machine path is left in it")
+            state = json.loads(text.replace("@SRC@", str(ROOT)))
+            self.assertIn("org.helioviewer.jhv.state", state, fig)
+            for rel in re.findall(r"@SRC@/([^\"\s]+)", text):
+                self.assertTrue((ROOT / rel).is_file(), f"{fig}: {rel} is not in the checkout")
+                self.assertEqual(subprocess.run(["git", "ls-files", "--error-unmatch", rel], cwd=ROOT,
+                                                capture_output=True).returncode, 0, f"{fig}: {rel} is not tracked")
+
+
+class GuideWorkflowTest(unittest.TestCase):
+    def test_guide_workflow_runs_by_hand_only_with_pinned_actions(self):
+        text = (ROOT / ".github" / "workflows" / "guide.yml").read_text()
+        on = re.search(r"^on:\n((?:  .*\n)+)", text, re.M).group(1)
+        self.assertEqual(on.strip(), "workflow_dispatch:")
+        for uses in re.findall(r"uses: (\S+)", text):
+            if not uses.startswith("./"):
+                self.assertRegex(uses, r"@[0-9a-f]{40}$", f"{uses} is not pinned by full SHA")
+        self.assertIn("release/capture_guide_shots.sh", text)
+        self.assertNotIn("contents: write", text)
+
+
+@unittest.skipIf(os.name == "nt", "SKIP: needs a POSIX sh and executable shims")
+class CaptureGuideShotsTest(unittest.TestCase):
+    """capture_guide_shots.sh with extra/launch-shot.sh replaced by a stand-in that, like the app's
+    autosave, writes into whatever file it was given with -state."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="hfs-capture-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.repo = self.tmp / "repo"
+        (self.repo / "release" / "guide_states").mkdir(parents=True)
+        (self.repo / "extra").mkdir()
+        shutil.copy2(RELEASE / "capture_guide_shots.sh", self.repo / "release" / "capture_guide_shots.sh")
+        (self.repo / "HFStudio.jar").write_bytes(b"jar")
+        (self.repo / "run.sh").write_text("#!/bin/sh\nexit 0\n")
+        self.state = self.repo / "release" / "guide_states" / "fig_grid.jhv"
+        self.state.write_text('{"org.helioviewer.jhv.state": {"imageLayers": [{"data": {"uris": '
+                              '["file:@SRC@/extra/test/data/sample.171.fits"]}}]}}')
+        self.log = self.tmp / "shot.log"
+        shim(self.repo / "extra", "launch-shot.sh",
+             'name="$1"; shift; echo "$*" >> "$SHOT_LOG"\n'
+             'while [ $# -gt 0 ]; do [ "$1" = -state ] && state="$2"; shift; done\n'
+             'echo autosaved >> "$state"\n'
+             'echo png > "shot-$name.png"; echo log > "app-$name.log"\n')
+        self.bin = self.tmp / "bin"
+        self.bin.mkdir()
+
+    def capture(self, uname="Linux", **extra):
+        shim(self.bin, "uname", f'echo {uname}\n')
+        return subprocess.run(["sh", "release/capture_guide_shots.sh", str(self.tmp / "out")], cwd=self.repo,
+                              env=env_with(self.bin, SHOT_LOG=str(self.log), TMPDIR=str(self.tmp), **extra),
+                              capture_output=True, text=True, timeout=120)
+
+    def test_the_app_gets_a_copy_and_the_tracked_state_is_untouched(self):
+        before = hashlib.sha256(self.state.read_bytes()).hexdigest()
+        r = self.capture()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(hashlib.sha256(self.state.read_bytes()).hexdigest(), before)
+        self.assertTrue((self.tmp / "out" / "fig_grid.png").exists())
+        given = self.log.read_text().split("-state ", 1)[1].strip()
+        self.assertNotEqual(Path(given).resolve(), self.state.resolve())
+        copy = Path(given).read_text()
+        self.assertIn(f"file:{self.repo}/extra/test/data/sample.171.fits", copy)
+        self.assertNotIn("@SRC@", copy)
+
+    def test_macos_needs_an_explicit_yes(self):
+        r = self.capture("Darwin")
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("HFS_CAPTURE_ON_MAC=1", r.stderr)
+        self.assertFalse(self.log.exists(), "the screen was photographed without the opt-in")
+        self.assertEqual(self.capture("Darwin", HFS_CAPTURE_ON_MAC="1").returncode, 0)
+
+
 if __name__ == "__main__":
     unittest.main()
