@@ -78,7 +78,7 @@ only ever appended:
 **macOS arm64 is the only platform used on real hardware.** Say so when sharing.
 The download page's Windows and Linux tiles stay off until a person has
 confirmed that platform's package and set its `confirmed` flag in
-`hfs/index.html` (the `GillySpace27.github.io` repository), and the release
+`heliofits-studio/index.html` (the `GillySpace27.github.io` repository), and the release
 also carries that platform's file.
 
 ## Legacy names
@@ -98,7 +98,7 @@ second half, not a string edit.
   lives in the site repository (`GillySpace27.github.io`), outside this one. It
   asks GitHub for the newest release when it loads, so a release needs no edit
   there; its fixed fallback links (used only when GitHub cannot be reached)
-  still name 0.8.1. The tracker's `live` check reads it. The old links have been
+  still name 0.8.2 (read 2026-10-01 in `heliofits-studio/index.html`). The tracker's `live` check reads it. The old links have been
   sent to people, so keep them all working.
 - **`GillySpace27/HelioFITS-Studio`**, the repository slug. It began as
   `HelioFITS-Studio`, became `HFStudio` on 2026-09-18 and `PUNCHStudio` on
@@ -113,6 +113,21 @@ second half, not a string edit.
   resource path**: application identifiers that `deploy_release.sh` has to
   match (`--main-class`, `DYLIB`, `ARCH_RES`). They change with the app code or
   not at all.
+
+Two open decisions for Gilly, recorded here; no step has acted on either:
+
+- **The tracked `lib/natives-macos/libjhvmetalhost.dylib`.** `ant build-metal-host`
+  produces it and `ant clean` deletes it, yet it is tracked, so a clean build
+  can leave the tree dirty, and a rebuilt copy must never be committed. Options:
+  (a) keep it tracked and keep not committing rebuilt copies (today); (b) stop
+  tracking it, Gilly's own commit, with `.gitignore` covering it, after which a
+  fresh clone needs `ant jar` on macOS before the first run (history keeps every
+  old copy either way).
+- **Stale local binaries** (git-ignored, outside any commit): older
+  `release/HFStudio-0.8.0.*` and `0.8.1.*` dmgs and zips (about 1 GB, 2026-09-28
+  map) and a root `PUNCHStudio.jar`. Options: (a) leave them; (b) Gilly moves
+  them to an archive folder outside the repository. `extra/tools/worktree_report.sh
+  --release-dir` lists them with sizes; it never moves them.
 
 ## The four modes
 
@@ -244,8 +259,8 @@ Mount the dmg and launch the app it contains, not the jar you built. This is
 the step that catches a bundle that is signed correctly and still broken.
 
 Run it from the mounted image. The bundle is named `HelioFITS Studio.app`, so on the
-development Mac it sits beside the launcher tile `HelioFITS Studio Dev.app` in
-`/Applications` (`hfstudio-dev-launcher.sh`) instead of replacing it.
+development Mac it sits beside the dev launcher `HelioFITS Studio (dev).app` in
+`~/Applications` (made by `extra/make-dev-launcher.sh`) instead of replacing it.
 
 Quit any running HelioFITS Studio first. A second instance cannot take the JPIP
 ehcache persistence lock, and the failure is not contained: `levelCache` stays
