@@ -63,6 +63,7 @@ final class ProjectionPaletteContent {
             if (el == MapMode.ObserverSky)
                 continue;
             javax.swing.JRadioButton item = new javax.swing.JRadioButton(el.toString());
+            item.setName("projection" + el.name());
             if (el == displayedProjection())
                 item.setSelected(true);
             item.addActionListener(e -> selectProjection(el));
@@ -152,6 +153,7 @@ final class ProjectionPaletteContent {
 
     private JPanel createWarpLambdaPanel() {
         warpLambdaSlider = new JHVSlider(-1000, 1000, warpLambdaToSlider(ViewState.getWarpLambda())).animates("display.warpLambda");
+        named(warpLambdaSlider, "projectionWarp", "Warp");
         warpLambdaSlider.setToolTipText("Warp strength (Box-Cox lambda) for warp projections: right stretches the inner corona outward, left is the unwarped view (available in Helioradial projections)");
         warpLambdaSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, warpLambdaSlider.getPreferredSize().height));
         JLabel label = new JLabel("Warp");
@@ -196,6 +198,7 @@ final class ProjectionPaletteContent {
         // sphere: the measurement's placement, then that placement projected back out onto the
         // sky it came from.
         toggle.setPreferredSize(surfaceToggleSize(toggle));
+        toggle.setName("projectionSurface");
         toggle.addActionListener(e -> {
             SurfaceModel[] cycle = SurfaceModel.values();
             SurfaceModel wanted = cycle[(Display.getSurfaceModel().ordinal() + 1) % cycle.length];
@@ -291,6 +294,7 @@ final class ProjectionPaletteContent {
 
     private JPanel createHelioradial3DPanel() {
         helioradial3DBox = new javax.swing.JCheckBox("Render in 3D", Display.isHelioradial3D());
+        helioradial3DBox.setName("projectionRender3d");
         helioradial3DBox.setToolTipText("Draw Helioradial as a rotatable surface instead of a flat face-on disk");
         // setHelioradial3D does the camera reset itself, the same way a projection change does.
         helioradial3DBox.addItemListener(e -> Display.setHelioradial3D(helioradial3DBox.isSelected()));
@@ -303,6 +307,7 @@ final class ProjectionPaletteContent {
         javax.swing.JButton resetView = new javax.swing.JButton("Reset view");
         resetView.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_ROUND_RECT);
         resetView.setToolTipText("Return warp, crop and zoom to their defaults");
+        resetView.setName("projectionReset");
         resetView.addActionListener(e -> resetProjectionControls());
 
         JPanel panel = new JPanel(new BorderLayout());
@@ -386,6 +391,7 @@ final class ProjectionPaletteContent {
         skyProjectionBox = new javax.swing.JComboBox<>(SkyProjection.values());
         skyProjectionBox.setSelectedItem(Display.getSkyProjection());
         skyProjectionBox.setToolTipText(Display.getSkyProjection().tooltip());
+        named(skyProjectionBox, "projectionSkyStyle", "Sky projection");
         skyProjectionBox.addActionListener(e -> {
             if (skyProjectionBox.getSelectedItem() instanceof SkyProjection projection) {
                 skyProjectionBox.setToolTipText(projection.tooltip());
@@ -407,6 +413,7 @@ final class ProjectionPaletteContent {
         // Helioradial it is composed with that mode's radial scale, so the Warp, Crop and Disk
         // sliders and the Surface choice all reach the dome. Unticking returns to that projection.
         skyBox = new javax.swing.JCheckBox("Project onto the sky", ViewState.getProjection() == MapMode.ObserverSky);
+        skyBox.setName("projectionSky");
         skyBox.setToolTipText("Draw the selected projection on the observer's sky, aimed and laid flat by the controls "
                 + "below. Over Orthographic or HPC that is the sky as it is. Over Helioradial the dome shows the warped "
                 + "corona: a dome angle is read as a Helioradial page radius and undone through its Box-Cox scale, so "
@@ -425,6 +432,7 @@ final class ProjectionPaletteContent {
         composeRow.add(skyBox, BorderLayout.LINE_START);
 
         skyFieldSlider = new JHVSlider(0, 1000, skyFieldToSlider(Display.getSkyFieldDegrees()));
+        named(skyFieldSlider, "projectionSkyField", "Sky field");
         skyFieldSlider.setToolTipText("Angular radius of the view, centre of the picture to top edge. "
                 + "180\u00b0 is the whole sky, and only azimuthal equidistant reaches it. Double-click to reset.");
         skyFieldSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, skyFieldSlider.getPreferredSize().height));
@@ -457,6 +465,7 @@ final class ProjectionPaletteContent {
         javax.swing.JButton aimAtSun = new javax.swing.JButton("Aim at Sun");
         aimAtSun.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_ROUND_RECT);
         aimAtSun.setToolTipText("Put the Sun back at the centre of the picture");
+        aimAtSun.setName("projectionAimAtSun");
         aimAtSun.addActionListener(e -> {
             Display.resetSkyLook();
             skyAimValue.setText(formatSkyAim());
@@ -551,6 +560,7 @@ final class ProjectionPaletteContent {
      */
     private JPanel createDiskPanel() {
         diskSlider = new JHVSlider(0, 1000, diskScaleToSlider(Display.getDiskScale())).animates("display.diskScale");
+        named(diskSlider, "projectionDisk", "Disk");
         diskSlider.setToolTipText("Size of the solar disk as a multiple of the nominal Box-Cox warp: 1.00\u00d7 is the warp untouched, right is bigger, left is smaller. Double-click to return to nominal. (available in Helioradial projections)");
         diskSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, diskSlider.getPreferredSize().height));
         JLabel label = new JLabel("Disk");
@@ -600,6 +610,7 @@ final class ProjectionPaletteContent {
 
     private JPanel createZoomPanel() {
         zoomSlider = new JHVSlider(0, 1000, 500);
+        named(zoomSlider, "projectionZoom", "Zoom");
         zoomSlider.setToolTipText("View magnification, running the same way as Crop: right magnifies, left pulls back. Far from 1× is where imagery softens and overlays crowd; double-click to recentre");
         zoomSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, zoomSlider.getPreferredSize().height));
         JLabel label = new JLabel("Zoom");
@@ -671,6 +682,7 @@ final class ProjectionPaletteContent {
 
     private JPanel createWarpCropPanel() {
         warpCropSlider = new JHVSlider(0, 1000, CROP_SLIDER_AUTO).animates("display.warpOuterRadius");
+        named(warpCropSlider, "projectionCrop", "Crop");
         warpCropSlider.setToolTipText("Circular crop, in solar radii: cuts the picture to a disc and frames that disc, without changing the warp. Zoom magnifies with no edge; leftmost is auto, no crop.");
         warpCropSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, warpCropSlider.getPreferredSize().height));
         JLabel label = new JLabel("Crop");
@@ -692,6 +704,14 @@ final class ProjectionPaletteContent {
         panel.add(warpCropSlider, BorderLayout.CENTER);
         panel.add(value, BorderLayout.LINE_END);
         return panel;
+    }
+
+    // A control's name for ActionCatalog.find and tours, and the label VoiceOver reads when it has no text of its own.
+    private static void named(javax.swing.JComponent c, String id, String spoken) {
+        c.setName(id);
+        String now = c.getAccessibleContext().getAccessibleName();
+        if (now == null || now.isEmpty())
+            c.getAccessibleContext().setAccessibleName(spoken);
     }
 
     /** ToolBar.modeStateChanged's projection half, unchanged, called from there at the same point. */
