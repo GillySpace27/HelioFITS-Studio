@@ -199,6 +199,9 @@ public final class MenuBar extends JMenuBar {
 
         JMenu editMenu = new JMenu("Edit");
         editMenu.setMnemonic(KeyEvent.VK_E);
+        catalogItem(editMenu, "undo");
+        catalogItem(editMenu, "redo");
+        editMenu.addSeparator();
         catalogItem(editMenu, "paste");
         editMenu.addSeparator();
         // Rubbing out what you drew is an edit of the scene, not a way of looking at it. It sat

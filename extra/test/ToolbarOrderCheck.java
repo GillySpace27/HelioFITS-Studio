@@ -32,7 +32,7 @@ public final class ToolbarOrderCheck {
         List<String> fallback = resolve(null);
         expect("no stored order falls back to the default", fallback.equals(resolve("")));
         expect("and the default is the bar as it has always been, minus what this check pretends exists",
-                fallback.equals(List.of("present", ToolbarOrder.SEPARATOR, "zoomIn", "zoomOut",
+                fallback.equals(List.of("present", ToolbarOrder.SEPARATOR, ToolbarOrder.SEPARATOR, "zoomIn", "zoomOut",
                         ToolbarOrder.SEPARATOR, ToolbarOrder.SEPARATOR, ToolbarOrder.SEPARATOR, ToolbarOrder.SEPARATOR,
                         "grid", ToolbarOrder.SEPARATOR, ToolbarOrder.MORE_DIVIDER)));
 
@@ -176,7 +176,7 @@ public final class ToolbarOrderCheck {
     // which would need a display: if the two drift, the default order names a tool that no longer
     // exists and that place on the bar silently disappears.
     private static final Set<String> DEFAULT_IDS = Set.of(
-            "present", "zoomIn", "zoomOut", "zoomFit", "zoomOne",
+            "present", "undo", "redo", "zoomIn", "zoomOut", "zoomFit", "zoomOne",
             "resetCamera", "resetAxis", "rotate90",
             "pan", "rotate", "axis",
             "track", "diffRotation", "corona", "multiview", "sidebarLeft", "timelines", "sidebarRight", "annotate",
