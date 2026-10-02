@@ -68,8 +68,8 @@ public final class MenuBar extends JMenuBar {
                 // browses it (the toolbar toggle above only shows the palette), and two
                 // dialogs with no toolbar button. They were in View, which is where a thing you
                 // look through goes, not a thing you work with.
-                toolsMenu.add(new Actions.TrackCME());
-                toolsMenu.add(new Actions.TrackComet());
+                catalogItem(toolsMenu, "findCmes");
+                catalogItem(toolsMenu, "findComets");
                 toolsMenu.addSeparator();
                 JMenuItem edit = new JMenuItem("Edit Toolbar...");
                 edit.setIcon(Buttons.editToolbar);
