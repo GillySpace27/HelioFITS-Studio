@@ -1,0 +1,19 @@
+# HelioFITS Studio feedback Worker. Not deployed: README.md lists the steps to go live.
+name = "heliofits-studio-feedback"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+[vars]
+# owner/name of the PRIVATE repository that receives the issues. Empty on purpose: until it is
+# set, the Worker answers 500 "not configured" and the app keeps every report in its outbox.
+GITHUB_REPO = ""
+# Reports allowed per clock hour (these are the defaults in src/index.js).
+LIMIT_PER_INSTALL = "5"
+LIMIT_PER_IP = "20"
+
+# Rate-limit counters. Replace the id with the one `npx wrangler kv namespace create RATE_LIMIT` prints.
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+# GITHUB_TOKEN is a Worker secret and is never written in this file: npx wrangler secret put GITHUB_TOKEN

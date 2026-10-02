@@ -126,6 +126,7 @@ public final class ActionCatalog {
                 org.helioviewer.jhv.gui.component.Palette.open("Image Layers"); // wherever it is docked or floating
             }
         }, "", "Open the Image Layers section, wherever it is docked");
+        put("sendFeedback", new org.helioviewer.jhv.gui.dialog.FeedbackDialog.Open(), "Help/Send Feedback...", "Send a problem, a request or a question to the developer; no account needed");
     }
 
     /**
