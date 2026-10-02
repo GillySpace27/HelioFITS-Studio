@@ -758,5 +758,34 @@ class CaptureGuideShotsTest(unittest.TestCase):
         self.assertEqual(self.capture("Darwin", HFS_CAPTURE_ON_MAC="1").returncode, 0)
 
 
+class NotesTest(unittest.TestCase):
+    def test_the_fork_prose_lives_in_the_preamble(self):
+        prose = (RELEASE / "notes-preamble.md").read_text()
+        self.assertTrue(prose.startswith("### About @APP_NAME@\n"))
+        self.assertIn("### Why a fork", prose)
+        self.assertNotIn("$", prose)
+        text = (RELEASE / "deploy_release.sh").read_text()
+        self.assertNotIn("### Why a fork", text)
+        self.assertIn('PREAMBLE="$(sed -e', text)
+
+    def test_em_dashes_stop_publish_before_the_tag(self):
+        body = re.search(r"^publish\(\) \{\n(.*?)^\}", (RELEASE / "deploy_release.sh").read_text(), re.S | re.M).group(1)
+        self.assertIn("\\342\\200\\224", body)
+        self.assertLess(body.index("\\342\\200\\224"), body.index("git tag -a"))
+        self.assertLess(body.index('NOTES="$(notes_file)"'), body.index("git tag -a"))
+
+    @unittest.skipIf(os.name == "nt", "SKIP: needs a POSIX sh")
+    def test_notes_mode_prints_the_filled_in_prose(self):
+        r = subprocess.run(["sh", str(RELEASE / "deploy_release.sh"), "notes"], capture_output=True, text=True,
+                           timeout=60)
+        if r.returncode != 0 and "has no section for" in r.stderr:
+            self.skipTest("SKIP: changelog.md has no section for VERSION yet")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("### About HelioFITS Studio\n\nHelioFITS Studio is a fork of JHelioviewer", r.stdout)
+        self.assertIn("https://github.com/GillySpace27/HelioFITS-Studio/issues", r.stdout)
+        self.assertNotIn("@APP_NAME@", r.stdout)
+        self.assertNotIn(chr(0x2014), r.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
