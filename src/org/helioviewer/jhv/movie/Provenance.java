@@ -178,7 +178,7 @@ public final class Provenance {
     }
 
     /** Every string in a JSON tree passed through f, as a new tree; the input is not changed. */
-    static Object rewrite(Object node, UnaryOperator<String> f) {
+    public static Object rewrite(Object node, UnaryOperator<String> f) {
         if (node instanceof JSONObject o) {
             JSONObject out = new JSONObject();
             for (String key : o.keySet())
@@ -195,7 +195,7 @@ public final class Provenance {
     }
 
     /** The home directory written as "~" wherever it ends at a separator; "/Users/abc" leaves "/Users/abcd" alone. */
-    static String stripHome(String s, String home) {
+    public static String stripHome(String s, String home) {
         if (home.length() < 2)
             return s;
         String out = s.replaceAll(Pattern.quote(home) + "(?=[/\\\\]|$)", "~");
