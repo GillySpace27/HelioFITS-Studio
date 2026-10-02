@@ -2,8 +2,9 @@
 # Build and publish a HelioFITS Studio release: the notarized macOS dmg, the zip, and the guide.
 #
 #   ./deploy_release.sh package   # rebuild guide + repackage the zip locally (no network)
-#   ./deploy_release.sh guide     # re-upload ONLY the guide PDF+MD to the release (fast iterate)
-#   ./deploy_release.sh publish   # repackage + tag + create the GitHub release (outward)
+#   ./deploy_release.sh guide     # re-upload ONLY the guide PDF+MD to the release (fast iterate); strict build,
+#                                 # em-dash scan, then the typed tag or HFS_GUIDE_APPROVED
+#   ./deploy_release.sh publish   # repackage + tag + create the GitHub release (outward; typed tag or HFS_PUBLISH_APPROVED)
 #   ./deploy_release.sh publish --dry-run  # publish's checks and the gate text; tags, pushes, uploads nothing
 #   ./deploy_release.sh notarize  # build a signed + notarized + stapled macOS .app/.dmg (Gatekeeper-clean)
 #   ./deploy_release.sh notarize-resume  # finish the submission recorded in release/.notarize-pending*.json
@@ -188,6 +189,20 @@ proprietary Kakadu codec JHelioviewer uses, which is what makes these binaries o
 Other bundled components keep their own licences and the About dialog credits them all.
 EOF
     echo "$NOTES"
+}
+
+# Exit 2 when any file named after $1 (the verb for what was not done) holds an em dash (U+2014) or
+# cannot be scanned. grep exits 0 for a match, 1 for none and 2 for an error such as a missing file;
+# only 1 passes, so a file that is not there can never read as "no em dash".
+scan_em_dash() {
+    _what="$1"; shift
+    _rc=0
+    LC_ALL=C grep -n "$(printf '\342\200\224')" "$@" >&2 || _rc=$?
+    case "$_rc" in
+        1) ;;
+        0) echo "!! em dash (U+2014) in the release notes or guide ($*; lines above); fix the source, nothing was $_what" >&2; exit 2 ;;
+        *) echo "!! could not scan $* for em dashes (grep exit $_rc); nothing was $_what" >&2; exit 2 ;;
+    esac
 }
 
 upload_guide_only() {
@@ -403,10 +418,7 @@ publish() {
     # The notes are written, and they and the guide are scanned for em dashes, before the tag exists.
     SHA="$(shasum -a 256 "$ZIP" | awk '{print $1}')"
     NOTES="$(notes_file)"
-    if LC_ALL=C grep -n "$(printf '\342\200\224')" "$NOTES" "$MD" >&2; then
-        echo "!! em dash (U+2014) in the release notes or $(basename "$MD") (lines above); fix the source, nothing was tagged" >&2
-        exit 2
-    fi
+    scan_em_dash tagged "$NOTES" "$MD"
 
     # A publish that stopped after tagging left the tag at this commit: reuse it, never move it.
     # preflight_publish has already refused a tag at any other commit.
@@ -876,7 +888,7 @@ if got != want:
 
 case "$MODE" in
     package)  build_guide; repackage ;;
-    guide)    build_guide; upload_guide_only ;;
+    guide)    build_guide --strict; scan_em_dash uploaded "$MD"; upload_guide_only ;;
     publish)  preflight_publish
               if [ -n "$DRY_RUN" ]; then dry_run_report; exit 0; fi
               approve_publish
