@@ -13,6 +13,12 @@
 - PUNCH frames decode several times faster, with every value unchanged: RHEF works directly on the half-float image and sorts and ranks each ring with less work, and PUNCH's compressed tiles are unpacked by the app's own fast decoder. A first pass through a 4096 x 4096 PUNCH movie with RHEF and two LASCO layers now keeps up with 30 frames a second
 - A movie plays at the rate set under Play. The clock used to schedule each frame from when the previous one actually fired, so every late frame delayed the rest, and 34 frames a second played at about 30. A Clock switch under Play keeps the old clock (Swing timer) for comparison with the new one (Fixed rate)
 
+### Layers
+- A Helioviewer layer longer than 1000 frames loads whole. Helioviewer builds at most 1000 frames per movie and thinned the cadence past that; such a request is now asked for in pieces of at most 900 frames that join into one layer. "Get all" still leaves the cadence to the server. Frame count now goes to 20000
+- Levels shows the data values drawn as black and white wherever the layer has them (FITS layers without RHEF or a difference), and clicking them lets you type both. Other layers keep the percentages
+- Reset All on an image layer's Layer Options header puts Display, Intensity and Geometry back to their defaults in one click, for every selected layer. The FITS clip and scale stay, as with Intensity's own revert
+- The open hand shows only over image-layer rows; overlay and camera rows keep the arrow. Every row still drags to reorder
+
 ### Sidebars
 - Dragging either sidebar's edge resizes it. The width changed underneath but the layout did not follow, except when something unrelated happened to refresh it
 
