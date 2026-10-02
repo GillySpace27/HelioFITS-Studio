@@ -187,9 +187,10 @@ class PreflightTest(unittest.TestCase):
 
     def publish(self, *args, **env):
         e = dict(os.environ, PATH=f"{self.bin}{os.pathsep}{os.environ['PATH']}", GH_LOG=str(self.gh_log),
-                 HFS_FAKE_DOW="3", HFS_FAKE_HOUR="10")
+                 HFS_TEST_CLOCK="1", HFS_FAKE_DOW="3", HFS_FAKE_HOUR="10")
         e.pop("HFS_ALLOW_FRIDAY", None)
         e.update(env)
+        e = {k: v for k, v in e.items() if v is not None}   # a None in env removes a default
         self.assertEqual(shutil.which("gh", path=e["PATH"]), str(self.bin / "gh"), "the fake gh is not first")
         tags = self.git("tag", "-l")
         remote = self.git("ls-remote", "--tags", "origin")
@@ -220,7 +221,7 @@ class PreflightTest(unittest.TestCase):
     def direct_publish(self, **env):
         """deploy_release.sh publish called straight, with no terminal: the invariants of publish() do not apply."""
         e = dict(os.environ, PATH=f"{self.bin}{os.pathsep}{os.environ['PATH']}", GH_LOG=str(self.gh_log),
-                 HFS_FAKE_DOW="3", HFS_FAKE_HOUR="10")
+                 HFS_TEST_CLOCK="1", HFS_FAKE_DOW="3", HFS_FAKE_HOUR="10")
         for k in ("HFS_ALLOW_FRIDAY", "HFS_PUBLISH_APPROVED"):
             e.pop(k, None)
         e.update(env)
@@ -327,6 +328,26 @@ class PreflightTest(unittest.TestCase):
         self.refused(self.dry_run(HFS_FAKE_DOW="5", HFS_FAKE_HOUR="13"), "Friday afternoon")
         self.assertEqual(self.dry_run(HFS_FAKE_DOW="5", HFS_FAKE_HOUR="09").returncode, 0)
         self.assertEqual(self.dry_run(HFS_FAKE_DOW="5", HFS_FAKE_HOUR="13", HFS_ALLOW_FRIDAY="1").returncode, 0)
+
+    def clock(self, dow, hour):
+        """A date(1) that says it is that day and hour, whatever the real clock reads."""
+        self.fake("date", f'case "$1" in +%u) echo {dow} ;; +%H) echo {hour} ;; *) exec /bin/date "$@" ;; esac\n')
+
+    def test_fake_clock_is_ignored_without_the_test_switch(self):
+        self.clock(3, "10")   # Wednesday morning for real
+        r = self.dry_run(HFS_TEST_CLOCK=None, HFS_FAKE_DOW="5", HFS_FAKE_HOUR="13")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("ignoring HFS_FAKE_DOW and HFS_FAKE_HOUR", r.stderr)
+        self.clock(5, "15")   # Friday afternoon for real: a fake Wednesday cannot open the gate
+        r = self.dry_run(HFS_TEST_CLOCK=None, HFS_FAKE_DOW="3", HFS_FAKE_HOUR="10")
+        self.refused(r, "Friday afternoon")
+
+    def test_fake_clock_must_be_integers_in_range(self):
+        for var, bad in (("HFS_FAKE_HOUR", "noon"), ("HFS_FAKE_HOUR", "9am"), ("HFS_FAKE_HOUR", "24"),
+                         ("HFS_FAKE_HOUR", "-1"), ("HFS_FAKE_DOW", "friday"), ("HFS_FAKE_DOW", "0"), ("HFS_FAKE_DOW", "8"), ("HFS_FAKE_DOW", "12")):
+            with self.subTest(var=var, bad=bad):
+                r = self.dry_run(**{"HFS_FAKE_DOW": "5", "HFS_FAKE_HOUR": "13", var: bad})
+                self.refused(r, f"{var} must be")
 
     def test_tag_at_head_is_reused_and_tag_elsewhere_refuses(self):
         self.git("tag", "-a", f"v{self.V}", "-m", "stopped after tagging")
