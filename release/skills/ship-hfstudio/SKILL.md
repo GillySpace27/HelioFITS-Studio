@@ -9,8 +9,10 @@ description: Release HelioFITS Studio to its public GitHub release. Use when Gil
 ambiguous. If the two disagree, the procedure doc wins and this file gets fixed.
 
 This skill lives in `release/skills/` so it travels with the repository. Claude
-Code looks for project skills under `.claude/skills/`, so to use it from a
-checkout, link it there:
+Code looks for project skills under `.claude/skills/`, and
+`.claude/skills/ship-hfstudio` is a tracked relative symlink to this folder, so
+any checkout of master finds it. A checkout of an older branch lacks the link;
+make it there with:
 
 ```sh
 mkdir -p .claude/skills && ln -s ../../release/skills/ship-hfstudio .claude/skills/ship-hfstudio
