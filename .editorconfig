@@ -1,0 +1,22 @@
+# Whitespace rules for new edits only. No formatter is run over the tree, so files that came from
+# upstream keep their layout. archive/ is left exactly as it was moved.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+
+[*.java]
+indent_style = space
+indent_size = 4
+
+[*.md]
+trim_trailing_whitespace = false
+
+[archive/**]
+charset = unset
+end_of_line = unset
+insert_final_newline = unset
+indent_style = unset
+indent_size = unset
