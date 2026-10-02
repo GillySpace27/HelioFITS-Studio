@@ -165,6 +165,7 @@ final class ImageLayerRenderingPanel extends JPanel {
     void updateBadges() {
         displaySection.updateBadge();
         intensitySection.updateBadge();
+        levelsPanel.updateLabel(); // data values: a new frame can bring a new scale
     }
 
     // ---- what each section says about itself ---------------------------------------------------
