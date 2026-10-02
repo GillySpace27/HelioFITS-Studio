@@ -42,6 +42,7 @@ public final class MainContentPanel extends JPanel {
     public MainContentPanel(Component mainComponent) {
         pluginContainer = new JPanel(new BorderLayout());
         collapsiblePane = new CollapsiblePane("Plugins", pluginContainer, !"false".equals(Settings.getProperty("display.plugins")));
+        collapsiblePane.setName("timelinesPane"); // tour target
         collapsiblePane.toggleButton.addActionListener(e -> updateLayout());
 
         maximizeButton = Buttons.flat(Buttons.maximizePanel);
