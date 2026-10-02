@@ -17,7 +17,9 @@ public final class SamplingPanel extends JPanel {
     private static final String[] TIME_STEP_UNITS = {"sec", "min", "hours", "days", "get all"};
     private static final int GET_ALL_INDEX = TIME_STEP_UNITS.length - 1;
     private static final int CADENCE_MIN = 1, CADENCE_MAX = 10000;
-    private static final int FRAME_COUNT_MIN = 1, FRAME_COUNT_MAX = 1000;
+    // Past 1000 the loader asks Helioviewer in pieces (APIRequest.chunks). ponytail: 20000 is a
+    // guard against a slipped digit (about 23 requests to the server), not a measured limit.
+    private static final int FRAME_COUNT_MIN = 1, FRAME_COUNT_MAX = 20000;
 
     private final TimeSelectorPanel timeSelectorPanel;
     private final JRadioButton timeStepButton = new JRadioButton("Time step", true);
