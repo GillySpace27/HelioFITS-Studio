@@ -199,6 +199,9 @@ public final class MenuBar extends JMenuBar {
 
         JMenu editMenu = new JMenu("Edit");
         editMenu.setMnemonic(KeyEvent.VK_E);
+        catalogItem(editMenu, "undo");
+        catalogItem(editMenu, "redo");
+        editMenu.addSeparator();
         catalogItem(editMenu, "paste");
         editMenu.addSeparator();
         // Rubbing out what you drew is an edit of the scene, not a way of looking at it. It sat
@@ -408,6 +411,8 @@ public final class MenuBar extends JMenuBar {
 
         JMenu helpMenu = new JMenu("Help");
         helpMenu.setMnemonic(KeyEvent.VK_H);
+        helpMenu.setName("helpMenu"); // tour target
+        catalogItem(helpMenu, "takeTour");
         helpMenu.add(new Actions.ShowDialog("Interaction Guide...", new TextDialog("Interaction Guide", interactionHelp(), true)));
         helpMenu.add(new Actions.ShowDialog("Timeline Interaction...", new TextDialog("Timeline Interaction", timelineHelp(), true)));
 
@@ -429,6 +434,7 @@ public final class MenuBar extends JMenuBar {
         probe.setToolTipText("List every control on screen that is narrower than it asked to be, into the log");
         probe.addActionListener(e -> org.helioviewer.jhv.gui.LayoutProbe.logReport());
         helpMenu.add(probe);
+        catalogItem(helpMenu, "sendFeedback");
         catalogItem(helpMenu, "reportBug");
 
         add(helpMenu);

@@ -194,7 +194,7 @@ fi
 
 # Legacy upstream harnesses (extra/test/run_tests.py). Suites listed under "## Known red" in
 # extra/test/LEGACY.md are reported, not run; everything else must pass.
-known_red=$(awk -F'|' '/^## Known red/ {on = 1; next} /^## / {on = 0} on && $2 ~ /^ *[a-z]+ *$/ {gsub(/ /, "", $2); print $2}' extra/test/LEGACY.md 2>/dev/null)
+known_red=$(awk -F'|' '/^## Known red/ {on = 1; next} /^## / {on = 0} on && $2 ~ /^ *[a-z0-9]+ *$/ {gsub(/ /, "", $2); print $2}' extra/test/LEGACY.md 2>/dev/null)
 suites=""
 for suite in maintenance model j2k timelines event; do
     case " $(echo $known_red) " in

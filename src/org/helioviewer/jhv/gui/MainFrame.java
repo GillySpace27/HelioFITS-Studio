@@ -189,6 +189,7 @@ public final class MainFrame {
         JPanel manageWrapper = new JPanel(new BorderLayout());
         LayerOptionSections sections = new LayerOptionSections(layerOptionsWrapper, geometryWrapper, manageWrapper);
         layersPanel = new LayersPanel(sections, Layer.Kind.IMAGE);     // table needs the controller
+        layersPanel.setName("imageLayersList"); // tour target, as is imageCanvas below
         layersSectionPanel = new LayersSectionPanel(); // ctor calls MainFrame.getLayersPanel()
 
         // Everything drawn over the observation rather than being one: the grid, the timestamps,
@@ -254,6 +255,7 @@ public final class MainFrame {
 
         awtInputAdapter = new AwtInputAdapter();
 
+        renderHost.setName("imageCanvas");
         mainContentPanel = new MainContentPanel(renderHost);
         centerPanel = new JPanel(new BorderLayout());
 

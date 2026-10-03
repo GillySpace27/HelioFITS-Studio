@@ -201,6 +201,7 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         buttonPanel.add(nextFrameButton);
 
         recordButton = new RecordButton(SMALL);
+        recordButton.setName("transportRecord"); // tour targets, with transport below
         buttonPanel.add(recordButton);
 
         // Current frame number
@@ -210,6 +211,7 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         // The scrubber + play/prev/next/record + frame counter live in an always-visible top bar
         // (MainFrame docks northTransport); the sidebar pane keeps only settings + the time range.
         northTransport = new JPanel(new BorderLayout());
+        northTransport.setName("transport");
         northTransport.add(buttonPanel, BorderLayout.LINE_START);
         northTransport.add(timeSlider, BorderLayout.CENTER);
         northTransport.add(frameNumberPanel, BorderLayout.LINE_END);

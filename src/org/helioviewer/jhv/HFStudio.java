@@ -106,10 +106,10 @@ public class HFStudio {
         if (headless)
             startHeadless();
         else
-            startGUI();
+            startGUI(args.length == 0);
     }
 
-    private static void startGUI() {
+    private static void startGUI(boolean bareLaunch) {
         EventQueue.invokeLater(() -> {
             Log.info("Start main window");
             UIGlobals.setLaf();
@@ -138,6 +138,8 @@ public class HFStudio {
                         System.exit(0);
                 }).start();
             org.helioviewer.jhv.app.Session.init(); // session dirty-tracking + autosave timer
+            org.helioviewer.jhv.gui.search.Tour.offerOnce(bareLaunch); // first launch only; a launch with arguments is a script's
+            org.helioviewer.jhv.io.FeedbackReport.retryInBackground(); // the outbox, on its own thread; never headless
 
             startInitialization(true);
         });
