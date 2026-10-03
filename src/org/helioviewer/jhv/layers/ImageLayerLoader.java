@@ -67,6 +67,9 @@ final class ImageLayerLoader {
         cancelLoad();
         int gen = ++loadGeneration;
         loadFuture = Task.submitBackground("request", () -> {
+                    List<APIRequest> parts = req.chunks();
+                    if (parts.size() > 1)
+                        return loadChunks(req, parts, view -> EventQueue.invokeLater(() -> onPreview(view, gen)));
                     statusSink.accept("Querying server…");
                     URI uri = requestAPI(req.toJpipRequest());
                     if (uri == null)
@@ -438,6 +441,47 @@ final class ImageLayerLoader {
             case ZIP -> loadZip(dataUri.uri());
             default -> throw new Exception("Unknown image type");
         };
+    }
+
+    /**
+     * A request longer than the server's 1000-frame cap, asked for in pieces and joined into one
+     * movie in time order (APIRequest.chunks). The movie goes on the layer with the first piece
+     * and grows as the rest arrive. It answers with the whole request, so the layer saves, syncs
+     * and compares as before. A piece the server refuses is reported by requestAPI and skipped.
+     *
+     * <p>ponytail: pieces are fetched one after another, to spare a server that builds each movie
+     * on demand. Downloading the layer as a file still asks for one movie and gets the server's
+     * thinned 1000 frames.
+     */
+    @Nullable
+    private View loadChunks(APIRequest req, List<APIRequest> parts, Consumer<View> preview) throws Exception {
+        ManyView movie = null;
+        for (int i = 0; i < parts.size(); i++) {
+            if (Thread.currentThread().isInterrupted())
+                throw new InterruptedException("load cancelled");
+            statusSink.accept("Querying server, part " + (i + 1) + " of " + parts.size() + "…");
+            APIRequest part = parts.get(i);
+            URI uri = requestAPI(part.toJpipRequest());
+            if (uri == null)
+                continue;
+            View v = createView(part, uri);
+            if (movie == null) {
+                movie = new ManyView(List.of(v)) {
+                    @Override
+                    public APIRequest getAPIRequest() {
+                        return req;
+                    }
+                };
+                preview.accept(movie);
+            } else {
+                ManyView growing = movie;
+                EventQueue.invokeLater(() -> {
+                    growing.addFrames(List.of(v));
+                    onFrameAdded.run();
+                });
+            }
+        }
+        return movie;
     }
 
     private View loadZip(URI uriZip) throws Exception {

@@ -398,6 +398,11 @@ public final class Layers {
         tell(listener -> listener.layerUpdated(layer));
     }
 
+    /** The list was put in a new order in place (State.apply, scene undo): re-read it, as after a restore. */
+    public static void fireLayersRearranged() {
+        tell(Listener::layersCleared);
+    }
+
     public static void addListener(Listener listener) {
         if (!listeners.contains(listener))
             listeners.add(listener);

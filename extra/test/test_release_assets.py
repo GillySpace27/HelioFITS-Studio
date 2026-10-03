@@ -120,6 +120,12 @@ class AttachTest(unittest.TestCase):
 
 GIT = ["git", "-c", "user.name=check", "-c", "user.email=check@localhost", "-c", "commit.gpgsign=false",
        "-c", "tag.gpgsign=false", "-c", "core.hooksPath=/dev/null"]
+# The scripts under test tag and commit in their scratch repositories with plain git, and a CI
+# runner has no identity to give them (publish's "git tag -a" stopped at "Committer identity
+# unknown" on Linux, 2026-10-02). Supplied here only where none is set.
+for _key, _value in (("GIT_AUTHOR_NAME", "check"), ("GIT_AUTHOR_EMAIL", "check@localhost"),
+                     ("GIT_COMMITTER_NAME", "check"), ("GIT_COMMITTER_EMAIL", "check@localhost")):
+    os.environ.setdefault(_key, _value)
 
 
 @unittest.skipIf(os.name == "nt", "SKIP: needs a POSIX sh and executable shims")

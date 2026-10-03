@@ -41,10 +41,10 @@ jobs:
           filter: blob:none
 
       # xvfb for the HeadlessException retry in run-checks.sh; glslang-tools for the shaders step;
-      # python3-pil for the ANGLE updater's tests. LD_LIBRARY_PATH points at the natives we ship.
+      # python3-pil and python3-numpy for the ANGLE updater's tests. LD_LIBRARY_PATH points at the natives we ship.
       - uses: ./.github/actions/setup-hfstudio
         with:
-          linux-packages: xvfb glslang-tools python3-pil
+          linux-packages: xvfb glslang-tools python3-pil python3-numpy
 
       # The whole gate, strict: a check that prints SKIP fails here unless extra/test/ci-skips.txt
       # names it with a reason. ruff comes from pip because the image does not carry it.

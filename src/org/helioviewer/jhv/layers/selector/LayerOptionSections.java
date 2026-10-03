@@ -1,18 +1,23 @@
 package org.helioviewer.jhv.layers.selector;
 
 import java.awt.Component;
+import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.WeakHashMap;
 
 import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
+import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 
 import org.helioviewer.jhv.gui.ComponentUtils;
 import org.helioviewer.jhv.gui.Interfaces;
 import org.helioviewer.jhv.gui.UITimer;
+import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.component.CollapsiblePane;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layer;
@@ -37,10 +42,22 @@ public final class LayerOptionSections implements Layers.Listener, Interfaces.La
     private final JPanel geometryWrapper;
     private final JPanel manageWrapper;
     private final Map<ImageLayer, ImagePanels> cache = new IdentityHashMap<>();
+    // Layers whose settings State.apply (scene undo) replaced wholesale. Every row reads its layer in
+    // its constructor, so their panels are rebuilt on the next update rather than synced row by row.
+    private static final Set<ImageLayer> replaced = Collections.newSetFromMap(new WeakHashMap<>());
+
+    /** For State.apply: this layer's settings changed behind its panels' backs. */
+    public static void settingsReplaced(ImageLayer layer) {
+        replaced.add(layer);
+    }
     @Nullable
     private ImagePanels current; // the panels currently shown, polled for the live readout and the section badges
     @Nullable
     private Layer titledLayer; // whose name the enclosing section is currently wearing
+    // Master reset (working meeting, 2026-10-02): the Display, Intensity and Geometry reverts in one
+    // click, on the Layer Options header. Like Intensity's own revert it leaves the FITS clip and
+    // scale, which say what the data means; across a selection it resets every selected layer.
+    private final JButton resetAll = Buttons.flat("Reset All");
 
     public LayerOptionSections(JPanel layerOptionsWrapper, JPanel geometryWrapper, JPanel manageWrapper) {
         this.layerOptionsWrapper = layerOptionsWrapper;
@@ -48,6 +65,16 @@ public final class LayerOptionSections implements Layers.Listener, Interfaces.La
         this.manageWrapper = manageWrapper;
         Layers.addListener(this);
         UITimer.register(this); // poll the readout so its frame count updates live as a download lands
+
+        resetAll.setToolTipText("Restore Display, Intensity and Geometry to their defaults");
+        resetAll.addActionListener(e -> {
+            if (titledLayer instanceof ImageLayer il) {
+                ImageLayerRenderingPanel.revertDisplay(il);
+                ImageLayerRenderingPanel.revertIntensity(il);
+                ImageLayerGeometryPanel.revert(il);
+                rebuild(il);
+            }
+        });
     }
 
     // Called ~10 Hz by UITimer; updateReadout and updateBadge are memoized on what they last
@@ -113,8 +140,10 @@ public final class LayerOptionSections implements Layers.Listener, Interfaces.La
             note.setToolTipText("These layers are of different kinds, so they share no controls. Select layers of one kind to edit them together.");
             layerOptionsWrapper.add(note);
             CollapsiblePane mixedPane = enclosingPane(layerOptionsWrapper);
-            if (mixedPane != null)
+            if (mixedPane != null) {
                 mixedPane.setTitle(selection.size() + " Layers Selected");
+                mixedPane.setAccessory(null);
+            }
             revalidateAll();
             return;
         }
@@ -150,6 +179,7 @@ public final class LayerOptionSections implements Layers.Listener, Interfaces.La
         CollapsiblePane optionsPane = enclosingPane(layerOptionsWrapper);
         if (optionsPane != null) {
             optionsPane.setTitle(layer == null ? "Layer Options" : layer.getName() + " Layer Options");
+            optionsPane.setAccessory(layer instanceof ImageLayer ? resetAll : null);
             // Default the options open on every layer switch; hiding them is opt-in each time.
             if (layer != null)
                 optionsPane.setExpanded(true);
@@ -275,6 +305,13 @@ public final class LayerOptionSections implements Layers.Listener, Interfaces.La
         if (menuOpen())
             return;
         if (layer instanceof ImageLayer il && cache.get(il) instanceof ImagePanels p) {
+            if (replaced.remove(il)) {
+                if (current == p)
+                    rebuild(il);
+                else
+                    cache.remove(il);
+                return;
+            }
             // A panel built before the layer's first frame landed was scaled against empty metadata,
             // so its Mask row spread 1000 steps over 0 to 1 solar radius instead of out to the frame
             // corner, and being cached it stayed that way for the session. Rebuild once the real

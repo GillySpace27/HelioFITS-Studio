@@ -111,6 +111,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private final ButtonText ROTATE90 = new ButtonText(Buttons.rotate90, "Rotate View 90°", "Rotate view 90°");
     private final ButtonText SAMP = new ButtonText(Buttons.samp, "SAMP", "Send SAMP message");
     private final ButtonText TRACK = new ButtonText(Buttons.track, "Track", "Track solar rotation");
+    private final ButtonText UNDO = new ButtonText(Buttons.undo, "Undo", "Undo the last change to the scene");
+    private final ButtonText REDO = new ButtonText(Buttons.redo, "Redo", "Redo the last undone change to the scene");
     private final ButtonText ZOOMFIT = new ButtonText(Buttons.zoomFit, "Zoom to Fit", "Zoom to fit");
     private final ButtonText ZOOMIN = new ButtonText(Buttons.zoomIn, "Zoom In", "Zoom in");
     private final ButtonText ZOOMONE = new ButtonText(Buttons.zoomOne, "Actual Size", "Zoom to native resolution");
@@ -353,6 +355,16 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
                 org.helioviewer.jhv.gui.PresentationMode.toggle();
         });
         register("present", PRESENTATION, presentationButton);
+
+        // Scene undo. Enabled and titled by SceneUndo; a click is always the scene's, whatever has the keyboard.
+        JButton undo = toolButton(UNDO);
+        undo.addActionListener(e -> org.helioviewer.jhv.app.SceneUndo.undo());
+        org.helioviewer.jhv.app.SceneUndo.bind(undo, false);
+        JButton redo = toolButton(REDO);
+        redo.addActionListener(e -> org.helioviewer.jhv.app.SceneUndo.redo());
+        org.helioviewer.jhv.app.SceneUndo.bind(redo, true);
+        register("undo", UNDO, undo);
+        register("redo", REDO, redo);
 
         // Zoom
         JButton zoomIn = toolButton(ZOOMIN);

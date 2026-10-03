@@ -1,0 +1,53 @@
+{
+  "title": "Getting started",
+  "steps": [
+    {
+      "target": "imageCanvas",
+      "title": "The image canvas",
+      "body": "Your layers are drawn here. Scroll to zoom. Drag to rotate or pan; the Rotate and Pan buttons on the toolbar choose which. Double-click to reset the view."
+    },
+    {
+      "target": "imageLayersNew",
+      "action": "showImageLayers",
+      "title": "Add a data layer",
+      "body": "New Layer adds data for the time range shown above it. Pick a format at the top of its menu: JPEG 2000 for fast Helioviewer images, FITS (VSO) for calibrated files, or FITS (native) for a mission's own archive. Layers > Open Image Layer opens a file from disk."
+    },
+    {
+      "target": "imageLayersList",
+      "action": "showImageLayers",
+      "title": "The layer list",
+      "body": "Each layer you load gets a row here. The checkbox shows or hides a layer, and the x removes it. Drag rows to reorder them. Double-click a layer's name to change its dataset."
+    },
+    {
+      "target": "imageLayersOptions",
+      "action": "showImageLayers",
+      "title": "Layer options",
+      "body": "Select a layer to see its options here. Under Display, Color picks the color table. Under Intensity, the two Levels handles set the brightness window."
+    },
+    {
+      "target": "transport",
+      "title": "Play the movie",
+      "body": "Play runs the movie, and the arrows beside it step one frame at a time. Drag the slider to move through time. J, K and L play backward, stop and play forward from anywhere in the window."
+    },
+    {
+      "target": "timelinesPane",
+      "title": "Timelines",
+      "body": "This pane plots time series and events against the movie time. Click an empty part of the plot to move the movie to that time. The Timelines button on the toolbar shows or hides the pane."
+    },
+    {
+      "target": "projection",
+      "title": "Projection",
+      "body": "The Projection button opens a palette that changes how the Sun is mapped onto the screen, for example Orthographic or Latitudinal."
+    },
+    {
+      "target": "transportRecord",
+      "title": "Record a movie",
+      "body": "The red dot records the view as a movie; click it again to stop. Under Playback and Recording in the sidebar, choose One loop, Screenshot or Unlimited, and the output size. Files are saved in the Exports folder inside the HFStudio folder in your home folder."
+    },
+    {
+      "target": "helpMenu",
+      "title": "Getting help",
+      "body": "The Help menu in the menu bar holds the Interaction Guide, which lists the mouse and keyboard shortcuts, and the User Manual. Help > Take the Tour runs this tour again."
+    }
+  ]
+}

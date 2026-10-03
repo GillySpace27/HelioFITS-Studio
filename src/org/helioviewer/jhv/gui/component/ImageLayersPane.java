@@ -48,6 +48,7 @@ public final class ImageLayersPane extends JPanel {
         layerOptionsContent.add(geometryWrapper);
         CollapsiblePane layerOptions = new CollapsiblePane("Layer options", layerOptionsContent, true, true);
         layerOptions.pinOpen(); // the controls for the selected layer; see CollapsiblePane.pinOpen
+        layerOptions.setName("imageLayersOptions"); // tour target
         add(layerOptions);
     }
 }

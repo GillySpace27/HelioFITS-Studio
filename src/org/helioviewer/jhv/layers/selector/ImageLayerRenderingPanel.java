@@ -165,6 +165,7 @@ final class ImageLayerRenderingPanel extends JPanel {
     void updateBadges() {
         displaySection.updateBadge();
         intensitySection.updateBadge();
+        levelsPanel.updateLabel(); // data values: a new frame can bring a new scale
     }
 
     // ---- what each section says about itself ---------------------------------------------------
@@ -218,7 +219,7 @@ final class ImageLayerRenderingPanel extends JPanel {
 
     // ---- and how to put it back ----------------------------------------------------------------
 
-    private static void revertDisplay(ImageLayer layer) {
+    static void revertDisplay(ImageLayer layer) {
         // The colour table's default is the view's, not a constant: a dataset arrives with the one
         // it is read through, and reverting to grey would be reverting to something that never was.
         Layers.applyToSelectedLayers(layer, il -> {
@@ -231,7 +232,7 @@ final class ImageLayerRenderingPanel extends JPanel {
         DisplayController.display();
     }
 
-    private static void revertIntensity(ImageLayer layer) {
+    static void revertIntensity(ImageLayer layer) {
         Layers.applyToSelectedLayers(layer, il -> {
             ImageDisplaySettings s = il.getDisplaySettings();
             s.setDifferenceMode(DEFAULTS.getDifferenceMode());

@@ -13,6 +13,19 @@
 - PUNCH frames decode several times faster, with every value unchanged: RHEF works directly on the half-float image and sorts and ranks each ring with less work, and PUNCH's compressed tiles are unpacked by the app's own fast decoder. A first pass through a 4096 x 4096 PUNCH movie with RHEF and two LASCO layers now keeps up with 30 frames a second
 - A movie plays at the rate set under Play. The clock used to schedule each frame from when the previous one actually fired, so every late frame delayed the rest, and 34 frames a second played at about 30. A Clock switch under Play keeps the old clock (Swing timer) for comparison with the new one (Fixed rate)
 
+### Layers
+- A Helioviewer layer longer than 1000 frames loads whole. Helioviewer builds at most 1000 frames per movie and thinned the cadence past that; such a request is now asked for in pieces of at most 900 frames that join into one layer. "Get all" still leaves the cadence to the server. Frame count now goes to 20000
+- Levels shows the data values drawn as black and white wherever the layer has them (FITS layers without RHEF or a difference), and clicking them lets you type both. Other layers keep the percentages
+- Reset All on an image layer's Layer Options header puts Display, Intensity and Geometry back to their defaults in one click, for every selected layer. The FITS clip and scale stay, as with Intensity's own revert
+- The open hand shows only over image-layer rows; overlay and camera rows keep the arrow. Every row still drags to reorder
+
+### Undo and redo
+- Edit > Undo and Edit > Redo (Cmd-Z and Shift-Cmd-Z), and Undo and Redo buttons at the left of the toolbar. The menu names the step, such as "Undo Levels change" or "Undo Colormap change"
+- A layer's colormap, Levels and other display settings, its filter, showing or hiding it, adding or removing a layer, the grid, the camera's settings, the projection, annotations, and the playback and recording settings can be undone. A drag is one step, taken when the mouse is released, and edits made in quick succession are one step. Up to 50 steps are kept
+- Undoing a display change keeps the loaded movie; nothing is downloaded or read again. Undoing the removal of a layer reads its files back from the cache
+- Not undone: changing what a layer loads (its time range, cadence or dataset), the master time range, timelines and automation tracks, PFSS, event, point-cloud and model layers, and panning or zooming the view
+- Opening a session, Start New Session and Revert to Saved start a new history. While you are typing in a text field, Cmd-Z belongs to the field
+
 ### Sidebars
 - Dragging either sidebar's edge resizes it. The width changed underneath but the layout did not follow, except when something unrelated happened to refresh it
 
@@ -25,6 +38,15 @@
 - File > Copy Provenance puts a block on the clipboard naming the build, the data and what to cite
 - The timestamp layer's Annotations section has a Credit line, off by default, for talks and shows. With RHEF on it says the picture is not a calibrated radiance
 - The About window shows the build as version, revision and commit, and says when it was built from uncommitted changes
+
+### Help
+- Help > Take the Tour points out the main controls one at a time: the picture, adding a layer, the layer list and its options, playback, the Timelines pane, Projection, recording, and where to find help. The rest of the window is dimmed while each control is shown. Esc leaves the tour; the arrow keys or Enter step through it
+- The first launch offers the tour once, in a small card in the corner of the picture. Not now leaves it in the Help menu
+
+### Feedback
+- Help > Send Feedback... sends a problem, a request or a question to the developer from inside the app, with no account and no website. Tick boxes add system info and the last 300 lines of this run's log (on), the current session and a screenshot of the main window (off); Preview shows everything before it is sent, and your home folder is written as ~
+- Error, warning and crash dialogs have a Report this... button that opens the same window with the message and, when there is one, the stack trace filled in
+- This build has nowhere to send reports yet: they are saved in `~/HFStudio/Outbox`, with Copy to Clipboard and Email Instead offered, and a later version sends them when it starts. A sent report moves to `Outbox/sent`; none is deleted
 
 ## HelioFITS Studio 0.8.3 (pre-release, 2026-09-23)
 
