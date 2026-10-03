@@ -13,6 +13,9 @@ moved or deleted to get a green gate.
 
 | Suite | Why it is red (date seen) | What would make it green |
 |---|---|---|
+| j2k | `AssertionError: cache initialization succeeded despite the persistence lock` (2026-10-02, Linux CI and this Mac; already red at 7671c40d9) | Find whether the JPIP cache still refuses a second holder of its lock, as the test expects, or the test predates a deliberate change |
+| timelines | `TimelineDataTest.checkChartPainting` (TimelineDataTest.java:202) throws an `InvocationTargetException` from a reflective constructor (2026-10-02, Linux CI and this Mac; already red at 7671c40d9) | Read the cause under the reflection and bring the test or the constructor it calls back in line |
+| event | `AssertionError: central point matches baseline` in the SWEK integration test (2026-10-02, Linux CI and this Mac; already red at 7671c40d9) | Decide whether the fork's CACTus and SWEK changes moved the central point on purpose (new baseline) or by mistake (fix) |
 
 ## Notes
 
