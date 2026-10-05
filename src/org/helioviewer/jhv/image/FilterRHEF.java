@@ -15,6 +15,7 @@ import org.helioviewer.jhv.thread.ParallelRange;
 // the output is identical to the sort, not an approximation of it. What changes is the work, from
 // n log n comparisons and n long-word swaps per annulus to two linear passes and a sort over the
 // distinct values, which is the same reformulation that would let this run on a GPU one day.
+// RHEF-CONVENTION: oRHEF-2.0; deviations: RANK-N1, POS-ONLY, FP16, MIN-BIN, GEOM-PX, UPS-EXT, DTYPE-IN
 class FilterRHEF implements ImageFilter.Algorithm {
 
     // Annuli with fewer valid pixels are passed through unfiltered
