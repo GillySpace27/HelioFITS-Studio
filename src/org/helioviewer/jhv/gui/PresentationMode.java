@@ -125,6 +125,8 @@ public final class PresentationMode {
 
         installEscape(frame.getRootPane());
         active = true;
+        // Frames from here on are drawn at the Recording pixel size and scaled to this screen.
+        org.helioviewer.jhv.opengl.PresentationOutput.OUTPUT.setActive(true);
 
         // Going full screen and moving between screens are both asynchronous on macOS, and the
         // native Metal layer is positioned by hand in content-pane coordinates -- so resyncing
@@ -188,6 +190,7 @@ public final class PresentationMode {
         savedBounds = null;
 
         active = false;
+        org.helioviewer.jhv.opengl.PresentationOutput.OUTPUT.setActive(false);
         MainFrame.resyncRenderSurface();
         // Escape does not go through the toolbar button, so tell it what actually happened.
         org.helioviewer.jhv.gui.component.ToolBar.syncPresentationToggle();

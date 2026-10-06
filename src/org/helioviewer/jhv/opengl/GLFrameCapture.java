@@ -38,9 +38,18 @@ final class GLFrameCapture {
     private final byte[] outputRow;
 
     GLFrameCapture(int captureW, int captureH, boolean wantHighBitDepth) {
+        this(captureW, captureH, wantHighBitDepth, EXPORT_SAMPLES);
+    }
+
+    /**
+     * @param wantSamples MSAA samples for the draw target, 0 for none. Presentation mode asks for
+     *                    none: it draws every frame live, and rendering above the projector's size
+     *                    and scaling down already smooths edges.
+     */
+    GLFrameCapture(int captureW, int captureH, boolean wantHighBitDepth, int wantSamples) {
         int frameWidth = Math.max(1, captureW);
         int frameHeight = Math.max(1, captureH);
-        int frameSamples = Math.clamp(EXPORT_SAMPLES, 0, GL.glGetInteger(GL.MAX_SAMPLES));
+        int frameSamples = Math.clamp(wantSamples, 0, GL.glGetInteger(GL.MAX_SAMPLES));
         int colorInternalFormat = wantHighBitDepth ? GL.RGBA16F : GL.RGB8;
         int resolveFbo = 0;
         int resolveColorRbo = 0;
@@ -143,7 +152,13 @@ final class GLFrameCapture {
         GL.glBindFramebuffer(GL.FRAMEBUFFER, drawFramebuffer);
     }
 
-    private void resolveAndRead() {
+    /** The framebuffer drawing goes to: what the frame's renderer binds back after a detour. */
+    int drawFramebuffer() {
+        return drawFramebuffer;
+    }
+
+    /** Resolve any multisampling and return the single-sampled framebuffer holding the frame. */
+    int resolve() {
         if (samples > 0) {
             GL.glBindFramebuffer(GL.READ_FRAMEBUFFER, drawFramebuffer);
             GL.glBindFramebuffer(GL.DRAW_FRAMEBUFFER, resolveFramebuffer);
@@ -151,6 +166,11 @@ final class GLFrameCapture {
                     0, 0, width, height,
                     GL.COLOR_BUFFER_BIT, GL.NEAREST);
         }
+        return resolveFramebuffer;
+    }
+
+    private void resolveAndRead() {
+        resolve();
 
         GL.glBindFramebuffer(GL.READ_FRAMEBUFFER, resolveFramebuffer);
         GL.glPixelStorei(GL.PACK_ALIGNMENT, 1);
