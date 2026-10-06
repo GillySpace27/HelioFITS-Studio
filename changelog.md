@@ -19,6 +19,7 @@
 ### Presentation mode
 - Presentation mode draws at the Recording pixel size and scales it to the projector, so the picture on the dome matches a recording
 - With a second display, the main window stays on your screen exactly as it is, every control working, and the projector shows a full-screen mirror of its picture. The mirror is read back every frame the projector can paint, at the projector's resolution at most. This replaces the separate presenter window and its small preview
+- While the projector mirror is up the picture is drawn at standard brightness on both screens, since the projector copy cannot carry HDR; before, everything above white clipped on the projector. Esc brings HDR back on your screen
 
 ### Smaller fixes
 - Left and Right step one frame back and forward when the picture has focus, as they already did on the time slider

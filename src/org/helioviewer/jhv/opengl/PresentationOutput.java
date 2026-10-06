@@ -82,8 +82,13 @@ public final class PresentationOutput {
     /** Set by PresentationMode while the audience window is up; null removes it. */
     public void setSink(@Nullable Sink newSink) {
         sink = newSink;
-        if (newSink != null)
-            DisplayController.display(); // the first frame now, not at the next change
+        // The first frame now, not at the next change; and on removal, the HDR gain comes back now.
+        DisplayController.display();
+    }
+
+    /** Whether frames are being mirrored to the audience window, which is SDR: no HDR gain then. */
+    public boolean mirroring() {
+        return active && sink != null;
     }
 
     /** Set by PresentationMode on entering and leaving the mode. */
