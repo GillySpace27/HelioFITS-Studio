@@ -179,6 +179,7 @@ public final class MenuBar extends JMenuBar {
         fileMenu.addSeparator();
         catalogItem(fileMenu, "reloadSources");
         catalogItem(fileMenu, "copyProvenance");
+        catalogItem(fileMenu, "openExportsFolder");
         if (!Platform.isMacOS())
             catalogItem(fileMenu, "newWindow"); // no Window menu off macOS
 
