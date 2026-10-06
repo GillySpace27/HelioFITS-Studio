@@ -171,7 +171,10 @@ public final class WelcomeDialog {
             entry.action().actionPerformed(new ActionEvent(MainFrame.get(), ActionEvent.ACTION_PERFORMED, id));
     }
 
-    /** The changelog section as HTML: "### " lines become headings, "- " lines list items. */
+    /**
+     * The changelog section as HTML: "## " lines (an unreleased version folded in) become version
+     * headings, "### " lines headings, "- " lines list items.
+     */
     static String whatsNewHtml(String section) {
         if (section.isEmpty())
             return "<p>No notes for this version. Help &gt; Open Change Log has the full history.</p>";
@@ -190,7 +193,9 @@ public final class WelcomeDialog {
                     inList = true;
                 }
                 html.append("<li>").append(escape(t.substring(2))).append("</li>");
-            } else if (t.startsWith("### "))
+            } else if (t.startsWith("## "))
+                html.append("<h3>").append(escape(t.substring(3))).append("</h3>");
+            else if (t.startsWith("### "))
                 html.append("<p><b>").append(escape(t.substring(4))).append("</b></p>");
             else if (!t.isEmpty())
                 html.append("<p>").append(escape(t)).append("</p>");

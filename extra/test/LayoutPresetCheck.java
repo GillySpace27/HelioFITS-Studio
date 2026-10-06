@@ -41,6 +41,10 @@ public final class LayoutPresetCheck {
         expect("nor a data server", !Settings.isLayoutKey("dataSources.defaultServer"));
         expect("nor the window's position, which belongs to one person's screens", !Settings.isLayoutKey("ui.windowBounds"));
         expect("nor whether the tour was offered", !Settings.isLayoutKey("ui.tourOffered"));
+        expect("nor a section named after one layer", !Settings.isLayoutKey("ui.section.LASCO_C2_Layer_Options")
+                && !Settings.isLayoutKey("ui.section.Loading..._Layer_Options"));
+        expect("nor one named after a selection", !Settings.isLayoutKey("ui.section.3_Layers_Selected"));
+        expect("but the generic Layer Options section is layout", Settings.isLayoutKey("ui.section.Layer_Options"));
 
         Properties preset = new Properties();
         try (InputStream in = Settings.class.getResourceAsStream(Settings.LAYOUT_PRESET)) {

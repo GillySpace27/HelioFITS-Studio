@@ -6,6 +6,7 @@ Usage: python3 extra/tools/layout_preset.py ~/HFStudio/Settings/user.properties
 Copies only the keys Settings.isLayoutKey accepts, verbatim, sorted. Never prints values.
 """
 import pathlib
+import re
 import sys
 
 EXACT = {"ui.rightSidebarOrder", "ui.sidebarWidth", "ui.rightSidebarWidth", "ui.sidebarCollapsed",
@@ -16,6 +17,10 @@ OUT = pathlib.Path(__file__).resolve().parents[2] / "resources/settings/layout-d
 
 
 def is_layout_key(key):
+    # As Settings.isLayoutKey: a section named after a layer follows the open data, not the layout.
+    if key.startswith("ui.section.") and key != "ui.section.Layer_Options" and (
+            key.endswith("_Layer_Options") or re.fullmatch(r"ui\.section\.\d+_Layers_Selected", key)):
+        return False
     return key in EXACT or key.startswith(PREFIXES)
 
 
