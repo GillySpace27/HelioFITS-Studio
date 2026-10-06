@@ -1,10 +1,14 @@
 package org.helioviewer.jhv.opengl;
 
+import java.awt.image.BufferedImage;
+import java.nio.ByteBuffer;
+
 import javax.annotation.Nullable;
 
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.display.Display;
+import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.layers.MiniviewLayer;
 
@@ -23,6 +27,12 @@ import org.helioviewer.jhv.layers.MiniviewLayer;
  * drawn into changes, and the screen's layout is put back after every frame, so mouse handling
  * between frames sees the window as it is. With "On screen" there is no Recording size to
  * follow and frames go straight to the canvas as before.
+ *
+ * <p>It also feeds the presenter window's live preview ({@link Sink}): a small copy of whatever
+ * the projector just got, read back on the GL thread right after the frame is drawn, at
+ * {@link #PREVIEW_HZ} at most and only while a preview is showing. The canvas is never reparented
+ * for this either (it would destroy the native Metal host and every GL object); the preview is a
+ * downscaled readback into a plain image.
  */
 public final class PresentationOutput {
 
@@ -43,7 +53,37 @@ public final class PresentationOutput {
     private boolean savedFitSuppressed;
     private boolean drawing;
 
+    /** Where the presenter window's preview takes its frames. Called on the GL thread. */
+    public interface Sink {
+        /** Whether a frame is wanted at all: false while the preview is not on screen. */
+        boolean wants();
+
+        /** A new frame; the image is the sink's to keep. */
+        void accept(BufferedImage frame);
+    }
+
+    /** Readbacks per second, at most: enough to see what the room sees, cheap enough to ignore. */
+    public static final int PREVIEW_HZ = 4;
+    /** The preview frame's long side in pixels; the window scales it to its own size. */
+    public static final int PREVIEW_LONG_SIDE = 480;
+
+    @Nullable private volatile Sink sink;
+    private final PreviewClock clock = new PreviewClock(1000 / PREVIEW_HZ);
+    @Nullable private javax.swing.Timer owedFrame;
+    private int previewFbo;
+    private int previewRbo;
+    private int previewWidth;
+    private int previewHeight;
+    @Nullable private ByteBuffer previewPixels;
+
     private PresentationOutput() {}
+
+    /** Set by PresentationMode while its presenter window shows a preview; null removes it. */
+    public void setSink(@Nullable Sink newSink) {
+        sink = newSink;
+        if (newSink != null)
+            DisplayController.display(); // the first frame now, not at the next change
+    }
 
     /** Set by PresentationMode on entering and leaving the mode. */
     public void setActive(boolean on) {
@@ -133,6 +173,7 @@ public final class PresentationOutput {
             return;
         }
         int source = t.resolve();
+        presentedSource = source;
         GL.glBindFramebuffer(GL.FRAMEBUFFER, 0);
         // The bars around the render area, in the clear colour display() chose.
         GL.glViewport(0, 0, Display.getCanvasWidth(), Display.getCanvasHeight());
@@ -145,6 +186,131 @@ public final class PresentationOutput {
                 area.x, area.yGL, area.x + area.width, area.yGL + area.height,
                 GL.COLOR_BUFFER_BIT, GL.LINEAR);
         GL.glBindFramebuffer(GL.FRAMEBUFFER, 0);
+    }
+
+    private int presentedSource; // the resolved target end() last scaled to the canvas
+
+    /**
+     * Read a small copy of the frame just drawn into the presenter window's preview, if one is
+     * showing and one is due. Runs on the GL thread at the end of display(), context current.
+     *
+     * @param offscreen whether this frame went through the Recording-size target; if not, the
+     *                  preview reads the canvas's render area instead
+     */
+    void preview(boolean offscreen) {
+        Sink s = sink;
+        if (s == null || !active) {
+            releasePreview();
+            return;
+        }
+        if (!s.wants())
+            return;
+        if (!clock.take(System.currentTimeMillis())) {
+            scheduleOwedFrame();
+            return;
+        }
+
+        int source, x, y, w, h;
+        if (offscreen && target != null) {
+            source = presentedSource;
+            x = 0;
+            y = 0;
+            w = targetWidth;
+            h = targetHeight;
+        } else {
+            var area = Display.fullViewport;
+            source = 0;
+            x = area.x;
+            y = area.yGL;
+            w = area.width;
+            h = area.height;
+        }
+        int[] size = PreviewClock.fit(w, h, PREVIEW_LONG_SIDE);
+        try {
+            ensurePreview(size[0], size[1]);
+            // Scale on the GPU first, so what crosses to the CPU is a few hundred kilobytes, and
+            // as 8-bit RGBA, the one readback format every implementation must offer.
+            GL.glBindFramebuffer(GL.READ_FRAMEBUFFER, source);
+            GL.glBindFramebuffer(GL.DRAW_FRAMEBUFFER, previewFbo);
+            GL.glBlitFramebuffer(x, y, x + w, y + h, 0, 0, previewWidth, previewHeight, GL.COLOR_BUFFER_BIT, GL.LINEAR);
+            GL.glBindFramebuffer(GL.READ_FRAMEBUFFER, previewFbo);
+            GL.glPixelStorei(GL.PACK_ALIGNMENT, 1);
+            ByteBuffer pixels = previewPixels;
+            pixels.clear();
+            GL.glReadPixels(0, 0, previewWidth, previewHeight, GL.RGBA, GL.UNSIGNED_BYTE, pixels);
+        } catch (RuntimeException e) {
+            Log.warn("Presenter preview unavailable", e);
+            releasePreview();
+            sink = null; // once: a preview that failed here would fail on every frame
+            return;
+        } finally {
+            GL.glBindFramebuffer(GL.FRAMEBUFFER, 0);
+        }
+        s.accept(toImage(previewPixels, previewWidth, previewHeight));
+    }
+
+    // GL rows run bottom up, image rows top down.
+    private static BufferedImage toImage(ByteBuffer rgba, int w, int h) {
+        BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+        int[] row = new int[w];
+        for (int y = 0; y < h; y++) {
+            int base = y * w * 4;
+            for (int x = 0; x < w; x++) {
+                int i = base + x * 4;
+                row[x] = (rgba.get(i) & 0xFF) << 16 | (rgba.get(i + 1) & 0xFF) << 8 | (rgba.get(i + 2) & 0xFF);
+            }
+            image.setRGB(0, h - 1 - y, w, 1, row, 0, w);
+        }
+        return image;
+    }
+
+    // A frame was skipped: ask for one more when the next readback is allowed, so the preview
+    // ends on the frame the projector ends on. One timer at a time; a frame drawn before it fires
+    // pays the debt itself and the timer then finds nothing owed.
+    private void scheduleOwedFrame() {
+        if (owedFrame != null && owedFrame.isRunning())
+            return;
+        long wait = clock.owedIn(System.currentTimeMillis());
+        if (wait < 0)
+            return;
+        owedFrame = new javax.swing.Timer((int) Math.min(Integer.MAX_VALUE, wait + 1), e -> {
+            if (sink != null && clock.owedIn(System.currentTimeMillis()) >= 0)
+                DisplayController.display();
+        });
+        owedFrame.setRepeats(false);
+        owedFrame.start();
+    }
+
+    private void ensurePreview(int width, int height) {
+        if (previewFbo != 0 && width == previewWidth && height == previewHeight)
+            return;
+        releasePreview();
+        previewFbo = GL.glGenFramebuffer();
+        GL.glBindFramebuffer(GL.FRAMEBUFFER, previewFbo);
+        previewRbo = GL.glGenRenderbuffer();
+        GL.glBindRenderbuffer(GL.RENDERBUFFER, previewRbo);
+        GL.glRenderbufferStorage(GL.RENDERBUFFER, GL.RGBA8, width, height);
+        GL.glFramebufferRenderbuffer(GL.FRAMEBUFFER, GL.COLOR_ATTACHMENT0, GL.RENDERBUFFER, previewRbo);
+        GL.glBindRenderbuffer(GL.RENDERBUFFER, 0);
+        int status = GL.glCheckFramebufferStatus(GL.FRAMEBUFFER);
+        GL.glBindFramebuffer(GL.FRAMEBUFFER, 0);
+        if (status != GL.FRAMEBUFFER_COMPLETE) {
+            releasePreview();
+            throw new GLException("Presenter preview framebuffer incomplete: 0x" + Integer.toHexString(status));
+        }
+        previewWidth = width;
+        previewHeight = height;
+        previewPixels = ByteBuffer.allocateDirect(width * height * 4);
+    }
+
+    private void releasePreview() {
+        if (previewRbo != 0)
+            GL.glDeleteRenderbuffer(previewRbo);
+        if (previewFbo != 0)
+            GL.glDeleteFramebuffer(previewFbo);
+        previewFbo = previewRbo = 0;
+        previewWidth = previewHeight = 0;
+        previewPixels = null;
     }
 
     private boolean ensureTarget(int width, int height) {
