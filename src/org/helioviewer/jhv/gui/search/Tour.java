@@ -108,6 +108,11 @@ public final class Tour {
      * Offer the tour once, on the first launch that could use it: a window started with no
      * arguments (a script or a check passes some), not an extra window, not on CI.
      */
+    /** Never offer the tour unprompted again; the Welcome window, which has its button, calls this. */
+    public static void markOffered() {
+        Settings.setProperty(OFFERED_KEY, "true");
+    }
+
     public static void offerOnce(boolean bareLaunch) {
         if (!bareLaunch || GraphicsEnvironment.isHeadless() || Session.isExtraWindow() || System.getenv("CI") != null
                 || Settings.getProperty(OFFERED_KEY) != null)
