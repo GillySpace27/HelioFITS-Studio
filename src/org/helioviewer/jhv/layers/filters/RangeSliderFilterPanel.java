@@ -11,6 +11,7 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 
+import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.component.JHVRangeSlider;
 import org.helioviewer.jhv.image.ImageBuffer;
@@ -150,11 +151,11 @@ public final class RangeSliderFilterPanel {
                 b = Double.parseDouble(black.getText().trim());
                 wh = Double.parseDouble(white.getText().trim());
             } catch (NumberFormatException e) {
-                JOptionPane.showMessageDialog(label, "Black and white must be numbers, such as 1.5e-12.", "Levels in data units", JOptionPane.WARNING_MESSAGE);
+                Message.warn("Levels in data units", "Black and white must be numbers, such as 1.5e-12.");
                 return;
             }
             if (!(wh > b)) {
-                JOptionPane.showMessageDialog(label, "Black must be below white.", "Levels in data units", JOptionPane.WARNING_MESSAGE);
+                Message.warn("Levels in data units", "Black must be below white.");
                 return;
             }
             Layers.applyToSelectedLayers(layer, il -> {

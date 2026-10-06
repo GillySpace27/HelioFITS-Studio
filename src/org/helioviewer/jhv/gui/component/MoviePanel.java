@@ -29,6 +29,7 @@ import javax.swing.JToggleButton;
 import javax.swing.JToolBar;
 import javax.swing.SpinnerNumberModel;
 
+import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.gui.Actions;
@@ -501,7 +502,7 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
             return;
         name = name.strip();
         if (name.isEmpty() || ExportPreset.CUSTOM.equals(name)) {
-            JOptionPane.showMessageDialog(this, "That name is reserved.", "Preset", JOptionPane.WARNING_MESSAGE);
+            Message.warn("Preset", "That name is reserved.");
             return;
         }
         String note = JOptionPane.showInputDialog(this,
@@ -787,7 +788,7 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         long end = getEndTime();
         if (start > end) {
             setTime(end, end);
-            JOptionPane.showMessageDialog(null, "End date is before start date", "Error", JOptionPane.ERROR_MESSAGE);
+            Message.err("Error", "End date is before start date"); // with Report this...
             return false;
         }
         return true;
