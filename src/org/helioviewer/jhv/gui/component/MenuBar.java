@@ -412,6 +412,7 @@ public final class MenuBar extends JMenuBar {
         JMenu helpMenu = new JMenu("Help");
         helpMenu.setMnemonic(KeyEvent.VK_H);
         helpMenu.setName("helpMenu"); // tour target
+        catalogItem(helpMenu, "searchControls");
         catalogItem(helpMenu, "takeTour");
         helpMenu.add(new Actions.ShowDialog("Interaction Guide...", new TextDialog("Interaction Guide", interactionHelp(), true)));
         helpMenu.add(new Actions.ShowDialog("Timeline Interaction...", new TextDialog("Timeline Interaction", timelineHelp(), true)));
