@@ -5,12 +5,9 @@ import nom.tam.fits.Header;
 /**
  * A LASCO frame with its monthly background removed must not keep the CCD bias.
  *
- * <p>PENDING (HS-6 Task 3 is gated on Gilly's yes). This check is red on purpose until
- * FITSImage.subtractPerSecond reads OFFSET from the header. It lives here as .java.pending so
- * that CI, which compiles extra/test/*.java and runs every *Check, stays honest and green. To
- * activate it after the science-mode check of OFFSET: apply the one-line change in
- * subtractPerSecond (offset = header.getDoubleValue("OFFSET", 0)), then
- * git mv extra/test/pending/LascoBackgroundSubtractionCheck.java.pending extra/test/LascoBackgroundSubtractionCheck.java
+ * <p>Parked in extra/test/pending/ while HS-6 Task 3 waited on Gilly's yes (given 2026-10-06);
+ * active since FITSImage.subtractPerSecond reads OFFSET from the header. It was red on the
+ * commit before that change (three FAIL lines, the C2 occulter at 29.6016).
  *
  * <p>Level 0.5 frames carry the bias as OFFSET (DN); the NRL monthly backgrounds do not
  * (OFFSET = 0), so subtracting one from the other leaves OFFSET / EXPTIME in every pixel. On the
