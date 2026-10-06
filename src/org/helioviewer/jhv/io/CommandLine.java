@@ -47,8 +47,8 @@ public class CommandLine {
      *
      * <p>A spawned window restores only its assigned session file (empty if brand-new); the pinned
      * default is a primary-window concept. "true" and "false" are the Settings checkbox's values,
-     * not paths, and fall through to the autosave. {@code mode} is startup.mode, which HS-10 gives
-     * a meaning; until then it is ignored and BLANK is never returned.
+     * not paths, and fall through to the autosave. {@code mode} is startup.mode: "blank" (HS-10)
+     * replaces the autosave rung with the fresh-install scene; anything else keeps the autosave.
      */
     public static StartupState resolveStartup(boolean extraWindow, @Nullable java.io.File restore,
                                               @Nullable String loadState, @Nullable String mode) {
@@ -57,16 +57,23 @@ public class CommandLine {
                     : new StartupState(StartupState.Source.EXTRA_WINDOW, restore.toURI());
         if (loadState != null && !"false".equals(loadState) && !"true".equals(loadState))
             return new StartupState(StartupState.Source.PINNED, Path.of(loadState).toUri());
+        if (BLANK_MODE.equals(mode))
+            return new StartupState(StartupState.Source.BLANK, null);
         if (restore != null)
             return new StartupState(StartupState.Source.AUTOSAVE, restore.toURI());
         return new StartupState(StartupState.Source.NONE, null);
     }
+
+    /** The startup.mode value for starting on the fresh-install scene (Settings, Startup). */
+    public static final String BLANK_MODE = "blank";
 
     public static void setArguments(String[] args) {
         arguments = args;
         StartupState start = resolveStartup(org.helioviewer.jhv.app.Session.isExtraWindow(),
                 org.helioviewer.jhv.app.Session.restoreCandidate(),
                 Settings.getProperty("startup.loadState"), Settings.getProperty("startup.mode"));
+        if (start.source() == StartupState.Source.BLANK && !Arrays.asList(args).contains("-state"))
+            org.helioviewer.jhv.app.Session.startBlank(); // keeps the session it would have reopened
         URI stateArg = start.uri();
         if (stateArg != null) {
             org.helioviewer.jhv.app.Session.expectStateLoad(); // hold the automatic saves until it lands
