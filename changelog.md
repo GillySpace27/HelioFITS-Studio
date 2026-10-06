@@ -21,6 +21,7 @@
 - With a second display, the main window stays on your screen exactly as it is, every control working, and the projector shows a full-screen mirror of its picture. The mirror is read back every frame the projector can paint, at the projector's resolution at most. This replaces the separate presenter window and its small preview
 
 ### Smaller fixes
+- Left and Right step one frame back and forward when the picture has focus, as they already did on the time slider
 - Double-clicking a layer slider (Opacity, Blend, Sharpen, Enhance, Upsilon, the alignment offsets) or the Projection palette's Warp, Disk and Field returns it to its default, the same value the section's revert uses, not to whatever it was when the panel was built
 - The last five error and warning dialogs that lacked it (preset name, movie and layer date ranges, Levels in data units) now offer Report this...
 - LASCO sessions record whether reading the headers for pointing finished, so a finished check is not repeated on every reopen and a failed one is tried again. Sessions saved before this with an empty pointing table check once
