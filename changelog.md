@@ -1,6 +1,27 @@
 
 # Revision history
 
+## HelioFITS Studio 0.8.5 (unreleased)
+
+### Starting
+- A Welcome window opens on launch with the version, What's New for this version (read from the app itself, no network needed), and four ways to start: Continue, Start Blank, Open Session and Take the Tour. Help > Welcome to HelioFITS Studio reopens it, and a checkbox stops it opening at startup
+- Startup can start blank instead of reopening the last session (in the Welcome window, or Settings under the startup state). A default session set from the File menu still opens first. A blank start keeps the last untitled session as "Untitled before blank start <date>" at the top of Open Recent
+- Start New Session puts back the scene a fresh install opens with: the projection, the camera mode and the grid, viewpoint and timestamp settings reset too, not only the layer list
+- An empty canvas says what to do: drop a FITS or JPEG 2000 file on it, or choose New Layer. The hint never appears in a recording or an export
+
+### Finding things
+- Help > Search Controls (Cmd-K, Ctrl-K elsewhere) finds any menu command or named control by its name or words from its tooltip. Enter runs the command, or opens the control's section or palette and points at it with the tour's spotlight
+- File > Open Exports Folder, and a Show in Finder (Show in Folder elsewhere) button on the movie-ready and file-ready dialogs
+
+### Presentation mode
+- Presentation mode draws at the Recording pixel size and scales it to the projector, so the picture on the dome matches a recording
+- The presenter window shows a small live preview of what the projector shows, up to 4 times a second
+
+### Smaller fixes
+- Double-clicking a layer slider (Opacity, Blend, Sharpen, Enhance, Upsilon, the alignment offsets) or the Projection palette's Warp, Disk and Field returns it to its default, the same value the section's revert uses, not to whatever it was when the panel was built
+- The last five error and warning dialogs that lacked it (preset name, movie and layer date ranges, Levels in data units) now offer Report this...
+- LASCO sessions record whether reading the headers for pointing finished, so a finished check is not repeated on every reopen and a failed one is tried again. Sessions saved before this with an empty pointing table check once
+
 ## HelioFITS Studio 0.8.4 (unreleased)
 
 ### Playback
