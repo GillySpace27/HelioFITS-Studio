@@ -47,6 +47,19 @@ public final class WelcomeChangelogCheck {
                 "- three".equals(three));
         expect("an unknown version gives an empty section", AppInfo.whatsNew(fixture, "9.9.9").isEmpty());
 
+        String chain = """
+                ## HelioFITS Studio 0.8.5 (unreleased)
+                - five
+                ## HelioFITS Studio 0.8.4 (unreleased)
+                - four
+                ## HelioFITS Studio 0.8.3 (pre-release, 2026-09-23)
+                - three
+                """;
+        String five = AppInfo.whatsNew(chain, "0.8.5");
+        expect("a version never released on its own is folded into the next one's notes: [" + five + "]",
+                five.contains("- five") && five.contains("## HelioFITS Studio 0.8.4 (unreleased)") && five.contains("- four"));
+        expect("and the folding stops at the last version that shipped", !five.contains("three"));
+
         String real = Files.readString(Path.of("changelog.md"));
         String newest = null;
         for (String line : real.split("\n")) {

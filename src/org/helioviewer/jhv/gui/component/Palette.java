@@ -185,8 +185,8 @@ public final class Palette {
         String oldKey = "ui.palette." + from.replace(' ', '_');
         String newKey = "ui.palette." + to.replace(' ', '_');
         for (String suffix : new String[]{"", ".shown", ".sidebar", ".size"})
-            if (Settings.getProperty(newKey + suffix) != null)
-                return; // already carried over, or set since
+            if (Settings.isSet(newKey + suffix))
+                return; // already carried over, or set since (a default from the layout preset is neither)
         for (String suffix : new String[]{"", ".shown", ".sidebar", ".size"})
             copyStored(oldKey + suffix, newKey + suffix);
         for (String prefix : new String[]{"ui.section.rightSidebar.", "ui.section."}) // RightSidebar's prefKey, and the left's plain title
