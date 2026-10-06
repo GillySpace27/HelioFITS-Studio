@@ -216,6 +216,30 @@ public final class Session {
         updateLive(true);
     }
 
+    /**
+     * A blank start (startup.mode "blank", HS-10): this window begins Untitled instead of reopening
+     * its session. The untitled autosave is copied aside first, because the blank session will
+     * autosave over that file, and the copy goes to the top of Open Recent. A named session file
+     * is left alone and stays remembered; only this run writes elsewhere. Runs before init(), from
+     * CommandLine.setArguments, so it touches no window.
+     */
+    public static void startBlank() {
+        ensureSessionFile();
+        File untitled = new File(Directories.STATES.getPath(), MAIN_FILE);
+        if (!named && untitled.isFile() && untitled.length() > 0) {
+            String stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HHmmss"));
+            File kept = new File(untitled.getParentFile(), "Untitled before blank start " + stamp + ".jhv");
+            try {
+                Files.copy(untitled.toPath(), kept.toPath());
+                addRecent(kept);
+            } catch (IOException e) {
+                Log.warn("Could not keep the last session before a blank start", e);
+            }
+        }
+        sessionFile = untitled;
+        named = false;
+    }
+
     // ---- recent sessions (Open Recent menu) --------------------------------------------------
 
     private static final int MAX_RECENTS = 8;
