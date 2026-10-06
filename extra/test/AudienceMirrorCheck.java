@@ -25,7 +25,7 @@ public final class AudienceMirrorCheck {
             failures++;
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         int[] same = PresentationOutput.mirrorSize(1920, 1080, 1920, 1080);
         expect("a 1920x1080 frame on a 1920x1080 projector is read back whole: " + same[0] + "x" + same[1],
                 same[0] == 1920 && same[1] == 1080);
@@ -73,6 +73,32 @@ public final class AudienceMirrorCheck {
         BufferedImage resized = handoff.claim(8, 6);
         expect("a new projector size gets a new image of that size",
                 resized != null && resized.getWidth() == 8 && resized != handoff.shown());
+
+        // The mirror is an 8-bit SDR copy: a frame pushed into the laptop's EDR headroom reached the
+        // projector clipped at white (Gilly, 2026-10-06). So no HDR gain while mirroring.
+        // Display's class initialisation reaches SPICE; same bootstrap as AnimateMenuCheck.
+        System.setProperty("user.home", java.nio.file.Files.createTempDirectory("hfs-mirror").toString());
+        org.helioviewer.jhv.app.Platform.init();
+        org.helioviewer.jhv.io.Directories.createCacheDirs();
+        org.helioviewer.jhv.app.AppInit.loadSpice();
+        org.helioviewer.jhv.display.Display.edrCanvas = true;
+        org.helioviewer.jhv.display.Display.edrHeadroom = 4;
+        float before = org.helioviewer.jhv.display.HdrGain.current(false);
+        PresentationOutput.OUTPUT.setActive(true);
+        PresentationOutput.OUTPUT.setSink(new PresentationOutput.Sink() {
+            public boolean wants() { return false; }
+            public int[] pixels() { return new int[]{1, 1}; }
+            public FrameHandoff frames() { return new FrameHandoff(); }
+            public void framePublished() {}
+        });
+        expect("presenting to a projector is mirroring", PresentationOutput.OUTPUT.mirroring());
+        float during = org.helioviewer.jhv.display.HdrGain.current(false);
+        PresentationOutput.OUTPUT.setSink(null);
+        float after = org.helioviewer.jhv.display.HdrGain.current(false);
+        PresentationOutput.OUTPUT.setActive(false);
+        expect("with EDR headroom 4 the gain is above 1 normally: " + before, before > 1);
+        expect("but 1 while mirroring: " + during, during == 1);
+        expect("and back when the mirror goes: " + after, after == before);
 
         if (failures > 0) {
             System.out.println("AudienceMirrorCheck: " + failures + " failed");
