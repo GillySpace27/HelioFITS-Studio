@@ -1,7 +1,7 @@
 
 # Revision history
 
-## HelioFITS Studio 0.8.4 (unreleased)
+## HelioFITS Studio 0.8.4 (checkpoint, 2026-10-06)
 
 ### Playback
 - A movie plays without the mouse over the picture. One layer slower to decode than a movie frame used to hold the whole picture still until something else asked for a redraw, which in practice meant moving the mouse
