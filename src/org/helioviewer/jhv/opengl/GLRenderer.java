@@ -157,6 +157,7 @@ public final class GLRenderer {
             if (offscreen)
                 PresentationOutput.OUTPUT.end();
         }
+        PresentationOutput.OUTPUT.preview(offscreen);
 
         ExportMovie.renderedFrame();
     }

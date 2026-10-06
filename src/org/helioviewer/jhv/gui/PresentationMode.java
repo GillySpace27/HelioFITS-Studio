@@ -172,6 +172,7 @@ public final class PresentationMode {
             }
             fullScreenOn = null;
         }
+        org.helioviewer.jhv.opengl.PresentationOutput.OUTPUT.setSink(null);
         if (presenterWindow != null) {
             returnChrome();
             presenterWindow.dispose(); // a plain JFrame of lightweight panels: no GL to lose
@@ -319,6 +320,10 @@ public final class PresentationMode {
         JPanel top = new JPanel();
         top.setLayout(new BoxLayout(top, BoxLayout.PAGE_AXIS));
 
+        // The projector's picture, small, above the controls: the presenter faces this screen.
+        PresenterPreview preview = new PresenterPreview();
+        top.add(preview);
+
         java.util.List<Component> fillers = new java.util.ArrayList<>();
         for (MainFrame.ChromeSlot slot : MainFrame.chromeForPresenterView()) {
             Component c = slot.panel();
@@ -368,6 +373,7 @@ public final class PresentationMode {
                 Math.min(width, bounds.width - 80), bounds.height - 120);
         installEscape(window.getRootPane());
         window.setVisible(true);
+        org.helioviewer.jhv.opengl.PresentationOutput.OUTPUT.setSink(preview);
         return window;
     }
 
