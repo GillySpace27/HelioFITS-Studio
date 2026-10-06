@@ -132,7 +132,9 @@ public final class FITSImage {
      */
     static float[] subtractPerSecond(Header header, Object pixels, int count, boolean hasBlank, long blank,
                                      double bzero, double bscale, double exposure, float[] background) {
-        double offset = 0; // the CCD bias is not removed yet: HS-6 Task 3 is gated on Gilly's yes (science-mode check of OFFSET)
+        // The CCD bias, in DN, as the header records it. The monthly backgrounds carry none, so without
+        // this every subtracted frame kept OFFSET / EXPTIME as a pedestal (LascoBackgroundSubtractionCheck).
+        double offset = header.getDoubleValue("OFFSET", 0);
         float[] out = new float[count];
         for (int i = 0; i < count; i++) {
             double raw = rawAt(pixels, i);
