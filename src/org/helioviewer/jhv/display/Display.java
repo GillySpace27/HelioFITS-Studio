@@ -296,6 +296,30 @@ public final class Display {
         fullViewport = DisplayLayout.fullViewport(originX, originY, rw, rh, canvasHeight);
     }
 
+    /**
+     * Everything setGLSize and reshapeAll change, taken whole so a pass drawn at another size
+     * (presentation mode's Recording-size output) can put the screen's layout back exactly,
+     * including which viewport is active, which a second reshapeAll would reset.
+     */
+    public record Layout(int canvasWidth, int canvasHeight, int glWidth, int glHeight, int originX, int originY,
+                         Viewport fullViewport, Viewport[] viewports, int activeViewport) {}
+
+    public static Layout saveLayout() {
+        return new Layout(canvasWidth, canvasHeight, glWidth, glHeight, originX, originY, fullViewport, viewports, activeViewport);
+    }
+
+    public static void restoreLayout(Layout l) {
+        canvasWidth = l.canvasWidth();
+        canvasHeight = l.canvasHeight();
+        glWidth = l.glWidth();
+        glHeight = l.glHeight();
+        originX = l.originX();
+        originY = l.originY();
+        fullViewport = l.fullViewport();
+        viewports = l.viewports();
+        activeViewport = l.activeViewport();
+    }
+
     private static final Camera camera = new Camera();
     private static final Camera miniCamera = new Camera();
 

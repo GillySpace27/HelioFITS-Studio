@@ -148,6 +148,20 @@ public final class GLRenderer {
             GL.glClearColor(1, 1, 1, 0);
         else
             GL.glClearColor(0, 0, 0, 0);
+        // Presenting with a fixed Recording aspect draws the frame at the Recording size and
+        // scales it to the projector (PresentationOutput); otherwise this is a no-op.
+        boolean offscreen = PresentationOutput.OUTPUT.begin();
+        try {
+            displayScene(viewpoint);
+        } finally {
+            if (offscreen)
+                PresentationOutput.OUTPUT.end();
+        }
+
+        ExportMovie.renderedFrame();
+    }
+
+    private static void displayScene(Position viewpoint) {
         GL.glClear(GL.COLOR_BUFFER_BIT | GL.DEPTH_BUFFER_BIT);
 
         Layers.prerender();
@@ -156,7 +170,7 @@ public final class GLRenderer {
         // (warp lambda, warp crop, disk scale) are read inside that call and by the warp mesh in
         // the same call: applied after it they would be one frame stale. And here rather than on
         // a Player time listener because a frame is also drawn when nothing about time changed,
-        // and because ExportMovie.renderedFrame() grabs from the bottom of this same method,
+        // and because ExportMovie.renderedFrame() grabs right after this method returns (display()),
         // so the pixels encoded are the pixels one evaluation produced. See Automation.
         Automation.apply(Player.getTime().milli);
 
@@ -176,8 +190,6 @@ public final class GLRenderer {
         renderFullFloatScene();
         if (ProjectionTransition.isActive())
             RenderGuard.run("projection transition", GLRenderer::renderTransitionOverlay);
-
-        ExportMovie.renderedFrame();
     }
 
     // Snapshot of the scene a projection switch is fading out of, captured once when the
@@ -209,7 +221,7 @@ public final class GLRenderer {
         GL.glClearColor(0, 0, 0, 0);
         GL.glClear(GL.COLOR_BUFFER_BIT | GL.DEPTH_BUFFER_BIT);
         renderScene(screenView);
-        GL.glBindFramebuffer(GL.FRAMEBUFFER, 0);
+        GL.glBindFramebuffer(GL.FRAMEBUFFER, PresentationOutput.OUTPUT.framebuffer());
     }
 
     private static void ensureTransitionCapture(int w, int h) {
@@ -236,7 +248,7 @@ public final class GLRenderer {
 
         GL.glBindTexture(GL.TEXTURE_2D, 0);
         GL.glBindRenderbuffer(GL.RENDERBUFFER, 0);
-        GL.glBindFramebuffer(GL.FRAMEBUFFER, 0);
+        GL.glBindFramebuffer(GL.FRAMEBUFFER, PresentationOutput.OUTPUT.framebuffer());
 
         transitionW = w;
         transitionH = h;
