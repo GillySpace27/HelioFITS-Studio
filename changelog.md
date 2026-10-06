@@ -11,6 +11,9 @@
 
 ### Finding things
 - Help > Search Controls (Cmd-K, Ctrl-K elsewhere) finds any menu command or named control by its name or words from its tooltip. Enter runs the command, or opens the control's section or palette and points at it with the tour's spotlight
+- Dropping a folder on the window opens the image files directly inside it as one layer, as choosing them all in File > Open does (it asks first above 200 files)
+- A dropped file that cannot be opened is named in a message that says what can be dropped; before, nothing visible happened
+- File > Open and dropping accept the same files, now including .fit, .fz and gzipped .fts and .fit. A drop now also takes .zip, as File > Open already did
 - File > Open Exports Folder, and a Show in Finder (Show in Folder elsewhere) button on the movie-ready and file-ready dialogs
 
 ### Presentation mode
