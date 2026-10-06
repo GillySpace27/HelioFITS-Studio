@@ -14,53 +14,62 @@ import org.helioviewer.jhv.layers.Layers;
 
 public final class SliderFilterPanel {
 
+    // The nominal defaults, the same object the Layer Options section reverts read: a double-click
+    // on a row goes where its section's revert would put it, not to the value the row was built with.
+    private static final ImageDisplaySettings DEFAULTS = new ImageDisplaySettings();
+
     private SliderFilterPanel() {
+    }
+
+    private static FilterDetails nominal(FilterDetails row, int value) {
+        ((JHVSlider) row.getSecond()).nominal(value);
+        return row;
     }
 
     public static FilterDetails blend(ImageLayer layer) {
         ImageDisplaySettings settings = layer.getDisplaySettings();
-        return create("Blend ", 0, 100, (int) (settings.getBlend() * 100),
+        return nominal(create("Blend ", 0, 100, (int) (settings.getBlend() * 100),
                 SliderFilterPanel::formatPercent,
                 value -> Layers.applyToSelected(layer, s -> s.setBlend(value / 100.)),
-                "layer:" + layer.getId() + "/blend");
+                "layer:" + layer.getId() + "/blend"), (int) (DEFAULTS.getBlend() * 100));
     }
 
     public static FilterDetails deltaCROTA(ImageLayer layer) {
         ImageDisplaySettings settings = layer.getDisplaySettings();
-        return create("δCROTA", ImageDisplaySettings.MIN_DCROTA * 10, ImageDisplaySettings.MAX_DCROTA * 10,
+        return nominal(create("δCROTA", ImageDisplaySettings.MIN_DCROTA * 10, ImageDisplaySettings.MAX_DCROTA * 10,
                 (int) (settings.getDeltaCROTA() * 10),
                 value -> formatDegree(value / 10.0),
-                value -> Layers.applyToSelected(layer, s -> s.setDeltaCROTA(value / 10.0)));
+                value -> Layers.applyToSelected(layer, s -> s.setDeltaCROTA(value / 10.0))), 0);
     }
 
     public static FilterDetails deltaCRVAL1(ImageLayer layer) {
         ImageDisplaySettings settings = layer.getDisplaySettings();
-        return create("δCRVAL1", ImageDisplaySettings.MIN_DCRVAL, ImageDisplaySettings.MAX_DCRVAL,
+        return nominal(create("δCRVAL1", ImageDisplaySettings.MIN_DCRVAL, ImageDisplaySettings.MAX_DCRVAL,
                 settings.getDeltaCRVAL1(), SliderFilterPanel::formatArcsec,
-                value -> Layers.applyToSelected(layer, s -> s.setDeltaCRVAL1(value)));
+                value -> Layers.applyToSelected(layer, s -> s.setDeltaCRVAL1(value))), 0);
     }
 
     public static FilterDetails deltaCRVAL2(ImageLayer layer) {
         ImageDisplaySettings settings = layer.getDisplaySettings();
-        return create("δCRVAL2", ImageDisplaySettings.MIN_DCRVAL, ImageDisplaySettings.MAX_DCRVAL,
+        return nominal(create("δCRVAL2", ImageDisplaySettings.MIN_DCRVAL, ImageDisplaySettings.MAX_DCRVAL,
                 settings.getDeltaCRVAL2(), SliderFilterPanel::formatArcsec,
-                value -> Layers.applyToSelected(layer, s -> s.setDeltaCRVAL2(value)));
+                value -> Layers.applyToSelected(layer, s -> s.setDeltaCRVAL2(value))), 0);
     }
 
     public static FilterDetails opacity(ImageLayer layer) {
         ImageDisplaySettings settings = layer.getDisplaySettings();
-        return create("Opacity ", 0, 100, (int) (settings.getOpacity() * 100),
+        return nominal(create("Opacity ", 0, 100, (int) (settings.getOpacity() * 100),
                 SliderFilterPanel::formatPercent,
                 value -> Layers.applyToSelected(layer, s -> s.setOpacity(value / 100.)),
-                "layer:" + layer.getId() + "/opacity");
+                "layer:" + layer.getId() + "/opacity"), (int) (DEFAULTS.getOpacity() * 100));
     }
 
     public static FilterDetails sharpen(ImageLayer layer) {
         ImageDisplaySettings settings = layer.getDisplaySettings();
-        return create("Sharpen ", -100, 100, (int) (settings.getSharpen() * 100),
+        return nominal(create("Sharpen ", -100, 100, (int) (settings.getSharpen() * 100),
                 SliderFilterPanel::formatPercent,
                 value -> Layers.applyToSelected(layer, s -> s.setSharpen(value / 100.)),
-                "layer:" + layer.getId() + "/sharpen");
+                "layer:" + layer.getId() + "/sharpen"), (int) (DEFAULTS.getSharpen() * 100));
     }
 
     private static String formatDegree(double value) {

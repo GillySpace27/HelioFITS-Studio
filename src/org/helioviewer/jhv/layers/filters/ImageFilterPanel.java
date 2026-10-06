@@ -19,6 +19,9 @@ import org.helioviewer.jhv.layers.Layers;
 
 public final class ImageFilterPanel implements FilterDetails {
 
+    // The nominal defaults the Intensity revert uses; the sliders' double-click goes there too.
+    private static final ImageDisplaySettings DEFAULTS = new ImageDisplaySettings();
+
     private final JPanel filterPanel = new JPanel(new BorderLayout());
     private final JPanel buttonPanel = new JPanel(new BorderLayout());
     private final JLabel title = new JLabel("Filter ", JLabel.RIGHT);
@@ -65,7 +68,7 @@ public final class ImageFilterPanel implements FilterDetails {
 
     private static JPanel createEnhancePanel(ImageLayer layer) {
         ImageDisplaySettings settings = layer.getDisplaySettings();
-        JHVSlider slider = new JHVSlider(0, 30, (int) (settings.getEnhanced() * 10)).animates("layer:" + layer.getId() + "/enhanced");
+        JHVSlider slider = new JHVSlider(0, 30, (int) (settings.getEnhanced() * 10)).nominal((int) (DEFAULTS.getEnhanced() * 10)).animates("layer:" + layer.getId() + "/enhanced");
         JLabel label = new JLabel(formatLabel(slider.getValue() / 10.), JLabel.RIGHT);
         slider.readout(label);
         label.setToolTipText("<html><body>pixel⋅R<sup>v");
@@ -93,7 +96,8 @@ public final class ImageFilterPanel implements FilterDetails {
         enhanceButton.setAlwaysDropdown(true);
         enhanceButton.addItem(enhancePanel);
 
-        JHVSlider upsilonLowSlider = new JHVSlider(5, 100, (int) (settings.getUpsilonLow() * 100)).animates("layer:" + layer.getId() + "/upsilonLow");
+        JHVSlider upsilonLowSlider = new JHVSlider(5, 100, (int) (settings.getUpsilonLow() * 100))
+                .nominal((int) Math.round(DEFAULTS.getUpsilonLow() * 100)).animates("layer:" + layer.getId() + "/upsilonLow");
         JLabel upsilonLowLabel = new JLabel(formatUpsilon(upsilonLowSlider.getValue() / 100.), JLabel.RIGHT);
         upsilonLowSlider.readout(upsilonLowLabel);
         upsilonLowSlider.addChangeListener(e -> {
@@ -103,7 +107,8 @@ public final class ImageFilterPanel implements FilterDetails {
             upsilonLowLabel.setText(formatUpsilon(value));
             DisplayController.display();
         });
-        JHVSlider upsilonHighSlider = new JHVSlider(5, 100, (int) (settings.getUpsilonHigh() * 100)).animates("layer:" + layer.getId() + "/upsilonHigh");
+        JHVSlider upsilonHighSlider = new JHVSlider(5, 100, (int) (settings.getUpsilonHigh() * 100))
+                .nominal((int) Math.round(DEFAULTS.getUpsilonHigh() * 100)).animates("layer:" + layer.getId() + "/upsilonHigh");
         JLabel upsilonHighLabel = new JLabel(formatUpsilon(upsilonHighSlider.getValue() / 100.), JLabel.RIGHT);
         upsilonHighSlider.readout(upsilonHighLabel);
         upsilonHighSlider.addChangeListener(e -> {
