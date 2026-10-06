@@ -131,6 +131,14 @@ public final class ActionCatalog {
         put("undo", org.helioviewer.jhv.app.SceneUndo.undoAction(), "Edit/Undo", "Undo the last change to the scene");
         put("redo", org.helioviewer.jhv.app.SceneUndo.redoAction(), "Edit/Redo", "Redo the last undone change to the scene");
         put("openExportsFolder", ExportsFolder.action(), "File/Open Exports Folder", "Show the folder movies, screenshots and metadata are exported to");
+        // Help search (HS-15): the menu item, and the Projection palette's reveal for the controls in it
+        put(org.helioviewer.jhv.gui.search.CommandPalette.ID, org.helioviewer.jhv.gui.search.CommandPalette.action(), "Help/Search Controls...", "Find any command or control by name and run it or show where it is");
+        put("showProjection", new AbstractAction("Show Projection") {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                org.helioviewer.jhv.gui.component.Palette.open("Projection"); // opens, never toggles closed
+            }
+        }, "", "Open the Projection palette, wherever it is docked");
     }
 
     /**

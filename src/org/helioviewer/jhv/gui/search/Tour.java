@@ -94,6 +94,15 @@ public final class Tour {
             Log.warn("Tour " + id + " could not be read", e);
             return;
         }
+        start(steps);
+    }
+
+    /** Help search: reveal one control (run {@code reveal}, a catalog id, first) and spotlight it, as a one-step tour. */
+    static void point(String target, @Nullable String reveal, String title, String body) {
+        start(List.of(new Step(target, title, body, reveal)));
+    }
+
+    private static void start(List<Step> steps) {
         if (steps.isEmpty() || MainFrame.get() == null)
             return;
         Tour old = running.getAndSet(null);
@@ -183,10 +192,11 @@ public final class Tour {
         boolean last = i == steps.size() - 1;
         JButton back = button("Back", () -> go(index - 1));
         back.setEnabled(i > 0);
+        back.setVisible(steps.size() > 1); // a single spotlight (Help search) has nowhere to go back to
         JButton next = button(last ? "Done" : "Next", () -> go(index + 1));
         JButton skip = button("Skip", this::end);
         skip.setVisible(!last);
-        spotlight.show(target, card(step.title(), step.body(), (i + 1) + " of " + steps.size(), skip, back, next), next);
+        spotlight.show(target, card(step.title(), step.body(), steps.size() == 1 ? "" : (i + 1) + " of " + steps.size(), skip, back, next), next);
     }
 
     private void end() {
