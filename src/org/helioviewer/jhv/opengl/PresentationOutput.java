@@ -28,11 +28,13 @@ import org.helioviewer.jhv.layers.MiniviewLayer;
  * between frames sees the window as it is. With "On screen" there is no Recording size to
  * follow and frames go straight to the canvas as before.
  *
- * <p>It also feeds the presenter window's live preview ({@link Sink}): a small copy of whatever
- * the projector just got, read back on the GL thread right after the frame is drawn, at
- * {@link #PREVIEW_HZ} at most and only while a preview is showing. The canvas is never reparented
- * for this either (it would destroy the native Metal host and every GL object); the preview is a
- * downscaled readback into a plain image.
+ * <p>With two screens it also feeds the audience window ({@link Sink}): the canvas stays in the
+ * main window on the presenter's screen, where every control works as usual, and each frame is
+ * read back on the GL thread right after it is drawn and shown full screen on the projector,
+ * scaled on the GPU to the projector's pixels at most (Gilly, 2026-10-06). One frame is in flight
+ * at a time ({@link FrameHandoff}), so the projector runs at the rate it can paint and never ends
+ * on a stale frame. The canvas is never reparented for this either (it would destroy the native
+ * Metal host and every GL object).
  */
 public final class PresentationOutput {
 
@@ -53,23 +55,22 @@ public final class PresentationOutput {
     private boolean savedFitSuppressed;
     private boolean drawing;
 
-    /** Where the presenter window's preview takes its frames. Called on the GL thread. */
+    /** Where the audience window takes its frames. Called on the GL thread. */
     public interface Sink {
-        /** Whether a frame is wanted at all: false while the preview is not on screen. */
+        /** Whether a frame is wanted at all: false while the window is not on screen. */
         boolean wants();
 
-        /** A new frame; the image is the sink's to keep. */
-        void accept(BufferedImage frame);
+        /** The window's size in device pixels: the most a frame is read back at. */
+        int[] pixels();
+
+        /** Hands the frames over; see {@link FrameHandoff}. */
+        FrameHandoff frames();
+
+        /** A frame was published to {@link #frames()}; paint it. Any thread. */
+        void framePublished();
     }
 
-    /** Readbacks per second, at most: enough to see what the room sees, cheap enough to ignore. */
-    public static final int PREVIEW_HZ = 4;
-    /** The preview frame's long side in pixels; the window scales it to its own size. */
-    public static final int PREVIEW_LONG_SIDE = 480;
-
     @Nullable private volatile Sink sink;
-    private final PreviewClock clock = new PreviewClock(1000 / PREVIEW_HZ);
-    @Nullable private javax.swing.Timer owedFrame;
     private int previewFbo;
     private int previewRbo;
     private int previewWidth;
@@ -78,7 +79,7 @@ public final class PresentationOutput {
 
     private PresentationOutput() {}
 
-    /** Set by PresentationMode while its presenter window shows a preview; null removes it. */
+    /** Set by PresentationMode while the audience window is up; null removes it. */
     public void setSink(@Nullable Sink newSink) {
         sink = newSink;
         if (newSink != null)
@@ -191,11 +192,11 @@ public final class PresentationOutput {
     private int presentedSource; // the resolved target end() last scaled to the canvas
 
     /**
-     * Read a small copy of the frame just drawn into the presenter window's preview, if one is
-     * showing and one is due. Runs on the GL thread at the end of display(), context current.
+     * Read the frame just drawn into the audience window, if one is up and has painted the last
+     * frame. Runs on the GL thread at the end of display(), context current.
      *
      * @param offscreen whether this frame went through the Recording-size target; if not, the
-     *                  preview reads the canvas's render area instead
+     *                  mirror reads the canvas's render area instead
      */
     void preview(boolean offscreen) {
         Sink s = sink;
@@ -205,10 +206,6 @@ public final class PresentationOutput {
         }
         if (!s.wants())
             return;
-        if (!clock.take(System.currentTimeMillis())) {
-            scheduleOwedFrame();
-            return;
-        }
 
         int source, x, y, w, h;
         if (offscreen && target != null) {
@@ -225,11 +222,15 @@ public final class PresentationOutput {
             w = area.width;
             h = area.height;
         }
-        int[] size = PreviewClock.fit(w, h, PREVIEW_LONG_SIDE);
+        int[] box = s.pixels();
+        int[] size = mirrorSize(w, h, box[0], box[1]);
+        BufferedImage image = s.frames().claim(size[0], size[1]);
+        if (image == null)
+            return; // the last frame is still being painted; the painter asks for this one after
         try {
             ensurePreview(size[0], size[1]);
-            // Scale on the GPU first, so what crosses to the CPU is a few hundred kilobytes, and
-            // as 8-bit RGBA, the one readback format every implementation must offer.
+            // Scale on the GPU first, so what crosses to the CPU is never more than the projector
+            // can show, and as 8-bit RGBA, the one readback format every implementation must offer.
             GL.glBindFramebuffer(GL.READ_FRAMEBUFFER, source);
             GL.glBindFramebuffer(GL.DRAW_FRAMEBUFFER, previewFbo);
             GL.glBlitFramebuffer(x, y, x + w, y + h, 0, 0, previewWidth, previewHeight, GL.COLOR_BUFFER_BIT, GL.LINEAR);
@@ -239,46 +240,43 @@ public final class PresentationOutput {
             pixels.clear();
             GL.glReadPixels(0, 0, previewWidth, previewHeight, GL.RGBA, GL.UNSIGNED_BYTE, pixels);
         } catch (RuntimeException e) {
-            Log.warn("Presenter preview unavailable", e);
+            Log.warn("Projector mirror unavailable", e);
             releasePreview();
-            sink = null; // once: a preview that failed here would fail on every frame
+            sink = null; // once: a mirror that failed here would fail on every frame
             return;
         } finally {
             GL.glBindFramebuffer(GL.FRAMEBUFFER, 0);
         }
-        s.accept(toImage(previewPixels, previewWidth, previewHeight));
+        rgbaToRgb(previewPixels, previewWidth, previewHeight,
+                ((java.awt.image.DataBufferInt) image.getRaster().getDataBuffer()).getData());
+        s.frames().publish(image);
+        s.framePublished();
     }
 
-    // GL rows run bottom up, image rows top down.
-    private static BufferedImage toImage(ByteBuffer rgba, int w, int h) {
-        BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
-        int[] row = new int[w];
+    /**
+     * The size to read a frame back at: the source's shape, no larger than the box (the
+     * projector's pixels), never enlarged, never below one pixel. Pure, for the check.
+     */
+    public static int[] mirrorSize(int sourceWidth, int sourceHeight, int boxWidth, int boxHeight) {
+        int w = Math.max(1, sourceWidth), h = Math.max(1, sourceHeight);
+        double scale = Math.min(1, Math.min(Math.max(1, boxWidth) / (double) w, Math.max(1, boxHeight) / (double) h));
+        return new int[]{Math.max(1, (int) Math.round(w * scale)), Math.max(1, (int) Math.round(h * scale))};
+    }
+
+    /**
+     * GL's bottom-up RGBA bytes into top-down 0xRRGGBB pixels. Pure, for the check: a swapped
+     * channel or an unflipped row is invisible on a grey test frame and obvious on the Sun.
+     */
+    public static void rgbaToRgb(ByteBuffer rgba, int w, int h, int[] out) {
+        java.nio.IntBuffer ints = rgba.duplicate().order(java.nio.ByteOrder.LITTLE_ENDIAN).position(0).asIntBuffer();
         for (int y = 0; y < h; y++) {
-            int base = y * w * 4;
-            for (int x = 0; x < w; x++) {
-                int i = base + x * 4;
-                row[x] = (rgba.get(i) & 0xFF) << 16 | (rgba.get(i + 1) & 0xFF) << 8 | (rgba.get(i + 2) & 0xFF);
+            int dst = (h - 1 - y) * w;
+            ints.get(y * w, out, dst, w);
+            for (int i = dst; i < dst + w; i++) {
+                int p = out[i]; // little endian: 0xAABBGGRR
+                out[i] = (p & 0xFF) << 16 | p & 0xFF00 | (p >>> 16) & 0xFF;
             }
-            image.setRGB(0, h - 1 - y, w, 1, row, 0, w);
         }
-        return image;
-    }
-
-    // A frame was skipped: ask for one more when the next readback is allowed, so the preview
-    // ends on the frame the projector ends on. One timer at a time; a frame drawn before it fires
-    // pays the debt itself and the timer then finds nothing owed.
-    private void scheduleOwedFrame() {
-        if (owedFrame != null && owedFrame.isRunning())
-            return;
-        long wait = clock.owedIn(System.currentTimeMillis());
-        if (wait < 0)
-            return;
-        owedFrame = new javax.swing.Timer((int) Math.min(Integer.MAX_VALUE, wait + 1), e -> {
-            if (sink != null && clock.owedIn(System.currentTimeMillis()) >= 0)
-                DisplayController.display();
-        });
-        owedFrame.setRepeats(false);
-        owedFrame.start();
     }
 
     private void ensurePreview(int width, int height) {

@@ -15,7 +15,7 @@
 
 ### Presentation mode
 - Presentation mode draws at the Recording pixel size and scales it to the projector, so the picture on the dome matches a recording
-- The presenter window shows a small live preview of what the projector shows, up to 4 times a second
+- With a second display, the main window stays on your screen exactly as it is, every control working, and the projector shows a full-screen mirror of its picture. The mirror is read back every frame the projector can paint, at the projector's resolution at most. This replaces the separate presenter window and its small preview
 
 ### Smaller fixes
 - Double-clicking a layer slider (Opacity, Blend, Sharpen, Enhance, Upsilon, the alignment offsets) or the Projection palette's Warp, Disk and Field returns it to its default, the same value the section's revert uses, not to whatever it was when the panel was built

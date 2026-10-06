@@ -29,6 +29,40 @@ public class Settings {
             setProperty("dataSources.defaultServer", "IAS");
         }
     };
+
+    /**
+     * Gilly's arrangement of the toolbar, sidebars, sections and palettes, shipped as the default
+     * (2026-10-06). A home with no settings file, or one that lost these keys, used to open with
+     * the palettes hidden and the toolbar in upstream's order until each was put back by hand.
+     * Only defaults: anything the user's own file sets wins, and nothing here is ever written to it.
+     */
+    static final String LAYOUT_PRESET = "/settings/layout-defaults.properties";
+
+    static {
+        try (java.io.InputStream in = Settings.class.getResourceAsStream(LAYOUT_PRESET)) {
+            if (in != null) {
+                Properties preset = new Properties();
+                preset.load(in);
+                for (String key : preset.stringPropertyNames())
+                    if (isLayoutKey(key))
+                        defaults.setProperty(key, preset.getProperty(key));
+            }
+        } catch (java.io.IOException e) {
+            // Not logged: this runs before the log exists. Without the preset the old defaults stand.
+        }
+    }
+
+    /**
+     * Whether a key describes the layout, and so may come from the preset. Nothing else may: not a
+     * path, a server, a window position for someone else's screen, or a token.
+     */
+    static boolean isLayoutKey(String key) {
+        return key.startsWith("ui.toolbar.") || key.startsWith("ui.palette.") || key.startsWith("ui.section.")
+                || key.equals("ui.rightSidebarOrder") || key.equals("ui.sidebarWidth") || key.equals("ui.rightSidebarWidth")
+                || key.equals("ui.sidebarCollapsed") || key.equals("ui.rightSidebarCollapsed") || key.equals("ui.panelsLocked")
+                || key.equals("display.toolbar") || key.equals("display.toolbar.visible")
+                || key.equals("display.statusbar.visible") || key.equals("display.plugins");
+    }
     private static final Properties settings = new Properties(defaults);
     /**
      * Whether this process has read the settings file. Until it has, nothing may be written over it.
