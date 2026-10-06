@@ -449,7 +449,7 @@ public final class MenuBar extends JMenuBar {
      * <p>The two screen choices were already here as top-level View items; the three below are
      * about the same mode and would have been a second place to look. They apply only on ONE
      * screen, and say so, because with a second display nothing is hidden in the first place: the
-     * chrome is lent to a presenter window where both sidebars and every palette already are.
+     * main window stays on the presenter's screen and the projector shows a mirror of its picture.
      */
     private static JMenu presentationMenu() {
         JMenu menu = new JMenu("Presentation");
