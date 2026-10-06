@@ -380,6 +380,19 @@ public final class GLRenderer {
         GL.glViewport(vp.x, vp.yGL, vp.width, vp.height);
         Layers.renderFullFloat(vp);
         RenderGuard.run("recording-area outline", () -> renderPrintableArea(vp));
+        RenderGuard.run("empty-canvas hint", () -> renderEmptyHint(vp));
+    }
+
+    private static final List<String> EMPTY_HINT = List.of("Drop a FITS or JPEG 2000 file here,", "or choose New Layer to load data");
+
+    /**
+     * What to do with an empty canvas (HS-10), instead of plain black. Drawn here, in the screen
+     * HUD pass that a grab never runs, and not while recording, so it never reaches a file.
+     */
+    private static void renderEmptyHint(Viewport vp) {
+        if (ExportMovie.isRecording() || !Layers.getImageLayers().isEmpty())
+            return;
+        GLText.drawTextCentered(vp, EMPTY_HINT);
     }
 
     private static final GLSLLine printableLine = new GLSLLine(true);

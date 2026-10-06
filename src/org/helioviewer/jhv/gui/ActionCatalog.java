@@ -120,6 +120,7 @@ public final class ActionCatalog {
         put("copyProvenance", new Actions.CopyProvenance(), "File/Copy Provenance", "");
         // Guided tour (HS-15): the menu item, and the reveal its steps run before spotlighting
         put("takeTour", org.helioviewer.jhv.gui.search.Tour.action(), "Help/Take the Tour", "Step through the main controls, one at a time");
+        put("welcome", new org.helioviewer.jhv.gui.dialog.WelcomeDialog.Open(), "Help/Welcome to HelioFITS Studio...", "What's new in this version, and the ways to start");
         put("showImageLayers", new AbstractAction("Show Image Layers") {
             @Override
             public void actionPerformed(java.awt.event.ActionEvent e) {
