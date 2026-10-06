@@ -112,10 +112,18 @@ class FilterRHEF implements ImageFilter.Algorithm {
             return data;
 
         Annuli a = annuli(width, height);
-        int numBins = a.numBins();
-        int[] offset = a.offset();
-        int[] order = a.order();
+        return rankAnnuli(data, a.numBins(), a.offset(), a.order());
+    }
 
+    /**
+     * Ranks every annulus of data in place and returns data. order[offset[b]] to
+     * order[offset[b + 1] - 1] are the pixels of annulus b. The positive pixels of an annulus with at
+     * least MIN_BIN_COUNT of them get their average rank over the half-float bit patterns, scaled to
+     * (r - 1) / (n - 1); every other pixel keeps its value. filter() is the production caller;
+     * RhefConformanceCheck calls it on the fastRHEF golden bundle's stored annuli (RH-6). The body is
+     * the one filter() had, unchanged.
+     */
+    static float[] rankAnnuli(float[] data, int numBins, int[] offset, int[] order) {
         ParallelRange.run(numBins, (from, to) -> {
             // One 65536-entry table per worker, reused across that worker's annuli and cleared
             // only where it was touched, so the per-annulus cost is the number of DISTINCT values
