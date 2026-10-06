@@ -195,6 +195,13 @@ public final class Interaction {
             // stays in the Play/Pause menu item as the legacy accelerator, off the Print collision
             // only because this app has no print command to collide with.
             Commands.togglePlayback();
+        } else if ((e.key() == KeyInputEvent.Key.LEFT || e.key() == KeyInputEvent.Key.RIGHT)
+                && !e.metaDown() && !e.ctrlDown() && !e.altDown() && !e.shiftDown()) {
+            // The arrows step a frame on the canvas too, as they do on the time slider
+            if (e.key() == KeyInputEvent.Key.LEFT)
+                Commands.previousFrame();
+            else
+                Commands.nextFrame();
         }
     }
 
