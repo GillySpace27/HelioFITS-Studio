@@ -102,11 +102,6 @@
    "text": "One quirk is worth knowing: the **Version** box. PUNCH data is reprocessed over time (v0k, v0l, and so on), and mixing two processing versions in one movie makes the brightness jump frame to frame. “Latest” keeps the newest single version, or you can name one; either way a movie is never a mix. Each PUNCH layer also carries a small refresh button in its row of the layer list; click it to re-check the archive and pull in any newer frames."
   },
   {
-   "kind": "figure",
-   "file": "fig_punch_dialog.png",
-   "caption": "The New PUNCH Layer dialog: level, product, time range, cadence, and the Version box, with Search and Add."
-  },
-  {
    "kind": "h2",
    "text": "ASPIICS; an eclipse whenever you want one"
   },
@@ -117,11 +112,6 @@
   {
    "kind": "p",
    "text": "**How:** open **File > New ASPIICS Layer…**. Choose an **Orbit** from the dropdown; each entry carries its own time range; then pick **FITS** or **JP2**, and select a product. **bt** is total brightness, the ordinary white-light corona, and the right first choice; **pb** is polarized brightness and **pa** the polarization angle, which are the ones to reach for if you care about the three-dimensional structure; **fe** and **he** are the Fe XIV green line and the He I D3 line. Click **Search**. Before you select anything, set the **Cadence**: ASPIICS runs at a high native cadence and each frame is a 17 MB image, so a whole orbit at full rate runs to several gigabytes, and thinning to one frame a minute (or ten) is usually what you actually want for a movie. Then select frames from the list and click **Add**."
-  },
-  {
-   "kind": "figure",
-   "file": "fig_aspiics.png",
-   "caption": "The New ASPIICS Layer dialog: pick an orbit, FITS or JP2, and a product (bt, fe, he, pb, pa)."
   },
   {
    "kind": "h2",
@@ -182,22 +172,12 @@
    "text": "**How:** select an image layer in the layer list, then open its options below and, in the **Filter** dropdown, choose **RHEF**. If the result looks too harsh, the **Upsilon** control (the “Y” button) exposes two handles; one for the shadows, below the midpoint, and one for the highlights, above it; so you can soften dark and bright structure independently."
   },
   {
-   "kind": "figure",
-   "file": "fig_rhef.png",
-   "caption": "The same corona before and after RHEF: faint outer structure brought up without clipping the core."
-  },
-  {
    "kind": "h2",
    "text": "Grid styling; taming the overlay"
   },
   {
    "kind": "p",
    "text": "The coordinate grid is adjustable, which helps when it competes with your images. The grid is itself a layer: if you do not see one, add it from **File > New Layer…** and choose Grid, then select that Grid layer and open its options. There you will find a color picker and sliders for line opacity, label opacity, line width, and label size; in the disk view there is also a slider that swings the radius labels to any angle, so you can move them off the part of the image you care about. The common move is to fade the grid to a light overlay while keeping the labels crisp."
-  },
-  {
-   "kind": "figure",
-   "file": "fig_grid.png",
-   "caption": "Grid layer options: color, opacities, line width, label size, and label angle."
   },
   {
    "kind": "h2",
@@ -212,11 +192,6 @@
    "text": "**How:** first load the CACTus CME catalog as an event layer, so there are events to choose from. Then open **View > Track CME…**; the dialog lists the CMEs currently loaded, and selecting one jumps to that event's onset and begins tracking it. It works in both Helioradial projections. There is also an option to propagate each CACTus front past the LASCO edge, out to the field of view you actually have loaded, by constant-speed extrapolation; useful when the catalog stops well short of where your data reaches."
   },
   {
-   "kind": "figure",
-   "file": "fig_trackcme.png",
-   "caption": "Track CME: a CACTus front held at a fixed screen radius while the eruption propagates."
-  },
-  {
    "kind": "h2",
    "text": "Point Cloud; a 3-D reconstruction in the scene"
   },
@@ -227,11 +202,6 @@
   {
    "kind": "p",
    "text": "**How:** open **File > New Point Cloud Layer…** and choose one or more cloud files (each is a small `.json` or `.json.gz`); selecting several at once loads them as a **time series** that steps with the movie clock, so a reconstruction can animate. To try it with nothing of your own, the release ships a demo; `fabric_suvi.json.gz`, a rippled sheet placed in the GOES-R SUVI field of view; right beside the app download; grab it and open it here. Once a cloud is loaded, its options give you **Points** with a **Size**, and **Color by data** with a **Colormap** to shade the points by their value; the **Alpha** slider to wrap a surface (drag right toward the convex hull, left to let the folds open up; double-click to reset); **Wireframe** and **Surface** with an **Opacity**, to show the mesh as lines, as a translucent skin, or both at once; and a **sync** button that snaps the movie interval to the cloud's own time span. You never triangulate anything yourself; a file is just a list of `[x, y, z]` points (with optional per-point values) in heliocentric coordinates, and HelioFITS Studio builds the mesh internally. The full format is written up in the point-cloud hand-off note."
-  },
-  {
-   "kind": "figure",
-   "file": "fig_pointcloud.png",
-   "caption": "The Point Cloud layer: the fabric demo over SUVI, with the alpha-shape surface tightened from a convex hull down to its folds."
   },
   {
    "kind": "h2",
