@@ -42,6 +42,9 @@ public final class PresentationOutput {
     public static final PresentationOutput OUTPUT = new PresentationOutput();
 
     private volatile boolean active;
+    // Gilly, 2026-10-06: draw the canvas at the Recording size outside presentation too, so a
+    // small size (512) decimates the live canvas for low-latency experiments.
+    private volatile boolean canvasAtRecordingSize;
     @Nullable private GLFrameCapture target;
     private int targetWidth;
     private int targetHeight;
@@ -91,6 +94,16 @@ public final class PresentationOutput {
         return active && sink != null;
     }
 
+    public boolean canvasAtRecordingSize() {
+        return canvasAtRecordingSize;
+    }
+
+    /** Draw every frame at the Recording size (scaled into the render area), presenting or not. */
+    public void setCanvasAtRecordingSize(boolean on) {
+        canvasAtRecordingSize = on;
+        DisplayController.display();
+    }
+
     /** Set by PresentationMode on entering and leaving the mode. */
     public void setActive(boolean on) {
         active = on;
@@ -135,7 +148,7 @@ public final class PresentationOutput {
     boolean begin() {
         int areaWidth = Display.fullViewport.width;
         int areaHeight = Display.fullViewport.height;
-        ViewState.Size size = renderSize(active, ViewState.recordingData().size(), areaWidth, areaHeight);
+        ViewState.Size size = renderSize(active || canvasAtRecordingSize, ViewState.recordingData().size(), areaWidth, areaHeight);
         if (size == null) {
             release();
             return false;

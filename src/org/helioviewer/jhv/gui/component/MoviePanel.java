@@ -82,7 +82,7 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
     private final JComboBox<ViewState.RecordingAspect> recordAspectComboBox;
     // Powers of two only: every consumer downstream (GPU textures, fulldome masters, video
     // encoders) is happiest there, and a free spinner mostly collected typos.
-    private static final Integer[] LONG_SIDE_CHOICES = {256, 512, 1024, 2048, 4096, 8192, 16384};
+    static final Integer[] LONG_SIDE_CHOICES = {256, 512, 1024, 2048, 4096, 8192, 16384};
     private final JComboBox<Integer> recordLongSideComboBox;
     private final JComboBox<ExportFormat> recordFormatComboBox;
     private final JComboBox<ExportFormat.Chroma> recordChromaComboBox;
@@ -285,7 +285,14 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         recordDerivedLabel = new JLabel();
         recordDerivedLabel.setFont(UIGlobals.uiFontSmall);
         recordDerivedLabel.setToolTipText("The size that will actually be written");
-        addRow(optionsPanel, 3, "Output", row(recordAspectComboBox, recordLongSideLabel, recordLongSideComboBox, recordDerivedLabel));
+        javax.swing.JCheckBox canvasAtSize = new javax.swing.JCheckBox("Canvas",
+                org.helioviewer.jhv.opengl.PresentationOutput.OUTPUT.canvasAtRecordingSize());
+        canvasAtSize.setFont(UIGlobals.uiFontSmall);
+        canvasAtSize.setToolTipText("Draw the canvas itself at this size and scale it to the window, as presentation mode does. "
+                + "A small size (512) is a decimated, low-latency canvas. Needs an aspect other than On screen.");
+        canvasAtSize.addItemListener(e ->
+                org.helioviewer.jhv.opengl.PresentationOutput.OUTPUT.setCanvasAtRecordingSize(canvasAtSize.isSelected()));
+        addRow(optionsPanel, 3, "Output", row(recordAspectComboBox, recordLongSideLabel, recordLongSideComboBox, recordDerivedLabel, canvasAtSize));
 
         // Format sits with the record controls rather than in Settings, where it was: it is a
         // per-recording decision made at the same moment as aspect and resolution, not a

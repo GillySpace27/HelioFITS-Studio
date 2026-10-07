@@ -75,11 +75,21 @@ public final class SceneUndo {
     }
 
     public static void undo() {
-        scene.step(false);
+        scene.step(false, 1);
     }
 
     public static void redo() {
-        scene.step(true);
+        scene.step(true, 1);
+    }
+
+    /** Take {@code count} steps at once, as the toolbar's held Undo or Redo list does: one apply. */
+    public static void step(boolean forward, int count) {
+        scene.stepBy(forward, count);
+    }
+
+    /** The steps Undo (or, forward, Redo) could take, the next one first. */
+    public static java.util.List<String> labels(boolean forward) {
+        return scene.stack.labels(forward);
     }
 
     /** Edit &gt; Undo, catalogued as "undo". */
@@ -110,14 +120,20 @@ public final class SceneUndo {
             refresh();
     }
 
-    private void step(boolean forward) {
+    private void stepBy(boolean forward, int count) {
         // An edit made a moment ago has not settled yet, and it is the one Undo is expected to take.
         if (!pointerDown && !loading()) {
             JSONObject now = snapshot();
             if (now != null)
                 stack.flush(now);
         }
-        JSONObject target = forward ? stack.redo() : stack.undo();
+        JSONObject target = null;
+        for (int i = 0; i < count; i++) {
+            JSONObject next = forward ? stack.redo() : stack.undo();
+            if (next == null)
+                break;
+            target = next;
+        }
         if (target != null)
             State.apply(target);
         refresh();
@@ -195,7 +211,7 @@ public final class SceneUndo {
                     own.actionPerformed(new ActionEvent(text, ActionEvent.ACTION_PERFORMED, null));
                 return;
             }
-            scene.step(forward);
+            scene.stepBy(forward, 1);
         }
     }
 
