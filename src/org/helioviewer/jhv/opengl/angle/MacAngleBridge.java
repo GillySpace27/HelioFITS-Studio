@@ -45,6 +45,17 @@ public final class MacAngleBridge {
     private static final MethodHandle EDR_POTENTIAL = downcall("jhv_metal_host_edr_potential",
             FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.ADDRESS));
 
+    private static final MethodHandle MIRROR_PREPARE = downcall("jhv_mirror_prepare",
+            FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+    private static final MethodHandle MIRROR_HEADROOM = downcall("jhv_mirror_headroom",
+            FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE));
+    private static final MethodHandle MIRROR_POTENTIAL = downcall("jhv_mirror_potential",
+            FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE));
+    private static final MethodHandle MIRROR_PRESENT = downcall("jhv_mirror_present",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                    ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+
     public static void prewarm() {
         // Force class initialization and native symbol resolution before the first canvas attach.
     }
@@ -154,19 +165,48 @@ public final class MacAngleBridge {
 
     // The screen's EDR headroom in SDR whites, as of the last EDR present (1 before any).
     public static double edrHeadroom(long layer) {
-        try {
-            return (double) EDR_HEADROOM.invokeExact(MemorySegment.ofAddress(layer));
-        } catch (Throwable t) {
-            throw new RuntimeException("Failed to read EDR headroom", t);
-        }
+        return call("Failed to read EDR headroom", () -> (double) EDR_HEADROOM.invokeExact(MemorySegment.ofAddress(layer)));
     }
 
     // What the screen could offer once EDR content is on it; 1 on a display without EDR.
     public static double edrPotential(long layer) {
+        return call("Failed to read EDR potential headroom", () -> (double) EDR_POTENTIAL.invokeExact(MemorySegment.ofAddress(layer)));
+    }
+
+    // Make a projector window's layer an EDR layer; returns its screen's potential headroom
+    // (above 1: that screen can show HDR now).
+    public static double mirrorPrepare(long layer, int displayId) {
+        return call("Failed to prepare the projector mirror layer",
+                () -> (double) MIRROR_PREPARE.invokeExact(MemorySegment.ofAddress(layer), displayId));
+    }
+
+    // The projector screen's headroom and potential, as of the last mirror present.
+    public static double mirrorHeadroom() {
+        return call("Failed to read the projector's EDR headroom", () -> (double) MIRROR_HEADROOM.invokeExact());
+    }
+
+    public static double mirrorPotential() {
+        return call("Failed to read the projector's EDR potential", () -> (double) MIRROR_POTENTIAL.invokeExact());
+    }
+
+    // Draw the canvas IOSurface's region (x, y, w, h; GL rows) into the mirror layer, fitted in a
+    // drawable of dw x dh. Call after presentDeep.
+    public static boolean mirrorPresent(long layer, long ioSurface, int sw, int sh, int x, int y, int w, int h, int dw, int dh) {
+        return call("Failed to present the projector mirror", () -> (int) MIRROR_PRESENT.invokeExact(MemorySegment.ofAddress(layer),
+                MemorySegment.ofAddress(ioSurface), sw, sh, x, y, w, h, dw, dh)) != 0;
+    }
+
+    private interface NativeCall<T> {
+        T run() throws Throwable;
+    }
+
+    // A downcall's checked Throwable as a RuntimeException naming what failed: the one catch every
+    // wrapper here shares, rather than one per wrapper.
+    private static <T> T call(String what, NativeCall<T> c) {
         try {
-            return (double) EDR_POTENTIAL.invokeExact(MemorySegment.ofAddress(layer));
+            return c.run();
         } catch (Throwable t) {
-            throw new RuntimeException("Failed to read EDR potential headroom", t);
+            throw new RuntimeException(what, t);
         }
     }
 
