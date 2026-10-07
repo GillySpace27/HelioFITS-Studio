@@ -1,8 +1,5 @@
 package org.helioviewer.jhv.gui;
 
-import java.awt.BorderLayout;
-import java.awt.Component;
-import java.awt.Container;
 import java.awt.GraphicsConfiguration;
 import java.awt.GraphicsDevice;
 import java.awt.GraphicsEnvironment;
@@ -10,11 +7,8 @@ import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
 
 import javax.annotation.Nullable;
-import javax.swing.BoxLayout;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
-import javax.swing.JPanel;
-import javax.swing.JSplitPane;
 import javax.swing.JRootPane;
 import javax.swing.KeyStroke;
 
@@ -22,9 +16,10 @@ import javax.swing.KeyStroke;
  * Output-only fullscreen for showing JHV to a room.
  *
  * <p>Single monitor: the chrome is hidden and the frame fills the screen, so nothing but the
- * render output is left. Two monitors: the frame fills the external display and the controls
- * move to a separate presenter window on the laptop, so the audience sees only the image while
- * the presenter keeps the toolbar, the transport and the layer list.
+ * render output is left. Two monitors: the main window stays on the presenter's screen exactly as
+ * it is, every control working, and an {@link AudienceWindow} fills the projector with a mirror of
+ * its picture (Gilly, 2026-10-06; it replaced a presenter window of borrowed panels with a small
+ * preview).
  *
  * <p>The render canvas is never reparented and the frame is never disposed. Both would run
  * {@code removeNotify()} on {@link org.helioviewer.jhv.opengl.AngleCanvas}, which destroys the
@@ -38,7 +33,7 @@ public final class PresentationMode {
 
     private static boolean active;
 
-    @Nullable private static JFrame presenterWindow;
+    @Nullable private static AudienceWindow audience;
     private static boolean savedEastVisible;
     @Nullable private static GraphicsDevice fullScreenOn; // the device we put into exclusive full screen
     @Nullable private static java.awt.event.ComponentAdapter settleListener;
@@ -49,16 +44,6 @@ public final class PresentationMode {
 
     public static boolean isActive() {
         return active;
-    }
-
-    /**
-     * The window carrying the controls while presenting, or null when there isn't one (not
-     * presenting, or single-monitor where the controls are simply hidden). Anything that wants
-     * to place itself near the controls rather than over the output should dock to this.
-     */
-    @Nullable
-    public static java.awt.Window chromeWindow() {
-        return presenterWindow;
     }
 
     public static void toggle() {
@@ -75,51 +60,47 @@ public final class PresentationMode {
         if (frame == null)
             return;
 
-        savedBounds = frame.getBounds();
-        savedExtendedState = frame.getExtendedState();
-        savedSidebarCollapsed = MainFrame.isSidebarCollapsed();
-        savedRightCollapsed = org.helioviewer.jhv.gui.component.RightSidebar.getInstance().isCollapsed();
-
         GraphicsDevice target = resolve(OUTPUT_SCREEN, presentationDevice(deviceOf(frame)));
         GraphicsDevice presenterScreen = resolve(CONTROLS_SCREEN,
                 GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice());
         // Both on one screen would mean the controls sit on top of the output, so treat that as
         // "no second screen" and just hide the chrome, which is the single-monitor behaviour.
         boolean dual = target != presenterScreen;
+        // Frames from here on are drawn at the Recording pixel size and scaled to the screen.
+        // Before the audience window, whose first frame is asked for as soon as it is up.
+        org.helioviewer.jhv.opengl.PresentationOutput.OUTPUT.setActive(true);
 
-        // Hide everything first, in both configurations: the presented window must be output
-        // only either way. The presenter window then takes back just the panels it wants, which
-        // is also what keeps the status bar and the plugins pane off the projector.
-        savedEastVisible = MainFrame.isEastVisible();
-        Keep keep = keepFor(dual);
-        // What each panel was carrying, read BEFORE the line below hides them all. The presenter
-        // window needs to know which sidebars hold anything, and a panel's visibility is how it
-        // says so -- but only until setChromeVisible imposes its own. Asked afterwards, as it was,
-        // every panel answered "empty" and the presenter window came up with the toolbar and the
-        // transport and nothing else, which is the whole point of having one.
-        java.util.Map<Component, Boolean> carried = new java.util.IdentityHashMap<>();
-        for (MainFrame.ChromeSlot slot : MainFrame.chromeForPresenterView())
-            carried.put(slot.panel(), slot.panel().isVisible());
+        if (dual) {
+            // The main window is the presenter's view and is left exactly as it is; the
+            // projector gets the mirror. Drawing at the Recording size (below) still applies, so
+            // the presenter's canvas shows the frame the room gets.
+            audience = new AudienceWindow(target);
+            frame.toFront();
+        } else {
+            savedBounds = frame.getBounds();
+            savedExtendedState = frame.getExtendedState();
+            savedSidebarCollapsed = MainFrame.isSidebarCollapsed();
+            savedRightCollapsed = org.helioviewer.jhv.gui.component.RightSidebar.getInstance().isCollapsed();
+            savedEastVisible = MainFrame.isEastVisible();
+            Keep keep = keepFor(false);
+            MainFrame.setChromeVisible(false, keep.left(), keep.right(), savedEastVisible);
+            if (!keep.palettes())
+                org.helioviewer.jhv.gui.component.Palette.setFloatingVisible(false);
 
-        MainFrame.setChromeVisible(false, keep.left(), keep.right(), savedEastVisible);
-        if (!keep.palettes())
-            org.helioviewer.jhv.gui.component.Palette.setFloatingVisible(false);
-        if (dual)
-            presenterWindow = buildPresenterWindow(presenterScreen, carried);
-
-        // NORMAL first: a maximized frame ignores setBounds on some platforms.
-        frame.setExtendedState(JFrame.NORMAL);
-        frame.setBounds(target.getDefaultConfiguration().getBounds());
-        // Sizing the window to the screen still leaves the macOS menu bar drawn over the top of
-        // it. Only real full-screen mode takes the screen away from the menu bar and the Dock,
-        // so ask for it and keep the plain bounds as the fallback where it is not supported.
-        if (target.isFullScreenSupported()) {
-            try {
-                target.setFullScreenWindow(frame);
-                fullScreenOn = target;
-            } catch (RuntimeException e) {
-                org.helioviewer.jhv.app.Log.warn("Full screen refused, showing at screen size instead", e);
-                fullScreenOn = null;
+            // NORMAL first: a maximized frame ignores setBounds on some platforms.
+            frame.setExtendedState(JFrame.NORMAL);
+            frame.setBounds(target.getDefaultConfiguration().getBounds());
+            // Sizing the window to the screen still leaves the macOS menu bar drawn over the top
+            // of it. Only real full-screen mode takes the screen away from the menu bar and the
+            // Dock, so ask for it and keep the plain bounds as the fallback.
+            if (target.isFullScreenSupported()) {
+                try {
+                    target.setFullScreenWindow(frame);
+                    fullScreenOn = target;
+                } catch (RuntimeException e) {
+                    org.helioviewer.jhv.app.Log.warn("Full screen refused, showing at screen size instead", e);
+                    fullScreenOn = null;
+                }
             }
         }
 
@@ -160,34 +141,35 @@ public final class PresentationMode {
             frame.removeComponentListener(settleListener);
             settleListener = null;
         }
-        // Give the screen back before moving anything, or the frame is restored while the
-        // device still thinks it owns an exclusive full-screen window.
-        if (fullScreenOn != null) {
-            try {
-                fullScreenOn.setFullScreenWindow(null);
-            } catch (RuntimeException e) {
-                org.helioviewer.jhv.app.Log.warn("Could not leave full screen cleanly", e);
+        if (audience != null) {
+            audience.close();
+            audience = null;
+        } else {
+            // Give the screen back before moving anything, or the frame is restored while the
+            // device still thinks it owns an exclusive full-screen window.
+            if (fullScreenOn != null) {
+                try {
+                    fullScreenOn.setFullScreenWindow(null);
+                } catch (RuntimeException e) {
+                    org.helioviewer.jhv.app.Log.warn("Could not leave full screen cleanly", e);
+                }
+                fullScreenOn = null;
             }
-            fullScreenOn = null;
-        }
-        if (presenterWindow != null) {
-            returnChrome();
-            presenterWindow.dispose(); // a plain JFrame of lightweight panels: no GL to lose
-            presenterWindow = null;
-        }
-        MainFrame.setChromeVisible(true, false, false, savedEastVisible);
-        org.helioviewer.jhv.gui.component.Palette.setFloatingVisible(true);
-        MainFrame.setSidebarCollapsed(savedSidebarCollapsed);
-        MainFrame.setSidebarHandleVisible(true);
-        org.helioviewer.jhv.gui.component.RightSidebar.getInstance().setCollapsed(savedRightCollapsed);
-        org.helioviewer.jhv.gui.component.RightSidebar.getInstance().setHandleVisible(true);
+            MainFrame.setChromeVisible(true, false, false, savedEastVisible);
+            org.helioviewer.jhv.gui.component.Palette.setFloatingVisible(true);
+            MainFrame.setSidebarCollapsed(savedSidebarCollapsed);
+            MainFrame.setSidebarHandleVisible(true);
+            org.helioviewer.jhv.gui.component.RightSidebar.getInstance().setCollapsed(savedRightCollapsed);
+            org.helioviewer.jhv.gui.component.RightSidebar.getInstance().setHandleVisible(true);
 
-        if (savedBounds != null)
-            frame.setBounds(savedBounds);
-        frame.setExtendedState(savedExtendedState);
-        savedBounds = null;
+            if (savedBounds != null)
+                frame.setBounds(savedBounds);
+            frame.setExtendedState(savedExtendedState);
+            savedBounds = null;
+        }
 
         active = false;
+        org.helioviewer.jhv.opengl.PresentationOutput.OUTPUT.setActive(false);
         MainFrame.resyncRenderSurface();
         // Escape does not go through the toolbar button, so tell it what actually happened.
         org.helioviewer.jhv.gui.component.ToolBar.syncPresentationToggle();
@@ -206,7 +188,7 @@ public final class PresentationMode {
     public static final String KEEP_RIGHT = "presentation.keepRightSidebar";
     public static final String KEEP_PALETTES = "presentation.keepFloatingPalettes";
 
-    /** What presentation mode leaves up. All three are false on two screens; see {@link #keepFor}. */
+    /** What presentation mode leaves up. All three are true on two screens; see {@link #keepFor}. */
     public record Keep(boolean left, boolean right, boolean palettes) {}
 
     /**
@@ -216,20 +198,14 @@ public final class PresentationMode {
      * is a real trade the presenter is making knowingly: a sidebar in the corner of the slide, in
      * exchange for being able to drive the thing without leaving the mode. Those are the settings.
      *
-     * <p>With a second display the sidebar settings are ignored, and not as a limitation worked
-     * around: the chrome is not hidden there at all, it is lent to a presenter window on the other
-     * screen where both sidebars already are. Keeping one "on screen" would mean drawing it over
-     * the projector, which is the one thing the mode exists to prevent.
-     *
-     * <p>The palettes go the other way, and the difference is the whole reason this is not one
-     * flag. A palette is its own window and follows the presenter to the second screen; hiding
-     * them there would take away the controls the presenter view exists to provide. So the
-     * sidebars are forced off on two screens and the palettes are forced ON.
+     * <p>With a second display nothing is hidden at all: the main window stays on the presenter's
+     * screen as it is and the projector shows a mirror of the picture, so the settings do not
+     * apply and everything is kept.
      *
      * <p>Pure, so the check can pin both rules without a projector.
      */
     public static Keep keepFor(boolean dual) {
-        return dual ? new Keep(false, false, true)
+        return dual ? new Keep(true, true, true)
                 : new Keep(flag(KEEP_LEFT, false), flag(KEEP_RIGHT, false), flag(KEEP_PALETTES, true));
     }
 
@@ -298,154 +274,6 @@ public final class PresentationMode {
         return config != null
                 ? config.getDevice()
                 : GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
-    }
-
-    // Lend the chrome to a window on the presenter's screen. These are ordinary lightweight
-    // Swing panels, so moving them between windows is just a reparent -- the expensive
-    // component, the canvas, stays exactly where it is.
-    /** @param carried what each panel's visibility said before {@link MainFrame#setChromeVisible} hid them */
-    private static JFrame buildPresenterWindow(GraphicsDevice on, java.util.Map<Component, Boolean> carried) {
-        JFrame window = new JFrame("HelioFITS Studio: Presenter", on.getDefaultConfiguration());
-        window.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE); // closing it would strand the chrome
-        // Toolbar and transport stack at the top at their natural height; the sidebar takes
-        // everything left over. BorderLayout.NORTH is what enforces "natural height" here -- a
-        // BoxLayout hands each child its MAXIMUM height instead, which for a JPanel is
-        // unbounded, so the toolbar and scrubber stretched into big empty bands and pushed the
-        // layer list to the floor.
-        JPanel content = new JPanel(new BorderLayout());
-        JPanel top = new JPanel();
-        top.setLayout(new BoxLayout(top, BoxLayout.PAGE_AXIS));
-
-        java.util.List<Component> fillers = new java.util.ArrayList<>();
-        for (MainFrame.ChromeSlot slot : MainFrame.chromeForPresenterView()) {
-            Component c = slot.panel();
-            // For the right sidebar, being invisible is how it says it holds nothing, and forcing
-            // that one open put an empty rail in the window with half the height of the presenter
-            // view. So the answer comes from the snapshot taken before the chrome was hidden, not
-            // from the panel now: by now every one of them has been made invisible.
-            boolean carriesSomething = carried.getOrDefault(c, Boolean.TRUE);
-            Container parent = c.getParent();
-            if (parent != null)
-                parent.remove(c);
-            if (!slot.fills()) {
-                c.setVisible(true);
-                if (c instanceof JComponent jc)
-                    jc.setAlignmentX(Component.LEFT_ALIGNMENT); // else BoxLayout centres them
-                top.add(c);
-            } else if (carriesSomething) {
-                c.setVisible(true);
-                fillers.add(c);
-            }
-        }
-        content.add(top, BorderLayout.NORTH);
-        placeFillers(content, fillers);
-        // Both sidebars open, and neither collapsible while they are here. In the main window a
-        // collapse folds a sidebar out of the way of the picture; in this window the two sit side
-        // by side with no picture between them, so collapsing one only slides the other across
-        // and the control the presenter was reaching for is somewhere else.
-        MainFrame.setSidebarCollapsed(false); // the layer list is the point of this window
-        MainFrame.setSidebarHandleVisible(false);
-        org.helioviewer.jhv.gui.component.RightSidebar.getInstance().setCollapsed(false);
-        org.helioviewer.jhv.gui.component.RightSidebar.getInstance().setHandleVisible(false);
-        openEverything(content);
-
-        window.setContentPane(content);
-        window.pack();
-        Rectangle bounds = on.getDefaultConfiguration().getBounds();
-        // A third of the screen for one sidebar: enough for the layer list to be readable, and it
-        // leaves the rest of the presenter's screen free for notes, the console or the speaker
-        // view. Half for two, because side by side each gets only half of whatever the window is,
-        // and a layer list under about 300 pixels stops being a list of datasets and becomes a
-        // column of truncated names. The toolbar does not drive the width either way -- it
-        // overflows into a menu instead of forcing the window as wide as every button laid end
-        // to end.
-        boolean twoSidebars = fillers.size() > 1;
-        int width = Math.max(twoSidebars ? bounds.width / 2 : bounds.width / 3, twoSidebars ? 720 : 360);
-        window.setBounds(bounds.x + 40, bounds.y + 40,
-                Math.min(width, bounds.width - 80), bounds.height - 120);
-        installEscape(window.getRootPane());
-        window.setVisible(true);
-        return window;
-    }
-
-    /**
-     * Give each sidebar its own place in the presenter window.
-     *
-     * <p>They both used to go to BorderLayout.CENTER, which takes one component: the second one
-     * added wins the constraint and the first is laid out at zero by zero while remaining a child
-     * of the container. With the canvas gone there is nothing between the two sidebars to hide
-     * that, so what the presenter got was one bar with everything crammed into it and the other
-     * either missing or painting over it.
-     *
-     * <p>Stacked rather than set side by side, because this window is a third of a screen wide and
-     * full height: two sidebars at their natural widths do not fit across it, which is the
-     * truncation half of the same complaint. Down the height they both fit, and the divider lets
-     * the presenter give the room to whichever of the two the talk needs.
-     */
-    static void placeFillers(JPanel content, java.util.List<Component> fillers) {
-        if (fillers.isEmpty())
-            return;
-        if (fillers.size() == 1) {
-            content.add(fillers.getFirst(), BorderLayout.CENTER);
-            return;
-        }
-        // Side by side, in the order they have in the main window: left sidebar on the left,
-        // right sidebar on the right. Stacked vertically, as this used to be, the two read as one
-        // very long sidebar carrying both sets of sections -- the layer list and the projection
-        // panel in one column, with a divider between them that looks like nothing in particular.
-        // The presenter is reaching for controls they know the position of, and the position they
-        // know is which SIDE the panel is on.
-        Component beside = fillers.getFirst();
-        for (int i = 1; i < fillers.size(); i++) {
-            JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, beside, fillers.get(i));
-            split.setResizeWeight(0.62); // the layer list is the one that grows with the window
-            split.setContinuousLayout(true);
-            split.setOneTouchExpandable(true);
-            split.setBorder(null);
-            beside = split;
-        }
-        content.add(beside, BorderLayout.CENTER);
-    }
-
-    /**
-     * Open every collapsed section and grow the layer list to show all of its rows.
-     *
-     * <p>Presentation mode is entered at the moment attention moves to the room, which is the
-     * worst possible time to be reopening panels or dragging a list taller to find a control.
-     * Whatever was folded away while composing the view gets unfolded here instead.
-     *
-     * <p>Recursive rather than SideContentPane.expandAll(), because that only reaches the
-     * top-level sections; the ones that actually get collapsed (Layer Options and the geometry
-     * and manage panes under it) are nested inside Image Layers.
-     */
-    private static void openEverything(Container chrome) {
-        // Takes the container the panels are actually in: at this point they have been moved out
-        // of the main frame and the presenter window does not exist yet, so neither one would
-        // reach them.
-        expandRecursively(chrome);
-        // Nothing to override any more: a list is always as tall as its contents. Kept as the
-        // nudge that refits one whose rows arrived while the panel was somewhere else.
-        MainFrame.getLayersPanel().showAllRows();
-        MainFrame.getOverlaysPanel().showAllRows();
-        MainFrame.getCameraPanel().showAllRows();
-    }
-
-    private static void expandRecursively(Component c) {
-        if (c instanceof org.helioviewer.jhv.gui.component.CollapsiblePane pane)
-            pane.setExpanded(true);
-        if (c instanceof Container container)
-            for (Component child : container.getComponents())
-                expandRecursively(child);
-    }
-
-    // Put every borrowed panel back in the slot it names.
-    private static void returnChrome() {
-        for (MainFrame.ChromeSlot slot : MainFrame.chromeForPresenterView()) {
-            Container parent = slot.panel().getParent();
-            if (parent != null)
-                parent.remove(slot.panel());
-            slot.restore();
-        }
     }
 
     private static void installEscape(JRootPane root) {

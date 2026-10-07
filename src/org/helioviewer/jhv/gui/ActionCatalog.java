@@ -120,6 +120,7 @@ public final class ActionCatalog {
         put("copyProvenance", new Actions.CopyProvenance(), "File/Copy Provenance", "");
         // Guided tour (HS-15): the menu item, and the reveal its steps run before spotlighting
         put("takeTour", org.helioviewer.jhv.gui.search.Tour.action(), "Help/Take the Tour", "Step through the main controls, one at a time");
+        put("welcome", new org.helioviewer.jhv.gui.dialog.WelcomeDialog.Open(), "Help/Welcome to HelioFITS Studio...", "What's new in this version, and the ways to start");
         put("showImageLayers", new AbstractAction("Show Image Layers") {
             @Override
             public void actionPerformed(java.awt.event.ActionEvent e) {
@@ -129,6 +130,15 @@ public final class ActionCatalog {
         put("sendFeedback", new org.helioviewer.jhv.gui.dialog.FeedbackDialog.Open(), "Help/Send Feedback...", "Send a problem, a request or a question to the developer; no account needed");
         put("undo", org.helioviewer.jhv.app.SceneUndo.undoAction(), "Edit/Undo", "Undo the last change to the scene");
         put("redo", org.helioviewer.jhv.app.SceneUndo.redoAction(), "Edit/Redo", "Redo the last undone change to the scene");
+        put("openExportsFolder", ExportsFolder.action(), "File/Open Exports Folder", "Show the folder movies, screenshots and metadata are exported to");
+        // Help search (HS-15): the menu item, and the Projection palette's reveal for the controls in it
+        put(org.helioviewer.jhv.gui.search.CommandPalette.ID, org.helioviewer.jhv.gui.search.CommandPalette.action(), "Help/Search Controls...", "Find any command or control by name and run it or show where it is");
+        put("showProjection", new AbstractAction("Show Projection") {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                org.helioviewer.jhv.gui.component.Palette.open("Projection"); // opens, never toggles closed
+            }
+        }, "", "Open the Projection palette, wherever it is docked");
     }
 
     /**

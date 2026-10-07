@@ -271,9 +271,22 @@ static NSString *const jhv_edr_shader_source = @
     "    float3 a = abs(c.rgb);\n"
     "    float3 lin = select(pow((a + 0.055) / 1.055, 2.4), a / 12.92, a <= 0.04045);\n"
     "    return float4(sign(c.rgb) * lin, c.a);\n"
+    "}\n"
+    // The projector mirror: the canvas's render area (rect, in normalized GL coordinates) fitted
+    // into the drawable by the viewport, filtered because the projector rarely matches it 1:1.
+    "struct Mirror { float4 rect; float boot; float w; float h; float pad; };\n"
+    "fragment float4 jhv_mirror_fragment(V in [[stage_in]], texture2d<float> src [[texture(0)]], constant Mirror &m [[buffer(0)]]) {\n"
+    "    constexpr sampler s(coord::normalized, filter::linear, address::clamp_to_edge);\n"
+    "    float4 c = src.sample(s, m.rect.xy + in.uv * m.rect.zw);\n"
+    "    if (m.boot > 0.5 && in.uv.x * m.w < 3.0 && in.uv.y * m.h < 3.0) c = float4(1.5, 1.5, 1.5, 1.0);\n"
+    "    c = select(c, float4(0.0), isnan(c) || isinf(c));\n"
+    "    c = clamp(c, float4(0.0), float4(16.0, 16.0, 16.0, 1.0));\n"
+    "    float3 a = abs(c.rgb);\n"
+    "    float3 lin = select(pow((a + 0.055) / 1.055, 2.4), a / 12.92, a <= 0.04045);\n"
+    "    return float4(sign(c.rgb) * lin, c.a);\n"
     "}\n";
 
-static id<MTLRenderPipelineState> jhv_edr_pipeline(id<MTLDevice> device) {
+static id<MTLRenderPipelineState> jhv_edr_pipeline_named(id<MTLDevice> device, NSString *fragment) {
     NSError *error = nil;
     id<MTLLibrary> library = [device newLibraryWithSource:jhv_edr_shader_source options:nil error:&error];
     if (library == nil) {
@@ -282,12 +295,16 @@ static id<MTLRenderPipelineState> jhv_edr_pipeline(id<MTLDevice> device) {
     }
     MTLRenderPipelineDescriptor *desc = [MTLRenderPipelineDescriptor new];
     desc.vertexFunction = [library newFunctionWithName:@"jhv_edr_vertex"];
-    desc.fragmentFunction = [library newFunctionWithName:@"jhv_edr_fragment"];
+    desc.fragmentFunction = [library newFunctionWithName:fragment];
     desc.colorAttachments[0].pixelFormat = MTLPixelFormatRGBA16Float;
     id<MTLRenderPipelineState> pipeline = [device newRenderPipelineStateWithDescriptor:desc error:&error];
     if (pipeline == nil)
         NSLog(@"jhv_metal_host: EDR pipeline failed: %@", error);
     return pipeline;
+}
+
+static id<MTLRenderPipelineState> jhv_edr_pipeline(id<MTLDevice> device) {
+    return jhv_edr_pipeline_named(device, @"jhv_edr_fragment");
 }
 
 // Switch the layer to the deep format for the mode. Returns 1 on success. Main-thread: the
@@ -542,4 +559,137 @@ void jhv_metal_host_destroy(void *boxPtr) {
                 box.surfaceLayers.layer = nil;
         }
     });
+}
+
+// --- Projector mirror in HDR --------------------------------------------------------------------
+//
+// Presentation mode with two screens shows the main canvas on the projector. When the projector
+// reports EDR headroom, the canvas IOSurface that the main layer has just presented is drawn again
+// into a second EDR layer on the projector's window: no readback, nothing clipped at white. Same
+// format, colorspace and EOTF as the main EDR present. One mirror at a time, so its screen
+// readings live in two statics, refreshed on the main thread after each present.
+
+static double jhv_mirror_headroom_cached = 1.0;
+static double jhv_mirror_potential_cached = 1.0;
+static uint32_t jhv_mirror_display = 0;
+
+// The projector's NSScreen by its CGDirectDisplayID. Not jhv_screen_of_layer: a JAWT layer tree's
+// root has no NSView delegate, so that falls back to the main screen, which on a laptop is the
+// XDR panel, and an SDR projector was then given HDR (2026-10-06). Main thread.
+static NSScreen *jhv_mirror_screen(void) {
+    for (NSScreen *screen in NSScreen.screens)
+        if ([screen.deviceDescription[@"NSScreenNumber"] unsignedIntValue] == jhv_mirror_display)
+            return screen;
+    return nil;
+}
+
+// Make the layer an EDR layer and read its screen's potential headroom: above 1 means the
+// projector can show HDR right now (with HDR switched on for it in System Settings). Main-thread.
+double jhv_mirror_prepare(void *layerPtr, int displayId) {
+    if (layerPtr == NULL)
+        return 1.0;
+
+    __block double potential = 1.0;
+    jhv_run_on_main_sync(^{
+        @autoreleasepool {
+            CAMetalLayer *layer = (__bridge CAMetalLayer *)layerPtr;
+            jhv_run_without_actions(^{
+                if (layer.device == nil)
+                    layer.device = MTLCreateSystemDefaultDevice();
+                layer.framebufferOnly = NO;
+                layer.pixelFormat = MTLPixelFormatRGBA16Float;
+                layer.wantsExtendedDynamicRangeContent = YES;
+                CGColorSpaceRef linear = CGColorSpaceCreateWithName(kCGColorSpaceExtendedLinearSRGB);
+                layer.colorspace = linear;
+                CGColorSpaceRelease(linear);
+                layer.transform = CATransform3DIdentity;
+            });
+            jhv_mirror_display = (uint32_t)displayId;
+            NSScreen *screen = jhv_mirror_screen();
+            potential = screen != nil ? screen.maximumPotentialExtendedDynamicRangeColorComponentValue : 1.0;
+            jhv_mirror_potential_cached = potential;
+            jhv_mirror_headroom_cached = 1.0;
+        }
+    });
+    return potential;
+}
+
+double jhv_mirror_headroom(void) {
+    return jhv_mirror_headroom_cached;
+}
+
+double jhv_mirror_potential(void) {
+    return jhv_mirror_potential_cached;
+}
+
+// Draw the region (x, y, w, h) of the RGBA16F canvas IOSurface (sw x sh, GL row order) into the
+// mirror layer, fitted and centred in a drawable of dw x dh. Render thread, after the main
+// present has completed; returns after the GPU is done with the IOSurface.
+int jhv_mirror_present(void *layerPtr, void *surfPtr, int sw, int sh, int x, int y, int w, int h, int dw, int dh) {
+    if (layerPtr == NULL || surfPtr == NULL || sw <= 0 || sh <= 0 || w <= 0 || h <= 0 || dw <= 0 || dh <= 0)
+        return 0;
+
+    @autoreleasepool {
+        CAMetalLayer *layer = (__bridge CAMetalLayer *)layerPtr;
+        IOSurfaceRef surf = (IOSurfaceRef)surfPtr;
+        JHVDeepPresenter *presenter = objc_getAssociatedObject(layer, &jhv_deep_presenter_key);
+        if (presenter == nil) {
+            presenter = [JHVDeepPresenter new];
+            presenter.queue = [layer.device newCommandQueue];
+            presenter.edrPipeline = jhv_edr_pipeline_named(layer.device, @"jhv_mirror_fragment");
+            objc_setAssociatedObject(layer, &jhv_deep_presenter_key, presenter, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        if (presenter.queue == nil || presenter.edrPipeline == nil)
+            return 0;
+
+        if (presenter.wrapped == nil || presenter.wrappedSurface != surf
+                || presenter.wrapped.width != (NSUInteger)sw || presenter.wrapped.height != (NSUInteger)sh) {
+            MTLTextureDescriptor *desc = [MTLTextureDescriptor
+                    texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA16Float width:sw height:sh mipmapped:NO];
+            desc.usage = MTLTextureUsageShaderRead;
+            desc.storageMode = layer.device.hasUnifiedMemory ? MTLStorageModeShared : MTLStorageModeManaged;
+            presenter.wrapped = [layer.device newTextureWithDescriptor:desc iosurface:surf plane:0];
+            presenter.wrappedSurface = surf;
+            if (presenter.wrapped == nil)
+                return 0;
+        }
+
+        CGSize wanted = CGSizeMake(dw, dh);
+        if (!CGSizeEqualToSize(layer.drawableSize, wanted))
+            jhv_run_without_actions(^{ layer.drawableSize = wanted; });
+        id<CAMetalDrawable> drawable = [layer nextDrawable];
+        if (drawable == nil)
+            return 0;
+
+        double scale = MIN(dw / (double)w, dh / (double)h);
+        double fw = w * scale, fh = h * scale;
+        id<MTLCommandBuffer> commands = [presenter.queue commandBuffer];
+        MTLRenderPassDescriptor *pass = [MTLRenderPassDescriptor renderPassDescriptor];
+        pass.colorAttachments[0].texture = drawable.texture;
+        pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+        pass.colorAttachments[0].storeAction = MTLStoreActionStore;
+        pass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
+        id<MTLRenderCommandEncoder> encoder = [commands renderCommandEncoderWithDescriptor:pass];
+        [encoder setRenderPipelineState:presenter.edrPipeline];
+        [encoder setViewport:(MTLViewport){(dw - fw) / 2, (dh - fh) / 2, fw, fh, 0, 1}];
+        [encoder setFragmentTexture:presenter.wrapped atIndex:0];
+        float m[8] = { x / (float)sw, y / (float)sh, w / (float)sw, h / (float)sh,
+                       (jhv_mirror_headroom_cached <= 1.0 && jhv_mirror_potential_cached > 1.0) ? 1.0f : 0.0f,
+                       (float)fw, (float)fh, 0.0f };
+        [encoder setFragmentBytes:m length:sizeof m atIndex:0];
+        [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
+        [encoder endEncoding];
+        [commands presentDrawable:drawable];
+        [commands commit];
+        [commands waitUntilCompleted];
+
+        jhv_run_on_main_async(^{
+            @autoreleasepool {
+                NSScreen *screen = jhv_mirror_screen();
+                jhv_mirror_headroom_cached = screen != nil ? screen.maximumExtendedDynamicRangeColorComponentValue : 1.0;
+                jhv_mirror_potential_cached = screen != nil ? screen.maximumPotentialExtendedDynamicRangeColorComponentValue : 1.0;
+            }
+        });
+        return 1;
+    }
 }

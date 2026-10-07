@@ -38,6 +38,8 @@ public final class AwtInputAdapter extends MouseAdapter implements KeyListener, 
             case KeyEvent.VK_BACK_SPACE -> KeyInputEvent.Key.BACKSPACE;
             case KeyEvent.VK_DELETE -> KeyInputEvent.Key.DELETE;
             case KeyEvent.VK_SPACE -> KeyInputEvent.Key.SPACE;
+            case KeyEvent.VK_LEFT -> KeyInputEvent.Key.LEFT;
+            case KeyEvent.VK_RIGHT -> KeyInputEvent.Key.RIGHT;
             case KeyEvent.VK_N -> KeyInputEvent.Key.N;
             case KeyEvent.VK_P -> KeyInputEvent.Key.P;
             case KeyEvent.VK_X -> KeyInputEvent.Key.X;

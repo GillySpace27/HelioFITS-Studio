@@ -24,6 +24,7 @@ import org.helioviewer.jhv.app.Commands;
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.io.Directories;
+import org.helioviewer.jhv.io.ExtensionFileFilter;
 import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.movie.Provenance;
 import org.helioviewer.jhv.plugins.pointcloud.PointCloudLayer;
@@ -34,8 +35,10 @@ import org.json.JSONObject;
  * Files dropped anywhere on the window load as what they are: point-cloud JSON into one Point
  * Cloud layer (several at once become its time series, matching the File-menu action), imagery
  * into image layers, a .jhv into a state load. A PNG this program exported carries its scene
- * (Provenance), and dropping it offers to reopen that scene instead. Anything unrecognized is
- * named in a log line rather than silently swallowed.
+ * (Provenance), and dropping it offers to reopen that scene instead. A folder loads the image
+ * files directly inside it as one layer, as choosing them all in File > Open does. Anything not
+ * recognized is named in a message, not only in the log: a drop that did nothing visible read
+ * as a broken drop (Gilly, 2026-10-06).
  */
 final class FileDropHandler extends DropTargetAdapter {
 
@@ -58,20 +61,28 @@ final class FileDropHandler extends DropTargetAdapter {
         }
 
         List<File> clouds = new ArrayList<>();
+        List<String> skipped = new ArrayList<>();
         for (File f : files) {
             String n = f.getName().toLowerCase(Locale.ROOT);
             JSONObject scene = n.endsWith(".png") ? sceneOf(f) : null;
             if (scene != null)
                 SwingUtilities.invokeLater(() -> offerScene(f, scene)); // after the drop completes
-            else if (n.endsWith(".json") || n.endsWith(".json.gz"))
+            else if (f.isDirectory()) {
+                List<File> inside = folderImages(f);
+                if (inside.isEmpty())
+                    skipped.add(f.getName() + " (a folder with no image files directly inside)");
+                else
+                    SwingUtilities.invokeLater(() -> offerFolder(f, inside));
+            } else if (n.endsWith(".json") || n.endsWith(".json.gz"))
                 clouds.add(f);
             else if (n.endsWith(".jhv"))
                 Commands.loadState(f.toURI());
-            else if (n.endsWith(".fits") || n.endsWith(".fts") || n.endsWith(".fits.gz") || n.endsWith(".jp2")
-                    || n.endsWith(".jpx") || n.endsWith(".png") || n.endsWith(".jpg") || n.endsWith(".jpeg"))
+            else if (ExtensionFileFilter.isImage(n))
                 Commands.loadImage(f.toURI());
-            else
+            else {
                 Log.warn("Dropped file not recognized: " + f.getName());
+                skipped.add(f.getName());
+            }
         }
         if (!clouds.isEmpty()) {
             PointCloudLayer layer = new PointCloudLayer(null);
@@ -79,6 +90,44 @@ final class FileDropHandler extends DropTargetAdapter {
             clouds.forEach(f -> layer.load(f.toURI())); // all into the one layer, a time series
         }
         e.dropComplete(true);
+        if (!skipped.isEmpty())
+            SwingUtilities.invokeLater(() -> Message.warn("Not Opened", skippedMessage(skipped)));
+    }
+
+    /** Folders larger than this ask first: each frame's header is read before anything shows. */
+    static final int ASK_ABOVE = 200;
+
+    /** The image files directly inside a folder, by name; not its subfolders. */
+    static List<File> folderImages(File dir) {
+        File[] all = dir.listFiles(f -> f.isFile() && ExtensionFileFilter.isImage(f.getName()));
+        if (all == null)
+            return List.of();
+        List<File> out = new ArrayList<>(java.util.Arrays.asList(all));
+        out.sort(java.util.Comparator.comparing(File::getName));
+        return out;
+    }
+
+    /** What the skipped-files message says. Pure, for the check. */
+    static String skippedMessage(List<String> names) {
+        int shown = Math.min(names.size(), 8);
+        StringBuilder text = new StringBuilder(names.size() == 1 ? "This was not opened:\n" : "These were not opened:\n");
+        for (int i = 0; i < shown; i++)
+            text.append("    ").append(names.get(i)).append('\n');
+        if (names.size() > shown)
+            text.append("    and ").append(names.size() - shown).append(" more\n");
+        return text.append("\nDrop FITS (.fits, .fit, .fts, .fz, also gzipped), JPEG 2000 (.jp2, .jpx), PNG, JPEG\n")
+                .append("or ZIP images, a folder of them, a .jhv session, or point-cloud .json.").toString();
+    }
+
+    private static void offerFolder(File dir, List<File> inside) {
+        if (inside.size() > ASK_ABOVE) {
+            int choice = JOptionPane.showConfirmDialog(MainFrame.get(),
+                    "Open the " + inside.size() + " image files in " + dir.getName() + " as one layer?",
+                    "Open Folder", JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
+            if (choice != JOptionPane.OK_OPTION)
+                return;
+        }
+        Commands.loadImage(inside.stream().map(File::toURI).toList());
     }
 
     /** The scene an exported PNG carries, with the home directory put back, or null for any other PNG. */

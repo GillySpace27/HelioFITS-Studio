@@ -31,6 +31,42 @@ public final class AppInfo {
     public static String userAgent = "JHV/SWHV-";
     public static String versionDetail = "";
 
+    /**
+     * The changelog section for {@code version}: the lines under the "## " heading that names it,
+     * up to the next "## " heading, trimmed; empty when no heading names it. A heading names a
+     * version when the version is a whole word in it, so 0.8.4 does not match 0.8.40.
+     * WelcomeChangelogCheck pins it.
+     *
+     * <p>Sections right below it whose heading says "(unreleased)" follow, heading included: those
+     * versions never shipped on their own (0.8.4 went out inside 0.8.5), so their changes are new to
+     * everyone running this one (Gilly, 2026-10-06).
+     */
+    public static String whatsNew(String changelog, String version) {
+        StringBuilder out = null;
+        for (String line : changelog.split("\n", -1)) {
+            if (line.startsWith("## ")) {
+                if (out != null) {
+                    if (!line.contains("(unreleased)"))
+                        break;
+                    out.append(line).append('\n');
+                } else if ((line + ' ').contains(' ' + version + ' '))
+                    out = new StringBuilder();
+            } else if (out != null)
+                out.append(line).append('\n');
+        }
+        return out == null ? "" : out.toString().strip();
+    }
+
+    /** What's New for the running version, from the changelog.md the jar carries; empty if absent. */
+    public static String whatsNew() {
+        try (InputStream is = AppInfo.class.getResourceAsStream("/changelog.md")) {
+            return is == null ? "" : whatsNew(new String(is.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8), version);
+        } catch (java.io.IOException e) {
+            Log.warn(e);
+            return "";
+        }
+    }
+
     public static void loadVersion() {
         try (InputStream is = AppInfo.class.getResourceAsStream("/version.properties")) {
             Properties p = new Properties();

@@ -35,7 +35,6 @@ import javax.swing.JToggleButton;
 
 import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.gui.MainFrame;
-import org.helioviewer.jhv.gui.PresentationMode;
 import org.helioviewer.jhv.gui.UIGlobals;
 
 /**
@@ -186,8 +185,8 @@ public final class Palette {
         String oldKey = "ui.palette." + from.replace(' ', '_');
         String newKey = "ui.palette." + to.replace(' ', '_');
         for (String suffix : new String[]{"", ".shown", ".sidebar", ".size"})
-            if (Settings.getProperty(newKey + suffix) != null)
-                return; // already carried over, or set since
+            if (Settings.isSet(newKey + suffix))
+                return; // already carried over, or set since (a default from the layout preset is neither)
         for (String suffix : new String[]{"", ".shown", ".sidebar", ".size"})
             copyStored(oldKey + suffix, newKey + suffix);
         for (String prefix : new String[]{"ui.section.rightSidebar.", "ui.section."}) // RightSidebar's prefKey, and the left's plain title
@@ -504,15 +503,12 @@ public final class Palette {
     }
 
     /**
-     * The rectangle a palette docks against, on screen: the chrome window in presenter view, the
-     * render canvas otherwise. One source of truth, because the size cap has to agree with the
-     * docking or a palette capped to fit still lands somewhere it does not.
+     * The rectangle a palette docks against, on screen: the render canvas. One source of truth,
+     * because the size cap has to agree with the docking or a palette capped to fit still lands
+     * somewhere it does not.
      */
     @Nullable
     private static Rectangle canvasBounds() {
-        Window chrome = PresentationMode.chromeWindow();
-        if (chrome != null && chrome.isShowing())
-            return chrome.getBounds();
         Component rc = MainFrame.getRenderComponent();
         if (rc == null || !rc.isShowing())
             return null;
@@ -702,8 +698,7 @@ public final class Palette {
     }
 
     private static Window owner() {
-        Window chrome = PresentationMode.chromeWindow();
-        return chrome != null ? chrome : MainFrame.get();
+        return MainFrame.get();
     }
 
     private JDialog create() {

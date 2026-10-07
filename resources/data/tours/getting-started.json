@@ -16,13 +16,13 @@
       "target": "imageLayersList",
       "action": "showImageLayers",
       "title": "The layer list",
-      "body": "Each layer you load gets a row here. The checkbox shows or hides a layer, and the x removes it. Drag rows to reorder them. Double-click a layer's name to change its dataset."
+      "body": "Each layer you load gets a row here; the list stays empty until you add one with New Layer. The checkbox shows or hides a layer, and the x removes it. Drag rows to reorder them. Double-click a layer's name to change its dataset."
     },
     {
       "target": "imageLayersOptions",
       "action": "showImageLayers",
       "title": "Layer options",
-      "body": "Select a layer to see its options here. Under Display, Color picks the color table. Under Intensity, the two Levels handles set the brightness window."
+      "body": "Select a layer in the list to see its options here (with no layer loaded, this space is empty). Under Display, Color picks the color table. Under Intensity, the two Levels handles set the brightness window."
     },
     {
       "target": "transport",

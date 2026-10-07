@@ -38,9 +38,10 @@ public final class TourCheck {
             failures++;
     }
 
-    private static Set<String> assignedNames() throws Exception {
+    static Set<String> assignedNames() throws Exception { // ControlSearchCheck reads it too
         Set<String> names = new TreeSet<>();
-        Pattern setName = Pattern.compile("\\.setName\\(\"(\\w+)\"\\)");
+        // setName("id"), and ProjectionPaletteContent's named(component, "id", spoken), which calls it
+        Pattern setName = Pattern.compile("(?:\\.setName\\(|\\bnamed\\(\\w+, )\"(\\w+)\"[),]"); // the literal whole, not "projection" + a suffix
         try (Stream<Path> files = Files.walk(Path.of("src"))) {
             for (Path p : files.filter(f -> f.toString().endsWith(".java")).toList()) {
                 Matcher m = setName.matcher(Files.readString(p));

@@ -549,7 +549,14 @@ public final class Actions {
                 if (r != JOptionPane.OK_OPTION)
                     return;
             }
-            removable.forEach(Layers::remove);
+            try {
+                // The fresh-install scene: projection, camera mode and the built-in layers' settings
+                // reset too, not only the layer list (HS-10).
+                org.helioviewer.jhv.app.state.BlankSession.apply();
+            } catch (RuntimeException ex) {
+                org.helioviewer.jhv.app.Log.warn("Blank session failed; removing layers one by one instead", ex);
+                removable.forEach(Layers::remove);
+            }
             tracks.forEach(tl -> {
                 tl.deleted(); // the user's gesture, as the delete column does, so an automation track goes with its lane
                 org.helioviewer.jhv.timelines.Timelines.getLayers().remove(tl);
@@ -557,6 +564,7 @@ public final class Actions {
             org.helioviewer.jhv.display.CMETracker.stop(); // a tracked front belongs to a layer that is gone
             Annotations.clear();
             org.helioviewer.jhv.app.Session.resetToUntitled(); // clear the name back to Untitled
+            Commands.resetView();
         }
     }
 
