@@ -508,7 +508,7 @@ class NotarizeResumeTest(unittest.TestCase):
                               check=True, timeout=60).stdout.strip()
 
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="hfs-resume-"))
+        self.tmp = Path(tempfile.mkdtemp(prefix="hfs-resume-")).resolve()
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.repo = self.tmp / "repo"
         (self.repo / "release").mkdir(parents=True)
@@ -794,7 +794,7 @@ class CaptureGuideShotsTest(unittest.TestCase):
     autosave, writes into whatever file it was given with -state."""
 
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="hfs-capture-"))
+        self.tmp = Path(tempfile.mkdtemp(prefix="hfs-capture-")).resolve()
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.repo = self.tmp / "repo"
         (self.repo / "release" / "guide_states").mkdir(parents=True)
