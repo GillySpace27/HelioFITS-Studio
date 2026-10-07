@@ -153,6 +153,11 @@ public final class UndoStack {
         return step == null ? null : step.label();
     }
 
+    /** Every step Undo (or, forward, Redo) could take, the next one first. */
+    public List<String> labels(boolean forward) {
+        return (forward ? redo : undo).stream().map(Step::label).toList();
+    }
+
     public int undoDepth() {
         return undo.size();
     }
