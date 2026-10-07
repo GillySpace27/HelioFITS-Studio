@@ -285,6 +285,7 @@ public final class AngleRenderer {
             if (!MacAngleBridge.presentDeep(deepLayer, deepCanvas, deepWidth, deepHeight, edr))
                 Log.warn("Deep-colour present failed for a frame");
             else if (edr) {
+                HdrMirror.present(deepCanvas, deepWidth, deepHeight);
                 pollHeadroom();
                 // The compositor ramps the headroom up over one to two seconds after a frame above
                 // white is on screen, and the app renders only on demand; without this the first
@@ -310,6 +311,10 @@ public final class AngleRenderer {
     private void pollHeadroom() {
         double headroom = MacAngleBridge.edrHeadroom(deepLayer);
         double potential = MacAngleBridge.edrPotential(deepLayer);
+        if (HdrMirror.active()) { // one gain for both screens: the smaller headroom, so neither clips
+            headroom = Math.min(headroom, HdrMirror.headroom());
+            potential = Math.min(potential, HdrMirror.potential());
+        }
         if (withdrawn(headroom, potential))
             return; // not a statement about the display; see below
         if (headroom == Display.edrHeadroom && potential == Display.edrPotential)

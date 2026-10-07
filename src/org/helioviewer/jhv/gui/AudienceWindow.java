@@ -1,5 +1,6 @@
 package org.helioviewer.jhv.gui;
 
+import java.awt.Canvas;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Graphics;
@@ -17,9 +18,13 @@ import javax.swing.JComponent;
 import javax.swing.JFrame;
 
 import org.helioviewer.jhv.app.Log;
+import org.helioviewer.jhv.app.Platform;
+import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.opengl.FrameHandoff;
 import org.helioviewer.jhv.opengl.PresentationOutput;
+import org.helioviewer.jhv.opengl.angle.HdrMirror;
+import org.helioviewer.jhv.opengl.angle.MacAngleBridge;
 
 /**
  * The projector's picture in presentation mode with two screens: a mirror of the main canvas.
@@ -40,6 +45,7 @@ final class AudienceWindow {
     private final JFrame window;
     private final Mirror mirror = new Mirror();
     @Nullable private GraphicsDevice fullScreenOn;
+    private long hdrHost; // the Metal host of the HDR mirror's canvas, 0 when the SDR mirror is up
 
     AudienceWindow(GraphicsDevice on) {
         window = new JFrame("HelioFITS Studio: Audience", on.getDefaultConfiguration());
@@ -47,7 +53,15 @@ final class AudienceWindow {
         window.setFocusableWindowState(false);
         window.setAutoRequestFocus(false);
         window.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
-        window.setContentPane(mirror);
+        // An HDR-capable projector gets a Metal layer fed straight from the EDR canvas; anything
+        // else, or any failure on the way, gets the 8-bit readback mirror.
+        Canvas hdr = Display.edrCanvas && Platform.isMacOS() ? new Canvas() : null;
+        if (hdr != null) {
+            hdr.setBackground(Color.BLACK);
+            window.getContentPane().setBackground(Color.BLACK);
+            window.getContentPane().add(hdr);
+        } else
+            window.setContentPane(mirror);
         window.setCursor(Toolkit.getDefaultToolkit().createCustomCursor(
                 new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB), new Point(), "none"));
 
@@ -63,11 +77,39 @@ final class AudienceWindow {
                 Log.warn("Full screen refused on the projector, showing at screen size instead", e);
             }
         }
+        if (hdr != null && startHdr(hdr, on))
+            return;
+        if (hdr != null) {
+            window.setContentPane(mirror);
+            window.validate();
+        }
         PresentationOutput.OUTPUT.setSink(mirror);
+    }
+
+    private boolean startHdr(Canvas hdr, GraphicsDevice on) {
+        window.validate();
+        try {
+            MacAngleBridge.Host host = MacAngleBridge.create(hdr, 0, 0, hdr.getWidth(), hdr.getHeight());
+            if (host == null)
+                return false;
+            hdrHost = host.handle();
+            if (HdrMirror.start(hdr, host.layer(), on))
+                return true;
+        } catch (RuntimeException e) {
+            Log.warn("HDR projector mirror unavailable, using the SDR mirror", e);
+        }
+        MacAngleBridge.destroy(hdrHost);
+        hdrHost = 0L;
+        return false;
     }
 
     void close() {
         PresentationOutput.OUTPUT.setSink(null);
+        if (hdrHost != 0L) {
+            HdrMirror.stop();
+            MacAngleBridge.destroy(hdrHost);
+            hdrHost = 0L;
+        }
         if (fullScreenOn != null) {
             try {
                 fullScreenOn.setFullScreenWindow(null);
