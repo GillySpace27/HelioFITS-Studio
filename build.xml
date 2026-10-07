@@ -170,6 +170,8 @@
     <target name="jar" depends="compile,build-metal-host">
         <delete file="${jarfile}"/>
         <copy file="version.properties" tofile="${bin}/version.properties" overwrite="true"/>
+        <!-- The Welcome window's What's New reads it from the jar (HS-10: no network needed). -->
+        <copy file="changelog.md" tofile="${bin}/changelog.md" overwrite="true"/>
         <replace file="${bin}/version.properties" token="@@VERSION" value="${version}"/>
         <replace file="${bin}/version.properties" token="@@REVISION" value="${revision}"/>
         <replace file="${bin}/version.properties" token="@@COMMIT" value="${commit}"/>

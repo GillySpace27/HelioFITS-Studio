@@ -1,6 +1,36 @@
 
 # Revision history
 
+## HelioFITS Studio 0.8.5 (unreleased)
+
+### Starting
+- A Welcome window opens on launch with the version, What's New for this version (read from the app itself, no network needed), and four ways to start: Continue, Start Blank, Open Session and Take the Tour. Help > Welcome to HelioFITS Studio reopens it, and a checkbox stops it opening at startup
+- Startup can start blank instead of reopening the last session (in the Welcome window, or Settings under the startup state). A default session set from the File menu still opens first. A blank start keeps the last untitled session as "Untitled before blank start <date>" at the top of Open Recent
+- Start New Session puts back the scene a fresh install opens with: the projection, the camera mode and the grid, viewpoint and timestamp settings reset too, not only the layer list
+- An empty canvas says what to do: drop a FITS or JPEG 2000 file on it, or choose New Layer. The hint never appears in a recording or an export
+
+### Finding things
+- Help > Search Controls (Cmd-K, Ctrl-K elsewhere) finds any menu command or named control by its name or words from its tooltip. Enter runs the command, or opens the control's section or palette and points at it with the tour's spotlight
+- Dropping a folder on the window opens the image files directly inside it as one layer, as choosing them all in File > Open does (it asks first above 200 files)
+- A dropped file that cannot be opened is named in a message that says what can be dropped; before, nothing visible happened
+- File > Open and dropping accept the same files, now including .fit, .fz and gzipped .fts and .fit. A drop now also takes .zip, as File > Open already did
+- File > Open Exports Folder, and a Show in Finder (Show in Folder elsewhere) button on the movie-ready and file-ready dialogs
+
+### Presentation mode
+- Presentation mode draws at the Recording pixel size and scales it to the projector, so the picture on the dome matches a recording
+- With a second display, the main window stays on your screen exactly as it is, every control working, and the projector shows a full-screen mirror of its picture. The mirror is read back every frame the projector can paint, at the projector's resolution at most. This replaces the separate presenter window and its small preview
+- With a projector that does not report HDR, the picture is drawn at standard brightness on both screens while the mirror is up, since that copy cannot carry HDR; before, everything above white clipped on the projector. Esc brings HDR back on your screen
+- A projector or monitor that reports HDR (with High Dynamic Range switched on for it in System Settings > Displays) gets the HDR picture instead: a second Metal layer drawn straight from the canvas, with no 8-bit copy. Both screens then share the smaller of their two headrooms, so neither clips. Any other display keeps the standard-brightness mirror
+- Hold the Present button for the output aspect and long side, the size the room sees
+
+### Smaller fixes
+- Left and Right step one frame back and forward when the picture has focus, as they already did on the time slider
+- Hold Undo or Redo for the whole list of steps, newest first, and jump back or forward several at once
+- Playback and Recording > Output has a Canvas box: the live canvas is drawn at the Recording size and scaled to the window, as presentation does, so a small size such as 512 gives a decimated, low-latency canvas
+- Double-clicking a layer slider (Opacity, Blend, Sharpen, Enhance, Upsilon, the alignment offsets) or the Projection palette's Warp, Disk and Field returns it to its default, the same value the section's revert uses, not to whatever it was when the panel was built
+- The last five error and warning dialogs that lacked it (preset name, movie and layer date ranges, Levels in data units) now offer Report this...
+- LASCO sessions record whether reading the headers for pointing finished, so a finished check is not repeated on every reopen and a failed one is tried again. Sessions saved before this with an empty pointing table check once
+
 ## HelioFITS Studio 0.8.4 (unreleased)
 
 ### Playback

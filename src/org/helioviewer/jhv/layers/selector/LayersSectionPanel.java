@@ -4,10 +4,10 @@ import java.awt.BorderLayout;
 
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JToggleButton;
 
+import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.component.CadencePanel;
@@ -150,7 +150,7 @@ public final class LayersSectionPanel extends JPanel {
         long end = getEndTime();
         if (start > end) {
             setTime(end, end);
-            JOptionPane.showMessageDialog(null, "The end date must be after the start date.", "Invalid Date Range", JOptionPane.ERROR_MESSAGE);
+            Message.err("Invalid Date Range", "The end date must be after the start date."); // with Report this...
             return false;
         }
         return true;

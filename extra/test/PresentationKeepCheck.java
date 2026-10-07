@@ -9,10 +9,8 @@ import org.helioviewer.jhv.app.Settings;
  *
  * <p>On one screen the picture is the whole display, so anything kept is drawn over the slide:
  * that is a trade the presenter makes knowingly, and it is what these settings are for. On two,
- * nothing is hidden in the first place. The chrome is lent to a presenter window on the other
- * display, where both sidebars and every palette already are, so "keep the left sidebar on screen"
- * there could only mean drawing it over the projector, which is the one thing the mode exists to
- * prevent.
+ * nothing is hidden in the first place: the main window stays on the presenter's screen as it is
+ * and the projector shows a mirror of its picture.
  *
  * <p>Worth a check rather than a comment because the settings are persisted and the rule is
  * invisible: someone reading keepFor's callers sees two booleans going in and three coming out,
@@ -52,15 +50,13 @@ public final class PresentationKeepCheck {
         expect("so is the right one", single.right());
         expect("and so is hiding the floating palettes", !single.palettes());
 
-        // The sidebars and the palettes go OPPOSITE ways on a second screen, which is the whole
-        // reason this is not one flag, and the reason it is worth a check: a palette is its own
-        // window and follows the presenter to the other display, where hiding it would take away
-        // the controls the presenter view exists to provide. A sidebar kept on screen there would
-        // be drawn over the projector.
+        // On a second screen nothing is hidden: the main window stays on the presenter's screen
+        // and the projector shows a mirror (Gilly, 2026-10-06), so every setting is overridden
+        // to "keep", including the one turned off above.
         PresentationMode.Keep dual = PresentationMode.keepFor(true);
-        expect("on two screens the left sidebar setting is ignored", !dual.left());
-        expect("as is the right one", !dual.right());
-        expect("but the palettes are kept, even with the setting turned off", dual.palettes());
+        expect("on two screens the left sidebar stays, whatever the setting", dual.left());
+        expect("as does the right one", dual.right());
+        expect("and the palettes, even with the setting turned off", dual.palettes());
 
         // A hand-edited or half-written settings file must not decide this by accident.
         Settings.setProperty(PresentationMode.KEEP_LEFT, "");

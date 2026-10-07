@@ -29,6 +29,7 @@ import javax.swing.JToggleButton;
 import javax.swing.JToolBar;
 import javax.swing.SpinnerNumberModel;
 
+import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.gui.Actions;
@@ -81,7 +82,7 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
     private final JComboBox<ViewState.RecordingAspect> recordAspectComboBox;
     // Powers of two only: every consumer downstream (GPU textures, fulldome masters, video
     // encoders) is happiest there, and a free spinner mostly collected typos.
-    private static final Integer[] LONG_SIDE_CHOICES = {256, 512, 1024, 2048, 4096, 8192, 16384};
+    static final Integer[] LONG_SIDE_CHOICES = {256, 512, 1024, 2048, 4096, 8192, 16384};
     private final JComboBox<Integer> recordLongSideComboBox;
     private final JComboBox<ExportFormat> recordFormatComboBox;
     private final JComboBox<ExportFormat.Chroma> recordChromaComboBox;
@@ -284,7 +285,14 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         recordDerivedLabel = new JLabel();
         recordDerivedLabel.setFont(UIGlobals.uiFontSmall);
         recordDerivedLabel.setToolTipText("The size that will actually be written");
-        addRow(optionsPanel, 3, "Output", row(recordAspectComboBox, recordLongSideLabel, recordLongSideComboBox, recordDerivedLabel));
+        javax.swing.JCheckBox canvasAtSize = new javax.swing.JCheckBox("Canvas",
+                org.helioviewer.jhv.opengl.PresentationOutput.OUTPUT.canvasAtRecordingSize());
+        canvasAtSize.setFont(UIGlobals.uiFontSmall);
+        canvasAtSize.setToolTipText("Draw the canvas itself at this size and scale it to the window, as presentation mode does. "
+                + "A small size (512) is a decimated, low-latency canvas. Needs an aspect other than On screen.");
+        canvasAtSize.addItemListener(e ->
+                org.helioviewer.jhv.opengl.PresentationOutput.OUTPUT.setCanvasAtRecordingSize(canvasAtSize.isSelected()));
+        addRow(optionsPanel, 3, "Output", row(recordAspectComboBox, recordLongSideLabel, recordLongSideComboBox, recordDerivedLabel, canvasAtSize));
 
         // Format sits with the record controls rather than in Settings, where it was: it is a
         // per-recording decision made at the same moment as aspect and resolution, not a
@@ -501,7 +509,7 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
             return;
         name = name.strip();
         if (name.isEmpty() || ExportPreset.CUSTOM.equals(name)) {
-            JOptionPane.showMessageDialog(this, "That name is reserved.", "Preset", JOptionPane.WARNING_MESSAGE);
+            Message.warn("Preset", "That name is reserved.");
             return;
         }
         String note = JOptionPane.showInputDialog(this,
@@ -787,7 +795,7 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         long end = getEndTime();
         if (start > end) {
             setTime(end, end);
-            JOptionPane.showMessageDialog(null, "End date is before start date", "Error", JOptionPane.ERROR_MESSAGE);
+            Message.err("Error", "End date is before start date"); // with Report this...
             return false;
         }
         return true;

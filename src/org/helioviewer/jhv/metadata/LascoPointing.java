@@ -1,5 +1,7 @@
 package org.helioviewer.jhv.metadata;
 
+import java.net.URI;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -47,6 +49,9 @@ public final class LascoPointing {
 
     private static final Map<String, Pointing> lent = new ConcurrentHashMap<>();
     private static final Set<String> reported = ConcurrentHashMap.newKeySet();
+    // Headers whose last read in this process failed. A probe that missed a header cannot know whether
+    // that frame needed pointing, so its table is not a complete answer and must not be saved as one.
+    private static final Set<URI> unread = ConcurrentHashMap.newKeySet();
 
     public static boolean isPlaceholder(double crota1, double crota2, double crpix1, double crpix2, long width, long height) {
         return crota1 == 0 && crota2 == 0 && crpix1 == (width + 1) / 2. && crpix2 == (height + 1) / 2.;
@@ -136,10 +141,24 @@ public final class LascoPointing {
         }
     }
 
+    /** Record whether a header probe of this URI got a usable header; a later good read clears a bad one. */
+    public static void probed(@Nonnull URI uri, boolean read) {
+        if (read)
+            unread.remove(uri);
+        else
+            unread.add(uri);
+    }
+
+    /** Whether every one of these headers was read on its last probe: the table then holds the whole answer. */
+    public static boolean allRead(@Nonnull Collection<URI> uris) {
+        return uris.stream().noneMatch(unread::contains);
+    }
+
     /** Drop the table, so a check can stand in a fresh process. Package-private: nothing else wants it. */
     static void forget() {
         lent.clear();
         reported.clear();
+        unread.clear();
     }
 
     private static Object num(double d) {

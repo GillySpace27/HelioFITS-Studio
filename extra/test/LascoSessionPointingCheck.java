@@ -64,9 +64,10 @@ public final class LascoSessionPointingCheck {
 
         // The regression this check exists for. A movie clear of any pointing gap lends nothing, so the
         // table it saves is empty -- and empty is a finding, not a blank. The writer emits the key only
-        // on a run that actually probed, which is what makes the key's presence enough on its own.
-        expect("an empty saved table is a result, not a gap: no probe",
-                !ImageLayer.needsProbe(new JSONObject()));
+        // on a run that actually probed, and the lascoPointingComplete marker says that run read every
+        // header (LascoProbeMarkerCheck covers the marker and files saved before it).
+        expect("an empty saved table from a complete probe is a result, not a gap: no probe",
+                !ImageLayer.needsProbe(new JSONObject(), true));
 
         // A whole session's worth: probe, lend, save, quit, restore.
         LascoPointing.lend(List.of(
@@ -97,7 +98,7 @@ public final class LascoSessionPointingCheck {
         JSONObject none = LascoPointing.toJson("C2");
         expect("a movie with no gap frames saves an empty table, got " + none.length() + " entries",
                 none.isEmpty());
-        expect("and restoring that does not re-read every header", !ImageLayer.needsProbe(none));
+        expect("and restoring that does not re-read every header", !ImageLayer.needsProbe(none, true));
 
         System.out.println(failures == 0 ? "LascoSessionPointingCheck: ok" : "LascoSessionPointingCheck: " + failures + " FAIL");
         System.exit(failures == 0 ? 0 : 1);
