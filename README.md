@@ -7,7 +7,7 @@
 
 HelioFITS Studio is a desktop viewer for solar and heliospheric imagery, built around coronagraph and wide-field data such as NASA's PUNCH mission, SOHO/LASCO and PROBA-3/ASPIICS. It is a fork of [JHelioviewer](https://www.jhelioviewer.org), the open-source solar image browser of the ESA/NASA Helioviewer Project. We kept JHelioviewer's 3-D view of the Sun, its timelines and its event overlays, and added the tools we needed to work with the outer corona.
 
-**Status: pre-release.** The 0.8 releases are published so that they can be tried, and broken, ahead of 1.0. We use it every day on Apple Silicon Macs. Since 0.8.2 there are also packages for Intel Macs, Windows and Linux; our automated checks build and start each of them on every release, but nobody has yet used the application itself on those systems. Please tell us what goes wrong (see [Reporting problems](#reporting-problems)).
+**Status: pre-release.** The 0.8 releases are published so that they can be tried, and broken, ahead of 1.0. We use it every day on Apple Silicon Macs. Since 0.8.2 there are also packages for Intel Macs, Windows and Linux; our automated checks build and start each of them on every release. A few people have used it on Windows; nobody has yet tried it on a real Linux machine or an Intel Mac. Please tell us what goes wrong (see [Reporting problems](#reporting-problems)).
 
 ## Why this fork exists
 
@@ -37,10 +37,10 @@ Every package on the [Releases page](https://github.com/GillySpace27/HelioFITS-S
 
 - **Apple Silicon Mac:** open `HFStudio-<version>.dmg` and drag HelioFITS Studio to Applications. The dmg is signed and notarized.
 - **Intel Mac:** the same, with `HFStudio-<version>-intel.dmg`, also signed and notarized.
-- **Windows:** unzip `HFStudio-<version>-windows.zip` anywhere and run `HFStudio\HFStudio.exe`. The app is not code-signed yet, so Windows may warn that it comes from an unknown publisher; choose *More info*, then *Run anyway*.
+- **Windows:** right-click `HFStudio-<version>-windows.zip`, choose *Extract All* (it will not start from inside the zip), and run `HFStudio\HFStudio.exe` from the folder it makes. There is no installer and no administrator rights are needed: the app writes only to your own folders. The app is not code-signed yet, so Windows may warn that it comes from an unknown publisher; choose *More info*, then *Run anyway*.
 - **Linux:** unpack `HFStudio-<version>-linux.tar.gz` anywhere and run `HFStudio/bin/HFStudio`.
 
-The Intel Mac, Windows and Linux packages pass our automated checks but have not yet been used on real machines, so we would especially like to hear how they go.
+The Intel Mac and Linux packages pass our automated checks but have not yet been used on real machines, and the Windows package only by a few people, so we would especially like to hear how they go.
 
 For anything else, the cross-platform `HFStudio-<version>.zip` runs wherever Java 25 or newer is installed (for example Temurin 25 from [adoptium.net](https://adoptium.net), or `brew install openjdk@25`): start `run.command` on macOS, `run.sh` on Linux or `run.bat` on Windows. On Windows the zip's JPEG 2000 decoder also needs Microsoft's Visual C++ runtime, which most machines already have.
 

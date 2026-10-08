@@ -157,13 +157,14 @@ and it carries its own Java runtime, so there is nothing else to install. Just d
 $INTEL_INSTALL
 
 **Windows and Linux (early):** download **$TOP-windows.zip** or **$TOP-linux.tar.gz**. Each carries
-its own Java, so there is nothing else to install: unzip and run \`HFStudio\HFStudio.exe\`, or untar
-and run \`HFStudio/bin/HFStudio\`. 64-bit Intel and AMD machines only. The Windows build is not
-code-signed yet, so Windows may say it "protected your PC"; choose More info, then Run anyway.
+its own Java and needs no installer and no administrator rights. On Windows, right-click the zip,
+choose Extract All (it will not start from inside the zip), then run \`HFStudio\HFStudio.exe\`; on
+Linux, untar and run \`HFStudio/bin/HFStudio\`. 64-bit Intel and AMD machines only. The Windows build
+is not code-signed yet, so Windows may say it "protected your PC"; choose More info, then Run anyway.
 Our build service adds these two to this page about ten minutes after it is published, and only
 once each has been started, drawn an image and decoded a JPEG 2000 file on a Windows and a Linux
-machine without a graphics card. Nobody has used them on real hardware yet, so please tell us
-how they do.
+machine without a graphics card. A few people have used the Windows package; nobody has tried the
+Linux one on a real machine yet, so please tell us how it goes, and how it breaks if it does.
 
 The full walkthrough is the **${PDF##*/}** asset on this release (also as \`.md\`).
 
