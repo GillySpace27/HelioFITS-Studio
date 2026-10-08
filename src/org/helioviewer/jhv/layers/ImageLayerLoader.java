@@ -260,7 +260,7 @@ final class ImageLayerLoader {
                     return new ManyView(views);
                 }
 
-                ManyView growing = movie;
+                FrameBatch batch = new FrameBatch(movie, onFrameAdded);
                 fetchFrames(rest, uri -> {
                     // Whether THIS frame crossed the wire. NetFileCache reports bytes only for a
                     // URI it actually fetches, so silence means it came off the disk. A frame
@@ -272,18 +272,14 @@ final class ImageLayerLoader {
                             got[0] += n;
                             onBytes.accept(n);
                         });
-                        // One thread writes the map; every reader of it is lock-free. The layer is
-                        // told on the same hop, so the transport and the timeline move together.
-                        EventQueue.invokeLater(() -> {
-                            growing.addFrames(List.of(v));
-                            onFrameAdded.run();
-                        });
+                        batch.add(v);
                     } catch (Exception e) {
                         Log.warn(uri.toString(), e);
                         failed.add(uri); // remembered so the layer can report it as retryable, not just absent
                     }
                     (got[0] > 0 ? downloaded : cached).incrementAndGet();
                 });
+                batch.flush(); // ahead of the finished movie on the EDT, so it lands complete
             } finally {
                 ticker.stop();
             }
@@ -456,6 +452,7 @@ final class ImageLayerLoader {
     @Nullable
     private View loadChunks(APIRequest req, List<APIRequest> parts, Consumer<View> preview) throws Exception {
         ManyView movie = null;
+        FrameBatch batch = null;
         for (int i = 0; i < parts.size(); i++) {
             if (Thread.currentThread().isInterrupted())
                 throw new InterruptedException("load cancelled");
@@ -473,15 +470,66 @@ final class ImageLayerLoader {
                     }
                 };
                 preview.accept(movie);
-            } else {
-                ManyView growing = movie;
-                EventQueue.invokeLater(() -> {
-                    growing.addFrames(List.of(v));
-                    onFrameAdded.run();
-                });
-            }
+                batch = new FrameBatch(movie, onFrameAdded);
+            } else if (batch != null)
+                batch.add(v);
         }
+        if (batch != null)
+            batch.flush();
         return movie;
+    }
+
+    /**
+     * Frames that landed during a streamed load, handed to the EDT in batches.
+     *
+     * <p>Each frame used to make its own trip: the EDT copied and re-indexed the whole movie
+     * (ManyView.addFrames), re-sampled its clip range, told every time-range listener, asked for a
+     * full-quality render and refreshed every layer panel. That is O(N) per frame and O(N^2) over a
+     * movie, all on the thread that paints, which is what made a long download stutter. Now one trip
+     * takes whatever arrived in the last {@link #BATCH_MS}. One thread still writes the map; every
+     * reader of it is lock-free, and the layer is told on the same hop, so the transport and the
+     * timeline move together.
+     */
+    static final class FrameBatch {
+
+        private static final int BATCH_MS = 150;
+
+        private final ManyView movie;
+        private final Runnable onAdded;
+        private final java.util.concurrent.ConcurrentLinkedQueue<View> landed = new java.util.concurrent.ConcurrentLinkedQueue<>();
+        private final java.util.concurrent.atomic.AtomicBoolean scheduled = new java.util.concurrent.atomic.AtomicBoolean();
+
+        FrameBatch(ManyView _movie, Runnable _onAdded) {
+            movie = _movie;
+            onAdded = _onAdded;
+        }
+
+        /** From any loader thread. */
+        void add(View v) {
+            landed.add(v);
+            if (scheduled.compareAndSet(false, true))
+                EventQueue.invokeLater(() -> {
+                    javax.swing.Timer timer = new javax.swing.Timer(BATCH_MS, e -> drain());
+                    timer.setRepeats(false);
+                    timer.start();
+                });
+        }
+
+        /** Hand over what is left, queued on the EDT ahead of anything posted after this call. */
+        void flush() {
+            EventQueue.invokeLater(this::drain);
+        }
+
+        private void drain() {
+            scheduled.set(false);
+            List<View> views = new java.util.ArrayList<>();
+            for (View v = landed.poll(); v != null; v = landed.poll())
+                views.add(v);
+            if (views.isEmpty())
+                return;
+            movie.addFrames(views);
+            onAdded.run();
+        }
     }
 
     private View loadZip(URI uriZip) throws Exception {
