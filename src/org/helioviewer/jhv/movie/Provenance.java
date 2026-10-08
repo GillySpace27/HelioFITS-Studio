@@ -114,7 +114,7 @@ public final class Provenance {
     }
 
     private static String writer() {
-        return AppInfo.programName + ' ' + AppInfo.version + '.' + AppInfo.revision;
+        return AppInfo.stamp();
     }
 
     // ---- the session block ------------------------------------------------------------------

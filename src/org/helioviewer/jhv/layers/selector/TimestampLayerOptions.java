@@ -1,17 +1,25 @@
 package org.helioviewer.jhv.layers.selector;
 
+import java.awt.Color;
 import java.awt.Component;
+import java.awt.FlowLayout;
+import java.awt.Graphics;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 
 import javax.swing.BoxLayout;
+import javax.swing.Icon;
+import javax.swing.JButton;
 import javax.swing.JCheckBox;
+import javax.swing.JColorChooser;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 
+import org.helioviewer.jhv.base.Colors;
+import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.gui.component.CollapsiblePane;
 import org.helioviewer.jhv.gui.component.JHVSlider;
 import org.helioviewer.jhv.layers.TimestampLayer;
@@ -32,6 +40,7 @@ final class TimestampLayerOptions extends JPanel {
         addSliderRow(panelSlider, "Size", slider, 0);
         addSliderRow(panelSlider, "X", sliderX, 1);
         addSliderRow(panelSlider, "Y", sliderY, 2);
+        addSliderRow(panelSlider, "Color", createColorRow(layer), 3);
 
         JPanel panelCheck = new JPanel(new GridBagLayout());
         GridBagConstraints c1 = new GridBagConstraints();
@@ -72,6 +81,66 @@ final class TimestampLayerOptions extends JPanel {
         add(panelSlider);
         add(panelCheck);
         add(new CollapsiblePane("Annotations", panelAnnotate, false, true));
+    }
+
+    /** A swatch button that opens the colour chooser, and Default to go back to the light grey. */
+    private static JPanel createColorRow(TimestampLayer layer) {
+        Swatch swatch = new Swatch(shown(layer.getColor()));
+        JButton pick = new JButton("Choose...", swatch);
+        pick.setToolTipText("The colour of the timestamp, its annotations and the clock. The dark shadow stays, so a light colour still reads on bright imagery.");
+        JButton reset = new JButton("Default");
+        reset.setToolTipText("Back to the light grey the timestamp has always used");
+        reset.setEnabled(layer.getColor() != null);
+        pick.addActionListener(e -> {
+            Color chosen = JColorChooser.showDialog(MainFrame.get(), "Timestamp Color", shown(layer.getColor()));
+            if (chosen == null)
+                return; // cancelled
+            layer.setColor(chosen);
+            swatch.color = shown(layer.getColor());
+            pick.repaint();
+            reset.setEnabled(true);
+        });
+        reset.addActionListener(e -> {
+            layer.setColor(null);
+            swatch.color = shown(null);
+            pick.repaint();
+            reset.setEnabled(false);
+        });
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
+        row.add(pick);
+        row.add(reset);
+        return row;
+    }
+
+    private static Color shown(Color c) {
+        return c == null ? Colors.LightGray.awtColor() : c;
+    }
+
+    private static final class Swatch implements Icon {
+        private static final int SIZE = 12;
+        Color color;
+
+        Swatch(Color _color) {
+            color = _color;
+        }
+
+        @Override
+        public void paintIcon(Component c, Graphics g, int x, int y) {
+            g.setColor(color);
+            g.fillRect(x, y, SIZE, SIZE);
+            g.setColor(Color.DARK_GRAY);
+            g.drawRect(x, y, SIZE - 1, SIZE - 1);
+        }
+
+        @Override
+        public int getIconWidth() {
+            return SIZE;
+        }
+
+        @Override
+        public int getIconHeight() {
+            return SIZE;
+        }
     }
 
     private static void addSliderRow(JPanel panel, String text, Component component, int y) {

@@ -1,5 +1,6 @@
 package org.helioviewer.jhv.layers;
 
+import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -45,7 +46,6 @@ public final class TimestampLayer extends AbstractLayer {
     // same line spacing GLText uses for its float text, so the annotation stack reads like the
     // other on-canvas text rather than like a second, differently set block
     private static final float LINE_HEIGHT = 1.1f;
-    private static final byte[] clockColor = Colors.LightGray.bytes();
     private static final byte[] clockShadowColor = {26, 26, 26, (byte) 191}; // GLText.SHADOW_COLOR in premultiplied bytes
 
     private final GLSLShape clock = new GLSLShape(true);
@@ -62,6 +62,13 @@ public final class TimestampLayer extends AbstractLayer {
     private double offsetX = 0;
     private double offsetY = 1;
     private boolean showClock = true;
+    // The text and dial colour; null is the historical light grey, which then draws exactly as it
+    // always has (Colors.LightGrayFloat for the text, Colors.LightGray for the dial) and writes no
+    // "color" key, so a session saved without a choice reads the same in an older build.
+    @Nullable
+    private Color color;
+    private float[] textColor = Colors.LightGrayFloat;
+    private byte[] clockColor = Colors.LightGray.bytes();
     // Render-time annotations, each its own line under the timestamp. They exist to burn into an
     // exported movie the things a viewer cannot recover from the pixels but the app knows while
     // the frame is drawn: which build made it, what projection and warp parameters it was drawn
@@ -86,6 +93,8 @@ public final class TimestampLayer extends AbstractLayer {
         jo.put("showProjection", showProjection);
         jo.put("showFilter", showFilter);
         jo.put("showObserver", showObserver);
+        if (color != null)
+            jo.put("color", toHex(color));
     }
 
     private void deserialize(JSONObject jo) {
@@ -106,6 +115,14 @@ public final class TimestampLayer extends AbstractLayer {
         showProjection = jo.optBoolean("showProjection", showProjection);
         showFilter = jo.optBoolean("showFilter", showFilter);
         showObserver = jo.optBoolean("showObserver", showObserver);
+        String hex = jo.optString("color", "");
+        if (!hex.isEmpty()) {
+            try {
+                applyColor(Colors.parseColor(hex));
+            } catch (NumberFormatException e) { // a hand-edited session: keep the default rather than fail the load
+                applyColor(null);
+            }
+        }
     }
 
     public TimestampLayer(JSONObject jo) {
@@ -173,7 +190,7 @@ public final class TimestampLayer extends AbstractLayer {
         renderer.beginRendering(vp.width, vp.height);
         renderer.setColor(GLText.SHADOW_COLOR);
         drawBlock(renderer, text, notes, deltaX + GLText.SHADOW_OFFSET_X, textY + GLText.SHADOW_OFFSET_Y, lineStep, textScaleFactor);
-        renderer.setColor(Colors.LightGrayFloat);
+        renderer.setColor(textColor);
         drawBlock(renderer, text, notes, deltaX, textY, lineStep, textScaleFactor);
         renderer.endRendering();
 
@@ -243,7 +260,7 @@ public final class TimestampLayer extends AbstractLayer {
 
     private String versionLine() {
         if (versionCache == null)
-            versionCache = AppInfo.programName + ' ' + AppInfo.version + '.' + AppInfo.revision;
+            versionCache = AppInfo.stamp();
         return versionCache;
     }
 
@@ -452,6 +469,28 @@ public final class TimestampLayer extends AbstractLayer {
     public void setOffsetY(double _offsetY) {
         offsetY = Math.clamp(_offsetY, 0, 1);
         DisplayController.display();
+    }
+
+    /** The chosen text colour, or null for the default light grey. */
+    @Nullable
+    public Color getColor() {
+        return color;
+    }
+
+    /** Null goes back to the default. */
+    public void setColor(@Nullable Color _color) {
+        applyColor(_color);
+        DisplayController.display();
+    }
+
+    void applyColor(@Nullable Color _color) { // package-private: TimestampColorCheck, without a display to repaint
+        color = _color == null ? null : new Color(_color.getRed(), _color.getGreen(), _color.getBlue()); // opaque: the shadow carries the contrast
+        textColor = color == null ? Colors.LightGrayFloat : Colors.floats(color, 1);
+        clockColor = color == null ? Colors.LightGray.bytes() : Colors.bytes(color);
+    }
+
+    static String toHex(Color c) {
+        return String.format("#%02x%02x%02x", c.getRed(), c.getGreen(), c.getBlue());
     }
 
     public boolean isShowClock() {
