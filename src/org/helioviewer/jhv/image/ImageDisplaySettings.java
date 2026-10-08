@@ -246,8 +246,13 @@ public final class ImageDisplaySettings {
      * repeat put back the instrument's table over one picked while the movie was arriving (or over a
      * session's table, whose one-time pass the first frame had already spent), and scene undo then
      * saw a colour-table change nobody made.
+     *
+     * <p>A view that names no table (a FITS file no colour rule matches) passes null, which is read
+     * through grey, as {@link #setLUT} does.
      */
-    public void setDefaultLUT(LUT def, boolean invert) {
+    public void setDefaultLUT(@Nullable LUT def, boolean invert) {
+        if (def == null)
+            def = LUT.gray();
         if (def.name().equals(viewDefaultLUT))
             return;
         viewDefaultLUT = def.name();
