@@ -57,6 +57,21 @@ public final class DefaultLutRepeatCheck {
         expect("a session's table survives the first and the last frame, got " + restored.getLUT().name(),
                 restored.getLUT().name().equals(blue.name()));
 
+        // A view that names no table (no colour rule matches its FITS header) brings null: read as grey,
+        // and a repeat of it is a repeat like any other. It used to throw on every such load.
+        ImageDisplaySettings plain = new ImageDisplaySettings();
+        plain.setLUT(red, false);
+        try {
+            plain.setDefaultLUT(null, false);
+            expect("a null default is read as grey, got " + plain.getLUT().name(), plain.getLUT().name().equals(LUT.gray().name()));
+            plain.setLUT(blue, false);
+            plain.setDefaultLUT(null, false);
+            expect("a repeated null default keeps the table picked meanwhile, got " + plain.getLUT().name(),
+                    plain.getLUT().name().equals(blue.name()));
+        } catch (NullPointerException e) {
+            expect("a null default does not throw (" + e.getMessage() + ")", false);
+        }
+
         System.out.println(failures == 0 ? "DefaultLutRepeatCheck: ok" : "DefaultLutRepeatCheck: " + failures + " FAIL");
         System.exit(failures == 0 ? 0 : 1);
     }
