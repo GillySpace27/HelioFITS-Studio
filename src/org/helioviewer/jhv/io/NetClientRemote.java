@@ -62,6 +62,7 @@ class NetClientRemote implements NetClient {
             .readTimeout(60, TimeUnit.SECONDS)
             .cache(new Cache(Directories.clientCacheDir, cacheSize))
             .proxyAuthenticator(Authenticator.JAVA_NET_AUTHENTICATOR)
+            .cookieJar(MlsoClient.COOKIES) // the MLSO download session; that host only, memory only
             //.addInterceptor(logging)
             //.addInterceptor(new LoggingInterceptor())
             .build();

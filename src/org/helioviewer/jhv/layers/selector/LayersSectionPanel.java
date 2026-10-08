@@ -115,6 +115,7 @@ public final class LayersSectionPanel extends JPanel {
                 {"PUNCH (SDAC)\u2026", (Runnable) () -> org.helioviewer.jhv.gui.dialog.PunchDialog.getInstance().showDialog()},
                 {"Solar Orbiter (SOAR)\u2026", (Runnable) () -> org.helioviewer.jhv.gui.dialog.SoarDialog.getInstance().showDialog()},
                 {"Proba-3 ASPIICS\u2026", (Runnable) () -> org.helioviewer.jhv.gui.dialog.AspiicsDialog.getInstance().showDialog()},
+                {"MLSO KCor and UCoMP (HAO)\u2026", (Runnable) () -> org.helioviewer.jhv.gui.dialog.MlsoDialog.getInstance().showDialog()},
                 // No dialog: the master range and cadence are the whole question, like the VSO
                 // tree's Add button. NRL because the VSO's LASCO catalog stops in early
                 // 2025 while the LZ archive is current; see LascoClient.
