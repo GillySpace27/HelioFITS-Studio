@@ -34,6 +34,21 @@ public class CommandLine {
 
     private static String[] arguments;
 
+    // A session file the desktop asked this app to open: a double-click in Finder, Open With, or a
+    // drop on the Dock icon. macOS delivers that as an open-documents event, never as an argument,
+    // so a launch from Finder looked exactly like a bare launch: the Welcome window came up, the
+    // startup rung reopened the last session, and the file that was clicked never loaded. Until the
+    // startup session has been opened, the clicked file takes its place (see foldIntoStartup).
+    // One final holder rather than three mutable statics; every access holds CommandLine.class.
+    private static final DesktopOpen desktop = new DesktopOpen();
+
+    private static final class DesktopOpen {
+        @Nullable
+        URI document;
+        boolean startupStateOpened;
+        boolean requested;
+    }
+
     /** The session a window opens at startup when the command line names none, and why. */
     public record StartupState(Source source, @Nullable URI uri) {
         public enum Source { NONE, EXTRA_WINDOW, PINNED, AUTOSAVE, BLANK }
@@ -67,7 +82,44 @@ public class CommandLine {
     /** The startup.mode value for starting on the fresh-install scene (Settings, Startup). */
     public static final String BLANK_MODE = "blank";
 
-    public static void setArguments(String[] args) {
+    /**
+     * A lone session path on the command line, as Windows and Linux pass a double-clicked file,
+     * becomes {@code -state <path>}. A value that follows an option is that option's, so
+     * {@code -load a.jhv} is left alone. Pure, for DesktopDocumentCheck.
+     */
+    static String[] promoteSessionArgument(String[] args) {
+        List<String> out = new ArrayList<>(args.length + 1);
+        for (int i = 0; i < args.length; i++) {
+            String a = args[i];
+            boolean optionValue = i > 0 && args[i - 1].startsWith("-");
+            if (!optionValue && !a.startsWith("-") && a.toLowerCase(java.util.Locale.ROOT).endsWith(".jhv"))
+                out.add("-state");
+            out.add(a);
+        }
+        return out.toArray(String[]::new);
+    }
+
+    /**
+     * The desktop asked to open {@code uri} (a .jhv). Before the startup session has been opened
+     * it replaces that session and returns true, so nothing more is to be done; afterwards it
+     * returns false and the caller opens it the way Open Recent does. Either way the Welcome
+     * window and the tour offer stand down (desktopDocumentRequested).
+     */
+    public static synchronized boolean foldIntoStartup(URI uri) {
+        desktop.requested = true;
+        if (desktop.startupStateOpened)
+            return false;
+        desktop.document = uri;
+        return true;
+    }
+
+    /** True once the desktop has asked this app to open a session, at launch or later. */
+    public static synchronized boolean desktopDocumentRequested() {
+        return desktop.requested;
+    }
+
+    public static void setArguments(String[] rawArgs) {
+        String[] args = promoteSessionArgument(rawArgs);
         arguments = args;
         java.io.File restore = org.helioviewer.jhv.app.Session.restoreCandidate();
         String sessionName = org.helioviewer.jhv.app.Session.displayName();
@@ -121,10 +173,15 @@ public class CommandLine {
      */
     @Nullable
     public static URI openStateArgument(java.util.function.Consumer<URI> load) {
-        List<URI> states = getURIOptionValues("-state");
-        if (states.isEmpty())
+        URI uri;
+        synchronized (CommandLine.class) {
+            desktop.startupStateOpened = true; // from here on a desktop open loads directly
+            List<URI> states = getURIOptionValues("-state");
+            // A file opened from the desktop during startup is the newest thing the user asked for.
+            uri = desktop.document != null ? desktop.document : states.isEmpty() ? null : states.get(0);
+        }
+        if (uri == null)
             return null;
-        URI uri = states.get(0);
         // Hold the automatic saves until the scene really is this session's, and keep holding them
         // if the load fails: a restore that never happened must not be written over anything.
         org.helioviewer.jhv.app.Session.expectStateLoad();
@@ -133,7 +190,8 @@ public class CommandLine {
                 org.helioviewer.jhv.app.Session.expectStateLoad();
         });
         load.accept(uri);
-        if ("file".equals(uri.getScheme()))
+        // Never adopt a session data archive: autosave would write a .jhv over the zip and its data.
+        if ("file".equals(uri.getScheme()) && !org.helioviewer.jhv.app.state.SessionArchive.isArchiveName(uri.getPath()))
             org.helioviewer.jhv.app.Session.adoptSessionFile(new java.io.File(uri));
         return uri;
     }

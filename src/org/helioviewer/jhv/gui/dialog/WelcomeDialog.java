@@ -60,9 +60,21 @@ public final class WelcomeDialog {
             return;
         }
         Tour.markOffered(); // the Welcome window has the tour's button; one invitation is enough
-        Timer later = new Timer(OFFER_DELAY_MS, e -> show());
+        // Checked when the timer fires, not now: macOS delivers a file opened from Finder after main
+        // has started, and that launch has already said what it wants open.
+        Timer later = new Timer(OFFER_DELAY_MS, e -> {
+            if (!CommandLine.desktopDocumentRequested())
+                show();
+        });
         later.setRepeats(false);
         later.start();
+    }
+
+    /** Close the window if it is open; a session opened from the desktop takes its place. */
+    public static void dismiss() {
+        JDialog open = showing.get();
+        if (open != null)
+            open.dispose();
     }
 
     public static void show() {
