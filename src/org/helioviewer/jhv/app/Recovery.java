@@ -60,6 +60,7 @@ public final class Recovery {
     private int restoreCrashes;
     @Nullable
     private String notice;
+    private boolean noticeSaysReopened;
 
     /** What the last run of this session left behind. */
     public record Prior(boolean crashed, boolean whileRestoring, int restoreCrashes, @Nullable Instant savedAt) {
@@ -276,6 +277,7 @@ public final class Recovery {
         }
         String when = prior.savedAt() == null ? ""
                 : ", last saved " + DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneOffset.UTC).format(prior.savedAt()) + " UTC";
+        recovery.noticeSaysReopened = true;
         recovery.notice = "HelioFITS Studio did not quit normally last time. \"" + sessionName
                 + "\" was reopened from its autosave" + when + ".\n\n"
                 + "Changes are autosaved within a few seconds. Copies from the last few hours are kept in\n" + folder;
@@ -285,6 +287,9 @@ public final class Recovery {
     static void showNotice() {
         String text = recovery.notice;
         recovery.notice = null;
+        // A session opened from Finder at launch takes the autosave's place, so "reopened" would be untrue.
+        if (recovery.noticeSaysReopened && org.helioviewer.jhv.io.CommandLine.desktopDocumentRequested())
+            return;
         if (text != null)
             Message.info("Session recovered", text);
     }
