@@ -65,6 +65,8 @@ public final class ActionCatalog {
         put("closeWindow", new Actions.CloseWindow(), "File/Close Window", "");
         put("saveSession", new Actions.SaveState(), "File/Save Session", "");
         put("saveSessionAs", new Actions.SaveStateAs(), "File/Save Session As...", "");
+        put("exportSessionWithData", new ExportSessionWithData(), "File/Export Session with Data...",
+                "Save the session plus a .data.zip of its local files, to open on another computer");
         put("revertToSaved", new Actions.RevertToSaved(), "File/Revert to Saved", "");
         put("setDefaultSession", new Actions.SetDefaultSession(), "File/Set Current Session as Default", "");
         put("clearDefaultSession", new Actions.ClearDefaultSession(), "File/Clear Default Session", "");
