@@ -8,6 +8,10 @@
 - Opening a session whose local files are not on this computer takes them from the `.data.zip` beside it, checks every file against its checksum, and unpacks them once under `~/HFStudio/SessionData`. Files still on disk are read where they are. Dropping the `.data.zip` itself on the window opens the session inside it
 - A session whose local files are missing, with no archive to supply them, now says how many will not load instead of dropping those layers silently
 
+### Animation
+- An animated control's lane in the Timeline panel has a band of its own above the plot, so it no longer draws over the HEK events or the layer coverage rows. The panel grows by the band when a control is animated
+- Selecting an animated control's row lists its keys with their time (UTC), value and easing, each editable by typing; a typed time is taken exactly, not snapped to a frame. Add key puts one at the playhead and Delete key removes the selected one
+
 ## HelioFITS Studio 0.8.5 (unreleased)
 
 ### Starting
