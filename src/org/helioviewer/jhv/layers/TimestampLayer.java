@@ -243,7 +243,7 @@ public final class TimestampLayer extends AbstractLayer {
 
     private String versionLine() {
         if (versionCache == null)
-            versionCache = AppInfo.programName + ' ' + AppInfo.version + '.' + AppInfo.revision;
+            versionCache = AppInfo.stamp();
         return versionCache;
     }
 

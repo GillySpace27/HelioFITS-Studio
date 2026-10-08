@@ -69,15 +69,17 @@ only ever appended:
   **attached by CI about ten minutes after `publish`**, only if each package
   started, drew an image and decoded a JPEG 2000 file with its own bundled
   OpenJPEG. x86-64 only. The Windows build is not code-signed, so SmartScreen
-  warns on first run. CI draws in software; nobody has used them on real
-  hardware yet.
+  warns on first run (More info, Run anyway; no admin needed: it is an
+  app-image, not an installer). CI draws in software. A few people have run
+  the Windows package; nobody has used the Linux one on real hardware yet.
 - `HFStudio-Guide.pdf` / `.md`: the field guide, generated from
   `guide_content.json` + `guide_assets/`.
 - `fabric_suvi.json.gz`: demo point cloud, opened from the Point Cloud layer.
 
-**macOS arm64 is the only platform used on real hardware.** Say so when sharing.
-The download page's Windows and Linux tiles stay off until a person has
-confirmed that platform's package and set its `confirmed` flag in
+**macOS arm64 is the platform used daily; Windows has a few users; Linux is untested.**
+Say so when sharing. Gilly wants the Windows and Linux tiles offered anyway
+(2026-10-08): a report of how it broke beats a visitor who never tries. A tile
+is turned on by its `confirmed` flag in
 `heliofits-studio/index.html` (the `GillySpace27.github.io` repository), and the release
 also carries that platform's file.
 
@@ -444,8 +446,9 @@ It does **not** cover:
   collaborators is a separate, human step.
 - **Upstream contribution.** Shipping a release is unrelated to the PRs against
   `Helioviewer-Project/JHelioviewer-SWHV`, which are gated on bogdanni.
-- **Non-macOS platforms.** The Linux and Windows launchers ship untested. The
-  first real Windows user will be an external collaborator.
+- **Non-macOS platforms.** A few collaborators have run the Windows package
+  (0.8.3 at least, per Gilly 2026-10-08); Linux has not been used on real
+  hardware. Gilly wants both offered anyway, so failures get reported.
 
 ## Things that have actually gone wrong here
 

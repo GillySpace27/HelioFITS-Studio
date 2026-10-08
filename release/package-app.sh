@@ -72,6 +72,9 @@ if [ "$OS" = windows ]; then
     # after trimming means only while jlink keeps it with java.base.
     [ -f pkg-out/HFStudio/runtime/bin/vcruntime140.dll ] \
         || { echo "!! the bundled runtime has no vcruntime140.dll; OpenJPEG would not load on a bare Windows" >&2; exit 1; }
+    # The first thing someone sees after unzipping: how to start it, that it must be extracted first,
+    # and that it needs no admin rights. CRLF so Notepad on any Windows shows the lines.
+    sed 's/$/\r/' release/windows-readme.txt > "pkg-out/HFStudio/README.txt"
     ARCHIVE="HFStudio-$VERSION-windows.zip"
     ( cd pkg-out && 7z a -tzip -mx=7 "../$ARCHIVE" HFStudio > /dev/null )
 else
