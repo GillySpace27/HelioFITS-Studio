@@ -132,7 +132,7 @@ public final class ProvenanceCheck {
      */
     private static void frameBlock() {
         JSONObject expected = new JSONObject()
-                .put("writer", "HelioFITS Studio " + AppInfo.version + '.' + AppInfo.revision)
+                .put("writer", AppInfo.stamp()) // was programName + version.revision, which never moved between releases
                 .put("frame", 7)
                 .put("time", "2026-04-25T00:16:00.000")
                 .put("projection", "Orthographic")
