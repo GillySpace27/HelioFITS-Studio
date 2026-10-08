@@ -64,7 +64,7 @@ menu. Buttons are defined in `src/org/helioviewer/jhv/layers/selector/LayersSect
 | Solar Orbiter: EUI (FSI 174, FSI 304, HRI 174, HRI Lyman-alpha), PHI (FDT, HRT), Metis, SoloHI | ESA SOAR, `https://soar.esac.esa.int/soar-sl-tap/` | Level L1, L2 or L3; search by time range or by SOOP; cadence and exclusion filters | `io/SoarClient.java`, `gui/dialog/SoarDialog.java` |
 | PROBA-3 ASPIICS | P3SC at ROB, `https://p3sc.oma.be/api/` | Level 3 by orbit, as FITS or JPEG 2000; cadence | `gui/dialog/AspiicsDialog.java` |
 | SOHO LASCO C2, C3 (level 0.5) | NRL LZ archive, `https://lasco-www.nrl.navy.mil/lz/level_05` | No dialog: uses the master time range and cadence. Monthly background images from NRL are subtracted unless the `display.lascoBackground` setting is `false`. | `io/LascoClient.java`, `io/LascoBackground.java` |
-| MLSO KCor and UCoMP (button "MLSO KCor and UCoMP (HAO)"; **only once PR #34 merges**) | HAO MLSO API v1, `http://api.mlso.ucar.edu/v1`. Searching is open; downloading needs an email registered at `https://registration.hao.ucar.edu`. **Not yet tested against the live API.** | Instrument and product as the API lists them; time-range search; cadence; UCoMP wave region (637, 706, 789, 1074 or 1079 nm) | `io/MlsoClient.java`, `gui/dialog/MlsoDialog.java` (in PR #34) |
+| MLSO KCor and UCoMP (button "MLSO KCor and UCoMP (HAO)") | HAO MLSO API v1, `http://api.mlso.ucar.edu/v1`. Searching is open; downloading needs an email registered at `https://registration.hao.ucar.edu`. **Not yet tested against the live API.** | Instrument and product as the API lists them; time-range search; cadence; UCoMP wave region (637, 706, 789, 1074 or 1079 nm) | `io/MlsoClient.java`, `gui/dialog/MlsoDialog.java` |
 
 The SOAR dialog also lists MAG RTN and SWA PAS descriptors; those are CDF files and load as
 timelines rather than images.
@@ -94,6 +94,7 @@ Other local inputs:
 | Kind | Extensions | How to load | Defined in |
 |---|---|---|---|
 | Session | `.jhv` | File > Open Session, double-click in Finder, or drag onto the window | `ExtensionFileFilter.java` |
+| Session data archive | `.data.zip` (beside a `.jhv` of the same name) | Opens with its `.jhv`, or on its own (it carries the session inside); see below | `app/state/SessionArchive.java` |
 | Timeline | `.json`, `.cdf` | Timelines > Open Timeline | `src/org/helioviewer/jhv/timelines/gui/TimelineActions.java` |
 | 3-D model | `.gltf`, `.glb` (also gzipped) | File > Open Model Layer | `ExtensionFileFilter.java` |
 | Point cloud | `.json`, `.json.gz` (several files become a time series) | Layers > New Point Cloud Layer, or drag onto the window | `gui/Actions.java`, `plugins/pointcloud/` |
@@ -133,11 +134,19 @@ Event types and suppliers come from `resources/settings/SWEK.json`; the request 
 
 ## Opening a session on another computer
 
-A `.jhv` session records where each layer's data came from, not the data itself
-(`src/org/helioviewer/jhv/app/state/SessionOffline.java`). Layers from the remote sources above
-are fetched again on the other machine. A layer made from local files records `file:` paths, so
-(inferred from that, not tested) it opens elsewhere only if the same files sit at the same paths;
-there is no export of local data alongside a session yet.
+A `.jhv` session records where each layer's data came from, not the data itself. Layers from the
+remote sources above are fetched again on the other machine. For layers read from your own disk,
+use File > Export Session with Data: it writes the `.jhv` and, beside it, a `.data.zip` holding
+every local file the session reads (`gui/ExportSessionWithData.java`, `app/state/SessionArchive.java`).
+Opening the `.jhv` (or the `.data.zip` alone) on another machine restores missing local files from
+the archive, and warns about any it cannot find.
+
+## Bundled sample
+
+One small image ships with the application and is loaded by the Getting Started tour when it
+starts on an empty canvas: an SDO/AIA 171 frame from 2012-08-31, rebinned to 1024 x 1024
+(`resources/samples/`; its source, processing and SDO data-policy credit are recorded in
+`resources/samples/README.md`).
 
 Paths in the tables above that start with `io/`, `gui/`, `plugins/`, `astronomy/`, `layers/` or
 `timelines/` are under `src/org/helioviewer/jhv/`.
