@@ -94,6 +94,8 @@ public final class Tour {
             Log.warn("Tour " + id + " could not be read", e);
             return;
         }
+        if (GETTING_STARTED.equals(id) && MainFrame.get() != null)
+            TourSamples.loadIfEmpty(); // something real on the canvas for the steps to point at
         start(steps);
     }
 
@@ -133,7 +135,8 @@ public final class Tour {
 
     private static void offer() {
         JFrame frame = MainFrame.get();
-        if (running.get() != null || frame == null || !frame.isShowing())
+        if (running.get() != null || frame == null || !frame.isShowing()
+                || org.helioviewer.jhv.io.CommandLine.desktopDocumentRequested()) // a launch from Finder came to open a file
             return;
         Settings.setProperty(OFFERED_KEY, "true"); // offered, whatever the answer: never again
         Spotlight prompt = new Spotlight(false);

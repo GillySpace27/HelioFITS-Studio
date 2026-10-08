@@ -1,6 +1,13 @@
 
 # Revision history
 
+## HelioFITS Studio 0.8.6 (unreleased)
+
+### Sessions
+- File > Export Session with Data saves the session plus a `.data.zip` beside it holding every local file its image layers read, so a session built on your own data opens on another computer. Archive layers are not packed; they download again there, as before. The zip carries a manifest with a SHA-256 for each file, and both files are written to a temporary name and renamed into place, so an interrupted export never leaves a half-written file under the real name
+- Opening a session whose local files are not on this computer takes them from the `.data.zip` beside it, checks every file against its checksum, and unpacks them once under `~/HFStudio/SessionData`. Files still on disk are read where they are. Dropping the `.data.zip` itself on the window opens the session inside it
+- A session whose local files are missing, with no archive to supply them, now says how many will not load instead of dropping those layers silently
+
 ## HelioFITS Studio 0.8.5 (unreleased)
 
 ### Starting

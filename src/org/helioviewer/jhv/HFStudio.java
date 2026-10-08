@@ -103,6 +103,8 @@ public class HFStudio {
         }
 
         PluginManager.setGUIEnabled(!headless);
+        if (!headless)
+            org.helioviewer.jhv.gui.DesktopDocuments.install(); // a .jhv opened from Finder, at launch or later
         if (headless)
             startHeadless();
         else

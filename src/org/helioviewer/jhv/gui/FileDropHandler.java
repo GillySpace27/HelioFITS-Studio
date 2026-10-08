@@ -75,8 +75,8 @@ final class FileDropHandler extends DropTargetAdapter {
                     SwingUtilities.invokeLater(() -> offerFolder(f, inside));
             } else if (n.endsWith(".json") || n.endsWith(".json.gz"))
                 clouds.add(f);
-            else if (n.endsWith(".jhv"))
-                Commands.loadState(f.toURI());
+            else if (n.endsWith(".jhv") || org.helioviewer.jhv.app.state.SessionArchive.isArchiveName(n))
+                Commands.loadState(f.toURI()); // a .data.zip carries its session inside it
             else if (ExtensionFileFilter.isImage(n))
                 Commands.loadImage(f.toURI());
             else {
