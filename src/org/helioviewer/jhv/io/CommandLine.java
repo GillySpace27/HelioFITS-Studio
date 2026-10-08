@@ -69,10 +69,24 @@ public class CommandLine {
 
     public static void setArguments(String[] args) {
         arguments = args;
+        java.io.File restore = org.helioviewer.jhv.app.Session.restoreCandidate();
+        String sessionName = org.helioviewer.jhv.app.Session.displayName();
+        // How the last run of this window's session ended, recorded before this one decides anything.
+        org.helioviewer.jhv.app.Recovery.Prior prior = org.helioviewer.jhv.app.Recovery.start(
+                org.helioviewer.jhv.app.Session.currentSessionFile());
         StartupState start = resolveStartup(org.helioviewer.jhv.app.Session.isExtraWindow(),
-                org.helioviewer.jhv.app.Session.restoreCandidate(),
-                Settings.getProperty("startup.loadState"), Settings.getProperty("startup.mode"));
-        if (start.source() == StartupState.Source.BLANK && !Arrays.asList(args).contains("-state"))
+                restore, Settings.getProperty("startup.loadState"), Settings.getProperty("startup.mode"));
+        boolean explicit = Arrays.asList(args).contains("-state");
+        // Reopening the session crashed the last runs: start empty rather than crash again. Only the
+        // automatic reopen; a session asked for on the command line or from Finder is still opened.
+        // The primary window's own session only: an extra window has no blank start of its own.
+        boolean reopens = !explicit && start.source() == StartupState.Source.AUTOSAVE;
+        boolean skip = reopens && prior.restoreLoop();
+        if (skip)
+            start = new StartupState(StartupState.Source.BLANK, null);
+        if (reopens)
+            org.helioviewer.jhv.app.Recovery.tell(prior, sessionName, !skip);
+        if (start.source() == StartupState.Source.BLANK && !explicit)
             org.helioviewer.jhv.app.Session.startBlank(); // keeps the session it would have reopened
         URI stateArg = start.uri();
         if (stateArg != null) {
