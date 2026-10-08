@@ -986,6 +986,15 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         return viewLoaded;
     }
 
+    /**
+     * True once a view has been put on screen, the streamed first frame included. From then on the
+     * layer's settings are its own (the plane is chosen, the default colour table taken), so scene
+     * undo can watch it although the rest of its movie is still arriving.
+     */
+    public boolean hasFirstFrame() {
+        return viewActivatedBefore;
+    }
+
     @Nonnull
     public ImageDisplaySettings getDisplaySettings() {
         return displaySettings;

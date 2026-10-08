@@ -403,6 +403,8 @@ public final class State {
     }
 
     public static void load(@Nullable Commands.OperationContext context, JSONObject jo) {
+        // A new history from here: an Undo pressed while this loads must not apply the last session's scene.
+        org.helioviewer.jhv.app.SceneUndo.reset();
         try {
             ViewState.ModeData modeData = ViewState.readModeJson(jo);
             ViewState.setProjection(modeData.projection()); // to be set before viewpoint
