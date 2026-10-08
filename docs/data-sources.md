@@ -55,8 +55,8 @@ the leaf was added. MDI, TRACE and SXT are deliberately not listed.
 
 ## Images: native FITS from a mission's own archive (New Layer > FITS (native))
 
-For archives the VSO serves badly or not at all. Each has its own dialog, also reachable from the
-Layers menu. Buttons are defined in `src/org/helioviewer/jhv/layers/selector/LayersSectionPanel.java`.
+For archives the VSO serves badly or not at all. PUNCH, SOAR and ASPIICS are also in the Layers
+menu. Buttons are defined in `src/org/helioviewer/jhv/layers/selector/LayersSectionPanel.java`.
 
 | Mission / instrument | Provider and endpoint | What you can choose | Defined in |
 |---|---|---|---|
@@ -64,7 +64,7 @@ Layers menu. Buttons are defined in `src/org/helioviewer/jhv/layers/selector/Lay
 | Solar Orbiter: EUI (FSI 174, FSI 304, HRI 174, HRI Lyman-alpha), PHI (FDT, HRT), Metis, SoloHI | ESA SOAR, `https://soar.esac.esa.int/soar-sl-tap/` | Level L1, L2 or L3; search by time range or by SOOP; cadence and exclusion filters | `io/SoarClient.java`, `gui/dialog/SoarDialog.java` |
 | PROBA-3 ASPIICS | P3SC at ROB, `https://p3sc.oma.be/api/` | Level 3 by orbit, as FITS or JPEG 2000; cadence | `gui/dialog/AspiicsDialog.java` |
 | SOHO LASCO C2, C3 (level 0.5) | NRL LZ archive, `https://lasco-www.nrl.navy.mil/lz/level_05` | No dialog: uses the master time range and cadence. Monthly background images from NRL are subtracted unless the `display.lascoBackground` setting is `false`. | `io/LascoClient.java`, `io/LascoBackground.java` |
-| MLSO (native FITS) | Placeholder: being added on 2026-10-08 through the MLSO API. Details will be filled in by the change that adds it. | | |
+| MLSO KCor and UCoMP (button "MLSO KCor and UCoMP (HAO)"; **only once PR #34 merges**) | HAO MLSO API v1, `http://api.mlso.ucar.edu/v1`. Searching is open; downloading needs an email registered at `https://registration.hao.ucar.edu`. **Not yet tested against the live API.** | Instrument and product as the API lists them; time-range search; cadence; UCoMP wave region (637, 706, 789, 1074 or 1079 nm) | `io/MlsoClient.java`, `gui/dialog/MlsoDialog.java` (in PR #34) |
 
 The SOAR dialog also lists MAG RTN and SWA PAS descriptors; those are CDF files and load as
 timelines rather than images.
