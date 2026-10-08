@@ -32,12 +32,17 @@ import org.json.JSONObject;
  * <p>Polled, not instrumented. Every setting a user can change is already written by
  * State.snapshot, so a timer hands the live scene to an {@link UndoStack}, which keeps the changes
  * that settled. That reaches every control without touching any of them. The poll pauses while a
- * mouse button is held, so a slider drag is one step, taken on release, and while an image layer is
- * still loading, so a movie arriving frame by frame is not a run of steps. Undo hands a snapshot to
- * State.apply, which keeps every layer whose data did not change.
+ * mouse button is held, so a slider drag is one step, taken on release, and while an image layer has
+ * not put its first frame on screen yet, because until then the loader is still choosing its plane
+ * and colour table. It does not wait for the rest of the movie: nothing a snapshot's key holds
+ * changes as frames arrive, so Undo works while a long download is still running. Undo hands a
+ * snapshot to State.apply, which keeps every layer whose data did not change.
  *
- * <p>Session load, New Session and Revert to Saved start a new history: Session calls {@link #reset}.
- * Autosave is untouched; an undo is a change like any other and is saved like one.
+ * <p>Opening a session clears the history when the load starts ({@link #reset}), so an Undo pressed
+ * during the load cannot reach into the previous session, and adopts the finished load as the present
+ * ({@link #settle}), so the load's own last touches (saved ticks, the master layer, the playback range)
+ * are not a step and an edit made while it loaded stays undoable. New Session also resets. Autosave is
+ * untouched; an undo is a change like any other and is saved like one.
  */
 public final class SceneUndo {
 
@@ -68,9 +73,15 @@ public final class SceneUndo {
         new Timer(POLL_MS, e -> scene.poll()).start();
     }
 
-    /** A session was opened, started afresh or reverted: history starts again from it. */
+    /** A session is being opened, started afresh or reverted: history starts again from it. */
     public static void reset() {
         scene.stack.clear();
+        scene.refresh();
+    }
+
+    /** A session load finished: take the scene it left as the present, keeping the steps taken meanwhile. */
+    public static void settle() {
+        scene.stack.adopt();
         scene.refresh();
     }
 
@@ -152,11 +163,12 @@ public final class SceneUndo {
         }
     }
 
-    // Still arriving, or with nothing a snapshot could restore it from yet (a layer stuck at
-    // "Loading...", which State.snapshot would leave out and log about on every poll).
+    // Before its first frame, or with nothing a snapshot could restore it from yet (a layer stuck at
+    // "Loading...", which State.snapshot would leave out and log about on every poll). This used to
+    // wait for isViewLoadFinished, the last frame of every layer, so a long download left Undo dead.
     private static boolean loading() {
         for (ImageLayer layer : Layers.getImageLayers()) {
-            if (!layer.isViewLoadFinished())
+            if (!layer.hasFirstFrame())
                 return true;
             JSONObject data = new JSONObject();
             layer.serialize(data);

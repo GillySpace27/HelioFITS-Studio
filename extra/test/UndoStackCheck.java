@@ -167,6 +167,26 @@ public final class UndoStackCheck {
         s.observe(a("Gray", 1), t += SETTLE);
         expect("removing one is a step named " + s.undoLabel(), "Remove layer".equals(s.undoLabel()));
 
+        // A session load finishing is adopted: the scene it settles into is the present, not a step,
+        // and an edit made while it loaded is still undoable.
+        s.clear();
+        s.observe(a("Gray", 1), t += 1000);
+        s.observe(a("Gray", 1), t += SETTLE);
+        s.observe(a("Blue", 1), t += 1000);
+        s.observe(a("Blue", 1), t += SETTLE); // the edit made mid-load
+        s.adopt();
+        s.observe(a("Blue", 0.5), t += 1000); // the load's own last touch
+        boolean loadPushed = s.observe(a("Blue", 0.5), t += SETTLE);
+        expect("a finished load is adopted, not a step", !loadPushed && s.undoDepth() == 1);
+        JSONObject midLoad = s.undo();
+        expect("and the edit made while it loaded still undoes", midLoad != null && "Gray".equals(lutOf(midLoad)));
+        UndoStack empty = new UndoStack(3);
+        empty.adopt();
+        empty.observe(a("Gray", 1), t += 1000);
+        empty.observe(a("Gray", 1), t += SETTLE);
+        empty.observe(a("Blue", 1), t += 1000);
+        expect("adopting with no history yet leaves the next change a step", empty.observe(a("Blue", 1), t += SETTLE));
+
         // Session load, New Session and Revert clear it.
         s.clear();
         expect("clear leaves nothing to undo or redo", !s.canUndo() && !s.canRedo() && s.undo() == null && s.redo() == null);

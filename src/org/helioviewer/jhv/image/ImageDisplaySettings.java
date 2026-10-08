@@ -1,5 +1,7 @@
 package org.helioviewer.jhv.image;
 
+import javax.annotation.Nullable;
+
 import org.helioviewer.jhv.image.lut.LUT;
 
 import org.json.JSONObject;
@@ -52,6 +54,8 @@ public final class ImageDisplaySettings {
     private LUT lut = LUT.gray();
     private boolean invertLUT;
     private boolean lutRestored; // a table named by a session, which the next view's default must not replace
+    @Nullable
+    private String viewDefaultLUT; // the name of the last default a view brought, so its repeat is not a new default
     private boolean showColorbar;
     private boolean colorbarChosen; // the user toggled it, or a saved session specified it
 
@@ -236,8 +240,17 @@ public final class ImageDisplaySettings {
      * The table a newly loaded view brings with it. Taken unless a session restored a chosen table
      * for this layer, which wins once: the user's choice used to be lost on every reload, because
      * the view's default was applied after the session's table.
+     *
+     * <p>A streamed movie activates twice, on its first frame and again when the last one lands, and
+     * both bring the same default. Only a default that differs from the last one is new: taking the
+     * repeat put back the instrument's table over one picked while the movie was arriving (or over a
+     * session's table, whose one-time pass the first frame had already spent), and scene undo then
+     * saw a colour-table change nobody made.
      */
     public void setDefaultLUT(LUT def, boolean invert) {
+        if (def.name().equals(viewDefaultLUT))
+            return;
+        viewDefaultLUT = def.name();
         if (lutRestored) {
             lutRestored = false;
             return;

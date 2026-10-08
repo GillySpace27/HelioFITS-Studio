@@ -113,7 +113,7 @@ public final class Session {
 
     public static void fireStateLoadComplete(boolean success) {
         restorePending = false; // the scene is now this session's, however the load went
-        SceneUndo.reset(); // opening or reverting a session starts its undo history
+        SceneUndo.settle(); // the load's result is the present; State.load cleared the history when it began
         List<java.util.function.Consumer<Boolean>> copy = new ArrayList<>(stateLoadListeners);
         stateLoadListeners.clear();
         for (java.util.function.Consumer<Boolean> r : copy)
