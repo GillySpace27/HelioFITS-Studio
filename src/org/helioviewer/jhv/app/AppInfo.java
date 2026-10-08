@@ -3,6 +3,8 @@ package org.helioviewer.jhv.app;
 import java.io.InputStream;
 import java.util.Properties;
 
+import javax.annotation.Nullable;
+
 public final class AppInfo {
 
     public static final String programName = "HelioFITS Studio";
@@ -105,13 +107,34 @@ public final class AppInfo {
         return Boolean.parseBoolean(System.getProperty("jhv.dirty"));
     }
 
-    /** One string for the log, the About box and every export: "0.8.4 (r14185, 7671c40d9a1b)". */
+    /**
+     * The version this build can honestly claim: "0.8.3" at the v0.8.3 tag, "0.8.3+112" for a
+     * build 112 commits after it. Without the suffix every build between two releases carried the
+     * same number, so a figure could not be traced back to the build that drew it. Read from the
+     * property like commit(), for the same reason.
+     */
+    public static String label() {
+        return label(version, System.getProperty("jhv.since"));
+    }
+
+    static String label(String version, @Nullable String since) {
+        if (since == null || !since.matches("[0-9]+") || "0".equals(since))
+            return version;
+        return version + '+' + since;
+    }
+
+    /** One string for the log, the About box and every export: "0.8.3+112 (r14185, 7671c40d9a1b)". */
     public static String buildId() {
-        return buildId(version, revision, commit(), dirty());
+        return buildId(label(), revision, commit(), dirty());
     }
 
     static String buildId(String version, String revision, String commit, boolean dirty) {
         return version + " (r" + revision + ", " + commit + (dirty ? ", dirty" : "") + ')';
+    }
+
+    /** The line stamped on images and in each frame's "writer": "HelioFITS Studio 0.8.3+112 (7671c40d9a1b)". */
+    public static String stamp() {
+        return programName + ' ' + label() + " (" + commit() + (dirty() ? ", dirty" : "") + ')';
     }
 
     private AppInfo() {}
