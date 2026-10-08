@@ -119,7 +119,8 @@ public class CommandLine {
                 org.helioviewer.jhv.app.Session.expectStateLoad();
         });
         load.accept(uri);
-        if ("file".equals(uri.getScheme()))
+        // Never adopt a session data archive: autosave would write a .jhv over the zip and its data.
+        if ("file".equals(uri.getScheme()) && !org.helioviewer.jhv.app.state.SessionArchive.isArchiveName(uri.getPath()))
             org.helioviewer.jhv.app.Session.adoptSessionFile(new java.io.File(uri));
         return uri;
     }
