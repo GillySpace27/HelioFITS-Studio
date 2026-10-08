@@ -31,6 +31,8 @@ Several of our additions have already been taken into JHelioviewer's development
 
 The full record, including the JHelioviewer changes merged here, is in [changelog.md](changelog.md).
 
+Every archive, catalog and file format the application can load is listed in [docs/data-sources.md](docs/data-sources.md), so you can check that your data is covered before installing.
+
 ## Installing
 
 Every package on the [Releases page](https://github.com/GillySpace27/HelioFITS-Studio/releases) carries its own Java runtime, so there is nothing else to install. The downloads are named HFStudio, the application's short technical name.
