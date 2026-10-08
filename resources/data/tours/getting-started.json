@@ -16,7 +16,7 @@
       "target": "imageLayersList",
       "action": "showImageLayers",
       "title": "The layer list",
-      "body": "Each layer you load gets a row here; the list stays empty until you add one with New Layer. The checkbox shows or hides a layer, and the x removes it. Drag rows to reorder them. Double-click a layer's name to change its dataset."
+      "body": "Each layer you load gets a row here. When the tour starts on an empty canvas it loads a small bundled sample, an SDO/AIA 171 image from 2012-08-31, so there is one to try. The checkbox shows or hides a layer, and the x removes it. Drag rows to reorder them. Double-click a layer's name to change its dataset."
     },
     {
       "target": "imageLayersOptions",
