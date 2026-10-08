@@ -1,9 +1,12 @@
 package org.helioviewer.jhv.app.state;
 
 import java.io.BufferedWriter;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -12,6 +15,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.Nullable;
 
@@ -46,27 +51,47 @@ import org.json.JSONObject;
 
 public final class State {
 
-    public static void save(String dir, String file) {
-        JSONObject json = toJson();
+    // One writer thread, so saves land in the order they were taken; the sequence number lets a
+    // synchronous save (quit, Quick Save) win over an older autosave still queued behind it.
+    private static final ExecutorService WRITER = AppThread.createIdleExecutor("HFS-SaveState", 1);
+    private static final AtomicLong SEQUENCE = new AtomicLong();
+    private static final Map<Path, Long> WRITTEN = new HashMap<>(); // per file, the newest sequence on disk
 
-        AppThread.create(() -> writeJson(json, dir, file), "HFS-SaveState").start();
+    public static void save(String dir, String file) {
+        write(toJson(), dir, file);
+    }
+
+    /** Write an already built session on the writer thread, after every save queued before it. */
+    public static void write(JSONObject json, String dir, String file) {
+        long seq = SEQUENCE.incrementAndGet();
+        WRITER.execute(() -> writeJson(json, dir, file, seq));
     }
 
     // Synchronous save for shutdown: the async variant can be cut off by System.exit before the
     // write lands. Build the JSON on the (EDT) caller, write on the same thread.
     public static void saveNow(String dir, String file) {
-        writeJson(toJson(), dir, file);
+        writeJson(toJson(), dir, file, SEQUENCE.incrementAndGet());
     }
 
     // Write through a temp file and move it into place. Writing directly truncates the target
     // first, so an exception mid-write -- or two autosaves overlapping -- left a corrupt session
     // and nothing to fall back on. The displaced version is kept as .bak, one deep.
-    private static void writeJson(JSONObject json, String dir, String file) {
-        Path path = Path.of(dir, file);
-        Path temp = Path.of(dir, file + ".tmp");
+    //
+    // Each write has a temp file of its own (two writes sharing one name could interleave into it),
+    // writes are serialized, and the temp is synced to the disk before the move, so a power cut or
+    // a crash of the machine leaves either the old session or the new one, never a torn or empty one.
+    private static synchronized void writeJson(JSONObject json, String dir, String file, long seq) {
+        Path path = Path.of(dir, file).toAbsolutePath();
+        if (WRITTEN.getOrDefault(path, 0L) > seq) // a newer scene is already on disk
+            return;
+        Path temp = null;
         try {
-            try (BufferedWriter writer = Files.newBufferedWriter(temp)) {
+            temp = Files.createTempFile(Path.of(dir), file + ".", ".tmp");
+            try (FileOutputStream out = new FileOutputStream(temp.toFile());
+                 BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8))) {
                 json.write(writer);
+                writer.flush();
+                out.getFD().sync();
             }
             if (losesAllImageLayers(json, path)) // keep one step back from an emptying save
                 Files.copy(path, Path.of(dir, file + ".bak"), StandardCopyOption.REPLACE_EXISTING);
@@ -75,10 +100,12 @@ public final class State {
             } catch (AtomicMoveNotSupportedException e) { // e.g. across filesystems
                 Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING);
             }
+            WRITTEN.put(path, seq);
         } catch (IOException e) {
             Log.error(e);
             try {
-                Files.deleteIfExists(temp);
+                if (temp != null)
+                    Files.deleteIfExists(temp); // this write's own temp, never the session
             } catch (IOException ignored) {
                 // nothing useful to do; the stale temp is harmless
             }
