@@ -172,6 +172,7 @@ public final class MenuBar extends JMenuBar {
         fileMenu.addSeparator();
         catalogItem(fileMenu, "saveSession");
         catalogItem(fileMenu, "saveSessionAs");
+        catalogItem(fileMenu, "exportSessionWithData");
         catalogItem(fileMenu, "revertToSaved");
         fileMenu.addSeparator();
         catalogItem(fileMenu, "setDefaultSession");

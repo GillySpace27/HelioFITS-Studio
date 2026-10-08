@@ -1,6 +1,7 @@
 package org.helioviewer.jhv.io;
 
 import java.net.URI;
+import java.nio.file.Path;
 import java.util.concurrent.Callable;
 
 import javax.annotation.Nonnull;
@@ -9,6 +10,7 @@ import javax.annotation.Nullable;
 import org.helioviewer.jhv.app.Commands;
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.Message;
+import org.helioviewer.jhv.app.state.SessionArchive;
 import org.helioviewer.jhv.app.state.State;
 import org.helioviewer.jhv.thread.Task;
 
@@ -40,8 +42,37 @@ class LoadState {
     private record LoadStateURI(URI uri) implements Callable<JSONObject> {
         @Override
         public JSONObject call() throws Exception {
-            return JSONUtils.get(uri).getJSONObject("org.helioviewer.jhv.state");
+            Path path = "file".equalsIgnoreCase(uri.getScheme()) ? Path.of(uri) : null;
+            // A session data archive opened on its own carries its session inside it.
+            boolean archive = path != null && SessionArchive.isArchiveName(path.getFileName().toString());
+            JSONObject state = archive ? SessionArchive.sessionIn(path)
+                    : JSONUtils.get(uri).getJSONObject("org.helioviewer.jhv.state");
+            if (path != null)
+                reattach(state, archive ? null : path, archive ? path : null);
+            return state;
         }
+    }
+
+    // Local files the session names that are not on this machine come from its data archive, when
+    // one travelled with it; without one, say so, rather than letting those layers vanish quietly.
+    private static void reattach(JSONObject state, @Nullable Path session, @Nullable Path archive) {
+        String warning;
+        try {
+            SessionArchive.Reattach r = SessionArchive.reattach(state, session, archive,
+                    Path.of(Directories.HOME.getPath(), "SessionData"));
+            if (r.missing() == r.restored())
+                return;
+            warning = r.archive() == null
+                    ? r.missing() + " local file(s) this session reads are not on this computer, and no "
+                            + SessionArchive.SUFFIX + " archive was found beside it. Those layers will not load."
+                    : (r.missing() - r.restored()) + " of " + r.missing() + " missing local file(s) are not in "
+                            + r.archive().getFileName() + ". Those layers will not load.";
+        } catch (java.io.IOException e) {
+            Log.warn("Session data archive", e);
+            warning = "The session's data archive could not be used: " + e.getMessage();
+        }
+        String text = warning;
+        java.awt.EventQueue.invokeLater(() -> Message.warn("Session data missing", text));
     }
 
     private record LoadStateString(String json) implements Callable<JSONObject> {
