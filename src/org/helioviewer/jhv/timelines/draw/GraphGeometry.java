@@ -8,6 +8,7 @@ import java.util.List;
 
 import javax.annotation.Nullable;
 
+import org.helioviewer.jhv.timelines.AutomationTimelineLayer;
 import org.helioviewer.jhv.timelines.TimelineLayer;
 
 public final class GraphGeometry {
@@ -15,9 +16,15 @@ public final class GraphGeometry {
     private static final int MINIMUM_HEIGHT = 50;
     private static final int MINIMUM_STACKED_LAYER_HEIGHT = 64;
     private static final int STACKED_SEPARATOR = 8;
+    private static final int MIN_SHARED_HEIGHT = 30; // what the band leaves the HEK, coverage and curve layers
 
     private final Rectangle size = new Rectangle();
     private Rectangle area = new Rectangle();
+    // The animation lanes' own band, carved off the top of the plot so they never share pixels with
+    // the HEK event bands (which fill down from the top of area) or the coverage rows (which fill
+    // up from its bottom). Empty when nothing is animated.
+    private Rectangle automationArea = new Rectangle();
+    private int automationLanes;
     private boolean stacked;
     private final ArrayList<LayerLayout> layerLayouts = new ArrayList<>();
     private final ArrayList<TimelineLayer> propagatedLayers = new ArrayList<>();
@@ -41,7 +48,10 @@ public final class GraphGeometry {
         propagatedLayers.clear();
 
         ArrayList<AxisLayer> axisLayers = new ArrayList<>();
+        automationLanes = 0;
         for (TimelineLayer layer : layers) {
+            if (layer.isEnabled() && layer instanceof AutomationTimelineLayer)
+                automationLanes++;
             if (layer.isEnabled() && layer.isPropagated())
                 propagatedLayers.add(layer);
             if (layer.isEnabled()) {
@@ -54,6 +64,13 @@ public final class GraphGeometry {
 
         int height = size.height - (DrawConstants.GRAPH_TOP_SPACE + DrawConstants.GRAPH_BOTTOM_SPACE
                 + DrawConstants.GRAPH_BOTTOM_AXIS_SPACE * (propagatedLayers.size() + 1));
+        // The band takes what it asks for while the rest of the plot keeps MIN_SHARED_HEIGHT. On a
+        // plot shorter than that the lanes thin (AutomationTimelineLayer.strip), but never below
+        // the height a thinned lane needs: a lane clipped to nothing looks like "Animate" failed.
+        int bandH = automationLanes == 0 ? 0 : Math.min(AutomationTimelineLayer.bandHeight(automationLanes),
+                Math.max(height - MIN_SHARED_HEIGHT, AutomationTimelineLayer.minBandHeight(automationLanes)));
+        int top = DrawConstants.GRAPH_TOP_SPACE + bandH;
+        height -= bandH;
 
         if (stacked && yAxisCount > 0) {
             int totalSeparatorHeight = STACKED_SEPARATOR * (yAxisCount - 1);
@@ -62,10 +79,10 @@ public final class GraphGeometry {
 
             int totalHeight = stripHeight * yAxisCount + totalSeparatorHeight;
             int width = size.width - (DrawConstants.GRAPH_LEFT_SPACE + DrawConstants.GRAPH_RIGHT_SPACE);
-            area = new Rectangle(DrawConstants.GRAPH_LEFT_SPACE, DrawConstants.GRAPH_TOP_SPACE,
+            area = new Rectangle(DrawConstants.GRAPH_LEFT_SPACE, top,
                     Math.max(1, width), Math.max(1, totalHeight));
 
-            int y = DrawConstants.GRAPH_TOP_SPACE;
+            int y = top;
             int axisIndex = -1;
             for (AxisLayer axisLayer : axisLayers) {
                 Rectangle layerArea = new Rectangle(area.x, y, area.width, stripHeight);
@@ -76,7 +93,7 @@ public final class GraphGeometry {
         } else {
             int rightAxisCount = Math.max(0, yAxisCount - 1);
             int width = size.width - (DrawConstants.GRAPH_LEFT_SPACE + DrawConstants.GRAPH_RIGHT_SPACE + rightAxisCount * DrawConstants.RIGHT_AXIS_WIDTH);
-            area = new Rectangle(DrawConstants.GRAPH_LEFT_SPACE, DrawConstants.GRAPH_TOP_SPACE, Math.max(1, width), Math.max(1, height));
+            area = new Rectangle(DrawConstants.GRAPH_LEFT_SPACE, top, Math.max(1, width), Math.max(1, height));
 
             int axisIndex = -1;
             for (AxisLayer axisLayer : axisLayers) {
@@ -84,6 +101,8 @@ public final class GraphGeometry {
                 axisIndex++;
             }
         }
+        automationArea = bandH == 0 ? new Rectangle()
+                : new Rectangle(area.x, DrawConstants.GRAPH_TOP_SPACE, area.width, bandH);
     }
 
     public boolean isStacked() {
@@ -91,13 +110,16 @@ public final class GraphGeometry {
     }
 
     public int minimumHeight() {
+        int band = automationLanes == 0 ? 0 : AutomationTimelineLayer.bandHeight(automationLanes);
         if (!stacked || layerLayouts.isEmpty())
-            return MINIMUM_HEIGHT;
+            return band == 0 ? MINIMUM_HEIGHT : Math.max(MINIMUM_HEIGHT, DrawConstants.GRAPH_TOP_SPACE
+                    + DrawConstants.GRAPH_BOTTOM_SPACE + DrawConstants.GRAPH_BOTTOM_AXIS_SPACE * (propagatedLayers.size() + 1)
+                    + band + MIN_SHARED_HEIGHT);
 
         return DrawConstants.GRAPH_TOP_SPACE + DrawConstants.GRAPH_BOTTOM_SPACE
                 + DrawConstants.GRAPH_BOTTOM_AXIS_SPACE * (propagatedLayers.size() + 1)
                 + MINIMUM_STACKED_LAYER_HEIGHT * layerLayouts.size()
-                + STACKED_SEPARATOR * (layerLayouts.size() - 1);
+                + STACKED_SEPARATOR * (layerLayouts.size() - 1) + band;
     }
 
     public List<LayerLayout> getLayerLayouts() {
@@ -123,6 +145,22 @@ public final class GraphGeometry {
 
     public Rectangle area() {
         return area;
+    }
+
+    /** The animation lanes' band above {@link #area()}; zero height when nothing is animated. */
+    public Rectangle automationArea() {
+        return automationArea;
+    }
+
+    /** The shared plot and the animation band together: everything under the time axis's x range. */
+    public Rectangle plotArea() {
+        return automationArea.isEmpty() ? area : area.union(automationArea);
+    }
+
+    /** In the plot or in the animation band, for gestures (seeking) that mean the same in both. */
+    public boolean inPlot(Point p) {
+        return inGraph(p) || (!automationArea.isEmpty() && p.x >= automationArea.x && p.x <= graphRight()
+                && p.y >= automationArea.y && p.y < automationArea.y + automationArea.height);
     }
 
     public int graphWidth() {

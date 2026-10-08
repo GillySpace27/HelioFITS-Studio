@@ -212,7 +212,11 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
                 continue;
 
             Rectangle area = graphArea;
-            if (layer.getYAxis() != null) {
+            if (layer instanceof AutomationTimelineLayer) {
+                area = geometry.automationArea(); // its own band: never under the HEK or coverage rows
+                if (area.isEmpty())
+                    continue;
+            } else if (layer.getYAxis() != null) {
                 area = geometry.getLayerArea(layer);
                 if (area == null)
                     continue;
@@ -253,7 +257,7 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
         long outTime = org.helioviewer.jhv.movie.Player.getPlaybackLastTime();
         if (outTime <= inTime)
             return;
-        Rectangle area = DrawController.getGeometry().area();
+        Rectangle area = DrawController.getGeometry().plotArea(); // the animation band is trimmed too
         TimeAxis.Mapper m = DrawController.selectedAxis.mapper(area.x, area.width);
         int h = DrawController.getGeometry().size().height;
         int xIn = m.toPixel(inTime);

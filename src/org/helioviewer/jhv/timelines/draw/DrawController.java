@@ -315,7 +315,7 @@ public final class DrawController implements Interfaces.LazyComponent, Interface
     }
 
     public static void setMovieFrame(Point point) {
-        if (!geometry.inGraph(point))
+        if (!geometry.inPlot(point)) // a press between animation lanes seeks, as it does in the plot
             return;
         Commands.seekTime(new JHVTime(geometry.xMapper(selectedAxis).toValue(point.x)));
     }
