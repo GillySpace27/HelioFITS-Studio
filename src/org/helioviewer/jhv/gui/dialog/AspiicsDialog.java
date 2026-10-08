@@ -7,8 +7,10 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.net.URI;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -38,6 +40,7 @@ import org.helioviewer.jhv.app.Commands;
 import org.helioviewer.jhv.gui.ComponentUtils;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.io.JSONUtils;
+import org.helioviewer.jhv.movie.Player;
 import org.helioviewer.jhv.thread.Task;
 
 import org.json.JSONArray;
@@ -95,6 +98,8 @@ public class AspiicsDialog extends StandardDialog {
     private List<String> products = List.of();
     private boolean loadingOrbits;
     private boolean searching;
+    // The clock time the orbit was last chosen for, so reopening at the same time keeps a hand-picked orbit.
+    private long clockPickedFor = Long.MIN_VALUE;
 
     private static AspiicsDialog instance;
 
@@ -154,6 +159,7 @@ public class AspiicsDialog extends StandardDialog {
         gc.gridx = 0;
         queryPanel.add(new JLabel("Orbit"), gc);
         gc.gridx = 1;
+        orbitCombo.setToolTipText("Opens on the orbit that holds the clock time, or the nearest one");
         queryPanel.add(orbitCombo, gc);
         gc.gridx = 2;
         queryPanel.add(fitsButton, gc);
@@ -226,6 +232,8 @@ public class AspiicsDialog extends StandardDialog {
     public void showDialog() {
         if (orbitCombo.getItemCount() == 0 && !loadingOrbits)
             loadOrbits();
+        else
+            selectClockOrbit();
         pack();
         setLocationRelativeTo(MainFrame.get());
         setVisible(true);
@@ -242,7 +250,62 @@ public class AspiicsDialog extends StandardDialog {
         loadingOrbits = false;
         orbitCombo.setModel(new DefaultComboBoxModel<>(orbits.toArray(Orbit[]::new)));
         foundLabel.setText("0 found");
+        clockPickedFor = Long.MIN_VALUE;
+        selectClockOrbit();
         updateButtonState();
+    }
+
+    // Select the orbit that holds the master clock time, from the aa_start_time and aa_end_time the
+    // P3SC orbit list gives for each orbit; outside every orbit, the nearest one.
+    private void selectClockOrbit() {
+        long clock = Player.getTime().milli;
+        if (clock == clockPickedFor || orbitCombo.getItemCount() == 0)
+            return;
+        List<Orbit> orbits = new ArrayList<>(orbitCombo.getItemCount());
+        for (int i = 0; i < orbitCombo.getItemCount(); i++)
+            orbits.add(orbitCombo.getItemAt(i));
+        Orbit orbit = orbitFor(orbits, clock);
+        if (orbit == null)
+            return;
+        clockPickedFor = clock;
+        orbitCombo.setSelectedItem(orbit); // fires clearProducts, as a hand pick does
+    }
+
+    // The orbit whose [start, end] holds time, else the one nearest to it; null when no orbit has
+    // readable times. Ties go to the later orbit.
+    @Nullable
+    static Orbit orbitFor(List<Orbit> orbits, long time) {
+        Orbit best = null;
+        long bestDistance = Long.MAX_VALUE;
+        for (Orbit orbit : orbits) {
+            long start = orbitTime(orbit.start());
+            long end = orbitTime(orbit.end());
+            if (start < 0 || end < start)
+                continue;
+            long distance = time < start ? start - time : time > end ? time - end : 0;
+            if (distance < bestDistance || (distance == bestDistance && best != null && orbit.orbitId() > best.orbitId())) {
+                best = orbit;
+                bestDistance = distance;
+            }
+        }
+        return best;
+    }
+
+    // An orbit boundary as P3SC sends it: ISO 8601, with or without a zone offset, 'T' or a space
+    // between date and time. A time without an offset is taken as UTC. -1 when it does not parse.
+    static long orbitTime(String text) {
+        if (text == null || text.isBlank())
+            return -1;
+        String iso = text.trim().replace(' ', 'T');
+        try {
+            return OffsetDateTime.parse(iso).toInstant().toEpochMilli();
+        } catch (DateTimeParseException e) {
+            try {
+                return LocalDateTime.parse(iso).toInstant(ZoneOffset.UTC).toEpochMilli();
+            } catch (DateTimeParseException e2) {
+                return -1;
+            }
+        }
     }
 
     private void onLoadOrbitsFailure() {
@@ -381,7 +444,7 @@ public class AspiicsDialog extends StandardDialog {
         return slash >= 0 ? datalocation.substring(slash + 1) : datalocation;
     }
 
-    private record Orbit(int orbitId, String start, String end) {
+    record Orbit(int orbitId, String start, String end) {
         @Override
         public String toString() {
             return Integer.toString(orbitId);
