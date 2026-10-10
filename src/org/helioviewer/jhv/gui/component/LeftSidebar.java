@@ -81,7 +81,9 @@ public final class LeftSidebar implements SectionHost {
         holder.setOpaque(false);
         holder.add(content, BorderLayout.CENTER);
         sections.put(title, new Section(title, icon, content, holder));
-        pane.add(title, holder, true, icon, title, insertIndex(lastIndex.get(title), pane.getComponentCount()));
+        // Collapsed until the user opens it: a fresh install starts with every section folded (Gilly,
+        // 2026-10-10). After that each section opens the way it was last left (CollapsiblePane.remembered).
+        pane.add(title, holder, false, icon, title, insertIndex(lastIndex.get(title), pane.getComponentCount()));
         pane.setAccessory(holder, buildControls(title, holder, onFloat));
         pane.revalidate();
     }
