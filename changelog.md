@@ -10,8 +10,8 @@
 
 ### Updates
 - HelioFITS Studio now says when a newer version has been released. A few seconds after it opens, at most once a day, it asks GitHub's list of releases (a release that is published and has a download for this computer, never one that is only planned), and shows the new version's notes with Download and Install, Later and Skip This Version. Help > Check for Updates asks at any time, including about a skipped version. Settings, "Check for updates at startup", turns the automatic check off; with no network it stays silent
-- Download and Install first saves the session and copies the sessions, autosaves, recovery copies and settings to `~/HFStudio/Backups/before-<version>-<time>`; if any copy fails, nothing is downloaded. Nothing is moved or deleted
-- The new version downloads to the Downloads folder with a progress bar and Cancel, is checked against the size and SHA-256 the release lists, and is then opened: on a Mac the disk image's window, to drag HelioFITS Studio onto Applications; elsewhere the file in the file manager. Quit Now quits the usual way, which saves the session, and the new version reopens it
+- Download and Install first saves the session and copies the sessions, autosaves, recovery copies and settings to `~/HFStudio/Backups/before-<version>-<time>`. If the save cannot be confirmed, or any copy fails, the update stops and nothing is downloaded. Nothing is moved or deleted
+- The new version downloads to the Downloads folder with a progress bar and Cancel, is checked against the size and SHA-256 the release lists, and is then opened: on a Mac the disk image's window, to drag HelioFITS Studio onto Applications; elsewhere the file in the file manager. An Intel Mac gets the Intel disk image, or the cross-platform zip (which needs Java 25) when the release has no Intel image. Quit Now quits the usual way, which saves the session, and the new version reopens it
 
 ## HelioFITS Studio 0.8.5 (unreleased)
 

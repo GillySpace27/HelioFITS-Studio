@@ -33,6 +33,7 @@ import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 import javax.swing.WindowConstants;
 
+import org.helioviewer.jhv.app.AppInfo;
 import org.helioviewer.jhv.app.ExitHooks;
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.Message;
@@ -72,7 +73,14 @@ public final class UpdateInstaller {
     public static void install(ReleaseFeed.Release release) {
         SessionBackup.Result backup;
         try {
-            backup = protectSession(release.version(), LocalDateTime.now());
+            backup = protectSession(release.version(), LocalDateTime.now(), Session::saveForUpdate);
+        } catch (SaveFailed e) {
+            Log.error("Update stopped: the session could not be saved", e);
+            Message.err("Update stopped", "Could not save your session; update stopped, nothing downloaded.\n\n"
+                    + "The session file was not confirmed as written, so it may hold an older scene. Nothing was "
+                    + "copied, downloaded or changed. Save the session yourself (File > Save Session As...) and try again.\n\n"
+                    + e.getMessage());
+            return;
         } catch (IOException | RuntimeException e) {
             Log.error("Update stopped: the session could not be backed up", e);
             Message.err("Update stopped", "Your session and settings could not be copied to a backup, so nothing was "
@@ -102,11 +110,32 @@ public final class UpdateInstaller {
         return n.endsWith(".jhv") || n.endsWith(".json") || n.endsWith(".bak");
     }
 
-    // Step 1, on the EDT. Throws when anything could not be saved or copied. UpdateBackupCheck runs it.
-    static SessionBackup.Result protectSession(String version, LocalDateTime now) throws IOException {
-        File written = Session.saveForUpdate();
+    /** Saves the session now: the file written, null when there was nothing to write, or a throw when unconfirmed. */
+    interface SessionSaver {
+        @Nullable
+        File save() throws IOException;
+    }
+
+    /** The session could not be confirmed as saved, so nothing was copied and the update stops. */
+    static final class SaveFailed extends IOException {
+        private static final long serialVersionUID = 1L;
+
+        SaveFailed(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
+    // Step 1, on the EDT. Throws SaveFailed when the save is not confirmed (before anything is copied),
+    // IOException when a copy fails. UpdateBackupCheck runs it with a stand-in saver.
+    static SessionBackup.Result protectSession(String version, LocalDateTime now, SessionSaver saver) throws IOException {
+        File written;
+        try {
+            written = saver.save();
+        } catch (IOException | RuntimeException e) {
+            throw new SaveFailed(e.getMessage() == null ? e.toString() : e.getMessage(), e);
+        }
         if (written != null && (!written.isFile() || written.length() == 0))
-            throw new IOException("The session could not be saved to " + written);
+            throw new SaveFailed("the session file " + written + " is missing or empty after saving", null);
         Path states = Directories.STATES.getFile().toPath().toAbsolutePath();
         Map<String, SessionBackup.Source> sources = new LinkedHashMap<>();
         sources.put("States", new SessionBackup.Source(states, UpdateInstaller::isSessionFile));
@@ -316,11 +345,15 @@ public final class UpdateInstaller {
             if (dmg)
                 text.append("Click Quit Now, then open it and drag HelioFITS Studio to Applications, replacing the old copy, then reopen it.");
             else {
-                String from = installFolder();
+                // A Mac on the zip runs it beside the app it had, so "this copy's folder" (inside a .app) is no guide.
+                String from = Platform.isMacOS() ? null : installFolder();
                 text.append(from == null ? "Click Quit Now, then unpack it and start the new one."
                         : "Click Quit Now, then unpack it in place of this copy, which runs from\n" + from + "\nand start the new one.");
             }
             text.append(" Your session is saved and will reopen.");
+            if (ReleaseFeed.needsOwnJava(release.asset().name()))
+                text.append("\n\nThis is the cross-platform zip, which carries no Java of its own: it needs Java 25 installed. ")
+                        .append("The release page says how:\n").append(AppInfo.downloadURL);
         }
         if (Session.liveWindowCount() > 1)
             text.append("\n\nOther HelioFITS Studio windows are open. Quit them too before installing; each saves its own session.");

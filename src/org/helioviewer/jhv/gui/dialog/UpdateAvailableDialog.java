@@ -32,7 +32,10 @@ public final class UpdateAvailableDialog {
 
         JLabel headline = new JLabel("<html><body style='width:420px'><b>HelioFITS Studio " + release.version() + " is available</b> (you have " + running + ").<br>"
                 + "Before anything is downloaded, your session and settings are saved and copied to "
-                + "HFStudio/Backups in your home folder. Nothing is deleted.</html>");
+                + "HFStudio/Backups in your home folder. Nothing is deleted."
+                + (ReleaseFeed.needsOwnJava(release.asset().name())
+                        ? "<br>For this computer the update is the cross-platform zip, which needs Java 25 installed." : "")
+                + "</html>");
         headline.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 0));
 
         JTextArea notes = new JTextArea(release.notes().isEmpty() ? "This release has no notes." : release.notes());
