@@ -210,6 +210,22 @@ public final class Session {
         }
     }
 
+    /**
+     * Before an update (UpdateInstaller): write this window's session now, with the synchronous save
+     * the quit path uses, so a copy taken next holds the scene on screen. On the EDT. Returns the
+     * file, or null when nothing was written: no session file yet, or startup is still reopening it,
+     * in which case the file on disk is the session and must not be written over (restorePending).
+     */
+    @Nullable
+    public static File saveForUpdate() {
+        if (sessionFile == null || restorePending)
+            return null;
+        State.saveNow(sessionFile.getParent(), sessionFile.getName());
+        Recovery.written();
+        markSaved();
+        return sessionFile;
+    }
+
     // Start New Session clears the document identity back to Untitled (auto file), so the name
     // field resets and the old named file is no longer reopened.
     public static void resetToUntitled() {

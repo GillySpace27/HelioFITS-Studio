@@ -151,7 +151,12 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         c.gridy = 2;
         JCheckBox sampHub = new JCheckBox("Load SAMP hub", Boolean.parseBoolean(Settings.getProperty("startup.sampHub")));
         sampHub.addActionListener(e -> Settings.setProperty("startup.sampHub", Boolean.toString(sampHub.isSelected())));
-        settings.add(sampHub, c);
+        JCheckBox checkUpdates = new JCheckBox("Check for updates at startup", org.helioviewer.jhv.app.update.UpdateCheck.enabledAtStartup());
+        checkUpdates.addActionListener(e -> org.helioviewer.jhv.app.update.UpdateCheck.setEnabledAtStartup(checkUpdates.isSelected()));
+        JPanel startupBoxes = new JPanel(new BorderLayout());
+        startupBoxes.add(sampHub, BorderLayout.PAGE_START);
+        startupBoxes.add(checkUpdates, BorderLayout.PAGE_END);
+        settings.add(startupBoxes, c);
 
         c.gridx = 0;
         c.gridy = 3;
