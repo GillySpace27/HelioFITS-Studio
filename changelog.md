@@ -15,6 +15,7 @@
 - The ASPIICS dialog explains bt, fe, he, pb and pa in tooltips, and when one product comes back as more than one kind of file it labels each frame with its kind and adds a Kind menu that opens on the kind with the most frames; "all kinds" shows every one
 
 ### Overlays and loading
+- A fresh install opens with every section of both sidebars collapsed; each section then opens the way it was last left
 - The Timestamp overlay can show the layer name after the time (Show layer name, on for new sessions), not only in multiview
 - The timestamp moves clear of the miniview when both sit in the top-left corner
 - A layer that is downloading shows the megabytes received as well as the frame count, so a slow archive no longer looks frozen, and frames that failed are counted as failed rather than as cached
