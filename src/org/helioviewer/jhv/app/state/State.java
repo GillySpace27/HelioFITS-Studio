@@ -73,6 +73,11 @@ public final class State {
         writeJson(toJson(), dir, file, SEQUENCE.incrementAndGet());
     }
 
+    /** saveNow that says whether the file now holds this scene; false when the write failed (logged). */
+    public static boolean saveNowConfirmed(String dir, String file) {
+        return writeJson(toJson(), dir, file, SEQUENCE.incrementAndGet());
+    }
+
     // Write through a temp file and move it into place. Writing directly truncates the target
     // first, so an exception mid-write -- or two autosaves overlapping -- left a corrupt session
     // and nothing to fall back on. The displaced version is kept as .bak, one deep.
@@ -80,10 +85,10 @@ public final class State {
     // Each write has a temp file of its own (two writes sharing one name could interleave into it),
     // writes are serialized, and the temp is synced to the disk before the move, so a power cut or
     // a crash of the machine leaves either the old session or the new one, never a torn or empty one.
-    private static synchronized void writeJson(JSONObject json, String dir, String file, long seq) {
+    private static synchronized boolean writeJson(JSONObject json, String dir, String file, long seq) {
         Path path = Path.of(dir, file).toAbsolutePath();
         if (WRITTEN.getOrDefault(path, 0L) > seq) // a newer scene is already on disk
-            return;
+            return true;
         Path temp = null;
         try {
             temp = Files.createTempFile(Path.of(dir), file + ".", ".tmp");
@@ -101,6 +106,7 @@ public final class State {
                 Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING);
             }
             WRITTEN.put(path, seq);
+            return true;
         } catch (IOException e) {
             Log.error(e);
             try {
@@ -109,6 +115,7 @@ public final class State {
             } catch (IOException ignored) {
                 // nothing useful to do; the stale temp is harmless
             }
+            return false;
         }
     }
 
