@@ -27,6 +27,7 @@ PACKAGES = {
     "javax.imageio": "java.desktop",
     "javax.sound": "java.desktop",
     "java.beans": "java.desktop",
+    "javax.xml.crypto": "java.xml.crypto",
     "javax.xml": "java.xml",
     "org.w3c.dom": "java.xml",
     "org.xml.sax": "java.xml",
@@ -38,6 +39,9 @@ PACKAGES = {
     "jdk.jfr": "jdk.jfr",
     "javax.crypto": "java.base",
     "javax.net": "java.base",
+    "javax.security.auth.kerberos": "java.security.jgss",
+    "org.ietf.jgss": "java.security.jgss",
+    "com.sun.management": "jdk.management",
     "javax.security.auth": "java.base",
 }
 # Modules a listed module brings with it (`requires transitive`).
@@ -46,7 +50,8 @@ TRANSITIVE = {
     "java.sql": {"java.logging", "java.transaction.xa", "java.xml"},
     "jdk.management": {"java.management"},
 }
-IMPORT = re.compile(r"^\s*import\s+(?:static\s+)?([\w.]+)", re.M)
+# An import, or a fully qualified type used in code (`java.net.http.HttpClient.newHttpClient()`).
+REFERENCE = re.compile(r"(?<![\w.])((?:java|javax|jdk|com\.sun|org\.w3c|org\.xml|org\.ietf)\.[\w.]+)")
 
 
 def runtime_modules(text):
@@ -57,13 +62,19 @@ def runtime_modules(text):
     return mods
 
 
+def module_of(name):
+    """The module of the longest PACKAGES prefix of a dotted name, so javax.xml.crypto beats javax.xml."""
+    best = max((p for p in PACKAGES if name == p or name.startswith(p + ".")), key=len, default=None)
+    return PACKAGES.get(best)
+
+
 def needed_modules(sources):
     needed = {}
     for path in sources:
-        for name in IMPORT.findall(path.read_text(encoding="utf-8", errors="replace")):
-            for prefix, mod in PACKAGES.items():
-                if name == prefix or name.startswith(prefix + "."):
-                    needed.setdefault(mod, path)
+        for name in REFERENCE.findall(path.read_text(encoding="utf-8", errors="replace")):
+            mod = module_of(name)
+            if mod:
+                needed.setdefault(mod, path)
     return needed
 
 
@@ -73,6 +84,14 @@ class RuntimeModules(unittest.TestCase):
         needed = needed_modules(sorted((ROOT / "src").rglob("*.java")))
         missing = {m: str(p.relative_to(ROOT)) for m, p in needed.items() if m not in have}
         self.assertEqual(missing, {}, "add these modules to MODULES in release/make-runtime.sh")
+
+    def test_longest_prefix_and_qualified_names(self):
+        self.assertEqual(module_of("javax.xml.crypto.dsig.XMLSignature"), "java.xml.crypto")
+        self.assertEqual(module_of("javax.xml.parsers.DocumentBuilder"), "java.xml")
+        self.assertEqual(module_of("javax.security.auth.kerberos.KerberosPrincipal"), "java.security.jgss")
+        self.assertEqual(REFERENCE.findall("var c = java.net.http.HttpClient.newHttpClient();"),
+                         ["java.net.http.HttpClient.newHttpClient"])
+        self.assertEqual(module_of("java.net.http.HttpClient.newHttpClient"), "java.net.http")
 
     def test_check_can_fail(self):
         have = runtime_modules("MODULES=java.base,java.desktop\n")

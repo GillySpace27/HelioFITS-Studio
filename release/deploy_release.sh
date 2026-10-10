@@ -887,7 +887,7 @@ if got != want:
         # macOS has no `timeout(1)`; perl's alarm is always present. Guard the wait so a hung
         # connection to Apple fails the attempt instead of blocking forever.
         perl -e 'alarm shift; exec @ARGV' 600 \
-            xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
+            xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --no-s3-acceleration --wait
     else
         notary_submit
         notary_poll "$(receipt_key "$PENDING" submission_id)"
