@@ -237,9 +237,9 @@ final class ImageLayerLoader {
             // Frame counts alone stand still for as long as one frame takes, which at the archive's
             // slow end is minutes; beside a spinner that reads as a hang. The ticker republishes
             // megabytes and a rate twice a second, so the readout moves whenever the wire does.
-            javax.swing.Timer ticker = new javax.swing.Timer(500, e -> statusSink.accept(
-                    progressText(downloaded.get(), cached.get(), total, bytes.get(), startNanos, lastByte.get())));
             List<URI> failed = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+            javax.swing.Timer ticker = new javax.swing.Timer(500, e -> statusSink.accept(
+                    progressText(downloaded.get(), cached.get(), failed.size(), total, bytes.get(), startNanos, lastByte.get())));
             ManyView movie = null;
             List<URI> rest = uriList;
             try {
@@ -277,8 +277,7 @@ final class ImageLayerLoader {
                             return v;
                         } catch (Exception e) {
                             Log.warn(uri.toString(), e);
-                            failed.add(uri);
-                            downloaded.incrementAndGet();
+                            failed.add(uri); // counted by the readout as failed, not as downloaded
                             return null;
                         }
                     }).filter(Objects::nonNull).toList();
@@ -301,11 +300,14 @@ final class ImageLayerLoader {
                             onBytes.accept(n);
                         });
                         batch.add(v);
+                        (got[0] > 0 ? downloaded : cached).incrementAndGet();
                     } catch (Exception e) {
                         Log.warn(uri.toString(), e);
-                        failed.add(uri); // remembered so the layer can report it as retryable, not just absent
+                        // Remembered so the layer can report it as retryable, not just absent, and
+                        // counted as failed: a frame that died before its first byte used to be
+                        // counted as cached, which hid every failure inside the cache count.
+                        failed.add(uri);
                     }
-                    (got[0] > 0 ? downloaded : cached).incrementAndGet();
                 });
                 batch.flush(); // ahead of the finished movie on the EDT, so it lands complete
             } finally {
@@ -374,30 +376,37 @@ final class ImageLayerLoader {
      * almost entirely cache looked exactly like starting over. The cached count is split out, and
      * a load that has touched the network only for some of its frames says both numbers.
      *
-     * <p>The line is about thirty-six characters wide before the row clips it, which is why the
-     * megabytes give way to the cached count once there is one. They are alternatives, not a
-     * shortage: while frames are coming off the disk the cached number is what is moving, and
-     * while they are coming off the wire the megabytes are.
+     * <p>The line is about thirty-six characters wide before the row clips it, so what moves comes
+     * first and what stands still comes last. Once bytes are crossing the wire the megabytes always
+     * show: they used to give way to the cached count, and then a restored session whose frames
+     * were partly cached read "Downloading 4/23 · 4 cached" for many minutes while four large
+     * frames shared a slow archive, every number on the line frozen although the wire was moving
+     * (an ASPIICS layer restored from a session, 0.8.5). The cached count follows the megabytes,
+     * where a clip costs the least, and failed frames are named next to the count.
      *
      * <p>"Waiting on host" is not decoration. This archive goes quiet for minutes at a time, and
      * a frozen "Downloading" beside a spinner is indistinguishable from a hung application.
      */
-    private static String progressText(int downloaded, int cached, int total,
+    private static String progressText(int downloaded, int cached, int failed, int total,
                                        long bytes, long startNanos, long lastByteNanos) {
-        int done = downloaded + cached;
+        int done = downloaded + cached + failed;
         if (done == 0 && bytes == 0)
             return CONNECTING;
-        String megabytes = String.format("%.0f MB", bytes / 1e6);
-        if (bytes == 0) // nothing has crossed the wire; this is the cache being read back
-            return "Restoring " + done + "/" + total + " from cache";
         String counts = done + "/" + total;
+        String failures = failed > 0 ? " \u00b7 " + failed + " failed" : "";
+        if (bytes == 0) { // nothing has crossed the wire; this is the cache being read back
+            if (failed > 0)
+                return "Loading " + counts + failures;
+            return "Restoring " + counts + " from cache";
+        }
+        String megabytes = String.format("%.0f MB", bytes / 1e6);
         if ((System.nanoTime() - lastByteNanos) / 1e9 > STALL_SECONDS)
-            return "Waiting on host \u00b7 " + counts + " \u00b7 " + megabytes;
+            return "Waiting on host \u00b7 " + counts + failures + " \u00b7 " + megabytes;
         if (cached > 0)
-            return "Downloading " + counts + " \u00b7 " + cached + " cached";
+            return "Downloading " + counts + failures + " \u00b7 " + megabytes + " \u00b7 " + cached + " cached";
         double seconds = (System.nanoTime() - startNanos) / 1e9;
         String rate = seconds >= 1 ? String.format(" \u00b7 %.1f MB/s", bytes / 1e6 / seconds) : "";
-        return "Downloading " + counts + " \u00b7 " + megabytes + rate;
+        return "Downloading " + counts + failures + " \u00b7 " + megabytes + rate;
     }
 
     /**
