@@ -619,7 +619,7 @@ notary_explain() {
 notary_submit() {
     echo "==> submitting ${DMG##*/} to Apple (no --wait; the id is recorded before polling)"
     if ! perl -e 'alarm shift; exec @ARGV' 600 \
-            xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --output-format json \
+            xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --output-format json --no-s3-acceleration \
             > "$HERE/.notarize-submit.json" 2> "$HERE/.notarize-submit.err"; then
         notary_explain "$HERE/.notarize-submit.err" "$HERE/.notarize-submit.json"
         echo "!! notarytool submit failed; its output is in release/.notarize-submit.err. Nothing is pending: rerun notarize." >&2
