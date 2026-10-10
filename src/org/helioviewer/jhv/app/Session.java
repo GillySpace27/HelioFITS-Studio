@@ -210,6 +210,31 @@ public final class Session {
         }
     }
 
+    /**
+     * Before an update (UpdateInstaller): write this window's session now, with the synchronous save
+     * the quit path uses, so a copy taken next holds the scene on screen. On the EDT. Returns the
+     * file, or null when nothing was written: no session file yet, or startup is still reopening it,
+     * in which case the file on disk is the session and must not be written over (restorePending).
+     * Throws when the save cannot be confirmed (the write failed, or the scene could not be read):
+     * the file may then hold an older scene, and an update must not go ahead on that.
+     */
+    @Nullable
+    public static File saveForUpdate() throws IOException {
+        if (sessionFile == null || restorePending)
+            return null;
+        boolean saved;
+        try {
+            saved = State.saveNowConfirmed(sessionFile.getParent(), sessionFile.getName());
+        } catch (RuntimeException e) { // a scene caught half-built
+            throw new IOException("the scene could not be read: " + e.getMessage(), e);
+        }
+        if (!saved || !sessionFile.isFile() || sessionFile.length() == 0)
+            throw new IOException("the session could not be written to " + sessionFile);
+        Recovery.written();
+        markSaved();
+        return sessionFile;
+    }
+
     // Start New Session clears the document identity back to Untitled (auto file), so the name
     // field resets and the old named file is no longer reopened.
     public static void resetToUntitled() {

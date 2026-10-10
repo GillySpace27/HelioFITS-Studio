@@ -26,20 +26,28 @@ public final class LoadProgressCheck {
     }
 
     /** @param sinceByteSeconds how long ago the last byte landed; past a few seconds that is a stall */
-    private static String text(int downloaded, int cached, int total, long bytes,
+    private static String text(int downloaded, int cached, int failed, int total, long bytes,
                                double elapsedSeconds, double sinceByteSeconds) throws Exception {
         Method m = ImageLayerLoader.class.getDeclaredMethod("progressText",
-                int.class, int.class, int.class, long.class, long.class, long.class);
+                int.class, int.class, int.class, int.class, long.class, long.class, long.class);
         m.setAccessible(true);
         long now = System.nanoTime();
-        return (String) m.invoke(null, downloaded, cached, total, bytes,
+        return (String) m.invoke(null, downloaded, cached, failed, total, bytes,
                 now - (long) (elapsedSeconds * 1e9), now - (long) (sinceByteSeconds * 1e9));
+    }
+
+    private static String text(int downloaded, int cached, int total, long bytes,
+                               double elapsedSeconds, double sinceByteSeconds) throws Exception {
+        return text(downloaded, cached, 0, total, bytes, elapsedSeconds, sinceByteSeconds);
     }
 
     private static String text(int downloaded, int cached, int total, long bytes, double elapsedSeconds)
             throws Exception {
         return text(downloaded, cached, total, bytes, elapsedSeconds, 0); // bytes still flowing
     }
+
+    /** How much of the line survives the row's clip: the part a reader can actually see. */
+    private static final int ROW_CHARS = 36;
 
     public static void main(String[] args) throws Exception {
         String early = text(0, 0, 45, 0, 0.2);
@@ -63,8 +71,35 @@ public final class LoadProgressCheck {
         String mixed = text(9, 21, 45, 167_000_000L, 20);
         expect("a mixed load counts the cache separately: " + mixed, mixed.contains("21 cached"));
         expect("and still totals them: " + mixed, mixed.contains("30/45"));
-        expect("the row stays inside the width that clipped the last one (" + mixed.length() + " chars)",
-                mixed.length() <= 36);
+        int megabytesEnd = mixed.indexOf(" MB") + 3;
+        expect("what moves (count and megabytes) sits inside the width the row shows (" + megabytesEnd + " chars)",
+                megabytesEnd >= 3 && megabytesEnd <= ROW_CHARS);
+
+        // A restored session with a few frames already cached and large frames on a slow archive
+        // (an ASPIICS layer, 0.8.5): four frames of about 17 MB each (AspiicsDialog.FITS_MB) share
+        // the wire for minutes and none of them completes. The line used to read
+        // "Downloading 4/23 · 4 cached" the whole time, with nothing on it that moved, although
+        // the wire was moving.
+        String resumeA = text(0, 4, 23, 30_000_000L, 120);
+        String resumeB = text(0, 4, 23, 42_000_000L, 180);
+        expect("a partly cached load still shows the bytes moving: " + resumeA + "  ->  " + resumeB,
+                !resumeA.equals(resumeB));
+        expect("and its megabytes are on the visible part of the row: " + resumeA,
+                resumeA.contains("30 MB") && resumeA.indexOf("30 MB") + 5 <= ROW_CHARS);
+        expect("and it still says how much came from the cache: " + resumeA, resumeA.contains("4 cached"));
+
+        // A frame that dies before its first byte is a failure, not a cache hit. It used to be
+        // counted as cached, so a load losing frames looked like a resume going well.
+        String failing = text(1, 0, 3, 23, 20_000_000L, 60, 0);
+        expect("failed frames are named: " + failing, failing.contains("3 failed"));
+        expect("and counted as done, so the count still reaches the total: " + failing, failing.contains("4/23"));
+        expect("and not called cached: " + failing, !failing.contains("cached"));
+        String allFailed = text(0, 0, 5, 23, 0, 60, 60);
+        expect("failures with nothing on the wire are not called a cache restore: " + allFailed,
+                !allFailed.startsWith("Restoring") && allFailed.contains("5 failed"));
+        String stalledFailing = text(1, 0, 2, 23, 20_000_000L, 300, 30);
+        expect("a stall names its failures too: " + stalledFailing,
+                stalledFailing.startsWith("Waiting on host") && stalledFailing.contains("2 failed"));
 
         // A stall is the archive going quiet, which happens for minutes at a time. The running
         // average only decays; the words have to say it outright or a frozen readout reads as a

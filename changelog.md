@@ -3,10 +3,31 @@
 
 ## HelioFITS Studio 0.8.6 (unreleased)
 
+### Feedback
+- Send Feedback and the Report this... button on error dialogs now reach Gilly. Until reports can be sent directly, the button reads Send by Email...: it opens an email to gilly@nwra.com in your mail program, with your note, the version, the system and the top of the error filled in, and shows the full saved report (and screenshot, if you took one) in Finder or your file manager so you can attach it. Before, a report only waited in `~/HFStudio/Outbox`
+- When direct sending goes live, this version picks it up by itself, with no update: Send then delivers the report, and Email Instead... stays as the second choice
+
 ### Sessions
 - File > Export Session with Data saves the session plus a `.data.zip` beside it holding every local file its image layers read, so a session built on your own data opens on another computer. Archive layers are not packed; they download again there, as before. The zip carries a manifest with a SHA-256 for each file, and both files are written to a temporary name and renamed into place, so an interrupted export never leaves a half-written file under the real name
 - Opening a session whose local files are not on this computer takes them from the `.data.zip` beside it, checks every file against its checksum, and unpacks them once under `~/HFStudio/SessionData`. Files still on disk are read where they are. Dropping the `.data.zip` itself on the window opens the session inside it
 - A session whose local files are missing, with no archive to supply them, now says how many will not load instead of dropping those layers silently
+- A session saved on another computer looks for its local files beside the .jhv and in its .data.zip before giving up, loads the frames it finds, and reports the rest once per layer (how many, one example path, and to export with data) instead of one dialog per file or "Empty list of views"
+
+### Data sources
+- The VSO tree offers STEREO SECCHI EUVI as four channels, 171, 195, 284 and 304, instead of one entry that returned a single wavelength. A file name whose time stamp happened to contain a channel number no longer narrows a query to a few frames
+- The SOAR dialog has a Variant menu: EUI FSI 174 and 304 name their standard image, short-exposure and disc-occulted products in plain words with a tooltip from the EUI Data Manual, and open on the standard image; "all variants" shows every one
+- The ASPIICS dialog explains bt, fe, he, pb and pa in tooltips, and when one product comes back as more than one kind of file it labels each frame with its kind and adds a Kind menu that opens on the kind with the most frames; "all kinds" shows every one
+
+### Overlays and loading
+- A fresh install opens with every section of both sidebars collapsed; each section then opens the way it was last left
+- The Timestamp overlay can show the layer name after the time (Show layer name, on for new sessions), not only in multiview
+- The timestamp moves clear of the miniview when both sit in the top-left corner
+- A layer that is downloading shows the megabytes received as well as the frame count, so a slow archive no longer looks frozen, and frames that failed are counted as failed rather than as cached
+
+### Updates
+- HelioFITS Studio now says when a newer version has been released. A few seconds after it opens, at most once a day, it asks GitHub's list of releases (a release that is published and has a download for this computer, never one that is only planned), and shows the new version's notes with Download and Install, Later and Skip This Version. Help > Check for Updates asks at any time, including about a skipped version. Settings, "Check for updates at startup", turns the automatic check off; with no network it stays silent
+- Download and Install first saves the session and copies the sessions, autosaves, recovery copies and settings to `~/HFStudio/Backups/before-<version>-<time>`. If the save cannot be confirmed, or any copy fails, the update stops and nothing is downloaded. Nothing is moved or deleted
+- The new version downloads to the Downloads folder with a progress bar and Cancel, is checked against the size and SHA-256 the release lists, and is then opened: on a Mac the disk image's window, to drag HelioFITS Studio onto Applications; elsewhere the file in the file manager. An Intel Mac gets the Intel disk image, or the cross-platform zip (which needs Java 25) when the release has no Intel image. Quit Now quits the usual way, which saves the session, and the new version reopens it
 
 ## HelioFITS Studio 0.8.5 (unreleased)
 
