@@ -7,10 +7,17 @@
 - File > Export Session with Data saves the session plus a `.data.zip` beside it holding every local file its image layers read, so a session built on your own data opens on another computer. Archive layers are not packed; they download again there, as before. The zip carries a manifest with a SHA-256 for each file, and both files are written to a temporary name and renamed into place, so an interrupted export never leaves a half-written file under the real name
 - Opening a session whose local files are not on this computer takes them from the `.data.zip` beside it, checks every file against its checksum, and unpacks them once under `~/HFStudio/SessionData`. Files still on disk are read where they are. Dropping the `.data.zip` itself on the window opens the session inside it
 - A session whose local files are missing, with no archive to supply them, now says how many will not load instead of dropping those layers silently
+- A session saved on another computer looks for its local files beside the .jhv and in its .data.zip before giving up, loads the frames it finds, and reports the rest once per layer (how many, one example path, and to export with data) instead of one dialog per file or "Empty list of views"
 
 ### Data sources
+- The VSO tree offers STEREO SECCHI EUVI as four channels, 171, 195, 284 and 304, instead of one entry that returned a single wavelength. A file name whose time stamp happened to contain a channel number no longer narrows a query to a few frames
 - The SOAR dialog has a Variant menu: EUI FSI 174 and 304 name their standard image, short-exposure and disc-occulted products in plain words with a tooltip from the EUI Data Manual, and open on the standard image; "all variants" shows every one
 - The ASPIICS dialog explains bt, fe, he, pb and pa in tooltips, and when one product comes back as more than one kind of file it labels each frame with its kind and adds a Kind menu that opens on the kind with the most frames; "all kinds" shows every one
+
+### Overlays and loading
+- The Timestamp overlay can show the layer name after the time (Show layer name, on for new sessions), not only in multiview
+- The timestamp moves clear of the miniview when both sit in the top-left corner
+- A layer that is downloading shows the megabytes received as well as the frame count, so a slow archive no longer looks frozen, and frames that failed are counted as failed rather than as cached
 
 ## HelioFITS Studio 0.8.5 (unreleased)
 
