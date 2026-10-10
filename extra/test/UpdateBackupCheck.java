@@ -89,7 +89,40 @@ public final class UpdateBackupCheck {
 
         // ---- the backup ----------------------------------------------------------------------------
         LocalDateTime at = LocalDateTime.of(2026, 10, 10, 12, 0, 0);
-        SessionBackup.Result r = UpdateInstaller.protectSession("0.8.6", at);
+        // A save that cannot be confirmed stops everything before a single copy: the file may hold an older scene.
+        Path backups = Directories.BACKUPS.getFile().toPath();
+        boolean stopped = false;
+        try {
+            UpdateInstaller.protectSession("0.8.6", at, () -> {
+                throw new IOException("disk full");
+            });
+        } catch (UpdateInstaller.SaveFailed e) {
+            stopped = true;
+        }
+        expect("an unconfirmed save stops the update", stopped);
+        expect("before any backup is made", !Files.exists(backups.resolve("before-0.8.6-20261010-120000")));
+        Path empty = home.resolve("empty.jhv");
+        Files.createFile(empty);
+        stopped = false;
+        try {
+            UpdateInstaller.protectSession("0.8.6", at, () -> empty.toFile());
+        } catch (UpdateInstaller.SaveFailed e) {
+            stopped = true;
+        }
+        expect("so does a save that left an empty session file", stopped && !Files.exists(backups.resolve("before-0.8.6-20261010-120000")));
+        stopped = false;
+        try {
+            UpdateInstaller.protectSession("0.8.6", at, () -> {
+                throw new IllegalStateException("scene half-built");
+            });
+        } catch (UpdateInstaller.SaveFailed e) {
+            stopped = true;
+        }
+        expect("and one that could not read the scene", stopped && !Files.exists(backups.resolve("before-0.8.6-20261010-120000")));
+        Files.delete(empty); // this check's own scratch file, in its temp home
+        expect("and none of that touched the session", untouched(before));
+
+        SessionBackup.Result r = UpdateInstaller.protectSession("0.8.6", at, () -> states.resolve("session-main.jhv").toFile());
         Path folder = Directories.BACKUPS.getFile().toPath().resolve("before-0.8.6-20261010-120000");
         expect("the backup is ~/HFStudio/Backups/before-0.8.6-20261010-120000, got " + r.folder(), folder.equals(r.folder()));
         expect("the autosave is copied, byte for byte", same(states.resolve("session-main.jhv"), folder.resolve("States/session-main.jhv")));
@@ -107,7 +140,7 @@ public final class UpdateBackupCheck {
         Map<Path, String> withBackup = snapshot(home);
         boolean refused = false;
         try {
-            UpdateInstaller.protectSession("0.8.6", at);
+            UpdateInstaller.protectSession("0.8.6", at, () -> null);
         } catch (IOException e) {
             refused = true;
         }

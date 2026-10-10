@@ -65,10 +65,31 @@ public final class UpdateFeedCheck {
         expect("its notes are plain text", macArm != null && macArm.notes().startsWith("HelioFITS Studio 0.8.6\n\nUpdates\n- Checks for updates")
                 && !macArm.notes().contains("**") && !macArm.notes().contains("```"));
 
+        // Intel Mac: the Intel image, else the cross-platform zip (RELEASING.md), so 0.8.10's zip beats 0.8.9's image.
         ReleaseFeed.Release macIntel = ReleaseFeed.newest(feed, ReleaseFeed.Os.MAC, false);
-        expect("an Intel Mac is offered 0.8.9's Intel dmg, got " + versionOf(macIntel),
-                macIntel != null && macIntel.asset().name().equals("HFStudio-0.8.9-intel.dmg"));
-        expect("which states no SHA-256", macIntel != null && macIntel.asset().sha256() == null);
+        expect("an Intel Mac falls back to 0.8.10's cross-platform zip, got " + versionOf(macIntel),
+                macIntel != null && macIntel.asset().name().equals("HFStudio-0.8.10.zip"));
+        expect("which needs Java 25", macIntel != null && ReleaseFeed.needsOwnJava(macIntel.asset().name()));
+        JSONArray upTo089 = new JSONArray();
+        for (int i = 0; i < feed.length(); i++)
+            if (!feed.getJSONObject(i).getString("tag_name").equals("v0.8.10"))
+                upTo089.put(feed.getJSONObject(i));
+        ReleaseFeed.Release intel089 = ReleaseFeed.newest(upTo089, ReleaseFeed.Os.MAC, false);
+        expect("without 0.8.10 it is offered 0.8.9's Intel dmg, got " + versionOf(intel089),
+                intel089 != null && intel089.asset().name().equals("HFStudio-0.8.9-intel.dmg"));
+        expect("which states no SHA-256 and carries its own Java", intel089 != null && intel089.asset().sha256() == null
+                && !ReleaseFeed.needsOwnJava(intel089.asset().name()));
+        JSONArray both = new JSONArray().put(new JSONObject().put("tag_name", "v0.9.1").put("draft", false).put("body", "")
+                .put("assets", new JSONArray()
+                        .put(new JSONObject().put("name", "HFStudio-0.9.1.zip").put("size", 5).put("browser_download_url", "https://example.invalid/z"))
+                        .put(new JSONObject().put("name", "HFStudio-0.9.1-intel.dmg").put("size", 6).put("browser_download_url", "https://example.invalid/d"))));
+        ReleaseFeed.Release prefer = ReleaseFeed.newest(both, ReleaseFeed.Os.MAC, false);
+        expect("given both in one release, an Intel Mac takes the Intel dmg, got " + versionOf(prefer),
+                prefer != null && prefer.asset().name().equals("HFStudio-0.9.1-intel.dmg"));
+        expect("and an Apple Silicon Mac never takes the zip", ReleaseFeed.newest(both, ReleaseFeed.Os.MAC, true) == null);
+        expect("the Windows and Linux packages and the disk images carry their own Java",
+                !ReleaseFeed.needsOwnJava("HFStudio-0.8.6-windows.zip") && !ReleaseFeed.needsOwnJava("HFStudio-0.8.6-linux.tar.gz")
+                        && !ReleaseFeed.needsOwnJava("HFStudio-0.8.6.dmg"));
 
         ReleaseFeed.Release linux = ReleaseFeed.newest(feed, ReleaseFeed.Os.LINUX, false);
         expect("Linux is offered 0.8.10's tar.gz (0.8.10 after 0.8.9), got " + versionOf(linux),
@@ -78,6 +99,7 @@ public final class UpdateFeedCheck {
         ReleaseFeed.Release windows = ReleaseFeed.newest(feed, ReleaseFeed.Os.WINDOWS, false);
         expect("Windows falls back to 0.8.10's cross-platform zip, got " + versionOf(windows),
                 windows != null && windows.asset().name().equals("HFStudio-0.8.10.zip"));
+        expect("which needs Java 25 there too", windows != null && ReleaseFeed.needsOwnJava(windows.asset().name()));
         expect("whose SHA-256 comes from the notes' line", windows != null && ("fedcba9876543210".repeat(4)).equals(windows.asset().sha256()));
 
         expect("nothing is offered from an empty list", ReleaseFeed.newest(new JSONArray(), ReleaseFeed.Os.MAC, true) == null);

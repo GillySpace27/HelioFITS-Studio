@@ -85,13 +85,15 @@ public final class ReleaseFeed {
 
     /**
      * The file names that install {@code version} here, best first, as release/assets.txt names them.
-     * An Intel Mac takes only the Intel disk image: the Apple Silicon one carries an Apple Silicon Java
-     * and would not start there.
+     * An Intel Mac never takes the Apple Silicon disk image (it carries an Apple Silicon Java and would
+     * not start there): the Intel one, else the cross-platform zip, which is what RELEASING.md and
+     * the release notes send Intel users to when there is no Intel image. That zip needs Java 25
+     * ({@link #needsOwnJava}).
      */
     static List<String> assetNames(Os os, boolean arm, String version) {
         String top = "HFStudio-" + version;
         return switch (os) {
-            case MAC -> List.of(arm ? top + ".dmg" : top + "-intel.dmg");
+            case MAC -> arm ? List.of(top + ".dmg") : List.of(top + "-intel.dmg", top + ".zip");
             case WINDOWS -> List.of(top + "-windows.zip", top + ".zip");
             case LINUX -> List.of(top + "-linux.tar.gz", top + ".zip");
             case OTHER -> List.of(top + ".zip");
@@ -182,6 +184,15 @@ public final class ReleaseFeed {
             }
         }
         return String.join("\n", out).strip();
+    }
+
+    /**
+     * Whether this file is the cross-platform zip, which carries no Java of its own and needs Java 25
+     * installed (the release notes: "any system with your own Java 25 installed"). The disk images and
+     * the Windows and Linux packages carry their own.
+     */
+    public static boolean needsOwnJava(String assetName) {
+        return assetName.matches("HFStudio-\\d+\\.\\d+\\.\\d+\\.zip");
     }
 
     /** Whether the automatic check may run: never checked, a day has passed, or the clock went back. */
