@@ -8,6 +8,10 @@
 - Opening a session whose local files are not on this computer takes them from the `.data.zip` beside it, checks every file against its checksum, and unpacks them once under `~/HFStudio/SessionData`. Files still on disk are read where they are. Dropping the `.data.zip` itself on the window opens the session inside it
 - A session whose local files are missing, with no archive to supply them, now says how many will not load instead of dropping those layers silently
 
+### Data sources
+- The SOAR dialog has a Variant menu: EUI FSI 174 and 304 name their standard image, short-exposure and disc-occulted products in plain words with a tooltip from the EUI Data Manual, and open on the standard image; "all variants" shows every one
+- The ASPIICS dialog explains bt, fe, he, pb and pa in tooltips, and when one product comes back as more than one kind of file it labels each frame with its kind and adds a Kind menu that opens on the kind with the most frames; "all kinds" shows every one
+
 ## HelioFITS Studio 0.8.5 (unreleased)
 
 ### Starting
