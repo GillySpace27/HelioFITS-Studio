@@ -76,9 +76,51 @@ public final class VsoClientCheck {
 
         expect(VsoClient.parseRecords("<QueryResponse></QueryResponse>").isEmpty(), "an empty response yields nothing");
 
+        euviChannels();
+
         if (failures != 0)
             throw new AssertionError(failures + " VSO failure(s)");
         System.out.println("VsoClientCheck: PASS");
+    }
+
+    /**
+     * STEREO/SECCHI EUVI per channel (Sarah Gibson's report, 2026-10-10: the VSO tree offered EUVI
+     * with no choice of wavelength). The four passbands are the ones resources/luts/standard-luts.txt
+     * carries a STEREO EUVI table for: 171, 195, 284 and 304 Angstrom.
+     */
+    private static void euviChannels() {
+        int[] channels = {171, 195, 284, 304};
+        for (int c : channels)
+            expect(VsoClient.waveFromToken(VsoClient.euviToken(c)) == c,
+                    "EUVI " + c + " token narrows the query to " + c + " A, got "
+                            + VsoClient.waveFromToken(VsoClient.euviToken(c)));
+        // The server-side wave window is +-WAVE_SLOP around the token; neighbouring EUVI channels
+        // must not fall inside each other's window, or one leaf would load two channels.
+        for (int i = 1; i < channels.length; i++)
+            expect(channels[i] - channels[i - 1] > 2 * VsoClient.WAVE_SLOP,
+                    "EUVI " + channels[i - 1] + " and " + channels[i] + " windows are disjoint");
+
+        // A bare wavelength must not narrow by digits buried in a timestamp. These fileids are
+        // synthetic, not read from the VSO: if a fileid carries the observation time, a substring
+        // match on "171" keeps only the frames taken at 17:15 and throws away the rest of the day,
+        // which the server's wave filter had already restricted to 171 anyway.
+        List<VsoClient.Record> euvi = List.of(
+                new VsoClient.Record("/secchi/20120101_000530_n4euA.fts", "SDAC", 1),
+                new VsoClient.Record("/secchi/20120101_171530_n4euA.fts", "SDAC", 2),
+                new VsoClient.Record("/secchi/20120101_230530_n4euA.fts", "SDAC", 3));
+        expect(VsoClient.filterRecords(euvi, VsoClient.euviToken(171)).size() == 3,
+                "a wavelength token does not match digits inside a timestamp, kept "
+                        + VsoClient.filterRecords(euvi, VsoClient.euviToken(171)).size() + " of 3");
+        // AIA's fileids carry the channel as a field of its own; that match still narrows.
+        List<VsoClient.Record> aia = List.of(
+                new VsoClient.Record("aia__lev1:171:1104537649", "JSOC", 1),
+                new VsoClient.Record("aia__lev1:193:1104537650", "JSOC", 2));
+        expect(VsoClient.filterRecords(aia, "171").size() == 1, "a delimited channel number still narrows");
+        // SUVI's lettered tokens keep matching as before.
+        List<VsoClient.Record> suvi = List.of(
+                new VsoClient.Record("x/SUVI-L1b-Fe195_G19_s20262421200.fits", "NOAA", 1),
+                new VsoClient.Record("x/SUVI-L1b-Fe171_G19_s20262421200.fits", "NOAA", 2));
+        expect(VsoClient.filterRecords(suvi, "Fe195").size() == 1, "a SUVI channel token still narrows");
     }
 
     private static void expect(boolean ok, String what) {

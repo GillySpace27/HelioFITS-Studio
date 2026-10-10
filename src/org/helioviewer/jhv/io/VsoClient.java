@@ -265,10 +265,17 @@ public final class VsoClient {
             return records;
 
         String needle = token.toLowerCase(java.util.Locale.US);
+        // A bare number ("171", the AIA and EUVI tokens) counts only where it stands alone in the
+        // fileid. A fileid that carries an observation time ("20120101_171530_...") would otherwise
+        // keep only the frames whose clock happened to contain the channel number.
+        Pattern number = needle.chars().allMatch(Character::isDigit)
+                ? Pattern.compile("(?<!\\d)" + needle + "(?!\\d)") : null;
         List<Record> kept = new ArrayList<>(records.size());
-        for (Record r : records)
-            if (r.fileid().toLowerCase(java.util.Locale.US).contains(needle))
+        for (Record r : records) {
+            String fileid = r.fileid().toLowerCase(java.util.Locale.US);
+            if (number == null ? fileid.contains(needle) : number.matcher(fileid).find())
                 kept.add(r);
+        }
         // The token also narrows the query by wavelength at the server, so an archive that names
         // its files some other way has already been filtered and matching none of them here means
         // the token was never about the fileid. Emptying the layer would be the wrong conclusion.
@@ -318,8 +325,18 @@ public final class VsoClient {
 
     // Wide enough to cover a channel named for its line and catalogued at its rounded wavelength:
     // the 9.4 nm channel is "Fe093" in the filename and 94 in the catalog, 30.4 is "He303" and 304.
-    private static final int WAVE_SLOP = 6;
+    static final int WAVE_SLOP = 6;
     private static final Pattern TOKEN_DIGITS = Pattern.compile("(\\d{2,4})$");
+
+    /**
+     * The token for one STEREO/SECCHI EUVI channel: a bare wavelength, like AIA's, so the query is
+     * narrowed by the server's wave filter. The fileid match in filterRecords is not relied on: the
+     * SECCHI fileid shape was not checked against the live VSO when this was written (2026-10-10,
+     * no network), so a bare number must never match inside a longer run of digits there.
+     */
+    public static String euviToken(int angstrom) {
+        return Integer.toString(angstrom);
+    }
 
     /** Angstroms from a channel token like "Fe195", or 0 when the token names no channel. */
     static int waveFromToken(String token) {
