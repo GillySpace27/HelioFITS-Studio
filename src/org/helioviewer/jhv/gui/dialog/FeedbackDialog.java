@@ -3,6 +3,7 @@ package org.helioviewer.jhv.gui.dialog;
 import java.awt.AWTException;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
+import java.awt.EventQueue;
 import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -16,6 +17,7 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -42,6 +44,7 @@ import javax.swing.event.DocumentListener;
 
 import org.helioviewer.jhv.app.AppInfo;
 import org.helioviewer.jhv.app.Log;
+import org.helioviewer.jhv.app.Platform;
 import org.helioviewer.jhv.app.state.State;
 import org.helioviewer.jhv.gui.DesktopIntegration;
 import org.helioviewer.jhv.gui.MainFrame;
@@ -59,6 +62,11 @@ import org.json.JSONObject;
  * adds one item, and Preview shows every item in full before anything leaves the machine. Not modal,
  * so the user can go on, reproduce the problem and come back, and so the dialog can step out of its
  * own screenshot.
+ *
+ * <p>Two roads. With an endpoint (compiled in, set, or published on gilly.space and found at this
+ * launch), Send POSTs the report and Email Instead... is the second button. Without one, the button is
+ * Send by Email...: it saves the report to the outbox, opens a mail draft to Gilly with the key facts,
+ * and shows the saved file in the file manager for the user to attach.
  */
 @SuppressWarnings("serial")
 public final class FeedbackDialog extends JDialog {
@@ -75,6 +83,9 @@ public final class FeedbackDialog extends JDialog {
     private final JCheckBox sessionBox = new JCheckBox("The current session: layers, times and view, as the autosave writes it", false);
     private final JCheckBox screenshotBox = new JCheckBox("A screenshot of the main window", false);
     private final JButton send = new JButton("Send");
+    private final JButton emailInstead = new JButton("Email Instead...");
+    private final JLabel destination = new JLabel();
+    private boolean sending;
     @Nullable
     private final FeedbackReport.ErrorContext error;
     @Nullable
@@ -137,7 +148,7 @@ public final class FeedbackDialog extends JDialog {
         form.add(sessionBox, c);
         form.add(screenshotBox, c);
         c.insets = new Insets(8, 0, 0, 0);
-        form.add(new JLabel("<html><div style='width:420px'>" + destination() + "</div>"), c);
+        form.add(destination, c);
 
         JButton preview = new JButton("Preview");
         preview.setToolTipText("Show everything this report will contain");
@@ -145,10 +156,17 @@ public final class FeedbackDialog extends JDialog {
         JButton cancel = new JButton("Cancel");
         cancel.addActionListener(e -> dispose());
         send.addActionListener(e -> send());
+        emailInstead.setToolTipText("Write to " + AppInfo.emailAddress + " from your mail program, and attach the saved report");
+        emailInstead.addActionListener(e -> {
+            JSONObject p = payloadOrNull();
+            if (p != null)
+                sendByEmail(p);
+        });
         JPanel buttons = new JPanel(new BorderLayout());
         buttons.add(preview, BorderLayout.LINE_START);
         JPanel right = new JPanel(new FlowLayout(FlowLayout.TRAILING, 6, 0));
         right.add(cancel);
+        right.add(emailInstead);
         right.add(send);
         buttons.add(right, BorderLayout.LINE_END);
         buttons.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
@@ -184,6 +202,13 @@ public final class FeedbackDialog extends JDialog {
         message.getDocument().addDocumentListener(validate);
         replyTo.getDocument().addDocumentListener(validate);
         updateSend();
+        updateRoad();
+        // The endpoint may be published on gilly.space; this launch's lookup runs off the EDT and, when it
+        // ends, the buttons and the words follow what it found.
+        FeedbackReport.lookUpEndpoint().thenRun(() -> EventQueue.invokeLater(() -> {
+            if (isDisplayable() && !sending)
+                updateRoad();
+        }));
         getRootPane().registerKeyboardAction(e -> dispose(), KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_IN_FOCUSED_WINDOW);
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 
@@ -198,12 +223,17 @@ public final class FeedbackDialog extends JDialog {
         });
     }
 
-    /** Where a report goes, in words, and that the home folder never does. */
-    private static String destination() {
-        String where = FeedbackReport.endpoint().isBlank()
-                ? "This build has no address to send reports to yet: Send saves the report in ~/HFStudio/Outbox, and a later version sends it. You can also email it."
+    /** The road a report takes now: the button's name, the second button, and the words saying where it goes. */
+    private void updateRoad() {
+        boolean email = FeedbackReport.endpoint().isBlank();
+        send.setText(email ? "Send by Email..." : "Send");
+        emailInstead.setVisible(!email);
+        String where = email
+                ? "Send by Email opens an email to the developer (" + AppInfo.emailAddress + ") in your mail program, with your note and the main details,"
+                  + " and shows the full report file so you can attach it. The report is also kept in ~/HFStudio/Outbox."
                 : "Send delivers the report to the developer of " + AppInfo.programName + ".";
-        return where + " Your home folder is written as ~ in everything sent. Preview shows all of it.";
+        destination.setText("<html><div style='width:420px'>" + where + " Your home folder is written as ~ in everything sent. Preview shows all of it.</div>");
+        revalidate();
     }
 
     private void updateSend() {
@@ -287,34 +317,82 @@ public final class FeedbackDialog extends JDialog {
         pane.createDialog(this, "What will be sent").setVisible(true);
     }
 
-    private void send() {
-        JSONObject p;
+    @Nullable
+    private JSONObject payloadOrNull() {
         try {
-            p = payload();
+            return payload();
         } catch (IOException e) {
             Log.warn("Feedback not built: " + e);
+            return null;
+        }
+    }
+
+    private void send() {
+        JSONObject p = payloadOrNull();
+        if (p == null)
+            return;
+        String endpoint = FeedbackReport.endpoint();
+        if (endpoint.isBlank()) {
+            sendByEmail(p);
             return;
         }
-        String endpoint = FeedbackReport.endpoint();
+        sending = true;
         send.setEnabled(false);
+        emailInstead.setEnabled(false);
         send.setText("Sending...");
         Task.submitBackground(() -> FeedbackReport.submit(p, endpoint), d -> {
             dispose();
             if (d.sent())
                 JOptionPane.showMessageDialog(MainFrame.get(), "Thank you. Your report was sent.", "Send Feedback", JOptionPane.INFORMATION_MESSAGE);
             else
-                afterward(p, d.file(), "Report saved", (endpoint.isBlank() ? "This build has no address to send reports to yet." : "The report could not be sent just now.")
-                        + " It is saved as\n" + Provenance.stripHome(d.file().toString(), System.getProperty("user.home", ""))
-                        + "\nand will be sent automatically " + (endpoint.isBlank() ? "by a later version." : "the next time " + AppInfo.programName + " starts."));
+                afterward(p, d.file(), "Report saved", "The report could not be sent just now. It is saved as\n" + shown(d.file())
+                        + "\nand will be sent automatically the next time " + AppInfo.programName + " starts. You can also email it now.", false);
         }, t -> {
             dispose();
             Log.warn("Feedback not saved: " + t);
-            afterward(p, null, "Report not saved", "The report could not be saved: " + t.getMessage() + "\nCopy it to the clipboard to keep it.");
+            afterward(p, null, "Report not saved", "The report could not be saved: " + t.getMessage() + "\nCopy it to the clipboard to keep it, or email it.", false);
         });
     }
 
-    /** What the user can still do with a report that did not go: copy it, or email it (only when it was saved, to be attached). */
-    private static void afterward(JSONObject p, @Nullable Path file, String title, String text) {
+    /**
+     * The email road: save the report (and its screenshot beside it) off the EDT, then open a mail draft to
+     * Gilly and show the saved file, so the user only has to attach it and press Send in the mail program.
+     */
+    private void sendByEmail(JSONObject p) {
+        sending = true;
+        send.setEnabled(false);
+        emailInstead.setEnabled(false);
+        send.setText("Saving...");
+        Task.submitBackground(() -> FeedbackReport.saveForEmail(p), file -> {
+            dispose();
+            DesktopIntegration.openURL(FeedbackReport.mailto(p, file));
+            DesktopIntegration.reveal(file.toFile());
+            Path png = FeedbackReport.screenshotFile(file);
+            String manager = Platform.isMacOS() ? "Finder" : "your file manager";
+            afterward(p, file, "Attach the report to your email", "An email to " + AppInfo.emailAddress
+                    + " with your note is open in your mail program. Please attach the report file, now shown in " + manager
+                    + ", before you send it:\n" + shown(file)
+                    + (Files.isRegularFile(png) ? "\nand the screenshot beside it:\n" + shown(png) : "")
+                    + "\n\nIf no email opened, press Copy to Clipboard and paste the report into an email to " + AppInfo.emailAddress + '.', true);
+        }, t -> {
+            dispose();
+            Log.warn("Feedback not saved: " + t);
+            DesktopIntegration.openURL(FeedbackReport.mailto(p, null));
+            afterward(p, null, "Report not saved", "The report could not be saved: " + t.getMessage()
+                    + "\nAn email to " + AppInfo.emailAddress + " is open in your mail program: press Copy to Clipboard and paste the report into it.", true);
+        });
+    }
+
+    /** A path as the user's dialogs show it, with the home folder as ~. */
+    private static String shown(Path file) {
+        return Provenance.stripHome(file.toString(), System.getProperty("user.home", ""));
+    }
+
+    /**
+     * What the user can still do with a report: copy it, write the email (again, when it was already
+     * opened), and show the saved file to attach.
+     */
+    private static void afterward(JSONObject p, @Nullable Path file, String title, String text, boolean emailed) {
         JTextArea words = new JTextArea(text);
         words.setEditable(false);
         words.setOpaque(false);
@@ -324,13 +402,21 @@ public final class FeedbackDialog extends JDialog {
             TransferAccess.writeClipboard(FeedbackReport.asText(p));
             copy.setText("Copied");
         });
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
         actions.add(copy);
+        JButton email = new JButton(emailed ? "Open the Email Again" : "Email Instead");
+        email.setToolTipText("Write to " + AppInfo.emailAddress + (file == null ? "" : "; attach the saved report to the email"));
+        email.addActionListener(e -> {
+            DesktopIntegration.openURL(FeedbackReport.mailto(p, file));
+            if (file != null && !emailed)
+                DesktopIntegration.reveal(file.toFile());
+        });
+        actions.add(email);
         if (file != null) {
-            JButton email = new JButton("Email Instead");
-            email.setToolTipText("Write to " + AppInfo.emailAddress + "; attach the saved file to the email");
-            email.addActionListener(e -> DesktopIntegration.openURL(FeedbackReport.mailto(p, file)));
-            actions.add(email);
+            JButton show = new JButton("Show the Report File");
+            show.setToolTipText("Show " + shown(file) + " in " + (Platform.isMacOS() ? "Finder" : "the file manager"));
+            show.addActionListener(e -> DesktopIntegration.reveal(file.toFile()));
+            actions.add(show);
         }
         JOptionPane pane = new JOptionPane(new Object[]{words, actions}, JOptionPane.INFORMATION_MESSAGE);
         String[] ok = {"OK"};

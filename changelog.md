@@ -3,6 +3,10 @@
 
 ## HelioFITS Studio 0.8.6 (unreleased)
 
+### Feedback
+- Send Feedback and the Report this... button on error dialogs now reach Gilly. Until reports can be sent directly, the button reads Send by Email...: it opens an email to gilly@nwra.com in your mail program, with your note, the version, the system and the top of the error filled in, and shows the full saved report (and screenshot, if you took one) in Finder or your file manager so you can attach it. Before, a report only waited in `~/HFStudio/Outbox`
+- When direct sending goes live, this version picks it up by itself, with no update: Send then delivers the report, and Email Instead... stays as the second choice
+
 ### Sessions
 - File > Export Session with Data saves the session plus a `.data.zip` beside it holding every local file its image layers read, so a session built on your own data opens on another computer. Archive layers are not packed; they download again there, as before. The zip carries a manifest with a SHA-256 for each file, and both files are written to a temporary name and renamed into place, so an interrupted export never leaves a half-written file under the real name
 - Opening a session whose local files are not on this computer takes them from the `.data.zip` beside it, checks every file against its checksum, and unpacks them once under `~/HFStudio/SessionData`. Files still on disk are read where they are. Dropping the `.data.zip` itself on the window opens the session inside it
