@@ -18,6 +18,7 @@ import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 
 import org.helioviewer.jhv.io.FitsRequest;
+import org.helioviewer.jhv.io.VsoClient;
 import org.helioviewer.jhv.layers.ImageLayer;
 
 /**
@@ -55,7 +56,8 @@ public final class VsoSelectorPanel extends JPanel {
 
     /**
      * A selectable leaf: what VSO calls the instrument, the detector within it if any, and a
-     * fileid token for what VSO cannot filter itself (SUVI channels; see the class comment).
+     * channel token: a wavelength the query narrows by at the server, and for SUVI also a fileid
+     * match for what VSO cannot filter itself (see the class comment).
      */
     private record Source(String label, String instrument, String detector, String fileidToken) {
         private Source(String label, String instrument, String detector) {
@@ -93,10 +95,17 @@ public final class VsoSelectorPanel extends JPanel {
                 new Source("AIA 335", "aia", "", "335"),
                 new Source("AIA 1600", "aia", "", "1600"),
                 new Source("HMI", "hmi", "")));
+        // EUVI per channel, for the same reason as AIA and because one unqualified leaf offered no
+        // choice of passband (Sarah Gibson, 2026-10-10: "just 195"). The four are
+        // the passbands resources/luts/standard-luts.txt has a STEREO EUVI table for. Sessions
+        // saved from the old leaf carry a blank token and still load every channel, as before.
         root.add(observatory("STEREO",
                 new Source("SECCHI COR1", "secchi", "COR1"),
                 new Source("SECCHI COR2", "secchi", "COR2"),
-                new Source("SECCHI EUVI", "secchi", "EUVI"),
+                new Source("SECCHI EUVI 171", "secchi", "EUVI", VsoClient.euviToken(171)),
+                new Source("SECCHI EUVI 195", "secchi", "EUVI", VsoClient.euviToken(195)),
+                new Source("SECCHI EUVI 284", "secchi", "EUVI", VsoClient.euviToken(284)),
+                new Source("SECCHI EUVI 304", "secchi", "EUVI", VsoClient.euviToken(304)),
                 new Source("SECCHI HI1", "secchi", "HI1"),
                 new Source("SECCHI HI2", "secchi", "HI2")));
         root.add(observatory("Hinode",

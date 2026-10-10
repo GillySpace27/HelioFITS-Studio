@@ -62,6 +62,11 @@ public final class TimestampLayer extends AbstractLayer {
     private double offsetX = 0;
     private double offsetY = 1;
     private boolean showClock = true;
+    // The image layer's name after the time in single view as well (Sarah Gibson, 2026-10-10:
+    // "overlay the name of the instrument as well as the time"). Multiview always named each
+    // viewport and still does. On for a fresh layer; a session saved before the option has no
+    // key and reads it as off, so it draws exactly what it drew.
+    private boolean showName = true;
     // The text and dial colour; null is the historical light grey, which then draws exactly as it
     // always has (Colors.LightGrayFloat for the text, Colors.LightGray for the dial) and writes no
     // "color" key, so a session saved without a choice reads the same in an older build.
@@ -89,6 +94,7 @@ public final class TimestampLayer extends AbstractLayer {
         jo.put("offsetX", offsetX);
         jo.put("offsetY", offsetY);
         jo.put("showClock", showClock);
+        jo.put("showName", showName);
         jo.put("showVersion", showVersion);
         jo.put("showProjection", showProjection);
         jo.put("showFilter", showFilter);
@@ -111,6 +117,7 @@ public final class TimestampLayer extends AbstractLayer {
         offsetX = Math.clamp(jo.optDouble("offsetX", offsetX), 0, 1);
         offsetY = Math.clamp(jo.optDouble("offsetY", offsetY), 0, 1);
         showClock = jo.optBoolean("showClock", showClock);
+        showName = jo.optBoolean("showName", false);
         showVersion = jo.optBoolean("showVersion", showVersion);
         showProjection = jo.optBoolean("showProjection", showProjection);
         showFilter = jo.optBoolean("showFilter", showFilter);
@@ -151,6 +158,11 @@ public final class TimestampLayer extends AbstractLayer {
                 text = ' ' + im.getName();
                 viewpoint = im.getMetaData().getViewpoint();
             }
+        } else if (showName) {
+            // the master layer, as the credit line names it; the viewpoint stays the view's own
+            ImageLayer master = Layers.getActiveImageLayer();
+            if (master != null && master.getImageData() != null)
+                text = ' ' + master.getName();
         }
         text = viewpoint.time.toString() + text;
 
@@ -183,6 +195,17 @@ public final class TimestampLayer extends AbstractLayer {
         int margin = (int) (vp.height * 0.01);
         int deltaX = margin + (int) (offsetX * Math.max(0, vp.width - 2. * margin - contentWidth));
         int deltaY = margin + (int) (offsetY * Math.max(0, vp.height - 2. * margin - contentHeight));
+        // The miniview is drawn after the scene, so where the two meet it covers the start of the
+        // timestamp (both default to the top-left corner). Its footprint is in canvas pixels;
+        // bring it into this viewport's GL pixels, where the block is placed.
+        MiniviewLayer mini = Layers.getMiniviewLayer();
+        if (mini != null && mini.isEnabled() && mv.rendersIn3D()) { // GLRenderer.renderMiniview draws it on the same conditions
+            Viewport m = mini.getViewport();
+            int bx = m.x - vp.x, by = m.yGL - vp.yGL;
+            int[] at = clearOf(deltaX, deltaY, contentWidth, contentHeight, bx, by, bx + m.width, by + m.height, vp.width, margin);
+            deltaX = at[0];
+            deltaY = at[1];
+        }
         float textY = deltaY + notes.size() * lineStep; // the timestamp heads the block, notes hang below it
 
         // Shadows first for the whole block, then the text: setColor flushes, so alternating per
@@ -196,6 +219,26 @@ public final class TimestampLayer extends AbstractLayer {
 
         if (showClock)
             drawClock(vp, viewpoint.time.milli, deltaX + textWidth + CLOCK_GAP * size, textY + 0.35f * size, CLOCK_RADIUS * size);
+    }
+
+    /**
+     * Where the timestamp block goes so that it does not sit under the miniview. The block's
+     * lower-left corner is (x, y) and its size w by h; the miniview covers [x0, x1) by [y0, y1);
+     * all in the viewport's GL pixels, y up. A block that overlaps moves to the right of the
+     * miniview when it fits there, else below it, else stays (nothing better to do in a viewport
+     * that small). Returns {x, y}.
+     */
+    static int[] clearOf(int x, int y, float w, float h, int x0, int y0, int x1, int y1, int vpWidth, int margin) {
+        boolean overlaps = x < x1 && x + w > x0 && y < y1 && y + h > y0;
+        if (!overlaps)
+            return new int[]{x, y};
+        int right = x1 + margin;
+        if (right + w <= vpWidth - margin)
+            return new int[]{right, y};
+        int below = (int) (y0 - margin - h);
+        if (below >= margin)
+            return new int[]{x, below};
+        return new int[]{x, y};
     }
 
     private static void drawBlock(SdfTextRenderer renderer, String text, List<String> notes, float x, float y, float lineStep, float textScaleFactor) {
@@ -499,6 +542,15 @@ public final class TimestampLayer extends AbstractLayer {
 
     public void setShowClock(boolean _showClock) {
         showClock = _showClock;
+        DisplayController.display();
+    }
+
+    public boolean isShowName() {
+        return showName;
+    }
+
+    public void setShowName(boolean _showName) {
+        showName = _showName;
         DisplayController.display();
     }
 

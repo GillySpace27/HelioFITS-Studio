@@ -23,7 +23,10 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
@@ -48,6 +51,10 @@ import org.json.JSONObject;
  * survives no network, no endpoint and a crash mid-send; nothing here deletes one. The outbox is
  * retried at the next launch with a window ({@link #retryInBackground}).
  *
+ * <p>The endpoint is compiled in ({@link #ENDPOINT}), set ({@link #ENDPOINT_KEY}), or published in
+ * {@link #ENDPOINT_FILE} and looked up once per launch. With none, the dialog takes the email road
+ * instead: {@link #saveForEmail} and a {@link #mailto} draft to Gilly that asks for the file to be attached.
+ *
  * <p>The home folder is written as "~" everywhere in a report, by the export provenance code's own
  * rewrite. FeedbackReportCheck pins the fields, the redaction and the outbox.
  */
@@ -55,11 +62,22 @@ public final class FeedbackReport {
 
     /**
      * Where reports go once the Worker is deployed: Gilly sets this, and a release carries it. Empty
-     * until then, so every report waits in the outbox. A non-empty {@link #ENDPOINT_KEY} setting wins,
-     * to try a Worker before a release has its URL.
+     * until then, so the endpoint comes from {@link #ENDPOINT_FILE}, or else reports go by email. A
+     * non-empty {@link #ENDPOINT_KEY} setting wins, to try a Worker before a release has its URL.
      */
     static final String ENDPOINT = "";
     public static final String ENDPOINT_KEY = "feedback.endpoint";
+    /**
+     * When the build and the setting name no endpoint, the app reads it from this file on Gilly's site,
+     * once per launch, so the Worker can go live without a new build. A data contract, append-only:
+     * released builds read this exact URL, so it is never moved or renamed (extra/feedback-worker/README.md).
+     */
+    static final String ENDPOINT_FILE = "https://gilly.space/hfstudio/feedback-endpoint.txt";
+    private static final int ENDPOINT_FILE_MAX = 512;
+    private static final Duration LOOKUP_TIMEOUT = Duration.ofSeconds(5);
+    /** The endpoint the file named at this launch, "" for none; completed once, by the one lookup. */
+    private static final CompletableFuture<String> PUBLISHED = new CompletableFuture<>();
+    private static final AtomicBoolean LOOKUP_STARTED = new AtomicBoolean();
     /** A random id per installation, so the Worker can rate-limit one machine without knowing who it is. */
     public static final String INSTALL_ID_KEY = "feedback.installId";
     /** Lines of this run's log that a report carries. */
@@ -194,10 +212,89 @@ public final class FeedbackReport {
 
     // ---- sending ----------------------------------------------------------------------------
 
-    /** The endpoint in force: the setting when it is set, else the one compiled in. Empty means none. */
-    public static String endpoint() {
+    /** The endpoint a build or the user names: the setting when it is set, else the one compiled in. Empty means none. */
+    static String configuredEndpoint() {
         String set = Settings.getProperty(ENDPOINT_KEY);
         return set == null || set.isBlank() ? ENDPOINT : set.strip();
+    }
+
+    /**
+     * The endpoint in force: {@link #configuredEndpoint()}, else the one this launch's lookup found in
+     * {@link #ENDPOINT_FILE}. Empty means none, including while the lookup is still running. Never waits.
+     */
+    public static String endpoint() {
+        String configured = configuredEndpoint();
+        return configured.isBlank() ? PUBLISHED.getNow("") : configured;
+    }
+
+    /**
+     * Starts this launch's one lookup of {@link #ENDPOINT_FILE}, on its own thread, when neither the build
+     * nor the setting names an endpoint; later calls start nothing. Safe on the EDT. The future completes
+     * with the endpoint in force ("" for none) once it is known.
+     */
+    public static CompletableFuture<String> lookUpEndpoint() {
+        String configured = configuredEndpoint();
+        if (!configured.isBlank())
+            return CompletableFuture.completedFuture(configured);
+        if (LOOKUP_STARTED.compareAndSet(false, true))
+            AppThread.create(() -> {
+                try {
+                    PUBLISHED.complete(fetchPublishedEndpoint());
+                } finally {
+                    PUBLISHED.complete(""); // whatever went wrong, the lookup ends with an answer
+                }
+            }, "HFS-FeedbackEndpoint").start();
+        return PUBLISHED;
+    }
+
+    /** One GET of the endpoint file, with a short timeout. Anything but a 200 holding one acceptable URL means none. */
+    private static String fetchPublishedEndpoint() {
+        try (HttpClient client = HttpClient.newBuilder().connectTimeout(LOOKUP_TIMEOUT).followRedirects(HttpClient.Redirect.NORMAL).build()) {
+            HttpRequest request = HttpRequest.newBuilder(URI.create(ENDPOINT_FILE))
+                    .timeout(LOOKUP_TIMEOUT)
+                    .header("User-Agent", AppInfo.userAgent)
+                    .GET()
+                    .build();
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                Log.info("No feedback endpoint published (HTTP " + response.statusCode() + " for " + ENDPOINT_FILE + ')');
+                return "";
+            }
+            String found = publishedEndpoint(response.body());
+            Log.info(found.isEmpty() ? "Feedback endpoint file ignored: it holds no acceptable URL" : "Feedback endpoint from " + ENDPOINT_FILE + ": " + found);
+            return found;
+        } catch (IOException | IllegalArgumentException e) {
+            Log.info("Feedback endpoint lookup failed: " + e);
+            return "";
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return "";
+        }
+    }
+
+    /**
+     * The endpoint a published file names, or "" for none. The file holds one line, an https URL whose host
+     * is a Cloudflare Worker (ends with .workers.dev) or gilly.space or one of its subdomains, with no user
+     * name and no port. Anything else (blank, an HTML error page, two lines, plain http, another host) is
+     * ignored, so a broken or hijacked file cannot send a report anywhere else.
+     */
+    static String publishedEndpoint(@Nullable String body) {
+        if (body == null || body.length() > ENDPOINT_FILE_MAX)
+            return "";
+        List<String> lines = body.lines().map(String::strip).filter(l -> !l.isEmpty()).toList();
+        if (lines.size() != 1)
+            return "";
+        String url = lines.getFirst();
+        try {
+            URI u = new URI(url);
+            String host = u.getHost();
+            if (!"https".equalsIgnoreCase(u.getScheme()) || host == null || u.getRawUserInfo() != null || u.getPort() != -1)
+                return "";
+            host = host.toLowerCase(Locale.ROOT);
+            return host.endsWith(".workers.dev") || host.equals("gilly.space") || host.endsWith(".gilly.space") ? url : "";
+        } catch (URISyntaxException e) {
+            return "";
+        }
     }
 
     /** HTTPS anywhere, or plain HTTP to this machine only (for testing a Worker under wrangler dev). */
@@ -224,6 +321,30 @@ public final class FeedbackReport {
     public static Delivery submit(JSONObject payload, String endpoint) throws IOException {
         Path file = save(payload);
         return deliver(file, endpoint) ? new Delivery(file.resolveSibling("sent").resolve(file.getFileName()), true) : new Delivery(file, false);
+    }
+
+    /**
+     * For the email road, when no endpoint is known: saves the report to the outbox as {@link #save} does
+     * and, when it carries a screenshot, also writes the picture beside it ({@link #screenshotFile}) so a
+     * mail program can attach it. Returns the report's file. Off the EDT.
+     */
+    public static Path saveForEmail(JSONObject payload) throws IOException {
+        Path file = save(payload);
+        JSONObject shot = payload.optJSONObject("screenshot");
+        if (shot != null) {
+            try {
+                Files.write(screenshotFile(file), Base64.getDecoder().decode(shot.optString("base64")));
+            } catch (IllegalArgumentException | IOException e) { // the report itself is saved; the picture is still inside it
+                Log.warn("Feedback screenshot not written beside " + file.getFileName() + ": " + e);
+            }
+        }
+        return file;
+    }
+
+    /** Where {@link #saveForEmail} puts a report's screenshot: beside it, same name, .png. The outbox retry reads only .json. */
+    public static Path screenshotFile(Path report) {
+        String name = report.getFileName().toString();
+        return report.resolveSibling((name.endsWith(".json") ? name.substring(0, name.length() - 5) : name) + ".png");
     }
 
     /** Written through a temporary file, so a retry never reads half a report. Named by time, so the outbox sorts oldest first. */
@@ -284,33 +405,40 @@ public final class FeedbackReport {
 
     /** Tries every report in the outbox once, oldest first. Returns how many were sent. */
     static int retryOutbox(String endpoint) {
-        Path dir = outbox();
-        if (!Files.isDirectory(dir))
-            return 0;
-        List<Path> waiting;
-        try (Stream<Path> s = Files.list(dir)) {
-            waiting = s.filter(p -> p.getFileName().toString().endsWith(".json") && Files.isRegularFile(p)).sorted().toList();
-        } catch (IOException e) {
-            Log.warn("Feedback outbox unreadable: " + e);
-            return 0;
-        }
         int sent = 0;
-        for (Path file : waiting)
+        for (Path file : waiting())
             if (deliver(file, endpoint))
                 sent++;
         return sent;
     }
 
-    /** At a launch with a window: send what the outbox holds, on its own thread. Nothing at all without an endpoint. */
+    /** The reports waiting in the outbox, oldest first: its .json files only, never a screenshot beside one. */
+    static List<Path> waiting() {
+        Path dir = outbox();
+        if (!Files.isDirectory(dir))
+            return List.of();
+        try (Stream<Path> s = Files.list(dir)) {
+            return s.filter(p -> p.getFileName().toString().endsWith(".json") && Files.isRegularFile(p)).sorted().toList();
+        } catch (IOException e) {
+            Log.warn("Feedback outbox unreadable: " + e);
+            return List.of();
+        }
+    }
+
+    /**
+     * At a launch with a window: look up the endpoint when the build names none, then send what the outbox
+     * holds, each on a thread of its own. Nothing is sent without an endpoint.
+     */
     public static void retryInBackground() {
-        String endpoint = endpoint();
-        if (endpoint.isBlank())
-            return;
-        AppThread.create(() -> {
-            int sent = retryOutbox(endpoint);
-            if (sent > 0)
-                Log.info("Sent " + sent + " saved feedback report(s) from " + outbox());
-        }, "HFS-FeedbackOutbox").start();
+        lookUpEndpoint().thenAccept(endpoint -> {
+            if (endpoint.isBlank())
+                return;
+            AppThread.create(() -> {
+                int sent = retryOutbox(endpoint);
+                if (sent > 0)
+                    Log.info("Sent " + sent + " saved feedback report(s) from " + outbox());
+            }, "HFS-FeedbackOutbox").start();
+        });
     }
 
     // ---- words for people -------------------------------------------------------------------
@@ -353,28 +481,118 @@ public final class FeedbackReport {
     }
 
     /**
-     * A mailto: URL to Gilly with a subject and a short body. A mailto link cannot attach a file, so the
-     * body names the saved report for the user to attach. Kept under about 1900 characters, which every
-     * mail client takes.
+     * The longest mailto: URL handed to the mail program, in characters, encoded. An estimate: RFC 6068
+     * sets no limit, but on Windows a URL goes through ShellExecuteEx, which stops at
+     * INTERNET_MAX_URL_LENGTH (about 2048 characters, per EurekaLog's notes on sending reports by mailto),
+     * and some mail programs are said to cut sooner. 1900 leaves a margin; it was not measured per client.
      */
-    public static String mailto(JSONObject p, Path file) {
-        String message = p.optString("message");
-        String first = message.lines().findFirst().orElse("").strip();
-        String subject = AppInfo.programName + " feedback (" + categoryLabel(p.optString("category")) + "): "
-                + first.substring(0, Math.min(60, first.length()));
-        String saved = Provenance.stripHome(file.toString(), System.getProperty("user.home", ""));
-        for (int keep = 800; ; keep /= 2) {
-            String body = message.substring(0, Math.min(keep, message.length())) + (message.length() > keep ? "..." : "")
-                    + "\n\nBuild: " + AppInfo.buildId()
-                    + "\nThe full report is saved at " + saved + ". Please attach that file; this email cannot attach it for you.";
-            String url = "mailto:" + AppInfo.emailAddress + "?subject=" + encode(subject) + "&body=" + encode(body);
-            if (url.length() < 1900 || keep < 50)
-                return url;
-        }
+    static final int MAILTO_MAX = 1900;
+    /** Stack frames the email keeps per exception in the chain; the saved file has them all. */
+    private static final int MAIL_FRAMES = 8;
+    /** The message's share of the email body, before encoding; the saved file has all of it. */
+    private static final int MAIL_MESSAGE = 700;
+
+    /** A mailto: URL to Gilly for this report and its saved file, as {@link #mailto(JSONObject, Path, String)} with this build's version. */
+    public static String mailto(JSONObject p, @Nullable Path file) {
+        return mailto(p, file, AppInfo.label());
     }
 
+    /**
+     * A mailto: URL to Gilly: subject "[HFS version] Kind: first line", and a body with the message, the
+     * build and system lines, the report id, the error and the top of its stack, and a last paragraph that
+     * asks for the saved file to be attached (a mailto link cannot attach one). Kept within
+     * {@link #MAILTO_MAX} by cutting the end of the details, never the attach paragraph. Line breaks are
+     * CRLF, as RFC 6068 asks. Every part comes from the payload, where the home folder is already "~",
+     * and the file's path is rewritten the same way.
+     */
+    static String mailto(JSONObject p, @Nullable Path file, String version) {
+        String message = p.optString("message").strip();
+        String first = message.lines().findFirst().orElse("").strip();
+        String subject = "[HFS " + version + "] " + categoryLabel(p.optString("category")) + ": " + clip(first, 60);
+
+        StringBuilder details = new StringBuilder();
+        details.append(message.length() > MAIL_MESSAGE ? clip(message, MAIL_MESSAGE) + " [cut; the full text is in the attached report]" : message)
+                .append("\n\n");
+        JSONObject sys = p.optJSONObject("system");
+        details.append("Version: ").append(sys != null ? sys.optString("buildId") : version).append('\n');
+        if (sys != null)
+            details.append("OS: ").append(sys.optString("os")).append('\n')
+                    .append("Java: ").append(sys.optString("java")).append('\n')
+                    .append("Graphics: ").append(sys.optString("gl")).append('\n');
+        details.append("Report id: ").append(p.optString("id")).append('\n');
+        JSONObject e = p.optJSONObject("error");
+        if (e != null) {
+            details.append("\nError shown: ").append(e.optString("title")).append(": ").append(e.optString("message")).append('\n');
+            if (e.has("stackTrace"))
+                details.append(stackSummary(e.optString("stackTrace"), MAIL_FRAMES));
+        }
+
+        String home = System.getProperty("user.home", "");
+        String attach = file == null
+                ? "\n\nThe full report could not be saved as a file. Please use Copy to Clipboard in " + AppInfo.programName
+                  + " and paste it here."
+                : "\n\nPlease attach the full report before sending: " + Provenance.stripHome(file.toString(), home)
+                  + " (and the .png screenshot beside it, if there is one). This email cannot attach it for you.";
+        String to = "mailto:" + AppInfo.emailAddress + "?subject=" + encode(subject) + "&body=";
+        String tail = encode(attach);
+        String all = details.toString().stripTrailing();
+        String body = encode(all);
+        if (to.length() + body.length() + tail.length() <= MAILTO_MAX)
+            return to + body + tail;
+        // Too long: the longest start of the details that fits with a cut marker, found by halving.
+        String marker = "\n[cut to fit an email]";
+        int lo = 0, hi = all.length();
+        while (lo < hi) {
+            int mid = (lo + hi + 1) / 2;
+            if (to.length() + encode(clip(all, mid) + marker).length() + tail.length() <= MAILTO_MAX)
+                lo = mid;
+            else
+                hi = mid - 1;
+        }
+        return to + encode(clip(all, lo) + marker) + tail;
+    }
+
+    /**
+     * The part of a stack trace that says most in a few lines: every exception line (the first and each
+     * "Caused by:"), each followed by at most {@code frames} of its "at" lines, and a count of what was left.
+     */
+    static String stackSummary(String trace, int frames) {
+        StringBuilder sb = new StringBuilder();
+        int kept = 0, skipped = 0;
+        for (String line : trace.lines().toList()) {
+            String t = line.strip();
+            if (t.isEmpty())
+                continue;
+            boolean frame = t.startsWith("at ") || t.startsWith("... ");
+            if (!frame) {
+                if (skipped > 0)
+                    sb.append("    (").append(skipped).append(" more)\n");
+                kept = 0;
+                skipped = 0;
+                sb.append(t).append('\n');
+            } else if (kept < frames) {
+                kept++;
+                sb.append("    ").append(t).append('\n');
+            } else
+                skipped++;
+        }
+        if (skipped > 0)
+            sb.append("    (").append(skipped).append(" more)\n");
+        return sb.toString();
+    }
+
+    /** The first n characters, never splitting a surrogate pair. */
+    static String clip(String s, int n) {
+        if (s.length() <= n)
+            return s;
+        if (n > 0 && Character.isHighSurrogate(s.charAt(n - 1)))
+            n--;
+        return s.substring(0, n);
+    }
+
+    /** Percent-encoded for a mailto field: spaces as %20, line breaks as %0D%0A (RFC 6068 section 5). */
     private static String encode(String s) {
-        return URLEncoder.encode(s, StandardCharsets.UTF_8).replace("+", "%20");
+        return URLEncoder.encode(s.replace("\r\n", "\n").replace('\r', '\n').replace("\n", "\r\n"), StandardCharsets.UTF_8).replace("+", "%20");
     }
 
     private static String categoryLabel(String key) {
