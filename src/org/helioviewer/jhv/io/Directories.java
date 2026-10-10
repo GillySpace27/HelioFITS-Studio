@@ -77,6 +77,13 @@ public enum Directories {
             return HOME.getPath() + "FileCache" + File.separator;
         }
     },
+    // Copies of the session and settings taken before an update (UpdateInstaller). Only ever added to.
+    BACKUPS {
+        @Override
+        public String getPath() {
+            return HOME.getPath() + "Backups" + File.separator;
+        }
+    },
     // The downloads directory
     DOWNLOADS {
         @Override
