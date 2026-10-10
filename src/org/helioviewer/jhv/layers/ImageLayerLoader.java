@@ -14,6 +14,7 @@ import javax.swing.JOptionPane;
 
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.Message;
+import org.helioviewer.jhv.app.state.MissingFiles;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.image.DecodedImage;
 import org.helioviewer.jhv.image.ImageProcessingSettings;
@@ -86,7 +87,7 @@ final class ImageLayerLoader {
         onFailedUris.accept(List.of()); // clear any stale failures from a previous load
         int gen = ++loadGeneration;
         loadFuture = Task.submitBackground(uriList.toString(),
-                () -> loadUri(uriList, view -> EventQueue.invokeLater(() -> onPreview(view, gen))),
+                () -> loadPresent(uriList, view -> EventQueue.invokeLater(() -> onPreview(view, gen))),
                 result -> onSuccess(result, gen),
                 (logContext, t) -> onFailure(t, gen, failureTitle(uriList)));
     }
@@ -183,6 +184,33 @@ final class ImageLayerLoader {
         Message.err(title, t.getMessage() == null ? "See the log for details." : t.getMessage(), t);
     }
 
+    // Local files not on this computer (a session saved on another one) are one message for the
+    // layer, not one failure per file; the frames that are here still load.
+    private volatile List<URI> absent = List.of();
+
+    private View loadPresent(List<URI> uriList, Consumer<View> preview) throws Exception {
+        List<URI> missing = MissingFiles.missing(uriList, java.nio.file.Files::isRegularFile);
+        absent = missing;
+        if (missing.isEmpty())
+            return loadUri(uriList, preview);
+        String summary = MissingFiles.summary(missing.size(), uriList.size(), missing.getFirst());
+        Log.warn(summary);
+        if (missing.size() >= uriList.size()) {
+            onFailedUris.accept(missing);
+            throw new java.io.FileNotFoundException(summary);
+        }
+        EventQueue.invokeLater(() -> Message.warn("Some files of this layer are missing", summary));
+        List<URI> present = new java.util.ArrayList<>(uriList);
+        present.removeAll(missing);
+        return loadUri(present, preview);
+    }
+
+    private void reportFailed(List<URI> failed) {
+        List<URI> all = new java.util.ArrayList<>(absent);
+        all.addAll(failed);
+        onFailedUris.accept(all);
+    }
+
     private View loadUri(List<URI> uriList, Consumer<View> preview) throws Exception {
         int total = uriList.size();
         if (total == 1) {
@@ -255,7 +283,7 @@ final class ImageLayerLoader {
                         }
                     }).filter(Objects::nonNull).toList();
                     statusSink.accept("Assembling " + views.size() + " frames…");
-                    onFailedUris.accept(failed);
+                    reportFailed(failed);
                     reportShortfall(failed, total);
                     return new ManyView(views);
                 }
@@ -283,7 +311,7 @@ final class ImageLayerLoader {
             } finally {
                 ticker.stop();
             }
-            onFailedUris.accept(failed);
+            reportFailed(failed);
             reportShortfall(failed, total);
             return movie;
         }
