@@ -362,7 +362,8 @@ guide will be regenerated
 Paste that output to Gilly verbatim as the question. Each `!!` line is a
 refusal (exit 2) naming the step to rerun: a dmg with no receipt, or whose
 sha256 or `build_sha` is not the receipt's and HEAD's (rerun step 4); `spctl`
-rejecting a dmg (step 4); not on `master`, uncommitted `src`, `resources` or
+rejecting a dmg (step 4); no Intel dmg while `release/.jdk-x64` exists (step 4,
+`MAC_ARCH=x64`); not on `master`, uncommitted `src`, `resources` or
 `VERSION`, or HEAD not equal to `origin/master` (step 1); a jar whose manifest
 revision is not HEAD's count (step 2); the tag already at another commit or the
 release already existing (bump `VERSION`); Friday after 12:00 (step 6: another
@@ -650,3 +651,26 @@ release object; the next preview would have been `v5.6b-coronal-research`.
   failing on a bogus tag, and it now grades the Intel dmg, the CI run, every asset
   in `release/assets.txt` and the page's fallback links. `release/ship.sh` runs the
   procedure as phases. Tests: `extra/test/test_release_assets.py`.
+
+- **2026-10-11: 0.8.6 took four tries to notarize, one fix to launch, and a day to
+  reach Intel Macs.** (1) The upload to Apple's S3 bucket died with `Connection reset
+  by peer` (`NWError 54`), on a phone hotspot and on wifi alike, sometimes after a
+  few parts, while ordinary uploads ran at 243 Mbps; with S3 acceleration notarytool
+  crashed with a bus error, as on 2026-09-23. Pausing Bitdefender's network
+  protection (`com.bitdefender.cst.net.dci`) let the second try through, and the next
+  morning both dmgs uploaded first time. `notarytool submit` now
+  passes `--no-s3-acceleration`. A locked screen stopped two runs as before
+  (2026-09-18). (2) The app inside the first notarized dmg threw
+  `NoClassDefFoundError: java/net/http/HttpClient` a second after launch: the new
+  feedback code was the first user of `java.net.http`, which the trimmed runtime in
+  `make-runtime.sh` did not carry, and the dev build runs on the full JDK, so `ant
+  test` could not see it. Only step 5 caught it; the dmg was never published.
+  `test_runtime_modules.py` now checks the module list. (3) A 60 s `notarytool info`
+  timed out on an Accepted submission; `notarize-resume` finished it. (4) The release
+  went out without its Intel dmg although `release/.jdk-x64` was on the Mac, because
+  the steps followed named only the Apple Silicon notarize; Intel Macs were sent to
+  the zip and Java. The Intel dmg was built, smoke-tested under Rosetta and added
+  to v0.8.6 the next morning (no `--clobber`), with the notes' Intel paragraph
+  changed to the wording `publish` writes when it exists. `publish` now refuses a
+  release with no Intel dmg wherever `release/.jdk-x64` exists
+  (`test_release_assets.py`).
