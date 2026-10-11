@@ -64,7 +64,12 @@ public final class LoadProgressCheck {
         String b = text(3, 0, 45, 132_000_000L, 11);
         expect("bytes advance while the frame count stands still: " + a + "  ->  " + b, !a.equals(b));
         expect("megabytes are reported, not bytes", a.contains("120 MB"));
-        expect("and a rate once the clock has run: " + a, a.contains("12.0 MB/s"));
+        // 120 MB in 10 s is 12.0 MB/s, but the clock keeps running between building the start time
+        // here and reading it in progressText, so a slow runner can print 11.9 (macos-x64, PR #39).
+        // The rate can only fall from 12.0, never rise.
+        java.util.regex.Matcher rate = java.util.regex.Pattern.compile("(\\d+\\.\\d) MB/s").matcher(a);
+        double mbps = rate.find() ? Double.parseDouble(rate.group(1)) : -1;
+        expect("and a rate once the clock has run: " + a, mbps > 11.0 && mbps <= 12.0);
         expect("in the verb it is actually in: " + a, a.startsWith("Downloading "));
 
         // A mixed load says how much of it was free, which is the question a resume raises.
