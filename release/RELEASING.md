@@ -164,9 +164,14 @@ stay the procedure; the phases only run them in order.
 |---|---|---|
 | `release/ship.sh bump <version>` | writes `VERSION` with no trailing newline; refuses without a `## ... <version> ...` heading in `changelog.md` | before 1 |
 | `release/ship.sh prepare` | tracker row `pushed`; the tag typed at a terminal, or `HFS_NOTARIZE_APPROVED=<tag>` for that one run (the build goes to Apple); `ant clean check-all`; `notarize`, and `MAC_ARCH=x64 notarize` when `release/.jdk-x64` exists; `package`; tracker rows `pushed` to `zip` | 1 (checked, not pushed), 2, 3, 4 |
-| `release/ship.sh gate` | `publish --dry-run`; `build_guide.py --strict`; the smoke test, typed as `smoke-tested`; prints the gate text for Gilly | 5, 6 (the question) |
+| `release/ship.sh gate` | `publish --dry-run`; `build_guide.py --strict`; `release/smoke_dmg.sh` on each dmg (starts it from an empty directory with a throwaway home, Intel under Rosetta, and fails on no drawing, an uncaught exception or a missing class); the smoke test, typed as `smoke-tested` or, with no terminal, `HFS_SMOKE_APPROVED=<tag>` after Gilly's yes; prints the gate text for Gilly | 5, 6 (the question) |
 | `release/ship.sh publish` | the tag typed at a terminal, or `HFS_PUBLISH_APPROVED=<tag>` for that one run; then `deploy_release.sh publish` | 6 (after his yes) |
 | `release/ship.sh confirm` | waits up to 30 minutes for `package.yml` on the tag; tracker rows `published`, `live`, `ci_package`, `assets_all` | 7 |
+
+`smoke_dmg.sh` starts the app from an empty directory on purpose: the app looks for
+`lib/natives-macos/libjhvmetalhost.dylib` relative to the working directory before its own
+copy (`AngleLibraries.libraryPath`), so starting a dmg's app from inside a checkout tests that
+checkout's dylib. Finder starts apps in `/`.
 
 Nothing in `ship.sh` pushes a branch. `HFS_PUBLISH_APPROVED` is set only after
 Gilly's yes in chat, only to that exact tag, and only for that one invocation.

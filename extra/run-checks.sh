@@ -177,7 +177,8 @@ unittests() {
         "$PY" -m unittest discover -s extra/angle &&
         "$PY" -m unittest discover -s extra/licenses &&
         { [ ! -f extra/test/test_release_assets.py ] || "$PY" extra/test/test_release_assets.py; } &&
-        "$PY" extra/test/test_runtime_modules.py
+        "$PY" extra/test/test_runtime_modules.py &&
+        "$PY" extra/test/test_smoke_dmg.py
 }
 
 guards() {
