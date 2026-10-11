@@ -5,8 +5,9 @@
 #   release/ship.sh prepare          tracker green through `pushed`; the tag typed (or HFS_NOTARIZE_APPROVED) to
 #                                    allow the upload to Apple; ant clean check-all; notarize (and the
 #                                    Intel dmg when release/.jdk-x64 exists); package; tracker rows
-#   release/ship.sh gate             publish --dry-run, the strict guide build, the smoke test typed as
-#                                    done, and the gate text to paste to Gilly
+#   release/ship.sh gate             publish --dry-run, the strict guide build, smoke_dmg.sh on each dmg,
+#                                    the smoke test typed as done (or HFS_SMOKE_APPROVED), and the gate
+#                                    text to paste to Gilly
 #   release/ship.sh publish          deploy_release.sh publish, after the exact tag is typed at a terminal;
 #                                    with no terminal, only when HFS_PUBLISH_APPROVED is that exact tag
 #   release/ship.sh confirm          wait (bounded) for package.yml on the tag, then the tracker
@@ -97,6 +98,10 @@ gate() {
     _gate="$(mktemp "${TMPDIR:-/tmp}/hfs-gate-XXXXXX")"
     "$HERE/deploy_release.sh" publish --dry-run > "$_gate" || { _rc=$?; cat "$_gate"; exit "$_rc"; }
     ( cd "$HERE" && python3 build_guide.py --strict )
+    # The machine half of step 5 on every dmg publish would attach: starts, draws, no uncaught exception.
+    for _d in "$HERE/HFStudio-$(version).dmg" "$HERE/HFStudio-$(version)-intel.dmg"; do
+        [ -f "$_d" ] && "$HERE/smoke_dmg.sh" "$_d"
+    done
     cat <<EOF
 
 Smoke test (RELEASING.md step 5), on the dmg, not the jar:
@@ -106,10 +111,19 @@ Smoke test (RELEASING.md step 5), on the dmg, not the jar:
   4. Export a short movie; it plays.
   5. Quit through the menu.
 EOF
-    tty_in || { echo "!! the smoke test is typed as done at a terminal; there is none" >&2; exit 2; }
-    printf 'Type smoke-tested when all five are done: '
-    read -r _answer
-    [ "$_answer" = smoke-tested ] || { echo "!! not smoke-tested; nothing else ran" >&2; exit 2; }
+    # With no terminal (an agent), smoke_dmg.sh above stands in for the five steps only when Gilly said
+    # so for this tag: HFS_SMOKE_APPROVED=<tag>, like HFS_PUBLISH_APPROVED.
+    if [ -n "${HFS_SMOKE_APPROVED:-}" ]; then
+        [ "$HFS_SMOKE_APPROVED" = "v$(version)" ] \
+            || { echo "!! HFS_SMOKE_APPROVED is '$HFS_SMOKE_APPROVED', not v$(version); a yes is for one tag" >&2; exit 2; }
+    elif tty_in; then
+        printf 'Type smoke-tested when all five are done: '
+        read -r _answer
+        [ "$_answer" = smoke-tested ] || { echo "!! not smoke-tested; nothing else ran" >&2; exit 2; }
+    else
+        echo "!! no terminal: the smoke test is typed at one, or HFS_SMOKE_APPROVED=v$(version) after Gilly's yes" >&2
+        exit 2
+    fi
     DONE=smoketest require_rows pushed jar dylib guide dmg zip smoketest
     echo
     echo "Paste this to Gilly verbatim and ask for a yes for $(sed -n '1s/^GATE: publish \([^ ]*\) .*/\1/p' "$_gate") only:"
