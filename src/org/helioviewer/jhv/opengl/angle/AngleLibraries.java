@@ -46,14 +46,11 @@ final class AngleLibraries {
 
     static Path libraryPath(String fileName) {
         if (Platform.isMacOS() && METAL_HOST_LIBRARY.equals(fileName)) {
-            Path path = MACOS_NATIVE_DIR.resolve(fileName).toAbsolutePath();
-            if (Files.exists(path))
-                return path;
-            // The path above is cwd-relative and a launch from elsewhere (java -jar with an
-            // absolute path, the zip's launchers) never finds it: ANGLE warmup then dies with
-            // nothing to say. The dylib sits beside the jar in the repo and in the zip, so ask
-            // where this class was loaded from. The notarized .app needs neither branch: its
-            // dylib is injected into the jar and the resource fallback below serves it.
+            // The dylib sits beside the jar in the repo, the zip and the .app (Contents/app), so
+            // ask where this class was loaded from first. The cwd-relative path used to come
+            // first, and a launch from a terminal inside a checkout loaded that checkout's
+            // tracked dylib, which can be older than the code: 0.8.6 then died on
+            // UnsatisfiedLinkError: jhv_mirror_prepare (2026-10-11).
             try {
                 Path code = Path.of(AngleLibraries.class.getProtectionDomain().getCodeSource().getLocation().toURI());
                 Path byJar = code.getParent().resolve(MACOS_NATIVE_DIR).resolve(fileName);
@@ -61,6 +58,10 @@ final class AngleLibraries {
                     return byJar;
             } catch (Exception ignore) {
             }
+            // A launch the code location cannot place (a classes directory elsewhere).
+            Path path = MACOS_NATIVE_DIR.resolve(fileName).toAbsolutePath();
+            if (Files.exists(path))
+                return path;
         }
 
         String resourcePath = Platform.getResourceDir() + fileName;
