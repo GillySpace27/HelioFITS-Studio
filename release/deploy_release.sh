@@ -324,7 +324,11 @@ preflight_publish() {
             *.dmg)
                 _f="$HERE/$_n"; _r="$(receipt_for "$_n")"
                 if [ ! -f "$_f" ]; then
-                    case "$_n" in *-intel.dmg) continue ;; esac   # optional: the notes then send Intel Macs to the zip
+                    # Optional only where it cannot be built: with the Intel JDK here, a release without
+                    # it sends Intel Macs to the zip and Java for no reason (0.8.6, 2026-10-11).
+                    case "$_n" in *-intel.dmg) [ -d "$HERE/.jdk-x64" ] || continue
+                        refuse "no $_n in release/ though release/.jdk-x64 is here; MAC_ARCH=x64 ./deploy_release.sh notarize builds it" 4
+                        continue ;; esac
                     refuse "no $_n in release/; notarize builds it" 4; continue
                 fi
                 if [ ! -f "$_r" ]; then

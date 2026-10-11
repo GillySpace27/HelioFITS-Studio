@@ -302,6 +302,14 @@ class PreflightTest(unittest.TestCase):
         (self.repo / "release" / f"HFStudio-{self.V}-intel.dmg").write_bytes(b"intel")
         self.refused(self.dry_run(), "has no receipt .notarize-run-intel.json")
 
+    def test_missing_intel_dmg_refuses_where_the_intel_jdk_is(self):
+        # 2026-10-11: 0.8.6 shipped without its Intel dmg although release/.jdk-x64 was on the Mac.
+        (self.repo / "release" / ".jdk-x64").mkdir()
+        self.refused(self.dry_run(), f"no HFStudio-{self.V}-intel.dmg")
+
+    def test_missing_intel_dmg_is_optional_without_the_intel_jdk(self):
+        self.assertEqual(self.dry_run().returncode, 0)
+
     def test_spctl_rejection_refuses(self):
         self.refused(self.dry_run(FAKE_SPCTL_RC="3"), "spctl rejects")
 
