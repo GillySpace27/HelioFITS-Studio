@@ -49,6 +49,22 @@ check failing on a tag that does not exist.
 Before 0.8 these were two repos (`jhv-demo` on `demo-all`, and
 `preview-deploy`). Older entries in `RELEASING.md` use those names.
 
+## Before you start
+
+Three things have each stopped a release night (RELEASING.md, "Things that have
+actually gone wrong here", 2026-09-18 and 2026-10-11). Ask Gilly for the first two
+before `prepare`, not after the first failure (what each failure looks like is in
+"Driving it without a terminal" below):
+
+- **The Mac stays unlocked until notarization finishes.** `notarytool` cannot
+  read the `jhv-notary` keychain profile behind a locked screen ("No Keychain
+  password item found"); nothing is wrong with the credential.
+- **Bitdefender's online threat prevention is paused** (or `amazonaws.com`
+  excluded) while the dmg uploads. With it on, Apple's S3 upload is reset mid
+  transfer ("Connection reset by peer") on every network tried.
+- **Notarization passes `--no-s3-acceleration`** on every `notarytool submit`
+  in `deploy_release.sh`; keep it there when editing them.
+
 ## Order matters
 
 `notarize` does its own clean rebuild. `package` and `publish` build **nothing**:
@@ -59,7 +75,8 @@ they package whatever jar is on disk and upload whatever dmg already exists. So:
 3. regenerate the guide
 4. `notarize` (produces the dmg), then `MAC_ARCH=x64 ... notarize` for the
    Intel dmg (needs the Intel JDK at `release/.jdk-x64`; RELEASING.md step 4)
-5. smoke-test the app **inside the dmg**
+5. smoke-test the app **inside the dmg** (and the Intel dmg under Rosetta when
+   one was built); `ship.sh gate` runs `release/smoke_dmg.sh` on each
 6. **gate**, then `publish`
 7. wait for CI's `package` run on the tag, which attaches the Windows and
    Linux packages, then confirm asset dates changed (eight assets, seven without an Intel dmg)
@@ -144,6 +161,19 @@ looking at it is a judgement. Pass `--done smoketest` **only** after it has
 actually been done, and never bake it into the Orrery registry args, which
 would make the dashboard assert on every unattended refresh that a human
 looked at something.
+
+## After publish
+
+`release/ship.sh confirm` waits for CI's packages and grades every asset. Two
+rows need a hand after it:
+
+- **`assets_all`:** eight assets with an Intel dmg. Compare each sha256 GitHub
+  lists with the one in the gate text.
+- **`page_fallback`:** the gilly.space download page finds the newest release by
+  itself, but its fixed fallback links (used when GitHub cannot be reached) name
+  a version. Update them in `heliofits-studio/index.html` of
+  GillySpace27/GillySpace27.github.io on a branch and PR; merging it publishes the
+  site and needs Gilly's yes.
 
 ## Hand-off boundary
 
