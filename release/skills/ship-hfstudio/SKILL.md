@@ -49,6 +49,34 @@ check failing on a tag that does not exist.
 Before 0.8 these were two repos (`jhv-demo` on `demo-all`, and
 `preview-deploy`). Older entries in `RELEASING.md` use those names.
 
+## Before you start
+
+Three things have each stopped a release night (RELEASING.md, "Things that have
+actually gone wrong here", 2026-09-18 and 2026-10-11). Ask Gilly for them before
+`prepare`, not after the first failure:
+
+- **The Mac stays unlocked until notarization finishes.** `notarytool` cannot
+  read the `jhv-notary` keychain profile behind a locked screen ("No Keychain
+  password item found"); nothing is wrong with the credential.
+- **Bitdefender's online threat prevention is paused** (or `amazonaws.com`
+  excluded) while the dmg uploads. With it on, Apple's S3 upload is reset mid
+  transfer ("Connection reset by peer") on every network tried.
+- **Notarization passes `--no-s3-acceleration`** on every `notarytool submit`
+  in `deploy_release.sh`; keep it there when editing them.
+
+## Handing the run to Gilly's Mac
+
+A cloud session cannot build, sign or notarize; the Mac does. Hand it the
+phases, not a list of steps, so nothing the phases do gets left out (a hand-written
+list naming only the Apple Silicon notarize is why 0.8.6 first shipped without
+its Intel dmg):
+
+> Ship HelioFITS Studio v<version> with the ship-hfstudio skill: run
+> `release/ship.sh prepare`, then `release/ship.sh gate`, and stop there with the
+> gate text and the smoke-test result. Stop on any failure.
+
+`publish` waits for Gilly's yes in chat for that tag, as "The gate" below says.
+
 ## Order matters
 
 `notarize` does its own clean rebuild. `package` and `publish` build **nothing**:
@@ -59,7 +87,8 @@ they package whatever jar is on disk and upload whatever dmg already exists. So:
 3. regenerate the guide
 4. `notarize` (produces the dmg), then `MAC_ARCH=x64 ... notarize` for the
    Intel dmg (needs the Intel JDK at `release/.jdk-x64`; RELEASING.md step 4)
-5. smoke-test the app **inside the dmg**
+5. smoke-test the app **inside the dmg** (and the Intel dmg under Rosetta when
+   one was built), then read its log as "The smoke test" below says
 6. **gate**, then `publish`
 7. wait for CI's `package` run on the tag, which attaches the Windows and
    Linux packages, then confirm asset dates changed (eight assets, seven without an Intel dmg)
@@ -114,6 +143,22 @@ Ian Hewins, Yara De Leo and Curt de Koning, so this reaches real collaborators.
 Nothing else in the procedure needs confirmation. Preparation steps that only
 touch local files should just run.
 
+## The smoke test
+
+RELEASING.md step 5 and the five items `ship.sh gate` prints are the test. Two
+additions, both from 0.8.6:
+
+- **Run it with a throwaway home**, so nothing touches Gilly's `~/HFStudio`:
+  start the executable inside the mounted bundle (`Contents/MacOS/`) with
+  `JAVA_TOOL_OPTIONS="-Duser.home=$(mktemp -d)"`.
+- **Then read the log**, under that home's `HFStudio/Logs/`, and fail the test
+  on any uncaught exception, `NoClassDefFoundError`, `ClassNotFoundException` or
+  `SEVERE` line, even when the window looked fine. The first 0.8.6 dmg drew its
+  images and then died on `NoClassDefFoundError: java/net/http/HttpClient`: the
+  development build runs on the full JDK, and only the trimmed runtime inside the
+  dmg lacked the module. `extra/test/test_runtime_modules.py` now guards that
+  case in CI; the log read catches the next one it does not know about.
+
 ## Session-only milestone
 
 `smoketest` cannot be checked from outside: launching the mounted app and
@@ -121,6 +166,19 @@ looking at it is a judgement. Pass `--done smoketest` **only** after it has
 actually been done, and never bake it into the Orrery registry args, which
 would make the dashboard assert on every unattended refresh that a human
 looked at something.
+
+## After publish
+
+`release/ship.sh confirm` waits for CI's packages and grades every asset. Two
+rows need a hand after it:
+
+- **`assets_all`:** eight assets with an Intel dmg. Compare each sha256 GitHub
+  lists with the one in the gate text.
+- **`page_fallback`:** the gilly.space download page finds the newest release by
+  itself, but its fixed fallback links (used when GitHub cannot be reached) name
+  a version. Update them in `heliofits-studio/index.html` of
+  GillySpace27/GillySpace27.github.io on a branch and PR; merging it publishes the
+  site and needs Gilly's yes.
 
 ## Hand-off boundary
 
