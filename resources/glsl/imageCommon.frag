@@ -183,7 +183,7 @@ vec4 getColor(const vec2 texcoord, const vec2 difftexcoord, const float factor) 
     }
 
     if (display.upsilon.x != 1. || display.upsilon.y != 1.) {
-        // Two-sided gamma about the median (Gilly & DeForest Eq. 2): upsilonLow and
+        // Two-sided gamma about the median (Gilly & Cranmer 2025, Eq. 2): upsilonLow and
         // upsilonHigh independently set the curvature below and above I = 0.5.
         //
         // The curve is only defined on [0, 1] (above 1 the second branch's base 2 - 2v goes

@@ -5,7 +5,7 @@ import java.util.Arrays;
 import org.helioviewer.jhv.metadata.Region;
 import org.helioviewer.jhv.thread.ParallelRange;
 
-// Radial Histogram Equalizing Filter (Gilly & DeForest 2024): rank-equalizes pixel
+// Radial Histogram Equalizing Filter (Gilly & Cranmer 2025): rank-equalizes pixel
 // values within ~1-pixel-wide annuli centered on the Sun, flattening the radial
 // brightness gradient while preserving the relative structure at each height.
 //
