@@ -42,7 +42,7 @@ public final class ImageDisplaySettings {
     private double blend = 1;
     private double sharpen;
     private double enhanced;
-    // RHEF two-sided midtone control (Upsilon), AIA 171 defaults (Gilly & DeForest 2024, §3.2,
+    // RHEF two-sided midtone control (Upsilon), AIA 171 defaults (Gilly & Cranmer 2025, §3.2,
     // https://arxiv.org/html/2511.02798v1). The curve below the median (shadows, upsilonLow) and
     // above it (highlights, upsilonHigh) are shaped independently, so the two handles are
     // asymmetric by design. sunkit-image's rhef exposes the same split light/dark upsilon:
