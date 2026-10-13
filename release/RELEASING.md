@@ -443,6 +443,24 @@ fixed fallback links name this release. `python3 skills/ship-hfstudio/scripts/st
 --selftest` grades every check against a tag that never existed and a retired one, and
 exits 1 if any check passes there.
 
+### 8. Feed record
+
+`publish` ends by appending this release to the HelioSoftware feed in the Website checkout (`$SITE`,
+default `~/vscode/Website`): `heliosoftware/feed/heliofits-studio.json`, then `feed.xml` and
+`whats-new/index.html` are regenerated. It records the Apple Silicon dmg, the Intel dmg when one was
+built, the cross-platform zip and the guide, each with its sha256 and size. Which platforms are marked
+confirmed follows the `confirmed` flags in `PLATFORMS` on the Website's `heliofits-studio/index.html`
+(`mac` is `macos-arm64`, `intel` is `macos-x64`; Gilly's default B4, 2026-10-12), so a tile is
+confirmed in one place only: flip it on the page, by hand, after Gilly has run that build on real
+hardware. The guide is always confirmed and the zip never is; if the page cannot be read, only the
+guide is. The Windows and Linux packages are attached by CI after publish, so they are not in the
+record (records are append-only).
+
+The step never blocks or undoes the release. If it printed `feed record NOT written`, fix the cause
+and run `./deploy_release.sh feed`. The Website change is left uncommitted in the Website checkout:
+committing and pushing the Website is a separate yes from Gilly. Test: `SITE=<Website checkout>
+python3 extra/test/test_feed_record.py` (skipped without a Website checkout).
+
 ## Hand-off boundary
 
 This procedure ends at "the assets on the release are the ones just built".
