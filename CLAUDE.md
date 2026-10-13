@@ -276,7 +276,7 @@ this repository or at upstream.
   Design notes: `docs/`.
 - Retired files: `archive/`, this repository's attic, moved with `git mv`, one row in
   `archive/README.md`.
-- Fork-only files (this one, `.editorconfig`) never go into an upstream pull request.
+- Fork-only files (this one, `.editorconfig`, `ATTIC.md`) never go into an upstream pull request.
 
 ## CI
 
