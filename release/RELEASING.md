@@ -100,7 +100,8 @@ second half, not a string edit.
   lives in the site repository (`GillySpace27.github.io`), outside this one. It
   asks GitHub for the newest release when it loads, so a release needs no edit
   there; its fixed fallback links (used only when GitHub cannot be reached)
-  still name 0.8.2 (read 2026-10-01 in `heliofits-studio/index.html`). The tracker's `live` check reads it. The old links have been
+  name v0.8.6 (read 2026-10-13 in `heliofits-studio/index.html` on the site's
+  master; the site's `tools/pin_studio_fallback.py` moves them to a new release). The tracker's `live` check reads it. The old links have been
   sent to people, so keep them all working.
 - **`GillySpace27/HelioFITS-Studio`**, the repository slug. It began as
   `HelioFITS-Studio`, became `HFStudio` on 2026-09-18 and `PUNCHStudio` on
