@@ -1,7 +1,7 @@
 
 # Revision history
 
-## HelioFITS Studio 0.8.6 (unreleased)
+## HelioFITS Studio 0.8.6 (pre-release, 2026-10-11)
 
 ### Feedback
 - Send Feedback and the Report this... button on error dialogs now reach Gilly. Until reports can be sent directly, the button reads Send by Email...: it opens an email to gilly@nwra.com in your mail program, with your note, the version, the system and the top of the error filled in, and shows the full saved report (and screenshot, if you took one) in Finder or your file manager so you can attach it. Before, a report only waited in `~/HFStudio/Outbox`
@@ -29,7 +29,7 @@
 - Download and Install first saves the session and copies the sessions, autosaves, recovery copies and settings to `~/HFStudio/Backups/before-<version>-<time>`. If the save cannot be confirmed, or any copy fails, the update stops and nothing is downloaded. Nothing is moved or deleted
 - The new version downloads to the Downloads folder with a progress bar and Cancel, is checked against the size and SHA-256 the release lists, and is then opened: on a Mac the disk image's window, to drag HelioFITS Studio onto Applications; elsewhere the file in the file manager. An Intel Mac gets the Intel disk image, or the cross-platform zip (which needs Java 25) when the release has no Intel image. Quit Now quits the usual way, which saves the session, and the new version reopens it
 
-## HelioFITS Studio 0.8.5 (unreleased)
+## HelioFITS Studio 0.8.5 (pre-release, 2026-10-07)
 
 ### Starting
 - A Welcome window opens on launch with the version, What's New for this version (read from the app itself, no network needed), and four ways to start: Continue, Start Blank, Open Session and Take the Tour. Help > Welcome to HelioFITS Studio reopens it, and a checkbox stops it opening at startup
