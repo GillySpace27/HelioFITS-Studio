@@ -1,0 +1,27 @@
+{
+  "title": "RHEF and filters",
+  "sample": true,
+  "steps": [
+    {
+      "target": "sequence",
+      "title": "The Filters palette",
+      "body": "Filters opens a palette for one layer. RHEF, the radial histogram equalizing filter, comes first and works frame by frame. Below it, the Fourier filter and the noise gate work over the whole movie."
+    },
+    {
+      "target": "imageLayersOptions",
+      "action": "showImageLayers",
+      "title": "RHEF in the layer options",
+      "body": "Select a layer in the list and open Intensity: its Filter row is the same RHEF switch, bound to the same setting. When the tour starts on an empty canvas it loads the bundled SDO/AIA 171 sample, so there is a layer to try. With RHEF chosen, the button beside the list softens the shadows (below the median) and the highlights (above it) of RHEF output, each on its own."
+    },
+    {
+      "target": "imageCanvas",
+      "title": "Reading an RHEF image",
+      "body": "RHEF output is a visualization, not a calibrated radiance. Measure on the original data, with the filter set to None. The method is described in Gilly & Cranmer 2025."
+    },
+    {
+      "target": "searchControls",
+      "title": "Find a filter by name",
+      "body": "Help > Search Controls finds any control by name. Try noise gate, or RHEF."
+    }
+  ]
+}
