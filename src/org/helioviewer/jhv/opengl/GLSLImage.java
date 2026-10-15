@@ -60,6 +60,16 @@ public class GLSLImage {
     }
 
     private final float[] color = new float[4];
+    // The Compare swipe (HS-11): which side of the divider this layer keeps (Compare.SIDE_*) and the
+    // divider's x in framebuffer pixels. Set by ImageLayer.render before every applyFilters; the
+    // legend never takes it.
+    private int swipeSide;
+    private float swipeX;
+
+    public void setSwipe(int side, float x) {
+        swipeSide = side;
+        swipeX = x;
+    }
 
     public void applyFilters(ImageBuffer imageBuffer, MetaData metaData, boolean rhefActive) {
         applyFilters(imageBuffer, metaData, rhefActive, false);
@@ -119,7 +129,8 @@ public class GLSLImage {
                 Display.skipDither() || legend ? 1 : 0,
                 Display.showClipping && !raw && !legend ? 1 : 0,
                 raw ? 1 : 0,
-                HdrGain.current(raw), HdrGain.mode().ordinal(), HdrGain.knee(), HdrGain.inRange());
+                HdrGain.current(raw), HdrGain.mode().ordinal(), HdrGain.knee(), HdrGain.inRange(),
+                legend ? 0 : swipeX, legend ? 0 : swipeSide);
 
         applyLUT();
         if (legend)

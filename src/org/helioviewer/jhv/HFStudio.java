@@ -86,9 +86,14 @@ public class HFStudio {
         // System.setProperty("jsamp.nosystray", "true");
 
         // Prints the usage message
-        if (args.length == 1 && (args[0].equals("-h") || args[0].equals("--help"))) {
-            System.out.println(CommandLine.getUsageMessage());
+        if (CommandLine.wantsHelp(args)) {
+            CommandLine.emit(System.out, CommandLine.getUsageMessage());
             return;
+        }
+        CommandLine.Problem problem = CommandLine.validate(args);
+        if (problem != null) {
+            CommandLine.emit(System.err, problem.message() + "\n\n" + CommandLine.getUsageMessage());
+            Runtime.getRuntime().halt(problem.exit().code);
         }
         // Save command line arguments
         CommandLine.setArguments(args);
@@ -139,10 +144,14 @@ public class HFStudio {
                     if (Boolean.getBoolean("jhv.probeExit"))
                         System.exit(0);
                 }).start();
-            org.helioviewer.jhv.app.Session.init(); // session dirty-tracking + autosave timer
-            org.helioviewer.jhv.gui.dialog.WelcomeDialog.offerAtStartup(bareLaunch); // else the tour offer; a launch with arguments is a script's
-            org.helioviewer.jhv.io.FeedbackReport.retryInBackground(); // the outbox, on its own thread; never headless
-            org.helioviewer.jhv.app.update.UpdateCheck.atStartup(); // at most daily, in the background, after a delay
+            if (CommandLine.isExportMode()) { // a batch job: no session tracking, autosave, dialogs, outbox or update check
+                org.helioviewer.jhv.app.CliExport.run();
+            } else {
+                org.helioviewer.jhv.app.Session.init(); // session dirty-tracking + autosave timer
+                org.helioviewer.jhv.gui.dialog.WelcomeDialog.offerAtStartup(bareLaunch); // else the tour offer; a launch with arguments is a script's
+                org.helioviewer.jhv.io.FeedbackReport.retryInBackground(); // the outbox, on its own thread; never headless
+                org.helioviewer.jhv.app.update.UpdateCheck.atStartup(); // at most daily, in the background, after a delay
+            }
 
             startInitialization(true);
         });

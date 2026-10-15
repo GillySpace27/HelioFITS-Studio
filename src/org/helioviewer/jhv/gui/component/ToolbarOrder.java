@@ -38,7 +38,7 @@ final class ToolbarOrder {
      * an id here when the tool is introduced; remove it once nobody is running a build older than
      * that.
      */
-    private static final java.util.Set<String> SEED_ONCE = java.util.Set.of("timelines", "sidebarLeft", "sidebarRight", "trackCme", "undo", "redo");
+    private static final java.util.Set<String> SEED_ONCE = java.util.Set.of("timelines", "sidebarLeft", "sidebarRight", "trackCme", "undo", "redo", "compare");
 
     static final String DEFAULT_ORDER = String.join("|",
             "present", SEPARATOR,
@@ -47,7 +47,7 @@ final class ToolbarOrder {
             "resetCamera", "resetAxis", "rotate90", SEPARATOR,
             "pan", "rotate", "axis", SEPARATOR,
             "track", "diffRotation", "corona", "multiview", "sidebarLeft", "timelines", "sidebarRight", SEPARATOR,
-            "projection", "trackCme", "colour", "sequence", "grid", "camera", "annotate", SEPARATOR,
+            "projection", "trackCme", "colour", "sequence", "grid", "camera", "compare", "annotate", SEPARATOR,
             MORE_DIVIDER,
             "refresh", "sdoCutout", "samp");
 

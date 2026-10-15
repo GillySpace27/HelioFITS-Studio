@@ -49,7 +49,7 @@ public final class ActionCatalog {
     public static final Set<String> TOOLBAR_CONTROLS = Set.of(
             "rotate90", "pan", "rotate", "axis", "track", "diffRotation", "corona", "multiview",
             "sidebarLeft", "timelines", "sidebarRight", "projection", "trackCme", "colour", "sequence",
-            "grid", "camera", "annotate", "refresh", "samp");
+            "grid", "camera", "compare", "annotate", "refresh", "samp");
 
     private static final Map<String, Entry> entries = new LinkedHashMap<>(); // the map is the only state: no static flag (guards.py ratchet)
 
@@ -92,6 +92,7 @@ public final class ActionCatalog {
         put("punchLatest", new Actions.PunchLatestAction(), "Layers/PUNCH Latest", "Open the newest day of PUNCH clear average mosaics (CAM) in Helioradial with RHEF");
         put("newSoarLayer", new Actions.NewSoarLayer(), "Layers/New SOAR Layer…", "");
         put("newAspiicsLayer", new Actions.NewAspiicsLayer(), "Layers/New ASPIICS Layer...", "");
+        put("sendToPython", new Actions.SendToPython(), "Layers/Send to Python", "Write the active layer's FITS files as double-precision science FITS plus a manifest and a sunpy snippet");
         put("newPointCloudLayer", new Actions.NewPointCloudLayer(), "Layers/New Point Cloud Layer...", "");
         put("openImageLayer", new Actions.OpenLocalFile(), "Layers/Open Image Layer...", "");
         put("openModel", new Actions.OpenModel(), "Layers/Open Model Layer...", "");
@@ -133,6 +134,8 @@ public final class ActionCatalog {
         put("sendFeedback", new org.helioviewer.jhv.gui.dialog.FeedbackDialog.Open(), "Help/Send Feedback...", "Send a problem, a request or a question to the developer; no account needed");
         put("undo", org.helioviewer.jhv.app.SceneUndo.undoAction(), "Edit/Undo", "Undo the last change to the scene");
         put("redo", org.helioviewer.jhv.app.SceneUndo.redoAction(), "Edit/Redo", "Redo the last undone change to the scene");
+        put("copyFrame", new Actions.CopyFrame(), "Edit/Copy Frame", "Put the canvas picture on the clipboard (a screenshot, 8-bit)");
+        put("shareScene", new Actions.ShareScene(), "File/Share Scene...", "Save the scene for someone else: home folder written as ~, local files outside the cache listed first");
         put("openExportsFolder", ExportsFolder.action(), "File/Open Exports Folder", "Show the folder movies, screenshots and metadata are exported to");
         // Help search (HS-15): the menu item, and the Projection palette's reveal for the controls in it
         put(org.helioviewer.jhv.gui.search.CommandPalette.ID, org.helioviewer.jhv.gui.search.CommandPalette.action(), "Help/Search Controls...", "Find any command or control by name and run it or show where it is");
@@ -149,6 +152,9 @@ public final class ActionCatalog {
             Action start = org.helioviewer.jhv.gui.search.Tour.action(tour);
             put(org.helioviewer.jhv.gui.search.Tour.catalogId(tour), start, "Help/Tours/" + start.getValue(Action.NAME), "Guided tour: " + start.getValue(Action.NAME));
         }
+        // Compare palette (HS-11): a copy of the selected layer to compare against
+        put("duplicateLayer", org.helioviewer.jhv.layers.LayerDuplicate.action(), "Layers/Duplicate Layer",
+                "Add a copy of the selected image layer, for a before and after with the Compare palette");
     }
 
     /**

@@ -49,3 +49,17 @@ send your own command array to choose other settings.
 The daemon waits without a timeout for completion notifications. If JHV stops
 responding, the request and subsequent queued commands remain blocked. Stop the
 daemon with Ctrl-C and restart it after restarting or reconnecting JHV.
+
+## Receiving exported FITS (Send to Python)
+
+Layers > Send to Python (or the Python button on a layer) writes the layer's FITS files as
+double-precision science FITS under `~/HFStudio/Exports/python-<time>/` with a `manifest.json`, puts a
+sunpy snippet on the clipboard, and notifies every SAMP client with `image.load.fits` (params `url`,
+`name`; one notification per file). `receive_fits.py` is a minimal receiver:
+
+```sh
+python3 extra/samp/receive_fits.py --once
+```
+
+It needs Astropy (`astropy.samp`, deprecated in Astropy 8 in favour of `pyvo.samp`; the daemon above
+uses the same module). `python3 -m unittest discover -s extra/samp -p 'test_*.py'` tests its pure parts.

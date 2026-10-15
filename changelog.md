@@ -3,6 +3,10 @@
 
 ## HelioFITS Studio 0.8.7 (unreleased)
 
+### Compare
+- A Compare palette on the toolbar (Tools lists it too): pick layers A and B, then Blink between them at 0.5 to 8 Hz, or Swipe a vertical divider across every viewport with A on one side and B on the other. Neither layer is switched off or changed, and Off stops the blinking. The choices are saved with the session, never the blink phase. Difference is shown greyed: A minus B in physical units is a later phase
+- Layers > Duplicate Layer (also in the palette) adds a copy of the selected image layer, so RHEF on against the same data raw is one click
+
 ### Welcome
 - The Welcome window has an Open Demo card, also Help > Open Demo Scene: a new session with the bundled SDO/AIA 171 sample image and RHEF on. Nothing downloads, so it opens offline. Start New Session's question comes first when there is work to lose
 - The Welcome window shows a tip under the start cards, a different one each time it opens
@@ -23,6 +27,10 @@
 - A small curve beside the sliders draws the shape they give RHEF output, the same two-sided curve the renderer applies
 - A Look menu sets both sliders at once: the defaults, or Neutral (1.00 / 1.00, a straight line)
 - Hold to compare shows the layer without RHEF while it is held, for that layer only; nothing is saved, and a session saved meanwhile still records RHEF
+
+### Animation
+- An animated control's lane in the Timeline panel has a band of its own above the plot, so it no longer draws over the HEK events or the layer coverage rows. The panel grows by the band when a control is animated
+- Selecting an animated control's row lists its keys with their time (UTC), value and easing, each editable by typing; a typed time is taken exactly, not snapped to a frame. Add key puts one at the playhead and Delete key removes the selected one
 
 ## HelioFITS Studio 0.8.6 (pre-release, 2026-10-11)
 
