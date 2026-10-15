@@ -456,6 +456,53 @@ public final class Actions {
         }
     }
 
+    /**
+     * Share Scene (HS-16): the session as a file to hand to someone else. The home folder is written as "~"
+     * in every string (PortableScene) and the local files outside the cache, which the receiver will not
+     * have, are listed first so the choice to go on is an informed one. The open session is not renamed.
+     */
+    public static class ShareScene extends AbstractAction {
+        public ShareScene() {
+            super("Share Scene...");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            org.helioviewer.jhv.app.state.PortableScene.Result portable = org.helioviewer.jhv.app.state.PortableScene.of(
+                    State.snapshot(), System.getProperty("user.home"), org.helioviewer.jhv.io.Directories.FILECACHE.getPath());
+            if (!portable.localFiles().isEmpty()) {
+                List<String> shown = portable.localFiles().size() > 12 ? portable.localFiles().subList(0, 12) : portable.localFiles();
+                int answer = JOptionPane.showConfirmDialog(MainFrame.get(),
+                        portable.localFiles().size() + " local file(s) in this scene are not in the cache; the person you share it with will not have them:\n\n"
+                                + String.join("\n", shown) + (shown.size() < portable.localFiles().size() ? "\n..." : "")
+                                + "\n\nShare the scene anyway?",
+                        "Share Scene", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
+                if (answer != JOptionPane.OK_OPTION)
+                    return;
+            }
+            FileDialog fileDialog = new FileDialog(MainFrame.get(), "Share Scene as...", FileDialog.SAVE);
+            fileDialog.setFilenameFilter(ExtensionFileFilter.JHV);
+            fileDialog.setMultipleMode(false);
+            fileDialog.setDirectory(org.helioviewer.jhv.io.Directories.EXPORTS.getPath());
+            fileDialog.setFile("scene-" + TimeUtils.formatFilename(System.currentTimeMillis()) + ".jhv");
+            fileDialog.setVisible(true);
+            String directory = fileDialog.getDirectory(), file = fileDialog.getFile();
+            if (directory != null && file != null)
+                State.write(portable.scene(), directory, file.endsWith(".jhv") ? file : file + ".jhv");
+        }
+    }
+
+    public static class CopyFrame extends AbstractAction {
+        public CopyFrame() {
+            super("Copy Frame");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            FrameCopy.copy();
+        }
+    }
+
     public static class SaveStateAs extends AbstractKeyAction {
         public SaveStateAs() {
             super("Save Session As...", KeyStroke.getKeyStroke(KeyEvent.VK_S, DesktopIntegration.menuShortcutMask | InputEvent.ALT_DOWN_MASK));
