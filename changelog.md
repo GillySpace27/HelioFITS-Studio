@@ -24,6 +24,10 @@
 - A Look menu sets both sliders at once: the defaults, or Neutral (1.00 / 1.00, a straight line)
 - Hold to compare shows the layer without RHEF while it is held, for that layer only; nothing is saved, and a session saved meanwhile still records RHEF
 
+### Animation
+- An animated control's lane in the Timeline panel has a band of its own above the plot, so it no longer draws over the HEK events or the layer coverage rows. The panel grows by the band when a control is animated
+- Selecting an animated control's row lists its keys with their time (UTC), value and easing, each editable by typing; a typed time is taken exactly, not snapped to a frame. Add key puts one at the playhead and Delete key removes the selected one
+
 ## HelioFITS Studio 0.8.6 (pre-release, 2026-10-11)
 
 ### Feedback
