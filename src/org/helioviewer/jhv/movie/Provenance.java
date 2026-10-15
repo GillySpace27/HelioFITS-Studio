@@ -360,6 +360,25 @@ public final class Provenance {
         return -1;
     }
 
+    /** The session as short lines for FITS HISTORY cards (the header splits a long one): writer, build, time, sources, caveat. */
+    public static java.util.List<String> historyLines(JSONObject session) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        out.add("Written by " + session.optString("writer", AppInfo.programName));
+        out.add("build " + session.optString("buildId") + " commit " + session.optString("commit")
+                + (session.optBoolean("dirty") ? " (dirty)" : ""));
+        out.add("created " + session.optString("created"));
+        JSONArray sources = session.optJSONArray("sources");
+        if (sources != null)
+            for (Object o : sources)
+                if (o instanceof JSONObject src)
+                    out.add("layer " + src.optString("layer") + " from " + String.join(",",
+                            src.optJSONArray("uris") == null ? java.util.List.<String>of()
+                                    : src.getJSONArray("uris").toList().stream().map(String::valueOf).toList()));
+        if (session.has("caveat"))
+            out.add(session.getString("caveat"));
+        return out;
+    }
+
     // ---- words for people -------------------------------------------------------------------
 
     /** A block to paste into a paper or a slide note: what made the file, from what, and what to cite. */

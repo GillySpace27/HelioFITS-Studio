@@ -212,6 +212,41 @@ public final class Actions {
         }
     }
 
+    /** Send to Python (HS-13): the active layer's FITS sources as double-precision science FITS under Exports/, snippet on the clipboard, SAMP notified. */
+    public static class SendToPython extends AbstractAction {
+        public SendToPython() {
+            super("Send to Python");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            ImageLayer layer = Layers.getActiveImageLayer();
+            if (layer == null) {
+                org.helioviewer.jhv.app.Message.warn("Send to Python", "Select an image layer first.");
+                return;
+            }
+            List<File> sources = org.helioviewer.jhv.io.FitsExport.fitsFiles(layer.getSourceUris(), org.helioviewer.jhv.io.NetFileCache::cachedFile);
+            if (sources.isEmpty()) {
+                org.helioviewer.jhv.app.Message.warn("Send to Python", "This layer has no FITS source files on disk (a JPEG 2000 layer has none; a remote one must be downloaded first).");
+                return;
+            }
+            java.nio.file.Path out = java.nio.file.Path.of(org.helioviewer.jhv.io.Directories.EXPORTS.getPath(),
+                    "python-" + java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(java.time.ZoneOffset.UTC).format(java.time.Instant.now()));
+            Task.submitBackground("send-to-python", () -> {
+                org.json.JSONObject manifest = org.helioviewer.jhv.io.FitsExport.export(sources, out, org.helioviewer.jhv.movie.Provenance.session());
+                return org.helioviewer.jhv.io.FitsExport.snippet(out, manifest);
+            }, snippet -> {
+                TransferAccess.writeClipboard(snippet);
+                List<File> written = new ArrayList<>();
+                for (File s : sources)
+                    written.add(out.resolve(org.helioviewer.jhv.io.FitsExport.outputName(s)).toFile());
+                org.helioviewer.jhv.io.samp.SampClient.sendFitsFiles(written);
+                org.helioviewer.jhv.app.Message.info("Send to Python", sources.size() + " file(s) written to " + out
+                        + "\nA sunpy snippet is on the clipboard. See manifest.json there for exactly what was and was not applied.");
+            }, "Error exporting FITS for Python");
+        }
+    }
+
     public static class NewAspiicsLayer extends AbstractAction {
         public NewAspiicsLayer() {
             super("New ASPIICS Layer...");

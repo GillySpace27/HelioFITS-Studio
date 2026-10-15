@@ -176,6 +176,7 @@ unittests() {
     "$PY" -m unittest discover -s extra/ffmpeg &&
         "$PY" -m unittest discover -s extra/angle &&
         "$PY" -m unittest discover -s extra/licenses &&
+        "$PY" -m unittest discover -s extra/samp -p 'test_*.py' &&
         { [ ! -f extra/test/test_release_assets.py ] || "$PY" extra/test/test_release_assets.py; } &&
         "$PY" extra/test/test_runtime_modules.py &&
         "$PY" extra/test/test_document_types.py &&
