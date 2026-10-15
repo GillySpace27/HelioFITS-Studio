@@ -14,6 +14,9 @@
 - Each layer's readout opens with what it shows, such as "EUV 171 Å (Fe IX, log T 5.8)" for AIA, "white-light total brightness (includes the F corona)" for LASCO C2 and C3, or the PUNCH product ("total brightness, average mosaic, Level 3 (background-subtracted)"). Every label comes from a sourced instrument note; anything without one, such as SUVI, EUI, WISPR, ASPIICS and CCOR, reads "unknown". The Image Information window carries the same line in its title
 - Badges after it flag what changes how to read the picture: RHEF: visualization, running or base difference, provisional LASCO (the frame's monthly background could not be fetched) and quickPUNCH. Hover the readout for what each one means
 
+### Playback
+- The Clock row has an Achieved box, off by default. Ticked, it shows the frame rate playback actually reaches over the last two seconds, beside the Play rate it asks for, so a RHEF movie can be timed against the same movie without it. The FPS at the bottom left counts canvas draws, which is not the same thing
+
 ## HelioFITS Studio 0.8.6 (pre-release, 2026-10-11)
 
 ### Feedback
