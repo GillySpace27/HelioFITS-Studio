@@ -133,6 +133,19 @@ public final class SessionArchiveCheck {
         SessionArchive.Reattach r2 = SessionArchive.reattach(alone, lonely, null, unpack);
         expect("no archive: missing counted, none restored", r2.missing() == 4 && r2.restored() == 0 && r2.archive() == null);
 
+        // No archive, but the files were sent loose beside the session (Sarah Gibson's case, 2026-10).
+        Path loose = Files.createDirectories(home.resolve("loose"));
+        Path looseJhv = loose.resolve("sent.jhv");
+        Files.writeString(looseJhv, wrapped.toString());
+        Files.write(loose.resolve("frame one.fits"), bytes("loose copy", 100));
+        JSONObject sent = new JSONObject(Files.readString(looseJhv)).getJSONObject("org.helioviewer.jhv.state");
+        SessionArchive.Reattach r3 = SessionArchive.reattach(sent, looseJhv, null, unpack);
+        expect("beside the session: 4 missing, the one sent loose restored, got " + r3.missing() + "/" + r3.restored(),
+                r3.missing() == 4 && r3.restored() == 1 && r3.archive() == null);
+        expect("beside the session: the layer now reads the loose copy",
+                loose.resolve("frame one.fits").toUri().toString().equals(uris(sent, 0).getString(0)));
+        expect("beside the session: a file not sent stays as it was", gone.equals(uris(sent, 2).getString(0)));
+
         // A damaged archive: same manifest, one byte changed in a data entry.
         Path damaged = outDir.resolve("damaged.data.zip");
         rewrite(zip, damaged, "data/0001/frame_one.fits", data -> { data[10] ^= 1; return data; }, null);

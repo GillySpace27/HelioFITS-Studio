@@ -24,7 +24,6 @@ import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.component.MoviePanel;
 import org.helioviewer.jhv.gui.dialog.AspiicsDialog;
 import org.helioviewer.jhv.gui.dialog.LoadStateDialog;
-import org.helioviewer.jhv.gui.dialog.NewVersionDialog;
 import org.helioviewer.jhv.gui.dialog.PunchDialog;
 import org.helioviewer.jhv.gui.dialog.SoarDialog;
 import org.helioviewer.jhv.gui.dialog.SynopticDialog;
@@ -710,7 +709,7 @@ public final class Actions {
 
         @Override
         public void actionPerformed(ActionEvent e) {
-            NewVersionDialog.check();
+            org.helioviewer.jhv.app.update.UpdateCheck.checkNow(); // the releases list; NewVersionDialog read master's VERSION
         }
     }
 

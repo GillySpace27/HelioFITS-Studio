@@ -141,6 +141,13 @@ public final class ActionCatalog {
                 org.helioviewer.jhv.gui.component.Palette.open("Projection"); // opens, never toggles closed
             }
         }, "", "Open the Projection palette, wherever it is docked");
+        // Welcome window's demo card (HS-10), also in the Help menu
+        put("openDemo", org.helioviewer.jhv.gui.search.DemoScene.action(), "Help/Open Demo Scene", "A new session with a bundled SDO/AIA 171 image and RHEF on; nothing to download");
+        // Help > Tours (HS-15): every tour, one item each, ids tourGettingStarted, tourRhefAndFilters
+        for (String tour : org.helioviewer.jhv.gui.search.Tour.IDS) {
+            Action start = org.helioviewer.jhv.gui.search.Tour.action(tour);
+            put(org.helioviewer.jhv.gui.search.Tour.catalogId(tour), start, "Help/Tours/" + start.getValue(Action.NAME), "Guided tour: " + start.getValue(Action.NAME));
+        }
     }
 
     /**

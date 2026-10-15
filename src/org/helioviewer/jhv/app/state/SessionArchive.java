@@ -197,13 +197,27 @@ public final class SessionArchive {
         });
         if (missing.isEmpty())
             return new Reattach(0, 0, null);
+        // First the same name in the session's own folder: a session sent to someone else most
+        // often travels with its files loose beside it, not in an archive.
+        int total = missing.size();
+        Path from = sessionPath != null ? sessionPath : archive;
+        Path dir = from == null ? null : from.toAbsolutePath().getParent();
+        Map<URI, URI> beside = new HashMap<>();
+        MissingFiles.besideSession(missing, dir, Files::isRegularFile).forEach((uri, p) -> beside.put(uri, p.toUri()));
+        if (!beside.isEmpty()) {
+            forEachUri(state, beside::get);
+            missing.removeAll(beside.keySet());
+            Log.info("Session: " + beside.size() + " of " + total + " missing local file(s) found beside the session");
+        }
+        if (missing.isEmpty())
+            return new Reattach(total, total, null);
         if (archive == null && sessionPath != null)
             archive = findArchive(state, sessionPath);
         if (archive == null)
-            return new Reattach(missing.size(), 0, null);
+            return new Reattach(total, beside.size(), null);
 
         if (!listsAny(archive, missing)) // the archive cannot help, so do not unpack it
-            return new Reattach(missing.size(), 0, archive);
+            return new Reattach(total, beside.size(), archive);
         Map<URI, Path> unpacked = unpack(archive, unpackRoot);
         Map<URI, URI> replace = new HashMap<>();
         for (URI uri : missing) {
@@ -214,7 +228,7 @@ public final class SessionArchive {
         forEachUri(state, replace::get);
         Log.info("Session data archive " + archive.getFileName() + ": " + replace.size() + " of " + missing.size()
                 + " missing local file(s) restored");
-        return new Reattach(missing.size(), replace.size(), archive);
+        return new Reattach(total, beside.size() + replace.size(), archive);
     }
 
     private static boolean listsAny(Path archive, List<URI> uris) throws IOException {

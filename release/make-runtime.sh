@@ -11,6 +11,8 @@
 #   jdk.zipfs          FileUtils opens zip archives as a filesystem ("jar:" URIs)
 #   jdk.charsets       the less common text encodings, for data that arrives in one
 #   jdk.accessibility  screen-reader support (the Java Access Bridge on Windows)
+#   java.net.http      FeedbackReport's HttpClient (0.8.6; a shipped build crashed without it).
+#                      extra/test/test_runtime_modules.py checks imports against this list.
 # Left out on purpose: jdk.localedata. The application formats with fixed locales, so a German or
 # French machine gets English date and number formats rather than an error.
 #
@@ -19,7 +21,7 @@
 # file) and look for the name the error gives.
 set -euo pipefail
 OUT="$1"
-MODULES=java.base,java.compiler,java.desktop,java.instrument,java.naming,java.prefs,java.sql,jdk.management,jdk.unsupported,jdk.zipfs,jdk.charsets,jdk.accessibility
+MODULES=java.base,java.compiler,java.desktop,java.instrument,java.naming,java.net.http,java.prefs,java.sql,jdk.management,jdk.unsupported,jdk.zipfs,jdk.charsets,jdk.accessibility
 
 rm -rf "$OUT"
 "$JAVA_HOME/bin/jlink" --add-modules "$MODULES" \
