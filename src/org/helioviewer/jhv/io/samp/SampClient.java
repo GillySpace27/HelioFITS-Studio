@@ -134,4 +134,25 @@ public final class SampClient extends HubConnector {
         }
     }
 
+    /** Tells every SAMP client that these exported FITS files are ready (mtype image.load.fits, one notification per file). */
+    public static void sendFitsFiles(java.util.List<java.io.File> files) {
+        if (instance == null) {
+            Log.warn("SAMP client not initialized yet");
+            return;
+        }
+        try {
+            HubConnection c = instance.getConnection();
+            if (c == null)
+                return;
+            for (java.io.File f : files) {
+                Message msg = new Message("image.load.fits");
+                msg.addParam("url", f.toURI().toString());
+                msg.addParam("name", f.getName());
+                c.notifyAll(msg);
+            }
+        } catch (SampException e) {
+            Log.warn(e);
+        }
+    }
+
 }
