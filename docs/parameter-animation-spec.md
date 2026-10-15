@@ -312,6 +312,13 @@ to get right once the drawing code exists and its real needs are known than it i
 and the first makes no promise the second would have to break. Revisit it the first time four lanes
 are open at once and the picture is unreadable.
 
+Revisited 2026-10-08, at Gilly's request: the lanes stacked down from the top of the shared
+rectangle, which is where the HEK event bands stack too, so the two drew over each other. The lanes
+now have a band of their own, `GraphGeometry.automationArea()`, carved off the top of the plot above
+`area()`; HEK, coverage and every curve layer keep `area()`, and `minimumHeight` grows by the band.
+This is a middle way, not the second option: only the lanes get a rectangle, and no `TimelineLayer`
+signature changed (`extra/test/AutomationBandLayoutCheck.java`).
+
 ## 8. Traps
 
 1. **Settings-file writes.** `HdrGain.setSetting`, `setKnee` and `setInRange` each call `commit()`

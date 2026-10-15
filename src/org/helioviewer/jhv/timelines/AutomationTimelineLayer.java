@@ -14,10 +14,13 @@ import javax.annotation.Nullable;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTable;
 import javax.swing.Timer;
 
 import org.helioviewer.jhv.automation.Automation;
 import org.helioviewer.jhv.automation.Track;
+import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.movie.Player;
 import org.helioviewer.jhv.plugins.PluginManager;
@@ -40,19 +43,22 @@ import org.json.JSONObject;
  * reason: two copies of one track would be one copy too many, and the "timelines" array is not
  * read back at all when the plugin is inactive.
  *
- * <p>It draws inside its own horizontal strip of the shared plot rectangle, the way
- * {@link CoverageTimelineLayer} bottom-justifies its coverage rows: clip to graphArea, compute y
- * from a strip index, and do not use GraphGeometry.yMapper, which spans the whole plot height.
+ * <p>It draws inside its own horizontal strip of the animation band, GraphGeometry.automationArea,
+ * which is carved off the top of the plot and shared with no other layer. The lanes used to stack
+ * down from the top of the shared plot rectangle, which is exactly where the HEK event bands stack
+ * too, and on a tall coverage block they also met the coverage rows coming up from the bottom.
+ * Clip to the band, compute y from a strip index, and do not use GraphGeometry.yMapper.
  * {@link #getYAxis()} returns null because every layer with an axis takes 30 pixels of plot
  * width for its axis, and eight animated parameters would eat 240 of them; the lane prints its own
  * range at its left edge instead.
  */
 public final class AutomationTimelineLayer extends TimelineLayer {
 
-    private static final int LANE_H = 30;      // automation stacks DOWN from the top; coverage fills UP from the bottom
+    private static final int LANE_H = 30;
     private static final int LANE_GAP = 4;
     private static final int MIN_LANE_H = 8; // thin enough to be a squiggle, and a squiggle is feedback
     private static final int TOP_OFFSET = 2;
+    private static final int BOTTOM_OFFSET = 4; // keeps the lowest lane off the separator line
     private static final Color CURVE = new Color(255, 200, 90);
     private static final Color KEY = new Color(255, 235, 190);
     private static final Color BASE = new Color(120, 120, 120, 120);
@@ -155,22 +161,32 @@ public final class AutomationTimelineLayer extends TimelineLayer {
     /** This lane's own horizontal band of the shared plot rectangle. */
     private record Strip(int yTop, int yBot) {}
 
+    /** The height GraphGeometry reserves above the shared plot for {@code lanes} enabled lanes. */
+    public static int bandHeight(int lanes) {
+        return lanes <= 0 ? 0 : TOP_OFFSET + lanes * LANE_H + BOTTOM_OFFSET;
+    }
+
+    /** The least it takes on a squeezed plot: every lane at its thinnest, none clipped away. */
+    public static int minBandHeight(int lanes) {
+        return lanes <= 0 ? 0 : TOP_OFFSET + lanes * MIN_LANE_H + BOTTOM_OFFSET;
+    }
+
     /**
      * The band, thinned to whatever the plot can spare rather than skipped when LANE_H will not
-     * fit. A fixed 30 needs a plot 74 pixels tall before the first lane appears at all
-     * (GraphGeometry takes 46 off for the axes, plus 18 per propagated axis), and
-     * ChartDrawGraphPane asks for 50: arming a parameter on a plot nobody had dragged taller
-     * therefore added the row to the panel and drew nothing, not even the baseline, with nothing
-     * thrown and nothing on screen to say why. Measured 2026-09-11. A thin lane is hard to read;
-     * an absent one looks like the gesture failed.
+     * fit. GraphGeometry asks for {@link #bandHeight} and minimumHeight grows the panel to match,
+     * but a panel the user has dragged short still gets less: arming a parameter on a plot too
+     * short for its lane once added the row to the panel and drew nothing, not even the baseline,
+     * with nothing thrown and nothing on screen to say why (measured 2026-09-11). A thin lane is
+     * hard to read; an absent one looks like the gesture failed.
      *
-     * <p>The index is the registration order among the automation lanes only, so adding a
-     * spectrogram or a band curve does not shuffle the parameter lanes down the plot.
+     * <p>The index is the registration order among the enabled automation lanes only, the same
+     * set GraphGeometry counts, so an unticked lane leaves no hole and adding a spectrogram or a
+     * band curve does not shuffle the parameter lanes.
      */
-    private Strip strip(Rectangle graphArea) {
-        List<AutomationTimelineLayer> lanes = lanes();
-        int h = Math.clamp((graphArea.height - TOP_OFFSET) / Math.max(1, lanes.size()), MIN_LANE_H, LANE_H);
-        int yTop = graphArea.y + TOP_OFFSET + Math.max(0, lanes.indexOf(this)) * h;
+    private Strip strip(Rectangle band) {
+        List<AutomationTimelineLayer> lanes = lanes().stream().filter(l -> l.enabled).toList();
+        int h = Math.clamp((band.height - TOP_OFFSET - BOTTOM_OFFSET) / Math.max(1, lanes.size()), MIN_LANE_H, LANE_H);
+        int yTop = band.y + TOP_OFFSET + Math.max(0, lanes.indexOf(this)) * h;
         return new Strip(yTop, yTop + h - Math.min(LANE_GAP, h / 3)); // the gap thins with the lane
     }
 
@@ -265,7 +281,8 @@ public final class AutomationTimelineLayer extends TimelineLayer {
     }
 
     /**
-     * The selected row's panel: the value at the playhead, and a way back to a constant.
+     * The selected row's panel: the value at the playhead, a way back to a constant, and the keys
+     * as a table of numbers, for setting a key exactly where dragging only gets near.
      *
      * <p>This is where the live number lives, and the reason it is here rather than drawn in the
      * lane. The lane draws into the plot's cached image, which is rebuilt only when something sets
@@ -278,10 +295,28 @@ public final class AutomationTimelineLayer extends TimelineLayer {
      * selected one, so there is nothing to unregister when the lane goes.
      */
     private JPanel buildOptions() {
-        JPanel panel = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEADING, 8, 2));
+        JPanel panel = new JPanel(new java.awt.BorderLayout(0, 2));
+        JPanel row = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEADING, 8, 2));
+        panel.add(row, java.awt.BorderLayout.NORTH);
         JLabel value = new JLabel(" ");
-        panel.add(new JLabel("At playhead:"));
-        panel.add(value);
+        row.add(new JLabel("At playhead:"));
+        row.add(value);
+
+        // Every edit made here also re-renders the image: the applier runs per rendered frame,
+        // and with the movie paused nothing else would show the new value until the next seek.
+        AutomationKeyTableModel model = new AutomationKeyTableModel(track, () -> {
+            frozen = null;
+            DrawController.drawRequest();
+            DisplayController.display();
+        });
+        JTable table = new JTable(model);
+        table.setSelectionMode(javax.swing.ListSelectionModel.SINGLE_SELECTION);
+        table.putClientProperty("terminateEditOnFocusLost", Boolean.TRUE); // a typed number is not lost by clicking away
+        table.setDefaultEditor(Track.Interp.class, new javax.swing.DefaultCellEditor(new javax.swing.JComboBox<>(Track.Interp.values())));
+        table.getColumnModel().getColumn(AutomationKeyTableModel.TIME).setPreferredWidth(170);
+        table.setToolTipText("Double-click a cell to type a time (UTC), a value or an easing");
+        table.setPreferredScrollableViewportSize(new java.awt.Dimension(360, table.getRowHeight() * 4));
+        panel.add(new JScrollPane(table), java.awt.BorderLayout.CENTER);
 
         JButton flatten = new JButton("Flatten to constant");
         flatten.setToolTipText("Replace the curve with its value at the playhead");
@@ -294,11 +329,46 @@ public final class AutomationTimelineLayer extends TimelineLayer {
                 DrawController.drawRequest();
             }
         });
-        panel.add(flatten);
+        row.add(flatten);
+
+        JButton addKey = new JButton("Add key");
+        addKey.setToolTipText("Add a key at the playhead holding the curve's value there");
+        addKey.addActionListener(e -> {
+            long t = Player.getTime().milli;
+            double v = track.valueAt(t);
+            if (Double.isNaN(v))
+                return;
+            Track.Interp interp = Track.Interp.LINEAR; // the segment it splits keeps its shape, as insertKeyAt does
+            for (Track.Key k : track.getKeys())
+                if (k.time() <= t)
+                    interp = k.interp();
+            track.put(new Track.Key(t, v, interp));
+            model.refresh();
+            DrawController.drawRequest();
+        });
+        row.add(addKey);
+
+        JButton deleteKey = new JButton("Delete key");
+        deleteKey.setToolTipText("Delete the selected key (the last one stays: remove the row to stop animating)");
+        deleteKey.addActionListener(e -> {
+            int r = table.getSelectedRow();
+            if (r < 0)
+                return;
+            int index = track.getKeys().indexOf(model.keyAt(r));
+            if (index >= 0 && track.removeKey(index)) {
+                model.refresh();
+                frozen = null;
+                DrawController.drawRequest();
+                DisplayController.display();
+            }
+        });
+        row.add(deleteKey);
 
         Timer tick = new Timer(200, e -> {
             double v = track.valueAt(Player.getTime().milli);
             value.setText(Double.isNaN(v) ? "\u2014" : format(v));
+            if (!table.isEditing()) // a drag in the plot, a double-click or Flatten changed the keys
+                model.refresh();
         });
         tick.setRepeats(true);
         panel.addAncestorListener(new javax.swing.event.AncestorListener() {
@@ -362,7 +432,9 @@ public final class AutomationTimelineLayer extends TimelineLayer {
     /** The lane and key under {@code p}, or null if the press was not on one. */
     @Nullable
     public static Hit hitTest(Point p) {
-        Rectangle graphArea = DrawController.getGeometry().area();
+        Rectangle graphArea = DrawController.getGeometry().automationArea();
+        if (graphArea.isEmpty())
+            return null;
         TimeAxis.Mapper x = DrawController.selectedAxis.mapper(graphArea.x, graphArea.width);
         for (AutomationTimelineLayer lane : lanes()) {
             if (!lane.enabled || lane.track.isEmpty())
@@ -420,7 +492,7 @@ public final class AutomationTimelineLayer extends TimelineLayer {
          *             while shaping a curve and never what you want when you are done.
          */
         public void update(Point p, boolean snap) {
-            Rectangle graphArea = DrawController.getGeometry().area();
+            Rectangle graphArea = DrawController.getGeometry().automationArea();
             Strip s = lane.strip(graphArea);
             double[] r = lane.range();
             double dv = valueFor(p.y, r[0], r[1], s.yTop(), s.yBot())
