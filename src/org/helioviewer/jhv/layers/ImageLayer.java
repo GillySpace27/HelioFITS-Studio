@@ -83,7 +83,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         if (apiRequest != null) {
             jo.put("APIRequest", apiRequest.toJson());
             jo.put("imageParams", imageParams());
-            jo.put("filter", getFilter().name());
+            jo.put("filter", RhefPeek.persisted(this).name()); // never a held peek (RH-17)
         } else if (sourceUris != null && !sourceUris.isEmpty() || fitsRequest != null) {
             // Direct-URI layers (e.g. PUNCH FITS) have no server request; persist the remote
             // URIs so a restored session reloads them — from the persistent cache, no re-download.
@@ -112,7 +112,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
                     jo.put(PROBE_COMPLETE_KEY, pointingComplete.booleanValue());
             }
             jo.put("imageParams", imageParams());
-            jo.put("filter", getFilter().name());
+            jo.put("filter", RhefPeek.persisted(this).name()); // never a held peek (RH-17)
             if (fixedRange != null) // keep the shared FITS range so a restored PUNCH movie does not strobe
                 jo.put("fixedRange", new JSONArray().put(fixedRange[0]).put(fixedRange[1]));
             if (sequenceParams != null)
