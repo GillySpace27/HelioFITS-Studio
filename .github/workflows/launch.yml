@@ -54,6 +54,13 @@ jobs:
       - name: Did the image draw
         run: python3 extra/launch-pixels.py shot-linux.png 1500
 
+      - name: Export a PNG from the command line
+        run: |
+          export JAVA_TOOL_OPTIONS="-Duser.home=$RUNNER_TEMP/home-export"
+          xvfb-run -a -s "-screen 0 1600x1000x24" ./run.sh --export png --out "$RUNNER_TEMP/export.png" -load "$PWD/$IMAGE"
+          file "$RUNNER_TEMP/export.png"
+          grep -c hfstudio "$RUNNER_TEMP/export.png"
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
