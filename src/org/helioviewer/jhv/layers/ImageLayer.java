@@ -712,10 +712,11 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         if (imageData == null) {
             return;
         }
-        if (!isVisible[vp.idx])
+        if (!isVisible[vp.idx] || org.helioviewer.jhv.display.Compare.hides(this)) // blink (HS-11): a draw-time skip, never setEnabled
             return;
 
         MetaData meta0 = imageData.metaData();
+        glImage.setSwipe(org.helioviewer.jhv.display.Compare.swipeSide(this), org.helioviewer.jhv.display.Compare.swipeX(vp));
         glImage.applyFilters(imageData.imageBuffer(), meta0, getFilter() == ImageFilter.Type.RHEF);
 
         Position metaViewpoint0 = meta0.getViewpoint();
