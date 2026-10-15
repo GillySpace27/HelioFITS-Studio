@@ -49,7 +49,7 @@ public final class ActionCatalog {
     public static final Set<String> TOOLBAR_CONTROLS = Set.of(
             "rotate90", "pan", "rotate", "axis", "track", "diffRotation", "corona", "multiview",
             "sidebarLeft", "timelines", "sidebarRight", "projection", "trackCme", "colour", "sequence",
-            "grid", "camera", "annotate", "refresh", "samp");
+            "grid", "camera", "compare", "annotate", "refresh", "samp");
 
     private static final Map<String, Entry> entries = new LinkedHashMap<>(); // the map is the only state: no static flag (guards.py ratchet)
 
@@ -148,6 +148,9 @@ public final class ActionCatalog {
             Action start = org.helioviewer.jhv.gui.search.Tour.action(tour);
             put(org.helioviewer.jhv.gui.search.Tour.catalogId(tour), start, "Help/Tours/" + start.getValue(Action.NAME), "Guided tour: " + start.getValue(Action.NAME));
         }
+        // Compare palette (HS-11): a copy of the selected layer to compare against
+        put("duplicateLayer", org.helioviewer.jhv.layers.LayerDuplicate.action(), "Layers/Duplicate Layer",
+                "Add a copy of the selected image layer, for a before and after with the Compare palette");
     }
 
     /**

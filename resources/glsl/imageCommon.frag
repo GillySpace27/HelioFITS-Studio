@@ -103,8 +103,11 @@ layout(std140) uniform DisplayBlock {
     float hdrKnee;
     // Uniform only: the share of the headroom spent inside the display range rather than above it.
     float hdrInRange;
-    float displayPadding0;
-    float displayPadding1;
+    // The Compare swipe (HS-11), in what were the first two padding slots, so the block's size and
+    // every member before them are unchanged: the divider's x in framebuffer pixels (the space
+    // gl_FragCoord uses) and which side this layer keeps, 0 none, 1 left of it, 2 right of it.
+    float swipeX;
+    float swipeSide;
     float displayPadding2;
 } display;
 
@@ -149,6 +152,8 @@ float fetch(const sampler2D tex, const vec2 coord, const vec2 bright) {
 vec4 getColor(const vec2 texcoord, const vec2 difftexcoord, const float factor) {
     if (texture(mask, texcoord).r == 0.)
         discard;
+    if ((display.swipeSide == 1. && gl_FragCoord.x >= display.swipeX) || (display.swipeSide == 2. && gl_FragCoord.x < display.swipeX))
+        discard; // the other layer's side of the Compare divider
 
     vec2 brightness = display.brightness;
     if (display.enhanced != 0. && factor != 1.)
