@@ -17,6 +17,13 @@
 ### Playback
 - The Clock row has an Achieved box, off by default. Ticked, it shows the frame rate playback actually reaches over the last two seconds, beside the Play rate it asks for, so a RHEF movie can be timed against the same movie without it. The FPS at the bottom left counts canvas draws, which is not the same thing
 
+### RHEF controls
+- The Υ button beside the Filter list is greyed, not hidden, when the filter is not RHEF, and its tooltip says to choose RHEF to use it
+- Its sliders are named Shadows (Υ low) and Highlights (Υ high), and a screen reader announces them by those names
+- A small curve beside the sliders draws the shape they give RHEF output, the same two-sided curve the renderer applies
+- A Look menu sets both sliders at once: the defaults, or Neutral (1.00 / 1.00, a straight line)
+- Hold to compare shows the layer without RHEF while it is held, for that layer only; nothing is saved, and a session saved meanwhile still records RHEF
+
 ## HelioFITS Studio 0.8.6 (pre-release, 2026-10-11)
 
 ### Feedback

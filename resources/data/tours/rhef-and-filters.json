@@ -11,7 +11,7 @@
       "target": "imageLayersOptions",
       "action": "showImageLayers",
       "title": "RHEF in the layer options",
-      "body": "Select a layer in the list and open Intensity: its Filter row is the same RHEF switch, bound to the same setting. When the tour starts on an empty canvas it loads the bundled SDO/AIA 171 sample, so there is a layer to try. With RHEF chosen, the button beside the list softens the shadows (below the median) and the highlights (above it) of RHEF output, each on its own."
+      "body": "Select a layer in the list and open Intensity: its Filter row is the same RHEF switch, bound to the same setting. When the tour starts on an empty canvas it loads the bundled SDO/AIA 171 sample, so there is a layer to try. The \u03a5 button beside the list stays greyed until RHEF is chosen. Then it opens Shadows (\u03a5 low) and Highlights (\u03a5 high), which soften RHEF output below and above the median, each on its own; a curve that shows their shape; a Look menu; and Hold to compare, which shows that one layer without RHEF while you hold it."
     },
     {
       "target": "imageCanvas",
