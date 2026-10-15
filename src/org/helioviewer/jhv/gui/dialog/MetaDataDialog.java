@@ -31,6 +31,7 @@ import org.helioviewer.jhv.io.XMLUtils;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.metadata.FitsMetaData;
 import org.helioviewer.jhv.metadata.MetaData;
+import org.helioviewer.jhv.metadata.ObservationType;
 import org.helioviewer.jhv.thread.Task;
 import org.helioviewer.jhv.time.TimeUtils;
 
@@ -127,6 +128,8 @@ public final class MetaDataDialog extends StandardDialog implements Interfaces.S
         int request = ++metadataRequest;
 
         MetaData metadata = layer.getMetaData();
+        String observation = ObservationType.of(metadata); // HS-19: say what the layer shows, never guess
+        setTitle(ObservationType.UNKNOWN.equals(observation) ? "Image Information" : "Image Information: " + observation);
         URI sourceUri = metadata.getSourceUri();
         boolean hasSourceUri = !sourceUri.equals(MetaData.UNKNOWN_SOURCE_URI);
         String source = HtmlEscapers.htmlEscaper().escape(sourceUri.toString());
