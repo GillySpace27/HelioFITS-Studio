@@ -38,7 +38,8 @@ import com.google.common.html.HtmlEscapers;
 
 /**
  * The Welcome window (HS-10): the build, What's New from the changelog the jar carries, and the
- * ways to start: continue, a blank session, a session file, or the tour. It also holds the startup
+ * ways to start: continue, a blank session, a session file, the tour or the demo scene, and a tip
+ * that changes with each opening. It also holds the startup
  * choice (reopen the last session or start blank) and its own "show at startup" switch.
  *
  * <p>Shown on a plain launch only: never headless, in a spawned extra window, on CI, or when the
@@ -117,7 +118,16 @@ public final class WelcomeDialog {
             dialog.dispose();
             Tour.start(Tour.GETTING_STARTED);
         }));
-        center.add(starts, BorderLayout.PAGE_START);
+        starts.add(card("Open Demo", "AIA 171 with RHEF, bundled: no download", () -> {
+            dialog.dispose();
+            run("openDemo");
+        }));
+        JPanel top = new JPanel(new BorderLayout(0, 6));
+        top.add(starts, BorderLayout.PAGE_START);
+        WelcomeTips.Tip tip = WelcomeTips.next();
+        if (tip != null)
+            top.add(new JLabel("<html><body style='width:600px'><b>Tip:</b> " + escape(tip.text()) + "</body></html>"), BorderLayout.PAGE_END); // wraps, never widens the window
+        center.add(top, BorderLayout.PAGE_START);
 
         HTMLPane news = new HTMLPane();
         news.setText(whatsNewHtml(AppInfo.whatsNew()));
