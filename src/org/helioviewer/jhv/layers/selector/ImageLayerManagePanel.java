@@ -144,6 +144,10 @@ final class ImageLayerManagePanel extends JPanel {
         icons.add(cacheButton);
         icons.add(deleteCacheButton);
         icons.add(makeRefreshButton());
+        JButton python = new JButton("Python");
+        python.setToolTipText("Send to Python: this layer's FITS files as science FITS (physical values, no display steps) with a manifest");
+        python.addActionListener(e -> new org.helioviewer.jhv.gui.Actions.SendToPython().actionPerformed(e));
+        icons.add(python);
         icons.add(makeSyncButton());
         icons.add(metaButton);
 

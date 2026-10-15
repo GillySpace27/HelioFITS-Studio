@@ -44,7 +44,7 @@ public final class FitsExport {
         JSONArray files = new JSONArray();
         JSONArray warnings = new JSONArray();
         for (File src : sources) {
-            String name = src.getName().replaceFirst("(?i)\\.(fits?|fts)$", "") + "_phys.fits";
+            String name = outputName(src);
             JSONObject entry = new JSONObject().put("source", src.getName()).put("file", name);
             JSONArray steps = new JSONArray();
             try (Fits in = new Fits(src); Fits out = new Fits()) {
@@ -103,6 +103,25 @@ public final class FitsExport {
                         + "RHEF output is a visualization, not a calibrated radiance.");
         Files.writeString(outDir.resolve("manifest.json"), manifest.toString(2), StandardCharsets.UTF_8);
         return manifest;
+    }
+
+    /** Name of the file written for {@code src}: the FITS suffix (and a .fz or .gz after it) becomes _phys.fits. */
+    public static String outputName(File src) {
+        return src.getName().replaceFirst("(?i)\\.(fits?|fts)(\\.fz|\\.gz)?$", "") + "_phys.fits";
+    }
+
+    /**
+     * The FITS files behind a layer's source URIs: a file: URI is the file itself, anything else is what the
+     * cache holds for it (nothing is downloaded here). Non-FITS and missing files are left out. Pure given {@code cached}.
+     */
+    public static java.util.List<File> fitsFiles(java.util.Collection<java.net.URI> uris, java.util.function.Function<java.net.URI, File> cached) {
+        java.util.List<File> out = new java.util.ArrayList<>();
+        for (java.net.URI u : uris) {
+            File f = "file".equals(u.getScheme()) ? new File(u) : cached.apply(u);
+            if (f.isFile() && f.getName().toLowerCase(java.util.Locale.ROOT).matches(".*\\.(fits?|fts)(\\.fz|\\.gz)?$"))
+                out.add(f);
+        }
+        return out;
     }
 
     /** A paste-ready snippet; the first file only, in sunpy. */
