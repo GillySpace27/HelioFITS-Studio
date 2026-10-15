@@ -10,6 +10,10 @@
 ### Help
 - Help > Tours lists every guided tour. A second tour, RHEF and filters, shows the Filters palette, the Filter row in a layer's Intensity options, how to read an RHEF image (a visualization, not a calibrated radiance) and how to find a filter by name. On an empty canvas it loads the bundled AIA 171 sample first, as Getting started does
 
+### Layers
+- Each layer's readout opens with what it shows, such as "EUV 171 Å (Fe IX, log T 5.8)" for AIA, "white-light total brightness (includes the F corona)" for LASCO C2 and C3, or the PUNCH product ("total brightness, average mosaic, Level 3 (background-subtracted)"). Every label comes from a sourced instrument note; anything without one, such as SUVI, EUI, WISPR, ASPIICS and CCOR, reads "unknown". The Image Information window carries the same line in its title
+- Badges after it flag what changes how to read the picture: RHEF: visualization, running or base difference, provisional LASCO (the frame's monthly background could not be fetched) and quickPUNCH. Hover the readout for what each one means
+
 ## HelioFITS Studio 0.8.6 (pre-release, 2026-10-11)
 
 ### Feedback
