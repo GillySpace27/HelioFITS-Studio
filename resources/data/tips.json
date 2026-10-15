@@ -1,0 +1,35 @@
+{
+  "about": "Tips the Welcome window shows, one per opening, in turn (HS-10). 'action' is the ActionCatalog id whose menu path the text names; WelcomeTipsCheck holds the text to that path.",
+  "tips": [
+    {
+      "text": "Help > Search Controls... finds any command or control by name: Cmd-K on a Mac, Ctrl-K elsewhere.",
+      "action": "searchControls"
+    },
+    {
+      "text": "Drop FITS or JPEG 2000 files anywhere on the window to load them as image layers; drop a .jhv file to open that session."
+    },
+    {
+      "text": "File > Set Current Session as Default opens this scene at every start, ahead of the last session.",
+      "action": "setDefaultSession"
+    },
+    {
+      "text": "View > Present shows the output only, full screen. Esc leaves.",
+      "action": "present"
+    },
+    {
+      "text": "File > Copy Provenance puts the program, its build and each layer's data source on the clipboard.",
+      "action": "copyProvenance"
+    },
+    {
+      "text": "Edit > Undo takes back the last change to the scene.",
+      "action": "undo"
+    },
+    {
+      "text": "Help > Take the Tour steps through the main controls, one at a time.",
+      "action": "takeTour"
+    },
+    {
+      "text": "RHEF, in a layer's Filter list, is a visualization, not a calibrated radiance."
+    }
+  ]
+}
