@@ -180,7 +180,7 @@ public final class ToolbarOrderCheck {
             "resetCamera", "resetAxis", "rotate90",
             "pan", "rotate", "axis",
             "track", "diffRotation", "corona", "multiview", "sidebarLeft", "timelines", "sidebarRight", "annotate",
-            "projection", "trackCme", "colour", "sequence", "grid", "camera",
+            "projection", "trackCme", "colour", "sequence", "grid", "camera", "compare",
             "refresh", "sdoCutout", "samp",
             "more");
 
