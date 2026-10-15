@@ -53,20 +53,19 @@ class LoadState {
         }
     }
 
-    // Local files the session names that are not on this machine come from its data archive, when
-    // one travelled with it; without one, say so, rather than letting those layers vanish quietly.
+    // Local files the session names that are not on this machine come from beside the session or
+    // from its data archive, when one travelled with it. What is still missing is reported once per
+    // layer by the layer itself (ImageLayerLoader), which also loads the frames that are here, so
+    // only a damaged archive is worth a dialog of its own.
     private static void reattach(JSONObject state, @Nullable Path session, @Nullable Path archive) {
         String warning;
         try {
             SessionArchive.Reattach r = SessionArchive.reattach(state, session, archive,
                     Path.of(Directories.HOME.getPath(), "SessionData"));
-            if (r.missing() == r.restored())
-                return;
-            warning = r.archive() == null
-                    ? r.missing() + " local file(s) this session reads are not on this computer, and no "
-                            + SessionArchive.SUFFIX + " archive was found beside it. Those layers will not load."
-                    : (r.missing() - r.restored()) + " of " + r.missing() + " missing local file(s) are not in "
-                            + r.archive().getFileName() + ". Those layers will not load.";
+            if (r.missing() != r.restored())
+                Log.warn((r.missing() - r.restored()) + " of " + r.missing() + " missing local file(s) not found beside the session"
+                        + (r.archive() == null ? " and no " + SessionArchive.SUFFIX + " archive" : " or in " + r.archive().getFileName()));
+            return;
         } catch (java.io.IOException e) {
             Log.warn("Session data archive", e);
             warning = "The session's data archive could not be used: " + e.getMessage();

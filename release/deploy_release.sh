@@ -324,7 +324,11 @@ preflight_publish() {
             *.dmg)
                 _f="$HERE/$_n"; _r="$(receipt_for "$_n")"
                 if [ ! -f "$_f" ]; then
-                    case "$_n" in *-intel.dmg) continue ;; esac   # optional: the notes then send Intel Macs to the zip
+                    # Optional only where it cannot be built: with the Intel JDK here, a release without
+                    # it sends Intel Macs to the zip and Java for no reason (0.8.6, 2026-10-11).
+                    case "$_n" in *-intel.dmg) [ -d "$HERE/.jdk-x64" ] || continue
+                        refuse "no $_n in release/ though release/.jdk-x64 is here; MAC_ARCH=x64 ./deploy_release.sh notarize builds it" 4
+                        continue ;; esac
                     refuse "no $_n in release/; notarize builds it" 4; continue
                 fi
                 if [ ! -f "$_r" ]; then
@@ -399,6 +403,73 @@ dry_run_report() {
     echo "guide will be regenerated"
 }
 
+# Family release feed (SU-11): append this release to the HelioSoftware feed in the Website checkout.
+# Runs after `gh release create` succeeded (and as the `feed` mode, to retry). A failure prints how to
+# retry and never undoes or blocks the release. Records are append-only. Windows and Linux packages are
+# attached by CI after publish, so they are not recorded here; the download page keeps its GitHub API
+# path for them. Which platforms count as confirmed follows the `confirmed` flags in PLATFORMS on the
+# Website's download page, heliofits-studio/index.html (Gilly's default B4, 2026-10-12): mac is
+# macos-arm64, intel is macos-x64. The guide needs no hardware and is always confirmed; the zip never is.
+# If the page cannot be read, only the guide is marked confirmed.
+FEED_CONFIRMED="guide"
+feed_confirmed_platforms() {
+    python3 - "$1" <<'PY'
+import re, sys
+FEED = {"mac": "macos-arm64", "intel": "macos-x64"}
+try:
+    text = open(sys.argv[1], encoding="utf-8").read()
+except OSError:
+    sys.exit(1)
+m = re.search(r"^const PLATFORMS = \{(.*?)^\};", text, re.M | re.S)
+flags = re.findall(r"^\s*(\w+):\s*\{\s*confirmed:\s*(true|false)\b", m.group(1), re.M) if m else []
+if not flags:
+    sys.exit(1)
+print(" ".join(FEED[k] for k, v in flags if v == "true" and k in FEED))
+PY
+}
+append_feed_record() {
+    FEED_SITE="${SITE:-$HOME/vscode/Website}"
+    FEED_TOOL="$FEED_SITE/heliosoftware/feed/append_record.py"
+    if [ ! -f "$FEED_TOOL" ]; then
+        echo "!! feed record NOT written: $FEED_TOOL not found (set SITE to the Website checkout, then run ./deploy_release.sh feed)" >&2
+        return 0
+    fi
+    FEED_PAGE="$FEED_SITE/heliofits-studio/index.html"
+    if FEED_PAGE_CONFIRMED="$(feed_confirmed_platforms "$FEED_PAGE")"; then
+        FEED_CONF="$FEED_CONFIRMED $FEED_PAGE_CONFIRMED"
+    else
+        echo "!! could not read the PLATFORMS confirmed flags in $FEED_PAGE; only the guide is marked confirmed" >&2
+        FEED_CONF="$FEED_CONFIRMED"
+    fi
+    FEED_NOTES="$(mktemp)"
+    awk -v v="$VERSION" 'index($0, "## ") == 1 { if (on) exit; on = index($0, " " v " ") > 0; next } on && /^[-*] / { sub(/^[-*] /, ""); print; exit }' "$SRC/changelog.md" \
+        | python3 -c 'import sys; print(" ".join(sys.stdin.read().split())[:400].replace("\u2014", ";"))' > "$FEED_NOTES"
+    [ -n "$(tr -d '[:space:]' < "$FEED_NOTES")" ] || echo "HelioFITS Studio $VERSION" > "$FEED_NOTES"
+    FEED_CHANNEL=github-release
+    [ -z "$PRERELEASE" ] || FEED_CHANNEL=github-prerelease
+    set --
+    for spec in "$HERE/$TOP.dmg:macos-arm64" "$DMG_INTEL:macos-x64" "$ZIP:any-java25" "$PDF:guide"; do
+        f="${spec%:*}"; plat="${spec##*:}"
+        [ -f "$f" ] || continue
+        name="${f##*/}"
+        sum="$(shasum -a 256 "$f" | awk '{print $1}')"
+        bytes="$(wc -c < "$f" | tr -d ' ')"
+        conf=false
+        case " $FEED_CONF " in *" $plat "*) conf=true ;; esac
+        set -- "$@" --asset "name=$name,url=https://github.com/$REPO/releases/download/$TAG/$name,sha256=$sum,bytes=$bytes,platform=$plat,confirmed=$conf"
+    done
+    if python3 "$FEED_TOOL" --product heliofits-studio --version "$VERSION" --date "$(date -u +%Y-%m-%d)" \
+           --channel "$FEED_CHANNEL" --tag "$TAG" --url "https://github.com/$REPO/releases/tag/$TAG" \
+           --notes-file "$FEED_NOTES" "$@" \
+       && python3 "$FEED_SITE/heliosoftware/feed/build_feed.py"; then
+        echo "==> feed record written in $FEED_SITE (heliofits-studio.json, feed.xml, whats-new). Review 'git -C $FEED_SITE diff --stat'; committing and pushing the Website is a separate step for Gilly."
+    else
+        echo "!! feed record NOT written (the release itself is fine). Fix the cause above, then run ./deploy_release.sh feed" >&2
+    fi
+    rm -f "$FEED_NOTES"
+    return 0
+}
+
 publish() {
     # Refuse to touch an existing release. Overwriting one destroys the binaries someone may be
     # relying on, which is the whole thing per-release tags exist to prevent.
@@ -448,6 +519,7 @@ publish() {
     gh release create "$TAG" "$@" \
         --repo "$REPO" --title "$TITLE" --notes-file "$NOTES" $PRERELEASE
     rm -f "$NOTES"
+    append_feed_record
     echo "==> done: https://github.com/$REPO/releases/tag/$TAG"
     echo "    gilly.space/heliofits-studio is a download page: it asks GitHub for the newest release itself."
 }
@@ -619,7 +691,7 @@ notary_explain() {
 notary_submit() {
     echo "==> submitting ${DMG##*/} to Apple (no --wait; the id is recorded before polling)"
     if ! perl -e 'alarm shift; exec @ARGV' 600 \
-            xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --output-format json \
+            xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --output-format json --no-s3-acceleration \
             > "$HERE/.notarize-submit.json" 2> "$HERE/.notarize-submit.err"; then
         notary_explain "$HERE/.notarize-submit.err" "$HERE/.notarize-submit.json"
         echo "!! notarytool submit failed; its output is in release/.notarize-submit.err. Nothing is pending: rerun notarize." >&2
@@ -887,7 +959,7 @@ if got != want:
         # macOS has no `timeout(1)`; perl's alarm is always present. Guard the wait so a hung
         # connection to Apple fails the attempt instead of blocking forever.
         perl -e 'alarm shift; exec @ARGV' 600 \
-            xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
+            xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --no-s3-acceleration --wait
     else
         notary_submit
         notary_poll "$(receipt_key "$PENDING" submission_id)"
@@ -911,5 +983,6 @@ case "$MODE" in
     notes)    SHA="$(if [ -f "$ZIP" ]; then shasum -a 256 "$ZIP" | awk '{print $1}'; else echo '(zip not built)'; fi)"
               _notes="$(notes_file)"; cat "$_notes"; rm -f "$_notes" ;;
     assets)   case "${2:-all}" in local|ci|all) asset_names "${2:-all}" ;; *) echo "usage: $0 assets [local|ci|all]" >&2; exit 2 ;; esac ;;
-    *) echo "usage: $0 {package|guide|publish [--dry-run]|notarize|notarize-resume|notes|assets [local|ci|all]}"; exit 2 ;;
+    feed)     append_feed_record ;;
+    *) echo "usage: $0 {package|guide|publish [--dry-run]|notarize|notarize-resume|notes|assets [local|ci|all]|feed}"; exit 2 ;;
 esac

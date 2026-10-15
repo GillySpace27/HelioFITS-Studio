@@ -14,6 +14,8 @@ import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -27,6 +29,8 @@ import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
+import org.helioviewer.jhv.image.ImageDisplaySettings;
+import org.helioviewer.jhv.image.RHEFStamp;
 import org.helioviewer.jhv.opengl.GLRenderer;
 
 import org.json.JSONArray;
@@ -46,8 +50,9 @@ import org.json.JSONObject;
  * one container for all PNGs). tEXt is Latin-1, so the JSON is written ASCII-only, every other
  * character as a \\uXXXX escape, which is still the same JSON to any parser.
  *
- * <p>The key reserved for the RHEF stamp is rhef_stamp (decision A2; RHEF owns its format, RH-3).
- * Nothing here writes it; RH-11 adds it to session() beside the existing keys.
+ * <p>The RHEF stamp goes under rhef_stamp (decision A2; RHEF owns its format, RH-3): session()
+ * adds it beside the caveat when a layer has RHEF on, one RHEFStamp line per distinct setting,
+ * joined by newlines (RH-11). Every export here is a display export; none carries data values.
  *
  * <p>frame() is the per-frame block ExrCapture used to build inline, moved here unchanged.
  *
@@ -136,6 +141,7 @@ public final class Provenance {
 
         JSONArray sources = new JSONArray();
         boolean rhef = false;
+        Set<String> stamps = new LinkedHashSet<>();
         JSONObject state = portable.optJSONObject("org.helioviewer.jhv.state");
         JSONArray layers = state == null ? null : state.optJSONArray("imageLayers");
         if (layers != null)
@@ -158,11 +164,23 @@ public final class Provenance {
                     source.put("query", data.getJSONObject("fitsRequest"));
                 sources.put(source);
                 rhef |= "RHEF".equals(data.optString("filter"));
+                if ("RHEF".equals(data.optString("filter")))
+                    stamps.add(rhefStamp(data.optJSONObject("imageParams")));
             }
         session.put("sources", sources);
         if (rhef)
             session.put("caveat", RHEF_CAVEAT);
+        if (!stamps.isEmpty())
+            session.put("rhef_stamp", String.join("\n", stamps));
         return session;
+    }
+
+    /** The stamp for one RHEF layer from its saved imageParams; a missing Upsilon is the layer default. */
+    private static String rhefStamp(@Nullable JSONObject imageParams) {
+        ImageDisplaySettings defaults = new ImageDisplaySettings();
+        double lo = imageParams == null ? defaults.getUpsilonLow() : imageParams.optDouble("upsilonLow", defaults.getUpsilonLow());
+        double hi = imageParams == null ? defaults.getUpsilonHigh() : imageParams.optDouble("upsilonHigh", defaults.getUpsilonHigh());
+        return RHEFStamp.line(AppInfo.label(), lo, hi);
     }
 
     /** The scene inside a provenance block with the home directory put back, or null when it has none. */

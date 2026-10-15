@@ -246,7 +246,8 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
                 + "<br><b>Swing timer</b> is the clock playback used before. It schedules each tick from when the previous one actually fired, "
                 + "so every late tick delays the rest and it runs slow (34 fps played at about 30).<br><br>"
                 + "The FPS readout at the bottom left shows the rate you are getting.</html>");
-        addRow(optionsPanel, 1, "Clock", row(clockButtons));
+        AchievedRateReadout achieved = new AchievedRateReadout(); // RH-16
+        addRow(optionsPanel, 1, "Clock", row(clockButtons, achieved.toggle, achieved.label));
 
         recordModeButtons = new Segmented<>(ViewState.RecordingMode.values(), ViewState.recordingData().mode(), ViewState::setRecordingMode);
         recordModeButtons.setToolTipText("One loop records the movie once through; Screenshot writes a single still; Unlimited records until it is stopped");

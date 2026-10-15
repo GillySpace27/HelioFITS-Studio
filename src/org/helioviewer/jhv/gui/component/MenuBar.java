@@ -417,6 +417,11 @@ public final class MenuBar extends JMenuBar {
         catalogItem(helpMenu, "searchControls");
         catalogItem(helpMenu, "welcome");
         catalogItem(helpMenu, "takeTour");
+        JMenu toursMenu = new JMenu("Tours"); // every tour, Getting started first (HS-15)
+        for (String tour : org.helioviewer.jhv.gui.search.Tour.IDS)
+            catalogItem(toursMenu, org.helioviewer.jhv.gui.search.Tour.catalogId(tour));
+        helpMenu.add(toursMenu);
+        catalogItem(helpMenu, "openDemo");
         helpMenu.add(new Actions.ShowDialog("Interaction Guide...", new TextDialog("Interaction Guide", interactionHelp(), true)));
         helpMenu.add(new Actions.ShowDialog("Timeline Interaction...", new TextDialog("Timeline Interaction", timelineHelp(), true)));
 

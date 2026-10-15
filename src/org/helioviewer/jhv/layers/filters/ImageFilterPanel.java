@@ -2,20 +2,26 @@ package org.helioviewer.jhv.layers.filters;
 
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.FlowLayout;
 import java.awt.GridLayout;
 
+import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.event.PopupMenuEvent;
+import javax.swing.event.PopupMenuListener;
 
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.component.JHVSlider;
 import org.helioviewer.jhv.gui.component.SplitButton;
+import org.helioviewer.jhv.gui.component.ToneCurve;
 import org.helioviewer.jhv.image.ImageDisplaySettings;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layers;
+import org.helioviewer.jhv.layers.RhefPeek;
 
 public final class ImageFilterPanel implements FilterDetails {
 
@@ -26,7 +32,32 @@ public final class ImageFilterPanel implements FilterDetails {
     private final JPanel buttonPanel = new JPanel(new BorderLayout());
     private final JLabel title = new JLabel("Filter ", JLabel.RIGHT);
     private JComboBox<ImageFilter.Type> filterCombo;
-    private SplitButton upsilonButton;
+    SplitButton upsilonButton; // package-private for RhefControlsCheck
+
+    static final String UPSILON_TIP = "Soften shadows (Υ low, below median) and highlights (Υ high, above median) of RHEF output independently";
+    static final String UPSILON_OFF_TIP = "Choose RHEF to use these";
+
+    /**
+     * A named Υ pair (RH-17). Only two: the defaults the sliders revert to and the straight line
+     * (Υ = 1 on both sides, which the shader skips). A per-instrument look needs a sourced pair.
+     */
+    record Look(String name, double low, double high) {
+        @Override
+        public String toString() {
+            return name;
+        }
+    }
+
+    static final Look[] LOOKS = {
+            new Look(String.format("Default (%.2f / %.2f)", DEFAULTS.getUpsilonLow(), DEFAULTS.getUpsilonHigh()),
+                    DEFAULTS.getUpsilonLow(), DEFAULTS.getUpsilonHigh()),
+            new Look("Neutral (1.00 / 1.00, no curve)", 1, 1)};
+
+    // Greyed, never hidden, when the filter is not RHEF: the control stays where it is found.
+    private void setUpsilonEnabled(boolean on) {
+        upsilonButton.setEnabled(on);
+        upsilonButton.setToolTipText(on ? UPSILON_TIP : UPSILON_OFF_TIP);
+    }
 
     // Programmatic sync of the combo to the layer. setSelectedItem fires the combo's listener, and
     // this runs from inside that listener's own fan-out (fireLayerUpdated), so without the flag the
@@ -47,7 +78,7 @@ public final class ImageFilterPanel implements FilterDetails {
         // exactly what a sync produces, so a copy of this panel brought into step from elsewhere (the
         // Filters palette and the Image Layers row are two copies of one setting) kept the wrong Υ.
         if (upsilonButton != null)
-            upsilonButton.setVisible(layer.getFilter() == ImageFilter.Type.RHEF);
+            setUpsilonEnabled(layer.getFilter() == ImageFilter.Type.RHEF);
     }
 
     private static String formatLabel(double value) {
@@ -58,9 +89,12 @@ public final class ImageFilterPanel implements FilterDetails {
         return String.format("%.2f", value);
     }
 
-    private static JPanel createUpsilonRow(String title, JHVSlider slider, JLabel label) {
+    private static JPanel createUpsilonRow(String title, String accessibleName, JHVSlider slider, JLabel label) {
         JPanel panel = new JPanel(new BorderLayout());
-        panel.add(new JLabel(title), BorderLayout.LINE_START);
+        JLabel titleLabel = new JLabel(title);
+        titleLabel.setLabelFor(slider);
+        slider.getAccessibleContext().setAccessibleName(accessibleName);
+        panel.add(titleLabel, BorderLayout.LINE_START);
         panel.add(slider, BorderLayout.CENTER);
         panel.add(label, BorderLayout.LINE_END);
         return panel;
@@ -118,19 +152,69 @@ public final class ImageFilterPanel implements FilterDetails {
             DisplayController.display();
         });
         JPanel upsilonPanel = new JPanel(new GridLayout(2, 1));
-        upsilonPanel.add(createUpsilonRow("ΥL ", upsilonLowSlider, upsilonLowLabel));
-        upsilonPanel.add(createUpsilonRow("ΥH ", upsilonHighSlider, upsilonHighLabel));
+        upsilonPanel.add(createUpsilonRow("Shadows (Υ low) ", "Shadows", upsilonLowSlider, upsilonLowLabel));
+        upsilonPanel.add(createUpsilonRow("Highlights (Υ high) ", "Highlights", upsilonHighSlider, upsilonHighLabel));
+
+        // RH-17: the curve the two sliders make, a Look menu, and hold-to-compare, around the rows.
+        ToneCurve curve = new ToneCurve();
+        curve.setUpsilon(upsilonLowSlider.getValue() / 100., upsilonHighSlider.getValue() / 100.);
+        javax.swing.event.ChangeListener redraw = e -> curve.setUpsilon(upsilonLowSlider.getValue() / 100., upsilonHighSlider.getValue() / 100.);
+        upsilonLowSlider.addChangeListener(redraw);
+        upsilonHighSlider.addChangeListener(redraw);
+
+        JComboBox<Look> lookCombo = new JComboBox<>(LOOKS);
+        lookCombo.setSelectedIndex(-1);
+        lookCombo.setToolTipText("Set both sliders to a named pair");
+        lookCombo.getAccessibleContext().setAccessibleName("Look");
+        lookCombo.addActionListener(e -> {
+            if (lookCombo.getSelectedItem() instanceof Look look) {
+                // Through the sliders, so the change fans out exactly as a drag of each one does.
+                upsilonLowSlider.setValue((int) Math.round(look.low() * 100));
+                upsilonHighSlider.setValue((int) Math.round(look.high() * 100));
+            }
+        });
+
+        JButton peek = new JButton("Hold to compare");
+        peek.setToolTipText("While held, this layer only is shown without RHEF; nothing is saved");
+        peek.getModel().addChangeListener(e -> {
+            if (peek.getModel().isPressed())
+                RhefPeek.begin(layer);
+            else
+                RhefPeek.end(layer);
+        });
+
+        JPanel lookRow = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
+        lookRow.add(new JLabel("Look"));
+        lookRow.add(lookCombo);
+        lookRow.add(peek);
+        JPanel upsilonControls = new JPanel(new BorderLayout(6, 4));
+        upsilonControls.add(upsilonPanel, BorderLayout.CENTER);
+        upsilonControls.add(curve, BorderLayout.LINE_END);
+        upsilonControls.add(lookRow, BorderLayout.PAGE_END);
 
         upsilonButton = new SplitButton("Υ");
-        upsilonButton.setToolTipText("Soften shadows (ΥL, below median) and highlights (ΥH, above median) of RHEF output independently");
         upsilonButton.setAlwaysDropdown(true);
-        upsilonButton.addItem(upsilonPanel);
+        upsilonButton.addItem(upsilonControls);
+        upsilonButton.getPopupMenu().addPopupMenuListener(new PopupMenuListener() {
+            @Override
+            public void popupMenuWillBecomeVisible(PopupMenuEvent e) {
+                lookCombo.setSelectedIndex(-1); // a menu of actions, not a state the sliders could drift from
+            }
 
-        upsilonButton.setVisible(layer.getFilter() == ImageFilter.Type.RHEF);
+            @Override
+            public void popupMenuWillBecomeInvisible(PopupMenuEvent e) {
+                RhefPeek.end(layer); // a menu closed mid-hold never sees the release
+            }
+
+            @Override
+            public void popupMenuCanceled(PopupMenuEvent e) {}
+        });
+
+        setUpsilonEnabled(layer.getFilter() == ImageFilter.Type.RHEF);
         filterCombo.addActionListener(e -> {
             if (filterCombo.getSelectedItem() instanceof ImageFilter.Type type) {
                 filterCombo.setToolTipText(type.description);
-                upsilonButton.setVisible(type == ImageFilter.Type.RHEF);
+                setUpsilonEnabled(type == ImageFilter.Type.RHEF);
                 if (syncing)
                     return;
                 Layers.applyToSelectedLayers(layer, il -> {

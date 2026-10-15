@@ -62,6 +62,15 @@ final class TimestampLayerOptions extends JPanel {
         showClock.addActionListener(e -> layer.setShowClock(showClock.isSelected()));
         panelCheck.add(showClock, c1);
 
+        c1.gridy = 1;
+        c1.anchor = GridBagConstraints.LINE_END;
+        c1.gridx = 0;
+        JCheckBox showName = new JCheckBox("Show layer name", layer.isShowName());
+        showName.setHorizontalTextPosition(SwingConstants.LEFT);
+        showName.setToolTipText("Appends the master image layer's name (instrument and wavelength) to the timestamp. Multiview always names each viewport.");
+        showName.addActionListener(e -> layer.setShowName(showName.isSelected()));
+        panelCheck.add(showName, c1);
+
         // Their own collapsed section, following GridLayerOptions in this package: four more ticks
         // in the row above would bury the two that shape the timestamp itself among settings that
         // add lines beneath it.

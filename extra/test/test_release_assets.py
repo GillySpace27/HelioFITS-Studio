@@ -302,6 +302,14 @@ class PreflightTest(unittest.TestCase):
         (self.repo / "release" / f"HFStudio-{self.V}-intel.dmg").write_bytes(b"intel")
         self.refused(self.dry_run(), "has no receipt .notarize-run-intel.json")
 
+    def test_missing_intel_dmg_refuses_where_the_intel_jdk_is(self):
+        # 2026-10-11: 0.8.6 shipped without its Intel dmg although release/.jdk-x64 was on the Mac.
+        (self.repo / "release" / ".jdk-x64").mkdir()
+        self.refused(self.dry_run(), f"no HFStudio-{self.V}-intel.dmg")
+
+    def test_missing_intel_dmg_is_optional_without_the_intel_jdk(self):
+        self.assertEqual(self.dry_run().returncode, 0)
+
     def test_spctl_rejection_refuses(self):
         self.refused(self.dry_run(FAKE_SPCTL_RC="3"), "spctl rejects")
 
@@ -976,8 +984,38 @@ class ShipTest(unittest.TestCase):
     def test_gate_without_a_terminal_stops_before_the_smoke_test_is_claimed(self):
         r = self.ship("gate")
         self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
-        self.assertIn("the smoke test is typed as done at a terminal", r.stderr)
+        self.assertIn(f"HFS_SMOKE_APPROVED=v{self.V}", r.stderr)
         self.assertEqual(self.deploy_calls(), ["publish --dry-run"])
+
+    def stage_gate(self, smoke_rc=0):
+        """Both dmgs, and a smoke_dmg.sh that records which dmg it was given."""
+        self.stage_prepare()
+        for name in (f"HFStudio-{self.V}.dmg", f"HFStudio-{self.V}-intel.dmg"):
+            (self.repo / "release" / name).write_bytes(b"dmg")
+        shim(self.repo / "release", "smoke_dmg.sh", f'echo "smoke ${{1##*/}}" >> "$DEPLOY_LOG"\nexit {smoke_rc}\n')
+
+    def test_gate_smoke_tests_every_dmg(self):
+        # 2026-10-11: 0.8.6's first dmg threw NoClassDefFoundError at launch; only a smoke test sees it.
+        self.stage_gate()
+        r = self.ship("gate", HFS_SMOKE_APPROVED=f"v{self.V}")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.deploy_calls(), ["publish --dry-run", f"smoke HFStudio-{self.V}.dmg",
+                                               f"smoke HFStudio-{self.V}-intel.dmg"])
+        self.assertIn("GATE: publish v9.9.9", r.stdout)
+
+    def test_a_failed_smoke_test_stops_the_gate(self):
+        self.stage_gate(smoke_rc=1)
+        r = self.ship("gate", HFS_SMOKE_APPROVED=f"v{self.V}")
+        self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn("GATE:", r.stdout)
+
+    def test_smoke_approval_is_for_one_exact_tag(self):
+        self.stage_gate()
+        r = self.ship("gate", HFS_SMOKE_APPROVED="v9.9.8")
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertNotIn("GATE:", r.stdout)
+        # HFS_PUBLISH_APPROVED is a different question and does not answer this one.
+        self.assertEqual(self.ship("gate", HFS_PUBLISH_APPROVED=f"v{self.V}").returncode, 2)
 
     def test_unknown_phase_is_refused(self):
         self.assertEqual(self.ship("ship-it").returncode, 2)

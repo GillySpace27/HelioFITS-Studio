@@ -1,18 +1,62 @@
 
 # Revision history
 
-## HelioFITS Studio 0.8.6 (unreleased)
+## HelioFITS Studio 0.8.7 (unreleased)
 
-### Sessions
-- File > Export Session with Data saves the session plus a `.data.zip` beside it holding every local file its image layers read, so a session built on your own data opens on another computer. Archive layers are not packed; they download again there, as before. The zip carries a manifest with a SHA-256 for each file, and both files are written to a temporary name and renamed into place, so an interrupted export never leaves a half-written file under the real name
-- Opening a session whose local files are not on this computer takes them from the `.data.zip` beside it, checks every file against its checksum, and unpacks them once under `~/HFStudio/SessionData`. Files still on disk are read where they are. Dropping the `.data.zip` itself on the window opens the session inside it
-- A session whose local files are missing, with no archive to supply them, now says how many will not load instead of dropping those layers silently
+### Welcome
+- The Welcome window has an Open Demo card, also Help > Open Demo Scene: a new session with the bundled SDO/AIA 171 sample image and RHEF on. Nothing downloads, so it opens offline. Start New Session's question comes first when there is work to lose
+- The Welcome window shows a tip under the start cards, a different one each time it opens
+
+### Help
+- Help > Tours lists every guided tour. A second tour, RHEF and filters, shows the Filters palette, the Filter row in a layer's Intensity options, how to read an RHEF image (a visualization, not a calibrated radiance) and how to find a filter by name. On an empty canvas it loads the bundled AIA 171 sample first, as Getting started does
+
+### Layers
+- Each layer's readout opens with what it shows, such as "EUV 171 Å (Fe IX, log T 5.8)" for AIA, "white-light total brightness (includes the F corona)" for LASCO C2 and C3, or the PUNCH product ("total brightness, average mosaic, Level 3 (background-subtracted)"). Every label comes from a sourced instrument note; anything without one, such as SUVI, EUI, WISPR, ASPIICS and CCOR, reads "unknown". The Image Information window carries the same line in its title
+- Badges after it flag what changes how to read the picture: RHEF: visualization, running or base difference, provisional LASCO (the frame's monthly background could not be fetched) and quickPUNCH. Hover the readout for what each one means
+
+### Playback
+- The Clock row has an Achieved box, off by default. Ticked, it shows the frame rate playback actually reaches over the last two seconds, beside the Play rate it asks for, so a RHEF movie can be timed against the same movie without it. The FPS at the bottom left counts canvas draws, which is not the same thing
+
+### RHEF controls
+- The Υ button beside the Filter list is greyed, not hidden, when the filter is not RHEF, and its tooltip says to choose RHEF to use it
+- Its sliders are named Shadows (Υ low) and Highlights (Υ high), and a screen reader announces them by those names
+- A small curve beside the sliders draws the shape they give RHEF output, the same two-sided curve the renderer applies
+- A Look menu sets both sliders at once: the defaults, or Neutral (1.00 / 1.00, a straight line)
+- Hold to compare shows the layer without RHEF while it is held, for that layer only; nothing is saved, and a session saved meanwhile still records RHEF
 
 ### Animation
 - An animated control's lane in the Timeline panel has a band of its own above the plot, so it no longer draws over the HEK events or the layer coverage rows. The panel grows by the band when a control is animated
 - Selecting an animated control's row lists its keys with their time (UTC), value and easing, each editable by typing; a typed time is taken exactly, not snapped to a frame. Add key puts one at the playhead and Delete key removes the selected one
 
-## HelioFITS Studio 0.8.5 (unreleased)
+## HelioFITS Studio 0.8.6 (pre-release, 2026-10-11)
+
+### Feedback
+- Send Feedback and the Report this... button on error dialogs now reach Gilly. Until reports can be sent directly, the button reads Send by Email...: it opens an email to gilly@nwra.com in your mail program, with your note, the version, the system and the top of the error filled in, and shows the full saved report (and screenshot, if you took one) in Finder or your file manager so you can attach it. Before, a report only waited in `~/HFStudio/Outbox`
+- When direct sending goes live, this version picks it up by itself, with no update: Send then delivers the report, and Email Instead... stays as the second choice
+
+### Sessions
+- File > Export Session with Data saves the session plus a `.data.zip` beside it holding every local file its image layers read, so a session built on your own data opens on another computer. Archive layers are not packed; they download again there, as before. The zip carries a manifest with a SHA-256 for each file, and both files are written to a temporary name and renamed into place, so an interrupted export never leaves a half-written file under the real name
+- Opening a session whose local files are not on this computer takes them from the `.data.zip` beside it, checks every file against its checksum, and unpacks them once under `~/HFStudio/SessionData`. Files still on disk are read where they are. Dropping the `.data.zip` itself on the window opens the session inside it
+- A session whose local files are missing, with no archive to supply them, now says how many will not load instead of dropping those layers silently
+- A session saved on another computer looks for its local files beside the .jhv and in its .data.zip before giving up, loads the frames it finds, and reports the rest once per layer (how many, one example path, and to export with data) instead of one dialog per file or "Empty list of views"
+
+### Data sources
+- The VSO tree offers STEREO SECCHI EUVI as four channels, 171, 195, 284 and 304, instead of one entry that returned a single wavelength. A file name whose time stamp happened to contain a channel number no longer narrows a query to a few frames
+- The SOAR dialog has a Variant menu: EUI FSI 174 and 304 name their standard image, short-exposure and disc-occulted products in plain words with a tooltip from the EUI Data Manual, and open on the standard image; "all variants" shows every one
+- The ASPIICS dialog explains bt, fe, he, pb and pa in tooltips, and when one product comes back as more than one kind of file it labels each frame with its kind and adds a Kind menu that opens on the kind with the most frames; "all kinds" shows every one
+
+### Overlays and loading
+- A fresh install opens with every section of both sidebars collapsed; each section then opens the way it was last left
+- The Timestamp overlay can show the layer name after the time (Show layer name, on for new sessions), not only in multiview
+- The timestamp moves clear of the miniview when both sit in the top-left corner
+- A layer that is downloading shows the megabytes received as well as the frame count, so a slow archive no longer looks frozen, and frames that failed are counted as failed rather than as cached
+
+### Updates
+- HelioFITS Studio now says when a newer version has been released. A few seconds after it opens, at most once a day, it asks GitHub's list of releases (a release that is published and has a download for this computer, never one that is only planned), and shows the new version's notes with Download and Install, Later and Skip This Version. Help > Check for Updates asks at any time, including about a skipped version. Settings, "Check for updates at startup", turns the automatic check off; with no network it stays silent
+- Download and Install first saves the session and copies the sessions, autosaves, recovery copies and settings to `~/HFStudio/Backups/before-<version>-<time>`. If the save cannot be confirmed, or any copy fails, the update stops and nothing is downloaded. Nothing is moved or deleted
+- The new version downloads to the Downloads folder with a progress bar and Cancel, is checked against the size and SHA-256 the release lists, and is then opened: on a Mac the disk image's window, to drag HelioFITS Studio onto Applications; elsewhere the file in the file manager. An Intel Mac gets the Intel disk image, or the cross-platform zip (which needs Java 25) when the release has no Intel image. Quit Now quits the usual way, which saves the session, and the new version reopens it
+
+## HelioFITS Studio 0.8.5 (pre-release, 2026-10-07)
 
 ### Starting
 - A Welcome window opens on launch with the version, What's New for this version (read from the app itself, no network needed), and four ways to start: Continue, Start Blank, Open Session and Take the Tour. Help > Welcome to HelioFITS Studio reopens it, and a checkbox stops it opening at startup
