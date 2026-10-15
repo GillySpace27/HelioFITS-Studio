@@ -1,6 +1,12 @@
 
 # Revision history
 
+## HelioFITS Studio 0.8.7 (unreleased)
+
+### Welcome
+- The Welcome window has an Open Demo card, also Help > Open Demo Scene: a new session with the bundled SDO/AIA 171 sample image and RHEF on. Nothing downloads, so it opens offline. Start New Session's question comes first when there is work to lose
+- The Welcome window shows a tip under the start cards, a different one each time it opens
+
 ## HelioFITS Studio 0.8.6 (pre-release, 2026-10-11)
 
 ### Feedback
