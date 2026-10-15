@@ -895,6 +895,9 @@ notarize_mac() {
     rm -rf "$CATOUT"
     echo "   Assets.car in the bundle, CFBundleIconName set"
 
+    # Document types (HS-16): .jhv opens in this app; FITS only as an "Open With" choice, so HelioFITS stays the default.
+    python3 "$HERE/add_document_types.py" "$APP/Contents/Info.plist"
+
     # Prove the bundled app actually starts (catches missing deps / broken native load)
     # before spending a multi-minute notary round-trip on it.
     echo "==> smoke-testing the bundled app"
