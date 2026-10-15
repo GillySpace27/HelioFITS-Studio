@@ -89,6 +89,7 @@ public final class ActionCatalog {
         put("newJp2Layer", new Actions.NewLayer(), "Layers/New JP2 Image Layer…", "");
         put("newSynopticLayer", new Actions.NewSynopticLayer(), "Layers/New Synoptic Layer...", "");
         put("newPunchLayer", new Actions.NewPunchLayer(), "Layers/New PUNCH Layer…", "");
+        put("punchLatest", new Actions.PunchLatestAction(), "Layers/PUNCH Latest", "Open the newest day of PUNCH clear average mosaics (CAM) in Helioradial with RHEF");
         put("newSoarLayer", new Actions.NewSoarLayer(), "Layers/New SOAR Layer…", "");
         put("newAspiicsLayer", new Actions.NewAspiicsLayer(), "Layers/New ASPIICS Layer...", "");
         put("sendToPython", new Actions.SendToPython(), "Layers/Send to Python", "Write the active layer's FITS files as double-precision science FITS plus a manifest and a sunpy snippet");

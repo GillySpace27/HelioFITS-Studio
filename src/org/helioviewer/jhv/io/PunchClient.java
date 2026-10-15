@@ -103,9 +103,16 @@ public final class PunchClient {
     }
 
     public static void submitLoad(@Nonnull List<DataItem> items, @Nonnull String level, @Nonnull String product, long start, long end, long cadence, @Nonnull String version) {
+        submitLoad(items, level, product, start, end, cadence, version, layer -> {});
+    }
+
+    /** As above, and {@code onLayer} sees the layer once it exists (PunchLatest sets the filter there). */
+    public static void submitLoad(@Nonnull List<DataItem> items, @Nonnull String level, @Nonnull String product, long start, long end, long cadence, @Nonnull String version,
+                                  @Nonnull java.util.function.Consumer<ImageLayer> onLayer) {
         List<URI> uris = items.stream().map(DataItem::uri).toList();
         Commands.loadImage(uris).thenAccept(layer -> {
             if (layer != null) {
+                onLayer.accept(layer);
                 rememberQuery(layer, level, product, start, end, cadence, version, uris);
                 // The layer keeps the query too, not just this side map: the side map is weak,
                 // private to the missing-frames action, and never serialized, so it could not make
