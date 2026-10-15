@@ -99,6 +99,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             "Filters for one layer: RHEF per frame, and the Fourier filter or noise gate over the whole movie");
     private final ButtonText GRID = new ButtonText(Buttons.grid, "Grid", "Grid, Thomson sphere, celestial sphere, ecliptic and planet overlay settings");
     private final ButtonText CAMERA = new ButtonText(Buttons.camera, "Camera", "Where the view is seen from: Free, Follow, Turntable, Overview, and their settings");
+    private final ButtonText COMPARE = new ButtonText(Buttons.compare, "Compare",
+            "Blink between two image layers, or swipe a divider across the view with one on each side");
     private final ButtonText ANNOTATE = new ButtonText(Buttons.annotate, "Annotation",
             "Draw on the view: mode, colour and thickness (hold Shift to draw)");
     private final ButtonText SDO_CUTOUT = new ButtonText(Buttons.sdoCutout, "SDO Cut-out",
@@ -666,6 +668,11 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         cameraPalette.bind(cameraButton);
         register("camera", CAMERA, cameraButton);
 
+        // Compare (HS-11): two image layers, blinked or split by a swipe divider.
+        JToggleButton compareButton = toolToggleButton(COMPARE);
+        comparePalette.bind(compareButton);
+        register("compare", COMPARE, compareButton);
+
         // Everything reached once a session rather than once a minute, plus annotation, behind
         // one button. Annotation used to have its own top-level button; it is a mode you set once
         // and then draw in, not a control worked against the view while watching it (the thing
@@ -922,6 +929,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private static Palette sequencePalette;
     private static Palette gridPalette;
     private static Palette cameraPalette;
+    private static final Palette comparePalette = // HS-11; final, as Projection and HDR are (guards.py ratchet)
+            new Palette("Compare", ComparePaletteContent::build, ComparePaletteContent::refresh);
 
     private static final Palette colourPalette =
             new Palette("HDR", ColourPaletteContent::build, ColourPaletteContent::refresh);
