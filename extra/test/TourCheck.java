@@ -102,6 +102,22 @@ public final class TourCheck {
         expect("takeTour is catalogued under Help", take != null && take.menuPath().equals("Help/Take the Tour"));
         expect("MenuBar adds takeTour to a menu", names.contains("takeTour"));
 
+        // Help > Tours lists every tour file, and only those (HS-15).
+        Set<String> files = new TreeSet<>();
+        for (Path file : tours)
+            files.add(file.getFileName().toString().replaceFirst("\\.json$", ""));
+        expect("Tour.IDS " + Tour.IDS + " names every tour file " + files + " and no other",
+                files.equals(new TreeSet<>(Tour.IDS)) && Tour.IDS.size() == files.size());
+        for (String id : Tour.IDS) {
+            ActionCatalog.Entry entry = ActionCatalog.get(Tour.catalogId(id));
+            expect(Tour.catalogId(id) + " is catalogued under Help/Tours with the tour's title",
+                    entry != null && entry.menuPath().equals("Help/Tours/" + Tour.title(id)) && !Tour.title(id).equals(id));
+        }
+        expect("catalogId gives a word id: " + Tour.catalogId("rhef-and-filters"), "tourRhefAndFilters".equals(Tour.catalogId("rhef-and-filters")));
+        String menuBar = Files.readString(Path.of("src/org/helioviewer/jhv/gui/component/MenuBar.java"));
+        expect("MenuBar builds Help > Tours from Tour.IDS",
+                menuBar.contains("for (String tour : org.helioviewer.jhv.gui.search.Tour.IDS)") && menuBar.contains("helpMenu.add(toursMenu)"));
+
         // The card goes beside the cut-out, inside the window, and never over it.
         Rectangle area = new Rectangle(0, 0, 1200, 800);
         Dimension card = new Dimension(300, 150);
