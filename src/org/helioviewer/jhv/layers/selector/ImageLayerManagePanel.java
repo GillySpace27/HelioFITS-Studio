@@ -144,6 +144,7 @@ final class ImageLayerManagePanel extends JPanel {
         icons.add(cacheButton);
         icons.add(deleteCacheButton);
         icons.add(makeRefreshButton());
+        icons.add(makeLiveBox());
         icons.add(makeSyncButton());
         icons.add(metaButton);
 
@@ -159,6 +160,7 @@ final class ImageLayerManagePanel extends JPanel {
     }
 
     private JButton refreshButton;
+    private javax.swing.JCheckBox liveBox;
 
     /**
      * Fetch what this layer is still missing, and only then look for frames it never asked for.
@@ -215,6 +217,20 @@ final class ImageLayerManagePanel extends JPanel {
     }
 
 
+    // HS-12 phase 2. Hidden unless the punch.live setting is on, so a default install never sees it.
+    private javax.swing.JCheckBox makeLiveBox() {
+        liveBox = new javax.swing.JCheckBox("Live", org.helioviewer.jhv.io.LiveRefresh.isLive(layer));
+        liveBox.setToolTipText("Every 15 minutes, load new PUNCH frames as a new layer, only while the archive's newest day is under a week old");
+        liveBox.addActionListener(e -> {
+            if (liveBox.isSelected())
+                org.helioviewer.jhv.io.LiveRefresh.start(layer, msg -> org.helioviewer.jhv.app.Log.info(msg));
+            else
+                org.helioviewer.jhv.io.LiveRefresh.stop(layer);
+        });
+        updateRefreshVisible();
+        return liveBox;
+    }
+
     void refresh(Layer layer) {
         ImageLayer imageLayer = (ImageLayer) layer;
         downloadButton.setVisible(!imageLayer.isLocal());
@@ -233,6 +249,8 @@ final class ImageLayerManagePanel extends JPanel {
     private void updateRefreshVisible() {
         if (refreshButton != null)
             refreshButton.setVisible(PunchClient.hasRememberedQuery(layer) || !layer.getFailedUris().isEmpty());
+        if (liveBox != null)
+            liveBox.setVisible(org.helioviewer.jhv.io.LiveRefresh.enabled() && layer.getFitsRequest() != null);
     }
 
     // Everything this layer has put on disk. There are two separate stores and a layer uses one
