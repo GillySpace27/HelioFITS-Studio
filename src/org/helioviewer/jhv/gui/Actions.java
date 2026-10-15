@@ -212,6 +212,17 @@ public final class Actions {
         }
     }
 
+    public static class PunchLatestAction extends AbstractAction {
+        public PunchLatestAction() {
+            super("PUNCH Latest");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            org.helioviewer.jhv.io.PunchLatest.open("3", "CAM", msg -> org.helioviewer.jhv.app.Log.warn(msg));
+        }
+    }
+
     /** Send to Python (HS-13): the active layer's FITS sources as double-precision science FITS under Exports/, snippet on the clipboard, SAMP notified. */
     public static class SendToPython extends AbstractAction {
         public SendToPython() {
