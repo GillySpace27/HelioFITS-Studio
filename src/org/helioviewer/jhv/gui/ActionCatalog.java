@@ -91,6 +91,7 @@ public final class ActionCatalog {
         put("newPunchLayer", new Actions.NewPunchLayer(), "Layers/New PUNCH Layer…", "");
         put("newSoarLayer", new Actions.NewSoarLayer(), "Layers/New SOAR Layer…", "");
         put("newAspiicsLayer", new Actions.NewAspiicsLayer(), "Layers/New ASPIICS Layer...", "");
+        put("sendToPython", new Actions.SendToPython(), "Layers/Send to Python", "Write the active layer's FITS files as double-precision science FITS plus a manifest and a sunpy snippet");
         put("newPointCloudLayer", new Actions.NewPointCloudLayer(), "Layers/New Point Cloud Layer...", "");
         put("openImageLayer", new Actions.OpenLocalFile(), "Layers/Open Image Layer...", "");
         put("openModel", new Actions.OpenModel(), "Layers/Open Model Layer...", "");

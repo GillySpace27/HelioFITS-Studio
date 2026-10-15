@@ -93,6 +93,18 @@ public final class FitsExportCheck {
         expect("the source is byte for byte unchanged", java.util.Arrays.equals(before, Files.readAllBytes(ints.toPath())));
         expect("the snippet names the first file", FitsExport.snippet(out, manifest).contains("ints_phys.fits"));
 
+        File jp2 = new File(ints.getParentFile(), "x.jp2");
+        Files.writeString(jp2.toPath(), "x");
+        File gone = new File(ints.getParentFile(), "gone.fits");
+        File cachedHit = new File(ints.getParentFile(), "cache.fts");
+        Files.writeString(cachedHit.toPath(), "x");
+        java.util.List<File> found = FitsExport.fitsFiles(java.util.List.of(ints.toURI(), jp2.toURI(), gone.toURI(),
+                java.net.URI.create("https://example.invalid/a.fits")), u -> cachedHit);
+        expect("fitsFiles keeps FITS files and the cache's copy of a remote one, drops JP2 and missing", found.size() == 2
+                && found.get(0).equals(ints) && found.get(1).equals(cachedHit));
+        expect("outputName strips .fits.fz", FitsExport.outputName(new File("a.FITS.fz")).equals("a_phys.fits")
+                && FitsExport.outputName(new File("b.fts")).equals("b_phys.fits"));
+
         if (failures > 0) {
             System.out.println("FitsExportCheck: " + failures + " failed");
             System.exit(1);
