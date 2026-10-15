@@ -363,6 +363,7 @@ public final class MenuBar extends JMenuBar {
         catalogItem(layersMenu, "newPointCloudLayer");
         catalogItem(layersMenu, "openImageLayer");
         catalogItem(layersMenu, "openModel");
+        catalogItem(layersMenu, "duplicateLayer"); // HS-11
         layersMenu.addSeparator();
         // Loading something already downloaded is a way of adding a layer, not a tool: it was under
         // Tools only because that is where the dialog was written.
