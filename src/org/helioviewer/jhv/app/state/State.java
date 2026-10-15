@@ -78,6 +78,11 @@ public final class State {
         return writeJson(toJson(), dir, file, SEQUENCE.incrementAndGet());
     }
 
+    /** Write an already built session now, in order with every other save; false when the write failed (logged). */
+    public static boolean writeNowConfirmed(JSONObject json, String dir, String file) {
+        return writeJson(json, dir, file, SEQUENCE.incrementAndGet());
+    }
+
     // Write through a temp file and move it into place. Writing directly truncates the target
     // first, so an exception mid-write -- or two autosaves overlapping -- left a corrupt session
     // and nothing to fall back on. The displaced version is kept as .bak, one deep.

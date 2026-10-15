@@ -126,7 +126,7 @@ public final class SessionArchive {
         Path dir = sessionPath.toAbsolutePath().getParent();
         String name = sessionPath.getFileName().toString();
         if (files.isEmpty()) {
-            writeAtomic(sessionPath, wrapped.toString(1).getBytes(StandardCharsets.UTF_8));
+            writeSession(wrapped, sessionPath);
             return new Export(sessionPath, null, 0, 0);
         }
 
@@ -174,7 +174,7 @@ public final class SessionArchive {
             Files.deleteIfExists(temp);
         }
         // The session last: until it lands, whatever .jhv was there before still opens.
-        writeAtomic(sessionPath, sessionBytes);
+        writeSession(wrapped, sessionPath);
         return new Export(sessionPath, archive, files.size(), total);
     }
 
@@ -447,19 +447,12 @@ public final class SessionArchive {
         }
     }
 
-    // Same pattern as State.writeJson: temp file in the target's folder, forced, then renamed over it.
-    static void writeAtomic(Path path, byte[] bytes) throws IOException {
-        Path temp = path.resolveSibling(path.getFileName() + ".tmp");
-        try {
-            try (FileChannel channel = FileChannel.open(temp, StandardOpenOption.CREATE, StandardOpenOption.WRITE,
-                    StandardOpenOption.TRUNCATE_EXISTING)) {
-                channel.write(java.nio.ByteBuffer.wrap(bytes));
-                channel.force(true);
-            }
-            move(temp, path);
-        } finally {
-            Files.deleteIfExists(temp);
-        }
+    // Through State's writer, so the .jhv is written exactly as every other save is: in order with
+    // any autosave to the same file, synced to disk, and renamed into place.
+    private static void writeSession(JSONObject wrapped, Path path) throws IOException {
+        Path abs = path.toAbsolutePath();
+        if (!State.writeNowConfirmed(wrapped, abs.getParent().toString(), abs.getFileName().toString()))
+            throw new IOException("could not write " + abs.getFileName() + " (see the log)");
     }
 
     private static void move(Path from, Path to) throws IOException {
