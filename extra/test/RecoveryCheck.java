@@ -73,10 +73,28 @@ public final class RecoveryCheck {
         Path target = dir.resolve("s.jhv");
         long deadline = System.currentTimeMillis() + 10_000;
         String last = "";
+        // Windows refuses the writer's rename while a reader holds the target open (AccessDeniedException,
+        // seen on CI), so read only after the file has been quiet for a moment, and retry a failed read.
+        long quietSince = System.currentTimeMillis();
+        long seen = -1;
         while (System.currentTimeMillis() < deadline) {
-            last = Files.isRegularFile(target) ? Files.readString(target) : "";
-            if (last.contains("\"n\":19"))
-                break;
+            long stamp = Files.isRegularFile(target) ? Files.getLastModifiedTime(target).toMillis() + Files.size(target) : -1;
+            if (stamp != seen) {
+                seen = stamp;
+                quietSince = System.currentTimeMillis();
+            } else if (System.currentTimeMillis() - quietSince >= 300) {
+                for (int tries = 0; tries < 5; tries++) {
+                    try {
+                        last = Files.readString(target);
+                        break;
+                    } catch (java.io.IOException e) {
+                        Thread.sleep(50);
+                    }
+                }
+                if (last.contains("\"n\":19"))
+                    break;
+                quietSince = System.currentTimeMillis();
+            }
             Thread.sleep(20);
         }
         expect("twenty queued writes end with the last one, got " + last, new JSONObject(last).optInt("n") == 19);
