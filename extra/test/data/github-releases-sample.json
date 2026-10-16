@@ -1,0 +1,200 @@
+[
+  {
+    "tag_name": "v0.9.0",
+    "draft": true,
+    "prerelease": true,
+    "html_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/tag/v0.9.0",
+    "body": "A draft: never offered.",
+    "assets": [
+      {
+        "name": "HFStudio-0.9.0.dmg",
+        "state": "uploaded",
+        "size": 100,
+        "browser_download_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/download/v0.9.0/HFStudio-0.9.0.dmg",
+        "content_type": "application/octet-stream"
+      },
+      {
+        "name": "HFStudio-0.9.0-intel.dmg",
+        "state": "uploaded",
+        "size": 100,
+        "browser_download_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/download/v0.9.0/HFStudio-0.9.0-intel.dmg",
+        "content_type": "application/octet-stream"
+      },
+      {
+        "name": "HFStudio-0.9.0.zip",
+        "state": "uploaded",
+        "size": 100,
+        "browser_download_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/download/v0.9.0/HFStudio-0.9.0.zip",
+        "content_type": "application/octet-stream"
+      },
+      {
+        "name": "HFStudio-0.9.0-windows.zip",
+        "state": "uploaded",
+        "size": 100,
+        "browser_download_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/download/v0.9.0/HFStudio-0.9.0-windows.zip",
+        "content_type": "application/octet-stream"
+      },
+      {
+        "name": "HFStudio-0.9.0-linux.tar.gz",
+        "state": "uploaded",
+        "size": 100,
+        "browser_download_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/download/v0.9.0/HFStudio-0.9.0-linux.tar.gz",
+        "content_type": "application/octet-stream"
+      }
+    ]
+  },
+  {
+    "tag_name": "v5.6.0-punch-preview",
+    "draft": false,
+    "prerelease": true,
+    "html_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/tag/v5.6.0-punch-preview",
+    "body": "Not a version of this line.",
+    "assets": [
+      {
+        "name": "HFStudio-5.6.0.dmg",
+        "state": "uploaded",
+        "size": 100,
+        "browser_download_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/download/v5.6.0-punch-preview/HFStudio-5.6.0.dmg",
+        "content_type": "application/octet-stream"
+      },
+      {
+        "name": "HFStudio-5.6.0.zip",
+        "state": "uploaded",
+        "size": 100,
+        "browser_download_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/download/v5.6.0-punch-preview/HFStudio-5.6.0.zip",
+        "content_type": "application/octet-stream"
+      }
+    ]
+  },
+  {
+    "tag_name": "v0.8.10",
+    "draft": false,
+    "prerelease": true,
+    "html_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/tag/v0.8.10",
+    "body": "## New in 0.8.10\n- Linux and the zip only\n\n```\nsha256  fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210  HFStudio-0.8.10.zip\n```",
+    "assets": [
+      {
+        "name": "HFStudio-0.8.10.zip",
+        "state": "uploaded",
+        "size": 3000,
+        "browser_download_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/download/v0.8.10/HFStudio-0.8.10.zip",
+        "content_type": "application/octet-stream"
+      },
+      {
+        "name": "HFStudio-0.8.10-linux.tar.gz",
+        "state": "uploaded",
+        "size": 4000,
+        "browser_download_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/download/v0.8.10/HFStudio-0.8.10-linux.tar.gz",
+        "content_type": "application/octet-stream",
+        "digest": "sha256:0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF"
+      }
+    ]
+  },
+  {
+    "tag_name": "v0.8.9",
+    "draft": false,
+    "prerelease": true,
+    "html_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/tag/v0.8.9",
+    "body": "The Apple Silicon image is still uploading.",
+    "assets": [
+      {
+        "name": "HFStudio-0.8.9.dmg",
+        "state": "open",
+        "size": 2000,
+        "browser_download_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/download/v0.8.9/HFStudio-0.8.9.dmg",
+        "content_type": "application/octet-stream"
+      },
+      {
+        "name": "HFStudio-0.8.9-intel.dmg",
+        "state": "uploaded",
+        "size": 2100,
+        "browser_download_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/download/v0.8.9/HFStudio-0.8.9-intel.dmg",
+        "content_type": "application/octet-stream"
+      }
+    ]
+  },
+  {
+    "tag_name": "v0.8.6",
+    "draft": false,
+    "prerelease": true,
+    "html_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/tag/v0.8.6",
+    "body": "**HelioFITS Studio 0.8.6**\n\n### Updates\n- Checks for updates\n\n```\nsha256  fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210  HFStudio-0.8.6.dmg\n```",
+    "assets": [
+      {
+        "name": "HFStudio-0.8.6.dmg",
+        "state": "uploaded",
+        "size": 1500,
+        "browser_download_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/download/v0.8.6/HFStudio-0.8.6.dmg",
+        "content_type": "application/octet-stream",
+        "digest": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      {
+        "name": "HFStudio-0.8.6.zip",
+        "state": "uploaded",
+        "size": 1600,
+        "browser_download_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/download/v0.8.6/HFStudio-0.8.6.zip",
+        "content_type": "application/octet-stream"
+      },
+      {
+        "name": "HFStudio-Guide.pdf",
+        "state": "uploaded",
+        "size": 10,
+        "browser_download_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/download/v0.8.6/HFStudio-Guide.pdf",
+        "content_type": "application/octet-stream"
+      }
+    ]
+  },
+  {
+    "tag_name": "v0.8.5",
+    "draft": false,
+    "prerelease": true,
+    "html_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/tag/v0.8.5",
+    "body": "0.8.5",
+    "assets": [
+      {
+        "name": "HFStudio-0.8.5.dmg",
+        "state": "uploaded",
+        "size": 1400,
+        "browser_download_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/download/v0.8.5/HFStudio-0.8.5.dmg",
+        "content_type": "application/octet-stream"
+      },
+      {
+        "name": "HFStudio-0.8.5.zip",
+        "state": "uploaded",
+        "size": 1300,
+        "browser_download_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/download/v0.8.5/HFStudio-0.8.5.zip",
+        "content_type": "application/octet-stream"
+      },
+      {
+        "name": "HFStudio-0.8.5-windows.zip",
+        "state": "uploaded",
+        "size": 1200,
+        "browser_download_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/download/v0.8.5/HFStudio-0.8.5-windows.zip",
+        "content_type": "application/octet-stream"
+      },
+      {
+        "name": "HFStudio-0.8.5-linux.tar.gz",
+        "state": "uploaded",
+        "size": 1100,
+        "browser_download_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/download/v0.8.5/HFStudio-0.8.5-linux.tar.gz",
+        "content_type": "application/octet-stream"
+      }
+    ]
+  },
+  {
+    "tag_name": "v0.4.0",
+    "draft": false,
+    "prerelease": true,
+    "html_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/tag/v0.4.0",
+    "body": "Before the HFStudio names.",
+    "assets": [
+      {
+        "name": "JHV-Preview-Guide.pdf",
+        "state": "uploaded",
+        "size": 10,
+        "browser_download_url": "https://github.com/GillySpace27/HelioFITS-Studio/releases/download/v0.4.0/JHV-Preview-Guide.pdf",
+        "content_type": "application/octet-stream"
+      }
+    ]
+  }
+]

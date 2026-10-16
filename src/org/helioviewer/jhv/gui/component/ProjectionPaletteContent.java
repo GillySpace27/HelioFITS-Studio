@@ -2,8 +2,6 @@ package org.helioviewer.jhv.gui.component;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.util.EnumMap;
 
 import javax.swing.BorderFactory;
@@ -152,7 +150,9 @@ final class ProjectionPaletteContent {
     }
 
     private JPanel createWarpLambdaPanel() {
-        warpLambdaSlider = new JHVSlider(-1000, 1000, warpLambdaToSlider(ViewState.getWarpLambda())).animates("display.warpLambda");
+        warpLambdaSlider = new JHVSlider(-1000, 1000, warpLambdaToSlider(ViewState.getWarpLambda()))
+                .nominal(warpLambdaToSlider(1)) // double-click: the identity, as Reset view uses
+                .animates("display.warpLambda");
         named(warpLambdaSlider, "projectionWarp", "Warp");
         warpLambdaSlider.setToolTipText("Warp strength (Box-Cox lambda) for warp projections: right stretches the inner corona outward, left is the unwarped view (available in Helioradial projections)");
         warpLambdaSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, warpLambdaSlider.getPreferredSize().height));
@@ -431,7 +431,8 @@ final class ProjectionPaletteContent {
         composeRow.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 4));
         composeRow.add(skyBox, BorderLayout.LINE_START);
 
-        skyFieldSlider = new JHVSlider(0, 1000, skyFieldToSlider(Display.getSkyFieldDegrees()));
+        skyFieldSlider = new JHVSlider(0, 1000, skyFieldToSlider(Display.getSkyFieldDegrees()))
+                .nominal(skyFieldToSlider(Display.DEFAULT_SKY_FIELD));
         named(skyFieldSlider, "projectionSkyField", "Sky field");
         skyFieldSlider.setToolTipText("Angular radius of the view, centre of the picture to top edge. "
                 + "180\u00b0 is the whole sky, and only azimuthal equidistant reaches it. Double-click to reset.");
@@ -443,13 +444,6 @@ final class ProjectionPaletteContent {
             Display.setSkyFieldDegrees(degrees);
             skyFieldValue.setText(formatSkyField(degrees));
             DisplayController.display();
-        });
-        skyFieldSlider.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 2)
-                    skyFieldSlider.setValue(skyFieldToSlider(Display.DEFAULT_SKY_FIELD));
-            }
         });
         JPanel fieldRow = new JPanel(new BorderLayout());
         fieldRow.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 4));
@@ -559,7 +553,8 @@ final class ProjectionPaletteContent {
      * scale would give the whole range below 1.0 a tenth of the track.
      */
     private JPanel createDiskPanel() {
-        diskSlider = new JHVSlider(0, 1000, diskScaleToSlider(Display.getDiskScale())).animates("display.diskScale");
+        diskSlider = new JHVSlider(0, 1000, diskScaleToSlider(Display.getDiskScale()))
+                .nominal(diskScaleToSlider(Display.DEFAULT_DISK_SCALE)).animates("display.diskScale");
         named(diskSlider, "projectionDisk", "Disk");
         diskSlider.setToolTipText("Size of the solar disk as a multiple of the nominal Box-Cox warp: 1.00\u00d7 is the warp untouched, right is bigger, left is smaller. Double-click to return to nominal. (available in Helioradial projections)");
         diskSlider.setPreferredSize(new Dimension(POPUP_SLIDER_WIDTH, diskSlider.getPreferredSize().height));
@@ -572,15 +567,8 @@ final class ProjectionPaletteContent {
             Display.setDiskScale(scale);
             diskValue.setText(formatDiskScale(scale));
         });
-        // The same escape hatch the zoom slider offers: nominal is a specific value on a log
-        // scale and landing on it by dragging is luck.
-        diskSlider.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 2)
-                    diskSlider.setValue(diskScaleToSlider(Display.DEFAULT_DISK_SCALE));
-            }
-        });
+        // Double-click returns to nominal (the .nominal above): nominal is a specific value on a
+        // log scale and landing on it by dragging is luck.
 
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(BorderFactory.createEmptyBorder(3, 8, 3, 8));

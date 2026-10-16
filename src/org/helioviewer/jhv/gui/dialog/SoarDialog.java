@@ -70,6 +70,9 @@ public class SoarDialog extends StandardDialog implements SoarClient.ReceiverIte
     private List<SoarClient.DataItem> allItems = List.of();
     private final JComboBox<Cadence> cadenceCombo = new JComboBox<>(Cadences);
     private final javax.swing.JTextField excludeField = new javax.swing.JTextField(14);
+    // One dataset can hold several SOAR descriptors (EUI FSI: standard, short exposure, occulted).
+    // The search asks for all of them; this picks which are shown. "" shows every one.
+    private final JComboBox<String> variantCombo = new JComboBox<>();
 
     private record Cadence(String label, long milli) {
         @Override
@@ -130,10 +133,12 @@ public class SoarDialog extends StandardDialog implements SoarClient.ReceiverIte
         List<String> excludes = excludeText.isEmpty() ? List.of()
                 : java.util.Arrays.stream(excludeText.split("[,\\s]+")).filter(t -> !t.isEmpty()).toList();
 
+        String variant = variantCombo.getSelectedItem() instanceof String v ? v : "";
         List<SoarClient.DataItem> kept = new java.util.ArrayList<>(allItems.size());
         for (SoarClient.DataItem item : allItems) {
             String id = item.id().toLowerCase(java.util.Locale.ROOT);
-            if (excludes.stream().noneMatch(id::contains))
+            if ((variant.isEmpty() || variant.equals(ProductVariants.soarDescriptor(item.id())))
+                    && excludes.stream().noneMatch(id::contains))
                 kept.add(item);
         }
 
@@ -160,6 +165,19 @@ public class SoarDialog extends StandardDialog implements SoarClient.ReceiverIte
         foundLabel.setText(hidden == 0
                 ? kept.size() + " found"
                 : kept.size() + " found (" + hidden + " filtered out)");
+    }
+
+    // Offer the dataset's descriptors, preselecting the standard one where there is one (EUI FSI);
+    // for every other dataset all variants stay shown, as before.
+    private void setVariants(@Nullable List<String> descriptors) {
+        List<String> items = new java.util.ArrayList<>();
+        items.add("");
+        if (descriptors != null && descriptors.size() > 1)
+            items.addAll(descriptors);
+        variantCombo.setModel(new DefaultComboBoxModel<>(items.toArray(String[]::new)));
+        variantCombo.setEnabled(items.size() > 1);
+        items.stream().filter(ProductVariants::soarIsStandard).findFirst().ifPresent(variantCombo::setSelectedItem);
+        refilter();
     }
 
     private static double getTotalSize(List<SoarClient.DataItem> items) {
@@ -249,6 +267,22 @@ public class SoarDialog extends StandardDialog implements SoarClient.ReceiverIte
         JButton searchButton = getSearchButton(datasetCombo, levelCombo, timeQuery);
         dataSelector.add(searchButton);
 
+        variantCombo.setRenderer(new javax.swing.DefaultListCellRenderer() {
+            @Override
+            public java.awt.Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                String d = value instanceof String s ? s : "";
+                JLabel label = (JLabel) super.getListCellRendererComponent(list, d.isEmpty() ? "all variants" : ProductVariants.soarLabel(d), index, isSelected, cellHasFocus);
+                label.setToolTipText(d.isEmpty() ? "Show every variant the search returned" : ProductVariants.soarTip(d));
+                return label;
+            }
+        });
+        variantCombo.addActionListener(e -> {
+            variantCombo.setToolTipText(variantCombo.getSelectedItem() instanceof String d && !d.isEmpty() ? ProductVariants.soarTip(d) : null);
+            refilter();
+        });
+        datasetCombo.addActionListener(e -> setVariants(datasetCombo.getSelectedItem() instanceof String d ? Dataset.get(d) : null));
+        setVariants(datasetCombo.getSelectedItem() instanceof String d ? Dataset.get(d) : null);
+
         // Same button the observation and PUNCH dialogs carry; SOAR simply never called it, so its
         // range had to be retyped whenever the movie moved.
         timeSelectorPanel.addUseMovieTimeButton();
@@ -263,6 +297,8 @@ public class SoarDialog extends StandardDialog implements SoarClient.ReceiverIte
         });
 
         JPanel filterPanel = new JPanel(new FlowLayout(FlowLayout.TRAILING, 5, 0));
+        filterPanel.add(new JLabel("Variant"));
+        filterPanel.add(variantCombo);
         filterPanel.add(new JLabel("Cadence"));
         filterPanel.add(cadenceCombo);
         filterPanel.add(new JLabel("Exclude"));

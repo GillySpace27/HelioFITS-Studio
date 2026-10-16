@@ -45,7 +45,9 @@ final class AngleLibraries {
     }
 
     static Path libraryPath(String fileName) {
-        if (Platform.isMacOS() && METAL_HOST_LIBRARY.equals(fileName)) {
+        // jpackage sets jpackage.app-path in the app it builds, whose jar carries the dylib: a packaged
+        // app started from a checkout must not pick up that checkout's copy (0.8.6, 2026-10-11).
+        if (Platform.isMacOS() && METAL_HOST_LIBRARY.equals(fileName) && System.getProperty("jpackage.app-path") == null) {
             Path path = MACOS_NATIVE_DIR.resolve(fileName).toAbsolutePath();
             if (Files.exists(path))
                 return path;

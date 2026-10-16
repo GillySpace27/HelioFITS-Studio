@@ -32,6 +32,18 @@ public final class BuildInfoCheck {
         expect("nothing loaded: the defaults, commit unknown, not dirty",
                 (AppInfo.version + " (r" + AppInfo.revision + ", unknown)").equals(AppInfo.buildId()));
 
+        expect("at the release tag the label is the bare version", "0.8.3".equals(AppInfo.label("0.8.3", "0")));
+        expect("112 commits past the tag: 0.8.3+112", "0.8.3+112".equals(AppInfo.label("0.8.3", "112")));
+        expect("no tag here, or an unsubstituted token: the bare version",
+                "0.8.4".equals(AppInfo.label("0.8.4", "")) && "0.8.4".equals(AppInfo.label("0.8.4", "@@SINCE"))
+                        && "0.8.4".equals(AppInfo.label("0.8.4", null)));
+        System.setProperty("jhv.since", "112");
+        System.setProperty("jhv.commit", "7671c40d9a1b");
+        expect("buildId and the image stamp carry the label",
+                AppInfo.buildId().startsWith(AppInfo.version + "+112 (r")
+                        && (AppInfo.programName + ' ' + AppInfo.version + "+112 (7671c40d9a1b)").equals(AppInfo.stamp()));
+        System.clearProperty("jhv.since");
+
         System.setProperty("jhv.commit", "@@COMMIT");
         expect("an unsubstituted token reads as unknown, never as a commit", "unknown".equals(AppInfo.commit()));
         System.setProperty("jhv.commit", "0123456789ab");
@@ -43,9 +55,11 @@ public final class BuildInfoCheck {
         String props = Files.readString(Path.of("version.properties"));
         expect("version.properties carries the commit and dirty tokens",
                 props.contains("jhv.commit=@@COMMIT") && props.contains("jhv.dirty=@@DIRTY"));
+        expect("version.properties carries the since token", props.contains("jhv.since=@@SINCE"));
         String build = Files.readString(Path.of("build.xml"));
         expect("build.xml substitutes both tokens",
                 build.contains("token=\"@@COMMIT\" value=\"${commit}\"") && build.contains("token=\"@@DIRTY\" value=\"${dirty}\""));
+        expect("build.xml substitutes the since token", build.contains("token=\"@@SINCE\" value=\"${since}\""));
         expect("build.xml writes commit and dirty into the manifest",
                 build.contains("<attribute name=\"commit\" value=\"${commit}\"/>")
                         && build.contains("<attribute name=\"dirty\" value=\"${dirty}\"/>"));

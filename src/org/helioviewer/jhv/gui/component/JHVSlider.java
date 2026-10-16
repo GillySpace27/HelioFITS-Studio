@@ -37,15 +37,22 @@ public final class JHVSlider extends JSlider {
     @Nullable
     private JLabel readout;
 
+    // Where a double-click puts the handle. The value the slider was built with, unless the call
+    // site knows the parameter's nominal default and says so with nominal(): a layer's options
+    // panel is rebuilt from the layer's current state, so the built value is whatever the layer
+    // had then, which disagreed with the section reverts (they use the nominal defaults).
+    private int resetValue;
+
     public JHVSlider(int min, int max, int defaultValue) {
         super(JSlider.HORIZONTAL, min, max, defaultValue);
+        resetValue = defaultValue;
 
         addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 2 && !e.isConsumed()) {
                     e.consume();
-                    setValue(defaultValue);
+                    setValue(resetValue);
                 }
             }
 
@@ -81,6 +88,12 @@ public final class JHVSlider extends JSlider {
         // sliders adjusted each one in turn instead of scrolling, which is a scroll gesture that
         // silently edits the picture. Without a listener the event walks up to the sidebar's
         // JScrollPane, which is what the user was aiming at.
+    }
+
+    /** The value a double-click returns to: the parameter's nominal default, not the built value. */
+    public JHVSlider nominal(int value) {
+        resetValue = value;
+        return this;
     }
 
     /** Binds this slider to an animatable parameter, which is what puts Animate in its menu. */

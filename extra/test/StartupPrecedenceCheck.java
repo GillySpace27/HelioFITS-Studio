@@ -54,6 +54,18 @@ public final class StartupPrecedenceCheck {
                 + ", got " + got.source() + " " + (gotFile == null ? "none" : gotFile.getName()), ok);
     }
 
+    private static void modeRow(boolean extraWindow, @javax.annotation.Nullable File restoreFile,
+                                @javax.annotation.Nullable String loadState, String mode,
+                                CommandLine.StartupState.Source want, @javax.annotation.Nullable File wantFile) {
+        CommandLine.StartupState got = CommandLine.resolveStartup(extraWindow, restoreFile, loadState, mode);
+        File gotFile = got.uri() == null ? null : new File(got.uri());
+        boolean ok = got.source() == want
+                && (wantFile == null ? gotFile == null : wantFile.getAbsoluteFile().equals(gotFile));
+        expect((extraWindow ? "extra window" : "primary") + ", restore " + name(restoreFile)
+                + ", startup.loadState " + name(loadState) + ", startup.mode '" + mode + "': want " + want + " "
+                + name(wantFile) + ", got " + got.source() + " " + (gotFile == null ? "none" : gotFile.getName()), ok);
+    }
+
     private static File fileOf(String value) {
         return value.startsWith("file:") ? new File(URI.create(value)) : new File(value).getAbsoluteFile();
     }
@@ -108,13 +120,19 @@ public final class StartupPrecedenceCheck {
         row(true, restore, "false", EXTRA, restore);
         row(true, restore, pin, EXTRA, restore);
 
-        // startup.mode (HS-10)
-        // Reserved for HS-10, which gives "blank" its meaning. Until then the mode is passed through
-        // and ignored: it must never change the answer, and BLANK is never returned.
-        CommandLine.StartupState blankAsked = CommandLine.resolveStartup(false, restore, null, "blank");
-        expect("startup.mode is ignored before HS-10, got " + blankAsked.source(), blankAsked.source() == AUTOSAVE);
-        CommandLine.StartupState blankNothing = CommandLine.resolveStartup(false, null, null, "blank");
-        expect("and never answers BLANK, got " + blankNothing.source(), blankNothing.source() == NONE);
+        // startup.mode (HS-10): "blank" starts on the fresh-install scene instead of the autosave.
+        // It sits below the pinned default and an extra window's own file, so it changes only the
+        // last rung; any other value keeps the old answer.
+        CommandLine.StartupState.Source BLANK = CommandLine.StartupState.Source.BLANK;
+        modeRow(false, restore, null, "blank", BLANK, null);
+        modeRow(false, restore, "true", "blank", BLANK, null);
+        modeRow(false, restore, "false", "blank", BLANK, null);
+        modeRow(false, null, null, "blank", BLANK, null);
+        modeRow(false, restore, pin, "blank", PINNED, pinned);
+        modeRow(true, restore, null, "blank", EXTRA, restore);
+        modeRow(true, null, null, "blank", NONE, null);
+        modeRow(false, restore, null, "last", AUTOSAVE, restore);
+        modeRow(false, restore, null, "", AUTOSAVE, restore);
 
         // The real startup path, primary window, with an autosave on disk. The first -state is the
         // one loadRequest loads, so an explicit one has to come first whatever is pinned.
@@ -128,6 +146,26 @@ public final class StartupPrecedenceCheck {
         Settings.setProperty("startup.loadState", pin);
         launch("pinned default over the autosave", new String[0], pinned, pinned);
         launch("explicit -state over the pinned default", new String[] {"-state", explicit.getPath()}, explicit, pinned);
+
+        // A blank start loads no session, and an explicit -state still wins over it. The untitled
+        // autosave it would otherwise reopen is copied aside first, since the blank session will
+        // autosave over that file; the copy goes into Open Recent so it is one click away.
+        Settings.setProperty("startup.loadState", "false");
+        Settings.setProperty("startup.mode", "blank");
+        String[] before = states.list();
+        CommandLine.setArguments(new String[0]);
+        expect("blank start: no -state, got " + CommandLine.getOptionValues("-state"),
+                CommandLine.getOptionValues("-state").isEmpty());
+        String[] after = states.list();
+        java.util.List<String> added = new java.util.ArrayList<>(java.util.Arrays.asList(after));
+        added.removeAll(java.util.Arrays.asList(before));
+        File kept = added.size() == 1 ? new File(states, added.get(0)) : null;
+        expect("blank start: the untitled autosave is copied aside, added " + added,
+                kept != null && Files.readString(kept.toPath()).equals(Files.readString(restore.toPath())));
+        expect("blank start: the copy is first in Open Recent",
+                kept != null && org.helioviewer.jhv.app.Session.recentSessions().indexOf(kept.getAbsolutePath()) == 0);
+        launch("explicit -state over a blank start", new String[] {"-state", explicit.getPath()}, explicit, explicit);
+        Settings.setProperty("startup.mode", "last");
 
         System.out.println(failures == 0 ? "StartupPrecedenceCheck: ok" : "StartupPrecedenceCheck: " + failures + " FAIL");
         System.exit(failures == 0 ? 0 : 1);

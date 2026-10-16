@@ -71,6 +71,7 @@ public final class LascoClient {
                 LascoPointing.lend(frames, otherTelescope(request, frames));
             } catch (Exception e) {
                 Log.error("Could not read LASCO headers to lend pointing; frames with none will show unrotated", e);
+                uris.forEach(uri -> LascoPointing.probed(uri, false)); // so the session saves this as unfinished
             }
             return uris;
         }
@@ -198,8 +199,11 @@ public final class LascoClient {
             for (URI uri : uris)
                 futures.add(pool.submit(() -> readProbe(uri)));
             List<Probe> probes = new ArrayList<>(uris.size());
-            for (Future<Probe> f : futures)
-                probes.add(f.get());
+            for (int i = 0; i < futures.size(); i++) {
+                Probe p = futures.get(i).get();
+                LascoPointing.probed(uris.get(i), p.frame() != null);
+                probes.add(p);
+            }
             return probes;
         } finally {
             pool.shutdown();

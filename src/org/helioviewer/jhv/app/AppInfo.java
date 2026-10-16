@@ -3,6 +3,8 @@ package org.helioviewer.jhv.app;
 import java.io.InputStream;
 import java.util.Properties;
 
+import javax.annotation.Nullable;
+
 public final class AppInfo {
 
     public static final String programName = "HelioFITS Studio";
@@ -30,6 +32,42 @@ public final class AppInfo {
     // with the SDAC and the VSO, not a string edit.
     public static String userAgent = "JHV/SWHV-";
     public static String versionDetail = "";
+
+    /**
+     * The changelog section for {@code version}: the lines under the "## " heading that names it,
+     * up to the next "## " heading, trimmed; empty when no heading names it. A heading names a
+     * version when the version is a whole word in it, so 0.8.4 does not match 0.8.40.
+     * WelcomeChangelogCheck pins it.
+     *
+     * <p>Sections right below it whose heading says "(unreleased)" follow, heading included: those
+     * versions never shipped on their own (0.8.4 went out inside 0.8.5), so their changes are new to
+     * everyone running this one (Gilly, 2026-10-06).
+     */
+    public static String whatsNew(String changelog, String version) {
+        StringBuilder out = null;
+        for (String line : changelog.split("\n", -1)) {
+            if (line.startsWith("## ")) {
+                if (out != null) {
+                    if (!line.contains("(unreleased)"))
+                        break;
+                    out.append(line).append('\n');
+                } else if ((line + ' ').contains(' ' + version + ' '))
+                    out = new StringBuilder();
+            } else if (out != null)
+                out.append(line).append('\n');
+        }
+        return out == null ? "" : out.toString().strip();
+    }
+
+    /** What's New for the running version, from the changelog.md the jar carries; empty if absent. */
+    public static String whatsNew() {
+        try (InputStream is = AppInfo.class.getResourceAsStream("/changelog.md")) {
+            return is == null ? "" : whatsNew(new String(is.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8), version);
+        } catch (java.io.IOException e) {
+            Log.warn(e);
+            return "";
+        }
+    }
 
     public static void loadVersion() {
         try (InputStream is = AppInfo.class.getResourceAsStream("/version.properties")) {
@@ -69,13 +107,34 @@ public final class AppInfo {
         return Boolean.parseBoolean(System.getProperty("jhv.dirty"));
     }
 
-    /** One string for the log, the About box and every export: "0.8.4 (r14185, 7671c40d9a1b)". */
+    /**
+     * The version this build can honestly claim: "0.8.3" at the v0.8.3 tag, "0.8.3+112" for a
+     * build 112 commits after it. Without the suffix every build between two releases carried the
+     * same number, so a figure could not be traced back to the build that drew it. Read from the
+     * property like commit(), for the same reason.
+     */
+    public static String label() {
+        return label(version, System.getProperty("jhv.since"));
+    }
+
+    static String label(String version, @Nullable String since) {
+        if (since == null || !since.matches("[0-9]+") || "0".equals(since))
+            return version;
+        return version + '+' + since;
+    }
+
+    /** One string for the log, the About box and every export: "0.8.3+112 (r14185, 7671c40d9a1b)". */
     public static String buildId() {
-        return buildId(version, revision, commit(), dirty());
+        return buildId(label(), revision, commit(), dirty());
     }
 
     static String buildId(String version, String revision, String commit, boolean dirty) {
         return version + " (r" + revision + ", " + commit + (dirty ? ", dirty" : "") + ')';
+    }
+
+    /** The line stamped on images and in each frame's "writer": "HelioFITS Studio 0.8.3+112 (7671c40d9a1b)". */
+    public static String stamp() {
+        return programName + ' ' + label() + " (" + commit() + (dirty() ? ", dirty" : "") + ')';
     }
 
     private AppInfo() {}

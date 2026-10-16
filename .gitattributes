@@ -1,0 +1,4 @@
+# FITS headers are ASCII, so git would diff the files as text and split the binary data into
+# hunks; extra/ci/guards.py diff then read a data line as a hunk header and crashed.
+*.fits binary
+*.fts binary

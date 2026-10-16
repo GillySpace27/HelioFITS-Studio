@@ -231,6 +231,14 @@ public final class ViewState {
     }
     private static int recordingLongSide = DEFAULT_LONG_SIDE;
 
+    /**
+     * The mode a fresh process starts in, from the field initializers in Display, ViewState,
+     * ImageLayers and ViewpointState. Start New Session goes back to it (BlankSession);
+     * BlankSessionCheck fails if a default changes without this.
+     */
+    public static final ModeData DEFAULT_MODE = new ModeData(MapMode.Orthographic, SurfaceModel.PlaneOfSky, 0,
+            AnnotationMode.Cross, false, false, false, true, false, false);
+
     public static ModeData modeData() {
         return new ModeData(getProjection(), Display.getSurfaceModel(), getWarpLambda(), getAnnotationMode(),
                 isMultiview(), isTracking(), isRefresh(), isShowCorona(), isDifferentialRotation(), Display.isHelioradial3D());

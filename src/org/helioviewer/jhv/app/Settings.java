@@ -29,6 +29,45 @@ public class Settings {
             setProperty("dataSources.defaultServer", "IAS");
         }
     };
+
+    /**
+     * Gilly's arrangement of the toolbar, sidebars, sections and palettes, shipped as the default
+     * (2026-10-06). A home with no settings file, or one that lost these keys, used to open with
+     * the palettes hidden and the toolbar in upstream's order until each was put back by hand.
+     * Only defaults: anything the user's own file sets wins, and nothing here is ever written to it.
+     */
+    static final String LAYOUT_PRESET = "/settings/layout-defaults.properties";
+
+    static {
+        try (java.io.InputStream in = Settings.class.getResourceAsStream(LAYOUT_PRESET)) {
+            if (in != null) {
+                Properties preset = new Properties();
+                preset.load(in);
+                for (String key : preset.stringPropertyNames())
+                    if (isLayoutKey(key))
+                        defaults.setProperty(key, preset.getProperty(key));
+            }
+        } catch (java.io.IOException e) {
+            // Not logged: this runs before the log exists. Without the preset the old defaults stand.
+        }
+    }
+
+    /**
+     * Whether a key describes the layout, and so may come from the preset. Nothing else may: not a
+     * path, a server, a window position for someone else's screen, or a token. Nor a section
+     * named after a layer ("LASCO C2 Layer Options", "3 Layers Selected"): those follow whatever
+     * data was open when the file was written, not the layout.
+     */
+    static boolean isLayoutKey(String key) {
+        if (key.startsWith("ui.section.") && !key.equals("ui.section.Layer_Options")
+                && (key.endsWith("_Layer_Options") || key.matches("ui\\.section\\.\\d+_Layers_Selected")))
+            return false;
+        return key.startsWith("ui.toolbar.") || key.startsWith("ui.palette.") || key.startsWith("ui.section.")
+                || key.equals("ui.rightSidebarOrder") || key.equals("ui.sidebarWidth") || key.equals("ui.rightSidebarWidth")
+                || key.equals("ui.sidebarCollapsed") || key.equals("ui.rightSidebarCollapsed") || key.equals("ui.panelsLocked")
+                || key.equals("display.toolbar") || key.equals("display.toolbar.visible")
+                || key.equals("display.statusbar.visible") || key.equals("display.plugins");
+    }
     private static final Properties settings = new Properties(defaults);
     /**
      * Whether this process has read the settings file. Until it has, nothing may be written over it.
@@ -99,7 +138,9 @@ public class Settings {
     }
 
     public static void setProperty(String key, String val) {
-        if (!val.equals(getProperty(key))) {
+        // Against the user's own value, not the default: a choice that happens to equal today's
+        // default is still a choice, and must survive the default changing (the layout preset).
+        if (!val.equals(settings.get(key))) {
             settings.setProperty(key, val);
             write();
         }
@@ -144,6 +185,11 @@ public class Settings {
 
     public static String getProperty(String key) {
         return settings.getProperty(key);
+    }
+
+    /** Whether the user's own settings hold this key, as opposed to it coming from a default. */
+    public static boolean isSet(String key) {
+        return settings.containsKey(key);
     }
 
     /**

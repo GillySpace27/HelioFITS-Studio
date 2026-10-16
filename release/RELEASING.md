@@ -69,15 +69,17 @@ only ever appended:
   **attached by CI about ten minutes after `publish`**, only if each package
   started, drew an image and decoded a JPEG 2000 file with its own bundled
   OpenJPEG. x86-64 only. The Windows build is not code-signed, so SmartScreen
-  warns on first run. CI draws in software; nobody has used them on real
-  hardware yet.
+  warns on first run (More info, Run anyway; no admin needed: it is an
+  app-image, not an installer). CI draws in software. A few people have run
+  the Windows package; nobody has used the Linux one on real hardware yet.
 - `HFStudio-Guide.pdf` / `.md`: the field guide, generated from
   `guide_content.json` + `guide_assets/`.
 - `fabric_suvi.json.gz`: demo point cloud, opened from the Point Cloud layer.
 
-**macOS arm64 is the only platform used on real hardware.** Say so when sharing.
-The download page's Windows and Linux tiles stay off until a person has
-confirmed that platform's package and set its `confirmed` flag in
+**macOS arm64 is the platform used daily; Windows has a few users; Linux is untested.**
+Say so when sharing. Gilly wants the Windows and Linux tiles offered anyway
+(2026-10-08): a report of how it broke beats a visitor who never tries. A tile
+is turned on by its `confirmed` flag in
 `heliofits-studio/index.html` (the `GillySpace27.github.io` repository), and the release
 also carries that platform's file.
 
@@ -98,7 +100,8 @@ second half, not a string edit.
   lives in the site repository (`GillySpace27.github.io`), outside this one. It
   asks GitHub for the newest release when it loads, so a release needs no edit
   there; its fixed fallback links (used only when GitHub cannot be reached)
-  still name 0.8.2 (read 2026-10-01 in `heliofits-studio/index.html`). The tracker's `live` check reads it. The old links have been
+  name v0.8.6 (read 2026-10-13 in `heliofits-studio/index.html` on the site's
+  master; the site's `tools/pin_studio_fallback.py` moves them to a new release). The tracker's `live` check reads it. The old links have been
   sent to people, so keep them all working.
 - **`GillySpace27/HelioFITS-Studio`**, the repository slug. It began as
   `HelioFITS-Studio`, became `HFStudio` on 2026-09-18 and `PUNCHStudio` on
@@ -162,9 +165,14 @@ stay the procedure; the phases only run them in order.
 |---|---|---|
 | `release/ship.sh bump <version>` | writes `VERSION` with no trailing newline; refuses without a `## ... <version> ...` heading in `changelog.md` | before 1 |
 | `release/ship.sh prepare` | tracker row `pushed`; the tag typed at a terminal, or `HFS_NOTARIZE_APPROVED=<tag>` for that one run (the build goes to Apple); `ant clean check-all`; `notarize`, and `MAC_ARCH=x64 notarize` when `release/.jdk-x64` exists; `package`; tracker rows `pushed` to `zip` | 1 (checked, not pushed), 2, 3, 4 |
-| `release/ship.sh gate` | `publish --dry-run`; `build_guide.py --strict`; the smoke test, typed as `smoke-tested`; prints the gate text for Gilly | 5, 6 (the question) |
+| `release/ship.sh gate` | `publish --dry-run`; `build_guide.py --strict`; `release/smoke_dmg.sh` on each dmg (starts it from an empty directory with a throwaway home, Intel under Rosetta, and fails on no drawing, an uncaught exception or a missing class); the smoke test, typed as `smoke-tested` or, with no terminal, `HFS_SMOKE_APPROVED=<tag>` after Gilly's yes; prints the gate text for Gilly | 5, 6 (the question) |
 | `release/ship.sh publish` | the tag typed at a terminal, or `HFS_PUBLISH_APPROVED=<tag>` for that one run; then `deploy_release.sh publish` | 6 (after his yes) |
 | `release/ship.sh confirm` | waits up to 30 minutes for `package.yml` on the tag; tracker rows `published`, `live`, `ci_package`, `assets_all` | 7 |
+
+`smoke_dmg.sh` starts the app from an empty directory on purpose: the app looks for
+`lib/natives-macos/libjhvmetalhost.dylib` relative to the working directory before its own
+copy (`AngleLibraries.libraryPath`), so starting a dmg's app from inside a checkout tests that
+checkout's dylib. Finder starts apps in `/`.
 
 Nothing in `ship.sh` pushes a branch. `HFS_PUBLISH_APPROVED` is set only after
 Gilly's yes in chat, only to that exact tag, and only for that one invocation.
@@ -360,7 +368,8 @@ guide will be regenerated
 Paste that output to Gilly verbatim as the question. Each `!!` line is a
 refusal (exit 2) naming the step to rerun: a dmg with no receipt, or whose
 sha256 or `build_sha` is not the receipt's and HEAD's (rerun step 4); `spctl`
-rejecting a dmg (step 4); not on `master`, uncommitted `src`, `resources` or
+rejecting a dmg (step 4); no Intel dmg while `release/.jdk-x64` exists (step 4,
+`MAC_ARCH=x64`); not on `master`, uncommitted `src`, `resources` or
 `VERSION`, or HEAD not equal to `origin/master` (step 1); a jar whose manifest
 revision is not HEAD's count (step 2); the tag already at another commit or the
 release already existing (bump `VERSION`); Friday after 12:00 (step 6: another
@@ -435,6 +444,24 @@ fixed fallback links name this release. `python3 skills/ship-hfstudio/scripts/st
 --selftest` grades every check against a tag that never existed and a retired one, and
 exits 1 if any check passes there.
 
+### 8. Feed record
+
+`publish` ends by appending this release to the HelioSoftware feed in the Website checkout (`$SITE`,
+default `~/vscode/Website`): `heliosoftware/feed/heliofits-studio.json`, then `feed.xml` and
+`whats-new/index.html` are regenerated. It records the Apple Silicon dmg, the Intel dmg when one was
+built, the cross-platform zip and the guide, each with its sha256 and size. Which platforms are marked
+confirmed follows the `confirmed` flags in `PLATFORMS` on the Website's `heliofits-studio/index.html`
+(`mac` is `macos-arm64`, `intel` is `macos-x64`; Gilly's default B4, 2026-10-12), so a tile is
+confirmed in one place only: flip it on the page, by hand, after Gilly has run that build on real
+hardware. The guide is always confirmed and the zip never is; if the page cannot be read, only the
+guide is. The Windows and Linux packages are attached by CI after publish, so they are not in the
+record (records are append-only).
+
+The step never blocks or undoes the release. If it printed `feed record NOT written`, fix the cause
+and run `./deploy_release.sh feed`. The Website change is left uncommitted in the Website checkout:
+committing and pushing the Website is a separate yes from Gilly. Test: `SITE=<Website checkout>
+python3 extra/test/test_feed_record.py` (skipped without a Website checkout).
+
 ## Hand-off boundary
 
 This procedure ends at "the assets on the release are the ones just built".
@@ -444,8 +471,9 @@ It does **not** cover:
   collaborators is a separate, human step.
 - **Upstream contribution.** Shipping a release is unrelated to the PRs against
   `Helioviewer-Project/JHelioviewer-SWHV`, which are gated on bogdanni.
-- **Non-macOS platforms.** The Linux and Windows launchers ship untested. The
-  first real Windows user will be an external collaborator.
+- **Non-macOS platforms.** A few collaborators have run the Windows package
+  (0.8.3 at least, per Gilly 2026-10-08); Linux has not been used on real
+  hardware. Gilly wants both offered anyway, so failures get reported.
 
 ## Things that have actually gone wrong here
 
@@ -647,3 +675,26 @@ release object; the next preview would have been `v5.6b-coronal-research`.
   failing on a bogus tag, and it now grades the Intel dmg, the CI run, every asset
   in `release/assets.txt` and the page's fallback links. `release/ship.sh` runs the
   procedure as phases. Tests: `extra/test/test_release_assets.py`.
+
+- **2026-10-11: 0.8.6 took four tries to notarize, one fix to launch, and a day to
+  reach Intel Macs.** (1) The upload to Apple's S3 bucket died with `Connection reset
+  by peer` (`NWError 54`), on a phone hotspot and on wifi alike, sometimes after a
+  few parts, while ordinary uploads ran at 243 Mbps; with S3 acceleration notarytool
+  crashed with a bus error, as on 2026-09-23. Pausing Bitdefender's network
+  protection (`com.bitdefender.cst.net.dci`) let the second try through, and the next
+  morning both dmgs uploaded first time. `notarytool submit` now
+  passes `--no-s3-acceleration`. A locked screen stopped two runs as before
+  (2026-09-18). (2) The app inside the first notarized dmg threw
+  `NoClassDefFoundError: java/net/http/HttpClient` a second after launch: the new
+  feedback code was the first user of `java.net.http`, which the trimmed runtime in
+  `make-runtime.sh` did not carry, and the dev build runs on the full JDK, so `ant
+  test` could not see it. Only step 5 caught it; the dmg was never published.
+  `test_runtime_modules.py` now checks the module list. (3) A 60 s `notarytool info`
+  timed out on an Accepted submission; `notarize-resume` finished it. (4) The release
+  went out without its Intel dmg although `release/.jdk-x64` was on the Mac, because
+  the steps followed named only the Apple Silicon notarize; Intel Macs were sent to
+  the zip and Java. The Intel dmg was built, smoke-tested under Rosetta and added
+  to v0.8.6 the next morning (no `--clobber`), with the notes' Intel paragraph
+  changed to the wording `publish` writes when it exists. `publish` now refuses a
+  release with no Intel dmg wherever `release/.jdk-x64` exists
+  (`test_release_assets.py`).

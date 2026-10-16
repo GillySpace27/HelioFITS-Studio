@@ -38,9 +38,10 @@ public final class TourCheck {
             failures++;
     }
 
-    private static Set<String> assignedNames() throws Exception {
+    static Set<String> assignedNames() throws Exception { // ControlSearchCheck reads it too
         Set<String> names = new TreeSet<>();
-        Pattern setName = Pattern.compile("\\.setName\\(\"(\\w+)\"\\)");
+        // setName("id"), and ProjectionPaletteContent's named(component, "id", spoken), which calls it
+        Pattern setName = Pattern.compile("(?:\\.setName\\(|\\bnamed\\(\\w+, )\"(\\w+)\"[),]"); // the literal whole, not "projection" + a suffix
         try (Stream<Path> files = Files.walk(Path.of("src"))) {
             for (Path p : files.filter(f -> f.toString().endsWith(".java")).toList()) {
                 Matcher m = setName.matcher(Files.readString(p));
@@ -100,6 +101,22 @@ public final class TourCheck {
         ActionCatalog.Entry take = ActionCatalog.get("takeTour");
         expect("takeTour is catalogued under Help", take != null && take.menuPath().equals("Help/Take the Tour"));
         expect("MenuBar adds takeTour to a menu", names.contains("takeTour"));
+
+        // Help > Tours lists every tour file, and only those (HS-15).
+        Set<String> files = new TreeSet<>();
+        for (Path file : tours)
+            files.add(file.getFileName().toString().replaceFirst("\\.json$", ""));
+        expect("Tour.IDS " + Tour.IDS + " names every tour file " + files + " and no other",
+                files.equals(new TreeSet<>(Tour.IDS)) && Tour.IDS.size() == files.size());
+        for (String id : Tour.IDS) {
+            ActionCatalog.Entry entry = ActionCatalog.get(Tour.catalogId(id));
+            expect(Tour.catalogId(id) + " is catalogued under Help/Tours with the tour's title",
+                    entry != null && entry.menuPath().equals("Help/Tours/" + Tour.title(id)) && !Tour.title(id).equals(id));
+        }
+        expect("catalogId gives a word id: " + Tour.catalogId("rhef-and-filters"), "tourRhefAndFilters".equals(Tour.catalogId("rhef-and-filters")));
+        String menuBar = Files.readString(Path.of("src/org/helioviewer/jhv/gui/component/MenuBar.java"));
+        expect("MenuBar builds Help > Tours from Tour.IDS",
+                menuBar.contains("for (String tour : org.helioviewer.jhv.gui.search.Tour.IDS)") && menuBar.contains("helpMenu.add(toursMenu)"));
 
         // The card goes beside the cut-out, inside the window, and never over it.
         Rectangle area = new Rectangle(0, 0, 1200, 800);

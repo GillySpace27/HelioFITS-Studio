@@ -172,6 +172,7 @@ public final class MenuBar extends JMenuBar {
         fileMenu.addSeparator();
         catalogItem(fileMenu, "saveSession");
         catalogItem(fileMenu, "saveSessionAs");
+        catalogItem(fileMenu, "exportSessionWithData");
         catalogItem(fileMenu, "revertToSaved");
         fileMenu.addSeparator();
         catalogItem(fileMenu, "setDefaultSession");
@@ -179,6 +180,7 @@ public final class MenuBar extends JMenuBar {
         fileMenu.addSeparator();
         catalogItem(fileMenu, "reloadSources");
         catalogItem(fileMenu, "copyProvenance");
+        catalogItem(fileMenu, "openExportsFolder");
         if (!Platform.isMacOS())
             catalogItem(fileMenu, "newWindow"); // no Window menu off macOS
 
@@ -361,6 +363,7 @@ public final class MenuBar extends JMenuBar {
         catalogItem(layersMenu, "newPointCloudLayer");
         catalogItem(layersMenu, "openImageLayer");
         catalogItem(layersMenu, "openModel");
+        catalogItem(layersMenu, "duplicateLayer"); // HS-11
         layersMenu.addSeparator();
         // Loading something already downloaded is a way of adding a layer, not a tool: it was under
         // Tools only because that is where the dialog was written.
@@ -412,7 +415,14 @@ public final class MenuBar extends JMenuBar {
         JMenu helpMenu = new JMenu("Help");
         helpMenu.setMnemonic(KeyEvent.VK_H);
         helpMenu.setName("helpMenu"); // tour target
+        catalogItem(helpMenu, "searchControls");
+        catalogItem(helpMenu, "welcome");
         catalogItem(helpMenu, "takeTour");
+        JMenu toursMenu = new JMenu("Tours"); // every tour, Getting started first (HS-15)
+        for (String tour : org.helioviewer.jhv.gui.search.Tour.IDS)
+            catalogItem(toursMenu, org.helioviewer.jhv.gui.search.Tour.catalogId(tour));
+        helpMenu.add(toursMenu);
+        catalogItem(helpMenu, "openDemo");
         helpMenu.add(new Actions.ShowDialog("Interaction Guide...", new TextDialog("Interaction Guide", interactionHelp(), true)));
         helpMenu.add(new Actions.ShowDialog("Timeline Interaction...", new TextDialog("Timeline Interaction", timelineHelp(), true)));
 
@@ -446,7 +456,7 @@ public final class MenuBar extends JMenuBar {
      * <p>The two screen choices were already here as top-level View items; the three below are
      * about the same mode and would have been a second place to look. They apply only on ONE
      * screen, and say so, because with a second display nothing is hidden in the first place: the
-     * chrome is lent to a presenter window where both sidebars and every palette already are.
+     * main window stays on the presenter's screen and the projector shows a mirror of its picture.
      */
     private static JMenu presentationMenu() {
         JMenu menu = new JMenu("Presentation");

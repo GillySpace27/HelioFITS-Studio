@@ -7,6 +7,8 @@ public record KeyInputEvent(Key key, boolean shiftDown, boolean metaDown, boolea
         BACKSPACE,
         DELETE,
         SPACE,
+        LEFT,
+        RIGHT,
         N,
         P,
         X,

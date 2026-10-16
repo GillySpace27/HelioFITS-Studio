@@ -53,6 +53,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     private boolean viewLoaded; // a real view has replaced the empty placeholder built in the constructor
     private boolean lendPending; // a LASCO header probe is in flight and the load has not started yet
     private boolean pointingKnown; // this layer has a LASCO pointing table worth writing back: probed here, or restored non-empty
+    @Nullable private Boolean pointingComplete; // whether that probe read every header; null when restored from a file without the marker
     @Nullable private List<URI> sourceUris; // remote URIs for a direct-URI layer (no APIRequest), for state persistence
     @Nullable private APIRequest pendingRequest; // the request we asked for, before the view carries it
     @Nullable private FitsRequest fitsRequest;   // the re-issuable query behind a native-FITS layer
@@ -82,7 +83,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         if (apiRequest != null) {
             jo.put("APIRequest", apiRequest.toJson());
             jo.put("imageParams", imageParams());
-            jo.put("filter", getFilter().name());
+            jo.put("filter", RhefPeek.persisted(this).name()); // never a held peek (RH-17)
         } else if (sourceUris != null && !sourceUris.isEmpty() || fitsRequest != null) {
             // Direct-URI layers (e.g. PUNCH FITS) have no server request; persist the remote
             // URIs so a restored session reloads them — from the persistent cache, no re-download.
@@ -98,16 +99,20 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             if (fitsRequest != null)
                 jo.put("fitsRequest", fitsRequest.toJson());
             // What the header probe worked out, so a restore need not re-read every header. The key
-            // being present is the record that the probe ran: an empty object means it ran and found
-            // nothing to lend, which is as much a result as a full one.
+            // being present is the record that the probe ran; lascoPointingComplete beside it says whether
+            // it read every header, so an empty object from a complete probe means "nothing to lend".
             // Only when this run actually established the pointing. Writing an empty table on a run
             // that failed to lend would be read back as "probed, nothing to lend", which skips both
             // the cache and the probe: one bad run would disable the correction in this session file
             // permanently, and every later run would look identical to the unfixed one.
-            if (pointingKnown && fitsRequest != null && fitsRequest.archive() == FitsRequest.Archive.LASCO)
+            if (pointingKnown && fitsRequest != null && fitsRequest.archive() == FitsRequest.Archive.LASCO) {
                 jo.put("lascoPointing", org.helioviewer.jhv.metadata.LascoPointing.toJson(fitsRequest.product()));
+                // Beside the table, never inside it, so older readers see the table they always did.
+                if (pointingComplete != null)
+                    jo.put(PROBE_COMPLETE_KEY, pointingComplete.booleanValue());
+            }
             jo.put("imageParams", imageParams());
-            jo.put("filter", getFilter().name());
+            jo.put("filter", RhefPeek.persisted(this).name()); // never a held peek (RH-17)
             if (fixedRange != null) // keep the shared FITS range so a restored PUNCH movie does not strobe
                 jo.put("fixedRange", new JSONArray().put(fixedRange[0]).put(fixedRange[1]));
             if (sequenceParams != null)
@@ -172,13 +177,17 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
                     // restore from the cached list bypassed it. A session that saved the table needs
                     // no probe at all: same URIs, therefore the same conclusions.
                     JSONObject pointing = jo.optJSONObject("lascoPointing");
+                    Boolean complete = savedProbeComplete(jo);
+                    boolean haveTable = !needsProbe(pointing, complete);
                     if (fitsRequest != null && fitsRequest.archive() == FitsRequest.Archive.LASCO)
                         Log.info("LASCO restore " + fitsRequest.product() + ": " + list.size() + " uris, saved pointing "
-                                + (pointing == null ? "absent, probing" : pointing.isEmpty() ? "empty: probed, nothing to lend" : pointing.length() + " entries"));
-                    boolean haveTable = !needsProbe(pointing);
+                                + (pointing == null ? "absent" : pointing.length() + " entries")
+                                + ", probe " + (complete == null ? "unrecorded" : complete ? "complete" : "incomplete")
+                                + (haveTable ? ": using it" : ": probing"));
                     if (haveTable) {
                         org.helioviewer.jhv.metadata.LascoPointing.restore(pointing);
                         pointingKnown = true;
+                        pointingComplete = complete;
                     }
 
                     if (!list.isEmpty()) {
@@ -191,6 +200,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
                             org.helioviewer.jhv.io.LascoClient.submitLend(fitsRequest, list, uriList -> {
                                 lendPending = false;
                                 pointingKnown = true; // the probe ran, so an empty result is a result
+                                pointingComplete = org.helioviewer.jhv.metadata.LascoPointing.allRead(uriList); // unless it missed a header
                                 if (!removed)
                                     load(uriList);
                             });
@@ -217,7 +227,33 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
      * header on every restore of every LASCO session, which is what the cache exists to avoid.
      */
     public static boolean needsProbe(@Nullable JSONObject savedPointing) {
-        return savedPointing == null;
+        return needsProbe(savedPointing, null);
+    }
+
+    /** Session key beside "lascoPointing": true when the probe behind the table read every header, false when it missed one. */
+    public static final String PROBE_COMPLETE_KEY = "lascoPointingComplete";
+
+    /** The saved marker, or null for a session file written before it existed. */
+    @Nullable
+    public static Boolean savedProbeComplete(@Nonnull JSONObject layer) {
+        return layer.has(PROBE_COMPLETE_KEY) ? Boolean.valueOf(layer.optBoolean(PROBE_COMPLETE_KEY)) : null;
+    }
+
+    /**
+     * The same decision, with the marker that says whether the probe behind the table read every header.
+     *
+     * <p>Without it an empty table could mean "probed, nothing to lend" or "the probe failed and lent
+     * nothing", and the second must not be trusted: one bad run would turn the correction off in that
+     * session file for good. So: a complete probe is believed, empty or not; an incomplete one is
+     * probed again; a file from before the marker keeps a table with entries (only a real lend makes
+     * one) and probes again on an empty one, once, after which the save carries the marker.
+     */
+    public static boolean needsProbe(@Nullable JSONObject savedPointing, @Nullable Boolean probeComplete) {
+        if (savedPointing == null)
+            return true;
+        if (probeComplete != null)
+            return !probeComplete;
+        return savedPointing.isEmpty();
     }
 
     public void applyImageParams(@Nullable JSONObject imageParams) {
@@ -348,8 +384,10 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             }
             // The LASCO query lends pointing before it hands the list back, so what this layer knows
             // is worth saving even though no restore-time probe ran.
-            if (request.archive() == FitsRequest.Archive.LASCO)
+            if (request.archive() == FitsRequest.Archive.LASCO) {
                 pointingKnown = true;
+                pointingComplete = org.helioviewer.jhv.metadata.LascoPointing.allRead(uris);
+            }
             load(uris);
         };
         switch (request.archive()) {
@@ -674,10 +712,11 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         if (imageData == null) {
             return;
         }
-        if (!isVisible[vp.idx])
+        if (!isVisible[vp.idx] || org.helioviewer.jhv.display.Compare.hides(this)) // blink (HS-11): a draw-time skip, never setEnabled
             return;
 
         MetaData meta0 = imageData.metaData();
+        glImage.setSwipe(org.helioviewer.jhv.display.Compare.swipeSide(this), org.helioviewer.jhv.display.Compare.swipeX(vp));
         glImage.applyFilters(imageData.imageBuffer(), meta0, getFilter() == ImageFilter.Type.RHEF);
 
         Position metaViewpoint0 = meta0.getViewpoint();
@@ -946,6 +985,15 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     /** False while this is still the empty layer the constructor builds, before any frame has arrived. */
     public boolean hasPixels() {
         return viewLoaded;
+    }
+
+    /**
+     * True once a view has been put on screen, the streamed first frame included. From then on the
+     * layer's settings are its own (the plane is chosen, the default colour table taken), so scene
+     * undo can watch it although the rest of its movie is still arriving.
+     */
+    public boolean hasFirstFrame() {
+        return viewActivatedBefore;
     }
 
     @Nonnull

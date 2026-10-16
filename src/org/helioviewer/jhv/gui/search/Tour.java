@@ -49,6 +49,18 @@ import org.json.JSONObject;
 public final class Tour {
 
     public static final String GETTING_STARTED = "getting-started";
+    public static final String RHEF_AND_FILTERS = "rhef-and-filters";
+    /** Every tour, in Help > Tours order. TourCheck holds this to the files in resources/data/tours, both ways. */
+    public static final List<String> IDS = List.of(GETTING_STARTED, RHEF_AND_FILTERS);
+
+    /** The catalog id that starts a tour: "tour" and the id in camel case ("rhef-and-filters", tourRhefAndFilters). */
+    public static String catalogId(String id) {
+        StringBuilder sb = new StringBuilder("tour");
+        for (String part : id.split("-"))
+            if (!part.isEmpty())
+                sb.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));
+        return sb.toString();
+    }
     /** Written when the first-launch offer appears, so it is made once. */
     static final String OFFERED_KEY = "ui.tourOffered";
     private static final int SETTLE_MS = 300; // after a reveal action, for the sidebar to lay itself out
@@ -71,9 +83,32 @@ public final class Tour {
     }
 
     static List<Step> load(String id) throws IOException {
+        return parse(read(id));
+    }
+
+    private static JSONObject read(String id) throws IOException {
         try (InputStream is = FileUtils.getResource("/data/tours/" + id + ".json")) {
-            return parse(JSONUtils.get(is));
+            return JSONUtils.get(is);
         }
+    }
+
+    /** The tour's own title, for its menu item; the id when the file cannot be read. */
+    public static String title(String id) {
+        try {
+            return read(id).optString("title", id);
+        } catch (IOException | RuntimeException e) {
+            return id;
+        }
+    }
+
+    /** Help > Tours > one tour, by id. */
+    public static Action action(String id) {
+        return new AbstractAction(title(id)) {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                start(id);
+            }
+        };
     }
 
     /** Help > Take the Tour. */
@@ -88,12 +123,26 @@ public final class Tour {
 
     public static void start(String id) {
         List<Step> steps;
+        boolean sample;
         try {
-            steps = load(id);
+            JSONObject tour = read(id);
+            steps = parse(tour);
+            sample = GETTING_STARTED.equals(id) || tour.optBoolean("sample");
         } catch (IOException | RuntimeException e) { // TourCheck keeps the shipped tours readable; never a crash here
             Log.warn("Tour " + id + " could not be read", e);
             return;
         }
+        if (sample && MainFrame.get() != null)
+            TourSamples.loadIfEmpty(); // something real on the canvas for the steps to point at
+        start(steps);
+    }
+
+    /** Help search: reveal one control (run {@code reveal}, a catalog id, first) and spotlight it, as a one-step tour. */
+    static void point(String target, @Nullable String reveal, String title, String body) {
+        start(List.of(new Step(target, title, body, reveal)));
+    }
+
+    private static void start(List<Step> steps) {
         if (steps.isEmpty() || MainFrame.get() == null)
             return;
         Tour old = running.getAndSet(null);
@@ -108,6 +157,11 @@ public final class Tour {
      * Offer the tour once, on the first launch that could use it: a window started with no
      * arguments (a script or a check passes some), not an extra window, not on CI.
      */
+    /** Never offer the tour unprompted again; the Welcome window, which has its button, calls this. */
+    public static void markOffered() {
+        Settings.setProperty(OFFERED_KEY, "true");
+    }
+
     public static void offerOnce(boolean bareLaunch) {
         if (!bareLaunch || GraphicsEnvironment.isHeadless() || Session.isExtraWindow() || System.getenv("CI") != null
                 || Settings.getProperty(OFFERED_KEY) != null)
@@ -119,7 +173,8 @@ public final class Tour {
 
     private static void offer() {
         JFrame frame = MainFrame.get();
-        if (running.get() != null || frame == null || !frame.isShowing())
+        if (running.get() != null || frame == null || !frame.isShowing()
+                || org.helioviewer.jhv.io.CommandLine.desktopDocumentRequested()) // a launch from Finder came to open a file
             return;
         Settings.setProperty(OFFERED_KEY, "true"); // offered, whatever the answer: never again
         Spotlight prompt = new Spotlight(false);
@@ -178,10 +233,11 @@ public final class Tour {
         boolean last = i == steps.size() - 1;
         JButton back = button("Back", () -> go(index - 1));
         back.setEnabled(i > 0);
+        back.setVisible(steps.size() > 1); // a single spotlight (Help search) has nowhere to go back to
         JButton next = button(last ? "Done" : "Next", () -> go(index + 1));
         JButton skip = button("Skip", this::end);
         skip.setVisible(!last);
-        spotlight.show(target, card(step.title(), step.body(), (i + 1) + " of " + steps.size(), skip, back, next), next);
+        spotlight.show(target, card(step.title(), step.body(), steps.size() == 1 ? "" : (i + 1) + " of " + steps.size(), skip, back, next), next);
     }
 
     private void end() {
