@@ -1,5 +1,6 @@
 package org.helioviewer.jhv.app;
 
+import java.awt.EventQueue;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -31,11 +32,11 @@ public final class Session {
 
     private static final String MAIN_FILE = "session-main.jhv"; // the primary window's autosave
     private static final String REGISTRY = "windows.json";       // extra windows to reopen
-    private static final int AUTOSAVE_INTERVAL_MS = 30_000;
+    // How often autosave looks at the scene; it writes only when something changed (Recovery.autosave).
+    private static final int AUTOSAVE_INTERVAL_MS = 5_000;
 
     private static volatile long changeCounter;
     private static long savedCounter;
-    private static long autosavedCounter;
     private static Timer autosaveTimer;
 
     private static File sessionFile;   // where THIS window autosaves
@@ -94,10 +95,12 @@ public final class Session {
             @Override public void timeUpdated(Layer layer) {}
         });
 
+        Recovery.written(); // the scene as the window opens is not a change to write
         autosaveTimer = new Timer(AUTOSAVE_INTERVAL_MS, e -> autosaveIfChanged());
         autosaveTimer.setRepeats(true);
         autosaveTimer.start();
         SceneUndo.install();
+        EventQueue.invokeLater(Recovery::showNotice); // after a crash: what was reopened, and from when
 
         updateLive(true); // announce this window to the Window menu
     }
@@ -113,7 +116,10 @@ public final class Session {
 
     public static void fireStateLoadComplete(boolean success) {
         restorePending = false; // the scene is now this session's, however the load went
-        SceneUndo.reset(); // opening or reverting a session starts its undo history
+        Recovery.restored(); // a crash from here on is not this session's doing
+        if (success)
+            Recovery.written(); // the scene is the file just read
+        SceneUndo.settle(); // the load's result is the present; State.load cleared the history when it began
         List<java.util.function.Consumer<Boolean>> copy = new ArrayList<>(stateLoadListeners);
         stateLoadListeners.clear();
         for (java.util.function.Consumer<Boolean> r : copy)
@@ -126,7 +132,6 @@ public final class Session {
 
     public static void markSaved() {
         savedCounter = changeCounter;
-        autosavedCounter = changeCounter;
     }
 
     public static boolean isDirty() {
@@ -147,6 +152,7 @@ public final class Session {
 
     public static void expectStateLoad() {
         restorePending = true;
+        Recovery.restoring(); // a crash before the load lands counts against the session
     }
 
     /**
@@ -172,6 +178,7 @@ public final class Session {
         File old = sessionFile;
         sessionFile = file;
         named = isNamed;
+        Recovery.follow(file);
         markSaved();
         updateTitle();
         updateLive(true); // reflect the new name in the Window menu
@@ -198,8 +205,34 @@ public final class Session {
     public static void quickSaveToCurrent() {
         if (sessionFile != null) {
             State.saveNow(sessionFile.getParent(), sessionFile.getName());
+            Recovery.written();
             markSaved();
         }
+    }
+
+    /**
+     * Before an update (UpdateInstaller): write this window's session now, with the synchronous save
+     * the quit path uses, so a copy taken next holds the scene on screen. On the EDT. Returns the
+     * file, or null when nothing was written: no session file yet, or startup is still reopening it,
+     * in which case the file on disk is the session and must not be written over (restorePending).
+     * Throws when the save cannot be confirmed (the write failed, or the scene could not be read):
+     * the file may then hold an older scene, and an update must not go ahead on that.
+     */
+    @Nullable
+    public static File saveForUpdate() throws IOException {
+        if (sessionFile == null || restorePending)
+            return null;
+        boolean saved;
+        try {
+            saved = State.saveNowConfirmed(sessionFile.getParent(), sessionFile.getName());
+        } catch (RuntimeException e) { // a scene caught half-built
+            throw new IOException("the scene could not be read: " + e.getMessage(), e);
+        }
+        if (!saved || !sessionFile.isFile() || sessionFile.length() == 0)
+            throw new IOException("the session could not be written to " + sessionFile);
+        Recovery.written();
+        markSaved();
+        return sessionFile;
     }
 
     // Start New Session clears the document identity back to Untitled (auto file), so the name
@@ -208,12 +241,38 @@ public final class Session {
         String assigned = System.getProperty("jhv.sessionFile");
         sessionFile = assigned != null ? new File(assigned) : new File(Directories.STATES.getPath(), MAIN_FILE);
         named = false;
+        Recovery.follow(sessionFile);
         SceneUndo.reset(); // a new session has nothing to undo
         if (assigned == null)
             Settings.setProperty("session.mainFile", ""); // primary: forget the named file
         markSaved();
         updateTitle();
         updateLive(true);
+    }
+
+    /**
+     * A blank start (startup.mode "blank", HS-10): this window begins Untitled instead of reopening
+     * its session. The untitled autosave is copied aside first, because the blank session will
+     * autosave over that file, and the copy goes to the top of Open Recent. A named session file
+     * is left alone and stays remembered; only this run writes elsewhere. Runs before init(), from
+     * CommandLine.setArguments, so it touches no window.
+     */
+    public static void startBlank() {
+        ensureSessionFile();
+        File untitled = new File(Directories.STATES.getPath(), MAIN_FILE);
+        if (!named && untitled.isFile() && untitled.length() > 0) {
+            String stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HHmmss"));
+            File kept = new File(untitled.getParentFile(), "Untitled before blank start " + stamp + ".jhv");
+            try {
+                Files.copy(untitled.toPath(), kept.toPath());
+                addRecent(kept);
+            } catch (IOException e) {
+                Log.warn("Could not keep the last session before a blank start", e);
+            }
+        }
+        sessionFile = untitled;
+        named = false;
+        Recovery.follow(untitled);
     }
 
     // ---- recent sessions (Open Recent menu) --------------------------------------------------
@@ -277,10 +336,12 @@ public final class Session {
     }
 
     private static void autosaveIfChanged() {
-        if (changeCounter == autosavedCounter || sessionFile == null || restorePending)
+        if (sessionFile == null || restorePending)
             return;
-        autosavedCounter = changeCounter;
-        State.save(sessionFile.getParent(), sessionFile.getName());
+        // The whole scene compared with what was last written, not the change counter: the counter
+        // moves only when a layer comes or goes, so every other edit waited for quit, and a crash lost it.
+        if (!Recovery.autosave(sessionFile) || !isDirty())
+            return;
         // The file now matches the scene, so the session is no longer unsaved: "unsaved" should
         // mean the work is not on disk, not that a particular button went unpressed. The name's
         // asterisk comes off on the next UI tick, and the quit prompt (below, which reads
@@ -319,6 +380,7 @@ public final class Session {
         if (closingThisWindow && isExtra())
             registryRemove(sessionFile); // user dismissed this window: do not reopen it
         updateLive(false); // leave the Window menu
+        Recovery.end(); // a clean quit, so the next launch does not report a crash
         return true;
     }
 

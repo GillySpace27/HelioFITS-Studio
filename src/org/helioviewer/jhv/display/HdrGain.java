@@ -79,9 +79,15 @@ public final class HdrGain {
         return stored == null || stored.isBlank() ? "auto" : stored.trim();
     }
 
-    /** The gain the shader should apply now: 1 while capturing or without an EDR canvas. */
+    /**
+     * The gain the shader should apply now: 1 while capturing, without an EDR canvas, or while the
+     * picture is mirrored to a projector. The mirror is an 8-bit SDR copy, so a frame pushed into
+     * the laptop's headroom reached the projector clipped at white, the look of a display with its
+     * HDR setting wrong (Gilly, 2026-10-06).
+     */
     public static float current(boolean capturing) {
-        return resolve(setting, Display.edrHeadroom, Display.edrPotential, capturing || !Display.edrCanvas);
+        return resolve(setting, Display.edrHeadroom, Display.edrPotential,
+                capturing || !Display.edrCanvas || org.helioviewer.jhv.opengl.PresentationOutput.OUTPUT.mirroring());
     }
 
     /**

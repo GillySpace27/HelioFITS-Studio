@@ -124,6 +124,15 @@ public final class UndoStack {
         return snapshot;
     }
 
+    /**
+     * Take whatever settles next as the present without making it a step, and keep the history. For
+     * a change nobody made by hand, such as a session load finishing.
+     */
+    public void adopt() {
+        pendingKey = null;
+        adopting = current != null;
+    }
+
     /** Forget everything; the next settled scene starts a new history. */
     public void clear() {
         undo.clear();
@@ -151,6 +160,11 @@ public final class UndoStack {
     public String redoLabel() {
         Step step = redo.peek();
         return step == null ? null : step.label();
+    }
+
+    /** Every step Undo (or, forward, Redo) could take, the next one first. */
+    public List<String> labels(boolean forward) {
+        return (forward ? redo : undo).stream().map(Step::label).toList();
     }
 
     public int undoDepth() {

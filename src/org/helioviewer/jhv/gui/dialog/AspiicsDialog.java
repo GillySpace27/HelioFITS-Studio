@@ -7,11 +7,14 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.net.URI;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -38,6 +41,7 @@ import org.helioviewer.jhv.app.Commands;
 import org.helioviewer.jhv.gui.ComponentUtils;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.io.JSONUtils;
+import org.helioviewer.jhv.movie.Player;
 import org.helioviewer.jhv.thread.Task;
 
 import org.json.JSONArray;
@@ -88,6 +92,12 @@ public class AspiicsDialog extends StandardDialog {
             new JRadioButton("pa")
     };
     private final JComboBox<Cadence> cadenceCombo = new JComboBox<>(CADENCES);
+    // One product can come back as more than one kind of file (Sarah Gibson, pB). A kind is what is
+    // left of the file name once product, time stamps and extension are gone (ProductVariants);
+    // "" shows every kind. The kind with the most frames is preselected.
+    private final JComboBox<String> kindCombo = new JComboBox<>();
+    private boolean settingKinds;
+    private Map<String, Integer> kindCounts = Map.of();
     private final JButton searchButton = new JButton("Search");
     private final JButton addButton = new JButton("Add");
     private final JList<String> listPane = new JList<>();
@@ -95,6 +105,8 @@ public class AspiicsDialog extends StandardDialog {
     private List<String> products = List.of();
     private boolean loadingOrbits;
     private boolean searching;
+    // The clock time the orbit was last chosen for, so reopening at the same time keeps a hand-picked orbit.
+    private long clockPickedFor = Long.MIN_VALUE;
 
     private static AspiicsDialog instance;
 
@@ -154,6 +166,7 @@ public class AspiicsDialog extends StandardDialog {
         gc.gridx = 0;
         queryPanel.add(new JLabel("Orbit"), gc);
         gc.gridx = 1;
+        orbitCombo.setToolTipText("Opens on the orbit that holds the clock time, or the nearest one");
         queryPanel.add(orbitCombo, gc);
         gc.gridx = 2;
         queryPanel.add(fitsButton, gc);
@@ -179,11 +192,36 @@ public class AspiicsDialog extends StandardDialog {
         gc.gridx = 1;
         cadenceCombo.setToolTipText("Thin the frames to at most one per interval; the archive is slow and the frames are large");
         queryPanel.add(cadenceCombo, gc);
+        for (JRadioButton button : productButtons)
+            button.setToolTipText(ProductVariants.aspiicsProductTip(button.getText()));
+
+        gc.gridx = 0;
+        gc.gridy = 3;
+        queryPanel.add(new JLabel("Kind"), gc);
+        gc.gridx = 1;
+        gc.gridwidth = 4;
+        kindCombo.setToolTipText("The archive can return more than one kind of file for a product; they differ in the end of the file name. Preselected: the kind with the most frames.");
+        kindCombo.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                String kind = value instanceof String s ? s : "";
+                String text = kind.isEmpty() ? "all kinds" : kindLabel(kind) + " (" + kindCounts.getOrDefault(kind, 0) + " frames)";
+                return super.getListCellRendererComponent(list, text, index, isSelected, cellHasFocus);
+            }
+        });
+        kindCombo.addActionListener(e -> {
+            if (!settingKinds)
+                showProducts();
+        });
+        queryPanel.add(kindCombo, gc);
+        gc.gridwidth = 1;
 
         listPane.setCellRenderer(new DefaultListCellRenderer() {
             @Override
             public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
-                Object text = value instanceof String datalocation ? fileName(datalocation) : value;
+                Object text = value instanceof String datalocation
+                        ? (kindCounts.size() > 1 ? '[' + kindLabel(ProductVariants.aspiicsKind(datalocation)) + "]  " : "") + fileName(datalocation)
+                        : value;
                 return super.getListCellRendererComponent(list, text, index, isSelected, cellHasFocus);
             }
         });
@@ -205,7 +243,7 @@ public class AspiicsDialog extends StandardDialog {
         for (JRadioButton button : productButtons)
             button.addActionListener(e -> updateProductList());
         orbitCombo.addActionListener(e -> clearProducts());
-        cadenceCombo.addActionListener(e -> updateProductList());
+        cadenceCombo.addActionListener(e -> showProducts());
 
         JPanel content = new JPanel();
         content.setLayout(new BoxLayout(content, BoxLayout.PAGE_AXIS));
@@ -226,6 +264,8 @@ public class AspiicsDialog extends StandardDialog {
     public void showDialog() {
         if (orbitCombo.getItemCount() == 0 && !loadingOrbits)
             loadOrbits();
+        else
+            selectClockOrbit();
         pack();
         setLocationRelativeTo(MainFrame.get());
         setVisible(true);
@@ -242,7 +282,62 @@ public class AspiicsDialog extends StandardDialog {
         loadingOrbits = false;
         orbitCombo.setModel(new DefaultComboBoxModel<>(orbits.toArray(Orbit[]::new)));
         foundLabel.setText("0 found");
+        clockPickedFor = Long.MIN_VALUE;
+        selectClockOrbit();
         updateButtonState();
+    }
+
+    // Select the orbit that holds the master clock time, from the aa_start_time and aa_end_time the
+    // P3SC orbit list gives for each orbit; outside every orbit, the nearest one.
+    private void selectClockOrbit() {
+        long clock = Player.getTime().milli;
+        if (clock == clockPickedFor || orbitCombo.getItemCount() == 0)
+            return;
+        List<Orbit> orbits = new ArrayList<>(orbitCombo.getItemCount());
+        for (int i = 0; i < orbitCombo.getItemCount(); i++)
+            orbits.add(orbitCombo.getItemAt(i));
+        Orbit orbit = orbitFor(orbits, clock);
+        if (orbit == null)
+            return;
+        clockPickedFor = clock;
+        orbitCombo.setSelectedItem(orbit); // fires clearProducts, as a hand pick does
+    }
+
+    // The orbit whose [start, end] holds time, else the one nearest to it; null when no orbit has
+    // readable times. Ties go to the later orbit.
+    @Nullable
+    static Orbit orbitFor(List<Orbit> orbits, long time) {
+        Orbit best = null;
+        long bestDistance = Long.MAX_VALUE;
+        for (Orbit orbit : orbits) {
+            long start = orbitTime(orbit.start());
+            long end = orbitTime(orbit.end());
+            if (start < 0 || end < start)
+                continue;
+            long distance = time < start ? start - time : time > end ? time - end : 0;
+            if (distance < bestDistance || (distance == bestDistance && best != null && orbit.orbitId() > best.orbitId())) {
+                best = orbit;
+                bestDistance = distance;
+            }
+        }
+        return best;
+    }
+
+    // An orbit boundary as P3SC sends it: ISO 8601, with or without a zone offset, 'T' or a space
+    // between date and time. A time without an offset is taken as UTC. -1 when it does not parse.
+    static long orbitTime(String text) {
+        if (text == null || text.isBlank())
+            return -1;
+        String iso = text.trim().replace(' ', 'T');
+        try {
+            return OffsetDateTime.parse(iso).toInstant().toEpochMilli();
+        } catch (DateTimeParseException e) {
+            try {
+                return LocalDateTime.parse(iso).toInstant(ZoneOffset.UTC).toEpochMilli();
+            } catch (DateTimeParseException e2) {
+                return -1;
+            }
+        }
     }
 
     private void onLoadOrbitsFailure() {
@@ -280,14 +375,37 @@ public class AspiicsDialog extends StandardDialog {
         jp2Button.setEnabled(enabled);
         setEnabled(productButtons, enabled);
         cadenceCombo.setEnabled(enabled);
+        kindCombo.setEnabled(enabled && kindCounts.size() > 1);
         searchButton.setEnabled(enabled && orbitCombo.getSelectedItem() != null);
         addButton.setEnabled(enabled && listPane.getSelectedIndex() >= 0);
     }
 
+    // A new product or a new result: recount its kinds and preselect the one with the most frames.
     private void updateProductList() {
         String type = selectedProductType();
+        kindCounts = ProductVariants.countKinds(products.stream().filter(d -> type.equals(productType(d))).toList());
+        List<String> kinds = new ArrayList<>();
+        kinds.add("");
+        if (kindCounts.size() > 1)
+            kinds.addAll(kindCounts.keySet());
+        settingKinds = true;
+        kindCombo.setModel(new DefaultComboBoxModel<>(kinds.toArray(String[]::new)));
+        if (kindCounts.size() > 1)
+            kindCombo.setSelectedItem(ProductVariants.preferredKind(kindCounts));
+        settingKinds = false;
+        showProducts();
+    }
+
+    private static String kindLabel(String kind) {
+        return kind.isEmpty() ? "no suffix" : kind;
+    }
+
+    private void showProducts() {
+        String type = selectedProductType();
+        String kind = kindCombo.getSelectedItem() instanceof String k ? k : "";
         List<String> matching = products.stream()
                 .filter(datalocation -> type.equals(productType(datalocation)))
+                .filter(datalocation -> kind.isEmpty() || kind.equals(ProductVariants.aspiicsKind(datalocation)))
                 .sorted(Comparator.comparingLong(AspiicsDialog::timeOf))
                 .toList();
         List<String> shown = thin(matching, selectedCadence());
@@ -341,6 +459,10 @@ public class AspiicsDialog extends StandardDialog {
 
     private void clearProducts(String status) {
         products = List.of();
+        kindCounts = Map.of();
+        settingKinds = true;
+        kindCombo.setModel(new DefaultComboBoxModel<>(new String[]{""}));
+        settingKinds = false;
         listPane.setListData(new String[0]);
         foundLabel.setText(status);
         updateButtonState();
@@ -381,7 +503,7 @@ public class AspiicsDialog extends StandardDialog {
         return slash >= 0 ? datalocation.substring(slash + 1) : datalocation;
     }
 
-    private record Orbit(int orbitId, String start, String end) {
+    record Orbit(int orbitId, String start, String end) {
         @Override
         public String toString() {
             return Integer.toString(orbitId);

@@ -49,6 +49,22 @@ check failing on a tag that does not exist.
 Before 0.8 these were two repos (`jhv-demo` on `demo-all`, and
 `preview-deploy`). Older entries in `RELEASING.md` use those names.
 
+## Before you start
+
+Three things have each stopped a release night (RELEASING.md, "Things that have
+actually gone wrong here", 2026-09-18 and 2026-10-11). Ask Gilly for the first two
+before `prepare`, not after the first failure (what each failure looks like is in
+"Driving it without a terminal" below):
+
+- **The Mac stays unlocked until notarization finishes.** `notarytool` cannot
+  read the `jhv-notary` keychain profile behind a locked screen ("No Keychain
+  password item found"); nothing is wrong with the credential.
+- **Bitdefender's online threat prevention is paused** (or `amazonaws.com`
+  excluded) while the dmg uploads. With it on, Apple's S3 upload is reset mid
+  transfer ("Connection reset by peer") on every network tried.
+- **Notarization passes `--no-s3-acceleration`** on every `notarytool submit`
+  in `deploy_release.sh`; keep it there when editing them.
+
 ## Order matters
 
 `notarize` does its own clean rebuild. `package` and `publish` build **nothing**:
@@ -59,7 +75,8 @@ they package whatever jar is on disk and upload whatever dmg already exists. So:
 3. regenerate the guide
 4. `notarize` (produces the dmg), then `MAC_ARCH=x64 ... notarize` for the
    Intel dmg (needs the Intel JDK at `release/.jdk-x64`; RELEASING.md step 4)
-5. smoke-test the app **inside the dmg**
+5. smoke-test the app **inside the dmg** (and the Intel dmg under Rosetta when
+   one was built); `ship.sh gate` runs `release/smoke_dmg.sh` on each
 6. **gate**, then `publish`
 7. wait for CI's `package` run on the tag, which attaches the Windows and
    Linux packages, then confirm asset dates changed (eight assets, seven without an Intel dmg)
@@ -77,6 +94,29 @@ set it only after his yes in chat, only to that tag, never for another.
 
 A notarization that stops with a submission pending is finished with
 `./deploy_release.sh notarize-resume`, never by rebuilding.
+
+### Driving it without a terminal (an agent)
+
+Run the phases; never hand-pick steps from RELEASING.md. On 2026-10-10 a hand-run
+subset shipped 0.8.6 without its Intel dmg, which `prepare` would have built.
+Each outward step has its own variable, set for one invocation, to one tag, only
+after Gilly's yes in chat for that step; one never answers another:
+
+```sh
+HFS_NOTARIZE_APPROVED=v<version> release/ship.sh prepare   # uploads both dmgs to Apple
+HFS_SMOKE_APPROVED=v<version>    release/ship.sh gate      # smoke_dmg.sh stands in for the typed smoke test
+HFS_PUBLISH_APPROVED=v<version>  release/ship.sh publish   # after his yes to the gate text
+release/ship.sh confirm
+```
+
+`HFS_SMOKE_APPROVED` means Gilly accepts the automated launch check
+(`release/smoke_dmg.sh`: starts, draws, no uncaught exception or missing class)
+in place of loading layers and exporting a movie by hand. Ask for it as its own
+question; when he says no, the gate waits for him at a terminal.
+
+When `notarize` fails at the upload: "screen locked?" means unlock the Mac; a
+`Connection reset by peer` from S3 has been Bitdefender's network extension
+(2026-10-10), which only Gilly can pause. Rerun `prepare`; a rerun is safe.
 
 ## Releases are immutable
 
@@ -121,6 +161,19 @@ looking at it is a judgement. Pass `--done smoketest` **only** after it has
 actually been done, and never bake it into the Orrery registry args, which
 would make the dashboard assert on every unattended refresh that a human
 looked at something.
+
+## After publish
+
+`release/ship.sh confirm` waits for CI's packages and grades every asset. Two
+rows need a hand after it:
+
+- **`assets_all`:** eight assets with an Intel dmg. Compare each sha256 GitHub
+  lists with the one in the gate text.
+- **`page_fallback`:** the gilly.space download page finds the newest release by
+  itself, but its fixed fallback links (used when GitHub cannot be reached) name
+  a version. Update them in `heliofits-studio/index.html` of
+  GillySpace27/GillySpace27.github.io on a branch and PR; merging it publishes the
+  site and needs Gilly's yes.
 
 ## Hand-off boundary
 

@@ -24,7 +24,6 @@ import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.component.MoviePanel;
 import org.helioviewer.jhv.gui.dialog.AspiicsDialog;
 import org.helioviewer.jhv.gui.dialog.LoadStateDialog;
-import org.helioviewer.jhv.gui.dialog.NewVersionDialog;
 import org.helioviewer.jhv.gui.dialog.PunchDialog;
 import org.helioviewer.jhv.gui.dialog.SoarDialog;
 import org.helioviewer.jhv.gui.dialog.SynopticDialog;
@@ -210,6 +209,52 @@ public final class Actions {
         @Override
         public void actionPerformed(ActionEvent e) {
             PunchDialog.getInstance().showDialog();
+        }
+    }
+
+    public static class PunchLatestAction extends AbstractAction {
+        public PunchLatestAction() {
+            super("PUNCH Latest");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            org.helioviewer.jhv.io.PunchLatest.open("3", "CAM", msg -> org.helioviewer.jhv.app.Log.warn(msg));
+        }
+    }
+
+    /** Send to Python (HS-13): the active layer's FITS sources as double-precision science FITS under Exports/, snippet on the clipboard, SAMP notified. */
+    public static class SendToPython extends AbstractAction {
+        public SendToPython() {
+            super("Send to Python");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            ImageLayer layer = Layers.getActiveImageLayer();
+            if (layer == null) {
+                org.helioviewer.jhv.app.Message.warn("Send to Python", "Select an image layer first.");
+                return;
+            }
+            List<File> sources = org.helioviewer.jhv.io.FitsExport.fitsFiles(layer.getSourceUris(), org.helioviewer.jhv.io.NetFileCache::cachedFile);
+            if (sources.isEmpty()) {
+                org.helioviewer.jhv.app.Message.warn("Send to Python", "This layer has no FITS source files on disk (a JPEG 2000 layer has none; a remote one must be downloaded first).");
+                return;
+            }
+            java.nio.file.Path out = java.nio.file.Path.of(org.helioviewer.jhv.io.Directories.EXPORTS.getPath(),
+                    "python-" + java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(java.time.ZoneOffset.UTC).format(java.time.Instant.now()));
+            Task.submitBackground("send-to-python", () -> {
+                org.json.JSONObject manifest = org.helioviewer.jhv.io.FitsExport.export(sources, out, org.helioviewer.jhv.movie.Provenance.session());
+                return org.helioviewer.jhv.io.FitsExport.snippet(out, manifest);
+            }, snippet -> {
+                TransferAccess.writeClipboard(snippet);
+                List<File> written = new ArrayList<>();
+                for (File s : sources)
+                    written.add(out.resolve(org.helioviewer.jhv.io.FitsExport.outputName(s)).toFile());
+                org.helioviewer.jhv.io.samp.SampClient.sendFitsFiles(written);
+                org.helioviewer.jhv.app.Message.info("Send to Python", sources.size() + " file(s) written to " + out
+                        + "\nA sunpy snippet is on the clipboard. See manifest.json there for exactly what was and was not applied.");
+            }, "Error exporting FITS for Python");
         }
     }
 
@@ -457,6 +502,53 @@ public final class Actions {
         }
     }
 
+    /**
+     * Share Scene (HS-16): the session as a file to hand to someone else. The home folder is written as "~"
+     * in every string (PortableScene) and the local files outside the cache, which the receiver will not
+     * have, are listed first so the choice to go on is an informed one. The open session is not renamed.
+     */
+    public static class ShareScene extends AbstractAction {
+        public ShareScene() {
+            super("Share Scene...");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            org.helioviewer.jhv.app.state.PortableScene.Result portable = org.helioviewer.jhv.app.state.PortableScene.of(
+                    State.snapshot(), System.getProperty("user.home"), org.helioviewer.jhv.io.Directories.FILECACHE.getPath());
+            if (!portable.localFiles().isEmpty()) {
+                List<String> shown = portable.localFiles().size() > 12 ? portable.localFiles().subList(0, 12) : portable.localFiles();
+                int answer = JOptionPane.showConfirmDialog(MainFrame.get(),
+                        portable.localFiles().size() + " local file(s) in this scene are not in the cache; the person you share it with will not have them:\n\n"
+                                + String.join("\n", shown) + (shown.size() < portable.localFiles().size() ? "\n..." : "")
+                                + "\n\nShare the scene anyway?",
+                        "Share Scene", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
+                if (answer != JOptionPane.OK_OPTION)
+                    return;
+            }
+            FileDialog fileDialog = new FileDialog(MainFrame.get(), "Share Scene as...", FileDialog.SAVE);
+            fileDialog.setFilenameFilter(ExtensionFileFilter.JHV);
+            fileDialog.setMultipleMode(false);
+            fileDialog.setDirectory(org.helioviewer.jhv.io.Directories.EXPORTS.getPath());
+            fileDialog.setFile("scene-" + TimeUtils.formatFilename(System.currentTimeMillis()) + ".jhv");
+            fileDialog.setVisible(true);
+            String directory = fileDialog.getDirectory(), file = fileDialog.getFile();
+            if (directory != null && file != null)
+                State.write(portable.scene(), directory, file.endsWith(".jhv") ? file : file + ".jhv");
+        }
+    }
+
+    public static class CopyFrame extends AbstractAction {
+        public CopyFrame() {
+            super("Copy Frame");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            FrameCopy.copy();
+        }
+    }
+
     public static class SaveStateAs extends AbstractKeyAction {
         public SaveStateAs() {
             super("Save Session As...", KeyStroke.getKeyStroke(KeyEvent.VK_S, DesktopIntegration.menuShortcutMask | InputEvent.ALT_DOWN_MASK));
@@ -549,7 +641,14 @@ public final class Actions {
                 if (r != JOptionPane.OK_OPTION)
                     return;
             }
-            removable.forEach(Layers::remove);
+            try {
+                // The fresh-install scene: projection, camera mode and the built-in layers' settings
+                // reset too, not only the layer list (HS-10).
+                org.helioviewer.jhv.app.state.BlankSession.apply();
+            } catch (RuntimeException ex) {
+                org.helioviewer.jhv.app.Log.warn("Blank session failed; removing layers one by one instead", ex);
+                removable.forEach(Layers::remove);
+            }
             tracks.forEach(tl -> {
                 tl.deleted(); // the user's gesture, as the delete column does, so an automation track goes with its lane
                 org.helioviewer.jhv.timelines.Timelines.getLayers().remove(tl);
@@ -557,6 +656,7 @@ public final class Actions {
             org.helioviewer.jhv.display.CMETracker.stop(); // a tracked front belongs to a layer that is gone
             Annotations.clear();
             org.helioviewer.jhv.app.Session.resetToUntitled(); // clear the name back to Untitled
+            Commands.resetView();
         }
     }
 
@@ -702,7 +802,7 @@ public final class Actions {
 
         @Override
         public void actionPerformed(ActionEvent e) {
-            NewVersionDialog.check();
+            org.helioviewer.jhv.app.update.UpdateCheck.checkNow(); // the releases list; NewVersionDialog read master's VERSION
         }
     }
 

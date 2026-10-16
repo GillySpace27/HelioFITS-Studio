@@ -151,7 +151,16 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         c.gridy = 2;
         JCheckBox sampHub = new JCheckBox("Load SAMP hub", Boolean.parseBoolean(Settings.getProperty("startup.sampHub")));
         sampHub.addActionListener(e -> Settings.setProperty("startup.sampHub", Boolean.toString(sampHub.isSelected())));
-        settings.add(sampHub, c);
+        JCheckBox checkUpdates = new JCheckBox("Check for updates at startup", org.helioviewer.jhv.app.update.UpdateCheck.enabledAtStartup());
+        checkUpdates.addActionListener(e -> org.helioviewer.jhv.app.update.UpdateCheck.setEnabledAtStartup(checkUpdates.isSelected()));
+        JCheckBox punchLive = new JCheckBox("PUNCH Live refresh (adds a Live box to PUNCH layers; polls only while the archive is under a week old)",
+                org.helioviewer.jhv.io.LiveRefresh.enabled());
+        punchLive.addActionListener(e -> Settings.setProperty(org.helioviewer.jhv.io.LiveRefresh.KEY, Boolean.toString(punchLive.isSelected())));
+        JPanel startupBoxes = new JPanel(new BorderLayout());
+        startupBoxes.add(sampHub, BorderLayout.PAGE_START);
+        startupBoxes.add(checkUpdates, BorderLayout.CENTER);
+        startupBoxes.add(punchLive, BorderLayout.PAGE_END);
+        settings.add(startupBoxes, c);
 
         c.gridx = 0;
         c.gridy = 3;
@@ -286,9 +295,17 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
             Settings.setProperty("startup.loadState", Boolean.toString(defaultState.isSelected()));
         });
 
+        // HS-10: start on the fresh-install scene instead of reopening the last session. A state
+        // chosen above still opens first (CommandLine.resolveStartup).
+        JCheckBox blank = new JCheckBox("Start blank instead of reopening the last session",
+                org.helioviewer.jhv.io.CommandLine.BLANK_MODE.equals(Settings.getProperty("startup.mode")));
+        blank.addActionListener(e -> Settings.setProperty("startup.mode",
+                blank.isSelected() ? org.helioviewer.jhv.io.CommandLine.BLANK_MODE : "last"));
+
         JPanel statePanel = new JPanel(new BorderLayout());
         statePanel.add(defaultState, BorderLayout.LINE_START);
         statePanel.add(selectState, BorderLayout.LINE_END);
+        statePanel.add(blank, BorderLayout.PAGE_END);
         return statePanel;
     }
 

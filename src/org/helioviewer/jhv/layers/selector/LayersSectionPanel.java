@@ -4,10 +4,10 @@ import java.awt.BorderLayout;
 
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JToggleButton;
 
+import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.component.CadencePanel;
@@ -115,6 +115,7 @@ public final class LayersSectionPanel extends JPanel {
                 {"PUNCH (SDAC)\u2026", (Runnable) () -> org.helioviewer.jhv.gui.dialog.PunchDialog.getInstance().showDialog()},
                 {"Solar Orbiter (SOAR)\u2026", (Runnable) () -> org.helioviewer.jhv.gui.dialog.SoarDialog.getInstance().showDialog()},
                 {"Proba-3 ASPIICS\u2026", (Runnable) () -> org.helioviewer.jhv.gui.dialog.AspiicsDialog.getInstance().showDialog()},
+                {"MLSO KCor and UCoMP (HAO)\u2026", (Runnable) () -> org.helioviewer.jhv.gui.dialog.MlsoDialog.getInstance().showDialog()},
                 // No dialog: the master range and cadence are the whole question, like the VSO
                 // tree's Add button. NRL because the VSO's LASCO catalog stops in early
                 // 2025 while the LZ archive is current; see LascoClient.
@@ -150,7 +151,7 @@ public final class LayersSectionPanel extends JPanel {
         long end = getEndTime();
         if (start > end) {
             setTime(end, end);
-            JOptionPane.showMessageDialog(null, "The end date must be after the start date.", "Invalid Date Range", JOptionPane.ERROR_MESSAGE);
+            Message.err("Invalid Date Range", "The end date must be after the start date."); // with Report this...
             return false;
         }
         return true;

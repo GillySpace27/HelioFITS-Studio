@@ -99,6 +99,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             "Filters for one layer: RHEF per frame, and the Fourier filter or noise gate over the whole movie");
     private final ButtonText GRID = new ButtonText(Buttons.grid, "Grid", "Grid, Thomson sphere, celestial sphere, ecliptic and planet overlay settings");
     private final ButtonText CAMERA = new ButtonText(Buttons.camera, "Camera", "Where the view is seen from: Free, Follow, Turntable, Overview, and their settings");
+    private final ButtonText COMPARE = new ButtonText(Buttons.compare, "Compare",
+            "Blink between two image layers, or swipe a divider across the view with one on each side");
     private final ButtonText ANNOTATE = new ButtonText(Buttons.annotate, "Annotation",
             "Draw on the view: mode, colour and thickness (hold Shift to draw)");
     private final ButtonText SDO_CUTOUT = new ButtonText(Buttons.sdoCutout, "SDO Cut-out",
@@ -133,6 +135,97 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         b.getAccessibleContext().setAccessibleName(text.text());
         b.setAlwaysDropdown(true);
         return b;
+    }
+
+    /**
+     * Hold the button 400 ms to open the menu below it, and mark its icon so the hold is findable.
+     * The release after a hold still fires the button's action: its listener checks the returned
+     * flag, skips the click and clears it.
+     */
+    private static boolean[] holdOpens(AbstractButton button, java.util.function.Supplier<JPopupMenu> menu) {
+        boolean[] held = {false};
+        javax.swing.Timer hold = new javax.swing.Timer(400, e -> {
+            held[0] = true;
+            menu.get().show(button, 0, button.getHeight());
+        });
+        hold.setRepeats(false);
+        button.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mousePressed(java.awt.event.MouseEvent e) {
+                held[0] = false;
+                if (button.isEnabled())
+                    hold.restart();
+            }
+
+            @Override
+            public void mouseReleased(java.awt.event.MouseEvent e) {
+                hold.stop();
+            }
+        });
+        button.setIcon(withHoldMark(button.getIcon()));
+        return held;
+    }
+
+    /** The Undo (or Redo) history, next step first; choosing a row takes every step down to it. */
+    private static JPopupMenu history(boolean forward) {
+        JPopupMenu menu = new JPopupMenu();
+        java.util.List<String> labels = org.helioviewer.jhv.app.SceneUndo.labels(forward);
+        for (int i = 0; i < labels.size(); i++) {
+            int count = i + 1;
+            javax.swing.JMenuItem item = new javax.swing.JMenuItem((forward ? "Redo " : "Undo ") + labels.get(i)
+                    + (count > 1 ? "  (" + count + " steps)" : ""));
+            item.addActionListener(e -> org.helioviewer.jhv.app.SceneUndo.step(forward, count));
+            menu.add(item);
+        }
+        if (labels.isEmpty())
+            menu.add(new javax.swing.JMenuItem(forward ? "Nothing to redo" : "Nothing to undo")).setEnabled(false);
+        return menu;
+    }
+
+    /** Output aspect and long side, the size presentation draws at; built fresh, so always current. */
+    private static JPopupMenu presentationSettings() {
+        JPopupMenu menu = new JPopupMenu();
+        JMenu aspect = new JMenu("Output aspect");
+        for (ViewState.RecordingAspect a : ViewState.RecordingAspect.values()) {
+            javax.swing.JRadioButtonMenuItem item = new javax.swing.JRadioButtonMenuItem(a.toString(), a == ViewState.getRecordingAspect());
+            item.addActionListener(e -> ViewState.setRecordingAspect(a));
+            aspect.add(item);
+        }
+        menu.add(aspect);
+        JMenu side = new JMenu("Long side");
+        for (Integer s : MoviePanel.LONG_SIDE_CHOICES) {
+            javax.swing.JRadioButtonMenuItem item = new javax.swing.JRadioButtonMenuItem(s + " px", s == ViewState.getRecordingLongSide());
+            item.addActionListener(e -> ViewState.setRecordingLongSide(s));
+            side.add(item);
+        }
+        menu.add(side);
+        return menu;
+    }
+
+    /** The icon with a small triangle in its lower right corner: this button opens more when held. */
+    @Nullable
+    private static Icon withHoldMark(@Nullable Icon icon) {
+        if (icon == null)
+            return null;
+        return new Icon() {
+            @Override
+            public void paintIcon(Component c, Graphics g, int x, int y) {
+                icon.paintIcon(c, g, x, y);
+                int r = x + getIconWidth(), b = y + getIconHeight();
+                g.setColor(c.getForeground());
+                g.fillPolygon(new int[]{r, r, r - 4}, new int[]{b - 4, b, b}, 3);
+            }
+
+            @Override
+            public int getIconWidth() {
+                return icon.getIconWidth();
+            }
+
+            @Override
+            public int getIconHeight() {
+                return icon.getIconHeight();
+            }
+        };
     }
 
     private static JToggleButton toolToggleButton(ButtonText text) {
@@ -348,7 +441,16 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         JToggleButton presentationButton = toolToggleButton(PRESENTATION);
         presentationToggle = presentationButton;
         presentationButton.setSelected(org.helioviewer.jhv.gui.PresentationMode.isActive());
+        // Hold for the presentation settings (Gilly, 2026-10-06): the room sees the Recording
+        // size, so the popup sets its aspect and long side. A hold opens it and swallows the click.
+        boolean[] held = holdOpens(presentationButton, ToolBar::presentationSettings);
+        presentationButton.setToolTipText(presentationButton.getToolTipText() + " (hold for settings)");
         presentationButton.addActionListener(e -> {
+            if (held[0]) { // the hold opened the settings; this release is not a click
+                held[0] = false;
+                presentationButton.setSelected(org.helioviewer.jhv.gui.PresentationMode.isActive());
+                return;
+            }
             // The button's own selected state has already flipped; drive the mode from what it
             // now says, so a stale state (toolbar rebuilt while presenting) cannot invert it.
             if (presentationButton.isSelected() != org.helioviewer.jhv.gui.PresentationMode.isActive())
@@ -357,11 +459,22 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         register("present", PRESENTATION, presentationButton);
 
         // Scene undo. Enabled and titled by SceneUndo; a click is always the scene's, whatever has the keyboard.
+        // Hold either for its whole list, as a browser's Back does, and jump several steps at once.
         JButton undo = toolButton(UNDO);
-        undo.addActionListener(e -> org.helioviewer.jhv.app.SceneUndo.undo());
+        boolean[] undoHeld = holdOpens(undo, () -> history(false));
+        undo.addActionListener(e -> {
+            if (!undoHeld[0])
+                org.helioviewer.jhv.app.SceneUndo.undo();
+            undoHeld[0] = false;
+        });
         org.helioviewer.jhv.app.SceneUndo.bind(undo, false);
         JButton redo = toolButton(REDO);
-        redo.addActionListener(e -> org.helioviewer.jhv.app.SceneUndo.redo());
+        boolean[] redoHeld = holdOpens(redo, () -> history(true));
+        redo.addActionListener(e -> {
+            if (!redoHeld[0])
+                org.helioviewer.jhv.app.SceneUndo.redo();
+            redoHeld[0] = false;
+        });
         org.helioviewer.jhv.app.SceneUndo.bind(redo, true);
         register("undo", UNDO, undo);
         register("redo", REDO, redo);
@@ -554,6 +667,11 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             cameraPalette = new Palette("Camera", CameraPaletteContent::build, CameraPaletteContent::refresh, true); // has text fields
         cameraPalette.bind(cameraButton);
         register("camera", CAMERA, cameraButton);
+
+        // Compare (HS-11): two image layers, blinked or split by a swipe divider.
+        JToggleButton compareButton = toolToggleButton(COMPARE);
+        comparePalette.bind(compareButton);
+        register("compare", COMPARE, compareButton);
 
         // Everything reached once a session rather than once a minute, plus annotation, behind
         // one button. Annotation used to have its own top-level button; it is a mode you set once
@@ -811,6 +929,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private static Palette sequencePalette;
     private static Palette gridPalette;
     private static Palette cameraPalette;
+    private static final Palette comparePalette = // HS-11; final, as Projection and HDR are (guards.py ratchet)
+            new Palette("Compare", ComparePaletteContent::build, ComparePaletteContent::refresh);
 
     private static final Palette colourPalette =
             new Palette("HDR", ColourPaletteContent::build, ColourPaletteContent::refresh);

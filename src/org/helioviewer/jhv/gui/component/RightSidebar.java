@@ -341,7 +341,8 @@ public final class RightSidebar implements SectionHost {
             // Its own preference key, because CollapsiblePane otherwise remembers expansion under
             // the section's title and the left sidebar already has a section called Camera: the
             // two were collapsing each other through one shared setting.
-            pane.add(s.title(), s.holder(), true, s.icon(), "rightSidebar." + s.title());
+            // Collapsed on a fresh install, as the left sidebar is; remembered state wins after that.
+            pane.add(s.title(), s.holder(), false, s.icon(), "rightSidebar." + s.title());
             pane.setAccessory(s.holder(), s.controls());
         }
         refresh();

@@ -66,5 +66,25 @@ public final class GLText {
         renderer.endRendering();
     }
 
+    /** Lines centred in the viewport, half again the floating text size; for the empty-canvas hint. */
+    public static void drawTextCentered(Viewport vp, List<String> lines) {
+        SdfTextRenderer renderer = renderer();
+        int textSize = logicalToPhysicalSize(FLOAT_TEXT_SIZE * 3 / 2);
+        float textScaleFactor = textSize / renderer.getFontSize();
+        int lineStep = (int) (textSize * FLOAT_TEXT_LINE_HEIGHT);
+
+        renderer.beginRendering(vp.width, vp.height);
+        int baselineY = vp.height / 2 + lineStep * (lines.size() - 1) / 2;
+        for (String line : lines) {
+            int x = (int) ((vp.width - renderer.measureWidth(line) * textScaleFactor) / 2);
+            renderer.setColor(SHADOW_COLOR);
+            renderer.draw(line, x + SHADOW_OFFSET_X, baselineY + SHADOW_OFFSET_Y, 0, textScaleFactor);
+            renderer.setColor(Colors.LightGrayFloat);
+            renderer.draw(line, x, baselineY, 0, textScaleFactor);
+            baselineY -= lineStep;
+        }
+        renderer.endRendering();
+    }
+
     private GLText() {}
 }

@@ -35,7 +35,6 @@ import javax.swing.JToggleButton;
 
 import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.gui.MainFrame;
-import org.helioviewer.jhv.gui.PresentationMode;
 import org.helioviewer.jhv.gui.UIGlobals;
 
 /**
@@ -186,8 +185,8 @@ public final class Palette {
         String oldKey = "ui.palette." + from.replace(' ', '_');
         String newKey = "ui.palette." + to.replace(' ', '_');
         for (String suffix : new String[]{"", ".shown", ".sidebar", ".size"})
-            if (Settings.getProperty(newKey + suffix) != null)
-                return; // already carried over, or set since
+            if (Settings.isSet(newKey + suffix))
+                return; // already carried over, or set since (a default from the layout preset is neither)
         for (String suffix : new String[]{"", ".shown", ".sidebar", ".size"})
             copyStored(oldKey + suffix, newKey + suffix);
         for (String prefix : new String[]{"ui.section.rightSidebar.", "ui.section."}) // RightSidebar's prefKey, and the left's plain title
@@ -301,7 +300,9 @@ public final class Palette {
         // Always shown. The toolbar button no longer takes a docked section away, so a stored
         // "not shown" is a leftover from when it did, and honouring it would dock a palette into
         // a sidebar as nothing at all, with no control anywhere that brings it back.
-        setSidebarShown(true);
+        // Not revealed: this is restore, so the section keeps the fold state it remembers (the
+        // preset's on a fresh install, all collapsed). Revealing here opened every section at launch.
+        setSidebarShown(true, false);
     }
 
     /**
@@ -390,7 +391,7 @@ public final class Palette {
             if (isOpen())
                 home.reveal(title);
             else
-                setSidebarShown(true); // put back whatever the toolbar button was used to release
+                setSidebarShown(true, true); // put back whatever the toolbar button was used to release
             if (toggle != null)
                 toggle.setSelected(true);
             return;
@@ -419,7 +420,7 @@ public final class Palette {
         if (host != null) {
             Settings.setProperty(key(), "false"); // not a floating window now, so do not reopen as one
             dispose();
-            setSidebarShown(true);
+            setSidebarShown(true, true);
         } else
             setOpen(true);
         if (toggle != null)
@@ -435,7 +436,7 @@ public final class Palette {
      * way to make it go away was to pop it back out into a window first. The pop-out button on the
      * section answers the first question; the toolbar button answers this one.
      */
-    private void setSidebarShown(boolean shown) {
+    private void setSidebarShown(boolean shown, boolean reveal) {
         if (home == null)
             return;
         Settings.setProperty(shownKey(), Boolean.toString(shown)); // so the next launch shows what was showing
@@ -447,7 +448,8 @@ public final class Palette {
                 icon != null ? icon : toggle == null ? null : toggle.getIcon(), // its toolbar glyph
                 contentSupplier.get(), () -> setHome(null));
         onShow.run();
-        home.reveal(title);
+        if (reveal)
+            home.reveal(title);
         // The section arrives with the fold state it remembers, which is not what the button was
         // set to when it was bound (a restore lights the button first and docks afterwards), so
         // Projection and Camera came up lit over folded sections. Say what is actually on screen.
@@ -504,15 +506,12 @@ public final class Palette {
     }
 
     /**
-     * The rectangle a palette docks against, on screen: the chrome window in presenter view, the
-     * render canvas otherwise. One source of truth, because the size cap has to agree with the
-     * docking or a palette capped to fit still lands somewhere it does not.
+     * The rectangle a palette docks against, on screen: the render canvas. One source of truth,
+     * because the size cap has to agree with the docking or a palette capped to fit still lands
+     * somewhere it does not.
      */
     @Nullable
     private static Rectangle canvasBounds() {
-        Window chrome = PresentationMode.chromeWindow();
-        if (chrome != null && chrome.isShowing())
-            return chrome.getBounds();
         Component rc = MainFrame.getRenderComponent();
         if (rc == null || !rc.isShowing())
             return null;
@@ -702,8 +701,7 @@ public final class Palette {
     }
 
     private static Window owner() {
-        Window chrome = PresentationMode.chromeWindow();
-        return chrome != null ? chrome : MainFrame.get();
+        return MainFrame.get();
     }
 
     private JDialog create() {
