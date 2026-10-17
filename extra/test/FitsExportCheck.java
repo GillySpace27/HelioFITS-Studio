@@ -52,13 +52,14 @@ public final class FitsExportCheck {
         short[][] raw = {{-32768, 0}, {1, 100}};
         File ints = write(dir, "ints.fits", raw, "BZERO", "32768", "BSCALE", "1", "BLANK", "100", "DATE-OBS", "2026-01-01T00:00:00");
         File floats = write(dir, "floats.fits", new float[][]{{1.5f, 2.5f}, {3.5f, Float.NaN}}, "BZERO", "10", "INSTRUME", "LASCO");
+        File lasco = write(dir, "lasco.fits", new short[][]{{743, 890}, {747, 1000}}, "INSTRUME", "LASCO", "OFFSET", "747.3", "EXPTIME", "25.1");
         File cube = write(dir, "cube.fits", new float[][][]{{{1, 2}, {3, 4}}, {{5, 6}, {7, 8}}});
         byte[] before = Files.readAllBytes(ints.toPath());
 
         JSONObject session = new JSONObject().put("writer", "HelioFITS Studio test").put("buildId", "b1").put("commit", "abc")
                 .put("created", "2026-10-15T00:00:00Z").put("caveat", "a caveat line");
         Path out = dir.resolve("out");
-        JSONObject manifest = FitsExport.export(List.of(ints, floats, cube), out, session);
+        JSONObject manifest = FitsExport.export(List.of(ints, floats, lasco, cube), out, session);
 
         try (Fits f = new Fits(out.resolve("ints_phys.fits").toFile())) {
             ImageHDU h = (ImageHDU) f.readHDU();
@@ -81,15 +82,29 @@ public final class FitsExportCheck {
             double[][] d = (double[][]) ((ImageHDU) f.readHDU()).getKernel();
             expect("floats are not scaled by BZERO", d[0][0] == 1.5 && Double.isNaN(d[1][1]));
         }
+        try (Fits f = new Fits(out.resolve("lasco_phys.fits").toFile())) {
+            double[][] d = (double[][]) ((ImageHDU) f.readHDU()).getKernel();
+            expect("LASCO: the header OFFSET (CCD bias, DN) is subtracted: 743 - 747.3", Math.abs(d[0][0] - (743 - 747.3)) < 1e-9
+                    && Math.abs(d[0][1] - (890 - 747.3)) < 1e-9 && Math.abs(d[1][1] - (1000 - 747.3)) < 1e-9);
+        }
+        JSONObject lascoEntry = null;
+        for (int i = 0; i < manifest.getJSONArray("files").length(); i++)
+            if ("lasco.fits".equals(manifest.getJSONArray("files").getJSONObject(i).getString("source")))
+                lascoEntry = manifest.getJSONArray("files").getJSONObject(i);
+        expect("LASCO: the manifest names the OFFSET step", lascoEntry != null && lascoEntry.getJSONArray("steps").toString().contains("OFFSET=747.3"));
         try (Fits f = new Fits(out.resolve("cube_phys.fits").toFile())) {
             double[][][] d = (double[][][]) ((ImageHDU) f.readHDU()).getKernel();
             expect("a cube stays a cube", d.length == 2 && d[1][1][1] == 8);
         }
-        expect("the manifest lists three files with steps", manifest.getJSONArray("files").length() == 3
+        expect("the manifest lists four files with steps", manifest.getJSONArray("files").length() == 4
                 && manifest.getJSONArray("files").getJSONObject(0).getJSONArray("steps").toString().contains("BZERO=32768"));
         expect("manifest.json is on disk", Files.exists(out.resolve("manifest.json")));
-        expect("a LASCO source is warned about", manifest.getJSONArray("warnings").length() == 1
-                && manifest.getJSONArray("warnings").getString(0).contains("floats_phys.fits"));
+        expect("each LASCO source is warned about: no OFFSET card on one, no EXPTIME or monthly background on the other",
+                manifest.getJSONArray("warnings").length() == 2
+                        && manifest.getJSONArray("warnings").getString(0).contains("floats_phys.fits")
+                        && manifest.getJSONArray("warnings").getString(0).contains("no OFFSET")
+                        && manifest.getJSONArray("warnings").getString(1).contains("lasco_phys.fits")
+                        && manifest.getJSONArray("warnings").getString(1).contains("EXPTIME"));
         expect("the source is byte for byte unchanged", java.util.Arrays.equals(before, Files.readAllBytes(ints.toPath())));
         expect("the snippet names the first file", FitsExport.snippet(out, manifest).contains("ints_phys.fits"));
 
