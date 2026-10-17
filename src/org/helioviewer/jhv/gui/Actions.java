@@ -538,6 +538,17 @@ public final class Actions {
         }
     }
 
+    public static class QuickShare extends AbstractAction {
+        public QuickShare() {
+            super("Quick Share");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            org.helioviewer.jhv.gui.QuickShare.run();
+        }
+    }
+
     public static class CopyFrame extends AbstractAction {
         public CopyFrame() {
             super("Copy Frame");
