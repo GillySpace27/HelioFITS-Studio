@@ -135,6 +135,7 @@ public final class ActionCatalog {
         put("undo", org.helioviewer.jhv.app.SceneUndo.undoAction(), "Edit/Undo", "Undo the last change to the scene");
         put("redo", org.helioviewer.jhv.app.SceneUndo.redoAction(), "Edit/Redo", "Redo the last undone change to the scene");
         put("copyFrame", new Actions.CopyFrame(), "Edit/Copy Frame", "Put the canvas picture on the clipboard (a screenshot, 8-bit)");
+        put("quickShare", new Actions.QuickShare(), "File/Quick Share", "Record one loop as a movie that plays anywhere, then show it in the file manager; your recording settings are not changed");
         put("shareScene", new Actions.ShareScene(), "File/Share Scene...", "Save the scene for someone else: home folder written as ~, local files outside the cache listed first");
         put("openExportsFolder", ExportsFolder.action(), "File/Open Exports Folder", "Show the folder movies, screenshots and metadata are exported to");
         // Help search (HS-15): the menu item, and the Projection palette's reveal for the controls in it
