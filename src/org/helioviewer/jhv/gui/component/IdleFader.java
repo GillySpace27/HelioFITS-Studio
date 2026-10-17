@@ -16,7 +16,7 @@ import javax.swing.Timer;
  *
  * <p>For the sidebar collapse handles while presenting. A collapsed sidebar is already down to a
  * 16-pixel rail, but a permanent 16-pixel rail down the edge of a projected image is 16 pixels of
- * the room's attention that is not the Sun. This makes the rail behave the way the Heliograph
+ * the room's attention that is not the Sun. This makes the rail behave the way the Heliogram
  * Wall's close button does: invisible while the talk runs, there the moment the presenter reaches
  * for it, gone again a couple of seconds later. The timings are that button's
  * ({@code buttonFadeSeconds = 2.5}, 0.15 s in, 0.8 s out, polled four times a second), because the
