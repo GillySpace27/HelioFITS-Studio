@@ -29,8 +29,11 @@ import org.json.JSONObject;
  * is applied; the viewer's picture is not what this writes, and the manifest says so.
  *
  * <p>A compressed (tiled) input is written uncompressed with its Z* cards dropped and a HISTORY line.
- * LASCO background subtraction (HS-6, Studio #25 OFFSET) is not part of this: a LASCO source is
- * exported as the source frame and the manifest carries a warning that the viewer's picture differs.
+ * A LASCO source gets the header's OFFSET (the CCD bias, in DN) subtracted, the same step the viewer takes
+ * (HS-6, FITSImage.lascoPerSecond). The viewer also divides by EXPTIME and removes the NRL monthly
+ * background; this file does not, and the manifest carries a warning that says so. That OFFSET is the bias to
+ * remove has not been checked against the SolarSoft routines (instruments/LASCO.md in the research vault
+ * records no OFFSET claim), so the manifest names the step as the viewer's, not as a calibration.
  */
 public final class FitsExport {
 
@@ -82,9 +85,18 @@ public final class FitsExport {
                 }
                 String instr = h.getStringValue("INSTRUME");
                 if (instr != null && instr.toUpperCase(java.util.Locale.ROOT).contains("LASCO")) {
-                    String w1 = name + ": a LASCO source frame; the viewer shows a background-subtracted picture, this file does not (the OFFSET step is not part of this export yet)";
-                    warnings.put(w1);
-                    wh.insertHistory("No background subtraction applied");
+                    if (h.containsKey("OFFSET")) {
+                        double offset = h.getDoubleValue("OFFSET");
+                        subtract(phys, offset);
+                        steps.put("subtracted OFFSET=" + offset + " DN (the CCD bias card in the header; the same step the viewer takes)");
+                        wh.insertHistory("LASCO: header OFFSET " + offset + " DN subtracted");
+                        warnings.put(name + ": a LASCO source frame; OFFSET is subtracted as the viewer does, but the viewer also divides by EXPTIME"
+                                + " and removes the NRL monthly background, and this file does neither");
+                    } else {
+                        warnings.put(name + ": a LASCO source frame with no OFFSET card; nothing was subtracted, while the viewer shows a"
+                                + " background-subtracted picture (EXPTIME division and the NRL monthly background are not applied here either)");
+                    }
+                    wh.insertHistory("No EXPTIME division or monthly background applied");
                 }
                 for (String line : Provenance.historyLines(session))
                     wh.insertHistory(line);
@@ -161,6 +173,18 @@ public final class FitsExport {
                 out[i] = integer ? bzero + bscale * v.doubleValue() : v.doubleValue();
         }
         return out;
+    }
+
+    /** Subtracts {@code offset} from every non-NaN value of a (nested) double array, in place. */
+    static void subtract(Object a, double offset) {
+        if (a instanceof Object[] arr) {
+            for (Object o : arr)
+                subtract(o, offset);
+        } else if (a instanceof double[] d) {
+            for (int i = 0; i < d.length; i++)
+                if (!Double.isNaN(d[i]))
+                    d[i] -= offset;
+        }
     }
 
     private static Class<?> deeper(Object first) {
