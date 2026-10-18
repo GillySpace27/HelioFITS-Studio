@@ -3,6 +3,31 @@
 
 ## HelioFITS Studio 0.8.7 (unreleased)
 
+### Compare
+- A Compare palette on the toolbar (Tools lists it too): pick layers A and B, then Blink between them at 0.5 to 8 Hz, or Swipe a vertical divider across every viewport with A on one side and B on the other. Neither layer is switched off or changed, and Off stops the blinking. The choices are saved with the session, never the blink phase. Difference is shown greyed: A minus B in physical units is a later phase
+- Layers > Duplicate Layer (also in the palette) adds a copy of the selected image layer, so RHEF on against the same data raw is one click
+
+### Welcome
+- The Welcome window has an Open Demo card, also Help > Open Demo Scene: a new session with the bundled SDO/AIA 171 sample image and RHEF on. Nothing downloads, so it opens offline. Start New Session's question comes first when there is work to lose
+- The Welcome window shows a tip under the start cards, a different one each time it opens
+
+### Help
+- Help > Tours lists every guided tour. A second tour, RHEF and filters, shows the Filters palette, the Filter row in a layer's Intensity options, how to read an RHEF image (a visualization, not a calibrated radiance) and how to find a filter by name. On an empty canvas it loads the bundled AIA 171 sample first, as Getting started does
+
+### Layers
+- Each layer's readout opens with what it shows, such as "EUV 171 Å (Fe IX, log T 5.8)" for AIA, "white-light total brightness (includes the F corona)" for LASCO C2 and C3, or the PUNCH product ("total brightness, average mosaic, Level 3 (background-subtracted)"). Every label comes from a sourced instrument note; anything without one, such as SUVI, EUI, WISPR, ASPIICS and CCOR, reads "unknown". The Image Information window carries the same line in its title
+- Badges after it flag what changes how to read the picture: RHEF: visualization, running or base difference, provisional LASCO (the frame's monthly background could not be fetched) and quickPUNCH. Hover the readout for what each one means
+
+### Playback
+- The Clock row has an Achieved box, off by default. Ticked, it shows the frame rate playback actually reaches over the last two seconds, beside the Play rate it asks for, so a RHEF movie can be timed against the same movie without it. The FPS at the bottom left counts canvas draws, which is not the same thing
+
+### RHEF controls
+- The Υ button beside the Filter list is greyed, not hidden, when the filter is not RHEF, and its tooltip says to choose RHEF to use it
+- Its sliders are named Shadows (Υ low) and Highlights (Υ high), and a screen reader announces them by those names
+- A small curve beside the sliders draws the shape they give RHEF output, the same two-sided curve the renderer applies
+- A Look menu sets both sliders at once: the defaults, or Neutral (1.00 / 1.00, a straight line)
+- Hold to compare shows the layer without RHEF while it is held, for that layer only; nothing is saved, and a session saved meanwhile still records RHEF
+
 ### Animation
 - An animated control's lane in the Timeline panel has a band of its own above the plot, so it no longer draws over the HEK events or the layer coverage rows. The panel grows by the band when a control is animated
 - Selecting an animated control's row lists its keys with their time (UTC), value and easing, each editable by typing; a typed time is taken exactly, not snapped to a frame. Add key puts one at the playhead and Delete key removes the selected one
@@ -111,6 +136,9 @@
 - Help > Send Feedback... sends a problem, a request or a question to the developer from inside the app, with no account and no website. Tick boxes add system info and the last 300 lines of this run's log (on), the current session and a screenshot of the main window (off); Preview shows everything before it is sent, and your home folder is written as ~
 - Error, warning and crash dialogs have a Report this... button that opens the same window with the message and, when there is one, the stack trace filled in
 - This build has nowhere to send reports yet: they are saved in `~/HFStudio/Outbox`, with Copy to Clipboard and Email Instead offered, and a later version sends them when it starts. A sent report moves to `Outbox/sent`; none is deleted
+
+### LASCO
+- LASCO frames shown with the monthly background removed no longer keep the camera's bias level (the OFFSET header keyword). Every such frame was too bright by OFFSET / EXPTIME in every pixel. Pictures with RHEF on look the same; linear, gamma and difference views change
 
 ## HelioFITS Studio 0.8.3 (pre-release, 2026-09-23)
 

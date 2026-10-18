@@ -153,9 +153,13 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         sampHub.addActionListener(e -> Settings.setProperty("startup.sampHub", Boolean.toString(sampHub.isSelected())));
         JCheckBox checkUpdates = new JCheckBox("Check for updates at startup", org.helioviewer.jhv.app.update.UpdateCheck.enabledAtStartup());
         checkUpdates.addActionListener(e -> org.helioviewer.jhv.app.update.UpdateCheck.setEnabledAtStartup(checkUpdates.isSelected()));
+        JCheckBox punchLive = new JCheckBox("PUNCH Live refresh (adds a Live box to PUNCH layers; polls only while the archive is under a week old)",
+                org.helioviewer.jhv.io.LiveRefresh.enabled());
+        punchLive.addActionListener(e -> Settings.setProperty(org.helioviewer.jhv.io.LiveRefresh.KEY, Boolean.toString(punchLive.isSelected())));
         JPanel startupBoxes = new JPanel(new BorderLayout());
         startupBoxes.add(sampHub, BorderLayout.PAGE_START);
-        startupBoxes.add(checkUpdates, BorderLayout.PAGE_END);
+        startupBoxes.add(checkUpdates, BorderLayout.CENTER);
+        startupBoxes.add(punchLive, BorderLayout.PAGE_END);
         settings.add(startupBoxes, c);
 
         c.gridx = 0;

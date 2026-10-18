@@ -283,7 +283,7 @@ public final class MainFrame {
         });
         attachSidebarResize(sidebarCollapseHandle);
         // While presenting with the sidebar collapsed, all that is left of it is this rail. Let it
-        // fade out with the rest of the chrome and come back on any input, the way the Heliograph
+        // fade out with the rest of the chrome and come back on any input, the way the Heliogram
         // Wall's close button does. Only while collapsed: an open sidebar is deliberate, and its
         // handle is how you close it.
         IdleFader.register(sidebarCollapseHandle,
@@ -312,6 +312,7 @@ public final class MainFrame {
         // out to have one, because a frame that is not advancing and a frame that is advancing
         // slowly look the same without it.
         statusPanel.addPlugin(new org.helioviewer.jhv.gui.status.FramerateStatusPanel(), StatusPanel.Alignment.LEFT);
+        statusPanel.addPlugin(new org.helioviewer.jhv.gui.status.PunchAgeStatusPanel(), StatusPanel.Alignment.LEFT);
         statusPanel.addPlugin(positionStatus, StatusPanel.Alignment.RIGHT);
         statusPanel.addPlugin(viewpointStatus, StatusPanel.Alignment.RIGHT);
 

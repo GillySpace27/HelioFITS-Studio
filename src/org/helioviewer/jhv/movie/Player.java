@@ -331,6 +331,7 @@ public class Player {
     public static void play() {
         ImageLayer layer = Layers.getActiveImageLayer();
         if (layer != null && layer.getView().isMultiFrame()) {
+            achievedRate.reset();
             startClock();
             notifyStatusChanged();
         }
@@ -446,6 +447,13 @@ public class Player {
         return layer == null ? 0 : layer.getView().getMaximumFrameNumber();
     }
 
+    private static final AchievedRate achievedRate = new AchievedRate();
+
+    /** Frames per second the movie advanced at over the last two seconds; NaN when paused or too few. */
+    public static double achievedFps() {
+        return isPlaying() ? achievedRate.fps(System.nanoTime()) : Double.NaN;
+    }
+
     private static void notifyStatusChanged() {
         statusListeners.forEach(StatusListener::movieStatusChanged);
     }
@@ -459,6 +467,8 @@ public class Player {
 
         Layers.setImageLayersNearestFrame(dateTime);
         DisplayController.render(1);
+        if (isPlaying()) // a scrub or a step is not playback
+            achievedRate.frame(System.nanoTime());
 
         timeListeners.forEach(listener -> listener.timeChanged(lastTimestamp.milli));
 

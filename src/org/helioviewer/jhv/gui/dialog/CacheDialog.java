@@ -80,6 +80,8 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
     private final AbstractAction load = action("Load as Layer", this::load);
     private final AbstractAction reveal = action(System.getProperty("os.name").startsWith("Mac") ? "Reveal in Finder" : "Show in Folder", this::reveal);
     private final AbstractAction delete = action("Delete...", this::delete);
+    private final AbstractAction quickLook = action("Quick Look", this::quickLook);
+    private final AbstractAction datasetFolders = action("Dataset Folders", this::datasetFolders);
 
     private List<CacheIndex.Dataset> all = List.of();
 
@@ -186,6 +188,9 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
         panel.add(loadButton, ButtonPanel.AFFIRMATIVE_BUTTON);
         panel.add(new javax.swing.JButton(reveal), ButtonPanel.OTHER_BUTTON);
         panel.add(new javax.swing.JButton(delete), ButtonPanel.OTHER_BUTTON);
+        if (System.getProperty("os.name").startsWith("Mac"))
+            panel.add(new javax.swing.JButton(quickLook), ButtonPanel.OTHER_BUTTON);
+        panel.add(new javax.swing.JButton(datasetFolders), ButtonPanel.OTHER_BUTTON);
         panel.add(closeButton, ButtonPanel.CANCEL_BUTTON);
         getRootPane().setDefaultButton(loadButton);
         return panel;
@@ -267,6 +272,24 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
         Row row = selected();
         if (row != null)
             DesktopIntegration.reveal(CacheIndex.files(row.set()).getFirst());
+    }
+
+    // Quick Look on the first cached file of the selected dataset (macOS only; the button is not added elsewhere).
+    private void quickLook() {
+        Row row = selected();
+        if (row == null)
+            return;
+        try {
+            new ProcessBuilder("/usr/bin/qlmanage", "-p", CacheIndex.files(row.set()).getFirst().getPath()).start();
+        } catch (java.io.IOException e) {
+            org.helioviewer.jhv.app.Log.warn("Quick Look failed", e);
+        }
+    }
+
+    // One folder per dataset of symlinks to the cached files (DatasetLinks), shown in the file manager.
+    private void datasetFolders() {
+        org.helioviewer.jhv.thread.Task.submitBackground("dataset-links", org.helioviewer.jhv.io.DatasetLinks::rebuild,
+                root -> DesktopIntegration.reveal(root.toFile()), "Error building the dataset folders");
     }
 
     private void delete() {

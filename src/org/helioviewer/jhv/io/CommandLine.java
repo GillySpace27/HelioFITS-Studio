@@ -17,18 +17,32 @@ import org.helioviewer.jhv.app.Settings;
 
 public class CommandLine {
 
-    private static final String usageMessage = """
-            The following command-line options are available:
-            
-            -load    file location
-                   Load or request a supported file at program start. The option can be used multiple times.
-            
-            -request request file location
-                   Load a request file and issue a request at program start. The option can be used multiple times.
-            
-            -state   state file
-                   Load state file. The window then belongs to that session, so autosave and quit
-                   write back to it.""";
+    /** One command-line option: its single-dash spelling, how many values follow it, and its help line. */
+    public record Option(String name, int arity, String help) {}
+
+    /** Process exit codes of the command line (docs/cli.md). */
+    public enum Exit {
+        OK(0), RUNTIME(1), USAGE(2), INPUT_NOT_FOUND(3), EXPORT_FAILED(4);
+
+        public final int code;
+
+        Exit(int _code) {
+            code = _code;
+        }
+    }
+
+    // Every option keeps its single-dash spelling; a double-dash form is an alias (--state is -state).
+    private static final List<Option> OPTIONS = List.of(
+            new Option("-load", 1, "Load or request a supported file at program start. The option can be used multiple times."),
+            new Option("-request", 1, "Load a request file and issue a request at program start. The option can be used multiple times."),
+            new Option("-state", 1, "Load state file. The window then belongs to that session, so autosave and quit write back to it."),
+            new Option("-export", 1, "Export mode: png writes the current view as one PNG with the session stamped in, then exits. Needs -out. Never writes autosave."),
+            new Option("-out", 1, "Where -export writes its file."),
+            new Option("-h", 0, "Show this help and exit."));
+
+    private static final List<String> OPTION_NAMES = OPTIONS.stream().map(Option::name).toList();
+
+    private static final List<String> EXPORT_FORMATS = List.of("png");
 
     private static final Set<String> uriSchemes = Set.of("jpip", "jpips", "http", "https", "file");
 
@@ -119,8 +133,12 @@ public class CommandLine {
     }
 
     public static void setArguments(String[] rawArgs) {
-        String[] args = promoteSessionArgument(rawArgs);
+        String[] args = promoteSessionArgument(normalize(rawArgs));
         arguments = args;
+        // An export is a batch job: no reopened session, no pinned default, no crash-loop record, and
+        // no -state appended; the -state it names (if any) is only read.
+        if (isExportMode())
+            return;
         java.io.File restore = org.helioviewer.jhv.app.Session.restoreCandidate();
         String sessionName = org.helioviewer.jhv.app.Session.displayName();
         // How the last run of this window's session ended, recorded before this one decides anything.
@@ -191,7 +209,7 @@ public class CommandLine {
         });
         load.accept(uri);
         // Never adopt a session data archive: autosave would write a .jhv over the zip and its data.
-        if ("file".equals(uri.getScheme()) && !org.helioviewer.jhv.app.state.SessionArchive.isArchiveName(uri.getPath()))
+        if (!isExportMode() && "file".equals(uri.getScheme()) && !org.helioviewer.jhv.app.state.SessionArchive.isArchiveName(uri.getPath()))
             org.helioviewer.jhv.app.Session.adoptSessionFile(new java.io.File(uri));
         return uri;
     }
@@ -253,8 +271,98 @@ public class CommandLine {
         return values;
     }
 
+    /** The help text, generated from the option table. */
     public static String getUsageMessage() {
-        return usageMessage;
+        StringBuilder sb = new StringBuilder("The following command-line options are available:\n");
+        for (Option o : OPTIONS) {
+            sb.append("\n").append(o.name());
+            if (o.arity() > 0)
+                sb.append(" <value>");
+            sb.append("\n       ").append(o.help()).append('\n');
+        }
+        sb.append("\nA double-dash spelling of any option (--state, --export, --help) is an alias.\n")
+                .append("Exit codes: 0 ok, 1 runtime error, 2 usage error, 3 input not found, 4 export failed.");
+        return sb.toString();
+    }
+
+    /** The one place the command line writes to a terminal: help, usage errors and export failures. */
+    public static void emit(java.io.PrintStream to, String text) {
+        to.println(text);
+    }
+
+    /** -h or --help anywhere on the line. */
+    public static boolean wantsHelp(String[] args) {
+        return Arrays.stream(args).anyMatch(a -> "-h".equals(a) || "--help".equals(a));
+    }
+
+    /** A double-dash alias becomes its single-dash option; anything else is unchanged. Pure. */
+    static String[] normalize(String[] args) {
+        String[] out = args.clone();
+        for (int i = 0; i < out.length; i++)
+            if (out[i].startsWith("--") && OPTION_NAMES.contains(out[i].substring(1)))
+                out[i] = out[i].substring(1);
+        return out;
+    }
+
+    /**
+     * The problem with a command line, as an exit code and a message, or null when it is fine. Pure
+     * apart from reading the file system for the input files, so CommandLineOptionsCheck can drive it.
+     * An unknown option is a usage error (macOS' -psn_ launch argument is not one); {@code -load} and
+     * {@code -request} values may be URLs and are not looked up.
+     */
+    @Nullable
+    public static Problem validate(String[] rawArgs) {
+        String[] args = normalize(rawArgs);
+        for (int i = 0; i < args.length; i++) {
+            String a = args[i];
+            if (!a.startsWith("-") || a.startsWith("-psn_"))
+                continue;
+            if (!OPTION_NAMES.contains(a))
+                return new Problem(Exit.USAGE, "Unknown option: " + a);
+            if (OPTIONS.stream().filter(o -> o.name().equals(a)).findFirst().orElseThrow().arity() > 0
+                    && (i + 1 == args.length || args[i + 1].startsWith("-")))
+                return new Problem(Exit.USAGE, "Missing value for command line option: " + a);
+            if (a.equals("-state") && "file".equals(schemeOf(args[i + 1])) && !Files.isReadable(Path.of(args[i + 1])))
+                return new Problem(Exit.INPUT_NOT_FOUND, "File not found: " + args[i + 1]);
+        }
+        List<String> formats = valuesOf(args, "-export");
+        if (!formats.isEmpty()) {
+            if (!EXPORT_FORMATS.contains(formats.get(0)))
+                return new Problem(Exit.USAGE, "Unknown export format: " + formats.get(0) + " (png is the first slice)");
+            if (valuesOf(args, "-out").isEmpty())
+                return new Problem(Exit.USAGE, "-export needs -out <path>");
+        }
+        return null;
+    }
+
+    public record Problem(Exit exit, String message) {}
+
+    private static String schemeOf(String value) {
+        try {
+            String scheme = new URI(value).getScheme();
+            return scheme == null || scheme.length() == 1 ? "file" : scheme.toLowerCase(java.util.Locale.ROOT); // a drive letter is a path
+        } catch (URISyntaxException e) {
+            return "file";
+        }
+    }
+
+    private static List<String> valuesOf(String[] args, String param) {
+        List<String> values = new ArrayList<>();
+        for (int i = 0; i + 1 < args.length; i++)
+            if (param.equals(args[i]) && !args[i + 1].startsWith("-"))
+                values.add(args[++i]);
+        return values;
+    }
+
+    /** True when the line asks for -export: the window is a batch job, not a session. */
+    public static boolean isExportMode() {
+        return arguments != null && !valuesOf(arguments, "-export").isEmpty();
+    }
+
+    @Nullable
+    public static String exportOut() {
+        List<String> v = arguments == null ? List.of() : valuesOf(arguments, "-out");
+        return v.isEmpty() ? null : v.get(0);
     }
 
 }
