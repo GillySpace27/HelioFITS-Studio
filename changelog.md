@@ -32,6 +32,9 @@
 - An animated control's lane in the Timeline panel has a band of its own above the plot, so it no longer draws over the HEK events or the layer coverage rows. The panel grows by the band when a control is animated
 - Selecting an animated control's row lists its keys with their time (UTC), value and easing, each editable by typing; a typed time is taken exactly, not snapped to a frame. Add key puts one at the playhead and Delete key removes the selected one
 
+### Heliad
+- When Heliad (the separate app that downloads solar data and keeps it in one library) has a library on this computer, the New Image Layer dialog gets a second tab, Heliad library. It lists Heliad's datasets with how much of the master time range each one reaches, marked as in Load from Cache, and how many frames fall inside the range. Add loads each selected dataset as a layer from its frames in the range; a dataset with nothing in the range loads whole, asking first above 1,000 frames. Open in Heliad, shown when the Heliad app is installed, hands the range to it to search for more. With no Heliad library the dialog is unchanged, and Studio's own downloads and streaming are untouched
+
 ## HelioFITS Studio 0.8.6 (pre-release, 2026-10-11)
 
 ### Feedback
