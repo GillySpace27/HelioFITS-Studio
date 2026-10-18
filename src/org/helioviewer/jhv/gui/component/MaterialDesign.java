@@ -13,6 +13,7 @@ enum MaterialDesign {
     CHART_GANTT("mdi-chart-gantt", '\uf66c'),
     CHART_TIMELINE("mdi-chart-timeline", '\uf66e'), // bars across a time axis; rasterized from the shipped font before use
     CHECK("mdi-check", '\uf12c'),
+    COMPARE("mdi-compare", '\uf18a'), // verified in the shipped font's cmap and post tables (HS-11)
     CHEVRON_DOWN("mdi-chevron-down", '\uf140'),
     CHEVRON_LEFT("mdi-chevron-left", '\uf141'),
     CHEVRON_RIGHT("mdi-chevron-right", '\uf142'),

@@ -83,7 +83,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         if (apiRequest != null) {
             jo.put("APIRequest", apiRequest.toJson());
             jo.put("imageParams", imageParams());
-            jo.put("filter", getFilter().name());
+            jo.put("filter", RhefPeek.persisted(this).name()); // never a held peek (RH-17)
         } else if (sourceUris != null && !sourceUris.isEmpty() || fitsRequest != null) {
             // Direct-URI layers (e.g. PUNCH FITS) have no server request; persist the remote
             // URIs so a restored session reloads them — from the persistent cache, no re-download.
@@ -112,7 +112,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
                     jo.put(PROBE_COMPLETE_KEY, pointingComplete.booleanValue());
             }
             jo.put("imageParams", imageParams());
-            jo.put("filter", getFilter().name());
+            jo.put("filter", RhefPeek.persisted(this).name()); // never a held peek (RH-17)
             if (fixedRange != null) // keep the shared FITS range so a restored PUNCH movie does not strobe
                 jo.put("fixedRange", new JSONArray().put(fixedRange[0]).put(fixedRange[1]));
             if (sequenceParams != null)
@@ -712,10 +712,11 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         if (imageData == null) {
             return;
         }
-        if (!isVisible[vp.idx])
+        if (!isVisible[vp.idx] || org.helioviewer.jhv.display.Compare.hides(this)) // blink (HS-11): a draw-time skip, never setEnabled
             return;
 
         MetaData meta0 = imageData.metaData();
+        glImage.setSwipe(org.helioviewer.jhv.display.Compare.swipeSide(this), org.helioviewer.jhv.display.Compare.swipeX(vp));
         glImage.applyFilters(imageData.imageBuffer(), meta0, getFilter() == ImageFilter.Type.RHEF);
 
         Position metaViewpoint0 = meta0.getViewpoint();

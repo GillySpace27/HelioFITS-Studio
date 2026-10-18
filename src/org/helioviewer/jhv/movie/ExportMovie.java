@@ -47,6 +47,34 @@ public final class ExportMovie {
     private static boolean mainCanvasVisible = true;
 
     public static void start(@Nullable Commands.OperationContext context, @Nullable Commands.RecordStartInput input) {
+        start(context, input, null, null);
+    }
+
+    /**
+     * Quick Share: one recording in {@code mode} with {@code once}'s encoding, applied to this recording
+     * only. Nothing is written to the person's recording mode, size, format or preset, so there is nothing
+     * to put back afterwards.
+     */
+    public static void startOnce(@Nullable Commands.OperationContext context, ExportPreset once, ViewState.RecordingMode mode) {
+        start(context, null, once, mode);
+    }
+
+    /** The encoding a recording uses: {@code once} when given, else the settings the person has chosen. Reads, never writes. */
+    static Encoding encodingFor(@Nullable ExportPreset once) {
+        return once == null
+                ? new Encoding(MoviePanel.storedFormat(), MoviePanel.storedChroma(), MoviePanel.storedDepth(), MoviePanel.isAllIntra())
+                : new Encoding(once.format(), once.chroma(), once.depth(), once.allIntra());
+    }
+
+    /** The person's recording data with only the mode swapped, for one recording. */
+    static ViewState.RecordingData withMode(ViewState.RecordingData current, ViewState.RecordingMode mode) {
+        return new ViewState.RecordingData(mode, current.aspect(), current.longSide());
+    }
+
+    record Encoding(ExportFormat format, ExportFormat.Chroma chroma, ExportFormat.Depth depth, boolean allIntra) {}
+
+    private static void start(@Nullable Commands.OperationContext context, @Nullable Commands.RecordStartInput input,
+                              @Nullable ExportPreset once, @Nullable ViewState.RecordingMode onceMode) {
         if (isRecording()) {
             if (context != null)
                 Commands.notifyRecordingFinished(context, false, "Recording already in progress.", null);
@@ -59,7 +87,8 @@ public final class ExportMovie {
 
             ViewState.PlaybackData playbackData = ViewState.playbackData();
             int fps = playbackData.speedUnit().isRelative() ? playbackData.speed() : Player.FPS_ABSOLUTE;
-            recordingSession = new RecordingSession(context, ViewState.recordingData(), fps);
+            ViewState.RecordingData data = onceMode == null ? ViewState.recordingData() : withMode(ViewState.recordingData(), onceMode);
+            recordingSession = new RecordingSession(context, data, fps, encodingFor(once));
             notifyStatusChanged();
             recordingSession.start();
         } catch (Exception e) {
@@ -176,7 +205,7 @@ public final class ExportMovie {
         private boolean stopAfterFrame;
 
         RecordingSession(@Nullable Commands.OperationContext _operationContext,
-                         ViewState.RecordingData recordingData, int fps) {
+                         ViewState.RecordingData recordingData, int fps, Encoding encoding) {
             operationContext = _operationContext;
             provenance = takeProvenance();
             exrProvenance = provenance == null ? null : provenance.toString();
@@ -190,9 +219,9 @@ public final class ExportMovie {
 
             // A snapshot is always a PNG whatever the movie format is set to, so it qualifies on its
             // own; otherwise the chosen depth says whether the grab has to be deep.
-            ExportFormat format = MoviePanel.storedFormat();
-            ExportFormat.Depth depth = MoviePanel.storedDepth();
-            ExportFormat.Chroma chroma = MoviePanel.storedChroma();
+            ExportFormat format = encoding.format();
+            ExportFormat.Depth depth = encoding.depth();
+            ExportFormat.Chroma chroma = encoding.chroma();
             deepOutput = mode == ViewState.RecordingMode.SHOT || format.wantsHighBitDepth(depth);
             bytesPerPixel = deepOutput ? 6 : 3;
 
@@ -221,7 +250,7 @@ public final class ExportMovie {
                         width, height, fps, false, provenance);
             } else {
                 writer = new ExportWriter(format, chroma, depth, width, height, fps,
-                        MoviePanel.isAllIntra(), provenance);
+                        encoding.allIntra(), provenance);
             }
         }
 

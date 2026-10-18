@@ -22,9 +22,12 @@ import org.helioviewer.jhv.gui.component.CircularProgressUI;
 import org.helioviewer.jhv.gui.dialog.MetaDataDialog;
 import org.helioviewer.jhv.io.DownloadLayer;
 import org.helioviewer.jhv.io.FitsRequest;
+import org.helioviewer.jhv.image.ImageDisplaySettings;
+import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.io.PunchClient;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layer;
+import org.helioviewer.jhv.metadata.ObservationType;
 import org.helioviewer.jhv.time.TimeUtils;
 import org.helioviewer.jhv.view.View;
 
@@ -141,6 +144,11 @@ final class ImageLayerManagePanel extends JPanel {
         icons.add(cacheButton);
         icons.add(deleteCacheButton);
         icons.add(makeRefreshButton());
+        icons.add(makeLiveBox());
+        JButton python = new JButton("Python");
+        python.setToolTipText("Send to Python: this layer's FITS files as science FITS (physical values, no display steps) with a manifest");
+        python.addActionListener(e -> new org.helioviewer.jhv.gui.Actions.SendToPython().actionPerformed(e));
+        icons.add(python);
         icons.add(makeSyncButton());
         icons.add(metaButton);
 
@@ -156,6 +164,7 @@ final class ImageLayerManagePanel extends JPanel {
     }
 
     private JButton refreshButton;
+    private javax.swing.JCheckBox liveBox;
 
     /**
      * Fetch what this layer is still missing, and only then look for frames it never asked for.
@@ -212,6 +221,20 @@ final class ImageLayerManagePanel extends JPanel {
     }
 
 
+    // HS-12 phase 2. Hidden unless the punch.live setting is on, so a default install never sees it.
+    private javax.swing.JCheckBox makeLiveBox() {
+        liveBox = new javax.swing.JCheckBox("Live", org.helioviewer.jhv.io.LiveRefresh.isLive(layer));
+        liveBox.setToolTipText("Every 15 minutes, load new PUNCH frames as a new layer, only while the archive's newest day is under a week old");
+        liveBox.addActionListener(e -> {
+            if (liveBox.isSelected())
+                org.helioviewer.jhv.io.LiveRefresh.start(layer, msg -> org.helioviewer.jhv.app.Log.info(msg));
+            else
+                org.helioviewer.jhv.io.LiveRefresh.stop(layer);
+        });
+        updateRefreshVisible();
+        return liveBox;
+    }
+
     void refresh(Layer layer) {
         ImageLayer imageLayer = (ImageLayer) layer;
         downloadButton.setVisible(!imageLayer.isLocal());
@@ -230,6 +253,8 @@ final class ImageLayerManagePanel extends JPanel {
     private void updateRefreshVisible() {
         if (refreshButton != null)
             refreshButton.setVisible(PunchClient.hasRememberedQuery(layer) || !layer.getFailedUris().isEmpty());
+        if (liveBox != null)
+            liveBox.setVisible(org.helioviewer.jhv.io.LiveRefresh.enabled() && layer.getFitsRequest() != null);
     }
 
     // Everything this layer has put on disk. There are two separate stores and a layer uses one
@@ -366,8 +391,8 @@ final class ImageLayerManagePanel extends JPanel {
                 ? (max == 0 ? "0/0 frames" : done + "/" + total + " frames") // scope not yet known
                 : total + (total == 1 ? " frame" : " frames");
         String duration = TimeUtils.formatDurationSig(end - start);
-        String text = String.format("<html>%s – %s<br>cadence %s · %s · %s total<br>%s<br>%s%s</html>",
-                TimeUtils.format(start), TimeUtils.format(end), cadence, frames, duration,
+        String text = String.format("<html>%s<br>%s – %s<br>cadence %s · %s · %s total<br>%s<br>%s%s</html>",
+                describeObservation(), TimeUtils.format(start), TimeUtils.format(end), cadence, frames, duration,
                 describeData(view), describeCache(), describeMissing());
         if (!text.equals(lastReadoutText)) {
             lastReadoutText = text;
@@ -376,6 +401,43 @@ final class ImageLayerManagePanel extends JPanel {
     }
 
     private String cadenceText = "n/a";
+    private String lastBadgeTips = "";
+
+    /**
+     * What the layer shows (HS-19), then a badge for each state that changes how to read it. The label is
+     * an instrument claim from resources/data/observation-types.json and says "unknown" rather than guess.
+     * Polled with the rest of the readout, so a badge follows the filter, the difference mode and the
+     * frame on screen.
+     */
+    private String describeObservation() {
+        StringBuilder line = new StringBuilder(ObservationType.of(layer.getMetaData()));
+        StringBuilder tips = new StringBuilder();
+        if (layer.getFilter() == ImageFilter.Type.RHEF)
+            badge(line, tips, "RHEF: visualization", "RHEF output is a visualization, not a calibrated radiance");
+        ImageDisplaySettings.DifferenceMode diff = layer.getDisplaySettings().getDifferenceMode();
+        if (diff == ImageDisplaySettings.DifferenceMode.Running)
+            badge(line, tips, "running difference", "each frame minus the frame shown before it");
+        else if (diff == ImageDisplaySettings.DifferenceMode.Base)
+            badge(line, tips, "base difference", "each frame minus the first frame");
+        View.ImageData data = layer.getImageData();
+        if (data != null && data.imageBuffer().isProvisional())
+            badge(line, tips, "provisional LASCO", "this frame's monthly background could not be fetched, so it is shown without it");
+        if ("CQM".equals(ObservationType.punchProduct(layer.getMetaData().getDisplayName())))
+            badge(line, tips, "quickPUNCH", "a low-latency product with a time-asymmetric background, not the Level 3 mosaic");
+        String tipText = tips.length() == 0 ? "" : "<html>" + tips + "</html>";
+        if (!tipText.equals(lastBadgeTips)) {
+            lastBadgeTips = tipText;
+            readout.setToolTipText(tipText.isEmpty() ? null : tipText);
+        }
+        return "<b>" + line + "</b>";
+    }
+
+    private static void badge(StringBuilder line, StringBuilder tips, String name, String why) {
+        line.append(" · [").append(name).append(']');
+        if (!tips.isEmpty())
+            tips.append("<br>");
+        tips.append(name).append(": ").append(why);
+    }
     private String lastReadoutText;
 
     /**

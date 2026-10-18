@@ -78,6 +78,11 @@ public final class State {
         return writeJson(toJson(), dir, file, SEQUENCE.incrementAndGet());
     }
 
+    /** Write an already built session now, in order with every other save; false when the write failed (logged). */
+    public static boolean writeNowConfirmed(JSONObject json, String dir, String file) {
+        return writeJson(json, dir, file, SEQUENCE.incrementAndGet());
+    }
+
     // Write through a temp file and move it into place. Writing directly truncates the target
     // first, so an exception mid-write -- or two autosaves overlapping -- left a corrupt session
     // and nothing to fall back on. The displaced version is kept as .bak, one deep.
@@ -198,6 +203,9 @@ public final class State {
         // one session with the panel off and be written away to nothing by the next autosave.
         // Automation is a property of the picture, not of the panel that edits it.
         main.put("automation", Automation.toJson());
+        JSONObject compare = org.helioviewer.jhv.display.Compare.toJson(); // HS-11; absent while Compare is off
+        if (compare != null)
+            main.put("compare", compare);
         JSONObject plugins = new JSONObject();
         PluginManager.saveState(plugins);
         main.put("plugins", plugins);
@@ -372,6 +380,7 @@ public final class State {
         }
 
         Layers.restore(restoredLayers);
+        org.helioviewer.jhv.display.Compare.fromJson(data.optJSONObject("compare"), restoredLayers); // by layer id (HS-11)
         Annotations.fromJson(data.optJSONObject("annotations"));
 
         // Restore the range before the playhead, so the playhead lands inside it rather than

@@ -50,6 +50,32 @@ public final class TransferAccess {
         }
     }
 
+    public static void writeClipboardImage(java.awt.image.BufferedImage image) {
+        Transferable transferable = new Transferable() {
+            @Override
+            public Object getTransferData(DataFlavor flavor) throws java.awt.datatransfer.UnsupportedFlavorException {
+                if (!DataFlavor.imageFlavor.equals(flavor))
+                    throw new java.awt.datatransfer.UnsupportedFlavorException(flavor);
+                return image;
+            }
+
+            @Override
+            public DataFlavor[] getTransferDataFlavors() {
+                return new DataFlavor[]{DataFlavor.imageFlavor};
+            }
+
+            @Override
+            public boolean isDataFlavorSupported(DataFlavor flavor) {
+                return DataFlavor.imageFlavor.equals(flavor);
+            }
+        };
+        try {
+            Toolkit.getDefaultToolkit().getSystemClipboard().setContents(transferable, null);
+        } catch (IllegalStateException e) {
+            Log.warn("Clipboard temporarily unavailable", e);
+        }
+    }
+
     public static void writeClipboard(String data) {
         try {
             Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(data), null);
