@@ -44,6 +44,7 @@ public final class HeliadIngestCheck {
     public static void main(String[] args) throws Exception {
         commands();
         files();
+        cacheImport();
         exchange();
         realCore();
         if (failures > 0) {
@@ -84,6 +85,45 @@ public final class HeliadIngestCheck {
         // Not offered, so this never looks for a library: a FITS file here could reach a real one.
         expect("offer() turns down a file that is not FITS", !HeliadIngest.offer(URI.create("https://example.invalid/r.md"),
                 new File("extra/test/data/README.md")));
+    }
+
+    private static void cacheImport() throws IOException {
+        Path root = Path.of("/data/HeliadLibrary");
+        expect("no mark: every cached file is offered", HeliadIngest.importedThrough(null, root) == Long.MIN_VALUE);
+        expect("a mark for this library: files from then on",
+                HeliadIngest.importedThrough("1700000000000 " + root, root) == 1_700_000_000_000L);
+        expect("a mark for another library: every file again",
+                HeliadIngest.importedThrough("1700000000000 /elsewhere/lib", root) == Long.MIN_VALUE);
+        expect("a library path with a space survives the mark",
+                HeliadIngest.importedThrough("5 /Volumes/My Disk/lib", Path.of("/Volumes/My Disk/lib")) == 5L);
+        expect("an unreadable mark: every file", HeliadIngest.importedThrough("soon " + root, root) == Long.MIN_VALUE);
+
+        Path dir = Files.createTempDirectory("hfs-heliad-cache");
+        byte[] fits = "SIMPLE  =                    T".getBytes(StandardCharsets.US_ASCII);
+        File old = write(dir.resolve("old_aia_1a2b3c4d5e6f.fits"), fits, 1_000_000L);
+        File fresh = write(dir.resolve("new_punch_0a0b0c0d0e0f.fits"), fits, 3_000_000L);
+        write(dir.resolve("timeline_9f8e7d6c5b4a.cdf"), "CDF".getBytes(StandardCharsets.US_ASCII), 3_000_000L);
+        write(dir.resolve("dl12345.tmp"), fits, 3_000_000L); // a download still in flight
+        expect("the first import offers every FITS file, oldest first, and nothing else, got " + HeliadIngest.pending(dir.toFile(), Long.MIN_VALUE),
+                HeliadIngest.pending(dir.toFile(), Long.MIN_VALUE).equals(List.of(old, fresh)));
+        expect("a later one only what arrived since the mark",
+                HeliadIngest.pending(dir.toFile(), 2_000_000L).equals(List.of(fresh)));
+        expect("a missing cache folder offers nothing", HeliadIngest.pending(dir.resolve("gone").toFile(), Long.MIN_VALUE).isEmpty());
+
+        List<File> offered = new java.util.ArrayList<>();
+        expect("every file answered counts them all",
+                HeliadIngest.importFiles(List.of(old, fresh), f -> offered.add(f)) == 2 && offered.equals(List.of(old, fresh)));
+        offered.clear();
+        expect("a lost core stops the import there, so the mark does not move past it",
+                HeliadIngest.importFiles(List.of(old, fresh), f -> { offered.add(f); return false; }) == 0 && offered.equals(List.of(old)));
+    }
+
+    private static File write(Path path, byte[] bytes, long modified) throws IOException {
+        Files.write(path, bytes);
+        File file = path.toFile();
+        if (!file.setLastModified(modified))
+            throw new IOException("cannot set the time of " + file);
+        return file;
     }
 
     private static void exchange() throws Exception {

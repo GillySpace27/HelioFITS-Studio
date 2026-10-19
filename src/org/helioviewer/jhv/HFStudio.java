@@ -150,6 +150,7 @@ public class HFStudio {
                 org.helioviewer.jhv.app.Session.init(); // session dirty-tracking + autosave timer
                 org.helioviewer.jhv.gui.dialog.WelcomeDialog.offerAtStartup(bareLaunch); // else the tour offer; a launch with arguments is a script's
                 org.helioviewer.jhv.io.FeedbackReport.retryInBackground(); // the outbox, on its own thread; never headless
+                org.helioviewer.jhv.io.HeliadIngest.importCacheInBackground(); // cached files the Heliad library lacks; no-op without Heliad
                 org.helioviewer.jhv.app.update.UpdateCheck.atStartup(); // at most daily, in the background, after a delay
             }
 

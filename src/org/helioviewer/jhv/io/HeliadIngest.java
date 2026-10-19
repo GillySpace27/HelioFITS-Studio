@@ -1,5 +1,6 @@
 package org.helioviewer.jhv.io;
 
+import java.awt.EventQueue;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -32,6 +33,7 @@ import java.util.function.Predicate;
 import javax.annotation.Nullable;
 
 import org.helioviewer.jhv.app.Log;
+import org.helioviewer.jhv.app.Settings;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -46,6 +48,10 @@ import org.json.JSONObject;
  * core is the library's only writer; Studio starts one with {@code heliad serve}, which relays to
  * the Heliad app's core when the app is open. Without a library or a core nothing happens, and a
  * failed ingest is logged and never reaches the download.
+ *
+ * <p>Files already in the cache are offered too, once: {@link #importCacheInBackground} at launch
+ * offers every FITS file the library has not been offered yet, which is all of them the first
+ * time and afterwards only those that arrived while Heliad was absent.
  *
  * <p>The core is found by the rules the Heliad app uses, minus its development fallback:
  * {@code HELIAD_CORE} (the {@code heliad} command, or a Python with heliad installed), then the
@@ -65,6 +71,13 @@ public final class HeliadIngest {
     private static final AtomicReference<Core> CORE = new AtomicReference<>(); // touched only on QUEUE
     private static final AtomicBoolean NO_CORE = new AtomicBoolean(); // looked once and found none
 
+    /**
+     * The library root, and the launch time up to which every file in Studio's cache was offered
+     * to it, as {@code "<epoch ms> <root>"}. Another root starts over: Heliad stores a file once
+     * by checksum, so offering one twice costs a read, never a second copy.
+     */
+    static final String IMPORTED_KEY = "heliad.cacheImported";
+
     private HeliadIngest() {}
 
     /**
@@ -81,18 +94,89 @@ public final class HeliadIngest {
         return true;
     }
 
-    private static void ingest(Path root, URI source, File file) {
+    /**
+     * At launch, queue every FITS file in Studio's cache that the Heliad library has not been
+     * offered yet ({@link #IMPORTED_KEY}). Returns at once; the files go one by one on the ingest
+     * thread, and the mark moves only once all of them got an answer from the core.
+     */
+    public static void importCacheInBackground() {
+        HeliadLibrary.Location lib = HeliadLibrary.find();
+        if (lib == null)
+            return;
+        long launched = System.currentTimeMillis();
+        long since = importedThrough(Settings.getProperty(IMPORTED_KEY), lib.root());
+        File dir = Directories.FILECACHE.getFile();
+        QUEUE.execute(() -> {
+            List<File> files = pending(dir, since);
+            if (files.isEmpty())
+                return;
+            Log.info("Adding " + files.size() + " file(s) from Studio's cache to the Heliad library at " + lib.root());
+            int done = importFiles(files, file -> ingest(lib.root(), null, file));
+            Log.info("Heliad cache import: " + done + " of " + files.size() + " file(s) answered");
+            if (done == files.size()) {
+                String mark = launched + " " + lib.root();
+                EventQueue.invokeLater(() -> Settings.setProperty(IMPORTED_KEY, mark)); // Settings is written on the EDT
+            }
+        });
+    }
+
+    /** The time from which cache files still need offering to the library at root; MIN_VALUE for all of them. */
+    static long importedThrough(@Nullable String mark, Path root) {
+        if (mark == null)
+            return Long.MIN_VALUE;
+        int space = mark.indexOf(' ');
+        if (space < 0 || !Path.of(mark.substring(space + 1)).equals(root))
+            return Long.MIN_VALUE;
+        try {
+            return Long.parseLong(mark.substring(0, space));
+        } catch (NumberFormatException e) {
+            return Long.MIN_VALUE;
+        }
+    }
+
+    /** The FITS files in the cache folder written at or after since, oldest first. */
+    static List<File> pending(File dir, long since) {
+        File[] files = dir.listFiles(f -> f.isFile() && f.lastModified() >= since && !f.getName().endsWith(".tmp"));
+        if (files == null)
+            return List.of();
+        List<File> out = new ArrayList<>();
+        for (File f : files)
+            if (isFits(f))
+                out.add(f);
+        out.sort(java.util.Comparator.comparingLong(File::lastModified).thenComparing(File::getName));
+        return out;
+    }
+
+    /** Offer each file until one gets no answer (no core, or the core was lost); how many were answered. */
+    static int importFiles(List<File> files, Predicate<File> ingest) {
+        int done = 0;
+        for (File file : files) {
+            if (!ingest.test(file))
+                break;
+            done++;
+        }
+        return done;
+    }
+
+    /** True when the core answered, whether it took the file or refused it. */
+    private static boolean ingest(Path root, @Nullable URI source, File file) {
         Core core = core(root);
         if (core == null)
-            return;
+            return false;
+        JSONObject params = new JSONObject().put("path", file.getAbsolutePath());
+        if (source != null)
+            params.put("source_url", source.toString());
         try {
-            core.call("ingest.path", new JSONObject().put("path", file.getAbsolutePath()).put("source_url", source.toString()), TIMEOUT);
-        } catch (RpcError e) { // the core refused this file (a cut-off download, say); it is still running
+            core.call("ingest.path", params, TIMEOUT);
+            return true;
+        } catch (RpcError e) { // the core refused this file (not a whole FITS file, say); it is still running
             Log.warn("Heliad did not take " + file.getName() + ": " + e.getMessage());
+            return true;
         } catch (IOException e) {
             Log.warn("Lost the Heliad core while adding " + file.getName(), e);
             CORE.set(null);
             core.close();
+            return false;
         }
     }
 
@@ -165,6 +249,8 @@ public final class HeliadIngest {
 
     /** An error the core answered with, as opposed to losing the core. */
     static final class RpcError extends IOException {
+        private static final long serialVersionUID = 1L;
+
         RpcError(String message) {
             super(message);
         }
