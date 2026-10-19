@@ -89,6 +89,7 @@ public class NetFileCache {
             } catch (IOException e) {
                 Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING); // ATOMIC_MOVE unsupported across devices
             }
+            HeliadIngest.offer(uri, cached); // a copy for the Heliad library, if there is one; this file stays
             return new DataUri(uri, target.toUri(), cached);
         } finally {
             // Whatever ended the download, not only an IOException; nothing to do once it was moved.
