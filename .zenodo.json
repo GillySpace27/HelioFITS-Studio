@@ -1,0 +1,40 @@
+{
+  "title": "HelioFITS Studio",
+  "upload_type": "software",
+  "description": "HelioFITS Studio is a desktop viewer for solar and heliospheric imagery, built around coronagraph and wide-field data. It is an unofficial fork of JHelioviewer, the open-source solar image browser of the ESA/NASA Helioviewer Project, that adds tools for the outer corona: PUNCH and native LASCO data loading, the Helioradial projections, the RHEF radial histogram equalizing filter, CME tracking against the CACTus catalog, point cloud layers and deep-colour movie export. Files that came from JHelioviewer keep their licence and notices.",
+  "creators": [
+    {
+      "name": "Gilly, Chris R.",
+      "orcid": "0000-0003-0021-9056",
+      "affiliation": "NorthWest Research Associates"
+    }
+  ],
+  "license": "MPL-2.0",
+  "access_right": "open",
+  "keywords": [
+    "solar physics",
+    "heliophysics",
+    "corona",
+    "coronagraph",
+    "visualization",
+    "JHelioviewer",
+    "PUNCH"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/Helioviewer-Project/JHelioviewer-SWHV",
+      "relation": "isDerivedFrom",
+      "resource_type": "software"
+    },
+    {
+      "identifier": "10.1051/0004-6361/201730893",
+      "relation": "references",
+      "resource_type": "publication-article"
+    },
+    {
+      "identifier": "10.1007/s11207-025-02578-x",
+      "relation": "references",
+      "resource_type": "publication-article"
+    }
+  ]
+}

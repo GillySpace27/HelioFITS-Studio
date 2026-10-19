@@ -60,7 +60,13 @@ The name JHelioviewer appears here only to say where this software comes from. I
 
 ## Citing
 
-If HelioFITS Studio helps your research, please cite the JHelioviewer paper it is built on: Müller et al. (2017), Astronomy & Astrophysics, https://doi.org/10.1051/0004-6361/201730893. A dedicated HelioFITS Studio methods paper is in prep for publication. 
+If HelioFITS Studio helps your research, please cite:
+
+- **The version you used.** Each release is archived on Zenodo with its own DOI. [CITATION.cff](CITATION.cff) has the details, and GitHub's "Cite this repository" button turns it into APA or BibTeX.
+- **The JHelioviewer paper it is built on:** Müller et al. (2017), *Astronomy & Astrophysics* 606, A10, https://doi.org/10.1051/0004-6361/201730893.
+- **If you used the RHEF filter:** Gilly & Cranmer (2025), *Solar Physics* 300, 174, https://doi.org/10.1007/s11207-025-02578-x.
+
+A dedicated HelioFITS Studio methods paper is in preparation.
 
 ## Reporting problems
 
