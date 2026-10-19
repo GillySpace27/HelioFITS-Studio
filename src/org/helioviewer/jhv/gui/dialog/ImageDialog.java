@@ -49,6 +49,7 @@ public final class ImageDialog extends StandardDialog implements DataSources.Lis
         }
     };
     private final JButton actionButton = new JButton(load);
+    private final HeliadTab heliadTab = new HeliadTab(this::selectionChanged, this::loadSelectedDatasets);
 
     public ImageDialog(Handler _handler) {
         super(MainFrame.get(), "New Image Layer", false);
@@ -95,7 +96,7 @@ public final class ImageDialog extends StandardDialog implements DataSources.Lis
         content.setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3));
         content.add(scrollPane, BorderLayout.CENTER);
         content.add(datasetExtent, BorderLayout.SOUTH);
-        return content;
+        return heliadTab.wrap(content); // beside a Heliad library tab when Heliad has a library here
     }
 
     @Nullable
@@ -109,6 +110,7 @@ public final class ImageDialog extends StandardDialog implements DataSources.Lis
         actionButton.setText(changeMode ? "Change" : "Add");
         sourcesTree.getSelectionModel().setSelectionMode(
                 changeMode ? TreeSelectionModel.SINGLE_TREE_SELECTION : TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION);
+        heliadTab.update(changeMode);
         selectionChanged();
         if (!isVisible()) {
             pack();
@@ -129,8 +131,9 @@ public final class ImageDialog extends StandardDialog implements DataSources.Lis
     private void selectionChanged() {
         List<DataSourcesTree.SourceItem> items = sourcesTree.getSelectedItems();
         DataSourcesTree.SourceItem item = items.size() == 1 ? items.getFirst() : null;
-        load.setEnabled(!items.isEmpty());
-        availabilityButton.setEnabled(getAvailabilityURL(item) != null);
+        boolean heliad = heliadTab.showing();
+        load.setEnabled(heliad ? heliadTab.canLoad() : !items.isEmpty());
+        availabilityButton.setEnabled(!heliad && getAvailabilityURL(item) != null);
         String text = item != null ? "Extent: " + TimeUtils.formatShort(item.start) + " - " + TimeUtils.formatShort(item.end)
                 : items.isEmpty() ? "" : items.size() + " datasets selected";
         datasetExtent.setText("<div style='text-align:center'>" + text + "</div>");
@@ -153,6 +156,11 @@ public final class ImageDialog extends StandardDialog implements DataSources.Lis
     }
 
     private void loadSelectedDatasets() {
+        if (heliadTab.showing()) {
+            if (heliadTab.load())
+                setVisible(false);
+            return;
+        }
         List<DataSourcesTree.SourceItem> items = sourcesTree.getSelectedItems();
         if (items.isEmpty())
             return;
