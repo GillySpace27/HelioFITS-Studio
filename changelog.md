@@ -94,6 +94,8 @@
 - In the Playback tab, the Preset row and the Format disclosure no longer draw on top of each other
 
 ### Smaller fixes
+- The Timeline Layers section no longer shows as empty stripes. When the sidebar gave it a pixel less height than it asked for, its New Layer row collapsed to nothing and its list was drawn above its own top, so only the row shading showed (seen in the Sarah Gibson session as timeline layers rendering nothing)
+- In Playback and Recording, Format, Pixels and the two checkboxes under them sit in the section as rows of their own, instead of behind a fold-down headed with a summary such as "FFV1, RGB, 16-bit"
 - A movie export says how far it has got, in the footer beside the FPS: the frame being recorded (of how many, for one loop), then the frames encoded, then that the file is being written, and nothing once it is done. The activity light keeps spinning until the file is closed; before, it stopped when capture ended, and a long export then showed no sign of life while it encoded
 - The layer readout no longer sits in a tall empty box. It keeps its tallest height so it does not jump while frames stream in, but one squeezed layout could pin that at a word per line; the height now starts over when the panel's width changes
 - A session reopens on its own master time range. When Helioviewer's list of datasets arrived after the session had loaded, which at startup it often did, the range was reset to the last two days of data
