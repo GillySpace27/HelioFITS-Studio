@@ -225,8 +225,18 @@ public final class Actions {
 
     /** Send to Python (HS-13): the active layer's FITS sources as double-precision science FITS under Exports/, snippet on the clipboard, SAMP notified. */
     public static class SendToPython extends AbstractAction {
+        // One export at a time, from any path (menu, panel button, palette): a second click while one ran
+        // used to start a second export into its own folder, with its own clipboard snippet.
+        private static final java.util.concurrent.atomic.AtomicBoolean running = new java.util.concurrent.atomic.AtomicBoolean();
+        private static volatile String progress; // what the footer's activity light names; null when idle
+
         public SendToPython() {
             super("Send to Python");
+        }
+
+        @javax.annotation.Nullable
+        public static String progress() {
+            return progress;
         }
 
         @Override
@@ -241,11 +251,37 @@ public final class Actions {
                 org.helioviewer.jhv.app.Message.warn("Send to Python", "This layer has no FITS source files on disk (a JPEG 2000 layer has none; a remote one must be downloaded first).");
                 return;
             }
+            if (!running.compareAndSet(false, true))
+                return;
             java.nio.file.Path out = java.nio.file.Path.of(org.helioviewer.jhv.io.Directories.EXPORTS.getPath(),
                     "python-" + java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(java.time.ZoneOffset.UTC).format(java.time.Instant.now()));
+            // The clicked panel button counts the files; the menu item and every layer's button grey out.
+            javax.swing.AbstractButton button = e.getSource() instanceof javax.swing.AbstractButton b && !(b instanceof javax.swing.JMenuItem) ? b : null;
+            String label = button == null ? null : button.getText();
+            int total = sources.size();
+            progress = "Sending " + total + " file(s) to Python";
+            setEnabled(false);
+            if (button != null)
+                button.setText("Exporting…");
+            java.util.function.IntConsumer step = n -> {
+                progress = "Sending to Python: file " + n + " of " + total;
+                if (button != null)
+                    java.awt.EventQueue.invokeLater(() -> button.setText("Exporting " + n + "/" + total + "…"));
+            };
+            Runnable idle = () -> {
+                progress = null;
+                setEnabled(true);
+                if (button != null)
+                    button.setText(label);
+            };
             Task.submitBackground("send-to-python", () -> {
-                org.json.JSONObject manifest = org.helioviewer.jhv.io.FitsExport.export(sources, out, org.helioviewer.jhv.movie.Provenance.session());
-                return org.helioviewer.jhv.io.FitsExport.snippet(out, manifest);
+                try {
+                    org.json.JSONObject manifest = org.helioviewer.jhv.io.FitsExport.export(sources, out, org.helioviewer.jhv.movie.Provenance.session(), step);
+                    return org.helioviewer.jhv.io.FitsExport.snippet(out, manifest);
+                } finally { // queued ahead of the success or failure report, so the button is back before its dialog
+                    running.set(false);
+                    java.awt.EventQueue.invokeLater(idle);
+                }
             }, snippet -> {
                 TransferAccess.writeClipboard(snippet);
                 List<File> written = new ArrayList<>();
