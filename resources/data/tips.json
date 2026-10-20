@@ -25,8 +25,8 @@
       "action": "undo"
     },
     {
-      "text": "Help > Take the Tour steps through the main controls, one at a time.",
-      "action": "takeTour"
+      "text": "Help > Tours > Getting started steps through the main controls, one at a time; Help > Tours lists the other tours.",
+      "action": "tourGettingStarted"
     },
     {
       "text": "RHEF, in a layer's Filter list, is a visualization, not a calibrated radiance."

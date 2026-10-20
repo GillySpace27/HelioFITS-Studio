@@ -122,8 +122,8 @@ public final class ActionCatalog {
         put("rotate90Z", new Actions.Rotate90Camera("Z Axis", "Z"), "", "Rotate the view 90° about Z");
         put("zoomFovAnnotation", new Actions.ZoomFOVAnnotation(), "", "");
         put("copyProvenance", new Actions.CopyProvenance(), "File/Copy Provenance", "");
-        // Guided tour (HS-15): the menu item, and the reveal its steps run before spotlighting
-        put("takeTour", org.helioviewer.jhv.gui.search.Tour.action(), "Help/Take the Tour", "Step through the main controls, one at a time");
+        // Guided tour (HS-15): Getting started, in no menu since Help > Tours took it over; the Welcome card and search still reach it
+        put("takeTour", org.helioviewer.jhv.gui.search.Tour.action(), "", "Step through the main controls, one at a time");
         put("welcome", new org.helioviewer.jhv.gui.dialog.WelcomeDialog.Open(), "Help/Welcome to HelioFITS Studio...", "What's new in this version, and the ways to start");
         put("showImageLayers", new AbstractAction("Show Image Layers") {
             @Override
