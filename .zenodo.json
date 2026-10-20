@@ -9,6 +9,16 @@
       "affiliation": "NorthWest Research Associates"
     }
   ],
+  "contributors": [
+    {
+      "name": "ESA JHelioviewer team",
+      "type": "ResearchGroup"
+    },
+    {
+      "name": "Royal Observatory of Belgium, SIDC",
+      "type": "ResearchGroup"
+    }
+  ],
   "license": "MPL-2.0",
   "access_right": "open",
   "keywords": [

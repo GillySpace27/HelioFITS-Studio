@@ -35,6 +35,26 @@
 
 ### Heliad
 - When Heliad (the separate app that downloads solar data and keeps it in one library) has a library on this computer, the New Image Layer dialog gets a second tab, Heliad library. It lists Heliad's datasets with how much of the master time range each one reaches, marked as in Load from Cache, and how many frames fall inside the range. Add loads each selected dataset as a layer from its frames in the range; a dataset with nothing in the range loads whole, asking first above 1,000 frames. Open in Heliad, shown when the Heliad app is installed, hands the range to it to search for more. With no Heliad library the dialog is unchanged, and Studio's own downloads and streaming are untouched
+- When Heliad is on this computer, every FITS file Studio downloads is also added to the Heliad library. Studio caches and loads the file exactly as before, and without Heliad nothing changes
+
+### Sharing
+- File > Quick Share records one loop of the current scene as a movie that plays anywhere (H.264, 8 bit) and shows it in Finder or your file manager. Your own recording settings are not changed
+
+### Python
+- Layers > Send to Python writes the active layer's FITS files that are on this computer as double-precision science FITS under Exports/, with a manifest and a sunpy snippet on the clipboard. LASCO frames have the bias level (OFFSET) removed first, the same step the viewer takes; this is not a calibration. A layer still streaming from an archive has to be downloaded first; a JPEG 2000 layer has no FITS files to send
+
+### PUNCH
+- Layers > PUNCH Latest opens the newest day of PUNCH clear average mosaics (CAM, Level 3) in Helioradial with RHEF on
+- The status bar shows how old the active PUNCH layer's newest frame is, in amber when it is more than 7 days old
+
+### Command line
+- `--export png --out <file>` draws the scene and writes one PNG, then exits; `--help` prints a table of every option. Unknown options are now refused, and the exit code says what went wrong (2 usage, 3 input not found, 4 export failed). See docs/cli.md
+
+### Export
+- An exported movie or PNG with RHEF on records which RHEF settings made it (rhef_stamp in its provenance)
+
+### LASCO
+- LASCO frames shown with the monthly background removed no longer keep the camera's bias level (the OFFSET header keyword). Every such frame was too bright by OFFSET / EXPTIME in every pixel. Pictures with RHEF on look the same; linear, gamma and difference views change
 
 ## HelioFITS Studio 0.8.6 (pre-release, 2026-10-11)
 
@@ -141,8 +161,6 @@
 - Error, warning and crash dialogs have a Report this... button that opens the same window with the message and, when there is one, the stack trace filled in
 - This build has nowhere to send reports yet: they are saved in `~/HFStudio/Outbox`, with Copy to Clipboard and Email Instead offered, and a later version sends them when it starts. A sent report moves to `Outbox/sent`; none is deleted
 
-### LASCO
-- LASCO frames shown with the monthly background removed no longer keep the camera's bias level (the OFFSET header keyword). Every such frame was too bright by OFFSET / EXPTIME in every pixel. Pictures with RHEF on look the same; linear, gamma and difference views change
 
 ## HelioFITS Studio 0.8.3 (pre-release, 2026-09-23)
 
