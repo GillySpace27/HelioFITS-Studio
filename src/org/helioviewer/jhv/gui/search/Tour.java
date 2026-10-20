@@ -112,7 +112,7 @@ public final class Tour {
         };
     }
 
-    /** Help > Take the Tour. */
+    /** Take the Tour: Getting started, for the Welcome card and search (Help > Tours lists it as a menu item). */
     public static Action action() {
         return new AbstractAction("Take the Tour") {
             @Override
@@ -202,7 +202,7 @@ public final class Tour {
         prompt.keys(notNow, null, now);
         JButton startButton = button("Start the Tour", now);
         prompt.show(find("imageCanvas"), card("New to HelioFITS Studio?",
-                "A short tour points out the main controls, one at a time. You can also take it later from Help > Take the Tour.",
+                "A short tour points out the main controls, one at a time. You can also take it, or another tour, later from Help > Tours.",
                 "", button("Not now", notNow), startButton), startButton);
     }
 
