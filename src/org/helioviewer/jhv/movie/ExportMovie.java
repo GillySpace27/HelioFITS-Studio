@@ -74,9 +74,15 @@ public final class ExportMovie {
                 : new Encoding(once.format(), once.chroma(), once.depth(), once.allIntra());
     }
 
-    /** The person's recording data with only the mode swapped, for one recording. */
-    static ViewState.RecordingData withMode(ViewState.RecordingData current, ViewState.RecordingMode mode) {
-        return new ViewState.RecordingData(mode, current.aspect(), current.longSide());
+    /** Quick Share's long side: HD is where every phone, chat preview and slide deck is happy, and the file stays sendable. */
+    static final int SHARE_LONG_SIDE = 1920;
+
+    /**
+     * The person's recording data for one Quick Share: the mode swapped and the long side capped at
+     * {@link #SHARE_LONG_SIDE}. The person's own size is read, never written.
+     */
+    static ViewState.RecordingData shareData(ViewState.RecordingData current, ViewState.RecordingMode mode) {
+        return new ViewState.RecordingData(mode, current.aspect(), Math.min(current.longSide(), SHARE_LONG_SIDE));
     }
 
     record Encoding(ExportFormat format, ExportFormat.Chroma chroma, ExportFormat.Depth depth, boolean allIntra) {}
@@ -95,7 +101,7 @@ public final class ExportMovie {
 
             ViewState.PlaybackData playbackData = ViewState.playbackData();
             int fps = playbackData.speedUnit().isRelative() ? playbackData.speed() : Player.FPS_ABSOLUTE;
-            ViewState.RecordingData data = onceMode == null ? ViewState.recordingData() : withMode(ViewState.recordingData(), onceMode);
+            ViewState.RecordingData data = onceMode == null ? ViewState.recordingData() : shareData(ViewState.recordingData(), onceMode);
             framesQueued.set(0);
             framesEncoded.set(0);
             recordingSession = new RecordingSession(context, data, fps, encodingFor(once));

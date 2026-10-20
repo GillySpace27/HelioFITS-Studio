@@ -19,19 +19,30 @@ import org.helioviewer.jhv.display.HdrTransfer;
  */
 public enum ExportFormat {
     // No -level: a fixed 4.2 rejects the larger frame sizes outright rather than encoding them.
-    // The H.265 CRFs match H.264's, so "better" means the same thing whichever codec is picked.
+    // Instead the H.264 frame is scaled to fit Level 5.1 (see fit), which x264 then derives on
+    // its own. The H.265 CRFs match H.264's, so "better" means the same thing whichever codec
+    // is picked.
+    //
+    // Limited range (16-235), not full: these four are the SDR formats a file goes out in, and
+    // the full-range flag is the one piece of signalling that players apply inconsistently
+    // (commonly reported for Windows Media Foundation and some hardware paths: the flag is
+    // ignored and the picture comes out with crushed blacks). Limited range is what every
+    // camera writes and every decoder assumes. It costs 37 of 256 levels at 8 bits; the HDR
+    // formats were already limited for the same reason. Verified with the bundled ffmpeg
+    // (2026-10-20): white encodes to Y=235 and the stream is tagged tv, where before it was
+    // Y=255 tagged pc (yuvj420p).
     H264("H.264", ".mp4",
             List.of("-c:v", "libx264", "-crf", "23", "-preset", "fast", "-tune", "psnr"),
-            "-x264-params", "colorprim=bt709:transfer=bt709:colormatrix=bt709:fullrange=on"),
+            "-x264-params", "colorprim=bt709:transfer=bt709:colormatrix=bt709"),
     H264HQ("H.264 better", ".mp4",
             List.of("-c:v", "libx264", "-crf", "17", "-preset", "medium", "-tune", "psnr"),
-            "-x264-params", "colorprim=bt709:transfer=bt709:colormatrix=bt709:fullrange=on"),
+            "-x264-params", "colorprim=bt709:transfer=bt709:colormatrix=bt709"),
     H265("H.265", ".mp4",
             List.of("-c:v", "libx265", "-tag:v", "hvc1", "-crf", "23", "-preset", "fast", "-tune", "psnr"),
-            "-x265-params", "colorprim=bt709:transfer=bt709:colormatrix=bt709:range=full"),
+            "-x265-params", "colorprim=bt709:transfer=bt709:colormatrix=bt709:range=limited"),
     H265HQ("H.265 better", ".mp4",
             List.of("-c:v", "libx265", "-tag:v", "hvc1", "-crf", "17", "-preset", "medium", "-tune", "psnr"),
-            "-x265-params", "colorprim=bt709:transfer=bt709:colormatrix=bt709:range=full"),
+            "-x265-params", "colorprim=bt709:transfer=bt709:colormatrix=bt709:range=limited"),
     /**
      * The same encoder, delivering the extended range instead of throwing it away.
      *
@@ -247,7 +258,11 @@ public enum ExportFormat {
                         "-color_trc", hdrCurve() == HdrTransfer.Curve.HLG ? "arib-std-b67" : "smpte2084",
                         "-colorspace", "bt2020nc", "-color_range", "1"));
             } else {
-                out.addAll(List.of("-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "2"));
+                // Limited range for the lossy YUV formats (see the H264 comment); full range for
+                // RGB, which swscale never range-converts, and for FFV1, whose YUV is a
+                // measurement and keeps all 256 levels.
+                boolean limited = chroma != Chroma.RGB && this != FFV1;
+                out.addAll(List.of("-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", limited ? "1" : "2"));
                 if (chroma != Chroma.RGB)
                     out.addAll(List.of("-colorspace", "bt709"));
             }
@@ -262,7 +277,9 @@ public enum ExportFormat {
             out.addAll(List.of("-profile:v", "main10"));
 
         if (paramFlag != null && paramBase != null) {
-            String params = chroma == Chroma.RGB ? paramBase.replace(":colormatrix=bt709", "") : paramBase;
+            String params = chroma == Chroma.RGB
+                    ? paramBase.replace(":colormatrix=bt709", "").replace("range=limited", "range=full")
+                    : paramBase;
             if ((this == H265 || this == H265HQ || this == H265_HLG || this == H265_PQ) && chroma == Chroma.YUV444)
                 params += ":psy-rd=0";
             out.add(paramFlag);
@@ -278,6 +295,28 @@ public enum ExportFormat {
      */
     public boolean wantsHighBitDepth(Depth depth) {
         return isSeries() || depth != Depth.EIGHT;
+    }
+
+    /** H.264 Level 5.1's frame size: 36864 macroblocks of 16x16, 3840x2160 with room to spare, 3072x3072 square. */
+    static final int H264_MAX_PIXELS = 36864 * 256;
+
+    /**
+     * The size the frame is encoded at, or null when it goes out as it is.
+     *
+     * <p>H.264 is the format chosen for playing anywhere, and a 4096x4096 frame defeats that:
+     * x264 derives Level 6.0 from it (verified with the bundled ffmpeg, 2026-10-20), which
+     * software decoders manage and hardware decoders refuse, so the file opens in VLC and shows
+     * nothing in QuickTime or PowerPoint. Level 5.1 is the ceiling hardware decoders are
+     * commonly built to, so a larger frame is scaled, keeping its shape, to fit it. Even sides,
+     * because 4:2:0 cannot carry an odd one. H.265 is left alone: its levels reach further and
+     * its users chose it for size rather than reach.
+     */
+    @Nullable
+    public int[] fit(int w, int h) {
+        if ((this != H264 && this != H264HQ) || (long) w * h <= H264_MAX_PIXELS)
+            return null;
+        double s = Math.sqrt(H264_MAX_PIXELS / ((double) w * h));
+        return new int[]{(int) (w * s) / 2 * 2, (int) (h * s) / 2 * 2};
     }
 
     ExportFormat(String _name, String _extension, List<String> _base, @Nullable String _paramFlag, @Nullable String _paramBase) {

@@ -35,9 +35,9 @@ public final class QuickShareCheck {
                 once.format() == ExportFormat.H264 && once.chroma() == ExportFormat.Chroma.YUV420
                         && once.depth() == ExportFormat.Depth.EIGHT && !once.allIntra());
 
-        ViewState.RecordingData loop = ExportMovie.withMode(before, ViewState.RecordingMode.LOOP);
-        expect("the one-shot data is a loop at the person's size", loop.mode() == ViewState.RecordingMode.LOOP
-                && loop.aspect() == before.aspect() && loop.longSide() == before.longSide());
+        ViewState.RecordingData loop = ExportMovie.shareData(before, ViewState.RecordingMode.LOOP);
+        expect("the one-shot data is a loop at the person's aspect, no larger than HD", loop.mode() == ViewState.RecordingMode.LOOP
+                && loop.aspect() == before.aspect() && loop.longSide() == Math.min(before.longSide(), ExportMovie.SHARE_LONG_SIDE));
 
         ExportMovie.Encoding stored = ExportMovie.encodingFor(null);
         expect("without a one-shot the person's own settings are used",
