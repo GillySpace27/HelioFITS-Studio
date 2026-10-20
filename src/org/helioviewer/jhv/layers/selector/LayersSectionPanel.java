@@ -27,6 +27,7 @@ public final class LayersSectionPanel extends JPanel {
 
         // request cadence for the next layer, sourced against the master time range
         cadencePanel = new CadencePanel(MoviePanel.getInstance().getTimeSelectorPanel());
+        cadencePanel.setName("imageLayersCadence"); // tour target
 
         addLayerButton = new SplitButton(Buttons.newLayer);
         addLayerButton.setText("New Layer");
