@@ -25,6 +25,7 @@ public final class FontRescaleCheck {
     }
 
     public static void main(String[] args) {
+        System.setProperty("user.home", System.getProperty("java.io.tmpdir")); // DisplayScale reads Settings
         UIGlobals.uiFontMDI = new Font("Dialog", Font.PLAIN, 12); // stands in for the icon font: a family of its own
         JPanel root = new JPanel();
         JPanel nested = new JPanel();
@@ -42,8 +43,24 @@ public final class FontRescaleCheck {
         root.add(laf);
         root.add(glyph);
 
-        UIGlobals.rescaleSetFonts(root, 1.5f);
+        // A shared detail font is remapped to its new self, whatever the body factor says.
+        Font oldDetail = new Font("SansSerif", Font.PLAIN, 11);
+        Font newDetail = new Font("SansSerif", Font.PLAIN, 11);
+        JLabel detail = new JLabel("readout");
+        detail.setFont(oldDetail);
+        root.add(detail);
+        // A section header is tagged and goes to headingFont, which needs the body font to size from.
+        UIGlobals.uiFont = new Font("SansSerif", Font.PLAIN, 13);
+        JButton heading = new JButton("Section");
+        heading.putClientProperty(UIGlobals.HEADING, Boolean.FALSE);
+        heading.setFont(new Font("SansSerif", Font.BOLD, 15));
+        root.add(heading);
+
+        UIGlobals.rescaleSetFonts(root, java.util.Map.of(oldDetail, newDetail.deriveFont(11f)), 1.5f);
         expect("a hand-set 10 pt label becomes 15 pt", small.getFont().getSize2D() == 15f);
+        expect("a shared detail font takes its remapped size, not the body factor", detail.getFont().getSize2D() == 11f);
+        expect("a tagged section header takes headingFont (bold, a step over the body at 100%)",
+                heading.getFont().isBold() && heading.getFont().getSize2D() == 13f + UIGlobals.PARENT_HEADING_STEP);
         expect("a hand-set 16 pt header, nested a level down, becomes 24 pt", header.getFont().getSize2D() == 24f);
         expect("the header keeps its bold", header.getFont().isBold());
         expect("a look-and-feel font is left to the look and feel", laf.getFont().getSize2D() == 13f);
