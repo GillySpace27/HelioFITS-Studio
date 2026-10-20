@@ -9,7 +9,7 @@ import java.util.List;
 /**
  * ~/HFStudio/Datasets/&lt;dataset&gt;/&lt;file&gt;: the cache as folders a Finder or a shell can browse, one
  * symbolic link per cached frame, grouped the way the cache dialog groups them (CacheIndex.group), so a
- * long gap never splits a dataset in two here either. The links are the only thing written: the cache
+ * long gap never splits a dataset in two here either. The links (on Windows, the listings below) are the only thing written: the cache
  * is never touched, and a link that no longer points where the cache says is moved into
  * {@code .stale/} (renamed if the name is taken), never deleted.
  *
