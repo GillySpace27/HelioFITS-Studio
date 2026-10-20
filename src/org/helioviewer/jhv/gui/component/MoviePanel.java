@@ -421,7 +421,7 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         addSpan(encodingPanel, 2, row(allIntraCheckBox));
         addSpan(encodingPanel, 3, row(timelinesCheckBox));
         encodingPane = new EncodingPane(encodingPanel);
-        addSpan(optionsPanel, 4, encodingPane);
+        addSpan(optionsPanel, 5, encodingPane); // its own row: sharing the Preset row's cell drew one over the other
 
         syncPixelCombos();
         syncPresetList(null);
