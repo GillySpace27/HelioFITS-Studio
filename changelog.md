@@ -77,7 +77,7 @@
 - The events row keeps drawing newly downloaded events after loading one session and then another. Before, it could stop updating until the timeline was panned or zoomed
 
 ### Tracking and playback
-- The Track CME panel has a Cancel button beside its status line. It stops tracking and puts the warp and crop back as they were before tracking started, even after switching between CMEs or modes. The jump of the playhead and the switch to Helioradial stay
+- The Track CME panel and the comet panel (Tools > Find Comets to Track...) have a Cancel button beside their status line. It stops tracking and puts the warp and crop back as they were before tracking started, even after switching between CMEs, comets or modes. The jump of the playhead and the switch to Helioradial stay
 - In the Playback tab, the Preset row and the Format disclosure no longer draw on top of each other
 
 ### Smaller fixes
