@@ -665,7 +665,8 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
     @Override
     public void renderFloat(MapView mv, Viewport vp) {
-        if (!isVisible[vp.idx] || !displaySettings.getShowColorbar() || imageData == null)
+        if (!isVisible[vp.idx] || !displaySettings.getShowColorbar() || imageData == null
+                || org.helioviewer.jhv.display.Compare.differenceFor(this) != null) // its colour table is not what is drawn
             return;
         colorbar.render(vp, displaySettings, glImage, imageData, getFilter() == ImageFilter.Type.RHEF, colorbarSlot());
     }
@@ -691,7 +692,8 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         View.ImageData comparisonData = comparisonImageData();
         ImageBuffer differenceBuffer = displaySettings.getDifferenceMode() == DifferenceMode.None || comparisonData == null
                 ? null : comparisonData.imageBuffer();
-        glImage.streamImages(imageData.imageBuffer(), differenceBuffer);
+        org.helioviewer.jhv.display.Compare.DifferenceDraw cmp = org.helioviewer.jhv.display.Compare.differenceFor(this);
+        glImage.streamImages(imageData.imageBuffer(), cmp == null ? differenceBuffer : cmp.subtrahend().imageBuffer());
     }
 
     @Override
@@ -717,10 +719,12 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
         MetaData meta0 = imageData.metaData();
         glImage.setSwipe(org.helioviewer.jhv.display.Compare.swipeSide(this), org.helioviewer.jhv.display.Compare.swipeX(vp));
+        org.helioviewer.jhv.display.Compare.DifferenceDraw cmp = org.helioviewer.jhv.display.Compare.differenceFor(this);
+        glImage.setCompareDifference(cmp == null ? null : cmp.coefficients());
         glImage.applyFilters(imageData.imageBuffer(), meta0, getFilter() == ImageFilter.Type.RHEF);
 
         Position metaViewpoint0 = meta0.getViewpoint();
-        View.ImageData imageDataDiff = comparisonImageData();
+        View.ImageData imageDataDiff = cmp == null ? comparisonImageData() : cmp.subtrahend();
         MetaData meta1 = imageDataDiff.metaData();
         Position metaViewpoint1 = meta1.getViewpoint();
         WcsHeader wcs0 = meta0.getWcsHeader();

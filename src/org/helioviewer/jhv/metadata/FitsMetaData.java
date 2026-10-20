@@ -24,6 +24,7 @@ public final class FitsMetaData extends CommonMetaData {
     private String measurement = "";
     private String observatory = "";
     private String pipelineVersion = ""; // FILEVRSN, for the formats that carry one
+    private String unit = ""; // BUNIT as the header states it, for the Compare palette's Difference
 
     private double referenceX = 0;
     private double referenceY = 0;
@@ -95,6 +96,7 @@ public final class FitsMetaData extends CommonMetaData {
 
         viewpoint = retrievePosition(m, retrieveTime(m));
         retrievePixelParameters(m);
+        unit = m.getString("BUNIT").map(String::trim).orElse("");
 
         retrieveOcculterRadii(m);
         retrieveOcculterLinearCutOff(m);
@@ -488,6 +490,12 @@ public final class FitsMetaData extends CommonMetaData {
     @Override
     public String getPipelineVersion() {
         return pipelineVersion;
+    }
+
+    /** The header's BUNIT, trimmed, or empty when it states none. */
+    @Nonnull
+    public String getUnit() {
+        return unit;
     }
 
     @Nonnull

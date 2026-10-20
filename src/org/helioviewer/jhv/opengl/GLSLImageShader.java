@@ -143,7 +143,7 @@ public final class GLSLImageShader extends GLSLScreenShader {
                             float enhanced,
                             float indexed, float skipDither, float showClipping, float rawOutput,
                             float hdrGain, float hdrMode, float hdrKnee, float hdrInRange,
-                            float swipeX, float swipeSide) {
+                            float swipeX, float swipeSide, float[] compare) {
         FloatBuffer values = displayBuffer.begin();
         values.put(color);
         values.put(shWidth).put(shHeight).put(shWeight).put(isDiff);
@@ -154,6 +154,8 @@ public final class GLSLImageShader extends GLSLScreenShader {
         values.put(enhanced).put(indexed).put(skipDither).put(showClipping);
         values.put(rawOutput).put(hdrGain).put(hdrMode).put(hdrKnee);
         values.put(hdrInRange).put(swipeX).put(swipeSide).put(0); // the last is std140 rounding
+        values.put(compare[0]).put(compare[1]).put(compare[2]).put(0); // compareScale (HS-11 Difference)
+        values.put(compare[3]).put(compare[4]).put(0).put(0); // compareExponent
         displayBuffer.uploadIfChanged();
     }
 
