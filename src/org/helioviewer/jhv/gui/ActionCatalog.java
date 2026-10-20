@@ -125,6 +125,7 @@ public final class ActionCatalog {
         // Guided tour (HS-15): the menu item, and the reveal its steps run before spotlighting
         put("takeTour", org.helioviewer.jhv.gui.search.Tour.action(), "Help/Take the Tour", "Step through the main controls, one at a time");
         put("welcome", new org.helioviewer.jhv.gui.dialog.WelcomeDialog.Open(), "Help/Welcome to HelioFITS Studio...", "What's new in this version, and the ways to start");
+        put("tipOfTheDay", new org.helioviewer.jhv.gui.dialog.TipOfTheDay.Open(), "Help/Tip of the Day...", "A short tip you have not seen yet, with Show Me to point at the control it is about");
         put("showImageLayers", new AbstractAction("Show Image Layers") {
             @Override
             public void actionPerformed(java.awt.event.ActionEvent e) {
@@ -153,6 +154,13 @@ public final class ActionCatalog {
             Action start = org.helioviewer.jhv.gui.search.Tour.action(tour);
             put(org.helioviewer.jhv.gui.search.Tour.catalogId(tour), start, "Help/Tours/" + start.getValue(Action.NAME), "Guided tour: " + start.getValue(Action.NAME));
         }
+        // Tour reveal: the Playback and Recording section, for the Making a movie tour
+        put("showPlayback", new AbstractAction("Show Playback and Recording") {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                org.helioviewer.jhv.gui.component.Palette.open("Playback and Recording"); // wherever it is docked or floating
+            }
+        }, "", "Open the Playback and Recording section, wherever it is docked");
         // Compare palette (HS-11): a copy of the selected layer to compare against
         put("duplicateLayer", org.helioviewer.jhv.layers.LayerDuplicate.action(), "Layers/Duplicate Layer",
                 "Add a copy of the selected image layer, for a before and after with the Compare palette");

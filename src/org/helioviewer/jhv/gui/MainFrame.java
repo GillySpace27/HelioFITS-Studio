@@ -222,6 +222,7 @@ public final class MainFrame {
         // right-sidebar counterparts have and can be moved to the other bar or floated free. The
         // palette also remembers where the user left it, which is why one may not appear here at
         // all on a later launch.
+        moviePanel.getPlaybackOptions().setName("playbackOptions"); // tour target
         org.helioviewer.jhv.gui.component.LeftSidebar.register("Playback and Recording", Buttons.play, moviePanel.getPlaybackOptions());
         org.helioviewer.jhv.gui.component.LeftSidebar.register("Image Layers", Buttons.colourSettings, imageLayersPane);
         org.helioviewer.jhv.gui.component.LeftSidebar.register("Overlays", Buttons.annotate, overlaysPane);
@@ -559,6 +560,7 @@ public final class MainFrame {
 
         sessionNameField = new JTextField();
         sessionNameField.setHorizontalAlignment(SwingConstants.CENTER);
+        sessionNameField.setToolTipText("The session's new name: Enter keeps it, Esc cancels");
         // The field is opened by double-clicking the name, and it opens empty for an untitled
         // session, where it otherwise says nothing about what it wants.
         sessionNameField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, "Session name");
