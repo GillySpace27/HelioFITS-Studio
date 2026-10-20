@@ -4,7 +4,7 @@
 ## HelioFITS Studio 0.8.7 (unreleased)
 
 ### New Layer
-- New Layer is a button again, not a dropdown: it opens one window with a tab for each source. HV (JPEG 2000) streams Helioviewer's browse images, VSO (FITS) queries the Virtual Solar Observatory, Direct (FITS) opens a mission's own archive (PUNCH, SOAR, ASPIICS, MLSO) or loads LASCO from NRL, and Heliad (Local FITS Cache) lists what the Heliad app has already downloaded. The window shows the time range and cadence set beside New Layer, which every tab uses, and opens on the tab used last. Layers > New Image Layer... (Cmd-N) opens the same window
+- New Layer is a button again, not a dropdown: it opens one window with a tab for each source. HV (JPEG 2000) streams Helioviewer's browse images, VSO (FITS) queries the Virtual Solar Observatory, Direct (FITS) opens a mission's own archive (PUNCH, SOAR, ASPIICS, MLSO) or loads LASCO from NRL, and Heliad (Local FITS Cache) lists what the Heliad app has already downloaded. The window has its own time range and time step (or frame count) at the top, which every tab uses. They start as the master ones beside New Layer each time it opens, and changing them affects only the layer being added, never the master range; PUNCH, SOAR and MLSO open on that range, PUNCH on that time step too. It opens on the tab used last. Layers > New Image Layer... (Cmd-N) opens the same window
 - Before any FITS download (VSO, PUNCH, SOAR, ASPIICS, MLSO or LASCO), Studio looks in the Heliad library for the same dataset over the same range. If it is there, it offers Heliad's copy, with Download Anyway and Cancel beside it; with no Heliad library, or nothing matching, the download goes ahead as before. Helioviewer's JPEG 2000 is not checked, since Heliad keeps FITS
 - Open Heliad, at the bottom of the window when the Heliad app is installed, starts it to manage the library and download into it
 
@@ -86,6 +86,7 @@
 - In the Playback tab, the Preset row and the Format disclosure no longer draw on top of each other
 
 ### Smaller fixes
+- A session reopens on its own master time range. When Helioviewer's list of datasets arrived after the session had loaded, which at startup it often did, the range was reset to the last two days of data
 - The packaged Mac app always loads its own Metal library. Started from a folder holding an older copy, it could load that one and fail to open; starting from Finder was not affected
 
 ## HelioFITS Studio 0.8.6 (pre-release, 2026-10-11)

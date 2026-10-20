@@ -263,14 +263,17 @@ public class MlsoDialog extends StandardDialog implements MlsoClient.Receiver {
     }
 
     public void showDialog() {
+        showDialog(MoviePanel.getInstance().getStartTime(), MoviePanel.getInstance().getEndTime());
+    }
+
+    /** Open on this range, the New Image Layer window's, rather than the master's. */
+    public void showDialog(long start, long end) {
         signingIn = false;
         if (usernameField.getText().isBlank()) {
             String saved = Settings.getProperty(MlsoClient.USERNAME_KEY);
             if (saved != null)
                 usernameField.setText(saved);
         }
-        long start = MoviePanel.getInstance().getStartTime();
-        long end = MoviePanel.getInstance().getEndTime();
         if (start > TimeUtils.START.milli && end > start)
             timeSelectorPanel.setTime(start, end);
         if (!instrumentsDownloaded) {

@@ -774,17 +774,16 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
     }
 
     @Override
-    public void loadDatasets(List<DataSourcesTree.SourceItem> items) {
+    public void loadDatasets(List<DataSourcesTree.SourceItem> items, long start, long end, int cadence) {
         ImageLayer target = layerToReplace;
         layerToReplace = null;
-        if (checkSanity()) {
-            long start = getStartTime();
-            long end = isSingleFrame() ? start : getEndTime();
-            int cadence = getCadence();
-            for (DataSourcesTree.SourceItem item : items) {
-                ImageLayer imageLayer = target == null ? ImageLayer.create(null) : target;
-                imageLayer.load(new APIRequest(item.server, item.sourceId, start, end, cadence));
-            }
+        if (start > end) {
+            Message.err("Error", "End date is before start date"); // with Report this...
+            return;
+        }
+        for (DataSourcesTree.SourceItem item : items) {
+            ImageLayer imageLayer = target == null ? ImageLayer.create(null) : target;
+            imageLayer.load(new APIRequest(item.server, item.sourceId, start, end, cadence));
         }
     }
 

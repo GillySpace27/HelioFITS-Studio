@@ -378,8 +378,13 @@ public class SoarDialog extends StandardDialog implements SoarClient.ReceiverIte
     }
 
     public void showDialog() {
-        // Preset the main window's time range so it does not have to be retyped.
-        timeSelectorPanel.setTime(MoviePanel.getInstance().getStartTime(), MoviePanel.getInstance().getEndTime());
+        showDialog(MoviePanel.getInstance().getStartTime(), MoviePanel.getInstance().getEndTime());
+    }
+
+    /** Open on this range, the New Image Layer window's, rather than the master's. */
+    public void showDialog(long start, long end) {
+        // Preset the range so it does not have to be retyped.
+        timeSelectorPanel.setTime(start, end);
         pack();
         setLocationRelativeTo(MainFrame.get());
         setVisible(true);
