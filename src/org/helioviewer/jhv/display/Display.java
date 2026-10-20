@@ -400,9 +400,12 @@ public final class Display {
         }
     }
 
-    public static boolean separateViewportZoom = false;
+    // On unless turned off: stored as display.separateMultiviewZoom, absent reading as on.
+    public static boolean separateViewportZoom = org.helioviewer.jhv.app.DisplaySettings.parseDefaultOn(
+            Settings.getProperty("display.separateMultiviewZoom"));
 
     public static void setSeparateViewportZoom(boolean separate) {
+        Settings.setProperty("display.separateMultiviewZoom", Boolean.toString(separate));
         separateViewportZoom = separate;
         if (!separateViewportZoom)
             resetViewportZoom();

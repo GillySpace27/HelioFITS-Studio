@@ -28,6 +28,8 @@ public final class AutoResetViewCheck {
         org.helioviewer.jhv.io.Directories.createCacheDirs();
 
         expect("a fresh install frames a newly opened dataset", DisplaySettings.getAutoResetView());
+        expect("and fits a layer added in multiview to its own view", DisplaySettings.getFitNewMultiviewLayers());
+        expect("and zooms the multiview viewports separately", org.helioviewer.jhv.display.Display.separateViewportZoom);
 
         DisplaySettings.setAutoResetView(false);
         expect("turning it off is remembered", !DisplaySettings.getAutoResetView());
@@ -38,12 +40,12 @@ public final class AutoResetViewCheck {
         expect("turning it back on is remembered", DisplaySettings.getAutoResetView());
 
         // How the stored value reads at startup, which is where the absent case decides the default.
-        expect("a preferences file from before this setting reads as on", DisplaySettings.parseAutoResetView(null));
-        expect("an empty value reads as on", DisplaySettings.parseAutoResetView(""));
-        expect("an off value reads as off", !DisplaySettings.parseAutoResetView("false"));
-        expect("an on value reads as on", DisplaySettings.parseAutoResetView("true"));
+        expect("a preferences file from before this setting reads as on", DisplaySettings.parseDefaultOn(null));
+        expect("an empty value reads as on", DisplaySettings.parseDefaultOn(""));
+        expect("an off value reads as off", !DisplaySettings.parseDefaultOn("false"));
+        expect("an on value reads as on", DisplaySettings.parseDefaultOn("true"));
         expect("anything unrecognised reads as off, as everywhere else in these settings",
-                !DisplaySettings.parseAutoResetView("maybe"));
+                !DisplaySettings.parseDefaultOn("maybe"));
 
         System.out.println(failures == 0 ? "AutoResetViewCheck: PASS" : "AutoResetViewCheck: " + failures + " FAILURE(S)");
         System.exit(failures == 0 ? 0 : 1);

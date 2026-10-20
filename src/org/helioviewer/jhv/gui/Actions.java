@@ -16,6 +16,7 @@ import javax.swing.KeyStroke;
 
 import org.helioviewer.jhv.annotation.Annotations;
 import org.helioviewer.jhv.app.Commands;
+import org.helioviewer.jhv.app.DisplaySettings;
 import org.helioviewer.jhv.app.ExitHooks;
 import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.app.state.State;
@@ -422,6 +423,17 @@ public final class Actions {
         @Override
         public void actionPerformed(ActionEvent e) {
             Display.setSeparateViewportZoom(!Display.separateViewportZoom);
+        }
+    }
+
+    public static class FitNewMultiviewLayers extends AbstractAction {
+        public FitNewMultiviewLayers() {
+            super("Zoom to Fit New Layers in Multiview");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            DisplaySettings.setFitNewMultiviewLayers(!DisplaySettings.getFitNewMultiviewLayers());
         }
     }
 
