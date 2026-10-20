@@ -63,6 +63,11 @@ public final class ProductVariantsCheck {
                         .equals(ProductVariants.aspiicsKind("aspiics_pb_l3_20250523T093003_20250601T130000_v03.fits")));
         expect("a compressed file has the same kind as a plain one",
                 a.equals(ProductVariants.aspiicsKind("aspiics_pb_l3_20250523T091503_v03.fits.gz")));
+        expect("the per-file sequence number does not split one kind per file",
+                ProductVariants.aspiicsKind("aspiics_pb_l3_1630400060001_20250921T190238_v03.fits")
+                        .equals(ProductVariants.aspiicsKind("aspiics_pb_l3_1630400080001_20250921T182756_v03.fits")));
+        expect("a sequence number with no suffix has an empty kind",
+                "".equals(ProductVariants.aspiicsKind("aspiics_pb_l3_1630400060001_20250921T190238.fits")));
         expect("a name with nothing after the time has an empty kind",
                 "".equals(ProductVariants.aspiicsKind("aspiics_pb_l3_20250523T091503.fits")));
 
