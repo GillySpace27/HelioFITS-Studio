@@ -705,6 +705,14 @@ Implemented completion messages:
 - `jhv.load.image.completed` is implemented as described above
 - `jhv.record.start.completed` is implemented as described above
 
+## Messages HelioFITS Studio sends
+
+- `image.load.fits`, from Layers > Send to Python: one notification to every subscribed client per
+  exported file, with params `url` (the file's `file:` URL) and `name` (the file name). Sent only when a
+  hub is running; with none, the export still succeeds and nothing is sent.
+  `extra/samp/receive_fits.py` receives it. Another HelioFITS Studio on the same hub also subscribes to
+  `image.load.fits`, so it opens the file as a layer.
+
 ## HelioFITS Studio State Document Format
 
 `jhv.load.state` accepts a HelioFITS Studio state document, not arbitrary JSON.
