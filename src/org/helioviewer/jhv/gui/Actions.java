@@ -229,7 +229,7 @@ public final class Actions {
         // One export at a time, from any path (menu, panel button, palette): a second click while one ran
         // used to start a second export into its own folder, with its own clipboard snippet.
         private static final java.util.concurrent.atomic.AtomicBoolean running = new java.util.concurrent.atomic.AtomicBoolean();
-        private static volatile String progress; // what the footer's activity light names; null when idle
+        private static final java.util.concurrent.atomic.AtomicReference<String> progress = new java.util.concurrent.atomic.AtomicReference<>(); // what the footer's activity light names; null when idle
 
         public SendToPython() {
             super("Send to Python");
@@ -237,7 +237,7 @@ public final class Actions {
 
         @javax.annotation.Nullable
         public static String progress() {
-            return progress;
+            return progress.get();
         }
 
         @Override
@@ -260,17 +260,17 @@ public final class Actions {
             javax.swing.AbstractButton button = e.getSource() instanceof javax.swing.AbstractButton b && !(b instanceof javax.swing.JMenuItem) ? b : null;
             String label = button == null ? null : button.getText();
             int total = sources.size();
-            progress = "Sending " + total + " file(s) to Python";
+            progress.set("Sending " + total + " file(s) to Python");
             setEnabled(false);
             if (button != null)
                 button.setText("Exporting…");
             java.util.function.IntConsumer step = n -> {
-                progress = "Sending to Python: file " + n + " of " + total;
+                progress.set("Sending to Python: file " + n + " of " + total);
                 if (button != null)
                     java.awt.EventQueue.invokeLater(() -> button.setText("Exporting " + n + "/" + total + "…"));
             };
             Runnable idle = () -> {
-                progress = null;
+                progress.set(null);
                 setEnabled(true);
                 if (button != null)
                     button.setText(label);

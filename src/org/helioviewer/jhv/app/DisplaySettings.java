@@ -5,7 +5,7 @@ public class DisplaySettings {
     public enum TimeMode {Observer, Sun, Earth}
 
     private static boolean autoResetView = true;
-    private static boolean fitNewMultiviewLayers = true;
+    private static final java.util.concurrent.atomic.AtomicBoolean fitNewMultiviewLayers = new java.util.concurrent.atomic.AtomicBoolean(true);
     private static boolean normalizeAIA;
     private static boolean normalizeRadius;
     private static TimeMode timeMode = TimeMode.Observer;
@@ -14,7 +14,7 @@ public class DisplaySettings {
         // On unless it has been turned off: a freshly opened dataset framed by whatever the last
         // session left behind is the state people reach for Reset View to escape.
         autoResetView = parseDefaultOn(Settings.getProperty("display.autoResetView"));
-        fitNewMultiviewLayers = parseDefaultOn(Settings.getProperty("display.fitNewMultiviewLayers"));
+        fitNewMultiviewLayers.set(parseDefaultOn(Settings.getProperty("display.fitNewMultiviewLayers")));
         normalizeAIA = Boolean.parseBoolean(Settings.getProperty("display.normalizeAIA"));
         normalizeRadius = Boolean.parseBoolean(Settings.getProperty("display.normalizeRadius"));
 
@@ -44,12 +44,12 @@ public class DisplaySettings {
 
     /** Whether a layer that lands in multiview is zoomed to fit its own viewport. */
     public static boolean getFitNewMultiviewLayers() {
-        return fitNewMultiviewLayers;
+        return fitNewMultiviewLayers.get();
     }
 
     public static void setFitNewMultiviewLayers(boolean b) {
         Settings.setProperty("display.fitNewMultiviewLayers", Boolean.toString(b));
-        fitNewMultiviewLayers = b;
+        fitNewMultiviewLayers.set(b);
     }
 
     public static boolean getNormalizeAIA() {
