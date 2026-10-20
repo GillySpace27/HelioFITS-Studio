@@ -36,9 +36,6 @@
 - When Heliad (the separate app that downloads solar data and keeps it in one library) has a library on this computer, the New Image Layer dialog gets a second tab, Heliad library. It lists Heliad's datasets with how much of the master time range each one reaches, marked as in Load from Cache, and how many frames fall inside the range. Add loads each selected dataset as a layer from its frames in the range; a dataset with nothing in the range loads whole, asking first above 1,000 frames. Open in Heliad, shown when the Heliad app is installed, hands the range to it to search for more. With no Heliad library the dialog is unchanged, and Studio's own downloads and streaming are untouched
 - When Heliad is on this computer, every FITS file Studio downloads is also added to the Heliad library. Studio caches and loads the file exactly as before, and without Heliad nothing changes
 
-### Sharing
-- File > Quick Share records one loop of the current scene as a movie that plays anywhere (H.264, 8 bit) and shows it in Finder or your file manager. Your own recording settings are not changed
-
 ### Python
 - Layers > Send to Python writes the active layer's FITS files that are on this computer as double-precision science FITS under Exports/, with a manifest and a sunpy snippet on the clipboard. LASCO frames have the bias level (OFFSET) removed first, the same step the viewer takes; this is not a calibration. A layer still streaming from an archive has to be downloaded first; a JPEG 2000 layer has no FITS files to send
 
