@@ -209,6 +209,11 @@ public final class GLSLImageShader extends GLSLScreenShader {
         skyWarpBuf[1] = limb;
         skyWarpBuf[2] = lambda;
         GL.glUniform3fv(current.skyWarpRef, skyWarpBuf);
+        // solarSky.frag reads the surface too. Without this it stayed 0, so the composed sky was
+        // always plane of sky while SkyMap drew the overlays on the chosen surface. The settled
+        // model rather than the morph blend, because SkyMap uses the settled model. The warp
+        // surface program also has this uniform; renderWarpSurface sets the blend over it.
+        GL.glUniform1f(current.surfaceModelRef, (float) org.helioviewer.jhv.display.Display.getSurfaceModel().depthFactor());
     }
 
     /** Draw the full-screen quad, which is every projection except the warped surface. */
