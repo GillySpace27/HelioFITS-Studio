@@ -10,7 +10,7 @@
 - The Heliad tab lists Spacecraft, Instrument, Detector, Wavelength, Product, Level and Cadence as columns of their own, each sortable. Cadence is the median gap between files, so gaps in the data do not inflate it (a polarization sequence reads as its spacing: COR1 shows about 20 s). Columns..., or a right-click on the column titles, shows and hides columns, remembered between runs; the combined Dataset name starts hidden
 
 ### Display Settings
-- View > Display Settings (beside Theme) makes the app easier to read, two ways. Text size is a slider from 50% to 175% in 5% steps that resizes the text as it moves, with the layouts following; small labels, readouts and section headers follow it too. Under it, Headings (50% to 300%), Body and Detail (50% to 200% each) set one level at a time against it, so section titles can be made large while the small labels and readouts stay small. Every slider applies as it moves, and Cancel puts them all back. Interface scale (50% to 200%) changes everything together, text, spacing and icons, so nothing changes proportion, and applies when the app next starts; Restart Now does that at once, saving the session and reopening it. Neither scales the image itself
+- View > Display Settings (beside Theme) makes the app easier to read, two ways. Text size is a slider that resizes the text as it moves, with the layouts following; small labels, readouts and section headers follow it too. Under it, Headings, Body and Detail set one level at a time against it. All four run from 50% to 300% in 5% steps on one shared scale, printed once under the last, so section titles can be made large while the small labels and readouts stay small. Every slider applies as it moves, and Cancel puts them all back. Interface scale (50% to 200%) changes everything together, text, spacing and icons, so nothing changes proportion, and applies when the app next starts; Restart Now does that at once, saving the session and reopening it. Neither scales the image itself
 
 ### Multiview
 - Each view zooms separately by default. View > Separate Multiview Zoom is on for new installs and is now remembered between runs
@@ -25,7 +25,7 @@
 ### Welcome
 - The Welcome window has an Open Demo card, also Help > Open Demo Scene: a new session with the bundled SDO/AIA 171 sample image and RHEF on. Nothing downloads, so it opens offline. Start New Session's question comes first when there is work to lose
 - The Welcome window shows a tip under the start cards, a different one each time it opens
-- The Welcome window has Settings... and Display Settings... buttons beside Open Change Log
+- The Welcome window has Settings... and Display Settings... buttons beside Open Change Log. Display Settings opened from there moves the Welcome window aside while it is open, so the change can be seen on the app
 
 ### Help
 - Help > Tours lists every guided tour. A second tour, RHEF and filters, shows the Filters palette, the Filter row in a layer's Intensity options, how to read an RHEF image (a visualization, not a calibrated radiance) and how to find a filter by name. On an empty canvas it loads the bundled AIA 171 sample first, as Getting started does
