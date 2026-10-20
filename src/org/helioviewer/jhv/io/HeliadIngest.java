@@ -1,6 +1,7 @@
 package org.helioviewer.jhv.io;
 
 import java.awt.EventQueue;
+import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -11,11 +12,13 @@ import java.io.InterruptedIOException;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -28,7 +31,11 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.zip.GZIPInputStream;
 
 import javax.annotation.Nullable;
 
@@ -62,6 +69,9 @@ public final class HeliadIngest {
     /** Long enough to checksum and copy a large file on a slow disk. */
     private static final Duration TIMEOUT = Duration.ofMinutes(2);
     private static final byte[] FITS_MAGIC = "SIMPLE  =".getBytes(StandardCharsets.US_ASCII);
+    /** Query parameters that may carry a credential, kept out of the library's provenance. */
+    private static final Pattern SECRET_PARAM = Pattern.compile(
+            "(?i).*(token|key|sig|pass|secret|auth|credential|session|cookie).*|x-(amz|goog)-.*");
 
     private static final ExecutorService QUEUE = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "Heliad ingest");
@@ -97,7 +107,7 @@ public final class HeliadIngest {
     /**
      * At launch, queue every FITS file in Studio's cache that the Heliad library has not been
      * offered yet ({@link #IMPORTED_KEY}). Returns at once; the files go one by one on the ingest
-     * thread, and the mark moves only once all of them got an answer from the core.
+     * thread, and the mark moves past a file only once the core has settled it ({@link Outcome}).
      */
     public static void importCacheInBackground() {
         HeliadLibrary.Location lib = HeliadLibrary.find();
@@ -111,10 +121,10 @@ public final class HeliadIngest {
             if (files.isEmpty())
                 return;
             Log.info("Adding " + files.size() + " file(s) from Studio's cache to the Heliad library at " + lib.root());
-            int done = importFiles(files, file -> ingest(lib.root(), null, file));
-            Log.info("Heliad cache import: " + done + " of " + files.size() + " file(s) answered");
-            if (done == files.size()) {
-                String mark = launched + " " + lib.root();
+            long next = importFiles(files, file -> ingest(lib.root(), null, file), launched);
+            Log.info("Heliad cache import: " + (next == launched ? "done" : "some files are left for the next launch"));
+            if (next > since) {
+                String mark = next + " " + lib.root();
                 EventQueue.invokeLater(() -> Settings.setProperty(IMPORTED_KEY, mark)); // Settings is written on the EDT
             }
         });
@@ -147,37 +157,78 @@ public final class HeliadIngest {
         return out;
     }
 
-    /** Offer each file until one gets no answer (no core, or the core was lost); how many were answered. */
-    static int importFiles(List<File> files, Predicate<File> ingest) {
-        int done = 0;
-        for (File file : files) {
-            if (!ingest.test(file))
-                break;
-            done++;
-        }
-        return done;
+    /** What became of one file offered to the core. */
+    enum Outcome {
+        /** Taken (added, or already there), or refused for good: offering it again cannot help. */
+        SETTLED,
+        /** Refused for a reason that may pass (a full disk, say): offered again at the next launch. */
+        RETRY,
+        /** No core, or the core was lost: the import stops here. */
+        LOST
     }
 
-    /** True when the core answered, whether it took the file or refused it. */
-    private static boolean ingest(Path root, @Nullable URI source, File file) {
+    /**
+     * Offer each file (oldest first) until the core is lost. Returns the time from which files
+     * still need offering: launched when every file was settled, else the time of the oldest one
+     * that was not, so the next launch starts there and nothing unsettled is skipped.
+     */
+    static long importFiles(List<File> files, Function<File, Outcome> ingest, long launched) {
+        long next = launched;
+        for (File file : files) {
+            Outcome outcome = ingest.apply(file);
+            if (outcome != Outcome.SETTLED)
+                next = Math.min(next, file.lastModified());
+            if (outcome == Outcome.LOST)
+                break;
+        }
+        return next;
+    }
+
+    private static Outcome ingest(Path root, @Nullable URI source, File file) {
         Core core = core(root);
         if (core == null)
-            return false;
+            return Outcome.LOST;
         JSONObject params = new JSONObject().put("path", file.getAbsolutePath());
-        if (source != null)
-            params.put("source_url", source.toString());
+        String url = source == null ? null : provenance(source);
+        if (url != null)
+            params.put("source_url", url);
         try {
             core.call("ingest.path", params, TIMEOUT);
-            return true;
-        } catch (RpcError e) { // the core refused this file (not a whole FITS file, say); it is still running
+            return Outcome.SETTLED;
+        } catch (RpcError e) { // the core is still running
             Log.warn("Heliad did not take " + file.getName() + ": " + e.getMessage());
-            return true;
+            return e.code == RpcError.UNSTORABLE ? Outcome.SETTLED : Outcome.RETRY;
         } catch (IOException e) {
             Log.warn("Lost the Heliad core while adding " + file.getName(), e);
             CORE.set(null);
             core.close();
-            return false;
+            return Outcome.LOST;
         }
+    }
+
+    /**
+     * The download URL as the library records it: without user info, fragment or any query
+     * parameter whose name suggests a credential, since anyone given the library can read it.
+     * Null when it is not a URL with a host.
+     */
+    @Nullable
+    static String provenance(URI source) {
+        if (source.isOpaque() || source.getScheme() == null || source.getHost() == null)
+            return null;
+        StringBuilder url = new StringBuilder(source.getScheme()).append("://").append(source.getHost());
+        if (source.getPort() != -1)
+            url.append(':').append(source.getPort());
+        if (source.getRawPath() != null)
+            url.append(source.getRawPath());
+        String query = source.getRawQuery();
+        if (query != null) {
+            String kept = Arrays.stream(query.split("&"))
+                    .filter(p -> !p.isEmpty() && !SECRET_PARAM.matcher(URLDecoder.decode(p.split("=", 2)[0], StandardCharsets.UTF_8)).matches())
+                    .collect(Collectors.joining("&"));
+            if (!kept.isEmpty())
+                url.append('?').append(kept);
+        }
+        return url.toString();
     }
 
     @Nullable
@@ -237,12 +288,18 @@ public final class HeliadIngest {
         return command;
     }
 
-    /** Whether the file starts the way every FITS file must. */
+    /** Whether the file starts the way every FITS file must, once unwrapped if it is gzip-compressed. */
     static boolean isFits(File file) {
-        byte[] head = new byte[FITS_MAGIC.length];
-        try (InputStream in = Files.newInputStream(file.toPath())) {
-            return in.readNBytes(head, 0, head.length) == head.length && java.util.Arrays.equals(head, FITS_MAGIC);
-        } catch (IOException e) {
+        try (InputStream raw = new BufferedInputStream(Files.newInputStream(file.toPath()))) {
+            raw.mark(2);
+            boolean gzip = raw.read() == 0x1f && raw.read() == 0x8b;
+            raw.reset();
+            if (!gzip)
+                return Arrays.equals(raw.readNBytes(FITS_MAGIC.length), FITS_MAGIC);
+            try (InputStream in = new GZIPInputStream(raw)) {
+                return Arrays.equals(in.readNBytes(FITS_MAGIC.length), FITS_MAGIC);
+            }
+        } catch (IOException e) { // unreadable, or a broken gzip stream
             return false;
         }
     }
@@ -250,9 +307,14 @@ public final class HeliadIngest {
     /** An error the core answered with, as opposed to losing the core. */
     static final class RpcError extends IOException {
         private static final long serialVersionUID = 1L;
+        /** ingest.path: the file can never enter the library (cut off, or not FITS); docs/api.md in heliad. */
+        static final int UNSTORABLE = -32001;
 
-        RpcError(String message) {
+        final int code;
+
+        RpcError(int code, String message) {
             super(message);
+            this.code = code;
         }
     }
 
@@ -300,7 +362,7 @@ public final class HeliadIngest {
                         continue;
                     JSONObject error = message.optJSONObject("error");
                     if (error != null)
-                        reply.completeExceptionally(new RpcError(error.optString("message", "error " + error.optInt("code"))));
+                        reply.completeExceptionally(new RpcError(error.optInt("code"), error.optString("message", "error " + error.optInt("code"))));
                     else
                         reply.complete(message.opt("result") instanceof JSONObject result ? result : new JSONObject());
                 }
