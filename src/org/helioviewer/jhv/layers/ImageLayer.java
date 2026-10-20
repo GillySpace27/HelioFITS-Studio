@@ -666,7 +666,8 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     @Override
     public void renderFloat(MapView mv, Viewport vp) {
         if (!isVisible[vp.idx] || !displaySettings.getShowColorbar() || imageData == null
-                || org.helioviewer.jhv.display.Compare.differenceFor(this) != null) // its colour table is not what is drawn
+                || org.helioviewer.jhv.display.Compare.differenceFor(this) != null // its colour table is not what is drawn
+                || org.helioviewer.jhv.display.Compare.insideDifference(this)) // B: its picture is inside A's
             return;
         colorbar.render(vp, displaySettings, glImage, imageData, getFilter() == ImageFilter.Type.RHEF, colorbarSlot());
     }
