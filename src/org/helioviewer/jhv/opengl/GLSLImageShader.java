@@ -45,6 +45,7 @@ public final class GLSLImageShader extends GLSLScreenShader {
     private int mvpRef;
     private int observerDistanceRef;
     private int surfaceModelRef;
+    private int surfaceDistanceRef;
     private int cropRadiusRef;
 
     private static final float[] skyLookBuf = new float[3];
@@ -89,6 +90,7 @@ public final class GLSLImageShader extends GLSLScreenShader {
         mvpRef = optionalUniform(id, "ModelViewProjectionMatrix");
         observerDistanceRef = optionalUniform(id, "observerDistance");
         surfaceModelRef = optionalUniform(id, "surfaceModel");
+        surfaceDistanceRef = optionalUniform(id, "surfaceDistance");
         cropRadiusRef = optionalUniform(id, "cropRadius");
         setupUniformBlock(id, UniformBlockLayout.IMAGE);
         setupUniformBlock(id, UniformBlockLayout.DISPLAY);
@@ -204,7 +206,7 @@ public final class GLSLImageShader extends GLSLScreenShader {
     }
 
     /** The radial scale the observer's sky is composed with; a non-positive outer radius turns it off. */
-    public static void bindSkyWarp(float outerRadius, float limb, float lambda) {
+    public static void bindSkyWarp(float outerRadius, float limb, float lambda, float surfaceDistance) {
         skyWarpBuf[0] = outerRadius;
         skyWarpBuf[1] = limb;
         skyWarpBuf[2] = lambda;
@@ -214,6 +216,9 @@ public final class GLSLImageShader extends GLSLScreenShader {
         // model rather than the morph blend, because SkyMap uses the settled model. The warp
         // surface program also has this uniform; renderWarpSurface sets the blend over it.
         GL.glUniform1f(current.surfaceModelRef, (float) org.helioviewer.jhv.display.Display.getSurfaceModel().depthFactor());
+        // The observer the surface is measured from (Display.surfaceDistance), so the imagery sits
+        // on the same surface SkyMap draws the grid and limb on.
+        GL.glUniform1f(current.surfaceDistanceRef, surfaceDistance);
     }
 
     /** Draw the full-screen quad, which is every projection except the warped surface. */
