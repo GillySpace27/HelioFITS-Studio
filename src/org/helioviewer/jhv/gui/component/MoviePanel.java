@@ -7,7 +7,6 @@ import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
-import java.awt.event.ActionEvent;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -145,7 +144,7 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
     private final JLabel recordLongSideLabel;
     private final JLabel presetLabel;
     private final JPanel presetRow;
-    private final EncodingPane encodingPane; // the concrete type: restoreExpansion is its own
+    private final JPanel encodingPane;
     private boolean syncingRecordSize;
 
     // Everything the "Playback and Recording" pane shows, in one grid so the label column lines up
@@ -153,8 +152,7 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
     //
     // setVisible is overridden because the enclosing CollapsiblePane shows this subtree with
     // ComponentUtils.setVisible, which recurses and un-hides every descendant. Without the
-    // re-assertion, expanding the outer section undid the mode-driven hiding below and force-opened
-    // the nested encoding disclosure, whose chevron went on reading collapsed over its own contents.
+    // re-assertion, expanding the outer section undid the mode-driven hiding below.
     // The recursion sets the children first and this container last, and it calls setVisible
     // unconditionally rather than only on a change, so re-applying here always lands after it.
     private final JPanel optionsPanel = new JPanel(new GridBagLayout()) {
@@ -411,16 +409,14 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
                 Settings.setProperty("video.depth", sel.name());
         });
 
-        // The format combo is the widest thing in the sidebar and the pixel pair is the least
-        // often touched, so they sit behind a disclosure that is collapsed by default. Its header
-        // carries the summary, because ExportMovie reads Settings and not these widgets: a hidden
-        // format still governs the recording, so it has to stay legible while hidden.
+        // Rows of their own, not a disclosure: the fold-down with a summary header was noise over
+        // four controls (Gilly, 2026-10-20).
         JPanel encodingPanel = new JPanel(new GridBagLayout());
         addRow(encodingPanel, 0, "Format", row(recordFormatComboBox));
         addRow(encodingPanel, 1, "Pixels", row(recordChromaComboBox, recordDepthComboBox)); // colour AND depth
         addSpan(encodingPanel, 2, row(allIntraCheckBox));
         addSpan(encodingPanel, 3, row(timelinesCheckBox));
-        encodingPane = new EncodingPane(encodingPanel);
+        encodingPane = encodingPanel;
         addSpan(optionsPanel, 5, encodingPane); // its own row: sharing the Preset row's cell drew one over the other
 
         syncPixelCombos();
@@ -578,9 +574,6 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         } finally {
             syncingRecordFormat = false;
         }
-        // Same four settings, so this is the one place that has to keep the disclosure's header
-        // honest about what it is hiding.
-        encodingPane.setTitle(encodingSummary(storedFormat(), storedChroma(), storedDepth(), isAllIntra()));
     }
 
     /** Whether the keyframe choice means anything: a series and FFV1 are all-intra by definition. */
@@ -644,8 +637,7 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         boolean encoding = showsEncoding(data.mode());
         presetLabel.setVisible(encoding);
         presetRow.setVisible(encoding);
-        encodingPane.setVisible(encoding); // plain setVisible: ComponentUtils would force the collapsed body open
-        encodingPane.restoreExpansion(); // an outer expand recursed through the body and showed it
+        encodingPane.setVisible(encoding);
 
         // With "On screen" the long side is not consulted at all: RecordingAspect.sizeFor returns
         // the viewport, so nothing is left invisibly in force.
@@ -974,51 +966,6 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
             JToggleButton button = buttons.get(value);
             if (button != null && !button.isSelected())
                 button.setSelected(true);
-        }
-    }
-
-    /**
-     * The nested encoding disclosure, whose header is a live summary of what it hides.
-     *
-     * <p>CollapsiblePane keys its remembered expansion off its title, and this title changes with
-     * the format. Left alone, every format change would write the expansion under a new settings
-     * key and read back the wrong one (or none) at the next launch, so the section would forget
-     * having been opened. The key is pinned to the section instead of to the summary.
-     */
-    private static final class EncodingPane extends CollapsiblePane {
-
-        private static final String KEY = "ui.section.encoding";
-
-        private final JComponent managed;
-
-        EncodingPane(JComponent _managed) {
-            super(encodingSummary(storedFormat(), storedChroma(), storedDepth(), isAllIntra()), _managed, false, true);
-            managed = _managed;
-        }
-
-        @Override
-        public boolean remembered(boolean fallback) {
-            String stored = Settings.getProperty(KEY);
-            return stored == null ? fallback : Boolean.parseBoolean(stored);
-        }
-
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            boolean expanded = !managed.isVisible();
-            setExpanded(expanded);
-            Settings.setProperty(KEY, Boolean.toString(expanded));
-        }
-
-        /**
-         * Put the body back where the chevron says it is.
-         *
-         * <p>An outer CollapsiblePane shows its subtree with ComponentUtils.setVisible, which
-         * recurses straight through this pane and shows the body of a section that is collapsed.
-         * The toggle button's selection is the state that survives that, because the recursion
-         * only touches visibility.
-         */
-        void restoreExpansion() {
-            setExpanded(toggleButton.isSelected());
         }
     }
 
