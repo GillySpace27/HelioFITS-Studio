@@ -204,7 +204,25 @@ class ExportWriter {
 
         List<String> command = new ArrayList<>(ffmpeg);
         command.addAll(input);
+        command.addAll(encodeArgs(format, chroma, depth, w, h, fps, allIntra));
+        command.addAll(metadataArgs(format, provenance == null ? null : Provenance.metadataComment(provenance)));
+        command.add("-y");
+        command.add(outPath);
+        return command;
+    }
+
+    /**
+     * Everything between the raw input and the output path: codec, colour, container, pixel
+     * format, keyframing. A static function of its inputs so ExportCompatibilityCheck can pin what
+     * the presets a person hands to someone else actually put on the command line.
+     */
+    static List<String> encodeArgs(ExportFormat format, ExportFormat.Chroma chroma, ExportFormat.Depth depth,
+                                   int w, int h, int fps, boolean allIntra) {
+        List<String> command = new ArrayList<>();
         command.addAll(format.settings(chroma, depth));
+        int[] fit = format.fit(w, h); // a frame hardware decoders would refuse, brought down to one they take
+        if (fit != null)
+            command.addAll(List.of("-vf", "scale=" + fit[0] + ":" + fit[1] + ":flags=lanczos"));
         command.addAll(format.isSeries() ? formatImage : formatVideo);
         String pixFmt = format.pixFmt(chroma, depth);
         if (pixFmt != null) {
@@ -235,9 +253,6 @@ class ExportWriter {
             command.add("-sc_threshold");
             command.add("0");
         }
-        command.addAll(metadataArgs(format, provenance == null ? null : Provenance.metadataComment(provenance)));
-        command.add("-y");
-        command.add(outPath);
         return command;
     }
 
