@@ -65,6 +65,21 @@
 ### Data sources
 - The ASPIICS Kind menu no longer lists every file as a kind of its own. The per-file sequence number in ASPIICS file names (such as 1630400060001) was taken as part of the kind, so a 122-frame search offered one "(1 frames)" entry per file. Kinds now differ only by the suffix that sets them apart, such as `v03`
 
+### Projection
+- Sliders in the Projection palette that do nothing in the current projection (Warp, Disk, Crop, and Field in the Observer sky box) are hidden instead of greyed out, so they no longer look broken. They come back as soon as you pick a projection that uses them
+- The Surface button steps through plane of sky, celestial sphere, then Thomson sphere, so the celestial sphere comes first. Plane of sky is still the default, and saved sessions open unchanged
+- When the Viewpoint layer follows a location, the Surface button skips the Thomson sphere (with the same warning) instead of getting stuck, so it always cycles back to plane of sky
+- In the observer's sky over Helioradial, choosing the celestial or Thomson sphere now moves the imagery as well as the grid and limb. Before, the picture stayed on the plane of sky while the overlays moved, so the two drifted apart away from the Sun
+
+### Timelines
+- The Timelines toolbar button, and Animate, show the timeline plot when the panel was folded at launch. Before, the panel opened blank, and timeline layers added afterwards were listed but never drawn
+- The HEK events row (listed as SWEK Events), and the coverage and radio rows, have an X while shown. It hides the row, as unticking it does; they cannot be deleted, since nothing could add them back
+- The events row keeps drawing newly downloaded events after loading one session and then another. Before, it could stop updating until the timeline was panned or zoomed
+
+### Tracking and playback
+- The Track CME panel has a Cancel button beside its status line. It stops tracking and puts the warp and crop back as they were before tracking started, even after switching between CMEs or modes. The jump of the playhead and the switch to Helioradial stay
+- In the Playback tab, the Preset row and the Format disclosure no longer draw on top of each other
+
 ### Smaller fixes
 - The packaged Mac app always loads its own Metal library. Started from a folder holding an older copy, it could load that one and fail to open; starting from Finder was not affected
 
