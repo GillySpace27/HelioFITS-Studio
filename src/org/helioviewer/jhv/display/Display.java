@@ -217,6 +217,20 @@ public final class Display {
      * With them separated, the warp mapping is fixed by the data and the crop only decides how
      * much of it the camera shows, so cropping magnifies everything uniformly.
      */
+    /**
+     * Helioradial: the screen fraction, out of the view's full radius, at which this frame's field
+     * ends, through the same Box-Cox scale the renderer draws (as CMETracker solves against). The
+     * field's edge is the frame's inscribed circle about the Sun, whose centre may sit off the
+     * Sun (a PUNCH mosaic); scene units are solar radii. A field past the view's edge fits as 1.
+     */
+    static double helioradialFit(org.helioviewer.jhv.metadata.Region region) {
+        double cx = region.llx + region.width / 2, cy = region.lly + region.height / 2;
+        double r = Math.hypot(cx, cy) + Math.min(region.width, region.height) / 2;
+        double f = MapScale.boxCoxRadialCrop(fullWarpFieldRadius(), effectiveWarpOuterRadius(),
+                getWarpLambda()).toUnitY(r);
+        return f > 0 && f < 1 ? f : 1;
+    }
+
     public static double fullWarpFieldRadius() {
         return Math.max(fieldRadius.getAsDouble(), 1.1);
     }
