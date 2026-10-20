@@ -232,6 +232,7 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         speedSpinner.addChangeListener(e -> updatePlaybackConfig());
 
         speedUnitComboBox = new JComboBox<>(ViewState.PlaybackSpeedUnit.values());
+        speedUnitComboBox.setToolTipText("What the Play rate counts: frames per second, or solar minutes, hours or days of data per second");
         speedUnitComboBox.addActionListener(e -> updatePlaybackConfig());
 
         // SwingDown is not offered: the player enters it by itself on the way back down a swing,
@@ -954,6 +955,14 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
                 add(button);
                 buttons.put(value, button);
             }
+        }
+
+        /** The group's tooltip on every segment too, since a pointer rests on a segment, not on the bar. */
+        @Override
+        public void setToolTipText(String text) {
+            super.setToolTipText(text);
+            for (JToggleButton button : buttons.values())
+                button.setToolTipText(text);
         }
 
         /**

@@ -88,6 +88,9 @@ public final class FITSSettings extends JPanel implements ImageProcessingSetting
         gammaButton.setToolTipText("<html><body>pixel<sup>1/γ</sup>");
         betaButton.setToolTipText("<html><body>asinh(pixel / 2<sup>β</sup>)");
         alphaButton.setToolTipText("<html><body>log1p(10<sup>α</sup>⋅pixel) / log1p(10<sup>α</sup>)");
+        gammaSlider.setToolTipText(gammaButton.getToolTipText());
+        betaSlider.setToolTipText(betaButton.getToolTipText());
+        alphaSlider.setToolTipText(alphaButton.getToolTipText());
 
         ButtonGroup scalingGroup = new ButtonGroup();
         scalingGroup.add(gammaButton);
