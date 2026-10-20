@@ -162,9 +162,11 @@ final class ImageLayerManagePanel extends JPanel {
         icons.add(deleteCacheButton);
         icons.add(makeRefreshButton());
         icons.add(makeLiveBox());
-        JButton python = new JButton("Python");
+        // The catalogued action, so its enabled state (off while an export runs) reaches every layer's button.
+        JButton python = new JButton(org.helioviewer.jhv.gui.ActionCatalog.get("sendToPython").action());
+        python.setHideActionText(true);
+        python.setText("Python");
         python.setToolTipText("Send to Python: this layer's FITS files as science FITS (physical values, no display steps) with a manifest");
-        python.addActionListener(e -> new org.helioviewer.jhv.gui.Actions.SendToPython().actionPerformed(e));
         icons.add(python);
         icons.add(makeSyncButton());
         icons.add(metaButton);

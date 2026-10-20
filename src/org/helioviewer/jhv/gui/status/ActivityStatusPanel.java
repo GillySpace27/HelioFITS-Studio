@@ -110,6 +110,9 @@ public final class ActivityStatusPanel extends StatusPanel.StatusPlugin implemen
                 out.add("Timeline: " + tl.getName());
         if (ExportMovie.isRecording())
             out.add("Recording a movie");
+        String python = org.helioviewer.jhv.gui.Actions.SendToPython.progress();
+        if (python != null)
+            out.add(python);
         int events = SWEKDownloader.pending();
         if (events > 0)
             out.add(events + (events == 1 ? " event download" : " event downloads"));
