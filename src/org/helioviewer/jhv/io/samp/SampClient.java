@@ -149,7 +149,7 @@ public final class SampClient extends HubConnector {
 
     /** The push itself, through any connector (SampFitsPushCheck runs it against a stand-in hub). */
     static int sendFitsFiles(HubConnector connector, java.util.List<java.io.File> files) {
-        int reached = 0;
+        java.util.Set<Object> reached = new java.util.HashSet<>(); // a client is counted once however many files it got
         try {
             HubConnection c = connector.getConnection();
             if (c == null)
@@ -158,12 +158,12 @@ public final class SampClient extends HubConnector {
                 Message msg = new Message("image.load.fits");
                 msg.addParam("url", f.toURI().toString());
                 msg.addParam("name", f.getName());
-                reached = Math.max(reached, c.notifyAll(msg).size());
+                reached.addAll(c.notifyAll(msg));
             }
         } catch (SampException e) {
             Log.warn(e);
         }
-        return reached;
+        return reached.size();
     }
 
 }
