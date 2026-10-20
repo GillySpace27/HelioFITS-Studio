@@ -423,8 +423,7 @@ public final class MenuBar extends JMenuBar {
         catalogItem(helpMenu, "searchControls");
         catalogItem(helpMenu, "welcome");
         catalogItem(helpMenu, "tipOfTheDay");
-        catalogItem(helpMenu, "takeTour");
-        JMenu toursMenu = new JMenu("Tours"); // every tour, Getting started first (HS-15)
+        JMenu toursMenu = new JMenu("Tours"); // every tour, Getting started first (HS-15); it took over Take the Tour, which only started Getting started
         for (String tour : org.helioviewer.jhv.gui.search.Tour.IDS)
             catalogItem(toursMenu, org.helioviewer.jhv.gui.search.Tour.catalogId(tour));
         helpMenu.add(toursMenu);

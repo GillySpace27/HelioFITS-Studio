@@ -62,8 +62,8 @@
     {
       "id": "take-tour",
       "title": "Take the tour",
-      "text": "Help > Take the Tour steps through the main controls, one at a time.",
-      "action": "takeTour",
+      "text": "Help > Tours > Getting started steps through the main controls, one at a time; Help > Tours lists the other tours.",
+      "action": "tourGettingStarted",
       "tour": "getting-started",
       "newUser": true
     },
