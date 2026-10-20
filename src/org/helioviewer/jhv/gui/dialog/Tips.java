@@ -17,10 +17,10 @@ import org.json.JSONObject;
 
 /**
  * The Welcome window's tip (HS-10): resources/data/tips.json, one tip per opening, in turn. A tip
- * may name the ActionCatalog id whose menu path its text spells out; WelcomeTipsCheck holds the
+ * may name the ActionCatalog id whose menu path its text spells out; TipsCheck holds the
  * text to that path, so a renamed menu item cannot leave a tip pointing at nothing.
  */
-final class WelcomeTips {
+final class Tips {
 
     /** The index of the tip shown last; the next opening shows the one after it. */
     static final String INDEX_KEY = "startup.welcomeTip";
@@ -40,7 +40,7 @@ final class WelcomeTips {
     static List<Tip> load() {
         try (InputStream is = FileUtils.getResource("/data/tips.json")) {
             return parse(JSONUtils.get(is));
-        } catch (IOException | RuntimeException e) { // WelcomeTipsCheck keeps the file readable; never a crash here
+        } catch (IOException | RuntimeException e) { // TipsCheck keeps the file readable; never a crash here
             Log.warn("Welcome tips could not be read", e);
             return List.of();
         }
@@ -68,6 +68,6 @@ final class WelcomeTips {
         return tips.get(i);
     }
 
-    private WelcomeTips() {}
+    private Tips() {}
 
 }

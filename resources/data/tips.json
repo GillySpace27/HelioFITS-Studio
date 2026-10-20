@@ -1,5 +1,5 @@
 {
-  "about": "Tips the Welcome window shows, one per opening, in turn (HS-10). 'action' is the ActionCatalog id whose menu path the text names; WelcomeTipsCheck holds the text to that path.",
+  "about": "Tips the Welcome window shows, one per opening, in turn (HS-10). 'action' is the ActionCatalog id whose menu path the text names; TipsCheck holds the text to that path.",
   "tips": [
     {
       "text": "Help > Search Controls... finds any command or control by name: Cmd-K on a Mac, Ctrl-K elsewhere.",
