@@ -35,6 +35,11 @@
 ### Heliad
 - When Heliad (the separate app that downloads solar data and keeps it in one library) has a library on this computer, the New Image Layer dialog gets a second tab, Heliad library. It lists Heliad's datasets with how much of the master time range each one reaches, marked as in Load from Cache, and how many frames fall inside the range. Add loads each selected dataset as a layer from its frames in the range; a dataset with nothing in the range loads whole, asking first above 1,000 frames. Open in Heliad, shown when the Heliad app is installed, hands the range to it to search for more. With no Heliad library the dialog is unchanged, and Studio's own downloads and streaming are untouched
 
+### Sharing
+- File > Share Scene... saves the session for someone else: your home folder is written as ~, and local files outside the cache, which they will not have, are listed first. The open session is not renamed
+- File > Quick Share records one loop as a movie that plays anywhere and shows it in the file manager; your recording settings are not changed. Edit > Copy Frame puts the canvas picture on the clipboard
+- File > Show Dataset Folders (also Dataset Folders in Load from Cache) shows the cache as one folder per dataset, made of links to the cached files; on Windows, where links need Developer Mode, each folder gets a files.txt listing them instead. The cache itself is not changed
+
 ## HelioFITS Studio 0.8.6 (pre-release, 2026-10-11)
 
 ### Feedback

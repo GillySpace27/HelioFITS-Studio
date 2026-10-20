@@ -173,6 +173,7 @@ public final class MenuBar extends JMenuBar {
         catalogItem(fileMenu, "saveSession");
         catalogItem(fileMenu, "saveSessionAs");
         catalogItem(fileMenu, "exportSessionWithData");
+        catalogItem(fileMenu, "shareScene"); // HS-16
         catalogItem(fileMenu, "revertToSaved");
         fileMenu.addSeparator();
         catalogItem(fileMenu, "setDefaultSession");
@@ -181,6 +182,8 @@ public final class MenuBar extends JMenuBar {
         catalogItem(fileMenu, "reloadSources");
         catalogItem(fileMenu, "copyProvenance");
         catalogItem(fileMenu, "openExportsFolder");
+        catalogItem(fileMenu, "quickShare"); // HS-16
+        catalogItem(fileMenu, "datasetFolders"); // HS-16
         if (!Platform.isMacOS())
             catalogItem(fileMenu, "newWindow"); // no Window menu off macOS
 
@@ -204,6 +207,7 @@ public final class MenuBar extends JMenuBar {
         catalogItem(editMenu, "undo");
         catalogItem(editMenu, "redo");
         editMenu.addSeparator();
+        catalogItem(editMenu, "copyFrame"); // HS-16
         catalogItem(editMenu, "paste");
         editMenu.addSeparator();
         // Rubbing out what you drew is an edit of the scene, not a way of looking at it. It sat
