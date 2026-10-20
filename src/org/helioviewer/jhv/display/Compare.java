@@ -144,6 +144,11 @@ public final class Compare {
         return S.showingB ? layer == S.a : layer == S.b;
     }
 
+    /** Layer B while A draws the difference: its own picture and colour bar are not on screen. Blink is not counted. */
+    public static synchronized boolean insideDifference(ImageLayer layer) {
+        return S.mode == Mode.Difference && hides(layer);
+    }
+
     /** What layer A's draw takes in Difference mode: B's frame for the difference texture, and the shader's coefficients. */
     public record DifferenceDraw(View.ImageData subtrahend, float[] coefficients) {}
 

@@ -76,7 +76,7 @@ public final class CompareDifference {
         if (!ia.isEmpty() && !ib.isEmpty() && !ia.equalsIgnoreCase(ib))
             return refuse("A is " + ia + " and B is " + ib + ": different instruments are not subtracted");
         String ua = a.unit().trim(), ub = b.unit().trim();
-        if (!ua.equalsIgnoreCase(ub)) {
+        if (!ua.equals(ub)) { // case-sensitive: in FITS units MW and mW are different units
             if (ua.isEmpty() || ub.isEmpty())
                 return refuse("Only " + (ua.isEmpty() ? "B" : "A") + " states its unit (BUNIT: "
                         + (ua.isEmpty() ? ub : ua) + "), so the two cannot be checked to match");

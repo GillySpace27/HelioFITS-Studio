@@ -98,6 +98,7 @@ public final class CompareDifferenceCheck {
                 new Case("different instruments", a, with(b, "SUVI", "DN", "None", false, 1024, 0), "different instruments"),
                 new Case("different units", a, with(b, "AIA", "DN/s", "None", false, 1024, 0), "Units differ"),
                 new Case("one unit missing", a, with(b, "AIA", "", "None", false, 1024, 0), "Only A states"),
+                new Case("units that differ only in case (MW and mW)", with(a, "AIA", "MW", "None", false, 1024, 0), with(b, "AIA", "mW", "None", false, 1024, 0), "Units differ"),
                 new Case("an asinh stretch", a, new CompareDifference.Side("AIA 171", "AIA", "DN",
                         new ImageBuffer.PhysicalScale(0, 1, beta, "Y = asinh(k t) / asinh(k), k = 40"), 1024, 1024, 0, "None", false), "choose Gamma"))) {
             CompareDifference.Verdict r = CompareDifference.judge(c.a(), c.b());

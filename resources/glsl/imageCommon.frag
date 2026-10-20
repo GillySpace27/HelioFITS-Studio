@@ -178,7 +178,7 @@ vec4 getColor(const vec2 texcoord, const vec2 difftexcoord, const float factor) 
     } else if (display.isDiff == COMPAREDIFFERENCE) {
         float a = texture(image, texcoord).r, b = texture(diffImage, difftexcoord).r;
         if (a == 0. || b == 0.)
-            discard; // missing data is stored as exactly 0 (FITSData): no difference to show
+            discard; // 0 is a missing pixel or one clipped at the display minimum (FITSData): neither has a true value to subtract
         value = linearize(a, display.compareExponent.x) * display.compareScale.x
               - linearize(b, display.compareExponent.y) * display.compareScale.y + display.compareScale.z;
     } else {

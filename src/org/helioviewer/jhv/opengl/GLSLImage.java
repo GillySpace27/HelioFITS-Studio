@@ -137,7 +137,7 @@ public class GLSLImage {
                 Math.min(Display.getShowCorona() ? metaData.getOuterRadius() : 1, (float) settings.getOuterMask()),
                 (float) settings.getSlitLeft(), (float) settings.getSlitRight(),
                 data || cmp ? 0 : (float) settings.getEnhanced(),
-                LUTLabels.isCategorical(settings.getLUT()) ? 1 : 0,
+                !cmp && LUTLabels.isCategorical(settings.getLUT()) ? 1 : 0, // the difference is drawn in plain grey
                 Display.skipDither() || legend ? 1 : 0,
                 Display.showClipping && !raw && !legend ? 1 : 0,
                 raw ? 1 : 0,
@@ -157,7 +157,7 @@ public class GLSLImage {
     private void applyLUT(boolean compare) {
         lutTex.bind();
         LUT currlut = settings.getDifferenceMode() == DifferenceMode.None && !compare ? settings.getLUT() : LUT.gray();
-        boolean inverted = settings.getInvertLUT();
+        boolean inverted = !compare && settings.getInvertLUT(); // A minus B keeps white positive, black negative
         if (lastLut != currlut || inverted != lastInverted) {
             ByteBuffer lutBuffer = inverted ? currlut.rgbaInv() : currlut.rgba();
             lastLut = currlut;
