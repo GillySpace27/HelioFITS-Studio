@@ -20,6 +20,7 @@ import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
+import javax.swing.JPopupMenu;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
@@ -99,15 +100,18 @@ final class HeliadTab extends JPanel {
         TableRowSorter<Model> sorter = new TableRowSorter<>(model);
         sorter.setSortKeys(List.of(new RowSorter.SortKey(Model.NAME, SortOrder.ASCENDING)));
         table.setRowSorter(sorter);
+        int[] widths = {55, 200, 95, 85, 55, 70, 130, 40, 65, 55, 70, 205, 60};
+        for (int c = 0; c < widths.length; c++)
+            table.getColumnModel().getColumn(c).setPreferredWidth(widths[c]);
         table.getColumnModel().getColumn(Model.STATUS).setCellRenderer(new StatusCell());
-        table.getColumnModel().getColumn(Model.STATUS).setPreferredWidth(55);
-        table.getColumnModel().getColumn(Model.NAME).setPreferredWidth(200);
-        table.getColumnModel().getColumn(Model.IN_RANGE).setPreferredWidth(65);
-        table.getColumnModel().getColumn(Model.FRAMES).setPreferredWidth(55);
-        table.getColumnModel().getColumn(Model.SPAN).setPreferredWidth(205);
-        table.getColumnModel().getColumn(Model.SIZE).setPreferredWidth(60);
         table.getColumnModel().getColumn(Model.SPAN).setCellRenderer(new SpanCell());
         table.getColumnModel().getColumn(Model.SIZE).setCellRenderer(new SizeCell());
+        table.getColumnModel().getColumn(Model.WAVELENGTH).setCellRenderer(new TextCell(v -> v instanceof Double w
+                ? java.math.BigDecimal.valueOf(w).stripTrailingZeros().toPlainString() + " \u00C5" : ""));
+        table.getColumnModel().getColumn(Model.CADENCE).setCellRenderer(new TextCell(v -> v instanceof Long ms && ms > 0
+                ? TimeUtils.formatDurationSig(ms) : ""));
+        JPopupMenu columnMenu = columnMenu();
+        table.getTableHeader().setComponentPopupMenu(columnMenu);
         table.getSelectionModel().addListSelectionListener(e -> onChange.run());
         table.addMouseListener(new MouseAdapter() {
             @Override
@@ -118,17 +122,66 @@ final class HeliadTab extends JPanel {
         });
 
         JScrollPane scroller = new JScrollPane(table);
-        scroller.setPreferredSize(new Dimension(660, 330));
+        scroller.setPreferredSize(new Dimension(980, 330)); // the default columns, Dataset hidden
         UIGlobals.themed(status, c -> c.setForeground(UIGlobals.foreColor));
         openInHeliad.setToolTipText("Search for more in the Heliad app, starting from the master time range");
         openInHeliad.addActionListener(e -> DesktopIntegration.openURL(HeliadLibrary.link(rangeStart(), rangeEnd(), single())));
-        JPanel bottom = new JPanel(new FlowLayout(FlowLayout.TRAILING, 0, 0));
+        JButton columnsButton = new JButton("Columns\u2026");
+        columnsButton.setToolTipText("Choose which columns to show (also a right-click on the column titles)");
+        columnsButton.addActionListener(e -> columnMenu.show(columnsButton, 0, columnsButton.getHeight()));
+        JPanel bottom = new JPanel(new FlowLayout(FlowLayout.TRAILING, 6, 0));
+        bottom.add(columnsButton);
         bottom.add(openInHeliad);
 
         setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3));
         add(status, BorderLayout.PAGE_START);
         add(scroller, BorderLayout.CENTER);
         add(bottom, BorderLayout.PAGE_END);
+    }
+
+    // Hidden by default: the label repeats what the attribute columns say one by one.
+    private static final String HIDDEN_KEY = "heliad.hiddenColumns";
+
+    /**
+     * Show or hide each column, remembered across launches. Hidden columns leave the column
+     * model and come back in their own place, so sorting and renderers are untouched.
+     */
+    private JPopupMenu columnMenu() {
+        javax.swing.table.TableColumnModel columns = table.getColumnModel();
+        List<javax.swing.table.TableColumn> all = new ArrayList<>();
+        for (int c = 0; c < columns.getColumnCount(); c++)
+            all.add(columns.getColumn(c));
+        String saved = org.helioviewer.jhv.app.Settings.getProperty(HIDDEN_KEY);
+        java.util.Set<String> hidden = new java.util.HashSet<>(List.of((saved == null ? Model.TITLES[Model.NAME] : saved).split(",")));
+
+        JPopupMenu menu = new JPopupMenu();
+        for (javax.swing.table.TableColumn column : all) {
+            String title = Model.TITLES[column.getModelIndex()];
+            javax.swing.JCheckBoxMenuItem item = new javax.swing.JCheckBoxMenuItem(title, !hidden.contains(title));
+            item.addActionListener(e -> {
+                if (!item.isSelected() && columns.getColumnCount() == 1) { // never hide the last one
+                    item.setSelected(true);
+                    return;
+                }
+                if (item.isSelected()) {
+                    hidden.remove(title);
+                    table.addColumn(column);
+                    int place = 0; // after every shown column that comes before it in the model
+                    for (int c = 0; c < columns.getColumnCount() - 1; c++)
+                        if (columns.getColumn(c).getModelIndex() < column.getModelIndex())
+                            place++;
+                    table.moveColumn(columns.getColumnCount() - 1, place);
+                } else {
+                    hidden.add(title);
+                    table.removeColumn(column);
+                }
+                org.helioviewer.jhv.app.Settings.setProperty(HIDDEN_KEY, String.join(",", hidden));
+            });
+            menu.add(item);
+            if (hidden.contains(title))
+                table.removeColumn(column);
+        }
+        return menu;
     }
 
     /** The dialog brought this tab to the front, or moved off it. */
@@ -303,8 +356,10 @@ final class HeliadTab extends JPanel {
 
     private static final class Model extends AbstractTableModel {
 
-        static final int STATUS = 0, NAME = 1, IN_RANGE = 2, FRAMES = 3, SPAN = 4, SIZE = 5;
-        private static final String[] TITLES = {"Range", "Dataset", "In range", "Frames", "Observed", "On disk"};
+        static final int STATUS = 0, NAME = 1, SPACECRAFT = 2, INSTRUMENT = 3, DETECTOR = 4, WAVELENGTH = 5, PRODUCT = 6,
+                LEVEL = 7, IN_RANGE = 8, FRAMES = 9, CADENCE = 10, SPAN = 11, SIZE = 12;
+        static final String[] TITLES = {"Range", "Dataset", "Spacecraft", "Instrument", "Detector", "Wavelength",
+                "Product", "Level", "In range", "Frames", "Cadence", "Observed", "On disk"};
 
         private List<Row> rows = List.of();
 
@@ -340,8 +395,8 @@ final class HeliadTab extends JPanel {
         @Override
         public Class<?> getColumnClass(int col) {
             return switch (col) {
-                case STATUS -> Double.class;
-                case IN_RANGE, FRAMES, SPAN, SIZE -> Long.class;
+                case STATUS, WAVELENGTH -> Double.class;
+                case IN_RANGE, FRAMES, CADENCE, SPAN, SIZE -> Long.class;
                 default -> String.class;
             };
         }
@@ -353,7 +408,14 @@ final class HeliadTab extends JPanel {
             return switch (col) {
                 case STATUS -> row.coverage();
                 case NAME -> set.label();
+                case SPACECRAFT -> set.observatory();
+                case INSTRUMENT -> set.instrument();
+                case DETECTOR -> set.detector();
+                case WAVELENGTH -> set.wavelength();
+                case PRODUCT -> set.product();
+                case LEVEL -> set.level();
                 case IN_RANGE -> (long) set.inRange();
+                case CADENCE -> set.cadence();
                 case FRAMES -> (long) set.frames();
                 case SPAN -> set.start();
                 default -> set.bytes();
@@ -377,9 +439,9 @@ final class HeliadTab extends JPanel {
                 case NONE -> "--";
             });
             setToolTipText(switch (overlap) {
-                case COVERS -> "Spans the whole master time range";
-                case PARTIAL -> "Overlaps the master time range by " + percent + '%';
-                case NONE -> "Outside the master time range. Adding it loads the whole dataset, which moves the range to it";
+                case COVERS -> "Spans the whole time range at the top of the window";
+                case PARTIAL -> "Overlaps the time range at the top of the window by " + percent + '%';
+                case NONE -> "Outside the time range at the top of the window. Adding it loads the whole dataset, which moves the range to it";
             });
             if (!selected)
                 setForeground(CacheDialog.StatusCell.chip(overlap));
@@ -408,6 +470,22 @@ final class HeliadTab extends JPanel {
                 setToolTipText(TimeUtils.format(set.start()) + " to " + TimeUtils.format(set.end()));
             }
             return this;
+        }
+    }
+
+    /** A value written by a function, so a sorted number column can still read as words. */
+    private static final class TextCell extends DefaultTableCellRenderer {
+
+        private final java.util.function.Function<Object, String> text;
+
+        TextCell(java.util.function.Function<Object, String> _text) {
+            text = _text;
+            setHorizontalAlignment(SwingConstants.TRAILING);
+        }
+
+        @Override
+        protected void setValue(Object value) {
+            setText(text.apply(value));
         }
     }
 
