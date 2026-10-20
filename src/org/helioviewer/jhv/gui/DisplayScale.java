@@ -2,6 +2,7 @@ package org.helioviewer.jhv.gui;
 
 import java.awt.Component;
 
+import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -77,7 +78,27 @@ public final class DisplayScale {
             System.setProperty("flatlaf.uiScale", Double.toString(scale));
     }
 
+    // The open window, so a second request brings it forward instead of opening another.
+    private static final java.util.concurrent.atomic.AtomicReference<javax.swing.JDialog> OPEN =
+            new java.util.concurrent.atomic.AtomicReference<>();
+
     public static void showDialog(Component parent) {
+        showDialog(parent, null);
+    }
+
+    /**
+     * Modeless, so the app stays usable while it is open: unfold a section and watch its text
+     * resize (Gilly, 2026-10-20; a modal dialog took every click). Changes apply as the sliders
+     * move; Done or closing keeps them, Revert puts back what the window opened with.
+     *
+     * @param onClose run once the window has closed, e.g. to bring back the window it came from
+     */
+    public static void showDialog(Component parent, @javax.annotation.Nullable Runnable onClose) {
+        javax.swing.JDialog already = OPEN.get();
+        if (already != null) {
+            already.toFront();
+            return;
+        }
         String[] keys = {TEXT_KEY, HEADING_KEY, BODY_KEY, DETAIL_KEY};
         String[] names = {"Text size", "Headings", "Body", "Detail"};
         double[] before = new double[keys.length];
@@ -125,16 +146,47 @@ public final class DisplayScale {
         note.setFont(UIGlobals.uiFontSmall);
         box.add(note, java.awt.BorderLayout.PAGE_END);
 
-        boolean ok = JOptionPane.showConfirmDialog(parent, box, "Display Settings", JOptionPane.OK_CANCEL_OPTION,
-                JOptionPane.PLAIN_MESSAGE) == JOptionPane.OK_OPTION;
-        apply.stop();
-        if (!ok) { // Cancel puts the text sizes back as well
-            setScales(keys, before, null);
-            return;
-        }
-        setScales(keys, values(sliders), null); // the last step, and the dialog's own window is gone now
+        java.awt.Window owner = parent == null ? null
+                : parent instanceof java.awt.Window w ? w : SwingUtilities.getWindowAncestor(parent);
+        javax.swing.JDialog dialog = new javax.swing.JDialog(owner, "Display Settings", java.awt.Dialog.ModalityType.MODELESS);
+        JButton revert = new JButton("Revert");
+        revert.setToolTipText("Put the text sizes back as they were when this window opened");
+        revert.addActionListener(e -> {
+            for (int i = 0; i < sliders.length; i++)
+                sliders[i].setValue((int) Math.round(before[i] * 100)); // the listeners apply it
+        });
+        JButton done = new JButton("Done");
+        JPanel buttons = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.TRAILING, 6, 0));
+        buttons.add(revert);
+        buttons.add(done);
+        JPanel content = new JPanel(new java.awt.BorderLayout(0, 10));
+        content.setBorder(javax.swing.BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        content.add(box, java.awt.BorderLayout.CENTER);
+        content.add(buttons, java.awt.BorderLayout.PAGE_END);
+        dialog.setContentPane(content);
+        dialog.getRootPane().setDefaultButton(done);
+        dialog.setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
+        done.addActionListener(e -> dialog.dispose());
+        dialog.addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosed(java.awt.event.WindowEvent e) {
+                if (!OPEN.compareAndSet(dialog, null))
+                    return; // closed once already
+                apply.stop();
+                setScales(keys, values(sliders), null); // the last step; nothing is skipped now
+                finishUiScale(parent, UI[ui.getSelectedIndex()]);
+                if (onClose != null)
+                    onClose.run();
+            }
+        });
+        OPEN.set(dialog);
+        dialog.pack();
+        dialog.setLocationRelativeTo(owner);
+        dialog.setVisible(true);
+    }
 
-        double newUi = UI[ui.getSelectedIndex()];
+    /** Store the interface scale and, when it changed, offer the restart it needs. */
+    private static void finishUiScale(Component parent, double newUi) {
         boolean uiChanged = newUi != ui();
         Settings.setProperty(UI_KEY, Double.toString(newUi));
         if (uiChanged) {
