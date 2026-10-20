@@ -57,9 +57,25 @@ final class ImageLayerManagePanel extends JPanel {
     @SuppressWarnings("serial")
     private final JLabel readout = new JLabel() {
         private int tallest;
+        private int markWidth = -1;
+
+        /**
+         * The mark only holds at one width. An HTML label's preferred height is its wrapped height
+         * at the width it was last laid out at, so one squeezed layout (a sidebar mid-resize, a
+         * first pass before the panel had its width) set a mark of a word per line and kept the
+         * readout floating in a tall empty box from then on. The flicker this guards against
+         * happens at a fixed width, so a new width starts a new mark.
+         */
+        private void markAtThisWidth() {
+            if (getWidth() != markWidth) {
+                markWidth = getWidth();
+                tallest = 0;
+            }
+        }
 
         @Override
         public Dimension getPreferredSize() {
+            markAtThisWidth();
             Dimension size = super.getPreferredSize();
             tallest = Math.max(tallest, size.height);
             size.height = tallest;
@@ -78,6 +94,7 @@ final class ImageLayerManagePanel extends JPanel {
          */
         @Override
         public Dimension getMinimumSize() {
+            markAtThisWidth();
             Dimension size = super.getMinimumSize();
             size.height = Math.max(size.height, tallest);
             return size;
@@ -153,6 +170,7 @@ final class ImageLayerManagePanel extends JPanel {
         icons.add(metaButton);
 
         readout.setBorder(BorderFactory.createEmptyBorder(8, 0, 8, 0)); // let the readout breathe
+        readout.setVerticalAlignment(javax.swing.SwingConstants.TOP); // any held height goes below the text, not around it
         buttonRow.add(readout, BorderLayout.CENTER);
         buttonRow.add(icons, BorderLayout.LINE_END);
 
