@@ -3,6 +3,11 @@
 
 ## HelioFITS Studio 0.8.7 (unreleased)
 
+### New Layer
+- New Layer is a button again, not a dropdown: it opens one window with a tab for each source. HV (JPEG 2000) streams Helioviewer's browse images, VSO (FITS) queries the Virtual Solar Observatory, Direct (FITS) opens a mission's own archive (PUNCH, SOAR, ASPIICS, MLSO) or loads LASCO from NRL, and Heliad (Local FITS Cache) lists what the Heliad app has already downloaded. The window shows the time range and cadence set beside New Layer, which every tab uses, and opens on the tab used last. Layers > New Image Layer... (Cmd-N) opens the same window
+- Before any FITS download (VSO, PUNCH, SOAR, ASPIICS, MLSO or LASCO), Studio looks in the Heliad library for the same dataset over the same range. If it is there, it offers Heliad's copy, with Download Anyway and Cancel beside it; with no Heliad library, or nothing matching, the download goes ahead as before. Helioviewer's JPEG 2000 is not checked, since Heliad keeps FITS
+- Open Heliad, at the bottom of the window when the Heliad app is installed, starts it to manage the library and download into it
+
 ### Compare
 - A Compare palette on the toolbar (Tools lists it too): pick layers A and B, then Blink between them at 0.5 to 8 Hz, or Swipe a vertical divider across every viewport with A on one side and B on the other. Neither layer is switched off or changed, and Off stops the blinking. The choices are saved with the session, never the blink phase. Difference is shown greyed: A minus B in physical units is a later phase
 - Layers > Duplicate Layer (also in the palette) adds a copy of the selected image layer, so RHEF on against the same data raw is one click

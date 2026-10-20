@@ -103,6 +103,24 @@ public final class HeliadLibraryCheck {
         Path fakeHome = Files.createDirectories(tmp.resolve("home"));
         System.setProperty("user.home", fakeHome.toString());
 
+        // -- what a download asks for, against Heliad dataset keys (from a real library; the K-Cor one is made up) --
+        expect("AIA 193 finds AIA 193", HeliadLibrary.Wanted.of(null, "aia", null, 193).matches("sdo/aia/-/-/1/193"));
+        expect("AIA 193 does not find AIA 304", !HeliadLibrary.Wanted.of(null, "aia", null, 193).matches("sdo/aia/-/-/1/304"));
+        expect("SECCHI COR2 finds COR2", HeliadLibrary.Wanted.of(null, "secchi", "COR2", null).matches("stereo-a/secchi/cor2/-/-/-"));
+        expect("SECCHI COR2 does not find COR1", !HeliadLibrary.Wanted.of(null, "secchi", "COR2", null).matches("stereo-a/secchi/cor1/-/-/-"));
+        expect("SECCHI EUVI 195 does not find EUVI 171",
+                !HeliadLibrary.Wanted.of(null, "secchi", "EUVI", 195).matches("stereo-a/secchi/euvi/-/-/171"));
+        expect("PUNCH PTM L3 finds PTM, by level written L3",
+                new HeliadLibrary.Wanted("punch", null, null, "PTM", "L3", null).matches("punch/wfi+nfi-mosaic/-/ptm/3/530"));
+        expect("PUNCH PTM does not find CTM", !new HeliadLibrary.Wanted("punch", null, null, "PTM", "3", null).matches("punch/wfi+nfi-mosaic/-/ctm/3/530"));
+        expect("K-Cor and kcor are one instrument", HeliadLibrary.Wanted.of(null, "kcor", null, null).matches("mlso/k-cor/-/-/2/7350"));
+        expect("a key of the wrong shape matches nothing", !HeliadLibrary.Wanted.of(null, null, null, null).matches("sdo/aia"));
+        HeliadLibrary.Wanted soarFsi = org.helioviewer.jhv.gui.dialog.SoarDialog.wanted("solo_L2_eui-fsi174-image_20250921T160000180_V02");
+        expect("a SOAR FSI 174 id finds EUI FSI 174 L2", soarFsi.matches("solar-orbiter/eui/fsi/-/2/174"));
+        expect("and not FSI 304", !soarFsi.matches("solar-orbiter/eui/fsi/-/2/304"));
+        expect("a SOAR SoloHI id finds SoloHI by instrument",
+                org.helioviewer.jhv.gui.dialog.SoarDialog.wanted("solo_L2_solohi-1ft_20250921T160300_V01").matches("solar-orbiter/solohi/1/-/2/5400"));
+
         // -- where Heliad keeps config.json ----------------------------------------------------
         Path home = Path.of("/Users/someone");
         expect("macOS: ~/Library/Application Support/Heliad",

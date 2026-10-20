@@ -4,7 +4,6 @@ import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
-import java.awt.Window;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
@@ -19,18 +18,15 @@ import java.util.concurrent.ExecutionException;
 import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
-import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.ListSelectionModel;
 import javax.swing.RowSorter;
 import javax.swing.SortOrder;
 import javax.swing.SwingConstants;
-import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
@@ -49,12 +45,11 @@ import org.helioviewer.jhv.time.TimeUtils;
  * The "Heliad library" tab of the New Image Layer dialog: datasets Heliad has already downloaded,
  * and how much of the master time range each one reaches, with Add loading them as layers.
  *
- * <p>This is the whole of the dialog's Heliad side, so {@link ImageDialog} only wraps its content
- * here and asks whether this tab is the one showing. With no Heliad library on the machine the
- * wrapper holds the dialog's own content and nothing else, which leaves the dialog exactly as it
- * was; a library that appears or goes away while Studio runs is picked up the next time the
- * dialog opens. The tab is greyed out when the dialog is changing a layer's dataset, which only
- * the Helioviewer list can do.
+ * <p>One of the dialog's four tabs; {@link ImageDialog} owns the tabs and says when this one is in
+ * front. With no Heliad library on the machine the tab says so instead of listing anything; a
+ * library that appears or goes away while Studio runs is picked up the next time the dialog
+ * opens. The tab is greyed out when the dialog is changing a layer's dataset, which only the
+ * Helioviewer list can do.
  *
  * <p>Add loads each selected dataset as one layer, from the observations inside the master range.
  * A dataset with nothing in the range loads whole, which is how the range moves to it, as in
@@ -73,17 +68,14 @@ final class HeliadTab extends JPanel {
 
     private final Runnable onChange;
     private final Runnable onActivate;
-    private final JTabbedPane tabs = new JTabbedPane();
-    private final JPanel heliad = new JPanel(new BorderLayout(0, 4));
     private final JLabel status = new JLabel(" ");
     private final Model model = new Model();
     private final JTable table = new JTable(model);
     private final JButton openInHeliad = new JButton("Open in Heliad");
 
     @Nullable
-    private JComponent helioviewer;
-    @Nullable
     private HeliadLibrary.Location library;
+    private boolean front; // this tab is the one showing
     private boolean changeMode;
     private int reads; // so a slow read that lands after a newer one is dropped
 
@@ -92,7 +84,7 @@ final class HeliadTab extends JPanel {
      * @param _onActivate called on a double-click, to add the row as the dialog's Add would
      */
     HeliadTab(Runnable _onChange, Runnable _onActivate) {
-        super(new BorderLayout());
+        super(new BorderLayout(0, 4));
         onChange = _onChange;
         onActivate = _onActivate;
 
@@ -128,36 +120,36 @@ final class HeliadTab extends JPanel {
         JPanel bottom = new JPanel(new FlowLayout(FlowLayout.TRAILING, 0, 0));
         bottom.add(openInHeliad);
 
-        heliad.setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3));
-        heliad.add(status, BorderLayout.PAGE_START);
-        heliad.add(scroller, BorderLayout.CENTER);
-        heliad.add(bottom, BorderLayout.PAGE_END);
-        tabs.addChangeListener(e -> {
-            if (showing())
-                refresh();
-            onChange.run();
-        });
+        setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3));
+        add(status, BorderLayout.PAGE_START);
+        add(scroller, BorderLayout.CENTER);
+        add(bottom, BorderLayout.PAGE_END);
     }
 
-    /** Hold the dialog's own content, beside the Heliad tab when there is a library. */
-    JComponent wrap(JComponent _helioviewer) {
-        helioviewer = _helioviewer;
-        arrange();
-        return this;
+    /** The dialog brought this tab to the front, or moved off it. */
+    void setFront(boolean _front) {
+        front = _front;
+        if (front)
+            refresh();
     }
 
     /** Called as the dialog opens: look for the library again and re-read it. */
     void update(boolean _changeMode) {
         changeMode = _changeMode;
         library = HeliadLibrary.find();
-        arrange();
-        if (library != null)
+        openInHeliad.setVisible(library != null && HeliadLibrary.app() != null);
+        if (library == null) {
+            model.setRows(List.of(), rangeStart(), rangeEnd());
+            status.setText(HeliadLibrary.app() == null
+                    ? "No Heliad library on this computer. Heliad downloads FITS into a local library that Studio reads."
+                    : "No Heliad library yet. Open Heliad to download into one; Studio reads it from here.");
+        } else if (front)
             refresh();
     }
 
     /** Whether the Heliad tab is the one in front, so Add means "add from Heliad". */
     boolean showing() {
-        return library != null && tabs.getSelectedComponent() == heliad;
+        return front;
     }
 
     boolean canLoad() {
@@ -204,34 +196,6 @@ final class HeliadTab extends JPanel {
             Message.err("Could not read the Heliad library", e.getMessage(), e);
         }
         return loaded;
-    }
-
-    /** Swap between the dialog's content alone and the two tabs, as the library comes and goes. */
-    private void arrange() {
-        if (helioviewer == null)
-            return;
-        boolean tabbed = library != null;
-        boolean was = tabs.getParent() == this;
-        if (tabbed != was || getComponentCount() == 0) {
-            removeAll();
-            tabs.removeAll();
-            if (tabbed) {
-                tabs.addTab("Helioviewer", helioviewer);
-                tabs.addTab("Heliad library", heliad);
-                add(tabs, BorderLayout.CENTER);
-            } else
-                add(helioviewer, BorderLayout.CENTER);
-            revalidate();
-            Window window = SwingUtilities.getWindowAncestor(this);
-            if (window != null && window.isVisible())
-                window.pack();
-        }
-        if (tabbed) {
-            tabs.setEnabledAt(1, !changeMode);
-            if (changeMode)
-                tabs.setSelectedIndex(0);
-        }
-        openInHeliad.setVisible(HeliadLibrary.app() != null);
     }
 
     /** Read the datasets off the event thread; the table fills when the read lands. */

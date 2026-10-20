@@ -225,7 +225,7 @@
   },
   {
    "kind": "p",
-   "text": "**How:** in the Layers panel, open the add-layer split button and choose **FITS (VSO)**. Pick an instrument (for SUVI: **GOES > SUVI 195** and friends), then **Add FITS layer**; the query follows the master time range like any other layer."
+   "text": "**How:** in the Layers panel, click **New Layer** and choose the **VSO (FITS)** tab. Pick an instrument (for SUVI: **GOES > SUVI 195** and friends), then **Add**; the query follows the master time range like any other layer."
   },
   {
    "kind": "h2",
@@ -249,7 +249,7 @@
   },
   {
    "kind": "p",
-   "text": "**How:** in the Layers panel, open the add-layer button. **FITS (native)** has LASCO C2 (NRL) and LASCO C3 (NRL), which use the master time range directly. **FITS (VSO)** has GOES SUVI and AIA per channel, plus LASCO, EIT, HMI, SECCHI, XRT and EIS."
+   "text": "**How:** in the Layers panel, click **New Layer**. The **Direct (FITS)** tab has LASCO C2 (NRL) and LASCO C3 (NRL), which use the master time range directly. **VSO (FITS)** has GOES SUVI and AIA per channel, plus LASCO, EIT, HMI, SECCHI, XRT and EIS."
   },
   {
    "kind": "p",

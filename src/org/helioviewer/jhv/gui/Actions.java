@@ -170,7 +170,7 @@ public final class Actions {
 
     public static class NewLayer extends AbstractKeyAction {
         public NewLayer() {
-            super("New JP2 Image Layer\u2026", KeyStroke.getKeyStroke(KeyEvent.VK_N, DesktopIntegration.menuShortcutMask));
+            super("New Image Layer\u2026", KeyStroke.getKeyStroke(KeyEvent.VK_N, DesktopIntegration.menuShortcutMask));
         }
 
         @Override

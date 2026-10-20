@@ -107,6 +107,17 @@ public class MlsoDialog extends StandardDialog implements MlsoClient.Receiver {
         List<MlsoClient.DataItem> items = listPane.getSelectedValuesList();
         if (items.isEmpty())
             return;
+        // Before the sign-in checks: a copy already on disk needs no MLSO account.
+        if (instrumentCombo.getSelectedItem() instanceof MlsoClient.Instrument inst) {
+            long start = items.stream().mapToLong(MlsoClient.DataItem::milli).min().orElse(0);
+            long end = items.stream().mapToLong(MlsoClient.DataItem::milli).max().orElse(0);
+            HeliadFirst.Choice choice = HeliadFirst.offer(this, org.helioviewer.jhv.io.HeliadLibrary.Wanted.of(null, inst.id(), null, null), start, end);
+            if (choice != HeliadFirst.Choice.DOWNLOAD) {
+                if (choice == HeliadFirst.Choice.LOADED)
+                    setVisible(false);
+                return;
+            }
+        }
         String username = usernameField.getText().trim();
         if (username.isEmpty()) {
             statusLabel.setText("Downloads need an email registered at " + MlsoClient.REGISTER_URL);

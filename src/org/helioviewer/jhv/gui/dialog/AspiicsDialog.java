@@ -124,9 +124,21 @@ public class AspiicsDialog extends StandardDialog {
     public ButtonPanel createButtonPanel() {
         addButton.addActionListener(e -> {
             List<String> selected = listPane.getSelectedValuesList();
-            if (selected.isEmpty() || !confirmDownload(selected.size()))
+            if (selected.isEmpty())
                 return;
-            Commands.loadImage(selected.stream().map(AspiicsDialog::uri).toList());
+            // Heliad names pB and pA in words; for the others any ASPIICS in the range is offered.
+            String product = switch (selectedProductType()) {
+                case "pb" -> "polarized-brightness";
+                case "pa" -> "polarization-angle";
+                default -> null;
+            };
+            long[] span = span(selected);
+            HeliadFirst.Choice choice = span == null ? HeliadFirst.Choice.DOWNLOAD
+                    : HeliadFirst.offer(this, new org.helioviewer.jhv.io.HeliadLibrary.Wanted("proba-3", "aspiics", null, product, null, null), span[0], span[1]);
+            if (choice == HeliadFirst.Choice.CANCELLED || choice == HeliadFirst.Choice.DOWNLOAD && !confirmDownload(selected.size()))
+                return;
+            if (choice == HeliadFirst.Choice.DOWNLOAD)
+                Commands.loadImage(selected.stream().map(AspiicsDialog::uri).toList());
             setVisible(false);
         });
 
@@ -492,6 +504,23 @@ public class AspiicsDialog extends StandardDialog {
         int start = "aspiics_".length();
         int end = name.indexOf("_l3_", start);
         return end > start ? name.substring(start, end) : null;
+    }
+
+    /** First and last time stamp in the selected file names, or null when none carries one. */
+    @Nullable
+    private static long[] span(List<String> datalocations) {
+        java.util.regex.Pattern stamp = java.util.regex.Pattern.compile("(\\d{8}T\\d{6})");
+        java.time.format.DateTimeFormatter format = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss");
+        long min = Long.MAX_VALUE, max = Long.MIN_VALUE;
+        for (String d : datalocations) {
+            java.util.regex.Matcher m = stamp.matcher(fileName(d));
+            if (!m.find())
+                continue;
+            long t = java.time.LocalDateTime.parse(m.group(1), format).toInstant(java.time.ZoneOffset.UTC).toEpochMilli();
+            min = Math.min(min, t);
+            max = Math.max(max, t);
+        }
+        return min > max ? null : new long[]{min, max};
     }
 
     private static URI uri(String datalocation) {

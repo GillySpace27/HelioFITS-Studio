@@ -86,7 +86,7 @@ public final class ActionCatalog {
         put("separateMultiviewZoom", new Actions.SeparateMultiviewZoom(), "View/Separate Multiview Zoom", "");
         put("present", new Actions.TogglePresentationMode(), "View/Present", "Presentation mode: output only, fullscreen (Esc to leave)");
         // Layers
-        put("newJp2Layer", new Actions.NewLayer(), "Layers/New JP2 Image Layer…", "");
+        put("newJp2Layer", new Actions.NewLayer(), "Layers/New Image Layer…", "");
         put("newSynopticLayer", new Actions.NewSynopticLayer(), "Layers/New Synoptic Layer...", "");
         put("newPunchLayer", new Actions.NewPunchLayer(), "Layers/New PUNCH Layer…", "");
         put("punchLatest", new Actions.PunchLatestAction(), "Layers/PUNCH Latest", "Open the newest day of PUNCH clear average mosaics (CAM) in Helioradial with RHEF");
