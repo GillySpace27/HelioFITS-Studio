@@ -17,7 +17,6 @@
 ### Layers
 - Each layer's readout opens with what it shows, such as "EUV 171 Å (Fe IX, log T 5.8)" for AIA, "white-light total brightness (includes the F corona)" for LASCO C2 and C3, or the PUNCH product ("total brightness, average mosaic, Level 3 (background-subtracted)"). Every label comes from a sourced instrument note; anything without one, such as SUVI, EUI, WISPR, ASPIICS and CCOR, reads "unknown". The Image Information window carries the same line in its title
 - Badges after it flag what changes how to read the picture: RHEF: visualization, running or base difference, provisional LASCO (the frame's monthly background could not be fetched) and quickPUNCH. Hover the readout for what each one means
-- Layers > Send to Python (or the Python button on a layer) writes the layer's FITS files, tile-compressed ones included, as double-precision science FITS under `~/HFStudio/Exports/python-<time>/` with a `manifest.json` that says what was and was not applied, and puts a sunpy snippet on the clipboard. It also announces each file over SAMP (`image.load.fits`) when a hub is running, and says how many clients got it; `extra/samp/receive_fits.py` is a small receiver. With no hub the export still works. The files hold physical values, not the viewer's picture
 
 ### Playback
 - The Clock row has an Achieved box, off by default. Ticked, it shows the frame rate playback actually reaches over the last two seconds, beside the Play rate it asks for, so a RHEF movie can be timed against the same movie without it. The FPS at the bottom left counts canvas draws, which is not the same thing
@@ -41,7 +40,8 @@
 - File > Quick Share records one loop of the current scene as a movie that plays anywhere (H.264, 8 bit) and shows it in Finder or your file manager. Your own recording settings are not changed
 
 ### Python
-- Layers > Send to Python writes the active layer's FITS files that are on this computer as double-precision science FITS under Exports/, with a manifest and a sunpy snippet on the clipboard. LASCO frames have the bias level (OFFSET) removed first, the same step the viewer takes; this is not a calibration. A layer still streaming from an archive has to be downloaded first; a JPEG 2000 layer has no FITS files to send
+- Layers > Send to Python (or the Python button on a layer) writes the layer's FITS files that are on this computer, tile-compressed ones included, as double-precision science FITS under `~/HFStudio/Exports/python-<time>/`, with a `manifest.json` that says what was and was not applied, and puts a sunpy snippet on the clipboard. LASCO frames have the bias level (OFFSET) removed first, the same step the viewer takes; the files hold physical values, not the viewer's picture, and this is not a calibration. A layer still streaming from an archive has to be downloaded first; a JPEG 2000 layer has no FITS files to send
+- When a SAMP hub is running, each exported file is also announced over SAMP (`image.load.fits`) and the dialog says how many clients got it; `extra/samp/receive_fits.py` is a small receiver. With no hub the export still works
 
 ### PUNCH
 - Layers > PUNCH Latest opens the newest day of PUNCH clear average mosaics (CAM, Level 3) in Helioradial with RHEF on
