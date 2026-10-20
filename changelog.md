@@ -7,6 +7,13 @@
 - New Layer is a button again, not a dropdown: it opens one window with a tab for each source. HV (JPEG 2000) streams Helioviewer's browse images, VSO (FITS) queries the Virtual Solar Observatory, Direct (FITS) opens a mission's own archive (PUNCH, SOAR, ASPIICS, MLSO) or loads LASCO from NRL, and Heliad (Local FITS Cache) lists what the Heliad app has already downloaded. The window has its own time range and time step (or frame count) at the top, which every tab uses. They start as the master ones beside New Layer each time it opens, and changing them affects only the layer being added, never the master range; PUNCH, SOAR and MLSO open on that range, PUNCH on that time step too. It opens on the tab used last. Layers > New Image Layer... (Cmd-N) opens the same window
 - Before any FITS download (VSO, PUNCH, SOAR, ASPIICS, MLSO or LASCO), Studio looks in the Heliad library for the same dataset over the same range. If it is there, it offers Heliad's copy, with Download Anyway and Cancel beside it; with no Heliad library, or nothing matching, the download goes ahead as before. Helioviewer's JPEG 2000 is not checked, since Heliad keeps FITS
 - Open Heliad, at the bottom of the window when the Heliad app is installed, starts it to manage the library and download into it
+- The Heliad tab lists Spacecraft, Instrument, Detector, Wavelength, Product, Level and Cadence as columns of their own, each sortable. Cadence is the median gap between files, so gaps in the data do not inflate it (a polarization sequence reads as its spacing: COR1 shows about 20 s). Columns..., or a right-click on the column titles, shows and hides columns, remembered between runs; the combined Dataset name starts hidden
+
+### Multiview
+- Each view zooms separately by default. View > Separate Multiview Zoom is on for new installs and is now remembered between runs
+- Zoom to Fit in Multiview fits each view to its own layer, and Reset View does the same when the views zoom separately. With Separate Multiview Zoom off it works as before. The fit differs per view only in Orthographic without a crop; the other projections frame the same way whatever the layer
+- Turning Multiview on fits every view, so each one starts filled
+- View > Zoom to Fit New Layers in Multiview (on by default): a layer added while in Multiview is fitted to its own view, and the other views keep their zoom. It needs Separate Multiview Zoom
 
 ### Compare
 - A Compare palette on the toolbar (Tools lists it too): pick layers A and B, then Blink between them at 0.5 to 8 Hz, or Swipe a vertical divider across every viewport with A on one side and B on the other. Neither layer is switched off or changed, and Off stops the blinking. The choices are saved with the session, never the blink phase. Difference is shown greyed: A minus B in physical units is a later phase
@@ -51,6 +58,7 @@
 - Layers > Send to Python, also the Python button on the layer panel, writes the active layer's FITS files to `Exports/python-<time>` as science FITS: physical values in double precision with only BZERO and BSCALE applied (BLANK becomes NaN), the original header kept and the session added as HISTORY, none of the display steps. A manifest.json and a sunpy snippet come with them, and the snippet goes on the clipboard
 - With a SAMP hub running, each file is also sent as image.load.fits, so astropy or another SAMP tool can pick it up; `extra/samp/receive_fits.py` is a ready receiver
 - A LASCO frame has its bias (the OFFSET header keyword) subtracted, as the viewer does, and the manifest says so; it also warns that the exposure division and the monthly background are not applied. A LASCO frame with no OFFSET card is left alone, and the manifest says that too
+- One export runs at a time. While it works, the layer's Python button counts the files ("Exporting 2/5..."), the menu item and the other layers' Python buttons are greyed out, and the activity light in the footer names the export, so a second click no longer writes a second folder and snippet
 
 ### PUNCH
 - The status bar shows the time of the active PUNCH layer's newest frame and its age, in amber once it is more than a week old
@@ -86,6 +94,7 @@
 - In the Playback tab, the Preset row and the Format disclosure no longer draw on top of each other
 
 ### Smaller fixes
+- The layer readout no longer sits in a tall empty box. It keeps its tallest height so it does not jump while frames stream in, but one squeezed layout could pin that at a word per line; the height now starts over when the panel's width changes
 - A session reopens on its own master time range. When Helioviewer's list of datasets arrived after the session had loaded, which at startup it often did, the range was reset to the last two days of data
 - The packaged Mac app always loads its own Metal library. Started from a folder holding an older copy, it could load that one and fail to open; starting from Finder was not affected
 
