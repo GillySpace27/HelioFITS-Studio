@@ -49,6 +49,10 @@ public final class EventTimelineLayer extends TimelineLayer implements EventList
 
     @Override
     public void fetchData(TimeAxis selectedAxis) {
+        // A session load can unregister this row (remove) and later put the same object back
+        // enabled, which setEnabled skips; re-registering here keeps new events arriving. A set, so harmless.
+        if (enabled)
+            EventCache.registerHandler(this);
         visibleEvents = EventCache.getEvents(selectedAxis.start(), selectedAxis.end());
         SWEKDownloader.requestForInterval(selectedAxis.start(), selectedAxis.end());
     }
