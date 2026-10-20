@@ -40,7 +40,7 @@
 - File > Quick Share records one loop of the current scene as a movie that plays anywhere (H.264, 8 bit) and shows it in Finder or your file manager. Your own recording settings are not changed
 
 ### Python
-- Layers > Send to Python writes the active layer's FITS files as double-precision science FITS under Exports/, with a manifest and a sunpy snippet on the clipboard. LASCO frames have the bias level (OFFSET) removed first, the same step the viewer takes; this is not a calibration
+- Layers > Send to Python writes the active layer's FITS files that are on this computer as double-precision science FITS under Exports/, with a manifest and a sunpy snippet on the clipboard. LASCO frames have the bias level (OFFSET) removed first, the same step the viewer takes; this is not a calibration. A layer still streaming from an archive has to be downloaded first; a JPEG 2000 layer has no FITS files to send
 
 ### PUNCH
 - Layers > PUNCH Latest opens the newest day of PUNCH clear average mosaics (CAM, Level 3) in Helioradial with RHEF on
