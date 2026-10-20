@@ -80,6 +80,12 @@ public final class CMETracker implements TimeListener.Change {
     private static double animMilli;   // eased movie time actually driving the warp + marker
     private static final EDTTimer smoother = new EDTTimer(16, CMETracker::step);
 
+    // The knobs as they were before tracking took them, for cancel(). Retaken on engage unless the
+    // knobs still hold what tracking last wrote: the panels stop and re-engage to switch CME or
+    // mode, and that must keep the user's values, not the previous track's last solve.
+    private static double lambdaBefore, outerBefore;
+    private static double lambdaLeft = Double.NaN, outerLeft = Double.NaN;
+
     /** A CACTus front: constant speed out from ONSET_RSUN at the catalogued onset, on a fixed angle. */
     public static void track(double speedKmSec, long onsetMilli, double positionAngleDeg) {
         track(milli -> ONSET_RSUN + speedKmSec * (milli - onsetMilli) / Sun.RadiusMeter, // km/s * milli == m
@@ -89,6 +95,10 @@ public final class CMETracker implements TimeListener.Change {
     public static void track(DoubleUnaryOperator radius, DoubleUnaryOperator positionAngle) {
         radiusOf = radius;
         angleOf = positionAngle;
+        if (Display.getWarpLambda() != lambdaLeft || Display.getWarpOuterRadius() != outerLeft) {
+            lambdaBefore = Display.getWarpLambda();
+            outerBefore = Display.getWarpOuterRadius();
+        }
         tracking = true;
         targetMilli = animMilli = Player.getTime().milli; // snap on engage, no ease-in from a stale value
         Player.addTimeListener(instance); // no-op when already registered
@@ -104,6 +114,18 @@ public final class CMETracker implements TimeListener.Change {
         tracking = false; // the listener stays registered: removal inside Player's forEach would throw
         smoother.stop();
         fireChanged();
+    }
+
+    /** Stop, and hand the warp and crop back as they were before tracking engaged. */
+    public static void cancel() {
+        if (!tracking)
+            return;
+        stop();
+        Display.setWarpLambda(lambdaBefore);
+        Display.setWarpOuterRadius(outerBefore);
+        fireSolved(); // the sliders follow, as they do a solve
+        lambdaLeft = outerLeft = Double.NaN; // after: these are the user's values again, not tracking's
+        DisplayController.display();
     }
 
     public static boolean isTracking() {
@@ -149,6 +171,8 @@ public final class CMETracker implements TimeListener.Change {
     }
 
     private static void fireSolved() {
+        lambdaLeft = Display.getWarpLambda();
+        outerLeft = Display.getWarpOuterRadius();
         for (Runnable r : solveListeners)
             r.run();
     }
