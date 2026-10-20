@@ -758,9 +758,19 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         return panel != null && panel.isSingleFrame();
     }
 
+    // The newest-data default arrives whenever Helioviewer's source list does, which at startup is
+    // often after the session has loaded; it used to overwrite the session's range with the last
+    // two days. A session that has been opened keeps its own range.
+    private boolean sessionRange;
+
+    public void keepSessionRange() {
+        sessionRange = true;
+    }
+
     @Override
     public void setDefaultTimeRange(long start, long end) {
-        setTime(start, end);
+        if (!sessionRange)
+            setTime(start, end);
     }
 
     @Override
