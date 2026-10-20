@@ -235,6 +235,11 @@ public final class MenuBar extends JMenuBar {
         separateMultiviewZoom.setState(Display.separateViewportZoom);
         viewMenu.add(separateMultiviewZoom);
 
+        JCheckBoxMenuItem fitNewMultiviewLayers = new JCheckBoxMenuItem(catalogAction("fitNewMultiviewLayers"));
+        fitNewMultiviewLayers.setName("fitNewMultiviewLayers");
+        fitNewMultiviewLayers.setState(org.helioviewer.jhv.app.DisplaySettings.getFitNewMultiviewLayers());
+        viewMenu.add(fitNewMultiviewLayers);
+
         JCheckBoxMenuItem white = new JCheckBoxMenuItem("Use White Background");
         white.addItemListener(e -> {
             Display.whiteBackground = white.getState();

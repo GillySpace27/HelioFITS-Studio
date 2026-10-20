@@ -258,7 +258,7 @@ public final class ImageLayers {
     }
 
     @Nullable
-    static ImageLayer getImageLayerInViewport(int idx) {
+    public static ImageLayer getImageLayerInViewport(int idx) {
         for (ImageLayer layer : Layers.getImageLayers()) {
             if (layer.isVisible(idx))
                 return layer;
