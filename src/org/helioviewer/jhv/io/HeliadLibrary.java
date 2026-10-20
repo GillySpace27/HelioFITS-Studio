@@ -85,9 +85,13 @@ public final class HeliadLibrary {
     /** The library on this machine, or null when Heliad has not made one. */
     @Nullable
     public static Location find() {
-        Path dir = configDir(System.getenv("HELIAD_HOME"), System.getProperty("os.name", ""),
+        return read(configDir());
+    }
+
+    /** The folder {@link #find} looks in for Heliad's {@code config.json}, whether or not it exists. */
+    public static Path configDir() {
+        return configDir(System.getenv("HELIAD_HOME"), System.getProperty("os.name", ""),
                 Path.of(System.getProperty("user.home")), System.getenv("APPDATA"), System.getenv("XDG_CONFIG_HOME"));
-        return read(dir);
     }
 
     /**
