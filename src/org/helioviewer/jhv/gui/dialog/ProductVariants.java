@@ -73,7 +73,7 @@ final class ProductVariants {
 
     /**
      * What tells files of one product apart: the file name without directory, the
-     * aspiics_&lt;product&gt;_l3_ prefix, time stamps and extension. Frames of one kind share it.
+     * aspiics_&lt;product&gt;_l3_ prefix, time stamps, sequence numbers and extension. Frames of one kind share it.
      */
     static String aspiicsKind(String datalocation) {
         String name = datalocation.substring(datalocation.lastIndexOf('/') + 1).toLowerCase(Locale.ROOT);
@@ -87,7 +87,8 @@ final class ProductVariants {
             name = name.substring(0, dot);
         StringBuilder kind = new StringBuilder();
         for (String token : name.split("_")) {
-            if (token.isEmpty() || STAMP.matcher(token).matches())
+            // All digits: the per-file sequence number (1630400060001), not a kind (Sarah Gibson, 2026-10-19).
+            if (token.isEmpty() || STAMP.matcher(token).matches() || token.chars().allMatch(Character::isDigit))
                 continue;
             if (!kind.isEmpty())
                 kind.append('_');
