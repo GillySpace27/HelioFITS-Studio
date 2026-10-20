@@ -340,6 +340,7 @@ public final class MenuBar extends JMenuBar {
 
         viewMenu.addSeparator();
         viewMenu.add(themeMenu());
+        viewMenu.add(catalogAction("displaySettings")); // beside Theme: how the app looks, in one place
 
         viewMenu.addSeparator();
         // Presentation stays: it is a way of looking at the scene rather than a thing to work on
