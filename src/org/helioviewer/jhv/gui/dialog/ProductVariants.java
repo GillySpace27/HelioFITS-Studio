@@ -70,8 +70,9 @@ final class ProductVariants {
 
     // Lower-case 't': aspiicsKind lowercases the name before matching.
     private static final Pattern STAMP = Pattern.compile("\\d{8}t\\d{6}\\d*");
-    // The per-file sequence id, hexadecimal: 163040060001, but also 1630400a0001 (lowercased).
-    private static final Pattern SEQUENCE = Pattern.compile("[0-9a-f]{10,}");
+    // The per-file sequence id, hexadecimal: 163040060001, but also 1630400a0001 (lowercased). Mostly
+    // digits, so a kind suffix that happens to be a hex word (deadbeefcafe) is not taken for one.
+    private static final Pattern SEQUENCE = Pattern.compile("(?=(?:[a-f]*\\d){8})[0-9a-f]{10,}");
 
     /**
      * What tells files of one product apart: the file name without directory, the
