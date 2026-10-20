@@ -94,6 +94,7 @@
 - In the Playback tab, the Preset row and the Format disclosure no longer draw on top of each other
 
 ### Smaller fixes
+- A movie export says how far it has got, in the footer beside the FPS: the frame being recorded (of how many, for one loop), then the frames encoded, then that the file is being written, and nothing once it is done. The activity light keeps spinning until the file is closed; before, it stopped when capture ended, and a long export then showed no sign of life while it encoded
 - The layer readout no longer sits in a tall empty box. It keeps its tallest height so it does not jump while frames stream in, but one squeezed layout could pin that at a word per line; the height now starts over when the panel's width changes
 - A session reopens on its own master time range. When Helioviewer's list of datasets arrived after the session had loaded, which at startup it often did, the range was reset to the last two days of data
 - The packaged Mac app always loads its own Metal library. Started from a folder holding an older copy, it could load that one and fail to open; starting from Finder was not affected

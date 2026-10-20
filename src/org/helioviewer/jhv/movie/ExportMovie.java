@@ -4,6 +4,8 @@ import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.Nullable;
 
@@ -41,6 +43,12 @@ public final class ExportMovie {
     private static final int EXR_IN_FLIGHT = 2;
     private static final ExecutorService encodeExecutor = AppThread.createIdleExecutor("HFS-EncodeMovie", 1);
     private static final ArrayList<StatusListener> statusListeners = new ArrayList<>();
+    // For the footer: frames handed to the encoder, frames it has finished, and whether the file is
+    // still being written. Capture ends before encoding does, so "recording" alone went quiet for the
+    // longest part of a long export (Gilly, 2026-10-20).
+    private static final AtomicInteger framesQueued = new AtomicInteger();
+    private static final AtomicInteger framesEncoded = new AtomicInteger();
+    private static final AtomicBoolean writing = new AtomicBoolean();
 
     private static @Nullable RecordingSession recordingSession;
     private static @Nullable TimelineFrameSource timelineFrameSource;
@@ -88,6 +96,8 @@ public final class ExportMovie {
             ViewState.PlaybackData playbackData = ViewState.playbackData();
             int fps = playbackData.speedUnit().isRelative() ? playbackData.speed() : Player.FPS_ABSOLUTE;
             ViewState.RecordingData data = onceMode == null ? ViewState.recordingData() : withMode(ViewState.recordingData(), onceMode);
+            framesQueued.set(0);
+            framesEncoded.set(0);
             recordingSession = new RecordingSession(context, data, fps, encodingFor(once));
             notifyStatusChanged();
             recordingSession.start();
@@ -111,6 +121,21 @@ public final class ExportMovie {
 
     public static boolean isRecording() {
         return recordingSession != null;
+    }
+
+    /** What the footer says about the movie being made, from capture to the file closing; null when none is. */
+    @Nullable
+    public static String progress() {
+        int queued = framesQueued.get(), encoded = framesEncoded.get();
+        RecordingSession session = recordingSession;
+        if (session != null) {
+            int total = session.mode == ViewState.RecordingMode.LOOP ? Player.getMaximumFrameNumber() + 1 : 0;
+            return "Recording movie: frame " + queued + (total > 0 ? " of " + total : "")
+                    + (queued - encoded > 1 ? " (" + encoded + " encoded)" : "");
+        }
+        if (!writing.get())
+            return null;
+        return encoded < queued ? "Encoding movie: " + encoded + " of " + queued + " frames" : "Writing the movie file\u2026";
     }
 
     static boolean beginPlaybackFrame() {
@@ -347,6 +372,7 @@ public final class ExportMovie {
                         timelineImage = NativeImageFactory.copyImage(timelineFrame.image);
                         movieLinePosition = timelineFrame.movieLinePosition;
                     }
+                    framesQueued.incrementAndGet();
                     encodeExecutor.execute(new FrameConsumer(writer, mainImage, timelineImage, movieLinePosition, bytesPerPixel));
                     submitted = true;
                 }
@@ -372,6 +398,7 @@ public final class ExportMovie {
             exrPermits.acquireUninterruptibly();
             try {
                 ExrWriter frame = ExrCapture.frame(grabber, writer.fps(), ++exrFrameIndex, exrProvenance);
+                framesQueued.incrementAndGet();
                 encodeExecutor.execute(() -> {
                     try {
                         writer.encodeExr(frame);
@@ -379,6 +406,7 @@ public final class ExportMovie {
                         Log.error(e);
                         writer.recordFailure(e);
                     } finally {
+                        framesEncoded.incrementAndGet();
                         exrPermits.release();
                     }
                 });
@@ -412,6 +440,7 @@ public final class ExportMovie {
             recordingSession = null;
             HdrTransfer.capture = HdrTransfer.Curve.NONE;
             disposeGrabber();
+            writing.set(true);
             notifyStatusChanged();
             encodeExecutor.execute(new CloseWriter(writer, operationContext));
         }
@@ -435,6 +464,7 @@ public final class ExportMovie {
                 Log.error(e);
                 writer.recordFailure(e);
             } finally {
+                framesEncoded.incrementAndGet();
                 NativeImageFactory.free(timelineImage);
                 MappedImageFactory.free(mainImage);
             }
@@ -453,6 +483,8 @@ public final class ExportMovie {
                 String message = e.getMessage() == null || e.getMessage().isBlank() ?
                         "Recording failed." : e.getMessage();
                 Commands.notifyRecordingFinished(operationContext, false, message, null);
+            } finally {
+                writing.set(false);
             }
             System.gc();
         }

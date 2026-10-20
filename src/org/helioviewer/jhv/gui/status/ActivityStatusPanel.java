@@ -108,8 +108,9 @@ public final class ActivityStatusPanel extends StatusPanel.StatusPlugin implemen
         for (TimelineLayer tl : TimelineLayers.get())
             if (tl.isDownloading())
                 out.add("Timeline: " + tl.getName());
-        if (ExportMovie.isRecording())
-            out.add("Recording a movie");
+        String movie = ExportMovie.progress(); // through encoding and writing, not only capture
+        if (movie != null)
+            out.add(movie);
         String python = org.helioviewer.jhv.gui.Actions.SendToPython.progress();
         if (python != null)
             out.add(python);
