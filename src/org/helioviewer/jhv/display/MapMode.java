@@ -149,9 +149,9 @@ public enum MapMode {
     /**
      * Whether the surface model reaches the picture at all.
      *
-     * <p>True in exactly one place: the {@code surfaceModel} uniform exists only in
-     * warpSurface.vert, which is bound only by renderWarpSurface, which runs only for the
-     * helioradial surface mesh. In every other projection the imagery is reconstructed per
+     * <p>True in two places: the {@code surfaceModel} uniform exists only in warpSurface.vert
+     * (the helioradial surface mesh, bound by renderWarpSurface) and solarSky.frag (the composed
+     * sky, bound by bindSkyWarp). In every other projection the imagery is reconstructed per
      * fragment from a full-screen quad and the choice of surface is not consulted at all.
      *
      * <p>Stated here rather than re-derived in the toolbar, because a control that is offered

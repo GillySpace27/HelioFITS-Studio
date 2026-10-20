@@ -190,9 +190,8 @@ final class ProjectionPaletteContent {
         // All labels get the same width, so the button does not resize under the pointer when it
         // flips. That is the whole point of it being one button rather than a list: the surfaces
         // are worth comparing by cycling through them, and that only works if the control stays
-        // where your cursor already is. The cycle is plane of sky, Thomson sphere, celestial
-        // sphere: the measurement's placement, then that placement projected back out onto the
-        // sky it came from.
+        // where your cursor already is. The cycle is plane of sky, celestial sphere, Thomson
+        // sphere: the two geometric references first, then the scattering placement.
         toggle.setPreferredSize(surfaceToggleSize(toggle));
         toggle.setName("projectionSurface");
         toggle.addActionListener(e -> {
@@ -202,14 +201,13 @@ final class ProjectionPaletteContent {
             // ViewpointLayerOptions.enforceSurfaceExclusivity for why they cannot coexist.
             if (wanted == SurfaceModel.ThomsonSphere
                     && !org.helioviewer.jhv.layers.ViewpointLayerOptions.allowsThomsonSphere()) {
-                toggle.setSelected(Display.getSurfaceModel() != SurfaceModel.PlaneOfSky);
-                toggle.setText(Display.getSurfaceModel().toString());
+                // Skip it rather than stay put, or the cycle could never get back to plane of sky.
+                wanted = cycle[(wanted.ordinal() + 1) % cycle.length];
                 org.helioviewer.jhv.app.Message.warn("Surface model",
                         "The Thomson sphere cannot be used while the active Viewpoint layer is set to a "
                                 + "location: that puts the observer inside the field, and the sphere does not "
                                 + "reach past the observer. Switch the Viewpoint layer to \"Observer at 1au\" "
                                 + "or \"Heliosphere\", or turn the layer off.");
-                return;
             }
             Display.setSurfaceModel(wanted);
             toggle.setSelected(wanted != SurfaceModel.PlaneOfSky);
@@ -281,7 +279,7 @@ final class ProjectionPaletteContent {
         double distance = org.helioviewer.jhv.opengl.GLRenderer.getDisplayedViewpoint().distance;
         double outer = Display.effectiveWarpOuterRadius();
         surfaceModelToggle.setToolTipText(current.canDescribe(distance, outer)
-                ? "Where wide-field brightness is placed in depth. Click to cycle: plane of sky, Thomson sphere, celestial sphere."
+                ? "Where wide-field brightness is placed in depth. Click to cycle: plane of sky, celestial sphere, Thomson sphere."
                 : String.format("Where wide-field brightness is placed in depth. The %s reaches only "
                         + "to %.0f R\u2609 here, so the field beyond that (out to %.0f R\u2609) "
                         + "is not shown while it is selected: the model cannot place it at any elongation.",
