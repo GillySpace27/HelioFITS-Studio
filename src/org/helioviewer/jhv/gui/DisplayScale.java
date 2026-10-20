@@ -34,7 +34,7 @@ public final class DisplayScale {
     static final String BODY_KEY = "display.bodyScale";
     static final String DETAIL_KEY = "display.detailScale";
     private static final double[] UI = {0.5, 0.75, 1, 1.25, 1.5, 1.75, 2};
-    private static final int STEP = 5; // percent
+    private static final int MIN = 50, MAX = 300, STEP = 5; // percent, the same for every text slider
 
     private DisplayScale() {}
 
@@ -80,7 +80,6 @@ public final class DisplayScale {
     public static void showDialog(Component parent) {
         String[] keys = {TEXT_KEY, HEADING_KEY, BODY_KEY, DETAIL_KEY};
         String[] names = {"Text size", "Headings", "Body", "Detail"};
-        int[][] ranges = {{50, 175}, {50, 300}, {50, 200}, {50, 200}};
         double[] before = new double[keys.length];
         JSlider[] sliders = new JSlider[keys.length];
         // Each step applies as a slider lands on it. Coalesced: a drag crosses steps faster than the
@@ -94,7 +93,8 @@ public final class DisplayScale {
         c.anchor = java.awt.GridBagConstraints.LINE_START;
         for (int i = 0; i < keys.length; i++) {
             before[i] = read(Settings.getProperty(keys[i]));
-            JSlider slider = slider(ranges[i][0], ranges[i][1], before[i]);
+            // One range for all four, so they share an axis and only the last needs to print it.
+            JSlider slider = slider(before[i], i == keys.length - 1);
             JLabel value = new JLabel(slider.getValue() + "%");
             slider.addChangeListener(e -> {
                 value.setText(slider.getValue() + "%");
@@ -120,11 +120,10 @@ public final class DisplayScale {
         panel.add(ui, c);
         JPanel box = new JPanel(new java.awt.BorderLayout(0, 10));
         box.add(panel, java.awt.BorderLayout.CENTER);
-        box.add(new JLabel("<html><body style='width:400px'>Text size enlarges or shrinks all the text, and Headings, "
-                + "Body and Detail each set one level against it: section titles, ordinary text, and the small labels "
-                + "and readouts. All apply as the sliders move, and the layouts follow. Interface scale changes "
-                + "everything together, text, spacing and icons, and applies when HelioFITS Studio starts again."
-                + "</body></html>"), java.awt.BorderLayout.PAGE_END);
+        JLabel note = new JLabel("<html><body style='width:340px'>Text size sets all text; Headings, Body and Detail "
+                + "each adjust one level against it. Interface scale also sizes spacing and icons, after a restart.</body></html>");
+        note.setFont(UIGlobals.uiFontSmall);
+        box.add(note, java.awt.BorderLayout.PAGE_END);
 
         boolean ok = JOptionPane.showConfirmDialog(parent, box, "Display Settings", JOptionPane.OK_CANCEL_OPTION,
                 JOptionPane.PLAIN_MESSAGE) == JOptionPane.OK_OPTION;
@@ -147,17 +146,20 @@ public final class DisplayScale {
         }
     }
 
-    private static JSlider slider(int min, int max, double current) {
-        JSlider slider = new JSlider(min, max, (int) Math.clamp(Math.round(current * 100), min, max));
-        slider.setMajorTickSpacing(25);
+    private static JSlider slider(double current, boolean axis) {
+        JSlider slider = new JSlider(MIN, MAX, (int) Math.clamp(Math.round(current * 100), MIN, MAX));
         slider.setMinorTickSpacing(STEP);
-        slider.setSnapToTicks(true);
-        slider.setPaintTicks(true);
-        java.util.Hashtable<Integer, JLabel> labels = new java.util.Hashtable<>();
-        for (int v = min; v <= max; v += max - min > 150 ? 50 : 25)
-            labels.put(v, new JLabel(v + "%"));
-        slider.setLabelTable(labels);
-        slider.setPaintLabels(true);
+        slider.setSnapToTicks(true); // snapping needs the spacing, not painted ticks
+        if (axis) { // the shared axis, under the last slider: the columns line them all up with it
+            java.util.Hashtable<Integer, JLabel> labels = new java.util.Hashtable<>();
+            for (int v = MIN; v <= MAX; v += 50) {
+                JLabel label = new JLabel(v + "%");
+                label.setFont(UIGlobals.uiFontSmall);
+                labels.put(v, label);
+            }
+            slider.setLabelTable(labels);
+            slider.setPaintLabels(true);
+        }
         return slider;
     }
 
