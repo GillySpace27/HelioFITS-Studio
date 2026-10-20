@@ -141,6 +141,13 @@ public class PunchDialog extends StandardDialog implements PunchClient.ReceiverI
             }
             if (levelCombo.getSelectedItem() instanceof String level && productCombo.getSelectedItem() instanceof String product &&
                     cadenceCombo.getSelectedItem() instanceof Cadence cadence) {
+                HeliadFirst.Choice choice = HeliadFirst.offer(this, new org.helioviewer.jhv.io.HeliadLibrary.Wanted("punch", null, null, product, level, null),
+                        timeSelectorPanel.getStartTime(), timeSelectorPanel.getEndTime());
+                if (choice != HeliadFirst.Choice.DOWNLOAD) {
+                    if (choice == HeliadFirst.Choice.LOADED)
+                        setVisible(false);
+                    return;
+                }
                 PunchClient.submitLoad(items, level, product, timeSelectorPanel.getStartTime(), timeSelectorPanel.getEndTime(), cadence.milli, selectedVersion());
                 setVisible(false);
             }

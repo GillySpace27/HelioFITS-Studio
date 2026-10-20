@@ -72,6 +72,42 @@ public final class HeliadLibrary {
     public record Dataset(String key, String label, @Nullable String instrument, @Nullable Double wavelength,
                           int frames, long bytes, long start, long end, int inRange) {}
 
+    /**
+     * What a download is about to fetch, named by the parts of Heliad's dataset key
+     * ({@code observatory/instrument/detector/product/level/wavelength}, e.g.
+     * {@code sdo/aia/-/-/1/193}) that the asking source can name. Null matches anything, and so does
+     * Heliad's "-". Parts compare by letters and digits only, so "K-Cor" is "kcor" and "L3" is "3".
+     * It is deliberately loose: a match only offers Heliad's copy, and the person can still download.
+     */
+    public record Wanted(@Nullable String observatory, @Nullable String instrument, @Nullable String detector,
+                         @Nullable String product, @Nullable String level, @Nullable Integer wavelength) {
+
+        public static Wanted of(@Nullable String observatory, @Nullable String instrument, @Nullable String detector,
+                                @Nullable Integer wavelength) {
+            return new Wanted(observatory, instrument, detector, null, null, wavelength);
+        }
+
+        public boolean matches(String key) {
+            String[] k = key.split("/", -1);
+            if (k.length < 6)
+                return false;
+            return part(observatory, k[0]) && part(instrument, k[1]) && part(detector, k[2]) && part(product, k[3])
+                    && part(level, k[4]) && part(wavelength == null ? null : wavelength.toString(), k[5]);
+        }
+
+        private static boolean part(@Nullable String wanted, String have) {
+            if (wanted == null || have.equals("-"))
+                return true;
+            String w = slug(wanted), h = slug(have);
+            return w.isEmpty() || w.equals(h);
+        }
+
+        private static String slug(String text) {
+            String t = text.toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9]", "");
+            return t.matches("l\\d+") ? t.substring(1) : t; // a level written L3 is level 3
+        }
+    }
+
     /** The library was written by a Heliad newer than this reader: read nothing from it. */
     public static final class TooNew extends Exception {
         TooNew(int compat) {
