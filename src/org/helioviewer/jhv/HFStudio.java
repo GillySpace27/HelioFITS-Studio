@@ -53,6 +53,7 @@ public class HFStudio {
         System.setProperty("apple.awt.application.name", "HelioFITS Studio");
         System.setProperty("apple.laf.useScreenMenuBar", "true");
         System.setProperty("sun.awt.noerasebackground", "true");
+        org.helioviewer.jhv.gui.DisplayScale.applyUiScaleProperty(); // View > Display Settings, before the look and feel loads
         //System.setProperty("org.lwjgl.util.NoChecks", "true");
         // Save current default system timezone in user.timezone
         System.setProperty("user.timezone", TimeZone.getDefault().getID());

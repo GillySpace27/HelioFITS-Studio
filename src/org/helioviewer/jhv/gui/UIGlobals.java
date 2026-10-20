@@ -96,6 +96,13 @@ public final class UIGlobals {
         // belongs here rather than in setLaf: after a switch it would otherwise be gone.
         if (Platform.isMacOS())
             UIManager.getLookAndFeelDefaults().put("defaultFont", UIManager.getFont("medium.font")); // smaller, FlatLaf 2
+        // View > Display Settings, Text size: scale the one font every other UI font derives from.
+        // A FontUIResource, so the look and feel's updateUI replaces it on components that took it.
+        double textScale = DisplayScale.text();
+        Font baseFont = UIManager.getFont("defaultFont");
+        if (textScale != 1 && baseFont != null)
+            UIManager.getLookAndFeelDefaults().put("defaultFont",
+                    new javax.swing.plaf.FontUIResource(baseFont.deriveFont((float) (baseFont.getSize2D() * textScale))));
 
         int arc = 6;
         UIManager.put("Button.arc", arc);
@@ -115,7 +122,8 @@ public final class UIGlobals {
         uiFontSmallBold = uiFontSmall.deriveFont(Font.BOLD);
 
         uiFontMono = UIManager.getFont("monospaced.font");
-        uiFontMono = uiFontMono == null ? new Font("Monospaced", Font.PLAIN, (int) defaultSize) : uiFontMono; // when not FlatLaf
+        uiFontMono = uiFontMono == null ? new Font("Monospaced", Font.PLAIN, (int) defaultSize)
+                : uiFontMono.deriveFont((float) (uiFontMono.getSize2D() * textScale)); // when not FlatLaf, already sized
         uiFontMonoSmall = uiFontMono.deriveFont(defaultSize - 2);
 
         sansFont = new Font("SansSerif", Font.PLAIN, (int) defaultSize);
@@ -187,6 +195,11 @@ public final class UIGlobals {
             systemWatch.stop();
             systemWatch = null;
         }
+    }
+
+    /** Install the current theme again, so a changed text size reaches everything a theme switch reaches. */
+    public static void reapplyTheme() {
+        installTheme(Theme.current());
     }
 
     /** Install a theme without deciding anything: what the mode asks for, and what a pick installs. */

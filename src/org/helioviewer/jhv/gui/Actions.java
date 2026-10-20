@@ -462,6 +462,17 @@ public final class Actions {
         }
     }
 
+    public static class DisplaySettingsDialog extends AbstractAction {
+        public DisplaySettingsDialog() {
+            super("Display Settings\u2026");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            DisplayScale.showDialog(MainFrame.get());
+        }
+    }
+
     public static class FitNewMultiviewLayers extends AbstractAction {
         public FitNewMultiviewLayers() {
             super("Zoom to Fit New Layers in Multiview");

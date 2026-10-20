@@ -9,6 +9,9 @@
 - Open Heliad, at the bottom of the window when the Heliad app is installed, starts it to manage the library and download into it
 - The Heliad tab lists Spacecraft, Instrument, Detector, Wavelength, Product, Level and Cadence as columns of their own, each sortable. Cadence is the median gap between files, so gaps in the data do not inflate it (a polarization sequence reads as its spacing: COR1 shows about 20 s). Columns..., or a right-click on the column titles, shows and hides columns, remembered between runs; the combined Dataset name starts hidden
 
+### Display Settings
+- View > Display Settings (beside Theme) makes the app easier to read, two ways. Text size (100% to 175%) enlarges the text and lets the layouts grow around it, and applies at once; a few controls that set their own font catch up at the next launch. Interface scale (100% to 200%) enlarges everything together, text, spacing and icons, so nothing changes proportion, and applies at the next launch. Neither scales the image itself
+
 ### Multiview
 - Each view zooms separately by default. View > Separate Multiview Zoom is on for new installs and is now remembered between runs
 - Zoom to Fit in Multiview fits each view to its own layer, and Reset View does the same when the views zoom separately. With Separate Multiview Zoom off it works as before. In Helioradial each view zooms until its layer's field reaches the edge, through the warp as drawn, so a SUVI view magnifies onto the disk while a PUNCH view stays wide. Orthographic without a crop fits each layer's frame; the other projections frame the same way whatever the layer
