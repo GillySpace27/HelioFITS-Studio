@@ -57,6 +57,29 @@ public final class TrackCancelCheck {
             CMETracker.track(milli -> 8, milli -> 0);
             CMETracker.cancel();
             expect("a fresh track after cancel snapshots the user's new lambda", Display.getWarpLambda() == -0.25);
+
+            // The crop comes back too. Headless the crop solve has no data to size against, so the
+            // crop is moved here as a crop solve would move it: through Display, under tracking.
+            Display.setWarpLambda(0.5);
+            Display.setWarpOuterRadius(20);
+            CMETracker.track(milli -> 8, milli -> 0);
+            Display.setWarpOuterRadius(35);
+            CMETracker.cancel();
+            expect("cancel restores the crop tracking moved (" + Display.getWarpOuterRadius() + ")", Display.getWarpOuterRadius() == 20);
+            expect("and the lambda with it (" + Display.getWarpLambda() + ")", Display.getWarpLambda() == 0.5);
+
+            // The user moves the crop between two warp tracks (the slider stops tracking). The
+            // re-track takes the new crop but must keep the lambda from before the first track,
+            // not the first track's solve, which still sits in lambda.
+            CMETracker.setMode(CMETracker.Mode.WARP);
+            CMETracker.track(milli -> 8, milli -> 0);
+            CMETracker.stop();
+            Display.setWarpOuterRadius(30);
+            CMETracker.track(milli -> 15, milli -> 0);
+            CMETracker.cancel();
+            expect("a crop moved between tracks does not retake lambda from the solve (" + Display.getWarpLambda() + ")",
+                    Display.getWarpLambda() == 0.5);
+            expect("and cancel keeps the crop the user moved to (" + Display.getWarpOuterRadius() + ")", Display.getWarpOuterRadius() == 30);
         });
 
         System.out.println(failures == 0 ? "TrackCancelCheck: PASS" : "TrackCancelCheck: " + failures + " FAILURE(S)");
