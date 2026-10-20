@@ -158,9 +158,14 @@ public final class DisplayController {
         render(1);
     }
 
-    // Only the uncropped Orthographic fit depends on the layer; the others frame the projection.
+    // Uncropped Orthographic fits the layer's frame; Helioradial fits where the layer's field ends
+    // under the warp. The other projections frame the projection, the same for every layer.
     private static void fitViewportZoom(Viewport vp) {
         ImageLayer layer = ImageLayers.getImageLayerInViewport(vp.idx);
+        if (layer != null && Display.mode == MapMode.Helioradial) {
+            vp.zoom = Display.helioradialFit(layer.getMetaData().getPhysicalRegion());
+            return;
+        }
         boolean own = layer != null && Display.mode == MapMode.Orthographic && Display.getWarpOuterRadius() <= 0;
         vp.zoom = fitZoom(own ? layer.getMetaData().getPhysicalRegion().height : 0, Display.mode.baseCameraWidth(Display.getCamera()));
     }

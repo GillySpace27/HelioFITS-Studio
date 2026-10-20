@@ -11,7 +11,7 @@
 
 ### Multiview
 - Each view zooms separately by default. View > Separate Multiview Zoom is on for new installs and is now remembered between runs
-- Zoom to Fit in Multiview fits each view to its own layer, and Reset View does the same when the views zoom separately. With Separate Multiview Zoom off it works as before. The fit differs per view only in Orthographic without a crop; the other projections frame the same way whatever the layer
+- Zoom to Fit in Multiview fits each view to its own layer, and Reset View does the same when the views zoom separately. With Separate Multiview Zoom off it works as before. In Helioradial each view zooms until its layer's field reaches the edge, through the warp as drawn, so a SUVI view magnifies onto the disk while a PUNCH view stays wide. Orthographic without a crop fits each layer's frame; the other projections frame the same way whatever the layer
 - Turning Multiview on fits every view, so each one starts filled
 - View > Zoom to Fit New Layers in Multiview (on by default): a layer added while in Multiview is fitted to its own view, and the other views keep their zoom. It needs Separate Multiview Zoom
 
