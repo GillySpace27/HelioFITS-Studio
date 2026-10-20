@@ -175,6 +175,11 @@ public final class HeliadLibraryCheck {
         expect("frames count observations, not file versions", aia.frames() == 5);
         expect("bytes are the current versions' sizes", aia.bytes() == 5000);
         expect("observations on both ends of the range are in it", aia.inRange() == 3);
+        expect("cadence is the median gap (gaps 55.16, 64.84, 55.16, 64.84 s give the lower middle)", aia.cadence() == 55_160);
+        expect("a two-frame dataset's cadence is its one gap", sets.get(1).cadence() == 240_000);
+        expect("unreadable times give no cadence", sets.get(0).cadence() == 0);
+        expect("the attributes come through for the columns",
+                "SDO".equals(aia.observatory()) && "1".equals(aia.level()) && aia.detector() == null);
         expect("the span is the first and last observation",
                 aia.start() == t("2025-09-21T16:00:04.840") && aia.end() == t("2025-09-21T16:04:04.840"));
         expect("instrument and wavelength come through for the Heliad link",
@@ -214,7 +219,7 @@ public final class HeliadLibraryCheck {
                 HeliadLibrary.link(s, e, null).equals("heliad://search?end=2025-09-21T16%3A05%3A00&start=2025-09-21T16%3A00%3A00"));
         expect("and widens a range to whole seconds",
                 HeliadLibrary.link(s + 500, e + 1, null).equals("heliad://search?end=2025-09-21T16%3A05%3A01&start=2025-09-21T16%3A00%3A00"));
-        HeliadLibrary.Dataset fsi = new HeliadLibrary.Dataset("k", "l", "EUI", 30.4, 1, 1, 0, 0, 0);
+        HeliadLibrary.Dataset fsi = new HeliadLibrary.Dataset("k", "l", null, "EUI", null, null, null, 30.4, 1, 1, 0, 0, 0, 0);
         expect("a fractional wavelength keeps its decimals", HeliadLibrary.link(s, e, fsi).endsWith("&wavelength=30.4"));
 
         if (failures > 0) {
