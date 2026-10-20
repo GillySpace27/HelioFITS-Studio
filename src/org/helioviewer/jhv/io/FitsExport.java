@@ -41,12 +41,13 @@ public final class FitsExport {
     private static final Set<String> SKIP = Set.of("SIMPLE", "XTENSION", "BITPIX", "EXTEND", "PCOUNT", "GCOUNT",
             "BZERO", "BSCALE", "BLANK", "END", "THEAP", "TFIELDS", "ZIMAGE");
 
-    /** Writes {@code <name>_phys.fits} per source and manifest.json into outDir; returns the manifest. */
-    public static JSONObject export(java.util.List<File> sources, Path outDir, JSONObject session) throws IOException, FitsException {
+    /** Writes {@code <name>_phys.fits} per source and manifest.json into outDir; returns the manifest. {@code progress} hears 1..n as each file starts. */
+    public static JSONObject export(java.util.List<File> sources, Path outDir, JSONObject session, java.util.function.IntConsumer progress) throws IOException, FitsException {
         Files.createDirectories(outDir);
         JSONArray files = new JSONArray();
         JSONArray warnings = new JSONArray();
         for (File src : sources) {
+            progress.accept(files.length() + 1);
             String name = outputName(src);
             JSONObject entry = new JSONObject().put("source", src.getName()).put("file", name);
             JSONArray steps = new JSONArray();
