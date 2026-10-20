@@ -199,15 +199,30 @@ public final class UIGlobals {
 
     /** Install the current theme again, so a changed text size reaches everything a theme switch reaches. */
     public static void reapplyTheme() {
-        installTheme(Theme.current());
+        reapplyTheme(null);
+    }
+
+    /**
+     * The same, leaving one window's components as they are: the Display Settings dialog, whose
+     * slider is mid-drag while the text size follows it. Rebuilding that slider's UI would end the
+     * drag under the pointer.
+     */
+    public static void reapplyTheme(@Nullable Window skip) {
+        installTheme(Theme.current(), skip);
     }
 
     /** Install a theme without deciding anything: what the mode asks for, and what a pick installs. */
     private static void installTheme(Theme theme) {
+        installTheme(theme, null);
+    }
+
+    private static void installTheme(Theme theme, @Nullable Window skip) {
         Theme.setCurrent(theme);
         applyTheme();
         TimeSlider.refreshColors();
-        com.formdev.flatlaf.FlatLaf.updateUI();
+        for (Window w : Window.getWindows()) // FlatLaf.updateUI, which is exactly this loop, less the one window
+            if (w != skip)
+                javax.swing.SwingUtilities.updateComponentTreeUI(w);
         refreshThemed(); // after updateUI, which puts the look-and-feel's own borders back
         for (Window w : Window.getWindows()) {
             w.invalidate();
