@@ -62,6 +62,21 @@ public class HFStudio {
         // Per default, the US locale should be used
         Locale.setDefault(Locale.US);
 
+        // A restart (Session.restart): let the old process finish quitting first, which frees the
+        // image cache it held. Bounded, so a process that will not die cannot keep this one away.
+        String waitFor = System.getProperty("jhv.waitForPid");
+        if (waitFor != null) {
+            try {
+                java.util.Optional<ProcessHandle> old = ProcessHandle.of(Long.parseLong(waitFor));
+                if (old.isPresent())
+                    old.get().onExit().get(30, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (NumberFormatException | java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException e) {
+                // start anyway: the worst case is the lock message the second copy would give
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
         boolean headless = isHeadless();
         // Uncaught runtime errors are reported to the GUI or stderr, depending on startup mode.
         JHVUncaughtExceptionHandler.setupHandlerForThread(headless);

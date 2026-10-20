@@ -116,9 +116,13 @@ public final class DisplayScale {
         double newUi = UI[ui.getSelectedIndex()];
         boolean uiChanged = newUi != ui();
         Settings.setProperty(UI_KEY, Double.toString(newUi));
-        if (uiChanged)
-            JOptionPane.showMessageDialog(parent, "The interface scale changes the next time HelioFITS Studio starts.",
-                    "Display Settings", JOptionPane.INFORMATION_MESSAGE);
+        if (uiChanged) {
+            String[] options = {"Restart Now", "Later"};
+            if (JOptionPane.showOptionDialog(parent, "The interface scale changes when HelioFITS Studio starts again.\n"
+                            + "Restart now? Your session is saved and reopens.", "Display Settings",
+                    JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]) == 0)
+                org.helioviewer.jhv.app.Session.restart();
+        }
     }
 
     private static void setText(double scale, @javax.annotation.Nullable java.awt.Window skip) {
