@@ -82,6 +82,32 @@ public final class HeliadIngestCheck {
         empty.deleteOnExit();
         expect("an empty file is not", !HeliadIngest.isFits(empty));
         expect("a missing file is not", !HeliadIngest.isFits(new File(empty.getParentFile(), "no-such-file.fits")));
+        File zipped = Files.createTempFile("hfs-heliad-zipped", ".fits.gz").toFile();
+        zipped.deleteOnExit();
+        try (java.io.OutputStream out = new java.util.zip.GZIPOutputStream(Files.newOutputStream(zipped.toPath()))) {
+            out.write(Files.readAllBytes(FIXTURE));
+        }
+        expect("a gzip-compressed FITS file is offered", HeliadIngest.isFits(zipped));
+        File zippedText = Files.createTempFile("hfs-heliad-zipped", ".txt.gz").toFile();
+        zippedText.deleteOnExit();
+        try (java.io.OutputStream out = new java.util.zip.GZIPOutputStream(Files.newOutputStream(zippedText.toPath()))) {
+            out.write("SIMPLE  ? no".getBytes(StandardCharsets.US_ASCII));
+        }
+        expect("a gzip-compressed text file is not", !HeliadIngest.isFits(zippedText));
+        File broken = Files.createTempFile("hfs-heliad-broken", ".fits.gz").toFile();
+        broken.deleteOnExit();
+        Files.write(broken.toPath(), new byte[] {0x1f, (byte) 0x8b, 0, 0});
+        expect("a broken gzip stream is not", !HeliadIngest.isFits(broken));
+
+        expect("the recorded URL loses user info, fragment and credential-like parameters, keeps the rest, got "
+                        + HeliadIngest.provenance(URI.create("https://me:pw@a.example:8443/d/f.fits?date=2025-09-21&access_token=t&X-Amz-Signature=s&apikey=k&wave=193#x")),
+                "https://a.example:8443/d/f.fits?date=2025-09-21&wave=193".equals(HeliadIngest.provenance(
+                        URI.create("https://me:pw@a.example:8443/d/f.fits?date=2025-09-21&access_token=t&X-Amz-Signature=s&apikey=k&wave=193#x"))));
+        expect("a URL with only secrets keeps no query",
+                "https://a.example/f.fits".equals(HeliadIngest.provenance(URI.create("https://a.example/f.fits?sig=abc"))));
+        expect("a plain URL is kept as it is",
+                "https://a.example/f%20g.fits".equals(HeliadIngest.provenance(URI.create("https://a.example/f%20g.fits"))));
+        expect("a URL without a host is not recorded", HeliadIngest.provenance(URI.create("mailto:me@a.example")) == null);
         // Not offered, so this never looks for a library: a FITS file here could reach a real one.
         expect("offer() turns down a file that is not FITS", !HeliadIngest.offer(URI.create("https://example.invalid/r.md"),
                 new File("extra/test/data/README.md")));
@@ -110,12 +136,21 @@ public final class HeliadIngestCheck {
                 HeliadIngest.pending(dir.toFile(), 2_000_000L).equals(List.of(fresh)));
         expect("a missing cache folder offers nothing", HeliadIngest.pending(dir.resolve("gone").toFile(), Long.MIN_VALUE).isEmpty());
 
+        long launched = 5_000_000L;
         List<File> offered = new java.util.ArrayList<>();
-        expect("every file answered counts them all",
-                HeliadIngest.importFiles(List.of(old, fresh), f -> offered.add(f)) == 2 && offered.equals(List.of(old, fresh)));
+        expect("every file settled moves the mark to the launch",
+                HeliadIngest.importFiles(List.of(old, fresh), f -> { offered.add(f); return HeliadIngest.Outcome.SETTLED; }, launched) == launched
+                        && offered.equals(List.of(old, fresh)));
         offered.clear();
         expect("a lost core stops the import there, so the mark does not move past it",
-                HeliadIngest.importFiles(List.of(old, fresh), f -> { offered.add(f); return false; }) == 0 && offered.equals(List.of(old)));
+                HeliadIngest.importFiles(List.of(old, fresh), f -> { offered.add(f); return HeliadIngest.Outcome.LOST; }, launched) == old.lastModified()
+                        && offered.equals(List.of(old)));
+        offered.clear();
+        expect("a refusal that may pass goes on with the rest but keeps that file for the next launch",
+                HeliadIngest.importFiles(List.of(old, fresh), f -> { offered.add(f); return f == old ? HeliadIngest.Outcome.RETRY : HeliadIngest.Outcome.SETTLED; }, launched) == old.lastModified()
+                        && offered.equals(List.of(old, fresh)));
+        expect("and a later one keeps only itself",
+                HeliadIngest.importFiles(List.of(old, fresh), f -> f == fresh ? HeliadIngest.Outcome.RETRY : HeliadIngest.Outcome.SETTLED, launched) == fresh.lastModified());
     }
 
     private static File write(Path path, byte[] bytes, long modified) throws IOException {
@@ -146,7 +181,14 @@ public final class HeliadIngestCheck {
             core.call("refuse", new JSONObject(), SHORT);
             expect("an error reply is thrown", false);
         } catch (HeliadIngest.RpcError e) {
-            expect("an error reply is thrown with the core's message, got " + e.getMessage(), "IncompleteFits: cut off".equals(e.getMessage()));
+            expect("an error reply is thrown with the core's message and code, got " + e.code + " " + e.getMessage(),
+                    "OSError: disk full".equals(e.getMessage()) && e.code == -32603);
+        }
+        try {
+            core.call("unstorable", new JSONObject(), SHORT);
+            expect("a final refusal is thrown", false);
+        } catch (HeliadIngest.RpcError e) {
+            expect("a final refusal carries its own code, got " + e.code, e.code == HeliadIngest.RpcError.UNSTORABLE);
         }
         expect("and the core is still up", core.alive());
 
@@ -205,6 +247,14 @@ public final class HeliadIngestCheck {
         expect("a second core adds the file while the first holds the library, got " + first, "added".equals(first.optString("status")));
         JSONObject again = studio.call("ingest.path", new JSONObject().put("path", FIXTURE.toAbsolutePath().toString()).put("source_url", url), ingest);
         expect("the same file again is a duplicate, got " + again, "duplicate".equals(again.optString("status")));
+        Path cut = tmp.resolve("cut.fits");
+        Files.write(cut, java.util.Arrays.copyOf(Files.readAllBytes(FIXTURE), 1000));
+        try {
+            studio.call("ingest.path", new JSONObject().put("path", cut.toString()), ingest);
+            expect("a cut-off file is refused", false);
+        } catch (HeliadIngest.RpcError e) {
+            expect("a cut-off file is refused for good, got " + e.code + " " + e.getMessage(), e.code == HeliadIngest.RpcError.UNSTORABLE);
+        }
         expect("the writer sees it, got " + app.call("library.stats", new JSONObject(), SHORT),
                 app.call("library.stats", new JSONObject(), SHORT).optInt("files") == 1);
         studio.close();
@@ -224,7 +274,7 @@ public final class HeliadIngestCheck {
                         && Files.size(files.getFirst().toPath()) == Files.size(FIXTURE));
     }
 
-    /** A stand-in core: answers ingest.path, refuses "refuse", never answers "hang", ends on "exit". */
+    /** A stand-in core: answers ingest.path, refuses "refuse" and "unstorable", never answers "hang", ends on "exit". */
     public static final class FakeCore {
         public static void main(String[] args) throws IOException {
             Path log = Path.of(args[0]);
@@ -241,9 +291,10 @@ public final class HeliadIngestCheck {
                     continue;
                 if (method.equals("exit"))
                     System.exit(0);
-                if (method.equals("refuse")) {
-                    out.println(new JSONObject().put("jsonrpc", "2.0").put("id", id)
-                            .put("error", new JSONObject().put("code", -32603).put("message", "IncompleteFits: cut off")));
+                if (method.equals("refuse") || method.equals("unstorable")) {
+                    boolean last = method.equals("unstorable");
+                    out.println(new JSONObject().put("jsonrpc", "2.0").put("id", id).put("error", new JSONObject()
+                            .put("code", last ? -32001 : -32603).put("message", last ? "a.fits has 1000 bytes; its headers need 2880" : "OSError: disk full")));
                     continue;
                 }
                 out.println(new JSONObject().put("jsonrpc", "2.0").put("method", "ingest.progress").put("params", new JSONObject().put("done", 1)));
