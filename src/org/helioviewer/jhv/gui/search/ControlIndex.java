@@ -67,8 +67,10 @@ public final class ControlIndex {
             {"transport", "Movie transport", "Above the picture", "play pause step frame time slider scrub", null},
             {"transportRecord", "Record button", "Above the picture", "record movie export video", null},
             {"timelinesPane", "Timelines pane", "Under the picture (Timelines on the toolbar shows it)", "plots time series events", null},
+            {"playbackOptions", "Playback and Recording", "Left sidebar", "play rate speed loop swing clock record one loop screenshot unlimited format codec preset size", "showPlayback"},
             // The Image Layers sidebar section
             {"imageLayersNew", "New Layer", LAYERS, "add data load layer jp2 fits", "showImageLayers"},
+            {"imageLayersCadence", "Time step", LAYERS, "cadence frame count interval video length", "showImageLayers"},
             {"imageLayersList", "Layer list", LAYERS, "layers rows show hide remove reorder", "showImageLayers"},
             {"imageLayersOptions", "Layer options", LAYERS, "colour color table levels brightness display intensity", "showImageLayers"},
             // The Projection palette

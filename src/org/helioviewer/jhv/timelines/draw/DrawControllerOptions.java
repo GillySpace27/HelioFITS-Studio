@@ -46,6 +46,7 @@ class DrawControllerOptions extends JPanel {
                 new ZoomItem(ZOOM.Hour, 1)
         };
         zoomCombo = new JComboBox<>(items);
+        zoomCombo.setToolTipText("How much time the timeline plot shows");
         zoomCombo.setMaximumSize(new Dimension(130, zoomCombo.getPreferredSize().height));
         zoomCombo.setPreferredSize(new Dimension(110, zoomCombo.getPreferredSize().height));
         zoomCombo.addActionListener(e -> {
