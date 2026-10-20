@@ -211,6 +211,24 @@ public final class UIGlobals {
         installTheme(Theme.current(), skip);
     }
 
+    /**
+     * Scale every font a component was given explicitly. updateComponentTreeUI replaces only the
+     * look and feel's own fonts, so text size used to pass over the smallest text and the section
+     * headers, the ones built from uiFontSmall, the mono fonts or a size of their own (Gilly,
+     * 2026-10-20). One factor for all of them keeps the hierarchy: headers stay bigger than body,
+     * detail smaller.
+     */
+    static void rescaleSetFonts(Component c, float factor) {
+        Font font = c.getFont();
+        // The icon font draws glyphs, not text: those follow the interface scale, not the text size.
+        boolean glyphs = font != null && uiFontMDI != null && font.getFamily().equals(uiFontMDI.getFamily());
+        if (c.isFontSet() && font != null && !glyphs && !(font instanceof javax.swing.plaf.UIResource))
+            c.setFont(font.deriveFont(font.getSize2D() * factor));
+        if (c instanceof Container k)
+            for (Component child : k.getComponents())
+                rescaleSetFonts(child, factor);
+    }
+
     /** Install a theme without deciding anything: what the mode asks for, and what a pick installs. */
     private static void installTheme(Theme theme) {
         installTheme(theme, null);
@@ -218,11 +236,16 @@ public final class UIGlobals {
 
     private static void installTheme(Theme theme, @Nullable Window skip) {
         Theme.setCurrent(theme);
+        float before = uiFont == null ? 0 : uiFont.getSize2D();
         applyTheme();
+        float factor = before > 0 ? uiFont.getSize2D() / before : 1; // a text-size change; 1 for a theme switch
         TimeSlider.refreshColors();
         for (Window w : Window.getWindows()) // FlatLaf.updateUI, which is exactly this loop, less the one window
-            if (w != skip)
+            if (w != skip) {
                 javax.swing.SwingUtilities.updateComponentTreeUI(w);
+                if (factor != 1)
+                    rescaleSetFonts(w, factor);
+            }
         refreshThemed(); // after updateUI, which puts the look-and-feel's own borders back
         for (Window w : Window.getWindows()) {
             w.invalidate();
