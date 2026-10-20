@@ -180,7 +180,19 @@ public final class TimelinePanel extends JPanel {
         addLayerButtonWrapper.add(leftButtonPanel, BorderLayout.LINE_START);
         addLayerButtonWrapper.add(rightButtonPanel, BorderLayout.LINE_END);
 
-        JPanel jspContainer = new JPanel(new BorderLayout());
+        // Minimum is preferred. The sidebar section can give this panel a pixel short of what it
+        // asks for (seen live: 144 for 145), and GridBagLayout then lays every row out at its
+        // minimum, which for a toolbar over a fixed-height table is a toolbar of negative height
+        // and a table drawn above its own top: the section showed only row stripes, no buttons
+        // and no names (Sarah Gibson's "timeline layers render nothing", 2026-10-19). Now a short
+        // fall clips a pixel instead.
+        @SuppressWarnings("serial")
+        JPanel jspContainer = new JPanel(new BorderLayout()) {
+            @Override
+            public Dimension getMinimumSize() {
+                return getPreferredSize();
+            }
+        };
         jspContainer.add(addLayerButtonWrapper, BorderLayout.CENTER);
         jspContainer.add(jsp, BorderLayout.PAGE_END);
         add(jspContainer, gc);
