@@ -230,6 +230,7 @@ public final class TimelinePanel extends JPanel {
                 if (v.col == TimelineLayers.ENABLED_COLUMN) {
                     timeline.setEnabled(!timeline.isEnabled());
                     layers.updateCell(v.row, v.col);
+                    layers.updateCell(v.row, TimelineLayers.REMOVE_COLUMN); // a built-in row's X follows its tick
                     if (grid.getSelectedRow() == v.row)
                         setOptionsPanel(timeline);
                     DrawController.layoutChanged();
