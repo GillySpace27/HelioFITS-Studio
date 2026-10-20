@@ -35,6 +35,39 @@
 ### Heliad
 - When Heliad (the separate app that downloads solar data and keeps it in one library) has a library on this computer, the New Image Layer dialog gets a second tab, Heliad library. It lists Heliad's datasets with how much of the master time range each one reaches, marked as in Load from Cache, and how many frames fall inside the range. Add loads each selected dataset as a layer from its frames in the range; a dataset with nothing in the range loads whole, asking first above 1,000 frames. Open in Heliad, shown when the Heliad app is installed, hands the range to it to search for more. With no Heliad library the dialog is unchanged, and Studio's own downloads and streaming are untouched
 
+### Sharing
+- File > Quick Share records the scene once as a looping movie with the Share anywhere preset and shows the file in Finder (the file manager elsewhere). It lands in Exports under the usual time-stamped name; your own recording mode, size, format and preset are left as they were
+- Edit > Copy Frame puts the current view on the clipboard as an image
+- File > Share Scene... saves the session as a .jhv for someone else, with your home folder written as ~. Local files outside the cache are listed first so you can decide whether to go ahead, and the open session keeps its own name
+- Load from Cache has Quick Look (macOS), which previews the selected files, and Dataset Folders, which builds `~/HFStudio/Datasets`: one folder per dataset with a link to each cached frame, for browsing in Finder or a shell. Only links are written; the cache is never touched
+- On a Mac, Finder lists HelioFITS Studio as the app for .jhv sessions, and as a second choice for FITS files
+
+### Send to Python
+- Layers > Send to Python, also the Python button on the layer panel, writes the active layer's FITS files to `Exports/python-<time>` as science FITS: physical values in double precision with only BZERO and BSCALE applied (BLANK becomes NaN), the original header kept and the session added as HISTORY, none of the display steps. A manifest.json and a sunpy snippet come with them, and the snippet goes on the clipboard
+- With a SAMP hub running, each file is also sent as image.load.fits, so astropy or another SAMP tool can pick it up; `extra/samp/receive_fits.py` is a ready receiver
+- A LASCO frame has its bias (the OFFSET header keyword) subtracted, as the viewer does, and the manifest says so; it also warns that the exposure division and the monthly background are not applied. A LASCO frame with no OFFSET card is left alone, and the manifest says that too
+
+### PUNCH
+- The status bar shows the time of the active PUNCH layer's newest frame and its age, in amber once it is more than a week old
+- Layers > PUNCH Latest loads the newest day of the averaged clear mosaic (CAM, Level 3) in the Helioradial projection with RHEF on
+- PUNCH Live refresh, in Settings and off by default, adds a Live box to PUNCH layers. Ticked, it checks the archive every 15 minutes and loads new frames as a new layer, never removing old ones; it only checks while the archive's newest day is less than a week old
+
+### Command line
+- `-export png -out <file>` writes the current view as one PNG with the session stamped in, then exits, with no reopened session, no autosave and no dialogs
+- The help lists every option, double-dash spellings work too, and an unknown option, a missing value or a bad `-export` is reported. The exit code says what happened: 0 done, 1 runtime error, 2 usage error, 3 input not found, 4 export failed
+
+### Export
+- A movie or PNG made with RHEF on records each RHEF setting it used (an `rhef_stamp` line with the convention, the deviations and the Υ pair) in its provenance, beside the existing caveat
+
+### LASCO
+- LASCO frames shown with the monthly background removed no longer keep the camera's bias level (the OFFSET header keyword). Every such frame was too bright by OFFSET / EXPTIME in every pixel. Pictures with RHEF on look the same; linear, gamma and difference views change
+
+### Data sources
+- The ASPIICS Kind menu no longer lists every file as a kind of its own. The per-file sequence number in ASPIICS file names (such as 1630400060001) was taken as part of the kind, so a 122-frame search offered one "(1 frames)" entry per file. Kinds now differ only by the suffix that sets them apart, such as `v03`
+
+### Smaller fixes
+- The packaged Mac app always loads its own Metal library. Started from a folder holding an older copy, it could load that one and fail to open; starting from Finder was not affected
+
 ## HelioFITS Studio 0.8.6 (pre-release, 2026-10-11)
 
 ### Feedback
@@ -139,9 +172,6 @@
 - Help > Send Feedback... sends a problem, a request or a question to the developer from inside the app, with no account and no website. Tick boxes add system info and the last 300 lines of this run's log (on), the current session and a screenshot of the main window (off); Preview shows everything before it is sent, and your home folder is written as ~
 - Error, warning and crash dialogs have a Report this... button that opens the same window with the message and, when there is one, the stack trace filled in
 - This build has nowhere to send reports yet: they are saved in `~/HFStudio/Outbox`, with Copy to Clipboard and Email Instead offered, and a later version sends them when it starts. A sent report moves to `Outbox/sent`; none is deleted
-
-### LASCO
-- LASCO frames shown with the monthly background removed no longer keep the camera's bias level (the OFFSET header keyword). Every such frame was too bright by OFFSET / EXPTIME in every pixel. Pictures with RHEF on look the same; linear, gamma and difference views change
 
 ## HelioFITS Studio 0.8.3 (pre-release, 2026-09-23)
 
