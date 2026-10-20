@@ -84,11 +84,7 @@ final class ProjectionPaletteContent {
         content.add(createSkyPanel()); // last, because it is applied last
         setSkyPanelEnabled(ViewState.getProjection() == MapMode.ObserverSky);
         surfaceModelToggle.setEnabled(ViewState.getProjection().usesSurfaceModel());
-        warpLambdaSlider.setEnabled(ViewState.getProjection().usesWarpLambda());
-        // The disk scale is a multiplier on the Box-Cox limb anchor, so it has nothing to act on
-        // wherever the warp itself does not: same condition, not a similar one.
-        diskSlider.setEnabled(ViewState.getProjection().usesWarpLambda());
-        warpCropSlider.setEnabled(ViewState.getProjection().usesWarpCrop());
+        showSliderRows();
         helioradial3DBox.setEnabled(ViewState.getProjection() == MapMode.Helioradial);
         CMETracker.addSolveListener(this::syncWarpSlidersFromTracker); // follow the tracked knob
 
@@ -491,7 +487,8 @@ final class ProjectionPaletteContent {
 
     // Greyed rather than hidden: the block would otherwise appear and disappear as the projection
     // list is stepped through, and a palette that changes height under the pointer is worse than
-    // one with a section that is plainly not in use.
+    // one with a section that is plainly not in use. Its Field slider is the exception, hidden
+    // with the other sliders (showSliderRows), because a greyed slider read as a broken one.
     private void setSkyPanelEnabled(boolean enabled) {
         if (skyPanel == null)
             return;
@@ -707,14 +704,9 @@ final class ProjectionPaletteContent {
         javax.swing.JRadioButton activeProjection = projectionItems.get(displayedProjection());
         if (activeProjection != null)
             activeProjection.setSelected(true);
-        if (warpLambdaSlider != null) {
-            warpLambdaSlider.setEnabled(ViewState.getProjection().usesWarpLambda());
-            if (warpCropSlider != null)
-                warpCropSlider.setEnabled(ViewState.getProjection().usesWarpCrop());
+        if (warpLambdaSlider != null)
             warpLambdaSlider.setValue(warpLambdaToSlider(ViewState.getWarpLambda()));
-        }
-        if (diskSlider != null)
-            diskSlider.setEnabled(ViewState.getProjection().usesWarpLambda());
+        showSliderRows();
         // Enabled state has to be refreshed on every projection change, not just set once when
         // the palette is built: a palette constructed while another projection was selected
         // would otherwise stay disabled for the life of the window.
@@ -725,6 +717,24 @@ final class ProjectionPaletteContent {
         setSkyPanelEnabled(ViewState.getProjection() == MapMode.ObserverSky);
         if (warpLambdaValue != null)
             warpLambdaValue.setText(String.format("%.3f", ViewState.getWarpLambda()));
+        Palette.repackAll(); // rows came or went; the window follows rather than keeping a hole
+    }
+
+    // Hidden rather than greyed: in use, a greyed slider read as a broken app, not as one this
+    // projection ignores. The whole row goes, label and readout with it. The disk scale is a
+    // multiplier on the Box-Cox limb anchor, so it has nothing to act on wherever the warp itself
+    // does not: same condition, not a similar one.
+    private void showSliderRows() {
+        MapMode projection = ViewState.getProjection();
+        showRow(warpLambdaSlider, projection.usesWarpLambda());
+        showRow(diskSlider, projection.usesWarpLambda());
+        showRow(warpCropSlider, projection.usesWarpCrop());
+        showRow(skyFieldSlider, projection == MapMode.ObserverSky);
+    }
+
+    private static void showRow(JHVSlider slider, boolean shown) {
+        if (slider != null && slider.getParent() != null)
+            slider.getParent().setVisible(shown); // JComponent.setVisible revalidates and repaints
     }
 
     /** ToolBar.createNewToolBar forgot the radios on every rebuild of the bar; it still does, through here. */
