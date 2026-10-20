@@ -100,7 +100,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private final ButtonText GRID = new ButtonText(Buttons.grid, "Grid", "Grid, Thomson sphere, celestial sphere, ecliptic and planet overlay settings");
     private final ButtonText CAMERA = new ButtonText(Buttons.camera, "Camera", "Where the view is seen from: Free, Follow, Turntable, Overview, and their settings");
     private final ButtonText COMPARE = new ButtonText(Buttons.compare, "Compare",
-            "Blink between two image layers, or swipe a divider across the view with one on each side");
+            "Blink between two image layers, swipe a divider across the view with one on each side, or show one minus the other");
     private final ButtonText ANNOTATE = new ButtonText(Buttons.annotate, "Annotation",
             "Draw on the view: mode, colour and thickness (hold Shift to draw)");
     private final ButtonText SDO_CUTOUT = new ButtonText(Buttons.sdoCutout, "SDO Cut-out",
