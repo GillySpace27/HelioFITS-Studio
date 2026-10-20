@@ -124,7 +124,7 @@ public final class WelcomeDialog {
         }));
         JPanel top = new JPanel(new BorderLayout(0, 6));
         top.add(starts, BorderLayout.PAGE_START);
-        WelcomeTips.Tip tip = WelcomeTips.next();
+        Tips.Tip tip = Tips.next();
         if (tip != null)
             top.add(new JLabel("<html><body style='width:600px'><b>Tip:</b> " + escape(tip.text()) + "</body></html>"), BorderLayout.PAGE_END); // wraps, never widens the window
         center.add(top, BorderLayout.PAGE_START);

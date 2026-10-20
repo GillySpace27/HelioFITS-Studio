@@ -14,9 +14,9 @@ import org.helioviewer.jhv.gui.ActionCatalog;
  * item fails here instead of leaving a tip that points at nothing. The tips turn in order and wrap.
  * The demo scene is catalogued under Help and MenuBar adds it.
  *
- * <p>Run: java -cp "bin:extra/test-classes:resources:lib/*" org.helioviewer.jhv.gui.dialog.WelcomeTipsCheck
+ * <p>Run: java -cp "bin:extra/test-classes:resources:lib/*" org.helioviewer.jhv.gui.dialog.TipsCheck
  */
-public final class WelcomeTipsCheck {
+public final class TipsCheck {
 
     private static int failures;
 
@@ -27,9 +27,9 @@ public final class WelcomeTipsCheck {
     }
 
     public static void main(String[] args) throws Exception {
-        List<WelcomeTips.Tip> tips = WelcomeTips.load();
+        List<Tips.Tip> tips = Tips.load();
         expect("tips.json reads from the classpath and holds at least three tips (" + tips.size() + ")", tips.size() >= 3);
-        for (WelcomeTips.Tip tip : tips) {
+        for (Tips.Tip tip : tips) {
             String head = tip.text().length() > 40 ? tip.text().substring(0, 40) + "..." : tip.text();
             expect("tip \"" + head + "\" has text and no em dash", !tip.text().isBlank() && tip.text().indexOf(0x2014) < 0);
             if (tip.action() == null)
@@ -44,12 +44,12 @@ public final class WelcomeTipsCheck {
             }
         }
 
-        expect("the first opening shows the first tip", WelcomeTips.nextIndex(null, 5) == 0);
-        expect("the next opening shows the next tip", WelcomeTips.nextIndex("1", 5) == 2);
-        expect("after the last tip comes the first", WelcomeTips.nextIndex("4", 5) == 0);
-        expect("a stored index past a shortened list wraps", WelcomeTips.nextIndex("9", 5) == 0);
-        expect("an unreadable stored index starts over", WelcomeTips.nextIndex("x", 5) == 0);
-        expect("no tips, no tip", WelcomeTips.nextIndex(null, 0) == -1);
+        expect("the first opening shows the first tip", Tips.nextIndex(null, 5) == 0);
+        expect("the next opening shows the next tip", Tips.nextIndex("1", 5) == 2);
+        expect("after the last tip comes the first", Tips.nextIndex("4", 5) == 0);
+        expect("a stored index past a shortened list wraps", Tips.nextIndex("9", 5) == 0);
+        expect("an unreadable stored index starts over", Tips.nextIndex("x", 5) == 0);
+        expect("no tips, no tip", Tips.nextIndex(null, 0) == -1);
 
         ActionCatalog.Entry demo = ActionCatalog.get("openDemo");
         expect("openDemo is catalogued under Help", demo != null && demo.menuPath().startsWith("Help/"));
@@ -58,10 +58,10 @@ public final class WelcomeTipsCheck {
         String welcome = Files.readString(Path.of("src/org/helioviewer/jhv/gui/dialog/WelcomeDialog.java"));
         expect("the Welcome window has the demo card", welcome.contains("run(\"openDemo\")"));
 
-        System.out.println(failures == 0 ? "WelcomeTipsCheck: ok" : "WelcomeTipsCheck: " + failures + " FAIL");
+        System.out.println(failures == 0 ? "TipsCheck: ok" : "TipsCheck: " + failures + " FAIL");
         System.exit(failures == 0 ? 0 : 1);
     }
 
-    private WelcomeTipsCheck() {}
+    private TipsCheck() {}
 
 }
