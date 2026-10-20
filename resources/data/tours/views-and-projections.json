@@ -1,0 +1,59 @@
+{
+  "title": "Views and projections",
+  "sample": true,
+  "steps": [
+    {
+      "target": "projection",
+      "title": "Projection",
+      "body": "Projection opens a palette that changes how the Sun is mapped onto the screen. Orthographic draws it in 3D; HPC, Helioradial and Helioradial Unrolled are flat maps of the sky around it; Latitudinal is a map of the surface."
+    },
+    {
+      "target": "projectionWarp",
+      "action": "showProjection",
+      "title": "Warp",
+      "body": "In the Helioradial projections, Warp is the strength of the Box-Cox stretch (lambda): to the right it stretches the inner corona outward, at the left it is the unwarped view."
+    },
+    {
+      "target": "projectionCrop",
+      "action": "showProjection",
+      "title": "Crop",
+      "body": "Crop cuts the picture to a disc, in solar radii, and frames that disc without changing the warp. Leftmost is automatic: no crop."
+    },
+    {
+      "target": "projectionReset",
+      "action": "showProjection",
+      "title": "Back to the defaults",
+      "body": "Reset view returns warp, crop and zoom to their defaults."
+    },
+    {
+      "target": "camera",
+      "title": "Camera",
+      "body": "Camera sets where the view is seen from: Free, from the active image layer's observer; Follow, from a selected object; or Overview, down on the solar equatorial plane. It can also revolve the camera about an axis."
+    },
+    {
+      "target": "track",
+      "title": "Track solar rotation",
+      "body": "Track keeps the view turning with the Sun as the movie plays; Differential, beside it, toggles differential rotation."
+    },
+    {
+      "target": "multiview",
+      "title": "Multiview",
+      "body": "Multiview puts each shown image layer in a view of its own, side by side."
+    },
+    {
+      "target": "compare",
+      "title": "Compare",
+      "body": "Compare blinks between two image layers, or swipes a divider across the view with one on each side. Layers > Duplicate Layer gives you a copy of a layer to compare against."
+    },
+    {
+      "target": "grid",
+      "title": "Grid and overlays",
+      "body": "Grid holds the coordinate grid, the solar limb, the Thomson and celestial spheres, the ecliptic plane and the planets, each with its own colour, opacity and width."
+    },
+    {
+      "target": "resetCamera",
+      "title": "Reset View",
+      "body": "Reset View returns the view to its default; double-clicking the canvas does the same."
+    }
+  ]
+}
