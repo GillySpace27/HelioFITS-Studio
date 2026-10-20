@@ -22,9 +22,11 @@ import javax.swing.tree.TreeSelectionModel;
 import org.helioviewer.jhv.gui.ComponentUtils;
 import org.helioviewer.jhv.gui.DesktopIntegration;
 import org.helioviewer.jhv.gui.MainFrame;
+import org.helioviewer.jhv.gui.component.CadencePanel;
 import org.helioviewer.jhv.gui.component.HTMLPane;
 import org.helioviewer.jhv.gui.component.MoviePanel;
 import org.helioviewer.jhv.gui.component.VsoSelectorPanel;
+import org.helioviewer.jhv.gui.time.TimeSelectorPanel;
 import org.helioviewer.jhv.io.DataSources;
 import org.helioviewer.jhv.io.DataSourcesParser;
 import org.helioviewer.jhv.io.DataSourcesTree;
@@ -37,8 +39,9 @@ import com.jidesoft.dialog.ButtonPanel;
 import com.jidesoft.dialog.StandardDialog;
 
 /**
- * New Layer: one window for every source, each a tab, all reading the master time range and
- * cadence set beside the New Layer button (shown at the top so it is plain what Add will fetch).
+ * New Layer: one window for every source, each a tab, all reading the range and time step at the
+ * top of the window. Those copy the master controls beside New Layer each time the window opens,
+ * one way: editing them here changes only what this window adds, never the master range.
  *
  * <ul>
  * <li>HV (JPEG 2000): Helioviewer's streamed browse images, the dataset tree.</li>
@@ -58,7 +61,7 @@ public final class ImageDialog extends StandardDialog implements DataSources.Lis
     public interface Handler {
         void setDefaultTimeRange(long start, long end);
 
-        void loadDatasets(List<DataSourcesTree.SourceItem> items);
+        void loadDatasets(List<DataSourcesTree.SourceItem> items, long start, long end, int cadence);
     }
 
     private final Handler handler;
@@ -72,11 +75,15 @@ public final class ImageDialog extends StandardDialog implements DataSources.Lis
         }
     };
     private final JButton actionButton = new JButton(load);
-    private final HeliadTab heliadTab = new HeliadTab(this::selectionChanged, this::loadSelectedDatasets);
-    private final VsoSelectorPanel vsoTab = new VsoSelectorPanel(ImageDialog::rangeStart, ImageDialog::rangeEnd,
-            ImageDialog::cadence, this::selectionChanged);
+    // This window's own range and time step, copied from the master ones as it opens.
+    private final TimeSelectorPanel timeSelector = new TimeSelectorPanel();
+    private final CadencePanel cadencePanel = new CadencePanel(timeSelector);
+    private final HeliadTab heliadTab = new HeliadTab(this::selectionChanged, this::loadSelectedDatasets,
+            this::rangeStart, this::rangeEnd);
+    private final VsoSelectorPanel vsoTab = new VsoSelectorPanel(this::rangeStart, this::rangeEnd,
+            this::cadence, this::selectionChanged);
     private final JTabbedPane tabs = new JTabbedPane();
-    private final JLabel range = new JLabel(" ");
+    private final JLabel range = new JLabel("Starts as the master range and time step; changes here apply only to the layer added.");
     private final JButton openHeliad = new JButton("Open Heliad");
 
     public ImageDialog(Handler _handler) {
@@ -145,9 +152,17 @@ public final class ImageDialog extends StandardDialog implements DataSources.Lis
             selectionChanged();
         });
 
-        range.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
+        range.setFont(org.helioviewer.jhv.gui.UIGlobals.uiFontSmall);
+        range.setBorder(BorderFactory.createEmptyBorder(2, 6, 4, 6));
+        timeSelector.addListener((start, end) -> heliadTab.rangeChanged());
+        JPanel time = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEADING, 8, 2));
+        time.add(timeSelector);
+        time.add(cadencePanel);
+        JPanel top = new JPanel(new BorderLayout());
+        top.add(time, BorderLayout.CENTER);
+        top.add(range, BorderLayout.PAGE_END);
         JPanel content = new JPanel(new BorderLayout());
-        content.add(range, BorderLayout.PAGE_START);
+        content.add(top, BorderLayout.PAGE_START);
         content.add(tabs, BorderLayout.CENTER);
         return content;
     }
@@ -156,10 +171,11 @@ public final class ImageDialog extends StandardDialog implements DataSources.Lis
     private JPanel buildDirectTab() {
         JPanel buttons = new JPanel(new java.awt.GridLayout(0, 1, 0, 3));
         Object[][] archives = {
-                {"PUNCH (SDAC)\u2026", (Runnable) () -> PunchDialog.getInstance().showDialog()},
-                {"Solar Orbiter (SOAR)\u2026", (Runnable) () -> SoarDialog.getInstance().showDialog()},
+                // Each opens on this window's range (and PUNCH on its time step); ASPIICS goes by orbit.
+                {"PUNCH (SDAC)\u2026", (Runnable) () -> PunchDialog.getInstance().showDialog(rangeStart(), rangeEnd(), cadence())},
+                {"Solar Orbiter (SOAR)\u2026", (Runnable) () -> SoarDialog.getInstance().showDialog(rangeStart(), rangeEnd())},
                 {"Proba-3 ASPIICS\u2026", (Runnable) () -> AspiicsDialog.getInstance().showDialog()},
-                {"MLSO KCor and UCoMP (HAO)\u2026", (Runnable) () -> MlsoDialog.getInstance().showDialog()},
+                {"MLSO KCor and UCoMP (HAO)\u2026", (Runnable) () -> MlsoDialog.getInstance().showDialog(rangeStart(), rangeEnd())},
                 // No dialog: the master range and cadence are the whole question, like the VSO
                 // tab's Add. NRL because the VSO's LASCO catalog stops in early 2025 while the LZ
                 // archive is current; see LascoClient.
@@ -189,17 +205,18 @@ public final class ImageDialog extends StandardDialog implements DataSources.Lis
                 FitsRequest.cadenceMillis(cadence()), start, end));
     }
 
-    private static long rangeStart() {
-        return MoviePanel.getInstance().getStartTime();
+    private long rangeStart() {
+        return timeSelector.getStartTime();
     }
 
-    private static long rangeEnd() {
-        return MoviePanel.getInstance().getEndTime();
+    /** One frame asked for collapses the range to its start, as the master controls do. */
+    private long rangeEnd() {
+        return cadencePanel.isSingleFrame() ? timeSelector.getStartTime() : timeSelector.getEndTime();
     }
 
-    /** Seconds between frames asked for, 0 for every frame: the control beside New Layer. */
-    private static int cadence() {
-        return MainFrame.getLayersSectionPanel().getCadence();
+    /** Seconds between frames asked for, 0 for every frame. */
+    private int cadence() {
+        return cadencePanel.getCadence();
     }
 
     @Nullable
@@ -218,9 +235,9 @@ public final class ImageDialog extends StandardDialog implements DataSources.Lis
             tabs.setEnabledAt(i, !changeMode);
         if (changeMode)
             tabs.setSelectedIndex(0);
-        int cadence = cadence();
-        range.setText("Time range " + TimeUtils.formatShort(rangeStart()) + " to " + TimeUtils.formatShort(rangeEnd())
-                + (cadence > 0 ? ", one frame per " + cadenceText(cadence) : ", every frame") + "  (set beside New Layer)");
+        // One way, master to here, and only as the window opens: what is typed here stays here.
+        timeSelector.setTime(MoviePanel.getInstance().getStartTime(), MoviePanel.getInstance().getEndTime());
+        cadencePanel.copyFrom(MainFrame.getLayersSectionPanel().getCadencePanel());
         openHeliad.setVisible(HeliadLibrary.app() != null);
         heliadTab.update(changeMode);
         selectionChanged();
@@ -234,12 +251,6 @@ public final class ImageDialog extends StandardDialog implements DataSources.Lis
         } else {
             toFront();
         }
-    }
-
-    private static String cadenceText(int seconds) {
-        if (seconds % 3600 == 0)
-            return seconds / 3600 + " h";
-        return seconds % 60 == 0 ? seconds / 60 + " min" : seconds + " s";
     }
 
     public void selectDataset(String server, int sourceId) {
@@ -289,6 +300,6 @@ public final class ImageDialog extends StandardDialog implements DataSources.Lis
         if (items.isEmpty())
             return;
         setVisible(false);
-        handler.loadDatasets(items);
+        handler.loadDatasets(items, rangeStart(), rangeEnd(), cadence());
     }
 }

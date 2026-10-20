@@ -68,6 +68,10 @@ public final class LayersSectionPanel extends JPanel {
         return true;
     }
 
+    public CadencePanel getCadencePanel() {
+        return cadencePanel;
+    }
+
     public int getCadence() {
         return cadencePanel.getCadence();
     }

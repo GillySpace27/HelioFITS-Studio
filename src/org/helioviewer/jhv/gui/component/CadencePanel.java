@@ -172,6 +172,19 @@ public final class CadencePanel extends JPanel implements ViewState.PlaybackConf
         };
     }
 
+    /** Take another panel's settings: time step, or frame count when that is what it drives by. */
+    public void copyFrom(CadencePanel other) {
+        byFramesCheck.setSelected(other.byFramesCheck.isSelected());
+        applyCadenceValue(other.getCadence());
+        updating = true;
+        try {
+            framesSpinner.setValue(other.framesSpinner.getValue());
+        } finally {
+            updating = false;
+        }
+        setByFrames(byFramesCheck.isSelected());
+    }
+
     public void setCadence(int value) {
         byFramesCheck.setSelected(false);
         applyCadenceValue(value);

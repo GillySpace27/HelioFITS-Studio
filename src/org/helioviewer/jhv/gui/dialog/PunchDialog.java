@@ -284,8 +284,7 @@ public class PunchDialog extends StandardDialog implements PunchClient.ReceiverI
     // Seed the cadence combo from the Layers-section request cadence so "New PUNCH Layer" honors
     // the same time step as the main New Layer control. Cadence is a MINIMUM inter-frame spacing:
     // asking for a step finer than the product's native cadence just keeps every available frame.
-    private void applyRequestCadence() {
-        int reqSec = MainFrame.getLayersSectionPanel().getCadence();
+    private void applyRequestCadence(int reqSec) {
         long reqMilli = FitsRequest.cadenceMillis(reqSec);
 
         if (requestCadence != null) { // drop any stale inserted entry from a previous open
@@ -317,19 +316,23 @@ public class PunchDialog extends StandardDialog implements PunchClient.ReceiverI
     }
 
     public void showDialog() {
+        showDialog(MoviePanel.getInstance().getStartTime(), MoviePanel.getInstance().getEndTime(),
+                MainFrame.getLayersSectionPanel().getCadence());
+    }
+
+    /** Open on this range and time step, the New Image Layer window's, rather than the master's. */
+    public void showDialog(long start, long end, int cadenceSec) {
         if (!productsDownloaded && levelCombo.getSelectedItem() instanceof String level)
             PunchClient.submitGetProducts(this, level);
 
         // Preset the main window's time range so it does not have to be retyped. If nothing sets a
         // usable range, the time selector defaults to "now", which is past the public archive's
         // coverage for PUNCH; the coverage probe below then falls back to the archive's latest day.
-        long start = MoviePanel.getInstance().getStartTime();
-        long end = MoviePanel.getInstance().getEndTime();
         if (start > TimeUtils.START.milli && end > start) {
             timeSelectorPanel.setTime(start, end);
             rangeUserChanged = true; // honor the range even if coverage comes back later
         }
-        applyRequestCadence(); // inherit the Layers-section "time step" so it is actually respected
+        applyRequestCadence(cadenceSec); // inherit the Layers-section "time step" so it is actually respected
         coverageLabel.setText("Checking archive coverage...");
         if (levelCombo.getSelectedItem() instanceof String level && productCombo.getSelectedItem() instanceof String product)
             PunchClient.submitGetCoverage(this, level, product);

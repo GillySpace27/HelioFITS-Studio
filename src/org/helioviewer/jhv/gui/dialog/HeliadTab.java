@@ -36,7 +36,6 @@ import org.helioviewer.jhv.app.Commands;
 import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.gui.DesktopIntegration;
 import org.helioviewer.jhv.gui.UIGlobals;
-import org.helioviewer.jhv.gui.component.MoviePanel;
 import org.helioviewer.jhv.io.CacheIndex;
 import org.helioviewer.jhv.io.HeliadLibrary;
 import org.helioviewer.jhv.time.TimeUtils;
@@ -76,6 +75,9 @@ final class HeliadTab extends JPanel {
     @Nullable
     private HeliadLibrary.Location library;
     private boolean front; // this tab is the one showing
+    // The New Image Layer window's range, which starts as the master range and can be changed there.
+    private final java.util.function.LongSupplier rangeStart;
+    private final java.util.function.LongSupplier rangeEnd;
     private boolean changeMode;
     private int reads; // so a slow read that lands after a newer one is dropped
 
@@ -83,8 +85,11 @@ final class HeliadTab extends JPanel {
      * @param _onChange   called when what Add would do changes: the tab, or the selection in it
      * @param _onActivate called on a double-click, to add the row as the dialog's Add would
      */
-    HeliadTab(Runnable _onChange, Runnable _onActivate) {
+    HeliadTab(Runnable _onChange, Runnable _onActivate, java.util.function.LongSupplier _rangeStart,
+              java.util.function.LongSupplier _rangeEnd) {
         super(new BorderLayout(0, 4));
+        rangeStart = _rangeStart;
+        rangeEnd = _rangeEnd;
         onChange = _onChange;
         onActivate = _onActivate;
 
@@ -273,12 +278,18 @@ final class HeliadTab extends JPanel {
         return sets.size() == 1 ? sets.getFirst() : null;
     }
 
-    private static long rangeStart() {
-        return MoviePanel.getInstance().getStartTime();
+    private long rangeStart() {
+        return rangeStart.getAsLong();
     }
 
-    private static long rangeEnd() {
-        return MoviePanel.getInstance().getEndTime();
+    private long rangeEnd() {
+        return rangeEnd.getAsLong();
+    }
+
+    /** The window's range moved: re-read what falls inside it. */
+    void rangeChanged() {
+        if (front && library != null)
+            refresh();
     }
 
     private static String diskSize(long bytes) {
