@@ -141,6 +141,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         // throw that framing away. Every interactive route builds this with a null jo
         // (ImageLayer.create(null)); only State's createDetached passes one.
         fitOnLoad = jo == null;
+        fitViewOnLoad = jo == null;
         if (jo != null)
             fitPending = false; // a restored session has framed the scene itself; leave it alone
 
@@ -611,6 +612,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     }
 
     private boolean viewActivatedBefore; // the first view of a layer may claim the clock; later ones only keep it
+    private boolean fitViewOnLoad; // interactive, and its first view not yet fitted into its multiview viewport
 
     private void activateView() {
         // setDefaultLUT, not setLUT: a table a session restored for this layer outranks the one a
@@ -628,7 +630,10 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
         if (Display.multiview) {
             ImageLayers.arrangeMultiView(true);
+            if (fitViewOnLoad && org.helioviewer.jhv.app.DisplaySettings.getFitNewMultiviewLayers())
+                DisplayController.zoomFitViewport(this);
         }
+        fitViewOnLoad = false;
         Layers.fireLayerUpdated(this);
         // A view arriving is new pixels, so ask for a frame. This used to happen only by accident,
         // through Player.setMaster -> syncTime, which runs only when the layer claims the clock: the

@@ -5,6 +5,7 @@ public class DisplaySettings {
     public enum TimeMode {Observer, Sun, Earth}
 
     private static boolean autoResetView = true;
+    private static boolean fitNewMultiviewLayers = true;
     private static boolean normalizeAIA;
     private static boolean normalizeRadius;
     private static TimeMode timeMode = TimeMode.Observer;
@@ -12,7 +13,8 @@ public class DisplaySettings {
     static {
         // On unless it has been turned off: a freshly opened dataset framed by whatever the last
         // session left behind is the state people reach for Reset View to escape.
-        autoResetView = parseAutoResetView(Settings.getProperty("display.autoResetView"));
+        autoResetView = parseDefaultOn(Settings.getProperty("display.autoResetView"));
+        fitNewMultiviewLayers = parseDefaultOn(Settings.getProperty("display.fitNewMultiviewLayers"));
         normalizeAIA = Boolean.parseBoolean(Settings.getProperty("display.normalizeAIA"));
         normalizeRadius = Boolean.parseBoolean(Settings.getProperty("display.normalizeRadius"));
 
@@ -23,10 +25,10 @@ public class DisplaySettings {
 
     /**
      * How the stored value reads, including the absent one: a preferences file written before this
-     * existed, or a fresh install, must arrive with the framing on. Boolean.parseBoolean answers
+     * existed, or a fresh install, must arrive with the setting on. Boolean.parseBoolean answers
      * false to anything it does not recognise, nothing at all included, so it cannot decide this.
      */
-    static boolean parseAutoResetView(String stored) {
+    public static boolean parseDefaultOn(String stored) {
         return stored == null || stored.isBlank() || Boolean.parseBoolean(stored);
     }
 
@@ -38,6 +40,16 @@ public class DisplaySettings {
     public static void setAutoResetView(boolean b) {
         Settings.setProperty("display.autoResetView", Boolean.toString(b));
         autoResetView = b;
+    }
+
+    /** Whether a layer that lands in multiview is zoomed to fit its own viewport. */
+    public static boolean getFitNewMultiviewLayers() {
+        return fitNewMultiviewLayers;
+    }
+
+    public static void setFitNewMultiviewLayers(boolean b) {
+        Settings.setProperty("display.fitNewMultiviewLayers", Boolean.toString(b));
+        fitNewMultiviewLayers = b;
     }
 
     public static boolean getNormalizeAIA() {

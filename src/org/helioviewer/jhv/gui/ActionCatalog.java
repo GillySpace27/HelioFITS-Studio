@@ -84,6 +84,8 @@ public final class ActionCatalog {
         put("resetAxis", new Actions.ResetCameraAxis(), "View/Reset View Axis", "");
         put("resetCamera", new Actions.ResetCamera(), "View/Reset View", "");
         put("separateMultiviewZoom", new Actions.SeparateMultiviewZoom(), "View/Separate Multiview Zoom", "");
+        put("fitNewMultiviewLayers", new Actions.FitNewMultiviewLayers(), "View/Zoom to Fit New Layers in Multiview",
+                "Fit a layer added in multiview to its own view (with Separate Multiview Zoom)");
         put("present", new Actions.TogglePresentationMode(), "View/Present", "Presentation mode: output only, fullscreen (Esc to leave)");
         // Layers
         put("newJp2Layer", new Actions.NewLayer(), "Layers/New Image Layer…", "");
