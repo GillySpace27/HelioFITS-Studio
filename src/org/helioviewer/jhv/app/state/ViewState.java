@@ -181,7 +181,7 @@ public final class ViewState {
 
     public record ModeData(MapMode projection, SurfaceModel surfaceModel, double warpLambda, AnnotationMode annotationMode,
                            boolean multiview, boolean tracking, boolean refresh, boolean showCorona,
-                           boolean differentialRotation, boolean helioradial3D) {}
+                           boolean differentialRotation, boolean helioradial3D, boolean surfaceFromImage) {}
 
     public record PlaybackData(Player.AdvanceMode advanceMode, int speed, PlaybackSpeedUnit speedUnit,
                                int firstFrame, int lastFrame) {}
@@ -237,11 +237,12 @@ public final class ViewState {
      * BlankSessionCheck fails if a default changes without this.
      */
     public static final ModeData DEFAULT_MODE = new ModeData(MapMode.Orthographic, SurfaceModel.PlaneOfSky, 0,
-            AnnotationMode.Cross, false, false, false, true, false, false);
+            AnnotationMode.Cross, false, false, false, true, false, false, false);
 
     public static ModeData modeData() {
         return new ModeData(getProjection(), Display.getSurfaceModel(), getWarpLambda(), getAnnotationMode(),
-                isMultiview(), isTracking(), isRefresh(), isShowCorona(), isDifferentialRotation(), Display.isHelioradial3D());
+                isMultiview(), isTracking(), isRefresh(), isShowCorona(), isDifferentialRotation(), Display.isHelioradial3D(),
+                Display.isSurfaceFromImage());
     }
 
     public static PlaybackData playbackData() {
@@ -352,6 +353,7 @@ public final class ViewState {
         target.put("showCorona", data.showCorona());
         target.put("differentialRotation", data.differentialRotation());
         target.put("helioradial3D", data.helioradial3D());
+        target.put("surfaceFromImage", data.surfaceFromImage());
     }
 
     public static ModeData readModeJson(JSONObject source) {
@@ -389,7 +391,9 @@ public final class ViewState {
                 readBoolean(source, "refresh", current.refresh()),
                 readBoolean(source, "showCorona", current.showCorona()),
                 readBoolean(source, "differentialRotation", current.differentialRotation()),
-                readBoolean(source, "helioradial3D", current.helioradial3D()));
+                readBoolean(source, "helioradial3D", current.helioradial3D()),
+                // Absent from sessions written before the choice existed: they keep the default.
+                readBoolean(source, "surfaceFromImage", DEFAULT_MODE.surfaceFromImage()));
     }
 
     public static void applyMode(ModeData data) {
@@ -402,7 +406,8 @@ public final class ViewState {
                 || isRefresh() != data.refresh()
                 || isShowCorona() != data.showCorona()
                 || isDifferentialRotation() != data.differentialRotation()
-                || Display.isHelioradial3D() != data.helioradial3D();
+                || Display.isHelioradial3D() != data.helioradial3D()
+                || Display.isSurfaceFromImage() != data.surfaceFromImage();
 
         if (!changed)
             return;
@@ -419,6 +424,7 @@ public final class ViewState {
             setShowCorona(data.showCorona());
             setDifferentialRotation(data.differentialRotation());
             Display.setHelioradial3D(data.helioradial3D());
+            Display.setSurfaceFromImage(data.surfaceFromImage());
         } finally {
             suppressModeNotifications = false;
         }
@@ -445,7 +451,8 @@ public final class ViewState {
                 refresh == null ? current.refresh() : refresh,
                 showCorona == null ? current.showCorona() : showCorona,
                 differentialRotation == null ? current.differentialRotation() : differentialRotation,
-                current.helioradial3D()));
+                current.helioradial3D(),
+                current.surfaceFromImage()));
     }
 
     public static void applyModeUpdateRaw(
