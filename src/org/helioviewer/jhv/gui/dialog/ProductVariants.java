@@ -70,10 +70,13 @@ final class ProductVariants {
 
     // Lower-case 't': aspiicsKind lowercases the name before matching.
     private static final Pattern STAMP = Pattern.compile("\\d{8}t\\d{6}\\d*");
+    // The per-file sequence id, hexadecimal: 163040060001, but also 1630400a0001 (lowercased). Mostly
+    // digits, so a kind suffix that happens to be a hex word (deadbeefcafe) is not taken for one.
+    private static final Pattern SEQUENCE = Pattern.compile("(?=(?:[a-f]*\\d){8})[0-9a-f]{10,}");
 
     /**
      * What tells files of one product apart: the file name without directory, the
-     * aspiics_&lt;product&gt;_l3_ prefix, time stamps and extension. Frames of one kind share it.
+     * aspiics_&lt;product&gt;_l3_ prefix, time stamps, sequence numbers and extension. Frames of one kind share it.
      */
     static String aspiicsKind(String datalocation) {
         String name = datalocation.substring(datalocation.lastIndexOf('/') + 1).toLowerCase(Locale.ROOT);
@@ -87,7 +90,8 @@ final class ProductVariants {
             name = name.substring(0, dot);
         StringBuilder kind = new StringBuilder();
         for (String token : name.split("_")) {
-            if (token.isEmpty() || STAMP.matcher(token).matches())
+            // The sequence id differs per file, so it is not a kind (Sarah Gibson, 2026-10-19).
+            if (token.isEmpty() || STAMP.matcher(token).matches() || SEQUENCE.matcher(token).matches())
                 continue;
             if (!kind.isEmpty())
                 kind.append('_');
