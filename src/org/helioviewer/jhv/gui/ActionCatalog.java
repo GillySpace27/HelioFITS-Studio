@@ -138,6 +138,12 @@ public final class ActionCatalog {
         put("copyFrame", new Actions.CopyFrame(), "Edit/Copy Frame", "Put the canvas picture on the clipboard (a screenshot, 8-bit)");
         put("quickShare", new Actions.QuickShare(), "File/Quick Share", "Record one loop as a movie that plays anywhere, then show it in the file manager; your recording settings are not changed");
         put("shareScene", new Actions.ShareScene(), "File/Share Scene...", "Save the scene for someone else: home folder written as ~, local files outside the cache listed first");
+        put("datasetFolders", new AbstractAction("Show Dataset Folders") {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                org.helioviewer.jhv.gui.dialog.CacheDialog.showDatasetFolders();
+            }
+        }, "File/Show Dataset Folders", "Browse the cache as one folder per dataset (links, or a files.txt listing on Windows); the cache is not changed");
         put("openExportsFolder", ExportsFolder.action(), "File/Open Exports Folder", "Show the folder movies, screenshots and metadata are exported to");
         // Help search (HS-15): the menu item, and the Projection palette's reveal for the controls in it
         put(org.helioviewer.jhv.gui.search.CommandPalette.ID, org.helioviewer.jhv.gui.search.CommandPalette.action(), "Help/Search Controls...", "Find any command or control by name and run it or show where it is");
