@@ -1,0 +1,45 @@
+{
+  "title": "Sharing your work",
+  "steps": [
+    {
+      "target": "saveSession",
+      "title": "Save the session",
+      "body": "File > Save Session writes the whole scene, its layers and settings, to a .jhv file that opens it again later."
+    },
+    {
+      "target": "setDefaultSession",
+      "title": "Your own starting scene",
+      "body": "File > Set Current Session as Default opens this scene at every start, ahead of the last session. File > Clear Default Session undoes it."
+    },
+    {
+      "target": "shareScene",
+      "title": "Share Scene",
+      "body": "File > Share Scene saves the scene for someone else: your home folder is written as ~, and local files outside the cache are listed first."
+    },
+    {
+      "target": "exportSessionWithData",
+      "title": "Take the data too",
+      "body": "File > Export Session with Data saves the session plus a .data.zip of its local files, to open on another computer."
+    },
+    {
+      "target": "copyProvenance",
+      "title": "Copy Provenance",
+      "body": "File > Copy Provenance puts the program, its build and each layer's data source on the clipboard, for a caption or a methods section."
+    },
+    {
+      "target": "copyFrame",
+      "title": "Copy Frame",
+      "body": "Edit > Copy Frame puts the canvas picture on the clipboard, as an 8-bit screenshot."
+    },
+    {
+      "target": "sendToPython",
+      "title": "Send to Python",
+      "body": "Layers > Send to Python writes the active layer's FITS files as double-precision science FITS, plus a manifest and a sunpy snippet."
+    },
+    {
+      "target": "samp",
+      "title": "SAMP",
+      "body": "SAMP sends a message to other astronomy tools that speak SAMP, the Virtual Observatory's messaging protocol."
+    }
+  ]
+}
