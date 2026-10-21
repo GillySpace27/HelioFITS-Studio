@@ -6,15 +6,15 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
-import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.io.File;
+import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Objects;
 
+import javax.annotation.Nullable;
 import javax.swing.AbstractAction;
-import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
 import javax.swing.DefaultCellEditor;
 import javax.swing.DefaultListCellRenderer;
@@ -27,6 +27,7 @@ import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
+import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.ListSelectionModel;
 import javax.swing.table.DefaultTableCellRenderer;
@@ -68,10 +69,12 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
     }
 
     private static String cacheSizeText(String size) {
-        return "The image cache currently uses " + size + "GB on disk.";
+        return "Uses " + size + " GB on disk.";
     }
 
     private DefaultsSelectionPanel defaultsPanel;
+    private final JTabbedPane tabs = new JTabbedPane();
+    private final HeliadSettings heliad = new HeliadSettings();
 
     public SettingsDialog() {
         super(MainFrame.get(), "Settings", true);
@@ -103,123 +106,95 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
     @Override
     public JComponent createContentPanel() {
         defaultsPanel = new DefaultsSelectionPanel();
-        defaultsPanel.setBorder(BorderFactory.createEmptyBorder(3, 9, 3, 9));
-        return defaultsPanel;
+        tabs.addTab("General", generalTab());
+        tabs.addTab("Appearance", appearanceTab());
+        tabs.addTab("Layers", layersTab());
+        tabs.addTab("Plugins", pluginsTab());
+        tabs.addTab("Network", networkTab());
+        tabs.addTab("Heliad", heliad);
+        tabs.addChangeListener(e -> {
+            if (tabs.getSelectedComponent() == heliad)
+                heliad.refresh();
+        });
+        return tabs;
     }
 
+    @Nullable
     @Override
     public JComponent createBannerPanel() {
-        JPanel panel = createParametersPanel();
-        panel.setBorder(BorderFactory.createEmptyBorder(3, 9, 3, 9));
-        return panel;
+        return null;
     }
 
     @Override
     public void showDialog() {
         updateCacheSize();
+        if (tabs.getSelectedComponent() == heliad)
+            heliad.refresh();
         pack();
         setLocationRelativeTo(MainFrame.get());
         setVisible(true);
     }
 
-    private JPanel createParametersPanel() {
-        JPanel settings = new JPanel(new GridBagLayout());
-        GridBagConstraints c = new GridBagConstraints();
-        c.fill = GridBagConstraints.BOTH;
-        c.insets = new Insets(0, 2, 0, 2);
+    /** A path under the home folder written from ~, so it fits on one line; the full path goes in a tooltip. */
+    static String homeRelative(Path path) {
+        Path home = Path.of(System.getProperty("user.home"));
+        return path.startsWith(home) && !path.equals(home) ? "~/" + home.relativize(path) : path.toString();
+    }
 
-        c.gridx = 0;
-        c.gridy = 0;
-        settings.add(new JLabel("Preferred server:", JLabel.RIGHT), c);
-
-        c.gridx = 1;
-        c.gridy = 0;
+    /** Where data comes from and what happens at start-up. */
+    private static JComponent generalTab() {
         JComboBox<String> comboServer = new JComboBox<>(DataSources.getServers().toArray(new String[0]));
         comboServer.setSelectedItem(Settings.getProperty("dataSources.defaultServer"));
         comboServer.addActionListener(e -> Settings.setProperty("dataSources.defaultServer", (String) Objects.requireNonNull(comboServer.getSelectedItem())));
-        settings.add(comboServer, c);
 
-        c.gridx = 0;
-        c.gridy = 1;
-        settings.add(new JLabel("At start-up:", JLabel.RIGHT), c);
-
-        c.gridx = 1;
-        c.gridy = 1;
-        settings.add(getStatePanel(), c);
-
-        c.gridx = 1;
-        c.gridy = 2;
         JCheckBox sampHub = new JCheckBox("Load SAMP hub", Boolean.parseBoolean(Settings.getProperty("startup.sampHub")));
         sampHub.addActionListener(e -> Settings.setProperty("startup.sampHub", Boolean.toString(sampHub.isSelected())));
         JCheckBox checkUpdates = new JCheckBox("Check for updates at startup", org.helioviewer.jhv.app.update.UpdateCheck.enabledAtStartup());
         checkUpdates.addActionListener(e -> org.helioviewer.jhv.app.update.UpdateCheck.setEnabledAtStartup(checkUpdates.isSelected()));
-        JCheckBox punchLive = new JCheckBox("PUNCH Live refresh (adds a Live box to PUNCH layers; polls only while the archive is under a week old)",
+        JCheckBox punchLive = new JCheckBox("<html>PUNCH Live refresh<br/><small>Adds a Live box to PUNCH layers; polls only while the archive is under a week old",
                 org.helioviewer.jhv.io.LiveRefresh.enabled());
         punchLive.addActionListener(e -> Settings.setProperty(org.helioviewer.jhv.io.LiveRefresh.KEY, Boolean.toString(punchLive.isSelected())));
-        JPanel startupBoxes = new JPanel(new BorderLayout());
-        startupBoxes.add(sampHub, BorderLayout.PAGE_START);
-        startupBoxes.add(checkUpdates, BorderLayout.CENTER);
-        startupBoxes.add(punchLive, BorderLayout.PAGE_END);
-        settings.add(startupBoxes, c);
 
-        c.gridx = 0;
-        c.gridy = 3;
-        settings.add(new JLabel("Appearance:", JLabel.RIGHT), c);
+        return new SettingsForm()
+                .row("Preferred server:", comboServer)
+                .row("At start-up:", getStatePanel())
+                .row(null, sampHub)
+                .row(null, checkUpdates)
+                .row("Live data:", punchLive)
+                .end();
+    }
 
-        c.gridx = 1;
-        c.gridy = 3;
-        settings.add(appearancePanel(), c);
-
-        c.gridx = 0;
-        c.gridy = 4;
-        settings.add(new JLabel("For new layers:", JLabel.RIGHT), c);
-
-        c.gridx = 1;
-        c.gridy = 4;
-        JCheckBox normalizeAIA = new JCheckBox("Normalize SDO/AIA brightness", DisplaySettings.getNormalizeAIA());
-        normalizeAIA.addActionListener(e -> DisplaySettings.setNormalizeAIA(normalizeAIA.isSelected()));
-        settings.add(normalizeAIA, c);
-
-        c.gridx = 1;
-        c.gridy = 5;
-        JCheckBox normalizeRadius = new JCheckBox("Normalize solar radius", DisplaySettings.getNormalizeRadius());
-        normalizeRadius.addActionListener(e -> DisplaySettings.setNormalizeRadius(normalizeRadius.isSelected()));
-        settings.add(normalizeRadius, c);
-
-        c.gridx = 0;
-        c.gridy = 6;
-        settings.add(new JLabel("Projection:", JLabel.RIGHT), c);
-
-        c.gridx = 1;
-        c.gridy = 6;
-        // Lives here rather than in the projection palette: it is an accessibility preference
-        // about how the UI behaves, set once and persisted, not display state to reach for while
-        // composing. A crossfade is pure alpha with no geometry in motion, which is the one
-        // animation style generally considered safe for vestibular motion sensitivity, so this
-        // defaults on and exists as the opt-out for anyone it still bothers.
+    /**
+     * How Studio looks and moves: the theme, and the two animations, which are accessibility
+     * preferences set once rather than display state to reach for while composing.
+     */
+    private static JComponent appearanceTab() {
+        // A crossfade is pure alpha with no geometry in motion, which is the one animation style
+        // generally considered safe for vestibular motion sensitivity, so this defaults on and
+        // exists as the opt-out for anyone it still bothers.
         JCheckBox animateProjection = new JCheckBox("Crossfade between projections", ProjectionTransition.isAnimateEnabled());
         animateProjection.setToolTipText("Fade between projections instead of switching instantly");
         animateProjection.addActionListener(e -> ProjectionTransition.setAnimateEnabled(animateProjection.isSelected()));
-        settings.add(animateProjection, c);
 
-        c.gridy++;
-        JCheckBox offlineSessions = new JCheckBox("Download layers when saving a session",
-                org.helioviewer.jhv.app.state.SessionOffline.isEnabled());
-        offlineSessions.setToolTipText("After Save State As, fetch whatever the session would otherwise "
-                + "have to ask a server for, then rewrite it to point at the local copies. The file then "
-                + "opens without the network. Autosaves are unaffected.");
-        offlineSessions.addActionListener(e ->
-                org.helioviewer.jhv.app.state.SessionOffline.setEnabled(offlineSessions.isSelected()));
-        settings.add(offlineSessions, c);
-
-        c.gridy++;
         JCheckBox animateSurface = new JCheckBox("Morph between coronagraph surfaces", SurfaceTransition.isAnimateEnabled());
         animateSurface.setToolTipText("Bend the surface between plane of sky and the Thomson sphere over about half a second, instead of switching. Every frame of it is a real surface, not a dissolve.");
         animateSurface.addActionListener(e -> SurfaceTransition.setAnimateEnabled(animateSurface.isSelected()));
-        settings.add(animateSurface, c);
+
+        return new SettingsForm()
+                .row("Theme:", appearancePanel())
+                .row("Motion:", animateProjection)
+                .row(null, animateSurface)
+                .end();
+    }
+
+    /** Defaults for layers added from now on, and how a session is saved. */
+    private static JComponent layersTab() {
+        JCheckBox normalizeAIA = new JCheckBox("Normalize SDO/AIA brightness", DisplaySettings.getNormalizeAIA());
+        normalizeAIA.addActionListener(e -> DisplaySettings.setNormalizeAIA(normalizeAIA.isSelected()));
+        JCheckBox normalizeRadius = new JCheckBox("Normalize solar radius", DisplaySettings.getNormalizeRadius());
+        normalizeRadius.addActionListener(e -> DisplaySettings.setNormalizeRadius(normalizeRadius.isSelected()));
 
         JPanel timePanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
-        timePanel.add(new JLabel("Use time at ", JLabel.RIGHT));
         ButtonGroup timeModeGroup = new ButtonGroup();
         DisplaySettings.TimeMode timeMode = DisplaySettings.getTimeMode();
         for (DisplaySettings.TimeMode mode : DisplaySettings.TimeMode.values()) {
@@ -232,27 +207,41 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
             timeModeGroup.add(radio);
         }
 
-        c.gridx = 1;
-        c.gridy = 7;
-        settings.add(timePanel, c);
+        JCheckBox offlineSessions = new JCheckBox("Download layers when saving a session",
+                org.helioviewer.jhv.app.state.SessionOffline.isEnabled());
+        offlineSessions.setToolTipText("After Save State As, fetch whatever the session would otherwise "
+                + "have to ask a server for, then rewrite it to point at the local copies. The file then "
+                + "opens without the network. Autosaves are unaffected.");
+        offlineSessions.addActionListener(e ->
+                org.helioviewer.jhv.app.state.SessionOffline.setEnabled(offlineSessions.isSelected()));
 
-        c.gridx = 0;
-        c.gridy = 8;
-        settings.add(new JLabel("Plugins:", JLabel.RIGHT), c);
+        return new SettingsForm()
+                .row("For new layers:", normalizeAIA)
+                .row(null, normalizeRadius)
+                .row("Use time at:", timePanel)
+                .row("Sessions:", offlineSessions)
+                .end();
+    }
 
-        c.gridx = 1;
+    private static JComponent pluginsTab() {
+        SettingsForm form = new SettingsForm();
+        String label = "Plugins:";
         for (Plugin plugin : PluginManager.getPlugins()) {
             JCheckBox plugCheck = new JCheckBox("<html>" + plugin.getName() + "<br/><small>" + plugin.getDescription(), plugin.isActive());
             plugCheck.addActionListener(e -> PluginManager.setActive(plugin, plugCheck.isSelected()));
-            settings.add(plugCheck, c);
-            c.gridy++;
+            form.row(label, plugCheck);
+            label = null;
         }
+        return form.end();
+    }
 
-        JPanel paramsPanel = new JPanel(new BorderLayout());
-        paramsPanel.add(settings, BorderLayout.PAGE_START);
-        paramsPanel.add(createCachePanel(), BorderLayout.PAGE_END);
-
-        return paramsPanel;
+    /** The image cache and the proxy. */
+    private JComponent networkTab() {
+        return new SettingsForm()
+                .row("Image cache:", createCachePanel())
+                .row("Proxy:", new JLabel("Used for every download; leave empty when there is no proxy."))
+                .wide(defaultsPanel)
+                .end();
     }
 
     private JPanel createCachePanel() {
@@ -272,7 +261,7 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
             });
         });
 
-        JPanel cache = new JPanel(new FlowLayout(FlowLayout.LEADING));
+        JPanel cache = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
         cache.add(cacheSizeLabel);
         cache.add(clearCache);
         return cache;
@@ -316,7 +305,7 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
 
         DefaultsSelectionPanel() {
             super(new BorderLayout());
-            setPreferredSize(new Dimension(-1, 150));
+            setPreferredSize(new Dimension(420, 90)); // the header and both rows
 
             String pass = Settings.getProperty("proxy.password");
             try {
