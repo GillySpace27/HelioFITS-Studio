@@ -185,6 +185,7 @@ public final class MenuBar extends JMenuBar {
         catalogItem(fileMenu, "exportSessionWithData");
         catalogItem(fileMenu, "shareScene"); // catalogued under File since HS-16, never added here until the tours named it
         catalogItem(fileMenu, "quickShare");
+        catalogItem(fileMenu, "datasetFolders"); // HS-16
         catalogItem(fileMenu, "revertToSaved");
         fileMenu.addSeparator();
         catalogItem(fileMenu, "setDefaultSession");

@@ -278,19 +278,22 @@ public final class Actions {
             Task.submitBackground("send-to-python", () -> {
                 try {
                     org.json.JSONObject manifest = org.helioviewer.jhv.io.FitsExport.export(sources, out, org.helioviewer.jhv.movie.Provenance.session(), step);
-                    return org.helioviewer.jhv.io.FitsExport.snippet(out, manifest);
+                    List<File> written = new ArrayList<>();
+                    for (File s : sources)
+                        written.add(out.resolve(org.helioviewer.jhv.io.FitsExport.outputName(s)).toFile());
+                    // Off the event thread: connecting to a hub can wait on the network. No hub sends nothing and fails nothing.
+                    int reached = org.helioviewer.jhv.io.samp.SampClient.sendFitsFiles(written);
+                    return new String[]{org.helioviewer.jhv.io.FitsExport.snippet(out, manifest), reached > 0
+                            ? "Sent over SAMP (image.load.fits) to " + reached + " client(s)."
+                            : "No SAMP client was listening, so nothing was sent over SAMP (extra/samp/receive_fits.py is one)."};
                 } finally { // queued ahead of the success or failure report, so the button is back before its dialog
                     running.set(false);
                     java.awt.EventQueue.invokeLater(idle);
                 }
-            }, snippet -> {
-                TransferAccess.writeClipboard(snippet);
-                List<File> written = new ArrayList<>();
-                for (File s : sources)
-                    written.add(out.resolve(org.helioviewer.jhv.io.FitsExport.outputName(s)).toFile());
-                org.helioviewer.jhv.io.samp.SampClient.sendFitsFiles(written);
+            }, r -> {
+                TransferAccess.writeClipboard(r[0]);
                 org.helioviewer.jhv.app.Message.info("Send to Python", sources.size() + " file(s) written to " + out
-                        + "\nA sunpy snippet is on the clipboard. See manifest.json there for exactly what was and was not applied.");
+                        + "\nA sunpy snippet is on the clipboard. See manifest.json there for exactly what was and was not applied.\n" + r[1]);
             }, "Error exporting FITS for Python");
         }
     }
