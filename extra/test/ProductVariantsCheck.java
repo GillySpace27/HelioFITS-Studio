@@ -66,6 +66,8 @@ public final class ProductVariantsCheck {
         expect("the per-file sequence number does not split one kind per file",
                 ProductVariants.aspiicsKind("aspiics_pb_l3_20250921T182738_163040060001_v03.fits")
                         .equals(ProductVariants.aspiicsKind("aspiics_pb_l3_20250921T183738_1630400A0001_v03.fits")));
+        expect("a kind suffix that is a long hex word is kept, not taken for a sequence id",
+                "deadbeefcafe_v03".equals(ProductVariants.aspiicsKind("aspiics_pb_l3_20250921T182738_163040060001_deadbeefcafe_v03.fits")));
         expect("a sequence number with no suffix has an empty kind",
                 "".equals(ProductVariants.aspiicsKind("aspiics_pb_l3_1630400C0001_20250921T184256.fits")));
         expect("a name with nothing after the time has an empty kind",

@@ -76,6 +76,7 @@ final class ProjectionPaletteContent {
         }
         content.add(new javax.swing.JSeparator());
         content.add(createSurfaceModelPanel());
+        content.add(createSurfaceFromPanel());
         content.add(createWarpLambdaPanel());
         content.add(createWarpCropPanel());
         content.add(createZoomPanel());
@@ -237,6 +238,39 @@ final class ProjectionPaletteContent {
     }
 
     private JToggleButton surfaceModelToggle;
+    private JToggleButton surfaceFromToggle;
+
+    private static String surfaceFromLabel(boolean fromImage) {
+        return fromImage ? "Image observer" : "Viewpoint";
+    }
+
+    // Which observer the surface is measured from in the composed sky (Display.surfaceDistance).
+    // One choice for the scene, not one per layer: the grid, the limb and the cursor are drawn
+    // once, from one observer, so a per-layer choice could line up with at most one layer.
+    private JPanel createSurfaceFromPanel() {
+        JToggleButton toggle = new JToggleButton(surfaceFromLabel(Display.isSurfaceFromImage()), Display.isSurfaceFromImage());
+        surfaceFromToggle = toggle;
+        String was = toggle.getText();
+        toggle.setText(surfaceFromLabel(true)); // the longer label, so the button never moves
+        toggle.setPreferredSize(toggle.getPreferredSize());
+        toggle.setText(was);
+        toggle.setName("projectionSurfaceFrom");
+        toggle.setToolTipText("Which observer the surface is measured from in the composed sky. Viewpoint: "
+                + "every layer on one surface, matching the grid and limb. Image observer: each layer on the "
+                + "surface of the observer who took it; the grid and limb follow the active layer.");
+        toggle.addActionListener(e -> {
+            Display.setSurfaceFromImage(toggle.isSelected());
+            toggle.setText(surfaceFromLabel(toggle.isSelected()));
+            DisplayController.display();
+        });
+        toggle.setEnabled(Display.skyComposeScale() != null);
+
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(BorderFactory.createEmptyBorder(3, 8, 3, 8));
+        panel.add(new JLabel("Surface from"), BorderLayout.LINE_START);
+        panel.add(toggle, BorderLayout.LINE_END);
+        return panel;
+    }
 
     /**
      * Say whether the Thomson sphere is currently costing you any of the field, and how much.
@@ -253,6 +287,18 @@ final class ProjectionPaletteContent {
     void syncSurfaceModelToggle() {
         if (surfaceModelToggle == null)
             return;
+        if (surfaceFromToggle != null) {
+            // Only the composed sky measures a surface from an observer it could choose; a session
+            // load can also flip the setting, so the toggle follows it here.
+            boolean composes = Display.skyComposeScale() != null;
+            if (surfaceFromToggle.isEnabled() != composes)
+                surfaceFromToggle.setEnabled(composes);
+            boolean fromImage = Display.isSurfaceFromImage();
+            if (surfaceFromToggle.isSelected() != fromImage) {
+                surfaceFromToggle.setSelected(fromImage);
+                surfaceFromToggle.setText(surfaceFromLabel(fromImage));
+            }
+        }
         // Ridden on the tick rather than wired to a listener because two independent things enable
         // it, the projection and the 3D checkbox, and the checkbox changes it with no projection
         // change to hang a listener on.

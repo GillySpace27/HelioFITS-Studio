@@ -38,13 +38,15 @@ import com.google.common.html.HtmlEscapers;
 
 /**
  * The Welcome window (HS-10): the build, What's New from the changelog the jar carries, and the
- * ways to start: continue, a blank session, a session file, the tour or the demo scene, and a tip
- * that changes with each opening. It also holds the startup
+ * ways to start: continue, a blank session, a session file, the tour or the demo scene. It also holds the startup
  * choice (reopen the last session or start blank) and its own "show at startup" switch.
  *
  * <p>Shown on a plain launch only: never headless, in a spawned extra window, on CI, or when the
  * launch had arguments (a script's launch). It takes over the first-launch tour offer, since it
  * carries the tour's button.
+ *
+ * <p>The tip is not here: Tip of the Day is a window of its own, with its own startup switch and
+ * snooze, and at startup it follows this window once this one closes.
  */
 public final class WelcomeDialog {
 
@@ -53,19 +55,24 @@ public final class WelcomeDialog {
     private static final int OFFER_DELAY_MS = 2000; // as the tour's offer: once the palettes are back
 
     private static final AtomicReference<JDialog> showing = new AtomicReference<>();
+    /** Set when this window opens at startup, so its closing brings on the startup tip; once. */
+    private static final java.util.concurrent.atomic.AtomicBoolean tipAfterClose = new java.util.concurrent.atomic.AtomicBoolean();
 
     public static void offerAtStartup(boolean bareLaunch) {
         if (!bareLaunch || GraphicsEnvironment.isHeadless() || Session.isExtraWindow() || System.getenv("CI") != null
                 || "false".equals(Settings.getProperty(SHOW_KEY))) {
             Tour.offerOnce(bareLaunch);
+            TipOfTheDay.offerAlone(bareLaunch); // skipped while the first-launch tour offer is pending
             return;
         }
         Tour.markOffered(); // the Welcome window has the tour's button; one invitation is enough
         // Checked when the timer fires, not now: macOS delivers a file opened from Finder after main
         // has started, and that launch has already said what it wants open.
         Timer later = new Timer(OFFER_DELAY_MS, e -> {
-            if (!CommandLine.desktopDocumentRequested())
+            if (!CommandLine.desktopDocumentRequested()) {
+                tipAfterClose.set(true);
                 show();
+            }
         });
         later.setRepeats(false);
         later.start();
@@ -90,6 +97,8 @@ public final class WelcomeDialog {
             @Override
             public void windowClosed(java.awt.event.WindowEvent e) {
                 showing.set(null);
+                if (tipAfterClose.getAndSet(false))
+                    TipOfTheDay.atStartup(); // not over a tour started from here: atStartup checks
             }
         });
         dialog.getRootPane().registerKeyboardAction(e -> dialog.dispose(),
@@ -124,9 +133,6 @@ public final class WelcomeDialog {
         }));
         JPanel top = new JPanel(new BorderLayout(0, 6));
         top.add(starts, BorderLayout.PAGE_START);
-        WelcomeTips.Tip tip = WelcomeTips.next();
-        if (tip != null)
-            top.add(new JLabel("<html><body style='width:600px'><b>Tip:</b> " + escape(tip.text()) + "</body></html>"), BorderLayout.PAGE_END); // wraps, never widens the window
         center.add(top, BorderLayout.PAGE_START);
 
         HTMLPane news = new HTMLPane();
@@ -154,6 +160,7 @@ public final class WelcomeDialog {
         JPanel startup = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
         startup.add(new JLabel("When HelioFITS Studio starts: "));
         JComboBox<String> mode = new JComboBox<>(new String[] {"Reopen the last session", "Start blank"});
+        mode.setToolTipText("What a plain launch opens: the session you had last, or an empty canvas");
         mode.setSelectedIndex(CommandLine.BLANK_MODE.equals(Settings.getProperty("startup.mode")) ? 1 : 0);
         mode.addActionListener(e -> Settings.setProperty("startup.mode", mode.getSelectedIndex() == 1 ? CommandLine.BLANK_MODE : "last"));
         startup.add(mode);
@@ -166,6 +173,7 @@ public final class WelcomeDialog {
 
         JPanel row = new JPanel(new BorderLayout());
         JCheckBox atStartup = new JCheckBox("Show this window at startup", !"false".equals(Settings.getProperty(SHOW_KEY)));
+        atStartup.setToolTipText("This window only; Tip of the Day has its own switch");
         atStartup.addActionListener(e -> Settings.setProperty(SHOW_KEY, Boolean.toString(atStartup.isSelected())));
         row.add(atStartup, BorderLayout.LINE_START);
         JPanel links = new JPanel(new FlowLayout(FlowLayout.TRAILING, 6, 0));
@@ -182,8 +190,17 @@ public final class WelcomeDialog {
         });
         links.add(display);
         ActionCatalog.Entry changeLog = ActionCatalog.get("openChangeLog");
-        if (changeLog != null)
-            links.add(new JButton(changeLog.action()));
+        if (changeLog != null) {
+            JButton changeLogButton = new JButton(changeLog.action());
+            changeLogButton.setToolTipText("Every version's changes, on GitHub");
+            links.add(changeLogButton);
+        }
+        ActionCatalog.Entry tip = ActionCatalog.get("tipOfTheDay");
+        if (tip != null) {
+            JButton tipButton = new JButton(tip.action());
+            tipButton.addActionListener(e -> dialog.dispose()); // the tip takes this window's place
+            links.add(tipButton);
+        }
         JButton close = new JButton("Close");
         close.addActionListener(e -> dialog.dispose());
         links.add(close);
@@ -195,6 +212,7 @@ public final class WelcomeDialog {
 
     private static JButton card(String name, String line, Runnable onClick) {
         JButton b = new JButton("<html><center><b>" + escape(name) + "</b><br><small>" + escape(line) + "</small></center></html>");
+        b.setToolTipText(line);
         b.addActionListener(e -> onClick.run());
         return b;
     }

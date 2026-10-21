@@ -38,7 +38,7 @@ public final class TourCheck {
             failures++;
     }
 
-    static Set<String> assignedNames() throws Exception { // ControlSearchCheck reads it too
+    public static Set<String> assignedNames() throws Exception { // ControlSearchCheck reads it too
         Set<String> names = new TreeSet<>();
         // setName("id"), and ProjectionPaletteContent's named(component, "id", spoken), which calls it
         Pattern setName = Pattern.compile("(?:\\.setName\\(|\\bnamed\\(\\w+, )\"(\\w+)\"[),]"); // the literal whole, not "projection" + a suffix
@@ -96,11 +96,13 @@ public final class TourCheck {
             }
         }
 
-        // The tour Help > Take the Tour starts loads from the classpath, as the jar holds it.
+        // The tour Take the Tour starts loads from the classpath, as the jar holds it.
         expect("Tour.load(" + Tour.GETTING_STARTED + ") reads it from the classpath", !Tour.load(Tour.GETTING_STARTED).isEmpty());
         ActionCatalog.Entry take = ActionCatalog.get("takeTour");
-        expect("takeTour is catalogued under Help", take != null && take.menuPath().equals("Help/Take the Tour"));
-        expect("MenuBar adds takeTour to a menu", names.contains("takeTour"));
+        // Help > Tours took over Help > Take the Tour, which only started Getting started: the id stays
+        // catalogued for the Welcome card and search, in no menu.
+        expect("takeTour is catalogued, in no menu", take != null && take.menuPath().isEmpty());
+        expect("MenuBar does not add takeTour to a menu", !Files.readString(Path.of("src/org/helioviewer/jhv/gui/component/MenuBar.java")).contains("\"takeTour\""));
 
         // Help > Tours lists every tour file, and only those (HS-15).
         Set<String> files = new TreeSet<>();

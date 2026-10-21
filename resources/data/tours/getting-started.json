@@ -47,7 +47,7 @@
     {
       "target": "helpMenu",
       "title": "Getting help",
-      "body": "The Help menu in the menu bar holds the Interaction Guide, which lists the mouse and keyboard shortcuts, and the User Manual. Help > Take the Tour runs this tour again."
+      "body": "The Help menu in the menu bar holds the Interaction Guide, which lists the mouse and keyboard shortcuts, and the User Manual. Help > Tours runs this tour again and lists the others."
     }
   ]
 }

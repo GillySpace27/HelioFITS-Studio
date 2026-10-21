@@ -277,6 +277,8 @@ this repository or at upstream.
   `io`, `movie`, `gui`, ...), so files that came from upstream carry small hunks. Before editing an
   upstream-derived file (`Actions.java`, `MenuBar.java`, `ToolBar.java`, `ImageLayer.java`,
   `State.java`, ...) run `git log upstream/master -1 -- <path>` and keep the hunk minimal.
+- Help text (Tip of the Day, tours, tooltips) is data in `resources/data/`: `tips.json`,
+  `tours/<id>.json`, `tooltips.json`. How to add to each: `docs/tips-and-tooltips.md`.
 - Checks: `extra/test/<Name>Check.java` (top level). Python tests sit beside the tool they test
   (`extra/ffmpeg/`, `extra/licenses/`) or as `extra/test/test_*.py`. Fixtures: `extra/test/data/`.
 - Scripts and developer tools: `extra/tools/`. Release tooling: `release/` (no application code).
