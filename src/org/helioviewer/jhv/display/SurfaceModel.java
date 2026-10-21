@@ -50,9 +50,11 @@ import org.helioviewer.jhv.math.Vec3;
  */
 public enum SurfaceModel {
 
+    // Declaration order is the cycle order of the surface toggle. Sessions store the name, not the
+    // ordinal, so reordering is safe.
     PlaneOfSky("Plane of sky"),
-    ThomsonSphere("Thomson sphere"),
-    CelestialSphere("Celestial sphere");
+    CelestialSphere("Celestial sphere"),
+    ThomsonSphere("Thomson sphere");
 
     /**
      * Both models degenerate at 90 degrees: plane-of-sky sends {@code tan e} to infinity, and the

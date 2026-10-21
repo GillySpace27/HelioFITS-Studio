@@ -67,12 +67,15 @@ public final class ControlIndex {
             {"transport", "Movie transport", "Above the picture", "play pause step frame time slider scrub", null},
             {"transportRecord", "Record button", "Above the picture", "record movie export video", null},
             {"timelinesPane", "Timelines pane", "Under the picture (Timelines on the toolbar shows it)", "plots time series events", null},
+            {"playbackOptions", "Playback and Recording", "Left sidebar", "play rate speed loop swing clock record one loop screenshot unlimited format codec preset size", "showPlayback"},
             // The Image Layers sidebar section
             {"imageLayersNew", "New Layer", LAYERS, "add data load layer jp2 fits", "showImageLayers"},
+            {"imageLayersCadence", "Time step", LAYERS, "cadence frame count interval video length", "showImageLayers"},
             {"imageLayersList", "Layer list", LAYERS, "layers rows show hide remove reorder", "showImageLayers"},
             {"imageLayersOptions", "Layer options", LAYERS, "colour color table levels brightness display intensity", "showImageLayers"},
             // The Projection palette
             {"projectionSurface", "Surface", PROJECTION, "plane of sky Thomson sphere celestial depth", "showProjection"},
+            {"projectionSurfaceFrom", "Surface from", PROJECTION, "observer viewpoint image distance composed sky", "showProjection"},
             {"projectionRender3d", "Render in 3D", PROJECTION, "helioradial 3D surface", "showProjection"},
             {"projectionReset", "Reset view", PROJECTION, "warp crop zoom defaults", "showProjection"},
             {"projectionSky", "Project onto the sky", PROJECTION, "observer sky dome", "showProjection"},

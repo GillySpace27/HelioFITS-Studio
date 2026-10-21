@@ -76,6 +76,7 @@ final class ProjectionPaletteContent {
         }
         content.add(new javax.swing.JSeparator());
         content.add(createSurfaceModelPanel());
+        content.add(createSurfaceFromPanel());
         content.add(createWarpLambdaPanel());
         content.add(createWarpCropPanel());
         content.add(createZoomPanel());
@@ -84,11 +85,7 @@ final class ProjectionPaletteContent {
         content.add(createSkyPanel()); // last, because it is applied last
         setSkyPanelEnabled(ViewState.getProjection() == MapMode.ObserverSky);
         surfaceModelToggle.setEnabled(ViewState.getProjection().usesSurfaceModel());
-        warpLambdaSlider.setEnabled(ViewState.getProjection().usesWarpLambda());
-        // The disk scale is a multiplier on the Box-Cox limb anchor, so it has nothing to act on
-        // wherever the warp itself does not: same condition, not a similar one.
-        diskSlider.setEnabled(ViewState.getProjection().usesWarpLambda());
-        warpCropSlider.setEnabled(ViewState.getProjection().usesWarpCrop());
+        showSliderRows();
         helioradial3DBox.setEnabled(ViewState.getProjection() == MapMode.Helioradial);
         CMETracker.addSolveListener(this::syncWarpSlidersFromTracker); // follow the tracked knob
 
@@ -194,9 +191,8 @@ final class ProjectionPaletteContent {
         // All labels get the same width, so the button does not resize under the pointer when it
         // flips. That is the whole point of it being one button rather than a list: the surfaces
         // are worth comparing by cycling through them, and that only works if the control stays
-        // where your cursor already is. The cycle is plane of sky, Thomson sphere, celestial
-        // sphere: the measurement's placement, then that placement projected back out onto the
-        // sky it came from.
+        // where your cursor already is. The cycle is plane of sky, celestial sphere, Thomson
+        // sphere: the two geometric references first, then the scattering placement.
         toggle.setPreferredSize(surfaceToggleSize(toggle));
         toggle.setName("projectionSurface");
         toggle.addActionListener(e -> {
@@ -206,14 +202,13 @@ final class ProjectionPaletteContent {
             // ViewpointLayerOptions.enforceSurfaceExclusivity for why they cannot coexist.
             if (wanted == SurfaceModel.ThomsonSphere
                     && !org.helioviewer.jhv.layers.ViewpointLayerOptions.allowsThomsonSphere()) {
-                toggle.setSelected(Display.getSurfaceModel() != SurfaceModel.PlaneOfSky);
-                toggle.setText(Display.getSurfaceModel().toString());
+                // Skip it rather than stay put, or the cycle could never get back to plane of sky.
+                wanted = cycle[(wanted.ordinal() + 1) % cycle.length];
                 org.helioviewer.jhv.app.Message.warn("Surface model",
                         "The Thomson sphere cannot be used while the active Viewpoint layer is set to a "
                                 + "location: that puts the observer inside the field, and the sphere does not "
                                 + "reach past the observer. Switch the Viewpoint layer to \"Observer at 1au\" "
                                 + "or \"Heliosphere\", or turn the layer off.");
-                return;
             }
             Display.setSurfaceModel(wanted);
             toggle.setSelected(wanted != SurfaceModel.PlaneOfSky);
@@ -243,6 +238,39 @@ final class ProjectionPaletteContent {
     }
 
     private JToggleButton surfaceModelToggle;
+    private JToggleButton surfaceFromToggle;
+
+    private static String surfaceFromLabel(boolean fromImage) {
+        return fromImage ? "Image observer" : "Viewpoint";
+    }
+
+    // Which observer the surface is measured from in the composed sky (Display.surfaceDistance).
+    // One choice for the scene, not one per layer: the grid, the limb and the cursor are drawn
+    // once, from one observer, so a per-layer choice could line up with at most one layer.
+    private JPanel createSurfaceFromPanel() {
+        JToggleButton toggle = new JToggleButton(surfaceFromLabel(Display.isSurfaceFromImage()), Display.isSurfaceFromImage());
+        surfaceFromToggle = toggle;
+        String was = toggle.getText();
+        toggle.setText(surfaceFromLabel(true)); // the longer label, so the button never moves
+        toggle.setPreferredSize(toggle.getPreferredSize());
+        toggle.setText(was);
+        toggle.setName("projectionSurfaceFrom");
+        toggle.setToolTipText("Which observer the surface is measured from in the composed sky. Viewpoint: "
+                + "every layer on one surface, matching the grid and limb. Image observer: each layer on the "
+                + "surface of the observer who took it; the grid and limb follow the active layer.");
+        toggle.addActionListener(e -> {
+            Display.setSurfaceFromImage(toggle.isSelected());
+            toggle.setText(surfaceFromLabel(toggle.isSelected()));
+            DisplayController.display();
+        });
+        toggle.setEnabled(Display.skyComposeScale() != null);
+
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(BorderFactory.createEmptyBorder(3, 8, 3, 8));
+        panel.add(new JLabel("Surface from"), BorderLayout.LINE_START);
+        panel.add(toggle, BorderLayout.LINE_END);
+        return panel;
+    }
 
     /**
      * Say whether the Thomson sphere is currently costing you any of the field, and how much.
@@ -259,6 +287,18 @@ final class ProjectionPaletteContent {
     void syncSurfaceModelToggle() {
         if (surfaceModelToggle == null)
             return;
+        if (surfaceFromToggle != null) {
+            // Only the composed sky measures a surface from an observer it could choose; a session
+            // load can also flip the setting, so the toggle follows it here.
+            boolean composes = Display.skyComposeScale() != null;
+            if (surfaceFromToggle.isEnabled() != composes)
+                surfaceFromToggle.setEnabled(composes);
+            boolean fromImage = Display.isSurfaceFromImage();
+            if (surfaceFromToggle.isSelected() != fromImage) {
+                surfaceFromToggle.setSelected(fromImage);
+                surfaceFromToggle.setText(surfaceFromLabel(fromImage));
+            }
+        }
         // Ridden on the tick rather than wired to a listener because two independent things enable
         // it, the projection and the 3D checkbox, and the checkbox changes it with no projection
         // change to hang a listener on.
@@ -285,7 +325,7 @@ final class ProjectionPaletteContent {
         double distance = org.helioviewer.jhv.opengl.GLRenderer.getDisplayedViewpoint().distance;
         double outer = Display.effectiveWarpOuterRadius();
         surfaceModelToggle.setToolTipText(current.canDescribe(distance, outer)
-                ? "Where wide-field brightness is placed in depth. Click to cycle: plane of sky, Thomson sphere, celestial sphere."
+                ? "Where wide-field brightness is placed in depth. Click to cycle: plane of sky, celestial sphere, Thomson sphere."
                 : String.format("Where wide-field brightness is placed in depth. The %s reaches only "
                         + "to %.0f R\u2609 here, so the field beyond that (out to %.0f R\u2609) "
                         + "is not shown while it is selected: the model cannot place it at any elongation.",
@@ -491,7 +531,8 @@ final class ProjectionPaletteContent {
 
     // Greyed rather than hidden: the block would otherwise appear and disappear as the projection
     // list is stepped through, and a palette that changes height under the pointer is worse than
-    // one with a section that is plainly not in use.
+    // one with a section that is plainly not in use. Its Field slider is the exception, hidden
+    // with the other sliders (showSliderRows), because a greyed slider read as a broken one.
     private void setSkyPanelEnabled(boolean enabled) {
         if (skyPanel == null)
             return;
@@ -707,14 +748,9 @@ final class ProjectionPaletteContent {
         javax.swing.JRadioButton activeProjection = projectionItems.get(displayedProjection());
         if (activeProjection != null)
             activeProjection.setSelected(true);
-        if (warpLambdaSlider != null) {
-            warpLambdaSlider.setEnabled(ViewState.getProjection().usesWarpLambda());
-            if (warpCropSlider != null)
-                warpCropSlider.setEnabled(ViewState.getProjection().usesWarpCrop());
+        if (warpLambdaSlider != null)
             warpLambdaSlider.setValue(warpLambdaToSlider(ViewState.getWarpLambda()));
-        }
-        if (diskSlider != null)
-            diskSlider.setEnabled(ViewState.getProjection().usesWarpLambda());
+        showSliderRows();
         // Enabled state has to be refreshed on every projection change, not just set once when
         // the palette is built: a palette constructed while another projection was selected
         // would otherwise stay disabled for the life of the window.
@@ -725,6 +761,24 @@ final class ProjectionPaletteContent {
         setSkyPanelEnabled(ViewState.getProjection() == MapMode.ObserverSky);
         if (warpLambdaValue != null)
             warpLambdaValue.setText(String.format("%.3f", ViewState.getWarpLambda()));
+        Palette.repackAll(); // rows came or went; the window follows rather than keeping a hole
+    }
+
+    // Hidden rather than greyed: in use, a greyed slider read as a broken app, not as one this
+    // projection ignores. The whole row goes, label and readout with it. The disk scale is a
+    // multiplier on the Box-Cox limb anchor, so it has nothing to act on wherever the warp itself
+    // does not: same condition, not a similar one.
+    private void showSliderRows() {
+        MapMode projection = ViewState.getProjection();
+        showRow(warpLambdaSlider, projection.usesWarpLambda());
+        showRow(diskSlider, projection.usesWarpLambda());
+        showRow(warpCropSlider, projection.usesWarpCrop());
+        showRow(skyFieldSlider, projection == MapMode.ObserverSky);
+    }
+
+    private static void showRow(JHVSlider slider, boolean shown) {
+        if (slider != null && slider.getParent() != null)
+            slider.getParent().setVisible(shown); // JComponent.setVisible revalidates and repaints
     }
 
     /** ToolBar.createNewToolBar forgot the radios on every rebuild of the bar; it still does, through here. */

@@ -32,6 +32,7 @@ import org.helioviewer.jhv.movie.ExportFormat;
 public final class EncodingSummaryCheck {
 
     private static final String DEFAULT_SOURCE = "src/org/helioviewer/jhv/movie/ExportMovie.java";
+    private static final String PANEL_SOURCE = "src/org/helioviewer/jhv/gui/component/MoviePanel.java";
     private static final String SHOT_BRANCH = "if (mode == ViewState.RecordingMode.SHOT) {";
 
     private static int failures;
@@ -67,6 +68,7 @@ public final class EncodingSummaryCheck {
         }
 
         checkModeVisibilityMatchesExporter(Path.of(args.length > 0 ? args[0] : DEFAULT_SOURCE));
+        checkRowsDoNotShareACell(Path.of(PANEL_SOURCE));
 
         System.out.println(failures == 0 ? "EncodingSummaryCheck: PASS" : "EncodingSummaryCheck: " + failures + " FAILURE(S)");
         if (failures != 0)
@@ -124,6 +126,28 @@ public final class EncodingSummaryCheck {
                 "one loop encodes with the format, chroma and depth the rows set (" + videoArgs.strip() + ')');
         expect(MoviePanel.showsEncoding(ViewState.RecordingMode.FREE) == videoHonoursSettings,
                 "unlimited encodes with the format, chroma and depth the rows set (" + videoArgs.strip() + ')');
+    }
+
+    /**
+     * No two rows of a pane on the same gridy. GridBag accepts that silently and paints both in one
+     * cell, which is how the Preset row and the encoding disclosure came to sit on top of each other
+     * once a Clock row was inserted above them and only one of the two was renumbered. The pane
+     * cannot be built headless (TimeSlider asks the toolkit for a shortcut mask), so read the calls.
+     */
+    private static void checkRowsDoNotShareACell(Path source) throws Exception {
+        if (!Files.isReadable(source)) {
+            System.out.println("FAIL: cannot read " + source.toAbsolutePath() + " (run from the repository root)");
+            failures++;
+            return;
+        }
+        java.util.Set<String> cells = new java.util.HashSet<>();
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\badd(?:Row|Span)\\((\\w+), (\\d+)\\b").matcher(Files.readString(source));
+        int rows = 0;
+        while (m.find()) {
+            rows++;
+            expect(cells.add(m.group(1) + " row " + m.group(2)), m.group(1) + " row " + m.group(2) + " is laid out twice, one over the other");
+        }
+        expect(rows >= 6, "found only " + rows + " addRow/addSpan calls in " + source + "; the pane changed and this check has to follow it");
     }
 
     /** Whether an argument list passes on the locals ExportMovie read the video settings into. */
