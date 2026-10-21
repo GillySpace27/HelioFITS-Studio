@@ -104,7 +104,8 @@ final class SkyMap {
         MapScale warp = Display.skyComposeScale();
         if (warp == null || ray.z >= 0)
             return ray;
-        double eTrue = unwarpElongation(Math.acos(Math.clamp(-ray.z, -1, 1)), viewpoint.distance, Display.getSurfaceModel(), warp);
+        double eTrue = unwarpElongation(Math.acos(Math.clamp(-ray.z, -1, 1)), Display.surfaceDistance(viewpoint.distance),
+                Display.getSurfaceModel(), warp);
         return Double.isNaN(eTrue) ? ray : atElongation(ray, eTrue);
     }
 
@@ -113,7 +114,8 @@ final class SkyMap {
         MapScale warp = Display.skyComposeScale();
         if (warp == null || ray.z >= 0)
             return ray;
-        double eDome = warpElongation(Math.acos(Math.clamp(-ray.z, -1, 1)), viewpoint.distance, Display.getSurfaceModel(), warp);
+        double eDome = warpElongation(Math.acos(Math.clamp(-ray.z, -1, 1)), Display.surfaceDistance(viewpoint.distance),
+                Display.getSurfaceModel(), warp);
         return atElongation(ray, eDome);
     }
 
