@@ -439,6 +439,8 @@ final class ImageLayerManagePanel extends JPanel {
             badge(line, tips, "running difference", "each frame minus the frame shown before it");
         else if (diff == ImageDisplaySettings.DifferenceMode.Base)
             badge(line, tips, "base difference", "each frame minus the first frame");
+        if (org.helioviewer.jhv.display.Compare.differenceFor(layer) != null)
+            badge(line, tips, "Compare: A minus B", "this layer minus Compare's layer B in the files' units, each stretch undone; a view, not a calibrated product");
         View.ImageData data = layer.getImageData();
         if (data != null && data.imageBuffer().isProvisional())
             badge(line, tips, "provisional LASCO", "this frame's monthly background could not be fetched, so it is shown without it");

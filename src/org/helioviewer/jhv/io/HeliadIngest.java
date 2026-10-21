@@ -130,6 +130,50 @@ public final class HeliadIngest {
         });
     }
 
+    /** Whether a Heliad core can be found to serve the library at root, without starting one. */
+    public static boolean coreFound(Path root) {
+        return command(System.getenv("HELIAD_CORE"), HeliadLibrary.app(), Path.of(System.getProperty("user.home")), root,
+                p -> Files.isExecutable(p)) != null;
+    }
+
+    /** When Studio's cache was last offered in full to the library at root, or MIN_VALUE for never. */
+    public static long cacheOfferedThrough(Path root) {
+        return importedThrough(Settings.getProperty(IMPORTED_KEY), root);
+    }
+
+    /**
+     * Ask the core that serves the library its {@code heliad.hello} (docs/api.md in the heliad
+     * repository): its version, the library it serves and whether it may write. Starts the core the
+     * downloads use when none is running yet. Null when no core can be found. Blocks for up to
+     * {@code wait}, behind any files already queued: call it off the event thread.
+     */
+    @Nullable
+    public static JSONObject hello(Path root, Duration wait) throws IOException {
+        try {
+            return QUEUE.submit(() -> {
+                Core core = core(root);
+                if (core == null)
+                    return null;
+                try {
+                    return core.call("heliad.hello", new JSONObject(), wait);
+                } catch (RpcError e) {
+                    throw e;
+                } catch (IOException e) {
+                    CORE.set(null);
+                    core.close();
+                    throw e;
+                }
+            }).get(wait.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (ExecutionException e) {
+            throw e.getCause() instanceof IOException io ? io : new IOException(e.getCause());
+        } catch (TimeoutException e) {
+            throw new IOException("Heliad is still busy with Studio's files", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new InterruptedIOException("heliad.hello");
+        }
+    }
+
     /** The time from which cache files still need offering to the library at root; MIN_VALUE for all of them. */
     static long importedThrough(@Nullable String mark, Path root) {
         if (mark == null)
@@ -254,6 +298,7 @@ public final class HeliadIngest {
             return null;
         }
         CORE.set(core);
+        NO_CORE.set(false); // found after all (Settings asked again, say), so downloads go to it too
         return core;
     }
 

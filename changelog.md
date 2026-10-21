@@ -19,7 +19,8 @@
 - View > Zoom to Fit New Layers in Multiview (on by default): a layer added while in Multiview is fitted to its own view, and the other views keep their zoom. It needs Separate Multiview Zoom
 
 ### Compare
-- A Compare palette on the toolbar (Tools lists it too): pick layers A and B, then Blink between them at 0.5 to 8 Hz, or Swipe a vertical divider across every viewport with A on one side and B on the other. Neither layer is switched off or changed, and Off stops the blinking. The choices are saved with the session, never the blink phase. Difference is shown greyed: A minus B in physical units is a later phase
+- A Compare palette on the toolbar (Tools lists it too): pick layers A and B, then Blink between them at 0.5 to 8 Hz, or Swipe a vertical divider across every viewport with A on one side and B on the other. Neither layer is switched off or changed, and Off stops the blinking. The choices are saved with the session, never the blink phase
+- Compare's Difference shows A minus B in the files' own units, each layer's stretch undone first, in place of A with B hidden; grey is no difference, and the note under the buttons gives the value white and black stand for. It refuses, and says why, when A and B cannot mean the same thing: no physical units, RHEF or another filter on, a running or base difference of their own, different instruments or units (BUNIT), or an asinh or log stretch (choose Gamma). A different size, product or time is said, not refused. The layer readout badges it [Compare: A minus B], a view, not a calibrated product. Neither layer changes, and Off restores both
 - Layers > Duplicate Layer (also in the palette) adds a copy of the selected image layer, so RHEF on against the same data raw is one click
 
 ### Welcome
@@ -50,17 +51,18 @@
 
 ### Heliad
 - When Heliad (the separate app that downloads solar data and keeps it in one library) has a library on this computer, the New Image Layer dialog gets a second tab, Heliad library. It lists Heliad's datasets with how much of the master time range each one reaches, marked as in Load from Cache, and how many frames fall inside the range. Add loads each selected dataset as a layer from its frames in the range; a dataset with nothing in the range loads whole, asking first above 1,000 frames. Open in Heliad, shown when the Heliad app is installed, hands the range to it to search for more. With no Heliad library the dialog is unchanged, and Studio's own downloads and streaming are untouched
+- When Heliad is on this computer, every FITS file Studio downloads is also added to the Heliad library. Studio caches and loads the file exactly as before, and without Heliad nothing changes
 
 ### Sharing
 - File > Quick Share records the scene once as a looping movie with the Share anywhere preset and shows the file in Finder (the file manager elsewhere). It lands in Exports under the usual time-stamped name; your own recording mode, size, format and preset are left as they were
 - Edit > Copy Frame puts the current view on the clipboard as an image
 - File > Share Scene... saves the session as a .jhv for someone else, with your home folder written as ~. Local files outside the cache are listed first so you can decide whether to go ahead, and the open session keeps its own name
-- Load from Cache has Quick Look (macOS), which previews the selected files, and Dataset Folders, which builds `~/HFStudio/Datasets`: one folder per dataset with a link to each cached frame, for browsing in Finder or a shell. Only links are written; the cache is never touched
+- Load from Cache has Quick Look (macOS), which previews the selected files, and Dataset Folders, which builds `~/HFStudio/Datasets`: one folder per dataset with a link to each cached frame, for browsing in Finder or a shell. Only links are written; the cache is never touched. File > Show Dataset Folders opens it directly; on Windows, where links need Developer Mode, each folder gets a files.txt listing the cached files instead
 - On a Mac, Finder lists HelioFITS Studio as the app for .jhv sessions, and as a second choice for FITS files
 
 ### Send to Python
 - Layers > Send to Python, also the Python button on the layer panel, writes the active layer's FITS files to `Exports/python-<time>` as science FITS: physical values in double precision with only BZERO and BSCALE applied (BLANK becomes NaN), the original header kept and the session added as HISTORY, none of the display steps. A manifest.json and a sunpy snippet come with them, and the snippet goes on the clipboard
-- With a SAMP hub running, each file is also sent as image.load.fits, so astropy or another SAMP tool can pick it up; `extra/samp/receive_fits.py` is a ready receiver
+- With a SAMP hub running, each file is also sent as image.load.fits, so astropy or another SAMP tool can pick it up; `extra/samp/receive_fits.py` is a ready receiver. The message at the end says how many SAMP clients received the files, or that none was listening
 - A LASCO frame has its bias (the OFFSET header keyword) subtracted, as the viewer does, and the manifest says so; it also warns that the exposure division and the monthly background are not applied. A LASCO frame with no OFFSET card is left alone, and the manifest says that too
 - One export runs at a time. While it works, the layer's Python button counts the files ("Exporting 2/5..."), the menu item and the other layers' Python buttons are greyed out, and the activity light in the footer names the export, so a second click no longer writes a second folder and snippet
 

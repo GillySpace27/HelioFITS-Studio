@@ -71,6 +71,16 @@ public class GLSLImage {
         swipeX = x;
     }
 
+    // The Compare palette's Difference (HS-11): the shader coefficients while this layer draws A minus
+    // B (CompareDifference.Verdict), null otherwise. Set by ImageLayer.render like the swipe.
+    private static final float[] NO_COMPARE = new float[5];
+    @Nullable
+    private float[] compareDifference;
+
+    public void setCompareDifference(@Nullable float[] coefficients) {
+        compareDifference = coefficients;
+    }
+
     public void applyFilters(ImageBuffer imageBuffer, MetaData metaData, boolean rhefActive) {
         applyFilters(imageBuffer, metaData, rhefActive, false);
     }
@@ -94,6 +104,7 @@ public class GLSLImage {
         float metadataSectorCenter = (float) metadataSectorCenter(metaData, metadataHalfWidth);
 
         boolean raw = capture != Capture.NONE, data = capture == Capture.DATA;
+        boolean cmp = compareDifference != null && !legend; // no sharpen, no radial gain: the bare difference
         // Opacity, blend and the channel toggles are compositing parameters: a layer written on
         // its own carries them in its metadata, not in its pixels.
         // The legend is drawn at full opacity whatever the layer's own: opacity and blend are how
@@ -106,7 +117,8 @@ public class GLSLImage {
 
         GLSLImageShader.bindDisplay(color,
                 1f / imageBuffer.width, 1f / imageBuffer.height,
-                data || legend ? 0 : (float) (-2 * settings.getSharpen()), settings.getDifferenceMode().ordinal(),
+                data || legend || cmp ? 0 : (float) (-2 * settings.getSharpen()),
+                cmp ? org.helioviewer.jhv.display.CompareDifference.SHADER_CODE : settings.getDifferenceMode().ordinal(),
                 // RHEF output is already a normalized rank in [0, 1]; the raw-DN response
                 // factor must NOT rescale it (that pushes the uniform upper half past 1 and
                 // clamps it to white). The user's Levels (brightOffset/brightScale) still
@@ -124,28 +136,28 @@ public class GLSLImage {
                 Math.max(metaData.getInnerRadius(), (float) settings.getInnerMask()),
                 Math.min(Display.getShowCorona() ? metaData.getOuterRadius() : 1, (float) settings.getOuterMask()),
                 (float) settings.getSlitLeft(), (float) settings.getSlitRight(),
-                data ? 0 : (float) settings.getEnhanced(),
-                LUTLabels.isCategorical(settings.getLUT()) ? 1 : 0,
+                data || cmp ? 0 : (float) settings.getEnhanced(),
+                !cmp && LUTLabels.isCategorical(settings.getLUT()) ? 1 : 0, // the difference is drawn in plain grey
                 Display.skipDither() || legend ? 1 : 0,
                 Display.showClipping && !raw && !legend ? 1 : 0,
                 raw ? 1 : 0,
                 HdrGain.current(raw), HdrGain.mode().ordinal(), HdrGain.knee(), HdrGain.inRange(),
-                legend ? 0 : swipeX, legend ? 0 : swipeSide);
+                legend ? 0 : swipeX, legend ? 0 : swipeSide, cmp ? compareDifference : NO_COMPARE);
 
-        applyLUT();
+        applyLUT(cmp);
         if (legend)
             return; // the legend binds its own ramp on unit ZERO and a blank mask on unit THREE
         applyMask(metaData.getDetectorMask());
         maskTex.bind();
         tex.bind();
-        if (settings.getDifferenceMode() != DifferenceMode.None)
+        if (cmp || settings.getDifferenceMode() != DifferenceMode.None)
             diffTex.bind();
     }
 
-    private void applyLUT() {
+    private void applyLUT(boolean compare) {
         lutTex.bind();
-        LUT currlut = settings.getDifferenceMode() == DifferenceMode.None ? settings.getLUT() : LUT.gray();
-        boolean inverted = settings.getInvertLUT();
+        LUT currlut = settings.getDifferenceMode() == DifferenceMode.None && !compare ? settings.getLUT() : LUT.gray();
+        boolean inverted = !compare && settings.getInvertLUT(); // A minus B keeps white positive, black negative
         if (lastLut != currlut || inverted != lastInverted) {
             ByteBuffer lutBuffer = inverted ? currlut.rgbaInv() : currlut.rgba();
             lastLut = currlut;
