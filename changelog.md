@@ -40,7 +40,7 @@
 - File > Quick Share records the scene once as a looping movie with the Share anywhere preset and shows the file in Finder (the file manager elsewhere). It lands in Exports under the usual time-stamped name; your own recording mode, size, format and preset are left as they were
 - Edit > Copy Frame puts the current view on the clipboard as an image
 - File > Share Scene... saves the session as a .jhv for someone else, with your home folder written as ~. Local files outside the cache are listed first so you can decide whether to go ahead, and the open session keeps its own name
-- Load from Cache has Quick Look (macOS), which previews the selected files, and Dataset Folders, which builds `~/HFStudio/Datasets`: one folder per dataset with a link to each cached frame, for browsing in Finder or a shell. Only links are written; the cache is never touched
+- Load from Cache has Quick Look (macOS), which previews the selected files, and Dataset Folders, which builds `~/HFStudio/Datasets`: one folder per dataset with a link to each cached frame, for browsing in Finder or a shell. Only links are written; the cache is never touched. File > Show Dataset Folders opens it directly; on Windows, where links need Developer Mode, each folder gets a files.txt listing the cached files instead
 - On a Mac, Finder lists HelioFITS Studio as the app for .jhv sessions, and as a second choice for FITS files
 
 ### Send to Python
