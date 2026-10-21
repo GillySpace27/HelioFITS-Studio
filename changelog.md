@@ -34,6 +34,7 @@
 
 ### Heliad
 - When Heliad (the separate app that downloads solar data and keeps it in one library) has a library on this computer, the New Image Layer dialog gets a second tab, Heliad library. It lists Heliad's datasets with how much of the master time range each one reaches, marked as in Load from Cache, and how many frames fall inside the range. Add loads each selected dataset as a layer from its frames in the range; a dataset with nothing in the range loads whole, asking first above 1,000 frames. Open in Heliad, shown when the Heliad app is installed, hands the range to it to search for more. With no Heliad library the dialog is unchanged, and Studio's own downloads and streaming are untouched
+- When Heliad is on this computer, every FITS file Studio downloads is also added to the Heliad library. Studio caches and loads the file exactly as before, and without Heliad nothing changes
 
 ### Sharing
 - File > Quick Share records the scene once as a looping movie with the Share anywhere preset and shows the file in Finder (the file manager elsewhere). It lands in Exports under the usual time-stamped name; your own recording mode, size, format and preset are left as they were
