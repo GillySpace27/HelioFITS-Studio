@@ -216,13 +216,43 @@ class ExportWriter {
      * format, keyframing. A static function of its inputs so ExportCompatibilityCheck can pin what
      * the presets a person hands to someone else actually put on the command line.
      */
+    /** setparams for the -color_primaries, -color_trc and -colorspace a format sets, or null for none. */
+    @Nullable
+    static String colourTags(List<String> args) {
+        List<String> tags = new ArrayList<>();
+        String[][] map = {{"-color_primaries", "color_primaries"}, {"-color_trc", "color_trc"}, {"-colorspace", "colorspace"}};
+        for (String[] m : map) {
+            int i = args.indexOf(m[0]);
+            if (i >= 0 && i + 1 < args.size())
+                tags.add(m[1] + "=" + args.get(i + 1));
+        }
+        return tags.isEmpty() ? null : "setparams=" + String.join(":", tags);
+    }
+
     static List<String> encodeArgs(ExportFormat format, ExportFormat.Chroma chroma, ExportFormat.Depth depth,
                                    int w, int h, int fps, boolean allIntra) {
-        List<String> command = new ArrayList<>();
-        command.addAll(format.settings(chroma, depth));
+        List<String> command = new ArrayList<>(format.settings(chroma, depth));
+        // One filter chain: ffmpeg keeps only the last -vf, so a format's own filter and the size
+        // fit must not each bring one.
+        List<String> filters = new ArrayList<>();
         int[] fit = format.fit(w, h); // a frame hardware decoders would refuse, brought down to one they take
         if (fit != null)
-            command.addAll(List.of("-vf", "scale=" + fit[0] + ":" + fit[1] + ":flags=lanczos"));
+            filters.add("scale=" + fit[0] + ":" + fit[1] + ":flags=lanczos");
+        int vf = command.indexOf("-vf");
+        if (vf >= 0) {
+            filters.add(command.get(vf + 1));
+            command.subList(vf, vf + 2).clear();
+        }
+        // The colour tags again, on the frames. ffmpeg 9 writes the MP4 colr box from the frames,
+        // and raw input frames carry none, so every export said "unspecified" primaries and
+        // transfer to the players that read that box first (QuickTime and the Apple frameworks
+        // under Keynote and PowerPoint): an HLG file not known to be HLG, and SDR left to a
+        // guessed gamma. The -color_* options above still set the bitstream's own tags.
+        String tags = colourTags(command);
+        if (tags != null)
+            filters.add(tags);
+        if (!filters.isEmpty())
+            command.addAll(List.of("-vf", String.join(",", filters)));
         command.addAll(format.isSeries() ? formatImage : formatVideo);
         String pixFmt = format.pixFmt(chroma, depth);
         if (pixFmt != null) {

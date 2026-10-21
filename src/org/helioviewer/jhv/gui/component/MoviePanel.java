@@ -124,8 +124,10 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         return storedFormat().clamp(storedChroma(), stored);
     }
 
+    // Off unless chosen: a fresh install records the Share anywhere preset, the one that plays in
+    // every player and slide deck (Gilly, 2026-10-20). All-intra stays a choice, kept once made.
     public static boolean isAllIntra() {
-        return !"false".equals(Settings.getProperty("video.allIntra"));
+        return "true".equals(Settings.getProperty("video.allIntra"));
     }
 
     /**

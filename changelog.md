@@ -74,6 +74,8 @@
 - The help lists every option, double-dash spellings work too, and an unknown option, a missing value or a bad `-export` is reported. The exit code says what happened: 0 done, 1 runtime error, 2 usage error, 3 input not found, 4 export failed
 
 ### Export
+- A fresh install records with the Share anywhere preset (H.264, 8-bit 4:2:0, keyframes every half second), the one that plays in every player, browser and slide deck. A setting already chosen is kept
+- Every MP4 now carries its colour description in the container too, where QuickTime, Keynote and PowerPoint on a Mac read it first. It said "unspecified" before, so an HDR video was not recognised as HLG there and an ordinary one was left to a guessed gamma
 - The Presentation preset is now H.264 at a high quality setting, 8-bit 4:2:0, so a movie made for a talk plays from PowerPoint, Keynote and Google Slides on whatever laptop is at the lectern, and in QuickTime, Windows and every browser. It was 10-bit H.265, which a Windows laptop or PowerPoint usually has no decoder for. A preset you saved under that name is yours and is left alone
 - H.264 movies larger than 4K (3840x2160, or 3072x3072 square) are scaled down to fit, keeping their shape: a 4096x4096 H.264 file is Level 6.0, which opens in VLC and shows nothing in QuickTime or PowerPoint. H.265 and FFV1 keep the full size
 - H.264 and H.265 movies are written in limited (16-235) video range, the convention every player assumes, instead of full range, which some players apply inconsistently. FFV1, PNG and EXR keep every level
