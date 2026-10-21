@@ -37,6 +37,9 @@ public final class CadencePanel extends JPanel implements ViewState.PlaybackConf
 
         applyCadenceValue(APIRequest.CADENCE_DEFAULT);
         unitCombo.setSelectedItem("min");
+        unitCombo.setToolTipText("The unit of the time step between frames; get all asks for every frame in the range");
+        cadenceSpinner.setToolTipText("The time between frames for the next layer");
+        framesSpinner.setToolTipText("How many frames the next layer spreads over the time range");
         unitCombo.addActionListener(e -> { onCadenceEdited(); updateDuration(); });
         cadenceSpinner.addChangeListener(e -> { onCadenceEdited(); updateDuration(); });
         ((JHVSpinner.DefaultEditor) cadenceSpinner.getEditor()).getTextField().setColumns(6);
