@@ -81,7 +81,7 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
     private final AbstractAction reveal = action(System.getProperty("os.name").startsWith("Mac") ? "Reveal in Finder" : "Show in Folder", this::reveal);
     private final AbstractAction delete = action("Delete...", this::delete);
     private final AbstractAction quickLook = action("Quick Look", this::quickLook);
-    private final AbstractAction datasetFolders = action("Dataset Folders", this::datasetFolders);
+    private final AbstractAction datasetFolders = action("Dataset Folders", CacheDialog::showDatasetFolders);
 
     private List<CacheIndex.Dataset> all = List.of();
 
@@ -287,7 +287,8 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
     }
 
     // One folder per dataset of symlinks to the cached files (DatasetLinks), shown in the file manager.
-    private void datasetFolders() {
+    // Also File > Show Dataset Folders (ActionCatalog id datasetFolders).
+    public static void showDatasetFolders() {
         org.helioviewer.jhv.thread.Task.submitBackground("dataset-links", org.helioviewer.jhv.io.DatasetLinks::rebuild,
                 root -> DesktopIntegration.reveal(root.toFile()), "Error building the dataset folders");
     }

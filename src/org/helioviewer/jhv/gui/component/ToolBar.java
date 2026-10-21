@@ -70,9 +70,9 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         b.getAccessibleContext().setAccessibleName(text.text());
     }
 
-    private final ButtonText AXIS = new ButtonText(Buttons.axis, "Axis", "Axis");
+    private final ButtonText AXIS = new ButtonText(Buttons.axis, "Axis", "Drag on the canvas to turn the view about its axis");
     private final ButtonText DIFFROTATION = new ButtonText(Buttons.diffRotation, "Differential", "Toggle differential rotation");
-    private final ButtonText MULTIVIEW = new ButtonText(Buttons.multiview, "Multiview", "Multiview");
+    private final ButtonText MULTIVIEW = new ButtonText(Buttons.multiview, "Multiview", "Each shown image layer in a view of its own, side by side");
     /**
      * The end of the bar, and a tool-shaped button rather than a corner control.
      *
@@ -90,8 +90,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private final ButtonText SIDEBAR_LEFT = new ButtonText(Buttons.sidebarLeft, "Left Sidebar", "Show or fold the left sidebar");
     private final ButtonText SIDEBAR_RIGHT = new ButtonText(Buttons.sidebarRight, "Right Sidebar", "Show or fold the right sidebar");
     private final ButtonText OFFDISK = new ButtonText(Buttons.offDisk, "Corona", "Toggle off-disk corona");
-    private final ButtonText PAN = new ButtonText(Buttons.pan, "Pan", "Pan");
-    private final ButtonText PROJECTION = new ButtonText(Buttons.projection, "Projection", "Projection");
+    private final ButtonText PAN = new ButtonText(Buttons.pan, "Pan", "Drag on the canvas to move the view");
+    private final ButtonText PROJECTION = new ButtonText(Buttons.projection, "Projection", "How the Sun is mapped onto the screen: Orthographic, HPC, Helioradial, Latitudinal");
     private final ButtonText TRACK_CME = new ButtonText(Buttons.trackCme, "Track CME",
             "Pick a CACTus CME in the loaded range and hold its front at a fixed screen radius");
     private final ButtonText COLOUR = new ButtonText(Buttons.colourSettings, "HDR", "How the whole view is mapped into the display's extended range: headroom, mapping, knee, in-range share, clipped pixels");
@@ -109,7 +109,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private final ButtonText REFRESH = new ButtonText(Buttons.refresh, "Refresh", "Automatic refresh");
     private final ButtonText RESETCAMERA = new ButtonText(Buttons.resetCamera, "Reset View", "Reset view to default");
     private final ButtonText RESETCAMERAAXIS = new ButtonText(Buttons.resetCameraAxis, "Reset Axis", "Reset view axis");
-    private final ButtonText ROTATE = new ButtonText(Buttons.rotate, "Rotate", "Rotate");
+    private final ButtonText ROTATE = new ButtonText(Buttons.rotate, "Rotate", "Drag on the canvas to rotate the view");
     private final ButtonText ROTATE90 = new ButtonText(Buttons.rotate90, "Rotate View 90°", "Rotate view 90°");
     private final ButtonText SAMP = new ButtonText(Buttons.samp, "SAMP", "Send SAMP message");
     private final ButtonText TRACK = new ButtonText(Buttons.track, "Track", "Track solar rotation");

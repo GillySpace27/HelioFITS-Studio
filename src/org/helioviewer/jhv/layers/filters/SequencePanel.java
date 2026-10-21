@@ -192,6 +192,7 @@ public class SequencePanel implements FilterDetails {
         settings.add(readout, BorderLayout.PAGE_END);
         settingsButton.setAlwaysDropdown(true);
         settingsButton.setToolTipText("Settings of the sequence filter");
+        kindCombo.setToolTipText("The filter computed over every frame: a radial or angular velocity filter, or the noise gate. Off puts the original frames back");
         settingsButton.addItem(settings);
 
         kindCombo.addActionListener(e -> {

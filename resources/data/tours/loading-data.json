@@ -1,0 +1,38 @@
+{
+  "title": "Loading data",
+  "steps": [
+    {
+      "target": "imageLayersNew",
+      "action": "showImageLayers",
+      "title": "New Layer",
+      "body": "New Layer adds an image layer. Pick a format at the top of its menu: JPEG 2000 for Helioviewer's fast, streamed 8-bit images; FITS (VSO) for calibrated files at full bit depth through the Virtual Solar Observatory; or FITS (native) for a mission's own archive, such as PUNCH, Solar Orbiter, Proba-3 ASPIICS, MLSO or LASCO."
+    },
+    {
+      "target": "imageLayersCadence",
+      "action": "showImageLayers",
+      "title": "Time step",
+      "body": "The next layer covers the movie's time range, one frame per time step. Tick Frame count to set how many frames instead, and the time step follows. The line under it estimates the video length before anything downloads."
+    },
+    {
+      "target": "imageLayersList",
+      "action": "showImageLayers",
+      "title": "Your layers",
+      "body": "Each layer you load gets a row here. Double-click a layer's name to change its dataset. The checkbox shows or hides a layer, the x removes it, and dragging a row reorders the layers."
+    },
+    {
+      "target": "imageCanvas",
+      "title": "Files from disk",
+      "body": "Drop FITS or JPEG 2000 files anywhere on the window to load them as image layers, or use Layers > Open Image Layer. A dropped .jhv file opens that session."
+    },
+    {
+      "target": "punchLatest",
+      "title": "The newest PUNCH day",
+      "body": "Layers > PUNCH Latest opens the newest day of PUNCH clear average mosaics (CAM) in Helioradial with RHEF, in one step."
+    },
+    {
+      "target": "openDemo",
+      "title": "No data handy?",
+      "body": "Help > Open Demo Scene opens a new session with a bundled SDO/AIA 171 image and RHEF on, so there is something to try with nothing to download."
+    }
+  ]
+}

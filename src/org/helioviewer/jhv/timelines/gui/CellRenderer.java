@@ -128,7 +128,9 @@ class CellRenderer {
         @Override
         public void setValue(Object value) {
             setBorder(null); //!
-            if (value instanceof TimelineLayer layer && layer.isDeletable()) {
+            // A built-in row (events, coverage, radio) gets the X too while shown: it hides the row, as
+            // unticking does, since deleting it would leave no way to add it back.
+            if (value instanceof TimelineLayer layer && (layer.isDeletable() || layer.isEnabled())) {
                 setFont(font);
                 setText(Buttons.close);
             } else
