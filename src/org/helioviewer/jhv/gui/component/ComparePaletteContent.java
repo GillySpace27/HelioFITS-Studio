@@ -20,17 +20,19 @@ import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 
 import org.helioviewer.jhv.display.Compare;
+import org.helioviewer.jhv.display.CompareDifference;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layer;
 import org.helioviewer.jhv.layers.LayerDuplicate;
 import org.helioviewer.jhv.layers.Layers;
 
 /**
- * The Compare palette (HS-11): pick two image layers, then blink between them or swipe a divider
- * across every viewport. The state is {@link Compare}'s; this only edits it.
+ * The Compare palette (HS-11): pick two image layers, then blink between them, swipe a divider
+ * across every viewport, or show A minus B. The state is {@link Compare}'s; this only edits it.
  *
- * <p>Difference is shown and greyed, with the reason: a true A minus B in physical units needs both
- * stretches linear and the same BUNIT, and is a later phase ("grey out, do not hide").
+ * <p>Difference is A minus B in the files' units with each stretch undone. Under the buttons a note
+ * says what grey, white and black mean, what differs between A and B (size, product, time), or why
+ * the difference is not drawn ({@link org.helioviewer.jhv.display.CompareDifference}).
  *
  * <p>Widgets are static finals and the two flags live in one final holder (guards.py ratchet).
  */
@@ -47,6 +49,9 @@ final class ComparePaletteContent {
     private static final JLabel rateLabel = new JLabel();
     private static final JHVSlider split = new JHVSlider(0, 100, 50); // percent of each viewport's width
     private static final JCheckBox aLeft = new JCheckBox("A on the left");
+    private static final JLabel differenceNote = new JLabel();
+    private static final String DIFFERENCE_TIP = "A minus B in the files' units, each stretch undone, drawn in place of A "
+            + "with B hidden; grey is no difference. Neither layer is changed, and Off restores both";
 
     private static final class Flags {
         boolean built;
@@ -105,13 +110,20 @@ final class ComparePaletteContent {
         off.setToolTipText("No comparison: both layers draw as usual. Also the off switch for the blinking");
         blink.setToolTipText("Show A, then B, at the rate below; neither layer is switched off");
         swipe.setToolTipText("A on one side of a vertical divider and B on the other, in every viewport");
-        difference.setEnabled(false);
-        difference.setToolTipText("Not available yet: A minus B in physical units needs both layers on a linear stretch "
-                + "with the same unit (BUNIT); it is a later phase of this palette");
+        difference.setToolTipText(DIFFERENCE_TIP);
         off.addActionListener(e -> Compare.setMode(Compare.Mode.Off));
         blink.addActionListener(e -> Compare.setMode(Compare.Mode.Blink));
         swipe.addActionListener(e -> Compare.setMode(Compare.Mode.Swipe));
+        difference.addActionListener(e -> {
+            Compare.setMode(Compare.Mode.Difference);
+            refreshNote();
+        });
+        off.addActionListener(e -> refreshNote());
+        blink.addActionListener(e -> refreshNote());
+        swipe.addActionListener(e -> refreshNote());
         panel.add(row(off, blink, swipe, difference));
+        differenceNote.getAccessibleContext().setAccessibleName("Difference note");
+        panel.add(row(differenceNote));
 
         rate.setToolTipText("How many times a second the view goes A, B and back (0.5 to 8)");
         rate.getAccessibleContext().setAccessibleName("Blink rate");
@@ -203,7 +215,7 @@ final class ComparePaletteContent {
             comboA.setEnabled(!current.isEmpty());
             comboB.setEnabled(!current.isEmpty());
             String needTwo = two ? null : "Needs two image layers: add one, or use Duplicate Layer";
-            for (JRadioButton r : List.of(blink, swipe)) {
+            for (JRadioButton r : List.of(blink, swipe, difference)) {
                 r.setEnabled(two);
                 if (!two)
                     r.setToolTipText(needTwo);
@@ -211,12 +223,14 @@ final class ComparePaletteContent {
             if (two) {
                 blink.setToolTipText("Show A, then B, at the rate below; neither layer is switched off");
                 swipe.setToolTipText("A on one side of a vertical divider and B on the other, in every viewport");
+                difference.setToolTipText(DIFFERENCE_TIP);
             }
 
             switch (Compare.getMode()) {
                 case Off -> off.setSelected(true);
                 case Blink -> blink.setSelected(true);
                 case Swipe -> swipe.setSelected(true);
+                case Difference -> difference.setSelected(true);
             }
             rate.setValue((int) Math.round(Compare.getRate() * 10));
             syncRateLabel();
@@ -225,6 +239,38 @@ final class ComparePaletteContent {
         } finally {
             F.syncing = false;
         }
+        refreshNote();
+    }
+
+    /** The note under the mode buttons: empty unless Difference is chosen, then its scale, caveats or refusal. */
+    private static void refreshNote() {
+        if (!F.built)
+            return;
+        String text = noteText(Compare.differenceVerdict());
+        if (!text.equals(differenceNote.getText())) {
+            differenceNote.setText(text);
+            differenceNote.setVisible(!text.isEmpty());
+        }
+    }
+
+    static String noteText(@Nullable CompareDifference.Verdict v) {
+        if (v == null)
+            return "";
+        StringBuilder sb = new StringBuilder("<html><div style='width:230px'>");
+        if (!v.drawn())
+            sb.append("Not drawn: ").append(escape(v.refusal())).append(". Both layers draw as usual.");
+        else {
+            String unit = v.unit().isEmpty() ? "" : " " + escape(v.unit());
+            sb.append("A minus B, not a calibrated product. Grey is A = B; white is A above B by ")
+                    .append(String.format("%.3g", v.halfRange())).append(unit).append(" or more, black B above A.");
+            for (String note : v.notes())
+                sb.append("<br>").append(escape(note)).append('.');
+        }
+        return sb.append("</div></html>").toString();
+    }
+
+    private static String escape(@Nullable String s) {
+        return s == null ? "" : s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
     static {
@@ -254,10 +300,12 @@ final class ComparePaletteContent {
 
             @Override
             public void layerUpdated(Layer layer) {
+                refreshNote(); // a filter, stretch or difference setting can change the verdict
             }
 
             @Override
             public void timeUpdated(Layer layer) {
+                refreshNote(); // so can a new frame: its time, size and range
             }
         });
     }

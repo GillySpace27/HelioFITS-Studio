@@ -6,7 +6,7 @@ enum UniformBlockLayout {
     // and HDR members beyond what upstream declares; both are sized for the padded block.
     IMAGE("ImageBlock", 0, 48),
     SCREEN("ScreenBlock", 1, 28),
-    DISPLAY("DisplayBlock", 2, 36),
+    DISPLAY("DisplayBlock", 2, 44),
     LINE("LineBlock", 3, 24),
     MESH_MATERIAL("MaterialBlock", 4, 8),
     MESH_FRAME("FrameBlock", 5, 20),

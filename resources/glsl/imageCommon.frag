@@ -3,6 +3,7 @@
 precision highp float;
 
 #define NODIFFERENCE 0.
+#define COMPAREDIFFERENCE 3. // CompareDifference.SHADER_CODE; 1 and 2 are running and base
 #define PI 3.1415926535897932384626433832795
 #define HALFPI (PI / 2.)
 #define TWOPI  (2. * PI)
@@ -109,6 +110,11 @@ layout(std140) uniform DisplayBlock {
     float swipeX;
     float swipeSide;
     float displayPadding2;
+    // The Compare palette's Difference (HS-11), read only when isDiff is COMPAREDIFFERENCE: A minus
+    // B in physical units, each stretch undone, as scale of A, scale of B, offset (CompareDifference)
+    // and the exponents that undo each layer's Gamma stretch.
+    vec4 compareScale;
+    vec4 compareExponent;
 } display;
 
 uniform sampler2D image;
@@ -149,6 +155,12 @@ float fetch(const sampler2D tex, const vec2 coord, const vec2 bright) {
     return texture(tex, coord).r * bright.y + bright.x;
 }
 
+// A stored fraction back to the linear share of its display range: above 1 the decoder stored the
+// linear ratio itself (FITSData.OVER_RANGE_CEILING), below it undo the Gamma stretch.
+float linearize(const float f, const float p) {
+    return f > 1. ? f : pow(f, p);
+}
+
 vec4 getColor(const vec2 texcoord, const vec2 difftexcoord, const float factor) {
     if (texture(mask, texcoord).r == 0.)
         discard;
@@ -163,6 +175,12 @@ vec4 getColor(const vec2 texcoord, const vec2 difftexcoord, const float factor) 
     bool diffMode = display.isDiff != NODIFFERENCE;
     if (!diffMode) {
         value = fetch(image, texcoord, brightness);
+    } else if (display.isDiff == COMPAREDIFFERENCE) {
+        float a = texture(image, texcoord).r, b = texture(diffImage, difftexcoord).r;
+        if (a == 0. || b == 0.)
+            discard; // 0 is a missing pixel or one clipped at the display minimum (FITSData): neither has a true value to subtract
+        value = linearize(a, display.compareExponent.x) * display.compareScale.x
+              - linearize(b, display.compareExponent.y) * display.compareScale.y + display.compareScale.z;
     } else {
         value = fetch(image, texcoord, brightness) - fetch(diffImage, difftexcoord, brightness);
         value = value * BOOST + 0.5;

@@ -4,7 +4,8 @@
 ## HelioFITS Studio 0.8.7 (unreleased)
 
 ### Compare
-- A Compare palette on the toolbar (Tools lists it too): pick layers A and B, then Blink between them at 0.5 to 8 Hz, or Swipe a vertical divider across every viewport with A on one side and B on the other. Neither layer is switched off or changed, and Off stops the blinking. The choices are saved with the session, never the blink phase. Difference is shown greyed: A minus B in physical units is a later phase
+- A Compare palette on the toolbar (Tools lists it too): pick layers A and B, then Blink between them at 0.5 to 8 Hz, or Swipe a vertical divider across every viewport with A on one side and B on the other. Neither layer is switched off or changed, and Off stops the blinking. The choices are saved with the session, never the blink phase
+- Compare's Difference shows A minus B in the files' own units, each layer's stretch undone first, in place of A with B hidden; grey is no difference, and the note under the buttons gives the value white and black stand for. It refuses, and says why, when A and B cannot mean the same thing: no physical units, RHEF or another filter on, a running or base difference of their own, different instruments or units (BUNIT), or an asinh or log stretch (choose Gamma). A different size, product or time is said, not refused. The layer readout badges it [Compare: A minus B], a view, not a calibrated product. Neither layer changes, and Off restores both
 - Layers > Duplicate Layer (also in the palette) adds a copy of the selected image layer, so RHEF on against the same data raw is one click
 
 ### Welcome
