@@ -31,6 +31,16 @@ import org.helioviewer.jhv.gui.dialog.ThemeDialog;
 @SuppressWarnings("serial")
 public final class MenuBar extends JMenuBar {
 
+    private static final java.util.concurrent.atomic.AtomicReference<javax.swing.Action> SETTINGS = new java.util.concurrent.atomic.AtomicReference<>();
+
+    /** Open the Settings dialog (Preferences on a Mac), from anywhere; nothing until the menu bar exists. */
+    public static void openSettings() {
+        javax.swing.Action settings = SETTINGS.get();
+        if (settings != null)
+            settings.actionPerformed(null);
+    }
+
+
     private JMenu layersMenu;
 
     public JMenu getLayersMenu() {
@@ -239,6 +249,11 @@ public final class MenuBar extends JMenuBar {
         separateMultiviewZoom.setState(Display.separateViewportZoom);
         viewMenu.add(separateMultiviewZoom);
 
+        JCheckBoxMenuItem fitNewMultiviewLayers = new JCheckBoxMenuItem(catalogAction("fitNewMultiviewLayers"));
+        fitNewMultiviewLayers.setName("fitNewMultiviewLayers");
+        fitNewMultiviewLayers.setState(org.helioviewer.jhv.app.DisplaySettings.getFitNewMultiviewLayers());
+        viewMenu.add(fitNewMultiviewLayers);
+
         JCheckBoxMenuItem white = new JCheckBoxMenuItem("Use White Background");
         white.addItemListener(e -> {
             Display.whiteBackground = white.getState();
@@ -339,6 +354,7 @@ public final class MenuBar extends JMenuBar {
 
         viewMenu.addSeparator();
         viewMenu.add(themeMenu());
+        viewMenu.add(catalogAction("displaySettings")); // beside Theme: how the app looks, in one place
 
         viewMenu.addSeparator();
         // Presentation stays: it is a way of looking at the scene rather than a thing to work on
@@ -379,6 +395,7 @@ public final class MenuBar extends JMenuBar {
         // Beside Layers, because it answers the same kind of question: Layers is what is in the
         // scene, Tools is what you have to work on it with.
         Actions.ShowDialog settingsAction = new Actions.ShowDialog("Settings...", new SettingsDialog());
+        SETTINGS.set(settingsAction); // the one dialog, for the Welcome window's button too
         if (Platform.isMacOS())
             DesktopIntegration.setPreferencesHandler(e -> settingsAction.actionPerformed(null));
         add(buildToolsMenu(Platform.isMacOS() ? null : settingsAction));

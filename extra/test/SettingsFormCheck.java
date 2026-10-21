@@ -83,8 +83,8 @@ public final class SettingsFormCheck {
 
         // The Heliad tab's wording, from what HeliadLibrary and heliad.hello return.
         List<HeliadLibrary.Dataset> sets = List.of(
-                new HeliadLibrary.Dataset("sdo/aia/-/-/1/193", "SDO AIA 193 L1", "AIA", 193.0, 2, 3L << 20, 0, 1, 0),
-                new HeliadLibrary.Dataset("punch/wfi/-/-/3/-", "PUNCH WFI L3", "WFI", null, 1, 1L << 20, 0, 1, 0));
+                new HeliadLibrary.Dataset("sdo/aia/-/-/1/193", "SDO AIA 193 L1", "SDO", "AIA", null, null, "1", 193.0, 2, 3L << 20, 0, 1, 0, 0),
+                new HeliadLibrary.Dataset("punch/wfi/-/-/3/-", "PUNCH WFI L3", "PUNCH", "WFI", null, null, "3", null, 1, 1L << 20, 0, 1, 0, 0));
         expect("library contents read as datasets, frames and size", HeliadSettings.holds(sets).equals("2 datasets, 3 frames, 4 MB"));
         expect("an empty library reads as empty", HeliadSettings.holds(List.of()).equals("0 datasets, 0 frames, 0 bytes"));
         Path root = Path.of("/data/HeliadLibrary");

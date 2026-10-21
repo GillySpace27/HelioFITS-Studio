@@ -96,6 +96,15 @@ public final class UIGlobals {
         // belongs here rather than in setLaf: after a switch it would otherwise be gone.
         if (Platform.isMacOS())
             UIManager.getLookAndFeelDefaults().put("defaultFont", UIManager.getFont("medium.font")); // smaller, FlatLaf 2
+        // View > Display Settings: the body level scales the one font every other UI font derives
+        // from; detail and headings are sized from the same unscaled base (headingFont). A
+        // FontUIResource, so the look and feel's updateUI replaces it on components that took it.
+        double textScale = DisplayScale.text();
+        double bodyScale = textScale * DisplayScale.body();
+        Font baseFont = UIManager.getFont("defaultFont");
+        if (bodyScale != 1 && baseFont != null)
+            UIManager.getLookAndFeelDefaults().put("defaultFont",
+                    new javax.swing.plaf.FontUIResource(baseFont.deriveFont((float) (baseFont.getSize2D() * bodyScale))));
 
         int arc = 6;
         UIManager.put("Button.arc", arc);
@@ -111,12 +120,15 @@ public final class UIGlobals {
         float defaultSize = uiFont.getSize();
 
         uiFontBold = uiFont.deriveFont(Font.BOLD);
-        uiFontSmall = uiFont.deriveFont(defaultSize - 2);
+        // Detail is two points under the unscaled body, then at its own level.
+        float detailSize = (float) Math.max(6, (defaultSize / bodyScale - 2) * textScale * DisplayScale.detail());
+        uiFontSmall = uiFont.deriveFont(detailSize);
         uiFontSmallBold = uiFontSmall.deriveFont(Font.BOLD);
 
         uiFontMono = UIManager.getFont("monospaced.font");
-        uiFontMono = uiFontMono == null ? new Font("Monospaced", Font.PLAIN, (int) defaultSize) : uiFontMono; // when not FlatLaf
-        uiFontMonoSmall = uiFontMono.deriveFont(defaultSize - 2);
+        uiFontMono = uiFontMono == null ? new Font("Monospaced", Font.PLAIN, (int) defaultSize)
+                : uiFontMono.deriveFont((float) (uiFontMono.getSize2D() * bodyScale)); // when not FlatLaf, already sized
+        uiFontMonoSmall = uiFontMono.deriveFont(detailSize);
 
         sansFont = new Font("SansSerif", Font.PLAIN, (int) defaultSize);
 
@@ -189,12 +201,81 @@ public final class UIGlobals {
         }
     }
 
+    /** Install the current theme again, so a changed text size reaches everything a theme switch reaches. */
+    public static void reapplyTheme() {
+        reapplyTheme(null);
+    }
+
+    /**
+     * The same, leaving one window's components as they are: the Display Settings dialog, whose
+     * slider is mid-drag while the text size follows it. Rebuilding that slider's UI would end the
+     * drag under the pointer.
+     */
+    public static void reapplyTheme(@Nullable Window skip) {
+        installTheme(Theme.current(), skip);
+    }
+
+    /**
+     * Scale every font a component was given explicitly. updateComponentTreeUI replaces only the
+     * look and feel's own fonts, so text size used to pass over the smallest text and the section
+     * headers, the ones built from uiFontSmall, the mono fonts or a size of their own (Gilly,
+     * 2026-10-20). Each goes to its own level: a section header (tagged HEADING) to headingFont, a
+     * font that was one of the shared ones to that font's new self, and anything else hand-sized
+     * by the body's factor.
+     */
+    static void rescaleSetFonts(Component c, java.util.Map<Font, Font> remap, float factor) {
+        Font font = c.getFont();
+        // The icon font draws glyphs, not text: those follow the interface scale, not the text size.
+        boolean glyphs = font != null && uiFontMDI != null && font.getFamily().equals(uiFontMDI.getFamily());
+        if (c instanceof JComponent j && j.getClientProperty(HEADING) instanceof Boolean child)
+            c.setFont(headingFont(child));
+        else if (c.isFontSet() && font != null && !glyphs && !(font instanceof javax.swing.plaf.UIResource))
+            c.setFont(remap.containsKey(font) ? remap.get(font) : font.deriveFont(font.getSize2D() * factor));
+        if (c instanceof Container k)
+            for (Component child : k.getComponents())
+                rescaleSetFonts(child, remap, factor);
+    }
+
+    /** Client property marking a section header's button: Boolean.TRUE for a nested (child) section. */
+    public static final String HEADING = "jhv.heading";
+    public static final float PARENT_HEADING_STEP = 2;
+    public static final float CHILD_HEADING_STEP = 1; // above the body text it heads, below its parent
+
+    /**
+     * A section header's font: a step above the unscaled body size, then at the heading level, so
+     * headings can be made large while body and detail text stay as they are.
+     */
+    public static Font headingFont(boolean child) {
+        double text = DisplayScale.text();
+        float raw = (float) (uiFont.getSize2D() / (text * DisplayScale.body()));
+        float size = (float) ((raw + (child ? CHILD_HEADING_STEP : PARENT_HEADING_STEP)) * text * DisplayScale.heading());
+        return uiFont.deriveFont(child ? Font.PLAIN : Font.BOLD, size);
+    }
+
     /** Install a theme without deciding anything: what the mode asks for, and what a pick installs. */
     private static void installTheme(Theme theme) {
+        installTheme(theme, null);
+    }
+
+    private static void installTheme(Theme theme, @Nullable Window skip) {
         Theme.setCurrent(theme);
+        Font[] before = {uiFont, uiFontBold, uiFontSmall, uiFontSmallBold, uiFontMono, uiFontMonoSmall};
         applyTheme();
+        Font[] after = {uiFont, uiFontBold, uiFontSmall, uiFontSmallBold, uiFontMono, uiFontMonoSmall};
+        java.util.Map<Font, Font> remap = new java.util.HashMap<>();
+        for (int i = 0; i < before.length; i++)
+            if (before[i] != null && !before[i].equals(after[i]))
+                remap.putIfAbsent(before[i], after[i]);
+        // A size change, at any level; nothing at all for a theme switch at the same sizes.
+        float factor = before[0] == null ? 1 : uiFont.getSize2D() / before[0].getSize2D();
+        boolean resized = !remap.isEmpty();
         TimeSlider.refreshColors();
-        com.formdev.flatlaf.FlatLaf.updateUI();
+        for (Window w : Window.getWindows()) // FlatLaf.updateUI, which is exactly this loop, less the one window
+            if (w != skip) {
+                javax.swing.SwingUtilities.updateComponentTreeUI(w);
+                if (resized)
+                    rescaleSetFonts(w, remap, factor);
+            }
         refreshThemed(); // after updateUI, which puts the look-and-feel's own borders back
         for (Window w : Window.getWindows()) {
             w.invalidate();

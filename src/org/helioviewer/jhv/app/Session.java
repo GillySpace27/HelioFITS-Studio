@@ -400,25 +400,51 @@ public final class Session {
     // the "Open New Window" action (new empty file) and by the primary's reopen fan-out.
     public static void spawnWindow(File assignedSession) {
         try {
-            String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
-            String classPath = System.getProperty("java.class.path");
-            List<String> cmd = new ArrayList<>();
-            cmd.add(javaBin);
-            cmd.add("--enable-native-access=ALL-UNNAMED");
-            cmd.add("-Djhv.sessionFile=" + assignedSession.getAbsolutePath());
-            if (!classPath.contains(File.pathSeparator) && classPath.endsWith(".jar")) {
-                cmd.add("-jar");
-                cmd.add(classPath);
-            } else {
-                cmd.add("-cp");
-                cmd.add(classPath);
-                cmd.add("org.helioviewer.jhv.HFStudio");
-            }
-            new ProcessBuilder(cmd).inheritIO().start();
+            new ProcessBuilder(javaCommand("-Djhv.sessionFile=" + assignedSession.getAbsolutePath())).inheritIO().start();
         } catch (Exception e) {
             Log.error(e);
             Message.err("New window", "Could not open a new window: " + (e.getMessage() == null ? "See the log for details." : e.getMessage()));
         }
+    }
+
+    /** This application started again in a new JVM, with these system properties. */
+    private static List<String> javaCommand(String... properties) {
+        String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
+        String classPath = System.getProperty("java.class.path");
+        List<String> cmd = new ArrayList<>();
+        cmd.add(javaBin);
+        cmd.add("--enable-native-access=ALL-UNNAMED");
+        cmd.addAll(List.of(properties));
+        if (!classPath.contains(File.pathSeparator) && classPath.endsWith(".jar")) {
+            cmd.add("-jar");
+            cmd.add(classPath);
+        } else {
+            cmd.add("-cp");
+            cmd.add(classPath);
+            cmd.add("org.helioviewer.jhv.HFStudio");
+        }
+        return cmd;
+    }
+
+    /**
+     * Quit as the menu does (saving the session, and the unsaved-changes question can still say
+     * Cancel), then start again. The new process waits for this one to be gone before it opens
+     * anything (HFStudio, jhv.waitForPid): two at once on one home cannot share the image cache's
+     * lock, and every image read in the second then fails.
+     */
+    public static void restart() {
+        if (!ExitHooks.exitProgram())
+            return;
+        try {
+            new ProcessBuilder(javaCommand("-Djhv.waitForPid=" + ProcessHandle.current().pid(),
+                    "-Duser.home=" + System.getProperty("user.home"))).inheritIO().start();
+        } catch (IOException e) {
+            Log.error(e);
+            // Blocking, unlike Message.err: the exit below would close a dialog that waits for the event queue.
+            JOptionPane.showMessageDialog(MainFrame.get(), "Could not start HelioFITS Studio again: " + e.getMessage()
+                    + "\nIt will now quit; open it again yourself.", "Restart", JOptionPane.ERROR_MESSAGE);
+        }
+        System.exit(0);
     }
 
     // A fresh, unique session file for a brand-new empty window.

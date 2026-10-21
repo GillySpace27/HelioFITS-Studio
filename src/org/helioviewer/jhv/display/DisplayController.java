@@ -133,9 +133,46 @@ public final class DisplayController {
     }
 
     public static void zoomFit() {
-        Display.resetViewportZoom();
         fitCameraToImageLayers(Display.getCamera(), GLRenderer.getDisplayedViewpoint());
+        fitViewportZooms();
         render(1);
+    }
+
+    // Separate multiview zoom: each viewport frames its own layer under the shared camera.
+    // Otherwise every viewport takes the camera's fit as it is.
+    private static void fitViewportZooms() {
+        if (!Display.multiview || !Display.separateViewportZoom) {
+            Display.resetViewportZoom();
+            return;
+        }
+        for (Viewport vp : Display.getViewports())
+            fitViewportZoom(vp);
+    }
+
+    /** Fit only the viewport showing this layer, when the viewports zoom separately. */
+    public static void zoomFitViewport(ImageLayer layer) {
+        int idx = layer.isVisibleIdx();
+        if (!Display.multiview || !Display.separateViewportZoom || idx < 0 || idx >= Display.getViewports().length)
+            return;
+        fitViewportZoom(Display.getViewport(idx));
+        render(1);
+    }
+
+    // Uncropped Orthographic fits the layer's frame; Helioradial fits where the layer's field ends
+    // under the warp. The other projections frame the projection, the same for every layer.
+    private static void fitViewportZoom(Viewport vp) {
+        ImageLayer layer = ImageLayers.getImageLayerInViewport(vp.idx);
+        if (layer != null && Display.mode == MapMode.Helioradial) {
+            vp.zoom = Display.helioradialFit(layer.getMetaData().getPhysicalRegion());
+            return;
+        }
+        boolean own = layer != null && Display.mode == MapMode.Orthographic && Display.getWarpOuterRadius() <= 0;
+        vp.zoom = fitZoom(own ? layer.getMetaData().getPhysicalRegion().height : 0, Display.mode.baseCameraWidth(Display.getCamera()));
+    }
+
+    /** The viewport zoom at which an image this tall fills a camera this wide; 1 when either is unknown. */
+    private static double fitZoom(double height, double cameraWidth) {
+        return height > 0 && cameraWidth > 0 ? height / cameraWidth : 1;
     }
 
     public static void zoomMiniToFit() {
@@ -226,8 +263,9 @@ public final class DisplayController {
     }
 
     public static void resetView() {
-        Display.resetViewportZoom();
-        resetCamera();
+        resetCamera(Display.getCamera(), viewpointModel);
+        fitViewportZooms();
+        render(1);
     }
 
     public static void resetViewAxis() {

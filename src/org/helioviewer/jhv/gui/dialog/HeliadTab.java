@@ -4,7 +4,6 @@ import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
-import java.awt.Window;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
@@ -19,18 +18,16 @@ import java.util.concurrent.ExecutionException;
 import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
-import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
+import javax.swing.JPopupMenu;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.ListSelectionModel;
 import javax.swing.RowSorter;
 import javax.swing.SortOrder;
 import javax.swing.SwingConstants;
-import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
@@ -40,7 +37,6 @@ import org.helioviewer.jhv.app.Commands;
 import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.gui.DesktopIntegration;
 import org.helioviewer.jhv.gui.UIGlobals;
-import org.helioviewer.jhv.gui.component.MoviePanel;
 import org.helioviewer.jhv.io.CacheIndex;
 import org.helioviewer.jhv.io.HeliadLibrary;
 import org.helioviewer.jhv.time.TimeUtils;
@@ -49,12 +45,11 @@ import org.helioviewer.jhv.time.TimeUtils;
  * The "Heliad library" tab of the New Image Layer dialog: datasets Heliad has already downloaded,
  * and how much of the master time range each one reaches, with Add loading them as layers.
  *
- * <p>This is the whole of the dialog's Heliad side, so {@link ImageDialog} only wraps its content
- * here and asks whether this tab is the one showing. With no Heliad library on the machine the
- * wrapper holds the dialog's own content and nothing else, which leaves the dialog exactly as it
- * was; a library that appears or goes away while Studio runs is picked up the next time the
- * dialog opens. The tab is greyed out when the dialog is changing a layer's dataset, which only
- * the Helioviewer list can do.
+ * <p>One of the dialog's four tabs; {@link ImageDialog} owns the tabs and says when this one is in
+ * front. With no Heliad library on the machine the tab says so instead of listing anything; a
+ * library that appears or goes away while Studio runs is picked up the next time the dialog
+ * opens. The tab is greyed out when the dialog is changing a layer's dataset, which only the
+ * Helioviewer list can do.
  *
  * <p>Add loads each selected dataset as one layer, from the observations inside the master range.
  * A dataset with nothing in the range loads whole, which is how the range moves to it, as in
@@ -73,17 +68,17 @@ final class HeliadTab extends JPanel {
 
     private final Runnable onChange;
     private final Runnable onActivate;
-    private final JTabbedPane tabs = new JTabbedPane();
-    private final JPanel heliad = new JPanel(new BorderLayout(0, 4));
     private final JLabel status = new JLabel(" ");
     private final Model model = new Model();
     private final JTable table = new JTable(model);
     private final JButton openInHeliad = new JButton("Open in Heliad");
 
     @Nullable
-    private JComponent helioviewer;
-    @Nullable
     private HeliadLibrary.Location library;
+    private boolean front; // this tab is the one showing
+    // The New Image Layer window's range, which starts as the master range and can be changed there.
+    private final java.util.function.LongSupplier rangeStart;
+    private final java.util.function.LongSupplier rangeEnd;
     private boolean changeMode;
     private int reads; // so a slow read that lands after a newer one is dropped
 
@@ -91,8 +86,11 @@ final class HeliadTab extends JPanel {
      * @param _onChange   called when what Add would do changes: the tab, or the selection in it
      * @param _onActivate called on a double-click, to add the row as the dialog's Add would
      */
-    HeliadTab(Runnable _onChange, Runnable _onActivate) {
-        super(new BorderLayout());
+    HeliadTab(Runnable _onChange, Runnable _onActivate, java.util.function.LongSupplier _rangeStart,
+              java.util.function.LongSupplier _rangeEnd) {
+        super(new BorderLayout(0, 4));
+        rangeStart = _rangeStart;
+        rangeEnd = _rangeEnd;
         onChange = _onChange;
         onActivate = _onActivate;
 
@@ -102,15 +100,18 @@ final class HeliadTab extends JPanel {
         TableRowSorter<Model> sorter = new TableRowSorter<>(model);
         sorter.setSortKeys(List.of(new RowSorter.SortKey(Model.NAME, SortOrder.ASCENDING)));
         table.setRowSorter(sorter);
+        int[] widths = {55, 200, 95, 85, 55, 70, 130, 40, 65, 55, 70, 205, 60};
+        for (int c = 0; c < widths.length; c++)
+            table.getColumnModel().getColumn(c).setPreferredWidth(widths[c]);
         table.getColumnModel().getColumn(Model.STATUS).setCellRenderer(new StatusCell());
-        table.getColumnModel().getColumn(Model.STATUS).setPreferredWidth(55);
-        table.getColumnModel().getColumn(Model.NAME).setPreferredWidth(200);
-        table.getColumnModel().getColumn(Model.IN_RANGE).setPreferredWidth(65);
-        table.getColumnModel().getColumn(Model.FRAMES).setPreferredWidth(55);
-        table.getColumnModel().getColumn(Model.SPAN).setPreferredWidth(205);
-        table.getColumnModel().getColumn(Model.SIZE).setPreferredWidth(60);
         table.getColumnModel().getColumn(Model.SPAN).setCellRenderer(new SpanCell());
         table.getColumnModel().getColumn(Model.SIZE).setCellRenderer(new SizeCell());
+        table.getColumnModel().getColumn(Model.WAVELENGTH).setCellRenderer(new TextCell(v -> v instanceof Double w
+                ? java.math.BigDecimal.valueOf(w).stripTrailingZeros().toPlainString() + " \u00C5" : ""));
+        table.getColumnModel().getColumn(Model.CADENCE).setCellRenderer(new TextCell(v -> v instanceof Long ms && ms > 0
+                ? TimeUtils.formatDurationSig(ms) : ""));
+        JPopupMenu columnMenu = columnMenu();
+        table.getTableHeader().setComponentPopupMenu(columnMenu);
         table.getSelectionModel().addListSelectionListener(e -> onChange.run());
         table.addMouseListener(new MouseAdapter() {
             @Override
@@ -121,43 +122,92 @@ final class HeliadTab extends JPanel {
         });
 
         JScrollPane scroller = new JScrollPane(table);
-        scroller.setPreferredSize(new Dimension(660, 330));
+        scroller.setPreferredSize(new Dimension(980, 330)); // the default columns, Dataset hidden
         UIGlobals.themed(status, c -> c.setForeground(UIGlobals.foreColor));
         openInHeliad.setToolTipText("Search for more in the Heliad app, starting from the master time range");
         openInHeliad.addActionListener(e -> DesktopIntegration.openURL(HeliadLibrary.link(rangeStart(), rangeEnd(), single())));
-        JPanel bottom = new JPanel(new FlowLayout(FlowLayout.TRAILING, 0, 0));
+        JButton columnsButton = new JButton("Columns\u2026");
+        columnsButton.setToolTipText("Choose which columns to show (also a right-click on the column titles)");
+        columnsButton.addActionListener(e -> columnMenu.show(columnsButton, 0, columnsButton.getHeight()));
+        JPanel bottom = new JPanel(new FlowLayout(FlowLayout.TRAILING, 6, 0));
+        bottom.add(columnsButton);
         bottom.add(openInHeliad);
 
-        heliad.setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3));
-        heliad.add(status, BorderLayout.PAGE_START);
-        heliad.add(scroller, BorderLayout.CENTER);
-        heliad.add(bottom, BorderLayout.PAGE_END);
-        tabs.addChangeListener(e -> {
-            if (showing())
-                refresh();
-            onChange.run();
-        });
+        setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3));
+        add(status, BorderLayout.PAGE_START);
+        add(scroller, BorderLayout.CENTER);
+        add(bottom, BorderLayout.PAGE_END);
     }
 
-    /** Hold the dialog's own content, beside the Heliad tab when there is a library. */
-    JComponent wrap(JComponent _helioviewer) {
-        helioviewer = _helioviewer;
-        arrange();
-        return this;
+    // Hidden by default: the label repeats what the attribute columns say one by one.
+    private static final String HIDDEN_KEY = "heliad.hiddenColumns";
+
+    /**
+     * Show or hide each column, remembered across launches. Hidden columns leave the column
+     * model and come back in their own place, so sorting and renderers are untouched.
+     */
+    private JPopupMenu columnMenu() {
+        javax.swing.table.TableColumnModel columns = table.getColumnModel();
+        List<javax.swing.table.TableColumn> all = new ArrayList<>();
+        for (int c = 0; c < columns.getColumnCount(); c++)
+            all.add(columns.getColumn(c));
+        String saved = org.helioviewer.jhv.app.Settings.getProperty(HIDDEN_KEY);
+        java.util.Set<String> hidden = new java.util.HashSet<>(List.of((saved == null ? Model.TITLES[Model.NAME] : saved).split(",")));
+
+        JPopupMenu menu = new JPopupMenu();
+        for (javax.swing.table.TableColumn column : all) {
+            String title = Model.TITLES[column.getModelIndex()];
+            javax.swing.JCheckBoxMenuItem item = new javax.swing.JCheckBoxMenuItem(title, !hidden.contains(title));
+            item.addActionListener(e -> {
+                if (!item.isSelected() && columns.getColumnCount() == 1) { // never hide the last one
+                    item.setSelected(true);
+                    return;
+                }
+                if (item.isSelected()) {
+                    hidden.remove(title);
+                    table.addColumn(column);
+                    int place = 0; // after every shown column that comes before it in the model
+                    for (int c = 0; c < columns.getColumnCount() - 1; c++)
+                        if (columns.getColumn(c).getModelIndex() < column.getModelIndex())
+                            place++;
+                    table.moveColumn(columns.getColumnCount() - 1, place);
+                } else {
+                    hidden.add(title);
+                    table.removeColumn(column);
+                }
+                org.helioviewer.jhv.app.Settings.setProperty(HIDDEN_KEY, String.join(",", hidden));
+            });
+            menu.add(item);
+            if (hidden.contains(title))
+                table.removeColumn(column);
+        }
+        return menu;
+    }
+
+    /** The dialog brought this tab to the front, or moved off it. */
+    void setFront(boolean _front) {
+        front = _front;
+        if (front)
+            refresh();
     }
 
     /** Called as the dialog opens: look for the library again and re-read it. */
     void update(boolean _changeMode) {
         changeMode = _changeMode;
         library = HeliadLibrary.find();
-        arrange();
-        if (library != null)
+        openInHeliad.setVisible(library != null && HeliadLibrary.app() != null);
+        if (library == null) {
+            model.setRows(List.of(), rangeStart(), rangeEnd());
+            status.setText(HeliadLibrary.app() == null
+                    ? "No Heliad library on this computer. Heliad downloads FITS into a local library that Studio reads."
+                    : "No Heliad library yet. Open Heliad to download into one; Studio reads it from here.");
+        } else if (front)
             refresh();
     }
 
     /** Whether the Heliad tab is the one in front, so Add means "add from Heliad". */
     boolean showing() {
-        return library != null && tabs.getSelectedComponent() == heliad;
+        return front;
     }
 
     boolean canLoad() {
@@ -204,34 +254,6 @@ final class HeliadTab extends JPanel {
             Message.err("Could not read the Heliad library", e.getMessage(), e);
         }
         return loaded;
-    }
-
-    /** Swap between the dialog's content alone and the two tabs, as the library comes and goes. */
-    private void arrange() {
-        if (helioviewer == null)
-            return;
-        boolean tabbed = library != null;
-        boolean was = tabs.getParent() == this;
-        if (tabbed != was || getComponentCount() == 0) {
-            removeAll();
-            tabs.removeAll();
-            if (tabbed) {
-                tabs.addTab("Helioviewer", helioviewer);
-                tabs.addTab("Heliad library", heliad);
-                add(tabs, BorderLayout.CENTER);
-            } else
-                add(helioviewer, BorderLayout.CENTER);
-            revalidate();
-            Window window = SwingUtilities.getWindowAncestor(this);
-            if (window != null && window.isVisible())
-                window.pack();
-        }
-        if (tabbed) {
-            tabs.setEnabledAt(1, !changeMode);
-            if (changeMode)
-                tabs.setSelectedIndex(0);
-        }
-        openInHeliad.setVisible(HeliadLibrary.app() != null);
     }
 
     /** Read the datasets off the event thread; the table fills when the read lands. */
@@ -309,12 +331,18 @@ final class HeliadTab extends JPanel {
         return sets.size() == 1 ? sets.getFirst() : null;
     }
 
-    private static long rangeStart() {
-        return MoviePanel.getInstance().getStartTime();
+    private long rangeStart() {
+        return rangeStart.getAsLong();
     }
 
-    private static long rangeEnd() {
-        return MoviePanel.getInstance().getEndTime();
+    private long rangeEnd() {
+        return rangeEnd.getAsLong();
+    }
+
+    /** The window's range moved: re-read what falls inside it. */
+    void rangeChanged() {
+        if (front && library != null)
+            refresh();
     }
 
     private static String diskSize(long bytes) {
@@ -328,8 +356,10 @@ final class HeliadTab extends JPanel {
 
     private static final class Model extends AbstractTableModel {
 
-        static final int STATUS = 0, NAME = 1, IN_RANGE = 2, FRAMES = 3, SPAN = 4, SIZE = 5;
-        private static final String[] TITLES = {"Range", "Dataset", "In range", "Frames", "Observed", "On disk"};
+        static final int STATUS = 0, NAME = 1, SPACECRAFT = 2, INSTRUMENT = 3, DETECTOR = 4, WAVELENGTH = 5, PRODUCT = 6,
+                LEVEL = 7, IN_RANGE = 8, FRAMES = 9, CADENCE = 10, SPAN = 11, SIZE = 12;
+        static final String[] TITLES = {"Range", "Dataset", "Spacecraft", "Instrument", "Detector", "Wavelength",
+                "Product", "Level", "In range", "Frames", "Cadence", "Observed", "On disk"};
 
         private List<Row> rows = List.of();
 
@@ -365,8 +395,8 @@ final class HeliadTab extends JPanel {
         @Override
         public Class<?> getColumnClass(int col) {
             return switch (col) {
-                case STATUS -> Double.class;
-                case IN_RANGE, FRAMES, SPAN, SIZE -> Long.class;
+                case STATUS, WAVELENGTH -> Double.class;
+                case IN_RANGE, FRAMES, CADENCE, SPAN, SIZE -> Long.class;
                 default -> String.class;
             };
         }
@@ -378,7 +408,14 @@ final class HeliadTab extends JPanel {
             return switch (col) {
                 case STATUS -> row.coverage();
                 case NAME -> set.label();
+                case SPACECRAFT -> set.observatory();
+                case INSTRUMENT -> set.instrument();
+                case DETECTOR -> set.detector();
+                case WAVELENGTH -> set.wavelength();
+                case PRODUCT -> set.product();
+                case LEVEL -> set.level();
                 case IN_RANGE -> (long) set.inRange();
+                case CADENCE -> set.cadence();
                 case FRAMES -> (long) set.frames();
                 case SPAN -> set.start();
                 default -> set.bytes();
@@ -402,9 +439,9 @@ final class HeliadTab extends JPanel {
                 case NONE -> "--";
             });
             setToolTipText(switch (overlap) {
-                case COVERS -> "Spans the whole master time range";
-                case PARTIAL -> "Overlaps the master time range by " + percent + '%';
-                case NONE -> "Outside the master time range. Adding it loads the whole dataset, which moves the range to it";
+                case COVERS -> "Spans the whole time range at the top of the window";
+                case PARTIAL -> "Overlaps the time range at the top of the window by " + percent + '%';
+                case NONE -> "Outside the time range at the top of the window. Adding it loads the whole dataset, which moves the range to it";
             });
             if (!selected)
                 setForeground(CacheDialog.StatusCell.chip(overlap));
@@ -433,6 +470,22 @@ final class HeliadTab extends JPanel {
                 setToolTipText(TimeUtils.format(set.start()) + " to " + TimeUtils.format(set.end()));
             }
             return this;
+        }
+    }
+
+    /** A value written by a function, so a sorted number column can still read as words. */
+    private static final class TextCell extends DefaultTableCellRenderer {
+
+        private final java.util.function.Function<Object, String> text;
+
+        TextCell(java.util.function.Function<Object, String> _text) {
+            text = _text;
+            setHorizontalAlignment(SwingConstants.TRAILING);
+        }
+
+        @Override
+        protected void setValue(Object value) {
+            setText(text.apply(value));
         }
     }
 

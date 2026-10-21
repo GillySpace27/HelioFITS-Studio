@@ -8,7 +8,6 @@ import java.util.function.LongSupplier;
 import javax.annotation.Nullable;
 
 import javax.swing.BorderFactory;
-import javax.swing.JButton;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTree;
@@ -39,7 +38,7 @@ import org.helioviewer.jhv.layers.ImageLayer;
  * <p>The VSO's LASCO catalog STOPS in early 2025 (measured 2026-08-31: 27 C2 records for six
  * hours of 2025-01-01, zero from 2025-06-01 on), so the LASCO leaves here only serve history;
  * recent LASCO comes from the native NRL LZ archive instead, see LascoClient and the
- * FITS (native) card.
+ * Direct (FITS) tab.
  *
  * <p>SUVI was checked the same way against one hour of 2026-08-30: "suvi" answers 720 records,
  * native L1b FITS served by NOAA, six channels times two spacecraft (G18 and G19; e.g. Fe195 at
@@ -71,8 +70,15 @@ public final class VsoSelectorPanel extends JPanel {
     }
 
     private final JTree tree;
+    private final LongSupplier startTime;
+    private final LongSupplier endTime;
+    private final IntSupplier cadence;
 
-    public VsoSelectorPanel(LongSupplier startTime, LongSupplier endTime, IntSupplier cadence) {
+    /** A tab of the New Image Layer dialog, whose Add calls {@link #addSelected}; onChange when the selection changes. */
+    public VsoSelectorPanel(LongSupplier _startTime, LongSupplier _endTime, IntSupplier _cadence, Runnable onChange) {
+        startTime = _startTime;
+        endTime = _endTime;
+        cadence = _cadence;
         setLayout(new BorderLayout());
         setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
 
@@ -127,33 +133,60 @@ public final class VsoSelectorPanel extends JPanel {
             tree.expandRow(i);
         tree.setToolTipText("Calibrated FITS at full bit depth. Larger and slower to load than the JP2 of the same frame.");
 
-        JButton add = new JButton("Add FITS layer");
-        add.setToolTipText("Query the VSO over the master time range and load what it returns");
-        add.setEnabled(false);
-        add.addActionListener(e -> {
-            Source source = getSelected();
-            if (source == null)
-                return;
-            // The request goes onto the layer before any file is resolved, which is what lets the
-            // time-range sync re-issue it later. Detector rides in the level field, the fileid
-            // token in the version field; see FitsRequest and VsoClient.filterRecords. Cadence is
-            // the master control's, so the frame count asked for there is the frame count fetched;
-            // "get all" reaches here as 0, which over a two-week range is tens of thousands of
-            // FITS downloads presenting as a layer that loads forever.
-            long start = startTime.getAsLong();
-            long end = endTime.getAsLong();
-            ImageLayer.create(null).load(new FitsRequest(FitsRequest.Archive.VSO,
-                    source.detector, source.instrument, source.fileidToken,
-                    FitsRequest.cadenceMillis(cadence.getAsInt()), start, end));
+        tree.addTreeSelectionListener(e -> onChange.run());
+        tree.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                if (e.getClickCount() == 2 && getSelected() != null)
+                    addSelected();
+            }
         });
-        tree.addTreeSelectionListener(e -> add.setEnabled(getSelected() != null));
 
         JScrollPane scroll = new JScrollPane(tree);
         scroll.setPreferredSize(new Dimension(240, 190));
         scroll.setBorder(BorderFactory.createEmptyBorder());
 
         add(scroll, BorderLayout.CENTER);
-        add(add, BorderLayout.PAGE_END);
+    }
+
+    public boolean canAdd() {
+        return getSelected() != null;
+    }
+
+    /**
+     * Add the selected source as a layer over the master range, unless the Heliad library already
+     * has it there and the person takes that copy instead.
+     *
+     * @return whether a layer was added, from the archive or from the library
+     */
+    public boolean addSelected() {
+        Source source = getSelected();
+        if (source == null)
+            return false;
+        // The request goes onto the layer before any file is resolved, which is what lets the
+        // time-range sync re-issue it later. Detector rides in the level field, the fileid
+        // token in the version field; see FitsRequest and VsoClient.filterRecords. Cadence is
+        // the master control's, so the frame count asked for there is the frame count fetched;
+        // "get all" reaches here as 0, which over a two-week range is tens of thousands of
+        // FITS downloads presenting as a layer that loads forever.
+        long start = startTime.getAsLong();
+        long end = endTime.getAsLong();
+        org.helioviewer.jhv.gui.dialog.HeliadFirst.Choice choice = org.helioviewer.jhv.gui.dialog.HeliadFirst.offer(this,
+                org.helioviewer.jhv.io.HeliadLibrary.Wanted.of(null, source.instrument,
+                        source.detector.isEmpty() ? null : source.detector, wavelength(source.label)), start, end);
+        if (choice != org.helioviewer.jhv.gui.dialog.HeliadFirst.Choice.DOWNLOAD)
+            return choice == org.helioviewer.jhv.gui.dialog.HeliadFirst.Choice.LOADED;
+        ImageLayer.create(null).load(new FitsRequest(FitsRequest.Archive.VSO,
+                source.detector, source.instrument, source.fileidToken,
+                FitsRequest.cadenceMillis(cadence.getAsInt()), start, end));
+        return true;
+    }
+
+    /** The channel in a leaf's label ("AIA 193", "SECCHI EUVI 304"), or null when it names none. */
+    @Nullable
+    private static Integer wavelength(String label) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d{2,4})$").matcher(label);
+        return m.find() ? Integer.valueOf(m.group(1)) : null;
     }
 
     private static DefaultMutableTreeNode observatory(String name, Source... sources) {

@@ -16,6 +16,7 @@ import javax.swing.KeyStroke;
 
 import org.helioviewer.jhv.annotation.Annotations;
 import org.helioviewer.jhv.app.Commands;
+import org.helioviewer.jhv.app.DisplaySettings;
 import org.helioviewer.jhv.app.ExitHooks;
 import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.app.state.State;
@@ -170,7 +171,7 @@ public final class Actions {
 
     public static class NewLayer extends AbstractKeyAction {
         public NewLayer() {
-            super("New JP2 Image Layer\u2026", KeyStroke.getKeyStroke(KeyEvent.VK_N, DesktopIntegration.menuShortcutMask));
+            super("New Image Layer\u2026", KeyStroke.getKeyStroke(KeyEvent.VK_N, DesktopIntegration.menuShortcutMask));
         }
 
         @Override
@@ -225,8 +226,18 @@ public final class Actions {
 
     /** Send to Python (HS-13): the active layer's FITS sources as double-precision science FITS under Exports/, snippet on the clipboard, SAMP notified. */
     public static class SendToPython extends AbstractAction {
+        // One export at a time, from any path (menu, panel button, palette): a second click while one ran
+        // used to start a second export into its own folder, with its own clipboard snippet.
+        private static final java.util.concurrent.atomic.AtomicBoolean running = new java.util.concurrent.atomic.AtomicBoolean();
+        private static final java.util.concurrent.atomic.AtomicReference<String> progress = new java.util.concurrent.atomic.AtomicReference<>(); // what the footer's activity light names; null when idle
+
         public SendToPython() {
             super("Send to Python");
+        }
+
+        @javax.annotation.Nullable
+        public static String progress() {
+            return progress.get();
         }
 
         @Override
@@ -241,18 +252,44 @@ public final class Actions {
                 org.helioviewer.jhv.app.Message.warn("Send to Python", "This layer has no FITS source files on disk (a JPEG 2000 layer has none; a remote one must be downloaded first).");
                 return;
             }
+            if (!running.compareAndSet(false, true))
+                return;
             java.nio.file.Path out = java.nio.file.Path.of(org.helioviewer.jhv.io.Directories.EXPORTS.getPath(),
                     "python-" + java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(java.time.ZoneOffset.UTC).format(java.time.Instant.now()));
+            // The clicked panel button counts the files; the menu item and every layer's button grey out.
+            javax.swing.AbstractButton button = e.getSource() instanceof javax.swing.AbstractButton b && !(b instanceof javax.swing.JMenuItem) ? b : null;
+            String label = button == null ? null : button.getText();
+            int total = sources.size();
+            progress.set("Sending " + total + " file(s) to Python");
+            setEnabled(false);
+            if (button != null)
+                button.setText("Exporting…");
+            java.util.function.IntConsumer step = n -> {
+                progress.set("Sending to Python: file " + n + " of " + total);
+                if (button != null)
+                    java.awt.EventQueue.invokeLater(() -> button.setText("Exporting " + n + "/" + total + "…"));
+            };
+            Runnable idle = () -> {
+                progress.set(null);
+                setEnabled(true);
+                if (button != null)
+                    button.setText(label);
+            };
             Task.submitBackground("send-to-python", () -> {
-                org.json.JSONObject manifest = org.helioviewer.jhv.io.FitsExport.export(sources, out, org.helioviewer.jhv.movie.Provenance.session());
-                List<File> written = new ArrayList<>();
-                for (File s : sources)
-                    written.add(out.resolve(org.helioviewer.jhv.io.FitsExport.outputName(s)).toFile());
-                // Off the event thread: connecting to a hub can wait on the network. No hub sends nothing and fails nothing.
-                int reached = org.helioviewer.jhv.io.samp.SampClient.sendFitsFiles(written);
-                return new String[]{org.helioviewer.jhv.io.FitsExport.snippet(out, manifest), reached > 0
-                        ? "Sent over SAMP (image.load.fits) to " + reached + " client(s)."
-                        : "No SAMP client was listening, so nothing was sent over SAMP (extra/samp/receive_fits.py is one)."};
+                try {
+                    org.json.JSONObject manifest = org.helioviewer.jhv.io.FitsExport.export(sources, out, org.helioviewer.jhv.movie.Provenance.session(), step);
+                    List<File> written = new ArrayList<>();
+                    for (File s : sources)
+                        written.add(out.resolve(org.helioviewer.jhv.io.FitsExport.outputName(s)).toFile());
+                    // Off the event thread: connecting to a hub can wait on the network. No hub sends nothing and fails nothing.
+                    int reached = org.helioviewer.jhv.io.samp.SampClient.sendFitsFiles(written);
+                    return new String[]{org.helioviewer.jhv.io.FitsExport.snippet(out, manifest), reached > 0
+                            ? "Sent over SAMP (image.load.fits) to " + reached + " client(s)."
+                            : "No SAMP client was listening, so nothing was sent over SAMP (extra/samp/receive_fits.py is one)."};
+                } finally { // queued ahead of the success or failure report, so the button is back before its dialog
+                    running.set(false);
+                    java.awt.EventQueue.invokeLater(idle);
+                }
             }, r -> {
                 TransferAccess.writeClipboard(r[0]);
                 org.helioviewer.jhv.app.Message.info("Send to Python", sources.size() + " file(s) written to " + out
@@ -425,6 +462,28 @@ public final class Actions {
         @Override
         public void actionPerformed(ActionEvent e) {
             Display.setSeparateViewportZoom(!Display.separateViewportZoom);
+        }
+    }
+
+    public static class DisplaySettingsDialog extends AbstractAction {
+        public DisplaySettingsDialog() {
+            super("Display Settings\u2026");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            DisplayScale.showDialog(MainFrame.get());
+        }
+    }
+
+    public static class FitNewMultiviewLayers extends AbstractAction {
+        public FitNewMultiviewLayers() {
+            super("Zoom to Fit New Layers in Multiview");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            DisplaySettings.setFitNewMultiviewLayers(!DisplaySettings.getFitNewMultiviewLayers());
         }
     }
 

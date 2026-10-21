@@ -177,6 +177,18 @@ public final class WelcomeDialog {
         atStartup.addActionListener(e -> Settings.setProperty(SHOW_KEY, Boolean.toString(atStartup.isSelected())));
         row.add(atStartup, BorderLayout.LINE_START);
         JPanel links = new JPanel(new FlowLayout(FlowLayout.TRAILING, 6, 0));
+        JButton settings = new JButton("Settings\u2026");
+        settings.addActionListener(e -> org.helioviewer.jhv.gui.component.MenuBar.openSettings());
+        links.add(settings);
+        JButton display = new JButton("Display Settings\u2026"); // text size and interface scale
+        display.addActionListener(e -> { // out of the way while it is open, so the change shows on the app
+            dialog.setVisible(false);
+            org.helioviewer.jhv.gui.DisplayScale.showDialog(MainFrame.get(), () -> {
+                if (dialog.isDisplayable())
+                    dialog.setVisible(true);
+            });
+        });
+        links.add(display);
         ActionCatalog.Entry changeLog = ActionCatalog.get("openChangeLog");
         if (changeLog != null) {
             JButton changeLogButton = new JButton(changeLog.action());

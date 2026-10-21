@@ -3,6 +3,21 @@
 
 ## HelioFITS Studio 0.8.7 (unreleased)
 
+### New Layer
+- New Layer is a button again, not a dropdown: it opens one window with a tab for each source. HV (JPEG 2000) streams Helioviewer's browse images, VSO (FITS) queries the Virtual Solar Observatory, Direct (FITS) opens a mission's own archive (PUNCH, SOAR, ASPIICS, MLSO) or loads LASCO from NRL, and Heliad (Local FITS Cache) lists what the Heliad app has already downloaded. The window has its own time range and time step (or frame count) at the top, which every tab uses. They start as the master ones beside New Layer each time it opens, and changing them affects only the layer being added, never the master range; PUNCH, SOAR and MLSO open on that range, PUNCH on that time step too. It opens on the tab used last. Layers > New Image Layer... (Cmd-N) opens the same window
+- Before any FITS download (VSO, PUNCH, SOAR, ASPIICS, MLSO or LASCO), Studio looks in the Heliad library for the same dataset over the same range. If it is there, it offers Heliad's copy, with Download Anyway and Cancel beside it; with no Heliad library, or nothing matching, the download goes ahead as before. Helioviewer's JPEG 2000 is not checked, since Heliad keeps FITS
+- Open Heliad, at the bottom of the window when the Heliad app is installed, starts it to manage the library and download into it
+- The Heliad tab lists Spacecraft, Instrument, Detector, Wavelength, Product, Level and Cadence as columns of their own, each sortable. Cadence is the median gap between files, so gaps in the data do not inflate it (a polarization sequence reads as its spacing: COR1 shows about 20 s). Columns..., or a right-click on the column titles, shows and hides columns, remembered between runs; the combined Dataset name starts hidden
+
+### Display Settings
+- View > Display Settings (beside Theme) makes the app easier to read, two ways. Text size is a slider that resizes the text as it moves, with the layouts following; small labels, readouts and section headers follow it too. Under it, Headings, Body and Detail set one level at a time against it. All four run from 50% to 300% in 5% steps on one shared scale, printed once under the last, so section titles can be made large while the small labels and readouts stay small. Every slider applies as it moves. The window stays open beside the app, so sections can be unfolded and the app used while sizes change; Revert puts the sizes back as they were when it opened, and Done or closing keeps them. Interface scale (50% to 200%) changes everything together, text, spacing and icons, so nothing changes proportion, and applies when the app next starts; Restart Now does that at once, saving the session and reopening it. Neither scales the image itself. Settings > Appearance opens the same window from its Size row
+
+### Multiview
+- Each view zooms separately by default. View > Separate Multiview Zoom is on for new installs and is now remembered between runs
+- Zoom to Fit in Multiview fits each view to its own layer, and Reset View does the same when the views zoom separately. With Separate Multiview Zoom off it works as before. In Helioradial each view zooms until its layer's field reaches the edge, through the warp as drawn, so a SUVI view magnifies onto the disk while a PUNCH view stays wide. Orthographic without a crop fits each layer's frame; the other projections frame the same way whatever the layer
+- Turning Multiview on fits every view, so each one starts filled
+- View > Zoom to Fit New Layers in Multiview (on by default): a layer added while in Multiview is fitted to its own view, and the other views keep their zoom. It needs Separate Multiview Zoom
+
 ### Compare
 - A Compare palette on the toolbar (Tools lists it too): pick layers A and B, then Blink between them at 0.5 to 8 Hz, or Swipe a vertical divider across every viewport with A on one side and B on the other. Neither layer is switched off or changed, and Off stops the blinking. The choices are saved with the session, never the blink phase
 - Compare's Difference shows A minus B in the files' own units, each layer's stretch undone first, in place of A with B hidden; grey is no difference, and the note under the buttons gives the value white and black stand for. It refuses, and says why, when A and B cannot mean the same thing: no physical units, RHEF or another filter on, a running or base difference of their own, different instruments or units (BUNIT), or an asinh or log stretch (choose Gamma). A different size, product or time is said, not refused. The layer readout badges it [Compare: A minus B], a view, not a calibrated product. Neither layer changes, and Off restores both
@@ -11,6 +26,7 @@
 ### Welcome
 - The Welcome window has an Open Demo card, also Help > Open Demo Scene: a new session with the bundled SDO/AIA 171 sample image and RHEF on. Nothing downloads, so it opens offline. Start New Session's question comes first when there is work to lose
 - The Welcome window shows a tip under the start cards, a different one each time it opens
+- The Welcome window has Settings... and Display Settings... buttons beside Open Change Log. Display Settings opened from there moves the Welcome window aside while it is open, so the change can be seen on the app
 
 ### Help
 - Help > Tours lists every guided tour. A second tour, RHEF and filters, shows the Filters palette, the Filter row in a layer's Intensity options, how to read an RHEF image (a visualization, not a calibrated radiance) and how to find a filter by name. On an empty canvas it loads the bundled AIA 171 sample first, as Getting started does
@@ -48,6 +64,7 @@
 - Layers > Send to Python, also the Python button on the layer panel, writes the active layer's FITS files to `Exports/python-<time>` as science FITS: physical values in double precision with only BZERO and BSCALE applied (BLANK becomes NaN), the original header kept and the session added as HISTORY, none of the display steps. A manifest.json and a sunpy snippet come with them, and the snippet goes on the clipboard
 - With a SAMP hub running, each file is also sent as image.load.fits, so astropy or another SAMP tool can pick it up; `extra/samp/receive_fits.py` is a ready receiver. The message at the end says how many SAMP clients received the files, or that none was listening
 - A LASCO frame has its bias (the OFFSET header keyword) subtracted, as the viewer does, and the manifest says so; it also warns that the exposure division and the monthly background are not applied. A LASCO frame with no OFFSET card is left alone, and the manifest says that too
+- One export runs at a time. While it works, the layer's Python button counts the files ("Exporting 2/5..."), the menu item and the other layers' Python buttons are greyed out, and the activity light in the footer names the export, so a second click no longer writes a second folder and snippet
 
 ### PUNCH
 - The status bar shows the time of the active PUNCH layer's newest frame and its age, in amber once it is more than a week old
@@ -59,6 +76,13 @@
 - The help lists every option, double-dash spellings work too, and an unknown option, a missing value or a bad `-export` is reported. The exit code says what happened: 0 done, 1 runtime error, 2 usage error, 3 input not found, 4 export failed
 
 ### Export
+- A fresh install records with the Share anywhere preset (H.264, 8-bit 4:2:0, keyframes every half second), the one that plays in every player, browser and slide deck. A setting already chosen is kept
+- Every MP4 now carries its colour description in the container too, where QuickTime, Keynote and PowerPoint on a Mac read it first. It said "unspecified" before, so an HDR video was not recognised as HLG there and an ordinary one was left to a guessed gamma
+- The Presentation preset is now H.264 at a high quality setting, 8-bit 4:2:0, so a movie made for a talk plays from PowerPoint, Keynote and Google Slides on whatever laptop is at the lectern, and in QuickTime, Windows and every browser. It was 10-bit H.265, which a Windows laptop or PowerPoint usually has no decoder for. A preset you saved under that name is yours and is left alone
+- H.264 movies larger than 4K (3840x2160, or 3072x3072 square) are scaled down to fit, keeping their shape: a 4096x4096 H.264 file is Level 6.0, which opens in VLC and shows nothing in QuickTime or PowerPoint. H.265 and FFV1 keep the full size
+- H.264 and H.265 movies are written in limited (16-235) video range, the convention every player assumes, instead of full range, which some players apply inconsistently. FFV1, PNG and EXR keep every level
+- Quick Share records at up to 1920 pixels on the long side, the size every phone, chat preview and slide deck is happy with; your own recording size is left as it is
+- The Archive, Dome projection and HDR video presets say in their description which players open them (VLC or ffmpeg for the first two; on Windows, HEVC Video Extensions for the third)
 - A movie or PNG made with RHEF on records each RHEF setting it used (an `rhef_stamp` line with the convention, the deviations and the Υ pair) in its provenance, beside the existing caveat
 
 ### LASCO
@@ -84,6 +108,11 @@
 - In the Playback tab, the Preset row and the Format disclosure no longer draw on top of each other
 
 ### Smaller fixes
+- The Timeline Layers section no longer shows as empty stripes. When the sidebar gave it a pixel less height than it asked for, its New Layer row collapsed to nothing and its list was drawn above its own top, so only the row shading showed (seen in the Sarah Gibson session as timeline layers rendering nothing)
+- In Playback and Recording, Format, Pixels and the two checkboxes under them sit in the section as rows of their own, instead of behind a fold-down headed with a summary such as "FFV1, RGB, 16-bit"
+- A movie export says how far it has got, in the footer beside the FPS: the frame being recorded (of how many, for one loop), then the frames encoded, then that the file is being written, and nothing once it is done. The activity light keeps spinning until the file is closed; before, it stopped when capture ended, and a long export then showed no sign of life while it encoded
+- The layer readout no longer sits in a tall empty box. It keeps its tallest height so it does not jump while frames stream in, but one squeezed layout could pin that at a word per line; the height now starts over when the panel's width changes
+- A session reopens on its own master time range. When Helioviewer's list of datasets arrived after the session had loaded, which at startup it often did, the range was reset to the last two days of data
 - The packaged Mac app always loads its own Metal library. Started from a folder holding an older copy, it could load that one and fail to open; starting from Finder was not affected
 
 ## HelioFITS Studio 0.8.6 (pre-release, 2026-10-11)
