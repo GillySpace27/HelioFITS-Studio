@@ -134,25 +134,36 @@ public final class SampClient extends HubConnector {
         }
     }
 
-    /** Tells every SAMP client that these exported FITS files are ready (mtype image.load.fits, one notification per file). */
-    public static void sendFitsFiles(java.util.List<java.io.File> files) {
+    /**
+     * Tells every SAMP client that these exported FITS files are ready (the standard mtype image.load.fits, params
+     * url and name, one notification per file). With no hub, or before the client exists, nothing is sent and
+     * nothing is thrown. Returns how many clients received the notifications (0 when none did).
+     */
+    public static int sendFitsFiles(java.util.List<java.io.File> files) {
         if (instance == null) {
             Log.warn("SAMP client not initialized yet");
-            return;
+            return 0;
         }
+        return sendFitsFiles(instance, files);
+    }
+
+    /** The push itself, through any connector (SampFitsPushCheck runs it against a stand-in hub). */
+    static int sendFitsFiles(HubConnector connector, java.util.List<java.io.File> files) {
+        java.util.Set<Object> reached = new java.util.HashSet<>(); // a client is counted once however many files it got
         try {
-            HubConnection c = instance.getConnection();
+            HubConnection c = connector.getConnection();
             if (c == null)
-                return;
+                return 0;
             for (java.io.File f : files) {
                 Message msg = new Message("image.load.fits");
                 msg.addParam("url", f.toURI().toString());
                 msg.addParam("name", f.getName());
-                c.notifyAll(msg);
+                reached.addAll(c.notifyAll(msg));
             }
         } catch (SampException e) {
             Log.warn(e);
         }
+        return reached.size();
     }
 
 }

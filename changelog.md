@@ -45,7 +45,7 @@
 
 ### Send to Python
 - Layers > Send to Python, also the Python button on the layer panel, writes the active layer's FITS files to `Exports/python-<time>` as science FITS: physical values in double precision with only BZERO and BSCALE applied (BLANK becomes NaN), the original header kept and the session added as HISTORY, none of the display steps. A manifest.json and a sunpy snippet come with them, and the snippet goes on the clipboard
-- With a SAMP hub running, each file is also sent as image.load.fits, so astropy or another SAMP tool can pick it up; `extra/samp/receive_fits.py` is a ready receiver
+- With a SAMP hub running, each file is also sent as image.load.fits, so astropy or another SAMP tool can pick it up; `extra/samp/receive_fits.py` is a ready receiver. The message at the end says how many SAMP clients received the files, or that none was listening
 - A LASCO frame has its bias (the OFFSET header keyword) subtracted, as the viewer does, and the manifest says so; it also warns that the exposure division and the monthly background are not applied. A LASCO frame with no OFFSET card is left alone, and the manifest says that too
 
 ### PUNCH
