@@ -1,35 +1,219 @@
 {
-  "about": "Tips the Welcome window shows, one per opening, in turn (HS-10). 'action' is the ActionCatalog id whose menu path the text names; WelcomeTipsCheck holds the text to that path.",
+  "about": "Tip of the Day (HS-10): one tip at a time in a window of its own, the ones this person has not seen first. Fields: id (stable, never reused: it is how a tip is remembered as seen), title, text; optional: action, the ActionCatalog id whose menu path the text spells out (TipsCheck holds the text to it); target, a component name to spotlight with Show Me, as a tour step does, and reveal, a catalog id run first to bring it on screen; tour, a tour id offered with Take the Tour; newUser, true for the tips a first-time user should see first. See docs/tips-and-tooltips.md.",
   "tips": [
     {
-      "text": "Help > Search Controls... finds any command or control by name: Cmd-K on a Mac, Ctrl-K elsewhere.",
-      "action": "searchControls"
+      "id": "canvas",
+      "title": "The image canvas",
+      "text": "Your layers are drawn on the canvas. Scroll to zoom, drag to rotate or pan (the Rotate and Pan buttons on the toolbar choose which), and double-click to reset the view.",
+      "target": "imageCanvas",
+      "newUser": true
     },
     {
-      "text": "Drop FITS or JPEG 2000 files anywhere on the window to load them as image layers; drop a .jhv file to open that session."
+      "id": "new-layer",
+      "title": "Add data",
+      "text": "New Layer adds data for the time range and time step beside it. Pick a format at the top of its menu: JPEG 2000 for fast Helioviewer images, FITS (VSO) for calibrated files, or FITS (native) for a mission's own archive.",
+      "target": "imageLayersNew",
+      "reveal": "showImageLayers",
+      "tour": "loading-data",
+      "newUser": true
     },
     {
+      "id": "drop-files",
+      "title": "Drop files in",
+      "text": "Drop FITS or JPEG 2000 files anywhere on the window to load them as image layers; drop a .jhv file to open that session.",
+      "target": "imageCanvas",
+      "newUser": true
+    },
+    {
+      "id": "demo",
+      "title": "Nothing loaded yet?",
+      "text": "Help > Open Demo Scene opens a new session with a bundled SDO/AIA 171 image and RHEF on; nothing to download.",
+      "action": "openDemo",
+      "newUser": true
+    },
+    {
+      "id": "layer-options",
+      "title": "Colour and brightness",
+      "text": "Select a layer in the list to see its options. Under Display, Color picks the color table; under Intensity, the two Levels handles set the brightness window.",
+      "target": "imageLayersOptions",
+      "reveal": "showImageLayers",
+      "newUser": true
+    },
+    {
+      "id": "play",
+      "title": "Play the movie",
+      "text": "Play runs the movie and the arrows beside it step one frame at a time. J, K and L play backward, stop and play forward from anywhere in the window.",
+      "target": "transport",
+      "newUser": true
+    },
+    {
+      "id": "search-controls",
+      "title": "Find any control",
+      "text": "Help > Search Controls... finds any command or control by name and shows you where it is: Cmd-K on a Mac, Ctrl-K elsewhere.",
+      "action": "searchControls",
+      "newUser": true
+    },
+    {
+      "id": "hover",
+      "title": "Ask a control",
+      "text": "Rest the pointer on any button, box or slider for a moment and a tooltip says what it does.",
+      "newUser": true
+    },
+    {
+      "id": "take-tour",
+      "title": "Take the tour",
+      "text": "Help > Tours > Getting started steps through the main controls, one at a time; Help > Tours lists the other tours.",
+      "action": "tourGettingStarted",
+      "tour": "getting-started",
+      "newUser": true
+    },
+    {
+      "id": "more-tours",
+      "title": "More tours",
+      "text": "Help > Tours has short guided tours: loading data, making a movie, views and projections, and sharing your work.",
+      "target": "helpMenu",
+      "tour": "loading-data",
+      "newUser": true
+    },
+    {
+      "id": "default-session",
+      "title": "Your own starting scene",
       "text": "File > Set Current Session as Default opens this scene at every start, ahead of the last session.",
       "action": "setDefaultSession"
     },
     {
+      "id": "present",
+      "title": "Present",
       "text": "View > Present shows the output only, full screen. Esc leaves.",
-      "action": "present"
+      "action": "present",
+      "target": "present"
     },
     {
+      "id": "provenance",
+      "title": "Where did this come from?",
       "text": "File > Copy Provenance puts the program, its build and each layer's data source on the clipboard.",
       "action": "copyProvenance"
     },
     {
+      "id": "undo",
+      "title": "Undo",
       "text": "Edit > Undo takes back the last change to the scene.",
-      "action": "undo"
+      "action": "undo",
+      "target": "undo"
     },
     {
-      "text": "Help > Take the Tour steps through the main controls, one at a time.",
-      "action": "takeTour"
+      "id": "rhef",
+      "title": "Reading an RHEF image",
+      "text": "RHEF, in a layer's Filter list, is a visualization, not a calibrated radiance. Measure on the original data, with the filter set to None.",
+      "target": "sequence",
+      "tour": "rhef-and-filters"
     },
     {
-      "text": "RHEF, in a layer's Filter list, is a visualization, not a calibrated radiance."
+      "id": "time-step",
+      "title": "Fewer frames, faster",
+      "text": "Time step, beside New Layer, sets the time between frames for the next layer; tick Frame count to set how many frames instead. The line under it estimates the video length before anything downloads.",
+      "target": "imageLayersCadence",
+      "reveal": "showImageLayers"
+    },
+    {
+      "id": "change-dataset",
+      "title": "Change a layer's data",
+      "text": "Double-click a layer's name in the layer list to change its dataset.",
+      "target": "imageLayersList",
+      "reveal": "showImageLayers"
+    },
+    {
+      "id": "punch-latest",
+      "title": "The newest PUNCH day",
+      "text": "Layers > PUNCH Latest opens the newest day of PUNCH clear average mosaics (CAM) in Helioradial with RHEF.",
+      "action": "punchLatest"
+    },
+    {
+      "id": "compare",
+      "title": "Before and after",
+      "text": "Layers > Duplicate Layer adds a copy of the selected image layer. Compare, on the toolbar, then blinks between two layers or swipes a divider across the view.",
+      "action": "duplicateLayer",
+      "target": "compare"
+    },
+    {
+      "id": "multiview",
+      "title": "Side by side",
+      "text": "Multiview, on the toolbar, puts each shown image layer in a view of its own, side by side.",
+      "target": "multiview"
+    },
+    {
+      "id": "projection",
+      "title": "Change the projection",
+      "text": "Projection, on the toolbar, opens a palette that changes how the Sun is mapped onto the screen: Orthographic, HPC, Helioradial or Latitudinal.",
+      "target": "projection",
+      "tour": "views-and-projections"
+    },
+    {
+      "id": "timelines",
+      "title": "Timelines",
+      "text": "The Timelines pane plots time series and events against the movie time. Click an empty part of the plot to move the movie to that time.",
+      "target": "timelinesPane"
+    },
+    {
+      "id": "record",
+      "title": "Record a movie",
+      "text": "The red dot records the view as a movie; click it again to stop. Files go to the Exports folder inside the HFStudio folder in your home folder.",
+      "target": "transportRecord",
+      "tour": "making-a-movie"
+    },
+    {
+      "id": "quick-share",
+      "title": "A movie in one click",
+      "text": "File > Quick Share records one loop as a movie that plays anywhere, then shows it in the file manager; your recording settings are not changed.",
+      "action": "quickShare"
+    },
+    {
+      "id": "trim",
+      "title": "Trim the movie",
+      "text": "Movie > Trim Start Here (I) and Trim End Here (O) set the movie's in and out points at the current frame; Movie > Reset Trim clears them.",
+      "action": "trimStart"
+    },
+    {
+      "id": "copy-frame",
+      "title": "Copy the picture",
+      "text": "Edit > Copy Frame puts the canvas picture on the clipboard, as an 8-bit screenshot.",
+      "action": "copyFrame"
+    },
+    {
+      "id": "share-scene",
+      "title": "Send a scene to someone",
+      "text": "File > Share Scene... saves the scene for someone else, with your home folder written as ~ and any local files outside the cache listed first.",
+      "action": "shareScene",
+      "tour": "sharing-your-work"
+    },
+    {
+      "id": "export-with-data",
+      "title": "Take it to another computer",
+      "text": "File > Export Session with Data... saves the session plus a .data.zip of its local files, to open on another computer.",
+      "action": "exportSessionWithData"
+    },
+    {
+      "id": "send-to-python",
+      "title": "On to Python",
+      "text": "Layers > Send to Python writes the active layer's FITS files as double-precision science FITS, plus a manifest and a sunpy snippet.",
+      "action": "sendToPython"
+    },
+    {
+      "id": "hdr",
+      "title": "HDR",
+      "text": "HDR, on the toolbar, sets how the whole view is mapped into the display's extended range: headroom, mapping, knee, in-range share and clipped pixels.",
+      "target": "colour"
+    },
+    {
+      "id": "feedback",
+      "title": "Tell the developer",
+      "text": "Help > Send Feedback... sends a problem, a request or a question to the developer; no account needed.",
+      "action": "sendFeedback"
+    },
+    {
+      "id": "tip-snooze",
+      "title": "Fewer tips",
+      "text": "Snooze, in this window, stops tips at startup for a day, a week or a month, and Show a tip at startup turns them off. Neither touches the Welcome window."
     }
   ]
 }

@@ -102,7 +102,7 @@ public final class Display {
                 // mode by the time it captures the limb of the view being left.
                 double limbAngle = Math.asin(1 / d);
                 if (isSkyCompose())
-                    limbAngle = SkyMap.warpElongation(limbAngle, d, surfaceModel, warpScale());
+                    limbAngle = SkyMap.warpElongation(limbAngle, surfaceDistance(d), surfaceModel, warpScale());
                 double limbRadius = Math.toDegrees(getSkyProjection().radiusFromAngle(limbAngle));
                 double halfHeight = Math.toDegrees(
                         getSkyProjection().radiusFromAngle(Math.toRadians(getSkyFieldDegrees())));
@@ -126,6 +126,37 @@ public final class Display {
 
     public static SurfaceModel getSurfaceModel() {
         return surfaceModel;
+    }
+
+    // Which observer the surface is measured from in the composed sky. The surface is a distance
+    // along the line of sight, so it belongs to an observer: the viewpoint the scene is drawn from,
+    // or the observer who took the image. Viewpoint by default: the grid, the limb and the cursor
+    // are drawn from the viewpoint, and so is the Helioradial surface mesh, so everything agrees.
+    // Image observer keeps each layer on its own observer's surface (the Thomson sphere is defined
+    // by the observer who took the image); the overlays then follow the active layer's observer,
+    // the only one they can follow. A final holder rather than a static boolean: guards ratchet.
+    private static final java.util.concurrent.atomic.AtomicBoolean surfaceFromImage =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+
+    public static boolean isSurfaceFromImage() {
+        return surfaceFromImage.get();
+    }
+
+    public static void setSurfaceFromImage(boolean value) {
+        surfaceFromImage.set(value);
+    }
+
+    /** The distance the surface is measured from, given the viewpoint's and the image observer's. */
+    public static double surfaceDistance(double viewpointDistance, double imageDistance) {
+        return isSurfaceFromImage() && imageDistance > 0 ? imageDistance : viewpointDistance;
+    }
+
+    /** The same, for the overlays: from the image observer means the active layer's observer. */
+    public static double surfaceDistance(double viewpointDistance) {
+        if (!isSurfaceFromImage())
+            return viewpointDistance;
+        ImageLayer layer = Layers.getActiveImageLayer();
+        return layer == null ? viewpointDistance : surfaceDistance(viewpointDistance, layer.getMetaData().getViewpoint().distance);
     }
 
     public static void setSurfaceModel(SurfaceModel model) {

@@ -37,23 +37,53 @@
 - When Heliad is on this computer, every FITS file Studio downloads is also added to the Heliad library. Studio caches and loads the file exactly as before, and without Heliad nothing changes
 
 ### Sharing
-- File > Quick Share records one loop of the current scene as a movie that plays anywhere (H.264, 8 bit) and shows it in Finder or your file manager. Your own recording settings are not changed
+- File > Quick Share records the scene once as a looping movie with the Share anywhere preset and shows the file in Finder (the file manager elsewhere). It lands in Exports under the usual time-stamped name; your own recording mode, size, format and preset are left as they were
+- Edit > Copy Frame puts the current view on the clipboard as an image
+- File > Share Scene... saves the session as a .jhv for someone else, with your home folder written as ~. Local files outside the cache are listed first so you can decide whether to go ahead, and the open session keeps its own name
+- Load from Cache has Quick Look (macOS), which previews the selected files, and Dataset Folders, which builds `~/HFStudio/Datasets`: one folder per dataset with a link to each cached frame, for browsing in Finder or a shell. Only links are written; the cache is never touched
+- On a Mac, Finder lists HelioFITS Studio as the app for .jhv sessions, and as a second choice for FITS files
 
-### Python
-- Layers > Send to Python writes the active layer's FITS files that are on this computer as double-precision science FITS under Exports/, with a manifest and a sunpy snippet on the clipboard. LASCO frames have the bias level (OFFSET) removed first, the same step the viewer takes; this is not a calibration. A layer still streaming from an archive has to be downloaded first; a JPEG 2000 layer has no FITS files to send
+### Send to Python
+- Layers > Send to Python, also the Python button on the layer panel, writes the active layer's FITS files to `Exports/python-<time>` as science FITS: physical values in double precision with only BZERO and BSCALE applied (BLANK becomes NaN), the original header kept and the session added as HISTORY, none of the display steps. A manifest.json and a sunpy snippet come with them, and the snippet goes on the clipboard
+- With a SAMP hub running, each file is also sent as image.load.fits, so astropy or another SAMP tool can pick it up; `extra/samp/receive_fits.py` is a ready receiver
+- A LASCO frame has its bias (the OFFSET header keyword) subtracted, as the viewer does, and the manifest says so; it also warns that the exposure division and the monthly background are not applied. A LASCO frame with no OFFSET card is left alone, and the manifest says that too
 
 ### PUNCH
-- Layers > PUNCH Latest opens the newest day of PUNCH clear average mosaics (CAM, Level 3) in Helioradial with RHEF on
-- The status bar shows how old the active PUNCH layer's newest frame is, in amber when it is more than 7 days old
+- The status bar shows the time of the active PUNCH layer's newest frame and its age, in amber once it is more than a week old
+- Layers > PUNCH Latest loads the newest day of the averaged clear mosaic (CAM, Level 3) in the Helioradial projection with RHEF on
+- PUNCH Live refresh, in Settings and off by default, adds a Live box to PUNCH layers. Ticked, it checks the archive every 15 minutes and loads new frames as a new layer, never removing old ones; it only checks while the archive's newest day is less than a week old
 
 ### Command line
-- `--export png --out <file>` draws the scene and writes one PNG, then exits; `--help` prints a table of every option. Unknown options are now refused, and the exit code says what went wrong (2 usage, 3 input not found, 4 export failed). See docs/cli.md
+- `-export png -out <file>` writes the current view as one PNG with the session stamped in, then exits, with no reopened session, no autosave and no dialogs
+- The help lists every option, double-dash spellings work too, and an unknown option, a missing value or a bad `-export` is reported. The exit code says what happened: 0 done, 1 runtime error, 2 usage error, 3 input not found, 4 export failed
 
 ### Export
-- An exported movie or PNG with RHEF on records which RHEF settings made it (rhef_stamp in its provenance)
+- A movie or PNG made with RHEF on records each RHEF setting it used (an `rhef_stamp` line with the convention, the deviations and the Υ pair) in its provenance, beside the existing caveat
 
 ### LASCO
 - LASCO frames shown with the monthly background removed no longer keep the camera's bias level (the OFFSET header keyword). Every such frame was too bright by OFFSET / EXPTIME in every pixel. Pictures with RHEF on look the same; linear, gamma and difference views change
+
+### Data sources
+- The ASPIICS Kind menu no longer lists every file as a kind of its own. The per-file sequence number in ASPIICS file names (such as 163040060001 or 1630400A0001) was taken as part of the kind, so a 122-frame search offered one "(1 frames)" entry per file. Kinds now differ only by the suffix that sets them apart, such as `v03`
+
+### Projection
+- Sliders in the Projection palette that do nothing in the current projection (Warp, Disk, Crop, and Field in the Observer sky box) are hidden instead of greyed out, so they no longer look broken. They come back as soon as you pick a projection that uses them
+- The Surface button steps through plane of sky, celestial sphere, then Thomson sphere, so the celestial sphere comes first. Plane of sky is still the default, and saved sessions open unchanged
+- When the Viewpoint layer follows a location, the Surface button skips the Thomson sphere (with the same warning) instead of getting stuck, so it always cycles back to plane of sky
+- In the observer's sky over Helioradial, choosing the celestial or Thomson sphere now moves the imagery as well as the grid and limb. Before, the picture stayed on the plane of sky while the overlays moved, so the two drifted apart away from the Sun
+- A new "Surface from" button, under Surface, picks which observer the sphere is measured from in the observer's sky over Helioradial. Viewpoint, the default, puts every layer on one surface that matches the grid and limb. Image observer puts each layer on the surface of the observer who took it, and the grid and limb follow the active layer. Saved sessions keep the choice; older sessions open with Viewpoint. Before this, the imagery used the image's observer and the overlays used the viewpoint, so the two sat slightly apart whenever those distances differed
+
+### Timelines
+- The Timelines toolbar button, and Animate, show the timeline plot when the panel was folded at launch. Before, the panel opened blank, and timeline layers added afterwards were listed but never drawn
+- The HEK events row (listed as SWEK Events), and the coverage and radio rows, have an X while shown. It hides the row, as unticking it does; they cannot be deleted, since nothing could add them back
+- The events row keeps drawing newly downloaded events after loading one session and then another. Before, it could stop updating until the timeline was panned or zoomed
+
+### Tracking and playback
+- The Track CME panel and the comet panel (Tools > Find Comets to Track...) have a Cancel button beside their status line. It stops tracking and puts the warp and crop back as they were before tracking started, even after switching between CMEs, comets or modes. The jump of the playhead and the switch to Helioradial stay
+- In the Playback tab, the Preset row and the Format disclosure no longer draw on top of each other
+
+### Smaller fixes
+- The packaged Mac app always loads its own Metal library. Started from a folder holding an older copy, it could load that one and fail to open; starting from Finder was not affected
 
 ## HelioFITS Studio 0.8.6 (pre-release, 2026-10-11)
 
@@ -159,7 +189,6 @@
 - Help > Send Feedback... sends a problem, a request or a question to the developer from inside the app, with no account and no website. Tick boxes add system info and the last 300 lines of this run's log (on), the current session and a screenshot of the main window (off); Preview shows everything before it is sent, and your home folder is written as ~
 - Error, warning and crash dialogs have a Report this... button that opens the same window with the message and, when there is one, the stack trace filled in
 - This build has nowhere to send reports yet: they are saved in `~/HFStudio/Outbox`, with Copy to Clipboard and Email Instead offered, and a later version sends them when it starts. A sent report moves to `Outbox/sent`; none is deleted
-
 
 ## HelioFITS Studio 0.8.3 (pre-release, 2026-09-23)
 
