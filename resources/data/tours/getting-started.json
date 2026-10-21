@@ -10,7 +10,7 @@
       "target": "imageLayersNew",
       "action": "showImageLayers",
       "title": "Add a data layer",
-      "body": "New Layer adds data for the time range shown above it. Pick a format at the top of its menu: JPEG 2000 for fast Helioviewer images, FITS (VSO) for calibrated files, or FITS (native) for a mission's own archive. Layers > Open Image Layer opens a file from disk."
+      "body": "New Layer adds data for the time range shown above it. It opens one window with a tab per source: HV (JPEG 2000) for fast Helioviewer images, VSO (FITS) for calibrated files, Direct (FITS) for a mission's own archive, and Heliad for FITS already on this computer. Layers > Open Image Layer opens a file from disk."
     },
     {
       "target": "imageLayersList",

@@ -30,6 +30,7 @@ import org.helioviewer.jhv.app.Platform;
 import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.base.Colors;
+import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.interaction.Interaction;
 import javax.annotation.Nullable;
 
@@ -570,7 +571,12 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
 
         multiviewButton = toolToggleButton(MULTIVIEW);
         multiviewButton.setSelected(ViewState.isMultiview());
-        multiviewButton.addItemListener(e -> ViewState.setMultiview(multiviewButton.isSelected()));
+        multiviewButton.addItemListener(e -> {
+            boolean entering = multiviewButton.isSelected() && !ViewState.isMultiview();
+            ViewState.setMultiview(multiviewButton.isSelected());
+            if (entering) // each view starts filled; not in ViewState, where a session restores its own framing
+                DisplayController.zoomFit();
+        });
 
         register("track", TRACK, trackingButton);
         register("diffRotation", DIFFROTATION, diffRotationButton);

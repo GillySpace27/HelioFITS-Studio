@@ -324,6 +324,7 @@ public final class State {
     }
 
     private static void loadLayers(JSONObject data, @Nullable Commands.OperationContext context, ViewState.ModeData modeData) {
+        MoviePanel.getInstance().keepSessionRange(); // whatever this session sets, the newest-data default must not undo
         ArrayList<Layer> restoredLayers = new ArrayList<>();
 
         JSONArray layers = data.optJSONArray("layers");

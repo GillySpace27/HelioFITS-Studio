@@ -27,8 +27,6 @@ public class CollapsiblePane extends JComponent implements ActionListener {
     // stepped up from the UI font instead of down from it. The step is added to whatever size the
     // UI font currently has rather than written as a point size, so a larger system font or a
     // different look-and-feel carries the headers up with it.
-    private static final float PARENT_STEP = 2;
-    private static final float CHILD_STEP = 1; // above the body text it heads, below its parent
     private static final int CHILD_INDENT = 12; // how far a nested section steps in from its parent
 
     final CollapsiblePaneButton toggleButton;
@@ -86,9 +84,13 @@ public class CollapsiblePane extends JComponent implements ActionListener {
         // that builds a section before the LAF is installed) never runs; fall back to the button's
         // own font rather than dying on a null. The look is unchanged wherever the app itself is
         // concerned, since by then uiFont is set.
-        Font base = UIGlobals.uiFont != null ? UIGlobals.uiFont : toggleButton.getFont();
-        headerSize = base.getSize2D() + (child ? CHILD_STEP : PARENT_STEP);
-        toggleButton.setFont(base.deriveFont(child ? Font.PLAIN : Font.BOLD, headerSize));
+        // At the heading level of View > Display Settings, and tagged so a size change finds it.
+        Font headerFont = UIGlobals.uiFont != null ? UIGlobals.headingFont(child)
+                : toggleButton.getFont().deriveFont(child ? Font.PLAIN : Font.BOLD,
+                toggleButton.getFont().getSize2D() + (child ? UIGlobals.CHILD_HEADING_STEP : UIGlobals.PARENT_HEADING_STEP));
+        headerSize = headerFont.getSize2D();
+        toggleButton.setFont(headerFont);
+        toggleButton.putClientProperty(UIGlobals.HEADING, child);
         toggleButton.addActionListener(this);
         setSectionIcon(_sectionIcon); // sets the title too
 

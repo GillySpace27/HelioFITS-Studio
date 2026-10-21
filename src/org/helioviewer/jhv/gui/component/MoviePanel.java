@@ -7,7 +7,6 @@ import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
-import java.awt.event.ActionEvent;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -125,8 +124,10 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         return storedFormat().clamp(storedChroma(), stored);
     }
 
+    // Off unless chosen: a fresh install records the Share anywhere preset, the one that plays in
+    // every player and slide deck (Gilly, 2026-10-20). All-intra stays a choice, kept once made.
     public static boolean isAllIntra() {
-        return !"false".equals(Settings.getProperty("video.allIntra"));
+        return "true".equals(Settings.getProperty("video.allIntra"));
     }
 
     /**
@@ -145,7 +146,7 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
     private final JLabel recordLongSideLabel;
     private final JLabel presetLabel;
     private final JPanel presetRow;
-    private final EncodingPane encodingPane; // the concrete type: restoreExpansion is its own
+    private final JPanel encodingPane;
     private boolean syncingRecordSize;
 
     // Everything the "Playback and Recording" pane shows, in one grid so the label column lines up
@@ -153,8 +154,7 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
     //
     // setVisible is overridden because the enclosing CollapsiblePane shows this subtree with
     // ComponentUtils.setVisible, which recurses and un-hides every descendant. Without the
-    // re-assertion, expanding the outer section undid the mode-driven hiding below and force-opened
-    // the nested encoding disclosure, whose chevron went on reading collapsed over its own contents.
+    // re-assertion, expanding the outer section undid the mode-driven hiding below.
     // The recursion sets the children first and this container last, and it calls setVisible
     // unconditionally rather than only on a change, so re-applying here always lands after it.
     private final JPanel optionsPanel = new JPanel(new GridBagLayout()) {
@@ -366,6 +366,9 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         recordFormatComboBox.setToolTipText("<html>Codec and container; the extension after each name is what lands on disk.<br><br>"
                 + "A <i>series</i> writes one file per frame into its own directory rather than a single video. Only the two "
                 + "HDR entries and EXR carry the picture above SDR white; the rest clamp there.<br><br>"
+                + "H.264 is the one every player, browser and slide deck decodes, so a frame larger than 4K (3840x2160, "
+                + "or 3072x3072 square) is scaled down to fit it: hardware decoders stop there. H.265 and FFV1 keep the "
+                + "full size.<br><br>"
                 + "<b>Lossless</b> means the encoder gives back exactly the frames it was handed. It does not mean the file "
                 + "matches the screen: the depth and colour settings below are applied first, so lossless at 4:2:0 8-bit "
                 + "faithfully stores a picture that already lost three quarters of its colour and all but 256 of its levels. "
@@ -412,16 +415,14 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
                 Settings.setProperty("video.depth", sel.name());
         });
 
-        // The format combo is the widest thing in the sidebar and the pixel pair is the least
-        // often touched, so they sit behind a disclosure that is collapsed by default. Its header
-        // carries the summary, because ExportMovie reads Settings and not these widgets: a hidden
-        // format still governs the recording, so it has to stay legible while hidden.
+        // Rows of their own, not a disclosure: the fold-down with a summary header was noise over
+        // four controls (Gilly, 2026-10-20).
         JPanel encodingPanel = new JPanel(new GridBagLayout());
         addRow(encodingPanel, 0, "Format", row(recordFormatComboBox));
         addRow(encodingPanel, 1, "Pixels", row(recordChromaComboBox, recordDepthComboBox)); // colour AND depth
         addSpan(encodingPanel, 2, row(allIntraCheckBox));
         addSpan(encodingPanel, 3, row(timelinesCheckBox));
-        encodingPane = new EncodingPane(encodingPanel);
+        encodingPane = encodingPanel;
         addSpan(optionsPanel, 5, encodingPane); // its own row: sharing the Preset row's cell drew one over the other
 
         syncPixelCombos();
@@ -579,9 +580,6 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         } finally {
             syncingRecordFormat = false;
         }
-        // Same four settings, so this is the one place that has to keep the disclosure's header
-        // honest about what it is hiding.
-        encodingPane.setTitle(encodingSummary(storedFormat(), storedChroma(), storedDepth(), isAllIntra()));
     }
 
     /** Whether the keyframe choice means anything: a series and FFV1 are all-intra by definition. */
@@ -645,8 +643,7 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         boolean encoding = showsEncoding(data.mode());
         presetLabel.setVisible(encoding);
         presetRow.setVisible(encoding);
-        encodingPane.setVisible(encoding); // plain setVisible: ComponentUtils would force the collapsed body open
-        encodingPane.restoreExpansion(); // an outer expand recursed through the body and showed it
+        encodingPane.setVisible(encoding);
 
         // With "On screen" the long side is not consulted at all: RecordingAspect.sizeFor returns
         // the viewport, so nothing is left invisibly in force.
@@ -759,23 +756,32 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         return panel != null && panel.isSingleFrame();
     }
 
-    @Override
-    public void setDefaultTimeRange(long start, long end) {
-        setTime(start, end);
+    // The newest-data default arrives whenever Helioviewer's source list does, which at startup is
+    // often after the session has loaded; it used to overwrite the session's range with the last
+    // two days. A session that has been opened keeps its own range.
+    private boolean sessionRange;
+
+    public void keepSessionRange() {
+        sessionRange = true;
     }
 
     @Override
-    public void loadDatasets(List<DataSourcesTree.SourceItem> items) {
+    public void setDefaultTimeRange(long start, long end) {
+        if (!sessionRange)
+            setTime(start, end);
+    }
+
+    @Override
+    public void loadDatasets(List<DataSourcesTree.SourceItem> items, long start, long end, int cadence) {
         ImageLayer target = layerToReplace;
         layerToReplace = null;
-        if (checkSanity()) {
-            long start = getStartTime();
-            long end = isSingleFrame() ? start : getEndTime();
-            int cadence = getCadence();
-            for (DataSourcesTree.SourceItem item : items) {
-                ImageLayer imageLayer = target == null ? ImageLayer.create(null) : target;
-                imageLayer.load(new APIRequest(item.server, item.sourceId, start, end, cadence));
-            }
+        if (start > end) {
+            Message.err("Error", "End date is before start date"); // with Report this...
+            return;
+        }
+        for (DataSourcesTree.SourceItem item : items) {
+            ImageLayer imageLayer = target == null ? ImageLayer.create(null) : target;
+            imageLayer.load(new APIRequest(item.server, item.sourceId, start, end, cadence));
         }
     }
 
@@ -974,51 +980,6 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
             JToggleButton button = buttons.get(value);
             if (button != null && !button.isSelected())
                 button.setSelected(true);
-        }
-    }
-
-    /**
-     * The nested encoding disclosure, whose header is a live summary of what it hides.
-     *
-     * <p>CollapsiblePane keys its remembered expansion off its title, and this title changes with
-     * the format. Left alone, every format change would write the expansion under a new settings
-     * key and read back the wrong one (or none) at the next launch, so the section would forget
-     * having been opened. The key is pinned to the section instead of to the summary.
-     */
-    private static final class EncodingPane extends CollapsiblePane {
-
-        private static final String KEY = "ui.section.encoding";
-
-        private final JComponent managed;
-
-        EncodingPane(JComponent _managed) {
-            super(encodingSummary(storedFormat(), storedChroma(), storedDepth(), isAllIntra()), _managed, false, true);
-            managed = _managed;
-        }
-
-        @Override
-        public boolean remembered(boolean fallback) {
-            String stored = Settings.getProperty(KEY);
-            return stored == null ? fallback : Boolean.parseBoolean(stored);
-        }
-
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            boolean expanded = !managed.isVisible();
-            setExpanded(expanded);
-            Settings.setProperty(KEY, Boolean.toString(expanded));
-        }
-
-        /**
-         * Put the body back where the chevron says it is.
-         *
-         * <p>An outer CollapsiblePane shows its subtree with ComponentUtils.setVisible, which
-         * recurses straight through this pane and shows the body of a section that is collapsed.
-         * The toggle button's selection is the state that survives that, because the recursion
-         * only touches visibility.
-         */
-        void restoreExpansion() {
-            setExpanded(toggleButton.isSelected());
         }
     }
 

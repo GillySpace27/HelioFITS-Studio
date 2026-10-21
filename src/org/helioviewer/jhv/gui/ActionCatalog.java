@@ -84,9 +84,13 @@ public final class ActionCatalog {
         put("resetAxis", new Actions.ResetCameraAxis(), "View/Reset View Axis", "");
         put("resetCamera", new Actions.ResetCamera(), "View/Reset View", "");
         put("separateMultiviewZoom", new Actions.SeparateMultiviewZoom(), "View/Separate Multiview Zoom", "");
+        put("displaySettings", new Actions.DisplaySettingsDialog(), "View/Display Settings\u2026",
+                "Text size and interface scale: make the app easier to read");
+        put("fitNewMultiviewLayers", new Actions.FitNewMultiviewLayers(), "View/Zoom to Fit New Layers in Multiview",
+                "Fit a layer added in multiview to its own view (with Separate Multiview Zoom)");
         put("present", new Actions.TogglePresentationMode(), "View/Present", "Presentation mode: output only, fullscreen (Esc to leave)");
         // Layers
-        put("newJp2Layer", new Actions.NewLayer(), "Layers/New JP2 Image Layer…", "");
+        put("newJp2Layer", new Actions.NewLayer(), "Layers/New Image Layer…", "");
         put("newSynopticLayer", new Actions.NewSynopticLayer(), "Layers/New Synoptic Layer...", "");
         put("newPunchLayer", new Actions.NewPunchLayer(), "Layers/New PUNCH Layer…", "");
         put("punchLatest", new Actions.PunchLatestAction(), "Layers/PUNCH Latest", "Open the newest day of PUNCH clear average mosaics (CAM) in Helioradial with RHEF");

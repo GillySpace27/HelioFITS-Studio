@@ -33,13 +33,21 @@ import org.json.JSONTokener;
  * <li>HDR frames: float, so the extended range is stored rather than encoded. The exact one.
  * <li>HDR video: the extended range in something that plays.
  * <li>Dome projection: lossy, but full colour resolution and every frame independent.
- * <li>Presentation: gives up colour resolution, keeps 10-bit gradients.
- * <li>Share anywhere: gives up depth as well, and in exchange plays on anything.
+ * <li>Presentation: H.264 at a high quality setting, 8-bit 4:2:0, the one combination every slide
+ *     deck and lectern laptop decodes.
+ * <li>Share anywhere: the same codec at the smaller size and quality, for phones and chat.
  * </ol>
  *
  * <p>Two rungs carry the extended range and the rest do not. That is not a quality ranking: an
  * integer file has no transfer function to put values above white into, so those formats clamp
  * there, which is right for what they are and is worth saying next to a rung called "exact".
+ *
+ * <p>The two bottom rungs are the ones handed to other people, so they are held to the file
+ * their player opens (ExportCompatibilityCheck): H.264 High, yuv420p, limited range, a frame no
+ * larger than Level 5.1 allows, +faststart, .mp4. Presentation used to be 10-bit H.265, which
+ * plays in QuickTime and nowhere a Windows laptop at a lectern is likely to have a decoder for
+ * (2026-10-20). The rungs that keep exactness instead say in their description that they need
+ * VLC or ffmpeg.
  *
  * <p>User presets live alongside the built-ins in one JSON file under Settings/. A built-in cannot
  * be deleted, but saving over its name shadows it, which is the cheapest way to let someone keep
@@ -57,9 +65,10 @@ public record ExportPreset(String name, String description, ExportFormat format,
     private static final List<ExportPreset> BUILT_IN = List.of(
             new ExportPreset("Archive (exact)",
                     "Bit-for-bit identical to what was rendered: no colour conversion, no quantization, nothing thrown away. "
-                            + "The only video whose output can be called unaltered. Very large, and plays in VLC rather than "
-                            + "QuickTime. Clamped at SDR white, like every rung but the two HDR ones: 16 bits of the "
-                            + "range that was on screen, not the range above it.",
+                            + "The only video whose output can be called unaltered. Very large, and needs VLC or ffmpeg: "
+                            + "QuickTime, browsers, PowerPoint and Windows cannot open an FFV1 file. Clamped at SDR white, "
+                            + "like every rung but the two HDR ones: 16 bits of the range that was on screen, not the range "
+                            + "above it.",
                     ExportFormat.FFV1, ExportFormat.Chroma.RGB, ExportFormat.Depth.SIXTEEN, true, true),
             new ExportPreset("Publication figures",
                     "One lossless 16-bit PNG per frame (.png), for figures and page layout. The same fidelity as Archive, "
@@ -75,22 +84,31 @@ public record ExportPreset(String name, String description, ExportFormat format,
             new ExportPreset("HDR video",
                     "Carries the extended range out: the corona stays brighter than white instead of being clamped to it. "
                             + "HLG at 10 bits, diffuse white at 203 cd/m2, so what the HDR brightness slider was showing is "
-                            + "what the file holds. Plays in QuickTime, Safari, iOS and on an HDR television; a player that "
-                            + "ignores the tagging still shows a sane picture. Set the brightness before recording, because "
-                            + "the file is baked at the gain it was captured with.",
+                            + "what the file holds. Plays in QuickTime, Safari, iOS and on an HDR television, and in VLC "
+                            + "anywhere; on Windows the default player and PowerPoint need the HEVC Video Extensions. A "
+                            + "player that ignores the tagging still shows a sane picture. Set the brightness before "
+                            + "recording, because the file is baked at the gain it was captured with.",
                     ExportFormat.H265_HLG, ExportFormat.Chroma.YUV420, ExportFormat.Depth.TEN, false, true),
             new ExportPreset("Dome projection",
                     "Lossy, but keeps full colour resolution and makes every frame independent, which is what survives "
-                            + "a very large bright screen and frame-exact scrubbing. Large files, and decoded in software. "
-                            + "Standard range: on a dome that can show more than white, HDR video is the one to reach for.",
+                            + "a very large bright screen and frame-exact scrubbing. Large files, for the dome's own "
+                            + "playback software. 4:4:4 H.265 plays in QuickTime and Chrome on an Apple Silicon Mac, "
+                            + "but little else decodes it in hardware: on Windows, Linux and older Macs use VLC or "
+                            + "ffmpeg. Standard range: on a dome that can show more than white, HDR video is the one "
+                            + "to reach for.",
                     ExportFormat.H265HQ, ExportFormat.Chroma.YUV444, ExportFormat.Depth.TEN, true, true),
             new ExportPreset("Presentation",
-                    "Gives up colour resolution to halve the file, and keeps 10 bits so gradients stay free of banding "
-                            + "on a projector. The sensible default for a talk.",
-                    ExportFormat.H265HQ, ExportFormat.Chroma.YUV420, ExportFormat.Depth.TEN, false, true),
+                    "For a talk: plays from PowerPoint, Keynote and Google Slides on whatever laptop is at the lectern, "
+                            + "and in QuickTime, Windows and every browser. H.264 at a high quality setting, 8-bit 4:2:0, "
+                            + "which is the one combination all of those decode; a frame larger than 4K (3840x2160, or "
+                            + "3072x3072 square) is scaled down to fit, because hardware decoders stop there. Smooth "
+                            + "corona may show faint banding at 8 bits.",
+                    ExportFormat.H264HQ, ExportFormat.Chroma.YUV420, ExportFormat.Depth.EIGHT, false, true),
             new ExportPreset("Share anywhere",
-                    "Gives up bit depth as well, and in exchange plays on every phone, browser and slide deck without "
-                            + "asking. Expect visible banding in smooth corona and softened colour edges.",
+                    "The smallest file that plays on every phone, browser, chat preview and slide deck without "
+                            + "asking: H.264, 8-bit 4:2:0, at the size set above (over 4K it is scaled down to fit). "
+                            + "Quick Share uses it at up to 1920 pixels on the long side. Expect visible banding in "
+                            + "smooth corona and softened colour edges.",
                     ExportFormat.H264, ExportFormat.Chroma.YUV420, ExportFormat.Depth.EIGHT, false, true));
 
     /** User presets, keyed by name and ordered by insertion. Loaded once, written on every change. */

@@ -67,10 +67,51 @@ public final class HeliadLibrary {
      * <p>{@code start} and {@code end} are the first and last observation in epoch milliseconds,
      * or {@link Long#MIN_VALUE} when the index holds a time this cannot read; such a dataset is
      * still listed, so nothing in the library goes missing from the list. {@code inRange} is the
-     * number of observations inside the range asked about, ends included.
+     * number of observations inside the range asked about, ends included. {@code cadence} is the
+     * median time between consecutive observations in milliseconds, 0 when there are fewer than
+     * two; a median so gaps do not inflate it, and between files, so a polarization sequence (COR1
+     * takes three images some 20 s apart) reads as its spacing, not as the time between sequences.
      */
-    public record Dataset(String key, String label, @Nullable String instrument, @Nullable Double wavelength,
-                          int frames, long bytes, long start, long end, int inRange) {}
+    public record Dataset(String key, String label, @Nullable String observatory, @Nullable String instrument,
+                          @Nullable String detector, @Nullable String product, @Nullable String level,
+                          @Nullable Double wavelength, int frames, long bytes, long start, long end, int inRange,
+                          long cadence) {}
+
+    /**
+     * What a download is about to fetch, named by the parts of Heliad's dataset key
+     * ({@code observatory/instrument/detector/product/level/wavelength}, e.g.
+     * {@code sdo/aia/-/-/1/193}) that the asking source can name. Null matches anything, and so does
+     * Heliad's "-". Parts compare by letters and digits only, so "K-Cor" is "kcor" and "L3" is "3".
+     * It is deliberately loose: a match only offers Heliad's copy, and the person can still download.
+     */
+    public record Wanted(@Nullable String observatory, @Nullable String instrument, @Nullable String detector,
+                         @Nullable String product, @Nullable String level, @Nullable Integer wavelength) {
+
+        public static Wanted of(@Nullable String observatory, @Nullable String instrument, @Nullable String detector,
+                                @Nullable Integer wavelength) {
+            return new Wanted(observatory, instrument, detector, null, null, wavelength);
+        }
+
+        public boolean matches(String key) {
+            String[] k = key.split("/", -1);
+            if (k.length < 6)
+                return false;
+            return part(observatory, k[0]) && part(instrument, k[1]) && part(detector, k[2]) && part(product, k[3])
+                    && part(level, k[4]) && part(wavelength == null ? null : wavelength.toString(), k[5]);
+        }
+
+        private static boolean part(@Nullable String wanted, String have) {
+            if (wanted == null || have.equals("-"))
+                return true;
+            String w = slug(wanted), h = slug(have);
+            return w.isEmpty() || w.equals(h);
+        }
+
+        private static String slug(String text) {
+            String t = text.toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9]", "");
+            return t.matches("l\\d+") ? t.substring(1) : t; // a level written L3 is level 3
+        }
+    }
 
     /** The library was written by a Heliad newer than this reader: read nothing from it. */
     public static final class TooNew extends Exception {
@@ -142,23 +183,46 @@ public final class HeliadLibrary {
     /** Every dataset in the library, with how many of its observations fall in [rangeStart, rangeEnd]. */
     public static List<Dataset> datasets(Location lib, long rangeStart, long rangeEnd) throws SQLException, TooNew {
         String sql = """
-                SELECT dataset_key, MIN(label), MIN(instrument), MIN(wavelength), COUNT(*), SUM(size),
-                       MIN(date_obs), MAX(date_obs), SUM(CASE WHEN date_obs >= ? AND date_obs <= ? THEN 1 ELSE 0 END)
+                SELECT dataset_key, MIN(label), MIN(observatory), MIN(instrument), MIN(detector), MIN(product), MIN(level),
+                       MIN(wavelength), COUNT(*), SUM(size), MIN(date_obs), MAX(date_obs),
+                       SUM(CASE WHEN date_obs >= ? AND date_obs <= ? THEN 1 ELSE 0 END)
                 FROM current_files GROUP BY dataset_key ORDER BY MIN(label), dataset_key""";
+        // The median gap per dataset: julianday reads date_obs as Heliad writes it (isot, no zone).
+        String cadenceSql = """
+                WITH d AS (SELECT dataset_key k, (julianday(date_obs) - julianday(LAG(date_obs) OVER
+                               (PARTITION BY dataset_key ORDER BY date_obs))) * 86400000.0 AS dt FROM current_files),
+                     r AS (SELECT k, dt, ROW_NUMBER() OVER (PARTITION BY k ORDER BY dt) rn,
+                               COUNT(*) OVER (PARTITION BY k) n FROM d WHERE dt > 0)
+                SELECT k, dt FROM r WHERE rn = (n + 1) / 2""";
         List<Dataset> out = new ArrayList<>();
-        try (Connection conn = open(lib); PreparedStatement st = conn.prepareStatement(sql)) {
-            st.setString(1, iso(rangeStart));
-            st.setString(2, iso(rangeEnd));
-            try (ResultSet rs = st.executeQuery()) {
-                while (rs.next()) {
-                    double wavelength = rs.getDouble(4);
-                    Double w = rs.wasNull() ? null : wavelength;
-                    out.add(new Dataset(rs.getString(1), rs.getString(2), rs.getString(3), w, rs.getInt(5), rs.getLong(6),
-                            millis(rs.getString(7)), millis(rs.getString(8)), rs.getInt(9)));
+        try (Connection conn = open(lib)) {
+            java.util.Map<String, Long> cadence = new java.util.HashMap<>();
+            try (PreparedStatement st = conn.prepareStatement(cadenceSql); ResultSet rs = st.executeQuery()) {
+                while (rs.next())
+                    cadence.put(rs.getString(1), Math.round(rs.getDouble(2)));
+            }
+            try (PreparedStatement st = conn.prepareStatement(sql)) {
+                st.setString(1, iso(rangeStart));
+                st.setString(2, iso(rangeEnd));
+                try (ResultSet rs = st.executeQuery()) {
+                    while (rs.next()) {
+                        double wavelength = rs.getDouble(8);
+                        Double w = rs.wasNull() ? null : wavelength;
+                        String key = rs.getString(1);
+                        out.add(new Dataset(key, rs.getString(2), blank(rs.getString(3)), blank(rs.getString(4)),
+                                blank(rs.getString(5)), blank(rs.getString(6)), blank(rs.getString(7)), w, rs.getInt(9),
+                                rs.getLong(10), millis(rs.getString(11)), millis(rs.getString(12)), rs.getInt(13),
+                                cadence.getOrDefault(key, 0L)));
+                    }
                 }
             }
         }
         return out;
+    }
+
+    @Nullable
+    private static String blank(@Nullable String text) {
+        return text == null || text.isBlank() ? null : text;
     }
 
     /** The files of one dataset in [rangeStart, rangeEnd], in time order. */

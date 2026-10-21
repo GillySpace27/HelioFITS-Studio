@@ -30,6 +30,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.ListSelectionModel;
+import javax.swing.SwingUtilities;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableCellEditor;
@@ -180,8 +181,23 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         animateSurface.setToolTipText("Bend the surface between plane of sky and the Thomson sphere over about half a second, instead of switching. Every frame of it is a real surface, not a dissolve.");
         animateSurface.addActionListener(e -> SurfaceTransition.setAnimateEnabled(animateSurface.isSelected()));
 
+        // Text size and interface scale keep their own modeless window, so the app behind it can be
+        // watched resizing (DisplayScale); this modal one steps aside while it is open, then returns.
+        JButton display = new JButton("Text Size and Interface Scale\u2026");
+        display.setToolTipText("Text " + Math.round(org.helioviewer.jhv.gui.DisplayScale.text() * 100) + "%, interface "
+                + Math.round(org.helioviewer.jhv.gui.DisplayScale.ui() * 100) + "%. Also View > Display Settings");
+        display.addActionListener(e -> {
+            if (SwingUtilities.getWindowAncestor(display) instanceof SettingsDialog dialog) {
+                dialog.defaultsPanel.saveSettings();
+                dialog.setVisible(false);
+            }
+            org.helioviewer.jhv.gui.DisplayScale.showDialog(MainFrame.get(),
+                    () -> SwingUtilities.invokeLater(org.helioviewer.jhv.gui.component.MenuBar::openSettings));
+        });
+
         return new SettingsForm()
                 .row("Theme:", appearancePanel())
+                .row("Size:", display)
                 .row("Motion:", animateProjection)
                 .row(null, animateSurface)
                 .end();

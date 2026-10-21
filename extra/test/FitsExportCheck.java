@@ -59,7 +59,7 @@ public final class FitsExportCheck {
         JSONObject session = new JSONObject().put("writer", "HelioFITS Studio test").put("buildId", "b1").put("commit", "abc")
                 .put("created", "2026-10-15T00:00:00Z").put("caveat", "a caveat line");
         Path out = dir.resolve("out");
-        JSONObject manifest = FitsExport.export(List.of(ints, floats, lasco, cube), out, session);
+        JSONObject manifest = FitsExport.export(List.of(ints, floats, lasco, cube), out, session, n -> {});
 
         try (Fits f = new Fits(out.resolve("ints_phys.fits").toFile())) {
             ImageHDU h = (ImageHDU) f.readHDU();
@@ -132,7 +132,7 @@ public final class FitsExportCheck {
             f.write(tiled);
         }
         Path outZ = dir.resolve("out-z");
-        JSONObject mz = FitsExport.export(List.of(tiled), outZ, session);
+        JSONObject mz = FitsExport.export(List.of(tiled), outZ, session, n -> {});
         try (Fits f = new Fits(outZ.resolve("tiled_phys.fits").toFile())) {
             ImageHDU h = (ImageHDU) f.readHDU();
             double[][] d = (double[][]) h.getKernel();
