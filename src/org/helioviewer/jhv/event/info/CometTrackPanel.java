@@ -124,12 +124,22 @@ public final class CometTrackPanel extends JPanel implements TimeListener.Range 
         trackCropButton.setToolTipText("Animate the outer radial crop instead, holding λ: the field of view opens and closes to follow the comet");
         trackCropButton.addActionListener(e -> trackSelected(CMETracker.Mode.CROP));
 
+        JButton cancelButton = new JButton("Cancel");
+        cancelButton.setToolTipText("Stop tracking and put the warp (λ) and crop back as they were before it started");
+        cancelButton.addActionListener(e -> CMETracker.cancel());
+        cancelButton.setEnabled(CMETracker.isTracking());
+        CMETracker.addChangeListener(() -> cancelButton.setEnabled(CMETracker.isTracking())); // the panel lives for the app
+
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.TRAILING));
         buttons.add(refreshButton);
         buttons.add(trackWarpButton);
         buttons.add(trackCropButton);
+        // Beside the status, as in the CME panel: the button row already fills a narrow sidebar.
+        JPanel top = new JPanel(new BorderLayout());
+        top.add(status, BorderLayout.CENTER);
+        top.add(cancelButton, BorderLayout.LINE_END);
 
-        add(status, BorderLayout.PAGE_START);
+        add(top, BorderLayout.PAGE_START);
         add(new JScrollPane(table), BorderLayout.CENTER);
         add(buttons, BorderLayout.PAGE_END);
         fitRows();

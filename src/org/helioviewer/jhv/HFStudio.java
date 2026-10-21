@@ -137,10 +137,14 @@ public class HFStudio {
             org.helioviewer.jhv.gui.UIGlobals.applyThemeMode();
             // A way to get the layout report without a hand on the mouse. Same call the Help menu
             // makes, once the window has actually been laid out.
-            if (Boolean.getBoolean("jhv.probeLayout"))
+            org.helioviewer.jhv.gui.Tooltips.install(); // resources/data/tooltips.json, for this window and every one built later
+            if (Boolean.getBoolean("jhv.probeLayout") || Boolean.getBoolean("jhv.probeTooltips"))
                 new javax.swing.Timer(4000, e -> {
                     ((javax.swing.Timer) e.getSource()).stop();
-                    org.helioviewer.jhv.gui.LayoutProbe.logReport();
+                    if (Boolean.getBoolean("jhv.probeLayout"))
+                        org.helioviewer.jhv.gui.LayoutProbe.logReport();
+                    if (Boolean.getBoolean("jhv.probeTooltips"))
+                        org.helioviewer.jhv.gui.Tooltips.logReport();
                     if (Boolean.getBoolean("jhv.probeExit"))
                         System.exit(0);
                 }).start();
@@ -150,6 +154,7 @@ public class HFStudio {
                 org.helioviewer.jhv.app.Session.init(); // session dirty-tracking + autosave timer
                 org.helioviewer.jhv.gui.dialog.WelcomeDialog.offerAtStartup(bareLaunch); // else the tour offer; a launch with arguments is a script's
                 org.helioviewer.jhv.io.FeedbackReport.retryInBackground(); // the outbox, on its own thread; never headless
+                org.helioviewer.jhv.io.HeliadIngest.importCacheInBackground(); // cached files the Heliad library lacks; no-op without Heliad
                 org.helioviewer.jhv.app.update.UpdateCheck.atStartup(); // at most daily, in the background, after a delay
             }
 
