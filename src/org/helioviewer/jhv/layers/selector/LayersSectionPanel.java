@@ -25,6 +25,7 @@ public final class LayersSectionPanel extends JPanel {
 
         // request cadence for the next layer, sourced against the master time range
         cadencePanel = new CadencePanel(MoviePanel.getInstance().getTimeSelectorPanel());
+        cadencePanel.setName("imageLayersCadence"); // tour target
 
         // One window for every source (HV, VSO, Direct, Heliad), already on the master range and
         // cadence beside it; see ImageDialog. It used to be a dropdown that picked the format first.

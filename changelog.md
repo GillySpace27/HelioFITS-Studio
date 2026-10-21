@@ -94,6 +94,7 @@
 - The Surface button steps through plane of sky, celestial sphere, then Thomson sphere, so the celestial sphere comes first. Plane of sky is still the default, and saved sessions open unchanged
 - When the Viewpoint layer follows a location, the Surface button skips the Thomson sphere (with the same warning) instead of getting stuck, so it always cycles back to plane of sky
 - In the observer's sky over Helioradial, choosing the celestial or Thomson sphere now moves the imagery as well as the grid and limb. Before, the picture stayed on the plane of sky while the overlays moved, so the two drifted apart away from the Sun
+- A new "Surface from" button, under Surface, picks which observer the sphere is measured from in the observer's sky over Helioradial. Viewpoint, the default, puts every layer on one surface that matches the grid and limb. Image observer puts each layer on the surface of the observer who took it, and the grid and limb follow the active layer. Saved sessions keep the choice; older sessions open with Viewpoint. Before this, the imagery used the image's observer and the overlays used the viewpoint, so the two sat slightly apart whenever those distances differed
 
 ### Timelines
 - The Timelines toolbar button, and Animate, show the timeline plot when the panel was folded at launch. Before, the panel opened blank, and timeline layers added afterwards were listed but never drawn

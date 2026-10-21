@@ -791,7 +791,8 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         org.helioviewer.jhv.display.MapScale composed = org.helioviewer.jhv.display.Display.skyComposeScale();
         GLSLImageShader.bindSkyWarp(composed == null ? 0 : (float) composed.warpOuterRadius(),
                 composed == null ? 0 : (float) composed.warpLimb(),
-                composed == null ? 0 : (float) composed.warpLambda());
+                composed == null ? 0 : (float) composed.warpLambda(),
+                (float) org.helioviewer.jhv.display.Display.surfaceDistance(renderViewpoint.distance, metaViewpoint0.distance));
 
         // The warped modes draw a surface mesh; everything else reconstructs geometry per
         // fragment from a full-screen quad.

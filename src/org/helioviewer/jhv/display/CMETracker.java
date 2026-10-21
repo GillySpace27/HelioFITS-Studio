@@ -1,6 +1,5 @@
 package org.helioviewer.jhv.display;
 
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.DoubleUnaryOperator;
@@ -84,15 +83,11 @@ public final class CMETracker implements TimeListener.Change {
     // The knobs as they were before tracking took them, for cancel(). Retaken on engage unless the
     // knobs still hold what tracking last wrote: the panels stop and re-engage to switch CME or
     // mode, and that must keep the user's values, not the previous track's last solve.
-    private record Knobs(double lambda, double outer) {
-        static Knobs now() {
-            return new Knobs(Display.getWarpLambda(), Display.getWarpOuterRadius());
-        }
+    private static final class Knobs {
+        double lambda = Double.NaN, outer = Double.NaN;
     }
-
-    private static final Knobs NONE = new Knobs(Double.NaN, Double.NaN); // NaN equals nothing, so a fresh engage snapshots
-    private static final AtomicReference<Knobs> before = new AtomicReference<>(new Knobs(0, 0));
-    private static final AtomicReference<Knobs> left = new AtomicReference<>(NONE);
+    private static final Knobs before = new Knobs();
+    private static final Knobs left = new Knobs(); // what tracking last wrote; NaN when it has not
 
     /** A CACTus front: constant speed out from ONSET_RSUN at the catalogued onset, on a fixed angle. */
     public static void track(double speedKmSec, long onsetMilli, double positionAngleDeg) {
@@ -103,9 +98,12 @@ public final class CMETracker implements TimeListener.Change {
     public static void track(DoubleUnaryOperator radius, DoubleUnaryOperator positionAngle) {
         radiusOf = radius;
         angleOf = positionAngle;
-        Knobs now = Knobs.now();
-        if (now.lambda() != left.get().lambda() || now.outer() != left.get().outer())
-            before.set(now);
+        // Each knob on its own: a WARP track leaves lambda as it solved it, so a crop the user moved
+        // since must not retake lambda from that solve.
+        if (Display.getWarpLambda() != left.lambda)
+            before.lambda = Display.getWarpLambda();
+        if (Display.getWarpOuterRadius() != left.outer)
+            before.outer = Display.getWarpOuterRadius();
         tracking = true;
         targetMilli = animMilli = Player.getTime().milli; // snap on engage, no ease-in from a stale value
         Player.addTimeListener(instance); // no-op when already registered
@@ -128,10 +126,10 @@ public final class CMETracker implements TimeListener.Change {
         if (!tracking)
             return;
         stop();
-        Display.setWarpLambda(before.get().lambda());
-        Display.setWarpOuterRadius(before.get().outer());
+        Display.setWarpLambda(before.lambda);
+        Display.setWarpOuterRadius(before.outer);
         fireSolved(); // the sliders follow, as they do a solve
-        left.set(NONE); // after: these are the user's values again, not tracking's
+        left.lambda = left.outer = Double.NaN; // after: these are the user's values again, not tracking's
         DisplayController.display();
     }
 
@@ -178,7 +176,8 @@ public final class CMETracker implements TimeListener.Change {
     }
 
     private static void fireSolved() {
-        left.set(Knobs.now());
+        left.lambda = Display.getWarpLambda();
+        left.outer = Display.getWarpOuterRadius();
         for (Runnable r : solveListeners)
             r.run();
     }

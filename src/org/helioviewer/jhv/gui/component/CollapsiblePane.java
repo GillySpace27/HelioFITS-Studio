@@ -173,6 +173,10 @@ public class CollapsiblePane extends JComponent implements ActionListener {
         setTitle(title);
     }
 
+    public String getTitle() {
+        return title;
+    }
+
     public void setTitle(String _title) {
         title = _title;
         // Icon and title, not one string: concatenating them put the chevron's HTML in front of
@@ -182,6 +186,7 @@ public class CollapsiblePane extends JComponent implements ActionListener {
         else
             toggleButton.setIcons(toggleButton.isSelected() ? Buttons.chevronDown : Buttons.chevronRight, sectionIcon);
         toggleButton.setText(title);
+        toggleButton.setToolTipText(pinned ? title + ", for what is selected above" : (toggleButton.isSelected() ? "Hide" : "Show") + " the " + title + " controls");
     }
 
     private boolean pinned;
