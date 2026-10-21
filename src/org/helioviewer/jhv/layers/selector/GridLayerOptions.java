@@ -290,6 +290,7 @@ public final class GridLayerOptions extends JPanel {
     private static JComboBox<Colors> createSurfaceColorBox(Colors initial, Consumer<Colors> setter) {
         JComboBox<Colors> comboBox = new JComboBox<>(Colors.values());
         comboBox.setSelectedItem(initial);
+        comboBox.setToolTipText("Line colour of this surface");
         comboBox.setRenderer(new ColorRenderer());
         comboBox.addActionListener(e ->
                 setter.accept((Colors) Objects.requireNonNull(comboBox.getSelectedItem())));

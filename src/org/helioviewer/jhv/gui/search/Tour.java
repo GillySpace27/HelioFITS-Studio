@@ -51,7 +51,8 @@ public final class Tour {
     public static final String GETTING_STARTED = "getting-started";
     public static final String RHEF_AND_FILTERS = "rhef-and-filters";
     /** Every tour, in Help > Tours order. TourCheck holds this to the files in resources/data/tours, both ways. */
-    public static final List<String> IDS = List.of(GETTING_STARTED, RHEF_AND_FILTERS);
+    public static final List<String> IDS = List.of(GETTING_STARTED, "loading-data", "making-a-movie",
+            "views-and-projections", RHEF_AND_FILTERS, "sharing-your-work");
 
     /** The catalog id that starts a tour: "tour" and the id in camel case ("rhef-and-filters", tourRhefAndFilters). */
     public static String catalogId(String id) {
@@ -111,7 +112,7 @@ public final class Tour {
         };
     }
 
-    /** Help > Take the Tour. */
+    /** Take the Tour: Getting started, for the Welcome card and search (Help > Tours lists it as a menu item). */
     public static Action action() {
         return new AbstractAction("Take the Tour") {
             @Override
@@ -140,6 +141,21 @@ public final class Tour {
     /** Help search: reveal one control (run {@code reveal}, a catalog id, first) and spotlight it, as a one-step tour. */
     static void point(String target, @Nullable String reveal, String title, String body) {
         start(List.of(new Step(target, title, body, reveal)));
+    }
+
+    /** Tip of the Day's Show Me: reveal one control and spotlight it with a card, as a one-step tour. */
+    public static void spotlight(String target, @Nullable String reveal, String title, String body) {
+        point(target, reveal, title, body);
+    }
+
+    /** Whether a tour, or a single spotlight, is on screen now. */
+    public static boolean isRunning() {
+        return running.get() != null;
+    }
+
+    /** Whether the first-launch tour offer has been made, so it will not come up by itself. */
+    public static boolean offered() {
+        return Settings.getProperty(OFFERED_KEY) != null;
     }
 
     private static void start(List<Step> steps) {
@@ -186,7 +202,7 @@ public final class Tour {
         prompt.keys(notNow, null, now);
         JButton startButton = button("Start the Tour", now);
         prompt.show(find("imageCanvas"), card("New to HelioFITS Studio?",
-                "A short tour points out the main controls, one at a time. You can also take it later from Help > Take the Tour.",
+                "A short tour points out the main controls, one at a time. You can also take it, or another tour, later from Help > Tours.",
                 "", button("Not now", notNow), startButton), startButton);
     }
 
