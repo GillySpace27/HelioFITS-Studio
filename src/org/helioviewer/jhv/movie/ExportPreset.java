@@ -92,9 +92,10 @@ public record ExportPreset(String name, String description, ExportFormat format,
             new ExportPreset("Dome projection",
                     "Lossy, but keeps full colour resolution and makes every frame independent, which is what survives "
                             + "a very large bright screen and frame-exact scrubbing. Large files, for the dome's own "
-                            + "playback software: 4:4:4 H.265 needs VLC or ffmpeg, and QuickTime, browsers and PowerPoint "
-                            + "will not play it. Standard range: on a dome that can show more than white, HDR video is "
-                            + "the one to reach for.",
+                            + "playback software. 4:4:4 H.265 plays in QuickTime and Chrome on an Apple Silicon Mac, "
+                            + "but little else decodes it in hardware: on Windows, Linux and older Macs use VLC or "
+                            + "ffmpeg. Standard range: on a dome that can show more than white, HDR video is the one "
+                            + "to reach for.",
                     ExportFormat.H265HQ, ExportFormat.Chroma.YUV444, ExportFormat.Depth.TEN, true, true),
             new ExportPreset("Presentation",
                     "For a talk: plays from PowerPoint, Keynote and Google Slides on whatever laptop is at the lectern, "

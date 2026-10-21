@@ -45,6 +45,9 @@ public final class ExportCompatibilityCheck {
         expect("fresh install records 4:2:0 at 8 bits", chroma == ExportFormat.Chroma.YUV420 && depth == ExportFormat.Depth.EIGHT);
         expect("fresh install does not record an archival format", !format.isLossless());
         compatible("fresh install", format, chroma, depth, MoviePanel.isAllIntra());
+        ExportPreset sharePreset = ExportPreset.byName("Share anywhere");
+        expect("fresh install is exactly the Share anywhere preset", sharePreset != null && sharePreset.format() == format
+                && sharePreset.chroma() == chroma && sharePreset.depth() == depth && sharePreset.allIntra() == MoviePanel.isAllIntra());
 
         for (String name : List.of("Presentation", "Share anywhere")) {
             ExportPreset p = ExportPreset.byName(name);
@@ -56,6 +59,18 @@ public final class ExportCompatibilityCheck {
             expect(name + " is 4:2:0 at 8 bits", p.chroma() == ExportFormat.Chroma.YUV420 && p.depth() == ExportFormat.Depth.EIGHT);
             expect(name + " is not all-intra (a small file is part of being sendable)", !p.allIntra());
             compatible(name, p.format(), p.chroma(), p.depth(), p.allIntra());
+        }
+
+        // HDR video: a player that reads the colr box must be told HLG, and the preset's own
+        // colour-matrix conversion must survive in the same chain as the tags.
+        ExportPreset hdr = ExportPreset.byName("HDR video");
+        if (hdr != null) {
+            List<String> hdrArgs = ExportWriter.encodeArgs(hdr.format(), hdr.chroma(), hdr.depth(), 1920, 1080, 20, hdr.allIntra());
+            String vf = hdrArgs.get(hdrArgs.indexOf("-vf") + 1);
+            expect("HDR video: frames tagged BT.2020 HLG for the colr box",
+                    vf.contains("setparams=color_primaries=bt2020:color_trc=arib-std-b67:colorspace=bt2020nc"));
+            expect("HDR video: its colour-matrix conversion stays in the chain", vf.contains("out_color_matrix=bt2020nc"));
+            expect("HDR video: one filter chain", hdrArgs.stream().filter("-vf"::equals).count() == 1);
         }
 
         // The rungs that trade playability for exactness say so where the person is choosing.
@@ -96,6 +111,11 @@ public final class ExportCompatibilityCheck {
         expect(who + ": limited range", joined.contains("-color_range 1") && !joined.contains("fullrange=on"));
         expect(who + ": bt709 tagged", joined.contains("-colorspace bt709") && joined.contains("-color_primaries bt709"));
         expect(who + ": no scaling needed at 1920x1080", !joined.contains("scale="));
+        // The MP4 colr box is written from the frames, so the tags have to be on them too, or
+        // QuickTime reads "unspecified" (seen with ffmpeg 9.0.1: colr 2/2/1 before, 1/1/1 after).
+        expect(who + ": frames tagged bt709 for the colr box",
+                joined.contains("setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709"));
+        expect(who + ": one filter chain (ffmpeg keeps only the last -vf)", hd.stream().filter("-vf"::equals).count() == 1);
         expect(who + ": keyframes at most half a second apart", gop(hd) >= 1 && gop(hd) <= 10);
 
         // 4096x4096 is Level 6.0 as encoded: software decoders manage, hardware ones refuse. It has
