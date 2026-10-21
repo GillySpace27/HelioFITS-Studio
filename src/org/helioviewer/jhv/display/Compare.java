@@ -8,11 +8,15 @@ import javax.swing.Timer;
 import org.helioviewer.jhv.layers.Layer;
 import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.layers.ImageLayer;
+import org.helioviewer.jhv.image.ImageDisplaySettings;
+import org.helioviewer.jhv.metadata.FitsMetaData;
+import org.helioviewer.jhv.metadata.MetaData;
+import org.helioviewer.jhv.view.View;
 import org.json.JSONObject;
 
 /**
- * Two image layers compared in place (HS-11): blink between them at a set rate, or a vertical
- * swipe divider across every viewport with layer A on one side and layer B on the other.
+ * Two image layers compared in place (HS-11): blink between them at a set rate, a vertical swipe
+ * divider across every viewport with layer A on one side and layer B on the other, or A minus B.
  *
  * <p>Neither mode touches either layer. Blink and swipe are decided at draw time: ImageLayer.render
  * asks {@link #hides} before it draws and {@link #swipeSide}/{@link #swipeX} while it binds, so the
@@ -20,14 +24,16 @@ import org.json.JSONObject;
  * comparison runs ("Selecting layers must never change the imagery"). Off is the motion switch: no
  * timer runs and nothing is hidden. The blink phase is never saved.
  *
- * <p>The physical-unit difference (A minus B with each stretch inverted first) is a later phase and
- * is not built: the palette shows it greyed with the reason.
+ * <p>Difference draws A minus B in the data's own units, each stretch inverted first, in place of A,
+ * and keeps B off screen, both at draw time like blink. Whether it can be drawn, and how, is
+ * {@link CompareDifference}'s verdict on the frames on screen; when it refuses, both layers draw as
+ * usual and the palette says why.
  *
  * <p>State lives in one final holder rather than in static fields of its own (guards.py ratchet).
  */
 public final class Compare {
 
-    public enum Mode {Off, Blink, Swipe}
+    public enum Mode {Off, Blink, Swipe, Difference}
 
     public static final double MIN_RATE = 0.5;
     public static final double MAX_RATE = 8;
@@ -126,11 +132,54 @@ public final class Compare {
         return layers.contains(S.a) && layers.contains(S.b);
     }
 
-    /** Whether blink keeps this layer off screen this instant. Any other layer, and every other mode, draws as usual. */
+    /**
+     * Whether blink, or a drawn difference (B is inside A's picture), keeps this layer off screen
+     * this instant. Any other layer, and every other mode, draws as usual.
+     */
     public static synchronized boolean hides(ImageLayer layer) {
+        if (S.mode == Mode.Difference)
+            return layer == S.b && differenceFor(S.a) != null;
         if (S.mode != Mode.Blink || !active())
             return false;
         return S.showingB ? layer == S.a : layer == S.b;
+    }
+
+    /** Layer B while A draws the difference: its own picture and colour bar are not on screen. Blink is not counted. */
+    public static synchronized boolean insideDifference(ImageLayer layer) {
+        return S.mode == Mode.Difference && hides(layer);
+    }
+
+    /** What layer A's draw takes in Difference mode: B's frame for the difference texture, and the shader's coefficients. */
+    public record DifferenceDraw(View.ImageData subtrahend, float[] coefficients) {}
+
+    /** For layer A while Difference is on and the verdict lets it be drawn; null for every other layer and case. */
+    @Nullable
+    public static synchronized DifferenceDraw differenceFor(@Nullable ImageLayer layer) {
+        if (layer == null || layer != S.a || S.mode != Mode.Difference || !active())
+            return null;
+        View.ImageData b = S.b.getImageData();
+        CompareDifference.Verdict v = differenceVerdict();
+        return b == null || v == null || !v.drawn() ? null : new DifferenceDraw(b, v.coefficients());
+    }
+
+    /** The verdict on A minus B for the frames on screen now; null unless Difference is chosen with two layers. */
+    @Nullable
+    public static synchronized CompareDifference.Verdict differenceVerdict() {
+        if (S.mode != Mode.Difference || !active())
+            return null;
+        View.ImageData da = S.a.getImageData(), db = S.b.getImageData();
+        if (da == null || db == null)
+            return CompareDifference.refuse("Waiting for " + (da == null ? "A" : "B") + " to load a frame");
+        return CompareDifference.judge(side(S.a, da), side(S.b, db));
+    }
+
+    private static CompareDifference.Side side(ImageLayer layer, View.ImageData data) {
+        MetaData m = data.metaData();
+        FitsMetaData f = m instanceof FitsMetaData fm ? fm : null;
+        return new CompareDifference.Side(m.getDisplayName(), f == null ? "" : f.getInstrument(), f == null ? "" : f.getUnit(),
+                data.imageBuffer().physicalScale(), data.imageBuffer().width, data.imageBuffer().height,
+                m.getViewpoint().time.milli, layer.getFilter().name(),
+                layer.getDisplaySettings().getDifferenceMode() != ImageDisplaySettings.DifferenceMode.None);
     }
 
     /** Which side of the divider this layer keeps: {@link #SIDE_NONE} unless swipe is on and it is A or B. */
