@@ -120,6 +120,28 @@ public final class FitsExportCheck {
         expect("outputName strips .fits.fz", FitsExport.outputName(new File("a.FITS.fz")).equals("a_phys.fits")
                 && FitsExport.outputName(new File("b.fts")).equals("b_phys.fits"));
 
+        // A tile-compressed (RICE_1) input, as .fits.fz: read through the compressed HDU, written uncompressed.
+        File tiled = dir.resolve("tiled.fits.fz").toFile();
+        try (Fits f = new Fits()) {
+            ImageHDU plain = (ImageHDU) Fits.makeHDU(new int[][]{{1, 2}, {3, 40000}});
+            plain.getHeader().addValue("DATE-OBS", "2026-02-02T00:00:00", null);
+            nom.tam.image.compression.hdu.CompressedImageHDU z = nom.tam.image.compression.hdu.CompressedImageHDU.fromImageHDU(plain, 2, 2);
+            z.setCompressAlgorithm(nom.tam.fits.header.Compression.ZCMPTYPE_RICE_1);
+            z.compress();
+            f.addHDU(z);
+            f.write(tiled);
+        }
+        Path outZ = dir.resolve("out-z");
+        JSONObject mz = FitsExport.export(List.of(tiled), outZ, session);
+        try (Fits f = new Fits(outZ.resolve("tiled_phys.fits").toFile())) {
+            ImageHDU h = (ImageHDU) f.readHDU();
+            double[][] d = (double[][]) h.getKernel();
+            expect("tile-compressed input: values come through", d[0][0] == 1 && d[0][1] == 2 && d[1][0] == 3 && d[1][1] == 40000);
+            expect("tile-compressed input: written uncompressed, Z cards dropped, header kept", !h.getHeader().containsKey("ZCMPTYPE")
+                    && !h.getHeader().containsKey("ZIMAGE") && "2026-02-02T00:00:00".equals(h.getHeader().getStringValue("DATE-OBS")));
+        }
+        expect("tile-compressed input: the manifest says so", mz.getJSONArray("files").getJSONObject(0).getJSONArray("steps").toString().contains("tile-compressed"));
+
         if (failures > 0) {
             System.out.println("FitsExportCheck: " + failures + " failed");
             System.exit(1);

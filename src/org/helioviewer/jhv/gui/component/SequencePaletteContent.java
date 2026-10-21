@@ -74,6 +74,7 @@ final class SequencePaletteContent {
         panel.setOpaque(false);
         panel.setAlignmentX(Component.LEFT_ALIGNMENT);
         layerCombo.setBorder(BorderFactory.createEmptyBorder(2, 2, 4, 2));
+        layerCombo.setToolTipText("The image layer these filters apply to");
         layerCombo.setRenderer(new DefaultListCellRenderer() {
             @Override
             public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean hasFocus) {

@@ -131,14 +131,24 @@ public final class CactusTrackPanel extends JPanel implements EventListener.Hand
         trackCropButton.addActionListener(e -> trackSelected(CMETracker.Mode.CROP));
         JButton detailsButton = new JButton("Details…");
         detailsButton.addActionListener(e -> detailsSelected());
+        JButton cancelButton = new JButton("Cancel");
+        cancelButton.setToolTipText("Stop tracking and put the warp (λ) and crop back as they were before it started");
+        cancelButton.addActionListener(e -> CMETracker.cancel());
+        cancelButton.setEnabled(CMETracker.isTracking());
+        CMETracker.addChangeListener(() -> cancelButton.setEnabled(CMETracker.isTracking())); // the panel lives for the app
         // No Close button: the palette's own header closes it, and in a sidebar there is nothing
         // to close. A dialog needed one; a panel that lives somewhere does not.
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.TRAILING));
         buttons.add(detailsButton);
         buttons.add(trackWarpButton);
         buttons.add(trackCropButton);
+        // Beside the status rather than a fourth button below: that row already fills a narrow
+        // sidebar, and a FlowLayout drops whatever overflows out of sight.
+        JPanel top = new JPanel(new BorderLayout());
+        top.add(status, BorderLayout.CENTER);
+        top.add(cancelButton, BorderLayout.LINE_END);
 
-        add(status, BorderLayout.PAGE_START);
+        add(top, BorderLayout.PAGE_START);
         add(new JScrollPane(table), BorderLayout.CENTER);
         add(buttons, BorderLayout.PAGE_END);
         // No fixed size: that was the dialog's, 540 x 360, and in a sidebar it hid every row past the

@@ -1,0 +1,54 @@
+{
+  "title": "Making a movie",
+  "sample": true,
+  "steps": [
+    {
+      "target": "transport",
+      "title": "Play",
+      "body": "Play runs the movie and the arrows beside it step one frame at a time. Drag the slider to move through time. J, K and L play backward, stop and play forward from anywhere in the window."
+    },
+    {
+      "target": "playbackOptions",
+      "action": "showPlayback",
+      "title": "Play rate and the end",
+      "body": "Under Playback and Recording, Play sets the rate, in frames per second or in solar minutes, hours or days per second. Loop, Stop and Swing choose what happens when playback reaches the end."
+    },
+    {
+      "target": "trimStart",
+      "title": "Trim",
+      "body": "Movie > Trim Start Here (I) and Trim End Here (O) set the movie's in and out points at the current frame. Movie > Reset Trim clears them."
+    },
+    {
+      "target": "playbackOptions",
+      "action": "showPlayback",
+      "title": "What to record",
+      "body": "Record chooses One loop, which records the movie once through; Screenshot, which writes a single still; or Unlimited, which records until you stop it."
+    },
+    {
+      "target": "playbackOptions",
+      "action": "showPlayback",
+      "title": "Size and format",
+      "body": "Below that are the aspect ratio, the pixels on the long side, and the format: the codec and container, and how much colour detail and bit depth the file keeps. A preset saves a set of these under a name."
+    },
+    {
+      "target": "transportRecord",
+      "title": "Record",
+      "body": "The red dot starts recording with those settings; click it again to stop. Files are saved in the Exports folder inside the HFStudio folder in your home folder."
+    },
+    {
+      "target": "quickShare",
+      "title": "Quick Share",
+      "body": "File > Quick Share records one loop as a movie that plays anywhere, then shows it in the file manager. Your recording settings are not changed."
+    },
+    {
+      "target": "openExportsFolder",
+      "title": "Find your movies",
+      "body": "File > Open Exports Folder shows the folder movies, screenshots and metadata are exported to."
+    },
+    {
+      "target": "present",
+      "title": "Present",
+      "body": "Present shows the output only, full screen, for a talk; Esc leaves. Hold the button for its settings."
+    }
+  ]
+}
