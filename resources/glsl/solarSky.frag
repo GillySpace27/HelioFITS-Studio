@@ -21,6 +21,9 @@ uniform vec3 skyLook;
 // drawn on the celestial sphere, which is what the sky is.
 uniform vec3 skyWarp;
 uniform float surfaceModel;
+// The distance the surface is measured from: the viewpoint's or the image observer's, as the
+// scene chooses (Display.surfaceDistance). SkyMap uses the same one for the grid and limb.
+uniform float surfaceDistance;
 
 vec3 skyLookRay(const float lon, const float lat) {
     float cosLat = cos(lat);
@@ -81,15 +84,16 @@ void main(void) {
         // simply no surface out there for the data to sit on. Normalising by the page position of
         // that radius rather than by 1 is what keeps this a one-to-one map, and with a field the
         // surface can describe it changes nothing (the page position of the outer radius is 1).
-        float reach = surfaceModel <= 0. ? 1e30 : observerDistance / surfaceModel;
+        float surfaceFrom = surfaceDistance > 0. ? surfaceDistance : observerDistance;
+        float reach = surfaceModel <= 0. ? 1e30 : surfaceFrom / surfaceModel;
         float rMax = min(skyWarp.x, reach * 0.999);
-        float eMax = surfaceElongation(rMax, observerDistance, surfaceModel);
+        float eMax = surfaceElongation(rMax, surfaceFrom, surfaceModel);
         float uMax = warpUnitWith(rMax, skyWarp.x, skyWarp.y, skyWarp.z);
         float eDome = acos(clamp(-ray.z, -1., 1.));
         if (eMax <= 0. || eDome > eMax)
             discard; // past the edge of the composed field
         float r = unwarpRadiusWith(uMax * eDome / eMax, skyWarp.x, skyWarp.y, skyWarp.z);
-        float eTrue = surfaceElongation(r, observerDistance, surfaceModel);
+        float eTrue = surfaceElongation(r, surfaceFrom, surfaceModel);
         vec2 perp = vec2(ray.x, ray.y);
         float len = length(perp);
         // The position angle about the Sun is untouched; only the elongation moves.
