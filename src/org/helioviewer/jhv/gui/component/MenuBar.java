@@ -173,7 +173,9 @@ public final class MenuBar extends JMenuBar {
         catalogItem(fileMenu, "saveSession");
         catalogItem(fileMenu, "saveSessionAs");
         catalogItem(fileMenu, "exportSessionWithData");
-        catalogItem(fileMenu, "shareScene"); // HS-16
+        catalogItem(fileMenu, "shareScene"); // catalogued under File since HS-16, never added here until the tours named it
+        catalogItem(fileMenu, "quickShare");
+        catalogItem(fileMenu, "datasetFolders"); // HS-16
         catalogItem(fileMenu, "revertToSaved");
         fileMenu.addSeparator();
         catalogItem(fileMenu, "setDefaultSession");
@@ -182,8 +184,6 @@ public final class MenuBar extends JMenuBar {
         catalogItem(fileMenu, "reloadSources");
         catalogItem(fileMenu, "copyProvenance");
         catalogItem(fileMenu, "openExportsFolder");
-        catalogItem(fileMenu, "quickShare"); // HS-16
-        catalogItem(fileMenu, "datasetFolders"); // HS-16
         if (!Platform.isMacOS())
             catalogItem(fileMenu, "newWindow"); // no Window menu off macOS
 
@@ -207,8 +207,8 @@ public final class MenuBar extends JMenuBar {
         catalogItem(editMenu, "undo");
         catalogItem(editMenu, "redo");
         editMenu.addSeparator();
-        catalogItem(editMenu, "copyFrame"); // HS-16
         catalogItem(editMenu, "paste");
+        catalogItem(editMenu, "copyFrame");
         editMenu.addSeparator();
         // Rubbing out what you drew is an edit of the scene, not a way of looking at it. It sat
         // in View because Annotation used to live on the toolbar's More menu and this was the
@@ -361,6 +361,7 @@ public final class MenuBar extends JMenuBar {
         catalogItem(layersMenu, "newSynopticLayer");
         layersMenu.addSeparator();
         catalogItem(layersMenu, "newPunchLayer");
+        catalogItem(layersMenu, "punchLatest");
         catalogItem(layersMenu, "newSoarLayer");
         catalogItem(layersMenu, "newAspiicsLayer");
         layersMenu.addSeparator();
@@ -368,6 +369,7 @@ public final class MenuBar extends JMenuBar {
         catalogItem(layersMenu, "openImageLayer");
         catalogItem(layersMenu, "openModel");
         catalogItem(layersMenu, "duplicateLayer"); // HS-11
+        catalogItem(layersMenu, "sendToPython");
         layersMenu.addSeparator();
         // Loading something already downloaded is a way of adding a layer, not a tool: it was under
         // Tools only because that is where the dialog was written.
@@ -421,8 +423,8 @@ public final class MenuBar extends JMenuBar {
         helpMenu.setName("helpMenu"); // tour target
         catalogItem(helpMenu, "searchControls");
         catalogItem(helpMenu, "welcome");
-        catalogItem(helpMenu, "takeTour");
-        JMenu toursMenu = new JMenu("Tours"); // every tour, Getting started first (HS-15)
+        catalogItem(helpMenu, "tipOfTheDay");
+        JMenu toursMenu = new JMenu("Tours"); // every tour, Getting started first (HS-15); it took over Take the Tour, which only started Getting started
         for (String tour : org.helioviewer.jhv.gui.search.Tour.IDS)
             catalogItem(toursMenu, org.helioviewer.jhv.gui.search.Tour.catalogId(tour));
         helpMenu.add(toursMenu);
@@ -448,6 +450,10 @@ public final class MenuBar extends JMenuBar {
         probe.setToolTipText("List every control on screen that is narrower than it asked to be, into the log");
         probe.addActionListener(e -> org.helioviewer.jhv.gui.LayoutProbe.logReport());
         helpMenu.add(probe);
+        JMenuItem tipProbe = new JMenuItem("Report Controls Without Tooltips");
+        tipProbe.setToolTipText("List every control in the open windows that has no tooltip, with the key to add to resources/data/tooltips.json, into the log");
+        tipProbe.addActionListener(e -> org.helioviewer.jhv.gui.Tooltips.logReport());
+        helpMenu.add(tipProbe);
         catalogItem(helpMenu, "sendFeedback");
         catalogItem(helpMenu, "reportBug");
 

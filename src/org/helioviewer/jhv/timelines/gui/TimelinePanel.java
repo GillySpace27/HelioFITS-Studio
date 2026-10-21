@@ -230,6 +230,7 @@ public final class TimelinePanel extends JPanel {
                 if (v.col == TimelineLayers.ENABLED_COLUMN) {
                     timeline.setEnabled(!timeline.isEnabled());
                     layers.updateCell(v.row, v.col);
+                    layers.updateCell(v.row, TimelineLayers.REMOVE_COLUMN); // a built-in row's X follows its tick
                     if (grid.getSelectedRow() == v.row)
                         setOptionsPanel(timeline);
                     DrawController.layoutChanged();
@@ -241,6 +242,11 @@ public final class TimelinePanel extends JPanel {
                     timeline.deleted(); // the user's gesture, as against the teardown remove() below
                     layers.remove(timeline);
                     selectExistingRow(v.row);
+                } else if (v.col == TimelineLayers.REMOVE_COLUMN && timeline.isEnabled()) {
+                    timeline.setEnabled(false); // a built-in row: hide it, as its checkbox does
+                    layers.updateCell(v.row, TimelineLayers.ENABLED_COLUMN);
+                    layers.updateCell(v.row, v.col);
+                    DrawController.layoutChanged();
                 }
             }
         });

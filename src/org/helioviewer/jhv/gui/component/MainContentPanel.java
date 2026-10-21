@@ -98,11 +98,17 @@ public final class MainContentPanel extends JPanel {
      * <p>setExpanded alone is not enough: the pane's own toggle runs updateLayout through an
      * action listener, and setSelected on the button does not fire one, so an expand from code
      * would leave the split pane still sized for a collapsed section.
+     *
+     * <p>And in the header click's order: updateLayout first, then setExpanded. A pane folded at
+     * launch is empty until updateLayout puts the plot in, and the plot goes in as addPlugin left
+     * it, hidden. Expanded first, the unhiding ran over an empty pane and the timeline came back
+     * blank, drawing none of the layers added to it (and its stopped DrawController never redrew).
      */
     public void revealPlugins() {
         if (!collapsiblePane.toggleButton.isSelected()) {
-            collapsiblePane.setExpanded(true);
+            collapsiblePane.toggleButton.setSelected(true); // what updateLayout reads
             updateLayout();
+            collapsiblePane.setExpanded(true);
         }
     }
 
