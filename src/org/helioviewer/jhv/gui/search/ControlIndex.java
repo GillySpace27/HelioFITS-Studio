@@ -75,6 +75,7 @@ public final class ControlIndex {
             {"imageLayersOptions", "Layer options", LAYERS, "colour color table levels brightness display intensity", "showImageLayers"},
             // The Projection palette
             {"projectionSurface", "Surface", PROJECTION, "plane of sky Thomson sphere celestial depth", "showProjection"},
+            {"projectionSurfaceFrom", "Surface from", PROJECTION, "observer viewpoint image distance composed sky", "showProjection"},
             {"projectionRender3d", "Render in 3D", PROJECTION, "helioradial 3D surface", "showProjection"},
             {"projectionReset", "Reset view", PROJECTION, "warp crop zoom defaults", "showProjection"},
             {"projectionSky", "Project onto the sky", PROJECTION, "observer sky dome", "showProjection"},
