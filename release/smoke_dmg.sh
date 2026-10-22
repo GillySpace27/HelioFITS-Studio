@@ -12,11 +12,14 @@
 # Exit 0 pass, 1 fail, 2 usage.
 set -eu
 BAD='Uncaught exception|NoClassDefFoundError|ClassNotFoundException|UnsatisfiedLinkError| SEVERE '
+SERVER_DOWN='LoadSources\.onFailure - [A-Za-z0-9_]+: (Connect|Read) timed out'
 
 grade() {
     _ok=0
-    if grep -Eq "$BAD" "$1"; then
-        grep -En "$BAD" "$1" | cut -c1-220 | sed 's/^/!! /' >&2; _ok=1
+    # A data server that cannot be reached is not a broken build: IAS was down for the whole 0.8.7
+    # release (2026-10-21) and failed this check on its connect timeout alone.
+    if grep -E "$BAD" "$1" | grep -Evq "$SERVER_DOWN"; then
+        grep -En "$BAD" "$1" | grep -Ev "$SERVER_DOWN" | cut -c1-220 | sed 's/^/!! /' >&2; _ok=1
     fi
     grep -q 'OpenGL context:' "$1" || { echo "!! no 'OpenGL context:' line: the app never drew" >&2; _ok=1; }
     [ "$_ok" = 0 ] && echo "   ok   ${1##*/}: drew, no uncaught exception or missing class"
