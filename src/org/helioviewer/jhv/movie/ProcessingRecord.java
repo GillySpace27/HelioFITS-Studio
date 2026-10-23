@@ -707,6 +707,153 @@ public final class ProcessingRecord {
         }
     }
 
+    // ---- Send to Python: the copy inside each FITS file, its sidecar, and hfrecord.json -----------
+
+    /** EXTNAME of the extension that holds a Send to Python file's record (Heliad's record.py reads this name). */
+    public static final String FITS_EXTNAME = "HFRECORD";
+    /** The record of a whole Send to Python export, written beside its manifest.json. */
+    public static final String FOLDER_RECORD = "hfrecord.json";
+    /** How each HISTORY card of a FITS file's record block starts. */
+    public static final String FITS_HISTORY_PREFIX = "HFREC " + FORMAT + " ";
+
+    /** The live identity lookup the export uses: waits for a source frame still being hashed. */
+    public static Function<URI, SourceIdentity.Entry> identities() {
+        return uri -> SourceIdentity.lookup(uri, SOURCE_WAIT_MS);
+    }
+
+    /**
+     * The record of one Send to Python file as it goes inside that file, built before the file is
+     * written: output.sha256 is null, as the schema says an embedded copy's is. {@code entry} is
+     * the file's manifest entry; a copy of it is kept, so later keys added to the entry do not
+     * change the record.
+     */
+    public static JSONObject fitsDataEmbedded(JSONObject session, String layerId, String layerName, File source, JSONObject entry,
+                                              String fileName, String recordId, Function<URI, SourceIdentity.Entry> identify) {
+        return buildFitsData(session, layerId, layerName, identify.apply(source.toURI()), new JSONObject(entry.toString()),
+                fileName, null, recordId);
+    }
+
+    /**
+     * The sidecar of a written Send to Python file: its embedded record with the hash of the file
+     * as written. Returns the sidecar's record, or null when it could not be written (logged).
+     */
+    @Nullable
+    public static JSONObject writeFitsDataSidecar(Path written, JSONObject embedded) {
+        try {
+            JSONObject record = new JSONObject(embedded.toString());
+            record.getJSONObject("output").put("sha256", fileHash(written));
+            writeJson(sidecar(written), record);
+            return record;
+        } catch (IOException | RuntimeException e) {
+            Log.warn("Processing record not written for " + written.getFileName(), e);
+            return null;
+        }
+    }
+
+    /** The SHA-256 of a Send to Python record's source file, or null when the source could not be identified. */
+    @Nullable
+    public static String fitsSourceSha256(JSONObject record) {
+        JSONArray sources = record.getJSONArray("layers").getJSONObject(0).getJSONArray("sources");
+        return sources.isEmpty() ? null : sources.getJSONObject(0).optString("sha256", null);
+    }
+
+    /** The FITS ORIGIN value the suite provenance format asks for: product and version. */
+    public static String suiteOrigin() {
+        return SUITE_PRODUCT + " " + AppInfo.version;
+    }
+
+    /** The suite credit line (attribution.json credit), for its own HISTORY card. */
+    public static String suiteCredit() {
+        return SUITE_CREDIT;
+    }
+
+    /**
+     * hfrecord.json: one record for a whole Send to Python export, from the sidecar records of its
+     * files (in export order). Layers are grouped by id in first-seen order; each holds every
+     * source of its files, and each decode op once, with the files it was applied to under
+     * resolved.applied_to (the values per file are in that file's own record).
+     * output.frame_files lists every file with its hash and record_id.
+     */
+    static JSONObject buildFitsFolder(JSONObject session, List<JSONObject> records, String recordId) {
+        Map<String, JSONObject> layers = new LinkedHashMap<>();
+        Map<String, List<String>> hashes = new LinkedHashMap<>();
+        Map<String, Map<String, JSONObject>> steps = new LinkedHashMap<>();
+        JSONArray files = new JSONArray();
+        for (JSONObject r : records) {
+            JSONObject out = r.getJSONObject("output");
+            String file = out.getString("file_name");
+            files.put(new JSONObject().put("file_name", file).put("sha256", out.opt("sha256"))
+                    .put("record_id", r.getString("record_id")).put("sidecar", file + SUFFIX));
+            JSONObject l = r.getJSONArray("layers").getJSONObject(0);
+            String id = l.getString("id");
+            JSONObject layer = layers.computeIfAbsent(id, k -> new JSONObject().put("id", id).put("name", l.getString("name"))
+                    .put("enabled", true).put("source_spec", new JSONObject().put("kind", "heliad_library"))
+                    .put("sources", new JSONArray()).put("native", new JSONObject().put("records", new JSONArray()))
+                    .put("acknowledgement", JSONObject.NULL));
+            if (!layer.has("dataset") && l.has("dataset"))
+                layer.put("dataset", l.getJSONObject("dataset"));
+            if (!"heliad_library".equals(l.getJSONObject("source_spec").getString("kind")))
+                layer.getJSONObject("source_spec").put("kind", "local_files");
+            for (Object o : l.getJSONArray("sources")) {
+                JSONObject s = (JSONObject) o;
+                layer.getJSONArray("sources").put(s);
+                if (s.has("sha256"))
+                    hashes.computeIfAbsent(id, k -> new ArrayList<>()).add(s.getString("sha256"));
+            }
+            layer.getJSONObject("native").getJSONArray("records").put(r.getString("record_id"));
+            Map<String, JSONObject> ops = steps.computeIfAbsent(id, k -> new LinkedHashMap<>());
+            for (Object o : l.getJSONArray("steps")) {
+                JSONObject s = (JSONObject) o;
+                JSONObject merged = ops.computeIfAbsent(s.getString("op"), k -> {
+                    JSONObject m = new JSONObject(s.toString()).put("resolved", new JSONObject().put("applied_to", new JSONArray()));
+                    if (m.has("caveat"))
+                        m.put("caveat", "Values differ per file; each file's own record has them. " + m.getString("caveat"));
+                    return m;
+                });
+                merged.getJSONObject("resolved").getJSONArray("applied_to").put(file);
+            }
+        }
+        JSONArray layerArray = new JSONArray();
+        for (Map.Entry<String, JSONObject> e : layers.entrySet()) {
+            JSONObject layer = e.getValue();
+            List<String> h = hashes.get(e.getKey());
+            if (h != null)
+                layer.put("source_set_sha256", setHash(h));
+            layer.put("steps", new JSONArray(steps.get(e.getKey()).values()));
+            layerArray.put(layer);
+        }
+        JSONObject first = records.isEmpty() ? null : records.get(0);
+        JSONObject record = new JSONObject()
+                .put("hfrecord", FORMAT)
+                .put("reader_compat", READER_COMPAT)
+                .put("record_id", recordId)
+                .put("created", session.optString("created"))
+                .put("producer", producer(session))
+                .put("output", new Output("fits_data", "application/fits", null, null, records.size(), null, null, 64, false).toJson()
+                        .put("frame_files", files))
+                .put("layers", layerArray)
+                .put("caveats", first == null ? new JSONArray() : first.getJSONArray("caveats"))
+                .put("citations", new JSONArray().put(Provenance.JHV_CITATION))
+                .put("snapshot", new JSONObject().put("taken", "export_start").put("changed_during_export", false))
+                .put("native", new JSONObject().put("studio_session", session));
+        if (first != null && first.has("provenance"))
+            record.put("provenance", first.getJSONObject("provenance"));
+        record.put("summary", summary(record));
+        return record;
+    }
+
+    /** Writes hfrecord.json into {@code outDir}; returns its file name, or null when it could not be written (logged). */
+    @Nullable
+    public static String writeFitsFolder(Path outDir, JSONObject session, List<JSONObject> records) {
+        try {
+            writeJson(outDir.resolve(FOLDER_RECORD), buildFitsFolder(session, records, UUID.randomUUID().toString()));
+            return FOLDER_RECORD;
+        } catch (IOException | RuntimeException e) {
+            Log.warn("Processing record not written for the Send to Python folder " + outDir.getFileName(), e);
+            return null;
+        }
+    }
+
     // ---- writing ---------------------------------------------------------------------------------
 
     /** Where the sidecar of {@code export} goes: its full file name plus .hfrec.json, beside it. */
