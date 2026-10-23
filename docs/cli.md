@@ -10,10 +10,25 @@ option table in `CommandLine.java`; this page says what the table cannot.
 | `-state` | `.jhv` file | Load a session; the window then belongs to it (autosave writes back to it). |
 | `-export` | `png` | Batch job: draw the scene, write one PNG, exit. Needs `-out`. |
 | `-out` | path | Where `-export` writes. |
+| `-dataset` | `dataset_uid` or `dataset_key` | Load that Heliad library dataset as one image layer. Repeatable. |
+| `-start` | ISO 8601 UTC time | With `-dataset`: the first observation to load. |
+| `-end` | ISO 8601 UTC time | With `-dataset`: the last observation to load. |
 | `-h` | none | Print the help and exit. |
 
 Every spelling that existed keeps working. A double-dash form of any option (`--state`, `--export`,
 `--help`) is an alias. A lone `.jhv` path is `-state <path>`.
+
+## Heliad datasets
+
+`-dataset sdo/aia/-/-/1/193 -start 2025-09-21T16:00:00 -end 2025-09-21T18:00:00` loads the current
+files of that dataset in the Heliad library on this computer whose observation time lies in the range,
+as one layer, in time order: what Add does on the Heliad tab. The value is looked up as a `dataset_uid`
+(when the library's index has that column, Heliad schema 5), then as a `dataset_key`, then as a former key
+in `dataset_aliases`. Times are ISO 8601 UTC; a trailing `Z` and fractional seconds are optional
+(`2025-09-21T16:00:04.840` is how Heliad writes them). Without `-start` or `-end`
+the range is open at that end. One `-start` and `-end` apply to every `-dataset` on the line. With
+`-export`, a dataset that cannot be loaded (no library, no such dataset, nothing in the range) ends the
+run with exit code 3. The SAMP message `heliad.dataset.load` does the same (`docs/samp-commands.md`).
 
 ## Exit codes
 
@@ -21,8 +36,8 @@ Every spelling that existed keeps working. A double-dash form of any option (`--
 |---|---|
 | 0 | Done (an export was written). |
 | 1 | Runtime error. |
-| 2 | Usage error: unknown option, missing value, `-export` without `-out` or with an unknown format. |
-| 3 | Input not found: the `-state` file cannot be read, or it failed to load. |
+| 2 | Usage error: unknown option, missing value, `-export` without `-out` or with an unknown format, a `-start` or `-end` that is not a time, or either without `-dataset`. |
+| 3 | Input not found: the `-state` file cannot be read, or it failed to load, or a `-dataset` could not be loaded in export mode. |
 | 4 | Export failed. |
 
 ## Export mode

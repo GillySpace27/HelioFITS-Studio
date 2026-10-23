@@ -9,6 +9,7 @@ import java.util.function.Consumer;
 
 import org.helioviewer.jhv.app.Commands;
 import org.helioviewer.jhv.app.Log;
+import org.helioviewer.jhv.io.HeliadDatasetLoad;
 
 import org.astrogrid.samp.Message;
 import org.astrogrid.samp.client.AbstractMessageHandler;
@@ -36,6 +37,32 @@ final class LoadHandlers {
         client.addMessageHandler(uriOrValueHandler("jhv.load.request", Commands::loadRequest, Commands::loadRequest));
         client.addMessageHandler(uriOrValueHandler("jhv.load.sunjson", Commands::loadSunJSON, Commands::loadSunJSON));
         client.addMessageHandler(SampHandlers.create("jhv.load.state", (senderId, sender, msg) -> loadState(msg, senderId)));
+        client.addMessageHandler(SampHandlers.create(HELIAD_DATASET_LOAD, (senderId, sender, msg) -> loadDataset(msg, senderId)));
+    }
+
+    /** One Heliad dataset as a layer; docs/samp-commands.md. A new name beside the jhv.* ones, never renamed (suite rule 5). */
+    static final String HELIAD_DATASET_LOAD = "heliad.dataset.load";
+
+    private static void loadDataset(Message msg, String senderId) {
+        Commands.OperationContext context = SampClient.operationContext(senderId, msg, HELIAD_DATASET_LOAD, HELIAD_DATASET_LOAD + ".completed");
+        String uid = SampHandlers.optionalString(msg, "uid");
+        if (uid == null || uid.isBlank()) {
+            context.complete(false, "Missing " + HELIAD_DATASET_LOAD + " uid.", null);
+            return;
+        }
+        String start = SampHandlers.optionalString(msg, "start"), end = SampHandlers.optionalString(msg, "end");
+        EventQueue.invokeLater(() -> HeliadDatasetLoad.load(uid, blankToNull(start), blankToNull(end)).whenComplete((layer, t) -> {
+            Throwable cause = t instanceof java.util.concurrent.CompletionException && t.getCause() != null ? t.getCause() : t;
+            if (cause != null)
+                Log.warn(HELIAD_DATASET_LOAD + " " + uid + ": " + cause.getMessage());
+            context.complete(cause == null && layer != null, cause == null ? (layer == null ? "Nothing loaded." : "Loaded " + uid + ".")
+                    : cause.getMessage() == null ? "Dataset load failed." : cause.getMessage(), null);
+        }));
+    }
+
+    @javax.annotation.Nullable
+    private static String blankToNull(@javax.annotation.Nullable String s) {
+        return s == null || s.isBlank() ? null : s;
     }
 
     private static AbstractMessageHandler singleURIHandler(String type, Consumer<URI> consumer) {
