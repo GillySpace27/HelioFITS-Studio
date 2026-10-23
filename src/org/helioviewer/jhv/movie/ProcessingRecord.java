@@ -772,4 +772,116 @@ public final class ProcessingRecord {
         Files.move(tmp, to, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
     }
 
+    // ---- the embedded copy (heliosoftware/spec/processing-record.md, "Where each format keeps it") ---
+
+    /** The PNG tEXt keyword, the EXR attribute and the movie metadata tag that hold the embedded copy. */
+    public static final String EMBED_KEY = "hfrecord";
+    /** The suite provenance object's PNG keyword (heliosoftware/spec/provenance.md). */
+    public static final String SUITE_PNG_KEYWORD = "HelioSoftware-Provenance";
+    static final String NATIVE_REF_PNG = "png:tEXt:" + Provenance.PNG_KEYWORD;
+    static final String NATIVE_REF_EXR = "exr:attr:" + Provenance.PNG_KEYWORD;
+    static final String NATIVE_REF_MOVIE = "mp4:comment";
+
+    /**
+     * The record for a file that is not written yet, so a copy of it can go inside the file: as
+     * write() builds it, with no file name and no hash. writePrepared() adds both once the file is
+     * complete. {@code waitForSources} false never blocks: a frame still being hashed is counted in
+     * source_count instead (for the EXR copy, built when the recording starts).
+     */
+    public static JSONObject prepare(JSONObject session, JSONObject live, @Nullable JSONObject endScene, Output output,
+                                     String recordId, boolean waitForSources) {
+        long wait = waitForSources ? SOURCE_WAIT_MS : 0;
+        return build(session, live, endScene, output, null, null, System.getProperty("user.home", ""),
+                uri -> SourceIdentity.lookup(uri, wait), recordId);
+    }
+
+    /**
+     * The copy that goes inside the file it describes: output.sha256 null (a file cannot hold its
+     * own hash), no output.file_name or frame_files (sidecars only), and, when {@code nativeRef} is
+     * given, native_ref in place of native because the same file already carries the session under
+     * that name. Everything else is the record unchanged, record_id included. The input is not changed.
+     */
+    public static JSONObject embedded(JSONObject record, @Nullable String nativeRef) {
+        JSONObject copy = new JSONObject(record.toString());
+        JSONObject out = copy.getJSONObject("output");
+        out.put("sha256", JSONObject.NULL);
+        out.remove("file_name");
+        out.remove("frame_files");
+        if (nativeRef != null) {
+            copy.remove("native");
+            copy.put("native_ref", nativeRef);
+        }
+        return copy;
+    }
+
+    /**
+     * The shortened copy a movie carries: each layer's sources emptied, with source_count and
+     * source_set_sha256 left to match it to the full sidecar, and no frame_map. The schema requires
+     * sources, so it stays as an empty list. The input is not changed.
+     */
+    public static JSONObject shortened(JSONObject embedded) {
+        JSONObject copy = new JSONObject(embedded.toString());
+        JSONArray layers = copy.optJSONArray("layers");
+        if (layers != null)
+            for (Object o : layers)
+                if (o instanceof JSONObject l) {
+                    JSONArray sources = l.optJSONArray("sources");
+                    if (!l.has("source_count"))
+                        l.put("source_count", sources == null ? 0 : sources.length());
+                    l.put("sources", new JSONArray());
+                }
+        JSONObject scene = copy.optJSONObject("scene");
+        if (scene != null)
+            scene.remove("frame_map");
+        return copy;
+    }
+
+    /** The embedded copy for a PNG: native by reference to the hfstudio chunk, ASCII-escaped like it. */
+    public static String pngText(JSONObject record) {
+        return Provenance.asciiJson(embedded(record, NATIVE_REF_PNG).toString());
+    }
+
+    /** The embedded copy for an EXR frame: native by reference to the hfstudio attribute. */
+    public static String exrText(JSONObject record) {
+        return embedded(record, NATIVE_REF_EXR).toString();
+    }
+
+    /**
+     * The shortened copy for a movie's hfrecord tag. native is replaced by a reference to the
+     * comment only when the comment holds the scene ({@code commentHasScene}); a comment cut down
+     * to fit its cap does not, and then the session stays in the copy.
+     */
+    public static String movieText(JSONObject record, boolean commentHasScene) {
+        return shortened(embedded(record, commentHasScene ? NATIVE_REF_MOVIE : null)).toString();
+    }
+
+    /** The suite provenance object of a record, as the PNG HelioSoftware-Provenance chunk holds it. */
+    public static String suiteText(JSONObject record) {
+        JSONObject p = record.optJSONObject("provenance");
+        return Provenance.asciiJson((p == null ? new JSONObject() : p).toString());
+    }
+
+    /**
+     * The sidecar for a record from prepare(), written once {@code export} is complete: its file
+     * name and hash (a series directory gets its frame files instead). Returns the sidecar, or
+     * null when it could not be written (logged, as write() does).
+     */
+    @Nullable
+    public static Path writePrepared(Path export, JSONObject record) {
+        try {
+            JSONObject full = new JSONObject(record.toString());
+            JSONObject out = full.getJSONObject("output");
+            out.put("file_name", export.getFileName().toString());
+            out.put("sha256", Files.isRegularFile(export) ? fileHash(export) : JSONObject.NULL);
+            if (Files.isDirectory(export))
+                out.put("frame_files", frameFiles(export));
+            Path side = sidecar(export);
+            writeJson(side, full);
+            return side;
+        } catch (IOException | RuntimeException e) {
+            Log.warn("Processing record not written for " + export.getFileName(), e);
+            return null;
+        }
+    }
+
 }

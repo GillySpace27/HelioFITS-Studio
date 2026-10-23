@@ -11,6 +11,11 @@
         1% of pixels off by more than 8 of 255 (estimates, set so a GPU or driver difference
         passes and a missing layer, a different colour table or a different frame does not).
         Identical bytes are not expected.
+    hfrecord_roundtrip.py embedded EXPORT.png
+        The PNG's own tEXt hfrecord chunk passes the schema and equals the sidecar except where
+        processing-record.md says an embedded copy differs: output.sha256 null, no
+        output.file_name, and native_ref "png:tEXt:hfstudio" in place of native. The
+        HelioSoftware-Provenance chunk equals the record's provenance object.
 
 Needs Pillow and jsonschema. Exit 0 on pass, 1 on a failure, 2 on bad arguments.
 """
@@ -20,7 +25,10 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import struct
 import sys
+import tempfile
+import zlib
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -74,6 +82,49 @@ def prepare(png: Path, home: str, state: Path) -> int:
     return 0
 
 
+def png_text(png: Path) -> dict:
+    """tEXt chunks by keyword (first one wins), CRC checked."""
+    data = png.read_bytes()
+    out, pos = {}, 8
+    while pos + 12 <= len(data):
+        (length,) = struct.unpack(">I", data[pos:pos + 4])
+        kind, body = data[pos + 4:pos + 8], data[pos + 8:pos + 8 + length]
+        (crc,) = struct.unpack(">I", data[pos + 8 + length:pos + 12 + length])
+        if kind == b"tEXt" and b"\0" in body and zlib.crc32(kind + body) == crc:
+            key, _, text = body.partition(b"\0")
+            out.setdefault(key.decode("latin-1"), text.decode("latin-1"))
+        if kind == b"IEND":
+            break
+        pos += 12 + length
+    return out
+
+
+def embedded(png: Path) -> int:
+    text = png_text(png)
+    if "hfrecord" not in text:
+        return fail(f"no hfrecord chunk in {png.name}")
+    inside = json.loads(text["hfrecord"])
+    with tempfile.TemporaryDirectory() as tmp:
+        copy = Path(tmp) / "embedded.hfrec.json"
+        copy.write_text(json.dumps(inside), encoding="utf-8")
+        if test_hfrecord.main([str(copy)]) != 0:
+            return fail("the embedded copy does not pass the schema")
+    expected = record_of(png)
+    expected["output"].pop("file_name", None)
+    expected["output"]["sha256"] = None
+    expected.pop("native", None)
+    expected["native_ref"] = "png:tEXt:hfstudio"
+    if inside != expected:
+        keys = sorted(k for k in set(inside) | set(expected) if inside.get(k) != expected.get(k))
+        return fail(f"the hfrecord chunk differs from the sidecar in {keys}")
+    print("  ok   the hfrecord chunk equals the sidecar (sha256 null, no file_name, native_ref)")
+    suite = text.get("HelioSoftware-Provenance")
+    if suite is None or json.loads(suite) != expected.get("provenance"):
+        return fail("HelioSoftware-Provenance is missing or differs from the record's provenance")
+    print("  ok   HelioSoftware-Provenance is the record's provenance object")
+    return 0
+
+
 def same_scene(a: dict, b: dict) -> list[str]:
     problems = []
     la, lb = a["layers"], b["layers"]
@@ -112,6 +163,8 @@ def compare(first: Path, second: Path) -> int:
 def main(argv: list[str]) -> int:
     if len(argv) == 4 and argv[0] == "prepare":
         return prepare(Path(argv[1]), argv[2], Path(argv[3]))
+    if len(argv) == 2 and argv[0] == "embedded":
+        return embedded(Path(argv[1]))
     if len(argv) == 3 and argv[0] == "compare":
         return compare(Path(argv[1]), Path(argv[2]))
     print(__doc__)

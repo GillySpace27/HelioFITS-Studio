@@ -162,6 +162,16 @@ class ExportWriter {
 
     @Nullable
     String close() throws Exception {
+        return close(null);
+    }
+
+    /**
+     * As close(), with the processing record from ProcessingRecord.prepare (null for none) put
+     * inside the file beside the session: a tEXt chunk in each PNG, a metadata tag in a movie. An
+     * EXR frame took its copy when it was captured.
+     */
+    @Nullable
+    String close(@Nullable JSONObject record) throws Exception {
         if (failure != null) {
             if (tempFile != null)
                 tempFile.delete();
@@ -179,9 +189,15 @@ class ExportWriter {
             } else {
                 outPath = prefix + format.extension;
             }
-            runFFmpeg(buildCommand(outPath));
+            File meta = record == null || format.isSeries() ? null : movieMetadata(record);
+            try {
+                runFFmpeg(buildCommand(outPath, meta));
+            } finally {
+                if (meta != null)
+                    meta.delete();
+            }
             if (format == ExportFormat.PNG)
-                stampPngSeries();
+                stampPngSeries(record);
             return outPath;
         } catch (Exception e) {
             deleteOutputs();
@@ -192,7 +208,7 @@ class ExportWriter {
         }
     }
 
-    private List<String> buildCommand(String outPath) {
+    private List<String> buildCommand(String outPath, @Nullable File meta) {
         List<String> input = List.of(
                 "-hide_banner",
                 "-f", "rawvideo",
@@ -204,8 +220,12 @@ class ExportWriter {
 
         List<String> command = new ArrayList<>(ffmpeg);
         command.addAll(input);
-        command.addAll(encodeArgs(format, chroma, depth, w, h, fps, allIntra));
-        command.addAll(metadataArgs(format, provenance == null ? null : Provenance.metadataComment(provenance)));
+        if (meta != null) // a second input holding only metadata; its tags become the output's
+            command.addAll(List.of("-f", "ffmetadata", "-i", meta.getPath(), "-map_metadata", "1"));
+        command.addAll(meta == null ? encodeArgs(format, chroma, depth, w, h, fps, allIntra)
+                : withMetadataTags(encodeArgs(format, chroma, depth, w, h, fps, allIntra)));
+        if (meta == null) // else the comment is in the metadata file with the rest
+            command.addAll(metadataArgs(format, provenance == null ? null : Provenance.metadataComment(provenance)));
         command.add("-y");
         command.add(outPath);
         return command;
@@ -291,20 +311,97 @@ class ExportWriter {
         return format.isSeries() || comment == null ? List.of() : List.of("-metadata", "comment=" + comment);
     }
 
-    // ffmpeg has written the frames; each gets the session as a tEXt chunk before its IEND. A frame
-    // that cannot take it is logged and left as ffmpeg wrote it: the export itself has succeeded.
-    private void stampPngSeries() {
+    /**
+     * The mp4 muxer writes only a fixed set of tags, so a custom one (hfrecord) needs
+     * use_metadata_tags, added to the one -movflags a format already has (ffmpeg keeps only the
+     * last -movflags). Matroska keeps any tag and has no -movflags to change.
+     */
+    static List<String> withMetadataTags(List<String> encodeArgs) {
+        List<String> out = new ArrayList<>(encodeArgs);
+        int i = out.indexOf("-movflags");
+        if (i >= 0 && i + 1 < out.size() && !out.get(i + 1).contains("use_metadata_tags"))
+            out.set(i + 1, out.get(i + 1) + "+use_metadata_tags");
+        return out;
+    }
+
+    /**
+     * The movie's tags as an ffmetadata file, read by ffmpeg as a second input: comment (the
+     * session, as metadataArgs puts it), description (the suite credit line) and hfrecord. A file
+     * and not -metadata, for two reasons measured here: one command-line argument is capped by the
+     * system (the bundled ffmpeg on Linux took a 131000-byte value and refused 131072 bytes with
+     * "Argument list too long", while a 16 MiB tag went through a file and read back whole), and an
+     * argument is converted to the platform's encoding (sun.jnu.encoding), so under a POSIX locale
+     * the session's "Å" reached the file as "?". The file is UTF-8 whatever the locale.
+     */
+    private File movieMetadata(JSONObject record) throws IOException {
+        File meta = File.createTempFile("meta", ".txt", Directories.exportCacheDir);
+        String comment = provenance == null ? null : Provenance.metadataComment(provenance);
+        boolean hasScene = false;
+        if (comment != null)
+            try {
+                hasScene = new JSONObject(comment).has("scene");
+            } catch (org.json.JSONException e) {
+                hasScene = false; // the comment is always JSON; if not, keep the session in the record
+            }
+        JSONObject suite = record.optJSONObject("provenance");
+        String credit = suite == null ? null : suite.optString("credit", null);
+        java.nio.file.Files.writeString(meta.toPath(), ffmetadata(comment, credit, ProcessingRecord.movieText(record, hasScene)),
+                java.nio.charset.StandardCharsets.UTF_8);
+        return meta;
+    }
+
+    /** An ffmetadata file with the tags that are given: comment, description, hfrecord. */
+    static String ffmetadata(@Nullable String comment, @Nullable String description, @Nullable String hfrecord) {
+        StringBuilder sb = new StringBuilder(";FFMETADATA1\n");
+        String[][] tags = {{"comment", comment}, {"description", description}, {ProcessingRecord.EMBED_KEY, hfrecord}};
+        for (String[] t : tags)
+            if (t[1] != null && !t[1].isEmpty())
+                sb.append(t[0]).append('=').append(ffmetadataEscape(t[1])).append('\n');
+        return sb.toString();
+    }
+
+    /** ffmetadata's escaping: '=', ';', '#', backslash and newline each take a backslash. */
+    static String ffmetadataEscape(String s) {
+        StringBuilder sb = new StringBuilder(s.length() + 16);
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '=' || c == ';' || c == '#' || c == '\\' || c == '\n')
+                sb.append('\\');
+            sb.append(c);
+        }
+        return sb.toString();
+    }
+
+    // ffmpeg has written the frames; each gets the session as a tEXt chunk before its IEND, then
+    // the record's embedded copy (hfrecord) and the suite provenance chunks. A frame that cannot
+    // take them is logged and left as it is: the export itself has succeeded.
+    private void stampPngSeries(@Nullable JSONObject record) {
         if (provenance == null)
             return;
         File[] frames = new File(prefix).listFiles((dir, name) -> name.startsWith("frame") && name.endsWith(".png"));
         if (frames == null)
             return;
+        String embedded = record == null ? null : ProcessingRecord.pngText(record);
         for (File frame : frames) {
             try {
                 Provenance.writePngChunk(frame.toPath(), provenance);
+                if (record != null)
+                    stampRecord(frame.toPath(), record, embedded);
             } catch (IOException e) {
                 Log.warn("Provenance not written into " + frame.getName(), e);
             }
+        }
+    }
+
+    /** hfrecord, then the suite provenance chunks (heliosoftware/spec/provenance.md): RHEF and Disclaimer only with a stamp. */
+    static void stampRecord(Path png, JSONObject record, String embedded) throws IOException {
+        Provenance.writePngText(png, ProcessingRecord.EMBED_KEY, embedded);
+        Provenance.writePngText(png, ProcessingRecord.SUITE_PNG_KEYWORD, ProcessingRecord.suiteText(record));
+        JSONObject suite = record.optJSONObject("provenance");
+        String stamp = suite == null || suite.isNull("rhef") ? null : suite.optString("rhef", null);
+        if (stamp != null && !stamp.isEmpty()) {
+            Provenance.writePngText(png, "RHEF", stamp);
+            Provenance.writePngText(png, "Disclaimer", ProcessingRecord.SUITE_DISCLAIMER);
         }
     }
 

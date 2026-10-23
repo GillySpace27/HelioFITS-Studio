@@ -50,7 +50,10 @@ autosave timer runs, no welcome window, tour, outbox or update check starts, and
 tEXt chunk, and beside it its processing record `<out>.hfrec.json` (hfrecord 1.0,
 `docs/spec/hfrecord-1.schema.json`): the layers' sources by SHA-256, every step in the order Studio runs
 it with the values used, and the session under `native.studio_session`, from which `-state` rebuilds the
-scene (`extra/test/hfrecord_roundtrip.py`, run by `launch.yml`). It is written when the scene has an image and 3 s have passed (`-Djhv.exportSettleMs=N`
+scene (`extra/test/hfrecord_roundtrip.py`, run by `launch.yml`). The PNG also carries a copy of the
+record in its own `hfrecord` tEXt chunk (`output.sha256` null, no `output.file_name`, `native_ref`
+`png:tEXt:hfstudio` in place of the session) and the suite provenance chunk `HelioSoftware-Provenance`
+(plus `RHEF` and `Disclaimer` when a layer has RHEF on). It is written when the scene has an image and 3 s have passed (`-Djhv.exportSettleMs=N`
 changes that); after 180 s without an image it exits 4.
 
 The first slice needs a display (use `xvfb-run -a` on a server); the window is not hidden. Movie export
