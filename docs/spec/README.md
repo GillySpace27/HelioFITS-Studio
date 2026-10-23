@@ -7,3 +7,10 @@
 
 Studio writes processing records with `src/org/helioviewer/jhv/movie/ProcessingRecord.java`;
 `extra/test/test_hfrecord.py` validates them against this schema in `ant check-all`.
+
+Send to Python (`src/org/helioviewer/jhv/io/FitsExport.java`) also puts the record inside each FITS
+file: an 8-bit image extension named `HFRECORD` holding the record as UTF-8 JSON (Heliad's reader takes
+that layout), the cards `HFRECID` (record_id) and `HFRSRC` (the source file's SHA-256), and a HISTORY
+block from `HFREC 1.0 record <record_id>` through one card per step applied to `HFREC 1.0 sidecar
+<file>.hfrec.json`. `hfrecord.json` beside `manifest.json` covers the whole export, and the manifest
+names it under `hfrecord`. `extra/test/FitsRecordCheck.java` and `test_hfrecord.py` check both.
