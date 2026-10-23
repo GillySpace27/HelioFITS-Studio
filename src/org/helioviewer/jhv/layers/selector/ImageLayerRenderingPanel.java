@@ -20,6 +20,7 @@ import org.helioviewer.jhv.image.lut.LUTLabels;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layer;
 import org.helioviewer.jhv.layers.Layers;
+import org.helioviewer.jhv.layers.filters.BackgroundPanel;
 import org.helioviewer.jhv.layers.filters.ChannelMixerPanel;
 import org.helioviewer.jhv.layers.filters.ContrastPanel;
 import org.helioviewer.jhv.layers.filters.DifferencePanel;
@@ -70,7 +71,9 @@ final class ImageLayerRenderingPanel extends JPanel {
     private final FITSSettings fitsSettings;
 
     private final org.helioviewer.jhv.layers.filters.PlanePanel planePanel;
+    private final BackgroundPanel backgroundPanel;
     private final LayerSection displaySection;
+    private final LayerSection backgroundSection;
     private final LayerSection intensitySection;
 
     /** @param rebuild rebuild this layer's options from current state; a revert moves rows this panel does not own */
@@ -91,6 +94,7 @@ final class ImageLayerRenderingPanel extends JPanel {
         sequencePanel = new SequencePointer(layer);
         fitsSettings = new FITSSettings(layer.getProcessingSettings());
         planePanel = new org.helioviewer.jhv.layers.filters.PlanePanel(layer.getProcessingSettings(), layer::reloadSources);
+        backgroundPanel = new BackgroundPanel(layer);
 
         FilterDetails[] intensityRows = {differencePanel, levelsPanel, contrastPanel, sharpenPanel, imageFilterPanel, sequencePanel};
         JPanel intensityContent = FilterRowLayout.rows(intensityRows);
@@ -117,6 +121,16 @@ final class ImageLayerRenderingPanel extends JPanel {
             revertDisplay(layer);
             rebuild.run();
         });
+        // Between the two: the background comes off the data before anything in Intensity sees it.
+        // Only a LASCO frame with a published monthly image has one, so the section shows itself
+        // once such a frame has been decoded (updateBadges).
+        backgroundSection = new LayerSection("Background", "layer_background",
+                FilterRowLayout.rows(backgroundPanel.switchRow(), backgroundPanel.statusRow()), true,
+                () -> backgroundSummary(layer), () -> {
+            revertBackground(layer);
+            rebuild.run();
+        });
+        backgroundSection.setVisible(false);
         intensitySection = new LayerSection("Intensity", "layer_intensity", intensityContent, true,
                 () -> intensitySummary(layer), () -> {
             revertIntensity(layer);
@@ -127,11 +141,13 @@ final class ImageLayerRenderingPanel extends JPanel {
         // layer that is selected, not asides to be tidied away, and folding one hid why the
         // picture looks as it does with nothing on screen saying so.
         displaySection.pinOpen();
+        backgroundSection.pinOpen();
         intensitySection.pinOpen();
 
         setLayout(new BoxLayout(this, BoxLayout.PAGE_AXIS));
         setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
         add(displaySection);
+        add(backgroundSection);
         add(intensitySection);
 
         // Usually refreshed through ImageLayer activation; initialize here too in case that activation already happened before panel creation.
@@ -163,6 +179,10 @@ final class ImageLayerRenderingPanel extends JPanel {
 
     /** Both headers, re-read from the layer. Polled while this panel is the one on screen. */
     void updateBadges() {
+        backgroundPanel.update();
+        if (backgroundSection.isVisible() != backgroundPanel.applies())
+            backgroundSection.setVisible(backgroundPanel.applies());
+        backgroundSection.updateBadge();
         displaySection.updateBadge();
         intensitySection.updateBadge();
         levelsPanel.updateLabel(); // data values: a new frame can bring a new scale
@@ -193,6 +213,10 @@ final class ImageLayerRenderingPanel extends JPanel {
         if (!off.isEmpty())
             joiner.add(String.join("", off) + " off");
         return joiner.toString();
+    }
+
+    private static String backgroundSummary(ImageLayer layer) {
+        return layer.getProcessingSettings().fitsParameters().subtractBackground() ? "" : "not subtracted";
     }
 
     private static String intensitySummary(ImageLayer layer) {
@@ -247,6 +271,13 @@ final class ImageLayerRenderingPanel extends JPanel {
         // The FITS clip and scale are not reverted with this: they say what the data means rather
         // than how it is shown, and they keep their own disclosure to say so.
         DisplayController.render(1);
+    }
+
+    static void revertBackground(ImageLayer layer) {
+        if (layer.getProcessingSettings().fitsParameters().subtractBackground())
+            return;
+        layer.getProcessingSettings().setSubtractBackground(true);
+        layer.reloadSources(); // the clip set follows the pixels, as the switch itself does
     }
 
     // ---- gating for a categorical colour table -------------------------------------------------

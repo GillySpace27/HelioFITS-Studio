@@ -9,6 +9,7 @@ import java.util.function.DoubleUnaryOperator;
 
 import javax.annotation.Nullable;
 
+import org.helioviewer.jhv.io.LascoBackground;
 import org.helioviewer.jhv.thread.ParallelRange;
 
 import org.lwjgl.system.MemoryUtil;
@@ -264,6 +265,31 @@ public final class ImageBuffer {
 
     public boolean isProvisional() {
         return provisional;
+    }
+
+    private volatile boolean backgroundSubtracted;
+    @Nullable
+    private volatile LascoBackground.Request background;
+
+    /**
+     * The LASCO background this frame has, or would have had if the layer subtracted it.
+     *
+     * @param request    null when no background is published for the frame
+     * @param subtracted whether it was taken off the pixels
+     */
+    public void setBackground(@Nullable LascoBackground.Request request, boolean subtracted) {
+        background = request;
+        backgroundSubtracted = subtracted;
+    }
+
+    /** True when a monthly background was taken off these pixels. */
+    public boolean isBackgroundSubtracted() {
+        return backgroundSubtracted;
+    }
+
+    @Nullable
+    public LascoBackground.Request background() {
+        return background;
     }
 
     public void protectFromExplicitFree() {
