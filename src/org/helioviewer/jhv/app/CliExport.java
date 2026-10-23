@@ -60,8 +60,10 @@ public final class CliExport {
                 Path out = Path.of(CommandLine.exportOut());
                 if (out.toAbsolutePath().getParent() != null)
                     Files.createDirectories(out.toAbsolutePath().getParent());
-                Files.copy(Path.of(output.contains("%04d") ? String.format(output, 1) : output), out, // a series reports its ffmpeg pattern; a screenshot is frame 1
+                Path written = Path.of(output.contains("%04d") ? String.format(output, 1) : output);
+                Files.copy(written, out, // a series reports its ffmpeg pattern; a screenshot is frame 1
                          StandardCopyOption.REPLACE_EXISTING);
+                org.helioviewer.jhv.movie.ProcessingRecord.copySidecar(written, out); // <out>.hfrec.json, named and hashed for the copy
             } catch (IOException | RuntimeException ex) {
                 fail(CommandLine.Exit.EXPORT_FAILED, "Could not write " + CommandLine.exportOut() + ": " + ex.getMessage());
                 return;

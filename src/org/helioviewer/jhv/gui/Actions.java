@@ -277,10 +277,16 @@ public final class Actions {
             };
             Task.submitBackground("send-to-python", () -> {
                 try {
-                    org.json.JSONObject manifest = org.helioviewer.jhv.io.FitsExport.export(sources, out, org.helioviewer.jhv.movie.Provenance.session(), step);
+                    org.json.JSONObject session = org.helioviewer.jhv.movie.Provenance.session();
+                    org.json.JSONObject manifest = org.helioviewer.jhv.io.FitsExport.export(sources, out, session, step);
                     List<File> written = new ArrayList<>();
-                    for (File s : sources)
-                        written.add(out.resolve(org.helioviewer.jhv.io.FitsExport.outputName(s)).toFile());
+                    for (int i = 0; i < sources.size(); i++) {
+                        File w = out.resolve(org.helioviewer.jhv.io.FitsExport.outputName(sources.get(i))).toFile();
+                        written.add(w);
+                        org.json.JSONObject entry = manifest.getJSONArray("files").optJSONObject(i); // export() writes one entry per source, in order
+                        org.helioviewer.jhv.movie.ProcessingRecord.writeFitsData(w.toPath(), sources.get(i), session, layer.getId(), layer.getName(),
+                                entry == null ? new org.json.JSONObject() : entry);
+                    }
                     // Off the event thread: connecting to a hub can wait on the network. No hub sends nothing and fails nothing.
                     int reached = org.helioviewer.jhv.io.samp.SampClient.sendFitsFiles(written);
                     return new String[]{org.helioviewer.jhv.io.FitsExport.snippet(out, manifest), reached > 0

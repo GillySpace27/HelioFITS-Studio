@@ -39,7 +39,7 @@ jobs:
       - uses: ./.github/actions/setup-hfstudio
         with:
           natives: 'false'
-          linux-packages: xvfb imagemagick libgl1 libgl1-mesa-dri libglx-mesa0 libegl1 python3-pil
+          linux-packages: xvfb imagemagick libgl1 libgl1-mesa-dri libglx-mesa0 libegl1 python3-pil python3-jsonschema
 
       - name: Build
         run: ant jar
@@ -61,6 +61,17 @@ jobs:
           file "$RUNNER_TEMP/export.png"
           grep -c hfstudio "$RUNNER_TEMP/export.png"
 
+      # The processing record (hfrecord 1.0) beside the export: it must pass the schema and hash the
+      # file, and its native part must rebuild the same scene. The second export loads only the
+      # record's scene with -state; the two pictures are compared with a tolerance, not byte for byte.
+      - name: Rebuild the export from its processing record
+        run: |
+          export JAVA_TOOL_OPTIONS="-Duser.home=$RUNNER_TEMP/home-export"
+          ls -l "$RUNNER_TEMP/export.png.hfrec.json"
+          python3 extra/test/hfrecord_roundtrip.py prepare "$RUNNER_TEMP/export.png" "$RUNNER_TEMP/home-export" "$RUNNER_TEMP/rebuild.jhv"
+          xvfb-run -a -s "-screen 0 1600x1000x24" ./run.sh --export png --out "$RUNNER_TEMP/rebuild.png" -state "$RUNNER_TEMP/rebuild.jhv"
+          python3 extra/test/hfrecord_roundtrip.py compare "$RUNNER_TEMP/export.png" "$RUNNER_TEMP/rebuild.png"
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
@@ -69,6 +80,8 @@ jobs:
             shot-linux.png
             app-linux.log
             app-linux.out
+            ${{ runner.temp }}/export.png.hfrec.json
+            ${{ runner.temp }}/rebuild.png.hfrec.json
 
   windows:
     runs-on: windows-latest
