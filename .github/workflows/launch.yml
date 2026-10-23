@@ -72,6 +72,13 @@ jobs:
           xvfb-run -a -s "-screen 0 1600x1000x24" ./run.sh --export png --out "$RUNNER_TEMP/rebuild.png" -state "$RUNNER_TEMP/rebuild.jhv"
           python3 extra/test/hfrecord_roundtrip.py compare "$RUNNER_TEMP/export.png" "$RUNNER_TEMP/rebuild.png"
 
+      - name: Show the round trip's inputs when it fails
+        if: failure()
+        run: |
+          for f in "$RUNNER_TEMP/rebuild.jhv" "$RUNNER_TEMP/rebuild.png.hfrec.json"; do
+            echo "== $f"; cat "$f" || true; echo
+          done
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
