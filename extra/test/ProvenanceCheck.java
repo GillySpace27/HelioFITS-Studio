@@ -201,6 +201,37 @@ public final class ProvenanceCheck {
         plain.getJSONObject("org.helioviewer.jhv.state").getJSONArray("imageLayers").getJSONObject(0)
                 .getJSONObject("data").put("filter", "None");
         expect("no RHEF, no caveat", !Provenance.session(plain, home, Instant.EPOCH).has("caveat"));
+
+        // A layer from local files (the Heliad tab, a drop): each file by its identity, never its path.
+        String lib = "file:" + home + "/HeliadLibrary/store/aia/";
+        JSONObject local = new JSONObject().put("org.helioviewer.jhv.state", new JSONObject()
+                .put("imageLayers", new JSONArray().put(new JSONObject().put("name", "SDO AIA 193 L1").put("data", new JSONObject()
+                        .put("uris", new JSONArray().put(lib + "a1.fits").put(lib + "a2.fits").put("file:" + home + "/loose.fits"))
+                        .put("filter", "None")))));
+        org.helioviewer.jhv.io.HeliadLibrary.Identity heliad = new org.helioviewer.jhv.io.HeliadLibrary.Identity(
+                "1".repeat(64), "sdo/aia/-/-/1/193", "sdo/aia/-/-/1/193|2025-09-21T16:00:04.840", "ds-7f3a", null, 10, null, null);
+        JSONObject ls = Provenance.session(local, home, Instant.EPOCH, uri -> {
+            String u = uri.toString();
+            if (u.endsWith("a1.fits"))
+                return new org.helioviewer.jhv.io.SourceIdentity.Entry("1".repeat(64), 10, heliad);
+            if (u.endsWith("loose.fits"))
+                return new org.helioviewer.jhv.io.SourceIdentity.Entry("2".repeat(64), 10, null);
+            return null; // a2: still being hashed
+        });
+        JSONObject src = ls.getJSONArray("sources").getJSONObject(0);
+        JSONArray files = src.optJSONArray("files");
+        expect("local files are sources again: one entry per identified file", files != null && files.length() == 2);
+        expect("a library file carries sha256, dataset_key, obs_key and dataset_uid",
+                files != null && "sdo/aia/-/-/1/193".equals(files.getJSONObject(0).optString("dataset_key"))
+                        && files.getJSONObject(0).has("obs_key") && "ds-7f3a".equals(files.getJSONObject(0).optString("dataset_uid"))
+                        && "1".repeat(64).equals(files.getJSONObject(0).optString("sha256")));
+        expect("a file outside the library carries sha256 only",
+                files != null && files.getJSONObject(1).keySet().equals(java.util.Set.of("sha256")));
+        expect("a file not identified yet is counted, never guessed", src.optInt("files_pending") == 1);
+        expect("still no local address among the uris", src.getJSONArray("uris").isEmpty());
+        String localSources = ls.getJSONArray("sources").toString();
+        expect("no path in the sources: " + localSources, !localSources.contains(home) && !localSources.contains("HeliadLibrary") && !localSources.contains("file:"));
+        expect("the citation names the files by hash", Provenance.citation(ls).contains("2 local files, sha256 " + "1".repeat(64)));
     }
 
     private static void metadataCap() {

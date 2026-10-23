@@ -34,6 +34,8 @@ public final class CliExport {
             long now = System.currentTimeMillis();
             if (stateFailed.get())
                 end(timer, CommandLine.Exit.INPUT_NOT_FOUND, "The state file could not be loaded.");
+            else if (CommandLine.datasetFailed())
+                end(timer, CommandLine.Exit.INPUT_NOT_FOUND, "The -dataset could not be loaded (see the log).");
             else if (now - t0 > TIMEOUT_MS)
                 end(timer, CommandLine.Exit.EXPORT_FAILED, "Timed out waiting for an image.");
             else if (Layers.getActiveImageLayer() != null) {

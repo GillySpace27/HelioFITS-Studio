@@ -249,6 +249,112 @@ public final class HeliadLibrary {
         return out;
     }
 
+    /**
+     * What the library knows about one of its files, for an export's provenance: the file's
+     * {@code sha256} and its dataset, plus the observation's {@code obs_key} and the dataset's
+     * permanent {@code dataset_uid} when this index has them (null otherwise). No path: the
+     * relpath is the question, never part of the answer.
+     */
+    public record Identity(String sha256, String datasetKey, @Nullable String obsKey, @Nullable String datasetUid,
+                           @Nullable String fileVersion, long size, @Nullable String dateObs, @Nullable String label) {}
+
+    /**
+     * The library's record of the current file at {@code relpath} (relative to the library root,
+     * forward slashes), or null when it is not a current file of this library.
+     *
+     * <p>{@code current_files} is the contract; {@code obs_key} lives in {@code observations},
+     * which the reader contract does not list as stable, so it is joined only when the join
+     * works and left null otherwise. {@code dataset_uid} is a schema-5 column: it is read from
+     * {@code current_files} or {@code datasets}, whichever has it, and only when one does.
+     */
+    @Nullable
+    public static Identity identity(Location lib, String relpath) throws SQLException, TooNew {
+        try (Connection conn = open(lib)) {
+            String uid = uidColumn(conn);
+            String base = "SELECT c.sha256, c.dataset_key, c.version, c.size, c.date_obs, c.label, "
+                    + (uid == null ? "NULL" : uid) + "%s FROM current_files c"
+                    + (uid != null && uid.startsWith("d.") ? " LEFT JOIN datasets d ON d.id = c.dataset_id" : "")
+                    + "%s WHERE c.relpath = ?";
+            Identity found;
+            try {
+                found = identity(conn, String.format(base, ", o.obs_key", " LEFT JOIN observations o ON o.id = c.observation_id"), relpath, true);
+            } catch (SQLException e) { // an index whose observations table is not what this reader expects
+                found = identity(conn, String.format(base, "", ""), relpath, false);
+            }
+            return found;
+        }
+    }
+
+    @Nullable
+    private static Identity identity(Connection conn, String sql, String relpath, boolean withObsKey) throws SQLException {
+        try (PreparedStatement st = conn.prepareStatement(sql)) {
+            st.setString(1, relpath);
+            try (ResultSet rs = st.executeQuery()) {
+                if (!rs.next())
+                    return null;
+                return new Identity(rs.getString(1), rs.getString(2), withObsKey ? blank(rs.getString(8)) : null,
+                        blank(rs.getString(7)), blank(rs.getString(3)), rs.getLong(4), blank(rs.getString(5)), blank(rs.getString(6)));
+            }
+        }
+    }
+
+    /** "c.dataset_uid" or "d.dataset_uid" for the first of current_files and datasets that has the column, else null. */
+    @Nullable
+    private static String uidColumn(Connection conn) throws SQLException {
+        if (hasColumn(conn, "current_files", "dataset_uid"))
+            return "c.dataset_uid";
+        return hasColumn(conn, "datasets", "dataset_uid") ? "d.dataset_uid" : null;
+    }
+
+    private static boolean hasColumn(Connection conn, String table, String column) throws SQLException {
+        try (PreparedStatement st = conn.prepareStatement("SELECT name FROM pragma_table_info(?)")) {
+            st.setString(1, table);
+            try (ResultSet rs = st.executeQuery()) {
+                while (rs.next())
+                    if (column.equals(rs.getString(1)))
+                        return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The dataset key a command line or SAMP message names: a {@code dataset_uid} when this index
+     * has that column and the value is one, otherwise the value itself when it is a dataset key in
+     * {@code current_files}, otherwise a former key recorded in {@code dataset_aliases} (schema 5:
+     * a renamed dataset keeps its uid), otherwise null. The order the schema 5 reader contract gives.
+     */
+    @Nullable
+    public static String datasetKey(Location lib, String uidOrKey) throws SQLException, TooNew {
+        try (Connection conn = open(lib)) {
+            String uid = uidColumn(conn);
+            String byUid = uid == null ? null : "SELECT c.dataset_key FROM current_files c"
+                    + (uid.startsWith("d.") ? " JOIN datasets d ON d.id = c.dataset_id" : "")
+                    + " WHERE " + uid + " = ? LIMIT 1";
+            if (byUid != null) {
+                String key = first(conn, byUid, uidOrKey);
+                if (key != null)
+                    return key;
+            }
+            String key = first(conn, "SELECT dataset_key FROM current_files WHERE dataset_key = ? LIMIT 1", uidOrKey);
+            if (key != null || byUid == null || !hasColumn(conn, "dataset_aliases", "old_key"))
+                return key;
+            // A key the dataset had before a rename (schema 5): the alias names its uid.
+            String aliased = first(conn, "SELECT dataset_uid FROM dataset_aliases WHERE old_key = ?", uidOrKey);
+            return aliased == null ? null : first(conn, byUid, aliased);
+        }
+    }
+
+    @Nullable
+    private static String first(Connection conn, String sql, String param) throws SQLException {
+        try (PreparedStatement st = conn.prepareStatement(sql)) {
+            st.setString(1, param);
+            try (ResultSet rs = st.executeQuery()) {
+                return rs.next() ? rs.getString(1) : null;
+            }
+        }
+    }
+
     /** The index, read-only, after checking this reader may read it. */
     private static Connection open(Location lib) throws SQLException, TooNew {
         SQLiteConfig config = new SQLiteConfig();
