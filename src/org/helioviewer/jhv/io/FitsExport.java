@@ -17,6 +17,10 @@ import nom.tam.fits.ImageHDU;
 import nom.tam.image.compression.hdu.CompressedImageHDU;
 import nom.tam.util.Cursor;
 
+import javax.annotation.Nullable;
+
+import org.helioviewer.jhv.app.Log;
+import org.helioviewer.jhv.movie.ProcessingRecord;
 import org.helioviewer.jhv.movie.Provenance;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -34,6 +38,14 @@ import org.json.JSONObject;
  * background; this file does not, and the manifest carries a warning that says so. That OFFSET is the bias to
  * remove has not been checked against the SolarSoft routines (instruments/LASCO.md in the research vault
  * records no OFFSET claim), so the manifest names the step as the viewer's, not as a calibration.
+ *
+ * <p>Given the layer, each file also carries its processing record (hfrecord 1.0,
+ * heliosoftware/spec/processing-record.md, FITS): a HISTORY block of one short card per step
+ * applied, from {@code HFREC 1.0 record <record_id>} to a card naming the sidecar; the cards
+ * HFRECID (the record_id) and HFRSRC (the source file's SHA-256); the suite ORIGIN card and the
+ * credit as HISTORY (provenance.md, FITS); and an 8-bit image extension named HFRECORD whose bytes
+ * are the record's UTF-8 JSON. Beside each file goes its sidecar, and beside manifest.json one
+ * hfrecord.json for the whole export, which manifest.json names under {@code hfrecord}.
  */
 public final class FitsExport {
 
@@ -41,11 +53,32 @@ public final class FitsExport {
     private static final Set<String> SKIP = Set.of("SIMPLE", "XTENSION", "BITPIX", "EXTEND", "PCOUNT", "GCOUNT",
             "BZERO", "BSCALE", "BLANK", "END", "THEAP", "TFIELDS", "ZIMAGE");
 
-    /** Writes {@code <name>_phys.fits} per source and manifest.json into outDir; returns the manifest. {@code progress} hears 1..n as each file starts. */
+    /**
+     * The longest HISTORY text that stays on one card: 80 columns less the 8 of the keyword, less the
+     * blank nom.tam writes in column 9 (so a reader that keeps that blank sees at most 72).
+     */
+    static final int HISTORY_WIDTH = 71;
+
+    /** The layer the files come from, which the processing record names. */
+    public record Layer(String id, String name) {}
+
+    /** Writes {@code <name>_phys.fits} per source and manifest.json into outDir; returns the manifest. {@code progress} hears 1..n as each file starts. No processing record. */
     public static JSONObject export(java.util.List<File> sources, Path outDir, JSONObject session, java.util.function.IntConsumer progress) throws IOException, FitsException {
+        return export(sources, outDir, session, progress, null, ProcessingRecord.identities());
+    }
+
+    /**
+     * As {@link #export(java.util.List, Path, JSONObject, java.util.function.IntConsumer)}, and with a
+     * layer each file also carries its processing record, with a sidecar beside it and
+     * hfrecord.json beside manifest.json. {@code identify} names a source file by SHA-256.
+     */
+    public static JSONObject export(java.util.List<File> sources, Path outDir, JSONObject session, java.util.function.IntConsumer progress,
+                                    @Nullable Layer layer, java.util.function.Function<java.net.URI, org.helioviewer.jhv.io.SourceIdentity.Entry> identify)
+            throws IOException, FitsException {
         Files.createDirectories(outDir);
         JSONArray files = new JSONArray();
         JSONArray warnings = new JSONArray();
+        java.util.List<JSONObject> records = new java.util.ArrayList<>();
         for (File src : sources) {
             progress.accept(files.length() + 1);
             String name = outputName(src);
@@ -71,18 +104,22 @@ public final class FitsExport {
                         continue;
                     wh.addLine(card);
                 }
+                // {op, values} per step applied, in order: the HISTORY block's step cards
+                java.util.List<String[]> applied = new java.util.ArrayList<>();
+                java.util.List<String> notApplied = new java.util.ArrayList<>();
                 steps.put("read as double from the source file");
+                applied.add(new String[]{"to_float64", "BITPIX " + h.getIntValue("BITPIX", -64) + " read as 64-bit float"});
                 if (integer && (bzero != 0 || bscale != 1)) {
                     steps.put("applied BZERO=" + bzero + " BSCALE=" + bscale + " (read from the header)");
-                    wh.insertHistory("Physical values: BZERO " + bzero + " and BSCALE " + bscale + " applied");
+                    applied.add(new String[]{"scale", "BZERO=" + bzero + " BSCALE=" + bscale + " applied"});
                 }
                 if (hasBlank && integer) {
                     steps.put("BLANK=" + blank + " pixels written as NaN");
-                    wh.insertHistory("BLANK pixels written as NaN");
+                    applied.add(new String[]{"blank", "BLANK=" + blank + " pixels written as NaN"});
                 }
                 if (compressed) {
                     steps.put("tile-compressed input written uncompressed; Z* cards dropped");
-                    wh.insertHistory("Input was tile-compressed; written uncompressed");
+                    applied.add(new String[]{"uncompress", "tile compression removed, Z* cards dropped"});
                 }
                 String instr = h.getStringValue("INSTRUME");
                 if (instr != null && instr.toUpperCase(java.util.Locale.ROOT).contains("LASCO")) {
@@ -90,21 +127,54 @@ public final class FitsExport {
                         double offset = h.getDoubleValue("OFFSET");
                         subtract(phys, offset);
                         steps.put("subtracted OFFSET=" + offset + " DN (the CCD bias card in the header; the same step the viewer takes)");
-                        wh.insertHistory("LASCO: header OFFSET " + offset + " DN subtracted");
+                        applied.add(new String[]{"instrument_correction", "LASCO OFFSET=" + offset + " DN subtracted"});
                         warnings.put(name + ": a LASCO source frame; OFFSET is subtracted as the viewer does, but the viewer also divides by EXPTIME"
                                 + " and removes the NRL monthly background, and this file does neither");
                     } else {
                         warnings.put(name + ": a LASCO source frame with no OFFSET card; nothing was subtracted, while the viewer shows a"
                                 + " background-subtracted picture (EXPTIME division and the NRL monthly background are not applied here either)");
                     }
-                    wh.insertHistory("No EXPTIME division or monthly background applied");
+                    notApplied.add("LASCO EXPTIME division, NRL monthly background");
                 }
+                notApplied.add("display steps (LUT, filter, clipping, RHEF)");
+                entry.put("steps", steps);
+                JSONObject record = null;
+                if (layer != null)
+                    try {
+                        record = ProcessingRecord.fitsDataEmbedded(session, layer.id(), layer.name(), src, entry, name,
+                                java.util.UUID.randomUUID().toString(), identify);
+                    } catch (RuntimeException e) { // a file is never lost for want of its record
+                        Log.warn("Processing record not built for " + name, e);
+                    }
+                String origin = h.containsKey("ORIGIN") ? h.getStringValue("ORIGIN") : null;
+                wh.deleteKey("ORIGIN");
+                wh.addValue("ORIGIN", ProcessingRecord.suiteOrigin(), "software that wrote this file");
+                wh.deleteKey("HFRECID"); // a source that was itself an export names its own record, not this one
+                wh.deleteKey("HFRSRC");
+                if (record != null) {
+                    wh.addValue("HFRECID", record.getString("record_id"), "hfrecord id (HDU " + ProcessingRecord.FITS_EXTNAME + ")");
+                    String sha = ProcessingRecord.fitsSourceSha256(record);
+                    if (sha != null)
+                        wh.addValue("HFRSRC", sha, null);
+                }
+                for (String line : historyBlock(record == null ? null : record.getString("record_id"), applied, notApplied, origin, name))
+                    wh.insertHistory(line);
                 for (String line : Provenance.historyLines(session))
                     wh.insertHistory(line);
+                wh.insertHistory(ProcessingRecord.suiteCredit());
                 out.addHDU(w);
+                if (record != null)
+                    out.addHDU(recordHdu(record));
                 out.write(outDir.resolve(name).toFile());
+                if (record != null) {
+                    JSONObject side = ProcessingRecord.writeFitsDataSidecar(outDir.resolve(name), record);
+                    if (side != null) {
+                        records.add(side);
+                        entry.put("record_id", record.getString("record_id")).put("record", name + ProcessingRecord.SUFFIX);
+                    }
+                }
             }
-            files.put(entry.put("steps", steps));
+            files.put(entry);
         }
         JSONObject manifest = new JSONObject()
                 .put("exported", Instant.now().toString())
@@ -114,6 +184,11 @@ public final class FitsExport {
                 .put("warnings", warnings)
                 .put("note", "Physical values only. Not the viewer's picture: no colour table, filter, clipping or RHEF. "
                         + "RHEF output is a visualization, not a calibrated radiance.");
+        if (!records.isEmpty()) {
+            String folder = ProcessingRecord.writeFitsFolder(outDir, session, records);
+            if (folder != null)
+                manifest.put("hfrecord", folder);
+        }
         Files.writeString(outDir.resolve("manifest.json"), manifest.toString(2), StandardCharsets.UTF_8);
         return manifest;
     }
@@ -141,7 +216,51 @@ public final class FitsExport {
     public static String snippet(Path outDir, JSONObject manifest) {
         JSONArray files = manifest.getJSONArray("files");
         String first = files.isEmpty() ? "FILE.fits" : files.getJSONObject(0).getString("file");
-        return "import sunpy.map\nm = sunpy.map.Map(r\"" + outDir.resolve(first) + "\")\nprint(m)\n";
+        String record = manifest.has("hfrecord")
+                ? "# What was done to each file: its HISTORY cards that start \"" + ProcessingRecord.FITS_HISTORY_PREFIX.strip()
+                        + "\" (m.meta[\"history\"]); the full record: " + manifest.getString("hfrecord") + " in that folder.\n"
+                : "";
+        return "import sunpy.map\n" + record + "m = sunpy.map.Map(r\"" + outDir.resolve(first) + "\")\nprint(m)\n";
+    }
+
+    /**
+     * The record block of HISTORY cards: the record card, one card per step applied (numbered from
+     * 1), what was not applied, the source's own ORIGIN when it had one, and the sidecar's name.
+     * Every card fits one HISTORY card; a step whose values would not fit names only its op, and
+     * the values stay in the record. With no record, the record and sidecar cards are left out.
+     */
+    static java.util.List<String> historyBlock(@Nullable String recordId, java.util.List<String[]> applied, java.util.List<String> notApplied,
+                                               @Nullable String sourceOrigin, String fileName) {
+        String p = ProcessingRecord.FITS_HISTORY_PREFIX;
+        java.util.List<String> out = new java.util.ArrayList<>();
+        if (recordId != null)
+            out.add(fit(p + "record " + recordId, p + "record: see card HFRECID"));
+        for (int i = 0; i < applied.size(); i++) {
+            String head = p + "step " + (i + 1) + " " + applied.get(i)[0];
+            out.add(fit(head + " " + applied.get(i)[1], head + " (values in the record)"));
+        }
+        for (String n : notApplied)
+            out.add(fit(p + "not applied: " + n, p + "not applied: see the record"));
+        if (sourceOrigin != null)
+            out.add(fit(p + "source ORIGIN was '" + sourceOrigin + "'", p + "source ORIGIN replaced (see the source file)"));
+        if (recordId != null)
+            out.add(fit(p + "sidecar " + fileName + ProcessingRecord.SUFFIX, p + "sidecar <this file name>" + ProcessingRecord.SUFFIX));
+        return out;
+    }
+
+    private static String fit(String full, String fallback) {
+        return full.length() <= HISTORY_WIDTH ? full : fallback.substring(0, Math.min(fallback.length(), HISTORY_WIDTH));
+    }
+
+    /** The record as an 8-bit image extension named HFRECORD: one UTF-8 byte of its JSON per pixel. */
+    private static ImageHDU recordHdu(JSONObject record) throws FitsException {
+        ImageHDU hdu = (ImageHDU) Fits.makeHDU(record.toString(2).getBytes(StandardCharsets.UTF_8));
+        Header rh = hdu.getHeader();
+        rh.addValue("EXTNAME", ProcessingRecord.FITS_EXTNAME, "processing record (hfrecord)");
+        rh.addValue("HFRECID", record.getString("record_id"), "hfrecord id");
+        rh.insertComment("The bytes of this array are the record as UTF-8 JSON (hfrecord " + record.getString("hfrecord") + ").");
+        rh.insertComment("Format: https://gilly.space/heliosoftware/spec/processing-record.md");
+        return hdu;
     }
 
     private static BasicHDU<?> image(Fits fits) throws FitsException, IOException {

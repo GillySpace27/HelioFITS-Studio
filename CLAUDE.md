@@ -183,7 +183,7 @@ it on macOS. Never commit a changed copy (see "Must-nots").
 - `ant test` runs every `extra/test/*Check.java` (unchanged). `ant check-all` is the pre-release
   gate: the checks, the legacy `run_tests.py` suites, the GLSL validator, the ffmpeg, ANGLE and
   licence unit tests, `update_ffmpeg.py --check`, `sync_licenses.py --check`, the processing-record
-  schema check (`extra/test/test_hfrecord.py`, needs `jsonschema`), `ruff check .` and
+  schema check (`extra/test/test_hfrecord.py`, needs `jsonschema`; it reads FitsRecordCheck's Send to Python FITS files with `astropy`, which `CHECKS_STRICT=1` requires), `ruff check .` and
   `extra/ci/guards.py`. Offline. One line per step (`check-all: <step>: ok|FAIL|SKIPPED: <reason>`),
   then `check-all: N ok, F failed, S skipped`. Logs in `extra/test-classes/logs/`.
 - `ant check-wcs` runs the WCS validator suite (needs astropy); it is not part of the gate.
