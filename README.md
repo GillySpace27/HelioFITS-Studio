@@ -62,7 +62,7 @@ The name JHelioviewer appears here only to say where this software comes from. I
 
 If HelioFITS Studio helps your research, please cite:
 
-- **The version you used.** Each release is archived on Zenodo with its own DOI. [CITATION.cff](CITATION.cff) has the details, and GitHub's "Cite this repository" button turns it into APA or BibTeX.
+- **HelioFITS Studio itself:** https://doi.org/10.5281/zenodo.23541893. This DOI covers every version and resolves to the newest; the Zenodo page also lists each release's own DOI, so you can cite the version you used. [CITATION.cff](CITATION.cff) has the details, and GitHub's "Cite this repository" button turns it into APA or BibTeX.
 - **The JHelioviewer paper it is built on:** Müller et al. (2017), *Astronomy & Astrophysics* 606, A10, https://doi.org/10.1051/0004-6361/201730893.
 - **If you used the RHEF filter:** Gilly & Cranmer (2025), *Solar Physics* 300, 174, https://doi.org/10.1007/s11207-025-02578-x.
 
