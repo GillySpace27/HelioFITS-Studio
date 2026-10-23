@@ -69,6 +69,7 @@ jobs:
           export JAVA_TOOL_OPTIONS="-Duser.home=$RUNNER_TEMP/home-export"
           ls -l "$RUNNER_TEMP/export.png.hfrec.json"
           python3 extra/test/hfrecord_roundtrip.py prepare "$RUNNER_TEMP/export.png" "$RUNNER_TEMP/home-export" "$RUNNER_TEMP/rebuild.jhv"
+          python3 extra/test/hfrecord_roundtrip.py embedded "$RUNNER_TEMP/export.png"
           xvfb-run -a -s "-screen 0 1600x1000x24" ./run.sh --export png --out "$RUNNER_TEMP/rebuild.png" -state "$RUNNER_TEMP/rebuild.jhv"
           python3 extra/test/hfrecord_roundtrip.py compare "$RUNNER_TEMP/export.png" "$RUNNER_TEMP/rebuild.png"
 

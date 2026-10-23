@@ -309,7 +309,16 @@ public final class Provenance {
      * data) is refused with an IOException and left as it was.
      */
     public static void writePngChunk(Path png, JSONObject json) throws IOException {
-        byte[] chunk = textChunk(PNG_KEYWORD, asciiJson(json.toString()));
+        writePngText(png, PNG_KEYWORD, asciiJson(json.toString()));
+    }
+
+    /**
+     * Adds one tEXt chunk {@code keyword} holding {@code text} just before IEND, as writePngChunk
+     * does for this program's own block. The text is written as Latin-1: pass ASCII (asciiJson for
+     * JSON), so every reader sees the same bytes.
+     */
+    public static void writePngText(Path png, String keyword, String text) throws IOException {
+        byte[] chunk = textChunk(keyword, text);
         try (FileChannel ch = FileChannel.open(png, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
             long at = ch.size() - IEND.length;
             if (at < PNG_SIGNATURE.length)
@@ -364,6 +373,17 @@ public final class Provenance {
     /** The JSON in this program's tEXt chunk, or null: not a PNG, no such chunk, a bad CRC or text that is not JSON. */
     @Nullable
     public static JSONObject readPngChunk(Path png) throws IOException {
+        try {
+            String text = readPngText(png, PNG_KEYWORD);
+            return text == null ? null : new JSONObject(text);
+        } catch (JSONException e) {
+            return null; // ours but not JSON
+        }
+    }
+
+    /** The text of the first tEXt chunk named {@code keyword} with a good CRC, or null: not a PNG, no such chunk, or truncated. */
+    @Nullable
+    public static String readPngText(Path png, String keyword) throws IOException {
         try (DataInputStream in = new DataInputStream(new BufferedInputStream(Files.newInputStream(png)))) {
             if (!Arrays.equals(in.readNBytes(PNG_SIGNATURE.length), PNG_SIGNATURE))
                 return null;
@@ -383,12 +403,12 @@ public final class Provenance {
                 crc.update(body);
                 if (body.length != length || (int) crc.getValue() != stored)
                     continue; // a damaged chunk is not trusted
-                String text = textOf(body, PNG_KEYWORD);
+                String text = textOf(body, keyword);
                 if (text != null)
-                    return new JSONObject(text);
+                    return text;
             }
-        } catch (EOFException | JSONException e) {
-            return null; // truncated, or ours but not JSON
+        } catch (EOFException e) {
+            return null; // truncated
         }
     }
 
