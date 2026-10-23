@@ -23,9 +23,18 @@ public final class CliExport {
     private static final long TIMEOUT_MS = 180_000;
 
     private static final java.util.concurrent.atomic.AtomicBoolean stateFailed = new java.util.concurrent.atomic.AtomicBoolean();
+    // The -state load runs after the data sources answer, which can take seconds when the servers
+    // are reachable; an image layer can exist before then, so a -state export waits for the load.
+    private static final java.util.concurrent.atomic.AtomicBoolean stateLoaded = new java.util.concurrent.atomic.AtomicBoolean();
 
     public static void run() {
-        Session.onNextStateLoad(ok -> { if (!ok) stateFailed.set(true); });
+        boolean waitForState = CommandLine.hasStateArgument();
+        Session.onNextStateLoad(ok -> {
+            if (ok)
+                stateLoaded.set(true);
+            else
+                stateFailed.set(true);
+        });
         long t0 = System.currentTimeMillis();
         long settle = Long.getLong("jhv.exportSettleMs", DEFAULT_SETTLE_MS);
         long[] ready = {0};
@@ -38,7 +47,7 @@ public final class CliExport {
                 end(timer, CommandLine.Exit.INPUT_NOT_FOUND, "The -dataset could not be loaded (see the log).");
             else if (now - t0 > TIMEOUT_MS)
                 end(timer, CommandLine.Exit.EXPORT_FAILED, "Timed out waiting for an image.");
-            else if (Layers.getActiveImageLayer() != null) {
+            else if (Layers.getActiveImageLayer() != null && (!waitForState || stateLoaded.get())) {
                 if (ready[0] == 0)
                     ready[0] = now;
                 else if (now - ready[0] >= settle) {
