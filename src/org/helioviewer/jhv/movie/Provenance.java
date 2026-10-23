@@ -70,10 +70,10 @@ public final class Provenance {
     /** Upper bound on a movie comment in UTF-8 bytes. An estimate: the MP4 comment limit was not verified. */
     static final int METADATA_CAP_BYTES = 16384;
 
-    private static final String RHEF_CAVEAT = "not a calibrated radiance";
+    static final String RHEF_CAVEAT = "not a calibrated radiance";
     // Copied, not typed from memory: README.md:61 and the vault's projects/rhef.md:6-7.
-    private static final String JHV_CITATION = "Müller et al. (2017), Astronomy & Astrophysics, https://doi.org/10.1051/0004-6361/201730893";
-    private static final String RHEF_CITATION = "Gilly & Cranmer (2025), Solar Physics, https://doi.org/10.1007/s11207-025-02578-x";
+    static final String JHV_CITATION = "Müller et al. (2017), Astronomy & Astrophysics, https://doi.org/10.1051/0004-6361/201730893";
+    static final String RHEF_CITATION = "Gilly & Cranmer (2025), Solar Physics, https://doi.org/10.1007/s11207-025-02578-x";
 
     private static final byte[] PNG_SIGNATURE = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'};
     private static final byte[] TEXT = {'t', 'E', 'X', 't'};
@@ -215,6 +215,11 @@ public final class Provenance {
         } catch (URISyntaxException e) {
             return null;
         }
+    }
+
+    /** The RHEF stamp line for one layer's saved imageParams, for the processing record. */
+    static String rhefStampLine(@Nullable JSONObject imageParams) {
+        return rhefStamp(imageParams);
     }
 
     /** The stamp for one RHEF layer from its saved imageParams; a missing Upsilon is the layer default. */
