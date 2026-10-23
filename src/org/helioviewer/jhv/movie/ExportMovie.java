@@ -227,6 +227,8 @@ public final class ExportMovie {
         private final ExportWriter writer;
         private final @Nullable JSONObject provenance;
         private final @Nullable String exrProvenance;
+        private final JSONObject live; // ProcessingRecord.live() beside the provenance, same moment
+        private @Nullable JSONObject endScene; // the scene as the recording ended, for "changed during export"
         private final Semaphore exrPermits = new Semaphore(EXR_IN_FLIGHT);
 
         private @Nullable GLGrab grabber;
@@ -240,6 +242,7 @@ public final class ExportMovie {
             operationContext = _operationContext;
             provenance = takeProvenance();
             exrProvenance = provenance == null ? null : provenance.toString();
+            live = ProcessingRecord.live();
             mode = recordingData.mode();
             if (mode == ViewState.RecordingMode.LOOP && !Player.hasActiveImage())
                 throw new IllegalStateException("Loop recording requires an active image.");
@@ -448,7 +451,26 @@ public final class ExportMovie {
             disposeGrabber();
             writing.set(true);
             notifyStatusChanged();
-            encodeExecutor.execute(new CloseWriter(writer, operationContext));
+            if (mode != ViewState.RecordingMode.SHOT)
+                endScene = takeEndScene();
+            encodeExecutor.execute(new CloseWriter(writer, operationContext, record()));
+        }
+
+        /** What the sidecar needs once the file is closed; null when there is no provenance to build it from. */
+        @Nullable
+        private RecordInput record() {
+            if (provenance == null)
+                return null;
+            boolean shot = mode == ViewState.RecordingMode.SHOT;
+            ExportFormat format = writer.format();
+            String kind = shot ? "still" : format == ExportFormat.EXR ? "exr_series" : format == ExportFormat.PNG ? "frame_series" : "movie";
+            String media = format == ExportFormat.EXR ? "image/x-exr" : format.isSeries() || shot ? "image/png"
+                    : format.extension.endsWith(".mkv") ? "video/x-matroska" : "video/mp4";
+            int frames = format == ExportFormat.EXR ? exrFrameIndex : framesQueued.get();
+            ProcessingRecord.Output output = new ProcessingRecord.Output(kind, media, width, height, shot ? 1 : frames,
+                    shot ? null : writer.fps(), shot ? "png" : format.toString(), shot ? 16 : format == ExportFormat.EXR ? 16 : bytesPerPixel == 6 ? 16 : 8,
+                    true);
+            return new RecordInput(provenance, live, endScene, output);
         }
 
         void disposeGrabber() {
@@ -477,12 +499,41 @@ public final class ExportMovie {
         }
     }
 
+    /** The scene when a movie ends, for the record's "changed during export". Never fails the recording. */
+    @Nullable
+    private static JSONObject takeEndScene() {
+        try {
+            return org.helioviewer.jhv.app.state.State.snapshot();
+        } catch (RuntimeException e) {
+            Log.warn("Export end scene unavailable", e);
+            return null;
+        }
+    }
+
+    /** Everything ProcessingRecord.write needs besides the written file. */
+    record RecordInput(JSONObject session, JSONObject live, @Nullable JSONObject endScene, ProcessingRecord.Output output) {}
+
+    /**
+     * The sidecar for what close() returned: a file, frame N of a series (a still), or a series'
+     * directory. Off the event thread, on the encoder, after the file is complete.
+     */
+    static void writeRecord(@Nullable String output, @Nullable RecordInput in) {
+        if (output == null || in == null)
+            return;
+        java.nio.file.Path path = java.nio.file.Path.of(output.contains("%04d") ? String.format(output, 1) : output);
+        if (output.contains("%04d") && !"still".equals(in.output().kind()))
+            path = path.getParent(); // a series is its directory
+        ProcessingRecord.write(path, in.session(), in.live(), in.endScene(), in.output());
+    }
+
     private record CloseWriter(ExportWriter writer,
-                               @Nullable Commands.OperationContext operationContext) implements Runnable {
+                               @Nullable Commands.OperationContext operationContext,
+                               @Nullable RecordInput record) implements Runnable {
         @Override
         public void run() {
             try {
                 String output = writer.close();
+                writeRecord(output, record); // before the report, so a caller that copies the file finds its record
                 Commands.notifyRecordingFinished(operationContext, true, "Recording finished.", output);
             } catch (Exception e) {
                 Log.error(e);
