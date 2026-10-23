@@ -275,6 +275,7 @@ public final class Actions {
                 if (button != null)
                     button.setText(label);
             };
+            String creditKey = org.helioviewer.jhv.movie.InstrumentCredit.key(layer); // on the event thread, before the work leaves it
             Task.submitBackground("send-to-python", () -> {
                 try {
                     org.json.JSONObject session = org.helioviewer.jhv.movie.Provenance.session();
@@ -285,7 +286,7 @@ public final class Actions {
                         written.add(w);
                         org.json.JSONObject entry = manifest.getJSONArray("files").optJSONObject(i); // export() writes one entry per source, in order
                         org.helioviewer.jhv.movie.ProcessingRecord.writeFitsData(w.toPath(), sources.get(i), session, layer.getId(), layer.getName(),
-                                entry == null ? new org.json.JSONObject() : entry);
+                                creditKey, entry == null ? new org.json.JSONObject() : entry);
                     }
                     // Off the event thread: connecting to a hub can wait on the network. No hub sends nothing and fails nothing.
                     int reached = org.helioviewer.jhv.io.samp.SampClient.sendFitsFiles(written);
