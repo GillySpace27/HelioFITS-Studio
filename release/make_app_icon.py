@@ -6,6 +6,10 @@ the mark for an application that composites them. It was this application's icon
 until 2026-09-22, went to the HelioFITS plugin for a day, and came back; HelioFITS kept its AIA 171
 Sun. Lettered HFS, its technical name, at 128 px and above; plain below, where letters only smudge.
 
+Since 2026-10-23 the art is iris_leaf_plain_1024.png, drawn by make_iris_art.py from
+iris_plain_1024.png and the AIA frames in iris_sources/: white dividers in Heliogram's chrome and a
+full blue leaf, to sit beside the Peek, Heliad and Heliogram icons.
+
 iris_plain_1024.png is the full-square art, letters already removed. It was produced by the
 HelioFITS repo's tools/make_app_icon.py (commit 773a575 there), which repaints the hexagon fill
 and scales the orb to cover macOS's squircle. The plain art is what 64 px and below get: the six
@@ -49,12 +53,14 @@ def masked(img):
     return Image.fromarray(px)
 
 
-PLAIN = Image.open(os.path.join(HERE, "iris_plain_1024.png"))
+PLAIN = Image.open(os.path.join(HERE, "iris_leaf_plain_1024.png"))
 
 # HFS in the hexagon, as large as it allows: at the letters' top and bottom the hexagon is narrower
 # than across its middle, so the width check is made there. Hexagon measured on iris_plain_1024.png:
-# centre 511.5, flat top and bottom, fill reaching 199 px from the centre.
-HEX_C, HEX_APOTHEM, FONT, TEXT = 511.5, 199, "/System/Library/Fonts/Supplemental/Arial Black.ttf", "HFS"
+# centre 511.5, flat top and bottom, fill reaching 199 px from the centre. The white dividers of
+# iris_leaf_plain_1024.png are 22 px on lines 202 px out, so the fill now ends at 191; the letters
+# are fitted to 185, 6 px clear of the white.
+HEX_C, HEX_APOTHEM, FONT, TEXT = 511.5, 185, "/System/Library/Fonts/Supplemental/Arial Black.ttf", "HFS"
 
 
 def lettered(img):
