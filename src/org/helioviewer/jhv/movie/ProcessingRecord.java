@@ -69,9 +69,8 @@ public final class ProcessingRecord {
     static final String FORMAT = "1.0";
     static final int READER_COMPAT = 1;
 
-    // Copied from GillySpace27.github.io heliosoftware/spec/attribution.json (version 1), as
-    // heliosoftware/spec/provenance.md says the credit field must be. rhef_citation is null there.
-    static final String SUITE_CREDIT = "Imagery courtesy of NASA/SDO and the AIA science team.";
+    // Copied from GillySpace27.github.io heliosoftware/spec/attribution.json (version 1); the credit
+    // line comes from its credits map, per instrument (InstrumentCredit). rhef_citation is null there.
     static final String SUITE_DISCLAIMER = "RHEF output is a visualization, not a calibrated radiance.";
     static final String SUITE_PRODUCT = "heliofits-studio";
 
@@ -135,6 +134,9 @@ public final class ProcessingRecord {
         View view = layer.getView();
         JSONObject jo = new JSONObject().put("fits", view.hasFITS())
                 .put("frame", view.getCurrentFrameNumber()).put("frames", view.getMaximumFrameNumber() + 1);
+        String creditKey = InstrumentCredit.key(layer);
+        if (creditKey != null)
+            jo.put("credit_key", creditKey);
         View.ImageData data = layer.getImageData();
         ImageBuffer.PhysicalScale scale = data == null ? null : data.imageBuffer().physicalScale();
         if (scale != null)
@@ -186,6 +188,7 @@ public final class ProcessingRecord {
         JSONArray layers = new JSONArray();
         Set<String> caveats = new LinkedHashSet<>();
         boolean anyRhef = false, changed = false;
+        List<String> creditKeys = new ArrayList<>();
         JSONArray scenes = state.optJSONArray("imageLayers");
         if (scenes != null)
             for (int i = 0; i < scenes.length(); i++) {
@@ -198,6 +201,8 @@ public final class ProcessingRecord {
                 JSONObject endLayer = endState == null ? null : byId(endState.optJSONArray("imageLayers"), id);
                 LayerOut lo = layer(layer, real, liveLayer, endLayer, movie ? automation.getOrDefault(id, List.of()) : List.of(),
                         compare, identify, caveats);
+                if (liveLayer != null && liveLayer.has("credit_key") && layer.optBoolean("enabled", true))
+                    creditKeys.add(liveLayer.getString("credit_key"));
                 anyRhef |= lo.rhef;
                 changed |= lo.changed;
                 layers.put(lo.json);
@@ -218,7 +223,7 @@ public final class ProcessingRecord {
         if (anyRhef)
             citations.put(Provenance.RHEF_CITATION);
         record.put("citations", citations);
-        record.put("provenance", suite(session, state, endState, movie, layers));
+        record.put("provenance", suite(session, state, endState, movie, layers, InstrumentCredit.line(creditKeys)));
         record.put("snapshot", new JSONObject().put("taken", "export_start").put("changed_during_export", changed));
         record.put("native", new JSONObject().put("studio_session", session));
         record.put("summary", summary(record));
@@ -426,7 +431,8 @@ public final class ProcessingRecord {
         }
         jo.put("steps", steps);
         jo.put("native", layer);
-        jo.put("acknowledgement", JSONObject.NULL); // Studio holds no instrument acknowledgement text
+        String ack = InstrumentCredit.acknowledgement(live == null ? null : live.optString("credit_key", null));
+        jo.put("acknowledgement", ack == null ? JSONObject.NULL : ack);
         if (live != null && live.has("frame"))
             jo.put("shown_frame", new JSONObject().put("frame", live.optInt("frame")).put("frames", live.optInt("frames")));
         return new LayerOut(jo, rhef, changed);
@@ -538,7 +544,8 @@ public final class ProcessingRecord {
     }
 
     /** The suite provenance object (heliosoftware/spec/provenance.md, version 1): seven fields, each a string or null. */
-    private static JSONObject suite(JSONObject session, JSONObject state, @Nullable JSONObject endState, boolean movie, JSONArray layers) {
+    private static JSONObject suite(JSONObject session, JSONObject state, @Nullable JSONObject endState, boolean movie, JSONArray layers,
+                                    String credit) {
         List<String> names = new ArrayList<>();
         for (Object o : layers)
             if (o instanceof JSONObject l && l.optBoolean("enabled", true)) {
@@ -552,7 +559,7 @@ public final class ProcessingRecord {
                 .put("version", AppInfo.version)
                 .put("instrument", names.isEmpty() ? "unknown" : String.join(" + ", names))
                 .put("observed", time == null ? JSONObject.NULL : secondsZ(String.valueOf(time)))
-                .put("credit", SUITE_CREDIT)
+                .put("credit", credit)
                 .put("rhef", session.has("rhef_stamp") ? session.getString("rhef_stamp") : JSONObject.NULL)
                 .put("citation", JSONObject.NULL);
     }
@@ -646,8 +653,9 @@ public final class ProcessingRecord {
      * rather than as done. {@code entry} is the file's manifest.json entry; its own step texts are
      * kept verbatim under the layer's native.
      */
-    static JSONObject buildFitsData(JSONObject session, String layerId, String layerName, @Nullable SourceIdentity.Entry source,
-                                    JSONObject entry, String fileName, @Nullable String sha256, String recordId) {
+    static JSONObject buildFitsData(JSONObject session, String layerId, String layerName, @Nullable String creditKey,
+                                    @Nullable SourceIdentity.Entry source, JSONObject entry, String fileName, @Nullable String sha256,
+                                    String recordId) {
         JSONArray steps = new JSONArray();
         JSONArray texts = entry.optJSONArray("steps");
         if (texts != null)
@@ -658,6 +666,7 @@ public final class ProcessingRecord {
                                     + ". EXPTIME division and the NRL monthly background, which the viewer applies, are not."));
         JSONArray sources = new JSONArray();
         JSONObject layer = new JSONObject().put("id", layerId).put("name", layerName).put("enabled", true);
+        String ack = InstrumentCredit.acknowledgement(creditKey);
         if (source != null) {
             JSONObject s = new JSONObject().put("sha256", source.sha256()).put("size", source.size()).put("in_library", source.heliad() != null);
             if (source.heliad() != null) {
@@ -675,7 +684,7 @@ public final class ProcessingRecord {
         }
         layer.put("source_spec", new JSONObject().put("kind", source != null && source.heliad() != null ? "heliad_library" : "local_files"))
                 .put("sources", sources).put("steps", steps).put("native", new JSONObject().put("manifest", entry))
-                .put("acknowledgement", JSONObject.NULL);
+                .put("acknowledgement", ack == null ? JSONObject.NULL : ack);
         JSONObject record = new JSONObject()
                 .put("hfrecord", FORMAT)
                 .put("reader_compat", READER_COMPAT)
@@ -690,16 +699,18 @@ public final class ProcessingRecord {
                 .put("snapshot", new JSONObject().put("taken", "export_start").put("changed_during_export", false))
                 .put("native", new JSONObject().put("studio_session", session));
         JSONObject state = session.optJSONObject("scene") == null ? new JSONObject() : session.getJSONObject("scene").optJSONObject(STATE);
-        record.put("provenance", suite(session, state == null ? new JSONObject() : state, null, false, record.getJSONArray("layers"))
+        record.put("provenance", suite(session, state == null ? new JSONObject() : state, null, false, record.getJSONArray("layers"),
+                        InstrumentCredit.line(creditKey == null ? List.of() : List.of(creditKey)))
                 .put("rhef", JSONObject.NULL)); // nothing display-side, RHEF included, is in this file
         record.put("summary", summary(record));
         return record;
     }
 
     /** The sidecar of one Send to Python file, beside it; logged and skipped on failure. Off the event thread. */
-    public static void writeFitsData(Path written, File source, JSONObject session, String layerId, String layerName, JSONObject entry) {
+    public static void writeFitsData(Path written, File source, JSONObject session, String layerId, String layerName,
+                                     @Nullable String creditKey, JSONObject entry) {
         try {
-            JSONObject record = buildFitsData(session, layerId, layerName, SourceIdentity.lookup(source.toURI(), SOURCE_WAIT_MS),
+            JSONObject record = buildFitsData(session, layerId, layerName, creditKey, SourceIdentity.lookup(source.toURI(), SOURCE_WAIT_MS),
                     entry, written.getFileName().toString(), fileHash(written), UUID.randomUUID().toString());
             writeJson(sidecar(written), record);
         } catch (IOException | RuntimeException e) {
