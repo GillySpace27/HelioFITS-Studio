@@ -228,6 +228,8 @@ public final class ExportMovie {
         private final @Nullable JSONObject provenance;
         private final @Nullable String exrProvenance;
         private final JSONObject live; // ProcessingRecord.live() beside the provenance, same moment
+        private final String recordId = java.util.UUID.randomUUID().toString(); // shared by the sidecar and every embedded copy
+        private @Nullable String exrRecord; // the EXR frames' embedded copy, built once at the first frame
         private @Nullable JSONObject endScene; // the scene as the recording ended, for "changed during export"
         private final Semaphore exrPermits = new Semaphore(EXR_IN_FLIGHT);
 
@@ -407,6 +409,9 @@ public final class ExportMovie {
             exrPermits.acquireUninterruptibly();
             try {
                 ExrWriter frame = ExrCapture.frame(grabber, writer.fps(), ++exrFrameIndex, exrProvenance);
+                String embedded = exrRecord();
+                if (embedded != null)
+                    frame.attribute(ProcessingRecord.EMBED_KEY, embedded);
                 framesQueued.incrementAndGet();
                 encodeExecutor.execute(() -> {
                     try {
@@ -456,6 +461,27 @@ public final class ExportMovie {
             encodeExecutor.execute(new CloseWriter(writer, operationContext, record()));
         }
 
+        /**
+         * The record copy every EXR frame carries. Frames are files written during the recording,
+         * so it is built at the first frame, from the start of the export: no frame count, no end
+         * scene, and a source frame still being hashed is counted, not waited for (this is the GL
+         * thread). The sidecar, written at the end, is the complete record; both share record_id.
+         */
+        @Nullable
+        private String exrRecord() {
+            if (exrRecord != null || provenance == null)
+                return exrRecord;
+            try {
+                ProcessingRecord.Output output = new ProcessingRecord.Output("exr_series", "image/x-exr", width, height, null,
+                        writer.fps(), ExportFormat.EXR.toString(), 16, true);
+                exrRecord = ProcessingRecord.exrText(ProcessingRecord.prepare(provenance, live, null, output, recordId, false));
+            } catch (RuntimeException e) {
+                Log.warn("Processing record not embedded in the EXR frames", e);
+                exrRecord = "";
+            }
+            return exrRecord.isEmpty() ? null : exrRecord;
+        }
+
         /** What the sidecar needs once the file is closed; null when there is no provenance to build it from. */
         @Nullable
         private RecordInput record() {
@@ -470,7 +496,7 @@ public final class ExportMovie {
             ProcessingRecord.Output output = new ProcessingRecord.Output(kind, media, width, height, shot ? 1 : frames,
                     shot ? null : writer.fps(), shot ? "png" : format.toString(), shot ? 16 : format == ExportFormat.EXR ? 16 : bytesPerPixel == 6 ? 16 : 8,
                     true);
-            return new RecordInput(provenance, live, endScene, output);
+            return new RecordInput(provenance, live, endScene, output, recordId);
         }
 
         void disposeGrabber() {
@@ -511,19 +537,40 @@ public final class ExportMovie {
     }
 
     /** Everything ProcessingRecord.write needs besides the written file. */
-    record RecordInput(JSONObject session, JSONObject live, @Nullable JSONObject endScene, ProcessingRecord.Output output) {}
+    record RecordInput(JSONObject session, JSONObject live, @Nullable JSONObject endScene, ProcessingRecord.Output output,
+                       String recordId) {
+
+        /** The record before the file is written, so the file can carry a copy; null when it cannot be built (logged). */
+        @Nullable
+        JSONObject prepare() {
+            try {
+                return ProcessingRecord.prepare(session, live, endScene, output, recordId, true);
+            } catch (RuntimeException e) {
+                Log.warn("Processing record not built before the export closed", e);
+                return null;
+            }
+        }
+    }
 
     /**
      * The sidecar for what close() returned: a file, frame N of a series (a still), or a series'
      * directory. Off the event thread, on the encoder, after the file is complete.
      */
     static void writeRecord(@Nullable String output, @Nullable RecordInput in) {
+        writeRecord(output, in, null);
+    }
+
+    /** As above; {@code prepared}, when given, is the record the file already carries a copy of, completed and written as the sidecar. */
+    static void writeRecord(@Nullable String output, @Nullable RecordInput in, @Nullable JSONObject prepared) {
         if (output == null || in == null)
             return;
         java.nio.file.Path path = java.nio.file.Path.of(output.contains("%04d") ? String.format(output, 1) : output);
         if (output.contains("%04d") && !"still".equals(in.output().kind()))
             path = path.getParent(); // a series is its directory
-        ProcessingRecord.write(path, in.session(), in.live(), in.endScene(), in.output());
+        if (prepared != null)
+            ProcessingRecord.writePrepared(path, prepared);
+        else
+            ProcessingRecord.write(path, in.session(), in.live(), in.endScene(), in.output());
     }
 
     private record CloseWriter(ExportWriter writer,
@@ -532,8 +579,10 @@ public final class ExportMovie {
         @Override
         public void run() {
             try {
-                String output = writer.close();
-                writeRecord(output, record); // before the report, so a caller that copies the file finds its record
+                // EXR frames took their copy when captured; the sidecar is still built here, at the end.
+                JSONObject prepared = record == null ? null : record.prepare();
+                String output = writer.close(writer.format() == ExportFormat.EXR ? null : prepared);
+                writeRecord(output, record, prepared); // before the report, so a caller that copies the file finds its record
                 Commands.notifyRecordingFinished(operationContext, true, "Recording finished.", output);
             } catch (Exception e) {
                 Log.error(e);
