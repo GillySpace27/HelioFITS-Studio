@@ -196,6 +196,11 @@ public class CommandLine {
         return datasetFailed.get();
     }
 
+    /** Whether the line names a -state, which an -export must wait for before it shoots. */
+    public static boolean hasStateArgument() {
+        return !getOptionValues("-state").isEmpty();
+    }
+
     // after DataSources is loaded
     public static void loadRequest() {
         // -request: works only for default server
