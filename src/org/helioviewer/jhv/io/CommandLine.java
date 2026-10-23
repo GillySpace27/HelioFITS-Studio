@@ -38,6 +38,9 @@ public class CommandLine {
             new Option("-state", 1, "Load state file. The window then belongs to that session, so autosave and quit write back to it."),
             new Option("-export", 1, "Export mode: png writes the current view as one PNG with the session stamped in, then exits. Needs -out. Never writes autosave."),
             new Option("-out", 1, "Where -export writes its file."),
+            new Option("-dataset", 1, "Load a Heliad library dataset, named by its dataset_uid, its dataset_key or a former key, as one image layer, from its files between -start and -end. The option can be used multiple times."),
+            new Option("-start", 1, "With -dataset: the first observation time to load, ISO 8601 UTC, Z and fractional seconds optional (2025-09-21T16:00:00.000)."),
+            new Option("-end", 1, "With -dataset: the last observation time to load, ISO 8601 UTC."),
             new Option("-h", 0, "Show this help and exit."));
 
     private static final List<String> OPTION_NAMES = OPTIONS.stream().map(Option::name).toList();
@@ -172,6 +175,25 @@ public class CommandLine {
         for (URI uri : getURIOptionValues("-load")) {
             Commands.loadImage(uri);
         }
+        // -dataset [-start] [-end]: one range for every dataset on the line
+        List<String> start = getOptionValues("-start"), end = getOptionValues("-end");
+        for (String dataset : getOptionValues("-dataset"))
+            HeliadDatasetLoad.load(dataset, start.isEmpty() ? null : start.get(0), end.isEmpty() ? null : end.get(0))
+                    .exceptionally(t -> {
+                        Throwable cause = t instanceof java.util.concurrent.CompletionException && t.getCause() != null ? t.getCause() : t;
+                        Log.warn("-dataset " + dataset + ": " + cause.getMessage());
+                        datasetFailed.set(true);
+                        return null;
+                    });
+    }
+
+    // Set when a -dataset could not be loaded, so an -export waiting for an image ends with
+    // INPUT_NOT_FOUND instead of timing out. Written from the loader's callback.
+    private static final java.util.concurrent.atomic.AtomicBoolean datasetFailed = new java.util.concurrent.atomic.AtomicBoolean();
+
+    /** Whether a -dataset on this line failed to load. */
+    public static boolean datasetFailed() {
+        return datasetFailed.get();
     }
 
     // after DataSources is loaded
@@ -325,6 +347,14 @@ public class CommandLine {
             if (a.equals("-state") && "file".equals(schemeOf(args[i + 1])) && !Files.isReadable(Path.of(args[i + 1])))
                 return new Problem(Exit.INPUT_NOT_FOUND, "File not found: " + args[i + 1]);
         }
+        for (String time : valuesOf(args, "-start"))
+            if (!isTime(time))
+                return new Problem(Exit.USAGE, "-start is not an ISO 8601 time: " + time);
+        for (String time : valuesOf(args, "-end"))
+            if (!isTime(time))
+                return new Problem(Exit.USAGE, "-end is not an ISO 8601 time: " + time);
+        if (valuesOf(args, "-dataset").isEmpty() && !(valuesOf(args, "-start").isEmpty() && valuesOf(args, "-end").isEmpty()))
+            return new Problem(Exit.USAGE, "-start and -end need -dataset");
         List<String> formats = valuesOf(args, "-export");
         if (!formats.isEmpty()) {
             if (!EXPORT_FORMATS.contains(formats.get(0)))
@@ -336,6 +366,15 @@ public class CommandLine {
     }
 
     public record Problem(Exit exit, String message) {}
+
+    private static boolean isTime(String value) {
+        try {
+            HeliadDatasetLoad.parse(value);
+            return true;
+        } catch (HeliadDatasetLoad.Failed e) {
+            return false;
+        }
+    }
 
     private static String schemeOf(String value) {
         try {

@@ -11,11 +11,14 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -31,6 +34,7 @@ import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.image.ImageDisplaySettings;
 import org.helioviewer.jhv.image.RHEFStamp;
+import org.helioviewer.jhv.io.SourceIdentity;
 import org.helioviewer.jhv.opengl.GLRenderer;
 
 import org.json.JSONArray;
@@ -130,6 +134,17 @@ public final class Provenance {
     }
 
     static JSONObject session(JSONObject scene, String home, Instant created) {
+        return session(scene, home, created, uri -> SourceIdentity.lookup(uri, 0));
+    }
+
+    /**
+     * As session() with the identity of each local source frame from {@code identify}: a file:
+     * URI is never written as an address, so each one becomes an entry of the layer's "files"
+     * (sha256, and dataset_key, obs_key, dataset_uid when a Heliad library holds it). A frame
+     * whose identity is not known yet is counted in "files_pending" instead, never guessed.
+     */
+    static JSONObject session(JSONObject scene, String home, Instant created,
+                              Function<URI, SourceIdentity.Entry> identify) {
         JSONObject portable = (JSONObject) rewrite(scene, s -> stripHome(s, home));
         JSONObject session = new JSONObject()
                 .put("writer", writer())
@@ -142,7 +157,9 @@ public final class Provenance {
         JSONArray sources = new JSONArray();
         boolean rhef = false;
         Set<String> stamps = new LinkedHashSet<>();
-        JSONObject state = portable.optJSONObject("org.helioviewer.jhv.state");
+        // The original scene, not the portable one: a local file is identified by its real path,
+        // and only its identity goes into the block.
+        JSONObject state = scene.optJSONObject("org.helioviewer.jhv.state");
         JSONArray layers = state == null ? null : state.optJSONArray("imageLayers");
         if (layers != null)
             for (Object o : layers) {
@@ -152,16 +169,32 @@ public final class Provenance {
                 if (data == null)
                     continue;
                 JSONArray uris = new JSONArray();
+                JSONArray files = new JSONArray();
+                int pending = 0;
                 JSONArray stored = data.optJSONArray("uris");
                 if (stored != null)
-                    for (Object u : stored)
-                        if (u instanceof String s && !s.startsWith("file:")) // archive addresses only, never a local copy
+                    for (Object u : stored) {
+                        if (!(u instanceof String s))
+                            continue;
+                        if (!s.startsWith("file:")) { // archive addresses only, never a local copy
                             uris.put(s);
-                JSONObject source = new JSONObject().put("layer", layer.optString("name")).put("uris", uris);
+                            continue;
+                        }
+                        SourceIdentity.Entry id = identity(s, identify);
+                        if (id == null)
+                            pending++;
+                        else
+                            files.put(id.toJson());
+                    }
+                JSONObject source = new JSONObject().put("layer", stripHome(layer.optString("name"), home)).put("uris", uris);
+                if (!files.isEmpty())
+                    source.put("files", files);
+                if (pending > 0)
+                    source.put("files_pending", pending);
                 if (data.optJSONObject("APIRequest") != null)
-                    source.put("request", data.getJSONObject("APIRequest"));
+                    source.put("request", rewrite(data.getJSONObject("APIRequest"), x -> stripHome(x, home)));
                 if (data.optJSONObject("fitsRequest") != null)
-                    source.put("query", data.getJSONObject("fitsRequest"));
+                    source.put("query", rewrite(data.getJSONObject("fitsRequest"), x -> stripHome(x, home)));
                 sources.put(source);
                 rhef |= "RHEF".equals(data.optString("filter"));
                 if ("RHEF".equals(data.optString("filter")))
@@ -173,6 +206,15 @@ public final class Provenance {
         if (!stamps.isEmpty())
             session.put("rhef_stamp", String.join("\n", stamps));
         return session;
+    }
+
+    @Nullable
+    private static SourceIdentity.Entry identity(String uri, Function<URI, SourceIdentity.Entry> identify) {
+        try {
+            return identify.apply(new URI(uri));
+        } catch (URISyntaxException e) {
+            return null;
+        }
     }
 
     /** The stamp for one RHEF layer from its saved imageParams; a missing Upsilon is the layer default. */
@@ -371,9 +413,14 @@ public final class Provenance {
         if (sources != null)
             for (Object o : sources)
                 if (o instanceof JSONObject src)
+                {
                     out.add("layer " + src.optString("layer") + " from " + String.join(",",
                             src.optJSONArray("uris") == null ? java.util.List.<String>of()
                                     : src.getJSONArray("uris").toList().stream().map(String::valueOf).toList()));
+                    JSONArray files = src.optJSONArray("files");
+                    if (files != null && !files.isEmpty()) // the hashes themselves would be a card each
+                        out.add("  and " + files.length() + " local file(s), first sha256 " + files.getJSONObject(0).optString("sha256"));
+                }
         if (session.has("caveat"))
             out.add(session.getString("caveat"));
         return out;
@@ -399,6 +446,15 @@ public final class Provenance {
                     sb.append(": ").append(uris.optString(0)).append(uris.length() > 1 ? " and " + (uris.length() - 1) + " more" : "");
                 else if (s.optJSONObject("request") != null)
                     sb.append(": ").append(s.getJSONObject("request"));
+                JSONArray files = s.optJSONArray("files");
+                if (files != null && !files.isEmpty()) {
+                    JSONObject first = files.getJSONObject(0);
+                    sb.append(uris != null && !uris.isEmpty() ? "; " : ": ").append(files.length())
+                            .append(files.length() == 1 ? " local file" : " local files").append(", sha256 ")
+                            .append(first.optString("sha256")).append(files.length() > 1 ? " and " + (files.length() - 1) + " more" : "");
+                    if (first.has("dataset_key"))
+                        sb.append(" (Heliad ").append(first.getString("dataset_key")).append(')');
+                }
                 sb.append('\n');
             }
         }

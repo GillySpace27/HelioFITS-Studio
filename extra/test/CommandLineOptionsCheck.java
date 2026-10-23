@@ -44,12 +44,17 @@ public final class CommandLineOptionsCheck {
         expect("-export knows png only", exit("--export", "mp4", "--out", "x") == CommandLine.Exit.USAGE);
         expect("-export png -out is fine", exit("--export", "png", "--out", "x.png", "--state", s) == null);
 
+        expect("-dataset with a range is fine", exit("-dataset", "sdo/aia/-/-/1/193", "-start", "2025-09-21T16:00:00", "--end", "2025-09-21T18:00:00Z") == null);
+        expect("-dataset alone is fine", exit("--dataset", "ds-7f3a") == null);
+        expect("a -start that is not a time is a usage error", exit("-dataset", "x", "-start", "yesterday") == CommandLine.Exit.USAGE);
+        expect("-end without -dataset is a usage error", exit("-end", "2025-09-21T18:00:00") == CommandLine.Exit.USAGE);
         expect("--state is an alias of -state", CommandLine.normalize(new String[]{"--state", s})[0].equals("-state"));
         expect("a value that merely starts with -- is left alone", CommandLine.normalize(new String[]{"-load", "--x"})[1].equals("--x"));
 
         String help = CommandLine.getUsageMessage();
         expect("the help lists every option of the table", help.contains("-load") && help.contains("-request")
-                && help.contains("-state") && help.contains("-export") && help.contains("-out") && help.contains("-h"));
+                && help.contains("-state") && help.contains("-export") && help.contains("-out") && help.contains("-h")
+                && help.contains("-dataset") && help.contains("-start") && help.contains("-end"));
         expect("the help names the exit codes", help.contains("3 input not found") && help.contains("4 export failed"));
         expect("--help and -h ask for help", CommandLine.wantsHelp(new String[]{"--help"}) && CommandLine.wantsHelp(new String[]{"-h"}));
 
