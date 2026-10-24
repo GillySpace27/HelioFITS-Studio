@@ -80,6 +80,19 @@ public final class Jp2BoxesCheck {
         expect("and says what the frame is: " + summarise(xml),
                 xml != null && xml.contains("<NAXIS1>1024</NAXIS1>") && xml.contains("LASCO"));
 
+        // Some headers carry a bare ampersand in their text, which an XML parser refuses as firmly as
+        // the trailing null; real entities must survive untouched.
+        byte[] body = "<meta><fits><HISTORY>A&B &amp; &lt;x&gt; &#38;</HISTORY></fits></meta>\0"
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] box = new byte[8 + body.length];
+        box[0] = (byte) (box.length >>> 24); box[1] = (byte) (box.length >>> 16);
+        box[2] = (byte) (box.length >>> 8); box[3] = (byte) box.length;
+        System.arraycopy("xml ".getBytes(java.nio.charset.StandardCharsets.ISO_8859_1), 0, box, 4, 4);
+        System.arraycopy(body, 0, box, 8, body.length);
+        List<String> escaped = Jp2Boxes.xmls(box);
+        expect("a bare ampersand is escaped and real entities kept: " + escaped,
+                escaped.size() == 1 && escaped.getFirst().contains("A&amp;B &amp; &lt;x&gt; &#38;"));
+
         // A truncated box must stop the walk rather than read past the end of what arrived.
         byte[] half = new byte[meta.length / 2];
         System.arraycopy(meta, 0, half, 0, half.length);
