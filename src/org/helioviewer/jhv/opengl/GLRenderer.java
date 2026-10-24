@@ -160,6 +160,7 @@ public final class GLRenderer {
         PresentationOutput.OUTPUT.preview(offscreen);
 
         ExportMovie.renderedFrame();
+        org.helioviewer.jhv.display.Pizza.frameRendered(); // a spin recording turns after each grab
     }
 
     private static void displayScene(Position viewpoint) {

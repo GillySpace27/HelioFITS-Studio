@@ -169,6 +169,13 @@
             "null"
           ],
           "description": "Studio's Compare (HS-11) state when on: which layers, divider, palette."
+        },
+        "pizza": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "Studio's sun pizza (HS-25) state when on: shape, rings, turn, which layers are cut into which wedges or tiles."
         }
       }
     },
