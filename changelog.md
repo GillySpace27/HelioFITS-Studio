@@ -118,6 +118,12 @@
 - A session reopens on its own master time range. When Helioviewer's list of datasets arrived after the session had loaded, which at startup it often did, the range was reset to the last two days of data
 - The packaged Mac app always loads its own Metal library. Started from a folder holding an older copy, it could load that one and fail to open; starting from Finder was not affected
 
+
+### From upstream JHelioviewer
+- Fixes taken from JHelioviewer's development line: grid lines no longer duplicate and longitude labels sit on their meridians; the calendar's month and year pickers stay within the chosen month; the timeline's Y-axis zoom stays positive; annotation point radius is kept in saved states; footpoints interpolate between the right neighbours; blank samples are skipped in the minute band cache; mapped image files are sized before mapping; layer downloads bypass the HTTP cache
+- Proxies: JPIP connections, including jpips, go through the configured proxy like HTTP does, and the stored proxy password is handled in one place
+- Loading a saved state keeps timeline rows that belong to an active plugin (EVE, SWEK) instead of dropping them
+- A JPEG 2000 frame whose XML header contains a bare ampersand now keeps its metadata (a regression from the move to OpenJPEG)
 ## HelioFITS Studio 0.8.6 (pre-release, 2026-10-11)
 
 ### Feedback

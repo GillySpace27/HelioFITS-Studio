@@ -3,7 +3,6 @@ package org.helioviewer.jhv.view.j2k.jpip.http;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -35,31 +34,31 @@ public class HTTPSocket {
             String host = uri.getHost();
 
             int port;
+            boolean tls;
             switch (uri.getScheme().toLowerCase()) {
                 case "jpip" -> {
                     port = uri.getPort() <= 0 ? 80 : uri.getPort();
-                    openSocket = new Socket(ProxySettings.proxy);
+                    tls = false;
                 }
                 case "jpips" -> {
                     port = uri.getPort() <= 0 ? 443 : uri.getPort();
-                    openSocket = SSLSocketFactory.getDefault().createSocket();
-                    if (openSocket instanceof SSLSocket sslSocket) { // obviously
-                        SSLParameters parameters = sslSocket.getSSLParameters();
-                        parameters.setProtocols(new String[]{"TLSv1.3"});
-                        parameters.setApplicationProtocols(new String[]{"http/1.1"}); // probably useless
-                        parameters.setEndpointIdentificationAlgorithm("HTTPS"); // hope this is performed
-                        sslSocket.setSSLParameters(parameters);
-                    }
+                    tls = true;
                 }
                 default -> throw new IOException("JPIP scheme not supported: " + uri);
             }
 
-            openSocket.setReceiveBufferSize(Math.max(262144 * 8, 2 * openSocket.getReceiveBufferSize()));
-            openSocket.setTrafficClass(0x10);
-            openSocket.setSoTimeout(TIMEOUT_READ);
-            openSocket.setKeepAlive(true);
-            openSocket.setTcpNoDelay(true);
-            openSocket.connect(new InetSocketAddress(host, port), TIMEOUT_CONNECT);
+            // Use the same per-destination HTTP(S) proxy rules as NetClient.
+            URI destination = new URI(tls ? "https" : "http", null, host, port, null, null, null);
+            openSocket = ProxySettings.connectJpipSocket(destination, TIMEOUT_CONNECT, TIMEOUT_READ);
+            if (tls) { // layered over the proxied connection
+                SSLSocket sslSocket = (SSLSocket) ((SSLSocketFactory) SSLSocketFactory.getDefault()).createSocket(openSocket, host, port, true);
+                openSocket = sslSocket;
+                SSLParameters parameters = sslSocket.getSSLParameters();
+                parameters.setProtocols(new String[]{"TLSv1.3"});
+                parameters.setApplicationProtocols(new String[]{"http/1.1"}); // probably useless
+                parameters.setEndpointIdentificationAlgorithm("HTTPS"); // hope this is performed
+                sslSocket.setSSLParameters(parameters);
+            }
 
             InputStream openInputStream = new BufferedInputStream(openSocket.getInputStream());
 

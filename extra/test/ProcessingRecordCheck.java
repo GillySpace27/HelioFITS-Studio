@@ -87,7 +87,7 @@ public final class ProcessingRecordCheck {
     private static JSONObject live() {
         return new JSONObject().put("layers", new JSONObject()
                         .put(A, new JSONObject().put("fits", true).put("frame", 0).put("frames", 2)
-                                .put("clip", new JSONArray().put(12.5).put(3400.25)).put("clip_from", "decoded frame"))
+                                .put("clip", new JSONArray().put(12.5).put(3400.25)).put("clip_from", "decoded frame").put("credit_key", "SDO/AIA"))
                         .put(B, new JSONObject().put("fits", false).put("frame", 3).put("frames", 10)))
                 .put("frame", Provenance.frame(0, false, "2025-09-21T20:32:00.000", "Earth", 0, 0, 215, "Orthographic", "Viewpoint", 6.4, 1, null));
     }
@@ -143,6 +143,10 @@ public final class ProcessingRecordCheck {
         JSONObject prov = r.getJSONObject("provenance");
         expect("suite provenance has exactly its seven fields: " + prov.keySet(), prov.keySet().equals(java.util.Set.of("product", "version",
                 "instrument", "observed", "credit", "rhef", "citation")));
+        expect("the credit is the AIA layer's instrument credit: " + prov.getString("credit"),
+                InstrumentCredit.line(List.of("SDO/AIA")).equals(prov.getString("credit")) && prov.getString("credit").contains("NASA/SDO"));
+        expect("a layer with a known instrument carries its acknowledgement, one without carries null",
+                a.getString("acknowledgement").contains("NASA/SDO") && b.isNull("acknowledgement"));
         expect("observed is seconds with Z, rhef the stamp", "2025-09-21T20:32:00Z".equals(prov.getString("observed"))
                 && prov.getString("rhef").startsWith("RHEF ") && prov.isNull("citation"));
         expect("the native part is session() verbatim", session.similar(r.getJSONObject("native").getJSONObject("studio_session")));
@@ -177,7 +181,7 @@ public final class ProcessingRecordCheck {
         // Send to Python: physical values, decode steps only.
         JSONObject entry = new JSONObject().put("source", "a1.fits").put("file", "a1_phys.fits").put("steps", new JSONArray()
                 .put("read as double from the source file").put("subtracted OFFSET=470.0 DN (the CCD bias card in the header; the same step the viewer takes)"));
-        JSONObject f = ProcessingRecord.buildFitsData(session, A, "SDO AIA 193", new SourceIdentity.Entry("1".repeat(64), 1000, HELIAD),
+        JSONObject f = ProcessingRecord.buildFitsData(session, A, "SDO AIA 193", "SOHO/LASCO", new SourceIdentity.Entry("1".repeat(64), 1000, HELIAD),
                 entry, "a1_phys.fits", "c".repeat(64), "00000000-0000-4000-8000-000000000004");
         ProcessingRecord.writeJson(out.resolve("fits.hfrec.json"), f);
         JSONObject fl = f.getJSONArray("layers").getJSONObject(0);
@@ -185,6 +189,8 @@ public final class ProcessingRecordCheck {
         expect("and is not display-referred", !f.getJSONObject("output").getBoolean("display_referred")
                 && "fits_data".equals(f.getJSONObject("output").getString("kind")));
         expect("and carries no RHEF stamp", f.getJSONObject("provenance").isNull("rhef"));
+        expect("and credits the instrument it was given", f.getJSONObject("provenance").getString("credit").startsWith("Courtesy of SOHO/LASCO")
+                && fl.getString("acknowledgement").startsWith("The SOHO/LASCO data"));
 
         expect("the sidecar is the full file name plus .hfrec.json",
                 ProcessingRecord.sidecar(Path.of("/x/frame0001.png")).equals(Path.of("/x/frame0001.png.hfrec.json")));

@@ -60,7 +60,12 @@ public final class FitsExport {
     static final int HISTORY_WIDTH = 71;
 
     /** The layer the files come from, which the processing record names. */
-    public record Layer(String id, String name) {}
+    /** The layer a Send to Python export came from; creditKey is its InstrumentCredit key, or null. */
+    public record Layer(String id, String name, @Nullable String creditKey) {
+        public Layer(String id, String name) {
+            this(id, name, null);
+        }
+    }
 
     /** Writes {@code <name>_phys.fits} per source and manifest.json into outDir; returns the manifest. {@code progress} hears 1..n as each file starts. No processing record. */
     public static JSONObject export(java.util.List<File> sources, Path outDir, JSONObject session, java.util.function.IntConsumer progress) throws IOException, FitsException {
@@ -141,7 +146,7 @@ public final class FitsExport {
                 JSONObject record = null;
                 if (layer != null)
                     try {
-                        record = ProcessingRecord.fitsDataEmbedded(session, layer.id(), layer.name(), src, entry, name,
+                        record = ProcessingRecord.fitsDataEmbedded(session, layer.id(), layer.name(), layer.creditKey(), src, entry, name,
                                 java.util.UUID.randomUUID().toString(), identify);
                     } catch (RuntimeException e) { // a file is never lost for want of its record
                         Log.warn("Processing record not built for " + name, e);
@@ -161,7 +166,8 @@ public final class FitsExport {
                     wh.insertHistory(line);
                 for (String line : Provenance.historyLines(session))
                     wh.insertHistory(line);
-                wh.insertHistory(ProcessingRecord.suiteCredit());
+                for (String line : wrapWords(ProcessingRecord.suiteCredit(layer == null ? null : layer.creditKey())))
+                    wh.insertHistory(line);
                 out.addHDU(w);
                 if (record != null)
                     out.addHDU(recordHdu(record));
@@ -245,6 +251,26 @@ public final class FitsExport {
             out.add(fit(p + "source ORIGIN was '" + sourceOrigin + "'", p + "source ORIGIN replaced (see the source file)"));
         if (recordId != null)
             out.add(fit(p + "sidecar " + fileName + ProcessingRecord.SUFFIX, p + "sidecar <this file name>" + ProcessingRecord.SUFFIX));
+        return out;
+    }
+
+    /**
+     * A long line as HISTORY cards that each fit, broken between words. A reader that joins the cards
+     * with one space, or reads them as one text, gets the line back (check_provenance.py does).
+     */
+    static java.util.List<String> wrapWords(String line) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        StringBuilder card = new StringBuilder();
+        for (String word : line.split(" ")) {
+            if (card.length() > 0 && card.length() + 1 + word.length() > HISTORY_WIDTH) {
+                out.add(card.toString());
+                card.setLength(0);
+            }
+            if (card.length() > 0)
+                card.append(' ');
+            card.append(word);
+        }
+        out.add(card.toString());
         return out;
     }
 

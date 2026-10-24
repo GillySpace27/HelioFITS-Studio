@@ -108,7 +108,7 @@ public final class FitsRecordCheck {
                 .put("created", "2026-10-23T00:00:00Z");
         Path out = Path.of("extra", "test-classes", "hfrecord-fits").toAbsolutePath();
         Files.createDirectories(out);
-        JSONObject manifest = FitsExport.export(sources, out, session, n -> {}, new FitsExport.Layer("layer-1", "Test layer"),
+        JSONObject manifest = FitsExport.export(sources, out, session, n -> {}, new FitsExport.Layer("layer-1", "Test layer", "SOHO/LASCO"),
                 uri -> SourceIdentity.lookup(uri, 30_000));
 
         String[][] expectedOps = {{"to_float64", "scale", "blank"}, {"to_float64", "instrument_correction"}, {"to_float64", "uncompress"}};
@@ -138,7 +138,10 @@ public final class FitsRecordCheck {
                 expect(name + ": HFRECID is the record card's id", recordId != null && block.get(0).equals(P + "record " + recordId));
                 expect(name + ": HFRSRC is the source file's SHA-256", SourceIdentity.sha256(sources.get(i).toPath()).equals(h.getStringValue("HFRSRC")));
                 expect(name + ": ORIGIN is the suite's product and version", ProcessingRecord.suiteOrigin().equals(h.getStringValue("ORIGIN")));
-                expect(name + ": the credit line is a HISTORY card of its own", hist.contains(ProcessingRecord.suiteCredit()));
+                String credit = ProcessingRecord.suiteCredit("SOHO/LASCO");
+                expect(name + ": the layer's instrument credit is in HISTORY cards of its own, broken between words",
+                        credit.length() > FitsExport.HISTORY_WIDTH && String.join(" ", hist).contains(credit)
+                                && FitsExport.wrapWords(credit).stream().allMatch(s -> hist.contains(s) && s.length() <= FitsExport.HISTORY_WIDTH));
                 expect(name + ": the session HISTORY is still written", hist.contains("Written by HelioFITS Studio test"));
                 if (i == 0) {
                     expect(name + ": the source's own HISTORY is kept, ahead of the block",
