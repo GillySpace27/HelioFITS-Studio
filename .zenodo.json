@@ -32,6 +32,11 @@
   ],
   "related_identifiers": [
     {
+      "identifier": "10.5281/zenodo.23524598",
+      "relation": "isPartOf",
+      "resource_type": "software"
+    },
+    {
       "identifier": "https://github.com/Helioviewer-Project/JHelioviewer-SWHV",
       "relation": "isDerivedFrom",
       "resource_type": "software"
