@@ -726,6 +726,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
         MetaData meta0 = imageData.metaData();
         glImage.setSwipe(org.helioviewer.jhv.display.Compare.swipeSide(this), org.helioviewer.jhv.display.Compare.swipeX(vp));
+        glImage.setPizza(org.helioviewer.jhv.display.Pizza.uniforms(this, vp, mv.mode()));
         org.helioviewer.jhv.display.Compare.DifferenceDraw cmp = org.helioviewer.jhv.display.Compare.differenceFor(this);
         glImage.setCompareDifference(cmp == null ? null : cmp.coefficients());
         glImage.applyFilters(imageData.imageBuffer(), meta0, getFilter() == ImageFilter.Type.RHEF);

@@ -525,6 +525,11 @@ public final class ProcessingRecord {
         scene.put("compare", compare == null ? JSONObject.NULL : new JSONObject(compare.toString())
                 .put("description", "Studio Compare (HS-11): a and b are layer ids; mode Blink, Swipe (split is the divider's"
                         + " position, 0 to 1, aLeft says which side a keeps) or Difference (a minus b)."));
+        JSONObject pizza = state.optJSONObject("pizza");
+        scene.put("pizza", pizza == null ? JSONObject.NULL : new JSONObject(pizza.toString())
+                .put("description", "Studio sun pizza (HS-25): every included image layer is cut to its own wedges or tiles"
+                        + " at draw time, nothing resampled; shape Wedges (solar position angle from north, counterclockwise),"
+                        + " Squares or Tiles (polar); excluded and ringOf are layer ids; turn is in degrees."));
         JSONObject a = state.optJSONObject("automation");
         JSONArray sceneTracks = new JSONArray();
         if (movie && a != null && a.optJSONArray("tracks") != null)

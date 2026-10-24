@@ -206,6 +206,9 @@ public final class State {
         JSONObject compare = org.helioviewer.jhv.display.Compare.toJson(); // HS-11; absent while Compare is off
         if (compare != null)
             main.put("compare", compare);
+        JSONObject pizza = org.helioviewer.jhv.display.Pizza.toJson(); // HS-25; absent while the pizza is off
+        if (pizza != null)
+            main.put("pizza", pizza);
         JSONObject plugins = new JSONObject();
         PluginManager.saveState(plugins);
         main.put("plugins", plugins);
@@ -382,6 +385,7 @@ public final class State {
 
         Layers.restore(restoredLayers);
         org.helioviewer.jhv.display.Compare.fromJson(data.optJSONObject("compare"), restoredLayers); // by layer id (HS-11)
+        org.helioviewer.jhv.display.Pizza.fromJson(data.optJSONObject("pizza"), restoredLayers); // by layer id (HS-25)
         Annotations.fromJson(data.optJSONObject("annotations"));
 
         // Restore the range before the playhead, so the playhead lands inside it rather than

@@ -49,7 +49,7 @@ public final class ActionCatalog {
     public static final Set<String> TOOLBAR_CONTROLS = Set.of(
             "rotate90", "pan", "rotate", "axis", "track", "diffRotation", "corona", "multiview",
             "sidebarLeft", "timelines", "sidebarRight", "projection", "trackCme", "colour", "sequence",
-            "grid", "camera", "compare", "annotate", "refresh", "samp");
+            "grid", "camera", "compare", "pizza", "annotate", "refresh", "samp");
 
     private static final Map<String, Entry> entries = new LinkedHashMap<>(); // the map is the only state: no static flag (guards.py ratchet)
 
