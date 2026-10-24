@@ -107,6 +107,9 @@
 - The Track CME panel and the comet panel (Tools > Find Comets to Track...) have a Cancel button beside their status line. It stops tracking and puts the warp and crop back as they were before tracking started, even after switching between CMEs, comets or modes. The jump of the playhead and the switch to Helioradial stay
 - In the Playback tab, the Preset row and the Format disclosure no longer draw on top of each other
 
+### App icon
+- The iris icon joins the family look of HelioFITS, Heliad and Heliogram: its dividers are white instead of black, and the blue AIA 335 leaf is a full leaf running from the hexagon's right corner to the Sun's edge, so the red 304 leaf no longer spans the whole top. The new blue leaf and the cyan AIA 131 leaf are drawn from the real AIA frames of the same 2024-05-14 X8.7 flare the other leaves came from, by release/make_iris_art.py
+
 ### Smaller fixes
 - The Timeline Layers section no longer shows as empty stripes. When the sidebar gave it a pixel less height than it asked for, its New Layer row collapsed to nothing and its list was drawn above its own top, so only the row shading showed (seen in the Sarah Gibson session as timeline layers rendering nothing)
 - In Playback and Recording, Format, Pixels and the two checkboxes under them sit in the section as rows of their own, instead of behind a fold-down headed with a summary such as "FFV1, RGB, 16-bit"
