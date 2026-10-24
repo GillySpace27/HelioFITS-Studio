@@ -62,7 +62,9 @@ import org.json.JSONObject;
  *
  * <p>The core is found by the rules the Heliad app uses, minus its development fallback:
  * {@code HELIAD_CORE} (the {@code heliad} command, or a Python with heliad installed), then the
- * Python inside an installed Heliad.app.
+ * core this Studio was packaged with ({@link #studioCore}), then the Python inside an installed
+ * Heliad.app. Studio's own core comes before the app's, so a Studio always speaks to the core it
+ * was released with, whatever Heliad.app is installed.
  */
 public final class HeliadIngest {
 
@@ -132,8 +134,70 @@ public final class HeliadIngest {
 
     /** Whether a Heliad core can be found to serve the library at root, without starting one. */
     public static boolean coreFound(Path root) {
-        return command(System.getenv("HELIAD_CORE"), HeliadLibrary.app(), Path.of(System.getProperty("user.home")), root,
-                p -> Files.isExecutable(p)) != null;
+        return command(root) != null;
+    }
+
+    @Nullable
+    private static List<String> command(Path root) {
+        return command(System.getenv("HELIAD_CORE"), studioCore(System.getProperty("jpackage.app-path"), System.getProperty("os.name", "")),
+                HeliadLibrary.app(), Path.of(System.getProperty("user.home")), root, p -> Files.isExecutable(p));
+    }
+
+    /**
+     * The Python of the Heliad core packaged inside this Studio, or null when Studio runs from a
+     * build tree (no {@code jpackage.app-path}) or on a platform whose packages carry none yet. On
+     * macOS, release/deploy_release.sh puts it at {@code Contents/Resources/heliad-core}.
+     *
+     * @param appPath the launcher's own path, the {@code jpackage.app-path} property
+     */
+    @Nullable
+    static Path studioCore(@Nullable String appPath, String osName) {
+        if (appPath == null || appPath.isEmpty() || !osName.startsWith("Mac"))
+            return null;
+        Path macos = Path.of(appPath).getParent(); // <app>/Contents/MacOS/<launcher>
+        Path contents = macos == null ? null : macos.getParent();
+        return contents == null ? null : contents.resolve("Resources").resolve("heliad-core").resolve("bin").resolve("python3");
+    }
+
+    /** How long making a library may take: the core creates an empty index and writes Heliad's config. */
+    private static final Duration INIT_WAIT = Duration.ofMinutes(1);
+
+    /**
+     * Make a Heliad library at root and point Heliad's config at it ({@code heliad init}), for a
+     * computer where Heliad has no config yet. Never called when a config exists: init rewrites it.
+     */
+    public static void makeLibrary(Path root) throws IOException {
+        List<String> command = command(root);
+        if (command == null)
+            throw new IOException("no Heliad core was found");
+        init(command, Map.of());
+    }
+
+    /** Run {@code heliad init} with the core a serve command names, its environment added to Studio's. */
+    static void init(List<String> serveCommand, Map<String, String> env) throws IOException {
+        List<String> init = new ArrayList<>(serveCommand.subList(0, serveCommand.size() - 1));
+        init.add("init");
+        Path log = Files.createTempFile("heliad-init", ".log"); // a file, so a hung core cannot block the wait below
+        try {
+            ProcessBuilder builder = new ProcessBuilder(init).redirectErrorStream(true).redirectOutput(log.toFile());
+            builder.environment().putAll(env);
+            Process process = builder.start();
+            process.getOutputStream().close();
+            try {
+                if (!process.waitFor(INIT_WAIT.toMillis(), TimeUnit.MILLISECONDS)) {
+                    process.destroyForcibly();
+                    throw new IOException("heliad init did not finish in " + INIT_WAIT.toSeconds() + " s");
+                }
+            } catch (InterruptedException e) {
+                process.destroyForcibly();
+                Thread.currentThread().interrupt();
+                throw new InterruptedIOException("heliad init");
+            }
+            if (process.exitValue() != 0)
+                throw new IOException("heliad init failed (exit " + process.exitValue() + "): " + Files.readString(log).strip());
+        } finally {
+            Files.deleteIfExists(log);
+        }
     }
 
     /** When Studio's cache was last offered in full to the library at root, or MIN_VALUE for never. */
@@ -294,8 +358,7 @@ public final class HeliadIngest {
         if (core != null)
             core.close();
         CORE.set(null);
-        List<String> command = command(System.getenv("HELIAD_CORE"), HeliadLibrary.app(),
-                Path.of(System.getProperty("user.home")), root, p -> Files.isExecutable(p));
+        List<String> command = command(root);
         if (command == null) {
             NO_CORE.set(true);
             Log.info("Heliad library found but no Heliad core (install Heliad.app or set HELIAD_CORE); Studio downloads stay in its own cache");
@@ -317,10 +380,11 @@ public final class HeliadIngest {
      * The command that starts a core serving the library at root, or null when no core is found.
      *
      * @param heliadCore the {@code HELIAD_CORE} variable
+     * @param studioCore the Python of the core packaged with this Studio ({@link #studioCore}), if any
      * @param app        the installed Heliad.app, if any
      */
     @Nullable
-    static List<String> command(@Nullable String heliadCore, @Nullable Path app, Path home, Path root,
+    static List<String> command(@Nullable String heliadCore, @Nullable Path studioCore, @Nullable Path app, Path home, Path root,
                                 Predicate<Path> executable) {
         List<String> command = new ArrayList<>();
         if (heliadCore != null && !heliadCore.isEmpty()) {
@@ -331,6 +395,8 @@ public final class HeliadIngest {
                     command.addAll(List.of("-m", "heliad"));
             }
         }
+        if (command.isEmpty() && studioCore != null && executable.test(studioCore))
+            command.addAll(List.of(studioCore.toString(), "-B", "-s", "-P", "-m", "heliad"));
         if (command.isEmpty() && app != null) {
             Path python = app.resolve("Contents").resolve("Resources").resolve("python").resolve("bin").resolve("python3");
             if (executable.test(python))

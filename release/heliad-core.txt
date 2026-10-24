@@ -1,0 +1,5 @@
+# The heliad commit whose core HelioFITS Studio's macOS app carries (Contents/Resources/heliad-core),
+# built by deploy_release.sh with that commit's own app/tools/bundle_python.sh. One full commit hash
+# on heliad's main, on the first line that is not a comment. Change it on a branch, with the release
+# notes saying what the new core brings; Studio's Use FITS and ingest speak to exactly this core.
+2724998d249f89c3dd40faafcbb192c95c9a68d4

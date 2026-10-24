@@ -187,13 +187,13 @@ final class ImageLayerManagePanel extends JPanel {
     }
 
     private JButton refreshButton;
-    private static final String FITS_TIP = "Use FITS: open the FITS files behind these Helioviewer frames, fetched into the Heliad library if it lacks them";
+    private static final String FITS_TIP = "Use FITS: open the FITS files behind these Helioviewer frames, fetched into the FITS library if it lacks them";
     private final JButton fitsButton = new JButton("FITS");
 
     /** The FITS button while Heliad works: disabled, with what it is doing; null when it is done. */
     private void fitsStatus(@javax.annotation.Nullable String line) {
         fitsButton.setEnabled(line == null);
-        fitsButton.setToolTipText(line == null ? FITS_TIP : "Heliad: " + line);
+        fitsButton.setToolTipText(line == null ? FITS_TIP : "Use FITS: " + line);
     }
     private javax.swing.JCheckBox liveBox;
 
