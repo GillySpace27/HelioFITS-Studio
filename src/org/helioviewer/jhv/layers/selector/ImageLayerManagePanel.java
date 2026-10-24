@@ -168,6 +168,9 @@ final class ImageLayerManagePanel extends JPanel {
         python.setText("Python");
         python.setToolTipText("Send to Python: this layer's FITS files as science FITS (physical values, no display steps) with a manifest");
         icons.add(python);
+        fitsButton.setToolTipText(FITS_TIP);
+        fitsButton.addActionListener(e -> org.helioviewer.jhv.gui.dialog.HeliadFitsDialog.start(layer, this, this::fitsStatus));
+        icons.add(fitsButton);
         icons.add(makeSyncButton());
         icons.add(metaButton);
 
@@ -184,6 +187,14 @@ final class ImageLayerManagePanel extends JPanel {
     }
 
     private JButton refreshButton;
+    private static final String FITS_TIP = "Use FITS: open the FITS files behind these Helioviewer frames, fetched into the Heliad library if it lacks them";
+    private final JButton fitsButton = new JButton("FITS");
+
+    /** The FITS button while Heliad works: disabled, with what it is doing; null when it is done. */
+    private void fitsStatus(@javax.annotation.Nullable String line) {
+        fitsButton.setEnabled(line == null);
+        fitsButton.setToolTipText(line == null ? FITS_TIP : "Heliad: " + line);
+    }
     private javax.swing.JCheckBox liveBox;
 
     /**
@@ -275,6 +286,7 @@ final class ImageLayerManagePanel extends JPanel {
             refreshButton.setVisible(PunchClient.hasRememberedQuery(layer) || !layer.getFailedUris().isEmpty());
         if (liveBox != null)
             liveBox.setVisible(org.helioviewer.jhv.io.LiveRefresh.enabled() && layer.getFitsRequest() != null);
+        fitsButton.setVisible(org.helioviewer.jhv.io.HeliadFits.applies(layer.getView()));
     }
 
     // Everything this layer has put on disk. There are two separate stores and a layer uses one
