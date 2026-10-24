@@ -6,6 +6,7 @@ message: >-
   (2025).
 type: software
 title: HelioFITS Studio
+doi: 10.5281/zenodo.23541893
 abstract: >-
   HelioFITS Studio is a desktop viewer for solar and heliospheric imagery,
   built around coronagraph and wide-field data. It is an unofficial fork of
