@@ -1,0 +1,218 @@
+{
+  "org.helioviewer.jhv.state": {
+    "time": "2025-01-01T12:00:00",
+    "masterStartTime": "2025-01-01T10:00:00",
+    "masterEndTime": "2025-01-01T12:00:00",
+    "layers": [],
+    "imageLayers": [
+      {
+        "className": "org.helioviewer.jhv.layers.ImageLayer",
+        "name": "SDO AIA 94",
+        "id": "pizza-aia-94",
+        "data": {
+          "APIRequest": {
+            "server": "ROB",
+            "sourceId": 8,
+            "startTime": "2025-01-01T10:00:00",
+            "endTime": "2025-01-01T12:00:00",
+            "cadence": 1800
+          },
+          "filter": "NONE"
+        },
+        "enabled": true
+      },
+      {
+        "className": "org.helioviewer.jhv.layers.ImageLayer",
+        "name": "SDO AIA 131",
+        "id": "pizza-aia-131",
+        "data": {
+          "APIRequest": {
+            "server": "ROB",
+            "sourceId": 9,
+            "startTime": "2025-01-01T10:00:00",
+            "endTime": "2025-01-01T12:00:00",
+            "cadence": 1800
+          },
+          "filter": "NONE"
+        },
+        "enabled": true
+      },
+      {
+        "className": "org.helioviewer.jhv.layers.ImageLayer",
+        "name": "SDO AIA 171",
+        "id": "pizza-aia-171",
+        "data": {
+          "APIRequest": {
+            "server": "ROB",
+            "sourceId": 10,
+            "startTime": "2025-01-01T10:00:00",
+            "endTime": "2025-01-01T12:00:00",
+            "cadence": 1800
+          },
+          "filter": "NONE"
+        },
+        "enabled": true,
+        "master": true
+      },
+      {
+        "className": "org.helioviewer.jhv.layers.ImageLayer",
+        "name": "SDO AIA 193",
+        "id": "pizza-aia-193",
+        "data": {
+          "APIRequest": {
+            "server": "ROB",
+            "sourceId": 11,
+            "startTime": "2025-01-01T10:00:00",
+            "endTime": "2025-01-01T12:00:00",
+            "cadence": 1800
+          },
+          "filter": "NONE"
+        },
+        "enabled": true
+      },
+      {
+        "className": "org.helioviewer.jhv.layers.ImageLayer",
+        "name": "SDO AIA 211",
+        "id": "pizza-aia-211",
+        "data": {
+          "APIRequest": {
+            "server": "ROB",
+            "sourceId": 12,
+            "startTime": "2025-01-01T10:00:00",
+            "endTime": "2025-01-01T12:00:00",
+            "cadence": 1800
+          },
+          "filter": "NONE"
+        },
+        "enabled": true
+      },
+      {
+        "className": "org.helioviewer.jhv.layers.ImageLayer",
+        "name": "SDO AIA 304",
+        "id": "pizza-aia-304",
+        "data": {
+          "APIRequest": {
+            "server": "ROB",
+            "sourceId": 13,
+            "startTime": "2025-01-01T10:00:00",
+            "endTime": "2025-01-01T12:00:00",
+            "cadence": 1800
+          },
+          "filter": "NONE"
+        },
+        "enabled": true
+      },
+      {
+        "className": "org.helioviewer.jhv.layers.ImageLayer",
+        "name": "SDO AIA 335",
+        "id": "pizza-aia-335",
+        "data": {
+          "APIRequest": {
+            "server": "ROB",
+            "sourceId": 14,
+            "startTime": "2025-01-01T10:00:00",
+            "endTime": "2025-01-01T12:00:00",
+            "cadence": 1800
+          },
+          "filter": "NONE"
+        },
+        "enabled": true
+      },
+      {
+        "className": "org.helioviewer.jhv.layers.ImageLayer",
+        "name": "SDO AIA 1600",
+        "id": "pizza-aia-1600",
+        "data": {
+          "APIRequest": {
+            "server": "ROB",
+            "sourceId": 15,
+            "startTime": "2025-01-01T10:00:00",
+            "endTime": "2025-01-01T12:00:00",
+            "cadence": 1800
+          },
+          "filter": "NONE"
+        },
+        "enabled": true
+      },
+      {
+        "className": "org.helioviewer.jhv.layers.ImageLayer",
+        "name": "SDO AIA 1700",
+        "id": "pizza-aia-1700",
+        "data": {
+          "APIRequest": {
+            "server": "ROB",
+            "sourceId": 16,
+            "startTime": "2025-01-01T10:00:00",
+            "endTime": "2025-01-01T12:00:00",
+            "cadence": 1800
+          },
+          "filter": "NONE"
+        },
+        "enabled": true
+      },
+      {
+        "className": "org.helioviewer.jhv.layers.ImageLayer",
+        "name": "SDO HMI Continuum",
+        "id": "pizza-hmi-continuum",
+        "data": {
+          "APIRequest": {
+            "server": "ROB",
+            "sourceId": 18,
+            "startTime": "2025-01-01T10:00:00",
+            "endTime": "2025-01-01T12:00:00",
+            "cadence": 1800
+          },
+          "filter": "NONE"
+        },
+        "enabled": true
+      }
+    ],
+    "pizza": {
+      "shape": "Wedges",
+      "space": "Sun",
+      "twoRings": false,
+      "boundary": 1.15,
+      "outerRadius": 0,
+      "gap": 0,
+      "jitter": 0,
+      "seed": 0,
+      "tile": 0.5,
+      "rows": 6,
+      "shift": 1,
+      "turn": 0,
+      "spin": "Off",
+      "degPerSec": 6,
+      "degPerFrame": 2,
+      "labels": "Every",
+      "angstrom": true,
+      "colourNames": false,
+      "labelScale": 1,
+      "rings": [
+        {
+          "repeats": 1,
+          "angle": 0,
+          "counter": false
+        },
+        {
+          "repeats": 1,
+          "angle": 0,
+          "counter": false
+        }
+      ],
+      "excluded": [],
+      "ringOf": {},
+      "colourName": {}
+    },
+    "template": {
+      "name": "Sun pizza (SDO)",
+      "description": "The newest SDO AIA channels and HMI continuum, one wedge each around one Sun. Turn it with Pizza > Turn or Record Spin.",
+      "time": {
+        "mode": "latest",
+        "span": "PT2H",
+        "lag": "PT0S"
+      },
+      "thumbnail": "sun-pizza-sdo.png",
+      "version": 1
+    }
+  }
+}
