@@ -1,6 +1,7 @@
 package org.helioviewer.jhv.io;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -47,6 +48,7 @@ public final class HeliadFitsCheck {
     public static void main(String[] args) throws Exception {
         headers();
         reading();
+        library();
         realCore();
         if (failures > 0) {
             System.out.println(failures + " failed");
@@ -93,10 +95,41 @@ public final class HeliadFitsCheck {
                 files.equals(List.of(a.toFile().toURI())));
         expect("the jobs a plan queued, got " + HeliadFits.jobs(plan), HeliadFits.jobs(plan).equals(List.of(7)));
         String words = HeliadFits.summary(plan);
-        expect("the summary counts the frames, got " + words, words.startsWith("5 frames: 2 already in the Heliad library as FITS, 1 missing, 1 without a usable header."));
+        expect("the summary counts the frames, got " + words, words.startsWith("5 frames: 2 already in the FITS library, 1 missing, 1 without a usable header."));
         expect("and says what would be fetched, got " + words, words.contains("SDO AIA 171 Å: fetch 1 frame through fido, "
                 + "2012-08-31T18:03:12.000 to 2012-08-31T18:05:12.000 UTC, one per 30 min.") && words.contains("inferred"));
         expect("a group with nothing to fetch says nothing", !words.contains("LASCO"));
+    }
+
+    /** Where Studio may make a library, what it says when it may not, and a core too old for Use FITS. */
+    private static void library() throws Exception {
+        Path tmp = Files.createTempDirectory("hfs-heliad-lib");
+        Path none = tmp.resolve("none");
+        expect("no config names no library", HeliadLibrary.configuredRoot(none) == null);
+        Path cfg = Files.createDirectories(tmp.resolve("cfg"));
+        Files.writeString(cfg.resolve("config.json"), new JSONObject().put("library_root", "/Volumes/Gone/HeliadLibrary").toString());
+        expect("a config naming a library whose drive is gone: found nothing, but the folder is named, got " + HeliadLibrary.configuredRoot(cfg),
+                HeliadLibrary.read(cfg) == null && Path.of("/Volumes/Gone/HeliadLibrary").equals(HeliadLibrary.configuredRoot(cfg)));
+        Path bad = Files.createDirectories(tmp.resolve("bad"));
+        Files.writeString(bad.resolve("config.json"), "{not json");
+        expect("an unreadable config names nothing", HeliadLibrary.configuredRoot(bad) == null);
+
+        expect("a library may be made where nothing is", HeliadLibrary.canMakeLibraryAt(tmp.resolve("new")));
+        expect("or in an empty folder", HeliadLibrary.canMakeLibraryAt(Files.createDirectories(tmp.resolve("empty"))));
+        Path other = Files.createDirectories(tmp.resolve("other"));
+        Files.writeString(other.resolve("notes.txt"), "mine");
+        expect("never in a folder of someone's files", !HeliadLibrary.canMakeLibraryAt(other));
+        Path lib = Files.createDirectories(tmp.resolve("lib"));
+        Files.writeString(lib.resolve(HeliadLibrary.DB_NAME), "");
+        Files.writeString(lib.resolve("notes.txt"), "kept");
+        expect("but in a library already (init reopens it)", HeliadLibrary.canMakeLibraryAt(lib));
+        expect("never over a file", !HeliadLibrary.canMakeLibraryAt(other.resolve("notes.txt")));
+
+        IOException old = HeliadFits.explained(new HeliadIngest.RpcError(-32601, "Method not found: layer.upgrade"));
+        expect("a core without layer.upgrade is too old, said in words, got " + old,
+                old instanceof HeliadFits.TooOld && old.getMessage().contains("older than this Studio"));
+        HeliadIngest.RpcError other2 = new HeliadIngest.RpcError(-32602, "bad params");
+        expect("any other error is passed on as it is", HeliadFits.explained(other2) == other2);
     }
 
     private static void realCore() throws Exception {
@@ -107,7 +140,7 @@ public final class HeliadFitsCheck {
         }
         Path tmp = Files.createTempDirectory("hfs-heliad-fits-real");
         Path root = tmp.resolve("library");
-        List<String> command = HeliadIngest.command(heliadCore, null, tmp, root, Files::isExecutable);
+        List<String> command = HeliadIngest.command(heliadCore, null, null, tmp, root, Files::isExecutable);
         expect("HELIAD_CORE gives a command, got " + command, command != null);
         if (command == null)
             return;
@@ -132,6 +165,14 @@ public final class HeliadFitsCheck {
         expect("the summary names the fetch, got " + words, words.contains(": fetch 1 frame through fido, "));
         core.close();
         expect("the core exits cleanly", core.waitForExit() == 0);
+
+        Path home = tmp.resolve("fresh-home");
+        Path made = tmp.resolve("fresh-library");
+        List<String> serve = HeliadIngest.command(heliadCore, null, null, tmp, made, Files::isExecutable);
+        HeliadIngest.init(serve, Map.of("HELIAD_HOME", home.toString()));
+        HeliadLibrary.Location found = HeliadLibrary.read(home);
+        expect("init on a computer with no config makes the library and points the config at it, got " + found,
+                found != null && found.root().toRealPath().equals(made.toRealPath()));
     }
 
 }

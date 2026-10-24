@@ -58,21 +58,37 @@ public final class HeliadIngestCheck {
         Path root = Path.of("/data/HeliadLibrary");
         Path app = Path.of("/Applications/Heliad.app");
         Path bundled = app.resolve("Contents/Resources/python/bin/python3");
+        Path studio = Path.of("/Applications/HelioFITS Studio.app/Contents/Resources/heliad-core/bin/python3");
         List<String> tail = List.of("--library", root.toString(), "serve");
 
         String py = Path.of("/opt/py/bin/python3").toString(); // as this platform spells it
-        List<String> python = HeliadIngest.command("/opt/py/bin/python3", null, home, root, p -> true);
+        List<String> python = HeliadIngest.command("/opt/py/bin/python3", null, null, home, root, p -> true);
         expect("HELIAD_CORE naming a Python runs it with -m heliad, got " + python,
                 List.of(py, "-m", "heliad", "--library", root.toString(), "serve").equals(python));
-        List<String> command = HeliadIngest.command("~/venv/bin/heliad", app, home, root, p -> true);
+        List<String> command = HeliadIngest.command("~/venv/bin/heliad", studio, app, home, root, p -> true);
         expect("HELIAD_CORE naming the heliad command runs it as it is, ~ expanded, and wins over the app, got " + command,
                 List.of(home.resolve("venv/bin/heliad").toString(), "--library", root.toString(), "serve").equals(command));
-        List<String> inApp = HeliadIngest.command("/gone/heliad", app, home, root, bundled::equals);
+        List<String> inApp = HeliadIngest.command("/gone/heliad", null, app, home, root, bundled::equals);
         expect("a HELIAD_CORE that is not there falls back to the app's own Python, isolated, got " + inApp,
                 inApp != null && inApp.subList(0, 6).equals(List.of(bundled.toString(), "-B", "-s", "-P", "-m", "heliad"))
                         && inApp.subList(6, inApp.size()).equals(tail));
-        expect("no HELIAD_CORE and no app: no core", HeliadIngest.command(null, null, home, root, p -> true) == null);
-        expect("an app without its Python: no core", HeliadIngest.command("", app, home, root, p -> false) == null);
+        expect("no HELIAD_CORE and no app: no core", HeliadIngest.command(null, null, null, home, root, p -> true) == null);
+        expect("an app without its Python: no core", HeliadIngest.command("", studio, app, home, root, p -> false) == null);
+
+        Path studio2 = HeliadIngest.studioCore("/Applications/HelioFITS Studio.app/Contents/MacOS/HelioFITS Studio", "Mac OS X");
+        expect("Studio's own core is in its bundle's Resources, got " + studio2,
+                Path.of("/Applications/HelioFITS Studio.app/Contents/Resources/heliad-core/bin/python3").equals(studio2));
+        expect("a build tree has no packaged core", HeliadIngest.studioCore(null, "Mac OS X") == null);
+        expect("no packaged core outside macOS yet", HeliadIngest.studioCore("/opt/hfstudio/bin/HFStudio", "Linux") == null);
+        List<String> own = HeliadIngest.command(null, studio, app, home, root, p -> true);
+        expect("Studio's own core wins over Heliad.app's, isolated, got " + own,
+                own != null && own.subList(0, 6).equals(List.of(studio.toString(), "-B", "-s", "-P", "-m", "heliad"))
+                        && own.subList(6, own.size()).equals(tail));
+        List<String> appOnly = HeliadIngest.command(null, studio, app, home, root, bundled::equals);
+        expect("a Studio core that is not there falls back to Heliad.app's, got " + appOnly,
+                appOnly != null && appOnly.getFirst().equals(bundled.toString()));
+        List<String> dev = HeliadIngest.command("/opt/py/bin/python3", studio, app, home, root, p -> true);
+        expect("HELIAD_CORE wins over Studio's own core, got " + dev, dev != null && dev.getFirst().equals(py));
     }
 
     private static void files() throws IOException {
@@ -233,7 +249,7 @@ public final class HeliadIngestCheck {
         Path appSupport = tmp.resolve("appsupport");
         Path root = tmp.resolve("library");
         Map<String, String> env = Map.of("HELIAD_HOME", appSupport.toString());
-        List<String> command = HeliadIngest.command(heliadCore, null, tmp, root, Files::isExecutable);
+        List<String> command = HeliadIngest.command(heliadCore, null, null, tmp, root, Files::isExecutable);
         expect("HELIAD_CORE gives a command, got " + command, command != null);
         if (command == null)
             return;

@@ -2,6 +2,7 @@ package org.helioviewer.jhv.gui.dialog;
 
 import java.awt.Component;
 import java.net.URI;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.function.Consumer;
@@ -12,6 +13,7 @@ import org.helioviewer.jhv.app.Commands;
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.io.HeliadFits;
+import org.helioviewer.jhv.io.HeliadIngest;
 import org.helioviewer.jhv.io.HeliadLibrary;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.thread.Task;
@@ -43,17 +45,61 @@ public final class HeliadFitsDialog {
             return;
         HeliadLibrary.Location lib = HeliadLibrary.find();
         if (lib == null) {
-            Message.warn(TITLE, "Use FITS needs a Heliad library on this computer. Install Heliad and make a library first.");
+            offerLibrary(layer, parent, status);
             return;
         }
         Path root = lib.root();
-        status.accept("Asking Heliad");
+        if (!HeliadIngest.coreFound(root)) {
+            Message.warn(TITLE, HeliadFits.NoCore.TEXT);
+            return;
+        }
+        status.accept("Checking the FITS library");
         Task.submitBackground(() -> {
             JSONArray headers = HeliadFits.headers(view);
             return new Planned(headers, HeliadFits.plan(root, headers, true));
         }, planned -> {
             status.accept(null);
             ask(root, planned, parent, status);
+        }, t -> failed(t, status));
+    }
+
+    /**
+     * No library is found. Where Heliad has no config yet, offer to make one at Heliad's default
+     * folder; where it has one (a library on a drive that is not connected, say), say so and change
+     * nothing, since making a library rewrites that config.
+     */
+    private static void offerLibrary(ImageLayer layer, Component parent, Consumer<String> status) {
+        Path configDir = HeliadLibrary.configDir();
+        if (Files.exists(configDir.resolve("config.json"))) {
+            Path named = HeliadLibrary.configuredRoot(configDir);
+            Message.warn(TITLE, named == null
+                    ? "The FITS library settings (" + configDir.resolve("config.json") + ") name no library Studio can read."
+                    : "The FITS library is set to " + named + ", but it is not there now. If it is on a drive, connect it and try again.");
+            return;
+        }
+        Path root = HeliadLibrary.defaultRoot();
+        if (!HeliadIngest.coreFound(root)) {
+            Message.warn(TITLE, HeliadFits.NoCore.TEXT);
+            return;
+        }
+        if (!HeliadLibrary.canMakeLibraryAt(root)) {
+            Message.warn(TITLE, root + " already holds other files, so Studio will not make a FITS library there.");
+            return;
+        }
+        if (JOptionPane.showConfirmDialog(parent, "Use FITS keeps the FITS files it fetches in a FITS library, and this computer has none yet.\n\n"
+                + "Make one at " + root + "?", TITLE,
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE) != JOptionPane.OK_OPTION)
+            return;
+        status.accept("Making a library");
+        Task.submitBackground(() -> {
+            HeliadIngest.makeLibrary(root);
+            return HeliadLibrary.find() != null;
+        }, made -> {
+            status.accept(null);
+            if (made)
+                start(layer, parent, status);
+            else
+                Message.warn(TITLE, "A library was made at " + root + ", but Studio cannot find it through " + configDir.resolve("config.json") + ".");
         }, t -> failed(t, status));
     }
 
@@ -73,7 +119,7 @@ public final class HeliadFitsDialog {
         }
         String fetch = "Fetch and open", open = "Open the " + have + " I have", cancel = "Cancel";
         Object[] options = have > 0 ? new Object[]{fetch, open, cancel} : new Object[]{fetch, cancel};
-        int choice = JOptionPane.showOptionDialog(parent, summary + "\n\nHeliad fetches the missing frames into its library in the background.",
+        int choice = JOptionPane.showOptionDialog(parent, summary + "\n\nThe missing frames are fetched into the FITS library in the background.",
                 TITLE, JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, fetch);
         if (choice < 0 || options[choice] == cancel)
             return;
@@ -104,14 +150,14 @@ public final class HeliadFitsDialog {
                         .append(job.optString("error").isEmpty() ? "" : " (" + job.optString("error") + ")");
         }
         if (!problems.isEmpty())
-            Message.warn(TITLE, "Heliad did not get every frame." + problems + "\n\n" + HeliadFits.summary(fetched.plan()));
+            Message.warn(TITLE, "Not every frame could be fetched." + problems + "\n\n" + HeliadFits.summary(fetched.plan()));
         open(fetched.plan());
     }
 
     private static void open(JSONObject plan) {
         List<URI> uris = HeliadFits.files(plan);
         if (uris.isEmpty()) {
-            Message.warn(TITLE, "The Heliad library holds no FITS file for these frames.\n\n" + HeliadFits.summary(plan));
+            Message.warn(TITLE, "The FITS library holds no FITS file for these frames.\n\n" + HeliadFits.summary(plan));
             return;
         }
         Commands.loadImage(uris);
@@ -120,7 +166,10 @@ public final class HeliadFitsDialog {
     private static void failed(Throwable t, Consumer<String> status) {
         status.accept(null);
         Log.warn("Use FITS", t);
-        Message.err(TITLE, t.getMessage(), t);
+        if (t instanceof HeliadFits.NoCore || t instanceof HeliadFits.TooOld) // known causes, said in full: nothing to report
+            Message.warn(TITLE, t.getMessage());
+        else
+            Message.err(TITLE, t.getMessage(), t);
     }
 
 }

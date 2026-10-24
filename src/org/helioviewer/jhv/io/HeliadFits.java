@@ -53,14 +53,31 @@ public final class HeliadFits {
     private static final long POLL_MS = 3000;
     private static final Set<String> ENDED = Set.of("done", "partial", "failed", "cancelled");
 
-    /** No Heliad core could be started (no Heliad.app and no HELIAD_CORE). */
+    /** No Heliad core could be started (none packaged with Studio, no Heliad.app and no HELIAD_CORE). */
     public static final class NoCore extends IOException {
         private static final long serialVersionUID = 1L;
+        /** Why there is none, in words for a dialog. */
+        public static final String TEXT = "Use FITS needs the FITS library engine (Heliad's core), and this Studio has none: it was not packaged with one, "
+                + "no Heliad.app is installed and HELIAD_CORE is not set. Studio's macOS release carries its own; elsewhere, set "
+                + "HELIAD_CORE to a Python that has heliad installed.";
 
         NoCore() {
-            super("No Heliad core was found: install Heliad.app or set HELIAD_CORE.");
+            super(TEXT);
         }
     }
+
+    /** The core answered that it has no {@code layer.upgrade}: it is older than this Studio. */
+    public static final class TooOld extends IOException {
+        private static final long serialVersionUID = 1L;
+
+        TooOld() {
+            super("The program serving your FITS library is older than this Studio and cannot answer Use FITS. "
+                    + "If Heliad.app is open, it serves the library for every program: quit it or update it, then try again.");
+        }
+    }
+
+    /** JSON-RPC's code for a method the server does not have. */
+    private static final int METHOD_NOT_FOUND = -32601;
 
     private HeliadFits() {}
 
@@ -126,10 +143,20 @@ public final class HeliadFits {
     /** {@code layer.upgrade}: the plan, or with dryRun false the plan with each group's queued job. */
     public static JSONObject plan(Path root, JSONArray headers, boolean dryRun) throws IOException {
         JSONObject params = new JSONObject().put("headers", headers).put("dry_run", dryRun);
-        JSONObject out = HeliadIngest.call(root, "layer.upgrade", params, PLAN_WAIT);
+        JSONObject out;
+        try {
+            out = HeliadIngest.call(root, "layer.upgrade", params, PLAN_WAIT);
+        } catch (HeliadIngest.RpcError e) {
+            throw explained(e);
+        }
         if (out == null)
             throw new NoCore();
         return out;
+    }
+
+    /** A core's error, as TooOld when the core has no layer.upgrade. */
+    static IOException explained(HeliadIngest.RpcError e) {
+        return e.code == METHOD_NOT_FOUND ? new TooOld() : e;
     }
 
     /** How many frames have the given status in a plan's counts. */
@@ -176,7 +203,7 @@ public final class HeliadFits {
         JSONArray frames = plan.optJSONArray("frames");
         int n = frames == null ? 0 : frames.length();
         sb.append(n).append(n == 1 ? " frame: " : " frames: ")
-                .append(count(plan, "in_library")).append(" already in the Heliad library as FITS, ")
+                .append(count(plan, "in_library")).append(" already in the FITS library, ")
                 .append(count(plan, "missing")).append(" missing");
         if (count(plan, "rejected") > 0)
             sb.append(", ").append(count(plan, "rejected")).append(" set aside in the library");

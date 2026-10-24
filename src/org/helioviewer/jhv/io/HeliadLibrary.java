@@ -48,7 +48,7 @@ public final class HeliadLibrary {
     public static final int READER_COMPAT = 1;
 
     /** The index's own file name, for a config that names only the library folder. */
-    private static final String DB_NAME = "heliad.sqlite";
+    static final String DB_NAME = "heliad.sqlite";
 
     /**
      * {@code date_obs} as Heliad writes it: ISO 8601 UTC with milliseconds (astropy's isot). The
@@ -168,6 +168,42 @@ public final class HeliadLibrary {
             return Files.isRegularFile(db) ? new Location(root, db) : null;
         } catch (IOException | JSONException e) {
             Log.warn("Heliad config unreadable: " + config, e);
+            return null;
+        }
+    }
+
+    /**
+     * The library folder a config folder's {@code config.json} names, whether or not its index is
+     * there now (a library on a drive that is not connected, say); null when there is no config,
+     * or one that names no library or cannot be read.
+     */
+    /** Where Studio offers to make a library when Heliad has none: Heliad's own default (config.default_library_root). */
+    public static Path defaultRoot() {
+        return Path.of(System.getProperty("user.home")).resolve("HeliadLibrary");
+    }
+
+    /** Whether a folder could become a new library: absent, empty, or already a library (it has an index). */
+    public static boolean canMakeLibraryAt(Path root) {
+        if (!Files.exists(root) || Files.isRegularFile(root.resolve(DB_NAME)))
+            return true;
+        if (!Files.isDirectory(root))
+            return false;
+        try (java.util.stream.Stream<Path> entries = Files.list(root)) {
+            return entries.findAny().isEmpty();
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    @Nullable
+    public static Path configuredRoot(Path configDir) {
+        Path config = configDir.resolve("config.json");
+        if (!Files.isRegularFile(config))
+            return null;
+        try {
+            String rootText = new JSONObject(Files.readString(config)).optString("library_root", "");
+            return rootText.isEmpty() ? null : expand(rootText, Path.of(System.getProperty("user.home")));
+        } catch (IOException | JSONException e) { // read() has logged it
             return null;
         }
     }
