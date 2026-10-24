@@ -31,8 +31,9 @@ import org.joml.Vector3f;
  * is a point on the cut worked out on the CPU in the frame the shader cuts in
  * (imageCommon.frag, clipPizza) and carried to the screen by the scene's own matrices
  * ({@link Transform#toNdc}): the image's own solar frame in Orthographic, the observer's frame
- * through the radial warp in Helioradial ({@link WarpGeometry#warpRadius}, as HelioradialGrid
- * places its ring labels), the page in Helioradial Unrolled and HPC. A recording captures the same
+ * at the page radius the imagery lands at in Helioradial (half of MapScale.toUnitY, as
+ * HelioradialGrid's ringRho; WarpGeometry.warpRadius put every label at the edge of the view,
+ * found in a headless render), the page in Helioradial Unrolled and HPC. A recording captures the same
  * framebuffer, so the labels are in recorded movies too.
  *
  * <p>Wedges only: squares and polar tiles are not labelled. Nothing here holds state; the pure
@@ -354,8 +355,8 @@ public final class PizzaLabels {
     private static double toWorld(MapView mv, MapScale scale, double hpcK, double r) {
         if (r <= 0)
             return 0;
-        if (mv.isHelioradial())
-            return WarpGeometry.warpRadius(scale, r, scale.warpOuterRadius());
+        if (mv.isHelioradial()) // the page radius the imagery lands at (as HelioradialGrid's ringRho): measured, not warpRadius
+            return .5 * scale.toUnitY(r);
         if (mv.isHpc())
             return r * hpcK;
         return r;
