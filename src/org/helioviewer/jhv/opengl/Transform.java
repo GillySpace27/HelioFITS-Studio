@@ -9,6 +9,7 @@ import org.helioviewer.jhv.math.Quat;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fStack;
 import org.joml.Quaternionf;
+import org.joml.Vector3f;
 
 public final class Transform {
 
@@ -106,6 +107,16 @@ public final class Transform {
         setup((float) (width * aspect), (float) width, -clip, clip, (float) tx, (float) ty);
         rotateView(rotation);
         cacheMVP();
+    }
+
+    /**
+     * Where a point lands, in normalized device coordinates, under the projection and view in
+     * force now: for text that is placed in pixels but must sit on something drawn in the scene
+     * (the sun pizza's labels, HS-25), so it goes through the very matrices the scene does.
+     */
+    public static Vector3f toNdc(float x, float y, float z, Vector3f dest) {
+        proj.mulOrthoAffine(view, mul); // assumes ortho, like get()
+        return mul.transformProject(x, y, z, dest);
     }
 
     private static void setup(float width, float height, float zNear, float zFar, float x, float y) {
