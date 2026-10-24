@@ -275,12 +275,13 @@ public final class Actions {
                 if (button != null)
                     button.setText(label);
             };
+            String creditKey = org.helioviewer.jhv.movie.InstrumentCredit.key(layer); // on the event thread, before the work leaves it
             Task.submitBackground("send-to-python", () -> {
                 try {
                     org.json.JSONObject session = org.helioviewer.jhv.movie.Provenance.session();
                     // Each file carries its processing record (HISTORY block, HFRECORD extension, sidecar); hfrecord.json covers the export.
                     org.json.JSONObject manifest = org.helioviewer.jhv.io.FitsExport.export(sources, out, session, step,
-                            new org.helioviewer.jhv.io.FitsExport.Layer(layer.getId(), layer.getName()), org.helioviewer.jhv.movie.ProcessingRecord.identities());
+                            new org.helioviewer.jhv.io.FitsExport.Layer(layer.getId(), layer.getName(), creditKey), org.helioviewer.jhv.movie.ProcessingRecord.identities());
                     List<File> written = new ArrayList<>();
                     for (File source : sources)
                         written.add(out.resolve(org.helioviewer.jhv.io.FitsExport.outputName(source)).toFile());

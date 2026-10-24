@@ -186,7 +186,7 @@ public final class EmbeddedRecordCheck {
         Map<String, String> tags = readTags(ffmpeg, Path.of(written));
         String expected = ProcessingRecord.movieText(record, new JSONObject(Provenance.metadataComment(session)).has("scene"));
         expect("hfrecord tag read back is the shortened record (" + expected.length() + " chars)", expected.equals(tags.get("hfrecord")));
-        expect("description is the suite credit line", ProcessingRecord.SUITE_CREDIT.equals(tags.get("description")));
+        expect("description is the suite credit line", record.getJSONObject("provenance").getString("credit").equals(tags.get("description")));
         expect("comment is still the session, as before", Provenance.metadataComment(session).equals(tags.get("comment")));
 
         String ffprobe = onPath("ffprobe");
