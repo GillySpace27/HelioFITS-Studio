@@ -46,6 +46,11 @@
       "body": "Compare blinks between two image layers, or swipes a divider across the view with one on each side. Layers > Duplicate Layer gives you a copy of a layer to compare against."
     },
     {
+      "target": "pizza",
+      "title": "Pizza",
+      "body": "Pizza cuts every shown image layer into its own wedges or tiles of one Sun. The wedges follow solar north, so they stay on the Sun as the camera moves; in Helioradial Unrolled they become strips."
+    },
+    {
       "target": "grid",
       "title": "Grid and overlays",
       "body": "Grid holds the coordinate grid, the solar limb, the Thomson and celestial spheres, the ecliptic plane and the planets, each with its own colour, opacity and width."
