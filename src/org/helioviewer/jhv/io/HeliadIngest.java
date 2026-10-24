@@ -149,13 +149,24 @@ public final class HeliadIngest {
      */
     @Nullable
     public static JSONObject hello(Path root, Duration wait) throws IOException {
+        return call(root, "heliad.hello", new JSONObject(), wait);
+    }
+
+    /**
+     * Any method of the core that serves the library (docs/api.md in the heliad repository), the
+     * way {@link #hello} asks for {@code heliad.hello}: null when no core can be found, an
+     * IOException when the core answers with an error or is lost. Blocks for up to {@code wait},
+     * behind any files already queued: call it off the event thread.
+     */
+    @Nullable
+    public static JSONObject call(Path root, String method, JSONObject params, Duration wait) throws IOException {
         try {
             return QUEUE.submit(() -> {
                 Core core = core(root);
                 if (core == null)
                     return null;
                 try {
-                    return core.call("heliad.hello", new JSONObject(), wait);
+                    return core.call(method, params, wait);
                 } catch (RpcError e) {
                     throw e;
                 } catch (IOException e) {
@@ -170,7 +181,7 @@ public final class HeliadIngest {
             throw new IOException("Heliad is still busy with Studio's files", e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new InterruptedIOException("heliad.hello");
+            throw new InterruptedIOException(method);
         }
     }
 
