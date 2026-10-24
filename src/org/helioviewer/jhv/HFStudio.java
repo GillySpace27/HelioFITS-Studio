@@ -171,6 +171,7 @@ public class HFStudio {
                 org.helioviewer.jhv.gui.dialog.WelcomeDialog.offerAtStartup(bareLaunch); // else the tour offer; a launch with arguments is a script's
                 org.helioviewer.jhv.io.FeedbackReport.retryInBackground(); // the outbox, on its own thread; never headless
                 org.helioviewer.jhv.io.HeliadIngest.importCacheInBackground(); // cached files the Heliad library lacks; no-op without Heliad
+                org.helioviewer.jhv.io.TemplateRefresh.install(); // the template manager's Refresh Data; no-op without Heliad
                 org.helioviewer.jhv.app.update.UpdateCheck.atStartup(); // at most daily, in the background, after a delay
             }
 

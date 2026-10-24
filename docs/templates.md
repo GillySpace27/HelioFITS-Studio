@@ -81,5 +81,9 @@ Set as Startup stores the template's path in the pinned default session setting
 (`startup.loadState`, the one File > Set Current Session as Default uses), so each launch opens
 the template and works its times out fresh; File > Clear Default Session undoes it.
 
-Refresh Data is disabled ("Needs Heliad") until something installs
-`TemplateManager.refreshDataHook`, which the Heliad integration is meant to do.
+Refresh Data asks Heliad (`template.refresh`, docs/api.md in the heliad repository) to bring the
+library up to the newest frames of every Heliad dataset the template shows, and says what it
+queued; open the template again once the downloads finish. Layers from a Helioviewer server are
+not Heliad's: the template's time rule already asks them for the newest data when it opens.
+`io/TemplateRefresh` installs the hook at launch when a Heliad library is found; without one
+the button stays disabled with the tooltip "Needs Heliad".
