@@ -36,19 +36,28 @@ public final class FrameCopy {
     }
 
     public static void copy() {
+        shoot("Copy Frame", TransferAccess::writeClipboardImage);
+    }
+
+    /**
+     * The canvas picture as 8-bit RGB, handed to {@code onImage} on the event thread, taken the way
+     * copy() takes it (a screenshot, which also stays in Exports/). Nothing is handed over when the
+     * shot fails; {@code what} names the caller in the log. Also the scene template thumbnail.
+     */
+    public static void shoot(String what, java.util.function.Consumer<BufferedImage> onImage) {
         ViewState.RecordingMode previous = ViewState.recordingData().mode();
         Commands.OperationContext context = new Commands.OperationContext(FrameCopy.class, null, null, "frame.copy", (c, ok, message, output) -> {
             ViewState.applyRecordingUpdateRaw(previous.name(), null);
             if (!ok || output == null) {
-                Log.warn("Copy Frame failed: " + message);
+                Log.warn(what + " failed: " + message);
                 return;
             }
             try {
                 String path = output.contains("%04d") ? String.format(output, 1) : output; // a screenshot is frame 1 of a pattern
                 BufferedImage image = readRgb8(Path.of(path).toFile());
-                java.awt.EventQueue.invokeLater(() -> TransferAccess.writeClipboardImage(image));
+                java.awt.EventQueue.invokeLater(() -> onImage.accept(image));
             } catch (IOException | RuntimeException e) {
-                Log.warn("Copy Frame could not read the screenshot", e);
+                Log.warn(what + " could not read the screenshot", e);
             }
         });
         Commands.recordStart(context, new Commands.RecordStartInput("SHOT", null, null, null, null));

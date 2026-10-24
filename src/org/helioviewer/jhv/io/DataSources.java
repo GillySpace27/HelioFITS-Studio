@@ -138,12 +138,21 @@ public class DataSources {
 
     private record DatasetId(String server, int sourceId) {}
 
-    private record Source(String observatory, String dataset) {}
+    private record Source(String observatory, String dataset, long end) {} // end: the newest frame the catalog lists
 
     private static final Map<DatasetId, Source> datasetMap = new ConcurrentHashMap<>();
 
-    static void insertDataset(int sourceId, @Nonnull String server, @Nonnull String observatory, @Nonnull String dataset) {
-        datasetMap.put(new DatasetId(server, sourceId), new Source(observatory, dataset));
+    static void insertDataset(int sourceId, @Nonnull String server, @Nonnull String observatory, @Nonnull String dataset, long end) {
+        datasetMap.put(new DatasetId(server, sourceId), new Source(observatory, dataset, end));
+    }
+
+    /**
+     * The newest frame time the server's catalog lists for this source, or Long.MIN_VALUE when the
+     * catalog has not been read or does not list it. What a "latest" scene template ends on (docs/templates.md).
+     */
+    public static long newest(@Nonnull String server, int sourceId) {
+        Source source = datasetMap.get(new DatasetId(server, sourceId));
+        return source == null ? Long.MIN_VALUE : source.end();
     }
 
     static int selectDataset(@Nonnull String server, @Nonnull String observatory, @Nonnull String dataset) {
