@@ -38,6 +38,54 @@ A dry run of the sync on 2026-10-02, `git merge-tree --write-tree --name-only or
 upstream/master`, reports 37 conflicted files (four are the tracked `lib/jhv/jhv-natives-*.jar`
 files, which are binary and cannot be merged as text). It writes objects only.
 
+## What is not taken from upstream (decided 2026-10-24)
+
+Upstream's JPEG 2000 and JPIP line is not merged or cherry-picked into this fork, and its commits
+do not count as "behind". In October 2026 upstream moved reading to the esajpip C client (CDDL 1.0)
+in a native bridge, `native/jpeg2000/jhv_j2k.{h,cc}`, with Kakadu decoding behind it. This fork
+decodes with OpenJPEG and reads JPIP with its own Java data-bin cache (`view/j2k`, since
+ece2db71 on 2026-09-16), because Kakadu's licence does not reach a fork. The two stacks cannot be
+cherry-picked across. About 60 of the 234 upstream commits measured on 2026-10-23 are this line,
+plus the half of upstream's layer refactor (`Frames`, `FrameDecoder`, `Source`) that exists to
+serve it.
+
+Exceptions: a fix in that line that has an equivalent in this fork's reader is ported by hand,
+as 658173e8 (bare ampersands in XML headers) was into `Jp2Boxes`.
+
+The alternative, adopting upstream's bridge with an OpenJPEG decoder behind it, is written up and
+shelved in `docs/upstream-j2k-bridge-plan.md`. Reopen it only if this fork's JPIP code starts
+costing real bugs, and then as one sync that takes the layer refactor with it.
+
+Also not taken: deletions of files this fork keeps or replaced (`release/`, `JHelioviewer.java`,
+`lib/jhv/jhv-natives-*.jar`, `EventCache`, `SWEKDownloader`), and upstream's native packaging.
+
+Deferred, not refused: upstream's move to WCSLIB (0d9c2ea7) and its image-geometry split. Port
+them after the sunpy decode-parity harness exists, so the harness shows what changed.
+
+## Measuring the gap
+
+Rerun monthly and record the result here:
+
+```sh
+git fetch upstream
+git merge-base origin/master upstream/master
+git rev-list --count --no-merges "$(git merge-base origin/master upstream/master)"..upstream/master
+git merge-tree --write-tree --name-only origin/master upstream/master | grep -c '^CONFLICT'
+```
+
+| Date | upstream/master | Behind | Dry-run conflicts |
+|---|---|---|---|
+| 2026-09-30 | 6b874317543f | 55 | (not measured) |
+| 2026-10-02 | | | 37 |
+| 2026-10-23 | 4f0dd068 | 234 | 128 |
+
+Cherry-picked on 2026-10-24 (branch `sync/upstream-picks-2026-10-24`): dd00d8ad, e2e8a84c,
+9b89c4e7, d6690677, 990c8343, 148262f1, 9351e775, 3de99722, ac7e861c, f12f9aa6, 4c68e0ac and
+29882143 (both with conflicts resolved by hand), with b4eb8a68 and 658173e8 ported by hand. Not
+taken: 6b874317 (fast Rice for short and integer FITS), which conflicts with this fork's own
+PUNCH Rice decoder in `FastRiceProvider`; merging two "values unchanged" rewrites needs a
+bit-for-bit comparison on real files first (`FrameBench --rice`, then the parity harness).
+
 ## Syncing upstream into master
 
 1. `git fetch upstream`, then a branch: `git switch -c sync/upstream-<yyyy-mm-dd> origin/master`.

@@ -3,6 +3,7 @@ package org.helioviewer.jhv.view.j2k.opj;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import javax.annotation.Nullable;
 
@@ -19,6 +20,8 @@ import javax.annotation.Nullable;
  * are jp2h, which describes the image, and asoc, which JPX uses to tie metadata to a frame.
  */
 public final class Jp2Boxes {
+
+    private static final Pattern BARE_AMPERSAND = Pattern.compile("&(?!(?:amp|lt|gt|quot|apos|#[0-9]+|#x[0-9a-fA-F]+);)");
 
     /** One box: its four-character type, where its content starts, and how long that content is. */
     public record Box(String type, int contentAt, int contentLength) {}
@@ -112,6 +115,10 @@ public final class Jp2Boxes {
      * <p>These archives write the document with a trailing null, C fashion, and an XML parser
      * rejects anything after the root element closes. Stopping at the null is what Kakadu did for
      * us, and without it every Helioviewer frame arrives with no metadata at all.
+     *
+     * <p>Some headers also carry a bare ampersand (in HISTORY or COMMENT text), which an XML parser
+     * rejects just as firmly. Escape those and leave real entities alone, as upstream JHelioviewer
+     * does (its commit 658173e8); the Kakadu reader this replaced escaped every ampersand.
      */
     private static String text(byte[] data, int at, int length) {
         int end = at + length;
@@ -120,7 +127,7 @@ public final class Jp2Boxes {
                 end = i;
                 break;
             }
-        return new String(data, at, end - at, StandardCharsets.UTF_8);
+        return BARE_AMPERSAND.matcher(new String(data, at, end - at, StandardCharsets.UTF_8).trim()).replaceAll("&amp;");
     }
 
     /** Placeholder boxes, one per codestream JPIP has not sent inline, which is how a movie's frames are counted. */
