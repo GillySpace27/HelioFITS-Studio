@@ -177,11 +177,13 @@ public final class MenuBar extends JMenuBar {
         // The layer-creation items upstream keeps here live in the Layers menu below.
         catalogItem(fileMenu, "newSession");
         catalogItem(fileMenu, "openSession");
+        catalogItem(fileMenu, "newFromTemplate"); // HS-25
         fileMenu.add(buildOpenRecentMenu());
         catalogItem(fileMenu, "closeWindow");
         fileMenu.addSeparator();
         catalogItem(fileMenu, "saveSession");
         catalogItem(fileMenu, "saveSessionAs");
+        catalogItem(fileMenu, "saveAsTemplate"); // HS-25
         catalogItem(fileMenu, "exportSessionWithData");
         catalogItem(fileMenu, "shareScene"); // catalogued under File since HS-16, never added here until the tours named it
         catalogItem(fileMenu, "quickShare");
@@ -194,8 +196,10 @@ public final class MenuBar extends JMenuBar {
         catalogItem(fileMenu, "reloadSources");
         catalogItem(fileMenu, "copyProvenance");
         catalogItem(fileMenu, "openExportsFolder");
-        if (!Platform.isMacOS())
+        if (!Platform.isMacOS()) {
             catalogItem(fileMenu, "newWindow"); // no Window menu off macOS
+            catalogItem(fileMenu, "templates"); // HS-25: Window > Templates... on macOS
+        }
 
         if (Platform.isMacOS()) {
             // Honor the quit response so a cancelled quit reports back to macOS as refused
@@ -416,6 +420,7 @@ public final class MenuBar extends JMenuBar {
             JMenu windowMenu = new JMenu("Window");
             windowMenu.setMnemonic(KeyEvent.VK_W);
             catalogItem(windowMenu, "newWindow");
+            catalogItem(windowMenu, "templates"); // HS-25
             windowMenu.addSeparator();
             catalogItem(windowMenu, "windowMinimize");
             catalogItem(windowMenu, "windowZoom");
