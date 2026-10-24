@@ -42,11 +42,11 @@ import org.xml.sax.helpers.DefaultHandler;
 public final class HeliadFits {
 
     /** The keywords sent per frame: those Heliad's ingest reads (fitsmeta.INDEXED_KEYWORDS) for
-     *  what a file is and when, plus HMI's CONTENT and LASCO's FILTER and POLAR. */
+     *  what a file is and when, plus HMI's CONTENT, and LASCO's TIME_OBS (its pictures date with DATE_OBS plus TIME_OBS), FILTER and POLAR. */
     static final List<String> KEYS = List.of(
             "OBSRVTRY", "TELESCOP", "INSTRUME", "DETECTOR", "WAVELNTH", "WAVEUNIT", "WAVE_STR",
             "LEVEL", "LVL_NUM", "TYPECODE", "OBSCODE", "FILEVRSN", "DATE-OBS", "DATE_OBS",
-            "DATE-BEG", "DATE-END", "DATE-AVG", "TIME-OBS", "TIMESYS", "BTYPE", "CONTENT", "FILTER", "POLAR");
+            "DATE-BEG", "DATE-END", "DATE-AVG", "TIME-OBS", "TIME_OBS", "TIMESYS", "BTYPE", "CONTENT", "FILTER", "POLAR");
 
     private static final Duration PLAN_WAIT = Duration.ofMinutes(2);
     private static final Duration CALL_WAIT = Duration.ofSeconds(30);
