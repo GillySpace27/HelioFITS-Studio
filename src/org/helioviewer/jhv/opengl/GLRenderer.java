@@ -337,6 +337,8 @@ public final class GLRenderer {
                 Layers.render(sceneView, vp);
             } else
                 Layers.renderScale(sceneView, vp);
+            if (Layers.captureOnly == null) // the sun pizza's wedge labels (HS-25), over the imagery, part of the composite only
+                RenderGuard.run("pizza labels", () -> org.helioviewer.jhv.display.PizzaLabels.render(sceneView, vp));
 
             if (Layers.captureOnly == null) // hand-drawn annotations are part of the composite only
                 RenderGuard.run("annotations", () -> Annotations.render(sceneView, vp));

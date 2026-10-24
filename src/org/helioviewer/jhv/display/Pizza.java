@@ -206,8 +206,8 @@ public final class Pizza {
         return data != null && data.metaData().getInnerRadius() >= OCCULTER_RADIUS;
     }
 
-    /** The turn of a ring right now, in radians, counterclockwise from solar north. */
-    private static double turnRadians(int ring) {
+    /** The turn of a ring right now, in radians, counterclockwise from solar north. Also read by PizzaLabels. */
+    static synchronized double turnRadians(int ring) {
         double turn = S.turn;
         if (S.spin == Spin.Movie && S.spinFrame < 0)
             turn += S.degPerFrame * Player.getCurrentFrameNumber();
