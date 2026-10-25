@@ -7,7 +7,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.helioviewer.jhv.io.HeliadLibrary;
+import org.helioviewer.jhv.io.FitsLibrary;
 import org.helioviewer.jhv.io.SourceIdentity;
 
 import org.json.JSONArray;
@@ -48,7 +48,7 @@ public final class ProcessingRecordCheck {
     }
 
     private static JSONObject scene(double gamma, boolean automation) {
-        String lib = "file:" + HOME + "/HeliadLibrary/store/aia/";
+        String lib = "file:" + HOME + "/HelioFITSLibrary/store/aia/";
         JSONObject a = new JSONObject().put("className", "org.helioviewer.jhv.layers.ImageLayer").put("name", "SDO AIA 193").put("id", A)
                 .put("enabled", true).put("data", new JSONObject()
                         .put("uris", new JSONArray().put(lib + "a1.fits").put(lib + "a2.fits"))
@@ -72,7 +72,7 @@ public final class ProcessingRecordCheck {
         return new JSONObject().put("org.helioviewer.jhv.state", state);
     }
 
-    private static final HeliadLibrary.Identity HELIAD = new HeliadLibrary.Identity("1".repeat(64), "sdo/aia/-/-/1/193",
+    private static final FitsLibrary.Identity HELIAD = new FitsLibrary.Identity("1".repeat(64), "sdo/aia/-/-/1/193",
             "sdo/aia/-/-/1/193|2025-09-21T20:32:04.840", "ds-7f3a", null, 1000, "2025-09-21T20:32:04.840", "SDO AIA 193 Å L1");
 
     private static SourceIdentity.Entry identify(URI uri) {
@@ -80,7 +80,7 @@ public final class ProcessingRecordCheck {
         if (!u.startsWith("file:" + HOME + "/")) // the record must look files up by their real path, home put back
             return null;
         return u.endsWith("a1.fits") ? new SourceIdentity.Entry("1".repeat(64), 1000, HELIAD)
-                : new SourceIdentity.Entry("2".repeat(64), 1000, new HeliadLibrary.Identity("2".repeat(64), "sdo/aia/-/-/1/193",
+                : new SourceIdentity.Entry("2".repeat(64), 1000, new FitsLibrary.Identity("2".repeat(64), "sdo/aia/-/-/1/193",
                         "sdo/aia/-/-/1/193|2025-09-21T20:33:04.840", "ds-7f3a", null, 1000, null, null));
     }
 

@@ -12,9 +12,9 @@ import javax.swing.JOptionPane;
 import org.helioviewer.jhv.app.Commands;
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.Message;
-import org.helioviewer.jhv.io.HeliadFits;
-import org.helioviewer.jhv.io.HeliadIngest;
-import org.helioviewer.jhv.io.HeliadLibrary;
+import org.helioviewer.jhv.io.UseFits;
+import org.helioviewer.jhv.io.FitsCoreIngest;
+import org.helioviewer.jhv.io.FitsLibrary;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.thread.Task;
 import org.helioviewer.jhv.view.View;
@@ -23,40 +23,40 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
- * The layer panel's FITS button: shows what Heliad holds for a Helioviewer layer's frames, asks
- * before fetching the rest, and opens the FITS files as a new layer once Heliad has them. The
+ * The layer panel's FITS button: shows what HelioFITS Core holds for a Helioviewer layer's frames, asks
+ * before fetching the rest, and opens the FITS files as a new layer once HelioFITS Core has them. The
  * Helioviewer layer is left as it is. Every question to the core runs off the event thread.
  */
-public final class HeliadFitsDialog {
+public final class UseFitsDialog {
 
     private static final String TITLE = "Use FITS";
 
-    private HeliadFitsDialog() {}
+    private UseFitsDialog() {}
 
     private record Planned(JSONArray headers, JSONObject plan) {}
 
     /**
-     * Start for this layer. {@code status} hears a short line while Heliad works (null when it is
+     * Start for this layer. {@code status} hears a short line while HelioFITS Core works (null when it is
      * done), for the button to show; it is called on the event thread.
      */
     public static void start(ImageLayer layer, Component parent, Consumer<String> status) {
         View view = layer.getView();
-        if (!HeliadFits.applies(view))
+        if (!UseFits.applies(view))
             return;
-        HeliadLibrary.Location lib = HeliadLibrary.find();
+        FitsLibrary.Location lib = FitsLibrary.find();
         if (lib == null) {
             offerLibrary(layer, parent, status);
             return;
         }
         Path root = lib.root();
-        if (!HeliadIngest.coreFound(root)) {
-            Message.warn(TITLE, HeliadFits.NoCore.TEXT);
+        if (!FitsCoreIngest.coreFound(root)) {
+            Message.warn(TITLE, UseFits.NoCore.TEXT);
             return;
         }
         status.accept("Checking the FITS library");
         Task.submitBackground(() -> {
-            JSONArray headers = HeliadFits.headers(view);
-            return new Planned(headers, HeliadFits.plan(root, headers, true));
+            JSONArray headers = UseFits.headers(view);
+            return new Planned(headers, UseFits.plan(root, headers, true));
         }, planned -> {
             status.accept(null);
             ask(root, planned, parent, status);
@@ -64,25 +64,25 @@ public final class HeliadFitsDialog {
     }
 
     /**
-     * No library is found. Where Heliad has no config yet, offer to make one at Heliad's default
+     * No library is found. Where HelioFITS Core has no config yet, offer to make one at HelioFITS Core's default
      * folder; where it has one (a library on a drive that is not connected, say), say so and change
      * nothing, since making a library rewrites that config.
      */
     private static void offerLibrary(ImageLayer layer, Component parent, Consumer<String> status) {
-        Path configDir = HeliadLibrary.configDir();
+        Path configDir = FitsLibrary.configDir();
         if (Files.exists(configDir.resolve("config.json"))) {
-            Path named = HeliadLibrary.configuredRoot(configDir);
+            Path named = FitsLibrary.configuredRoot(configDir);
             Message.warn(TITLE, named == null
                     ? "The FITS library settings (" + configDir.resolve("config.json") + ") name no library Studio can read."
                     : "The FITS library is set to " + named + ", but it is not there now. If it is on a drive, connect it and try again.");
             return;
         }
-        Path root = HeliadLibrary.defaultRoot();
-        if (!HeliadIngest.coreFound(root)) {
-            Message.warn(TITLE, HeliadFits.NoCore.TEXT);
+        Path root = FitsLibrary.defaultRoot();
+        if (!FitsCoreIngest.coreFound(root)) {
+            Message.warn(TITLE, UseFits.NoCore.TEXT);
             return;
         }
-        if (!HeliadLibrary.canMakeLibraryAt(root)) {
+        if (!FitsLibrary.canMakeLibraryAt(root)) {
             Message.warn(TITLE, root + " already holds other files, so Studio will not make a FITS library there.");
             return;
         }
@@ -92,8 +92,8 @@ public final class HeliadFitsDialog {
             return;
         status.accept("Making a library");
         Task.submitBackground(() -> {
-            HeliadIngest.makeLibrary(root);
-            return HeliadLibrary.find() != null;
+            FitsCoreIngest.makeLibrary(root);
+            return FitsLibrary.find() != null;
         }, made -> {
             status.accept(null);
             if (made)
@@ -105,8 +105,8 @@ public final class HeliadFitsDialog {
 
     private static void ask(Path root, Planned planned, Component parent, Consumer<String> status) {
         JSONObject plan = planned.plan();
-        String summary = HeliadFits.summary(plan);
-        int have = HeliadFits.count(plan, "in_library"), missing = HeliadFits.count(plan, "missing");
+        String summary = UseFits.summary(plan);
+        int have = UseFits.count(plan, "in_library"), missing = UseFits.count(plan, "missing");
         if (missing == 0 && have == 0) {
             Message.info(TITLE, summary);
             return;
@@ -129,10 +129,10 @@ public final class HeliadFitsDialog {
         }
         status.accept("Fetching");
         Task.submitBackground(() -> {
-            JSONObject queued = HeliadFits.plan(root, planned.headers(), false);
-            List<JSONObject> jobs = HeliadFits.waitFor(root, HeliadFits.jobs(queued),
+            JSONObject queued = UseFits.plan(root, planned.headers(), false);
+            List<JSONObject> jobs = UseFits.waitFor(root, UseFits.jobs(queued),
                     line -> java.awt.EventQueue.invokeLater(() -> status.accept(line)));
-            return new Fetched(jobs, HeliadFits.plan(root, planned.headers(), true));
+            return new Fetched(jobs, UseFits.plan(root, planned.headers(), true));
         }, fetched -> {
             status.accept(null);
             finished(fetched);
@@ -150,14 +150,14 @@ public final class HeliadFitsDialog {
                         .append(job.optString("error").isEmpty() ? "" : " (" + job.optString("error") + ")");
         }
         if (!problems.isEmpty())
-            Message.warn(TITLE, "Not every frame could be fetched." + problems + "\n\n" + HeliadFits.summary(fetched.plan()));
+            Message.warn(TITLE, "Not every frame could be fetched." + problems + "\n\n" + UseFits.summary(fetched.plan()));
         open(fetched.plan());
     }
 
     private static void open(JSONObject plan) {
-        List<URI> uris = HeliadFits.files(plan);
+        List<URI> uris = UseFits.files(plan);
         if (uris.isEmpty()) {
-            Message.warn(TITLE, "The FITS library holds no FITS file for these frames.\n\n" + HeliadFits.summary(plan));
+            Message.warn(TITLE, "The FITS library holds no FITS file for these frames.\n\n" + UseFits.summary(plan));
             return;
         }
         Commands.loadImage(uris);
@@ -166,7 +166,7 @@ public final class HeliadFitsDialog {
     private static void failed(Throwable t, Consumer<String> status) {
         status.accept(null);
         Log.warn("Use FITS", t);
-        if (t instanceof HeliadFits.NoCore || t instanceof HeliadFits.TooOld) // known causes, said in full: nothing to report
+        if (t instanceof UseFits.NoCore || t instanceof UseFits.TooOld) // known causes, said in full: nothing to report
             Message.warn(TITLE, t.getMessage());
         else
             Message.err(TITLE, t.getMessage(), t);

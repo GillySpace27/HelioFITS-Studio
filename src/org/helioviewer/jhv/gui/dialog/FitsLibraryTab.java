@@ -38,15 +38,15 @@ import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.gui.DesktopIntegration;
 import org.helioviewer.jhv.gui.UIGlobals;
 import org.helioviewer.jhv.io.CacheIndex;
-import org.helioviewer.jhv.io.HeliadLibrary;
+import org.helioviewer.jhv.io.FitsLibrary;
 import org.helioviewer.jhv.time.TimeUtils;
 
 /**
- * The "Heliad library" tab of the New Image Layer dialog: datasets Heliad has already downloaded,
+ * The "FITS library" tab of the New Image Layer dialog: datasets HelioFITS Core has already downloaded,
  * and how much of the master time range each one reaches, with Add loading them as layers.
  *
  * <p>One of the dialog's four tabs; {@link ImageDialog} owns the tabs and says when this one is in
- * front. With no Heliad library on the machine the tab says so instead of listing anything; a
+ * front. With no FITS library on the machine the tab says so instead of listing anything; a
  * library that appears or goes away while Studio runs is picked up the next time the dialog
  * opens. The tab is greyed out when the dialog is changing a layer's dataset, which only the
  * Helioviewer list can do.
@@ -56,14 +56,14 @@ import org.helioviewer.jhv.time.TimeUtils;
  * {@link CacheDialog}; past {@link #CONFIRM_FRAMES} frames that asks first. The range chips are
  * {@link CacheDialog}'s, so the two lists mean the same thing by green.
  *
- * <p>"Open in Heliad" hands the master range (and the selected dataset's instrument and
- * wavelength) to the Heliad app as a heliad:// link, so a search for more starts where this left
+ * <p>"Open in Cache Manager" hands the master range (and the selected dataset's instrument and
+ * wavelength) to the HelioFITS Cache Manager as an hfcore:// link, so a search for more starts where this left
  * off. It is shown only when the app is installed.
  */
 @SuppressWarnings("serial")
-final class HeliadTab extends JPanel {
+final class FitsLibraryTab extends JPanel {
 
-    /** A whole dataset this large asks before loading; Heliad libraries can hold thousands of frames. */
+    /** A whole dataset this large asks before loading; HelioFITS Core libraries can hold thousands of frames. */
     static final int CONFIRM_FRAMES = 1000;
 
     private final Runnable onChange;
@@ -71,10 +71,10 @@ final class HeliadTab extends JPanel {
     private final JLabel status = new JLabel(" ");
     private final Model model = new Model();
     private final JTable table = new JTable(model);
-    private final JButton openInHeliad = new JButton("Open in Heliad");
+    private final JButton openInCacheManager = new JButton("Open in Cache Manager");
 
     @Nullable
-    private HeliadLibrary.Location library;
+    private FitsLibrary.Location library;
     private boolean front; // this tab is the one showing
     // The New Image Layer window's range, which starts as the master range and can be changed there.
     private final java.util.function.LongSupplier rangeStart;
@@ -86,7 +86,7 @@ final class HeliadTab extends JPanel {
      * @param _onChange   called when what Add would do changes: the tab, or the selection in it
      * @param _onActivate called on a double-click, to add the row as the dialog's Add would
      */
-    HeliadTab(Runnable _onChange, Runnable _onActivate, java.util.function.LongSupplier _rangeStart,
+    FitsLibraryTab(Runnable _onChange, Runnable _onActivate, java.util.function.LongSupplier _rangeStart,
               java.util.function.LongSupplier _rangeEnd) {
         super(new BorderLayout(0, 4));
         rangeStart = _rangeStart;
@@ -124,14 +124,14 @@ final class HeliadTab extends JPanel {
         JScrollPane scroller = new JScrollPane(table);
         scroller.setPreferredSize(new Dimension(980, 330)); // the default columns, Dataset hidden
         UIGlobals.themed(status, c -> c.setForeground(UIGlobals.foreColor));
-        openInHeliad.setToolTipText("Search for more in the Heliad app, starting from the master time range");
-        openInHeliad.addActionListener(e -> DesktopIntegration.openURL(HeliadLibrary.link(rangeStart(), rangeEnd(), single())));
+        openInCacheManager.setToolTipText("Search for more in the HelioFITS Cache Manager, starting from the master time range");
+        openInCacheManager.addActionListener(e -> DesktopIntegration.openURL(FitsLibrary.link(rangeStart(), rangeEnd(), single())));
         JButton columnsButton = new JButton("Columns\u2026");
         columnsButton.setToolTipText("Choose which columns to show (also a right-click on the column titles)");
         columnsButton.addActionListener(e -> columnMenu.show(columnsButton, 0, columnsButton.getHeight()));
         JPanel bottom = new JPanel(new FlowLayout(FlowLayout.TRAILING, 6, 0));
         bottom.add(columnsButton);
-        bottom.add(openInHeliad);
+        bottom.add(openInCacheManager);
 
         setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3));
         add(status, BorderLayout.PAGE_START);
@@ -140,7 +140,8 @@ final class HeliadTab extends JPanel {
     }
 
     // Hidden by default: the label repeats what the attribute columns say one by one.
-    private static final String HIDDEN_KEY = "heliad.hiddenColumns";
+    private static final String HIDDEN_KEY = "fitslibrary.hiddenColumns";
+    private static final String LEGACY_HIDDEN_KEY = "heliad.hiddenColumns"; // its name before the rename, read while the new one is unset
 
     /**
      * Show or hide each column, remembered across launches. Hidden columns leave the column
@@ -152,6 +153,8 @@ final class HeliadTab extends JPanel {
         for (int c = 0; c < columns.getColumnCount(); c++)
             all.add(columns.getColumn(c));
         String saved = org.helioviewer.jhv.app.Settings.getProperty(HIDDEN_KEY);
+        if (saved == null)
+            saved = org.helioviewer.jhv.app.Settings.getProperty(LEGACY_HIDDEN_KEY);
         java.util.Set<String> hidden = new java.util.HashSet<>(List.of((saved == null ? Model.TITLES[Model.NAME] : saved).split(",")));
 
         JPopupMenu menu = new JPopupMenu();
@@ -194,18 +197,18 @@ final class HeliadTab extends JPanel {
     /** Called as the dialog opens: look for the library again and re-read it. */
     void update(boolean _changeMode) {
         changeMode = _changeMode;
-        library = HeliadLibrary.find();
-        openInHeliad.setVisible(library != null && HeliadLibrary.app() != null);
+        library = FitsLibrary.find();
+        openInCacheManager.setVisible(library != null && FitsLibrary.app() != null);
         if (library == null) {
             model.setRows(List.of(), rangeStart(), rangeEnd());
-            status.setText(HeliadLibrary.app() == null
-                    ? "No Heliad library on this computer. Heliad downloads FITS into a local library that Studio reads."
-                    : "No Heliad library yet. Open Heliad to download into one; Studio reads it from here.");
+            status.setText(FitsLibrary.app() == null
+                    ? "No FITS library on this computer. HelioFITS Core downloads FITS into a local library that Studio reads."
+                    : "No FITS library yet. Open Cache Manager to download into one; Studio reads it from here.");
         } else if (front)
             refresh();
     }
 
-    /** Whether the Heliad tab is the one in front, so Add means "add from Heliad". */
+    /** Whether the FITS Library tab is the one in front, so Add means "add from the FITS library". */
     boolean showing() {
         return front;
     }
@@ -220,68 +223,68 @@ final class HeliadTab extends JPanel {
      * @return whether anything was loaded, so the dialog knows to close
      */
     boolean load() {
-        HeliadLibrary.Location lib = library;
-        List<HeliadLibrary.Dataset> sets = selected();
+        FitsLibrary.Location lib = library;
+        List<FitsLibrary.Dataset> sets = selected();
         if (lib == null || sets.isEmpty())
             return false;
         long start = rangeStart(), end = rangeEnd();
         boolean loaded = false;
         try {
-            for (HeliadLibrary.Dataset set : sets) {
+            for (FitsLibrary.Dataset set : sets) {
                 // Asked again rather than taken from the row: the range may have moved since the list was read.
-                List<File> files = HeliadLibrary.files(lib, set.key(), start, end);
+                List<File> files = FitsLibrary.files(lib, set.key(), start, end);
                 if (files.isEmpty()) {
                     if (set.frames() > CONFIRM_FRAMES && JOptionPane.showConfirmDialog(this,
                             set.label() + " has nothing in the master time range.\nLoad all " + String.format("%,d", set.frames())
                                     + " frames (" + diskSize(set.bytes()) + ")?", "Load Whole Dataset",
                             JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE) != JOptionPane.OK_OPTION)
                         continue;
-                    files = HeliadLibrary.files(lib, set.key());
+                    files = FitsLibrary.files(lib, set.key());
                 }
                 List<URI> uris = new ArrayList<>();
                 for (File file : files)
-                    if (file.isFile()) // a delete in Heliad since the list was read
+                    if (file.isFile()) // a delete in HelioFITS Core since the list was read
                         uris.add(file.toURI());
                 if (uris.isEmpty()) {
-                    Message.warn("Nothing left to load", "The files of " + set.label() + " are no longer in the Heliad library.");
+                    Message.warn("Nothing left to load", "The files of " + set.label() + " are no longer in the FITS library.");
                     refresh();
                     continue;
                 }
                 Commands.loadImage(uris);
                 loaded = true;
             }
-        } catch (SQLException | HeliadLibrary.TooNew e) {
-            Message.err("Could not read the Heliad library", e.getMessage(), e);
+        } catch (SQLException | FitsLibrary.TooNew e) {
+            Message.err("Could not read the FITS library", e.getMessage(), e);
         }
         return loaded;
     }
 
     /** Read the datasets off the event thread; the table fills when the read lands. */
     private void refresh() {
-        HeliadLibrary.Location lib = library;
+        FitsLibrary.Location lib = library;
         if (lib == null)
             return;
         int read = ++reads;
         long start = rangeStart(), end = rangeEnd();
-        status.setText("Reading the Heliad library...");
-        new SwingWorker<List<HeliadLibrary.Dataset>, Void>() {
+        status.setText("Reading the FITS library...");
+        new SwingWorker<List<FitsLibrary.Dataset>, Void>() {
             @Override
-            protected List<HeliadLibrary.Dataset> doInBackground() throws SQLException, HeliadLibrary.TooNew {
-                return HeliadLibrary.datasets(lib, start, end);
+            protected List<FitsLibrary.Dataset> doInBackground() throws SQLException, FitsLibrary.TooNew {
+                return FitsLibrary.datasets(lib, start, end);
             }
 
             @Override
             protected void done() {
                 if (read != reads)
                     return;
-                List<HeliadLibrary.Dataset> sets;
+                List<FitsLibrary.Dataset> sets;
                 try {
                     sets = get();
                 } catch (ExecutionException e) {
                     Throwable cause = e.getCause() == null ? e : e.getCause();
                     model.setRows(List.of(), start, end);
-                    status.setText(cause instanceof HeliadLibrary.TooNew ? cause.getMessage()
-                            : "Could not read the Heliad library: " + (cause.getMessage() == null ? "see the log for details." : cause.getMessage()));
+                    status.setText(cause instanceof FitsLibrary.TooNew ? cause.getMessage()
+                            : "Could not read the FITS library: " + (cause.getMessage() == null ? "see the log for details." : cause.getMessage()));
                     onChange.run();
                     return;
                 } catch (InterruptedException e) {
@@ -296,10 +299,10 @@ final class HeliadTab extends JPanel {
         }.execute();
     }
 
-    private static String summary(HeliadLibrary.Location lib, List<HeliadLibrary.Dataset> sets) {
+    private static String summary(FitsLibrary.Location lib, List<FitsLibrary.Dataset> sets) {
         int frames = 0;
         long bytes = 0;
-        for (HeliadLibrary.Dataset set : sets) {
+        for (FitsLibrary.Dataset set : sets) {
             frames += set.frames();
             bytes += set.bytes();
         }
@@ -313,8 +316,8 @@ final class HeliadTab extends JPanel {
         return root.startsWith(home) && !root.equals(home) ? "~/" + home.relativize(root) : root.toString();
     }
 
-    private List<HeliadLibrary.Dataset> selected() {
-        List<HeliadLibrary.Dataset> out = new ArrayList<>();
+    private List<FitsLibrary.Dataset> selected() {
+        List<FitsLibrary.Dataset> out = new ArrayList<>();
         if (!showing())
             return out;
         for (int view : table.getSelectedRows()) {
@@ -326,8 +329,8 @@ final class HeliadTab extends JPanel {
     }
 
     @Nullable
-    private HeliadLibrary.Dataset single() {
-        List<HeliadLibrary.Dataset> sets = selected();
+    private FitsLibrary.Dataset single() {
+        List<FitsLibrary.Dataset> sets = selected();
         return sets.size() == 1 ? sets.getFirst() : null;
     }
 
@@ -352,7 +355,7 @@ final class HeliadTab extends JPanel {
     }
 
     /** A dataset with what it means for the range it was read against. */
-    private record Row(HeliadLibrary.Dataset set, CacheIndex.Overlap overlap, double coverage) {}
+    private record Row(FitsLibrary.Dataset set, CacheIndex.Overlap overlap, double coverage) {}
 
     private static final class Model extends AbstractTableModel {
 
@@ -363,9 +366,9 @@ final class HeliadTab extends JPanel {
 
         private List<Row> rows = List.of();
 
-        void setRows(List<HeliadLibrary.Dataset> sets, long start, long end) {
+        void setRows(List<FitsLibrary.Dataset> sets, long start, long end) {
             List<Row> out = new ArrayList<>();
-            for (HeliadLibrary.Dataset set : sets)
+            for (FitsLibrary.Dataset set : sets)
                 out.add(new Row(set, CacheIndex.overlap(set.start(), set.end(), start, end),
                         CacheIndex.coverage(set.start(), set.end(), start, end)));
             rows = out;
@@ -404,7 +407,7 @@ final class HeliadTab extends JPanel {
         @Override
         public Object getValueAt(int index, int col) {
             Row row = rows.get(index);
-            HeliadLibrary.Dataset set = row.set();
+            FitsLibrary.Dataset set = row.set();
             return switch (col) {
                 case STATUS -> row.coverage();
                 case NAME -> set.label();
@@ -459,7 +462,7 @@ final class HeliadTab extends JPanel {
         public Component getTableCellRendererComponent(JTable t, Object value, boolean selected, boolean focused, int viewRow, int col) {
             super.getTableCellRendererComponent(t, value, selected, focused, viewRow, col);
             Row row = ((Model) t.getModel()).row(t.convertRowIndexToModel(viewRow));
-            HeliadLibrary.Dataset set = row == null ? null : row.set();
+            FitsLibrary.Dataset set = row == null ? null : row.set();
             if (set == null || set.start() == Long.MIN_VALUE) {
                 setText(set == null ? "" : "unknown");
                 setToolTipText(null);

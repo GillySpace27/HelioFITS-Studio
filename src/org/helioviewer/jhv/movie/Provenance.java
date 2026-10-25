@@ -140,7 +140,7 @@ public final class Provenance {
     /**
      * As session() with the identity of each local source frame from {@code identify}: a file:
      * URI is never written as an address, so each one becomes an entry of the layer's "files"
-     * (sha256, and dataset_key, obs_key, dataset_uid when a Heliad library holds it). A frame
+     * (sha256, and dataset_key, obs_key, dataset_uid when a FITS library holds it). A frame
      * whose identity is not known yet is counted in "files_pending" instead, never guessed.
      */
     static JSONObject session(JSONObject scene, String home, Instant created,
@@ -478,7 +478,7 @@ public final class Provenance {
                             .append(files.length() == 1 ? " local file" : " local files").append(", sha256 ")
                             .append(first.optString("sha256")).append(files.length() > 1 ? " and " + (files.length() - 1) + " more" : "");
                     if (first.has("dataset_key"))
-                        sb.append(" (Heliad ").append(first.getString("dataset_key")).append(')');
+                        sb.append(" (FITS library ").append(first.getString("dataset_key")).append(')');
                 }
                 sb.append('\n');
             }

@@ -111,9 +111,9 @@ public class MlsoDialog extends StandardDialog implements MlsoClient.Receiver {
         if (instrumentCombo.getSelectedItem() instanceof MlsoClient.Instrument inst) {
             long start = items.stream().mapToLong(MlsoClient.DataItem::milli).min().orElse(0);
             long end = items.stream().mapToLong(MlsoClient.DataItem::milli).max().orElse(0);
-            HeliadFirst.Choice choice = HeliadFirst.offer(this, org.helioviewer.jhv.io.HeliadLibrary.Wanted.of(null, inst.id(), null, null), start, end);
-            if (choice != HeliadFirst.Choice.DOWNLOAD) {
-                if (choice == HeliadFirst.Choice.LOADED)
+            FitsLibraryFirst.Choice choice = FitsLibraryFirst.offer(this, org.helioviewer.jhv.io.FitsLibrary.Wanted.of(null, inst.id(), null, null), start, end);
+            if (choice != FitsLibraryFirst.Choice.DOWNLOAD) {
+                if (choice == FitsLibraryFirst.Choice.LOADED)
                     setVisible(false);
                 return;
             }

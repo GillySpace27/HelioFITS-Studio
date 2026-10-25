@@ -636,30 +636,32 @@ retry_codesign() {
     echo "!! codesign timestamp kept failing on $_f" >&2; return 1
 }
 
-# The FITS library engine (Heliad's core) at the commit release/heliad-core.txt pins, as a
+# The FITS library engine (HelioFITS Core) at the commit release/fits-core.txt pins, as a
 # relocatable Python built by that commit's own app/tools/bundle_python.sh, put at $1. Studio
-# finds it there (HeliadIngest.studioCore) and uses it before any installed Heliad.app, so Use
-# FITS never depends on which Heliad, if any, is on the computer. HELIAD_REPO may name a local
-# clone that has the commit; the default is the GitHub repository.
-bundle_heliad_core() {
+# finds it there (FitsCoreIngest.studioCore) and uses it before any installed Cache Manager, so
+# Use FITS never depends on which one, if any, is on the computer. HFCORE_REPO (or HELIAD_REPO,
+# its name before the rename) may name a local clone that has the commit; the default is the
+# GitHub repository, still at its old address.
+bundle_fits_core() {
     _out=$1
-    _pin=$(grep -v '^#' "$HERE/heliad-core.txt" | grep -v '^[[:space:]]*$' | head -1 | tr -d '[:space:]')
+    _repo=${HFCORE_REPO:-${HELIAD_REPO:-https://github.com/GillySpace27/heliad.git}}
+    _pin=$(grep -v '^#' "$HERE/fits-core.txt" | grep -v '^[[:space:]]*$' | head -1 | tr -d '[:space:]')
     case "$_pin" in
-        *[!0-9a-f]*|"") echo "!! release/heliad-core.txt must give one full heliad commit hash, got '$_pin'" >&2; exit 1 ;;
+        *[!0-9a-f]*|"") echo "!! release/fits-core.txt must give one full HelioFITS Core commit hash, got '$_pin'" >&2; exit 1 ;;
     esac
-    [ "${#_pin}" -eq 40 ] || { echo "!! release/heliad-core.txt: '$_pin' is not a full 40-character commit hash" >&2; exit 1; }
+    [ "${#_pin}" -eq 40 ] || { echo "!! release/fits-core.txt: '$_pin' is not a full 40-character commit hash" >&2; exit 1; }
     _src=$(mktemp -d)
-    git clone --quiet "${HELIAD_REPO:-https://github.com/GillySpace27/heliad.git}" "$_src/heliad" \
-        || { echo "!! could not clone heliad from ${HELIAD_REPO:-GitHub} (set HELIAD_REPO to a local clone)" >&2; exit 1; }
-    git -C "$_src/heliad" -c advice.detachedHead=false checkout --quiet "$_pin" \
-        || { echo "!! heliad commit $_pin is not in ${HELIAD_REPO:-the GitHub repository}" >&2; exit 1; }
-    OUT="$_out" "$_src/heliad/app/tools/bundle_python.sh" || { echo "!! bundling Heliad's core failed" >&2; exit 1; }
-    "$_out/bin/python3" -B -s -P -m heliad --help 2>/dev/null | grep -q 'layer-upgrade' \
-        || { echo "!! the bundled core at $_pin has no layer-upgrade: Use FITS would not work" >&2; exit 1; }
+    git clone --quiet "$_repo" "$_src/core" \
+        || { echo "!! could not clone HelioFITS Core from $_repo (set HFCORE_REPO to a local clone)" >&2; exit 1; }
+    git -C "$_src/core" -c advice.detachedHead=false checkout --quiet "$_pin" \
+        || { echo "!! HelioFITS Core commit $_pin is not in $_repo" >&2; exit 1; }
+    OUT="$_out" "$_src/core/app/tools/bundle_python.sh" || { echo "!! bundling HelioFITS Core failed" >&2; exit 1; }
+    "$_out/bin/python3" -B -s -P -m heliofits_core --help 2>/dev/null | grep -q 'layer-upgrade' \
+        || { echo "!! the bundled core at $_pin has no heliofits_core with layer-upgrade: Use FITS would not work" >&2; exit 1; }
     find "$_out" -name __pycache__ -type d -prune -exec rm -rf {} +   # -B above writes none; this is belt and braces before signing
-    echo "$_pin" > "$_out/HELIAD_COMMIT"
+    echo "$_pin" > "$_out/HFCORE_COMMIT"
     rm -rf "$_src"
-    echo "   Heliad's core $_pin in the bundle ($(du -sh "$_out" | cut -f1))"
+    echo "   HelioFITS Core $_pin in the bundle ($(du -sh "$_out" | cut -f1))"
 }
 
 # Notarization unpacks jars and rejects any unsigned Mach-O inside them (lwjgl, flatlaf,
@@ -926,8 +928,8 @@ notarize_mac() {
 
     # Before the smoke test and signing: it puts files in the bundle, and the signing loop below
     # signs every Mach-O in it, the core's Python and its extension modules included.
-    echo "==> bundling Heliad's core (release/heliad-core.txt)"
-    bundle_heliad_core "$APP/Contents/Resources/heliad-core"
+    echo "==> bundling HelioFITS Core (release/fits-core.txt)"
+    bundle_fits_core "$APP/Contents/Resources/heliofits-core"
 
     # Prove the bundled app actually starts (catches missing deps / broken native load)
     # before spending a multi-minute notary round-trip on it.
