@@ -154,7 +154,7 @@ public final class VsoSelectorPanel extends JPanel {
     }
 
     /**
-     * Add the selected source as a layer over the master range, unless the Heliad library already
+     * Add the selected source as a layer over the master range, unless the FITS library already
      * has it there and the person takes that copy instead.
      *
      * @return whether a layer was added, from the archive or from the library
@@ -171,11 +171,11 @@ public final class VsoSelectorPanel extends JPanel {
         // FITS downloads presenting as a layer that loads forever.
         long start = startTime.getAsLong();
         long end = endTime.getAsLong();
-        org.helioviewer.jhv.gui.dialog.HeliadFirst.Choice choice = org.helioviewer.jhv.gui.dialog.HeliadFirst.offer(this,
-                org.helioviewer.jhv.io.HeliadLibrary.Wanted.of(null, source.instrument,
+        org.helioviewer.jhv.gui.dialog.FitsLibraryFirst.Choice choice = org.helioviewer.jhv.gui.dialog.FitsLibraryFirst.offer(this,
+                org.helioviewer.jhv.io.FitsLibrary.Wanted.of(null, source.instrument,
                         source.detector.isEmpty() ? null : source.detector, wavelength(source.label)), start, end);
-        if (choice != org.helioviewer.jhv.gui.dialog.HeliadFirst.Choice.DOWNLOAD)
-            return choice == org.helioviewer.jhv.gui.dialog.HeliadFirst.Choice.LOADED;
+        if (choice != org.helioviewer.jhv.gui.dialog.FitsLibraryFirst.Choice.DOWNLOAD)
+            return choice == org.helioviewer.jhv.gui.dialog.FitsLibraryFirst.Choice.LOADED;
         ImageLayer.create(null).load(new FitsRequest(FitsRequest.Archive.VSO,
                 source.detector, source.instrument, source.fileidToken,
                 FitsRequest.cadenceMillis(cadence.getAsInt()), start, end));

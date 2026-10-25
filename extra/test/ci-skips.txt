@@ -2,4 +2,4 @@
 # Add a line only with the reason the check itself prints, seen in a CI log. A check that runs on CI
 # loses its line here in the same commit.
 BundledMetalHostCheck needs macOS and the repository root as the working directory
-HeliadOptionalCheck XDG_CONFIG_HOME is set, so the library lookup does not follow user.home
+FitsLibraryOptionalCheck XDG_CONFIG_HOME is set, so the library lookup does not follow user.home

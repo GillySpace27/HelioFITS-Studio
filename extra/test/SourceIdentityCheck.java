@@ -16,10 +16,10 @@ import org.json.JSONObject;
 
 /**
  * A local source frame is named in provenance by its content, never its path: the SHA-256 of a
- * file outside any library, and Heliad's own sha256, dataset_key, obs_key and (schema 5)
+ * file outside any library, and HelioFITS Core's own sha256, dataset_key, obs_key and (schema 5)
  * dataset_uid for a file in one. Also the dataset lookup behind -dataset and heliad.dataset.load.
  *
- * <p>The indexes are small SQLite files built here: one with Heliad's reader_compat 1 columns
+ * <p>The indexes are small SQLite files built here: one with HelioFITS Core's reader_compat 1 columns
  * only, one that adds a dataset_uid column to datasets as schema 5 is expected to. user.home is
  * moved to a temp folder first (the log and the app folders hang off it).
  *
@@ -96,22 +96,22 @@ public final class SourceIdentityCheck {
         Files.createDirectories(root.resolve("store/aia"));
         for (String name : List.of("a1.fits", "a2_v1.fits", "a2_v2.fits"))
             Files.writeString(root.resolve("store/aia").resolve(name), "abc", StandardCharsets.US_ASCII); // a3.fits is missing on disk
-        Path db = root.resolve("heliad.sqlite");
+        Path db = root.resolve("hfcore.sqlite");
         sql(db, String.format(SCHEMA, "s1"));
-        HeliadLibrary.Location lib = new HeliadLibrary.Location(root, db);
+        FitsLibrary.Location lib = new FitsLibrary.Location(root, db);
 
-        HeliadLibrary.Identity a1 = HeliadLibrary.identity(lib, "store/aia/a1.fits");
-        expect("a current library file gives Heliad's sha256, not one computed here", a1 != null && "s1".equals(a1.sha256()));
+        FitsLibrary.Identity a1 = FitsLibrary.identity(lib, "store/aia/a1.fits");
+        expect("a current library file gives HelioFITS Core's sha256, not one computed here", a1 != null && "s1".equals(a1.sha256()));
         expect("and its dataset_key and obs_key", a1 != null && "sdo/aia/-/-/1/193".equals(a1.datasetKey())
                 && "sdo/aia/-/-/1/193|2025-09-21T16:00:04.840".equals(a1.obsKey()));
         expect("no dataset_uid column, no dataset_uid", a1 != null && a1.datasetUid() == null);
-        expect("a superseded version is not a current file", HeliadLibrary.identity(lib, "store/aia/a2_v1.fits") == null);
-        expect("a relpath the library does not hold is null", HeliadLibrary.identity(lib, "store/other.fits") == null);
+        expect("a superseded version is not a current file", FitsLibrary.identity(lib, "store/aia/a2_v1.fits") == null);
+        expect("a relpath the library does not hold is null", FitsLibrary.identity(lib, "store/other.fits") == null);
 
-        HeliadLibrary.Identity viaPath = SourceIdentity.heliad(root.resolve("store/aia/a1.fits"), lib);
+        FitsLibrary.Identity viaPath = SourceIdentity.library(root.resolve("store/aia/a1.fits"), lib);
         expect("a file under the library root is looked up by its relpath", viaPath != null && "s1".equals(viaPath.sha256()));
-        expect("a file outside the root is not the library's", SourceIdentity.heliad(loose, lib) == null);
-        expect("no library, no Heliad identity", SourceIdentity.heliad(root.resolve("store/aia/a1.fits"), null) == null);
+        expect("a file outside the root is not the library's", SourceIdentity.library(loose, lib) == null);
+        expect("no library, no HelioFITS Core identity", SourceIdentity.library(root.resolve("store/aia/a1.fits"), null) == null);
 
         SourceIdentity.Entry entry = new SourceIdentity.Entry(a1.sha256(), 3, a1);
         JSONObject json = entry.toJson();
@@ -122,41 +122,41 @@ public final class SourceIdentityCheck {
                 new SourceIdentity.Entry(abc, 3, null).toJson().keySet().equals(java.util.Set.of("sha256")));
 
         SourceIdentity.Entry looked = SourceIdentity.lookup(loose.toUri(), 10_000);
-        expect("lookup hashes a local file that is in no library", looked != null && abc.equals(looked.sha256()) && looked.heliad() == null);
+        expect("lookup hashes a local file that is in no library", looked != null && abc.equals(looked.sha256()) && looked.library() == null);
         expect("an archive address has no local identity", SourceIdentity.lookup(URI.create("https://example.org/a.fits"), 1000) == null);
         expect("a missing file has none", SourceIdentity.lookup(tmp.resolve("missing.fits").toUri(), 1000) == null);
         SourceIdentity.prefetch(List.of(loose.toUri()));
         expect("a known file answers at once without waiting", SourceIdentity.lookup(loose.toUri(), 0) != null);
 
         // -- the dataset lookup behind -dataset and heliad.dataset.load ------------------------
-        expect("a dataset_key names its dataset", "sdo/aia/-/-/1/193".equals(HeliadLibrary.datasetKey(lib, "sdo/aia/-/-/1/193")));
-        expect("an unknown name names none", HeliadLibrary.datasetKey(lib, "ds-7f3a") == null);
-        List<URI> all = HeliadDatasetLoad.files(lib, "sdo/aia/-/-/1/193", Long.MIN_VALUE, Long.MAX_VALUE);
+        expect("a dataset_key names its dataset", "sdo/aia/-/-/1/193".equals(FitsLibrary.datasetKey(lib, "sdo/aia/-/-/1/193")));
+        expect("an unknown name names none", FitsLibrary.datasetKey(lib, "ds-7f3a") == null);
+        List<URI> all = FitsLibraryDatasetLoad.files(lib, "sdo/aia/-/-/1/193", Long.MIN_VALUE, Long.MAX_VALUE);
         expect("an open range is every current file that exists, in time order",
                 all.equals(List.of(root.resolve("store/aia/a1.fits").toUri(), root.resolve("store/aia/a2_v2.fits").toUri())));
-        List<URI> range = HeliadDatasetLoad.files(lib, "sdo/aia/-/-/1/193", t("2025-09-21T16:00:30"), Long.MAX_VALUE);
+        List<URI> range = FitsLibraryDatasetLoad.files(lib, "sdo/aia/-/-/1/193", t("2025-09-21T16:00:30"), Long.MAX_VALUE);
         expect("a start drops what came before it", range.equals(List.of(root.resolve("store/aia/a2_v2.fits").toUri())));
         expect("nothing in the range is a failure, not an empty layer",
-                fails(() -> HeliadDatasetLoad.files(lib, "sdo/aia/-/-/1/193", t("2025-09-21T16:01:30"), t("2025-09-21T16:03:00"))));
-        expect("no library is a failure", fails(() -> HeliadDatasetLoad.files(null, "sdo/aia/-/-/1/193", Long.MIN_VALUE, Long.MAX_VALUE)));
-        expect("no such dataset is a failure", fails(() -> HeliadDatasetLoad.files(lib, "nope", Long.MIN_VALUE, Long.MAX_VALUE)));
+                fails(() -> FitsLibraryDatasetLoad.files(lib, "sdo/aia/-/-/1/193", t("2025-09-21T16:01:30"), t("2025-09-21T16:03:00"))));
+        expect("no library is a failure", fails(() -> FitsLibraryDatasetLoad.files(null, "sdo/aia/-/-/1/193", Long.MIN_VALUE, Long.MAX_VALUE)));
+        expect("no such dataset is a failure", fails(() -> FitsLibraryDatasetLoad.files(lib, "nope", Long.MIN_VALUE, Long.MAX_VALUE)));
         expect("an ISO time with or without Z reads the same",
-                HeliadDatasetLoad.parse("2025-09-21T16:00:30Z") == t("2025-09-21T16:00:30")
-                        && HeliadDatasetLoad.parse("2025-09-21T16:00:30") == t("2025-09-21T16:00:30"));
-        expect("fractional seconds as Heliad writes them (no Z, UTC)",
-                HeliadDatasetLoad.parse("2025-09-21T16:00:04.840") == t("2025-09-21T16:00:04.840"));
-        expect("a time that is not one is refused", fails(() -> HeliadDatasetLoad.parse("yesterday")));
+                FitsLibraryDatasetLoad.parse("2025-09-21T16:00:30Z") == t("2025-09-21T16:00:30")
+                        && FitsLibraryDatasetLoad.parse("2025-09-21T16:00:30") == t("2025-09-21T16:00:30"));
+        expect("fractional seconds as HelioFITS Core writes them (no Z, UTC)",
+                FitsLibraryDatasetLoad.parse("2025-09-21T16:00:04.840") == t("2025-09-21T16:00:04.840"));
+        expect("a time that is not one is refused", fails(() -> FitsLibraryDatasetLoad.parse("yesterday")));
 
         // -- schema 5: a dataset_uid column -------------------------------------------------
         sql(db, SCHEMA_5);
-        HeliadLibrary.Identity withUid = HeliadLibrary.identity(lib, "store/aia/a1.fits");
+        FitsLibrary.Identity withUid = FitsLibrary.identity(lib, "store/aia/a1.fits");
         expect("with the column, the dataset_uid is read", withUid != null && "ds-7f3a".equals(withUid.datasetUid()));
         expect("and goes into the provenance form",
                 new SourceIdentity.Entry(withUid.sha256(), 3, withUid).toJson().optString("dataset_uid").equals("ds-7f3a"));
-        expect("a dataset_uid names its dataset", "sdo/aia/-/-/1/193".equals(HeliadLibrary.datasetKey(lib, "ds-7f3a")));
-        expect("and a dataset_key still does", "sdo/aia/-/-/1/193".equals(HeliadLibrary.datasetKey(lib, "sdo/aia/-/-/1/193")));
-        expect("a former key finds the dataset through dataset_aliases", "sdo/aia/-/-/1/193".equals(HeliadLibrary.datasetKey(lib, "sdo/aia/-/-/1/195")));
-        expect("an unknown name still names none", HeliadLibrary.datasetKey(lib, "sdo/aia/-/-/1/211") == null);
+        expect("a dataset_uid names its dataset", "sdo/aia/-/-/1/193".equals(FitsLibrary.datasetKey(lib, "ds-7f3a")));
+        expect("and a dataset_key still does", "sdo/aia/-/-/1/193".equals(FitsLibrary.datasetKey(lib, "sdo/aia/-/-/1/193")));
+        expect("a former key finds the dataset through dataset_aliases", "sdo/aia/-/-/1/193".equals(FitsLibrary.datasetKey(lib, "sdo/aia/-/-/1/195")));
+        expect("an unknown name still names none", FitsLibrary.datasetKey(lib, "sdo/aia/-/-/1/211") == null);
 
         if (failures > 0) {
             System.out.println("SourceIdentityCheck: " + failures + " failed");
@@ -174,7 +174,7 @@ public final class SourceIdentityCheck {
         try {
             r.run();
             return false;
-        } catch (HeliadDatasetLoad.Failed e) {
+        } catch (FitsLibraryDatasetLoad.Failed e) {
             return true;
         } catch (Exception e) {
             return false;

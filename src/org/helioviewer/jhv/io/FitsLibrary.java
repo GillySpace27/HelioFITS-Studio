@@ -28,30 +28,33 @@ import org.json.JSONObject;
 import org.sqlite.SQLiteConfig;
 
 /**
- * Read-only access to a Heliad library, for the Heliad tab of the New Image Layer dialog.
+ * Read-only access to a FITS library, for the FITS Library tab of the New Image Layer dialog.
  *
- * <p>Heliad downloads and indexes FITS files into a library of its own and is the only program
- * that writes to it. This follows Heliad's reader contract (docs/reader-contract.md in the heliad
- * repository): find {@code config.json} in Heliad's folder, open the index it names read-only,
+ * <p>HelioFITS Core downloads and indexes FITS files into a library of its own and is the only program
+ * that writes to it. This follows HelioFITS Core's reader contract (docs/reader-contract.md in the HelioFITS Core
+ * repository): find {@code config.json} in HelioFITS Core's folder, open the index it names read-only,
  * refuse an index whose {@code reader_compat} is newer than this reader, and read only
  * {@code current_files}, the newest version of each observation. Nothing here writes, creates or
  * caches anything. With no config file, or no index where it points, there is no library, and the
- * dialog stays exactly as it was before Heliad existed.
+ * dialog stays exactly as it was before HelioFITS Core existed.
  *
- * <p>Every read opens the index, reads, and closes it again. Heliad keeps writing while Studio
+ * <p>Every read opens the index, reads, and closes it again. HelioFITS Core keeps writing while Studio
  * runs, and an open read holds a snapshot that stops its log from being checkpointed, so nothing
  * is held between dialog openings and no path is trusted past the read that produced it.
  */
-public final class HeliadLibrary {
+public final class FitsLibrary {
 
     /** The newest index layout this reader understands: the contract's {@code reader_compat}. */
     public static final int READER_COMPAT = 1;
 
     /** The index's own file name, for a config that names only the library folder. */
-    static final String DB_NAME = "heliad.sqlite";
+    static final String DB_NAME = "hfcore.sqlite";
+    /** The names from before HelioFITS Core was renamed (it was Heliad): still read, never made. */
+    static final String LEGACY_DB_NAME = "heliad.sqlite";
+    static final String LEGACY_LIBRARY_NAME = "HeliadLibrary";
 
     /**
-     * {@code date_obs} as Heliad writes it: ISO 8601 UTC with milliseconds (astropy's isot). The
+     * {@code date_obs} as HelioFITS Core writes it: ISO 8601 UTC with milliseconds (astropy's isot). The
      * range bounds are written the same way, so comparing the text compares the times, which is
      * what lets the index answer "what is in the range" without parsing a row.
      */
@@ -78,11 +81,11 @@ public final class HeliadLibrary {
                           long cadence) {}
 
     /**
-     * What a download is about to fetch, named by the parts of Heliad's dataset key
+     * What a download is about to fetch, named by the parts of HelioFITS Core's dataset key
      * ({@code observatory/instrument/detector/product/level/wavelength}, e.g.
      * {@code sdo/aia/-/-/1/193}) that the asking source can name. Null matches anything, and so does
-     * Heliad's "-". Parts compare by letters and digits only, so "K-Cor" is "kcor" and "L3" is "3".
-     * It is deliberately loose: a match only offers Heliad's copy, and the person can still download.
+     * HelioFITS Core's "-". Parts compare by letters and digits only, so "K-Cor" is "kcor" and "L3" is "3".
+     * It is deliberately loose: a match only offers HelioFITS Core's copy, and the person can still download.
      */
     public record Wanted(@Nullable String observatory, @Nullable String instrument, @Nullable String detector,
                          @Nullable String product, @Nullable String level, @Nullable Integer wavelength) {
@@ -113,41 +116,67 @@ public final class HeliadLibrary {
         }
     }
 
-    /** The library was written by a Heliad newer than this reader: read nothing from it. */
+    /** The library was written by a HelioFITS Core newer than this reader: read nothing from it. */
     public static final class TooNew extends Exception {
         TooNew(int compat) {
-            super("This Heliad library needs a newer HelioFITS Studio (reader version " + compat
+            super("This FITS library needs a newer HelioFITS Studio (reader version " + compat
                     + ", Studio reads " + READER_COMPAT + ")");
         }
     }
 
-    private HeliadLibrary() {}
+    private FitsLibrary() {}
 
-    /** The library on this machine, or null when Heliad has not made one. */
+    /** The library on this machine, or null when HelioFITS Core has not made one. */
     @Nullable
     public static Location find() {
         return read(configDir());
     }
 
-    /** The folder {@link #find} looks in for Heliad's {@code config.json}, whether or not it exists. */
+    /** The folder {@link #find} looks in for HelioFITS Core's {@code config.json}, whether or not it exists. */
     public static Path configDir() {
-        return configDir(System.getenv("HELIAD_HOME"), System.getProperty("os.name", ""),
+        return configDir(env("HOME"), System.getProperty("os.name", ""),
                 Path.of(System.getProperty("user.home")), System.getenv("APPDATA"), System.getenv("XDG_CONFIG_HOME"));
     }
 
+    /** {@code HFCORE_<name>}, or {@code HELIAD_<name>}, its name from before the rename, when that is the one set. */
+    @Nullable
+    public static String env(String name) {
+        String value = System.getenv("HFCORE_" + name);
+        if (value == null || value.isEmpty())
+            value = System.getenv("HELIAD_" + name);
+        return value == null || value.isEmpty() ? null : value;
+    }
+
     /**
-     * Heliad's folder for {@code config.json}, by the same rules Heliad uses to write it:
-     * {@code HELIAD_HOME} when set, otherwise each platform's per-user settings folder.
+     * HelioFITS Core's folder for {@code config.json}, by the same rules the core uses to write it
+     * (config.app_support_dir): {@code HFCORE_HOME} (or {@code HELIAD_HOME}) when set, otherwise
+     * each platform's per-user settings folder. A computer set up before the rename keeps its old
+     * folder ({@code Heliad}, {@code heliad} on Linux) until the new one has a config.
      */
-    static Path configDir(@Nullable String heliadHome, String osName, Path home,
+    static Path configDir(@Nullable String coreHome, String osName, Path home,
                           @Nullable String appData, @Nullable String xdgConfigHome) {
-        if (heliadHome != null && !heliadHome.isEmpty())
-            return expand(heliadHome, home);
-        if (osName.startsWith("Mac"))
-            return home.resolve("Library").resolve("Application Support").resolve("Heliad");
-        if (osName.startsWith("Windows"))
-            return (appData == null || appData.isEmpty() ? home.resolve("AppData").resolve("Roaming") : Path.of(appData)).resolve("Heliad");
-        return (xdgConfigHome == null || xdgConfigHome.isEmpty() ? home.resolve(".config") : Path.of(xdgConfigHome)).resolve("heliad");
+        if (coreHome != null && !coreHome.isEmpty())
+            return expand(coreHome, home);
+        Path base;
+        String name, legacy;
+        if (osName.startsWith("Mac")) {
+            base = home.resolve("Library").resolve("Application Support");
+            name = "HelioFITS Core";
+            legacy = "Heliad";
+        } else if (osName.startsWith("Windows")) {
+            base = appData == null || appData.isEmpty() ? home.resolve("AppData").resolve("Roaming") : Path.of(appData);
+            name = "HelioFITS Core";
+            legacy = "Heliad";
+        } else {
+            base = xdgConfigHome == null || xdgConfigHome.isEmpty() ? home.resolve(".config") : Path.of(xdgConfigHome);
+            name = "hfcore";
+            legacy = "heliad";
+        }
+        Path dir = base.resolve(name), old = base.resolve(legacy);
+        if (!Files.exists(dir.resolve("config.json"))
+                && (Files.exists(old.resolve("config.json")) || Files.exists(old.resolve("settings.json"))))
+            return old;
+        return dir;
     }
 
     /** The library a config folder points at, or null when there is no config or no index. */
@@ -164,27 +193,34 @@ public final class HeliadLibrary {
             Path home = Path.of(System.getProperty("user.home"));
             Path root = expand(rootText, home);
             String dbText = json.optString("db_path", "");
-            Path db = dbText.isEmpty() ? root.resolve(DB_NAME) : expand(dbText, home);
+            Path db = dbText.isEmpty() ? index(root) : expand(dbText, home);
             return Files.isRegularFile(db) ? new Location(root, db) : null;
         } catch (IOException | JSONException e) {
-            Log.warn("Heliad config unreadable: " + config, e);
+            Log.warn("HelioFITS Core config unreadable: " + config, e);
             return null;
         }
     }
 
+    /** A library's index: hfcore.sqlite, or heliad.sqlite in a library made before the rename. */
+    static Path index(Path root) {
+        Path legacy = root.resolve(LEGACY_DB_NAME);
+        return !Files.exists(root.resolve(DB_NAME)) && Files.exists(legacy) ? legacy : root.resolve(DB_NAME);
+    }
+
     /**
-     * The library folder a config folder's {@code config.json} names, whether or not its index is
-     * there now (a library on a drive that is not connected, say); null when there is no config,
-     * or one that names no library or cannot be read.
+     * Where Studio offers to make a library when there is none: the core's own default
+     * (config.default_library_root), ~/HelioFITSLibrary, or ~/HeliadLibrary where a library made
+     * before the rename is.
      */
-    /** Where Studio offers to make a library when Heliad has none: Heliad's own default (config.default_library_root). */
     public static Path defaultRoot() {
-        return Path.of(System.getProperty("user.home")).resolve("HeliadLibrary");
+        Path home = Path.of(System.getProperty("user.home"));
+        Path root = home.resolve("HelioFITSLibrary"), legacy = home.resolve(LEGACY_LIBRARY_NAME);
+        return !Files.exists(root) && Files.isRegularFile(legacy.resolve(LEGACY_DB_NAME)) ? legacy : root;
     }
 
     /** Whether a folder could become a new library: absent, empty, or already a library (it has an index). */
     public static boolean canMakeLibraryAt(Path root) {
-        if (!Files.exists(root) || Files.isRegularFile(root.resolve(DB_NAME)))
+        if (!Files.exists(root) || Files.isRegularFile(index(root)))
             return true;
         if (!Files.isDirectory(root))
             return false;
@@ -195,6 +231,11 @@ public final class HeliadLibrary {
         }
     }
 
+    /**
+     * The library folder a config folder's {@code config.json} names, whether or not its index is
+     * there now (a library on a drive that is not connected, say); null when there is no config,
+     * or one that names no library or cannot be read.
+     */
     @Nullable
     public static Path configuredRoot(Path configDir) {
         Path config = configDir.resolve("config.json");
@@ -223,7 +264,7 @@ public final class HeliadLibrary {
                        MIN(wavelength), COUNT(*), SUM(size), MIN(date_obs), MAX(date_obs),
                        SUM(CASE WHEN date_obs >= ? AND date_obs <= ? THEN 1 ELSE 0 END)
                 FROM current_files GROUP BY dataset_key ORDER BY MIN(label), dataset_key""";
-        // The median gap per dataset: julianday reads date_obs as Heliad writes it (isot, no zone).
+        // The median gap per dataset: julianday reads date_obs as HelioFITS Core writes it (isot, no zone).
         String cadenceSql = """
                 WITH d AS (SELECT dataset_key k, (julianday(date_obs) - julianday(LAG(date_obs) OVER
                                (PARTITION BY dataset_key ORDER BY date_obs))) * 86400000.0 AS dt FROM current_files),
@@ -438,13 +479,20 @@ public final class HeliadLibrary {
     }
 
     /**
-     * A {@code heliad://search} link that opens the Heliad app's search with this range and, when
-     * a dataset is given, its instrument and wavelength filled in. Parameters are sorted and
-     * encoded as Heliad's {@code Query.to_url} writes them, so the same search gives the same link
-     * from either side. The range is widened to whole seconds.
+     * A search link that opens HelioFITS Cache Manager's search with this range and, when a dataset
+     * is given, its instrument and wavelength filled in: {@code hfcore://search?...}, or
+     * {@code heliad://search?...} when the app installed is one from before the rename, which
+     * knows only that scheme. Parameters are sorted and encoded as the core's {@code Query.to_url}
+     * writes them, so the same search gives the same link from either side. The range is widened
+     * to whole seconds.
      */
     public static String link(long rangeStart, long rangeEnd, @Nullable Dataset set) {
-        StringBuilder url = new StringBuilder("heliad://search?end=").append(encode(linkTime(rangeEnd + 999)));
+        Path app = app();
+        return link(app != null && app.getFileName().toString().equals(LEGACY_APP) ? "heliad" : "hfcore", rangeStart, rangeEnd, set);
+    }
+
+    static String link(String scheme, long rangeStart, long rangeEnd, @Nullable Dataset set) {
+        StringBuilder url = new StringBuilder(scheme).append("://search?end=").append(encode(linkTime(rangeEnd + 999)));
         if (set != null && set.instrument() != null && !set.instrument().isEmpty())
             url.append("&instrument=").append(encode(set.instrument()));
         url.append("&start=").append(encode(linkTime(rangeStart)));
@@ -461,16 +509,21 @@ public final class HeliadLibrary {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
-    /** The installed Heliad app on macOS, which opens heliad:// links, or null. */
+    /** The Mac app's bundle name, and its name before the rename (Heliad), still found. */
+    static final String APP = "HelioFITS Cache Manager.app";
+    static final String LEGACY_APP = "Heliad.app";
+
+    /** The installed HelioFITS Cache Manager on macOS (or Heliad.app from before the rename), which opens these links, or null. */
     @Nullable
     public static Path app() {
         if (!System.getProperty("os.name", "").startsWith("Mac"))
             return null;
-        for (Path dir : List.of(Path.of("/Applications"), Path.of(System.getProperty("user.home"), "Applications"))) {
-            Path app = dir.resolve("Heliad.app");
-            if (Files.isDirectory(app))
-                return app;
-        }
+        for (String name : List.of(APP, LEGACY_APP))
+            for (Path dir : List.of(Path.of("/Applications"), Path.of(System.getProperty("user.home"), "Applications"))) {
+                Path app = dir.resolve(name);
+                if (Files.isDirectory(app))
+                    return app;
+            }
         return null;
     }
 

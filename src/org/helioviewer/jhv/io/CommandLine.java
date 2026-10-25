@@ -38,7 +38,7 @@ public class CommandLine {
             new Option("-state", 1, "Load state file. The window then belongs to that session, so autosave and quit write back to it."),
             new Option("-export", 1, "Export mode: png writes the current view as one PNG with the session stamped in, then exits. Needs -out. Never writes autosave."),
             new Option("-out", 1, "Where -export writes its file."),
-            new Option("-dataset", 1, "Load a Heliad library dataset, named by its dataset_uid, its dataset_key or a former key, as one image layer, from its files between -start and -end. The option can be used multiple times."),
+            new Option("-dataset", 1, "Load a FITS library dataset, named by its dataset_uid, its dataset_key or a former key, as one image layer, from its files between -start and -end. The option can be used multiple times."),
             new Option("-start", 1, "With -dataset: the first observation time to load, ISO 8601 UTC, Z and fractional seconds optional (2025-09-21T16:00:00.000)."),
             new Option("-end", 1, "With -dataset: the last observation time to load, ISO 8601 UTC."),
             new Option("-h", 0, "Show this help and exit."));
@@ -178,7 +178,7 @@ public class CommandLine {
         // -dataset [-start] [-end]: one range for every dataset on the line
         List<String> start = getOptionValues("-start"), end = getOptionValues("-end");
         for (String dataset : getOptionValues("-dataset"))
-            HeliadDatasetLoad.load(dataset, start.isEmpty() ? null : start.get(0), end.isEmpty() ? null : end.get(0))
+            FitsLibraryDatasetLoad.load(dataset, start.isEmpty() ? null : start.get(0), end.isEmpty() ? null : end.get(0))
                     .exceptionally(t -> {
                         Throwable cause = t instanceof java.util.concurrent.CompletionException && t.getCause() != null ? t.getCause() : t;
                         Log.warn("-dataset " + dataset + ": " + cause.getMessage());
@@ -374,9 +374,9 @@ public class CommandLine {
 
     private static boolean isTime(String value) {
         try {
-            HeliadDatasetLoad.parse(value);
+            FitsLibraryDatasetLoad.parse(value);
             return true;
-        } catch (HeliadDatasetLoad.Failed e) {
+        } catch (FitsLibraryDatasetLoad.Failed e) {
             return false;
         }
     }

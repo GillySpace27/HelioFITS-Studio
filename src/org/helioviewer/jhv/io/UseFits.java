@@ -33,15 +33,15 @@ import org.xml.sax.helpers.DefaultHandler;
  * Use FITS for a Helioviewer layer: the FITS files behind the JPEG 2000 frames it streams.
  *
  * <p>Each frame Helioviewer serves carries the FITS header it was made from. This sends those
- * headers to the Heliad core's {@code layer.upgrade} (docs/api.md in the heliad repository), which
+ * headers to HelioFITS Core's {@code layer.upgrade} (docs/api.md in the HelioFITS Core repository), which
  * reads them with ingest's own rules and answers, per frame, whether the library already keeps the
- * FITS file and, for the rest, the fetch that would get them at the layer's own cadence. Heliad
+ * FITS file and, for the rest, the fetch that would get them at the layer's own cadence. HelioFITS Core
  * does the fetching; Studio opens the files it then holds as a new layer and leaves the
  * Helioviewer layer as it is.
  */
-public final class HeliadFits {
+public final class UseFits {
 
-    /** The keywords sent per frame: those Heliad's ingest reads (fitsmeta.INDEXED_KEYWORDS) for
+    /** The keywords sent per frame: those HelioFITS Core's ingest reads (fitsmeta.INDEXED_KEYWORDS) for
      *  what a file is and when, plus HMI's CONTENT, and LASCO's TIME_OBS (its pictures date with DATE_OBS plus TIME_OBS), FILTER and POLAR. */
     static final List<String> KEYS = List.of(
             "OBSRVTRY", "TELESCOP", "INSTRUME", "DETECTOR", "WAVELNTH", "WAVEUNIT", "WAVE_STR",
@@ -53,13 +53,13 @@ public final class HeliadFits {
     private static final long POLL_MS = 3000;
     private static final Set<String> ENDED = Set.of("done", "partial", "failed", "cancelled");
 
-    /** No Heliad core could be started (none packaged with Studio, no Heliad.app and no HELIAD_CORE). */
+    /** No HelioFITS Core could be started (none packaged with Studio, no Cache Manager and no HFCORE_CORE). */
     public static final class NoCore extends IOException {
         private static final long serialVersionUID = 1L;
         /** Why there is none, in words for a dialog. */
-        public static final String TEXT = "Use FITS needs the FITS library engine (Heliad's core), and this Studio has none: it was not packaged with one, "
-                + "no Heliad.app is installed and HELIAD_CORE is not set. Studio's macOS release carries its own; elsewhere, set "
-                + "HELIAD_CORE to a Python that has heliad installed.";
+        public static final String TEXT = "Use FITS needs the FITS library engine (HelioFITS Core), and this Studio has none: it was not packaged with one, "
+                + "no HelioFITS Cache Manager is installed and HFCORE_CORE is not set. Studio's macOS release carries its own; elsewhere, set "
+                + "HFCORE_CORE to a Python that has HelioFITS Core (heliofits-core) installed.";
 
         NoCore() {
             super(TEXT);
@@ -72,14 +72,11 @@ public final class HeliadFits {
 
         TooOld() {
             super("The program serving your FITS library is older than this Studio and cannot answer Use FITS. "
-                    + "If Heliad.app is open, it serves the library for every program: quit it or update it, then try again.");
+                    + "If the HelioFITS Cache Manager (or Heliad) is open, it serves the library for every program: quit it or update it, then try again.");
         }
     }
 
-    /** JSON-RPC's code for a method the server does not have. */
-    private static final int METHOD_NOT_FOUND = -32601;
-
-    private HeliadFits() {}
+    private UseFits() {}
 
     /** Whether the layer's view streams Helioviewer frames, the only kind this upgrades. */
     public static boolean applies(@Nullable View view) {
@@ -145,8 +142,8 @@ public final class HeliadFits {
         JSONObject params = new JSONObject().put("headers", headers).put("dry_run", dryRun);
         JSONObject out;
         try {
-            out = HeliadIngest.call(root, "layer.upgrade", params, PLAN_WAIT);
-        } catch (HeliadIngest.RpcError e) {
+            out = FitsCoreIngest.call(root, "layer.upgrade", params, PLAN_WAIT);
+        } catch (FitsCoreIngest.RpcError e) {
             throw explained(e);
         }
         if (out == null)
@@ -155,8 +152,8 @@ public final class HeliadFits {
     }
 
     /** A core's error, as TooOld when the core has no layer.upgrade. */
-    static IOException explained(HeliadIngest.RpcError e) {
-        return e.code == METHOD_NOT_FOUND ? new TooOld() : e;
+    static IOException explained(FitsCoreIngest.RpcError e) {
+        return e.code == FitsCoreIngest.RpcError.METHOD_NOT_FOUND ? new TooOld() : e;
     }
 
     /** How many frames have the given status in a plan's counts. */
@@ -251,7 +248,7 @@ public final class HeliadFits {
         while (!waiting.isEmpty()) {
             StringBuilder line = new StringBuilder();
             for (Integer id : List.copyOf(waiting)) {
-                JSONObject job = HeliadIngest.call(root, "download.get", new JSONObject().put("job_id", id), CALL_WAIT);
+                JSONObject job = FitsCoreIngest.call(root, "download.get", new JSONObject().put("job_id", id), CALL_WAIT);
                 if (job == null)
                     throw new NoCore();
                 if (job.isEmpty() || ENDED.contains(job.optString("status"))) { // empty: the core no longer has it
@@ -270,7 +267,7 @@ public final class HeliadFits {
                 Thread.sleep(POLL_MS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new InterruptedIOException("waiting for Heliad");
+                throw new InterruptedIOException("waiting for HelioFITS Core");
             }
         }
         return ended;

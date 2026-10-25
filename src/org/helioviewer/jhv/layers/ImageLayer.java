@@ -312,7 +312,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             return;
 
         sourceUris = List.copyOf(uris); // remembered so serialize() can persist a direct-URI layer
-        org.helioviewer.jhv.io.SourceIdentity.prefetch(sourceUris); // sha256 and Heliad identity for provenance, in the background
+        org.helioviewer.jhv.io.SourceIdentity.prefetch(sourceUris); // sha256 and HelioFITS Core identity for provenance, in the background
         loader.load(uris);
         Layers.fireLayerUpdated(this); // give feedback asap
     }
