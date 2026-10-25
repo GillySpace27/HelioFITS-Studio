@@ -209,7 +209,8 @@ public final class OpenJpeg {
             MemorySegment codec = (MemorySegment) api.createDecompress().invokeExact(boxed ? CODEC_JP2 : CODEC_J2K);
             if (codec.equals(MemorySegment.NULL))
                 throw new IllegalStateException("OpenJPEG would not create a decoder");
-            MemorySegment stream = memoryStream(api, arena, bytes, data.length);
+            boolean[] cancelled = {false}; // set by the read callback when this thread is interrupted
+            MemorySegment stream = memoryStream(api, arena, bytes, data.length, cancelled);
 
             MemorySegment imagePtr = arena.allocate(ValueLayout.ADDRESS);
             MemorySegment image = MemorySegment.NULL;
@@ -238,7 +239,7 @@ public final class OpenJpeg {
                 }
 
                 if (0 == (int) api.readHeader().invokeExact(stream, codec, imagePtr))
-                    throw new IllegalStateException("OpenJPEG could not read the header: " + complaints);
+                    throw failed(cancelled, "OpenJPEG could not read the header: " + complaints);
                 image = imagePtr.get(ValueLayout.ADDRESS, 0);
                 if (reduce > 0 && 0 == (int) api.setResolutionFactor().invokeExact(codec, reduce))
                     throw new IllegalStateException("OpenJPEG refused resolution factor " + reduce);
@@ -247,7 +248,7 @@ public final class OpenJpeg {
                             + ": " + complaints);
 
                 if (0 == (int) api.decode().invokeExact(codec, stream, image))
-                    throw new IllegalStateException("OpenJPEG could not decode the image: " + complaints);
+                    throw failed(cancelled, "OpenJPEG could not decode the image: " + complaints);
                 int ended = (int) api.endDecompress().invokeExact(codec, stream);
                 if (ended == 0)
                     throw new IllegalStateException("OpenJPEG could not finish the codestream");
@@ -270,7 +271,11 @@ public final class OpenJpeg {
      * A stream over bytes already in memory. OpenJPEG pulls through three callbacks, so the
      * position lives here rather than in the C side's user data, which stays null.
      */
-    private static MemorySegment memoryStream(Api api, Arena arena, MemorySegment bytes, long length) throws Throwable {
+    private static RuntimeException failed(boolean[] cancelled, String message) {
+        return cancelled[0] ? new java.util.concurrent.CancellationException("decode cancelled") : new IllegalStateException(message);
+    }
+
+    private static MemorySegment memoryStream(Api api, Arena arena, MemorySegment bytes, long length, boolean[] cancelled) throws Throwable {
         MemorySegment stream = (MemorySegment) api.streamCreate().invokeExact(1L << 20, 1);
         if (stream.equals(MemorySegment.NULL))
             throw new IllegalStateException("OpenJPEG would not create a stream");
@@ -279,6 +284,10 @@ public final class OpenJpeg {
         Linker linker = Linker.nativeLinker();
 
         Reader reader = (buffer, want, user) -> {
+            if (Thread.currentThread().isInterrupted()) { // the layer was removed or the program is closing
+                cancelled[0] = true;
+                return -1; // OpenJPEG takes it as the end of the stream and stops asking
+            }
             long left = length - position[0];
             if (left <= 0)
                 return -1; // (OPJ_SIZE_T)-1 is OpenJPEG's end of stream

@@ -38,7 +38,7 @@ import org.json.JSONObject;
 
 final class ImageLayerLoader {
 
-    private final LatestWorker<DecodedImage> executor = new LatestWorker<>("View-Decoder");
+    private final LatestWorker<DecodedImage> executor = new LatestWorker<>(org.helioviewer.jhv.thread.DecodePool.executor());
     private final ImageProcessingSettings processingSettings;
     private final Consumer<View> onViewLoaded;
     private final Consumer<View> onPreviewLoaded; // the first frame, while the rest are still arriving

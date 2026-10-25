@@ -9,6 +9,7 @@ import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.metadata.MetaData;
 import org.helioviewer.jhv.metadata.Region;
+import org.helioviewer.jhv.thread.DecodePool;
 import org.helioviewer.jhv.view.j2k.opj.OpenJpeg;
 
 /**
@@ -39,13 +40,18 @@ record OpjDecoder(OpjSource src, J2KParams.Decode params, int numComps, ImageFil
         J2KParams.SubImage sub = params.subImage;
         // The samples are converted where OpenJPEG left them: no int[] copy of the plane, and no
         // per-pixel ByteBuffer.put (60% of the Java CPU in a 45 s profile, with a 4 B/pixel allocation each decode).
-        return OpenJpeg.decode(codestream, false, params.level, DECODE_THREADS, area[0], area[1], area[2], area[3], plane -> {
-            Region imageRegion = metaData.roiToRegion(sub.x(), sub.y(), plane.width(), plane.height(), factorX, factorY);
-            ImageFilter filter = ImageFilter.of(filterType, imageRegion, metaData);
-            ImageBuffer.WriteBuffer outBuffer = ImageBuffer.createWriteBuffer(plane.width(), plane.height(), ImageBuffer.Format.Gray8, filter);
-            plane.gray8(outBuffer.byteBuffer());
-            return DecodedImage.measured(outBuffer.finish(), imageRegion);
-        });
+        int threads = DecodePool.begin(); // this decode's share of native threads, given how many run at once
+        try {
+            return OpenJpeg.decode(codestream, false, params.level, threads, area[0], area[1], area[2], area[3], plane -> {
+                Region imageRegion = metaData.roiToRegion(sub.x(), sub.y(), plane.width(), plane.height(), factorX, factorY);
+                ImageFilter filter = ImageFilter.of(filterType, imageRegion, metaData);
+                ImageBuffer.WriteBuffer outBuffer = ImageBuffer.createWriteBuffer(plane.width(), plane.height(), ImageBuffer.Format.Gray8, filter);
+                plane.gray8(outBuffer.byteBuffer());
+                return DecodedImage.measured(outBuffer.finish(), imageRegion);
+            });
+        } finally {
+            DecodePool.end();
+        }
     }
 
     /**
@@ -60,8 +66,5 @@ record OpjDecoder(OpjSource src, J2KParams.Decode params, int numComps, ImageFil
         int x0 = sub.x() * scale, y0 = sub.y() * scale;
         return new int[]{x0, y0, x0 + sub.w() * scale, y0 + sub.h() * scale};
     }
-
-    // Enough to keep a frame's decode off the critical path without starving the rest of the app.
-    private static final int DECODE_THREADS = Math.clamp(Runtime.getRuntime().availableProcessors() / 2, 1, 4);
 
 }
