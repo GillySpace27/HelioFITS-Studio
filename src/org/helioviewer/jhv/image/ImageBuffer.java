@@ -78,7 +78,7 @@ public final class ImageBuffer {
 
     private final Cleaner.Cleanable cleanable;
     private volatile boolean explicitFreeProtected;
-    private int measuredLevels = -1; // lazily counted once, then reused
+    private volatile int measuredLevels = -1; // lazily counted once, then reused; volatile so a decode thread can fill it for the EDT
 
     // Every 8th pixel of a 1024 square, which is far more than enough: the question is whether the
     // values sit on a 256-step lattice, and a sample cannot invent levels the data does not have.
@@ -127,6 +127,10 @@ public final class ImageBuffer {
      * sample can only ever undercount, which is the safe direction: a frame reported as having
      * more than 256 levels certainly has them.
      */
+    public boolean levelsMeasured() {
+        return measuredLevels >= 0;
+    }
+
     public int measuredLevels() {
         if (measuredLevels < 0)
             measuredLevels = countLevels();

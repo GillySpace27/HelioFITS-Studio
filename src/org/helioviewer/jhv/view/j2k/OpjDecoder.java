@@ -51,7 +51,7 @@ record OpjDecoder(OpjSource src, J2KParams.Decode params, int numComps, ImageFil
         for (int i = 0; i < samples.length; i++)
             out.put(i, (byte) Math.clamp(samples[i] >> shift, 0, 255));
 
-        return new DecodedImage(outBuffer.finish(), imageRegion);
+        return DecodedImage.measured(outBuffer.finish(), imageRegion);
     }
 
     /**
