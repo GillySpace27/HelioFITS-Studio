@@ -260,6 +260,7 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
                 .row("Image cache:", createCachePanel())
                 .row("Memory:", createMemoryPanel())
                 .row("Decoding:", createDecodePanel())
+                .row("Long requests:", createChunkPanel())
                 .row("Proxy:", new JLabel("Used for every download; leave empty when there is no proxy."))
                 .wide(defaultsPanel)
                 .end();
@@ -304,6 +305,18 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
         panel.add(threads);
         panel.add(detail);
+        return panel;
+    }
+
+    /** A request over the server's 1000-frame cap loads in pieces; this is when the next piece is asked for. */
+    private static JPanel createChunkPanel() {
+        JComboBox<org.helioviewer.jhv.layers.ChunkLoading.Mode> mode = new JComboBox<>(org.helioviewer.jhv.layers.ChunkLoading.Mode.values());
+        mode.setSelectedItem(org.helioviewer.jhv.layers.ChunkLoading.current());
+        mode.addActionListener(e -> Settings.setProperty(org.helioviewer.jhv.layers.ChunkLoading.KEY, ((org.helioviewer.jhv.layers.ChunkLoading.Mode) mode.getSelectedItem()).name()));
+
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
+        panel.add(new JLabel("Ask the server for the next piece:"));
+        panel.add(mode);
         return panel;
     }
 
