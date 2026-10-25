@@ -55,6 +55,7 @@ import org.helioviewer.jhv.thread.Task;
 import org.helioviewer.jhv.view.j2k.jpip.JPIPCacheManager;
 import org.helioviewer.jhv.image.ImageBufferCache;
 import org.helioviewer.jhv.app.MemoryBudget;
+import org.helioviewer.jhv.thread.DecodePool;
 
 import com.jidesoft.dialog.ButtonPanel;
 import com.jidesoft.dialog.StandardDialog;
@@ -258,6 +259,7 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         return new SettingsForm()
                 .row("Image cache:", createCachePanel())
                 .row("Memory:", createMemoryPanel())
+                .row("Decoding:", createDecodePanel())
                 .row("Proxy:", new JLabel("Used for every download; leave empty when there is no proxy."))
                 .wide(defaultsPanel)
                 .end();
@@ -278,6 +280,29 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
 
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
         panel.add(share);
+        panel.add(detail);
+        return panel;
+    }
+
+    /** How many frames decode at once, across all layers. Automatic leaves two performance cores for the interface and the network. */
+    private static JPanel createDecodePanel() {
+        int set = 0;
+        try {
+            set = Integer.parseInt(Settings.getProperty(DecodePool.KEY).trim());
+        } catch (RuntimeException ignored) { // unset: automatic
+        }
+        javax.swing.JSpinner threads = new javax.swing.JSpinner(new javax.swing.SpinnerNumberModel(Math.max(0, set), 0, 64, 1));
+        JLabel detail = new JLabel();
+        Runnable show = () -> detail.setText("0 is automatic, now " + DecodePool.width() + " decodes at once; fewer is quieter, more loads a movie sooner");
+        show.run();
+        threads.addChangeListener(e -> {
+            Settings.setProperty(DecodePool.KEY, String.valueOf(threads.getValue()));
+            DecodePool.apply();
+            show.run();
+        });
+
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
+        panel.add(threads);
         panel.add(detail);
         return panel;
     }
