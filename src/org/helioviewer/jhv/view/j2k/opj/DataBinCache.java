@@ -1,12 +1,15 @@
 package org.helioviewer.jhv.view.j2k.opj;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.Nullable;
 
@@ -36,120 +39,212 @@ public final class DataBinCache {
         public int compareTo(BinId other) {
             return ORDER.compare(this, other);
         }
+
+        @Override
+        public int hashCode() {
+            return Key.mix(klass, codestream * 0x9E3779B97F4A7C15L + id);
+        }
     }
 
+    /** A bin's name inside one codestream's map. The default record hash collides on these small numbers. */
+    private record Key(int klass, long id) {
+        static int mix(int klass, long id) {
+            long h = (id ^ ((long) klass << 56)) * 0x9E3779B97F4A7C15L; // the class sits above any id
+            return (int) (h ^ (h >>> 32));
+        }
+
+        @Override
+        public int hashCode() {
+            return mix(klass, id);
+        }
+    }
+
+    /**
+     * What the heap really costs per bin besides its bytes: the Bin, its array header, the Key and
+     * the map node. Measured as about 130 bytes in a live heap histogram; counted so the budget is
+     * not blind to it.
+     */
+    static final int OVERHEAD_PER_BIN = 128;
+
     private static final class Bin {
-        private final NavigableMap<Long, byte[]> pieces = new TreeMap<>();
-        private long contiguous; // bytes from zero with no hole
+        private byte[] run = new byte[0]; // bytes from zero with no hole, exactly sized
+        private NavigableMap<Long, byte[]> aside; // pieces past a hole, rare; null until needed
+        private long asideBytes;
         private long end;        // the far end of the furthest piece, hole or no hole
         private boolean complete;
-        private long held;       // what the pieces occupy, for accounting
 
-        synchronized void put(long offset, byte[] data, boolean isFinal) {
+        /** @return how many payload bytes this call added (negative when it replaced more than it added) */
+        synchronized long put(long offset, byte[] data, boolean isFinal) {
+            long before = run.length + asideBytes;
             if (data.length > 0) {
-                byte[] previous = pieces.put(offset, data);
-                held += data.length - (previous == null ? 0 : previous.length);
                 end = Math.max(end, offset + data.length);
-                long run = contiguous;
-                for (Map.Entry<Long, byte[]> piece : pieces.tailMap(run, true).entrySet()) {
-                    if (piece.getKey() > run)
-                        break; // a hole: everything past it stays out of reach
-                    run = Math.max(run, piece.getKey() + piece.getValue().length);
+                if (offset <= run.length) {
+                    extend(offset, data);
+                    if (aside != null) { // a piece may now join the run
+                        var iterator = aside.entrySet().iterator();
+                        while (iterator.hasNext()) {
+                            Map.Entry<Long, byte[]> piece = iterator.next();
+                            if (piece.getKey() > run.length)
+                                break;
+                            iterator.remove();
+                            asideBytes -= piece.getValue().length;
+                            extend(piece.getKey(), piece.getValue());
+                        }
+                    }
+                } else {
+                    if (aside == null)
+                        aside = new TreeMap<>();
+                    byte[] previous = aside.put(offset, data);
+                    asideBytes += data.length - (previous == null ? 0 : previous.length);
                 }
-                contiguous = run;
             }
             if (isFinal)
                 complete = true;
+            return run.length + asideBytes - before;
+        }
+
+        // ponytail: exact-size copy per extension; bins are small and extended a few times, so this
+        // beats a spare-capacity scheme that would hold slack in 18 million arrays.
+        private void extend(long offset, byte[] data) {
+            int to = (int) (offset + data.length);
+            if (to > run.length)
+                run = Arrays.copyOf(run, to);
+            System.arraycopy(data, 0, run, (int) offset, data.length);
         }
 
         synchronized long contiguous() {
-            return contiguous;
+            return run.length;
+        }
+
+        synchronized long asideHeld() {
+            return asideBytes;
         }
 
         synchronized boolean complete() {
             // The server said this is the last byte, and nothing is missing before it.
-            return complete && contiguous == end;
-        }
-
-        synchronized long held() {
-            return held;
+            return complete && run.length == end;
         }
 
         @Nullable
         synchronized byte[] bytes() {
-            int length = (int) Math.min(contiguous, Integer.MAX_VALUE);
-            if (length == 0)
-                return null;
-
-            byte[] out = new byte[length];
-            for (Map.Entry<Long, byte[]> piece : pieces.headMap(contiguous, false).entrySet()) {
-                long offset = piece.getKey();
-                byte[] data = piece.getValue();
-                int count = (int) Math.min(data.length, length - offset);
-                if (count > 0)
-                    System.arraycopy(data, 0, out, (int) offset, count);
-            }
-            return out;
+            return run.length == 0 ? null : run.clone();
         }
     }
 
-    private final ConcurrentHashMap<BinId, Bin> bins = new ConcurrentHashMap<>();
+    /** One codestream's bins, and what they hold, kept so one frame can be counted or dropped without a scan of the rest. */
+    private static final class Frame {
+        final ConcurrentHashMap<Key, Bin> bins = new ConcurrentHashMap<>();
+        final AtomicLong payload = new AtomicLong();
+
+        long held() {
+            return payload.get() + (long) OVERHEAD_PER_BIN * bins.size();
+        }
+    }
+
+    private final ConcurrentHashMap<Long, Frame> frames = new ConcurrentHashMap<>();
 
     /** Add one message's worth of bytes to a bin. Repeats and out-of-order pieces are expected. */
     public void put(int klass, long codestream, long id, long offset, byte[] data, boolean isFinal) {
-        bins.computeIfAbsent(new BinId(klass, codestream, id), key -> new Bin()).put(offset, data, isFinal);
+        Frame frame = frames.computeIfAbsent(codestream, key -> new Frame());
+        Bin bin = frame.bins.computeIfAbsent(new Key(klass, id), key -> new Bin());
+        frame.payload.addAndGet(bin.put(offset, data, isFinal));
+    }
+
+    @Nullable
+    private Bin bin(int klass, long codestream, long id) {
+        Frame frame = frames.get(codestream);
+        return frame == null ? null : frame.bins.get(new Key(klass, id));
     }
 
     /** The bytes of a bin from its start up to the first hole, or null when nothing usable is here. */
     @Nullable
     public byte[] bytes(int klass, long codestream, long id) {
-        Bin bin = bins.get(new BinId(klass, codestream, id));
+        Bin bin = bin(klass, codestream, id);
         return bin == null ? null : bin.bytes();
     }
 
     /** How many bytes are available from the start of the bin without a hole. */
     public long available(int klass, long codestream, long id) {
-        Bin bin = bins.get(new BinId(klass, codestream, id));
+        Bin bin = bin(klass, codestream, id);
         return bin == null ? 0 : bin.contiguous();
     }
 
     /** Whether the server said this bin is finished and nothing is missing before its end. */
     public boolean isComplete(int klass, long codestream, long id) {
-        Bin bin = bins.get(new BinId(klass, codestream, id));
+        Bin bin = bin(klass, codestream, id);
         return bin != null && bin.complete();
     }
 
     /** The bins of one class held for one codestream, in identifier order, for the rebuild to walk. */
     public List<Long> ids(int klass, long codestream) {
         List<Long> out = new ArrayList<>();
-        bins.forEach((id, bin) -> {
-            if (id.klass() == klass && id.codestream() == codestream)
-                out.add(id.id());
-        });
+        Frame frame = frames.get(codestream);
+        if (frame != null)
+            frame.bins.forEach((key, bin) -> {
+                if (key.klass() == klass)
+                    out.add(key.id());
+            });
         out.sort(null);
         return out;
     }
 
     /** Everything held, in a stable order, for writing the cache out. */
     public List<BinId> contents() {
-        List<BinId> out = new ArrayList<>(bins.keySet());
+        List<BinId> out = new ArrayList<>();
+        frames.forEach((codestream, frame) -> frame.bins.forEach((key, bin) -> out.add(new BinId(key.klass(), codestream, key.id()))));
+        out.sort(null);
+        return out;
+    }
+
+    /** What one codestream holds, in a stable order: the disk cache writes a frame at a time. */
+    public List<BinId> contents(long codestream) {
+        List<BinId> out = new ArrayList<>();
+        Frame frame = frames.get(codestream);
+        if (frame != null)
+            frame.bins.forEach((key, bin) -> out.add(new BinId(key.klass(), codestream, key.id())));
         out.sort(null);
         return out;
     }
 
     public void clear(long codestream) {
-        bins.keySet().removeIf(id -> id.codestream() == codestream);
+        frames.remove(codestream);
     }
 
     public void clear() {
-        bins.clear();
+        frames.clear();
     }
 
-    /** Roughly what this is holding, for the cache budget. Payload only: the map overhead is not counted. */
+    /**
+     * Drop one codestream's bins except one class, and say how many bytes that freed.
+     *
+     * <p>The class kept is the metadata: it describes the file, arrives under whichever frame was
+     * asked for first, and is not re-sent with a frame.
+     */
+    public long evict(long codestream, int keepKlass) {
+        Frame frame = frames.get(codestream);
+        if (frame == null)
+            return 0;
+        long before = frame.held();
+        frame.bins.entrySet().removeIf(entry -> entry.getKey().klass() != keepKlass);
+        long kept = 0; // recounted, not subtracted: a piece may land while this runs, and a recount heals that
+        for (Bin bin : frame.bins.values())
+            kept += bin.contiguous() + bin.asideHeld();
+        frame.payload.set(kept);
+        return before - frame.held();
+    }
+
+    /** The codestreams held and what each holds, for the budget to pick from. */
+    public Map<Long, Long> frameBytes() {
+        Map<Long, Long> out = new HashMap<>();
+        frames.forEach((codestream, frame) -> out.put(codestream, frame.held()));
+        return out;
+    }
+
+    /** What this is holding, for the cache budget: payload plus the per-bin cost of the objects around it. */
     public long bytesHeld() {
         long total = 0;
-        for (Bin bin : bins.values())
-            total += bin.held();
+        for (Frame frame : frames.values())
+            total += frame.held();
         return total;
     }
 

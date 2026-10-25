@@ -121,17 +121,20 @@ public class JPIPCacheManager {
         return null;
     }
 
-    public static void store(@Nonnull String key, int level, @Nonnull JPIPCache source, int frame) {
+    /** @return whether the disk cache now holds this frame at this level or better, so it can be dropped from memory */
+    public static boolean store(@Nonnull String key, int level, @Nonnull JPIPCache source, int frame) {
         Cache<String, Entry> currentCache = cache;
         if (currentCache == null)
-            return;
+            return false;
 
         try {
             Entry entry = currentCache.get(key);
             if (entry == null || entry.level() > level)
                 currentCache.put(key, new Entry(level, source.scan(frame)));
+            return true;
         } catch (Exception e) {
             Log.error(e);
+            return false;
         }
     }
 

@@ -26,6 +26,12 @@ public class ResolutionSet {
             complete[i].set(true);
     }
 
+    /** The frame's bins were dropped from memory; until it is restored it is not complete at any level. */
+    void resetComplete() {
+        for (AtomicBoolean flag : complete)
+            flag.set(false);
+    }
+
     AtomicBoolean getComplete(int level) {
         return complete[Math.min(level, numLevels - 1)];
     }
