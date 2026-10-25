@@ -40,7 +40,8 @@ public final class MemoryBudget {
 
     /** What JPIP data bins may hold: half the heap's part, since the rest of the heap is the program itself. */
     public static long binBytes() {
-        return binBytes(total());
+        long override = Long.getLong("jhv.binBudgetMB", 0) << 20; // for tests and diagnosis: forces the eviction path on a small movie
+        return override > 0 ? override : binBytes(total());
     }
 
     /** What decoded frames may hold, in native memory. */
