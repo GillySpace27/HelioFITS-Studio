@@ -16,6 +16,7 @@ public final class MemoryBudget {
     public static final String SHARE_KEY = "memory.sharePercent";
     public static final int DEFAULT_SHARE = 50;
     private static final long FLOOR = 256L << 20; // below this a single frame's bins would not fit
+    private static final long DECODED_FLOOR = 512L << 20; // a few 32 MiB frames, so the viewer still works on a tiny share
 
     /** A quarter of the share goes to the heap, the rest to decoded frames. */
     private static final int HEAP_PART = 4;
@@ -48,7 +49,7 @@ public final class MemoryBudget {
     }
 
     static long total(long physical, int percent) {
-        return physical / 100 * percent;
+        return physical * percent / 100;
     }
 
     static long binBytes(long total) {
@@ -56,7 +57,7 @@ public final class MemoryBudget {
     }
 
     static long decodedBytes(long total) {
-        return Math.max(4L << 30 > total ? total : 4L << 30, total - total / HEAP_PART);
+        return Math.max(DECODED_FLOOR, total - total / HEAP_PART);
     }
 
     private MemoryBudget() {}
