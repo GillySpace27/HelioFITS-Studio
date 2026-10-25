@@ -53,6 +53,8 @@ import org.helioviewer.jhv.plugins.Plugin;
 import org.helioviewer.jhv.plugins.PluginManager;
 import org.helioviewer.jhv.thread.Task;
 import org.helioviewer.jhv.view.j2k.jpip.JPIPCacheManager;
+import org.helioviewer.jhv.image.ImageBufferCache;
+import org.helioviewer.jhv.app.MemoryBudget;
 
 import com.jidesoft.dialog.ButtonPanel;
 import com.jidesoft.dialog.StandardDialog;
@@ -255,9 +257,29 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
     private JComponent networkTab() {
         return new SettingsForm()
                 .row("Image cache:", createCachePanel())
+                .row("Memory:", createMemoryPanel())
                 .row("Proxy:", new JLabel("Used for every download; leave empty when there is no proxy."))
                 .wide(defaultsPanel)
                 .end();
+    }
+
+    /** How much of the machine's memory the JPIP data and decoded frames may share. A larger share keeps more of a movie ready; a smaller one leaves room for other programs. */
+    private static JPanel createMemoryPanel() {
+        javax.swing.JSpinner share = new javax.swing.JSpinner(new javax.swing.SpinnerNumberModel(MemoryBudget.sharePercent(), 10, 90, 5));
+        JLabel detail = new JLabel();
+        Runnable show = () -> detail.setText(String.format("%% of %d GB memory: %.1f GB for the image cache, JPIP data and decoded frames together",
+                MemoryBudget.physical() >> 30, MemoryBudget.total() / (1024. * 1024 * 1024)));
+        show.run();
+        share.addChangeListener(e -> {
+            Settings.setProperty(MemoryBudget.SHARE_KEY, String.valueOf(share.getValue()));
+            ImageBufferCache.applyBudget();
+            show.run();
+        });
+
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
+        panel.add(share);
+        panel.add(detail);
+        return panel;
     }
 
     private JPanel createCachePanel() {
