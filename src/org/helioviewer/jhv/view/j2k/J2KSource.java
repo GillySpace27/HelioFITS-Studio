@@ -8,6 +8,7 @@ import javax.annotation.Nullable;
 
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.image.lut.LUT;
+import org.helioviewer.jhv.view.j2k.jpip.JPIPBinBudget;
 import org.helioviewer.jhv.view.j2k.jpip.JPIPCache;
 
 /**
@@ -153,6 +154,9 @@ abstract class J2KSource {
     @Nullable
     abstract AtomicBoolean getFrameStatus(int frame, int level);
 
+    /** The frame being shown; a remote source drops the frames farthest from it when memory is short. */
+    void setPlayhead(int frame) {}
+
     // Initialization internals
 
     private void initResolutionStateOnce() throws IOException {
@@ -222,10 +226,26 @@ abstract class J2KSource {
         private final JPIPCache cache = new JPIPCache();
         private ResolutionSet[] resolutionSet;
         private int partialUntil;
-        private boolean fullyComplete;
+        private volatile boolean fullyComplete;
 
         Remote() {
             super(false);
+            cache.onEvicted(this::setFrameEvicted);
+            JPIPBinBudget.register(cache);
+        }
+
+        @Override
+        void setPlayhead(int frame) {
+            cache.setPlayhead(frame);
+        }
+
+        // The budget dropped this frame's bins: it is no longer complete, so the next decode of it
+        // reaches the reader, which restores it from the disk cache.
+        private void setFrameEvicted(int frame) {
+            fullyComplete = false;
+            ResolutionSet[] sets = resolutionSet;
+            if (sets != null && frame < sets.length && sets[frame] != null)
+                sets[frame].resetComplete();
         }
 
         JPIPCache cache() {
