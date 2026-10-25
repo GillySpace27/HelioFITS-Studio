@@ -36,22 +36,16 @@ record OpjDecoder(OpjSource src, J2KParams.Decode params, int numComps, ImageFil
             throw new UnsupportedOperationException("colour images are not decoded here yet, " + numComps + " components");
 
         int[] area = area(params.subImage, params.level);
-        OpenJpeg.Decoded image = OpenJpeg.decode(codestream, false, params.level, DECODE_THREADS,
-                area[0], area[1], area[2], area[3]);
         J2KParams.SubImage sub = params.subImage;
-        int width = image.width(), height = image.height();
-
-        Region imageRegion = metaData.roiToRegion(sub.x(), sub.y(), width, height, factorX, factorY);
-        ImageFilter filter = ImageFilter.of(filterType, imageRegion, metaData);
-        ImageBuffer.WriteBuffer outBuffer = ImageBuffer.createWriteBuffer(width, height, ImageBuffer.Format.Gray8, filter);
-        ByteBuffer out = outBuffer.byteBuffer();
-
-        int[] samples = image.samples();
-        int shift = Math.max(0, image.precision() - 8); // a deeper codestream than the canvas takes
-        for (int i = 0; i < samples.length; i++)
-            out.put(i, (byte) Math.clamp(samples[i] >> shift, 0, 255));
-
-        return DecodedImage.measured(outBuffer.finish(), imageRegion);
+        // The samples are converted where OpenJPEG left them: no int[] copy of the plane, and no
+        // per-pixel ByteBuffer.put (60% of the Java CPU in a 45 s profile, with a 4 B/pixel allocation each decode).
+        return OpenJpeg.decode(codestream, false, params.level, DECODE_THREADS, area[0], area[1], area[2], area[3], plane -> {
+            Region imageRegion = metaData.roiToRegion(sub.x(), sub.y(), plane.width(), plane.height(), factorX, factorY);
+            ImageFilter filter = ImageFilter.of(filterType, imageRegion, metaData);
+            ImageBuffer.WriteBuffer outBuffer = ImageBuffer.createWriteBuffer(plane.width(), plane.height(), ImageBuffer.Format.Gray8, filter);
+            plane.gray8(outBuffer.byteBuffer());
+            return DecodedImage.measured(outBuffer.finish(), imageRegion);
+        });
     }
 
     /**
