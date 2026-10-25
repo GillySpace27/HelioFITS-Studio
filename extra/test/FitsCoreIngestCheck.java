@@ -65,11 +65,13 @@ public final class FitsCoreIngestCheck {
 
         String py = Path.of("/opt/py/bin/python3").toString(); // as this platform spells it
         List<String> python = FitsCoreIngest.command("/opt/py/bin/python3", null, null, null, home, root, p -> true);
-        expect("HFCORE_CORE naming a Python runs it with -m heliofits_core, got " + python,
-                List.of(py, "-m", "heliofits_core", "--library", root.toString(), "serve").equals(python));
+        // Isolated like the bundled ones: a ~/.local astropy whose asdf_astropy lacked asdf broke every
+        // download of a core named this way (Gilly, 2026-10-25).
+        expect("HFCORE_CORE naming a Python runs it isolated with -m heliofits_core, got " + python,
+                List.of(py, "-s", "-P", "-m", "heliofits_core", "--library", root.toString(), "serve").equals(python));
         List<String> legacy = FitsCoreIngest.command(null, "/opt/py/bin/python3", null, null, home, root, p -> true);
         expect("HELIAD_CORE, its name before the rename, runs a Python with -m heliad, got " + legacy,
-                List.of(py, "-m", "heliad", "--library", root.toString(), "serve").equals(legacy));
+                List.of(py, "-s", "-P", "-m", "heliad", "--library", root.toString(), "serve").equals(legacy));
         List<String> both = FitsCoreIngest.command("/opt/py/bin/python3", "/old/bin/python3", null, null, home, root, p -> true);
         expect("HFCORE_CORE wins over HELIAD_CORE, got " + both, both != null && both.equals(python));
         List<String> command = FitsCoreIngest.command("~/venv/bin/hfcore", null, studio, app, home, root, p -> true);

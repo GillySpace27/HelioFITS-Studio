@@ -415,8 +415,11 @@ public final class FitsCoreIngest {
             Path path = named.equals("~") ? home : named.startsWith("~/") ? home.resolve(named.substring(2)) : Path.of(named);
             if (executable.test(path)) {
                 command.add(path.toString());
+                // -s, -P as for the bundled Pythons: a named Python runs its own packages, never ones in
+                // ~/.local (an astropy there whose asdf_astropy lacked asdf broke every download,
+                // 2026-10-25). A core installed with pip --user is named by its command instead.
                 if (path.getFileName().toString().toLowerCase(java.util.Locale.ROOT).startsWith("python"))
-                    command.addAll(List.of("-m", legacy ? LEGACY_MODULE : MODULE));
+                    command.addAll(List.of("-s", "-P", "-m", legacy ? LEGACY_MODULE : MODULE));
             }
         }
         if (command.isEmpty() && studioCore != null && executable.test(studioCore))
