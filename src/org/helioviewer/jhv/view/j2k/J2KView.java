@@ -335,7 +335,9 @@ public class J2KView extends BaseView {
 
         @Override
         public void onFailure(@Nonnull Throwable t, boolean fresh) {
-            Log.errorStack(t);
+            // A frame that has not arrived, or was dropped by the JPIP budget, is restored by the reader and decoded again.
+            if (!(t instanceof java.util.concurrent.CancellationException))
+                Log.errorStack(t);
         }
 
     }

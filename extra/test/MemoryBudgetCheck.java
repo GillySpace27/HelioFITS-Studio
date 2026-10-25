@@ -40,6 +40,11 @@ public final class MemoryBudgetCheck {
                 128 * gb * 40 / 100 + 128 * gb / 4 > MemoryBudget.total(128 * gb, 50));
         expect("a 128 GB machine at 50% gives 64 GB in all", MemoryBudget.total(128 * gb, 50) == 64 * gb);
 
+        expect("the bins' budget is the share's part without an override", MemoryBudget.binBytes() == MemoryBudget.binBytes(MemoryBudget.total()));
+        System.setProperty("jhv.binBudgetMB", "150");
+        expect("-Djhv.binBudgetMB sets the bins' budget directly", MemoryBudget.binBytes() == 150L << 20);
+        System.clearProperty("jhv.binBudgetMB");
+
         expect("the share is 50% when nothing is set", MemoryBudget.sharePercent() == 50);
         Settings.setProperty(MemoryBudget.SHARE_KEY, "30");
         expect("and follows the Setting", MemoryBudget.sharePercent() == 30);
