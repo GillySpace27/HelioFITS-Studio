@@ -11,6 +11,8 @@ the family version (2026-10-23, Gilly's pick beside Peek, Heliad and Heliogram):
   * the blue leaf and the whole cyan leaf are painted from the real AIA 335 and 131 frames in
     iris_sources/ (see SOURCES.md there), not from the old art. The old cyan was too noisy to
     extend without a seam, so it is replaced whole;
+  * the ground outside the orb is Heliogram's violet-black, and the hexagon holds Heliogram's drawn
+    Sun (2026-10-26), so the icon reads at 16 px and matches the family's sun-in-a-white-outline;
   * the dividers are Heliogram's chrome white (#E7EAF3), 44 px at 1024 (the stroke of the Heliogram
     and HelioFITS outlines; 22 px until 2026-10-26), with round joints.
 
@@ -28,7 +30,7 @@ the original leaf overlap (the median original colour at each brightness).
 
   python3 make_iris_art.py          ->  iris_leaf_plain_1024.png
   python3 make_iris_art.py --fit    prints the co-alignment search for the blue and cyan leaves
-Needs numpy and Pillow. make_app_icon.py letters the result.
+Needs numpy and Pillow. make_app_icon.py turns the result into the icon set.
 """
 import itertools, math, os, sys
 import numpy as np
@@ -47,6 +49,13 @@ V = {"L": (C - R, C), "R": (C + R, C),
      "TL": (C - R / 2, C - APO), "TR": (C + R / 2, C - APO),
      "BL": (C - R / 2, C + APO), "BR": (C + R / 2, C + APO)}
 ORB = 497                                 # the orb's radius: the dividers stop at its edge
+GROUND_TOP, GROUND_BOT = (23, 17, 50), (9, 7, 17)       # Heliogram's ground, #171132 -> #090711
+# Heliogram's Sun (gillyspace27/heliogram icons/make_app_icon.py: disc 108, rays 132 to 192 by 36, in
+# its 824 tile) scaled to sit inside the white hexagon, whose inner edge is 180 px out.
+DISC_R, RAY_IN, RAY_OUT, RAY_W = 82, 104, 150, 30
+SUN_GLOW = (255, 174, 71)
+DISC_STOPS = [(0.0, (255, 240, 200)), (0.55, (255, 182, 63)), (1.0, (222, 74, 34))]
+RAY_STOPS = [(0.0, (255, 194, 77)), (0.55, (255, 194, 77)), (1.0, (228, 96, 31))]
 
 # Where each new leaf's original sits on its frame (fitted, see the docstring), and the patch fitted on.
 FIT = {"blue": ("335", (0.977, 5.0, -4.0), [(665, 335), (820, 335), (745, 470)]),
@@ -113,8 +122,53 @@ def art():
         table = colour_table(frame(ch, *fit_at)[m], orig[m])
         new = look_up(table, frame(ch, *RENDER)) * inside
         out = out * (1 - region[..., None]) + new * region[..., None]
+    # the family ground (Heliogram's #171132 -> #090711, top to bottom) outside the orb
+    t = np.linspace(0, 1, 1024)[:, None, None]
+    ground = np.array(GROUND_TOP) * (1 - t) + np.array(GROUND_BOT) * t
+    outside = np.clip((np.hypot(xx - C, yy - C) - (ORB - 1)) / 3, 0, 1)[..., None]
+    out = out * (1 - outside) + ground * outside
     img = Image.fromarray(np.clip(out, 0, 255).astype(np.uint8))
-    return dividers(img, A, B)
+    return sun(dividers(img, A, B))
+
+
+def ramp(t, stops):
+    out = np.empty(t.shape + (3,), np.float32)
+    for c in range(3):
+        out[..., c] = np.interp(t, [s[0] for s in stops], [s[1][c] for s in stops])
+    return out
+
+
+def sun(img, ss=4):
+    """Heliogram's drawn Sun in the hexagon: a faint glow, eight round-capped rays and a radial-ramp
+    disc, with Heliogram's colour stops, scaled to fit inside the white hexagon."""
+    a = np.array(img).astype(np.float32)
+    yy, xx = np.mgrid[0:1024, 0:1024]
+    r = np.hypot(xx - C, yy - C)
+
+    def cover(draw):
+        m = Image.new("L", (1024 * ss, 1024 * ss), 0)
+        draw(ImageDraw.Draw(m))
+        return np.array(m.resize((1024, 1024), Image.LANCZOS)).astype(np.float32) / 255
+
+    def over(rgb, alpha):
+        return a * (1 - alpha[..., None]) + rgb * alpha[..., None]
+
+    inner = (APO - LINE / 2) / APO                       # the glow stays inside the white
+    hexagon = poly([(C + (x - C) * inner, C + (y - C) * inner) for x, y in (V[k] for k in ("L", "TL", "TR", "R", "BR", "BL"))])
+    a = over(np.array(SUN_GLOW, np.float32), 0.30 * np.clip(1 - r / 170, 0, 1) * hexagon)
+
+    def rays(d):
+        for i in range(8):
+            th = math.radians(45 * i - 90)
+            p = (C + RAY_IN * math.cos(th), C + RAY_IN * math.sin(th))
+            q = (C + RAY_OUT * math.cos(th), C + RAY_OUT * math.sin(th))
+            d.line([(p[0] * ss, p[1] * ss), (q[0] * ss, q[1] * ss)], fill=255, width=RAY_W * ss)
+            for x, y in (p, q):
+                d.ellipse([(x - RAY_W / 2) * ss, (y - RAY_W / 2) * ss, (x + RAY_W / 2) * ss, (y + RAY_W / 2) * ss], fill=255)
+    a = over(ramp(np.clip((r - RAY_IN) / (RAY_OUT - RAY_IN), 0, 1), RAY_STOPS), cover(rays))
+    a = over(ramp(np.clip(r / DISC_R, 0, 1), DISC_STOPS),
+             cover(lambda d: d.ellipse([(C - DISC_R) * ss, (C - DISC_R) * ss, (C + DISC_R) * ss, (C + DISC_R) * ss], fill=255)))
+    return Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
 
 
 def dividers(img, A, B, ss=4):
