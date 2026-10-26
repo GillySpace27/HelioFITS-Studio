@@ -58,9 +58,9 @@ PLAIN = Image.open(os.path.join(HERE, "iris_leaf_plain_1024.png"))
 # HFS in the hexagon, as large as it allows: at the letters' top and bottom the hexagon is narrower
 # than across its middle, so the width check is made there. Hexagon measured on iris_plain_1024.png:
 # centre 511.5, flat top and bottom, fill reaching 199 px from the centre. The white dividers of
-# iris_leaf_plain_1024.png are 22 px on lines 202 px out, so the fill now ends at 191; the letters
-# are fitted to 185, 6 px clear of the white.
-HEX_C, HEX_APOTHEM, FONT, TEXT = 511.5, 185, "/System/Library/Fonts/Supplemental/Arial Black.ttf", "HFS"
+# iris_leaf_plain_1024.png are 44 px on lines 202 px out, so the fill now ends at 180; the letters
+# are fitted to 174, 6 px clear of the white.
+HEX_C, HEX_APOTHEM, FONT, TEXT = 511.5, 174, "/System/Library/Fonts/Supplemental/Arial Black.ttf", "HFS"
 
 
 def lettered(img):
