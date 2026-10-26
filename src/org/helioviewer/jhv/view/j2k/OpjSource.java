@@ -59,7 +59,7 @@ final class OpjSource {
             return;
 
         boxes = metadata;
-        headers = Jp2Boxes.xmls(metadata);
+        headers = Jp2Boxes.xmls(metadata, id -> bins.bytes(METADATA_BIN, 0, id));
         frames = Math.max(1, Math.max(Jp2Boxes.placeholders(metadata), headers.size()));
     }
 
@@ -78,7 +78,7 @@ final class OpjSource {
         if (metadata == null)
             return new OpjSource(cache, new byte[0], List.of(), List.of(), 1);
 
-        List<String> xml = Jp2Boxes.xmls(metadata);
+        List<String> xml = Jp2Boxes.xmls(metadata, id -> cache.bytes(METADATA_BIN, 0, id));
         // One placeholder per codestream the server has not sent inline, which is all of them.
         int frames = Math.max(1, Math.max(Jp2Boxes.placeholders(metadata), xml.size()));
         return new OpjSource(cache, metadata, List.of(), xml, frames);
