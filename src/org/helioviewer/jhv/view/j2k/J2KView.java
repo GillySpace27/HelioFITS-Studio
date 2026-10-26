@@ -84,14 +84,21 @@ public class J2KView extends BaseView {
             metaData = new MetaData[maxFrame + 1];
             xmlMetaData = new String[maxFrame + 1];
             source.extractMetaData(xmlMetaData);
+            int missing = 0;
             for (int i = 0; i <= maxFrame; i++) {
                 try {
                     if (xmlMetaData[i] == null)
                         throw new Exception("Missing XML metadata");
                     metaData[i] = new FitsMetaData(new XMLMetaDataContainer(xmlMetaData[i]), dataUri.sourceUri());
                 } catch (Exception e) {
+                    missing++;
                     xmlMetaData[i] = EMPTY_METAXML;
-                    ResolutionSet.Level level = source.readResolutionSet(i).getLevel(0);
+                    // A remote frame after the first has no resolution set until its codestream
+                    // arrives; a movie's frames share one size, so the first frame's stands in.
+                    ResolutionSet set = source.readResolutionSet(i);
+                    if (set == null)
+                        set = source.readResolutionSet(0);
+                    ResolutionSet.Level level = set.getLevel(0);
                     metaData[i] = new BasicMetaData(level.width(), level.height(), dataUri.baseName(), dataUri.sourceUri());
                     Log.warn("Helioviewer metadata missing for layer " + i, e);
                 }
@@ -99,6 +106,11 @@ public class J2KView extends BaseView {
                     Log.warn("Duplicate time stamp: " + metaData[i].getViewpoint().time);
             }
             frameMap.buildIndex();
+            // Frames without a header have no time of their own, so a movie with several of them
+            // collapses onto one time stamp: say what actually went wrong.
+            if (frameMap.maxIndex() != maxFrame && missing > 0)
+                throw new Exception("The server sent no FITS header for " + missing + " of " + (maxFrame + 1)
+                        + " frames of this movie, so their times are unknown");
             if (frameMap.maxIndex() != maxFrame)
                 throw new Exception("Duplicated time stamps");
 
