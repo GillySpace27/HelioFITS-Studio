@@ -24,9 +24,10 @@ HelioFITS Studio accepts the following SAMP message types:
 - `jhv.load.state`
 - `jhv.load.sunjson`
 
-### Heliad messages
+### FITS library messages
 
-- `heliad.dataset.load`
+- `hfcore.dataset.load`
+- `heliad.dataset.load` (the same message under its name from before HelioFITS Core was renamed)
 
 ### Playback messages
 
@@ -99,6 +100,7 @@ These messages act immediately instead of performing a partial state merge:
 - `jhv.load.request`
 - `jhv.load.state`
 - `jhv.load.sunjson`
+- `hfcore.dataset.load`
 - `heliad.dataset.load`
 - `jhv.playback.play`
 - `jhv.playback.pause`
@@ -270,20 +272,24 @@ Behavior:
 - `table.load.votable` is additionally sender-restricted to `SolarOrbiterARchive`
 - `table.load.fits` is additionally sender-restricted to `SolarOrbiterARchive` and `SSA`
 
-### Heliad Messages
+### FITS Library Messages
 
-### `heliad.dataset.load`
+### `hfcore.dataset.load`
 
-Loads one dataset of the Heliad library on this computer as one image layer: the dataset's
-current files whose observation time lies in the range, in time order, the same files the Heliad
-tab of the New Image Layer dialog would add. The library is read the way Heliad's reader
-contract says (read-only; `HeliadLibrary.java`). Same as `-dataset` on the command line
+Also answered as `heliad.dataset.load`, its name from before HelioFITS Core was renamed (it was
+HelioFITS Core); a script that sends the old name keeps working, and its notice comes back under the
+name it sent.
+
+Loads one dataset of the FITS library (HelioFITS Core's) on this computer as one image layer: the
+dataset's current files whose observation time lies in the range, in time order, the same files the
+FITS Library tab of the New Image Layer dialog would add. The library is read the way HelioFITS Core's
+reader contract says (read-only; `FitsLibrary.java`). Same as `-dataset` on the command line
 (`docs/cli.md`).
 
 Accepted parameters:
 
 - `uid`: required. The dataset's `dataset_uid`, when the library's index has that column
-  (Heliad schema 5), its `dataset_key` (for example `sdo/aia/-/-/1/193`), or a former key the
+  (HelioFITS Core schema 5), its `dataset_key` (for example `sdo/aia/-/-/1/193`), or a former key the
   library records in `dataset_aliases`, looked up in that order.
 - `start`: optional. The first observation time, ISO 8601 UTC (`2025-09-21T16:00:00`; a
   trailing `Z` and fractional seconds such as `.840` are accepted). Omitted means from the first observation.
@@ -299,9 +305,10 @@ Accepted parameters:
 }
 ```
 
-When it is done, HelioFITS Studio notifies the sender with `heliad.dataset.load.completed`
+When it is done, HelioFITS Studio notifies the sender with `hfcore.dataset.load.completed` (or
+`heliad.dataset.load.completed` for the old name)
 (`status` `success` or `failure`, `message`, `requestId`, `mtype`). It fails with a message
-when there is no Heliad library, no such dataset, an unreadable time, or no file in the range.
+when there is no FITS library, no such dataset, an unreadable time, or no file in the range.
 
 ### Playback Messages
 

@@ -10,7 +10,7 @@ option table in `CommandLine.java`; this page says what the table cannot.
 | `-state` | `.jhv` file | Load a session; the window then belongs to it (autosave writes back to it). |
 | `-export` | `png` | Batch job: draw the scene, write one PNG, exit. Needs `-out`. |
 | `-out` | path | Where `-export` writes. |
-| `-dataset` | `dataset_uid` or `dataset_key` | Load that Heliad library dataset as one image layer. Repeatable. |
+| `-dataset` | `dataset_uid` or `dataset_key` | Load that FITS library dataset as one image layer. Repeatable. |
 | `-start` | ISO 8601 UTC time | With `-dataset`: the first observation to load. |
 | `-end` | ISO 8601 UTC time | With `-dataset`: the last observation to load. |
 | `-h` | none | Print the help and exit. |
@@ -18,17 +18,18 @@ option table in `CommandLine.java`; this page says what the table cannot.
 Every spelling that existed keeps working. A double-dash form of any option (`--state`, `--export`,
 `--help`) is an alias. A lone `.jhv` path is `-state <path>`.
 
-## Heliad datasets
+## HelioFITS Core datasets
 
 `-dataset sdo/aia/-/-/1/193 -start 2025-09-21T16:00:00 -end 2025-09-21T18:00:00` loads the current
-files of that dataset in the Heliad library on this computer whose observation time lies in the range,
-as one layer, in time order: what Add does on the Heliad tab. The value is looked up as a `dataset_uid`
-(when the library's index has that column, Heliad schema 5), then as a `dataset_key`, then as a former key
+files of that dataset in the FITS library on this computer whose observation time lies in the range,
+as one layer, in time order: what Add does on the FITS Library tab. The value is looked up as a `dataset_uid`
+(when the library's index has that column, HelioFITS Core schema 5), then as a `dataset_key`, then as a former key
 in `dataset_aliases`. Times are ISO 8601 UTC; a trailing `Z` and fractional seconds are optional
-(`2025-09-21T16:00:04.840` is how Heliad writes them). Without `-start` or `-end`
+(`2025-09-21T16:00:04.840` is how HelioFITS Core writes them). Without `-start` or `-end`
 the range is open at that end. One `-start` and `-end` apply to every `-dataset` on the line. With
 `-export`, a dataset that cannot be loaded (no library, no such dataset, nothing in the range) ends the
-run with exit code 3. The SAMP message `heliad.dataset.load` does the same (`docs/samp-commands.md`).
+run with exit code 3. The SAMP message `hfcore.dataset.load` (or `heliad.dataset.load`, its name before the rename) does the same
+(`docs/samp-commands.md`).
 
 ## Exit codes
 

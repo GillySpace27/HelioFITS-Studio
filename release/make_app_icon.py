@@ -8,7 +8,7 @@ Sun. Lettered HFS, its technical name, at 128 px and above; plain below, where l
 
 Since 2026-10-23 the art is iris_leaf_plain_1024.png, drawn by make_iris_art.py from
 iris_plain_1024.png and the AIA frames in iris_sources/: white dividers in Heliogram's chrome and a
-full blue leaf, to sit beside the Peek, Heliad and Heliogram icons.
+full blue leaf, to sit beside the Peek, Cache Manager and Heliogram icons.
 
 iris_plain_1024.png is the full-square art, letters already removed. It was produced by the
 HelioFITS repo's tools/make_app_icon.py (commit 773a575 there), which repaints the hexagon fill
