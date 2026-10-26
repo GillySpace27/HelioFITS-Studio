@@ -91,7 +91,10 @@ public class J2KView extends BaseView {
                     metaData[i] = new FitsMetaData(new XMLMetaDataContainer(xmlMetaData[i]), dataUri.sourceUri());
                 } catch (Exception e) {
                     xmlMetaData[i] = EMPTY_METAXML;
-                    ResolutionSet.Level level = source.readResolutionSet(i).getLevel(0);
+                    // A frame whose header has not arrived either is sized like the first: one
+                    // missing header must not cost the whole layer.
+                    ResolutionSet set = source.readResolutionSet(i);
+                    ResolutionSet.Level level = (set == null ? source.readResolutionSet(0) : set).getLevel(0);
                     metaData[i] = new BasicMetaData(level.width(), level.height(), dataUri.baseName(), dataUri.sourceUri());
                     Log.warn("Helioviewer metadata missing for layer " + i, e);
                 }
