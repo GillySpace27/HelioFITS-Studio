@@ -124,6 +124,7 @@
 - LASCO frames shown with the monthly background removed no longer keep the camera's bias level (the OFFSET header keyword). Every such frame was too bright by OFFSET / EXPTIME in every pixel. Pictures with RHEF on look the same; linear, gamma and difference views change
 
 ### Data sources
+- Helioviewer movies from the Royal Observatory of Belgium's server load again. That server sends each frame's FITS header as a separate piece of the stream, which the OpenJPEG reader did not follow, so every ROB movie failed with "readResolutionSet(int) is null" (frame counts also came out doubled). Movies from helioviewer.org were not affected
 - The ASPIICS Kind menu no longer lists every file as a kind of its own. The per-file sequence number in ASPIICS file names (such as 163040060001 or 1630400A0001) was taken as part of the kind, so a 122-frame search offered one "(1 frames)" entry per file. Kinds now differ only by the suffix that sets them apart, such as `v03`
 
 ### Projection
