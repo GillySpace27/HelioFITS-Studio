@@ -85,8 +85,50 @@ public final class Jp2BoxesCheck {
         System.arraycopy(meta, 0, half, 0, half.length);
         expect("half a metadata bin still walks without reading past its end", !Jp2Boxes.walk(half).isEmpty());
 
+        // The ROB server (jpip.swhv.oma.be) leaves each frame's asoc out of the main metadata bin:
+        // a placeholder stands for it and its content is metadata bin N, sent in the same reply.
+        // Counting every placeholder made a 49-frame movie 98, and no header was found, so every
+        // ROB movie failed to load (Gilly, 2026-10-26). Layout read from a real ROB AIA 171 movie.
+        java.util.Map<Long, byte[]> rob = new java.util.HashMap<>();
+        java.io.ByteArrayOutputStream main = new java.io.ByteArrayOutputStream();
+        for (int f = 0; f < 2; f++) {
+            main.writeBytes(box("phld", phld(4, 0, 32, "ftbl", 24))); // a codestream placeholder
+            byte[] asoc = concat(box("nlst", new byte[4]), box("xml ", ("<meta><fits><T>" + f + "</T></fits></meta>\0").getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            rob.put(f + 1L, asoc);
+            main.writeBytes(box("phld", phld(1, f + 1, asoc.length + 8, "asoc", 0))); // the frame's metadata, elsewhere
+        }
+        byte[] robMain = main.toByteArray();
+        expect("only codestream placeholders are frames: " + Jp2Boxes.placeholders(robMain), Jp2Boxes.placeholders(robMain) == 2);
+        List<String> robXml = Jp2Boxes.xmls(robMain, rob::get);
+        expect("each frame's header is read from the bin its placeholder names: " + robXml,
+                robXml.size() == 2 && robXml.get(0).contains("<T>0</T>") && robXml.get(1).contains("<T>1</T>"));
+        // A bin not yet arrived keeps its frame's place: shifting the later headers up a frame would
+        // draw each with another frame's time and pointing.
+        List<String> gap = Jp2Boxes.xmls(robMain, id -> id == 1 ? null : rob.get(id));
+        expect("a header bin not yet arrived leaves a null in its frame's place: " + gap,
+                gap.size() == 2 && gap.get(0) == null && gap.get(1) != null && gap.get(1).contains("<T>1</T>"));
+
         System.out.println(failures == 0 ? "Jp2BoxesCheck: PASS" : "Jp2BoxesCheck: " + failures + " FAILURE(S)");
         System.exit(failures == 0 ? 0 : 1);
+    }
+
+    private static byte[] box(String type, byte[] body) {
+        byte[] out = new byte[8 + body.length];
+        java.nio.ByteBuffer.wrap(out).putInt(out.length).put(type.getBytes(java.nio.charset.StandardCharsets.ISO_8859_1)).put(body);
+        return out;
+    }
+
+    /** A placeholder's content: flags, the original box's bin and header, then codestream fields. */
+    private static byte[] phld(int flags, long origId, int origLength, String origType, int codestreamBytes) {
+        java.nio.ByteBuffer b = java.nio.ByteBuffer.allocate(20 + codestreamBytes);
+        b.putInt(flags).putLong(origId).putInt(origLength).put(origType.getBytes(java.nio.charset.StandardCharsets.ISO_8859_1));
+        return b.array();
+    }
+
+    private static byte[] concat(byte[] a, byte[] b) {
+        byte[] out = java.util.Arrays.copyOf(a, a.length + b.length);
+        System.arraycopy(b, 0, out, a.length, b.length);
+        return out;
     }
 
     private static String summarise(String xml) {
