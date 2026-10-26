@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the HelioFITS Studio app icon: the sun-pie iris, lettered HFS.
+"""Build the HelioFITS Studio app icon: the sun-pie iris, with Heliogram's Sun in the hexagon.
 
 Six wedges of the Sun at six wavelengths around a dark hexagon: an aperture made of solar images,
 the mark for an application that composites them. It was this application's icon (lettered HFS)
@@ -81,8 +81,9 @@ def lettered(img):
 
 
 # Lettered at 128 and above; plain at 64 and below, where HFS cannot be read and only smudges.
-FULL = MID = masked(lettered(PLAIN))
-SMALL = masked(PLAIN)
+# Since 2026-10-26 the hexagon holds Heliogram's drawn Sun, which reads at every size, so one artwork
+# serves them all and lettered() is no longer called (kept for a lettered variant).
+FULL = MID = SMALL = masked(PLAIN)
 
 # (pixels, artwork): what macOS will actually draw at each size it asks for.
 BY_SIZE = {1024: FULL, 512: FULL, 256: FULL, 128: MID, 64: SMALL, 32: SMALL, 16: SMALL}
