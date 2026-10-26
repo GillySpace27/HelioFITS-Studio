@@ -11,7 +11,8 @@ the family version (2026-10-23, Gilly's pick beside Peek, Heliad and Heliogram):
   * the blue leaf and the whole cyan leaf are painted from the real AIA 335 and 131 frames in
     iris_sources/ (see SOURCES.md there), not from the old art. The old cyan was too noisy to
     extend without a seam, so it is replaced whole;
-  * the dividers are Heliogram's chrome white (#E7EAF3), 22 px at 1024, with round joints.
+  * the dividers are Heliogram's chrome white (#E7EAF3), 44 px at 1024 (the stroke of the Heliogram
+    and HelioFITS outlines; 22 px until 2026-10-26), with round joints.
 
 The red, olive, gold and purple leaves are the original art, untouched.
 
@@ -39,7 +40,7 @@ ORIGINAL = os.path.join(HERE, "iris_plain_1024.png")
 OUT = os.path.join(HERE, "iris_leaf_plain_1024.png")
 
 CHROME = (0xE7, 0xEA, 0xF3)
-LINE = 22                                 # divider width at 1024
+LINE = 44                                 # divider width at 1024: Heliogram's and HelioFITS's outline stroke
 C, APO = 511.5, 202                       # hexagon centre and apothem, to the middle of the old dividers
 R = APO / math.cos(math.radians(30))
 V = {"L": (C - R, C), "R": (C + R, C),
