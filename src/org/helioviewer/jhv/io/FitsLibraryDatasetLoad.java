@@ -15,12 +15,12 @@ import org.helioviewer.jhv.thread.Task;
 import org.helioviewer.jhv.time.TimeUtils;
 
 /**
- * One Heliad dataset, named by its {@code dataset_uid} or {@code dataset_key}, loaded as one image
+ * One HelioFITS Core dataset, named by its {@code dataset_uid} or {@code dataset_key}, loaded as one image
  * layer from its current files in a time range: what {@code -dataset} on the command line and the
- * {@code heliad.dataset.load} SAMP message do. The same files the Heliad tab's Add would load,
- * read the same way (HeliadLibrary, read-only).
+ * {@code hfcore.dataset.load} SAMP message do. The same files the FITS Library tab's Add would load,
+ * read the same way (FitsLibrary, read-only).
  */
-public final class HeliadDatasetLoad {
+public final class FitsLibraryDatasetLoad {
 
     /** The dataset could not be loaded; the message says why in words for a person. */
     public static final class Failed extends Exception {
@@ -29,7 +29,7 @@ public final class HeliadDatasetLoad {
         }
     }
 
-    private HeliadDatasetLoad() {}
+    private FitsLibraryDatasetLoad() {}
 
     /**
      * Load the dataset's files in [start, end] (ISO 8601 UTC, either may be null for open) as one
@@ -46,7 +46,7 @@ public final class HeliadDatasetLoad {
             out.completeExceptionally(e);
             return out;
         }
-        Task.submitBackground(() -> files(HeliadLibrary.find(), uidOrKey, from, to), uris ->
+        Task.submitBackground(() -> files(FitsLibrary.find(), uidOrKey, from, to), uris ->
                 Commands.loadImage(uris).whenComplete((layer, t) -> {
                     if (t != null)
                         out.completeExceptionally(t);
@@ -67,24 +67,24 @@ public final class HeliadDatasetLoad {
     }
 
     /** The URIs of the dataset's existing current files in [from, to], in time order. Package-private for the check. */
-    static List<URI> files(@Nullable HeliadLibrary.Location lib, String uidOrKey, long from, long to) throws Failed {
+    static List<URI> files(@Nullable FitsLibrary.Location lib, String uidOrKey, long from, long to) throws Failed {
         if (lib == null)
-            throw new Failed("No Heliad library on this computer.");
+            throw new Failed("No FITS library on this computer.");
         try {
-            String key = HeliadLibrary.datasetKey(lib, uidOrKey);
+            String key = FitsLibrary.datasetKey(lib, uidOrKey);
             if (key == null)
-                throw new Failed("No dataset " + uidOrKey + " in the Heliad library.");
+                throw new Failed("No dataset " + uidOrKey + " in the FITS library.");
             List<File> files = from == Long.MIN_VALUE && to == Long.MAX_VALUE
-                    ? HeliadLibrary.files(lib, key) : HeliadLibrary.files(lib, key, Math.max(from, 0), Math.min(to, MAX_TIME));
+                    ? FitsLibrary.files(lib, key) : FitsLibrary.files(lib, key, Math.max(from, 0), Math.min(to, MAX_TIME));
             List<URI> uris = new ArrayList<>();
             for (File f : files)
                 if (f.isFile()) // gone from the store since the index was written
                     uris.add(f.toURI());
             if (uris.isEmpty())
-                throw new Failed("Dataset " + uidOrKey + " has no files in the Heliad library for that time range.");
+                throw new Failed("Dataset " + uidOrKey + " has no files in the FITS library for that time range.");
             return uris;
-        } catch (SQLException | HeliadLibrary.TooNew e) {
-            throw new Failed("Could not read the Heliad library: " + e.getMessage());
+        } catch (SQLException | FitsLibrary.TooNew e) {
+            throw new Failed("Could not read the FITS library: " + e.getMessage());
         }
     }
 

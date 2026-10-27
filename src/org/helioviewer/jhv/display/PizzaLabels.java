@@ -96,7 +96,7 @@ public final class PizzaLabels {
     /**
      * Angstroms in one of a wavelength unit as a FITS WAVEUNIT card spells it; NaN for a unit not
      * known here. No card at all reads as angstrom, the unit Studio already shows a bare
-     * wavelength in (HeliadTab's wavelength column). Pure.
+     * wavelength in (FitsLibraryTab's wavelength column). Pure.
      */
     static double angstromPerUnit(String unit) {
         return switch (unit.strip().toLowerCase(Locale.ROOT)) {

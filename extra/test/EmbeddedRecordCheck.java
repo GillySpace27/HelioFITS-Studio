@@ -57,7 +57,7 @@ public final class EmbeddedRecordCheck {
     private static final String A = "00000000-0000-4000-8000-00000000000a";
 
     private static JSONObject scene() {
-        String lib = "file:" + HOME + "/HeliadLibrary/store/aia/";
+        String lib = "file:" + HOME + "/HelioFITSLibrary/store/aia/";
         JSONObject params = new JSONObject().put("opacity", 1).put("lut", "SDO-AIA 193 \u00c5").put("clippingMode", "Percentile05")
                 .put("scalingMode", "Gamma").put("gamma", 0.45).put("upsilonLow", 0.6).put("upsilonHigh", 0.4).put("differenceMode", "None");
         JSONObject a = new JSONObject().put("className", "org.helioviewer.jhv.layers.ImageLayer").put("name", "SDO AIA 193").put("id", A)

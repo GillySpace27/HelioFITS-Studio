@@ -126,18 +126,18 @@ public class AspiicsDialog extends StandardDialog {
             List<String> selected = listPane.getSelectedValuesList();
             if (selected.isEmpty())
                 return;
-            // Heliad names pB and pA in words; for the others any ASPIICS in the range is offered.
+            // HelioFITS Core names pB and pA in words; for the others any ASPIICS in the range is offered.
             String product = switch (selectedProductType()) {
                 case "pb" -> "polarized-brightness";
                 case "pa" -> "polarization-angle";
                 default -> null;
             };
             long[] span = span(selected);
-            HeliadFirst.Choice choice = span == null ? HeliadFirst.Choice.DOWNLOAD
-                    : HeliadFirst.offer(this, new org.helioviewer.jhv.io.HeliadLibrary.Wanted("proba-3", "aspiics", null, product, null, null), span[0], span[1]);
-            if (choice == HeliadFirst.Choice.CANCELLED || choice == HeliadFirst.Choice.DOWNLOAD && !confirmDownload(selected.size()))
+            FitsLibraryFirst.Choice choice = span == null ? FitsLibraryFirst.Choice.DOWNLOAD
+                    : FitsLibraryFirst.offer(this, new org.helioviewer.jhv.io.FitsLibrary.Wanted("proba-3", "aspiics", null, product, null, null), span[0], span[1]);
+            if (choice == FitsLibraryFirst.Choice.CANCELLED || choice == FitsLibraryFirst.Choice.DOWNLOAD && !confirmDownload(selected.size()))
                 return;
-            if (choice == HeliadFirst.Choice.DOWNLOAD)
+            if (choice == FitsLibraryFirst.Choice.DOWNLOAD)
                 Commands.loadImage(selected.stream().map(AspiicsDialog::uri).toList());
             setVisible(false);
         });

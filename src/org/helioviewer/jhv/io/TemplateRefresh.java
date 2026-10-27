@@ -28,13 +28,13 @@ public final class TemplateRefresh {
 
     /** Installs Refresh Data when a Heliad library is found; without one the button keeps saying "Needs Heliad". */
     public static void install() {
-        if (HeliadLibrary.find() == null)
+        if (FitsLibrary.find() == null)
             return;
         TemplateManager.refreshDataHook.install(TemplateRefresh::refresh);
     }
 
     private static void refresh(TemplateLibrary.Entry entry) {
-        HeliadLibrary.Location lib = HeliadLibrary.find();
+        FitsLibrary.Location lib = FitsLibrary.find();
         if (lib == null) {
             Message.warn("Refresh Data", "No Heliad library was found.");
             return;
@@ -43,7 +43,7 @@ public final class TemplateRefresh {
         JSONObject session = entry.session();
         AppThread.create(() -> {
             try {
-                JSONArray result = HeliadIngest.templateRefresh(lib.root(), session, WAIT);
+                JSONArray result = FitsCoreIngest.templateRefresh(lib.root(), session, WAIT);
                 String text = result == null ? "No Heliad core was found to ask." : summary(result);
                 EventQueue.invokeLater(() -> Message.info("Refresh Data: " + name, text));
             } catch (IOException e) {
