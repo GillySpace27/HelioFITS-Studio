@@ -41,13 +41,12 @@ public final class BackgroundPanel {
 
     private final ImageLayer layer;
     private final JLabel title = new JLabel("Subtract ", JLabel.RIGHT);
-    private final JCheckBox subtract = new JCheckBox(NRL);
+    private final JCheckBox subtract = new JCheckBox("the chosen background");
     private final JButton preview = new JButton("Preview");
     private final JComboBox<LascoBackground.Mode> mode = new JComboBox<>(LascoBackground.Mode.values());
     private final FileRow fileA = new FileRow(true);
     private final FileRow fileB = new FileRow(false);
     private final JLabel status = new JLabel();
-    private static final String NRL = "NRL monthly minimum image";
     private boolean syncing;
     @Nullable
     private BackgroundPreview dialog;
@@ -56,7 +55,8 @@ public final class BackgroundPanel {
 
     public BackgroundPanel(ImageLayer _layer) {
         layer = _layer;
-        subtract.setToolTipText("<html>Take NRL's monthly minimum image off each frame (in DN per second), as the browse movies do.<br>"
+        subtract.setToolTipText("<html>Take the background chosen under Source off each frame, in DN per second.<br>"
+                + "The default, Auto, uses NRL's monthly minimum images as the browse movies do, with nothing to choose.<br>"
                 + "Off, frames are the archive's product as served, in DN. Changing it reads the frames again.");
         subtract.addActionListener(e -> {
             if (syncing)
@@ -69,8 +69,8 @@ public final class BackgroundPanel {
                 dialog = new BackgroundPreview();
             dialog.showFor(request, choice());
         });
-        mode.setToolTipText("<html>Interpolated: NRL's two monthly images around the frame, blended in time.<br>"
-                + "Nearest: the one monthly image closest in time.<br>"
+        mode.setToolTipText("<html>Auto, interpolated: NRL's two monthly images around each frame, blended in time; found and fetched for you.<br>"
+                + "Auto, nearest: the one NRL monthly image closest in time.<br>"
                 + "Local file: one FITS file of your own, for every frame.<br>"
                 + "Local pair: two dated FITS files of your own, blended by where the frame falls between their DATE-OBS.<br>"
                 + "A local file is put in DN/s as the frame is, (BZERO + raw x BSCALE - OFFSET) / EXPTIME, and must be the frame's size.");
@@ -183,9 +183,6 @@ public final class BackgroundPanel {
         } finally {
             syncing = false;
         }
-        String what = choice.mode().local() ? "Your own background" : NRL;
-        if (!what.equals(subtract.getText()))
-            subtract.setText(what);
         fileA.show(choice.mode().local(), choice.mode() == LascoBackground.Mode.LOCAL_PAIR ? "File 1 " : "File ", choice.fileA());
         fileB.show(choice.mode() == LascoBackground.Mode.LOCAL_PAIR, "File 2 ", choice.fileB());
 

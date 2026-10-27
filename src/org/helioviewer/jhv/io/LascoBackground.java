@@ -56,7 +56,7 @@ public final class LascoBackground {
 
     /** Where a layer's background comes from. The NRL modes need the network; the local ones read the user's files. */
     public enum Mode {
-        INTERPOLATED("Interpolated (NRL)"), NEAREST("Nearest (NRL)"), LOCAL_FILE("Local file"), LOCAL_PAIR("Local pair");
+        INTERPOLATED("Auto: NRL, interpolated"), NEAREST("Auto: NRL, nearest"), LOCAL_FILE("Local file"), LOCAL_PAIR("Local pair");
 
         private final String label;
 
