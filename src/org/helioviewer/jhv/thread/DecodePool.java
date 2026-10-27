@@ -52,7 +52,11 @@ public final class DecodePool {
             set = Integer.parseInt(Settings.getProperty(KEY).trim());
         } catch (RuntimeException ignored) { // unset or not a number: automatic
         }
-        return set > 0 ? Math.min(set, 64) : automatic(performanceCores());
+        return set > 0 ? Math.min(set, 64) : automatic(Cores.PERFORMANCE);
+    }
+
+    private static final class Cores { // asked once: on a Mac it runs sysctl, too slow for every decode
+        static final int PERFORMANCE = performanceCores();
     }
 
     static int automatic(int cores) {
