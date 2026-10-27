@@ -14,6 +14,7 @@ import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.HdrTransfer;
+import org.helioviewer.jhv.display.Pizza;
 import org.helioviewer.jhv.gui.component.MoviePanel;
 import org.helioviewer.jhv.image.nio.MappedImageFactory;
 import org.helioviewer.jhv.image.nio.NativeImageFactory;
@@ -67,6 +68,23 @@ public final class ExportMovie {
         start(context, null, once, mode);
     }
 
+    /**
+     * A sun pizza spin (HS-25): one seamless turn of the wedges in {@code frames} frames, with the
+     * data standing still. A Free recording at the person's own size and encoding, so a spin for a
+     * 4K outreach video is as sharp as any other recording; {@link Pizza} turns the cut after each
+     * captured frame and stops the recording on the last one.
+     */
+    public static void startSpin(@Nullable Commands.OperationContext context, int frames) {
+        if (!Pizza.isOn() || isRecording())
+            return;
+        ViewState.RecordingData own = ViewState.recordingData();
+        startWith(context, null, null, new ViewState.RecordingData(ViewState.RecordingMode.FREE, own.aspect(), own.longSide()));
+        if (!isRecording())
+            return;
+        Pizza.beginSpinRecording(frames);
+        DisplayController.display();
+    }
+
     /** The encoding a recording uses: {@code once} when given, else the settings the person has chosen. Reads, never writes. */
     static Encoding encodingFor(@Nullable ExportPreset once) {
         return once == null
@@ -89,6 +107,11 @@ public final class ExportMovie {
 
     private static void start(@Nullable Commands.OperationContext context, @Nullable Commands.RecordStartInput input,
                               @Nullable ExportPreset once, @Nullable ViewState.RecordingMode onceMode) {
+        startWith(context, input, once, onceMode == null ? null : shareData(ViewState.recordingData(), onceMode));
+    }
+
+    private static void startWith(@Nullable Commands.OperationContext context, @Nullable Commands.RecordStartInput input,
+                                  @Nullable ExportPreset once, @Nullable ViewState.RecordingData override) {
         if (isRecording()) {
             if (context != null)
                 Commands.notifyRecordingFinished(context, false, "Recording already in progress.", null);
@@ -101,7 +124,7 @@ public final class ExportMovie {
 
             ViewState.PlaybackData playbackData = ViewState.playbackData();
             int fps = playbackData.speedUnit().isRelative() ? playbackData.speed() : Player.FPS_ABSOLUTE;
-            ViewState.RecordingData data = onceMode == null ? ViewState.recordingData() : shareData(ViewState.recordingData(), onceMode);
+            ViewState.RecordingData data = override == null ? ViewState.recordingData() : override;
             framesQueued.set(0);
             framesEncoded.set(0);
             recordingSession = new RecordingSession(context, data, fps, encodingFor(once));

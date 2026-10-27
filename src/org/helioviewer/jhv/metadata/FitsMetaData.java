@@ -25,6 +25,7 @@ public final class FitsMetaData extends CommonMetaData {
     private String observatory = "";
     private String pipelineVersion = ""; // FILEVRSN, for the formats that carry one
     private String unit = ""; // BUNIT as the header states it, for the Compare palette's Difference
+    private String waveUnit = ""; // WAVEUNIT as the header states it, for the sun pizza's labels (HS-25)
 
     private double referenceX = 0;
     private double referenceY = 0;
@@ -97,6 +98,7 @@ public final class FitsMetaData extends CommonMetaData {
         viewpoint = retrievePosition(m, retrieveTime(m));
         retrievePixelParameters(m);
         unit = m.getString("BUNIT").map(String::trim).orElse("");
+        waveUnit = m.getString("WAVEUNIT").map(String::trim).orElse("");
 
         retrieveOcculterRadii(m);
         retrieveOcculterLinearCutOff(m);
@@ -496,6 +498,12 @@ public final class FitsMetaData extends CommonMetaData {
     @Nonnull
     public String getUnit() {
         return unit;
+    }
+
+    /** The header's WAVEUNIT, trimmed, or empty when it states none: the unit of a numeric {@link #getMeasurement}. */
+    @Nonnull
+    public String getWaveUnit() {
+        return waveUnit;
     }
 
     @Nonnull

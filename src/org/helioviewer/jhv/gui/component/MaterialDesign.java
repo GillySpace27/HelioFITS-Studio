@@ -47,6 +47,7 @@ enum MaterialDesign {
     PAUSE("mdi-pause", '\uf3e4'),
     PENCIL("mdi-pencil", '\uf3eb'), // verified against the shipped font's cmap, and its outline
     DRAG_HORIZONTAL("mdi-drag-horizontal", '\uf1dc'), // the grab bars on a draggable row
+    PIZZA("mdi-pizza", '\uf409'), // verified in the shipped font's cmap (HS-25)
     PLAY("mdi-play", '\uf40a'),
     PLUS_CIRCLE("mdi-plus-circle", '\uf417'),
     PLUS_ONE("mdi-plus-one", '\uf41b'),
