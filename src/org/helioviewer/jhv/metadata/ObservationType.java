@@ -29,10 +29,12 @@ public final class ObservationType {
     /**
      * @param labelBackgroundSubtracted the label once the monthly background is off the pixels (LASCO);
      *                                  null where the product has no such step and label always holds
+     * @param labelLocalBackgroundSubtracted the label once a background the user chose (a local file
+     *                                  or pair) is off the pixels; null to fall back to the one above
      */
     record Row(@Nullable String instrument, @Nullable String detector, @Nullable String measurement,
                @Nullable String measurementEndsWith, @Nullable String product, String label,
-               @Nullable String labelBackgroundSubtracted, String source) {
+               @Nullable String labelBackgroundSubtracted, @Nullable String labelLocalBackgroundSubtracted, String source) {
 
         boolean matches(String inst, String det, String meas, String prod) {
             return (instrument == null || instrument.equals(inst))
@@ -53,7 +55,8 @@ public final class ObservationType {
             list.add(new Row(r.optString("instrument", null), r.optString("detector", null),
                     r.optString("measurement", null), r.optString("measurementEndsWith", null),
                     r.optString("product", null), r.getString("label"),
-                    r.optString("labelBackgroundSubtracted", null), r.getString("source")));
+                    r.optString("labelBackgroundSubtracted", null), r.optString("labelLocalBackgroundSubtracted", null),
+                    r.getString("source")));
         }
         return List.copyOf(list);
     }
@@ -77,8 +80,13 @@ public final class ObservationType {
      * a fixed label read "includes the F corona" over pixels it had been subtracted from.
      */
     public static String of(MetaData m, boolean backgroundSubtracted) {
+        return of(m, backgroundSubtracted, false);
+    }
+
+    /** As above; local when the background taken off was the user's own file or pair rather than NRL's. */
+    public static String of(MetaData m, boolean backgroundSubtracted, boolean local) {
         if (m instanceof FitsMetaData f)
-            return label(f.getInstrument(), f.getDetector(), f.getMeasurement(), f.getDisplayName(), backgroundSubtracted);
+            return label(f.getInstrument(), f.getDetector(), f.getMeasurement(), f.getDisplayName(), backgroundSubtracted, local);
         return UNKNOWN;
     }
 
@@ -87,7 +95,7 @@ public final class ObservationType {
     }
 
     public static String of(FitsMetaData.Observation o, boolean backgroundSubtracted) {
-        return label(o.instrument(), o.detector(), o.measurement(), o.displayName(), backgroundSubtracted);
+        return label(o.instrument(), o.detector(), o.measurement(), o.displayName(), backgroundSubtracted, false);
     }
 
     /**
@@ -102,13 +110,20 @@ public final class ObservationType {
     }
 
     static String label(String instrument, String detector, String measurement, String displayName, boolean backgroundSubtracted) {
+        return label(instrument, detector, measurement, displayName, backgroundSubtracted, false);
+    }
+
+    static String label(String instrument, String detector, String measurement, String displayName, boolean backgroundSubtracted, boolean local) {
         String product = punchProduct(displayName);
         for (Row r : rows) {
             // a product row is PUNCH's alone; without a product code nothing else can match it
             if (r.product() == null && !product.isEmpty())
                 continue;
-            if (r.matches(instrument, detector, measurement, product))
-                return backgroundSubtracted && r.labelBackgroundSubtracted() != null ? r.labelBackgroundSubtracted() : r.label();
+            if (!r.matches(instrument, detector, measurement, product))
+                continue;
+            if (backgroundSubtracted && local && r.labelLocalBackgroundSubtracted() != null)
+                return r.labelLocalBackgroundSubtracted();
+            return backgroundSubtracted && r.labelBackgroundSubtracted() != null ? r.labelBackgroundSubtracted() : r.label();
         }
         return UNKNOWN;
     }

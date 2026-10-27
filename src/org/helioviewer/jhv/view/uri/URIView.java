@@ -48,7 +48,7 @@ public final class URIView extends BaseView {
             MetaData m;
             File file = dataUri.file();
             SourceInfo info = hasFITS() ? FITSImage.readInfo(file, _processingSettings.fitsParameters().plane(),
-                    _processingSettings.fitsParameters().subtractBackground()) : GenericImage.readInfo(file);
+                    _processingSettings.fitsParameters().subtractBackground(), _processingSettings.fitsParameters().background()) : GenericImage.readInfo(file);
             clipSet = info.clipSet();
             planes = info.planes();
 

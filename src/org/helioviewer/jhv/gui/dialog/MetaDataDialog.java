@@ -130,7 +130,8 @@ public final class MetaDataDialog extends StandardDialog implements Interfaces.S
         MetaData metadata = layer.getMetaData();
         org.helioviewer.jhv.view.View.ImageData data = layer.getImageData();
         // HS-19: say what the layer shows, never guess; a LASCO frame reads differently once its background is off
-        String observation = ObservationType.of(metadata, data != null && data.imageBuffer().isBackgroundSubtracted());
+        String observation = ObservationType.of(metadata, data != null && data.imageBuffer().isBackgroundSubtracted(),
+                data != null && data.imageBuffer().isBackgroundLocal());
         setTitle(ObservationType.UNKNOWN.equals(observation) ? "Image Information" : "Image Information: " + observation);
         URI sourceUri = metadata.getSourceUri();
         boolean hasSourceUri = !sourceUri.equals(MetaData.UNKNOWN_SOURCE_URI);
