@@ -1,6 +1,7 @@
 # Performance plan: memory, CPU and latency
 
-Status: draft for Gilly's review (2026-10-25). Nothing here is implemented.
+Status: the pre-implementation plan, kept as written on 2026-10-25. WP1 to WP4 have since been
+implemented on `claude/perf-memory-latency` (PR #102); the changelog says what shipped.
 Branch when work starts: `claude/perf-memory-latency-<slug>` (one initiative per branch).
 Tag the start before any multi-file change: `git tag pre/perf-memory-latency`.
 

@@ -11,27 +11,32 @@ name, wt = sys.argv[1], sys.argv[2]
 out = f"{S}/{name}"
 os.makedirs(out, exist_ok=True)
 JCMD = "jcmd"
-def sh(cmd, **kw): return subprocess.run(cmd, shell=True, capture_output=True, text=True, **kw).stdout
+def sh(*argv, to=None, env=None):  # no shell: argv as given, stderr folded into the output
+    r = subprocess.run([str(a) for a in argv], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+    if to: open(to, "w").write(r.stdout)
+    return r.stdout
+def last(text): return (text.strip().splitlines() or [""])[-1]
+def first(text, word): return next((l for l in text.splitlines() if word in l), "")
 def samp(mtype, params):
     home = open(f"{S}/{name}.home").read().strip()
-    return sh(f"python3 {SD}/samp.py {home} {mtype} '{json.dumps(params)}' 2>&1 | tail -1")
+    return last(sh(sys.executable, f"{SD}/samp.py", home, mtype, json.dumps(params)))
 def snap(tag):
     pid = open(f"{S}/{name}.pid").read().strip()
     d = {"t": time.strftime("%H:%M:%S"), "tag": tag}
-    fp = sh(f"footprint {pid} 2>/dev/null | grep -m1 Footprint")
+    fp = first(sh("footprint", pid), "Footprint")
     d["footprint"] = fp.split("Footprint:")[1].split("(")[0].strip() if "Footprint" in fp else "?"
-    hi = sh(f"{JCMD} {pid} GC.heap_info 2>/dev/null | grep -m1 garbage")
+    hi = first(sh(JCMD, pid, "GC.heap_info"), "garbage")
     m = re.search(r"committed (\d+)K, used (\d+)K", hi)
     d["heap_used_MB"] = int(m.group(2)) // 1024 if m else None
-    d["cpu"] = sh(f"ps -p {pid} -o %cpu= ").strip()
+    d["cpu"] = sh("ps", "-p", pid, "-o", "%cpu=").strip()
     open(f"{out}/snapshots.jsonl", "a").write(json.dumps(d) + "\n")
     print(d, flush=True)
     return d
 def jfr(tag, secs):
     pid = open(f"{S}/{name}.pid").read().strip()
     f = f"{out}/{tag}.jfr"
-    print(sh(f"{JCMD} {pid} JFR.start name={tag} duration={secs}s filename={f} settings=profile jdk.ObjectAllocationOutsideTLAB#enabled=true 2>&1 | tail -1"), flush=True)
-sh(f"E2E_OUT={S} {SD}/launch.sh {wt} {name}")
+    print(last(sh(JCMD, pid, "JFR.start", f"name={tag}", f"duration={secs}s", f"filename={f}", "settings=profile", "jdk.ObjectAllocationOutsideTLAB#enabled=true")), flush=True)
+sh(f"{SD}/launch.sh", wt, name, env={**os.environ, "E2E_OUT": S})
 pid = open(f"{S}/{name}.pid").read().strip()
 home = open(f"{S}/{name}.home").read().strip()
 time.sleep(45)  # sources load, SAMP hub up
@@ -51,7 +56,7 @@ for i in range(8):
     time.sleep(15); snap(f"download-{(i+1)*15}s")
 snap("before-idle")
 if PROBE:
-    sh(f"{JCMD} {pid} GC.class_histogram > {out}/histogram.txt 2>&1"); sh(f"footprint {pid} > {out}/footprint.txt 2>&1"); print("probe done", flush=True); sys.exit(0)
+    sh(JCMD, pid, "GC.class_histogram", to=f"{out}/histogram.txt"); sh("footprint", pid, to=f"{out}/footprint.txt"); print("probe done", flush=True); sys.exit(0)
 jfr("idle", 60); time.sleep(65); snap("after-idle")
 jfr("scrub", 60)
 random.seed(7)
@@ -67,10 +72,10 @@ c.disconnect()
 print("scrub seeks:", n, flush=True)
 time.sleep(8)
 snap("after-scrub")
-sh(f"{JCMD} {pid} GC.class_histogram > {out}/histogram.txt 2>&1")
-sh(f"{JCMD} {pid} GC.heap_info > {out}/heap_info.txt 2>&1")
-sh(f"{JCMD} {pid} Thread.print > {out}/threads.txt 2>&1")
-sh(f"footprint {pid} > {out}/footprint.txt 2>&1")
-sh(f"vmmap -v {pid} > {out}/vmmap.txt 2>&1")
+sh(JCMD, pid, "GC.class_histogram", to=f"{out}/histogram.txt")
+sh(JCMD, pid, "GC.heap_info", to=f"{out}/heap_info.txt")
+sh(JCMD, pid, "Thread.print", to=f"{out}/threads.txt")
+sh("footprint", pid, to=f"{out}/footprint.txt")
+sh("vmmap", "-v", pid, to=f"{out}/vmmap.txt")
 snap("end")
 print("done", flush=True)
