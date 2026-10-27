@@ -20,6 +20,7 @@ import org.helioviewer.jhv.time.TimeUtils;
 
 import nom.tam.fits.BasicHDU;
 import nom.tam.fits.Fits;
+import nom.tam.fits.Header;
 
 /**
  * LASCO monthly minimum images, which are what makes a C3 frame readable.
@@ -45,8 +46,76 @@ public final class LascoBackground {
     // decided rather than assumed; the archive holds 96 through the present.
     private static final int CENTURY_PIVOT = 96;
 
-    private static boolean enabled() {
+    /**
+     * Whether a new layer starts with its background subtracted. Each layer then keeps its own
+     * choice (the Background section of its options); this property only sets where it starts.
+     */
+    public static boolean subtractByDefault() {
         return !"false".equals(Settings.getProperty("display.lascoBackground"));
+    }
+
+    /**
+     * Which background one frame would have subtracted: the product it belongs to, its moment and
+     * its size. Carried on the decoded frame whether or not the subtraction ran, so the layer's
+     * options can offer the switch and show the background itself.
+     *
+     * @param detector "C2" or "C3"
+     * @param filter   FITS FILTER, e.g. "Orange" or "Clear"
+     * @param polar    FITS POLAR, e.g. "Clear"
+     * @param milli    the frame's observation time
+     */
+    public record Request(String detector, String filter, String polar, long milli, int width, int height) {
+
+        /** The request for a LASCO frame's header, or null when NRL publishes no background for it. */
+        @Nullable
+        public static Request of(Header header, int width, int height) {
+            String telescope = header.getStringValue("TELESCOP");
+            if (telescope == null || !telescope.trim().equalsIgnoreCase("SOHO"))
+                return null;
+            String detector = header.getStringValue("DETECTOR");
+            String filter = header.getStringValue("FILTER");
+            String polar = header.getStringValue("POLAR");
+            if (detector == null || filter == null || polar == null || productKey(detector, filter, polar) == null)
+                return null;
+            // LASCO splits the observation time across DATE-OBS and TIME-OBS and writes the date with
+            // slashes, the same form FitsMetaData reassembles for its own use.
+            String date = header.getStringValue("DATE-OBS");
+            String time = header.getStringValue("TIME-OBS");
+            if (date == null || time == null)
+                return null;
+            try {
+                String hms = time.trim();
+                long milli = TimeUtils.parse(date.trim().replace('/', '-') + 'T' + (hms.length() > 8 ? hms.substring(0, 8) : hms));
+                return new Request(detector.trim(), filter.trim(), polar.trim(), milli, width, height);
+            } catch (RuntimeException e) {
+                return null;
+            }
+        }
+
+        /** The background in DN per second, rows in FITS order; see {@link LascoBackground#perSecond}. */
+        @Nullable
+        public float[] perSecond() {
+            return LascoBackground.perSecond(detector, filter, polar, milli, width * height);
+        }
+
+        /** The monthly files this frame's background is blended from, for a caption; empty if none is listed. */
+        public String describe() throws Exception {
+            String key = productKey(detector, filter, polar);
+            if (key == null)
+                return "";
+            {
+                NavigableMap<Long, String> catalog = catalog(key);
+                Map.Entry<Long, String> before = catalog.floorEntry(milli);
+                Map.Entry<Long, String> after = catalog.ceilingEntry(milli);
+                if (before == null && after == null)
+                    return "";
+                if (before == null || after == null || before.getKey().equals(after.getKey()))
+                    return (before == null ? after : before).getValue();
+                double w = (milli - before.getKey()) / (double) (after.getKey() - before.getKey());
+                return String.format(Locale.US, "%s and %s, weighted %.0f%% toward the later",
+                        before.getValue(), after.getValue(), 100 * Math.clamp(w, 0, 1));
+            }
+        }
     }
 
     /** Listing per product key, fetched once. */
@@ -107,9 +176,6 @@ public final class LascoBackground {
      */
     @Nullable
     public static float[] perSecond(String detector, String filter, String polar, long milli, int pixels) {
-        if (!enabled())
-            return null;
-
         String key = productKey(detector, filter, polar);
         if (key == null)
             return null;
