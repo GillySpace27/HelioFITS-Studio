@@ -3,6 +3,9 @@ package org.helioviewer.jhv.layers.filters;
 import java.awt.Component;
 import java.awt.FileDialog;
 import java.io.File;
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.annotation.Nullable;
 import javax.swing.JButton;
@@ -11,13 +14,18 @@ import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 
+import org.helioviewer.jhv.app.Commands;
+import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.ImageProcessingSettings;
+import org.helioviewer.jhv.io.BackgroundFiles;
+import org.helioviewer.jhv.io.Directories;
 import org.helioviewer.jhv.io.LascoBackground;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layers;
+import org.helioviewer.jhv.thread.Task;
 import org.helioviewer.jhv.view.View;
 
 /**
@@ -43,6 +51,7 @@ public final class BackgroundPanel {
     private final JLabel title = new JLabel("Subtract ", JLabel.RIGHT);
     private final JCheckBox subtract = new JCheckBox("the chosen background");
     private final JButton preview = new JButton("Preview");
+    private final JButton asLayer = new JButton("Show as layer");
     private final JComboBox<LascoBackground.Mode> mode = new JComboBox<>(LascoBackground.Mode.values());
     private final FileRow fileA = new FileRow(true);
     private final FileRow fileB = new FileRow(false);
@@ -69,6 +78,9 @@ public final class BackgroundPanel {
                 dialog = new BackgroundPreview();
             dialog.showFor(request, choice());
         });
+        asLayer.setToolTipText("<html>Add the background as a layer of its own: one frame per frame of this layer, at the frame's time and pointing,<br>"
+                + "in DN/s, exactly what was taken off. Blink or swipe it against this layer in Compare.");
+        asLayer.addActionListener(e -> showAsLayer());
         mode.setToolTipText("<html>Auto, interpolated: NRL's two monthly images around each frame, blended in time; found and fetched for you.<br>"
                 + "Auto, nearest: the one NRL monthly image closest in time.<br>"
                 + "Local file: one FITS file of your own, for every frame.<br>"
@@ -141,11 +153,54 @@ public final class BackgroundPanel {
         return new Row(title, subtract, preview);
     }
 
-    /** Where the background comes from. */
+    /** Where the background comes from, and the button that adds it as a layer. */
     public FilterDetails modeRow() {
-        JPanel filler = new JPanel();
-        filler.setOpaque(false);
-        return new Row(new JLabel("Source ", JLabel.RIGHT), mode, filler);
+        return new Row(new JLabel("Source ", JLabel.RIGHT), mode, asLayer);
+    }
+
+    /**
+     * Write the background of every frame this layer holds as a FITS file (BackgroundFiles) and open
+     * those as a new layer. Off the EDT: the NRL modes may fetch, and a long movie is many files.
+     */
+    private void showAsLayer() {
+        View view = layer.getView();
+        List<File> frames = new ArrayList<>();
+        for (int i = 0; i <= view.getMaximumFrameNumber(); i++) {
+            String key = view.frameKey(i);
+            if (key == null || !key.startsWith("file:"))
+                continue;
+            File f = new File(URI.create(key));
+            if (frames.isEmpty() || !frames.getLast().equals(f))
+                frames.add(f);
+        }
+        if (frames.isEmpty()) {
+            Message.warn("Show background as layer", "This layer's frames are not FITS files on disk yet; try again once it has loaded.");
+            return;
+        }
+        LascoBackground.Choice choice = choice();
+        asLayer.setEnabled(false);
+        asLayer.setText("Writing...");
+        Task.submitBackground(() -> BackgroundFiles.write(frames, choice, new File(Directories.FILECACHE.getFile(), "Backgrounds")),
+                written -> {
+                    asLayer.setText("Show as layer");
+                    asLayer.setEnabled(true);
+                    if (written.files().isEmpty()) {
+                        Message.warn("Show background as layer", "No frame had a background to show.\n" + String.join("\n", written.skipped()));
+                        return;
+                    }
+                    List<URI> uris = new ArrayList<>(written.files().size());
+                    for (File f : written.files())
+                        uris.add(f.toURI());
+                    Commands.loadImage(uris);
+                    if (!written.skipped().isEmpty())
+                        Message.warn("Show background as layer", written.skipped().size() + " of " + frames.size()
+                                + " frames have no background in the new layer:\n" + String.join("\n", written.skipped().subList(0, Math.min(10, written.skipped().size()))));
+                },
+                t -> {
+                    asLayer.setText("Show as layer");
+                    asLayer.setEnabled(true);
+                    Message.err("Show background as layer", t.getMessage(), t);
+                });
     }
 
     /** The local file, or the first of a pair; hidden for NRL modes. */
@@ -222,6 +277,8 @@ public final class BackgroundPanel {
             status.setToolTipText(tip);
         }
         preview.setEnabled(request != null);
+        if (!"Writing...".equals(asLayer.getText()))
+            asLayer.setEnabled(request != null);
         if (dialog != null)
             dialog.follow(request, choice);
     }

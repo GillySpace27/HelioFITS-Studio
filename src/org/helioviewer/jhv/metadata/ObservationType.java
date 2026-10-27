@@ -25,6 +25,7 @@ import org.json.JSONObject;
 public final class ObservationType {
 
     public static final String UNKNOWN = "unknown";
+    static final String BACKGROUND = "the background subtracted from the LASCO frames, in DN/s";
 
     /**
      * @param labelBackgroundSubtracted the label once the monthly background is off the pixels (LASCO);
@@ -114,6 +115,9 @@ public final class ObservationType {
     }
 
     static String label(String instrument, String detector, String measurement, String displayName, boolean backgroundSubtracted, boolean local) {
+        // Studio's own product, not an instrument's: the background a LASCO layer had taken off
+        if (displayName.startsWith("LASCO ") && displayName.endsWith(FitsMetaData.BACKGROUND_SUFFIX))
+            return BACKGROUND;
         String product = punchProduct(displayName);
         for (Row r : rows) {
             // a product row is PUNCH's alone; without a product code nothing else can match it

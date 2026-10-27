@@ -201,6 +201,35 @@ public final class LascoLocalBackgroundCheck {
         expect("a refused file leaves the frame as served and says why", !refused.isBackgroundSubtracted()
                 && "No file chosen".equals(refused.backgroundNote()) && !refused.isProvisional());
 
+        // ---- Show as layer: one file per frame, the frame's cards, never a background of its own ----
+        File out = new File(dir, "bkg");
+        File notLasco = write("aia.fts", SIZE, 0, "TELESCOP", "SDO/AIA", "EXPTIME", "2");
+        BackgroundFiles.Written written = BackgroundFiles.write(java.util.List.of(frameFile, notLasco), single, out);
+        expect("the LASCO frame gets a background file", written.files().size() == 1);
+        expect("the frame without one is listed with a reason (got " + written.skipped() + ")",
+                written.skipped().size() == 1 && written.skipped().getFirst().startsWith("aia.fts: "));
+        if (written.files().size() == 1) {
+            File bg = written.files().getFirst();
+            Header h = headerOf(bg);
+            expect("it keeps the frame's time and pointing", "2025/09/20".equals(h.getStringValue("DATE-OBS"))
+                    && h.getDoubleValue("CROTA1", -1) == 0 && "C3".equals(h.getStringValue("DETECTOR")));
+            expect("its pixel cards are its own: float, no bias, no scaling", h.getIntValue("BITPIX") == -32
+                    && !h.containsKey("OFFSET") && !h.containsKey("BZERO"));
+            expect("it is marked, so it is never given a background of its own",
+                    h.getBooleanValue(BackgroundFiles.MARK, false) && LascoBackground.Request.of(h, SIZE, SIZE) == null);
+            float[] px;
+            try (Fits f = new Fits(bg)) {
+                float[][] rows = (float[][]) ((ImageHDU) f.readHDU()).getKernel();
+                px = new float[SIZE * SIZE];
+                for (int j = 0; j < SIZE; j++)
+                    System.arraycopy(rows[j], 0, px, j * SIZE, SIZE);
+            }
+            expect("its pixels are the background that came off, row for row", all(px, i -> (1000 + i - 100) / 10.));
+            expect("another source writes another file, never over one a layer uses",
+                    !BackgroundFiles.name(frameFile, single).equals(BackgroundFiles.name(frameFile,
+                            new LascoBackground.Choice(LascoBackground.Mode.LOCAL_PAIR, a.getPath(), b.getPath()))));
+        }
+
         // ---- the session ----
         int[] changes = {0};
         ImageProcessingSettings settings = new ImageProcessingSettings(() -> changes[0]++);

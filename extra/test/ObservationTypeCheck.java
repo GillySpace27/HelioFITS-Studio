@@ -91,6 +91,10 @@ public final class ObservationTypeCheck {
         expect("a product with no background step ignores the flag",
                 ObservationType.of(FitsMetaData.observation(new MapMetaDataContainer(aia)), true)
                         .equals(ObservationType.of(FitsMetaData.observation(new MapMetaDataContainer(aia)), false)));
+        // Show as layer (BackgroundFiles) writes the background with the frame's cards and HFSBKG = T
+        is("a background Studio wrote for a LASCO layer",
+                header("TELESCOP", "SOHO", "INSTRUME", "LASCO", "DETECTOR", "C3", "FILTER", "Clear", "POLAR", "Clear", "HFSBKG", "T"),
+                ObservationType.BACKGROUND);
         is("one LASCO polarizer frame (not pB on its own)",
                 header("TELESCOP", "SOHO", "INSTRUME", "LASCO", "DETECTOR", "C2", "FILTER", "Orange", "POLAR", "+60 Deg"),
                 ObservationType.UNKNOWN);
