@@ -15,8 +15,10 @@ import org.helioviewer.jhv.gui.ComponentUtils;
 import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.image.ImageDisplaySettings;
 import org.helioviewer.jhv.image.ImageFilter;
+import org.helioviewer.jhv.image.ImageProcessingSettings;
 import org.helioviewer.jhv.image.lut.LUT;
 import org.helioviewer.jhv.image.lut.LUTLabels;
+import org.helioviewer.jhv.io.LascoBackground;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layer;
 import org.helioviewer.jhv.layers.Layers;
@@ -125,7 +127,8 @@ final class ImageLayerRenderingPanel extends JPanel {
         // Only a LASCO frame with a published monthly image has one, so the section shows itself
         // once such a frame has been decoded (updateBadges).
         backgroundSection = new LayerSection("Background", "layer_background",
-                FilterRowLayout.rows(backgroundPanel.switchRow(), backgroundPanel.statusRow()), true,
+                FilterRowLayout.rows(backgroundPanel.switchRow(), backgroundPanel.modeRow(), backgroundPanel.fileARow(),
+                        backgroundPanel.fileBRow(), backgroundPanel.statusRow()), true,
                 () -> backgroundSummary(layer), () -> {
             revertBackground(layer);
             rebuild.run();
@@ -216,7 +219,10 @@ final class ImageLayerRenderingPanel extends JPanel {
     }
 
     private static String backgroundSummary(ImageLayer layer) {
-        return layer.getProcessingSettings().fitsParameters().subtractBackground() ? "" : "not subtracted";
+        ImageProcessingSettings.FITSParameters p = layer.getProcessingSettings().fitsParameters();
+        if (!p.subtractBackground())
+            return "not subtracted";
+        return p.background().mode() == LascoBackground.Mode.INTERPOLATED ? "" : p.background().mode().toString();
     }
 
     private static String intensitySummary(ImageLayer layer) {
@@ -274,7 +280,7 @@ final class ImageLayerRenderingPanel extends JPanel {
     }
 
     static void revertBackground(ImageLayer layer) {
-        BackgroundPanel.setSubtract(layer, true); // fans out to the selection and re-reads what changed
+        BackgroundPanel.set(layer, true, LascoBackground.Choice.DEFAULT); // fans out to the selection and re-reads what changed
     }
 
     // ---- gating for a categorical colour table -------------------------------------------------

@@ -50,6 +50,9 @@ public final class FitsMetaData extends CommonMetaData {
      * library and its kernels loaded, so a full FitsMetaData cannot be built outside a running
      * application. Everything here is read before that line and is pure string work.
      */
+    /** Ends the display name of a background Studio wrote for a LASCO layer (BackgroundFiles). */
+    public static final String BACKGROUND_SUFFIX = " background";
+
     public record Observation(String displayName, String observatory, String instrument,
                               String detector, String measurement, JHVTime time) {}
 
@@ -231,6 +234,8 @@ public final class FitsMetaData extends CommonMetaData {
         } else if (detector.equals("C2") || detector.equals("C3")) {
             measurement = m.getString("FILTER").orElse("") + ' ' + m.getString("POLAR").orElse("");
             displayName = "LASCO " + detector;
+            if (m.getString(org.helioviewer.jhv.io.BackgroundFiles.MARK).map(v -> v.trim().equalsIgnoreCase("T")).orElse(false))
+                displayName += BACKGROUND_SUFFIX; // the Background section's Show as layer
         } else if (instrument.equals("MDI")) {
             measurement = m.getString("DPC_OBSR").orElse("");
             displayName = "MDI " + measurement.substring(measurement.indexOf('_') + 1).toLowerCase();

@@ -54,6 +54,52 @@ public final class LascoBackground {
         return !"false".equals(Settings.getProperty("display.lascoBackground"));
     }
 
+    /** Where a layer's background comes from. The NRL modes need the network; the local ones read the user's files. */
+    public enum Mode {
+        INTERPOLATED("Auto: NRL, interpolated"), NEAREST("Auto: NRL, nearest"), LOCAL_FILE("Local file"), LOCAL_PAIR("Local pair");
+
+        private final String label;
+
+        Mode(String _label) {
+            label = _label;
+        }
+
+        public boolean local() {
+            return this == LOCAL_FILE || this == LOCAL_PAIR;
+        }
+
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
+
+    /**
+     * A layer's background choice: the mode, and for the local modes the file or files ("" when
+     * unset). A record, so it can sit in the decode parameters and a frame decoded under one choice
+     * is never reused for another.
+     */
+    public record Choice(Mode mode, String fileA, String fileB) {
+        public static final Choice DEFAULT = new Choice(Mode.INTERPOLATED, "", "");
+    }
+
+    /**
+     * A background was asked for but cannot be used, for a reason that retrying will not change (a
+     * local file without EXPTIME, of the wrong size, missing). The frame is shown without it, and
+     * the reason is what the Background section says.
+     */
+    public static final class Refused extends RuntimeException {
+        public Refused(String message) {
+            super(message);
+        }
+    }
+
+    /**
+     * A resolved background: DN per second, rows in FITS order, and anything the user should know
+     * about it (a mismatch, a frame outside a local pair's dates), or null.
+     */
+    public record Result(float[] perSecond, @Nullable String note) {}
+
     /**
      * Which background one frame would have subtracted: the product it belongs to, its moment and
      * its size. Carried on the decoded frame whether or not the subtraction ran, so the layer's
@@ -63,8 +109,9 @@ public final class LascoBackground {
      * @param filter   FITS FILTER, e.g. "Orange" or "Clear"
      * @param polar    FITS POLAR, e.g. "Clear"
      * @param milli    the frame's observation time
+     * @param roll     the frame's CROTA1 (or CROTA) in degrees, NaN when the header has neither
      */
-    public record Request(String detector, String filter, String polar, long milli, int width, int height) {
+    public record Request(String detector, String filter, String polar, long milli, int width, int height, double roll) {
 
         /** The request for a LASCO frame's header, or null when NRL publishes no background for it. */
         @Nullable
@@ -72,6 +119,8 @@ public final class LascoBackground {
             String telescope = header.getStringValue("TELESCOP");
             if (telescope == null || !telescope.trim().equalsIgnoreCase("SOHO"))
                 return null;
+            if (header.getBooleanValue(BackgroundFiles.MARK, false))
+                return null; // a background Studio wrote (Show as layer) is not a frame to take one off
             String detector = header.getStringValue("DETECTOR");
             String filter = header.getStringValue("FILTER");
             String polar = header.getStringValue("POLAR");
@@ -86,36 +135,77 @@ public final class LascoBackground {
             try {
                 String hms = time.trim();
                 long milli = TimeUtils.parse(date.trim().replace('/', '-') + 'T' + (hms.length() > 8 ? hms.substring(0, 8) : hms));
-                return new Request(detector.trim(), filter.trim(), polar.trim(), milli, width, height);
+                return new Request(detector.trim(), filter.trim(), polar.trim(), milli, width, height, LascoBackground.roll(header));
             } catch (RuntimeException e) {
                 return null;
             }
         }
 
-        /** The background in DN per second, rows in FITS order; see {@link LascoBackground#perSecond}. */
+        /** The NRL background, interpolated, in DN per second, rows in FITS order; see {@link LascoBackground#perSecond}. */
         @Nullable
         public float[] perSecond() {
             return LascoBackground.perSecond(detector, filter, polar, milli, width * height);
         }
 
-        /** The monthly files this frame's background is blended from, for a caption; empty if none is listed. */
-        public String describe() throws Exception {
+        /**
+         * The background this choice gives for this frame, or null when there is nothing to subtract
+         * (NRL lists nothing for the product). Throws {@link Unavailable} when NRL cannot be reached
+         * and {@link Refused} when a local file cannot be used.
+         */
+        @Nullable
+        public Result resolve(Choice choice) {
+            return switch (choice.mode()) {
+                case INTERPOLATED -> wrap(perSecond());
+                case NEAREST -> wrap(LascoBackground.perSecond(detector, filter, polar, milli, width * height, true));
+                case LOCAL_FILE -> LocalBackground.single(this, choice.fileA());
+                case LOCAL_PAIR -> LocalBackground.pair(this, choice.fileA(), choice.fileB());
+            };
+        }
+
+        @Nullable
+        private static Result wrap(@Nullable float[] perSecond) {
+            return perSecond == null ? null : new Result(perSecond, null);
+        }
+
+        /** The file or files this frame's background comes from, for a caption; empty if none is listed. */
+        public String describe(Choice choice) throws Exception {
+            if (choice.mode().local())
+                return LocalBackground.describe(this, choice);
             String key = productKey(detector, filter, polar);
             if (key == null)
                 return "";
-            {
-                NavigableMap<Long, String> catalog = catalog(key);
-                Map.Entry<Long, String> before = catalog.floorEntry(milli);
-                Map.Entry<Long, String> after = catalog.ceilingEntry(milli);
-                if (before == null && after == null)
-                    return "";
-                if (before == null || after == null || before.getKey().equals(after.getKey()))
-                    return (before == null ? after : before).getValue();
-                double w = (milli - before.getKey()) / (double) (after.getKey() - before.getKey());
-                return String.format(Locale.US, "%s and %s, weighted %.0f%% toward the later",
-                        before.getValue(), after.getValue(), 100 * Math.clamp(w, 0, 1));
-            }
+            NavigableMap<Long, String> catalog = catalog(key);
+            Map.Entry<Long, String> before = catalog.floorEntry(milli);
+            Map.Entry<Long, String> after = catalog.ceilingEntry(milli);
+            if (before == null && after == null)
+                return "";
+            if (choice.mode() == Mode.NEAREST)
+                return nearest(before, after, milli).getValue();
+            if (before == null || after == null || before.getKey().equals(after.getKey()))
+                return (before == null ? after : before).getValue();
+            return String.format(Locale.US, "%s and %s, weighted %.0f%% toward the later",
+                    before.getValue(), after.getValue(), 100 * weight(before.getKey(), after.getKey(), milli));
         }
+    }
+
+    /** CROTA1, else CROTA, in degrees; NaN when the header carries neither. */
+    static double roll(Header header) {
+        double v = header.getDoubleValue("CROTA1", Double.NaN);
+        return Double.isNaN(v) ? header.getDoubleValue("CROTA", Double.NaN) : v;
+    }
+
+    /** How far t lies from a toward b, clamped to [0, 1]: the later image's share in a linear blend. */
+    static double weight(long a, long b, long t) {
+        return b == a ? 0 : Math.clamp((t - a) / (double) (b - a), 0, 1);
+    }
+
+    /** Of two catalog entries around t (either may be null, not both), the closer; ties go to the earlier. */
+    static <T> Map.Entry<Long, T> nearest(@Nullable Map.Entry<Long, T> before, @Nullable Map.Entry<Long, T> after, long t) {
+        if (before == null)
+            return after;
+        if (after == null)
+            return before;
+        return t - before.getKey() <= after.getKey() - t ? before : after;
     }
 
     /** Listing per product key, fetched once. */
@@ -176,6 +266,12 @@ public final class LascoBackground {
      */
     @Nullable
     public static float[] perSecond(String detector, String filter, String polar, long milli, int pixels) {
+        return perSecond(detector, filter, polar, milli, pixels, false);
+    }
+
+    /** As above; with nearest, the single monthly image whose date is closest rather than the blend of the two around it. */
+    @Nullable
+    public static float[] perSecond(String detector, String filter, String polar, long milli, int pixels, boolean nearest) {
         String key = productKey(detector, filter, polar);
         if (key == null)
             return null;
@@ -187,7 +283,7 @@ public final class LascoBackground {
         // and trying once more keeps that frame from being quietly written without its background.
         for (int attempt = 0; ; attempt++) {
             try {
-                return blend(key, milli, pixels);
+                return blend(key, milli, pixels, nearest);
             } catch (Exception e) {
                 boolean interrupted = Thread.interrupted() | wasInterrupted(e);
                 if (interrupted && attempt == 0)
@@ -210,7 +306,7 @@ public final class LascoBackground {
     }
 
     @Nullable
-    private static float[] blend(String key, long milli, int pixels) throws Exception {
+    private static float[] blend(String key, long milli, int pixels, boolean nearest) throws Exception {
         {
             NavigableMap<Long, String> catalog = catalog(key);
             if (catalog.isEmpty())
@@ -220,6 +316,8 @@ public final class LascoBackground {
             Map.Entry<Long, String> after = catalog.ceilingEntry(milli);
             if (before == null && after == null)
                 return null;
+            if (nearest)
+                return image(nearest(before, after, milli).getValue(), pixels);
             if (before == null)
                 before = after;
             if (after == null)
@@ -234,13 +332,16 @@ public final class LascoBackground {
             if (second == null)
                 return first;
 
-            double span = after.getKey() - before.getKey();
-            double w = Math.clamp((milli - before.getKey()) / span, 0, 1);
-            float[] out = new float[pixels];
-            for (int i = 0; i < pixels; i++)
-                out[i] = (float) (first[i] * (1 - w) + second[i] * w);
-            return out;
+            return mix(first, second, weight(before.getKey(), after.getKey(), milli));
         }
+    }
+
+    /** first * (1 - w) + second * w, pixel by pixel. */
+    static float[] mix(float[] first, float[] second, double w) {
+        float[] out = new float[first.length];
+        for (int i = 0; i < out.length; i++)
+            out[i] = (float) (first[i] * (1 - w) + second[i] * w);
+        return out;
     }
 
     /** {@code 3m_clcl} style key, or null for a configuration with no published background. */
@@ -349,7 +450,7 @@ public final class LascoBackground {
                     return null;
                 double bzero = hdu.getHeader().getDoubleValue("BZERO", 0);
                 double bscale = hdu.getHeader().getDoubleValue("BSCALE", 1);
-                data = flatten(hdu.getKernel(), pixels, bzero, bscale, exposure);
+                data = flatten(hdu.getKernel(), pixels, bzero, bscale, 0, exposure); // the monthly images carry no bias
             }
         }
         if (data == null)
@@ -361,19 +462,19 @@ public final class LascoBackground {
         return data;
     }
 
-    /** Rows in FITS order, matching the frame array the caller will subtract this from. */
+    /** Rows in FITS order, matching the frame array the caller will subtract this from: (BZERO + raw * BSCALE - offset) / exposure. */
     @Nullable
-    private static float[] flatten(Object kernel, int pixels, double bzero, double bscale, double exposure) {
+    static float[] flatten(Object kernel, int pixels, double bzero, double bscale, double offset, double exposure) {
         if (!(kernel instanceof Object[] rows))
             return null;
         float[] out = new float[pixels];
         int at = 0;
         for (Object row : rows) {
             int written = switch (row) {
-                case short[] r -> copy(r, out, at, bzero, bscale, exposure);
-                case int[] r -> copy(r, out, at, bzero, bscale, exposure);
-                case float[] r -> copy(r, out, at, bzero, bscale, exposure);
-                case double[] r -> copy(r, out, at, bzero, bscale, exposure);
+                case short[] r -> copy(r, out, at, bzero, bscale, offset, exposure);
+                case int[] r -> copy(r, out, at, bzero, bscale, offset, exposure);
+                case float[] r -> copy(r, out, at, bzero, bscale, offset, exposure);
+                case double[] r -> copy(r, out, at, bzero, bscale, offset, exposure);
                 default -> -1;
             };
             if (written < 0)
@@ -383,31 +484,31 @@ public final class LascoBackground {
         return at == pixels ? out : null;
     }
 
-    private static int copy(short[] row, float[] out, int at, double bzero, double bscale, double exposure) {
+    private static int copy(short[] row, float[] out, int at, double bzero, double bscale, double offset, double exposure) {
         int n = Math.min(row.length, out.length - at);
         for (int i = 0; i < n; i++)
-            out[at + i] = (float) ((bzero + row[i] * bscale) / exposure);
+            out[at + i] = (float) ((bzero + row[i] * bscale - offset) / exposure);
         return n;
     }
 
-    private static int copy(int[] row, float[] out, int at, double bzero, double bscale, double exposure) {
+    private static int copy(int[] row, float[] out, int at, double bzero, double bscale, double offset, double exposure) {
         int n = Math.min(row.length, out.length - at);
         for (int i = 0; i < n; i++)
-            out[at + i] = (float) ((bzero + row[i] * bscale) / exposure);
+            out[at + i] = (float) ((bzero + row[i] * bscale - offset) / exposure);
         return n;
     }
 
-    private static int copy(float[] row, float[] out, int at, double bzero, double bscale, double exposure) {
+    private static int copy(float[] row, float[] out, int at, double bzero, double bscale, double offset, double exposure) {
         int n = Math.min(row.length, out.length - at);
         for (int i = 0; i < n; i++)
-            out[at + i] = (float) ((bzero + row[i] * bscale) / exposure);
+            out[at + i] = (float) ((bzero + row[i] * bscale - offset) / exposure);
         return n;
     }
 
-    private static int copy(double[] row, float[] out, int at, double bzero, double bscale, double exposure) {
+    private static int copy(double[] row, float[] out, int at, double bzero, double bscale, double offset, double exposure) {
         int n = Math.min(row.length, out.length - at);
         for (int i = 0; i < n; i++)
-            out[at + i] = (float) ((bzero + row[i] * bscale) / exposure);
+            out[at + i] = (float) ((bzero + row[i] * bscale - offset) / exposure);
         return n;
     }
 
