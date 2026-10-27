@@ -285,6 +285,42 @@ public final class FitsCoreIngest {
         }
     }
 
+    /**
+     * Ask the core that serves the library at root for {@code template.refresh} (docs/api.md in
+     * the heliad repository): for each Heliad dataset the session shows, the archive's newest
+     * frame against the library's, and a job queued for the span before it when the library is
+     * behind. One entry per layer; layers that are not Heliad datasets come back "skipped". Null
+     * when no core can be found. Blocks: call it off the event thread.
+     */
+    @Nullable
+    public static org.json.JSONArray templateRefresh(Path root, JSONObject session, Duration wait) throws IOException {
+        try {
+            return QUEUE.submit(() -> {
+                Core core = core(root);
+                if (core == null)
+                    return null;
+                try {
+                    JSONObject reply = core.call("template.refresh", new JSONObject().put("session", session), wait);
+                    org.json.JSONArray list = reply.optJSONArray("value");
+                    return list == null ? new org.json.JSONArray() : list;
+                } catch (RpcError e) {
+                    throw e;
+                } catch (IOException e) {
+                    CORE.set(null);
+                    core.close();
+                    throw e;
+                }
+            }).get(wait.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (ExecutionException e) {
+            throw e.getCause() instanceof IOException io ? io : new IOException(e.getCause());
+        } catch (TimeoutException e) {
+            throw new IOException("Heliad is still busy with Studio's files", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new InterruptedIOException("template.refresh");
+        }
+    }
+
     /** The time from which cache files still need offering to the library at root; MIN_VALUE for all of them. */
     static long importedThrough(@Nullable String mark, Path root) {
         if (mark == null)
@@ -532,7 +568,9 @@ public final class FitsCoreIngest {
                     if (error != null)
                         reply.completeExceptionally(new RpcError(error.optInt("code"), error.optString("message", "error " + error.optInt("code"))));
                     else
-                        reply.complete(message.opt("result") instanceof JSONObject result ? result : new JSONObject());
+                        // A list result (template.refresh) comes back under "value"; an object as itself.
+                        reply.complete(message.opt("result") instanceof JSONObject result ? result
+                                : new JSONObject().putOpt("value", message.opt("result")));
                 }
             } catch (IOException e) {
                 // the pipe broke: the same as the core ending, below
