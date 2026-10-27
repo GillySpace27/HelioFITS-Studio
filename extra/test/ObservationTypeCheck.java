@@ -74,6 +74,14 @@ public final class ObservationTypeCheck {
         expect("LASCO C3 clear with its background off reads \"white-light brightness minus the NRL monthly minimum background\" (got \""
                 + subtracted + "\")", "white-light brightness minus the NRL monthly minimum background".equals(subtracted));
         expect("and does not claim the F corona is still in it", !subtracted.contains("F corona"));
+        // A background the user chose (BackgroundPanel's Local file or Local pair) is not NRL's, so the
+        // label must not credit NRL for it.
+        FitsMetaData.Observation c3o = FitsMetaData.observation(new MapMetaDataContainer(c3));
+        String local = ObservationType.label(c3o.instrument(), c3o.detector(), c3o.measurement(), c3o.displayName(), true, true);
+        expect("LASCO C3 clear minus a local background reads \"white-light brightness minus a user-supplied background\" (got \""
+                + local + "\")", "white-light brightness minus a user-supplied background".equals(local));
+        expect("a local background that was not taken off keeps the as-served label",
+                ObservationType.label(c3o.instrument(), c3o.detector(), c3o.measurement(), c3o.displayName(), false, true).contains("includes the F corona"));
         Map<String, String> c2 = header("TELESCOP", "SOHO", "INSTRUME", "LASCO", "DETECTOR", "C2", "FILTER", "Orange", "POLAR", "Clear");
         expect("LASCO C2 orange with its background off says so too",
                 ObservationType.of(FitsMetaData.observation(new MapMetaDataContainer(c2)), true).contains("minus the NRL monthly"));

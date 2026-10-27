@@ -19,7 +19,19 @@ import nom.tam.fits.Header;
 
 record FITSData(Header header, Object pixels, int width, int height, boolean hasBlank, long blank,
                 double bzero, double bscale, @Nullable ClipSet.Range headerRange, boolean provisional,
-                boolean backgroundSubtracted, @Nullable LascoBackground.Request background) {
+                Background background) {
+
+    /**
+     * What happened to the frame's LASCO background.
+     *
+     * @param request    the background it has, null when none is published for it
+     * @param subtracted whether it came off the pixels
+     * @param local      whether it was the user's own file rather than NRL's
+     * @param note       what the Background section should say beyond that (a refusal, a mismatch), or null
+     */
+    record Background(@Nullable LascoBackground.Request request, boolean subtracted, boolean local, @Nullable String note) {
+        static final Background NONE = new Background(null, false, false, null);
+    }
 
     private static final int BAD_PIXEL = Integer.MIN_VALUE;
     private static final int SAMPLE = 4;
@@ -83,7 +95,7 @@ record FITSData(Header header, Object pixels, int width, int height, boolean has
     private ImageBuffer markProvisional(ImageBuffer buffer) {
         if (provisional)
             buffer.markProvisional();
-        buffer.setBackground(background, backgroundSubtracted);
+        buffer.setBackground(background.request(), background.subtracted(), background.local(), background.note());
         return buffer;
     }
 
