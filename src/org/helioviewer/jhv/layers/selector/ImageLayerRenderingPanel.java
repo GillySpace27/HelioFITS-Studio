@@ -274,10 +274,7 @@ final class ImageLayerRenderingPanel extends JPanel {
     }
 
     static void revertBackground(ImageLayer layer) {
-        if (layer.getProcessingSettings().fitsParameters().subtractBackground())
-            return;
-        layer.getProcessingSettings().setSubtractBackground(true);
-        layer.reloadSources(); // the clip set follows the pixels, as the switch itself does
+        BackgroundPanel.setSubtract(layer, true); // fans out to the selection and re-reads what changed
     }
 
     // ---- gating for a categorical colour table -------------------------------------------------
