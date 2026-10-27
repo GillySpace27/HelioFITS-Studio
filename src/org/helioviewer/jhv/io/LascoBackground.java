@@ -119,6 +119,8 @@ public final class LascoBackground {
             String telescope = header.getStringValue("TELESCOP");
             if (telescope == null || !telescope.trim().equalsIgnoreCase("SOHO"))
                 return null;
+            if (header.getBooleanValue(BackgroundFiles.MARK, false))
+                return null; // a background Studio wrote (Show as layer) is not a frame to take one off
             String detector = header.getStringValue("DETECTOR");
             String filter = header.getStringValue("FILTER");
             String polar = header.getStringValue("POLAR");

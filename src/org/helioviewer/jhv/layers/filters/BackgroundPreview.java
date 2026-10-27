@@ -51,6 +51,9 @@ final class BackgroundPreview extends JDialog {
         getContentPane().add(caption, BorderLayout.PAGE_END);
         pack();
         setLocationRelativeTo(MainFrame.get());
+        // Escape closes it, as the other floating windows do; the title bar's close button does too
+        getRootPane().registerKeyboardAction(e -> setVisible(false), javax.swing.KeyStroke.getKeyStroke("ESCAPE"),
+                javax.swing.JComponent.WHEN_IN_FOCUSED_WINDOW);
     }
 
     /** A frame and where its background comes from: what is drawn, so a change of either draws again. */
