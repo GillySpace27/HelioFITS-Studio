@@ -283,6 +283,7 @@ public class J2KView extends BaseView {
     @Override
     public void decode(Position viewpoint, double pixFactor, float factor, @Nullable ClipSet.Range clipRange) {
         J2KParams.Decode decodeParams = getDecodeParams(targetFrame, pixFactor, factor);
+        source.setPlayhead(decodeParams.frame);
         AtomicBoolean status = source.getFrameStatus(decodeParams.frame, decodeParams.level); // before signalling to reader
         boolean cacheResult = status != null && status.get();
         if (reader != null && !cacheResult) {
@@ -346,7 +347,9 @@ public class J2KView extends BaseView {
 
         @Override
         public void onFailure(@Nonnull Throwable t, boolean fresh) {
-            Log.errorStack(t);
+            // A frame that has not arrived, or was dropped by the JPIP budget, is restored by the reader and decoded again.
+            if (!(t instanceof java.util.concurrent.CancellationException))
+                Log.errorStack(t);
         }
 
     }

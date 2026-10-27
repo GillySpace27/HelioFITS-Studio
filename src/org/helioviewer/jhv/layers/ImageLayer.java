@@ -947,7 +947,8 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
         // Count the frame's distinct values here, where the buffer is certainly still alive; the
         // readout that displays it runs later and must never touch a buffer the cache may have
-        // freed underneath it. Cached in the buffer, so this is once per frame.
+        // freed underneath it. Decoders already counted on their own thread (DecodedImage.measured),
+        // so this is normally a read of the cached number; it counts only for a buffer that came another way.
         newImageData.imageBuffer().measuredLevels();
         setImageData(newImageData);
 

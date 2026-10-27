@@ -205,7 +205,7 @@ public final class URIView extends BaseView {
                 : GenericImage.decode(file, filter);
         if (imageBuffer == null) // e.g. FITS
             throw new Exception("Could not read: " + file);
-        return new DecodedImage(imageBuffer, imageRegion);
+        return DecodedImage.measured(imageBuffer, imageRegion);
     }
 
     private class Callback implements LatestWorker.Callback<DecodedImage> {
