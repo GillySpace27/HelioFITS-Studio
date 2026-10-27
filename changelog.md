@@ -3,6 +3,10 @@
 
 ## HelioFITS Studio 0.8.8 (unreleased)
 
+### Sun pizza and templates
+- Pizza, on the toolbar, cuts every shown image layer into its own wedges, squares or polar tiles of one Sun, so the same patch of the Sun is seen through every filter side by side. Nothing is resampled: each layer is drawn whole and keeps only its own cells. Wedges can be labelled with each channel's wavelength, the turn is animatable, and a spin can be recorded as a movie.
+- Templates (Window > Templates... on macOS, File > Templates... elsewhere) open a saved scene on the latest, a relative or a fixed date range, as an Untitled session so the template is never written over. A built-in SDO sun pizza template comes with the app, and Refresh Data brings a template's FITS through HelioFITS Core.
+
 ### Memory and speed
 - A long Helioviewer movie no longer fills the Java heap. The JPEG 2000 stream data of every frame used to be kept for good (27 GB for a 1291-frame layer), which left the program stopped in garbage collection most of the time. It is now one block per piece, counted against a memory budget, and the frames farthest from the one on screen are dropped when the budget is full; a dropped frame is read back from the disk cache when it is needed.
 - Settings > Network > Memory sets how much of the computer's memory the stream data and the decoded frames may use together (50% by default). Before, the decoded frames alone could take 40% and the heap another quarter, so a large movie went to swap.
