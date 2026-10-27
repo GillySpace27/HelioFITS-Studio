@@ -273,6 +273,15 @@ JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home \
 Takes several minutes and talks to Apple twice (timestamping, then the notary
 service). Both are network steps that fail transiently; see the incident log.
 
+The app carries HelioFITS Core (the FITS library engine behind Use FITS and Studio's
+ingest) at `Contents/Resources/heliofits-core`: `notarize` clones the core's repository
+(still `GillySpace27/heliad`) at the commit `release/fits-core.txt` pins, builds a Python with
+that commit's `app/tools/bundle_python.sh` (python-build-standalone, checksum-checked, from
+GitHub) and refuses a core whose `heliofits_core` lacks `layer-upgrade`. The repository is
+private, so the clone needs GitHub access; `HFCORE_REPO=<local clone>` (or `HELIAD_REPO`, its
+old name) uses a checkout that has the commit instead. To give a release a
+newer core, change the pin on a branch and say what it brings in the notes.
+
 Before the dmg is built, `notarize` checks the ffmpeg and licence manifests
 (`--check`, offline), signs with the tracked `release/entitlements.plist`, and runs
 `release/verify_signatures.sh` on the app: every Mach-O in the bundle and inside its
@@ -698,3 +707,22 @@ release object; the next preview would have been `v5.6b-coronal-research`.
   changed to the wording `publish` writes when it exists. `publish` now refuses a
   release with no Intel dmg wherever `release/.jdk-x64` exists
   (`test_release_assets.py`).
+
+- **2026-10-21: 0.8.7 took four prepare runs and two hand steps.** (1) From Gilly's
+  home, `notarytool submit` failed with `HTTPClientError.connectTimeout`: his shell
+  profile falls back to the NWRA web-filter proxy whenever a quick probe fails at
+  shell start, so the release shell went through the office filter from home. It
+  worked with the proxy variables unset for that one command. Even then Apple's
+  timestamp server needed several retries per signature, and one Intel upload
+  timed out; the next prepare got both dmgs accepted, and `notarize-resume` finished
+  an Intel status poll that timed out. (2) The tracker's dmg row failed after a
+  prepare that built both dmgs: each notarize rebuilds `HFStudio.jar` first, so the
+  jar is always newer than the Apple Silicon dmg, and the row compares mtimes
+  (#84). With Gilly's yes, the jar was rebuilt at the same commit, the zip
+  repackaged and both dmgs touched; their receipts (sha256 and commit) were
+  unchanged. (3) The IAS Helioviewer mirror was down all afternoon, and both
+  `smoke_dmg.sh` and package.yml's Intel judge fail on any SEVERE line, so a
+  `LoadSources` connect timeout to a third-party server failed the gate and turned
+  the release's package run red. Gilly smoke-tested the dmg by hand, and the gate
+  text came from `deploy_release.sh publish --dry-run`. Both checks now let a data
+  source's connect or read timeout through and still fail on any other SEVERE.
