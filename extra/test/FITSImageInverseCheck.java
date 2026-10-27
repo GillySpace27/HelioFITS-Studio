@@ -17,11 +17,11 @@ public final class FITSImageInverseCheck {
 
     public static void main(String[] args) {
         checkRoundTrip("Gamma", new ImageProcessingSettings.FITSParameters(
-                ImageProcessingSettings.ClippingMode.Percentile05, 0, 0, ImageProcessingSettings.ScalingMode.Gamma, 1 / 2.2, 0, 0, 0));
+                ImageProcessingSettings.ClippingMode.Percentile05, 0, 0, ImageProcessingSettings.ScalingMode.Gamma, 1 / 2.2, 0, 0, 0, true));
         checkRoundTrip("Beta (asinh)", new ImageProcessingSettings.FITSParameters(
-                ImageProcessingSettings.ClippingMode.Percentile05, 0, 0, ImageProcessingSettings.ScalingMode.Beta, 0, 1. / 64, 0, 0));
+                ImageProcessingSettings.ClippingMode.Percentile05, 0, 0, ImageProcessingSettings.ScalingMode.Beta, 0, 1. / 64, 0, 0, true));
         checkRoundTrip("Alpha (log1p)", new ImageProcessingSettings.FITSParameters(
-                ImageProcessingSettings.ClippingMode.Percentile05, 0, 0, ImageProcessingSettings.ScalingMode.Alpha, 0, 0, 1000, 0));
+                ImageProcessingSettings.ClippingMode.Percentile05, 0, 0, ImageProcessingSettings.ScalingMode.Alpha, 0, 0, 1000, 0, true));
 
         // The colorbar hover math (Colorbar.physicalValueText / ImageBuffer.PhysicalScale) also
         // depends on this outer layer: normalized-domain x -> physical min..max.

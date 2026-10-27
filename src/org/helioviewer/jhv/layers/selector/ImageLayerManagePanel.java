@@ -442,7 +442,9 @@ final class ImageLayerManagePanel extends JPanel {
      * frame on screen.
      */
     private String describeObservation() {
-        StringBuilder line = new StringBuilder(ObservationType.of(layer.getMetaData()));
+        View.ImageData data = layer.getImageData();
+        boolean subtracted = data != null && data.imageBuffer().isBackgroundSubtracted();
+        StringBuilder line = new StringBuilder(ObservationType.of(layer.getMetaData(), subtracted));
         StringBuilder tips = new StringBuilder();
         if (layer.getFilter() == ImageFilter.Type.RHEF)
             badge(line, tips, "RHEF: visualization", "RHEF output is a visualization, not a calibrated radiance");
@@ -453,7 +455,6 @@ final class ImageLayerManagePanel extends JPanel {
             badge(line, tips, "base difference", "each frame minus the first frame");
         if (org.helioviewer.jhv.display.Compare.differenceFor(layer) != null)
             badge(line, tips, "Compare: A minus B", "this layer minus Compare's layer B in the files' units, each stretch undone; a view, not a calibrated product");
-        View.ImageData data = layer.getImageData();
         if (data != null && data.imageBuffer().isProvisional())
             badge(line, tips, "provisional LASCO", "this frame's monthly background could not be fetched, so it is shown without it");
         if ("CQM".equals(ObservationType.punchProduct(layer.getMetaData().getDisplayName())))

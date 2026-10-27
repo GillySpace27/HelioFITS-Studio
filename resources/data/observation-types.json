@@ -1,5 +1,5 @@
 {
-  "about": "What a layer shows, one line per row (HS-19). Read by org.helioviewer.jhv.metadata.ObservationType, held by extra/test/ObservationTypeCheck. A row matches when every field it gives equals the value FitsMetaData reads (instrument, detector, measurement) or, for PUNCH, the product code in the layer name. Every label comes from the vault file named in source; an instrument without a sourced file has no row and reads unknown. Add rows, never guess one.",
+  "about": "What a layer shows, one line per row (HS-19). Read by org.helioviewer.jhv.metadata.ObservationType, held by extra/test/ObservationTypeCheck. A row matches when every field it gives equals the value FitsMetaData reads (instrument, detector, measurement) or, for PUNCH, the product code in the layer name. labelBackgroundSubtracted, where given, replaces label once the frame's monthly background has been taken off (LASCO; ImageBuffer.isBackgroundSubtracted). Every label comes from the vault file named in source; an instrument without a sourced file has no row and reads unknown. Add rows, never guess one.",
   "rows": [
     {"instrument": "AIA", "measurement": "94", "label": "EUV 94 Å (Fe XVIII, log T 6.8)", "source": "instruments/AIA.md §4 (S3)"},
     {"instrument": "AIA", "measurement": "131", "label": "EUV 131 Å (Fe VIII, XX, XXIII; multithermal)", "source": "instruments/AIA.md §4 (S3)"},
@@ -10,8 +10,8 @@
     {"instrument": "AIA", "measurement": "335", "label": "EUV 335 Å (Fe XVI, log T 6.4)", "source": "instruments/AIA.md §4 (S3)"},
     {"instrument": "AIA", "measurement": "1600", "label": "UV 1600 Å (C IV + continuum)", "source": "instruments/AIA.md §4 (S3)"},
     {"instrument": "AIA", "measurement": "1700", "label": "UV 1700 Å (continuum)", "source": "instruments/AIA.md §4 (S3)"},
-    {"detector": "C2", "measurementEndsWith": " Clear", "label": "white-light total brightness (includes the F corona)", "source": "instruments/LASCO.md §2"},
-    {"detector": "C3", "measurementEndsWith": " Clear", "label": "white-light total brightness (includes the F corona)", "source": "instruments/LASCO.md §2"},
+    {"detector": "C2", "measurementEndsWith": " Clear", "label": "white-light total brightness (includes the F corona)", "labelBackgroundSubtracted": "white-light brightness minus the NRL monthly minimum background", "source": "instruments/LASCO.md §2, §6 (S7)"},
+    {"detector": "C3", "measurementEndsWith": " Clear", "label": "white-light total brightness (includes the F corona)", "labelBackgroundSubtracted": "white-light brightness minus the NRL monthly minimum background", "source": "instruments/LASCO.md §2, §6 (S7)"},
     {"instrument": "COSMO K-Coronagraph", "label": "polarization brightness (pB)", "source": "instruments/K-Cor.md §2 (S1)"},
     {"product": "CAM", "label": "total brightness, average mosaic, Level 3 (background-subtracted)", "source": "instruments/PUNCH.md §4, §6 (S2, S4)"},
     {"product": "PAM", "label": "polarized, average mosaic, Level 3 (background-subtracted)", "source": "instruments/PUNCH.md §4, §6 (S2, S4)"},
