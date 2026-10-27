@@ -48,14 +48,12 @@ final class AngleLibraries {
         // jpackage sets jpackage.app-path in the app it builds, whose jar carries the dylib: a packaged
         // app started from a checkout must not pick up that checkout's copy (0.8.6, 2026-10-11).
         if (Platform.isMacOS() && METAL_HOST_LIBRARY.equals(fileName) && System.getProperty("jpackage.app-path") == null) {
-            Path path = MACOS_NATIVE_DIR.resolve(fileName).toAbsolutePath();
-            if (Files.exists(path))
-                return path;
-            // The path above is cwd-relative and a launch from elsewhere (java -jar with an
-            // absolute path, the zip's launchers) never finds it: ANGLE warmup then dies with
-            // nothing to say. The dylib sits beside the jar in the repo and in the zip, so ask
-            // where this class was loaded from. The notarized .app needs neither branch: its
-            // dylib is injected into the jar and the resource fallback below serves it.
+            // The dylib sits beside the jar in the repo and in the zip, so ask where this class was
+            // loaded from first. The cwd-relative path used to come first, and a launch from a
+            // terminal inside another checkout loaded that checkout's tracked dylib, which can be
+            // older than the jar's code (UnsatisfiedLinkError: jhv_mirror_prepare, 2026-10-11).
+            // The notarized .app needs neither branch: its dylib is injected into the jar and the
+            // resource fallback below serves it.
             try {
                 Path code = Path.of(AngleLibraries.class.getProtectionDomain().getCodeSource().getLocation().toURI());
                 Path byJar = code.getParent().resolve(MACOS_NATIVE_DIR).resolve(fileName);
@@ -63,6 +61,10 @@ final class AngleLibraries {
                     return byJar;
             } catch (Exception ignore) {
             }
+            // A launch the code location cannot place (a classes directory elsewhere).
+            Path path = MACOS_NATIVE_DIR.resolve(fileName).toAbsolutePath();
+            if (Files.exists(path))
+                return path;
         }
 
         String resourcePath = Platform.getResourceDir() + fileName;
