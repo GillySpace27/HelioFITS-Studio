@@ -181,10 +181,26 @@ public final class FitsCoreIngest {
      * computer where HelioFITS Core has no config yet. Never called when a config exists: init rewrites it.
      */
     public static void makeLibrary(Path root) throws IOException {
-        List<String> command = command(root);
+        makeLibrary(command(root));
+    }
+
+    /** {@link #makeLibrary(Path)} with the serve command already found (null when there is no core). */
+    static void makeLibrary(@Nullable List<String> command) throws IOException {
         if (command == null)
             throw new IOException("no HelioFITS Core was found");
-        init(command, Map.of());
+        init(command, coreEnv(FitsLibrary.configDir()));
+    }
+
+    /**
+     * The environment every core Studio starts gets: HFCORE_HOME (and HELIAD_HOME, for a core older
+     * than the rename) naming the folder Studio reads config.json from. Without it the core finds
+     * its folder from HOME, and Studio from user.home; when the two differ (a dev build run with
+     * -Duser.home=<scratch>), init wrote the config where Studio never looks, into the real home
+     * (2026-10-26).
+     */
+    static Map<String, String> coreEnv(Path configDir) {
+        String dir = configDir.toAbsolutePath().toString();
+        return Map.of("HFCORE_HOME", dir, "HELIAD_HOME", dir);
     }
 
     /** Run {@code hfcore init} with the core a serve command names, its environment added to Studio's. */
@@ -385,7 +401,7 @@ public final class FitsCoreIngest {
             return null;
         }
         try {
-            core = new Core(command, Map.of(), root);
+            core = new Core(command, coreEnv(FitsLibrary.configDir()), root);
         } catch (IOException e) {
             NO_CORE.set(true);
             Log.warn("Could not start the HelioFITS Core " + command.getFirst(), e);
