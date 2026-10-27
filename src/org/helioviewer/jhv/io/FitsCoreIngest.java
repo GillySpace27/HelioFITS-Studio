@@ -45,26 +45,29 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * Hands each FITS file Studio downloads to Heliad, so it lands in the Heliad library too.
+ * Hands each FITS file Studio downloads to HelioFITS Core, so it lands in the FITS library too.
  *
  * <p>Studio keeps its own archive clients and its own cache: a download goes into
- * {@code ~/HFStudio/FileCache} exactly as before and loads from there. When a Heliad library exists
- * ({@link HeliadLibrary#find}) and a Heliad core can be found, the new file is also offered to the
+ * {@code ~/HFStudio/FileCache} exactly as before and loads from there. When a FITS library exists
+ * ({@link FitsLibrary#find}) and a HelioFITS Core can be found, the new file is also offered to the
  * core's {@code ingest.path}, which copies it into the library (an APFS clone on a Mac, so no extra
  * disk there), deduplicates it by checksum and serves the newest version of each observation. The
- * core is the library's only writer; Studio starts one with {@code heliad serve}, which relays to
- * the Heliad app's core when the app is open. Without a library or a core nothing happens, and a
+ * core is the library's only writer; Studio starts one with {@code hfcore serve}, which relays to
+ * the Cache Manager's core when the app is open. Without a library or a core nothing happens, and a
  * failed ingest is logged and never reaches the download.
  *
  * <p>Files already in the cache are offered too, once: {@link #importCacheInBackground} at launch
  * offers every FITS file the library has not been offered yet, which is all of them the first
- * time and afterwards only those that arrived while Heliad was absent.
+ * time and afterwards only those that arrived while HelioFITS Core was absent.
  *
- * <p>The core is found by the rules the Heliad app uses, minus its development fallback:
- * {@code HELIAD_CORE} (the {@code heliad} command, or a Python with heliad installed), then the
- * Python inside an installed Heliad.app.
+ * <p>The core is found by the rules the HelioFITS Cache Manager uses, minus its development fallback:
+ * {@code HFCORE_CORE} or, from before the rename, {@code HELIAD_CORE} (the {@code hfcore} command, or a
+ * Python with HelioFITS Core installed), then the core this Studio was packaged with
+ * ({@link #studioCore}), then the Python inside an installed HelioFITS Cache Manager (or Heliad.app).
+ * Studio's own core comes before the app's, so a Studio always speaks to the core it was released
+ * with, whatever app is installed.
  */
-public final class HeliadIngest {
+public final class FitsCoreIngest {
 
     /** Long enough to checksum and copy a large file on a slow disk. */
     private static final Duration TIMEOUT = Duration.ofMinutes(2);
@@ -74,7 +77,7 @@ public final class HeliadIngest {
             "(?i).*(token|key|sig|pass|secret|auth|credential|session|cookie).*|x-(amz|goog)-.*");
 
     private static final ExecutorService QUEUE = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "Heliad ingest");
+        Thread t = new Thread(r, "FITS core ingest");
         t.setDaemon(true);
         return t;
     });
@@ -83,21 +86,33 @@ public final class HeliadIngest {
 
     /**
      * The library root, and the launch time up to which every file in Studio's cache was offered
-     * to it, as {@code "<epoch ms> <root>"}. Another root starts over: Heliad stores a file once
+     * to it, as {@code "<epoch ms> <root>"}. Another root starts over: HelioFITS Core stores a file once
      * by checksum, so offering one twice costs a read, never a second copy.
      */
-    static final String IMPORTED_KEY = "heliad.cacheImported";
+    static final String IMPORTED_KEY = "fitscore.cacheImported";
+    /** The key's name before HelioFITS Core was renamed (it was Heliad): read while the new one is unset. */
+    static final String LEGACY_IMPORTED_KEY = "heliad.cacheImported";
 
-    private HeliadIngest() {}
+    /** The core's Python package, and its name from before the rename, which cores from both sides of it have. */
+    static final String MODULE = "heliofits_core";
+    static final String LEGACY_MODULE = "heliad";
+
+    @Nullable
+    private static String importedMark() {
+        String mark = Settings.getProperty(IMPORTED_KEY);
+        return mark != null ? mark : Settings.getProperty(LEGACY_IMPORTED_KEY);
+    }
+
+    private FitsCoreIngest() {}
 
     /**
-     * Queue a just-downloaded file for the Heliad library. False when nothing was queued: not a
-     * FITS file, no Heliad library, or no core this session.
+     * Queue a just-downloaded file for the FITS library. False when nothing was queued: not a
+     * FITS file, no FITS library, or no core this session.
      */
     public static boolean offer(URI source, File file) {
         if (NO_CORE.get() || !isFits(file))
             return false;
-        HeliadLibrary.Location lib = HeliadLibrary.find();
+        FitsLibrary.Location lib = FitsLibrary.find();
         if (lib == null)
             return false;
         QUEUE.execute(() -> ingest(lib.root(), source, file));
@@ -105,24 +120,24 @@ public final class HeliadIngest {
     }
 
     /**
-     * At launch, queue every FITS file in Studio's cache that the Heliad library has not been
+     * At launch, queue every FITS file in Studio's cache that the FITS library has not been
      * offered yet ({@link #IMPORTED_KEY}). Returns at once; the files go one by one on the ingest
      * thread, and the mark moves past a file only once the core has settled it ({@link Outcome}).
      */
     public static void importCacheInBackground() {
-        HeliadLibrary.Location lib = HeliadLibrary.find();
+        FitsLibrary.Location lib = FitsLibrary.find();
         if (lib == null)
             return;
         long launched = System.currentTimeMillis();
-        long since = importedThrough(Settings.getProperty(IMPORTED_KEY), lib.root());
+        long since = importedThrough(importedMark(), lib.root());
         File dir = Directories.FILECACHE.getFile();
         QUEUE.execute(() -> {
             List<File> files = pending(dir, since);
             if (files.isEmpty())
                 return;
-            Log.info("Adding " + files.size() + " file(s) from Studio's cache to the Heliad library at " + lib.root());
+            Log.info("Adding " + files.size() + " file(s) from Studio's cache to the FITS library at " + lib.root());
             long next = importFiles(files, file -> ingest(lib.root(), null, file), launched);
-            Log.info("Heliad cache import: " + (next == launched ? "done" : "some files are left for the next launch"));
+            Log.info("HelioFITS Core cache import: " + (next == launched ? "done" : "some files are left for the next launch"));
             if (next > since) {
                 String mark = next + " " + lib.root();
                 EventQueue.invokeLater(() -> Settings.setProperty(IMPORTED_KEY, mark)); // Settings is written on the EDT
@@ -130,32 +145,112 @@ public final class HeliadIngest {
         });
     }
 
-    /** Whether a Heliad core can be found to serve the library at root, without starting one. */
+    /** Whether a HelioFITS Core can be found to serve the library at root, without starting one. */
     public static boolean coreFound(Path root) {
-        return command(System.getenv("HELIAD_CORE"), HeliadLibrary.app(), Path.of(System.getProperty("user.home")), root,
-                p -> Files.isExecutable(p)) != null;
+        return command(root) != null;
+    }
+
+    @Nullable
+    private static List<String> command(Path root) {
+        return command(System.getenv("HFCORE_CORE"), System.getenv("HELIAD_CORE"),
+                studioCore(System.getProperty("jpackage.app-path"), System.getProperty("os.name", "")),
+                FitsLibrary.app(), Path.of(System.getProperty("user.home")), root, p -> Files.isExecutable(p));
+    }
+
+    /**
+     * The Python of the HelioFITS Core packaged inside this Studio, or null when Studio runs from a
+     * build tree (no {@code jpackage.app-path}) or on a platform whose packages carry none yet. On
+     * macOS, release/deploy_release.sh puts it at {@code Contents/Resources/heliofits-core}.
+     *
+     * @param appPath the launcher's own path, the {@code jpackage.app-path} property
+     */
+    @Nullable
+    static Path studioCore(@Nullable String appPath, String osName) {
+        if (appPath == null || appPath.isEmpty() || !osName.startsWith("Mac"))
+            return null;
+        Path macos = Path.of(appPath).getParent(); // <app>/Contents/MacOS/<launcher>
+        Path contents = macos == null ? null : macos.getParent();
+        return contents == null ? null : contents.resolve("Resources").resolve("heliofits-core").resolve("bin").resolve("python3");
+    }
+
+    /** How long making a library may take: the core creates an empty index and writes HelioFITS Core's config. */
+    private static final Duration INIT_WAIT = Duration.ofMinutes(1);
+
+    /**
+     * Make a FITS library at root and point HelioFITS Core's config at it ({@code hfcore init}), for a
+     * computer where HelioFITS Core has no config yet. Never called when a config exists: init rewrites it.
+     */
+    public static void makeLibrary(Path root) throws IOException {
+        List<String> command = command(root);
+        if (command == null)
+            throw new IOException("no HelioFITS Core was found");
+        init(command, Map.of());
+    }
+
+    /** Run {@code hfcore init} with the core a serve command names, its environment added to Studio's. */
+    static void init(List<String> serveCommand, Map<String, String> env) throws IOException {
+        List<String> init = new ArrayList<>(serveCommand.subList(0, serveCommand.size() - 1));
+        init.add("init");
+        Path log = Files.createTempFile("hfcore-init", ".log"); // a file, so a hung core cannot block the wait below
+        try {
+            ProcessBuilder builder = new ProcessBuilder(init).redirectErrorStream(true).redirectOutput(log.toFile());
+            builder.environment().putAll(env);
+            Process process = builder.start();
+            process.getOutputStream().close();
+            try {
+                if (!process.waitFor(INIT_WAIT.toMillis(), TimeUnit.MILLISECONDS)) {
+                    process.destroyForcibly();
+                    throw new IOException("hfcore init did not finish in " + INIT_WAIT.toSeconds() + " s");
+                }
+            } catch (InterruptedException e) {
+                process.destroyForcibly();
+                Thread.currentThread().interrupt();
+                throw new InterruptedIOException("hfcore init");
+            }
+            if (process.exitValue() != 0)
+                throw new IOException("hfcore init failed (exit " + process.exitValue() + "): " + Files.readString(log).strip());
+        } finally {
+            Files.deleteIfExists(log);
+        }
     }
 
     /** When Studio's cache was last offered in full to the library at root, or MIN_VALUE for never. */
     public static long cacheOfferedThrough(Path root) {
-        return importedThrough(Settings.getProperty(IMPORTED_KEY), root);
+        return importedThrough(importedMark(), root);
     }
 
     /**
-     * Ask the core that serves the library its {@code heliad.hello} (docs/api.md in the heliad
-     * repository): its version, the library it serves and whether it may write. Starts the core the
+     * Ask the core that serves the library its {@code core.hello} (docs/api.md in the HelioFITS
+     * Core repository), or {@code heliad.hello} from a core older than the rename: its version, the library it serves and whether it may write. Starts the core the
      * downloads use when none is running yet. Null when no core can be found. Blocks for up to
      * {@code wait}, behind any files already queued: call it off the event thread.
      */
     @Nullable
     public static JSONObject hello(Path root, Duration wait) throws IOException {
         try {
+            return call(root, "core.hello", new JSONObject(), wait);
+        } catch (RpcError e) {
+            if (e.code != RpcError.METHOD_NOT_FOUND)
+                throw e;
+            return call(root, "heliad.hello", new JSONObject(), wait); // a core from before the rename
+        }
+    }
+
+    /**
+     * Any method of the core that serves the library (docs/api.md in the HelioFITS Core
+     * repository), the way {@link #hello} asks for {@code core.hello}: null when no core can be found, an
+     * IOException when the core answers with an error or is lost. Blocks for up to {@code wait},
+     * behind any files already queued: call it off the event thread.
+     */
+    @Nullable
+    public static JSONObject call(Path root, String method, JSONObject params, Duration wait) throws IOException {
+        try {
             return QUEUE.submit(() -> {
                 Core core = core(root);
                 if (core == null)
                     return null;
                 try {
-                    return core.call("heliad.hello", new JSONObject(), wait);
+                    return core.call(method, params, wait);
                 } catch (RpcError e) {
                     throw e;
                 } catch (IOException e) {
@@ -167,10 +262,10 @@ public final class HeliadIngest {
         } catch (ExecutionException e) {
             throw e.getCause() instanceof IOException io ? io : new IOException(e.getCause());
         } catch (TimeoutException e) {
-            throw new IOException("Heliad is still busy with Studio's files", e);
+            throw new IOException("HelioFITS Core is still busy with Studio's files", e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new InterruptedIOException("heliad.hello");
+            throw new InterruptedIOException(method);
         }
     }
 
@@ -240,10 +335,10 @@ public final class HeliadIngest {
             core.call("ingest.path", params, TIMEOUT);
             return Outcome.SETTLED;
         } catch (RpcError e) { // the core is still running
-            Log.warn("Heliad did not take " + file.getName() + ": " + e.getMessage());
+            Log.warn("HelioFITS Core did not take " + file.getName() + ": " + e.getMessage());
             return e.code == RpcError.UNSTORABLE ? Outcome.SETTLED : Outcome.RETRY;
         } catch (IOException e) {
-            Log.warn("Lost the Heliad core while adding " + file.getName(), e);
+            Log.warn("Lost the HelioFITS Core while adding " + file.getName(), e);
             CORE.set(null);
             core.close();
             return Outcome.LOST;
@@ -283,18 +378,17 @@ public final class HeliadIngest {
         if (core != null)
             core.close();
         CORE.set(null);
-        List<String> command = command(System.getenv("HELIAD_CORE"), HeliadLibrary.app(),
-                Path.of(System.getProperty("user.home")), root, p -> Files.isExecutable(p));
+        List<String> command = command(root);
         if (command == null) {
             NO_CORE.set(true);
-            Log.info("Heliad library found but no Heliad core (install Heliad.app or set HELIAD_CORE); Studio downloads stay in its own cache");
+            Log.info("FITS library found but no HelioFITS Core (install the HelioFITS Cache Manager or set HFCORE_CORE); Studio downloads stay in its own cache");
             return null;
         }
         try {
             core = new Core(command, Map.of(), root);
         } catch (IOException e) {
             NO_CORE.set(true);
-            Log.warn("Could not start the Heliad core " + command.getFirst(), e);
+            Log.warn("Could not start the HelioFITS Core " + command.getFirst(), e);
             return null;
         }
         CORE.set(core);
@@ -305,27 +399,38 @@ public final class HeliadIngest {
     /**
      * The command that starts a core serving the library at root, or null when no core is found.
      *
-     * @param heliadCore the {@code HELIAD_CORE} variable
-     * @param app        the installed Heliad.app, if any
+     * @param coreVar       the {@code HFCORE_CORE} variable
+     * @param legacyCoreVar {@code HELIAD_CORE}, its name before the rename, read when coreVar is unset; a
+     *                      Python named there runs {@code -m heliad}, which cores from before the rename have
+     * @param studioCore    the Python of the core packaged with this Studio ({@link #studioCore}), if any
+     * @param app           the installed HelioFITS Cache Manager (or Heliad.app from before the rename), if any
      */
     @Nullable
-    static List<String> command(@Nullable String heliadCore, @Nullable Path app, Path home, Path root,
-                                Predicate<Path> executable) {
+    static List<String> command(@Nullable String coreVar, @Nullable String legacyCoreVar, @Nullable Path studioCore, @Nullable Path app,
+                                Path home, Path root, Predicate<Path> executable) {
         List<String> command = new ArrayList<>();
-        if (heliadCore != null && !heliadCore.isEmpty()) {
-            Path path = heliadCore.equals("~") ? home : heliadCore.startsWith("~/") ? home.resolve(heliadCore.substring(2)) : Path.of(heliadCore);
+        boolean legacy = coreVar == null || coreVar.isEmpty();
+        String named = legacy ? legacyCoreVar : coreVar;
+        if (named != null && !named.isEmpty()) {
+            Path path = named.equals("~") ? home : named.startsWith("~/") ? home.resolve(named.substring(2)) : Path.of(named);
             if (executable.test(path)) {
                 command.add(path.toString());
+                // -s, -P as for the bundled Pythons: a named Python runs its own packages, never ones in
+                // ~/.local (an astropy there whose asdf_astropy lacked asdf broke every download,
+                // 2026-10-25). A core installed with pip --user is named by its command instead.
                 if (path.getFileName().toString().toLowerCase(java.util.Locale.ROOT).startsWith("python"))
-                    command.addAll(List.of("-m", "heliad"));
+                    command.addAll(List.of("-s", "-P", "-m", legacy ? LEGACY_MODULE : MODULE));
             }
         }
+        if (command.isEmpty() && studioCore != null && executable.test(studioCore))
+            command.addAll(List.of(studioCore.toString(), "-B", "-s", "-P", "-m", MODULE));
         if (command.isEmpty() && app != null) {
             Path python = app.resolve("Contents").resolve("Resources").resolve("python").resolve("bin").resolve("python3");
+            boolean oldApp = app.getFileName().toString().equals(FitsLibrary.LEGACY_APP);
             if (executable.test(python))
                 // -B: writing bytecode into a signed app would break its signature.
                 // -s, -P: no user site-packages, no current folder on sys.path.
-                command.addAll(List.of(python.toString(), "-B", "-s", "-P", "-m", "heliad"));
+                command.addAll(List.of(python.toString(), "-B", "-s", "-P", "-m", oldApp ? LEGACY_MODULE : MODULE));
         }
         if (command.isEmpty())
             return null;
@@ -352,8 +457,10 @@ public final class HeliadIngest {
     /** An error the core answered with, as opposed to losing the core. */
     static final class RpcError extends IOException {
         private static final long serialVersionUID = 1L;
-        /** ingest.path: the file can never enter the library (cut off, or not FITS); docs/api.md in heliad. */
+        /** ingest.path: the file can never enter the library (cut off, or not FITS); docs/api.md in HelioFITS Core. */
         static final int UNSTORABLE = -32001;
+        /** JSON-RPC's code for a method the core does not have: an older core. */
+        static final int METHOD_NOT_FOUND = -32601;
 
         final int code;
 
@@ -363,7 +470,7 @@ public final class HeliadIngest {
         }
     }
 
-    /** One {@code heliad serve} process, spoken to in JSON-RPC lines over its stdin and stdout. */
+    /** One {@code hfcore serve} process, spoken to in JSON-RPC lines over its stdin and stdout. */
     static final class Core implements AutoCloseable {
 
         final Path root;
@@ -380,8 +487,8 @@ public final class HeliadIngest {
             builder.environment().put("PYTHONUNBUFFERED", "1");
             process = builder.start();
             in = new BufferedWriter(new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8));
-            daemon("Heliad core replies", this::readReplies);
-            daemon("Heliad core messages", this::readMessages);
+            daemon("HelioFITS Core replies", this::readReplies);
+            daemon("HelioFITS Core messages", this::readMessages);
         }
 
         private static void daemon(String name, Runnable body) {
@@ -415,7 +522,7 @@ public final class HeliadIngest {
                 // the pipe broke: the same as the core ending, below
             }
             ended.set(true);
-            IOException gone = new IOException("the Heliad core ended");
+            IOException gone = new IOException("HelioFITS Core ended");
             waiting.values().forEach(reply -> reply.completeExceptionally(gone));
         }
 
@@ -423,7 +530,7 @@ public final class HeliadIngest {
             try (BufferedReader err = new BufferedReader(new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = err.readLine()) != null)
-                    Log.warn("Heliad core: " + line);
+                    Log.warn("HelioFITS Core: " + line);
             } catch (IOException e) {
                 // the core has gone; readReplies reports that
             }
@@ -439,7 +546,7 @@ public final class HeliadIngest {
             waiting.put(id, reply);
             try {
                 if (!alive()) // checked after waiting holds this call, so an ending core cannot strand it
-                    throw new IOException("the Heliad core ended");
+                    throw new IOException("HelioFITS Core ended");
                 String request = new JSONObject().put("jsonrpc", "2.0").put("id", id).put("method", method).put("params", params).toString();
                 synchronized (in) {
                     in.write(request);
@@ -450,7 +557,7 @@ public final class HeliadIngest {
             } catch (ExecutionException e) {
                 throw e.getCause() instanceof IOException io ? io : new IOException(e.getCause());
             } catch (TimeoutException e) {
-                throw new IOException("no answer from the Heliad core to " + method + " in " + timeout.toSeconds() + " s", e);
+                throw new IOException("no answer from HelioFITS Core to " + method + " in " + timeout.toSeconds() + " s", e);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new InterruptedIOException(method);
@@ -461,7 +568,7 @@ public final class HeliadIngest {
 
         /**
          * Ends the core's input, which is how a core is told to finish: it answers what it was
-         * asked first. Never killed: if it is the library's writer, the Heliad app may be relaying
+         * asked first. Never killed: if it is the library's writer, the HelioFITS Cache Manager may be relaying
          * through it, and it stays up until the app has let go.
          */
         @Override

@@ -23,9 +23,18 @@ public final class CliExport {
     private static final long TIMEOUT_MS = 180_000;
 
     private static final java.util.concurrent.atomic.AtomicBoolean stateFailed = new java.util.concurrent.atomic.AtomicBoolean();
+    // The -state load runs after the data sources answer, which can take seconds when the servers
+    // are reachable; an image layer can exist before then, so a -state export waits for the load.
+    private static final java.util.concurrent.atomic.AtomicBoolean stateLoaded = new java.util.concurrent.atomic.AtomicBoolean();
 
     public static void run() {
-        Session.onNextStateLoad(ok -> { if (!ok) stateFailed.set(true); });
+        boolean waitForState = CommandLine.hasStateArgument();
+        Session.onNextStateLoad(ok -> {
+            if (ok)
+                stateLoaded.set(true);
+            else
+                stateFailed.set(true);
+        });
         long t0 = System.currentTimeMillis();
         long settle = Long.getLong("jhv.exportSettleMs", DEFAULT_SETTLE_MS);
         long[] ready = {0};
@@ -34,9 +43,11 @@ public final class CliExport {
             long now = System.currentTimeMillis();
             if (stateFailed.get())
                 end(timer, CommandLine.Exit.INPUT_NOT_FOUND, "The state file could not be loaded.");
+            else if (CommandLine.datasetFailed())
+                end(timer, CommandLine.Exit.INPUT_NOT_FOUND, "The -dataset could not be loaded (see the log).");
             else if (now - t0 > TIMEOUT_MS)
                 end(timer, CommandLine.Exit.EXPORT_FAILED, "Timed out waiting for an image.");
-            else if (Layers.getActiveImageLayer() != null) {
+            else if (Layers.getActiveImageLayer() != null && (!waitForState || stateLoaded.get())) {
                 if (ready[0] == 0)
                     ready[0] = now;
                 else if (now - ready[0] >= settle) {
@@ -58,8 +69,10 @@ public final class CliExport {
                 Path out = Path.of(CommandLine.exportOut());
                 if (out.toAbsolutePath().getParent() != null)
                     Files.createDirectories(out.toAbsolutePath().getParent());
-                Files.copy(Path.of(output.contains("%04d") ? String.format(output, 1) : output), out, // a series reports its ffmpeg pattern; a screenshot is frame 1
+                Path written = Path.of(output.contains("%04d") ? String.format(output, 1) : output);
+                Files.copy(written, out, // a series reports its ffmpeg pattern; a screenshot is frame 1
                          StandardCopyOption.REPLACE_EXISTING);
+                org.helioviewer.jhv.movie.ProcessingRecord.copySidecar(written, out); // <out>.hfrec.json, named and hashed for the copy
             } catch (IOException | RuntimeException ex) {
                 fail(CommandLine.Exit.EXPORT_FAILED, "Could not write " + CommandLine.exportOut() + ": " + ex.getMessage());
                 return;

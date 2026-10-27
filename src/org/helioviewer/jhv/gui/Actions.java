@@ -275,12 +275,16 @@ public final class Actions {
                 if (button != null)
                     button.setText(label);
             };
+            String creditKey = org.helioviewer.jhv.movie.InstrumentCredit.key(layer); // on the event thread, before the work leaves it
             Task.submitBackground("send-to-python", () -> {
                 try {
-                    org.json.JSONObject manifest = org.helioviewer.jhv.io.FitsExport.export(sources, out, org.helioviewer.jhv.movie.Provenance.session(), step);
+                    org.json.JSONObject session = org.helioviewer.jhv.movie.Provenance.session();
+                    // Each file carries its processing record (HISTORY block, HFRECORD extension, sidecar); hfrecord.json covers the export.
+                    org.json.JSONObject manifest = org.helioviewer.jhv.io.FitsExport.export(sources, out, session, step,
+                            new org.helioviewer.jhv.io.FitsExport.Layer(layer.getId(), layer.getName(), creditKey), org.helioviewer.jhv.movie.ProcessingRecord.identities());
                     List<File> written = new ArrayList<>();
-                    for (File s : sources)
-                        written.add(out.resolve(org.helioviewer.jhv.io.FitsExport.outputName(s)).toFile());
+                    for (File source : sources)
+                        written.add(out.resolve(org.helioviewer.jhv.io.FitsExport.outputName(source)).toFile());
                     // Off the event thread: connecting to a hub can wait on the network. No hub sends nothing and fails nothing.
                     int reached = org.helioviewer.jhv.io.samp.SampClient.sendFitsFiles(written);
                     return new String[]{org.helioviewer.jhv.io.FitsExport.snippet(out, manifest), reached > 0
@@ -293,7 +297,8 @@ public final class Actions {
             }, r -> {
                 TransferAccess.writeClipboard(r[0]);
                 org.helioviewer.jhv.app.Message.info("Send to Python", sources.size() + " file(s) written to " + out
-                        + "\nA sunpy snippet is on the clipboard. See manifest.json there for exactly what was and was not applied.\n" + r[1]);
+                        + "\nA sunpy snippet is on the clipboard. See manifest.json there for exactly what was and was not applied,"
+                        + " and hfrecord.json for the processing record (each file's HISTORY cards carry its steps).\n" + r[1]);
             }, "Error exporting FITS for Python");
         }
     }

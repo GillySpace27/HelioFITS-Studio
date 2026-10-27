@@ -9,8 +9,6 @@ import java.awt.GridBagLayout;
 import java.awt.event.ActionEvent;
 import java.io.File;
 import java.nio.file.Path;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.Objects;
 
 import javax.annotation.Nullable;
@@ -48,6 +46,7 @@ import org.helioviewer.jhv.gui.Interfaces;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.gui.UIGlobals;
 import org.helioviewer.jhv.io.DataSources;
+import org.helioviewer.jhv.io.ProxySettings;
 import org.helioviewer.jhv.movie.ExportFormat;
 import org.helioviewer.jhv.plugins.Plugin;
 import org.helioviewer.jhv.plugins.PluginManager;
@@ -78,7 +77,7 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
 
     private DefaultsSelectionPanel defaultsPanel;
     private final JTabbedPane tabs = new JTabbedPane();
-    private final HeliadSettings heliad = new HeliadSettings();
+    private final FitsLibrarySettings library = new FitsLibrarySettings();
 
     public SettingsDialog() {
         super(MainFrame.get(), "Settings", true);
@@ -115,10 +114,10 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         tabs.addTab("Layers", layersTab());
         tabs.addTab("Plugins", pluginsTab());
         tabs.addTab("Network", networkTab());
-        tabs.addTab("Heliad", heliad);
+        tabs.addTab("FITS Library", library);
         tabs.addChangeListener(e -> {
-            if (tabs.getSelectedComponent() == heliad)
-                heliad.refresh();
+            if (tabs.getSelectedComponent() == library)
+                library.refresh();
         });
         return tabs;
     }
@@ -132,8 +131,8 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
     @Override
     public void showDialog() {
         updateCacheSize();
-        if (tabs.getSelectedComponent() == heliad)
-            heliad.refresh();
+        if (tabs.getSelectedComponent() == library)
+            library.refresh();
         pack();
         setLocationRelativeTo(MainFrame.get());
         setVisible(true);
@@ -383,16 +382,9 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
             super(new BorderLayout());
             setPreferredSize(new Dimension(420, 90)); // the header and both rows
 
-            String pass = Settings.getProperty("proxy.password");
-            try {
-                pass = new String(Base64.getDecoder().decode(pass), StandardCharsets.UTF_8);
-            } catch (Exception e) {
-                pass = null;
-            }
-
             String[][] tableData = {
                     {"Proxy username", Settings.getProperty("proxy.username")},
-                    {"Proxy password", pass},
+                    {"Proxy password", ProxySettings.getPassword()},
             };
 
             model = new DefaultTableModel(tableData, new String[]{"Description", "Value"}) {
@@ -443,10 +435,8 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
             if (val0 instanceof String str)
                 Settings.setProperty("proxy.username", str);
             Object val1 = model.getValueAt(1, 1);
-            if (val1 instanceof String str) {
-                String s = Base64.getEncoder().withoutPadding().encodeToString(str.getBytes(StandardCharsets.UTF_8));
-                Settings.setProperty("proxy.password", s);
-            }
+            if (val1 instanceof String str)
+                ProxySettings.setPassword(str);
         }
 
     }

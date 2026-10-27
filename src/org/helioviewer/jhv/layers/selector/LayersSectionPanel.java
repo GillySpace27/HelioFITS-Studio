@@ -27,10 +27,10 @@ public final class LayersSectionPanel extends JPanel {
         cadencePanel = new CadencePanel(MoviePanel.getInstance().getTimeSelectorPanel());
         cadencePanel.setName("imageLayersCadence"); // tour target
 
-        // One window for every source (HV, VSO, Direct, Heliad), already on the master range and
+        // One window for every source (HV, VSO, Direct, HelioFITS Core), already on the master range and
         // cadence beside it; see ImageDialog. It used to be a dropdown that picked the format first.
         addLayerButton = new JButton("New Layer", Buttons.newLayer);
-        addLayerButton.setToolTipText("Add data for the time range above: Helioviewer, VSO, a mission's own archive, or the Heliad library");
+        addLayerButton.setToolTipText("Add data for the time range above: Helioviewer, VSO, a mission's own archive, or the FITS library");
         addLayerButton.setName("imageLayersNew"); // tour target
         addLayerButton.addActionListener(e -> MoviePanel.getInstance().showNewLayerSelector());
 

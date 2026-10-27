@@ -13,11 +13,11 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 
-import org.helioviewer.jhv.io.HeliadLibrary;
+import org.helioviewer.jhv.io.FitsLibrary;
 import org.json.JSONObject;
 
 /**
- * The Settings pages never draw two rows on one line, and the Heliad tab says what it found.
+ * The Settings pages never draw two rows on one line, and the FITS Library tab says what it found.
  *
  * <p>The single grid the tabs replaced numbered its rows by hand; three controls added later
  * reused rows 7 and 8, so "Download layers when saving a session" was drawn under the observer,
@@ -81,23 +81,23 @@ public final class SettingsFormCheck {
         expect("labels share one right edge", find(parts, "Plugins:").getBounds().x + find(parts, "Plugins:").getBounds().width
                 == server.x + server.width);
 
-        // The Heliad tab's wording, from what HeliadLibrary and heliad.hello return.
-        List<HeliadLibrary.Dataset> sets = List.of(
-                new HeliadLibrary.Dataset("sdo/aia/-/-/1/193", "SDO AIA 193 L1", "SDO", "AIA", null, null, "1", 193.0, 2, 3L << 20, 0, 1, 0, 0),
-                new HeliadLibrary.Dataset("punch/wfi/-/-/3/-", "PUNCH WFI L3", "PUNCH", "WFI", null, null, "3", null, 1, 1L << 20, 0, 1, 0, 0));
-        expect("library contents read as datasets, frames and size", HeliadSettings.holds(sets).equals("2 datasets, 3 frames, 4 MB"));
-        expect("an empty library reads as empty", HeliadSettings.holds(List.of()).equals("0 datasets, 0 frames, 0 bytes"));
-        Path root = Path.of("/data/HeliadLibrary");
+        // The FITS Library tab's wording, from what FitsLibrary and core.hello return.
+        List<FitsLibrary.Dataset> sets = List.of(
+                new FitsLibrary.Dataset("sdo/aia/-/-/1/193", "SDO AIA 193 L1", "SDO", "AIA", null, null, "1", 193.0, 2, 3L << 20, 0, 1, 0, 0),
+                new FitsLibrary.Dataset("punch/wfi/-/-/3/-", "PUNCH WFI L3", "PUNCH", "WFI", null, null, "3", null, 1, 1L << 20, 0, 1, 0, 0));
+        expect("library contents read as datasets, frames and size", FitsLibrarySettings.holds(sets).equals("2 datasets, 3 frames, 4 MB"));
+        expect("an empty library reads as empty", FitsLibrarySettings.holds(List.of()).equals("0 datasets, 0 frames, 0 bytes"));
+        Path root = Path.of("/data/HelioFITSLibrary");
         expect("a running core names its version",
-                HeliadSettings.coreText(new JSONObject().put("version", "0.0.1").put("readonly", false).put("library_root", root.toString()), root)
-                        .equals("Heliad 0.0.1 is running"));
+                FitsLibrarySettings.coreText(new JSONObject().put("version", "0.0.1").put("readonly", false).put("library_root", root.toString()), root)
+                        .equals("HelioFITS Core 0.0.1 is running"));
         expect("a read-only core serving another library says both",
-                HeliadSettings.coreText(new JSONObject().put("version", "0.0.1").put("readonly", true).put("library_root", "/elsewhere"), root)
-                        .equals("Heliad 0.0.1 is running, read-only, serving another library: /elsewhere"));
-        expect("no core means downloads stay in Studio's cache", HeliadSettings.downloadsText(false, 0).startsWith("Kept in Studio's cache only"));
-        expect("a core means downloads go to the library", HeliadSettings.downloadsText(true, Long.MIN_VALUE)
+                FitsLibrarySettings.coreText(new JSONObject().put("version", "0.0.1").put("readonly", true).put("library_root", "/elsewhere"), root)
+                        .equals("HelioFITS Core 0.0.1 is running, read-only, serving another library: /elsewhere"));
+        expect("no core means downloads stay in Studio's cache", FitsLibrarySettings.downloadsText(false, 0).startsWith("Kept in Studio's cache only"));
+        expect("a core means downloads go to the library", FitsLibrarySettings.downloadsText(true, Long.MIN_VALUE)
                 .equals("Studio adds each FITS download to this library"));
-        expect("the Get Heliad link is https on gilly.space", HeliadSettings.GET_URL.startsWith("https://gilly.space/"));
+        expect("the Get Cache Manager link is https on gilly.space", FitsLibrarySettings.GET_URL.startsWith("https://gilly.space/"));
 
         System.out.println(failures == 0 ? "SettingsFormCheck: all passed" : "SettingsFormCheck: " + failures + " failed");
         System.exit(failures == 0 ? 0 : 1);

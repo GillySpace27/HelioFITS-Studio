@@ -495,4 +495,10 @@ public final class ComputedView implements View {
         return wrapped.getXMLMetaData();
     }
 
+    @Nonnull
+    @Override
+    public String getXMLMetaData(int frame) {
+        return wrapped.getXMLMetaData(frame);
+    }
+
 }

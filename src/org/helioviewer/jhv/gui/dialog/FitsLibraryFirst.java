@@ -17,19 +17,19 @@ import javax.swing.ListSelectionModel;
 import org.helioviewer.jhv.app.Commands;
 import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.app.Log;
-import org.helioviewer.jhv.io.HeliadLibrary;
+import org.helioviewer.jhv.io.FitsLibrary;
 
 /**
- * Before a FITS download, look in the Heliad library for the same dataset over the same range and
+ * Before a FITS download, look in the FITS library for the same dataset over the same range and
  * offer the copy already on disk. Downloading anyway stays one click away: the library may hold a
  * different product or version than the archive serves, and only the person can tell.
  *
- * <p>Helioviewer's JPEG 2000 is not checked: Heliad keeps FITS, a different product from the
+ * <p>Helioviewer's JPEG 2000 is not checked: HelioFITS Core keeps FITS, a different product from the
  * streamed browse image, so there is nothing of the same kind to offer.
  */
-public final class HeliadFirst {
+public final class FitsLibraryFirst {
 
-    private HeliadFirst() {}
+    private FitsLibraryFirst() {}
 
     /** What the caller does next. */
     public enum Choice {
@@ -43,21 +43,21 @@ public final class HeliadFirst {
 
     /**
      * No library, nothing matching in the range, or a library that cannot be read all answer
-     * DOWNLOAD, so a download is never blocked by Heliad.
+     * DOWNLOAD, so a download is never blocked by HelioFITS Core.
      */
-    public static Choice offer(Component parent, HeliadLibrary.Wanted wanted, long start, long end) {
-        HeliadLibrary.Location lib = HeliadLibrary.find();
+    public static Choice offer(Component parent, FitsLibrary.Wanted wanted, long start, long end) {
+        FitsLibrary.Location lib = FitsLibrary.find();
         if (lib == null)
             return Choice.DOWNLOAD;
-        List<HeliadLibrary.Dataset> hits = new ArrayList<>();
+        List<FitsLibrary.Dataset> hits = new ArrayList<>();
         try {
             // ponytail: read on the event thread; the index answers in milliseconds for libraries of
             // tens of thousands of files. Move to a worker if a large library makes Add stutter.
-            for (HeliadLibrary.Dataset set : HeliadLibrary.datasets(lib, start, end))
+            for (FitsLibrary.Dataset set : FitsLibrary.datasets(lib, start, end))
                 if (set.inRange() > 0 && wanted.matches(set.key()))
                     hits.add(set);
-        } catch (SQLException | HeliadLibrary.TooNew e) {
-            Log.warn("Heliad library not checked before download: " + e.getMessage());
+        } catch (SQLException | FitsLibrary.TooNew e) {
+            Log.warn("FITS library not checked before download: " + e.getMessage());
             return Choice.DOWNLOAD;
         }
         if (hits.isEmpty())
@@ -69,31 +69,31 @@ public final class HeliadFirst {
         list.setSelectedIndex(0);
         list.setVisibleRowCount(Math.min(hits.size(), 6));
         JPanel panel = new JPanel(new java.awt.BorderLayout(0, 6));
-        panel.add(new JLabel("<html>Heliad already has this in the time range, on this computer.<br>"
+        panel.add(new JLabel("<html>The FITS library already has this in the time range, on this computer.<br>"
                 + "Load its copy, or download from the archive anyway?</html>"), java.awt.BorderLayout.PAGE_START);
         panel.add(new JScrollPane(list), java.awt.BorderLayout.CENTER);
 
-        String[] options = {"Use Heliad's Copy", "Download Anyway", "Cancel"};
-        int choice = JOptionPane.showOptionDialog(parent, panel, "Already in the Heliad Library",
+        String[] options = {"Use the Library's Copy", "Download Anyway", "Cancel"};
+        int choice = JOptionPane.showOptionDialog(parent, panel, "Already in the FITS Library",
                 JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
         if (choice == 1)
             return Choice.DOWNLOAD;
         if (choice != 0)
             return Choice.CANCELLED; // or the window closed
-        HeliadLibrary.Dataset set = hits.get(Math.max(0, list.getSelectedIndex()));
+        FitsLibrary.Dataset set = hits.get(Math.max(0, list.getSelectedIndex()));
         try {
             List<URI> uris = new ArrayList<>();
-            for (File file : HeliadLibrary.files(lib, set.key(), start, end))
-                if (file.isFile()) // a delete in Heliad since the index was read
+            for (File file : FitsLibrary.files(lib, set.key(), start, end))
+                if (file.isFile()) // a delete in HelioFITS Core since the index was read
                     uris.add(file.toURI());
             if (uris.isEmpty()) {
-                Message.warn("Nothing left to load", "The files of " + set.label() + " are no longer in the Heliad library.");
+                Message.warn("Nothing left to load", "The files of " + set.label() + " are no longer in the FITS library.");
                 return Choice.CANCELLED;
             }
             Commands.loadImage(uris);
             return Choice.LOADED;
-        } catch (SQLException | HeliadLibrary.TooNew e) {
-            Message.err("Could not read the Heliad library", e.getMessage(), e);
+        } catch (SQLException | FitsLibrary.TooNew e) {
+            Message.err("Could not read the FITS library", e.getMessage(), e);
             return Choice.CANCELLED;
         }
     }

@@ -14,6 +14,7 @@ import org.helioviewer.jhv.timelines.band.Band;
 import org.helioviewer.jhv.timelines.band.BandType;
 import org.helioviewer.jhv.timelines.draw.DrawController;
 import org.helioviewer.jhv.timelines.draw.TimeAxis;
+import org.helioviewer.jhv.timelines.radio.RadioData;
 
 @SuppressWarnings("serial")
 public class TimelineLayers extends AbstractTableModel {
@@ -122,6 +123,13 @@ public class TimelineLayers extends AbstractTableModel {
             TimelineLayer layer = reuseBand(newLayer);
             addUnique(restoredLayers, layer);
         }
+        // Band and Callisto rows come from the state; plugin rows belong to their active plugin.
+        for (TimelineLayer layer : layers) {
+            if (!(layer instanceof Band) && !(layer instanceof RadioData))
+                addUnique(restoredLayers, layer);
+        }
+        if (restoredLayers.stream().noneMatch(layer -> layer instanceof RadioData))
+            restoredLayers.add(new RadioData(null));
         replaceAll(restoredLayers);
     }
 

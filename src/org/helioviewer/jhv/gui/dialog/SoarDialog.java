@@ -201,16 +201,16 @@ public class SoarDialog extends StandardDialog implements SoarClient.ReceiverIte
     }
 
     /**
-     * The Heliad dataset a SOAR item id names: "solo_L2_eui-fsi174-image_..." is EUI, detector FSI,
+     * The HelioFITS Core dataset a SOAR item id names: "solo_L2_eui-fsi174-image_..." is EUI, detector FSI,
      * 174 Å, level 2. Only the instrument is certain for other descriptors, which is enough to offer.
      */
-    public static org.helioviewer.jhv.io.HeliadLibrary.Wanted wanted(String id) {
+    public static org.helioviewer.jhv.io.FitsLibrary.Wanted wanted(String id) {
         String[] parts = id.toLowerCase(java.util.Locale.ROOT).split("_");
         String level = parts.length > 1 ? parts[1] : null;
         String[] descriptor = (parts.length > 2 ? parts[2] : "").split("-");
         java.util.regex.Matcher m = java.util.regex.Pattern.compile("^([a-z]+)(\\d+)$").matcher(descriptor.length > 1 ? descriptor[1] : "");
         boolean channel = m.matches();
-        return new org.helioviewer.jhv.io.HeliadLibrary.Wanted("solar-orbiter", descriptor[0], channel ? m.group(1) : null, null, level,
+        return new org.helioviewer.jhv.io.FitsLibrary.Wanted("solar-orbiter", descriptor[0], channel ? m.group(1) : null, null, level,
                 channel ? Integer.valueOf(m.group(2)) : null);
     }
 
@@ -225,11 +225,11 @@ public class SoarDialog extends StandardDialog implements SoarClient.ReceiverIte
             if (size > MAX_SIZE) {
                 Message.err("SOAR error", String.format("Too much data selected for download: %.1fGiB.%nPlease reduce the selection to less than %.1fGiB.", size, MAX_SIZE));
             } else {
-                HeliadFirst.Choice choice = HeliadFirst.offer(this, wanted(items.getFirst().id()),
+                FitsLibraryFirst.Choice choice = FitsLibraryFirst.offer(this, wanted(items.getFirst().id()),
                         timeSelectorPanel.getStartTime(), timeSelectorPanel.getEndTime());
-                if (choice == HeliadFirst.Choice.CANCELLED)
+                if (choice == FitsLibraryFirst.Choice.CANCELLED)
                     return;
-                if (choice == HeliadFirst.Choice.DOWNLOAD)
+                if (choice == FitsLibraryFirst.Choice.DOWNLOAD)
                     SoarClient.submitLoad(items);
                 setVisible(false);
             }
