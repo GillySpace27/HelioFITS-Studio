@@ -32,6 +32,13 @@ public final class OpjGray8Check {
     }
 
     public static void main(String[] args) throws Exception {
+        try {
+            OpenJpeg.version();
+        } catch (Throwable t) { // as OpenJpegDecodeCheck: the macOS runners cannot load libopenjp2
+            System.out.println("  skip  OpenJPEG is not installed here: " + t.getMessage());
+            System.out.println("OpjGray8Check: SKIPPED");
+            return;
+        }
         for (int bits : new int[]{8, 12, 16}) {
             byte[] stream = Files.readAllBytes(Path.of("extra/test/data/opj-" + bits + "bit.j2k"));
             int[][] cases = {{0, 0, 0, 0, 0}, {1, 0, 0, 0, 0}, {0, 16, 8, 80, 64}}; // reduce, then area x0 y0 x1 y1

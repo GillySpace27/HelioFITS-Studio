@@ -16,6 +16,13 @@ public final class OpjCancelCheck {
     }
 
     public static void main(String[] args) throws Exception {
+        try {
+            OpenJpeg.version();
+        } catch (Throwable t) { // as OpenJpegDecodeCheck: the macOS runners cannot load libopenjp2
+            System.out.println("  skip  OpenJPEG is not installed here: " + t.getMessage());
+            System.out.println("OpjCancelCheck: SKIPPED");
+            return;
+        }
         byte[] stream = Files.readAllBytes(Path.of("extra/test/data/opj-12bit.j2k"));
 
         expect("an ordinary decode still works", OpenJpeg.decode(stream, false, 0, 1).width() == 128);
