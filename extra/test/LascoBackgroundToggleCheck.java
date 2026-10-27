@@ -88,18 +88,19 @@ public final class LascoBackgroundToggleCheck {
         File file = writeFrame(pixels);
 
         FITSData off = FITSImage.readData(file, 0, false);
-        expect("switched off, the frame is not marked subtracted", !off.backgroundSubtracted());
+        expect("switched off, the frame is not marked subtracted", !off.background().subtracted());
         expect("switched off, NRL is never asked (not provisional)", !off.provisional());
         expect("switched off, the pixels are the file's own", off.pixels() instanceof short[] p && p[SIZE + 3] == 500 + SIZE + 3);
-        expect("switched off, the frame still says which background it has", off.background() != null);
+        expect("switched off, the frame still says which background it has", off.background().request() != null);
 
         ImageProcessingSettings.FITSParameters params = new ImageProcessingSettings.FITSParameters(
-                ImageProcessingSettings.ClippingMode.Range, 0, 1000, ImageProcessingSettings.ScalingMode.Gamma, 1 / 2.2, 0, 0, 0, false);
+                ImageProcessingSettings.ClippingMode.Range, 0, 1000, ImageProcessingSettings.ScalingMode.Gamma, 1 / 2.2, 0, 0, 0, false, LascoBackground.Choice.DEFAULT);
         ImageBuffer shown = off.decode(ImageFilter.NONE, params, new ClipSet.Range(0, 1000));
         expect("the decoded buffer says it was not subtracted", !shown.isBackgroundSubtracted());
         expect("and carries the request for the preview", shown.background() != null);
 
-        FITSData on = new FITSData(off.header(), new float[SIZE * SIZE], SIZE, SIZE, false, 0, 0, 1, null, false, true, request);
+        FITSData on = new FITSData(off.header(), new float[SIZE * SIZE], SIZE, SIZE, false, 0, 0, 1, null, false,
+                new FITSData.Background(request, true, false, null));
         ImageBuffer subtracted = on.decode(ImageFilter.NONE, params, new ClipSet.Range(0, 1000));
         expect("a subtracted frame's buffer says so (the readout label reads this)", subtracted.isBackgroundSubtracted());
 

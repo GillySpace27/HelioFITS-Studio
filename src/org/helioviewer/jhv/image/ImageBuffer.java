@@ -272,6 +272,9 @@ public final class ImageBuffer {
     }
 
     private volatile boolean backgroundSubtracted;
+    private volatile boolean backgroundLocal;
+    @Nullable
+    private volatile String backgroundNote;
     @Nullable
     private volatile LascoBackground.Request background;
 
@@ -280,10 +283,24 @@ public final class ImageBuffer {
      *
      * @param request    null when no background is published for the frame
      * @param subtracted whether it was taken off the pixels
+     * @param local      whether it came from the user's own file rather than NRL
+     * @param note       a refusal or a mismatch the Background section should say, or null
      */
-    public void setBackground(@Nullable LascoBackground.Request request, boolean subtracted) {
+    public void setBackground(@Nullable LascoBackground.Request request, boolean subtracted, boolean local, @Nullable String note) {
         background = request;
         backgroundSubtracted = subtracted;
+        backgroundLocal = local;
+        backgroundNote = note;
+    }
+
+    /** True when the background taken off was the user's own file. */
+    public boolean isBackgroundLocal() {
+        return backgroundLocal;
+    }
+
+    @Nullable
+    public String backgroundNote() {
+        return backgroundNote;
     }
 
     /** True when a monthly background was taken off these pixels. */

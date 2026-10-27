@@ -19,10 +19,11 @@ import org.helioviewer.jhv.io.LascoBackground;
 import org.helioviewer.jhv.time.TimeUtils;
 
 /**
- * The LASCO monthly background for the frame on screen, as the layer subtracts it.
+ * The LASCO background for the frame on screen, as the layer subtracts it.
  *
- * <p>The same array FITSImage takes off the pixels (LascoBackground.perSecond: the two monthly
- * images bracketing the frame, blended in time, in DN per second), drawn in grey with a fixed
+ * <p>The same array FITSImage takes off the pixels (LascoBackground.Request.resolve: NRL's monthly
+ * images blended in time or the nearest one, or the user's own file or pair, in DN per second),
+ * drawn in grey with a fixed
  * display stretch. Rows are drawn as the frame's are, bottom row first in the file, and the image
  * is not rotated to solar north. Follows the layer's frame while it is open.
  */
@@ -37,60 +38,73 @@ final class BackgroundPreview extends JDialog {
     private final JLabel picture = new JLabel("", JLabel.CENTER);
     private final JLabel caption = new JLabel();
     @Nullable
-    private LascoBackground.Request shown;
+    private Shown shown;
     @Nullable
-    private LascoBackground.Request pending;
+    private Shown pending;
     private boolean rendering;
 
     BackgroundPreview() {
-        super(MainFrame.get(), "LASCO background", false);
+        super(MainFrame.get(), "Background", false);
         picture.setPreferredSize(new java.awt.Dimension(SIZE, SIZE));
         caption.setBorder(BorderFactory.createEmptyBorder(6, 8, 8, 8));
         getContentPane().add(picture, BorderLayout.CENTER);
         getContentPane().add(caption, BorderLayout.PAGE_END);
         pack();
         setLocationRelativeTo(MainFrame.get());
+        // Escape closes it, as the other floating windows do; the title bar's close button does too
+        getRootPane().registerKeyboardAction(e -> setVisible(false), javax.swing.KeyStroke.getKeyStroke("ESCAPE"),
+                javax.swing.JComponent.WHEN_IN_FOCUSED_WINDOW);
     }
 
-    void showFor(@Nullable LascoBackground.Request request) {
+    /** A frame and where its background comes from: what is drawn, so a change of either draws again. */
+    private record Shown(LascoBackground.Request request, LascoBackground.Choice choice) {}
+
+    void showFor(@Nullable LascoBackground.Request request, LascoBackground.Choice choice) {
         shown = null; // a press of the button always draws again
-        follow(request);
+        follow(request, choice);
         setVisible(true);
     }
 
     /** Draw this frame's background if it is not the one already drawn; ignored while closed. */
-    void follow(@Nullable LascoBackground.Request request) {
-        if (request == null || request.equals(shown) || (!isVisible() && shown != null))
+    void follow(@Nullable LascoBackground.Request request, LascoBackground.Choice choice) {
+        Shown next = request == null ? null : new Shown(request, choice);
+        if (next == null || next.equals(shown) || (!isVisible() && shown != null))
             return;
-        shown = request;
+        shown = next;
         if (rendering) {
-            pending = request;
+            pending = next;
             return;
         }
-        render(request);
+        render(next);
     }
 
     private record Result(@Nullable BufferedImage image, String caption) {}
 
-    private void render(LascoBackground.Request request) {
+    private void render(Shown what) {
+        LascoBackground.Request request = what.request();
+        LascoBackground.Choice choice = what.choice();
         rendering = true;
-        caption.setText("Fetching the background for " + TimeUtils.format(request.milli()) + "...");
+        caption.setText((choice.mode().local() ? "Reading" : "Fetching") + " the background for " + TimeUtils.format(request.milli()) + "...");
         new SwingWorker<Result, Void>() {
             @Override
             protected Result doInBackground() throws Exception { // a failed listing fails the caption, reported in done()
-                String head = request.detector() + " " + request.filter() + "/" + request.polar() + ", frame at " + TimeUtils.format(request.milli());
-                float[] background;
+                String head = request.detector() + " " + request.filter() + "/" + request.polar() + ", frame at " + TimeUtils.format(request.milli())
+                        + "; " + choice.mode();
+                LascoBackground.Result background;
                 try {
-                    background = request.perSecond();
+                    background = request.resolve(choice);
                 } catch (LascoBackground.Unavailable e) {
                     return new Result(null, html(head, "Could not be fetched from NRL just now; the frame is shown without it."));
+                } catch (LascoBackground.Refused e) {
+                    return new Result(null, html(head, e.getMessage() + "; the frame is shown without it."));
                 }
                 if (background == null)
                     return new Result(null, html(head, "NRL publishes no monthly image for this product and time."));
-                float[] range = stretch(background);
-                String files = request.describe();
-                return new Result(draw(background, request.width(), request.height(), range[0], range[1]),
+                float[] range = stretch(background.perSecond());
+                String files = request.describe(choice);
+                return new Result(draw(background.perSecond(), request.width(), request.height(), range[0], range[1]),
                         html(head, (files.isEmpty() ? "" : "From " + files + ".<br>")
+                                + (background.note() == null ? "" : background.note() + ".<br>")
                                 + String.format("DN/s; grey runs %.3g to %.3g (0.5 to 99.5 percentile, gamma 2.2). Detector rows, not rotated to north.",
                                 range[0], range[1])));
             }
@@ -108,7 +122,7 @@ final class BackgroundPreview extends JDialog {
                     caption.setText("The background could not be drawn: " + e.getMessage());
                 }
                 pack();
-                LascoBackground.Request next = pending;
+                Shown next = pending;
                 pending = null;
                 if (next != null && next.equals(shown))
                     render(next);
