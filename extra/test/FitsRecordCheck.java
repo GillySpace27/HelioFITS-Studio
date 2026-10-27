@@ -88,7 +88,7 @@ public final class FitsRecordCheck {
 
     public static void main(String[] args) throws Exception {
         Path home = Files.createTempDirectory("hfs-fitsrecord-home");
-        System.setProperty("user.home", home.toString()); // no Heliad library of Gilly's is read
+        System.setProperty("user.home", home.toString()); // no FITS library of Gilly's is read
         Path dir = Files.createTempDirectory("hfs-fitsrecord");
         File ints = write(dir, "ints.fits", new short[][]{{-32768, 0}, {1, 100}}, new String[]{"source history one", "source history two"},
                 "BZERO", "32768", "BSCALE", "1", "BLANK", "100", "DATE-OBS", "2026-01-01T00:00:00", "ORIGIN", "SOURCE ORG");

@@ -28,11 +28,11 @@ import org.json.JSONObject;
 /**
  * Which file a local source frame is, by content, for an export's provenance.
  *
- * <p>A layer loaded from a local file (the Heliad tab, a drop, -load) used to export with no
+ * <p>A layer loaded from a local file (the FITS Library tab, a drop, -load) used to export with no
  * sources at all, because provenance keeps archive addresses only and never a local path. This
  * gives each such frame its identity instead: the SHA-256 of its bytes and, when the file is in a
- * Heliad library, the library's {@code dataset_key}, {@code obs_key} and {@code dataset_uid}
- * (Heliad's own sha256 is read from its index, so a library file is never hashed). A file outside
+ * FITS library, the library's {@code dataset_key}, {@code obs_key} and {@code dataset_uid}
+ * (HelioFITS Core's own sha256 is read from its index, so a library file is never hashed). A file outside
  * any library is hashed here. Nothing returned ever holds a path.
  *
  * <p>The work is done when a layer loads ({@link #prefetch}), one file at a time on its own
@@ -42,18 +42,18 @@ import org.json.JSONObject;
  */
 public final class SourceIdentity {
 
-    /** The identity of one file: sha256 always, the Heliad fields when the library has the file. */
-    public record Entry(String sha256, long size, @Nullable HeliadLibrary.Identity heliad) {
+    /** The identity of one file: sha256 always, the HelioFITS Core fields when the library has the file. */
+    public record Entry(String sha256, long size, @Nullable FitsLibrary.Identity library) {
 
         /** The provenance form: sha256, then dataset_key, obs_key and dataset_uid when known. */
         public JSONObject toJson() {
             JSONObject jo = new JSONObject().put("sha256", sha256);
-            if (heliad != null) {
-                jo.put("dataset_key", heliad.datasetKey());
-                if (heliad.obsKey() != null)
-                    jo.put("obs_key", heliad.obsKey());
-                if (heliad.datasetUid() != null)
-                    jo.put("dataset_uid", heliad.datasetUid());
+            if (library != null) {
+                jo.put("dataset_key", library.datasetKey());
+                if (library.obsKey() != null)
+                    jo.put("obs_key", library.obsKey());
+                if (library.datasetUid() != null)
+                    jo.put("dataset_uid", library.datasetUid());
             }
             return jo;
         }
@@ -107,9 +107,9 @@ public final class SourceIdentity {
     }
 
     private static Entry identify(Key key) {
-        HeliadLibrary.Identity heliad = heliad(key.path(), HeliadLibrary.find());
-        if (heliad != null && heliad.sha256() != null)
-            return new Entry(heliad.sha256(), key.size(), heliad);
+        FitsLibrary.Identity library = library(key.path(), FitsLibrary.find());
+        if (library != null && library.sha256() != null)
+            return new Entry(library.sha256(), key.size(), library);
         try {
             return new Entry(sha256(key.path()), key.size(), null);
         } catch (IOException e) {
@@ -119,7 +119,7 @@ public final class SourceIdentity {
 
     /** The library's record of a file under its root, or null: no library, outside it, not current, or unreadable. */
     @Nullable
-    static HeliadLibrary.Identity heliad(Path file, @Nullable HeliadLibrary.Location lib) {
+    static FitsLibrary.Identity library(Path file, @Nullable FitsLibrary.Location lib) {
         if (lib == null)
             return null;
         Path root = lib.root().toAbsolutePath().normalize();
@@ -127,9 +127,9 @@ public final class SourceIdentity {
             return null;
         String relpath = root.relativize(file).toString().replace('\\', '/');
         try {
-            return HeliadLibrary.identity(lib, relpath);
-        } catch (SQLException | HeliadLibrary.TooNew e) {
-            Log.warn("Heliad index not read for provenance: " + e.getMessage());
+            return FitsLibrary.identity(lib, relpath);
+        } catch (SQLException | FitsLibrary.TooNew e) {
+            Log.warn("FITS library index not read for provenance: " + e.getMessage());
             return null;
         }
     }

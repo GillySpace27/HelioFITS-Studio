@@ -74,7 +74,7 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
 
     private DefaultsSelectionPanel defaultsPanel;
     private final JTabbedPane tabs = new JTabbedPane();
-    private final HeliadSettings heliad = new HeliadSettings();
+    private final FitsLibrarySettings library = new FitsLibrarySettings();
 
     public SettingsDialog() {
         super(MainFrame.get(), "Settings", true);
@@ -111,10 +111,10 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         tabs.addTab("Layers", layersTab());
         tabs.addTab("Plugins", pluginsTab());
         tabs.addTab("Network", networkTab());
-        tabs.addTab("Heliad", heliad);
+        tabs.addTab("FITS Library", library);
         tabs.addChangeListener(e -> {
-            if (tabs.getSelectedComponent() == heliad)
-                heliad.refresh();
+            if (tabs.getSelectedComponent() == library)
+                library.refresh();
         });
         return tabs;
     }
@@ -128,8 +128,8 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
     @Override
     public void showDialog() {
         updateCacheSize();
-        if (tabs.getSelectedComponent() == heliad)
-            heliad.refresh();
+        if (tabs.getSelectedComponent() == library)
+            library.refresh();
         pack();
         setLocationRelativeTo(MainFrame.get());
         setVisible(true);

@@ -368,6 +368,12 @@ public class J2KView extends BaseView {
         return xmlMetaData[targetFrame];
     }
 
+    @Nonnull
+    @Override
+    public String getXMLMetaData(int frame) {
+        return frame >= 0 && frame < xmlMetaData.length ? xmlMetaData[frame] : EMPTY_METAXML;
+    }
+
     public ResolutionSet.Level getResolutionLevel(int frame, int level) {
         return source.resolutionSet(frame).getLevel(level);
     }
