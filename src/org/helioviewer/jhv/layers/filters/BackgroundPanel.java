@@ -11,6 +11,7 @@ import javax.swing.JPanel;
 import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.io.LascoBackground;
 import org.helioviewer.jhv.layers.ImageLayer;
+import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.view.View;
 
 /**
@@ -45,8 +46,7 @@ public final class BackgroundPanel {
         subtract.addActionListener(e -> {
             if (syncing)
                 return;
-            layer.getProcessingSettings().setSubtractBackground(subtract.isSelected());
-            layer.reloadSources(); // the clip set is sampled off the subtracted pixels, as for a plane change
+            setSubtract(layer, subtract.isSelected());
         });
         preview.setToolTipText("Show the background for the frame on screen");
         preview.addActionListener(e -> {
@@ -55,6 +55,27 @@ public final class BackgroundPanel {
             dialog.showFor(request);
         });
         update();
+    }
+
+    /**
+     * Set the switch on this layer and on every other selected LASCO layer, as the other rows fan
+     * out to a selection. A peer without a background is left alone: the flag means nothing to it,
+     * and flipping it would only re-read its files.
+     */
+    public static void setSubtract(ImageLayer origin, boolean on) {
+        Layers.applyToSelectedLayers(origin, il -> {
+            if (il != origin && !hasBackground(il))
+                return;
+            if (il.getProcessingSettings().fitsParameters().subtractBackground() == on)
+                return;
+            il.getProcessingSettings().setSubtractBackground(on);
+            il.reloadSources(); // the clip set is sampled off the subtracted pixels, as for a plane change
+        });
+    }
+
+    private static boolean hasBackground(ImageLayer il) {
+        View.ImageData data = il.getImageData();
+        return data != null && data.imageBuffer().background() != null;
     }
 
     /** The switch, and the button that shows the background. */
