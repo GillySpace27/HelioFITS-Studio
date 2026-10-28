@@ -29,6 +29,9 @@
 
 ### App icon
 - The iris icon joins the family look of HelioFITS, the HelioFITS Cache Manager and Heliogram: its dividers are white instead of black, and the blue AIA 335 leaf is a full leaf running from the hexagon's right corner to the Sun's edge, so the red 304 leaf no longer spans the whole top. The new blue leaf and the cyan AIA 131 leaf are drawn from the real AIA frames of the same 2024-05-14 X8.7 flare the other leaves came from, by release/make_iris_art.py
+- The iris icon's white dividers are twice as wide, 44 px at 1024, the same stroke as the HelioFITS and Heliogram outlines. The ground around the orb is the family's violet-black, and the hexagon holds Heliogram's drawn Sun in place of the HFS letters, so one artwork reads at every size from 16 px up
+- The iris sits in a squircle window inset on that ground, enlarged so the orb's edge falls outside the window's corners, and the .icns now shows the whole art shrunk into the icon body, as the asset catalog does, instead of cropping its middle
+- The violet ground is lighter (#2F2263 to #15102A, was #171132 to #090711), the same lift made to the HelioFITS, Cache Manager and Heliogram icons, so it reads as violet on a dark Dock
 
 ### From upstream JHelioviewer
 - Fixes taken from JHelioviewer's development line: grid lines no longer duplicate and longitude labels sit on their meridians; the calendar's month and year pickers stay within the chosen month; the timeline's Y-axis zoom stays positive; annotation point radius is kept in saved states; footpoints interpolate between the right neighbours; blank samples are skipped in the minute band cache; mapped image files are sized before mapping; layer downloads bypass the HTTP cache
