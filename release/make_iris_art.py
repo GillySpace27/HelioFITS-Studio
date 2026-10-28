@@ -14,7 +14,10 @@ the family version (2026-10-23, Gilly's pick beside Peek, Heliad and Heliogram):
   * the ground outside the orb is Heliogram's violet-black, and the hexagon holds Heliogram's drawn
     Sun (2026-10-26), so the icon reads at 16 px and matches the family's sun-in-a-white-outline;
   * the dividers are Heliogram's chrome white (#E7EAF3), 44 px at 1024 (the stroke of the Heliogram
-    and HelioFITS outlines; 22 px until 2026-10-26), with round joints.
+    and HelioFITS outlines; 22 px until 2026-10-26), with round joints;
+  * the iris sits in an inset squircle window (2026-10-28, Gilly's pick of four in a family photo):
+    the whole iris is enlarged by ZOOM about its centre, so the orb's edge falls outside the
+    window's corners, and the violet-black ground shows as a band around the window.
 
 The red, olive, gold and purple leaves are the original art, untouched.
 
@@ -42,7 +45,9 @@ ORIGINAL = os.path.join(HERE, "iris_plain_1024.png")
 OUT = os.path.join(HERE, "iris_leaf_plain_1024.png")
 
 CHROME = (0xE7, 0xEA, 0xF3)
-LINE = 44                                 # divider width at 1024: Heliogram's and HelioFITS's outline stroke
+ZOOM = 1.10                               # the iris enlarged about its centre: the orb's radius becomes 547,
+WINDOW = 0.86                             # past the corner of this squircle window (536 px out)
+LINE = 44 / ZOOM                          # divider width, 44 px after ZOOM: Heliogram's and HelioFITS's outline stroke
 C, APO = 511.5, 202                       # hexagon centre and apothem, to the middle of the old dividers
 R = APO / math.cos(math.radians(30))
 V = {"L": (C - R, C), "R": (C + R, C),
@@ -111,6 +116,35 @@ def leaves():
 
 
 def art():
+    """The iris, enlarged by ZOOM about its centre, in a squircle window on the family ground."""
+    big = iris().resize((round(1024 * ZOOM),) * 2, Image.LANCZOS)
+    o = (big.width - 1024) // 2
+    a = np.array(big.crop((o, o, o + 1024, o + 1024))).astype(np.float32)
+    window = squircle(WINDOW)[..., None]
+    out = a * window + ground() * (1 - window)
+    return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8))
+
+
+def ground():
+    """Heliogram's ground, #171132 -> #090711, top to bottom."""
+    t = np.linspace(0, 1, 1024)[:, None, None]
+    return np.broadcast_to(np.array(GROUND_TOP) * (1 - t) + np.array(GROUND_BOT) * t, (1024, 1024, 3))
+
+
+def squircle(frac, n=4.6, ss=4):
+    """Area coverage of a squircle frac of the canvas wide, with macOS's exponent."""
+    c, h = 512 * ss, 512 * ss * frac
+    pts = []
+    for i in range(4800):
+        t = 2 * math.pi * i / 4800
+        ct, st = math.cos(t), math.sin(t)
+        pts.append((c + h * math.copysign(abs(ct) ** (2 / n), ct), c + h * math.copysign(abs(st) ** (2 / n), st)))
+    m = Image.new("L", (1024 * ss, 1024 * ss), 0)
+    ImageDraw.Draw(m).polygon(pts, fill=255)
+    return np.array(m.resize((1024, 1024), Image.BOX)).astype(np.float32) / 255
+
+
+def iris():
     orig = np.array(Image.open(ORIGINAL).convert("RGB")).astype(np.float32)
     blue, cyan, A, B = leaves()
     yy, xx = np.mgrid[0:1024, 0:1024]
@@ -122,11 +156,9 @@ def art():
         table = colour_table(frame(ch, *fit_at)[m], orig[m])
         new = look_up(table, frame(ch, *RENDER)) * inside
         out = out * (1 - region[..., None]) + new * region[..., None]
-    # the family ground (Heliogram's #171132 -> #090711, top to bottom) outside the orb
-    t = np.linspace(0, 1, 1024)[:, None, None]
-    ground = np.array(GROUND_TOP) * (1 - t) + np.array(GROUND_BOT) * t
+    # the family ground outside the orb
     outside = np.clip((np.hypot(xx - C, yy - C) - (ORB - 1)) / 3, 0, 1)[..., None]
-    out = out * (1 - outside) + ground * outside
+    out = out * (1 - outside) + ground() * outside
     img = Image.fromarray(np.clip(out, 0, 255).astype(np.uint8))
     return sun(dividers(img, A, B))
 
@@ -181,7 +213,7 @@ def dividers(img, A, B, ss=4):
     big = Image.new("L", (1024 * ss, 1024 * ss), 0)
     d = ImageDraw.Draw(big)
     for p, q in segs:
-        d.line([(p[0] * ss, p[1] * ss), (q[0] * ss, q[1] * ss)], fill=255, width=LINE * ss)
+        d.line([(p[0] * ss, p[1] * ss), (q[0] * ss, q[1] * ss)], fill=255, width=round(LINE * ss))
     for v in V.values():                                  # round joints
         d.ellipse([(v[0] - LINE / 2) * ss, (v[1] - LINE / 2) * ss, (v[0] + LINE / 2) * ss, (v[1] + LINE / 2) * ss], fill=255)
     clip = Image.new("L", big.size, 0)
