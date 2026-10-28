@@ -679,6 +679,13 @@ sign_jar_natives() {
             file "$_d/$_e" 2>/dev/null | grep -q 'Mach-O' || continue   # skip .so/.dll for other OSes
             CS_ENT=""; retry_codesign "$_d/$_e" || exit 1
             ( cd "$_d" && zip -q "$_j" "$_e" )                          # replace entry with the signed copy
+            # LWJGL hashes each library at load against META-INF/<entry>.sha1 and prints
+            # "Incompatible Java and native library versions" when they differ; signing changed
+            # the bytes, so record the signed copy's hash (check_native_hashes.py proves it).
+            if unzip -qo "$_j" "META-INF/$_e.sha1" -d "$_d" 2>/dev/null; then
+                shasum -a 1 "$_d/$_e" | cut -c1-40 > "$_d/META-INF/$_e.sha1"
+                ( cd "$_d" && zip -q "$_j" "META-INF/$_e.sha1" )
+            fi
         done || exit 1
         rm -rf "$_d"
     done
@@ -966,6 +973,7 @@ if got != want:
     sys.exit("!! the app was signed with entitlements %r; release/entitlements.plist says %r" % (got, want))
 ' "$ENT"
     "$HERE/verify_signatures.sh" "$APP"
+    python3 "$HERE/check_native_hashes.py" "$APP" || exit 1
 
     echo "==> building + signing the .dmg"
     rm -f "$DMG"
