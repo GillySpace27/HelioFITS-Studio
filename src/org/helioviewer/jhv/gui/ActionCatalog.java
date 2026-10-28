@@ -49,7 +49,7 @@ public final class ActionCatalog {
     public static final Set<String> TOOLBAR_CONTROLS = Set.of(
             "rotate90", "pan", "rotate", "axis", "track", "diffRotation", "corona", "multiview",
             "sidebarLeft", "timelines", "sidebarRight", "projection", "trackCme", "colour", "sequence",
-            "grid", "camera", "compare", "annotate", "refresh", "samp");
+            "grid", "camera", "compare", "pizza", "annotate", "refresh", "samp");
 
     private static final Map<String, Entry> entries = new LinkedHashMap<>(); // the map is the only state: no static flag (guards.py ratchet)
 
@@ -174,6 +174,13 @@ public final class ActionCatalog {
         // Compare palette (HS-11): a copy of the selected layer to compare against
         put("duplicateLayer", org.helioviewer.jhv.layers.LayerDuplicate.action(), "Layers/Duplicate Layer",
                 "Add a copy of the selected image layer, for a before and after with the Compare palette");
+        // Scene templates (HS-25, docs/templates.md)
+        put("newFromTemplate", new org.helioviewer.jhv.gui.dialog.TemplateChooser.Open(), "File/New from Template...",
+                "Start from a template: a saved scene whose dates can follow the newest data");
+        put("saveAsTemplate", new org.helioviewer.jhv.gui.dialog.TemplateSave.Open(), "File/Save as Template...",
+                "Save this scene as a template: a starting point with a name, a description, a thumbnail and a time rule");
+        put("templates", new org.helioviewer.jhv.gui.dialog.TemplateManager.Open(), mac ? "Window/Templates..." : "File/Templates...",
+                "Manage scene templates: open, duplicate, rename, edit, share, set as startup or retire");
     }
 
     /**

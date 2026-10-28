@@ -1,0 +1,7 @@
+# The HelioFITS Core commit (repository GillySpace27/heliad) that HelioFITS Studio's macOS app carries
+# (Contents/Resources/heliofits-core), built by deploy_release.sh with that commit's own
+# app/tools/bundle_python.sh. One full commit hash on the core's main, on the first line that is not a
+# comment. Change it on a branch, with the release notes saying what the new core brings; Studio's
+# Use FITS and ingest speak to exactly this core. The core must have the heliofits_core package
+# (the rename): Studio runs it with -m heliofits_core.
+0b5ecc633068f7bd59ae98b80c4c3383262315f3

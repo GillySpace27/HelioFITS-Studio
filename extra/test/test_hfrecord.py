@@ -12,8 +12,8 @@ stopped writing them cannot pass by validating nothing. Each record must pass th
 refused, which is the proof the validator can fail. Needs the jsonschema package.
 
 It also reads the Send to Python files FitsRecordCheck wrote (extra/test-classes/hfrecord-fits/,
-or --fits DIR) with astropy: each is valid FITS, its HFRECORD extension decodes the way Heliad's
-reader does (src/heliad/record.py, _fits_record: the 8-bit image's bytes as UTF-8) and passes the
+or --fits DIR) with astropy: each is valid FITS, its HFRECORD extension decodes the way HelioFITS Core's
+reader does (src/heliofits_core/record.py, _fits_record: the 8-bit image's bytes as UTF-8) and passes the
 schema with the record_id of its HFRECID card, its HISTORY record block is numbered in order with
 every card's text within 72 characters, and hfrecord.json beside them passes the schema. Without
 astropy that part is reported and passed over, except under CHECKS_STRICT=1, where it fails.

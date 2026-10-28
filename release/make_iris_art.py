@@ -4,7 +4,7 @@
 The iris is six SDO/AIA channels of the 2024-05-14 X8.7 flare (304, 1600, 171, 211, 131, 335)
 around a dark hexagon. iris_plain_1024.png is that art with black dividers, the red 304 leaf
 running across the whole top and the blue 335 leaf a small triangle under it. This script makes
-the family version (2026-10-23, Gilly's pick beside Peek, Heliad and Heliogram):
+the family version (2026-10-23, Gilly's pick beside Peek, Heliad (now the HelioFITS Cache Manager) and Heliogram):
 
   * the blue leaf is a full 60 degree iris leaf, its point at the hexagon's right corner and its
     sides running on to the Sun's edge, so the red leaf keeps only the top left;

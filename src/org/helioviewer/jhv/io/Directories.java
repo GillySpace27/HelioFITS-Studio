@@ -84,6 +84,13 @@ public enum Directories {
             return HOME.getPath() + "Backups" + File.separator;
         }
     },
+    // Scene templates the user saved (docs/templates.md); retired ones go to attic/ inside it.
+    TEMPLATES {
+        @Override
+        public String getPath() {
+            return HOME.getPath() + "Templates" + File.separator;
+        }
+    },
     // The downloads directory
     DOWNLOADS {
         @Override

@@ -52,6 +52,9 @@ import org.helioviewer.jhv.plugins.Plugin;
 import org.helioviewer.jhv.plugins.PluginManager;
 import org.helioviewer.jhv.thread.Task;
 import org.helioviewer.jhv.view.j2k.jpip.JPIPCacheManager;
+import org.helioviewer.jhv.image.ImageBufferCache;
+import org.helioviewer.jhv.app.MemoryBudget;
+import org.helioviewer.jhv.thread.DecodePool;
 
 import com.jidesoft.dialog.ButtonPanel;
 import com.jidesoft.dialog.StandardDialog;
@@ -74,7 +77,7 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
 
     private DefaultsSelectionPanel defaultsPanel;
     private final JTabbedPane tabs = new JTabbedPane();
-    private final HeliadSettings heliad = new HeliadSettings();
+    private final FitsLibrarySettings library = new FitsLibrarySettings();
 
     public SettingsDialog() {
         super(MainFrame.get(), "Settings", true);
@@ -111,10 +114,10 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         tabs.addTab("Layers", layersTab());
         tabs.addTab("Plugins", pluginsTab());
         tabs.addTab("Network", networkTab());
-        tabs.addTab("Heliad", heliad);
+        tabs.addTab("FITS Library", library);
         tabs.addChangeListener(e -> {
-            if (tabs.getSelectedComponent() == heliad)
-                heliad.refresh();
+            if (tabs.getSelectedComponent() == library)
+                library.refresh();
         });
         return tabs;
     }
@@ -128,8 +131,8 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
     @Override
     public void showDialog() {
         updateCacheSize();
-        if (tabs.getSelectedComponent() == heliad)
-            heliad.refresh();
+        if (tabs.getSelectedComponent() == library)
+            library.refresh();
         pack();
         setLocationRelativeTo(MainFrame.get());
         setVisible(true);
@@ -254,9 +257,66 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
     private JComponent networkTab() {
         return new SettingsForm()
                 .row("Image cache:", createCachePanel())
+                .row("Memory:", createMemoryPanel())
+                .row("Decoding:", createDecodePanel())
+                .row("Long requests:", createChunkPanel())
                 .row("Proxy:", new JLabel("Used for every download; leave empty when there is no proxy."))
                 .wide(defaultsPanel)
                 .end();
+    }
+
+    /** How much of the machine's memory the JPIP data and decoded frames may share. A larger share keeps more of a movie ready; a smaller one leaves room for other programs. */
+    private static JPanel createMemoryPanel() {
+        javax.swing.JSpinner share = new javax.swing.JSpinner(new javax.swing.SpinnerNumberModel(MemoryBudget.sharePercent(), 10, 90, 5));
+        JLabel detail = new JLabel();
+        Runnable show = () -> detail.setText(String.format("%% of %d GB memory: %.1f GB for the image cache, JPIP data and decoded frames together",
+                MemoryBudget.physical() >> 30, MemoryBudget.total() / (1024. * 1024 * 1024)));
+        show.run();
+        share.addChangeListener(e -> {
+            Settings.setProperty(MemoryBudget.SHARE_KEY, String.valueOf(share.getValue()));
+            ImageBufferCache.applyBudget();
+            show.run();
+        });
+
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
+        panel.add(share);
+        panel.add(detail);
+        return panel;
+    }
+
+    /** How many frames decode at once, across all layers. Automatic leaves two performance cores for the interface and the network. */
+    private static JPanel createDecodePanel() {
+        int set = 0;
+        try {
+            set = Integer.parseInt(Settings.getProperty(DecodePool.KEY).trim());
+        } catch (RuntimeException ignored) { // unset: automatic
+        }
+        javax.swing.JSpinner threads = new javax.swing.JSpinner(new javax.swing.SpinnerNumberModel(Math.max(0, set), 0, 64, 1));
+        JLabel detail = new JLabel();
+        Runnable show = () -> detail.setText("0 is automatic, now " + DecodePool.width() + " decodes at once; fewer is quieter, more loads a movie sooner");
+        show.run();
+        threads.addChangeListener(e -> {
+            Settings.setProperty(DecodePool.KEY, String.valueOf(threads.getValue()));
+            DecodePool.apply();
+            show.run();
+        });
+
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
+        panel.add(threads);
+        panel.add(detail);
+        return panel;
+    }
+
+    /** A request over the server's 1000-frame cap loads in pieces; this is when the next piece is asked for. */
+    private static JPanel createChunkPanel() {
+        JComboBox<org.helioviewer.jhv.layers.ChunkLoading.Mode> mode = new JComboBox<>(org.helioviewer.jhv.layers.ChunkLoading.Mode.values());
+        mode.setSelectedItem(org.helioviewer.jhv.layers.ChunkLoading.current());
+        mode.addActionListener(e -> Settings.setProperty(org.helioviewer.jhv.layers.ChunkLoading.KEY, ((org.helioviewer.jhv.layers.ChunkLoading.Mode) mode.getSelectedItem()).name()));
+
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
+        panel.add(new JLabel("Ask the server for the next piece:"));
+        panel.add(mode);
+        return panel;
     }
 
     private JPanel createCachePanel() {

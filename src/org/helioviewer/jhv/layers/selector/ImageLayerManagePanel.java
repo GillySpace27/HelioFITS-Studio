@@ -169,7 +169,7 @@ final class ImageLayerManagePanel extends JPanel {
         python.setToolTipText("Send to Python: this layer's FITS files as science FITS (physical values, no display steps) with a manifest");
         icons.add(python);
         fitsButton.setToolTipText(FITS_TIP);
-        fitsButton.addActionListener(e -> org.helioviewer.jhv.gui.dialog.HeliadFitsDialog.start(layer, this, this::fitsStatus));
+        fitsButton.addActionListener(e -> org.helioviewer.jhv.gui.dialog.UseFitsDialog.start(layer, this, this::fitsStatus));
         icons.add(fitsButton);
         icons.add(makeSyncButton());
         icons.add(metaButton);
@@ -187,13 +187,13 @@ final class ImageLayerManagePanel extends JPanel {
     }
 
     private JButton refreshButton;
-    private static final String FITS_TIP = "Use FITS: open the FITS files behind these Helioviewer frames, fetched into the Heliad library if it lacks them";
+    private static final String FITS_TIP = "Use FITS: open the FITS files behind these Helioviewer frames, fetched into the FITS library if it lacks them";
     private final JButton fitsButton = new JButton("FITS");
 
-    /** The FITS button while Heliad works: disabled, with what it is doing; null when it is done. */
+    /** The FITS button while HelioFITS Core works: disabled, with what it is doing; null when it is done. */
     private void fitsStatus(@javax.annotation.Nullable String line) {
         fitsButton.setEnabled(line == null);
-        fitsButton.setToolTipText(line == null ? FITS_TIP : "Heliad: " + line);
+        fitsButton.setToolTipText(line == null ? FITS_TIP : "Use FITS: " + line);
     }
     private javax.swing.JCheckBox liveBox;
 
@@ -286,7 +286,7 @@ final class ImageLayerManagePanel extends JPanel {
             refreshButton.setVisible(PunchClient.hasRememberedQuery(layer) || !layer.getFailedUris().isEmpty());
         if (liveBox != null)
             liveBox.setVisible(org.helioviewer.jhv.io.LiveRefresh.enabled() && layer.getFitsRequest() != null);
-        fitsButton.setVisible(org.helioviewer.jhv.io.HeliadFits.applies(layer.getView()));
+        fitsButton.setVisible(org.helioviewer.jhv.io.UseFits.applies(layer.getView()));
     }
 
     // Everything this layer has put on disk. There are two separate stores and a layer uses one
@@ -442,7 +442,9 @@ final class ImageLayerManagePanel extends JPanel {
      * frame on screen.
      */
     private String describeObservation() {
-        StringBuilder line = new StringBuilder(ObservationType.of(layer.getMetaData()));
+        View.ImageData data = layer.getImageData();
+        boolean subtracted = data != null && data.imageBuffer().isBackgroundSubtracted();
+        StringBuilder line = new StringBuilder(ObservationType.of(layer.getMetaData(), subtracted, subtracted && data.imageBuffer().isBackgroundLocal()));
         StringBuilder tips = new StringBuilder();
         if (layer.getFilter() == ImageFilter.Type.RHEF)
             badge(line, tips, "RHEF: visualization", "RHEF output is a visualization, not a calibrated radiance");
@@ -453,7 +455,6 @@ final class ImageLayerManagePanel extends JPanel {
             badge(line, tips, "base difference", "each frame minus the first frame");
         if (org.helioviewer.jhv.display.Compare.differenceFor(layer) != null)
             badge(line, tips, "Compare: A minus B", "this layer minus Compare's layer B in the files' units, each stretch undone; a view, not a calibrated product");
-        View.ImageData data = layer.getImageData();
         if (data != null && data.imageBuffer().isProvisional())
             badge(line, tips, "provisional LASCO", "this frame's monthly background could not be fetched, so it is shown without it");
         if ("CQM".equals(ObservationType.punchProduct(layer.getMetaData().getDisplayName())))

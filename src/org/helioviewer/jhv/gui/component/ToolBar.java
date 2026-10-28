@@ -102,6 +102,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private final ButtonText CAMERA = new ButtonText(Buttons.camera, "Camera", "Where the view is seen from: Free, Follow, Turntable, Overview, and their settings");
     private final ButtonText COMPARE = new ButtonText(Buttons.compare, "Compare",
             "Blink between two image layers, swipe a divider across the view with one on each side, or show one minus the other");
+    private final ButtonText PIZZA = new ButtonText(Buttons.pizza, "Pizza",
+            "Cut every image layer into its own wedges or tiles of one Sun, turn the cut, and record a seamless spin");
     private final ButtonText ANNOTATE = new ButtonText(Buttons.annotate, "Annotation",
             "Draw on the view: mode, colour and thickness (hold Shift to draw)");
     private final ButtonText SDO_CUTOUT = new ButtonText(Buttons.sdoCutout, "SDO Cut-out",
@@ -679,6 +681,11 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         comparePalette.bind(compareButton);
         register("compare", COMPARE, compareButton);
 
+        // Sun pizza (HS-25): every image layer in its own wedges or tiles of one Sun.
+        JToggleButton pizzaButton = toolToggleButton(PIZZA);
+        pizzaPalette.bind(pizzaButton);
+        register("pizza", PIZZA, pizzaButton);
+
         // Everything reached once a session rather than once a minute, plus annotation, behind
         // one button. Annotation used to have its own top-level button; it is a mode you set once
         // and then draw in, not a control worked against the view while watching it (the thing
@@ -937,6 +944,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private static Palette cameraPalette;
     private static final Palette comparePalette = // HS-11; final, as Projection and HDR are (guards.py ratchet)
             new Palette("Compare", ComparePaletteContent::build, ComparePaletteContent::refresh);
+    private static final Palette pizzaPalette = // HS-25; final, like Compare's
+            new Palette("Pizza", PizzaPaletteContent::build, PizzaPaletteContent::refresh);
 
     private static final Palette colourPalette =
             new Palette("HDR", ColourPaletteContent::build, ColourPaletteContent::refresh);

@@ -38,7 +38,7 @@ import org.json.JSONObject;
 
 final class ImageLayerLoader {
 
-    private final LatestWorker<DecodedImage> executor = new LatestWorker<>("View-Decoder");
+    private final LatestWorker<DecodedImage> executor = new LatestWorker<>(org.helioviewer.jhv.thread.DecodePool.executor());
     private final ImageProcessingSettings processingSettings;
     private final Consumer<View> onViewLoaded;
     private final Consumer<View> onPreviewLoaded; // the first frame, while the rest are still arriving
@@ -482,23 +482,41 @@ final class ImageLayerLoader {
      * and grows as the rest arrive. It answers with the whole request, so the layer saves, syncs
      * and compares as before. A piece the server refuses is reported by requestAPI and skipped.
      *
-     * <p>ponytail: pieces are fetched one after another, to spare a server that builds each movie
-     * on demand. Downloading the layer as a file still asks for one movie and gets the server's
+     * <p>When the next piece is asked for is the Setting load.chunkMode (ChunkLoading): by default as
+     * soon as the previous piece has opened, so the server builds the next movie while this one
+     * downloads; later modes spare a server that builds each movie on demand. Downloading the layer as a file still asks for one movie and gets the server's
      * thinned 1000 frames.
      */
     @Nullable
     private View loadChunks(APIRequest req, List<APIRequest> parts, Consumer<View> preview) throws Exception {
         ManyView movie = null;
         FrameBatch batch = null;
+        ChunkLoading.Mode mode = ChunkLoading.current();
+        java.util.List<java.util.concurrent.Future<URI>> queries = new java.util.ArrayList<>();
+        if (mode == ChunkLoading.Mode.ALL) { // every query in flight at once
+            java.util.concurrent.ExecutorService pool = org.helioviewer.jhv.thread.AppThread.createIdleExecutor("Chunk-Query", parts.size());
+            for (APIRequest part : parts)
+                queries.add(pool.submit(() -> requestAPI(part.toJpipRequest())));
+            pool.shutdown(); // the queries already submitted still run
+        }
+        View previous = null;
         for (int i = 0; i < parts.size(); i++) {
             if (Thread.currentThread().isInterrupted())
                 throw new InterruptedException("load cancelled");
+            if (previous != null)
+                waitForPiece(mode, previous, i);
             statusSink.accept("Querying server, part " + (i + 1) + " of " + parts.size() + "…");
             APIRequest part = parts.get(i);
-            URI uri = requestAPI(part.toJpipRequest());
+            URI uri;
+            try {
+                uri = mode == ChunkLoading.Mode.ALL ? queries.get(i).get() : requestAPI(part.toJpipRequest());
+            } catch (java.util.concurrent.ExecutionException e) {
+                throw e.getCause() instanceof Exception cause ? cause : e;
+            }
             if (uri == null)
                 continue;
             View v = createView(part, uri);
+            previous = v;
             if (movie == null) {
                 movie = new ManyView(List.of(v)) {
                     @Override
@@ -514,6 +532,19 @@ final class ImageLayerLoader {
         if (batch != null)
             batch.flush();
         return movie;
+    }
+
+    private static final long CHUNK_WAIT_LIMIT_MS = 5 * 60_000; // a stalled piece must not hold the rest of the layer for ever
+
+    private void waitForPiece(ChunkLoading.Mode mode, View previous, int next) throws InterruptedException {
+        int total = previous.getMaximumFrameNumber() + 1;
+        long deadline = System.currentTimeMillis() + CHUNK_WAIT_LIMIT_MS;
+        int complete = previous.getCompleteFrameCount();
+        while (!ChunkLoading.reached(mode, complete, total) && System.currentTimeMillis() < deadline) {
+            statusSink.accept("Part " + next + ": " + complete + " of " + total + " frames downloaded, the next part waits…");
+            Thread.sleep(500);
+            complete = previous.getCompleteFrameCount();
+        }
     }
 
     /**

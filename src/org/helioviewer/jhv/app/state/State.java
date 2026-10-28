@@ -94,6 +94,10 @@ public final class State {
         Path path = Path.of(dir, file).toAbsolutePath();
         if (WRITTEN.getOrDefault(path, 0L) > seq) // a newer scene is already on disk
             return true;
+        if (overwritesTemplate(json, path)) {
+            Log.warn("Not writing a session over the template " + path);
+            return false;
+        }
         Path temp = null;
         try {
             temp = Files.createTempFile(Path.of(dir), file + ".", ".tmp");
@@ -154,6 +158,20 @@ public final class State {
         return uris != null && !uris.isEmpty();
     }
 
+    // A template is a starting point (docs/templates.md): nothing but a template save writes into
+    // the Templates folder, so an autosave that was pointed at a template cannot turn it back into
+    // a plain session.
+    private static boolean overwritesTemplate(JSONObject json, Path path) {
+        JSONObject main = json.optJSONObject("org.helioviewer.jhv.state");
+        return (main == null || !main.has(TemplateState.KEY))
+                && TemplateLibrary.inTemplates(path);
+    }
+
+    /** The session as a scene template (docs/templates.md): what snapshot() writes, plus the template object. */
+    public static JSONObject templateSnapshot(TemplateTime.Meta meta) {
+        return TemplateState.attach(toJson(), meta);
+    }
+
     /** The session as save() would write it, for an export's provenance (HS-5) and, later, undo. */
     public static JSONObject snapshot() {
         return toJson();
@@ -206,6 +224,9 @@ public final class State {
         JSONObject compare = org.helioviewer.jhv.display.Compare.toJson(); // HS-11; absent while Compare is off
         if (compare != null)
             main.put("compare", compare);
+        JSONObject pizza = org.helioviewer.jhv.display.Pizza.toJson(); // HS-25; absent while the pizza is off
+        if (pizza != null)
+            main.put("pizza", pizza);
         JSONObject plugins = new JSONObject();
         PluginManager.saveState(plugins);
         main.put("plugins", plugins);
@@ -382,6 +403,7 @@ public final class State {
 
         Layers.restore(restoredLayers);
         org.helioviewer.jhv.display.Compare.fromJson(data.optJSONObject("compare"), restoredLayers); // by layer id (HS-11)
+        org.helioviewer.jhv.display.Pizza.fromJson(data.optJSONObject("pizza"), restoredLayers); // by layer id (HS-25)
         Annotations.fromJson(data.optJSONObject("annotations"));
 
         // Restore the range before the playhead, so the playhead lands inside it rather than
@@ -450,6 +472,7 @@ public final class State {
         // A new history from here: an Undo pressed while this loads must not apply the last session's scene.
         org.helioviewer.jhv.app.SceneUndo.reset();
         try {
+            openTemplate(jo); // before anything reads the times
             ViewState.ModeData modeData = ViewState.readModeJson(jo);
             ViewState.setProjection(modeData.projection()); // to be set before viewpoint
             ViewState.applyRecordingJson(jo.optJSONObject("recording"));
@@ -476,6 +499,29 @@ public final class State {
             String message = e.getMessage() == null || e.getMessage().isBlank() ? "State load failed." : e.getMessage();
             Commands.notifyLoadStateFinished(context, false, message);
         }
+    }
+
+    /**
+     * A scene template (docs/templates.md) opens as a starting point: a latest or relative one has
+     * every layer request and the master range moved to its range here, before a layer is built
+     * (loadLayers keeps that range from the newest-data default as it does a session's), and the
+     * window stops writing to the file it came from, so the scene is Untitled and Save asks for a
+     * name. Whoever opened it may have pointed the window at it already (Open Session, -state);
+     * this runs after them. A time rule that does not parse is reported and the saved dates stand.
+     */
+    private static void openTemplate(JSONObject jo) {
+        if (!jo.has(TemplateState.KEY))
+            return;
+        try {
+            TemplateTime.Meta meta = TemplateState.prepare(jo, System.currentTimeMillis(), org.helioviewer.jhv.io.DataSources::newest);
+            if (meta != null)
+                Log.info("Template " + meta.name() + " (" + meta.mode().word() + "): " + jo.optString("masterStartTime") + " to " + jo.optString("masterEndTime"));
+        } catch (IllegalArgumentException | org.json.JSONException e) {
+            Log.warn("Template time rule not applied", e);
+            org.helioviewer.jhv.app.Message.warn("Template", e.getMessage() + "\nIt opens on the dates it was saved with.");
+        }
+        if (!org.helioviewer.jhv.io.CommandLine.isExportMode()) // a batch export changes no window and no setting
+            org.helioviewer.jhv.app.Session.resetToUntitled();
     }
 
     /**

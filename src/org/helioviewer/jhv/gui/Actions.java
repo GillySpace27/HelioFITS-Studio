@@ -164,7 +164,8 @@ public final class Actions {
             File state = LoadStateDialog.get();
             if (state != null) {
                 Commands.loadState(state.toURI());
-                org.helioviewer.jhv.app.Session.setSessionFile(state, true); // this window now IS that project
+                if (!org.helioviewer.jhv.app.state.TemplateLibrary.isTemplate(state)) // a template is a starting point, never the save target
+                    org.helioviewer.jhv.app.Session.setSessionFile(state, true); // this window now IS that project
             }
         }
     }
@@ -787,7 +788,8 @@ public final class Actions {
         @Override
         public void actionPerformed(ActionEvent e) {
             Commands.loadState(file.toURI());
-            org.helioviewer.jhv.app.Session.setSessionFile(file, true);
+            if (!org.helioviewer.jhv.app.state.TemplateLibrary.isTemplate(file)) // a template is a starting point, never the save target
+                org.helioviewer.jhv.app.Session.setSessionFile(file, true);
         }
     }
 

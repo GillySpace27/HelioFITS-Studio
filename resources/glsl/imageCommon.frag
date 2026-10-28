@@ -115,6 +115,19 @@ layout(std140) uniform DisplayBlock {
     // and the exponents that undo each layer's Gamma stretch.
     vec4 compareScale;
     vec4 compareExponent;
+    // The sun pizza (HS-25, display/Pizza.java): which cell of the pizza this layer keeps.
+    //   pizzaA: layout (0 off, 1 wedges, 2 squares, 3 polar tiles), this layer's slot, cells per
+    //           turn K (slots times repeats), slots N
+    //   pizzaB: turn in radians, gap (radians for wedges, a fraction of a tile otherwise), inner and
+    //           outer radius of this layer's ring (0 for no outer limit), in solar radii or pixels
+    //   pizzaC: tile size (solar radii or pixels), row shift, space (0 the image's own solar
+    //           frame, so a wedge is a solar position angle; 1 the screen), spoke jitter
+    //   pizzaD: the screen centre in framebuffer pixels, shuffle seed (0 none), polar rows counted
+    //           on the warped radius (1, Helioradial) or on the radius itself (0)
+    vec4 pizzaA;
+    vec4 pizzaB;
+    vec4 pizzaC;
+    vec4 pizzaD;
 } display;
 
 uniform sampler2D image;
@@ -706,7 +719,77 @@ void clipSectors(const vec2 point) {
     clipSectorOpening(theta, display.userSector);
 }
 
+float pizzaHash(const float n) {
+    return fract(sin(n * 12.9898 + display.pizzaD.z * 78.233) * 43758.5453);
+}
+
+// The slot that owns pizza cell c: Pizza.slotOfCell, which the labels use, says the same in Java.
+// With the shuffle seed s set, repeat r of the N slots is turned by r times s, so each repeat still
+// shows every slot once. Integer arithmetic on purpose: Java has to agree with it exactly.
+float pizzaSlotOf(const float c) {
+    float n = display.pizzaA.w;
+    return mod(c + floor(c / n) * display.pizzaD.z, n);
+}
+
+// The sun pizza (HS-25): discard this fragment unless its cell belongs to this layer's slot.
+// point is the position in the image's own solar frame in solar radii, north up, the frame the
+// sector masks use, so a wedge edge is a solar position angle and stays on the Sun as the camera
+// moves. In screen space the point is the fragment's offset from the viewport centre in pixels.
+void clipPizza(const vec2 solarPoint) {
+    float shape = display.pizzaA.x;
+    if (shape == 0. || display.pizzaA.w < 1.)
+        return;
+    vec2 p = display.pizzaC.z == 0. ? solarPoint : gl_FragCoord.xy - display.pizzaD.xy;
+    float r = length(p);
+    if (r < display.pizzaB.z || (display.pizzaB.w > 0. && r > display.pizzaB.w))
+        discard;
+
+    float slot = display.pizzaA.y, k = max(display.pizzaA.z, 1.);
+    float gap = display.pizzaB.y;
+    if (shape == 2.) { // squares, turned with the pizza
+        float c0 = cos(display.pizzaB.x), s0 = sin(display.pizzaB.x);
+        vec2 q = vec2(c0 * p.x + s0 * p.y, -s0 * p.x + c0 * p.y) / max(display.pizzaC.x, 1e-6);
+        vec2 tile = floor(q), f = fract(q);
+        if (gap > 0. && (min(f.x, f.y) < gap || max(f.x, f.y) > 1. - gap))
+            discard;
+        float c = display.pizzaD.z == 0. ? tile.x + tile.y * display.pizzaC.y
+                                        : floor(pizzaHash(tile.x * 57.31 + tile.y * 113.7) * 9973.); // scattered
+        if (abs(pizzaSlotOf(c) - slot) > .5)
+            discard;
+        return;
+    }
+
+    // Position angle from solar north, counterclockwise (towards east), less the turn.
+    float pa = mod(atan(-p.x, p.y) - display.pizzaB.x, TWOPI);
+    float w = TWOPI / k;
+    float column = floor(pa / w);
+    float fw = pa / w - column;
+    if (shape == 1.) { // wedges
+        if (gap > 0. && min(fw, 1. - fw) * w < gap)
+            discard;
+        if (display.pizzaC.w > 0. && display.pizzaB.w > 0. && r > display.pizzaB.w * (1. - display.pizzaC.w * pizzaHash(column + 7.)))
+            discard; // spokes of uneven length
+        if (abs(pizzaSlotOf(column) - slot) > .5)
+            discard;
+        return;
+    }
+
+    // Polar tiles: the wedges cut again into rings, so Helioradial Unrolled shows square tiles.
+    // Rows are counted on the page's own radial axis in Helioradial (pizzaC.x rows from the
+    // centre to the outer radius), otherwise every pizzaC.x of radius.
+    float radial = display.pizzaD.w != 0.
+            ? warpUnitWith(r, screen.mapBounds.w, screen.limb > 0. ? screen.limb : 1. / screen.mapBounds.w, screen.lambda) * display.pizzaC.x
+            : r / max(display.pizzaC.x, 1e-6);
+    float row = floor(radial);
+    float fr = radial - row;
+    if (gap > 0. && (min(fw, 1. - fw) < gap || min(fr, 1. - fr) < gap))
+        discard;
+    if (abs(pizzaSlotOf(column + row * display.pizzaC.y) - slot) > .5)
+        discard;
+}
+
 void clipPlanarMasks(const vec2 point) {
+    clipPizza(point);
     clipSectors(point);
 
     float radial2 = dot(point, point);

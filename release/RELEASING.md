@@ -273,6 +273,15 @@ JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home \
 Takes several minutes and talks to Apple twice (timestamping, then the notary
 service). Both are network steps that fail transiently; see the incident log.
 
+The app carries HelioFITS Core (the FITS library engine behind Use FITS and Studio's
+ingest) at `Contents/Resources/heliofits-core`: `notarize` clones the core's repository
+(still `GillySpace27/heliad`) at the commit `release/fits-core.txt` pins, builds a Python with
+that commit's `app/tools/bundle_python.sh` (python-build-standalone, checksum-checked, from
+GitHub) and refuses a core whose `heliofits_core` lacks `layer-upgrade`. The repository is
+private, so the clone needs GitHub access; `HFCORE_REPO=<local clone>` (or `HELIAD_REPO`, its
+old name) uses a checkout that has the commit instead. To give a release a
+newer core, change the pin on a branch and say what it brings in the notes.
+
 Before the dmg is built, `notarize` checks the ffmpeg and licence manifests
 (`--check`, offline), signs with the tracked `release/entitlements.plist`, and runs
 `release/verify_signatures.sh` on the app: every Mach-O in the bundle and inside its

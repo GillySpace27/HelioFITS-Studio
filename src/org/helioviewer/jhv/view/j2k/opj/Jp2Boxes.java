@@ -3,6 +3,7 @@ package org.helioviewer.jhv.view.j2k.opj;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.LongFunction;
 import java.util.regex.Pattern;
 
 import javax.annotation.Nullable;
@@ -93,20 +94,69 @@ public final class Jp2Boxes {
 
     /** Every XML box in document order, which for a JPX movie is one FITS header per frame. */
     public static List<String> xmls(byte[] data) {
+        return xmls(data, null);
+    }
+
+    /**
+     * Every XML box in document order, following placeholders into the metadata bins they name.
+     *
+     * <p>A JPIP server may send a box as a placeholder in metadata bin 0 and its body as a bin of
+     * its own: the ROB server does this with the asoc box that holds each frame's FITS header. A
+     * placeholder whose body has not fully arrived gives a null entry, so that the headers after it
+     * keep their frame numbers.
+     *
+     * @param metadataBin the bytes of a metadata bin by its identifier, or null for a file
+     */
+    public static List<String> xmls(byte[] data, @Nullable LongFunction<byte[]> metadataBin) {
         List<String> out = new ArrayList<>();
-        collectXml(data, 0, data.length, 0, out);
+        collectXml(data, 0, data.length, 0, metadataBin, out);
         return out;
     }
 
-    private static void collectXml(byte[] data, int from, int to, int depth, List<String> out) {
+    private static void collectXml(byte[] data, int from, int to, int depth, @Nullable LongFunction<byte[]> metadataBin, List<String> out) {
         if (depth > 4)
             return;
         for (Box box : walk(data, from, to)) {
             if ("xml ".equals(box.type()))
                 out.add(text(data, box.contentAt(), box.contentLength()));
             else if ("asoc".equals(box.type()) || "jp2h".equals(box.type()))
-                collectXml(data, box.contentAt(), box.contentAt() + box.contentLength(), depth + 1, out);
+                collectXml(data, box.contentAt(), box.contentAt() + box.contentLength(), depth + 1, metadataBin, out);
+            else if ("phld".equals(box.type()) && metadataBin != null)
+                followPlaceholder(data, box, depth, metadataBin, out);
         }
+    }
+
+    // A phld box: Flags (4), OrigID (8), then the original box's header (8, or 16 with an XLBox).
+    // Flag 1 says the original box's body is the metadata bin OrigID.
+    private static void followPlaceholder(byte[] data, Box box, int depth, LongFunction<byte[]> metadataBin, List<String> out) {
+        int at = box.contentAt();
+        if (box.contentLength() < 20 || (u32(data, at) & 1) == 0)
+            return;
+        long origId = u64(data, at + 4);
+        long length = u32(data, at + 12) & 0xFFFFFFFFL;
+        String type = new String(data, at + 16, 4, StandardCharsets.ISO_8859_1);
+        boolean xml = "xml ".equals(type);
+        if (origId == 0 || !(xml || "asoc".equals(type) || "jp2h".equals(type)))
+            return;
+        long header = 8;
+        if (length == 1) {
+            if (box.contentLength() < 28)
+                return;
+            length = u64(data, at + 20);
+            header = 16;
+        }
+
+        byte[] body = metadataBin.apply(origId);
+        long need = length == 0 ? 0 : length - header; // a length of 0 runs to the end of the bin
+        if (body == null || need < 0 || body.length < need || body.length == 0) {
+            out.add(null); // not here yet; keep the frame numbers of the headers after it
+            return;
+        }
+        int end = need == 0 ? body.length : (int) need;
+        if (xml)
+            out.add(text(body, 0, end));
+        else
+            collectXml(body, 0, end, depth + 1, metadataBin, out);
     }
 
     /**
@@ -130,11 +180,14 @@ public final class Jp2Boxes {
         return BARE_AMPERSAND.matcher(new String(data, at, end - at, StandardCharsets.UTF_8).trim()).replaceAll("&amp;");
     }
 
-    /** Placeholder boxes, one per codestream JPIP has not sent inline, which is how a movie's frames are counted. */
+    /**
+     * Codestream placeholders (flag 4), one per codestream JPIP has not sent inline, which is how a
+     * movie's frames are counted. Placeholders for metadata boxes are not frames.
+     */
     public static int placeholders(byte[] data) {
         int count = 0;
         for (Box box : walk(data))
-            if ("phld".equals(box.type()))
+            if ("phld".equals(box.type()) && box.contentLength() >= 4 && (u32(data, box.contentAt()) & 4) != 0)
                 count++;
         return count;
     }

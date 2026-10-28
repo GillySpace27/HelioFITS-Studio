@@ -54,6 +54,7 @@ import org.json.JSONObject;
  * <pre>
  *   display.warpLambda    display.warpOuterRadius   display.diskScale
  *   hdr.gain              hdr.knee                  hdr.inRange
+ *   pizza.turn
  *   layer:&lt;layerId&gt;/opacity   ... /blend /sharpen /enhanced /upsilonLow /upsilonHigh
  *                             ... /brightOffset /brightScale
  *   grid:&lt;layerId&gt;/alpha      grid:&lt;layerId&gt;/labelAlpha   grid:&lt;layerId&gt;/lineScale
@@ -227,6 +228,7 @@ public final class Automation {
             case "hdr.gain" -> new Param("HDR gain", Automation::hdrGain, v -> HdrGain.aimSetting(String.valueOf(v)));
             case "hdr.knee" -> new Param("HDR knee", HdrGain::knee, HdrGain::aimKnee);
             case "hdr.inRange" -> new Param("HDR in-range", HdrGain::inRange, HdrGain::aimInRange);
+            case "pizza.turn" -> new Param("Pizza turn", org.helioviewer.jhv.display.Pizza::getTurn, org.helioviewer.jhv.display.Pizza::aimTurn);
             default -> resolveLayer(paramKey);
         };
     }

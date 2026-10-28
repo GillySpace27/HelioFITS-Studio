@@ -10,6 +10,7 @@ import javax.annotation.Nullable;
 import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.image.ImageProcessingSettings;
+import org.helioviewer.jhv.io.LascoBackground;
 import org.helioviewer.jhv.math.MathUtils;
 import org.helioviewer.jhv.thread.ParallelRange;
 import org.helioviewer.jhv.view.ClipSet;
@@ -17,7 +18,20 @@ import org.helioviewer.jhv.view.ClipSet;
 import nom.tam.fits.Header;
 
 record FITSData(Header header, Object pixels, int width, int height, boolean hasBlank, long blank,
-                double bzero, double bscale, @Nullable ClipSet.Range headerRange, boolean provisional) {
+                double bzero, double bscale, @Nullable ClipSet.Range headerRange, boolean provisional,
+                Background background) {
+
+    /**
+     * What happened to the frame's LASCO background.
+     *
+     * @param request    the background it has, null when none is published for it
+     * @param subtracted whether it came off the pixels
+     * @param local      whether it was the user's own file rather than NRL's
+     * @param note       what the Background section should say beyond that (a refusal, a mismatch), or null
+     */
+    record Background(@Nullable LascoBackground.Request request, boolean subtracted, boolean local, @Nullable String note) {
+        static final Background NONE = new Background(null, false, false, null);
+    }
 
     private static final int BAD_PIXEL = Integer.MIN_VALUE;
     private static final int SAMPLE = 4;
@@ -76,10 +90,12 @@ record FITSData(Header header, Object pixels, int width, int height, boolean has
     }
 
     // A frame whose LASCO background could not be fetched decodes and displays, but is flagged so
-    // the caller does not cache it as finished.
+    // the caller does not cache it as finished. Whether the background came off, and which one it
+    // would be, go on the buffer too: the readout's label and the Background section read them there.
     private ImageBuffer markProvisional(ImageBuffer buffer) {
         if (provisional)
             buffer.markProvisional();
+        buffer.setBackground(background.request(), background.subtracted(), background.local(), background.note());
         return buffer;
     }
 
