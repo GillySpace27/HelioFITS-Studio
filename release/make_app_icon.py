@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the HelioFITS Studio app icon: the sun-pie iris, lettered HFS.
+"""Build the HelioFITS Studio app icon: the sun-pie iris, with Heliogram's Sun in the hexagon.
 
 Six wedges of the Sun at six wavelengths around a dark hexagon: an aperture made of solar images,
 the mark for an application that composites them. It was this application's icon (lettered HFS)
@@ -45,8 +45,15 @@ def squircle(size=S, frac=BODY, n=N, ss=4):
 
 
 def masked(img):
-    """The squircle the .icns needs; the asset catalog gets unmasked() instead."""
-    img = img.convert("RGBA")
+    """The squircle the .icns needs; the asset catalog gets unmasked() instead.
+
+    The whole art is shrunk into the 824 px body, as Heliogram's .icns is and as macOS 26 draws the
+    catalog's full-bleed square, so both show the squircle window and its ground band (2026-10-28).
+    Until then the body cropped the art's middle 824 px."""
+    body = round(S * BODY)
+    small = img.convert("RGB").resize((body, body), Image.LANCZOS)
+    img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    img.paste(small, ((S - body) // 2,) * 2)
     img.putalpha(squircle())
     px = np.array(img)
     px[px[..., 3] == 0, :3] = 0    # no colour under full transparency
@@ -58,9 +65,9 @@ PLAIN = Image.open(os.path.join(HERE, "iris_leaf_plain_1024.png"))
 # HFS in the hexagon, as large as it allows: at the letters' top and bottom the hexagon is narrower
 # than across its middle, so the width check is made there. Hexagon measured on iris_plain_1024.png:
 # centre 511.5, flat top and bottom, fill reaching 199 px from the centre. The white dividers of
-# iris_leaf_plain_1024.png are 22 px on lines 202 px out, so the fill now ends at 191; the letters
-# are fitted to 185, 6 px clear of the white.
-HEX_C, HEX_APOTHEM, FONT, TEXT = 511.5, 185, "/System/Library/Fonts/Supplemental/Arial Black.ttf", "HFS"
+# iris_leaf_plain_1024.png are 44 px on lines 202 px out, so the fill now ends at 180; the letters
+# are fitted to 174, 6 px clear of the white.
+HEX_C, HEX_APOTHEM, FONT, TEXT = 511.5, 174, "/System/Library/Fonts/Supplemental/Arial Black.ttf", "HFS"
 
 
 def lettered(img):
@@ -81,8 +88,9 @@ def lettered(img):
 
 
 # Lettered at 128 and above; plain at 64 and below, where HFS cannot be read and only smudges.
-FULL = MID = masked(lettered(PLAIN))
-SMALL = masked(PLAIN)
+# Since 2026-10-26 the hexagon holds Heliogram's drawn Sun, which reads at every size, so one artwork
+# serves them all and lettered() is no longer called (kept for a lettered variant).
+FULL = MID = SMALL = masked(PLAIN)
 
 # (pixels, artwork): what macOS will actually draw at each size it asks for.
 BY_SIZE = {1024: FULL, 512: FULL, 256: FULL, 128: MID, 64: SMALL, 32: SMALL, 16: SMALL}
@@ -109,9 +117,10 @@ def small_first(px, img=None):
 
 
 def unmasked(img):
-    """The art with the squircle taken off, filling its whole square canvas.
+    """The art as an opaque square filling its whole canvas, never the masked art (since
+    2026-10-28 the full art itself: before, the masked art's opaque pixels, black outside the body).
 
-    The catalog gets this rather than the masked art, and macOS applies its own shape. Handing it
+    The catalog gets this, and macOS applies its own shape. Handing it
     art that is already a squircle makes it inset that inside its own, which is the grey plate at
     1024 (the size Finder asks for at its largest icon view on a 2x display). The .icns keeps the
     masked art: nothing shapes that one."""
@@ -135,7 +144,7 @@ def main():
     images = []
     for size, scale, px in APPICONSET:
         fn = f"icon_{size}_{scale}.png"
-        small_first(px, unmasked(BY_SIZE[px])).save(os.path.join(aset, fn))
+        small_first(px, unmasked(PLAIN)).save(os.path.join(aset, fn))
         images.append({"idiom": "mac", "size": size, "scale": scale, "filename": fn})
     with open(os.path.join(aset, "Contents.json"), "w") as f:
         json.dump({"images": images, "info": {"version": 1, "author": "make_app_icon.py"}}, f, indent=2)
