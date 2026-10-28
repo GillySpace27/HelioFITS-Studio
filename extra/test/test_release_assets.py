@@ -628,7 +628,7 @@ class NotarizeSubmitShapeTest(unittest.TestCase):
 
 
 OLD_KEYS = ["pushed", "jar", "dylib", "guide", "dmg", "zip", "smoketest", "published", "live"]
-NEW_KEYS = ["dmg_intel", "ci_package", "assets_all", "page_fallback"]
+NEW_KEYS = ["dmg_intel", "ci_package", "assets_all", "page_fallback", "whats_new"]
 
 
 class TrackerTest(unittest.TestCase):
@@ -650,7 +650,7 @@ class TrackerTest(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             return self.status.selftest(milestones)
 
-    def test_keys_keep_their_order_and_four_are_appended(self):
+    def test_keys_keep_their_order_and_new_ones_are_appended(self):
         keys = [k for k, _, _ in self.status.MILESTONES]
         self.assertEqual(keys, OLD_KEYS + NEW_KEYS)
         for _key, _label, check in self.status.MILESTONES:
