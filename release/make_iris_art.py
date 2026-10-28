@@ -54,7 +54,7 @@ V = {"L": (C - R, C), "R": (C + R, C),
      "TL": (C - R / 2, C - APO), "TR": (C + R / 2, C - APO),
      "BL": (C - R / 2, C + APO), "BR": (C + R / 2, C + APO)}
 ORB = 497                                 # the orb's radius: the dividers stop at its edge
-GROUND_TOP, GROUND_BOT = (23, 17, 50), (9, 7, 17)       # Heliogram's ground, #171132 -> #090711
+GROUND_TOP, GROUND_BOT = (47, 34, 99), (21, 16, 42)     # the family ground, #2F2263 -> #15102A (2026-10-28)
 # Heliogram's Sun (gillyspace27/heliogram icons/make_app_icon.py: disc 108, rays 132 to 192 by 36, in
 # its 824 tile) scaled to sit inside the white hexagon, whose inner edge is 180 px out.
 DISC_R, RAY_IN, RAY_OUT, RAY_W = 82, 104, 150, 30
@@ -126,7 +126,7 @@ def art():
 
 
 def ground():
-    """Heliogram's ground, #171132 -> #090711, top to bottom."""
+    """The family ground, #2F2263 -> #15102A, top to bottom."""
     t = np.linspace(0, 1, 1024)[:, None, None]
     return np.broadcast_to(np.array(GROUND_TOP) * (1 - t) + np.array(GROUND_BOT) * t, (1024, 1024, 3))
 
