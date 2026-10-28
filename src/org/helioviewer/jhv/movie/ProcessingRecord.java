@@ -37,7 +37,7 @@ import org.json.JSONObject;
 /**
  * The processing record (hfrecord 1.0, docs/spec/hfrecord-1.schema.json): a sidecar
  * {@code <export file name>.hfrec.json} beside every export that says, per layer, which source
- * frames it read (by SHA-256, with Heliad's identity when the library has them), every step from
+ * frames it read (by SHA-256, with HelioFITS Core's identity when the library has them), every step from
  * decoded file to pixel in the order Studio runs them with the values it used, and the session
  * itself under {@code native.studio_session}, verbatim, which is what a rebuild loads.
  *
@@ -269,19 +269,19 @@ public final class ProcessingRecord {
                     continue;
                 }
                 JSONObject s = new JSONObject().put("sha256", e.sha256()).put("size", e.size()).put("source_url", JSONObject.NULL)
-                        .put("in_library", e.heliad() != null);
-                if (e.heliad() != null) {
-                    if (e.heliad().obsKey() != null)
-                        s.put("heliad_obs_key", e.heliad().obsKey());
-                    s.put("file_version", e.heliad().fileVersion() == null ? JSONObject.NULL : e.heliad().fileVersion());
-                    if (e.heliad().dateObs() != null)
-                        s.put("date_obs", e.heliad().dateObs());
+                        .put("in_library", e.library() != null);
+                if (e.library() != null) {
+                    if (e.library().obsKey() != null)
+                        s.put("heliad_obs_key", e.library().obsKey());
+                    s.put("file_version", e.library().fileVersion() == null ? JSONObject.NULL : e.library().fileVersion());
+                    if (e.library().dateObs() != null)
+                        s.put("date_obs", e.library().dateObs());
                     if (dataset == null) {
-                        dataset = new JSONObject().put("dataset_key", e.heliad().datasetKey());
-                        if (e.heliad().label() != null)
-                            dataset.put("label", e.heliad().label());
-                        if (e.heliad().datasetUid() != null)
-                            dataset.put("dataset_uid", e.heliad().datasetUid());
+                        dataset = new JSONObject().put("dataset_key", e.library().datasetKey());
+                        if (e.library().label() != null)
+                            dataset.put("label", e.library().label());
+                        if (e.library().datasetUid() != null)
+                            dataset.put("dataset_uid", e.library().datasetUid());
                     }
                 }
                 sources.put(s);
@@ -525,6 +525,11 @@ public final class ProcessingRecord {
         scene.put("compare", compare == null ? JSONObject.NULL : new JSONObject(compare.toString())
                 .put("description", "Studio Compare (HS-11): a and b are layer ids; mode Blink, Swipe (split is the divider's"
                         + " position, 0 to 1, aLeft says which side a keeps) or Difference (a minus b)."));
+        JSONObject pizza = state.optJSONObject("pizza");
+        scene.put("pizza", pizza == null ? JSONObject.NULL : new JSONObject(pizza.toString())
+                .put("description", "Studio sun pizza (HS-25): every included image layer is cut to its own wedges or tiles"
+                        + " at draw time, nothing resampled; shape Wedges (solar position angle from north, counterclockwise),"
+                        + " Squares or Tiles (polar); excluded and ringOf are layer ids; turn is in degrees."));
         JSONObject a = state.optJSONObject("automation");
         JSONArray sceneTracks = new JSONArray();
         if (movie && a != null && a.optJSONArray("tracks") != null)
@@ -668,21 +673,21 @@ public final class ProcessingRecord {
         JSONObject layer = new JSONObject().put("id", layerId).put("name", layerName).put("enabled", true);
         String ack = InstrumentCredit.acknowledgement(creditKey);
         if (source != null) {
-            JSONObject s = new JSONObject().put("sha256", source.sha256()).put("size", source.size()).put("in_library", source.heliad() != null);
-            if (source.heliad() != null) {
-                if (source.heliad().obsKey() != null)
-                    s.put("heliad_obs_key", source.heliad().obsKey());
-                JSONObject d = new JSONObject().put("dataset_key", source.heliad().datasetKey());
-                if (source.heliad().label() != null)
-                    d.put("label", source.heliad().label());
-                if (source.heliad().datasetUid() != null)
-                    d.put("dataset_uid", source.heliad().datasetUid());
+            JSONObject s = new JSONObject().put("sha256", source.sha256()).put("size", source.size()).put("in_library", source.library() != null);
+            if (source.library() != null) {
+                if (source.library().obsKey() != null)
+                    s.put("heliad_obs_key", source.library().obsKey());
+                JSONObject d = new JSONObject().put("dataset_key", source.library().datasetKey());
+                if (source.library().label() != null)
+                    d.put("label", source.library().label());
+                if (source.library().datasetUid() != null)
+                    d.put("dataset_uid", source.library().datasetUid());
                 layer.put("dataset", d);
             }
             sources.put(s);
             layer.put("source_set_sha256", setHash(List.of(source.sha256())));
         }
-        layer.put("source_spec", new JSONObject().put("kind", source != null && source.heliad() != null ? "heliad_library" : "local_files"))
+        layer.put("source_spec", new JSONObject().put("kind", source != null && source.library() != null ? "heliad_library" : "local_files"))
                 .put("sources", sources).put("steps", steps).put("native", new JSONObject().put("manifest", entry))
                 .put("acknowledgement", ack == null ? JSONObject.NULL : ack);
         JSONObject record = new JSONObject()
@@ -720,7 +725,7 @@ public final class ProcessingRecord {
 
     // ---- Send to Python: the copy inside each FITS file, its sidecar, and hfrecord.json -----------
 
-    /** EXTNAME of the extension that holds a Send to Python file's record (Heliad's record.py reads this name). */
+    /** EXTNAME of the extension that holds a Send to Python file's record (HelioFITS Core's record.py reads this name). */
     public static final String FITS_EXTNAME = "HFRECORD";
     /** The record of a whole Send to Python export, written beside its manifest.json. */
     public static final String FOLDER_RECORD = "hfrecord.json";

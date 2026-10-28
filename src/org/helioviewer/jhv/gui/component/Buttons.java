@@ -245,6 +245,7 @@ public class Buttons {
     public static final GlyphIcon grid = icon(MaterialDesign.GRID, TOOLBAR);
     public static final GlyphIcon camera = icon(MaterialDesign.CAMERA, TOOLBAR);
     public static final GlyphIcon compare = icon(MaterialDesign.COMPARE, TOOLBAR);
+    public static final GlyphIcon pizza = icon(MaterialDesign.PIZZA, TOOLBAR);
     public static final GlyphIcon colourSettings = icon(MaterialDesign.IMAGE_FILTER_HDR, TOOLBAR);
     public static final GlyphIcon presentation = icon(MaterialDesign.PROJECTOR_SCREEN, TOOLBAR);
     public static final GlyphIcon overflow = icon(MaterialDesign.CHEVRON_DOWN, TOOLBAR);

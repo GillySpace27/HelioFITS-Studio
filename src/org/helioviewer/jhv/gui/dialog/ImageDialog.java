@@ -31,7 +31,7 @@ import org.helioviewer.jhv.io.DataSources;
 import org.helioviewer.jhv.io.DataSourcesParser;
 import org.helioviewer.jhv.io.DataSourcesTree;
 import org.helioviewer.jhv.io.FitsRequest;
-import org.helioviewer.jhv.io.HeliadLibrary;
+import org.helioviewer.jhv.io.FitsLibrary;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.time.TimeUtils;
 
@@ -48,12 +48,12 @@ import com.jidesoft.dialog.StandardDialog;
  * <li>VSO (FITS): calibrated FITS through the Virtual Solar Observatory.</li>
  * <li>Direct (FITS): a mission's own archive, each with its own dialog (seeded from the master
  * range), and LASCO from NRL, which needs nothing more than the range.</li>
- * <li>Heliad (Local FITS Cache): what the Heliad app has already downloaded to this computer.</li>
+ * <li>Local FITS Library: what the HelioFITS Cache Manager has already downloaded to this computer.</li>
  * </ul>
  *
- * <p>Every FITS route asks the Heliad library first ({@link HeliadFirst}), so data already on disk
- * is offered before it is downloaded again; Download Anyway keeps the old behaviour. Open Heliad
- * starts the Heliad app itself, to manage that library and download into it.
+ * <p>Every FITS route asks the FITS library first ({@link FitsLibraryFirst}), so data already on disk
+ * is offered before it is downloaded again; Download Anyway keeps the old behaviour. Open Cache Manager
+ * starts the HelioFITS Cache Manager itself, to manage that library and download into it.
  */
 @SuppressWarnings("serial")
 public final class ImageDialog extends StandardDialog implements DataSources.Listener {
@@ -78,13 +78,13 @@ public final class ImageDialog extends StandardDialog implements DataSources.Lis
     // This window's own range and time step, copied from the master ones as it opens.
     private final TimeSelectorPanel timeSelector = new TimeSelectorPanel();
     private final CadencePanel cadencePanel = new CadencePanel(timeSelector);
-    private final HeliadTab heliadTab = new HeliadTab(this::selectionChanged, this::loadSelectedDatasets,
+    private final FitsLibraryTab libraryTab = new FitsLibraryTab(this::selectionChanged, this::loadSelectedDatasets,
             this::rangeStart, this::rangeEnd);
     private final VsoSelectorPanel vsoTab = new VsoSelectorPanel(this::rangeStart, this::rangeEnd,
             this::cadence, this::selectionChanged);
     private final JTabbedPane tabs = new JTabbedPane();
     private final JLabel range = new JLabel("Starts as the master range and time step; changes here apply only to the layer added.");
-    private final JButton openHeliad = new JButton("Open Heliad");
+    private final JButton openCacheManager = new JButton("Open Cache Manager");
 
     public ImageDialog(Handler _handler) {
         super(MainFrame.get(), "New Image Layer", false);
@@ -98,9 +98,9 @@ public final class ImageDialog extends StandardDialog implements DataSources.Lis
             if (url != null)
                 DesktopIntegration.openURL(url);
         });
-        openHeliad.setToolTipText("Start the Heliad app, to manage the local FITS library and download into it");
-        openHeliad.addActionListener(e -> {
-            java.nio.file.Path app = HeliadLibrary.app();
+        openCacheManager.setToolTipText("Start the HelioFITS Cache Manager, to manage the local FITS library and download into it");
+        openCacheManager.addActionListener(e -> {
+            java.nio.file.Path app = FitsLibrary.app();
             if (app != null)
                 DesktopIntegration.openURL(app.toUri().toString());
         });
@@ -122,7 +122,7 @@ public final class ImageDialog extends StandardDialog implements DataSources.Lis
         getRootPane().setDefaultButton(actionButton);
 
         ButtonPanel panel = new ButtonPanel();
-        panel.add(openHeliad, ButtonPanel.OTHER_BUTTON);
+        panel.add(openCacheManager, ButtonPanel.OTHER_BUTTON);
         panel.add(availabilityButton, ButtonPanel.OTHER_BUTTON);
         panel.add(cancelButton, ButtonPanel.CANCEL_BUTTON);
         panel.add(actionButton, ButtonPanel.AFFIRMATIVE_BUTTON);
@@ -145,16 +145,16 @@ public final class ImageDialog extends StandardDialog implements DataSources.Lis
         tabs.setToolTipTextAt(1, "Calibrated FITS through the Virtual Solar Observatory, which federates most missions. Full bit depth, larger files, slower to load.");
         tabs.addTab("Direct (FITS)", buildDirectTab());
         tabs.setToolTipTextAt(2, "Straight from a mission's own archive, for the ones VSO serves badly or not at all.");
-        tabs.addTab("Heliad (Local FITS Cache)", heliadTab);
-        tabs.setToolTipTextAt(3, "FITS the Heliad app has already downloaded to this computer. Nothing downloads.");
+        tabs.addTab("Local FITS Library", libraryTab);
+        tabs.setToolTipTextAt(3, "FITS the HelioFITS Cache Manager has already downloaded to this computer. Nothing downloads.");
         tabs.addChangeListener(e -> {
-            heliadTab.setFront(tabs.getSelectedComponent() == heliadTab);
+            libraryTab.setFront(tabs.getSelectedComponent() == libraryTab);
             selectionChanged();
         });
 
         range.setFont(org.helioviewer.jhv.gui.UIGlobals.uiFontSmall);
         range.setBorder(BorderFactory.createEmptyBorder(2, 6, 4, 6));
-        timeSelector.addListener((start, end) -> heliadTab.rangeChanged());
+        timeSelector.addListener((start, end) -> libraryTab.rangeChanged());
         JPanel time = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEADING, 8, 2));
         time.add(timeSelector);
         time.add(cadencePanel);
@@ -198,8 +198,8 @@ public final class ImageDialog extends StandardDialog implements DataSources.Lis
 
     private void addLasco(String detector) {
         long start = rangeStart(), end = rangeEnd();
-        if (HeliadFirst.offer(MainFrame.get(), HeliadLibrary.Wanted.of("soho", "lasco", detector, null), start, end)
-                != HeliadFirst.Choice.DOWNLOAD)
+        if (FitsLibraryFirst.offer(MainFrame.get(), FitsLibrary.Wanted.of("soho", "lasco", detector, null), start, end)
+                != FitsLibraryFirst.Choice.DOWNLOAD)
             return;
         ImageLayer.create(null).load(new FitsRequest(FitsRequest.Archive.LASCO, "lz", detector, "",
                 FitsRequest.cadenceMillis(cadence()), start, end));
@@ -238,8 +238,8 @@ public final class ImageDialog extends StandardDialog implements DataSources.Lis
         // One way, master to here, and only as the window opens: what is typed here stays here.
         timeSelector.setTime(MoviePanel.getInstance().getStartTime(), MoviePanel.getInstance().getEndTime());
         cadencePanel.copyFrom(MainFrame.getLayersSectionPanel().getCadencePanel());
-        openHeliad.setVisible(HeliadLibrary.app() != null);
-        heliadTab.update(changeMode);
+        openCacheManager.setVisible(FitsLibrary.app() != null);
+        libraryTab.update(changeMode);
         selectionChanged();
         if (!isVisible()) {
             pack();
@@ -262,7 +262,7 @@ public final class ImageDialog extends StandardDialog implements DataSources.Lis
         DataSourcesTree.SourceItem item = items.size() == 1 ? items.getFirst() : null;
         Object tab = tabs.getSelectedComponent();
         boolean hv = tab == null || tabs.getSelectedIndex() == 0;
-        load.setEnabled(tab == heliadTab ? heliadTab.canLoad() : tab == vsoTab ? vsoTab.canAdd() : hv && !items.isEmpty());
+        load.setEnabled(tab == libraryTab ? libraryTab.canLoad() : tab == vsoTab ? vsoTab.canAdd() : hv && !items.isEmpty());
         availabilityButton.setEnabled(hv && getAvailabilityURL(item) != null);
         String text = item != null ? "Extent: " + TimeUtils.formatShort(item.start) + " - " + TimeUtils.formatShort(item.end)
                 : items.isEmpty() ? "" : items.size() + " datasets selected";
@@ -291,8 +291,8 @@ public final class ImageDialog extends StandardDialog implements DataSources.Lis
                 setVisible(false);
             return;
         }
-        if (heliadTab.showing()) {
-            if (heliadTab.load())
+        if (libraryTab.showing()) {
+            if (libraryTab.load())
                 setVisible(false);
             return;
         }

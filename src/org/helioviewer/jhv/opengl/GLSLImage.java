@@ -71,6 +71,15 @@ public class GLSLImage {
         swipeX = x;
     }
 
+    // The sun pizza (HS-25): this layer's wedge or tile mask (Pizza.uniforms), all zeros when off.
+    // Set by ImageLayer.render like the swipe; the legend never takes it.
+    private static final float[] NO_PIZZA = new float[16];
+    private float[] pizza = NO_PIZZA;
+
+    public void setPizza(float[] values) {
+        pizza = values.length == 16 ? values : NO_PIZZA;
+    }
+
     // The Compare palette's Difference (HS-11): the shader coefficients while this layer draws A minus
     // B (CompareDifference.Verdict), null otherwise. Set by ImageLayer.render like the swipe.
     private static final float[] NO_COMPARE = new float[5];
@@ -142,7 +151,8 @@ public class GLSLImage {
                 Display.showClipping && !raw && !legend ? 1 : 0,
                 raw ? 1 : 0,
                 HdrGain.current(raw), HdrGain.mode().ordinal(), HdrGain.knee(), HdrGain.inRange(),
-                legend ? 0 : swipeX, legend ? 0 : swipeSide, cmp ? compareDifference : NO_COMPARE);
+                legend ? 0 : swipeX, legend ? 0 : swipeSide, cmp ? compareDifference : NO_COMPARE,
+                legend ? NO_PIZZA : pizza);
 
         applyLUT(cmp);
         if (legend)

@@ -282,4 +282,13 @@ public class ManyView implements View {
         return frameMap.indexedValue(targetFrame).view.getXMLMetaData();
     }
 
+    @Nonnull
+    @Override
+    public String getXMLMetaData(int frame) {
+        if (frame < 0 || frame > frameMap.maxIndex())
+            return EMPTY_METAXML;
+        FrameInfo frameInfo = frameMap.indexedValue(frame);
+        return frameInfo.view.getXMLMetaData(frameInfo.idxView);
+    }
+
 }

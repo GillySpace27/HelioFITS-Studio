@@ -11,7 +11,6 @@ import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.image.ImageProcessingSettings;
 import org.helioviewer.jhv.io.LascoBackground;
-import org.helioviewer.jhv.time.TimeUtils;
 import org.helioviewer.jhv.view.ClipSet;
 
 import com.google.common.escape.Escaper;
@@ -33,16 +32,34 @@ public final class FITSImage {
     private FITSImage() {}
 
     public static URIView.SourceInfo readInfo(File file, int plane) throws Exception {
-        FITSData data = readData(file, plane);
+        return readInfo(file, plane, true);
+    }
+
+    /** @param subtractBackground take a LASCO frame's monthly background off; the clip set is sampled after it */
+    public static URIView.SourceInfo readInfo(File file, int plane, boolean subtractBackground) throws Exception {
+        return readInfo(file, plane, subtractBackground, LascoBackground.Choice.DEFAULT);
+    }
+
+    /** @param background where that background comes from: NRL's monthly images or the user's own files */
+    public static URIView.SourceInfo readInfo(File file, int plane, boolean subtractBackground, LascoBackground.Choice background) throws Exception {
+        FITSData data = readData(file, plane, subtractBackground, background);
         return new URIView.SourceInfo(getHeaderAsXML(data.header()), data.width(), data.height(), null,
                 data.calculateClipSet(), planeLabels(data.header()));
     }
 
     public static ImageBuffer decode(File file, ImageFilter filter, ImageProcessingSettings.FITSParameters state, @Nullable ClipSet.Range clipRange) throws Exception {
-        return readData(file, state.plane()).decode(filter, state, clipRange);
+        return readData(file, state.plane(), state.subtractBackground(), state.background()).decode(filter, state, clipRange);
     }
 
     static FITSData readData(File file, int plane) throws Exception { // package-private for FrameBench's stage timing
+        return readData(file, plane, true);
+    }
+
+    static FITSData readData(File file, int plane, boolean subtractBackground) throws Exception {
+        return readData(file, plane, subtractBackground, LascoBackground.Choice.DEFAULT);
+    }
+
+    static FITSData readData(File file, int plane, boolean subtractBackground, LascoBackground.Choice background) throws Exception {
         try (Fits f = new Fits(file)) {
             BasicHDU<?> hdu = findHDU(f);
             Header header = imageHeader(hdu);
@@ -63,25 +80,41 @@ public final class FITSImage {
             // display values each frame scaled to its own min and max, would subtract a different
             // quantity from every frame. The result is DN per second, so the frames of a movie are
             // also finally on one photometric footing.
+            // The layer can turn it off (its Background section), and then the frame is the archive's
+            // product as served, in DN; the request rides along either way so the switch and the
+            // preview know there is a background to speak of.
+            LascoBackground.Request request = LascoBackground.Request.of(header, axes[1], axes[0]);
             boolean provisional = false;
-            try {
-                Object subtracted = subtractBackground(header, pixels, axes[0] * axes[1], hasBlank, blank, bzero, bscale);
-                if (subtracted != null) {
-                    pixels = subtracted;
-                    hasBlank = false; // blank pixels already carry the BAD_PIXEL sentinel
-                    bzero = 0;
-                    bscale = 1;
+            boolean subtracted = false;
+            String note = null;
+            if (request != null && subtractBackground) {
+                try {
+                    LascoBackground.Result result = request.resolve(background);
+                    Object minus = result == null ? null : subtractBackground(header, pixels, request, hasBlank, blank, bzero, bscale, result.perSecond());
+                    if (minus != null) {
+                        pixels = minus;
+                        hasBlank = false; // blank pixels already carry the BAD_PIXEL sentinel
+                        bzero = 0;
+                        bscale = 1;
+                        subtracted = true;
+                        note = result.note();
+                    }
+                } catch (LascoBackground.Unavailable e) {
+                    // Decode the frame as it is so the layer keeps showing, but say so on the buffer: a
+                    // frame missing a correction it should have had must not be cached as finished.
+                    provisional = true;
+                } catch (LascoBackground.Refused e) {
+                    // A local file that cannot be used: shown as served, and cached, since reading it
+                    // again gives the same answer. Choosing another file changes the key.
+                    note = e.getMessage();
                 }
-            } catch (LascoBackground.Unavailable e) {
-                // Decode the frame as it is so the layer keeps showing, but say so on the buffer: a
-                // frame missing a correction it should have had must not be cached as finished.
-                provisional = true;
             }
 
             float min = header.getFloatValue("HV_DMIN", Float.MAX_VALUE);
             float max = header.getFloatValue("HV_DMAX", Float.MAX_VALUE);
             ClipSet.Range headerRange = min == Float.MAX_VALUE || max == Float.MAX_VALUE ? null : new ClipSet.Range(min, max);
-            return new FITSData(header, pixels, axes[1], axes[0], hasBlank, blank, bzero, bscale, headerRange, provisional);
+            return new FITSData(header, pixels, axes[1], axes[0], hasBlank, blank, bzero, bscale, headerRange, provisional,
+                    new FITSData.Background(request, subtracted, background.mode().local(), note));
         }
     }
 
@@ -93,35 +126,13 @@ public final class FITSImage {
      * have already been applied to produce.
      */
     @Nullable
-    private static Object subtractBackground(Header header, Object pixels, int count,
-                                             boolean hasBlank, long blank, double bzero, double bscale) {
-        String telescope = header.getStringValue("TELESCOP");
-        if (telescope == null || !telescope.trim().equalsIgnoreCase("SOHO"))
-            return null;
-        String detector = header.getStringValue("DETECTOR");
-        String filter = header.getStringValue("FILTER");
-        String polar = header.getStringValue("POLAR");
+    private static Object subtractBackground(Header header, Object pixels, LascoBackground.Request request,
+                                             boolean hasBlank, long blank, double bzero, double bscale, float[] background) {
         double exposure = header.getDoubleValue("EXPTIME", 0);
-        if (detector == null || filter == null || polar == null || !(exposure > 0))
+        if (!(exposure > 0))
             return null;
 
-        // LASCO splits the observation time across DATE-OBS and TIME-OBS and writes the date with
-        // slashes, the same form FitsMetaData reassembles for its own use.
-        String date = header.getStringValue("DATE-OBS");
-        String time = header.getStringValue("TIME-OBS");
-        if (date == null || time == null)
-            return null;
-        long milli;
-        try {
-            String hms = time.trim();
-            milli = TimeUtils.parse(date.trim().replace('/', '-') + 'T' + (hms.length() > 8 ? hms.substring(0, 8) : hms));
-        } catch (RuntimeException e) {
-            return null;
-        }
-        float[] background = LascoBackground.perSecond(detector, filter, polar, milli, count);
-        if (background == null)
-            return null;
-
+        int count = request.width() * request.height();
         return subtractPerSecond(header, pixels, count, hasBlank, blank, bzero, bscale, exposure, background);
     }
 

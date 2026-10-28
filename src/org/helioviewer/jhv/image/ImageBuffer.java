@@ -9,6 +9,7 @@ import java.util.function.DoubleUnaryOperator;
 
 import javax.annotation.Nullable;
 
+import org.helioviewer.jhv.io.LascoBackground;
 import org.helioviewer.jhv.thread.ParallelRange;
 
 import org.lwjgl.system.MemoryUtil;
@@ -78,7 +79,7 @@ public final class ImageBuffer {
 
     private final Cleaner.Cleanable cleanable;
     private volatile boolean explicitFreeProtected;
-    private int measuredLevels = -1; // lazily counted once, then reused
+    private volatile int measuredLevels = -1; // lazily counted once, then reused; volatile so a decode thread can fill it for the EDT
 
     // Every 8th pixel of a 1024 square, which is far more than enough: the question is whether the
     // values sit on a 256-step lattice, and a sample cannot invent levels the data does not have.
@@ -127,6 +128,10 @@ public final class ImageBuffer {
      * sample can only ever undercount, which is the safe direction: a frame reported as having
      * more than 256 levels certainly has them.
      */
+    public boolean levelsMeasured() {
+        return measuredLevels >= 0;
+    }
+
     public int measuredLevels() {
         if (measuredLevels < 0)
             measuredLevels = countLevels();
@@ -264,6 +269,48 @@ public final class ImageBuffer {
 
     public boolean isProvisional() {
         return provisional;
+    }
+
+    private volatile boolean backgroundSubtracted;
+    private volatile boolean backgroundLocal;
+    @Nullable
+    private volatile String backgroundNote;
+    @Nullable
+    private volatile LascoBackground.Request background;
+
+    /**
+     * The LASCO background this frame has, or would have had if the layer subtracted it.
+     *
+     * @param request    null when no background is published for the frame
+     * @param subtracted whether it was taken off the pixels
+     * @param local      whether it came from the user's own file rather than NRL
+     * @param note       a refusal or a mismatch the Background section should say, or null
+     */
+    public void setBackground(@Nullable LascoBackground.Request request, boolean subtracted, boolean local, @Nullable String note) {
+        background = request;
+        backgroundSubtracted = subtracted;
+        backgroundLocal = local;
+        backgroundNote = note;
+    }
+
+    /** True when the background taken off was the user's own file. */
+    public boolean isBackgroundLocal() {
+        return backgroundLocal;
+    }
+
+    @Nullable
+    public String backgroundNote() {
+        return backgroundNote;
+    }
+
+    /** True when a monthly background was taken off these pixels. */
+    public boolean isBackgroundSubtracted() {
+        return backgroundSubtracted;
+    }
+
+    @Nullable
+    public LascoBackground.Request background() {
+        return background;
     }
 
     public void protectFromExplicitFree() {

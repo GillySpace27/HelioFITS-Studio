@@ -16,18 +16,18 @@ import java.util.stream.Stream;
 import org.json.JSONObject;
 
 /**
- * Reading a Heliad library the way its reader contract says to: where the config is on each
- * platform, what counts as no library, what the Heliad tab lists for a master range, which files
- * an Add loads, that an index from a newer Heliad is refused, and that reading leaves no trace.
+ * Reading a HelioFITS Core library the way its reader contract says to: where the config is on each
+ * platform, what counts as no library, what the FITS library tab lists for a master range, which files
+ * an Add loads, that an index from a newer core is refused, and that reading leaves no trace.
  *
- * <p>The index is a small SQLite file built here with the parts of Heliad's schema that
+ * <p>The index is a small SQLite file built here with the parts of HelioFITS Core's schema that
  * {@code current_files} reads, including a superseded file version, so a reader that looked at
  * the files table instead of the view would count it. Nothing outside a temp folder is touched:
  * {@code user.home} is moved there first, because the log and the app folders hang off it.
  *
- * <p>Run: java -Djava.awt.headless=true -cp "bin:extra/test-classes:lib/*" org.helioviewer.jhv.io.HeliadLibraryCheck
+ * <p>Run: java -Djava.awt.headless=true -cp "bin:extra/test-classes:lib/*" org.helioviewer.jhv.io.FitsLibraryCheck
  */
-public final class HeliadLibraryCheck {
+public final class FitsLibraryCheck {
 
     private static int failures;
 
@@ -99,79 +99,93 @@ public final class HeliadLibraryCheck {
     }
 
     public static void main(String[] args) throws Exception {
-        Path tmp = Files.createTempDirectory("heliad-library-check");
+        Path tmp = Files.createTempDirectory("fits-library-check");
         Path fakeHome = Files.createDirectories(tmp.resolve("home"));
         System.setProperty("user.home", fakeHome.toString());
 
-        // -- what a download asks for, against Heliad dataset keys (from a real library; the K-Cor one is made up) --
-        expect("AIA 193 finds AIA 193", HeliadLibrary.Wanted.of(null, "aia", null, 193).matches("sdo/aia/-/-/1/193"));
-        expect("AIA 193 does not find AIA 304", !HeliadLibrary.Wanted.of(null, "aia", null, 193).matches("sdo/aia/-/-/1/304"));
-        expect("SECCHI COR2 finds COR2", HeliadLibrary.Wanted.of(null, "secchi", "COR2", null).matches("stereo-a/secchi/cor2/-/-/-"));
-        expect("SECCHI COR2 does not find COR1", !HeliadLibrary.Wanted.of(null, "secchi", "COR2", null).matches("stereo-a/secchi/cor1/-/-/-"));
+        // -- what a download asks for, against HelioFITS Core dataset keys (from a real library; the K-Cor one is made up) --
+        expect("AIA 193 finds AIA 193", FitsLibrary.Wanted.of(null, "aia", null, 193).matches("sdo/aia/-/-/1/193"));
+        expect("AIA 193 does not find AIA 304", !FitsLibrary.Wanted.of(null, "aia", null, 193).matches("sdo/aia/-/-/1/304"));
+        expect("SECCHI COR2 finds COR2", FitsLibrary.Wanted.of(null, "secchi", "COR2", null).matches("stereo-a/secchi/cor2/-/-/-"));
+        expect("SECCHI COR2 does not find COR1", !FitsLibrary.Wanted.of(null, "secchi", "COR2", null).matches("stereo-a/secchi/cor1/-/-/-"));
         expect("SECCHI EUVI 195 does not find EUVI 171",
-                !HeliadLibrary.Wanted.of(null, "secchi", "EUVI", 195).matches("stereo-a/secchi/euvi/-/-/171"));
+                !FitsLibrary.Wanted.of(null, "secchi", "EUVI", 195).matches("stereo-a/secchi/euvi/-/-/171"));
         expect("PUNCH PTM L3 finds PTM, by level written L3",
-                new HeliadLibrary.Wanted("punch", null, null, "PTM", "L3", null).matches("punch/wfi+nfi-mosaic/-/ptm/3/530"));
-        expect("PUNCH PTM does not find CTM", !new HeliadLibrary.Wanted("punch", null, null, "PTM", "3", null).matches("punch/wfi+nfi-mosaic/-/ctm/3/530"));
-        expect("K-Cor and kcor are one instrument", HeliadLibrary.Wanted.of(null, "kcor", null, null).matches("mlso/k-cor/-/-/2/7350"));
-        expect("a key of the wrong shape matches nothing", !HeliadLibrary.Wanted.of(null, null, null, null).matches("sdo/aia"));
-        HeliadLibrary.Wanted soarFsi = org.helioviewer.jhv.gui.dialog.SoarDialog.wanted("solo_L2_eui-fsi174-image_20250921T160000180_V02");
+                new FitsLibrary.Wanted("punch", null, null, "PTM", "L3", null).matches("punch/wfi+nfi-mosaic/-/ptm/3/530"));
+        expect("PUNCH PTM does not find CTM", !new FitsLibrary.Wanted("punch", null, null, "PTM", "3", null).matches("punch/wfi+nfi-mosaic/-/ctm/3/530"));
+        expect("K-Cor and kcor are one instrument", FitsLibrary.Wanted.of(null, "kcor", null, null).matches("mlso/k-cor/-/-/2/7350"));
+        expect("a key of the wrong shape matches nothing", !FitsLibrary.Wanted.of(null, null, null, null).matches("sdo/aia"));
+        FitsLibrary.Wanted soarFsi = org.helioviewer.jhv.gui.dialog.SoarDialog.wanted("solo_L2_eui-fsi174-image_20250921T160000180_V02");
         expect("a SOAR FSI 174 id finds EUI FSI 174 L2", soarFsi.matches("solar-orbiter/eui/fsi/-/2/174"));
         expect("and not FSI 304", !soarFsi.matches("solar-orbiter/eui/fsi/-/2/304"));
         expect("a SOAR SoloHI id finds SoloHI by instrument",
                 org.helioviewer.jhv.gui.dialog.SoarDialog.wanted("solo_L2_solohi-1ft_20250921T160300_V01").matches("solar-orbiter/solohi/1/-/2/5400"));
 
-        // -- where Heliad keeps config.json ----------------------------------------------------
+        // -- where HelioFITS Core keeps config.json --------------------------------------------
         Path home = Path.of("/Users/someone");
-        expect("macOS: ~/Library/Application Support/Heliad",
-                HeliadLibrary.configDir(null, "Mac OS X", home, null, null).equals(home.resolve("Library/Application Support/Heliad")));
-        expect("Linux: ~/.config/heliad when XDG_CONFIG_HOME is unset",
-                HeliadLibrary.configDir(null, "Linux", home, null, null).equals(home.resolve(".config/heliad")));
-        expect("Linux: XDG_CONFIG_HOME/heliad when it is set",
-                HeliadLibrary.configDir(null, "Linux", home, null, "/xdg").equals(Path.of("/xdg/heliad")));
-        expect("Windows: %APPDATA%/Heliad",
-                HeliadLibrary.configDir(null, "Windows 11", home, "/roaming", null).equals(Path.of("/roaming/Heliad")));
-        expect("Windows: ~/AppData/Roaming/Heliad without APPDATA",
-                HeliadLibrary.configDir(null, "Windows 11", home, null, null).equals(home.resolve("AppData/Roaming/Heliad")));
-        expect("HELIAD_HOME replaces the folder on every platform",
-                HeliadLibrary.configDir("/elsewhere", "Mac OS X", home, null, null).equals(Path.of("/elsewhere"))
-                        && HeliadLibrary.configDir("/elsewhere", "Linux", home, null, "/xdg").equals(Path.of("/elsewhere")));
-        expect("an empty HELIAD_HOME counts as unset",
-                HeliadLibrary.configDir("", "Linux", home, null, null).equals(home.resolve(".config/heliad")));
+        expect("macOS: ~/Library/Application Support/HelioFITS Core",
+                FitsLibrary.configDir(null, "Mac OS X", home, null, null).equals(home.resolve("Library/Application Support/HelioFITS Core")));
+        expect("Linux: ~/.config/hfcore when XDG_CONFIG_HOME is unset",
+                FitsLibrary.configDir(null, "Linux", home, null, null).equals(home.resolve(".config/hfcore")));
+        expect("Linux: XDG_CONFIG_HOME/hfcore when it is set",
+                FitsLibrary.configDir(null, "Linux", home, null, "/xdg").equals(Path.of("/xdg/hfcore")));
+        expect("Windows: %APPDATA%/HelioFITS Core",
+                FitsLibrary.configDir(null, "Windows 11", home, "/roaming", null).equals(Path.of("/roaming/HelioFITS Core")));
+        expect("Windows: ~/AppData/Roaming/HelioFITS Core without APPDATA",
+                FitsLibrary.configDir(null, "Windows 11", home, null, null).equals(home.resolve("AppData/Roaming/HelioFITS Core")));
+        expect("HFCORE_HOME replaces the folder on every platform",
+                FitsLibrary.configDir("/elsewhere", "Mac OS X", home, null, null).equals(Path.of("/elsewhere"))
+                        && FitsLibrary.configDir("/elsewhere", "Linux", home, null, "/xdg").equals(Path.of("/elsewhere")));
+        expect("an empty HFCORE_HOME counts as unset",
+                FitsLibrary.configDir("", "Linux", home, null, null).equals(home.resolve(".config/hfcore")));
+        // A computer set up before the rename to HelioFITS Core (it was Heliad) keeps its folder.
+        Path oldHome = tmp.resolve("old-home");
+        Path oldDir = Files.createDirectories(oldHome.resolve("Library/Application Support/HelioFITS Core"));
+        Files.writeString(oldDir.resolve("config.json"), "{}");
+        expect("the old HelioFITS Core folder is used while the new one has no config",
+                FitsLibrary.configDir(null, "Mac OS X", oldHome, null, null).equals(oldDir));
+        Path newDir = Files.createDirectories(oldHome.resolve("Library/Application Support/HelioFITS Core"));
+        Files.writeString(newDir.resolve("config.json"), "{}");
+        expect("and the new one once it has a config",
+                FitsLibrary.configDir(null, "Mac OS X", oldHome, null, null).equals(newDir));
+        Path oldLib = Files.createDirectories(tmp.resolve("old-lib"));
+        Files.writeString(oldLib.resolve(FitsLibrary.LEGACY_DB_NAME), "");
+        expect("a library made before the rename keeps its heliad.sqlite", FitsLibrary.index(oldLib).equals(oldLib.resolve("heliad.sqlite")));
+        expect("a new library's index is hfcore.sqlite", FitsLibrary.index(tmp.resolve("new-lib")).equals(tmp.resolve("new-lib/hfcore.sqlite")));
 
         // -- what counts as no library -------------------------------------------------------
         Path cfg = tmp.resolve("cfg");
-        expect("no config folder is no library", HeliadLibrary.read(cfg) == null);
+        expect("no config folder is no library", FitsLibrary.read(cfg) == null);
         Files.createDirectories(cfg);
-        expect("an empty config folder is no library", HeliadLibrary.read(cfg) == null);
+        expect("an empty config folder is no library", FitsLibrary.read(cfg) == null);
         Path root = Files.createDirectories(tmp.resolve("library"));
-        Path db = root.resolve("heliad.sqlite");
+        Path db = root.resolve("hfcore.sqlite");
         Files.writeString(cfg.resolve("config.json"), config(root, db));
         expect("a config whose index is not there is no library, and nothing is created",
-                HeliadLibrary.read(cfg) == null && !Files.exists(db));
+                FitsLibrary.read(cfg) == null && !Files.exists(db));
         sql(db, SCHEMA);
-        HeliadLibrary.Location loc = HeliadLibrary.read(cfg);
+        FitsLibrary.Location loc = FitsLibrary.read(cfg);
         expect("a config and its index are a library", loc != null && loc.root().equals(root) && loc.db().equals(db));
         Files.writeString(cfg.resolve("config.json"), new JSONObject().put("library_root", root.toString()).toString());
-        HeliadLibrary.Location rootOnly = HeliadLibrary.read(cfg);
-        expect("a config naming only the folder finds heliad.sqlite in it", rootOnly != null && rootOnly.db().equals(db));
+        FitsLibrary.Location rootOnly = FitsLibrary.read(cfg);
+        expect("a config naming only the folder finds hfcore.sqlite in it", rootOnly != null && rootOnly.db().equals(db));
         Path tilde = Files.createDirectories(fakeHome.resolve("lib2"));
-        Files.copy(db, tilde.resolve("heliad.sqlite"));
-        Files.writeString(cfg.resolve("config.json"), "{\"library_root\": \"~/lib2\", \"db_path\": \"~/lib2/heliad.sqlite\"}");
-        HeliadLibrary.Location expanded = HeliadLibrary.read(cfg);
+        Files.copy(db, tilde.resolve("hfcore.sqlite"));
+        Files.writeString(cfg.resolve("config.json"), "{\"library_root\": \"~/lib2\", \"db_path\": \"~/lib2/hfcore.sqlite\"}");
+        FitsLibrary.Location expanded = FitsLibrary.read(cfg);
         expect("~ in the config is the home folder", expanded != null && expanded.root().equals(tilde));
         Files.writeString(cfg.resolve("config.json"), "{\"library_root\": ");
-        expect("a config that is not JSON is no library rather than an error", HeliadLibrary.read(cfg) == null);
+        expect("a config that is not JSON is no library rather than an error", FitsLibrary.read(cfg) == null);
         Files.writeString(cfg.resolve("config.json"), config(root, db));
 
         // -- the datasets the tab lists ------------------------------------------------------
         List<Path> before = listing(root);
         byte[] bytesBefore = Files.readAllBytes(db);
         long from = t("2025-09-21T16:01:00"), to = t("2025-09-21T16:03:00");
-        List<HeliadLibrary.Dataset> sets = HeliadLibrary.datasets(loc, from, to);
+        List<FitsLibrary.Dataset> sets = FitsLibrary.datasets(loc, from, to);
         expect("every dataset is listed, by label",
-                sets.stream().map(HeliadLibrary.Dataset::label).toList().equals(List.of("Odd", "PUNCH WFI L3", "SDO AIA 193 L1")));
-        HeliadLibrary.Dataset aia = sets.get(2);
+                sets.stream().map(FitsLibrary.Dataset::label).toList().equals(List.of("Odd", "PUNCH WFI L3", "SDO AIA 193 L1")));
+        FitsLibrary.Dataset aia = sets.get(2);
         expect("frames count observations, not file versions", aia.frames() == 5);
         expect("bytes are the current versions' sizes", aia.bytes() == 5000);
         expect("observations on both ends of the range are in it", aia.inRange() == 3);
@@ -182,45 +196,49 @@ public final class HeliadLibraryCheck {
                 "SDO".equals(aia.observatory()) && "1".equals(aia.level()) && aia.detector() == null);
         expect("the span is the first and last observation",
                 aia.start() == t("2025-09-21T16:00:04.840") && aia.end() == t("2025-09-21T16:04:04.840"));
-        expect("instrument and wavelength come through for the Heliad link",
+        expect("instrument and wavelength come through for the HelioFITS Core link",
                 "AIA".equals(aia.instrument()) && Double.valueOf(193.0).equals(aia.wavelength()));
-        HeliadLibrary.Dataset punch = sets.get(1);
+        FitsLibrary.Dataset punch = sets.get(1);
         expect("a dataset outside the range is listed with nothing in it", punch.inRange() == 0 && punch.frames() == 2);
         expect("a missing wavelength stays missing rather than reading as 0", punch.wavelength() == null);
-        HeliadLibrary.Dataset odd = sets.getFirst();
+        FitsLibrary.Dataset odd = sets.getFirst();
         expect("a time the reader cannot parse keeps the dataset listed, its span unknown",
                 odd.frames() == 1 && odd.start() == Long.MIN_VALUE && odd.end() == Long.MIN_VALUE && odd.inRange() == 0);
 
         // -- the files an Add loads ----------------------------------------------------------
-        List<File> inRange = HeliadLibrary.files(loc, "sdo|aia|193", from, to);
+        List<File> inRange = FitsLibrary.files(loc, "sdo|aia|193", from, to);
         expect("an Add loads the in-range files in time order, resolved under the library",
                 inRange.equals(Stream.of("store/aia/a2.fits", "store/aia/a3_v2.fits", "store/aia/a4.fits")
                         .map(p -> root.resolve(p).toFile()).toList()));
-        expect("the whole dataset is every current file", HeliadLibrary.files(loc, "sdo|aia|193").size() == 5);
-        expect("a range with nothing in it loads nothing", HeliadLibrary.files(loc, "punch|wfi", from, to).isEmpty());
+        expect("the whole dataset is every current file", FitsLibrary.files(loc, "sdo|aia|193").size() == 5);
+        expect("a range with nothing in it loads nothing", FitsLibrary.files(loc, "punch|wfi", from, to).isEmpty());
         expect("reading created nothing beside the index", listing(root).equals(before));
         expect("and left the index as it was", Arrays.equals(Files.readAllBytes(db), bytesBefore));
 
         // -- reader_compat, which is the only version a reader may look at ---------------------
         sql(db, "UPDATE meta SET value = '99' WHERE key = 'schema_version'");
-        expect("a newer schema_version alone does not stop the reader", HeliadLibrary.datasets(loc, from, to).size() == 3);
+        expect("a newer schema_version alone does not stop the reader", FitsLibrary.datasets(loc, from, to).size() == 3);
         sql(db, "UPDATE meta SET value = '2' WHERE key = 'reader_compat'");
-        expect("an index from a newer Heliad is refused when listing", refused(() -> HeliadLibrary.datasets(loc, from, to)));
-        expect("and when loading", refused(() -> HeliadLibrary.files(loc, "sdo|aia|193")));
+        expect("an index from a newer HelioFITS Core is refused when listing", refused(() -> FitsLibrary.datasets(loc, from, to)));
+        expect("and when loading", refused(() -> FitsLibrary.files(loc, "sdo|aia|193")));
         sql(db, "DELETE FROM meta WHERE key = 'reader_compat'");
-        expect("an index without reader_compat reads as 1", HeliadLibrary.datasets(loc, from, to).size() == 3);
+        expect("an index without reader_compat reads as 1", FitsLibrary.datasets(loc, from, to).size() == 3);
 
-        // -- the link that hands a search to the Heliad app ------------------------------------
+        // -- the link that hands a search to HelioFITS Cache Manager ---------------------------
         long s = t("2025-09-21T16:00:00"), e = t("2025-09-21T16:05:00");
-        expect("the link is written as Heliad's Query.to_url writes it",
-                HeliadLibrary.link(s, e, aia).equals("heliad://search?end=2025-09-21T16%3A05%3A00&instrument=AIA"
+        expect("the link is written as the core's Query.to_url writes it",
+                FitsLibrary.link("hfcore", s, e, aia).equals("hfcore://search?end=2025-09-21T16%3A05%3A00&instrument=AIA"
                         + "&start=2025-09-21T16%3A00%3A00&wavelength=193"));
         expect("with no dataset it carries the range alone",
-                HeliadLibrary.link(s, e, null).equals("heliad://search?end=2025-09-21T16%3A05%3A00&start=2025-09-21T16%3A00%3A00"));
+                FitsLibrary.link("hfcore", s, e, null).equals("hfcore://search?end=2025-09-21T16%3A05%3A00&start=2025-09-21T16%3A00%3A00"));
         expect("and widens a range to whole seconds",
-                HeliadLibrary.link(s + 500, e + 1, null).equals("heliad://search?end=2025-09-21T16%3A05%3A01&start=2025-09-21T16%3A00%3A00"));
-        HeliadLibrary.Dataset fsi = new HeliadLibrary.Dataset("k", "l", null, "EUI", null, null, null, 30.4, 1, 1, 0, 0, 0, 0);
-        expect("a fractional wavelength keeps its decimals", HeliadLibrary.link(s, e, fsi).endsWith("&wavelength=30.4"));
+                FitsLibrary.link("hfcore", s + 500, e + 1, null).equals("hfcore://search?end=2025-09-21T16%3A05%3A01&start=2025-09-21T16%3A00%3A00"));
+        expect("an app from before the rename gets its own scheme",
+                FitsLibrary.link("heliad", s, e, null).startsWith("heliad://search?end="));
+        expect("with no app installed here the link uses the new scheme",
+                FitsLibrary.app() != null || FitsLibrary.link(s, e, null).startsWith("hfcore://search?"));
+        FitsLibrary.Dataset fsi = new FitsLibrary.Dataset("k", "l", null, "EUI", null, null, null, 30.4, 1, 1, 0, 0, 0, 0);
+        expect("a fractional wavelength keeps its decimals", FitsLibrary.link(s, e, fsi).endsWith("&wavelength=30.4"));
 
         if (failures > 0) {
             System.out.println(failures + " failed");
@@ -237,7 +255,7 @@ public final class HeliadLibraryCheck {
         try {
             read.run();
             return false;
-        } catch (HeliadLibrary.TooNew e) {
+        } catch (FitsLibrary.TooNew e) {
             return e.getMessage().contains("reader version 2");
         } catch (Exception e) {
             return false;

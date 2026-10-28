@@ -25,9 +25,17 @@ import org.json.JSONObject;
 public final class ObservationType {
 
     public static final String UNKNOWN = "unknown";
+    static final String BACKGROUND = "the background subtracted from the LASCO frames, in DN/s";
 
+    /**
+     * @param labelBackgroundSubtracted the label once the monthly background is off the pixels (LASCO);
+     *                                  null where the product has no such step and label always holds
+     * @param labelLocalBackgroundSubtracted the label once a background the user chose (a local file
+     *                                  or pair) is off the pixels; null to fall back to the one above
+     */
     record Row(@Nullable String instrument, @Nullable String detector, @Nullable String measurement,
-               @Nullable String measurementEndsWith, @Nullable String product, String label, String source) {
+               @Nullable String measurementEndsWith, @Nullable String product, String label,
+               @Nullable String labelBackgroundSubtracted, @Nullable String labelLocalBackgroundSubtracted, String source) {
 
         boolean matches(String inst, String det, String meas, String prod) {
             return (instrument == null || instrument.equals(inst))
@@ -47,7 +55,9 @@ public final class ObservationType {
             JSONObject r = array.getJSONObject(i);
             list.add(new Row(r.optString("instrument", null), r.optString("detector", null),
                     r.optString("measurement", null), r.optString("measurementEndsWith", null),
-                    r.optString("product", null), r.getString("label"), r.getString("source")));
+                    r.optString("product", null), r.getString("label"),
+                    r.optString("labelBackgroundSubtracted", null), r.optString("labelLocalBackgroundSubtracted", null),
+                    r.getString("source")));
         }
         return List.copyOf(list);
     }
@@ -63,13 +73,30 @@ public final class ObservationType {
 
     /** The label for a layer's metadata; "unknown" for anything not read from a FITS header. */
     public static String of(MetaData m) {
+        return of(m, false);
+    }
+
+    /**
+     * As {@link #of(MetaData)}, for a frame that may have had its LASCO monthly background taken off:
+     * a fixed label read "includes the F corona" over pixels it had been subtracted from.
+     */
+    public static String of(MetaData m, boolean backgroundSubtracted) {
+        return of(m, backgroundSubtracted, false);
+    }
+
+    /** As above; local when the background taken off was the user's own file or pair rather than NRL's. */
+    public static String of(MetaData m, boolean backgroundSubtracted, boolean local) {
         if (m instanceof FitsMetaData f)
-            return label(f.getInstrument(), f.getDetector(), f.getMeasurement(), f.getDisplayName());
+            return label(f.getInstrument(), f.getDetector(), f.getMeasurement(), f.getDisplayName(), backgroundSubtracted, local);
         return UNKNOWN;
     }
 
     public static String of(FitsMetaData.Observation o) {
-        return label(o.instrument(), o.detector(), o.measurement(), o.displayName());
+        return of(o, false);
+    }
+
+    public static String of(FitsMetaData.Observation o, boolean backgroundSubtracted) {
+        return label(o.instrument(), o.detector(), o.measurement(), o.displayName(), backgroundSubtracted, false);
     }
 
     /**
@@ -83,14 +110,24 @@ public final class ObservationType {
         return parts.length > 1 && parts[1].length() == 3 ? parts[1] : "";
     }
 
-    static String label(String instrument, String detector, String measurement, String displayName) {
+    static String label(String instrument, String detector, String measurement, String displayName, boolean backgroundSubtracted) {
+        return label(instrument, detector, measurement, displayName, backgroundSubtracted, false);
+    }
+
+    static String label(String instrument, String detector, String measurement, String displayName, boolean backgroundSubtracted, boolean local) {
+        // Studio's own product, not an instrument's: the background a LASCO layer had taken off
+        if (displayName.startsWith("LASCO ") && displayName.endsWith(FitsMetaData.BACKGROUND_SUFFIX))
+            return BACKGROUND;
         String product = punchProduct(displayName);
         for (Row r : rows) {
             // a product row is PUNCH's alone; without a product code nothing else can match it
             if (r.product() == null && !product.isEmpty())
                 continue;
-            if (r.matches(instrument, detector, measurement, product))
-                return r.label();
+            if (!r.matches(instrument, detector, measurement, product))
+                continue;
+            if (backgroundSubtracted && local && r.labelLocalBackgroundSubtracted() != null)
+                return r.labelLocalBackgroundSubtracted();
+            return backgroundSubtracted && r.labelBackgroundSubtracted() != null ? r.labelBackgroundSubtracted() : r.label();
         }
         return UNKNOWN;
     }

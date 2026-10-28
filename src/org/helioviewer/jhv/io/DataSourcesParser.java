@@ -56,7 +56,7 @@ public class DataSourcesParser {
                 DefaultMutableTreeNode treeNode = new DefaultMutableTreeNode(item, false);
                 parentNode.add(treeNode);
 
-                DataSources.insertDataset(sourceId, server, parentNode.toString(), item.toString());
+                DataSources.insertDataset(sourceId, server, parentNode.toString(), item.toString(), end);
                 if (json.optBoolean("default", false))
                     defaultItem = item;
             } else {
