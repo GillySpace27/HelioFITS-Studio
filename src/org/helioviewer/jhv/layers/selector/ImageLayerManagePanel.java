@@ -155,7 +155,7 @@ final class ImageLayerManagePanel extends JPanel {
             metaDialog.showDialog();
         });
 
-        // Icons sit inline with the readout on one row, not on a line of their own.
+        // Icons sit on a line of their own above the readout (see buttonRow below).
         JPanel icons = new JPanel(new FlowLayout(FlowLayout.TRAILING, 2, 0));
         icons.add(downloadButton);
         icons.add(cacheButton);
@@ -176,8 +176,10 @@ final class ImageLayerManagePanel extends JPanel {
 
         readout.setBorder(BorderFactory.createEmptyBorder(8, 0, 8, 0)); // let the readout breathe
         readout.setVerticalAlignment(javax.swing.SwingConstants.TOP); // any held height goes below the text, not around it
+        // The icons take the top line, right-aligned, and the readout the full width under them. Beside them
+        // they got the width they asked for and left the readout a narrow column that wrapped every few words.
+        buttonRow.add(icons, BorderLayout.PAGE_START);
         buttonRow.add(readout, BorderLayout.CENTER);
-        buttonRow.add(icons, BorderLayout.LINE_END);
 
         add(buttonRow);
 
