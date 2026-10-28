@@ -45,8 +45,15 @@ def squircle(size=S, frac=BODY, n=N, ss=4):
 
 
 def masked(img):
-    """The squircle the .icns needs; the asset catalog gets unmasked() instead."""
-    img = img.convert("RGBA")
+    """The squircle the .icns needs; the asset catalog gets unmasked() instead.
+
+    The whole art is shrunk into the 824 px body, as Heliogram's .icns is and as macOS 26 draws the
+    catalog's full-bleed square, so both show the squircle window and its ground band (2026-10-28).
+    Until then the body cropped the art's middle 824 px."""
+    body = round(S * BODY)
+    small = img.convert("RGB").resize((body, body), Image.LANCZOS)
+    img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    img.paste(small, ((S - body) // 2,) * 2)
     img.putalpha(squircle())
     px = np.array(img)
     px[px[..., 3] == 0, :3] = 0    # no colour under full transparency
@@ -110,9 +117,10 @@ def small_first(px, img=None):
 
 
 def unmasked(img):
-    """The art with the squircle taken off, filling its whole square canvas.
+    """The art as an opaque square filling its whole canvas, never the masked art (since
+    2026-10-28 the full art itself: before, the masked art's opaque pixels, black outside the body).
 
-    The catalog gets this rather than the masked art, and macOS applies its own shape. Handing it
+    The catalog gets this, and macOS applies its own shape. Handing it
     art that is already a squircle makes it inset that inside its own, which is the grey plate at
     1024 (the size Finder asks for at its largest icon view on a 2x display). The .icns keeps the
     masked art: nothing shapes that one."""
@@ -136,7 +144,7 @@ def main():
     images = []
     for size, scale, px in APPICONSET:
         fn = f"icon_{size}_{scale}.png"
-        small_first(px, unmasked(BY_SIZE[px])).save(os.path.join(aset, fn))
+        small_first(px, unmasked(PLAIN)).save(os.path.join(aset, fn))
         images.append({"idiom": "mac", "size": size, "scale": scale, "filename": fn})
     with open(os.path.join(aset, "Contents.json"), "w") as f:
         json.dump({"images": images, "info": {"version": 1, "author": "make_app_icon.py"}}, f, indent=2)
