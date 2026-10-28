@@ -155,6 +155,13 @@ public class DataSources {
         return source == null ? Long.MIN_VALUE : source.end();
     }
 
+    /** The catalog's name for a source ("SOHO LASCO C3"), or null before the catalog is read or when it does not list it. */
+    @Nullable
+    public static String name(@Nonnull String server, int sourceId) {
+        Source source = datasetMap.get(new DatasetId(server, sourceId));
+        return source == null ? null : source.observatory() + " " + source.dataset();
+    }
+
     static int selectDataset(@Nonnull String server, @Nonnull String observatory, @Nonnull String dataset) {
         for (Map.Entry<DatasetId, Source> entry : datasetMap.entrySet()) {
             DatasetId key = entry.getKey();

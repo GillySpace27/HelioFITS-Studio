@@ -18,6 +18,7 @@
 ### Fixes
 - Started with `java -jar` from a folder other than the jar's own, the Mac build loads the Metal library that sits beside the jar, not a possibly older copy in the working folder (which died with `UnsatisfiedLinkError: jhv_mirror_prepare`). The packaged app is unaffected.
 - A layer's Layer Options header puts its icon row on a line of its own above the description, so the description (name, time range, cadence, format, cache state) uses the whole panel width instead of a narrow column beside the icons
+- A new layer is on screen the moment it is asked for. While the server builds a Helioviewer movie, or a LASCO listing is read, its row is named for what was requested ("SOHO LASCO C3, loading") instead of "Loading...", its options show the source and time range, and the coverage timeline draws a dashed bar over the requested range. The real layer replaces it in place when the server answers
 
 ### FITS library
 - The HelioFITS Core in the Mac app is updated to heliad e183d0a: it adds the template RPCs that Refresh Data on a template (the sun pizza) uses, and finds a library folder made under the old Heliad name.
