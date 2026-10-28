@@ -92,29 +92,47 @@ public final class LascoClient {
         String detector = request.product().toLowerCase(Locale.ROOT); // "c2" / "c3"
         long cadence = request.cadence();
 
+        // The archive answers one directory listing in anywhere from half a second to six, so asking day
+        // by day put minutes of nothing on screen ahead of a span of weeks (47 days measured at about two
+        // minutes). The days are asked at once, a few at a time, and put back in order.
+        List<Long> days = new ArrayList<>();
+        for (long day = TimeUtils.floorDay(request.startTime()); day <= request.endTime(); day += TimeUtils.DAY_IN_MILLIS)
+            days.add(day);
+        ExecutorService pool = Executors.newFixedThreadPool(LIST_THREADS);
         List<URI> out = new ArrayList<>();
-        for (long day = TimeUtils.floorDay(request.startTime()); day <= request.endTime(); day += TimeUtils.DAY_IN_MILLIS) {
-            LocalDateTime date = LocalDateTime.ofEpochSecond(day / 1000, 0, ZoneOffset.UTC);
-            String dirUrl = String.format("%s/%02d%02d%02d/%s/",
-                    BASE_URL, date.getYear() % 100, date.getMonthValue(), date.getDayOfMonth(), detector);
-            String html = readIndex(dirUrl);
-            if (html == null) // a day the archive does not have is a gap, not an error
-                continue;
-
-            List<String> files = new ArrayList<>();
-            Matcher m = FILE_PATTERN.matcher(html);
-            while (m.find())
-                files.add(m.group(1));
-            files.sort(null); // fixed-width numeric names, lexicographic == chronological
-
-            int step = step(cadence, files.size());
-            int kept = 0;
-            for (int i = 0; i < files.size(); i += step) {
-                out.add(URI.create(dirUrl + files.get(i)));
-                kept++;
-            }
-            Log.info("LASCO " + detector + " " + dirUrl + " -> " + files.size() + " files, kept " + kept);
+        try {
+            List<Future<List<URI>>> futures = new ArrayList<>(days.size());
+            for (long day : days)
+                futures.add(pool.submit(() -> listDay(day, detector, cadence)));
+            for (Future<List<URI>> f : futures)
+                out.addAll(f.get());
+        } finally {
+            pool.shutdownNow();
         }
+        return out;
+    }
+
+    private static final int LIST_THREADS = 8;
+
+    private static List<URI> listDay(long day, String detector, long cadence) throws Exception {
+        LocalDateTime date = LocalDateTime.ofEpochSecond(day / 1000, 0, ZoneOffset.UTC);
+        String dirUrl = String.format("%s/%02d%02d%02d/%s/",
+                BASE_URL, date.getYear() % 100, date.getMonthValue(), date.getDayOfMonth(), detector);
+        String html = readIndex(dirUrl);
+        if (html == null) // a day the archive does not have is a gap, not an error
+            return List.of();
+
+        List<String> files = new ArrayList<>();
+        Matcher m = FILE_PATTERN.matcher(html);
+        while (m.find())
+            files.add(m.group(1));
+        files.sort(null); // fixed-width numeric names, lexicographic == chronological
+
+        int step = step(cadence, files.size());
+        List<URI> out = new ArrayList<>();
+        for (int i = 0; i < files.size(); i += step)
+            out.add(URI.create(dirUrl + files.get(i)));
+        Log.info("LASCO " + detector + " " + dirUrl + " -> " + files.size() + " files, kept " + out.size());
         return out;
     }
 
