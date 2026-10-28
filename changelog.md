@@ -15,6 +15,9 @@
 - Counting the distinct levels of a frame for the layer readout no longer happens on the interface thread.
 - Settings > Network > Long requests chooses when the next piece of a request over the server's 1000-frame limit is asked for: as soon as the previous one has opened (the default and how it always worked), all at once, when the previous one is 80% downloaded, or when it has finished.
 
+### Fixes
+- Started with `java -jar` from a folder other than the jar's own, the Mac build loads the Metal library that sits beside the jar, not a possibly older copy in the working folder (which died with `UnsatisfiedLinkError: jhv_mirror_prepare`). The packaged app is unaffected.
+
 ### FITS library
 - The HelioFITS Core in the Mac app is updated to heliad e183d0a: it adds the template RPCs that Refresh Data on a template (the sun pizza) uses, and finds a library folder made under the old Heliad name.
 - A FITS button on each Helioviewer (JPEG 2000) layer's row asks HelioFITS Core for the FITS files behind the frames shown. Every Helioviewer frame carries the header of the FITS file it was made from; HelioFITS Core reads those headers the way it reads its own files and says how many frames it already keeps as FITS and how many it lacks. Fetch and open has HelioFITS Core get the missing frames, at the layer's own cadence and never more, and then opens every FITS file it holds for the layer as a new layer; the Helioviewer layer stays as it is. Open the N I have skips the fetch. Needs HelioFITS Core (Studio's own on macOS, the Cache Manager's, or HFCORE_CORE). The newest frames may not be in the archives as FITS yet
@@ -124,6 +127,7 @@
 - LASCO frames shown with the monthly background removed no longer keep the camera's bias level (the OFFSET header keyword). Every such frame was too bright by OFFSET / EXPTIME in every pixel. Pictures with RHEF on look the same; linear, gamma and difference views change
 
 ### Data sources
+- Helioviewer movies from the Royal Observatory of Belgium's server load again. That server sends each frame's FITS header as a separate piece of the stream, which the OpenJPEG reader did not follow, so every ROB movie failed with "readResolutionSet(int) is null" (frame counts also came out doubled). Movies from helioviewer.org were not affected
 - The ASPIICS Kind menu no longer lists every file as a kind of its own. The per-file sequence number in ASPIICS file names (such as 163040060001 or 1630400A0001) was taken as part of the kind, so a 122-frame search offered one "(1 frames)" entry per file. Kinds now differ only by the suffix that sets them apart, such as `v03`
 
 ### Projection
