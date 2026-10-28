@@ -398,6 +398,14 @@ final class ImageLayerManagePanel extends JPanel {
         // the only thing worth showing; now the movie grows as frames land, so the real readout
         // has real content from the second frame on. Past that the stage text is just the row
         // above repeated underneath itself.
+        String asked = layer.placeholderLabel();
+        long[] span = layer.placeholderSpan();
+        if (asked != null && span != null) { // requested, no answer yet: say what, over when, and what it waits on
+            lastReadoutSig = Long.MIN_VALUE;
+            readout.setText("<html><b>" + asked + "</b><br>" + org.helioviewer.jhv.time.TimeUtils.format(span[0]) + " \u2013 "
+                    + org.helioviewer.jhv.time.TimeUtils.format(span[1]) + "<br><i>" + (loadStatus != null ? loadStatus : "Waiting for the server\u2026") + "</i></html>");
+            return;
+        }
         if (loadStatus != null && view.getMaximumFrameNumber() == 0) {
             lastReadoutSig = Long.MIN_VALUE; // recompute the real readout once frames land
             readout.setText("<html><i>" + loadStatus + "</i></html>");

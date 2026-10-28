@@ -65,7 +65,7 @@ public final class CoverageTimelineLayer extends TimelineLayer {
 
     private static boolean anyDownloading() {
         for (ImageLayer layer : Layers.getImageLayers())
-            if (layer.isDownloading())
+            if (layer.isDownloading() || layer.placeholderLabel() != null)
                 return true;
         return false;
     }
@@ -106,6 +106,14 @@ public final class CoverageTimelineLayer extends TimelineLayer {
             int yBar = yTop + labelH + barH / 2;
             Color color = PALETTE[lane % PALETTE.length];
             lane++;
+
+            long[] asked = layer.placeholderSpan(); // requested, the server has not answered: show what was asked for
+            if (asked != null) {
+                g.setColor(color);
+                g.drawString(layer.getName(), graphArea.x + 2, yTop + labelH - 2);
+                drawSegment(g, x.toPixel(asked[0]), x.toPixel(asked[1]), yBar, color, false, graphArea.x, right);
+                continue;
+            }
 
             View view = layer.getView();
             int max = view.getMaximumFrameNumber();
