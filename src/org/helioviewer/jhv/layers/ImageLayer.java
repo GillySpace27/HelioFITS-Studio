@@ -833,7 +833,39 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
     @Override
     public String getName() {
-        return imageData == null ? "Loading..." : imageData.metaData().getDisplayName();
+        if (imageData != null)
+            return imageData.metaData().getDisplayName();
+        String label = placeholderLabel();
+        return label == null ? "Loading..." : label + ", loading";
+    }
+
+    /**
+     * What this layer was asked for, while no view has arrived to say what it is: "SOHO LASCO C3" for a
+     * Helioviewer request, "LASCO C3" for a native FITS query. Null once a view is in, or when the layer
+     * was given no request (a local file). The layer row and the timeline show it at once, so a request
+     * the server takes a minute to answer is on screen from the click instead of an anonymous "Loading...".
+     */
+    @Nullable
+    public String placeholderLabel() {
+        if (viewLoaded)
+            return null;
+        if (pendingRequest != null) {
+            String name = org.helioviewer.jhv.io.DataSources.name(pendingRequest.server(), pendingRequest.sourceId());
+            return name != null ? name : "Helioviewer source " + pendingRequest.sourceId();
+        }
+        if (fitsRequest != null)
+            return fitsRequest.archive() == FitsRequest.Archive.LASCO ? "LASCO " + fitsRequest.product()
+                    : fitsRequest.archive() + " " + fitsRequest.product();
+        return null;
+    }
+
+    /** The requested time range {start, end} in milliseconds for a layer still waiting on its server, else null. */
+    @Nullable
+    public long[] placeholderSpan() {
+        if (placeholderLabel() == null)
+            return null;
+        return pendingRequest != null ? new long[]{pendingRequest.startTime(), pendingRequest.endTime()}
+                : new long[]{fitsRequest.startTime(), fitsRequest.endTime()};
     }
 
     @Nullable
