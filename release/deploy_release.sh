@@ -756,7 +756,7 @@ EOF
 notary_poll() {
     _id="$1"; _waited=0; _missing=0
     while :; do
-        perl -e 'alarm shift; exec @ARGV' 60 \
+        perl -e 'alarm shift; exec @ARGV' 180 \
             xcrun notarytool info "$_id" --keychain-profile "$NOTARY_PROFILE" --output-format json \
             > "$HERE/.notarize-info.json" 2> "$HERE/.notarize-info.err" || true
         _status="$(json_field status < "$HERE/.notarize-info.json")"
