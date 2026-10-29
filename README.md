@@ -1,6 +1,6 @@
 # HelioFITS Studio
 
-[![checks](https://github.com/GillySpace27/HelioFITS-Studio/actions/workflows/checks.yml/badge.svg?branch=master)](https://github.com/GillySpace27/HelioFITS-Studio/actions/workflows/checks.yml)
+[![checks](https://github.com/GillySpace27/HelioFITS-Studio/actions/workflows/checks.yml/badge.svg?branch=master)](https://github.com/GillySpace27/HelioFITS-Studio/actions/workflows/checks.yml) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23541893.svg)](https://doi.org/10.5281/zenodo.23541893)
 
 > **HelioFITS** previews solar FITS files in Finder and Quick Look. **HelioFITS Studio** is the full desktop application for working with coronagraph and wide-field solar imagery.
 > Looking for the Finder and Quick Look previews? See [HelioFITS](https://gilly.space/heliofits/).
@@ -62,9 +62,21 @@ The name JHelioviewer appears here only to say where this software comes from. I
 
 If HelioFITS Studio helps your research, please cite:
 
-- **HelioFITS Studio:** Gilly, C. R., *HelioFITS Studio*, Zenodo, https://doi.org/10.5281/zenodo.23541893. That DOI always resolves to the newest release; each release also has its own (0.8.7 is https://doi.org/10.5281/zenodo.23541894). [CITATION.cff](CITATION.cff) has the details, and GitHub's "Cite this repository" button turns it into APA or BibTeX. Studio is part of the [HelioFITS Suite](https://github.com/GillySpace27/HelioFITS-suite), https://doi.org/10.5281/zenodo.23524598.
+- **HelioFITS Studio:** Gilly, C. R., *HelioFITS Studio*, Zenodo, https://doi.org/10.5281/zenodo.23541893. That concept DOI always resolves to the newest release. Each release also has its own DOI; 0.8.8 is https://doi.org/10.5281/zenodo.23738337. [CITATION.cff](CITATION.cff) has the details, and GitHub's "Cite this repository" button turns it into APA or BibTeX.
+- **The HelioFITS Suite:** Studio is part of the [HelioFITS Suite](https://github.com/GillySpace27/HelioFITS-suite), https://doi.org/10.5281/zenodo.23524598.
 - **The JHelioviewer paper it is built on:** Müller et al. (2017), *Astronomy & Astrophysics* 606, A10, https://doi.org/10.1051/0004-6361/201730893.
 - **If you used the RHEF filter:** Gilly & Cranmer (2025), *Solar Physics* 300, 174, https://doi.org/10.1007/s11207-025-02578-x.
+
+```bibtex
+@software{gilly_heliofits_studio,
+  author    = {Gilly, Chris R.},
+  title     = {{HelioFITS Studio}},
+  year      = {2026},
+  publisher = {Zenodo},
+  doi       = {10.5281/zenodo.23541893},
+  url       = {https://doi.org/10.5281/zenodo.23541893}
+}
+```
 
 A dedicated HelioFITS Studio methods paper is in preparation.
 
