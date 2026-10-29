@@ -158,6 +158,7 @@ class PreflightTest(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp(prefix="hfs-preflight-"))
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.repo = self.tmp / "repo"
+        self.site = self.tmp / "site"   # SITE for append_feed_record: absent, so the hook writes nothing
         (self.repo / "release").mkdir(parents=True)
         for name in ("deploy_release.sh", "assets.txt"):
             shutil.copy2(RELEASE / name, self.repo / "release" / name)
@@ -193,7 +194,7 @@ class PreflightTest(unittest.TestCase):
 
     def publish(self, *args, **env):
         e = dict(os.environ, PATH=f"{self.bin}{os.pathsep}{os.environ['PATH']}", GH_LOG=str(self.gh_log),
-                 HFS_TEST_CLOCK="1", HFS_FAKE_DOW="3", HFS_FAKE_HOUR="10")
+                 HFS_TEST_CLOCK="1", HFS_FAKE_DOW="3", HFS_FAKE_HOUR="10", SITE=str(self.site))
         e.pop("HFS_ALLOW_FRIDAY", None)
         e.update(env)
         e = {k: v for k, v in e.items() if v is not None}   # a None in env removes a default
@@ -227,7 +228,7 @@ class PreflightTest(unittest.TestCase):
     def direct_publish(self, **env):
         """deploy_release.sh publish called straight, with no terminal: the invariants of publish() do not apply."""
         e = dict(os.environ, PATH=f"{self.bin}{os.pathsep}{os.environ['PATH']}", GH_LOG=str(self.gh_log),
-                 HFS_TEST_CLOCK="1", HFS_FAKE_DOW="3", HFS_FAKE_HOUR="10")
+                 HFS_TEST_CLOCK="1", HFS_FAKE_DOW="3", HFS_FAKE_HOUR="10", SITE=str(self.site))
         for k in ("HFS_ALLOW_FRIDAY", "HFS_PUBLISH_APPROVED"):
             e.pop(k, None)
         e.update(env)
@@ -261,6 +262,8 @@ class PreflightTest(unittest.TestCase):
         self.assertEqual(self.git("rev-parse", f"v{self.V}^{{commit}}"), self.head)
         self.assertIn(f"refs/tags/v{self.V}", self.git("ls-remote", "--tags", "origin"))
         self.assertRegex(self.gh_writes(), rf"release create v{re.escape(self.V)} ")
+        # The feed hook must aim at the throwaway site, never the real ~/vscode/Website (it wrote 9.9.9 there).
+        self.assertIn(f"feed record NOT written: {self.site}/heliosoftware/feed/append_record.py not found", r.stderr)
 
     def test_the_dry_run_needs_no_approval(self):
         self.assertEqual(self.dry_run().returncode, 0)
