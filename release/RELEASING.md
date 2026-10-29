@@ -726,3 +726,15 @@ release object; the next preview would have been `v5.6b-coronal-research`.
   the release's package run red. Gilly smoke-tested the dmg by hand, and the gate
   text came from `deploy_release.sh publish --dry-run`. Both checks now let a data
   source's connect or read timeout through and still fail on any other SEVERE.
+
+- **2026-10-28: the 0.8.8 Intel dmg was attached after the release, and `notarytool info`
+  outran its 60 s alarm.** `ship.sh prepare` had not built the Intel dmg for 0.8.8 (no
+  `release/.jdk-x64` in the release worktree), so the release went out without it and
+  gilly.space's repinned Intel link returned 404. With Gilly's yes the dmg was built from the
+  `v0.8.8` commit with `MAC_ARCH=x64 ./deploy_release.sh notarize`, smoke-tested with
+  `smoke_dmg.sh`, and added with `gh release upload` (no `--clobber`). On the way, the dmg
+  codesign and the first submit failed on network timeouts, and every `notarytool info` poll
+  took about 61 s on this network, so the 60 s alarm killed each one and `notarize-resume`
+  failed with "gave no status" although Apple had already accepted the submission. The alarm
+  in `notary_poll` is now 180 s. Before `prepare`, check that `release/.jdk-x64` exists in the
+  tree it runs from.
