@@ -55,7 +55,7 @@ public final class ExportMovie {
     private static boolean mainCanvasVisible = true;
 
     public static void start(@Nullable Commands.OperationContext context, @Nullable Commands.RecordStartInput input) {
-        start(context, input, null, null);
+        start(context, input, null, null, null);
     }
 
     /**
@@ -64,7 +64,12 @@ public final class ExportMovie {
      * to put back afterwards.
      */
     public static void startOnce(@Nullable Commands.OperationContext context, ExportPreset once, ViewState.RecordingMode mode) {
-        start(context, null, once, mode);
+        start(context, null, once, mode, null);
+    }
+
+    /** A parameter study's movie: {@code once}'s encoding and exactly {@code data}'s size, with nothing written to the person's settings. */
+    public static void startStudy(@Nullable Commands.OperationContext context, ExportPreset once, ViewState.RecordingData data) {
+        start(context, null, once, data.mode(), data);
     }
 
     /** The encoding a recording uses: {@code once} when given, else the settings the person has chosen. Reads, never writes. */
@@ -88,7 +93,8 @@ public final class ExportMovie {
     record Encoding(ExportFormat format, ExportFormat.Chroma chroma, ExportFormat.Depth depth, boolean allIntra) {}
 
     private static void start(@Nullable Commands.OperationContext context, @Nullable Commands.RecordStartInput input,
-                              @Nullable ExportPreset once, @Nullable ViewState.RecordingMode onceMode) {
+                              @Nullable ExportPreset once, @Nullable ViewState.RecordingMode onceMode,
+                              @Nullable ViewState.RecordingData dataOverride) {
         if (isRecording()) {
             if (context != null)
                 Commands.notifyRecordingFinished(context, false, "Recording already in progress.", null);
@@ -101,7 +107,8 @@ public final class ExportMovie {
 
             ViewState.PlaybackData playbackData = ViewState.playbackData();
             int fps = playbackData.speedUnit().isRelative() ? playbackData.speed() : Player.FPS_ABSOLUTE;
-            ViewState.RecordingData data = onceMode == null ? ViewState.recordingData() : shareData(ViewState.recordingData(), onceMode);
+            ViewState.RecordingData data = dataOverride != null ? dataOverride
+                    : onceMode == null ? ViewState.recordingData() : shareData(ViewState.recordingData(), onceMode);
             framesQueued.set(0);
             framesEncoded.set(0);
             recordingSession = new RecordingSession(context, data, fps, encodingFor(once));

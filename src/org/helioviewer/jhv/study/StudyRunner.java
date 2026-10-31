@@ -72,12 +72,26 @@ public final class StudyRunner {
         this.listener = listener;
         this.sceneSha = sceneSha != null ? sceneSha : study.sceneSha256() != null ? study.sceneSha256() : "";
         this.sceneView = Commands.getView(); // what every row inherits, and what is put back at the end
-        this.steps = plan(study);
+        this.steps = stillsOn(study) ? plan(study) : List.of();
         this.folder = folderOverride != null ? folderOverride : expandFolder(study, System.currentTimeMillis());
     }
 
     /** The steps a study makes today: its enabled variants in order. WP7 replaces this with the sweep product. */
     public static List<Step> plan(Study study) {
+        List<Step> l = new ArrayList<>();
+        List<Variant> vs = study.enabledVariants();
+        for (int i = 0; i < vs.size(); i++)
+            l.add(new Step(vs.get(i), i + 1, null, Map.of()));
+        return l;
+    }
+
+    /** Stills are the default output; a study that names only a movies block makes only movies. */
+    static boolean stillsOn(Study study) {
+        return study.output().stills() != null || study.output().movies() == null;
+    }
+
+    /** One step per enabled variant, in order: what the movies make, whatever the sweep. */
+    static List<Step> variantSteps(Study study) {
         List<Step> l = new ArrayList<>();
         List<Variant> vs = study.enabledVariants();
         for (int i = 0; i < vs.size(); i++)
@@ -95,7 +109,12 @@ public final class StudyRunner {
 
     public void cancel() {
         cancelled = true;
+        MovieRunner m = movies;
+        if (m != null)
+            m.cancel();
     }
+
+    private volatile MovieRunner movies;
 
     public void start() {
         try {
@@ -116,7 +135,7 @@ public final class StudyRunner {
         Step st = steps.get(next);
         listener.progress(next, steps.size(), st.variant().name());
         JSONObject resolved = st.variant().resolve(sceneView);
-        String name = baseName(st, resolved, steps.size());
+        String name = baseName(study, st, resolved, steps.size(), Player.getTime().milli);
         Path png = folder.resolve(name + ".png");
         if (st.timeMilli() != null)
             Commands.seekTime(new JHVTime(st.timeMilli()));
@@ -173,6 +192,11 @@ public final class StudyRunner {
             return;
         finished = true;
         Commands.restoreView(sceneView);
+        if (error == null && !cancelled && MovieBlock.of(study) != null) { // the movies take it from here and write the one manifest
+            movies = new MovieRunner(study, folder, sceneSha, outputs, listener);
+            movies.start();
+            return;
+        }
         if (error == null) {
             try {
                 Files.writeString(folder.resolve("manifest.hfstudy.json"),
@@ -230,8 +254,8 @@ public final class StudyRunner {
             f.put(k, v.toString());
     }
 
-    private String baseName(Step st, JSONObject resolved, int count) {
-        long t = st.timeMilli() != null ? st.timeMilli() : Player.getTime().milli;
+    static String baseName(Study study, Step st, JSONObject resolved, int count, long timeMilli) {
+        long t = st.timeMilli() != null ? st.timeMilli() : timeMilli;
         Sweep sw = study.sweep();
         return NamePattern.expand(study.output().name(), fields(study, st, resolved, count, t), sw == null ? null : sw.sweptField());
     }
@@ -304,12 +328,13 @@ public final class StudyRunner {
         JSONArray a = new JSONArray();
         for (Output o : outputs)
             a.put(new JSONObject().put("name", o.name()).put("sha256", o.sha256()).put("bytes", o.bytes())
-                    .put("variant", o.variant()).put("skipped", o.skipped()));
+                    .put("variant", o.variant()).put("skipped", o.skipped())
+                    .put("kind", o.name().endsWith(".png") ? "still" : "movie"));
         jo.put("outputs", a);
         return jo;
     }
 
-    private static Output describe(Path png, Step st, boolean skipped) {
+    static Output describe(Path png, Step st, boolean skipped) {
         try {
             return new Output(png.getFileName().toString(), st.variant().name(), StudyIO.sha256(png), Files.size(png), skipped);
         } catch (IOException e) {
