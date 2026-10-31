@@ -52,6 +52,7 @@ public final class StudyRunner {
     private static final long DEFAULT_SETTLE_MS = 3000; // as CliExport: the image is drawn once, decoding goes on a moment longer
     private static final long VIEW_SETTLE_MS = 800; // a view change alone redraws from what is already decoded
 
+    private final boolean confirmed;
     private final Study study;
     private final Path folder;
     private final String sceneSha;
@@ -68,6 +69,12 @@ public final class StudyRunner {
      * @param sceneSha       hash of the .jhv the scene was loaded from; falls back to the study's, or "" when unknown
      */
     public StudyRunner(Study study, @Nullable Path folderOverride, @Nullable String sceneSha, Listener listener) {
+        this(study, folderOverride, sceneSha, listener, false);
+    }
+
+    /** @param confirmed the user agreed to a run above the limit {@link Sweep#runLimit()} */
+    public StudyRunner(Study study, @Nullable Path folderOverride, @Nullable String sceneSha, Listener listener, boolean confirmed) {
+        this.confirmed = confirmed;
         this.study = study;
         this.listener = listener;
         this.sceneSha = sceneSha != null ? sceneSha : study.sceneSha256() != null ? study.sceneSha256() : "";
@@ -76,13 +83,9 @@ public final class StudyRunner {
         this.folder = folderOverride != null ? folderOverride : expandFolder(study, System.currentTimeMillis());
     }
 
-    /** The steps a study makes today: its enabled variants in order. WP7 replaces this with the sweep product. */
+    /** The steps a study makes: its enabled variants, times or swept values in order (see {@link Sweep#steps}). */
     public static List<Step> plan(Study study) {
-        List<Step> l = new ArrayList<>();
-        List<Variant> vs = study.enabledVariants();
-        for (int i = 0; i < vs.size(); i++)
-            l.add(new Step(vs.get(i), i + 1, null, Map.of()));
-        return l;
+        return Sweep.steps(study);
     }
 
     /** Stills are the default output; a study that names only a movies block makes only movies. */
@@ -117,6 +120,14 @@ public final class StudyRunner {
     private volatile MovieRunner movies;
 
     public void start() {
+        if (!confirmed) {
+            try {
+                Sweep.checkLimit(steps.size(), Sweep.runLimit());
+            } catch (IllegalArgumentException e) {
+                finish(e.getMessage());
+                return;
+            }
+        }
         try {
             Files.createDirectories(folder);
             StudyIO.write(study, folder.resolve("job.hfstudy.json")); // the job as it ran
