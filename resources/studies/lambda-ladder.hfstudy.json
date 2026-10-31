@@ -1,0 +1,18 @@
+{
+  "hfstudy": 1,
+  "scene": "",
+  "variants": [
+    {"name": "lambda 1", "projection": "Helioradial", "warpLambda": 1},
+    {"name": "lambda 0", "projection": "Helioradial", "warpLambda": 0},
+    {"name": "lambda -1", "projection": "Helioradial", "warpLambda": -1},
+    {"name": "unrolled lambda 0", "projection": "HelioradialUnrolled", "warpLambda": 0}
+  ],
+  "output": {
+    "folder": "~/Exports/{scene}_{date}",
+    "name": "{index}_{variant}",
+    "stills": {},
+    "contactSheet": "grid",
+    "record": "sidecar+manifest",
+    "overwrite": "skip-if-unchanged"
+  }
+}

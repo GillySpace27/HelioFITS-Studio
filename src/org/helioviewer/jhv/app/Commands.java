@@ -174,6 +174,25 @@ public final class Commands {
         org.helioviewer.jhv.display.StudyView.clearOverride();
     }
 
+    /** study.run: queue a job file (its JSON text); the completion fires when the run ends, output is the run folder. */
+    public static void studyRun(@Nullable OperationContext context, String jobJson) {
+        try {
+            org.helioviewer.jhv.study.Study study = org.helioviewer.jhv.study.Study.fromJson(new JSONObject(jobJson));
+            org.helioviewer.jhv.study.JobQueue.Job job = org.helioviewer.jhv.study.StudyJobs.study(study, null, null, false);
+            if (context != null)
+                job.whenEnded(() -> context.complete(job.state() == org.helioviewer.jhv.study.JobQueue.State.DONE, job.message(),
+                        job.folder() == null ? null : job.folder().toString()));
+        } catch (RuntimeException e) {
+            if (context != null)
+                context.complete(false, "Not a study job: " + e.getMessage(), null);
+        }
+    }
+
+    /** study.status: every queued, running and finished job as JSON. */
+    public static JSONObject studyStatus() {
+        return org.helioviewer.jhv.study.JobQueue.INSTANCE.statusJson();
+    }
+
     public static void recordStart(@Nullable OperationContext context, @Nullable RecordStartInput input) {
         ExportMovie.start(context, input);
     }
