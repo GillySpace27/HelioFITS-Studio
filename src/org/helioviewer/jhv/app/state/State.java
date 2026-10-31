@@ -177,6 +177,7 @@ public final class State {
         if (MainFrame.getLayersSectionPanel() != null) // absent when headless
             main.put("masterCadence", MainFrame.getLayersSectionPanel().getCadence());
         main.put("annotations", Annotations.toJson());
+        org.helioviewer.jhv.study.Study.addTo(main); // only when a study exists
 
         JSONArray ja = new JSONArray();
         for (Layer layer : Layers.getLayers()) {
@@ -383,6 +384,7 @@ public final class State {
         Layers.restore(restoredLayers);
         org.helioviewer.jhv.display.Compare.fromJson(data.optJSONObject("compare"), restoredLayers); // by layer id (HS-11)
         Annotations.fromJson(data.optJSONObject("annotations"));
+        org.helioviewer.jhv.study.Study.readFrom(data);
 
         // Restore the range before the playhead, so the playhead lands inside it rather than
         // being clamped by whatever range happened to be left over.
