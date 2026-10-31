@@ -149,6 +149,8 @@ public final class ActionCatalog {
             }
         }, "File/Show Dataset Folders", "Browse the cache as one folder per dataset (links, or a files.txt listing on Windows); the cache is not changed");
         put("openExportsFolder", ExportsFolder.action(), "File/Open Exports Folder", "Show the folder movies, screenshots and metadata are exported to");
+        put("study", org.helioviewer.jhv.gui.component.StudyPanel.openAction(), "Movie/Study...", "A table of views of this scene to export as a set: projection, lambda, field of view, layers");
+        put("studySaveView", org.helioviewer.jhv.gui.component.StudyPanel.saveViewAction(), "Movie/Save View to Study", "Add the view on screen to the Study table as a new row");
         // Help search (HS-15): the menu item, and the Projection palette's reveal for the controls in it
         put(org.helioviewer.jhv.gui.search.CommandPalette.ID, org.helioviewer.jhv.gui.search.CommandPalette.action(), "Help/Search Controls...", "Find any command or control by name and run it or show where it is");
         put("showProjection", new AbstractAction("Show Projection") {
