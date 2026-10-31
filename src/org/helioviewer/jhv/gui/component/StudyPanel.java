@@ -178,7 +178,15 @@ public final class StudyPanel extends JDialog {
         });
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        for (JComponent c : new JComponent[]{save, update, apply, duplicate, delete, paste, export})
+        JButton preset = new JButton("Load preset");
+        preset.setToolTipText("Replace the rows with a ready-made set, such as the lambda ladder");
+        preset.addActionListener(e -> loadPreset(preset));
+        JButton copy = new JButton("Copy command");
+        copy.setToolTipText("Copy the command that runs this study headless");
+        copy.addActionListener(e -> copyCommand());
+        JButton jobs = new JButton("Queue...");
+        jobs.addActionListener(e -> JobQueuePanel.open());
+        for (JComponent c : new JComponent[]{save, update, apply, duplicate, delete, paste, preset, copy, export, jobs})
             buttons.add(c);
         JPanel south = new JPanel();
         south.setLayout(new BoxLayout(south, BoxLayout.Y_AXIS));
@@ -256,6 +264,8 @@ public final class StudyPanel extends JDialog {
     private void refresh() {
         int r = selectedRow();
         countLine.setText(model.countLine(1));
+        if (model.study().sweep() != null)
+            countLine.setText(countLine.getText() + "; with the sweep " + org.helioviewer.jhv.study.Sweep.count(model.study()) + " files");
         String why = model.firstReason(r);
         if (why == null)
             why = model.firstReason(-1);
@@ -358,13 +368,60 @@ public final class StudyPanel extends JDialog {
 
     private void exportSet() {
         ExportHook hook = EXPORT.get();
-        if (hook == null) {
-            reasonLine.setText("Export set is not connected yet in this build: the study runner has not landed.");
-            return;
-        }
         restorePreview();
         table.clearSelection();
-        hook.export(model.exportStudy());
+        if (hook != null)
+            hook.export(model.exportStudy());
+        else
+            enqueue(model.exportStudy());
+    }
+
+    /** The default Export set: ask above the run limit, queue the study, show the queue. */
+    private static void enqueue(Study study) {
+        int count = org.helioviewer.jhv.study.Sweep.count(study);
+        int limit = org.helioviewer.jhv.study.Sweep.runLimit();
+        boolean confirmed = count <= limit || javax.swing.JOptionPane.showConfirmDialog(MainFrame.get(),
+                "This study makes " + count + " files, above the limit of " + limit + ". Run it anyway?", "Large study",
+                javax.swing.JOptionPane.OK_CANCEL_OPTION) == javax.swing.JOptionPane.OK_OPTION;
+        if (!confirmed)
+            return;
+        String sha = null;
+        java.io.File session = org.helioviewer.jhv.app.Session.currentSessionFile();
+        if (session != null && session.isFile()) {
+            try {
+                sha = org.helioviewer.jhv.study.StudyIO.sha256(session.toPath());
+                study.setScene(session.getPath(), sha);
+            } catch (IOException e) {
+                org.helioviewer.jhv.app.Log.warn("Could not hash the scene", e);
+            }
+        }
+        org.helioviewer.jhv.study.StudyJobs.study(study, null, sha, confirmed);
+        JobQueuePanel.open();
+    }
+
+    private void loadPreset(JComponent from) {
+        javax.swing.JPopupMenu menu = new javax.swing.JPopupMenu();
+        javax.swing.JMenuItem ladder = new javax.swing.JMenuItem("Lambda ladder (Helioradial 1, 0, -1; Unrolled 0)");
+        ladder.addActionListener(e -> {
+            try (java.io.InputStream in = org.helioviewer.jhv.io.FileUtils.getResource("/studies/lambda-ladder.hfstudy.json")) {
+                Study loaded = Study.fromJson(new JSONObject(new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)));
+                Study old = Study.CURRENT.get();
+                if (old != null)
+                    loaded.setScene(old.scene(), old.sceneSha256());
+                Study.CURRENT.set(loaded);
+                reload();
+            } catch (IOException | RuntimeException ex) {
+                reasonLine.setText("The preset could not be loaded: " + ex.getMessage());
+            }
+        });
+        menu.add(ladder);
+        menu.show(from, 0, from.getHeight());
+    }
+
+    private void copyCommand() {
+        String cmd = org.helioviewer.jhv.study.StudyRunner.commandLine(model.exportStudy());
+        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new java.awt.datatransfer.StringSelection(cmd), null);
+        reasonLine.setText("Copied: " + cmd);
     }
 
     /** Drag reorder: a row dropped between two others moves there. */

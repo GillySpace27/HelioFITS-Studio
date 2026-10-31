@@ -80,6 +80,7 @@ public final class SampClient extends HubConnector {
         RecordHandlers.register(this);
         ViewHandlers.register(this);
         CameraHandlers.register(this);
+        StudyHandlers.register(this);
 
         declareSubscriptions(computeSubscriptions());
 
