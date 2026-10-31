@@ -406,6 +406,8 @@ public final class MenuBar extends JMenuBar {
         catalogItem(movieMenu, "previousFrame");
         catalogItem(movieMenu, "nextFrame");
         catalogItem(movieMenu, "record");
+        catalogItem(movieMenu, "study");
+        catalogItem(movieMenu, "studySaveView");
         movieMenu.addSeparator();
         catalogItem(movieMenu, "trimStart");
         catalogItem(movieMenu, "trimEnd");
