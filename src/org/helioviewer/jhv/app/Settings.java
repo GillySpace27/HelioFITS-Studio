@@ -27,6 +27,7 @@ public class Settings {
             setProperty("display.creditLine", "false");
             setProperty("video.format", "H264");
             setProperty("dataSources.defaultServer", "IAS");
+            setProperty("study.previewOnSelect", "true"); // StudyPanel.PREVIEW_KEY
         }
     };
 
