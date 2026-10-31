@@ -151,6 +151,29 @@ public final class Commands {
         layer.setSequence(params);
     }
 
+    /** The mode block plus the camera: what a study row inherits. */
+    public static JSONObject getView() {
+        return org.helioviewer.jhv.display.StudyView.get();
+    }
+
+    /**
+     * Apply a partial view (mode keys, camera, layers: name to boolean) without an undo step or a
+     * dirty session. Pair with {@link #restoreView}.
+     */
+    public static void setView(JSONObject partial) {
+        SceneUndo.hold();
+        org.helioviewer.jhv.display.StudyView.set(partial);
+    }
+
+    public static void restoreView(JSONObject full) {
+        org.helioviewer.jhv.display.StudyView.restore(full);
+        SceneUndo.release();
+    }
+
+    public static void clearViewOverride() {
+        org.helioviewer.jhv.display.StudyView.clearOverride();
+    }
+
     public static void recordStart(@Nullable OperationContext context, @Nullable RecordStartInput input) {
         ExportMovie.start(context, input);
     }
