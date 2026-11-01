@@ -50,6 +50,17 @@ public final class KeyBindingsCheck {
         expect("Shift alone is refused", KeyBindings.refusal(free, KeyStroke.getKeyStroke(KeyEvent.VK_J, InputEvent.SHIFT_DOWN_MASK)) != null);
         expect("a function key alone is allowed", KeyBindings.refusal(free, KeyStroke.getKeyStroke(KeyEvent.VK_F7, 0)) == null);
         expect("menu+C (copy) is refused", KeyBindings.refusal(free, KeyStroke.getKeyStroke(KeyEvent.VK_C, menu)) != null);
+        expect("menu+V and menu+Z are reserved for another command", KeyBindings.refusal(free, KeyStroke.getKeyStroke(KeyEvent.VK_V, menu)) != null
+                && KeyBindings.refusal(free, KeyStroke.getKeyStroke(KeyEvent.VK_Z, menu)) != null);
+        expect("but a command may keep its own reserved default (Paste has menu+V)", KeyBindings.refusal("paste", KeyStroke.getKeyStroke(KeyEvent.VK_V, menu)) == null);
+        for (var f : new java.util.Map.Entry[] { java.util.Map.entry("menu alt N", new org.helioviewer.jhv.timelines.gui.TimelineActions.NewLayer()),
+                java.util.Map.entry("menu alt O", new org.helioviewer.jhv.timelines.gui.TimelineActions.OpenLocalFile()) }) {
+            Action a = (Action) f.getValue();
+            expect("FIXED lists " + f.getKey() + " as " + a.getValue(Action.NAME), KeyBindings.FIXED.containsKey(f.getKey())
+                    && KeyBindings.encode((KeyStroke) a.getValue(Action.ACCELERATOR_KEY)).equals(f.getKey()));
+            String why = KeyBindings.refusal(free, (KeyStroke) a.getValue(Action.ACCELERATOR_KEY));
+            expect("a hard-coded accelerator outside the catalog cannot be taken: " + why, why != null && why.contains("cannot be changed"));
+        }
         KeyStroke zoomIn = KeyBindings.current("zoomIn");
         String clash = KeyBindings.refusal(free, zoomIn);
         expect("a clash names the other command: " + clash, clash != null && clash.contains("Zoom In"));

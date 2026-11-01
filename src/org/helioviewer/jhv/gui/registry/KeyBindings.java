@@ -38,9 +38,16 @@ public final class KeyBindings {
     private static final int MODIFIERS = InputEvent.CTRL_DOWN_MASK | InputEvent.ALT_DOWN_MASK | InputEvent.META_DOWN_MASK;
 
     /** Combinations the system or text editing owns, written as stored: never offered to a command. */
-    private static final Set<String> RESERVED_ALL = Set.of("menu C", "menu X", "menu A");
+    private static final Set<String> RESERVED_ALL = Set.of("menu C", "menu X", "menu A", "menu V", "menu Z");
     private static final Set<String> RESERVED_MAC = Set.of("meta H", "meta SPACE", "meta TAB", "meta shift TAB");
     private static final Set<String> RESERVED_OTHER = Set.of("alt F4", "alt TAB", "ctrl alt DELETE", "ctrl shift ESCAPE");
+
+    /**
+     * Accelerators set in code outside the catalog, so not changeable here and not free to take (stored
+     * form to what uses it). KeyBindingsCheck holds each to the Action that states it; a new one is
+     * added here when it is added there.
+     */
+    static final Map<String, String> FIXED = Map.of("menu alt N", "New Timeline", "menu alt O", "Open Timeline");
 
     private static final Map<String, KeyStroke> defaults = new LinkedHashMap<>(); // the map is the only state (guards.py ratchet)
 
@@ -130,8 +137,10 @@ public final class KeyBindings {
             return "Press a key together with the modifier.";
         String stored = encode(ks);
         Set<String> reserved = Platform.isMacOS() ? RESERVED_MAC : RESERVED_OTHER;
-        if (RESERVED_ALL.contains(stored) || reserved.contains(stored))
+        if ((RESERVED_ALL.contains(stored) || reserved.contains(stored)) && !ks.equals(defaultFor(id)))
             return Shortcuts.text(ks) + " is used by the system or by text editing.";
+        if (FIXED.containsKey(stored))
+            return Shortcuts.text(ks) + " is used by " + FIXED.get(stored) + ", which cannot be changed.";
         for (ActionCatalog.Entry other : ActionCatalog.all())
             if (!other.id().equals(id) && ks.equals(other.action().getValue(Action.ACCELERATOR_KEY)))
                 return Shortcuts.text(ks) + " is already used by " + ControlRegistry.get(other.id()).title() + ".";
