@@ -1,6 +1,6 @@
 # Parameter study: review notes for Gilly
 
-Branch `claude/study` (local, nothing pushed, master untouched). Worktrees under `.claude/worktrees/`.
+Branch `claude/study` (local, nothing pushed, local master untouched; includes origin/master as of 2026-10-31). Worktrees under `.claude/worktrees/`.
 Package branches, each merged into `claude/study`: study-view (WP1), study-model (WP2),
 study-contact-sheet (WP5), study-runner (WP3), study-panel (WP4), study-movies (WP6),
 study-sweeps (WP7), study-queue (WP8). Design: https://claude.ai/artifact/Y6APbfEhsNFrWZQoZF1Fou
@@ -18,7 +18,7 @@ study-sweeps (WP7), study-queue (WP8). Design: https://claude.ai/artifact/Y6APbf
 
 ## Test results (all run by me on this branch)
 
-- `ant check-all`: checks 198 passed, 0 failed, 0 skipped; check-all 8 ok, 0 failed, 3 skipped (the three known-red legacy suites).
+- `ant check-all`: checks 226 passed, 0 failed, 0 skipped; check-all 9 ok, 0 failed, 3 skipped (the three known-red legacy suites).
 - Real headless runs (app started with a throwaway home, `HFS_STUDY_E2E=1`, AIA 171 test FITS): `StudyRunnerCheck` (two variants: two different PNGs, two sidecars, one manifest with matching sha256, second run writes nothing) and `MovieRunnerCheck` (two MP4s in the manifest with matching hashes) both pass. These two print a `skip` line without that variable, so plain `ant test` does not run them; CI would need `HFS_STUDY_E2E=1` under xvfb.
 - Guards unchanged (204/21/50/317).
 
@@ -27,8 +27,8 @@ study-sweeps (WP7), study-queue (WP8). Design: https://claude.ai/artifact/Y6APbf
 - Nothing on screen: the Study panel, queue window, preview and restore on the real canvas, the Layers chip editor, drag reorder, paste from the clipboard, whether Cmd+Alt+R fires twice, Load preset menu.
 - Time sweep against a live multi-frame layer (`frames: master`) and the seek-render loop for sweeps; field sweep combined with movies (movies ignore field sweeps and make one per row).
 - The movie test is a one-frame movie (single FITS); a real multi-frame range and TileMovies with ffmpeg were not run.
-- `size` in stills is not applied yet (stills use the current Record size); `study.runLimit` setting read is untested; no Pizza column (no pizza code in this branch); contact sheet is not yet called by the runner.
-- Seven commits carry a model name in the trailer (my own and the sweeps agent's earlier ones); later ones do not. Reword before any push if you want it gone.
+- `size` in stills is not applied yet (stills use the current Record size); `study.runLimit` setting read is untested; the panel has no Pizza column yet (a row can carry a `pizza` block in the job file; the view override applies and restores it, covered by StudyViewCheck); contact sheet is not yet called by the runner.
+- This branch now includes origin/master (0.8.8: Sun pizza, templates). An earlier version was built on a stale local master 121 commits behind.
 
 ## How to try it
 
