@@ -32,12 +32,16 @@ study-sweeps (WP7), study-queue (WP8). Design: https://claude.ai/artifact/Y6APbf
 
 ## How to try it
 
+Run from any terminal; every path is absolute.
+
 ```sh
-cd .claude/worktrees/study && ant jar
-JAVA_TOOL_OPTIONS="-Duser.home=$(mktemp -d)" ./run.sh -load extra/test/data/syn_AIA_171_2026-01-12T00-00-00_f_V3.fits
+cd /Users/gilly/Documents/NWRA/PUNCH_Science/JHelioviewer-SWHV/.claude/worktrees/study && ant jar
+```
+```sh
+JAVA_TOOL_OPTIONS="-Duser.home=$(mktemp -d)" /Users/gilly/Documents/NWRA/PUNCH_Science/JHelioviewer-SWHV/.claude/worktrees/study/run.sh -load /Users/gilly/Documents/NWRA/PUNCH_Science/JHelioviewer-SWHV/.claude/worktrees/study/extra/test/data/syn_AIA_171_2026-01-12T00-00-00_f_V3.fits
 ```
 Then Movie > Study..., Load preset, Export set, watch the Queue window. Headless:
 ```sh
-JAVA_TOOL_OPTIONS="-Duser.home=$(mktemp -d)" ./run.sh -load <fits or -state scene.jhv> -study resources/studies/lambda-ladder.hfstudy.json -out /tmp/ladder
+JAVA_TOOL_OPTIONS="-Duser.home=$(mktemp -d)" /Users/gilly/Documents/NWRA/PUNCH_Science/JHelioviewer-SWHV/.claude/worktrees/study/run.sh -load /Users/gilly/Documents/NWRA/PUNCH_Science/JHelioviewer-SWHV/.claude/worktrees/study/extra/test/data/syn_AIA_171_2026-01-12T00-00-00_f_V3.fits -study /Users/gilly/Documents/NWRA/PUNCH_Science/JHelioviewer-SWHV/.claude/worktrees/study/resources/studies/lambda-ladder.hfstudy.json -out /tmp/ladder
 ```
 `lib/natives-macos/libjhvmetalhost.dylib` is rebuilt in the worktrees and never committed.
