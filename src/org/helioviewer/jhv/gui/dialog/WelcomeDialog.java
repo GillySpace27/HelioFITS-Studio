@@ -218,9 +218,7 @@ public final class WelcomeDialog {
     }
 
     private static void run(String id) {
-        ActionCatalog.Entry entry = ActionCatalog.get(id);
-        if (entry != null)
-            entry.action().actionPerformed(new ActionEvent(MainFrame.get(), ActionEvent.ACTION_PERFORMED, id));
+        org.helioviewer.jhv.gui.registry.Dispatch.invoke(id, null); // the one way to run a command by id
     }
 
     /**
