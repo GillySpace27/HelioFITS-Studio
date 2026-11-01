@@ -73,7 +73,7 @@ public final class TemplateSave {
         JTextField lag = new JTextField(initial.lag().toString(), 10);
         span.setToolTipText("How much time the scene shows, such as PT2H (two hours) or P1D (one day)");
         lag.setToolTipText("For Relative to now: how long before now the scene ends, such as PT30M; PT0S is now");
-        mode.setToolTipText("Latest data: ends at the newest data. Relative to now: ends a set time before now. Saved dates: the dates it has now. Ask for a date: the layers wait until you give a date, then load span before it.");
+        mode.setToolTipText("Latest data: ends at the newest data. Relative to now: ends a set time before now. Saved dates: the dates it has now. Ask for a date: the layers wait until you choose a start and end time when it opens.");
 
         JPanel panel = new JPanel(new GridBagLayout());
         GridBagConstraints c = new GridBagConstraints();

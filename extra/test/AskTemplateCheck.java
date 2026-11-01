@@ -39,9 +39,9 @@ public final class AskTemplateCheck {
             expect("every layer is a query and none a saved file list", queries && state.getJSONArray("imageLayers").length() == 4);
 
             long end = TimeUtils.parse("2026-02-01T12:00:00");
-            JSONObject pointed = TemplateChooser.pointed(session, meta, end);
+            JSONObject pointed = TemplateChooser.pointed(session, meta, end - 86_400_000L, end);
             JSONObject ps = pointed.getJSONObject("org.helioviewer.jhv.state");
-            expect("pointing moves the master range to the day before the date",
+            expect("pointing moves the master range to the chosen start and end",
                     TimeUtils.parse(ps.getString("masterEndTime")) == end
                             && TimeUtils.parse(ps.getString("masterStartTime")) == end - 86_400_000L);
             JSONObject punch = ps.getJSONArray("imageLayers").getJSONObject(0).getJSONObject("data").getJSONObject("fitsRequest");
@@ -51,7 +51,7 @@ public final class AskTemplateCheck {
             expect("a pointed copy is fixed, so loading it asks nothing more",
                     TemplateTime.Meta.fromJson(ps.getJSONObject("template")).mode() == TemplateTime.Mode.FIXED);
             expect("the template itself is untouched", state.getJSONObject("template").getJSONObject("time").getString("mode").equals("ask"));
-            expect("the chooser says the date is asked", TemplateTime.describe(meta).contains("date you choose"));
+            expect("the chooser says the dates are asked", TemplateTime.describe(meta).contains("Dates you choose"));
         } catch (Throwable t) {
             t.printStackTrace(System.out);
             expect("no exception: " + t, false);

@@ -17,8 +17,8 @@ import org.json.JSONObject;
  * <li>{@code fixed}: the dates the scene was saved with, as every session has always opened.
  * <li>{@code latest}: ends at the newest data (or now, when that is not known), starts {@code span} earlier.
  * <li>{@code relative}: ends {@code lag} before now, starts {@code span} earlier.
- * <li>{@code ask}: New from Template asks for the end date first, then starts {@code span} earlier;
- * nothing downloads until a date is given. Opened any other way it keeps its saved dates.
+ * <li>{@code ask}: New from Template asks for a start and end time first ({@code span} ending now to
+ * begin with); nothing downloads until they are given. Opened any other way it keeps its saved dates.
  * </ul>
  *
  * <p>Parsing is strict: a duration that {@link Duration#parse} refuses, a negative one, a zero span
@@ -129,11 +129,6 @@ public final class TemplateTime {
         return new Range(end - meta.span().toMillis(), end);
     }
 
-    /** An ask template's range once the person has given the end date. */
-    public static Range askedRange(Meta meta, long end) {
-        return new Range(end - meta.span().toMillis(), end);
-    }
-
     /** A duration in plain words: "2 h", "1 d 6 h", "30 min", "0 min". */
     public static String words(Duration d) {
         long minutes = d.toMinutes(), days = minutes / 1440, hours = minutes % 1440 / 60, mins = minutes % 60;
@@ -153,7 +148,7 @@ public final class TemplateTime {
             case FIXED -> "Saved dates";
             case LATEST -> "Newest " + words(m.span()) + " of data";
             case RELATIVE -> words(m.span()) + (m.lag().isZero() ? " ending now" : " ending " + words(m.lag()) + " ago");
-            case ASK -> words(m.span()) + " ending at a date you choose when it opens";
+            case ASK -> "Dates you choose when it opens";
         };
     }
 

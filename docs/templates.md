@@ -23,8 +23,8 @@ beside `layers`, `imageLayers`, `masterStartTime` and the rest) it carries one m
   - `fixed`: the dates the scene was saved with, exactly as a session opens.
   - `latest`: the range ends at the newest data for the scene's layers and starts `span` earlier.
   - `relative`: the range ends `lag` before now and starts `span` earlier.
-  - `ask`: New from Template asks for the end date (UTC) and loads `span` before it, so no layer
-    downloads until the template is pointed at a date. The opened copy is marked `fixed`. Opened any
+  - `ask`: New from Template asks for a start and end time (UTC, the New Layer panel's selector,
+    `span` ending now to begin with), so no layer downloads until the dates are chosen. The opened copy is marked `fixed`. Opened any
     other way (Open Session, startup), it keeps its saved dates.
 - `span` and `lag` are ISO 8601 durations (`java.time.Duration.parse`): `PT2H` is two hours,
   `P1D` one day, `PT30M` thirty minutes. Neither may be negative; `latest` and `relative` need a

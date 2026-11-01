@@ -93,33 +93,37 @@ public final class TemplateChooser {
     }
 
     /**
-     * An ask template: the end date, in UTC, then a copy of the session moved to the span before it
-     * and marked fixed so loading it asks nothing more. Null when cancelled.
+     * An ask template: a start and end time, picked with the same selector the New Layer panel uses
+     * (the template's span ending now to begin with), then a copy of the session moved to that range
+     * and marked fixed so loading it asks nothing more. Every layer then requests that range. Null
+     * when cancelled.
      */
     @javax.annotation.Nullable
     static org.json.JSONObject askDate(TemplateLibrary.Entry e) {
+        org.helioviewer.jhv.gui.time.TimeSelectorPanel range = new org.helioviewer.jhv.gui.time.TimeSelectorPanel();
         long now = System.currentTimeMillis();
-        String initial = TimeUtils.formatDate(now) + " " + TimeUtils.formatTime(now).substring(0, 5);
-        String prompt = "\"" + e.meta().name() + "\" loads " + TemplateTime.words(e.meta().span())
-                + " of data ending at this date and time (UTC, yyyy-MM-dd HH:mm):";
+        range.setTime(now - e.meta().span().toMillis(), now);
+        javax.swing.JPanel panel = new javax.swing.JPanel(new java.awt.BorderLayout(0, 8));
+        panel.add(new javax.swing.JLabel("<html>\"" + e.meta().name() + "\" loads every layer for this time range (UTC).<br>"
+                + "Nothing downloads until you press OK.</html>"), java.awt.BorderLayout.NORTH);
+        panel.add(range, java.awt.BorderLayout.CENTER);
         while (true) {
-            Object answer = javax.swing.JOptionPane.showInputDialog(MainFrame.get(), prompt, "Point the template at a date",
-                    javax.swing.JOptionPane.QUESTION_MESSAGE, null, null, initial);
-            if (answer == null)
+            int ok = javax.swing.JOptionPane.showConfirmDialog(MainFrame.get(), panel, "Choose the dates",
+                    javax.swing.JOptionPane.OK_CANCEL_OPTION, javax.swing.JOptionPane.PLAIN_MESSAGE);
+            if (ok != javax.swing.JOptionPane.OK_OPTION)
                 return null;
-            long end = TimeUtils.optParse(answer.toString().strip().replace(' ', 'T'), Long.MIN_VALUE);
-            if (end != Long.MIN_VALUE)
-                return pointed(e.session(), e.meta(), end);
-            initial = answer.toString();
-            prompt = "That is not a date and time. Give it as yyyy-MM-dd HH:mm (UTC):";
+            long start = range.getStartTime(), end = range.getEndTime();
+            if (end > start)
+                return pointed(e.session(), e.meta(), start, end);
+            Message.warn("Choose the dates", "The end must be after the start.");
         }
     }
 
-    /** {@code session} (copied) moved to the ask range ending at {@code end}, its rule now fixed. */
-    static org.json.JSONObject pointed(org.json.JSONObject session, TemplateTime.Meta meta, long end) {
+    /** {@code session} (copied) moved to {@code start} to {@code end}, its rule now fixed. */
+    static org.json.JSONObject pointed(org.json.JSONObject session, TemplateTime.Meta meta, long start, long end) {
         org.json.JSONObject copy = new org.json.JSONObject(session.toString());
         org.json.JSONObject state = copy.getJSONObject("org.helioviewer.jhv.state");
-        TemplateState.rewrite(state, TemplateTime.askedRange(meta, end));
+        TemplateState.rewrite(state, new TemplateTime.Range(start, end));
         state.put(TemplateState.KEY, meta.withTime(meta.description(), TemplateTime.Mode.FIXED, meta.span(), meta.lag()).toJson());
         return copy;
     }
