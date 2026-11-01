@@ -38,11 +38,21 @@ public final class ControlRegistry {
 
     /**
      * {@code words} are extra match words (a command's description). {@code reveal} is a catalog id
-     * run before a control is spotlit. {@code shortcut} is "" when there is none, and {@code doc} null.
+     * run before a control is spotlit. {@code doc} is null when there is none.
      */
     public record Entry(Kind kind, String id, String title, String where, String words, @Nullable String reveal,
-                        String tooltip, @Nullable String doc, String shortcut, List<String> tours, List<String> tips,
-                        @Nullable CommandSpec command) {}
+                        String tooltip, @Nullable String doc, List<String> tours, List<String> tips,
+                        @Nullable CommandSpec command) {
+
+        /**
+         * The shortcut now in force as text, "" when there is none. Read from the Action each time, never kept
+         * with the entry: the person can change it while the program runs (Settings > Shortcuts).
+         */
+        public String shortcut() {
+            ActionCatalog.Entry a = kind == Kind.COMMAND ? ActionCatalog.get(id) : null;
+            return a != null && a.action().getValue(Action.ACCELERATOR_KEY) instanceof KeyStroke ks ? Shortcuts.text(ks) : "";
+        }
+    }
 
     private static final Map<String, Entry> entries = new LinkedHashMap<>(); // the map is the only state (guards.py ratchet)
 
@@ -66,10 +76,9 @@ public final class ControlRegistry {
             ActionCatalog.Entry a = ActionCatalog.get(c.id());
             String title = a == null ? c.id() : plain(String.valueOf(a.action().getValue(Action.NAME)));
             String where = a == null ? "" : a.menuPath();
-            String shortcut = a != null && a.action().getValue(Action.ACCELERATOR_KEY) instanceof KeyStroke ks ? Shortcuts.text(ks) : "";
             String tip = Tooltips.lookup(c.id());
             entries.put(c.id(), new Entry(Kind.COMMAND, c.id(), title, where, c.description(), null,
-                    tip == null ? c.description() : tip, null, shortcut, tours.getOrDefault(c.id(), List.of()),
+                    tip == null ? c.description() : tip, null, tours.getOrDefault(c.id(), List.of()),
                     tips.getOrDefault(c.id(), List.of()), c));
         }
         try (InputStream is = FileUtils.getResource("/data/controls.json")) {
@@ -82,7 +91,7 @@ public final class ControlRegistry {
                 String tip = Tooltips.lookup(id);
                 entries.put(id, new Entry(Kind.CONTROL, id, o.getString("title"), o.getString("where"), o.optString("words"),
                         o.has("reveal") ? o.getString("reveal") : null, tip == null ? "" : tip,
-                        o.has("doc") ? o.getString("doc") : null, "", tours.getOrDefault(id, List.of()),
+                        o.has("doc") ? o.getString("doc") : null, tours.getOrDefault(id, List.of()),
                         tips.getOrDefault(id, List.of()), null));
             }
         } catch (IOException | RuntimeException e) { // RegistryCheck keeps the file readable

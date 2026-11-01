@@ -43,6 +43,7 @@ public final class RegistryCheck {
         expect("schema: above the maximum", !Schema.validate(s, o("{\"n\":10}")).isEmpty());
         expect("schema: outside the enum", !Schema.validate(s, o("{\"n\":1,\"axis\":\"Z\"}")).isEmpty());
         expect("schema: an unknown argument when additionalProperties is false", !Schema.validate(s, o("{\"n\":1,\"zz\":1}")).isEmpty());
+        expect("schema: grammar of the type message: " + Schema.validate(s, o("{\"n\":\"3\"}")), Schema.validate(s, o("{\"n\":\"3\"}")).toString().contains("an integer"));
         expect("schema: a bad boolean", !Schema.validate(s, o("{\"n\":1,\"b\":\"yes\"}")).isEmpty());
 
         // The real registry (a display is needed from here)
@@ -59,9 +60,15 @@ public final class RegistryCheck {
             if (c.description().isBlank() || c.input() == null || c.output() == null)
                 blank.add(c.id());
         expect("every command has a description and both schemas, without " + blank, blank.isEmpty());
-        Set<String> unknownEffects = new LinkedHashSet<>(CommandRegistry.EFFECTS.keySet());
+        Set<String> classified = new LinkedHashSet<>(CommandRegistry.EFFECTS.keySet());
+        classified.addAll(CommandRegistry.UI_ONLY);
+        Set<String> unclassified = new LinkedHashSet<>(actionIds);
+        unclassified.removeAll(classified);
+        expect("every catalogued action has an effect (add it to EFFECTS or UI_ONLY), missing " + unclassified, unclassified.isEmpty());
+        expect("no id is in both EFFECTS and UI_ONLY", java.util.Collections.disjoint(CommandRegistry.EFFECTS.keySet(), CommandRegistry.UI_ONLY));
+        Set<String> unknownEffects = new LinkedHashSet<>(classified);
         unknownEffects.removeAll(actionIds);
-        expect("every id in the effect table is a catalogued action, stale " + unknownEffects, unknownEffects.isEmpty());
+        expect("every id in the effect tables is a catalogued action, stale " + unknownEffects, unknownEffects.isEmpty());
 
         // Dispatch
         expect("dispatch: an unknown id", "unknown-command".equals(Dispatch.invoke("noSuchCommand", null).error()));
@@ -96,6 +103,12 @@ public final class RegistryCheck {
                 layers != null && layers.tours().contains("getting-started"));
         ControlRegistry.Entry search = ControlRegistry.get("searchControls");
         expect("a command carries its shortcut as text: " + (search == null ? null : search.shortcut()), search != null && !search.shortcut().isEmpty());
+        javax.swing.Action zoomAction = ActionCatalog.get("zoomOut").action();
+        Object oldKey = zoomAction.getValue(javax.swing.Action.ACCELERATOR_KEY);
+        zoomAction.putValue(javax.swing.Action.ACCELERATOR_KEY, javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_F8, 0));
+        String live = ControlRegistry.get("zoomOut").shortcut();
+        zoomAction.putValue(javax.swing.Action.ACCELERATOR_KEY, oldKey);
+        expect("the shortcut text follows a change made while running: " + live, live.equals("F8"));
         expect("a command carries its spec", search != null && search.command() != null && search.command().id().equals("searchControls"));
         Set<String> dashes = new LinkedHashSet<>();
         for (ControlRegistry.Entry e : ControlRegistry.all())
