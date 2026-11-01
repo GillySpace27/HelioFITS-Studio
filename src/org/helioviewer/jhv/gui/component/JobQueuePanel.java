@@ -20,7 +20,12 @@ import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.study.JobQueue;
 import org.helioviewer.jhv.study.JobQueue.Job;
 
-/** The export queue: every job with its state and progress, and cancel, re-run and open folder. */
+/**
+ * The Activity window, opened from the footer's spinner or Window > Activity: what is running right
+ * now (downloads, loads, filters, event fetches, the export in progress), what did not land, and the
+ * export queue (study runs, Screenshot, Record), which runs one job at a time with cancel, re-run and
+ * open folder. Downloads are listed, not queued: they run side by side and are managed from their layer.
+ */
 @SuppressWarnings({"serial", "this-escape"})
 public final class JobQueuePanel extends JDialog {
 
@@ -44,6 +49,21 @@ public final class JobQueuePanel extends JDialog {
     private static final String[] COLUMNS = {"Job", "State", "Progress", "Message"};
 
     private final JTable table = new JTable();
+    private final javax.swing.DefaultListModel<String> nowModel = new javax.swing.DefaultListModel<>();
+    private final javax.swing.JList<String> now = new javax.swing.JList<>(nowModel);
+
+    /** The footer spinner's own lines, so the two never disagree. */
+    private void refreshNow() {
+        java.util.List<String> lines = new java.util.ArrayList<>(org.helioviewer.jhv.gui.status.ActivityStatusPanel.running());
+        for (String f : org.helioviewer.jhv.gui.status.ActivityStatusPanel.failed())
+            lines.add("Did not land: " + f);
+        if (lines.isEmpty())
+            lines.add("Nothing running: everything has landed.");
+        if (!lines.equals(java.util.Collections.list(nowModel.elements()))) {
+            nowModel.clear();
+            nowModel.addAll(lines);
+        }
+    }
     private final JobQueue.Listener listener;
 
     private final class Model extends AbstractTableModel {
@@ -75,7 +95,7 @@ public final class JobQueuePanel extends JDialog {
     }
 
     private JobQueuePanel() {
-        super(MainFrame.get(), "Export queue", false);
+        super(MainFrame.get(), "Activity", false);
         setDefaultCloseOperation(HIDE_ON_CLOSE);
         table.setModel(new Model());
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -95,9 +115,33 @@ public final class JobQueuePanel extends JDialog {
         buttons.add(open);
 
         JScrollPane scroll = new JScrollPane(table);
-        scroll.setPreferredSize(new Dimension(900, 220));
+        scroll.setPreferredSize(new Dimension(900, 200));
+        now.setVisibleRowCount(5);
+        JScrollPane nowScroll = new JScrollPane(now);
+        nowScroll.setBorder(javax.swing.BorderFactory.createTitledBorder("Right now: downloads, loads and computing (managed from their layers)"));
+        scroll.setBorder(javax.swing.BorderFactory.createTitledBorder("Export queue: one job at a time, in order"));
+        JPanel south = new JPanel(new BorderLayout());
+        south.add(buttons, BorderLayout.CENTER);
+        javax.swing.JLabel hint = new javax.swing.JLabel("Movie > Study... queues a set here; Screenshot and Record from the Movie panel run directly.");
+        hint.setBorder(javax.swing.BorderFactory.createEmptyBorder(0, 8, 6, 8));
+        south.add(hint, BorderLayout.SOUTH);
+        getContentPane().add(nowScroll, BorderLayout.NORTH);
         getContentPane().add(scroll, BorderLayout.CENTER);
-        getContentPane().add(buttons, BorderLayout.SOUTH);
+        getContentPane().add(south, BorderLayout.SOUTH);
+        javax.swing.Timer tick = new javax.swing.Timer(1000, e -> refreshNow());
+        addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override
+            public void componentShown(java.awt.event.ComponentEvent e) {
+                refreshNow();
+                tick.start();
+            }
+
+            @Override
+            public void componentHidden(java.awt.event.ComponentEvent e) {
+                tick.stop();
+            }
+        });
+        refreshNow();
 
         listener = () -> {
             int sel = table.getSelectedRow();

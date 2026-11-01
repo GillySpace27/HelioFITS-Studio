@@ -186,13 +186,14 @@ public final class StudyPanel extends JDialog {
         });
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JButton preset = new JButton("Load preset");
+        JButton preset = new JButton("Load template");
         preset.setToolTipText("Replace the rows with a ready-made set, such as the lambda ladder");
         preset.addActionListener(e -> loadPreset(preset));
         JButton copy = new JButton("Copy command");
         copy.setToolTipText("Copy the command that runs this study headless");
         copy.addActionListener(e -> copyCommand());
-        JButton jobs = new JButton("Queue...");
+        JButton jobs = new JButton("Activity...");
+        jobs.setToolTipText("The export queue and everything else running (also: click the footer's spinner)");
         jobs.addActionListener(e -> JobQueuePanel.open());
         for (JComponent c : new JComponent[]{save, update, apply, duplicate, delete, paste, preset, copy, export, jobs})
             buttons.add(c);
@@ -208,6 +209,11 @@ public final class StudyPanel extends JDialog {
 
         JScrollPane scroll = new JScrollPane(table);
         scroll.setPreferredSize(new Dimension(980, 260));
+        JLabel how = new JLabel("<html>Each row is one picture of this scene. Grey cells inherit the scene's value; type to override, clear to inherit.<br>"
+                + "1. Start from a template (Load template) or set up the view and press Save this view. "
+                + "2. Click a row to preview it, edit its cells. 3. Export set: the run goes to the Activity window.</html>");
+        how.setBorder(BorderFactory.createEmptyBorder(6, 8, 6, 8));
+        getContentPane().add(how, BorderLayout.NORTH);
         getContentPane().add(scroll, BorderLayout.CENTER);
         getContentPane().add(south, BorderLayout.SOUTH);
 
