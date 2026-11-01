@@ -8,6 +8,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.Nullable;
 
@@ -41,9 +42,10 @@ public final class CommandRegistry {
     private static final JSONObject EMPTY_RESULT = new JSONObject("{\"type\":\"object\",\"properties\":{}}");
 
     /**
-     * What a catalogued command does to the user's work. Not listed means UI (opens or shows part of
-     * the interface). This is the author's judgement, to be reviewed; a front end uses it to decide
-     * what to confirm.
+     * What a catalogued command does to the user's work: the author's judgement, to be reviewed; a
+     * front end uses it to decide what to confirm. Every catalogued id is here or in {@link #UI_ONLY}
+     * (RegistryCheck fails on one that is in neither); one that is in neither is treated as WRITE, so
+     * a command nobody classified is never offered as harmless.
      */
     static final Map<String, Effect> EFFECTS = Map.ofEntries(
             Map.entry("newSession", Effect.DESTRUCTIVE), Map.entry("openSession", Effect.DESTRUCTIVE),
@@ -55,7 +57,8 @@ public final class CommandRegistry {
             Map.entry("undo", Effect.WRITE), Map.entry("redo", Effect.WRITE), Map.entry("paste", Effect.WRITE),
             Map.entry("reloadSources", Effect.WRITE), Map.entry("duplicateLayer", Effect.WRITE),
             Map.entry("zoomIn", Effect.WRITE), Map.entry("zoomOut", Effect.WRITE), Map.entry("zoomFit", Effect.WRITE),
-            Map.entry("zoomOne", Effect.WRITE), Map.entry("resetCamera", Effect.WRITE), Map.entry("resetAxis", Effect.WRITE),
+            Map.entry("zoomOne", Effect.WRITE), Map.entry("separateMultiviewZoom", Effect.WRITE), Map.entry("fitNewMultiviewLayers", Effect.WRITE),
+            Map.entry("zoomFovAnnotation", Effect.WRITE), Map.entry("resetCamera", Effect.WRITE), Map.entry("resetAxis", Effect.WRITE),
             Map.entry("rotate90X", Effect.WRITE), Map.entry("rotate90Y", Effect.WRITE), Map.entry("rotate90Z", Effect.WRITE),
             Map.entry("playPause", Effect.WRITE), Map.entry("previousFrame", Effect.WRITE), Map.entry("nextFrame", Effect.WRITE),
             Map.entry("record", Effect.WRITE), Map.entry("trimStart", Effect.WRITE), Map.entry("trimEnd", Effect.WRITE),
@@ -63,7 +66,24 @@ public final class CommandRegistry {
             Map.entry("quickShare", Effect.WRITE), Map.entry("shareScene", Effect.WRITE), Map.entry("sendToPython", Effect.WRITE),
             Map.entry("openDemo", Effect.DESTRUCTIVE), Map.entry("punchLatest", Effect.WRITE));
 
+    /**
+     * Commands that only open or show part of the interface (a dialog, a palette, a tour, a page in
+     * the browser). openUserManual, openChangeLog, reportBug and sdoCutout open the browser; sdoCutout
+     * sends the current view's time and field of view to LMSAL's cut-out service in the URL.
+     */
+    static final Set<String> UI_ONLY = Set.of("newJp2Layer", "newSynopticLayer", "newPunchLayer", "newSoarLayer", "newAspiicsLayer",
+            "newPointCloudLayer", "openImageLayer", "openModel", "findCmes", "findComets", "displaySettings", "present", "windowMinimize",
+            "windowZoom", "newWindow", "openUserManual", "openChangeLog", "checkForUpdates", "reportBug", "sdoCutout", "takeTour", "welcome",
+            "tipOfTheDay", "showImageLayers", "sendFeedback", "datasetFolders", "openExportsFolder", "searchControls", "showProjection",
+            "showPlayback", "newFromTemplate", "saveAsTemplate", "templates", "tourGettingStarted", "tourLoadingData", "tourMakingAMovie",
+            "tourViewsAndProjections", "tourRhefAndFilters", "tourSharingYourWork");
+
     private static final Map<String, CommandSpec> specs = new LinkedHashMap<>(); // the map is the only state (guards.py ratchet)
+
+    static Effect effectOf(String id) {
+        Effect e = EFFECTS.get(id);
+        return e != null ? e : UI_ONLY.contains(id) ? Effect.UI : Effect.WRITE;
+    }
 
     /** Builds every spec once. Idempotent; get() and all() call it. */
     public static synchronized void register() {
@@ -71,7 +91,7 @@ public final class CommandRegistry {
             return;
         for (ActionCatalog.Entry e : ActionCatalog.all()) {
             String id = e.id();
-            add(new CommandSpec(id, e.description(), EFFECTS.getOrDefault(id, Effect.UI), NO_ARGS, EMPTY_RESULT, args -> {
+            add(new CommandSpec(id, e.description(), effectOf(id), NO_ARGS, EMPTY_RESULT, args -> {
                 Object source = MainFrame.get() != null ? MainFrame.get() : CommandRegistry.class;
                 e.action().actionPerformed(new ActionEvent(source, ActionEvent.ACTION_PERFORMED, id));
                 return new JSONObject();

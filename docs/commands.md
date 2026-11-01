@@ -22,8 +22,9 @@ from them and does not copy them.
 
 `read` changes nothing. `write` changes the scene or a setting and can be repeated or undone.
 `destructive` discards work or data, so a front end asks first. `ui` only opens or shows part of
-the interface. An action not named in `CommandRegistry.EFFECTS` is `ui`. The table is a judgement,
-made once; review it when a command is added.
+the interface. Every catalogued action is named in `CommandRegistry.EFFECTS` or `CommandRegistry.UI_ONLY`;
+`RegistryCheck` fails on one that is in neither, and at run time an unclassified one is treated as
+`write`, never as harmless. The tables are a judgement, made once; review them when a command is added.
 
 ## Adding a command
 
