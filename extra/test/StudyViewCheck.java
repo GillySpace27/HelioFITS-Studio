@@ -78,5 +78,12 @@ public final class StudyViewCheck {
         Commands.clearViewOverride();
         expect("clearViewOverride drops the layer override", !StudyView.hides(layer));
         Commands.restoreView(before);
+
+        expect("getView names the pizza, Off when it is off", before.getJSONObject("pizza").getString("shape").equals("Off"));
+        Commands.setView(new JSONObject().put("pizza", new JSONObject().put("shape", "Wedges").put("seed", 7)));
+        expect("setView turns the sun pizza on", org.helioviewer.jhv.display.Pizza.isOn());
+        Commands.restoreView(before);
+        expect("restoreView turns it off again, byte-identical", !org.helioviewer.jhv.display.Pizza.isOn()
+                && beforeText.equals(Commands.getView().toString()));
     }
 }
