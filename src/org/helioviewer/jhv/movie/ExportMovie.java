@@ -14,6 +14,7 @@ import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.HdrTransfer;
+import org.helioviewer.jhv.display.Pizza;
 import org.helioviewer.jhv.gui.component.MoviePanel;
 import org.helioviewer.jhv.image.nio.MappedImageFactory;
 import org.helioviewer.jhv.image.nio.NativeImageFactory;
@@ -55,7 +56,7 @@ public final class ExportMovie {
     private static boolean mainCanvasVisible = true;
 
     public static void start(@Nullable Commands.OperationContext context, @Nullable Commands.RecordStartInput input) {
-        start(context, input, null, null, null);
+        start(context, input, null, null);
     }
 
     /**
@@ -64,12 +65,29 @@ public final class ExportMovie {
      * to put back afterwards.
      */
     public static void startOnce(@Nullable Commands.OperationContext context, ExportPreset once, ViewState.RecordingMode mode) {
-        start(context, null, once, mode, null);
+        start(context, null, once, mode);
     }
 
     /** A parameter study's movie: {@code once}'s encoding and exactly {@code data}'s size, with nothing written to the person's settings. */
     public static void startStudy(@Nullable Commands.OperationContext context, ExportPreset once, ViewState.RecordingData data) {
-        start(context, null, once, data.mode(), data);
+        startWith(context, null, once, data);
+    }
+
+    /**
+     * A sun pizza spin (HS-25): one seamless turn of the wedges in {@code frames} frames, with the
+     * data standing still. A Free recording at the person's own size and encoding, so a spin for a
+     * 4K outreach video is as sharp as any other recording; {@link Pizza} turns the cut after each
+     * captured frame and stops the recording on the last one.
+     */
+    public static void startSpin(@Nullable Commands.OperationContext context, int frames) {
+        if (!Pizza.isOn() || isRecording())
+            return;
+        ViewState.RecordingData own = ViewState.recordingData();
+        startWith(context, null, null, new ViewState.RecordingData(ViewState.RecordingMode.FREE, own.aspect(), own.longSide()));
+        if (!isRecording())
+            return;
+        Pizza.beginSpinRecording(frames);
+        DisplayController.display();
     }
 
     /** The encoding a recording uses: {@code once} when given, else the settings the person has chosen. Reads, never writes. */
@@ -93,8 +111,12 @@ public final class ExportMovie {
     record Encoding(ExportFormat format, ExportFormat.Chroma chroma, ExportFormat.Depth depth, boolean allIntra) {}
 
     private static void start(@Nullable Commands.OperationContext context, @Nullable Commands.RecordStartInput input,
-                              @Nullable ExportPreset once, @Nullable ViewState.RecordingMode onceMode,
-                              @Nullable ViewState.RecordingData dataOverride) {
+                              @Nullable ExportPreset once, @Nullable ViewState.RecordingMode onceMode) {
+        startWith(context, input, once, onceMode == null ? null : shareData(ViewState.recordingData(), onceMode));
+    }
+
+    private static void startWith(@Nullable Commands.OperationContext context, @Nullable Commands.RecordStartInput input,
+                                  @Nullable ExportPreset once, @Nullable ViewState.RecordingData override) {
         if (isRecording()) {
             if (context != null)
                 Commands.notifyRecordingFinished(context, false, "Recording already in progress.", null);
@@ -107,8 +129,7 @@ public final class ExportMovie {
 
             ViewState.PlaybackData playbackData = ViewState.playbackData();
             int fps = playbackData.speedUnit().isRelative() ? playbackData.speed() : Player.FPS_ABSOLUTE;
-            ViewState.RecordingData data = dataOverride != null ? dataOverride
-                    : onceMode == null ? ViewState.recordingData() : shareData(ViewState.recordingData(), onceMode);
+            ViewState.RecordingData data = override == null ? ViewState.recordingData() : override;
             framesQueued.set(0);
             framesEncoded.set(0);
             recordingSession = new RecordingSession(context, data, fps, encodingFor(once));
@@ -234,6 +255,10 @@ public final class ExportMovie {
         private final ExportWriter writer;
         private final @Nullable JSONObject provenance;
         private final @Nullable String exrProvenance;
+        private final JSONObject live; // ProcessingRecord.live() beside the provenance, same moment
+        private final String recordId = java.util.UUID.randomUUID().toString(); // shared by the sidecar and every embedded copy
+        private @Nullable String exrRecord; // the EXR frames' embedded copy, built once at the first frame
+        private @Nullable JSONObject endScene; // the scene as the recording ended, for "changed during export"
         private final Semaphore exrPermits = new Semaphore(EXR_IN_FLIGHT);
 
         private @Nullable GLGrab grabber;
@@ -247,6 +272,7 @@ public final class ExportMovie {
             operationContext = _operationContext;
             provenance = takeProvenance();
             exrProvenance = provenance == null ? null : provenance.toString();
+            live = ProcessingRecord.live();
             mode = recordingData.mode();
             if (mode == ViewState.RecordingMode.LOOP && !Player.hasActiveImage())
                 throw new IllegalStateException("Loop recording requires an active image.");
@@ -411,6 +437,9 @@ public final class ExportMovie {
             exrPermits.acquireUninterruptibly();
             try {
                 ExrWriter frame = ExrCapture.frame(grabber, writer.fps(), ++exrFrameIndex, exrProvenance);
+                String embedded = exrRecord();
+                if (embedded != null)
+                    frame.attribute(ProcessingRecord.EMBED_KEY, embedded);
                 framesQueued.incrementAndGet();
                 encodeExecutor.execute(() -> {
                     try {
@@ -455,7 +484,47 @@ public final class ExportMovie {
             disposeGrabber();
             writing.set(true);
             notifyStatusChanged();
-            encodeExecutor.execute(new CloseWriter(writer, operationContext));
+            if (mode != ViewState.RecordingMode.SHOT)
+                endScene = takeEndScene();
+            encodeExecutor.execute(new CloseWriter(writer, operationContext, record()));
+        }
+
+        /**
+         * The record copy every EXR frame carries. Frames are files written during the recording,
+         * so it is built at the first frame, from the start of the export: no frame count, no end
+         * scene, and a source frame still being hashed is counted, not waited for (this is the GL
+         * thread). The sidecar, written at the end, is the complete record; both share record_id.
+         */
+        @Nullable
+        private String exrRecord() {
+            if (exrRecord != null || provenance == null)
+                return exrRecord;
+            try {
+                ProcessingRecord.Output output = new ProcessingRecord.Output("exr_series", "image/x-exr", width, height, null,
+                        writer.fps(), ExportFormat.EXR.toString(), 16, true);
+                exrRecord = ProcessingRecord.exrText(ProcessingRecord.prepare(provenance, live, null, output, recordId, false));
+            } catch (RuntimeException e) {
+                Log.warn("Processing record not embedded in the EXR frames", e);
+                exrRecord = "";
+            }
+            return exrRecord.isEmpty() ? null : exrRecord;
+        }
+
+        /** What the sidecar needs once the file is closed; null when there is no provenance to build it from. */
+        @Nullable
+        private RecordInput record() {
+            if (provenance == null)
+                return null;
+            boolean shot = mode == ViewState.RecordingMode.SHOT;
+            ExportFormat format = writer.format();
+            String kind = shot ? "still" : format == ExportFormat.EXR ? "exr_series" : format == ExportFormat.PNG ? "frame_series" : "movie";
+            String media = format == ExportFormat.EXR ? "image/x-exr" : format.isSeries() || shot ? "image/png"
+                    : format.extension.endsWith(".mkv") ? "video/x-matroska" : "video/mp4";
+            int frames = format == ExportFormat.EXR ? exrFrameIndex : framesQueued.get();
+            ProcessingRecord.Output output = new ProcessingRecord.Output(kind, media, width, height, shot ? 1 : frames,
+                    shot ? null : writer.fps(), shot ? "png" : format.toString(), shot ? 16 : format == ExportFormat.EXR ? 16 : bytesPerPixel == 6 ? 16 : 8,
+                    true);
+            return new RecordInput(provenance, live, endScene, output, recordId);
         }
 
         void disposeGrabber() {
@@ -484,12 +553,64 @@ public final class ExportMovie {
         }
     }
 
+    /** The scene when a movie ends, for the record's "changed during export". Never fails the recording. */
+    @Nullable
+    private static JSONObject takeEndScene() {
+        try {
+            return org.helioviewer.jhv.app.state.State.snapshot();
+        } catch (RuntimeException e) {
+            Log.warn("Export end scene unavailable", e);
+            return null;
+        }
+    }
+
+    /** Everything ProcessingRecord.write needs besides the written file. */
+    record RecordInput(JSONObject session, JSONObject live, @Nullable JSONObject endScene, ProcessingRecord.Output output,
+                       String recordId) {
+
+        /** The record before the file is written, so the file can carry a copy; null when it cannot be built (logged). */
+        @Nullable
+        JSONObject prepare() {
+            try {
+                return ProcessingRecord.prepare(session, live, endScene, output, recordId, true);
+            } catch (RuntimeException e) {
+                Log.warn("Processing record not built before the export closed", e);
+                return null;
+            }
+        }
+    }
+
+    /**
+     * The sidecar for what close() returned: a file, frame N of a series (a still), or a series'
+     * directory. Off the event thread, on the encoder, after the file is complete.
+     */
+    static void writeRecord(@Nullable String output, @Nullable RecordInput in) {
+        writeRecord(output, in, null);
+    }
+
+    /** As above; {@code prepared}, when given, is the record the file already carries a copy of, completed and written as the sidecar. */
+    static void writeRecord(@Nullable String output, @Nullable RecordInput in, @Nullable JSONObject prepared) {
+        if (output == null || in == null)
+            return;
+        java.nio.file.Path path = java.nio.file.Path.of(output.contains("%04d") ? String.format(output, 1) : output);
+        if (output.contains("%04d") && !"still".equals(in.output().kind()))
+            path = path.getParent(); // a series is its directory
+        if (prepared != null)
+            ProcessingRecord.writePrepared(path, prepared);
+        else
+            ProcessingRecord.write(path, in.session(), in.live(), in.endScene(), in.output());
+    }
+
     private record CloseWriter(ExportWriter writer,
-                               @Nullable Commands.OperationContext operationContext) implements Runnable {
+                               @Nullable Commands.OperationContext operationContext,
+                               @Nullable RecordInput record) implements Runnable {
         @Override
         public void run() {
             try {
-                String output = writer.close();
+                // EXR frames took their copy when captured; the sidecar is still built here, at the end.
+                JSONObject prepared = record == null ? null : record.prepare();
+                String output = writer.close(writer.format() == ExportFormat.EXR ? null : prepared);
+                writeRecord(output, record, prepared); // before the report, so a caller that copies the file finds its record
                 Commands.notifyRecordingFinished(operationContext, true, "Recording finished.", output);
             } catch (Exception e) {
                 Log.error(e);

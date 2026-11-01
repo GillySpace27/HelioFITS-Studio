@@ -59,6 +59,7 @@ public final class ControlIndex {
             {"grid", "Grid", TOOLBAR, "Thomson sphere celestial ecliptic planets overlay", null},
             {"camera", "Camera", TOOLBAR, "free follow turntable overview viewpoint", null},
             {"compare", "Compare", TOOLBAR, "blink swipe divider difference minus before after two layers side by side", null},
+            {"pizza", "Pizza", TOOLBAR, "sun pizza wedges slices tiles squares every wavelength channel composite turntable spin labels coronagraph ring", null},
             {"annotate", "Annotation", TOOLBAR, "draw thickness colour", null},
             {"refresh", "Refresh", TOOLBAR, "automatic refresh reload", null},
             {"samp", "SAMP", TOOLBAR, "send message", null},

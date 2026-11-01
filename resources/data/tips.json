@@ -136,6 +136,12 @@
       "target": "compare"
     },
     {
+      "id": "pizza",
+      "title": "Every channel at once",
+      "text": "Pizza, on the toolbar, cuts every shown image layer into its own wedges of one Sun, so the same patch is seen through every filter. Turn the cut, or record a seamless spin while the data stands still.",
+      "target": "pizza"
+    },
+    {
       "id": "multiview",
       "title": "Side by side",
       "text": "Multiview, on the toolbar, puts each shown image layer in a view of its own, side by side.",

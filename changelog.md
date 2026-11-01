@@ -1,13 +1,55 @@
 
 # Revision history
 
-## HelioFITS Studio 0.8.7 (unreleased)
+## HelioFITS Studio 0.8.8 (unreleased)
+
+### Sun pizza and templates
+- Pizza, on the toolbar, cuts every shown image layer into its own wedges, squares or polar tiles of one Sun, so the same patch of the Sun is seen through every filter side by side. Nothing is resampled: each layer is drawn whole and keeps only its own cells. Wedges can be labelled with each channel's wavelength, the turn is animatable, and a spin can be recorded as a movie.
+- Templates (Window > Templates... on macOS, File > Templates... elsewhere) open a saved scene on the latest, a relative or a fixed date range, as an Untitled session so the template is never written over. A built-in SDO sun pizza template comes with the app, and Refresh Data brings a template's FITS through HelioFITS Core.
+
+### Memory and speed
+- A long Helioviewer movie no longer fills the Java heap. The JPEG 2000 stream data of every frame used to be kept for good (27 GB for a 1291-frame layer), which left the program stopped in garbage collection most of the time. It is now one block per piece, counted against a memory budget, and the frames farthest from the one on screen are dropped when the budget is full; a dropped frame is read back from the disk cache when it is needed.
+- Settings > Network > Memory sets how much of the computer's memory the stream data and the decoded frames may use together (50% by default). Before, the decoded frames alone could take 40% and the heap another quarter, so a large movie went to swap.
+- All layers now decode on one shared pool of threads instead of one thread (and up to four more inside OpenJPEG) per layer. Settings > Network > Decoding sets its width (automatic by default: the performance cores minus two).
+- Decoded JPEG 2000 frames are converted to 8-bit grey straight from OpenJPEG's memory, without copying every frame into a 4-byte-a-pixel Java array first.
+- Counting the distinct levels of a frame for the layer readout no longer happens on the interface thread.
+- Settings > Network > Long requests chooses when the next piece of a request over the server's 1000-frame limit is asked for: as soon as the previous one has opened (the default and how it always worked), all at once, when the previous one is 80% downloaded, or when it has finished.
+
+### Fixes
+- Started with `java -jar` from a folder other than the jar's own, the Mac build loads the Metal library that sits beside the jar, not a possibly older copy in the working folder (which died with `UnsatisfiedLinkError: jhv_mirror_prepare`). The packaged app is unaffected.
+- A layer's Layer Options header puts its icon row on a line of its own above the description, so the description (name, time range, cadence, format, cache state) uses the whole panel width instead of a narrow column beside the icons
+- A new layer is on screen the moment it is asked for. While the server builds a Helioviewer movie, or a LASCO listing is read, its row is named for what was requested ("SOHO LASCO C3, loading") instead of "Loading...", its options show the source and time range, and the coverage timeline draws a dashed bar over the requested range. The real layer replaces it in place when the server answers
+- Loading a long LASCO FITS span no longer sits on "Loading..." for minutes before the first frame. The archive's day folders were listed one after another (47 days took about two minutes, each listing taking half a second to six); they are now listed several at a time, in the same order
+
+### FITS library
+- The HelioFITS Core in the Mac app is updated to heliad e183d0a: it adds the template RPCs that Refresh Data on a template (the sun pizza) uses, and finds a library folder made under the old Heliad name.
+- A FITS button on each Helioviewer (JPEG 2000) layer's row asks HelioFITS Core for the FITS files behind the frames shown. Every Helioviewer frame carries the header of the FITS file it was made from; HelioFITS Core reads those headers the way it reads its own files and says how many frames it already keeps as FITS and how many it lacks. Fetch and open has HelioFITS Core get the missing frames, at the layer's own cadence and never more, and then opens every FITS file it holds for the layer as a new layer; the Helioviewer layer stays as it is. Open the N I have skips the fetch. Needs HelioFITS Core (Studio's own on macOS, the Cache Manager's, or HFCORE_CORE). The newest frames may not be in the archives as FITS yet
+- Use FITS works without the Cache Manager: the macOS app carries its own copy of the FITS library engine (HelioFITS Core), at the version it was tested with, and uses it before any installed Cache Manager (HFCORE_CORE still overrides both). With no FITS library on the computer yet, Use FITS offers to make one at ~/HelioFITSLibrary, never in a folder that holds other files; a library on a drive that is not connected is said as such and its setting left alone. A Cache Manager too old for Use FITS is named as the cause instead of an error report
+- Heliad is now two names: HelioFITS Core (the FITS library engine Studio carries) and the HelioFITS Cache Manager (the Mac app). Everything from before keeps working: an existing ~/HeliadLibrary and its settings, HELIAD_CORE and HELIAD_HOME, heliad:// links when an older Heliad.app is installed, and the SAMP message heliad.dataset.load beside the new hfcore.dataset.load
+- Use FITS works for LASCO: HelioFITS Core now reads LASCO's slashed DATE-OBS (2026/04/25), so a LASCO dataset in the library has dated observations and its missing frames can be asked for again
+
+### Data sources
+- Helioviewer movies from the Royal Observatory of Belgium's server load again. That server sends each frame's FITS header as a separate piece of the stream, which the OpenJPEG reader did not follow, so every ROB movie failed with "readResolutionSet(int) is null" (frame counts also came out doubled). Movies from helioviewer.org were not affected
+
+### App icon
+- The iris icon joins the family look of HelioFITS, the HelioFITS Cache Manager and Heliogram: its dividers are white instead of black, and the blue AIA 335 leaf is a full leaf running from the hexagon's right corner to the Sun's edge, so the red 304 leaf no longer spans the whole top. The new blue leaf and the cyan AIA 131 leaf are drawn from the real AIA frames of the same 2024-05-14 X8.7 flare the other leaves came from, by release/make_iris_art.py
+- The iris icon's white dividers are twice as wide, 44 px at 1024, the same stroke as the HelioFITS and Heliogram outlines. The ground around the orb is the family's violet-black, and the hexagon holds Heliogram's drawn Sun in place of the HFS letters, so one artwork reads at every size from 16 px up
+- The iris sits in a squircle window inset on that ground, enlarged so the orb's edge falls outside the window's corners, and the .icns now shows the whole art shrunk into the icon body, as the asset catalog does, instead of cropping its middle
+- The violet ground is lighter (#2F2263 to #15102A, was #171132 to #090711), the same lift made to the HelioFITS, Cache Manager and Heliogram icons, so it reads as violet on a dark Dock
+
+### From upstream JHelioviewer
+- Fixes taken from JHelioviewer's development line: grid lines no longer duplicate and longitude labels sit on their meridians; the calendar's month and year pickers stay within the chosen month; the timeline's Y-axis zoom stays positive; annotation point radius is kept in saved states; footpoints interpolate between the right neighbours; blank samples are skipped in the minute band cache; mapped image files are sized before mapping; layer downloads bypass the HTTP cache
+- Proxies: JPIP connections, including jpips, go through the configured proxy like HTTP does, and the stored proxy password is handled in one place
+- Loading a saved state keeps timeline rows that belong to an active plugin (EVE, SWEK) instead of dropping them
+- A JPEG 2000 frame whose XML header contains a bare ampersand now keeps its metadata (a regression from the move to OpenJPEG)
+
+## HelioFITS Studio 0.8.7 (pre-release, 2026-10-21)
 
 ### New Layer
-- New Layer is a button again, not a dropdown: it opens one window with a tab for each source. HV (JPEG 2000) streams Helioviewer's browse images, VSO (FITS) queries the Virtual Solar Observatory, Direct (FITS) opens a mission's own archive (PUNCH, SOAR, ASPIICS, MLSO) or loads LASCO from NRL, and Heliad (Local FITS Cache) lists what the Heliad app has already downloaded. The window has its own time range and time step (or frame count) at the top, which every tab uses. They start as the master ones beside New Layer each time it opens, and changing them affects only the layer being added, never the master range; PUNCH, SOAR and MLSO open on that range, PUNCH on that time step too. It opens on the tab used last. Layers > New Image Layer... (Cmd-N) opens the same window
-- Before any FITS download (VSO, PUNCH, SOAR, ASPIICS, MLSO or LASCO), Studio looks in the Heliad library for the same dataset over the same range. If it is there, it offers Heliad's copy, with Download Anyway and Cancel beside it; with no Heliad library, or nothing matching, the download goes ahead as before. Helioviewer's JPEG 2000 is not checked, since Heliad keeps FITS
-- Open Heliad, at the bottom of the window when the Heliad app is installed, starts it to manage the library and download into it
-- The Heliad tab lists Spacecraft, Instrument, Detector, Wavelength, Product, Level and Cadence as columns of their own, each sortable. Cadence is the median gap between files, so gaps in the data do not inflate it (a polarization sequence reads as its spacing: COR1 shows about 20 s). Columns..., or a right-click on the column titles, shows and hides columns, remembered between runs; the combined Dataset name starts hidden
+- New Layer is a button again, not a dropdown: it opens one window with a tab for each source. HV (JPEG 2000) streams Helioviewer's browse images, VSO (FITS) queries the Virtual Solar Observatory, Direct (FITS) opens a mission's own archive (PUNCH, SOAR, ASPIICS, MLSO) or loads LASCO from NRL, and Local FITS Library lists what the HelioFITS Cache Manager has already downloaded. The window has its own time range and time step (or frame count) at the top, which every tab uses. They start as the master ones beside New Layer each time it opens, and changing them affects only the layer being added, never the master range; PUNCH, SOAR and MLSO open on that range, PUNCH on that time step too. It opens on the tab used last. Layers > New Image Layer... (Cmd-N) opens the same window
+- Before any FITS download (VSO, PUNCH, SOAR, ASPIICS, MLSO or LASCO), Studio looks in the FITS library for the same dataset over the same range. If it is there, it offers the library's copy, with Download Anyway and Cancel beside it; with no FITS library, or nothing matching, the download goes ahead as before. Helioviewer's JPEG 2000 is not checked, since the library keeps FITS
+- Open Cache Manager, at the bottom of the window when the HelioFITS Cache Manager is installed, starts it to manage the library and download into it
+- The Local FITS Library tab lists Spacecraft, Instrument, Detector, Wavelength, Product, Level and Cadence as columns of their own, each sortable. Cadence is the median gap between files, so gaps in the data do not inflate it (a polarization sequence reads as its spacing: COR1 shows about 20 s). Columns..., or a right-click on the column titles, shows and hides columns, remembered between runs; the combined Dataset name starts hidden
 
 ### Display Settings
 - View > Display Settings (beside Theme) makes the app easier to read, two ways. Text size is a slider that resizes the text as it moves, with the layouts following; small labels, readouts and section headers follow it too. Under it, Headings, Body and Detail set one level at a time against it. All four run from 50% to 300% in 5% steps on one shared scale, printed once under the last, so section titles can be made large while the small labels and readouts stay small. Every slider applies as it moves. The window stays open beside the app, so sections can be unfolded and the app used while sizes change; Revert puts the sizes back as they were when it opened, and Done or closing keeps them. Interface scale (50% to 200%) changes everything together, text, spacing and icons, so nothing changes proportion, and applies when the app next starts; Restart Now does that at once, saving the session and reopening it. Neither scales the image itself. Settings > Appearance opens the same window from its Size row
@@ -34,6 +76,9 @@
 ### Layers
 - Each layer's readout opens with what it shows, such as "EUV 171 Å (Fe IX, log T 5.8)" for AIA, "white-light total brightness (includes the F corona)" for LASCO C2 and C3, or the PUNCH product ("total brightness, average mosaic, Level 3 (background-subtracted)"). Every label comes from a sourced instrument note; anything without one, such as SUVI, EUI, WISPR, ASPIICS and CCOR, reads "unknown". The Image Information window carries the same line in its title
 - Badges after it flag what changes how to read the picture: RHEF: visualization, running or base difference, provisional LASCO (the frame's monthly background could not be fetched) and quickPUNCH. Hover the readout for what each one means
+- A LASCO layer has a Background section between Display and Intensity. Its switch takes NRL's monthly minimum image off each frame (on by default, as before) or shows the frames as the archive serves them, in DN; the choice is per layer and saved with the session. The line under it says what the frame on screen got, and Preview shows that frame's background, the two monthly images blended in time, in DN/s, following the frame while it is open. The readout now says "white-light brightness minus the NRL monthly minimum background" for a frame the background came off, and keeps "includes the F corona" only for a frame shown without it
+- The Background section's checkbox turns the subtraction on and off whatever the source, and a Source menu under it chooses the background. Auto: NRL, interpolated finds and blends the two NRL monthly images around each frame, as before and by default; Auto: NRL, nearest uses the one closest in time. Local file subtracts one FITS file of your own from every frame, and Local pair two dated ones, blended by where each frame falls between their DATE-OBS; outside those dates the nearer file is used and the status line says so. A local file is put in DN/s the way the frame is, (BZERO + raw x BSCALE - OFFSET) / EXPTIME, so a raw level-0.5 frame or a minimum image both work. It is refused, with the reason under the switch, when it has no EXPTIME, is not the frame's size, or cannot be found, and a pair when a file has no date or both have the same one. A different detector, filter, polarizer or a roll more than 1° away is used and said. Choosing a source turns the subtraction on, applies to the selected LASCO layers and is saved with the session; Preview shows the chosen background and names its file or files. The readout says "white-light brightness minus a user-supplied background" for a local one
+- Show as layer, beside the Source menu, adds the background as a layer of its own: one frame per frame of the LASCO layer, written as FITS with each frame's own time and pointing, in DN/s, exactly what was taken off. It plays in sync and can be blinked or swiped against the frames in Compare; its readout says "the background subtracted from the LASCO frames, in DN/s", and it is never given a background of its own. Frames without one are listed. The Preview window now also closes with Escape
 
 ### Playback
 - The Clock row has an Achieved box, off by default. Ticked, it shows the frame rate playback actually reaches over the last two seconds, beside the Play rate it asks for, so a RHEF movie can be timed against the same movie without it. The FPS at the bottom left counts canvas draws, which is not the same thing
@@ -49,9 +94,9 @@
 - An animated control's lane in the Timeline panel has a band of its own above the plot, so it no longer draws over the HEK events or the layer coverage rows. The panel grows by the band when a control is animated
 - Selecting an animated control's row lists its keys with their time (UTC), value and easing, each editable by typing; a typed time is taken exactly, not snapped to a frame. Add key puts one at the playhead and Delete key removes the selected one
 
-### Heliad
-- When Heliad (the separate app that downloads solar data and keeps it in one library) has a library on this computer, the New Image Layer dialog gets a second tab, Heliad library. It lists Heliad's datasets with how much of the master time range each one reaches, marked as in Load from Cache, and how many frames fall inside the range. Add loads each selected dataset as a layer from its frames in the range; a dataset with nothing in the range loads whole, asking first above 1,000 frames. Open in Heliad, shown when the Heliad app is installed, hands the range to it to search for more. With no Heliad library the dialog is unchanged, and Studio's own downloads and streaming are untouched
-- When Heliad is on this computer, every FITS file Studio downloads is also added to the Heliad library. Studio caches and loads the file exactly as before, and without Heliad nothing changes
+### FITS library
+- When the HelioFITS Cache Manager (the separate app that downloads solar data and keeps it in one library) has a library on this computer, the New Image Layer dialog gets a second tab, Local FITS Library. It lists the library's datasets with how much of the master time range each one reaches, marked as in Load from Cache, and how many frames fall inside the range. Add loads each selected dataset as a layer from its frames in the range; a dataset with nothing in the range loads whole, asking first above 1,000 frames. Open in Cache Manager, shown when the Cache Manager is installed, hands the range to it to search for more. With no FITS library the dialog is unchanged, and Studio's own downloads and streaming are untouched
+- When a FITS library is on this computer, every FITS file Studio downloads is also added to it. Studio caches and loads the file exactly as before, and without a library nothing changes
 
 ### Sharing
 - File > Quick Share records the scene once as a looping movie with the Share anywhere preset and shows the file in Finder (the file manager elsewhere). It lands in Exports under the usual time-stamped name; your own recording mode, size, format and preset are left as they were
@@ -89,6 +134,7 @@
 - LASCO frames shown with the monthly background removed no longer keep the camera's bias level (the OFFSET header keyword). Every such frame was too bright by OFFSET / EXPTIME in every pixel. Pictures with RHEF on look the same; linear, gamma and difference views change
 
 ### Data sources
+- Helioviewer movies from the Royal Observatory of Belgium's server load again. That server sends each frame's FITS header as a separate piece of the stream, which the OpenJPEG reader did not follow, so every ROB movie failed with "readResolutionSet(int) is null" (frame counts also came out doubled). Movies from helioviewer.org were not affected
 - The ASPIICS Kind menu no longer lists every file as a kind of its own. The per-file sequence number in ASPIICS file names (such as 163040060001 or 1630400A0001) was taken as part of the kind, so a 122-frame search offered one "(1 frames)" entry per file. Kinds now differ only by the suffix that sets them apart, such as `v03`
 
 ### Projection
@@ -107,6 +153,7 @@
 - The Track CME panel and the comet panel (Tools > Find Comets to Track...) have a Cancel button beside their status line. It stops tracking and puts the warp and crop back as they were before tracking started, even after switching between CMEs, comets or modes. The jump of the playhead and the switch to Helioradial stay
 - In the Playback tab, the Preset row and the Format disclosure no longer draw on top of each other
 
+
 ### Smaller fixes
 - The Timeline Layers section no longer shows as empty stripes. When the sidebar gave it a pixel less height than it asked for, its New Layer row collapsed to nothing and its list was drawn above its own top, so only the row shading showed (seen in the Sarah Gibson session as timeline layers rendering nothing)
 - In Playback and Recording, Format, Pixels and the two checkboxes under them sit in the section as rows of their own, instead of behind a fold-down headed with a summary such as "FFV1, RGB, 16-bit"
@@ -114,6 +161,7 @@
 - The layer readout no longer sits in a tall empty box. It keeps its tallest height so it does not jump while frames stream in, but one squeezed layout could pin that at a word per line; the height now starts over when the panel's width changes
 - A session reopens on its own master time range. When Helioviewer's list of datasets arrived after the session had loaded, which at startup it often did, the range was reset to the last two days of data
 - The packaged Mac app always loads its own Metal library. Started from a folder holding an older copy, it could load that one and fail to open; starting from Finder was not affected
+
 
 ## HelioFITS Studio 0.8.6 (pre-release, 2026-10-11)
 

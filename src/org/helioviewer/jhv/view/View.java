@@ -161,6 +161,12 @@ public interface View {
         return EMPTY_METAXML;
     }
 
+    /** One frame's metadata as {@link #getXMLMetaData} gives the current one's; EMPTY_METAXML when the view keeps none. */
+    @Nonnull
+    default String getXMLMetaData(int frame) {
+        return EMPTY_METAXML;
+    }
+
     /**
      * A stable identity for what is behind a frame (the file's URI), or null when frames have
      * none (a stream). The computed-frame cache keys on it, so it must change whenever the pixels

@@ -171,9 +171,15 @@ rows need a hand after it:
   lists with the one in the gate text.
 - **`page_fallback`:** the gilly.space download page finds the newest release by
   itself, but its fixed fallback links (used when GitHub cannot be reached) name
-  a version. Update them in `heliofits-studio/index.html` of
-  GillySpace27/GillySpace27.github.io on a branch and PR; merging it publishes the
-  site and needs Gilly's yes.
+  a version. In GillySpace27/GillySpace27.github.io, on a branch:
+  `python3 tools/pin_studio_fallback.py --from-github`.
+- **`whats_new`:** gilly.space What's new, the Software hub's Recent releases and
+  `feed.xml` list a release only once its record is in the site's feed. On the same
+  branch: `python3 tools/feed_studio_release.py --confirm macos-arm64 --confirm guide`
+  (name only platforms someone ran), then `python3 heliosoftware/feed/build_feed.py`.
+
+Both are steps 1 to 3 of SITE.md "After a suite release" in the site repo. One PR
+carries both; merging it publishes the site and needs Gilly's yes.
 
 ## Hand-off boundary
 

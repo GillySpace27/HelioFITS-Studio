@@ -312,6 +312,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             return;
 
         sourceUris = List.copyOf(uris); // remembered so serialize() can persist a direct-URI layer
+        org.helioviewer.jhv.io.SourceIdentity.prefetch(sourceUris); // sha256 and HelioFITS Core identity for provenance, in the background
         loader.load(uris);
         Layers.fireLayerUpdated(this); // give feedback asap
     }
@@ -726,6 +727,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
         MetaData meta0 = imageData.metaData();
         glImage.setSwipe(org.helioviewer.jhv.display.Compare.swipeSide(this), org.helioviewer.jhv.display.Compare.swipeX(vp));
+        glImage.setPizza(org.helioviewer.jhv.display.Pizza.uniforms(this, vp, mv.mode()));
         org.helioviewer.jhv.display.Compare.DifferenceDraw cmp = org.helioviewer.jhv.display.Compare.differenceFor(this);
         glImage.setCompareDifference(cmp == null ? null : cmp.coefficients());
         glImage.applyFilters(imageData.imageBuffer(), meta0, getFilter() == ImageFilter.Type.RHEF);
@@ -832,7 +834,39 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
     @Override
     public String getName() {
-        return imageData == null ? "Loading..." : imageData.metaData().getDisplayName();
+        if (imageData != null)
+            return imageData.metaData().getDisplayName();
+        String label = placeholderLabel();
+        return label == null ? "Loading..." : label + ", loading";
+    }
+
+    /**
+     * What this layer was asked for, while no view has arrived to say what it is: "SOHO LASCO C3" for a
+     * Helioviewer request, "LASCO C3" for a native FITS query. Null once a view is in, or when the layer
+     * was given no request (a local file). The layer row and the timeline show it at once, so a request
+     * the server takes a minute to answer is on screen from the click instead of an anonymous "Loading...".
+     */
+    @Nullable
+    public String placeholderLabel() {
+        if (viewLoaded)
+            return null;
+        if (pendingRequest != null) {
+            String name = org.helioviewer.jhv.io.DataSources.name(pendingRequest.server(), pendingRequest.sourceId());
+            return name != null ? name : "Helioviewer source " + pendingRequest.sourceId();
+        }
+        if (fitsRequest != null)
+            return fitsRequest.archive() == FitsRequest.Archive.LASCO ? "LASCO " + fitsRequest.product()
+                    : fitsRequest.archive() + " " + fitsRequest.product();
+        return null;
+    }
+
+    /** The requested time range {start, end} in milliseconds for a layer still waiting on its server, else null. */
+    @Nullable
+    public long[] placeholderSpan() {
+        if (placeholderLabel() == null)
+            return null;
+        return pendingRequest != null ? new long[]{pendingRequest.startTime(), pendingRequest.endTime()}
+                : new long[]{fitsRequest.startTime(), fitsRequest.endTime()};
     }
 
     @Nullable
@@ -946,7 +980,8 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
         // Count the frame's distinct values here, where the buffer is certainly still alive; the
         // readout that displays it runs later and must never touch a buffer the cache may have
-        // freed underneath it. Cached in the buffer, so this is once per frame.
+        // freed underneath it. Decoders already counted on their own thread (DecodedImage.measured),
+        // so this is normally a read of the cached number; it counts only for a buffer that came another way.
         newImageData.imageBuffer().measuredLevels();
         setImageData(newImageData);
 

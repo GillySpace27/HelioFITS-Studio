@@ -116,6 +116,7 @@ _MIN_LIVE_ASSETS = len([n for n in read_assets(VERSION, "local") if not n.endswi
 # The download page. It names no release itself (it asks GitHub when it loads), apart from fixed
 # fallback links used when GitHub cannot be reached.
 PAGE_URL = "https://gilly.space/heliofits-studio/"
+FEED_URL = "https://gilly.space/heliosoftware/feed/heliofits-studio.json"
 
 
 class Target(NamedTuple):
@@ -416,6 +417,22 @@ def check_page_fallback(t):
     return FAIL, "fallback links name " + ", ".join(tags) + f", not {t.tag}"
 
 
+def check_whats_new(t):
+    """The site's release feed (What's new, the Software hub, feed.xml) has a record for this version."""
+    state, text = http_get(FEED_URL)
+    if state == "unreachable":
+        return UNCHECKED, "gilly.space did not answer"
+    if state == "missing":
+        return FAIL, "the release feed is gone"
+    try:
+        versions = [r.get("version") for r in json.loads(text).get("records", [])]
+    except (ValueError, AttributeError):
+        return FAIL, "the release feed is not valid JSON"
+    if t.version in versions:
+        return PASS, f"What's new lists {t.version}"
+    return FAIL, f"What's new has no {t.version} record (newest listed: {versions[-1] if versions else 'none'})"
+
+
 TARGET = Target(TAG, VERSION, SRC, DEPLOY, REPO)
 
 # (key, label, check). The keys, their order and the meaning of `done` are what the Orrery reads:
@@ -436,6 +453,7 @@ MILESTONES = [
     ("ci_package", "package.yml finished on the release (Windows and Linux attached)", check_ci_package),
     ("assets_all", "Every asset in release/assets.txt is on the release", check_assets_all),
     ("page_fallback", "Download page fallback links name this release", check_page_fallback),
+    ("whats_new", "gilly.space What's new lists this release", check_whats_new),
 ]
 
 # HOW to advance each step. Taken from RELEASING.md rather than paraphrased: a
@@ -526,7 +544,13 @@ HOW = {
 
     "page_fallback": ("human",
         "The fallback links in heliofits-studio/index.html (site repo GillySpace27.github.io)\n"
-        "name an older release. Editing and pushing that page is its own change, with Gilly's yes."),
+        "name an older release. In the site repo: python3 tools/pin_studio_fallback.py --from-github\n"
+        "(SITE.md \"After a suite release\"); a PR, and merging it is Gilly's yes."),
+    "whats_new": ("shell",
+        "In the site repo GillySpace27.github.io, on the same branch as the fallback pin:\n"
+        "python3 tools/feed_studio_release.py --confirm macos-arm64 --confirm guide\n"
+        "python3 heliosoftware/feed/build_feed.py\n"
+        "Confirm only platforms someone ran. Merging the PR publishes the site: Gilly's yes."),
 }
 
 GATED = {"published"}

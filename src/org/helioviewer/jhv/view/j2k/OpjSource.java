@@ -42,6 +42,7 @@ final class OpjSource {
     private byte[] boxes;
     private List<String> headers;
     private int frames;
+    private long metadataHeld; // bytes held across all metadata bins when the headers were read
 
     private OpjSource(@Nullable DataBinCache _bins, byte[] _boxes, List<byte[]> _inline, List<String> _headers, int _frames) {
         bins = _bins;
@@ -54,13 +55,27 @@ final class OpjSource {
     private synchronized void refresh() {
         if (bins == null)
             return;
+        // The headers can sit in metadata bins of their own, so any of those growing counts too.
+        long held = metadataHeld(bins);
         byte[] metadata = bins.bytes(METADATA_BIN, 0, 0);
-        if (metadata == null || metadata.length == boxes.length)
+        if (metadata == null || held == metadataHeld)
             return;
 
+        metadataHeld = held;
         boxes = metadata;
-        headers = Jp2Boxes.xmls(metadata);
+        headers = headers(bins, metadata);
         frames = Math.max(1, Math.max(Jp2Boxes.placeholders(metadata), headers.size()));
+    }
+
+    private static long metadataHeld(DataBinCache cache) {
+        long held = 0;
+        for (long id : cache.ids(METADATA_BIN, 0))
+            held += cache.available(METADATA_BIN, 0, id);
+        return held;
+    }
+
+    private static List<String> headers(DataBinCache cache, byte[] metadata) {
+        return Jp2Boxes.xmls(metadata, id -> cache.bytes(METADATA_BIN, 0, id));
     }
 
     static OpjSource ofFile(String path) throws IOException {
@@ -78,10 +93,12 @@ final class OpjSource {
         if (metadata == null)
             return new OpjSource(cache, new byte[0], List.of(), List.of(), 1);
 
-        List<String> xml = Jp2Boxes.xmls(metadata);
+        List<String> xml = headers(cache, metadata);
         // One placeholder per codestream the server has not sent inline, which is all of them.
         int frames = Math.max(1, Math.max(Jp2Boxes.placeholders(metadata), xml.size()));
-        return new OpjSource(cache, metadata, List.of(), xml, frames);
+        OpjSource source = new OpjSource(cache, metadata, List.of(), xml, frames);
+        source.metadataHeld = metadataHeld(cache);
+        return source;
     }
 
     int frameCount() {

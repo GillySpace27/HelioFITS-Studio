@@ -485,7 +485,8 @@ public final class Layers {
         edit.accept(origin);
         if (!selection.contains(origin))
             return;
-        for (Layer layer : selection)
+        // A copy: an edit fires a layer update, and the layer table answers by re-setting the selection.
+        for (Layer layer : List.copyOf(selection))
             if (layer != origin && layer instanceof ImageLayer il) {
                 edit.accept(il);
                 fanned.add(il);
