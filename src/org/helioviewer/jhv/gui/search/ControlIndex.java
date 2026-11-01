@@ -168,6 +168,12 @@ public final class ControlIndex {
         return out;
     }
 
+    /** Whether {@code query} finds a command with this title, place and id, by the same rule as the search bar; true for an empty query. */
+    public static boolean matches(String query, String title, String where, String id) {
+        String q = query.strip().toLowerCase(Locale.ROOT);
+        return q.isEmpty() || score(q, q.split("\\s+"), new Item(true, id, title, where, "", null)) > 0;
+    }
+
     static int score(String q, String[] tokens, Item it) {
         String title = it.title().toLowerCase(Locale.ROOT);
         String rest = (it.where() + ' ' + it.words() + ' ' + it.id()).toLowerCase(Locale.ROOT);
