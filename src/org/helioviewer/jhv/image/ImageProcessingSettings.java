@@ -5,6 +5,7 @@ import java.util.List;
 
 import javax.annotation.Nullable;
 
+import org.helioviewer.jhv.io.LascoBackground;
 import org.helioviewer.jhv.view.ClipSet;
 
 import org.json.JSONObject;
@@ -58,7 +59,9 @@ public final class ImageProcessingSettings {
             double gamma,
             double beta,
             double alpha,
-            int plane) {
+            int plane,
+            boolean subtractBackground,
+            LascoBackground.Choice background) {
 
         @Nullable
         public ClipSet.Range clipRange(@Nullable ClipSet clipSet) {
@@ -95,6 +98,10 @@ public final class ImageProcessingSettings {
     private ClippingMode clippingMode = ClippingMode.Percentile05;
 
     private int plane; // which image of a datacube this layer shows; 0 unless the file is one
+    // Take a LASCO frame's NRL monthly background off before anything else; ignored for every
+    // other product. In the parameters, so a frame decoded either way is cached under its own key.
+    private boolean subtractBackground = LascoBackground.subtractByDefault();
+    private LascoBackground.Choice background = LascoBackground.Choice.DEFAULT; // which background, when it is on
     private List<String> planes = List.of(); // that cube's layer names, empty unless the file is one
     private ScalingMode scalingMode = ScalingMode.Gamma;
     private double gamma = 1. / 2.2;
@@ -120,7 +127,7 @@ public final class ImageProcessingSettings {
     }
 
     private FITSParameters createFITSParameters() {
-        return new FITSParameters(clippingMode, clippingMin, clippingMax, scalingMode, gamma, beta, alpha, plane);
+        return new FITSParameters(clippingMode, clippingMin, clippingMax, scalingMode, gamma, beta, alpha, plane, subtractBackground, background);
     }
 
     public void serialize(JSONObject jo) {
@@ -133,6 +140,12 @@ public final class ImageProcessingSettings {
         jo.put("beta", current.beta());
         jo.put("alpha", current.alpha());
         jo.put("plane", current.plane());
+        jo.put("subtractBackground", current.subtractBackground());
+        jo.put("backgroundMode", current.background().mode().name());
+        if (!current.background().fileA().isEmpty())
+            jo.put("backgroundFileA", current.background().fileA());
+        if (!current.background().fileB().isEmpty())
+            jo.put("backgroundFileB", current.background().fileB());
         // Saved so a restored session does not ask again for a choice it already holds; the
         // loader takes an unchanged list to mean it is looking at the same product.
         if (!planes.isEmpty())
@@ -152,6 +165,10 @@ public final class ImageProcessingSettings {
         beta = Math.clamp(jo.optDouble("beta", beta), BETA_MIN, BETA_MAX);
         alpha = Math.clamp(jo.optDouble("alpha", alpha), ALPHA_MIN, ALPHA_MAX);
         plane = Math.max(0, jo.optInt("plane", plane));
+        subtractBackground = jo.optBoolean("subtractBackground", subtractBackground);
+        background = new LascoBackground.Choice(
+                readEnum(LascoBackground.Mode.class, jo.optString("backgroundMode", background.mode().name()), background.mode()),
+                jo.optString("backgroundFileA", background.fileA()), jo.optString("backgroundFileB", background.fileB()));
         org.json.JSONArray storedPlanes = jo.optJSONArray("planes");
         if (storedPlanes != null) {
             List<String> read = new ArrayList<>(storedPlanes.length());
@@ -234,6 +251,29 @@ public final class ImageProcessingSettings {
         if (plane == newPlane)
             return;
         plane = Math.max(0, newPlane);
+        notifyFITSListeners();
+        onChange.run();
+    }
+
+    /**
+     * Take a LASCO frame's monthly background off, or show the frame as the archive serves it.
+     *
+     * <p>The clip set is sampled off the subtracted pixels when a frame's view is built, so the
+     * caller re-reads the files after this, as a plane change does.
+     */
+    public void setSubtractBackground(boolean value) {
+        if (subtractBackground == value)
+            return;
+        subtractBackground = value;
+        notifyFITSListeners();
+        onChange.run();
+    }
+
+    /** Where the background comes from; as for the switch, the caller re-reads the files after this. */
+    public void setBackground(LascoBackground.Choice value) {
+        if (background.equals(value))
+            return;
+        background = value;
         notifyFITSListeners();
         onChange.run();
     }

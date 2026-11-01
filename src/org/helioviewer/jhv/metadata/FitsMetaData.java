@@ -25,6 +25,7 @@ public final class FitsMetaData extends CommonMetaData {
     private String observatory = "";
     private String pipelineVersion = ""; // FILEVRSN, for the formats that carry one
     private String unit = ""; // BUNIT as the header states it, for the Compare palette's Difference
+    private String waveUnit = ""; // WAVEUNIT as the header states it, for the sun pizza's labels (HS-25)
 
     private double referenceX = 0;
     private double referenceY = 0;
@@ -49,6 +50,9 @@ public final class FitsMetaData extends CommonMetaData {
      * library and its kernels loaded, so a full FitsMetaData cannot be built outside a running
      * application. Everything here is read before that line and is pure string work.
      */
+    /** Ends the display name of a background Studio wrote for a LASCO layer (BackgroundFiles). */
+    public static final String BACKGROUND_SUFFIX = " background";
+
     public record Observation(String displayName, String observatory, String instrument,
                               String detector, String measurement, JHVTime time) {}
 
@@ -97,6 +101,7 @@ public final class FitsMetaData extends CommonMetaData {
         viewpoint = retrievePosition(m, retrieveTime(m));
         retrievePixelParameters(m);
         unit = m.getString("BUNIT").map(String::trim).orElse("");
+        waveUnit = m.getString("WAVEUNIT").map(String::trim).orElse("");
 
         retrieveOcculterRadii(m);
         retrieveOcculterLinearCutOff(m);
@@ -229,6 +234,8 @@ public final class FitsMetaData extends CommonMetaData {
         } else if (detector.equals("C2") || detector.equals("C3")) {
             measurement = m.getString("FILTER").orElse("") + ' ' + m.getString("POLAR").orElse("");
             displayName = "LASCO " + detector;
+            if (m.getString(org.helioviewer.jhv.io.BackgroundFiles.MARK).map(v -> v.trim().equalsIgnoreCase("T")).orElse(false))
+                displayName += BACKGROUND_SUFFIX; // the Background section's Show as layer
         } else if (instrument.equals("MDI")) {
             measurement = m.getString("DPC_OBSR").orElse("");
             displayName = "MDI " + measurement.substring(measurement.indexOf('_') + 1).toLowerCase();
@@ -496,6 +503,12 @@ public final class FitsMetaData extends CommonMetaData {
     @Nonnull
     public String getUnit() {
         return unit;
+    }
+
+    /** The header's WAVEUNIT, trimmed, or empty when it states none: the unit of a numeric {@link #getMeasurement}. */
+    @Nonnull
+    public String getWaveUnit() {
+        return waveUnit;
     }
 
     @Nonnull

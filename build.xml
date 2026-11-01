@@ -229,7 +229,7 @@
     <!--
       The pre-release gate. Everything offline the repository can check: the self-checks above,
       the legacy run_tests.py suites, the GLSL validator, the ffmpeg, ANGLE and licence unit tests
-      and their check modes, ruff, and extra/ci/guards.py. One line per step, then a total. A check
+      and their check modes, the hfrecord schema check, ruff, and extra/ci/guards.py. One line per step, then a total. A check
       that prints SKIP is counted as skipped, never passed; CHECKS_STRICT=1 (CI) fails a skip
       that extra/test/ci-skips.txt does not list. `ant test` is unchanged.
     -->

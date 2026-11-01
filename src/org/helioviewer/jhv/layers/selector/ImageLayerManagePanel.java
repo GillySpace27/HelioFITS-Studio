@@ -155,7 +155,7 @@ final class ImageLayerManagePanel extends JPanel {
             metaDialog.showDialog();
         });
 
-        // Icons sit inline with the readout on one row, not on a line of their own.
+        // Icons sit on a line of their own above the readout (see buttonRow below).
         JPanel icons = new JPanel(new FlowLayout(FlowLayout.TRAILING, 2, 0));
         icons.add(downloadButton);
         icons.add(cacheButton);
@@ -168,13 +168,18 @@ final class ImageLayerManagePanel extends JPanel {
         python.setText("Python");
         python.setToolTipText("Send to Python: this layer's FITS files as science FITS (physical values, no display steps) with a manifest");
         icons.add(python);
+        fitsButton.setToolTipText(FITS_TIP);
+        fitsButton.addActionListener(e -> org.helioviewer.jhv.gui.dialog.UseFitsDialog.start(layer, this, this::fitsStatus));
+        icons.add(fitsButton);
         icons.add(makeSyncButton());
         icons.add(metaButton);
 
         readout.setBorder(BorderFactory.createEmptyBorder(8, 0, 8, 0)); // let the readout breathe
         readout.setVerticalAlignment(javax.swing.SwingConstants.TOP); // any held height goes below the text, not around it
+        // The icons take the top line, right-aligned, and the readout the full width under them. Beside them
+        // they got the width they asked for and left the readout a narrow column that wrapped every few words.
+        buttonRow.add(icons, BorderLayout.PAGE_START);
         buttonRow.add(readout, BorderLayout.CENTER);
-        buttonRow.add(icons, BorderLayout.LINE_END);
 
         add(buttonRow);
 
@@ -184,6 +189,14 @@ final class ImageLayerManagePanel extends JPanel {
     }
 
     private JButton refreshButton;
+    private static final String FITS_TIP = "Use FITS: open the FITS files behind these Helioviewer frames, fetched into the FITS library if it lacks them";
+    private final JButton fitsButton = new JButton("FITS");
+
+    /** The FITS button while HelioFITS Core works: disabled, with what it is doing; null when it is done. */
+    private void fitsStatus(@javax.annotation.Nullable String line) {
+        fitsButton.setEnabled(line == null);
+        fitsButton.setToolTipText(line == null ? FITS_TIP : "Use FITS: " + line);
+    }
     private javax.swing.JCheckBox liveBox;
 
     /**
@@ -275,6 +288,7 @@ final class ImageLayerManagePanel extends JPanel {
             refreshButton.setVisible(PunchClient.hasRememberedQuery(layer) || !layer.getFailedUris().isEmpty());
         if (liveBox != null)
             liveBox.setVisible(org.helioviewer.jhv.io.LiveRefresh.enabled() && layer.getFitsRequest() != null);
+        fitsButton.setVisible(org.helioviewer.jhv.io.UseFits.applies(layer.getView()));
     }
 
     // Everything this layer has put on disk. There are two separate stores and a layer uses one
@@ -384,6 +398,14 @@ final class ImageLayerManagePanel extends JPanel {
         // the only thing worth showing; now the movie grows as frames land, so the real readout
         // has real content from the second frame on. Past that the stage text is just the row
         // above repeated underneath itself.
+        String asked = layer.placeholderLabel();
+        long[] span = layer.placeholderSpan();
+        if (asked != null && span != null) { // requested, no answer yet: say what, over when, and what it waits on
+            lastReadoutSig = Long.MIN_VALUE;
+            readout.setText("<html><b>" + asked + "</b><br>" + org.helioviewer.jhv.time.TimeUtils.format(span[0]) + " \u2013 "
+                    + org.helioviewer.jhv.time.TimeUtils.format(span[1]) + "<br><i>" + (loadStatus != null ? loadStatus : "Waiting for the server\u2026") + "</i></html>");
+            return;
+        }
         if (loadStatus != null && view.getMaximumFrameNumber() == 0) {
             lastReadoutSig = Long.MIN_VALUE; // recompute the real readout once frames land
             readout.setText("<html><i>" + loadStatus + "</i></html>");
@@ -430,7 +452,9 @@ final class ImageLayerManagePanel extends JPanel {
      * frame on screen.
      */
     private String describeObservation() {
-        StringBuilder line = new StringBuilder(ObservationType.of(layer.getMetaData()));
+        View.ImageData data = layer.getImageData();
+        boolean subtracted = data != null && data.imageBuffer().isBackgroundSubtracted();
+        StringBuilder line = new StringBuilder(ObservationType.of(layer.getMetaData(), subtracted, subtracted && data.imageBuffer().isBackgroundLocal()));
         StringBuilder tips = new StringBuilder();
         if (layer.getFilter() == ImageFilter.Type.RHEF)
             badge(line, tips, "RHEF: visualization", "RHEF output is a visualization, not a calibrated radiance");
@@ -441,7 +465,6 @@ final class ImageLayerManagePanel extends JPanel {
             badge(line, tips, "base difference", "each frame minus the first frame");
         if (org.helioviewer.jhv.display.Compare.differenceFor(layer) != null)
             badge(line, tips, "Compare: A minus B", "this layer minus Compare's layer B in the files' units, each stretch undone; a view, not a calibrated product");
-        View.ImageData data = layer.getImageData();
         if (data != null && data.imageBuffer().isProvisional())
             badge(line, tips, "provisional LASCO", "this frame's monthly background could not be fetched, so it is shown without it");
         if ("CQM".equals(ObservationType.punchProduct(layer.getMetaData().getDisplayName())))

@@ -8,6 +8,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.gui.UITimer;
+import org.helioviewer.jhv.view.j2k.jpip.JPIPBinBudget;
 import org.helioviewer.jhv.view.j2k.jpip.JPIPCache;
 import org.helioviewer.jhv.view.j2k.jpip.JPIPCacheManager;
 import org.helioviewer.jhv.view.j2k.jpip.JPIPSocket;
@@ -103,6 +104,7 @@ class J2KReader implements Runnable {
             level = entry.level();
         }
         source.setFrameComplete(frame, level);
+        JPIPBinBudget.trim();
         return true;
     }
 
@@ -113,14 +115,20 @@ class J2KReader implements Runnable {
             JPIPCache cache = source.cache();
             response = socket.receiveFrame(cache);
             String key = cacheKey[response.frame()];
-            if (response.complete() && key != null)
-                JPIPCacheManager.store(key, level, cache, response.frame());
+            if (response.complete() && key != null && JPIPCacheManager.store(key, level, cache, response.frame()))
+                cache.markRestorable(response.frame());
         }
-        if (response.complete())
+        if (response.complete()) {
             source.setFrameComplete(response.frame(), level);
-        else
+            JPIPBinBudget.trim();
+        } else
             source.setFramePartial(response.frame());
         return response;
+    }
+
+    private static boolean isHeld(J2KSource.Remote source, int frame, int level) {
+        AtomicBoolean status = source.getFrameStatus(frame, level);
+        return status != null && status.get();
     }
 
     private boolean readingInterrupted() {
@@ -150,6 +158,10 @@ class J2KReader implements Runnable {
             boolean complete;
             if (!draining && socket.pendingCount() < limit && !remaining.isEmpty()) {
                 frame = remaining.removeFirst();
+                if (!singleFrame && !JPIPBinBudget.worthLoading(source.cache(), frame) && !isHeld(source, frame, decode.level)) {
+                    remaining.clear(); // the budget is full: stop reading ahead, what is not held loads when it is asked for
+                    continue;
+                }
                 if (!restoreFrame(source, frame, decode.level)) {
                     socket.sendFrame(frame, size);
                     continue;

@@ -46,6 +46,35 @@ public final class OpenJpeg {
     /** One decoded greyscale image. Samples are row-major, {@code width * height} of them. */
     public record Decoded(int width, int height, int precision, boolean signed, int[] samples) {}
 
+    /**
+     * The decoded samples where OpenJPEG left them, as 32-bit integers in native memory. Valid only
+     * inside the callback of {@link #decode(byte[], boolean, int, int, int, int, int, int, PlaneReader)};
+     * OpenJPEG frees them when it returns.
+     */
+    public record Plane(MemorySegment data, int width, int height, int precision, boolean signed) {
+
+        /**
+         * Write the samples as 8-bit grey, the top eight bits of a deeper image, clamped to the
+         * range. The same arithmetic as converting an {@code int[]} copy, without the copy.
+         */
+        public void gray8(java.nio.ByteBuffer out) {
+            MemorySegment dst = MemorySegment.ofBuffer(out);
+            int shift = Math.max(0, precision - 8);
+            long count = (long) width * height;
+            for (long i = 0; i < count; i++)
+                dst.set(ValueLayout.JAVA_BYTE, i, (byte) Math.clamp(data.getAtIndex(I32, i) >> shift, 0, 255));
+        }
+
+        int[] toArray() {
+            return data.toArray(I32);
+        }
+    }
+
+    /** Takes the plane while it is still alive. */
+    public interface PlaneReader<T> {
+        T read(Plane plane);
+    }
+
     private record Api(MethodHandle createDecompress, MethodHandle defaultParameters, MethodHandle setupDecoder,
                        MethodHandle setThreads, MethodHandle streamCreate, MethodHandle setReadFunction,
                        MethodHandle setSkipFunction, MethodHandle setSeekFunction, MethodHandle setUserData,
@@ -162,6 +191,16 @@ public final class OpenJpeg {
      */
     public static Decoded decode(byte[] data, boolean boxed, int reduce, int threads,
                                  int x0, int y0, int x1, int y1) {
+        return decode(data, boxed, reduce, threads, x0, y0, x1, y1,
+                plane -> new Decoded(plane.width(), plane.height(), plane.precision(), plane.signed(), plane.toArray()));
+    }
+
+    /**
+     * Decode part of an image and hand the samples to {@code reader} in place, so a caller that only
+     * wants them converted does not first copy a whole plane of 32-bit integers into the Java heap.
+     */
+    public static <T> T decode(byte[] data, boolean boxed, int reduce, int threads,
+                               int x0, int y0, int x1, int y1, PlaneReader<T> reader) {
         Api api = Holder.API;
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment bytes = arena.allocate(data.length);
@@ -170,7 +209,8 @@ public final class OpenJpeg {
             MemorySegment codec = (MemorySegment) api.createDecompress().invokeExact(boxed ? CODEC_JP2 : CODEC_J2K);
             if (codec.equals(MemorySegment.NULL))
                 throw new IllegalStateException("OpenJPEG would not create a decoder");
-            MemorySegment stream = memoryStream(api, arena, bytes, data.length);
+            boolean[] cancelled = {false}; // set by the read callback when this thread is interrupted
+            MemorySegment stream = memoryStream(api, arena, bytes, data.length, cancelled);
 
             MemorySegment imagePtr = arena.allocate(ValueLayout.ADDRESS);
             MemorySegment image = MemorySegment.NULL;
@@ -199,7 +239,7 @@ public final class OpenJpeg {
                 }
 
                 if (0 == (int) api.readHeader().invokeExact(stream, codec, imagePtr))
-                    throw new IllegalStateException("OpenJPEG could not read the header: " + complaints);
+                    throw failed(cancelled, "OpenJPEG could not read the header: " + complaints);
                 image = imagePtr.get(ValueLayout.ADDRESS, 0);
                 if (reduce > 0 && 0 == (int) api.setResolutionFactor().invokeExact(codec, reduce))
                     throw new IllegalStateException("OpenJPEG refused resolution factor " + reduce);
@@ -208,12 +248,12 @@ public final class OpenJpeg {
                             + ": " + complaints);
 
                 if (0 == (int) api.decode().invokeExact(codec, stream, image))
-                    throw new IllegalStateException("OpenJPEG could not decode the image: " + complaints);
+                    throw failed(cancelled, "OpenJPEG could not decode the image: " + complaints);
                 int ended = (int) api.endDecompress().invokeExact(codec, stream);
                 if (ended == 0)
                     throw new IllegalStateException("OpenJPEG could not finish the codestream");
 
-                return read(image);
+                return reader.read(plane(image));
             } finally {
                 if (!image.equals(MemorySegment.NULL))
                     api.imageDestroy().invokeExact(image);
@@ -231,7 +271,11 @@ public final class OpenJpeg {
      * A stream over bytes already in memory. OpenJPEG pulls through three callbacks, so the
      * position lives here rather than in the C side's user data, which stays null.
      */
-    private static MemorySegment memoryStream(Api api, Arena arena, MemorySegment bytes, long length) throws Throwable {
+    private static RuntimeException failed(boolean[] cancelled, String message) {
+        return cancelled[0] ? new java.util.concurrent.CancellationException("decode cancelled") : new IllegalStateException(message);
+    }
+
+    private static MemorySegment memoryStream(Api api, Arena arena, MemorySegment bytes, long length, boolean[] cancelled) throws Throwable {
         MemorySegment stream = (MemorySegment) api.streamCreate().invokeExact(1L << 20, 1);
         if (stream.equals(MemorySegment.NULL))
             throw new IllegalStateException("OpenJPEG would not create a stream");
@@ -240,6 +284,10 @@ public final class OpenJpeg {
         Linker linker = Linker.nativeLinker();
 
         Reader reader = (buffer, want, user) -> {
+            if (Thread.currentThread().isInterrupted()) { // the layer was removed or the program is closing
+                cancelled[0] = true;
+                return -1; // OpenJPEG takes it as the end of the stream and stops asking
+            }
             long left = length - position[0];
             if (left <= 0)
                 return -1; // (OPJ_SIZE_T)-1 is OpenJPEG's end of stream
@@ -300,7 +348,7 @@ public final class OpenJpeg {
         return linker.upcallStub(handle, descriptor, arena);
     }
 
-    private static Decoded read(MemorySegment image) {
+    private static Plane plane(MemorySegment image) {
         MemorySegment header = image.reinterpret(IMAGE_COMPS + 8);
         int numComps = header.get(I32, IMAGE_NUMCOMPS);
         if (numComps != 1)
@@ -317,8 +365,7 @@ public final class OpenJpeg {
             throw new IllegalStateException("OpenJPEG returned an image with no samples");
 
         int count = Math.multiplyExact(width, height);
-        int[] samples = data.reinterpret((long) count * Integer.BYTES).toArray(I32);
-        return new Decoded(width, height, precision, signed, samples);
+        return new Plane(data.reinterpret((long) count * Integer.BYTES), width, height, precision, signed);
     }
 
     private OpenJpeg() {}

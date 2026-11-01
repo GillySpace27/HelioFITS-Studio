@@ -11,11 +11,14 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -31,6 +34,7 @@ import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.image.ImageDisplaySettings;
 import org.helioviewer.jhv.image.RHEFStamp;
+import org.helioviewer.jhv.io.SourceIdentity;
 import org.helioviewer.jhv.opengl.GLRenderer;
 
 import org.json.JSONArray;
@@ -66,10 +70,10 @@ public final class Provenance {
     /** Upper bound on a movie comment in UTF-8 bytes. An estimate: the MP4 comment limit was not verified. */
     static final int METADATA_CAP_BYTES = 16384;
 
-    private static final String RHEF_CAVEAT = "not a calibrated radiance";
+    static final String RHEF_CAVEAT = "not a calibrated radiance";
     // Copied, not typed from memory: README.md:61 and the vault's projects/rhef.md:6-7.
-    private static final String JHV_CITATION = "Müller et al. (2017), Astronomy & Astrophysics, https://doi.org/10.1051/0004-6361/201730893";
-    private static final String RHEF_CITATION = "Gilly & Cranmer (2025), Solar Physics, https://doi.org/10.1007/s11207-025-02578-x";
+    static final String JHV_CITATION = "Müller et al. (2017), Astronomy & Astrophysics, https://doi.org/10.1051/0004-6361/201730893";
+    static final String RHEF_CITATION = "Gilly & Cranmer (2025), Solar Physics, https://doi.org/10.1007/s11207-025-02578-x";
 
     private static final byte[] PNG_SIGNATURE = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'};
     private static final byte[] TEXT = {'t', 'E', 'X', 't'};
@@ -130,6 +134,17 @@ public final class Provenance {
     }
 
     static JSONObject session(JSONObject scene, String home, Instant created) {
+        return session(scene, home, created, uri -> SourceIdentity.lookup(uri, 0));
+    }
+
+    /**
+     * As session() with the identity of each local source frame from {@code identify}: a file:
+     * URI is never written as an address, so each one becomes an entry of the layer's "files"
+     * (sha256, and dataset_key, obs_key, dataset_uid when a FITS library holds it). A frame
+     * whose identity is not known yet is counted in "files_pending" instead, never guessed.
+     */
+    static JSONObject session(JSONObject scene, String home, Instant created,
+                              Function<URI, SourceIdentity.Entry> identify) {
         JSONObject portable = (JSONObject) rewrite(scene, s -> stripHome(s, home));
         JSONObject session = new JSONObject()
                 .put("writer", writer())
@@ -142,7 +157,9 @@ public final class Provenance {
         JSONArray sources = new JSONArray();
         boolean rhef = false;
         Set<String> stamps = new LinkedHashSet<>();
-        JSONObject state = portable.optJSONObject("org.helioviewer.jhv.state");
+        // The original scene, not the portable one: a local file is identified by its real path,
+        // and only its identity goes into the block.
+        JSONObject state = scene.optJSONObject("org.helioviewer.jhv.state");
         JSONArray layers = state == null ? null : state.optJSONArray("imageLayers");
         if (layers != null)
             for (Object o : layers) {
@@ -152,16 +169,32 @@ public final class Provenance {
                 if (data == null)
                     continue;
                 JSONArray uris = new JSONArray();
+                JSONArray files = new JSONArray();
+                int pending = 0;
                 JSONArray stored = data.optJSONArray("uris");
                 if (stored != null)
-                    for (Object u : stored)
-                        if (u instanceof String s && !s.startsWith("file:")) // archive addresses only, never a local copy
+                    for (Object u : stored) {
+                        if (!(u instanceof String s))
+                            continue;
+                        if (!s.startsWith("file:")) { // archive addresses only, never a local copy
                             uris.put(s);
-                JSONObject source = new JSONObject().put("layer", layer.optString("name")).put("uris", uris);
+                            continue;
+                        }
+                        SourceIdentity.Entry id = identity(s, identify);
+                        if (id == null)
+                            pending++;
+                        else
+                            files.put(id.toJson());
+                    }
+                JSONObject source = new JSONObject().put("layer", stripHome(layer.optString("name"), home)).put("uris", uris);
+                if (!files.isEmpty())
+                    source.put("files", files);
+                if (pending > 0)
+                    source.put("files_pending", pending);
                 if (data.optJSONObject("APIRequest") != null)
-                    source.put("request", data.getJSONObject("APIRequest"));
+                    source.put("request", rewrite(data.getJSONObject("APIRequest"), x -> stripHome(x, home)));
                 if (data.optJSONObject("fitsRequest") != null)
-                    source.put("query", data.getJSONObject("fitsRequest"));
+                    source.put("query", rewrite(data.getJSONObject("fitsRequest"), x -> stripHome(x, home)));
                 sources.put(source);
                 rhef |= "RHEF".equals(data.optString("filter"));
                 if ("RHEF".equals(data.optString("filter")))
@@ -173,6 +206,20 @@ public final class Provenance {
         if (!stamps.isEmpty())
             session.put("rhef_stamp", String.join("\n", stamps));
         return session;
+    }
+
+    @Nullable
+    private static SourceIdentity.Entry identity(String uri, Function<URI, SourceIdentity.Entry> identify) {
+        try {
+            return identify.apply(new URI(uri));
+        } catch (URISyntaxException e) {
+            return null;
+        }
+    }
+
+    /** The RHEF stamp line for one layer's saved imageParams, for the processing record. */
+    static String rhefStampLine(@Nullable JSONObject imageParams) {
+        return rhefStamp(imageParams);
     }
 
     /** The stamp for one RHEF layer from its saved imageParams; a missing Upsilon is the layer default. */
@@ -262,7 +309,16 @@ public final class Provenance {
      * data) is refused with an IOException and left as it was.
      */
     public static void writePngChunk(Path png, JSONObject json) throws IOException {
-        byte[] chunk = textChunk(PNG_KEYWORD, asciiJson(json.toString()));
+        writePngText(png, PNG_KEYWORD, asciiJson(json.toString()));
+    }
+
+    /**
+     * Adds one tEXt chunk {@code keyword} holding {@code text} just before IEND, as writePngChunk
+     * does for this program's own block. The text is written as Latin-1: pass ASCII (asciiJson for
+     * JSON), so every reader sees the same bytes.
+     */
+    public static void writePngText(Path png, String keyword, String text) throws IOException {
+        byte[] chunk = textChunk(keyword, text);
         try (FileChannel ch = FileChannel.open(png, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
             long at = ch.size() - IEND.length;
             if (at < PNG_SIGNATURE.length)
@@ -317,6 +373,17 @@ public final class Provenance {
     /** The JSON in this program's tEXt chunk, or null: not a PNG, no such chunk, a bad CRC or text that is not JSON. */
     @Nullable
     public static JSONObject readPngChunk(Path png) throws IOException {
+        try {
+            String text = readPngText(png, PNG_KEYWORD);
+            return text == null ? null : new JSONObject(text);
+        } catch (JSONException e) {
+            return null; // ours but not JSON
+        }
+    }
+
+    /** The text of the first tEXt chunk named {@code keyword} with a good CRC, or null: not a PNG, no such chunk, or truncated. */
+    @Nullable
+    public static String readPngText(Path png, String keyword) throws IOException {
         try (DataInputStream in = new DataInputStream(new BufferedInputStream(Files.newInputStream(png)))) {
             if (!Arrays.equals(in.readNBytes(PNG_SIGNATURE.length), PNG_SIGNATURE))
                 return null;
@@ -336,12 +403,12 @@ public final class Provenance {
                 crc.update(body);
                 if (body.length != length || (int) crc.getValue() != stored)
                     continue; // a damaged chunk is not trusted
-                String text = textOf(body, PNG_KEYWORD);
+                String text = textOf(body, keyword);
                 if (text != null)
-                    return new JSONObject(text);
+                    return text;
             }
-        } catch (EOFException | JSONException e) {
-            return null; // truncated, or ours but not JSON
+        } catch (EOFException e) {
+            return null; // truncated
         }
     }
 
@@ -371,9 +438,14 @@ public final class Provenance {
         if (sources != null)
             for (Object o : sources)
                 if (o instanceof JSONObject src)
+                {
                     out.add("layer " + src.optString("layer") + " from " + String.join(",",
                             src.optJSONArray("uris") == null ? java.util.List.<String>of()
                                     : src.getJSONArray("uris").toList().stream().map(String::valueOf).toList()));
+                    JSONArray files = src.optJSONArray("files");
+                    if (files != null && !files.isEmpty()) // the hashes themselves would be a card each
+                        out.add("  and " + files.length() + " local file(s), first sha256 " + files.getJSONObject(0).optString("sha256"));
+                }
         if (session.has("caveat"))
             out.add(session.getString("caveat"));
         return out;
@@ -399,6 +471,15 @@ public final class Provenance {
                     sb.append(": ").append(uris.optString(0)).append(uris.length() > 1 ? " and " + (uris.length() - 1) + " more" : "");
                 else if (s.optJSONObject("request") != null)
                     sb.append(": ").append(s.getJSONObject("request"));
+                JSONArray files = s.optJSONArray("files");
+                if (files != null && !files.isEmpty()) {
+                    JSONObject first = files.getJSONObject(0);
+                    sb.append(uris != null && !uris.isEmpty() ? "; " : ": ").append(files.length())
+                            .append(files.length() == 1 ? " local file" : " local files").append(", sha256 ")
+                            .append(first.optString("sha256")).append(files.length() > 1 ? " and " + (files.length() - 1) + " more" : "");
+                    if (first.has("dataset_key"))
+                        sb.append(" (FITS library ").append(first.getString("dataset_key")).append(')');
+                }
                 sb.append('\n');
             }
         }

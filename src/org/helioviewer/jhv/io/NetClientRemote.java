@@ -7,12 +7,9 @@ import java.util.Comparator;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 
-//import javax.annotation.Nonnull;
-
 import org.helioviewer.jhv.app.AppInfo;
 import org.helioviewer.jhv.app.Log;
 
-import okhttp3.Authenticator;
 import okhttp3.Cache;
 import okhttp3.CacheControl;
 import okhttp3.HttpUrl;
@@ -56,12 +53,11 @@ class NetClientRemote implements NetClient {
             .sorted(Comparator.comparingInt(a -> a instanceof Inet4Address ? 0 : 1))
             .toList();
 
-    private static final OkHttpClient client = new OkHttpClient.Builder()
+    private static final OkHttpClient client = ProxySettings.configure(new OkHttpClient.Builder())
             .dns(IPV4_FIRST)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
             .cache(new Cache(Directories.clientCacheDir, cacheSize))
-            .proxyAuthenticator(Authenticator.JAVA_NET_AUTHENTICATOR)
             .cookieJar(MlsoClient.COOKIES) // the MLSO download session; that host only, memory only
             //.addInterceptor(logging)
             //.addInterceptor(new LoggingInterceptor())

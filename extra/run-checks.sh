@@ -180,7 +180,8 @@ unittests() {
         { [ ! -f extra/test/test_release_assets.py ] || "$PY" extra/test/test_release_assets.py; } &&
         "$PY" extra/test/test_runtime_modules.py &&
         "$PY" extra/test/test_document_types.py &&
-        "$PY" extra/test/test_smoke_dmg.py
+        "$PY" extra/test/test_smoke_dmg.py &&
+        "$PY" extra/test/test_native_hashes.py
 }
 
 guards() {
@@ -220,6 +221,14 @@ else
 fi
 
 step unittest unittests
+
+# Processing records (hfrecord 1.0) that ProcessingRecordCheck wrote in the checks step, against the
+# schema copied byte for byte into docs/spec/.
+if "$PY" -c "import jsonschema" > /dev/null 2>&1; then
+    step hfrecord "$PY" extra/test/test_hfrecord.py
+else
+    skipped_step hfrecord "python jsonschema not installed (pip install jsonschema; apt-get install python3-jsonschema)"
+fi
 step ffmpeg "$PY" extra/ffmpeg/update_ffmpeg.py --check
 step licences "$PY" extra/licenses/sync_licenses.py --check
 

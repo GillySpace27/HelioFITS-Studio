@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "credit": "Imagery courtesy of NASA/SDO and the AIA science team.",
+  "disclaimer": "RHEF output is a visualization, not a calibrated radiance.",
+  "rhef_citation": null,
+  "rhef_doi": null,
+  "note": "rhef_citation and rhef_doi stay null until Gilly chooses the wording. The page gilly.space/sun.html already names Gilly and Cranmer 2025 in prose; that text is not copied here. credit is the line gilly.space/sun-wall.html already shows.",
+  "credits": {
+    "SDO/AIA": {
+      "credit": "Courtesy of NASA/SDO and the AIA, EVE, and HMI science teams.",
+      "credit_source": "https://sdo.gsfc.nasa.gov/data/rules.php",
+      "acknowledgement": "Courtesy of NASA/SDO and the AIA, EVE, and HMI science teams.",
+      "kind": "suggested",
+      "source": "https://sdo.gsfc.nasa.gov/data/rules.php"
+    },
+    "SDO/HMI": {
+      "credit": "Courtesy of NASA/SDO and the AIA, EVE, and HMI science teams.",
+      "credit_source": "https://sdo.gsfc.nasa.gov/data/rules.php",
+      "acknowledgement": "Courtesy of NASA/SDO and the AIA, EVE, and HMI science teams.",
+      "kind": "suggested",
+      "source": "https://sdo.gsfc.nasa.gov/data/rules.php"
+    },
+    "SOHO/LASCO": {
+      "credit": "Courtesy of SOHO/LASCO consortium. SOHO is a project of international cooperation between ESA and NASA.",
+      "credit_source": "https://soho.nascom.nasa.gov/data/summary/copyright.html",
+      "acknowledgement": "The SOHO/LASCO data used here are produced by a consortium of the Naval Research Laboratory (USA), Max-Planck-Institut fuer Aeronomie (Germany), Laboratoire d'Astronomie (France), and the University of Birmingham (UK). SOHO is a project of international cooperation between ESA and NASA.",
+      "kind": "suggested",
+      "source": "https://lasco-www.nrl.navy.mil/content/retrieve/retrieve.html",
+      "note": "credit is the SOHO copyright page template with [instrument] filled in."
+    },
+    "SOHO/EIT": {
+      "credit": "Courtesy of SOHO/EIT consortium. SOHO is a project of international cooperation between ESA and NASA.",
+      "credit_source": "https://soho.nascom.nasa.gov/data/summary/copyright.html",
+      "acknowledgement": "The SOHO EIT Consortium; SOHO is a joint ESA-NASA program.",
+      "kind": "suggested",
+      "source": "https://umbra.gsfc.nasa.gov/eit/data_rights.html",
+      "note": "credit is the SOHO copyright page template with [instrument] filled in."
+    },
+    "STEREO/SECCHI": {
+      "credit": "Courtesy of STEREO/SECCHI consortium.",
+      "credit_source": "https://stereo-ssc.nascom.nasa.gov/gallery/copyright.shtml",
+      "acknowledgement": null,
+      "kind": "suggested",
+      "source": "https://stereo-ssc.nascom.nasa.gov/gallery/copyright.shtml",
+      "note": "Covers COR1, COR2, EUVI and HI. The source gives the template 'Courtesy of STEREO/[instrument] consortium.' with STEREO/SECCHI as its example; no SECCHI publication acknowledgement was found on an official page."
+    },
+    "PUNCH": {
+      "credit": "PUNCH is a heliophysics mission to study the corona, solar wind, and space weather as an integrated system, and is part of NASA's Explorers program (Contract 80GSFC14C0014).",
+      "credit_source": "https://punch.spaceops.swri.org/punch_science_getdata.php",
+      "acknowledgement": "PUNCH is a heliophysics mission to study the corona, solar wind, and space weather as an integrated system, and is part of NASA’s Explorers program (Contract 80GSFC14C0014).",
+      "kind": "suggested",
+      "source": "https://punch.spaceops.swri.org/punch_science_getdata.php",
+      "note": "Covers WFI and NFI. credit is the acknowledgement with an ASCII apostrophe, so it fits a FITS card."
+    },
+    "Proba-3/ASPIICS": {
+      "credit": "The ASPIICS data are courtesy of the Proba-3/ASPIICS consortium. Proba-3 is a technology demonstration mission of the European Space Agency (ESA) and a Mission of Opportunity in the ESA Science Programme.",
+      "credit_source": "https://sidc.be/proba-3/terms-of-use",
+      "acknowledgement": "The ASPIICS data are courtesy of the Proba-3/ASPIICS consortium. Proba-3 is a technology demonstration mission of the European Space Agency (ESA) and a Mission of Opportunity in the ESA Science Programme.",
+      "kind": "required",
+      "source": "https://sidc.be/proba-3/terms-of-use"
+    },
+    "GOES/SUVI": {
+      "credit": null,
+      "credit_source": null,
+      "acknowledgement": null,
+      "kind": "none_found",
+      "source": "https://data.ngdc.noaa.gov/platforms/solar-space-observing-satellites/goes/goes16/l1b/suvi-l1b-fe131/2017/ReadMe.txt",
+      "note": "NOAA gives no acknowledgement statement. The NCEI L1b ReadMe asks users to cite Seaton & Darnel 2017 (ApJL) and to use the AAS Facilities keyword; an export credits nothing for SUVI."
+    },
+    "Solar Orbiter/EUI": {
+      "credit": "Image Courtesy: ESA/Solar Orbiter/EUI",
+      "credit_source": "https://sidc.be/EUI/data/releases/202204_release_5.0/release_notes.html",
+      "acknowledgement": "Solar Orbiter is a space mission of international collaboration between ESA and NASA, operated by ESA. The EUI instrument was built by CSL, IAS, MPS, MSSL/UCL, PMOD/WRC, ROB, LCF/IO with funding from the Belgian Federal Science Policy Office (BELSPO/PRODEX PEA C4000134088); the Centre National d’Etudes Spatiales (CNES); the UK Space Agency (UKSA); the Bundesministerium für Wirtschaft und Energie (BMWi) through the Deutsches Zentrum für Luft- und Raumfahrt (DLR); and the Swiss Space Office (SSO).",
+      "kind": "suggested",
+      "source": "https://sidc.be/EUI/data/releases/202204_release_5.0/release_notes.html",
+      "note": "From Data Release 5.0 (2022-04); later release notes were not checked. Publications are also asked to cite Rochus et al. 2020 and the data release DOI."
+    },
+    "MLSO/K-Cor": {
+      "credit": "Courtesy of the Mauna Loa Solar Observatory, operated by the High Altitude Observatory, as part of the US National Science Foundation National Center for Atmospheric Research (NSF NCAR).",
+      "credit_source": "https://www2.hao.ucar.edu/mlso/data-use-acknowledgements",
+      "acknowledgement": "Courtesy of the Mauna Loa Solar Observatory, operated by the High Altitude Observatory, as part of the US National Science Foundation National Center for Atmospheric Research (NSF NCAR).",
+      "kind": "suggested",
+      "source": "https://www2.hao.ucar.edu/mlso/data-use-acknowledgements",
+      "note": "The page also asks for the K-Cor DOI 10.5065/D69G5JV8."
+    },
+    "Hinode/XRT": {
+      "credit": "Hinode is a Japanese mission developed and launched by ISAS/JAXA, with NAOJ as domestic partner and NASA and STFC (UK) as international partners. It is operated by these agencies in co-operation with ESA and NSC (Norway).",
+      "credit_source": "https://darts.isas.jaxa.jp/missions/hinode/guidelines.html",
+      "acknowledgement": "Hinode is a Japanese mission developed and launched by ISAS/JAXA, with NAOJ as domestic partner and NASA and STFC (UK) as international partners. It is operated by these agencies in co-operation with ESA and NSC (Norway).",
+      "kind": "required",
+      "source": "https://darts.isas.jaxa.jp/missions/hinode/guidelines.html",
+      "note": "Mission-wide Hinode acknowledgement; no XRT-specific wording on that page."
+    }
+  },
+  "credits_read": "2026-10-23",
+  "credits_rule": "An export's credit is the credit of each enabled layer's instrument, in layer order, each line once, joined with one space. A layer whose instrument has no entry, or whose entry's credit is null, adds nothing. When no layer adds a line the export uses credit_fallback. credit stays the line for the AIA wall (sun-wall.html).",
+  "credit_fallback": "Data courtesy of the teams of the instruments named in the instrument field.",
+  "credits_note": "credit is the line exports write, ASCII only so it fits a FITS card; credit_source is the page it comes from. acknowledgement is the publication statement from source, verbatim (null when none was found), for a layer's acknowledgement field in a processing record. kind is required, suggested or none_found, as the source words it. All text was read on credits_read through a fetch tool that returns short fragments, so the long statements were rejoined from consecutive exact fragments; check one against its source before it is printed in a publication."
+}
