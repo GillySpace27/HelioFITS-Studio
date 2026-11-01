@@ -199,6 +199,7 @@ public final class MenuBar extends JMenuBar {
         if (!Platform.isMacOS()) {
             catalogItem(fileMenu, "newWindow"); // no Window menu off macOS
             catalogItem(fileMenu, "templates"); // HS-25: Window > Templates... on macOS
+            catalogItem(fileMenu, "activity");
         }
 
         if (Platform.isMacOS()) {
@@ -423,6 +424,7 @@ public final class MenuBar extends JMenuBar {
             windowMenu.setMnemonic(KeyEvent.VK_W);
             catalogItem(windowMenu, "newWindow");
             catalogItem(windowMenu, "templates"); // HS-25
+            catalogItem(windowMenu, "activity");
             windowMenu.addSeparator();
             catalogItem(windowMenu, "windowMinimize");
             catalogItem(windowMenu, "windowZoom");

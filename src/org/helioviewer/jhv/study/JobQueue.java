@@ -215,6 +215,19 @@ public final class JobQueue {
             l.changed();
     }
 
+    /** "Export: label (2 of 4)" while a job runs, else null; the footer's spinner lists it. */
+    public @Nullable String runningLine() {
+        Job j = running;
+        if (j == null)
+            return null;
+        int queued = 0;
+        for (Job q : jobs)
+            if (q.state == State.QUEUED)
+                queued++;
+        return "Export: " + j.label + (j.total > 0 ? " (" + j.done + " of " + j.total + ")" : "")
+                + (queued > 0 ? ", " + queued + " more queued" : "");
+    }
+
     /** study.status(): the jobs as JSON, the same shape for SAMP and for the MCP wrapper planned later. */
     public JSONObject statusJson() {
         JSONArray a = new JSONArray();

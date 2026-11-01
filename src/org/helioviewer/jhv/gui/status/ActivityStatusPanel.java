@@ -41,7 +41,7 @@ import org.helioviewer.jhv.view.ComputedView;
 public final class ActivityStatusPanel extends StatusPanel.StatusPlugin implements Interfaces.LazyComponent {
 
     private static final int SIZE = 14;
-    private static final String DONE_TIP = "Everything has landed: nothing is downloading, loading or computing.";
+    private static final String DONE_TIP = "Everything has landed: nothing is downloading, loading or computing. Click for the Activity window.";
 
     private final BusyIndicator wheel = new BusyIndicator(); // shares the angle UITimer turns for the layer rows
     private final Icon spinning = new Icon() {
@@ -70,6 +70,13 @@ public final class ActivityStatusPanel extends StatusPanel.StatusPlugin implemen
     public ActivityStatusPanel() {
         UITimer.register(this);
         lazyRepaint();
+        setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
+        addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                org.helioviewer.jhv.gui.component.JobQueuePanel.open();
+            }
+        });
     }
 
     @Override
@@ -98,7 +105,8 @@ public final class ActivityStatusPanel extends StatusPanel.StatusPlugin implemen
         }
     }
 
-    static List<String> running() {
+    /** Everything still running, one line each: the Activity window lists the same lines. */
+    public static List<String> running() {
         List<String> out = new ArrayList<>();
         for (Layer layer : Layers.getLayers())
             if (layer.isDownloading())
@@ -117,13 +125,16 @@ public final class ActivityStatusPanel extends StatusPanel.StatusPlugin implemen
         int events = SWEKDownloader.pending();
         if (events > 0)
             out.add(events + (events == 1 ? " event download" : " event downloads"));
+        String job = org.helioviewer.jhv.study.JobQueue.INSTANCE.runningLine();
+        if (job != null)
+            out.add(job);
         int workers = Task.running();
         if (workers > 0) // includes the loaders named above: this is the catch-all for the rest
             out.add(workers + (workers == 1 ? " worker thread busy" : " worker threads busy"));
         return out;
     }
 
-    static List<String> failed() {
+    public static List<String> failed() {
         List<String> out = new ArrayList<>();
         for (ImageLayer layer : List.copyOf(Layers.getImageLayers())) {
             int n = layer.getFailedUris().size();
@@ -139,7 +150,7 @@ public final class ActivityStatusPanel extends StatusPanel.StatusPlugin implemen
         StringBuilder sb = new StringBuilder("<html>").append(heading);
         for (String line : lines)
             sb.append("<br>&nbsp;&nbsp;").append(line.replace("&", "&amp;").replace("<", "&lt;"));
-        return sb.append("</html>").toString();
+        return sb.append("<br>Click for the Activity window.</html>").toString();
     }
 
 }
