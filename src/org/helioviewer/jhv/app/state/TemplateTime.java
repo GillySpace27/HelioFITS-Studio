@@ -17,6 +17,8 @@ import org.json.JSONObject;
  * <li>{@code fixed}: the dates the scene was saved with, as every session has always opened.
  * <li>{@code latest}: ends at the newest data (or now, when that is not known), starts {@code span} earlier.
  * <li>{@code relative}: ends {@code lag} before now, starts {@code span} earlier.
+ * <li>{@code ask}: New from Template asks for the end date first, then starts {@code span} earlier;
+ * nothing downloads until a date is given. Opened any other way it keeps its saved dates.
  * </ul>
  *
  * <p>Parsing is strict: a duration that {@link Duration#parse} refuses, a negative one, a zero span
@@ -29,7 +31,7 @@ public final class TemplateTime {
     public static final int VERSION = 1;
 
     public enum Mode {
-        LATEST, RELATIVE, FIXED;
+        LATEST, RELATIVE, FIXED, ASK;
 
         /** The word written in the file: "latest", "relative" or "fixed". */
         public String word() {
@@ -41,7 +43,7 @@ public final class TemplateTime {
                 for (Mode m : values())
                     if (m.word().equals(word))
                         return m;
-            throw new IllegalArgumentException("template time mode must be latest, relative or fixed, not \"" + word + "\"");
+            throw new IllegalArgumentException("template time mode must be latest, relative, fixed or ask, not \"" + word + "\"");
         }
     }
 
@@ -119,11 +121,16 @@ public final class TemplateTime {
      */
     @Nullable
     public static Range resolve(Meta meta, long now, long newest) {
-        if (meta.mode() == Mode.FIXED)
+        if (meta.mode() == Mode.FIXED || meta.mode() == Mode.ASK) // ask: the chooser resolves it with askedRange
             return null;
         long end = meta.mode() == Mode.LATEST
                 ? newest == Long.MIN_VALUE ? now : Math.min(newest, now)
                 : now - meta.lag().toMillis();
+        return new Range(end - meta.span().toMillis(), end);
+    }
+
+    /** An ask template's range once the person has given the end date. */
+    public static Range askedRange(Meta meta, long end) {
         return new Range(end - meta.span().toMillis(), end);
     }
 
@@ -146,6 +153,7 @@ public final class TemplateTime {
             case FIXED -> "Saved dates";
             case LATEST -> "Newest " + words(m.span()) + " of data";
             case RELATIVE -> words(m.span()) + (m.lag().isZero() ? " ending now" : " ending " + words(m.lag()) + " ago");
+            case ASK -> words(m.span()) + " ending at a date you choose when it opens";
         };
     }
 

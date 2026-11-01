@@ -67,10 +67,17 @@ public final class TemplateChooser {
 
     /** Open {@code e}: in this window, or in a new one when this session has unsaved changes. */
     public static void open(TemplateLibrary.Entry e) {
+        org.json.JSONObject session = e.session();
+        boolean asked = e.meta().mode() == TemplateTime.Mode.ASK;
+        if (asked) { // the layers wait for a date: nothing is requested until there is one
+            session = askDate(e);
+            if (session == null)
+                return;
+        }
         if (Session.isDirty()) {
             File f = Session.newWindowFile(); // the new window's own scratch session: it opens Untitled
             try {
-                Files.writeString(f.toPath(), e.session().toString(), StandardCharsets.UTF_8);
+                Files.writeString(f.toPath(), session.toString(), StandardCharsets.UTF_8);
             } catch (IOException ex) {
                 Log.error("Template " + e.meta().name(), ex);
                 Message.err("New from Template", "Could not open a new window: " + ex.getMessage());
@@ -78,15 +85,49 @@ public final class TemplateChooser {
             }
             Session.spawnWindow(f);
             Message.info("New from Template", "\"" + e.meta().name() + "\" opens in a new window, because this session has unsaved changes.");
-        } else if (e.file() != null) {
+        } else if (e.file() != null && !asked) {
             Commands.loadState(e.file().toURI()); // State.load sees the template and leaves the window Untitled
         } else {
-            Commands.loadState(null, e.session().toString());
+            Commands.loadState(null, session.toString());
         }
+    }
+
+    /**
+     * An ask template: the end date, in UTC, then a copy of the session moved to the span before it
+     * and marked fixed so loading it asks nothing more. Null when cancelled.
+     */
+    @javax.annotation.Nullable
+    static org.json.JSONObject askDate(TemplateLibrary.Entry e) {
+        long now = System.currentTimeMillis();
+        String initial = TimeUtils.formatDate(now) + " " + TimeUtils.formatTime(now).substring(0, 5);
+        String prompt = "\"" + e.meta().name() + "\" loads " + TemplateTime.words(e.meta().span())
+                + " of data ending at this date and time (UTC, yyyy-MM-dd HH:mm):";
+        while (true) {
+            Object answer = javax.swing.JOptionPane.showInputDialog(MainFrame.get(), prompt, "Point the template at a date",
+                    javax.swing.JOptionPane.QUESTION_MESSAGE, null, null, initial);
+            if (answer == null)
+                return null;
+            long end = TimeUtils.optParse(answer.toString().strip().replace(' ', 'T'), Long.MIN_VALUE);
+            if (end != Long.MIN_VALUE)
+                return pointed(e.session(), e.meta(), end);
+            initial = answer.toString();
+            prompt = "That is not a date and time. Give it as yyyy-MM-dd HH:mm (UTC):";
+        }
+    }
+
+    /** {@code session} (copied) moved to the ask range ending at {@code end}, its rule now fixed. */
+    static org.json.JSONObject pointed(org.json.JSONObject session, TemplateTime.Meta meta, long end) {
+        org.json.JSONObject copy = new org.json.JSONObject(session.toString());
+        org.json.JSONObject state = copy.getJSONObject("org.helioviewer.jhv.state");
+        TemplateState.rewrite(state, TemplateTime.askedRange(meta, end));
+        state.put(TemplateState.KEY, meta.withTime(meta.description(), TemplateTime.Mode.FIXED, meta.span(), meta.lag()).toJson());
+        return copy;
     }
 
     /** The range {@code e} would open on at {@code now}: its rule's, or the saved master range for a fixed one. */
     static String rangeText(TemplateLibrary.Entry e, long now) {
+        if (e.meta().mode() == TemplateTime.Mode.ASK)
+            return TemplateTime.describe(e.meta());
         TemplateTime.Range r = TemplateTime.resolve(e.meta(), now,
                 e.meta().mode() == TemplateTime.Mode.LATEST ? TemplateState.newest(e.state(), DataSources::newest) : Long.MIN_VALUE);
         long start = r == null ? TimeUtils.optParse(e.state().optString("masterStartTime"), Long.MIN_VALUE) : r.start();
