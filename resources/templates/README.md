@@ -18,3 +18,12 @@ and have not yet been checked against a live getDataSources listing; each layer'
 which channel it should be, so a wrong id shows on open. The thumbnail is a schematic of the
 wedges in approximate channel colours, not a rendering of data: replace it with a Save as
 Template thumbnail from a real scene.
+
+## coronagraph-ladder
+
+PUNCH CAM (SDAC, level 3, newest version), LASCO C2 and C3 (NRL, lz) and AIA 171 (ROB
+Helioviewer, source 10), hourly, in Helioradial at lambda 0. Its time rule is `ask`: New from
+Template asks for the end date first and loads the day before it, so nothing downloads until it is
+pointed at a date. Built from one of Gilly's sessions (layer settings and filters as he had them),
+with the PUNCH file list replaced by a query. The thumbnail is an AIA 171 still from the lambda
+ladder study at lambda 0, not a rendering of this scene's coronagraphs.

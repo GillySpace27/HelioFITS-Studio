@@ -50,8 +50,8 @@ public final class TemplateSave {
         }
     }
 
-    private static final String[] MODES = {"Latest data", "Relative to now", "Saved dates"};
-    private static final TemplateTime.Mode[] MODE_VALUES = {TemplateTime.Mode.LATEST, TemplateTime.Mode.RELATIVE, TemplateTime.Mode.FIXED};
+    private static final String[] MODES = {"Latest data", "Relative to now", "Saved dates", "Ask for a date"};
+    private static final TemplateTime.Mode[] MODE_VALUES = {TemplateTime.Mode.LATEST, TemplateTime.Mode.RELATIVE, TemplateTime.Mode.FIXED, TemplateTime.Mode.ASK};
 
     /**
      * Asks for a template's name (when {@code nameEditable}), description and time rule, starting
@@ -73,7 +73,7 @@ public final class TemplateSave {
         JTextField lag = new JTextField(initial.lag().toString(), 10);
         span.setToolTipText("How much time the scene shows, such as PT2H (two hours) or P1D (one day)");
         lag.setToolTipText("For Relative to now: how long before now the scene ends, such as PT30M; PT0S is now");
-        mode.setToolTipText("Latest data: ends at the newest data. Relative to now: ends a set time before now. Saved dates: the dates it has now.");
+        mode.setToolTipText("Latest data: ends at the newest data. Relative to now: ends a set time before now. Saved dates: the dates it has now. Ask for a date: the layers wait until you give a date, then load span before it.");
 
         JPanel panel = new JPanel(new GridBagLayout());
         GridBagConstraints c = new GridBagConstraints();
