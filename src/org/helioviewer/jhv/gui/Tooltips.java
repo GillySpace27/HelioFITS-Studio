@@ -70,7 +70,7 @@ public final class Tooltips {
     }
 
     @Nullable
-    static String lookup(@Nullable String key) {
+    public static String lookup(@Nullable String key) {
         if (key == null)
             return null;
         if (byKey.isEmpty())

@@ -1,5 +1,7 @@
 # Tips, tours and tooltips
 
+Commands and controls are also gathered in one registry, `docs/commands.md`: Help > Search Controls, the tours and the tips read it, and so will an assistant.
+
 Every piece of help text a person sees in HelioFITS Studio, where it lives, and how to add more.
 All three are data files under `resources/data/`: edit the JSON, run `ant jar`, and the next
 launch shows it. Each has a check that fails on a broken entry.
@@ -10,7 +12,7 @@ launch shows it. Each has a check that fails on a broken entry.
 | Guided tours (Help > Tours) | `resources/data/tours/<id>.json`, listed in `Tour.IDS` | `TourCheck` |
 | Tooltips for controls the code leaves bare | `resources/data/tooltips.json` | `TooltipsCheck` |
 | Tooltips set in code | `setToolTipText(...)` beside the control | none |
-| Help search words | `ControlIndex.CONTROLS` | `ControlSearchCheck` |
+| Help search words (controls) | `resources/data/controls.json` | `ControlSearchCheck`, `RegistryCheck` |
 
 ## Tip of the Day
 
@@ -66,7 +68,7 @@ about ten steps.
 A target is a name the code gives a component: a toolbar id (`ToolbarOrder.DEFAULT_ORDER`), a
 catalogued menu item's id (MenuBar's `catalogItem`), or a literal `setName("...")` under `src/`.
 TourCheck reads those from the source. To make a new control targetable, give it a literal
-`setName` and list it in `ControlIndex.CONTROLS` (ControlSearchCheck requires both). A menu item
+`setName` and list it in `resources/data/controls.json` (ControlSearchCheck requires both). A menu item
 is never on screen during a tour, so its card is centred with no cut-out.
 
 The tours: Getting started, Loading data, Making a movie, Views and projections, RHEF and

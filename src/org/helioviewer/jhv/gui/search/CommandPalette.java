@@ -35,6 +35,8 @@ import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.gui.ActionCatalog;
 import org.helioviewer.jhv.gui.DesktopIntegration;
 import org.helioviewer.jhv.gui.MainFrame;
+import org.helioviewer.jhv.gui.registry.ControlRegistry;
+import org.helioviewer.jhv.gui.registry.Dispatch;
 
 /**
  * Help > Search Controls: a field over a list of every command and named control.
@@ -180,23 +182,21 @@ public final class CommandPalette {
             Tour.point(it.id(), it.reveal(), it.title(), describe(it));
             return;
         }
-        ActionCatalog.Entry entry = ActionCatalog.get(it.id());
-        if (entry == null || !entry.action().isEnabled()) {
+        Dispatch.Result r = Dispatch.invoke(it.id(), null); // the one way to run a command by id
+        if (!r.ok()) {
             java.awt.Toolkit.getDefaultToolkit().beep();
-            return;
-        }
-        try {
-            entry.action().actionPerformed(new ActionEvent(MainFrame.get(), ActionEvent.ACTION_PERFORMED, it.id()));
-        } catch (RuntimeException e) { // a failing command is logged, as from its menu item
-            Log.warn("Search: command " + it.id() + " failed", e);
+            if (!"disabled".equals(r.error()))
+                Log.warn("Search: command " + it.id() + " " + r.error() + ": " + r.message());
         }
     }
 
     /** The spotlight card's text: where the control lives, so a control not on screen can still be found. */
     static String describe(ControlIndex.Item it) {
         String tip = ControlIndex.tip(it.id());
+        ControlRegistry.Entry e = ControlRegistry.get(it.id());
+        String tours = e == null || e.tours().isEmpty() ? "" : " A tour shows it: " + String.join(", ", e.tours().stream().map(Tour::title).toList()) + ".";
         return (tip.isEmpty() ? "" : tip + (tip.endsWith(".") ? " " : ". ")) + "Where: " + it.where() + "." + (Tour.find(it.id()) == null && it.reveal() == null
-                ? " It is not on screen now; it may be hidden, folded away or in the toolbar's More list." : "");
+                ? " It is not on screen now; it may be hidden, folded away or in the toolbar's More list." : "") + tours;
     }
 
     @SuppressWarnings("serial")
@@ -208,7 +208,8 @@ public final class CommandPalette {
                 ActionCatalog.Entry e = it.action() ? ActionCatalog.get(it.id()) : null;
                 boolean off = e != null && !e.action().isEnabled();
                 setText("<html><b>" + escape(it.title()) + "</b>&nbsp;&nbsp;<font size=-1>" + escape(it.where())
-                        + (it.action() ? "" : ", control") + (off ? ", unavailable now" : "") + "</font></html>");
+                        + (it.action() ? "" : ", control") + (off ? ", unavailable now" : "")
+                        + (it.shortcut().isEmpty() ? "" : "&nbsp;&nbsp;" + escape(it.shortcut())) + "</font></html>");
                 setEnabled(!off);
             }
             return this;
