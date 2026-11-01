@@ -5,6 +5,7 @@ import java.util.Map;
 
 import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.layers.ImageLayer;
+import org.helioviewer.jhv.layers.Layers;
 import org.json.JSONObject;
 
 /**
@@ -30,6 +31,8 @@ public final class StudyView {
         JSONObject view = new JSONObject();
         ViewState.writeModeJson(view);
         view.put("camera", DisplayController.cameraToJson());
+        JSONObject pizza = Pizza.toJson(); // null while off; a row that wants it off says shape Off
+        view.put("pizza", pizza == null ? new JSONObject().put("shape", "Off") : pizza);
         return new JSONObject(view.toString()); // writeModeJson puts enums; a job file holds their names
     }
 
@@ -39,6 +42,9 @@ public final class StudyView {
         JSONObject camera = partial.optJSONObject("camera");
         if (camera != null)
             DisplayController.cameraFromJson(camera);
+        JSONObject pizza = partial.optJSONObject("pizza"); // a whole pizza setup replaces the current one
+        if (pizza != null)
+            Pizza.fromJson(pizza, Layers.getLayers());
         JSONObject layers = partial.optJSONObject("layers");
         synchronized (S) {
             S.layers.clear();
