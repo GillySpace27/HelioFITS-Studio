@@ -49,7 +49,7 @@ final class Schema {
             default -> false;
         };
         if (!ok) {
-            out.add("argument '" + key + "' must be " + (type.isEmpty() ? "a supported type" : "a " + type));
+            out.add("argument '" + key + "' must be " + (type.isEmpty() ? "a supported type" : (type.startsWith("i") ? "an " : "a ") + type));
             return;
         }
         JSONArray allowed = p.optJSONArray("enum");
