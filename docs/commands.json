@@ -393,9 +393,9 @@
       "description": "Separate Multiview Zoom",
       "annotations": {
         "destructiveHint": false,
-        "readOnlyHint": true
+        "readOnlyHint": false
       },
-      "x-effect": "ui"
+      "x-effect": "write"
     },
     {
       "outputSchema": {
@@ -429,9 +429,9 @@
       "description": "Fit a layer added in multiview to its own view (with Separate Multiview Zoom)",
       "annotations": {
         "destructiveHint": false,
-        "readOnlyHint": true
+        "readOnlyHint": false
       },
-      "x-effect": "ui"
+      "x-effect": "write"
     },
     {
       "outputSchema": {
@@ -987,9 +987,9 @@
       "description": "Fit FOV Annotation",
       "annotations": {
         "destructiveHint": false,
-        "readOnlyHint": true
+        "readOnlyHint": false
       },
-      "x-effect": "ui"
+      "x-effect": "write"
     },
     {
       "outputSchema": {
