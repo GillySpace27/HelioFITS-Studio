@@ -601,7 +601,7 @@
   "time": "2026-03-26T00:00:31.480",
   "template": {
    "name": "Coronagraph ladder (Helioradial, lambda 0)",
-   "description": "PUNCH CAM, LASCO C2, LASCO C3 and AIA 171 in Helioradial at lambda 0. Asks for a date first, so nothing downloads until you point it at one.",
+   "description": "PUNCH CAM, LASCO C2, LASCO C3 and AIA 171 in Helioradial at lambda 0. Asks for a start and end time first, so nothing downloads until you choose the dates.",
    "time": {
     "mode": "ask",
     "span": "P1D",

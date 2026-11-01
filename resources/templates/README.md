@@ -23,7 +23,7 @@ Template thumbnail from a real scene.
 
 PUNCH CAM (SDAC, level 3, newest version), LASCO C2 and C3 (NRL, lz) and AIA 171 (ROB
 Helioviewer, source 10), hourly, in Helioradial at lambda 0. Its time rule is `ask`: New from
-Template asks for the end date first and loads the day before it, so nothing downloads until it is
-pointed at a date. Built from one of Gilly's sessions (layer settings and filters as he had them),
-with the PUNCH file list replaced by a query. The thumbnail is an AIA 171 still from the lambda
-ladder study at lambda 0, not a rendering of this scene's coronagraphs.
+Template asks for a start and end time first (one day ending now to begin with), so nothing
+downloads until the dates are chosen; then every layer requests that range. Built from one of Gilly's sessions (layer settings and filters as he had them),
+with the PUNCH file list replaced by a query. The thumbnail is a frame of Gilly's ReversingComet movie
+(2026-04-03T12:28 UTC), this scene's layers, cropped to the disk and scaled to 512 pixels.
