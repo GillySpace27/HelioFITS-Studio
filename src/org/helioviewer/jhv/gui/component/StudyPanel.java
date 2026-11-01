@@ -89,7 +89,7 @@ public final class StudyPanel extends JDialog {
         AbstractAction a = new AbstractAction("Save View to Study") {
             @Override
             public void actionPerformed(ActionEvent e) {
-                open().saveView();
+                open(false).saveView();
             }
         };
         a.putValue(Action.ACCELERATOR_KEY, SAVE_VIEW_KEY);
@@ -97,12 +97,20 @@ public final class StudyPanel extends JDialog {
     }
 
     public static StudyPanel open() {
+        return open(true);
+    }
+
+    /** @param ask offer the template-or-empty choice when there is no study yet (Save View skips it) */
+    public static StudyPanel open(boolean ask) {
         StudyPanel p = PANEL.get();
         if (p == null) {
             p = new StudyPanel();
             PANEL.set(p);
         }
         if (!p.isVisible()) {
+            Study cur = Study.CURRENT.get();
+            if (ask && (cur == null || cur.variants.isEmpty()) && !p.chooseStart())
+                return p;
             p.reload();
             p.pack();
             p.setLocationRelativeTo(MainFrame.get());
@@ -399,23 +407,54 @@ public final class StudyPanel extends JDialog {
         JobQueuePanel.open();
     }
 
+    /** The shipped templates: menu label and resource under resources/studies. */
+    private static final String[][] PRESETS = {
+            {"Lambda ladder (Helioradial 1, 0, -1; Unrolled 0)", "/studies/lambda-ladder.hfstudy.json"}};
+
+    /**
+     * Opening with no study: start from a template or from an empty table. False when the person
+     * closes the question, and then the panel stays shut.
+     */
+    private boolean chooseStart() {
+        Object[] options = new Object[PRESETS.length + 1];
+        for (int i = 0; i < PRESETS.length; i++)
+            options[i] = "Template: " + PRESETS[i][0];
+        options[PRESETS.length] = "New empty study";
+        Object pick = javax.swing.JOptionPane.showInputDialog(MainFrame.get(),
+                "Start the study from a template (projections and lambda set, layers inherited from the scene), or from an empty table:",
+                "New study", javax.swing.JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+        if (pick == null)
+            return false;
+        for (int i = 0; i < PRESETS.length; i++)
+            if (pick == options[i])
+                loadPresetResource(PRESETS[i][1]);
+        return true;
+    }
+
     private void loadPreset(JComponent from) {
         javax.swing.JPopupMenu menu = new javax.swing.JPopupMenu();
-        javax.swing.JMenuItem ladder = new javax.swing.JMenuItem("Lambda ladder (Helioradial 1, 0, -1; Unrolled 0)");
-        ladder.addActionListener(e -> {
-            try (java.io.InputStream in = org.helioviewer.jhv.io.FileUtils.getResource("/studies/lambda-ladder.hfstudy.json")) {
-                Study loaded = Study.fromJson(new JSONObject(new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)));
-                Study old = Study.CURRENT.get();
-                if (old != null)
-                    loaded.setScene(old.scene(), old.sceneSha256());
-                Study.CURRENT.set(loaded);
+        for (String[] preset : PRESETS) {
+            javax.swing.JMenuItem item = new javax.swing.JMenuItem(preset[0]);
+            item.addActionListener(e -> {
+                loadPresetResource(preset[1]);
                 reload();
-            } catch (IOException | RuntimeException ex) {
-                reasonLine.setText("The preset could not be loaded: " + ex.getMessage());
-            }
-        });
-        menu.add(ladder);
+            });
+            menu.add(item);
+        }
         menu.show(from, 0, from.getHeight());
+    }
+
+    /** Makes a shipped template the session's study; the scene reference of the old one is kept. */
+    private void loadPresetResource(String resource) {
+        try (java.io.InputStream in = org.helioviewer.jhv.io.FileUtils.getResource(resource)) {
+            Study loaded = Study.fromJson(new JSONObject(new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)));
+            Study old = Study.CURRENT.get();
+            if (old != null)
+                loaded.setScene(old.scene(), old.sceneSha256());
+            Study.CURRENT.set(loaded);
+        } catch (IOException | RuntimeException ex) {
+            reasonLine.setText("The template could not be loaded: " + ex.getMessage());
+        }
     }
 
     private void copyCommand() {
