@@ -57,19 +57,19 @@ and an opt-in setting to switch it all on are not built yet; none is on by defau
 The menu items and toolbar buttons still call their Swing Action directly, because Swing owns that
 call. They run the same Action object the registry's handler runs.
 
-## Keyboard shortcuts
+## Keybindings
 
-`KeyBindings` (`gui/registry/`) keeps the shortcut of every catalogued command: the default is the
+`KeyBindings` (`gui/registry/`) keeps the keybinding of every catalogued command: the default is the
 `ACCELERATOR_KEY` its Action states, the person's own is the setting `keys.<command id>`. Empty is
 the default, `none` is deliberately unbound, anything else is a keystroke as
 `KeyStroke.getKeyStroke(String)` reads it with `menu` for the platform's menu key (Cmd on a Mac,
 Ctrl elsewhere), so a settings file moved between computers keeps its meaning. A change is applied by
 setting the Action's accelerator, which the menu items follow, so nothing restarts.
 
-Rules, so a shortcut cannot break something else: it must carry Ctrl, Alt or Cmd/Meta, or be a
+Rules, so a keybinding cannot break something else: it must carry Ctrl, Alt or Cmd/Meta, or be a
 function key (a bare letter would shadow J, K, L, I, O and the arrow keys the canvas and time slider
 handle themselves); it cannot be another command's; it cannot be one the system or text editing owns
-(`KeyBindings.RESERVED_*`). Settings > Shortcuts (`ShortcutsPanel`) is the table. The keys a focused
+(`KeyBindings.RESERVED_*`). Settings > Keybindings (`KeybindingsPanel`) is the table. The keys a focused
 control handles itself are not commands and stay fixed.
 
 Not built: pressing the new shortcut to record it (on a Mac the menu bar can take the combination

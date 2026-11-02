@@ -105,8 +105,8 @@ public final class KeyBindingsCheck {
                 && !KeyBindings.isCustom(withDefault) && !KeyBindings.isCustom(free));
 
         // The panel builds and filters
-        org.helioviewer.jhv.gui.dialog.ShortcutsPanel panel = new org.helioviewer.jhv.gui.dialog.ShortcutsPanel();
-        expect("the Shortcuts panel builds", panel.getComponentCount() > 0);
+        org.helioviewer.jhv.gui.dialog.KeybindingsPanel panel = new org.helioviewer.jhv.gui.dialog.KeybindingsPanel();
+        expect("the Keybindings panel builds", panel.getComponentCount() > 0);
 
         System.out.println(failures == 0 ? "KeyBindingsCheck: ok" : "KeyBindingsCheck: " + failures + " FAIL");
         System.exit(failures == 0 ? 0 : 1);

@@ -35,16 +35,16 @@ import org.helioviewer.jhv.gui.registry.Shortcuts;
 import org.helioviewer.jhv.gui.search.ControlIndex;
 
 /**
- * Settings > Shortcuts: every catalogued command with its keyboard shortcut. Search by name, change
- * a shortcut, remove it, or put it back to the default; a clash with another command or with the
+ * Settings > Keybindings: every catalogued command with its keybinding. Search by name, change
+ * a keybinding, remove it, or put it back to the default; a clash with another command or with the
  * system is refused with the reason. Changes apply at once (see {@link KeyBindings}).
  *
- * <p>A shortcut is chosen with the modifier boxes and a key list rather than by pressing it: on a
+ * <p>A keybinding is chosen with the modifier boxes and a key list rather than by pressing it: on a
  * Mac the menu bar can take a key combination before this window sees it, and pressing Cmd+Q to
  * record it would quit.
  */
 @SuppressWarnings("serial")
-public final class ShortcutsPanel extends JPanel {
+public final class KeybindingsPanel extends JPanel {
 
     private record Row(String id, String title, String where) {}
 
@@ -57,7 +57,7 @@ public final class ShortcutsPanel extends JPanel {
     private final AbstractTableModel model = new AbstractTableModel() {
         @Override public int getRowCount() { return shown.size(); }
         @Override public int getColumnCount() { return 3; }
-        @Override public String getColumnName(int c) { return switch (c) { case 0 -> "Command"; case 1 -> "Where"; default -> "Shortcut"; }; }
+        @Override public String getColumnName(int c) { return switch (c) { case 0 -> "Command"; case 1 -> "Where"; default -> "Keybinding"; }; }
         @Override public Object getValueAt(int r, int c) {
             Row row = shown.get(r);
             return switch (c) {
@@ -69,7 +69,7 @@ public final class ShortcutsPanel extends JPanel {
     };
     private final JTable table = new JTable(model);
 
-    public ShortcutsPanel() {
+    public KeybindingsPanel() {
         super(new BorderLayout(0, 6));
         setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
         for (ControlRegistry.Entry e : ControlRegistry.all())
@@ -78,7 +78,7 @@ public final class ShortcutsPanel extends JPanel {
                 int slash = where.lastIndexOf('/');
                 all.add(new Row(e.id(), e.title(), where.isEmpty() ? "" : slash > 0 ? where.substring(0, slash).replace("/", " > ") : "Menu"));
             }
-        filter.setToolTipText("Type part of a command name, its menu or its shortcut");
+        filter.setToolTipText("Type part of a command name, its menu or its keybinding");
         filter.getDocument().addDocumentListener(new DocumentListener() {
             @Override public void insertUpdate(DocumentEvent e) { refilter(); }
             @Override public void removeUpdate(DocumentEvent e) { refilter(); }
@@ -97,19 +97,19 @@ public final class ShortcutsPanel extends JPanel {
             }
         });
 
-        JButton changeBtn = button("Change...", "Choose a new shortcut for the selected command", this::change);
-        JButton removeBtn = button("Remove", "Give the selected command no shortcut", () -> apply(null, true));
-        JButton resetBtn = button("Reset", "Back to the shortcut the program came with", () -> {
+        JButton changeBtn = button("Change...", "Choose a new keybinding for the selected command", this::change);
+        JButton removeBtn = button("Remove", "Give the selected command no keybinding", () -> apply(null, true));
+        JButton resetBtn = button("Reset", "Back to the keybinding the program came with", () -> {
             Row r = selected();
             if (r != null) {
                 KeyBindings.reset(r.id());
                 done("Reset " + r.title() + ".");
             }
         });
-        JButton resetAllBtn = button("Reset All", "Put every shortcut back to the default", () -> {
-            if (JOptionPane.showConfirmDialog(this, "Put every shortcut back to the default?", "Reset All", JOptionPane.OK_CANCEL_OPTION) == JOptionPane.OK_OPTION) {
+        JButton resetAllBtn = button("Reset All", "Put every keybinding back to the default", () -> {
+            if (JOptionPane.showConfirmDialog(this, "Put every keybinding back to the default?", "Reset All", JOptionPane.OK_CANCEL_OPTION) == JOptionPane.OK_OPTION) {
                 KeyBindings.resetAll();
-                done("Every shortcut is back to the default.");
+                done("Every keybinding is back to the default.");
             }
         });
 
@@ -189,7 +189,7 @@ public final class ShortcutsPanel extends JPanel {
         p.add(shift);
         p.add(new JLabel("+"));
         p.add(key);
-        if (JOptionPane.showConfirmDialog(this, p, "Shortcut for " + r.title(), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION)
+        if (JOptionPane.showConfirmDialog(this, p, "Keybinding for " + r.title(), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION)
             return;
         int mods = (menu.isSelected() ? DesktopIntegration.menuShortcutMask : 0) | (alt.isSelected() ? InputEvent.ALT_DOWN_MASK : 0)
                 | (shift.isSelected() ? InputEvent.SHIFT_DOWN_MASK : 0) | (ctrl.isSelected() && Platform.isMacOS() ? InputEvent.CTRL_DOWN_MASK : 0);
@@ -207,7 +207,7 @@ public final class ShortcutsPanel extends JPanel {
         if (problem != null)
             status.setText(problem);
         else
-            done(remove ? r.title() + " has no shortcut now." : r.title() + " is " + Shortcuts.text(ks) + ".");
+            done(remove ? r.title() + " has no keybinding now." : r.title() + " is " + Shortcuts.text(ks) + ".");
     }
 
     private static String[] keyNames() {
