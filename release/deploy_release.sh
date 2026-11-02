@@ -129,8 +129,9 @@ or \`brew install openjdk@25\`). Unzip, then double-click \`run.command\`."
         INTEL_FILE=""; INTEL_SHA=""
     fi
     # What is new in this version, lifted from changelog.md so the release page and the changelog
-    # cannot disagree. Its ### headings drop a level to sit under the page's own.
-    WHATSNEW="$(awk -v v="$VERSION" 'index($0, "## ") == 1 { if (on) exit; on = index($0, " " v " ") > 0; next } on' "$SRC/changelog.md" | sed 's/^### /#### /')"
+    # cannot disagree. Its ### headings drop a level to sit under the page's own, and the [docs: ...]
+    # pointers (release/docs_check.py) are dropped.
+    WHATSNEW="$(awk -v v="$VERSION" 'index($0, "## ") == 1 { if (on) exit; on = index($0, " " v " ") > 0; next } on' "$SRC/changelog.md" | sed -E -e 's/^### /#### /' -e 's/[[:space:]]*\[docs:.*\][[:space:]]*$//')"
     [ -n "$WHATSNEW" ] || { echo "changelog.md has no section for $VERSION; write one before publishing" >&2; exit 1; }
     PRE_NOTE=""; [ -n "$PRERELEASE" ] && PRE_NOTE="This is a pre-release, published for testing ahead of 1.0. It is used daily on Apple Silicon Macs; Windows and Linux are new. Please report anything that breaks."
     # The fork's standing description, kept as prose in notes-preamble.md; @APP_NAME@ and @REPO@ in it
@@ -442,7 +443,7 @@ append_feed_record() {
         FEED_CONF="$FEED_CONFIRMED"
     fi
     FEED_NOTES="$(mktemp)"
-    awk -v v="$VERSION" 'index($0, "## ") == 1 { if (on) exit; on = index($0, " " v " ") > 0; next } on && /^[-*] / { sub(/^[-*] /, ""); print; exit }' "$SRC/changelog.md" \
+    awk -v v="$VERSION" 'index($0, "## ") == 1 { if (on) exit; on = index($0, " " v " ") > 0; next } on && /^[-*] / { sub(/^[-*] /, ""); sub(/[[:space:]]*\[docs:.*\][[:space:]]*$/, ""); print; exit }' "$SRC/changelog.md" \
         | python3 -c 'import sys; print(" ".join(sys.stdin.read().split())[:400].replace("\u2014", ";"))' > "$FEED_NOTES"
     [ -n "$(tr -d '[:space:]' < "$FEED_NOTES")" ] || echo "HelioFITS Studio $VERSION" > "$FEED_NOTES"
     FEED_CHANNEL=github-release

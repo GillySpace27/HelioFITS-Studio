@@ -98,6 +98,9 @@ gate() {
     _gate="$(mktemp "${TMPDIR:-/tmp}/hfs-gate-XXXXXX")"
     "$HERE/deploy_release.sh" publish --dry-run > "$_gate" || { _rc=$?; cat "$_gate"; exit "$_rc"; }
     ( cd "$HERE" && python3 build_guide.py --strict )
+    # Docs reconcile (DOCS-1), warn only: lists changelog bullets with no [docs: ...] pointer or whose
+    # pointed-to file did not change since the last tag. Add --strict here when Gilly turns it on.
+    python3 "$HERE/docs_check.py"
     # The machine half of step 5 on every dmg publish would attach: starts, draws, no uncaught exception.
     for _d in "$HERE/HFStudio-$(version).dmg" "$HERE/HFStudio-$(version)-intel.dmg"; do
         [ -f "$_d" ] && "$HERE/smoke_dmg.sh" "$_d"

@@ -264,6 +264,24 @@ literally. `@VERSION@` and `@REPO@` in `guide_content.json` are replaced with
 the `VERSION` file and `REPO` from `deploy_release.sh`, so the guide never names
 a stale version or repository.
 
+#### Docs pointers in the changelog (DOCS-1)
+
+Every top-level bullet in the version's `changelog.md` section ends with a pointer that says where
+the change is documented, so the changelog and the docs cannot drift apart unnoticed:
+
+```markdown
+- Templates open a saved scene on a relative date range. [docs: release/guide_content.json]
+- A race in the decode pool no longer drops a frame. [docs: none]
+```
+
+A pointer names one or more repository paths, comma separated (an `#anchor` is allowed), or
+`none`. `python3 release/docs_check.py` checks the section for `VERSION`: a bullet with no pointer,
+a path that does not exist, or a path unchanged since the previous `v*` tag is reported.
+`ant check-all` (step `docs`) and `ship.sh gate` run it in warn-only mode for now; `--strict`
+makes it fail, and turning that on is Gilly's call. The pointers never reach people:
+`AppInfo.whatsNew` (the Welcome window), the release notes and the feed record strip them.
+When the user manual moves to Sphinx (`manual/`, DOCS-2), pointers name its pages instead.
+
 ### 4. Notarize (builds the dmg)
 
 ```sh

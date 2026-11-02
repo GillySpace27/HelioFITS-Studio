@@ -1,6 +1,8 @@
 
 # Revision history
 
+Each new entry ends with a `[docs: ...]` pointer to where it is documented (`release/RELEASING.md`, "Docs pointers in the changelog"); the app and the release notes hide them.
+
 ## HelioFITS Studio 0.8.8 (unreleased)
 
 ### Sun pizza and templates
