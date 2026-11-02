@@ -114,6 +114,7 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         tabs.addTab("Layers", layersTab());
         tabs.addTab("Plugins", pluginsTab());
         tabs.addTab("Network", networkTab());
+        tabs.addTab("Keybindings", new KeybindingsPanel());
         tabs.addTab("FITS Library", library);
         tabs.addChangeListener(e -> {
             if (tabs.getSelectedComponent() == library)

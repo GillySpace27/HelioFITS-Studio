@@ -46,7 +46,7 @@ public final class ControlRegistry {
 
         /**
          * The shortcut now in force as text, "" when there is none. Read from the Action each time, never kept
-         * with the entry: the person can change it while the program runs (Settings > Shortcuts).
+         * with the entry: the person can change it while the program runs (Settings > Keybindings).
          */
         public String shortcut() {
             ActionCatalog.Entry a = kind == Kind.COMMAND ? ActionCatalog.get(id) : null;
