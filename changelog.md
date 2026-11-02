@@ -15,6 +15,9 @@
 - Counting the distinct levels of a frame for the layer readout no longer happens on the interface thread.
 - Settings > Network > Long requests chooses when the next piece of a request over the server's 1000-frame limit is asked for: as soon as the previous one has opened (the default and how it always worked), all at once, when the previous one is 80% downloaded, or when it has finished.
 
+### Command registry
+- Every command now has one stable id, a plain description, a note of what it changes (read, write, destructive or interface only) and a JSON Schema for its arguments and result, and every one is run through one place that checks the arguments first. Help > Search Controls (Cmd-K), the guided tours and the Welcome window run commands that way. docs/commands.json lists them all in the shape of an MCP tools list, so an MCP server, an API or a command line can be added later without a second list of verbs. Help > Search Controls now shows each command's keyboard shortcut and, for a control, the tours that show it. Three commands take arguments (seekFrame, seekTime, rotateView90) and two read (listCommands, describeControl).
+
 ### Fixes
 - Started with `java -jar` from a folder other than the jar's own, the Mac build loads the Metal library that sits beside the jar, not a possibly older copy in the working folder (which died with `UnsatisfiedLinkError: jhv_mirror_prepare`). The packaged app is unaffected.
 - A layer's Layer Options header puts its icon row on a line of its own above the description, so the description (name, time range, cadence, format, cache state) uses the whole panel width instead of a narrow column beside the icons
