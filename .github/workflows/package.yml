@@ -11,6 +11,9 @@ name: package
 # (deploy_release.sh publish), this runs on the release's tag and the attach job puts both
 # packages on that release, but only if every check on both passed: a platform that fails has no
 # file on the release, so its download button cannot light up whatever the page says.
+#
+# On a release or a manual run the Windows files are code signed (Azure Artifact Signing) in their
+# own job before they are zipped, so a signing failure also leaves the release without a Windows file.
 
 on:
   push:
@@ -118,7 +121,23 @@ jobs:
 
       - name: Package
         shell: bash
-        run: release/package-app.sh windows
+        run: release/package-app.sh windows image
+
+      # A push archives here. A release or manual run hands the folder to windows-sign instead,
+      # which signs it and makes the zip.
+      - name: Archive
+        if: github.event_name == 'push'
+        shell: bash
+        run: release/package-app.sh windows archive
+
+      # Handed over before the launch checks, which unpack natives as the program starts, so the
+      # signed zip holds exactly what the push zip would.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: github.event_name != 'push'
+        with:
+          name: unsigned-windows-app
+          path: pkg-out/HFStudio
+          retention-days: 1
 
       - name: Launch the package and screenshot
         shell: bash
@@ -151,6 +170,88 @@ jobs:
             shot-windows-pkg.png
             app-windows-pkg.log
             app-windows-pkg.out
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: github.event_name == 'push'
+        with:
+          name: package-windows
+          path: HFStudio-*-windows.zip
+          compression-level: 0
+          retention-days: 14
+
+  # Signs the Windows app-image with Gilly's Azure Artifact Signing certificate (Public Trust,
+  # West US 2) and makes the zip, on releases and manual runs only: every push would spend
+  # signatures on builds nobody downloads. This job builds and runs nothing from the repository,
+  # only VERSION and package-app.sh, so code that runs during the build or the launch checks never
+  # holds the token that can sign. The signing app in Azure trusts only tokens for the Signing
+  # environment; that environment's deployment rules decide which branches and tags may sign.
+  windows-sign:
+    needs: windows
+    if: github.event_name != 'push'
+    runs-on: windows-latest
+    timeout-minutes: 15
+    environment: Signing
+    permissions:
+      contents: read
+      id-token: write   # the token azure/login trades for access to the signing account
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          sparse-checkout: |
+            VERSION
+            release/package-app.sh
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: unsigned-windows-app
+          path: pkg-out/HFStudio
+
+      # Files that already carry a valid signature keep it; the launcher and anything else unsigned
+      # is signed and timestamped, so the signature stays valid after the certificate expires.
+      - name: List the unsigned files
+        id: unsigned
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem pkg-out/HFStudio -Recurse -Include *.exe,*.dll |
+            Where-Object { (Get-AuthenticodeSignature $_.FullName).Status -ne 'Valid' } |
+            ForEach-Object { $_.FullName }
+          if (-not ($files -match '\\HFStudio\.exe$')) { throw "HFStudio.exe is not among the files to sign" }
+          $files | ForEach-Object { Write-Host "to sign: $_" }
+          "files<<EOF" >> $env:GITHUB_OUTPUT
+          $files >> $env:GITHUB_OUTPUT
+          "EOF" >> $env:GITHUB_OUTPUT
+
+      # The signing app holds only the signer role on the certificate profile, no role on the
+      # subscription, so the login is to the tenant alone.
+      - name: Azure login
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - name: Sign
+        uses: azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
+        with:
+          endpoint: https://wus2.codesigning.azure.net/
+          signing-account-name: heliofitssigning
+          certificate-profile-name: HelioFITS
+          files: ${{ steps.unsigned.outputs.files }}
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Check the launcher is signed
+        shell: pwsh
+        run: |
+          $sig = Get-AuthenticodeSignature pkg-out/HFStudio/HFStudio.exe
+          Write-Host "$($sig.Status): $($sig.SignerCertificate.Subject)"
+          if ($sig.Status -ne 'Valid') { throw "HFStudio.exe signature is $($sig.Status)" }
+
+      - name: Archive
+        shell: bash
+        run: release/package-app.sh windows archive
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -249,7 +350,7 @@ jobs:
             app-macos-intel.out
 
   attach:
-    needs: [linux, windows]
+    needs: [linux, windows-sign]
     if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
     runs-on: ubuntu-latest
     timeout-minutes: 15
