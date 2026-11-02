@@ -910,6 +910,7 @@ class ShipTest(unittest.TestCase):
              '[ "$1 $2" = "publish --dry-run" ] && echo "GATE: publish v9.9.9 at 0123456789ab from master; way back: v9.9.8"\n'
              'exit 0\n')
         (self.repo / "release" / "build_guide.py").write_text("import sys\nsys.exit(0)\n")
+        (self.repo / "release" / "docs_check.py").write_text("import sys\nsys.exit(0)\n")
 
     def ship(self, *args, **extra):
         env = {k: v for k, v in os.environ.items() if not k.startswith("HFS_")}
