@@ -346,6 +346,16 @@ preflight_publish() {
                     refuse "spctl not found; publish runs on the Mac" 4
                 fi ;;
             "${ZIP##*/}"|"${PDF##*/}"|"${MD##*/}") ;;
+            # The decode-parity report has to vouch for this exact jar, commit and fixture manifest (step 5b):
+            # it is what a paper points at for "this release decodes like sunpy". parity.py verify prints why not.
+            *-parity.json)
+                if [ ! -f "$HERE/$_n" ]; then
+                    refuse "release/$_n is missing; release/parity.sh makes it from HFStudio.jar" 5
+                elif [ -f "$SRC/HFStudio.jar" ]; then
+                    python3 "$HERE/parity.py" verify "$HERE/$_n" --jar "$SRC/HFStudio.jar" --commit "$_head" \
+                        --version "$VERSION" --manifest "$HERE/parity-manifest.json" \
+                        || refuse "release/$_n does not vouch for this jar, commit and manifest" 5
+                fi ;;
             *) [ -f "$HERE/$_n" ] || refuse "release/$_n is listed in assets.txt but missing" 1 ;;
         esac
     done
