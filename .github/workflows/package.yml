@@ -222,12 +222,14 @@ jobs:
           $files >> $env:GITHUB_OUTPUT
           "EOF" >> $env:GITHUB_OUTPUT
 
+      # The signing app holds only the signer role on the certificate profile, no role on the
+      # subscription, so the login is to the tenant alone.
       - name: Azure login
         uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          allow-no-subscriptions: true
 
       - name: Sign
         uses: azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
