@@ -68,8 +68,10 @@ only ever appended:
   `release/package-app.sh` in CI (`.github/workflows/package.yml`) and
   **attached by CI about ten minutes after `publish`**, only if each package
   started, drew an image and decoded a JPEG 2000 file with its own bundled
-  OpenJPEG. x86-64 only. The Windows build is not code-signed, so SmartScreen
-  warns on first run (More info, Run anyway; no admin needed: it is an
+  OpenJPEG. x86-64 only. The Windows files are code-signed in CI (Azure
+  Artifact Signing, publisher is Gilly's legal name) before zipping. A new
+  certificate has no SmartScreen reputation yet, so early downloads may still
+  warn on first run (More info, Run anyway; no admin needed: it is an
   app-image, not an installer). CI draws in software. A few people have run
   the Windows package; nobody has used the Linux one on real hardware yet.
 - `HFStudio-Guide.pdf` / `.md`: the field guide, generated from
