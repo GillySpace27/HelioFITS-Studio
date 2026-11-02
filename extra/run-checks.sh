@@ -181,7 +181,8 @@ unittests() {
         "$PY" extra/test/test_runtime_modules.py &&
         "$PY" extra/test/test_document_types.py &&
         "$PY" extra/test/test_smoke_dmg.py &&
-        "$PY" extra/test/test_native_hashes.py
+        "$PY" extra/test/test_native_hashes.py &&
+        "$PY" extra/test/test_docs_check.py
 }
 
 guards() {
@@ -229,6 +230,9 @@ if "$PY" -c "import jsonschema" > /dev/null 2>&1; then
 else
     skipped_step hfrecord "python jsonschema not installed (pip install jsonschema; apt-get install python3-jsonschema)"
 fi
+# Docs reconcile (DOCS-1): every bullet in VERSION's changelog section names where it is documented.
+# Warn only for now: the warnings land in this step's log and the step stays ok.
+step docs "$PY" release/docs_check.py
 step ffmpeg "$PY" extra/ffmpeg/update_ffmpeg.py --check
 step licences "$PY" extra/licenses/sync_licenses.py --check
 
