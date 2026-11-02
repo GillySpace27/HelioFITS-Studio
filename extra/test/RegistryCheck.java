@@ -4,6 +4,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.helioviewer.jhv.gui.ActionCatalog;
@@ -13,8 +14,8 @@ import org.json.JSONObject;
 /**
  * The command registry: every catalogued action is a command, a call is checked against its schema
  * before it runs, Dispatch answers rather than throws, the controls file resolves, and
- * docs/commands.json (the registry as an MCP tools list) is current. Building the catalog needs a
- * display; run-checks.sh reruns this with one.
+ * docs/commands.json (the registry as an MCP tools list) is current; and the data commands refuse
+ * what they cannot do in words. Building the catalog needs a display; run-checks.sh reruns this with one.
  */
 public final class RegistryCheck {
 
@@ -45,9 +46,18 @@ public final class RegistryCheck {
         expect("schema: an unknown argument when additionalProperties is false", !Schema.validate(s, o("{\"n\":1,\"zz\":1}")).isEmpty());
         expect("schema: grammar of the type message: " + Schema.validate(s, o("{\"n\":\"3\"}")), Schema.validate(s, o("{\"n\":\"3\"}")).toString().contains("an integer"));
         expect("schema: a bad boolean", !Schema.validate(s, o("{\"n\":1,\"b\":\"yes\"}")).isEmpty());
+        JSONObject so = o("{\"type\":\"object\",\"properties\":{\"p\":{\"type\":\"object\"}},\"additionalProperties\":false}");
+        expect("schema: an object argument is accepted", Schema.validate(so, o("{\"p\":{\"gamma\":0.5}}")).isEmpty());
+        expect("schema: a string where an object belongs: " + Schema.validate(so, o("{\"p\":\"x\"}")),
+                Schema.validate(so, o("{\"p\":\"x\"}")).toString().contains("an object"));
 
-        // The real registry (a display is needed from here)
+        // The real registry (a display is needed from here). The data commands reach Layers, whose
+        // null image layer reaches SPICE, so the native is loaded first; in a throwaway home, since
+        // the cache folders it wants and anything a view change writes must not land in the real one.
+        System.setProperty("user.home", Files.createTempDirectory("hfs-registry").toString());
         org.helioviewer.jhv.app.Platform.init();
+        org.helioviewer.jhv.io.Directories.createCacheDirs();
+        org.helioviewer.jhv.app.AppInit.loadSpice();
         Set<String> actionIds = new LinkedHashSet<>();
         for (ActionCatalog.Entry e : ActionCatalog.all())
             actionIds.add(e.id());
@@ -95,6 +105,50 @@ public final class RegistryCheck {
             System.out.println("  note  no catalogued action is disabled at start, so the disabled answer is not exercised");
         else
             expect("dispatch: a disabled action answers disabled (" + disabled + ")", "disabled".equals(Dispatch.invoke(disabled, null).error()));
+
+        // The data commands (DataCommands): registered with the effects a front end confirms on
+        Map<String, CommandSpec.Effect> data = new java.util.LinkedHashMap<>();
+        data.put("layerAdd", CommandSpec.Effect.WRITE);
+        data.put("layerList", CommandSpec.Effect.READ);
+        data.put("layerRemove", CommandSpec.Effect.DESTRUCTIVE);
+        data.put("layerReload", CommandSpec.Effect.WRITE);
+        data.put("filterSet", CommandSpec.Effect.WRITE);
+        data.put("viewSet", CommandSpec.Effect.WRITE);
+        data.put("viewGet", CommandSpec.Effect.READ);
+        data.put("frameGet", CommandSpec.Effect.READ);
+        data.put("previewRender", CommandSpec.Effect.READ);
+        data.put("exportStill", CommandSpec.Effect.WRITE);
+        data.put("exportMovie", CommandSpec.Effect.WRITE);
+        Set<String> wrong = new LinkedHashSet<>();
+        for (Map.Entry<String, CommandSpec.Effect> e : data.entrySet()) {
+            CommandSpec c = CommandRegistry.get(e.getKey());
+            if (c == null || c.effect() != e.getValue())
+                wrong.add(e.getKey());
+        }
+        expect("every data command is registered with its effect, wrong " + wrong, wrong.isEmpty());
+        Dispatch.Result noLayers = Dispatch.invoke("layerList", null);
+        expect("dispatch: layerList with no layers answers an empty list: " + noLayers.message() + " " + noLayers.value(),
+                noLayers.ok() && noLayers.value().getJSONArray("layers").isEmpty());
+        expect("dispatch: layerRemove on an unknown id is invalid-arguments", "invalid-arguments".equals(Dispatch.invoke("layerRemove", o("{\"layer_id\":99}")).error()));
+        expect("dispatch: frameGet on an unknown id is invalid-arguments", "invalid-arguments".equals(Dispatch.invoke("frameGet", o("{\"layer_id\":99}")).error()));
+        expect("dispatch: filterSet with an unknown filter is invalid-arguments", "invalid-arguments".equals(Dispatch.invoke("filterSet", o("{\"layer_id\":1,\"filter\":\"blur\"}")).error()));
+        expect("dispatch: layerAdd without its arguments is invalid-arguments", "invalid-arguments".equals(Dispatch.invoke("layerAdd", o("{\"source\":\"jp2\"}")).error()));
+        expect("dispatch: layerAdd from an unknown source is invalid-arguments", "invalid-arguments".equals(Dispatch.invoke("layerAdd",
+                o("{\"source\":\"tape\",\"dataset\":\"x\",\"start\":\"2024-01-01T00:00\",\"end\":\"2024-01-01T01:00\"}")).error()));
+        Dispatch.Result view = Dispatch.invoke("viewGet", null);
+        expect("dispatch: viewGet answers the projection and lambda: " + view.message() + " " + view.value(),
+                view.ok() && !view.value().optString("projection").isEmpty() && view.value().has("warp_lambda") && view.value().has("zoom"));
+        String before = view.ok() ? view.value().getString("projection") : "orthographic";
+        Dispatch.Result set = Dispatch.invoke("viewSet", o("{\"projection\":\"hpc\",\"warp_lambda\":0.5}"));
+        Dispatch.Result after = Dispatch.invoke("viewGet", null);
+        expect("dispatch: viewSet changes what viewGet reads: " + set.error() + " " + after.value(),
+                set.ok() && after.ok() && after.value().getString("projection").equals("hpc") && after.value().getDouble("warp_lambda") == 0.5);
+        Dispatch.invoke("viewSet", o("{\"projection\":\"" + before + "\"}"));
+        expect("dispatch: viewSet refuses an unknown projection", "invalid-arguments".equals(Dispatch.invoke("viewSet", o("{\"projection\":\"mercator\"}")).error()));
+        expect("dispatch: viewSet refuses a lambda outside [-1, 1]", "invalid-arguments".equals(Dispatch.invoke("viewSet", o("{\"warp_lambda\":2}")).error()));
+        Dispatch.Result still = Dispatch.invoke("exportStill", o("{\"path\":\"nowhere.png\"}"));
+        expect("dispatch: exportStill with nothing loaded fails in words, not a throw: " + still.message(), "failed".equals(still.error()) && still.message().contains("no image layer"));
+        expect("dispatch: previewRender refuses a tiny size", "invalid-arguments".equals(Dispatch.invoke("previewRender", o("{\"long_side\":2}")).error()));
 
         // ControlRegistry
         ControlRegistry.Entry layers = ControlRegistry.get("imageLayersNew");

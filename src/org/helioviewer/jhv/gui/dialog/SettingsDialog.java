@@ -158,6 +158,11 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         JCheckBox punchLive = new JCheckBox("<html>PUNCH Live refresh<br/><small>Adds a Live box to PUNCH layers; polls only while the archive is under a week old",
                 org.helioviewer.jhv.io.LiveRefresh.enabled());
         punchLive.addActionListener(e -> Settings.setProperty(org.helioviewer.jhv.io.LiveRefresh.KEY, Boolean.toString(punchLive.isSelected())));
+        JCheckBox api = new JCheckBox("<html>Allow scripts and assistants on this computer<br/><small>The heliofits Python package and the heliofits-mcp server reach Studio through a local port with a key in ~/HFStudio/api.json",
+                org.helioviewer.jhv.io.api.LocalApi.isEnabled());
+        api.addActionListener(e -> org.helioviewer.jhv.io.api.LocalApi.setEnabled(api.isSelected()));
+        JCheckBox apiConfirm = new JCheckBox("Ask before a script removes or discards something", org.helioviewer.jhv.io.api.LocalApi.confirmsDestructive());
+        apiConfirm.addActionListener(e -> org.helioviewer.jhv.io.api.LocalApi.setConfirmsDestructive(apiConfirm.isSelected()));
 
         return new SettingsForm()
                 .row("Preferred server:", comboServer)
@@ -165,6 +170,8 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
                 .row(null, sampHub)
                 .row(null, checkUpdates)
                 .row("Live data:", punchLive)
+                .row("Local API:", api)
+                .row(null, apiConfirm)
                 .end();
     }
 

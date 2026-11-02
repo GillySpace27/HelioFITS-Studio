@@ -210,6 +210,13 @@ public final class DisplayController {
         display();
     }
 
+    /** Zoom every viewport by {@code factor} (above 1 closer), the registry's viewSet. */
+    public static void zoomBy(double factor) {
+        for (Viewport viewport : Display.getViewports())
+            viewport.zoom *= factor;
+        display();
+    }
+
     private static void zoomViewports(double wr) {
         double factor = Camera.zoomFactor(wr);
         for (Viewport viewport : Display.getViewports())

@@ -46,13 +46,46 @@ xvfb-run -a java --enable-preview -cp "bin:resources:$(find lib -name '*.jar' | 
 `RegistryCheck` fails when `docs/commands.json` is out of date, when a catalogued action is not a
 command, and when a call is not refused for a bad argument. Ids are API: never rename one.
 
-## Toward an MCP server, API or command line
+## Data commands
 
-The front ends are meant to be thin: read `docs/commands.json` for the tool list and call
-`Dispatch.invoke` for each call. They add no verbs. The shape of a `CommandSpec` follows an MCP tool
-so `tools/list` is the manifest and `tools/call` is `Dispatch.invoke`. The transport into a running
-Studio (SAMP or a localhost socket with a token), the confirmation rule for `destructive` commands,
-and an opt-in setting to switch it all on are not built yet; none is on by default.
+`DataCommands` (`gui/registry/`) holds the commands a notebook, the `heliofits` Python package or the
+`heliofits-mcp` server needs to do a task rather than press a menu item. They are registered like
+any other parameterised command, so `docs/commands.json` carries their schemas and the Python side
+reads that file; the Java registry is the source, the Python package follows it.
+
+| Command | Effect | What it does |
+|---|---|---|
+| `layerAdd` | write | Adds an image layer: `source` `jp2` (Helioviewer, `dataset` plus `observatory` as the server lists them, optional `cadence_s`) or `fits-library` (a HelioFITS Core dataset key or uid), over `start` to `end`. Answers when every frame is loaded (`wait`: `all`, `first` or `none`) with `layer_id`, `frames`, `name`. |
+| `layerList` | read | Every image layer: `layer_id`, `name`, `frames`, `loading`, `active`, `source`, `filter`, `start`, `end`, `frame`. |
+| `layerRemove` | destructive | Removes a layer. |
+| `layerReload` | write | Reads a layer's frames again; a FITS library layer queries the cache afresh, so files added since are picked up. A jp2 layer streams and is refused. |
+| `filterSet` | write | Sets a layer's `filter` (`none`, `mgn`, `wow`, `rhef`) and `params`, the image parameters by the names a saved session uses (`gamma`, `clippingMin`, `plane`, ...). |
+| `viewSet` | write | `projection`, `zoom` (a factor), `warp_lambda`, `tracking`, `show_corona`, `differential_rotation`, `multiview`. |
+| `viewGet` | read | The same, as it stands. |
+| `frameGet` | read | Writes one FITS frame's decoded values (before any colour table) as an hf-decode-dump/1 document (`DecodeDump`, the form the sunpy parity test reads) and answers its path. |
+| `previewRender` | read | Renders the scene as an export would, to a PNG in the cache's `Previews` folder, at `long_side` pixels. |
+| `exportStill` | write | Exports the frame on screen as a PNG to `path`, with its processing record beside it. |
+| `exportMovie` | write | Exports one loop of the frames to `path`, in the format the settings choose. |
+
+A layer's `layer_id` is a small integer given when a data command first sees the layer; it is not
+stable across runs. Loads and exports answer when they are done: the handler returns a
+`Dispatch.Deferred` and the caller's thread (never the event thread) waits for it, up to
+`Dispatch.DEFERRED_TIMEOUT_S`. Exports go through `ExportMovie.startSized`, so the person's own
+recording size and format are read, never written.
+
+Not built: a filter's own parameters (MGN, WOW and RHEF have none exposed yet), a frame range or
+frame rate on `exportMovie` (the playback range and speed apply), `frameGet` for a jp2 layer (it
+decodes FITS files on this computer), and SOAR, ASPIICS, synoptic or PUNCH-by-query sources on
+`layerAdd` (load those from the FITS library).
+
+## The local API
+
+`LocalApi` (`io/api/`, `docs/local-api.md`) is the transport: the registry over HTTP on
+127.0.0.1, JSON-RPC 2.0, a token per run in `~/HFStudio/api.json`. Off by default; Settings >
+General switches it on, and a second switch (on by default) puts every `destructive` command to the
+person in a dialog before it runs. The front ends are thin: `commands.list` is `docs/commands.json`
+live, `commands.invoke` is `Dispatch.invoke`. They add no verbs. SAMP remains for the Core and the
+Swift app; an MCP server inside Studio is not built (the `heliofits-mcp` process talks to this API).
 
 The menu items and toolbar buttons still call their Swing Action directly, because Swing owns that
 call. They run the same Action object the registry's handler runs.
