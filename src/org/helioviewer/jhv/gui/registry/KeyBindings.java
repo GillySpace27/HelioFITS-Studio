@@ -132,7 +132,7 @@ public final class KeyBindings {
     static String refusal(String id, KeyStroke ks) {
         boolean functionKey = ks.getKeyCode() >= KeyEvent.VK_F1 && ks.getKeyCode() <= KeyEvent.VK_F12;
         if ((ks.getModifiers() & MODIFIERS) == 0 && !functionKey)
-            return "A shortcut needs Ctrl, Alt or " + (Platform.isMacOS() ? "Cmd" : "Meta") + ", or to be a function key, so it cannot clash with the keys the canvas and the time slider use.";
+            return "A keybinding needs Ctrl, Alt or " + (Platform.isMacOS() ? "Cmd" : "Meta") + ", or to be a function key, so it cannot clash with the keys the canvas and the time slider use.";
         if (ks.getKeyCode() == KeyEvent.VK_UNDEFINED || ks.isOnKeyRelease() || isModifierKey(ks.getKeyCode()))
             return "Press a key together with the modifier.";
         String stored = encode(ks);

@@ -181,7 +181,7 @@ public final class ActionCatalog {
                 "Save this scene as a template: a starting point with a name, a description, a thumbnail and a time rule");
         put("templates", new org.helioviewer.jhv.gui.dialog.TemplateManager.Open(), mac ? "Window/Templates..." : "File/Templates...",
                 "Manage scene templates: open, duplicate, rename, edit, share, set as startup or retire");
-        // The person's own keyboard shortcuts (Settings > Shortcuts), applied over the defaults stated above
+        // The person's own keybindings (Settings > Keybindings), applied over the defaults stated above
         org.helioviewer.jhv.gui.registry.KeyBindings.apply();
     }
 
