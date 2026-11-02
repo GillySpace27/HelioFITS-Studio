@@ -462,7 +462,10 @@ append_feed_record() {
            --channel "$FEED_CHANNEL" --tag "$TAG" --url "https://github.com/$REPO/releases/tag/$TAG" \
            --notes-file "$FEED_NOTES" "$@" \
        && python3 "$FEED_SITE/heliosoftware/feed/build_feed.py"; then
-        echo "==> feed record written in $FEED_SITE (heliofits-studio.json, feed.xml, whats-new). Review 'git -C $FEED_SITE diff --stat'; committing and pushing the Website is a separate step for Gilly."
+        echo "==> feed record written in $FEED_SITE (heliofits-studio.json, feed.xml, whats-new)."
+        echo "    Once package.yml has attached the Windows and Linux packages, open the site pull request with"
+        echo "    (cd $FEED_SITE && python3 tools/release_pr.py --product heliofits-studio --version $VERSION)"
+        echo "    or let the site's release-sync.yml open it (every 6 hours). Merging it publishes gilly.space."
     else
         echo "!! feed record NOT written (the release itself is fine). Fix the cause above, then run ./deploy_release.sh feed" >&2
     fi
