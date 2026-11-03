@@ -75,7 +75,7 @@ an autosave cannot turn a template back into a plain session.
 |---|---|---|
 | File > New from Template... | `newFromTemplate` | Lists the templates with thumbnail, description, datasets and the range each would open on now. Open loads it here, or in a new window when this session has unsaved changes. |
 | File > Save as Template... | `saveAsTemplate` | Asks for a name, a description, a time rule (default Latest data), a span (default the current range's length) and a lag, then writes the template and a thumbnail of the canvas. The thumbnail is taken as Edit > Copy Frame takes its picture, so a screenshot also lands in Exports. |
-| Window > Templates... (macOS), File > Templates... (elsewhere) | `templates` | The template manager: one table (thumbnail, name, description, time, datasets, last modified) with Open, Duplicate, Rename, Edit, Set as Startup, Reveal, Share Template, Retire and Refresh Data. |
+| Window > Templates... (macOS), File > Templates... (elsewhere) | `templates` | The template manager: one table (thumbnail, name, description, time, datasets, last modified) with Save Current Scene..., Open, Duplicate, Rename, Edit, Set as Startup, Reveal, Share Template, Retire and Refresh Data. |
 
 Set as Startup stores the template's path in the pinned default session setting
 (`startup.loadState`, the one File > Set Current Session as Default uses), so each launch opens
