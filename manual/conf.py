@@ -13,16 +13,41 @@ with open(os.path.join(_root, "VERSION"), encoding="utf-8") as _f:
 project = "HelioFITS Studio"
 author = "Gilly, NWRA"
 copyright = "the HelioFITS Studio and JHelioviewer authors; MPL 2.0"
-extensions = ["myst_parser"]
+extensions = ["myst_parser", "sphinx_copybutton"]
 myst_enable_extensions = ["colon_fence", "deflist", "substitution"]
 myst_substitutions = {"release": release}
 myst_heading_anchors = 3
 source_suffix = {".md": "markdown"}
 root_doc = "index"
 exclude_patterns = ["_build", "README.md"]
-html_theme = "alabaster"
-html_title = f"HelioFITS Studio {release} manual"
-html_static_path = []
+html_theme = "furo"
+html_title = f"HelioFITS Studio {release}"
+html_logo = "../resources/images/HFStudio_icon_512.png"
+html_favicon = "../resources/images/HFStudio_icon_512.png"
+html_static_path = ["_static"]
+html_css_files = ["manual.css"]
+# Solar orange accents on a neutral page; Furo follows the reader's light or dark setting.
+html_theme_options = {
+    "sidebar_hide_name": False,
+    "navigation_with_keys": True,
+    "source_repository": "https://github.com/GillySpace27/HelioFITS-Studio/",
+    "source_branch": "master",
+    "source_directory": "manual/",
+    "light_css_variables": {
+        "color-brand-primary": "#c2410c",
+        "color-brand-content": "#b45309",
+        "color-admonition-title--important": "#c2410c",
+        "font-stack": "Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+    },
+    "dark_css_variables": {
+        "color-brand-primary": "#fb923c",
+        "color-brand-content": "#fbbf24",
+        "color-background-primary": "#14161a",
+        "color-background-secondary": "#1b1e24",
+    },
+}
+copybutton_prompt_text = r"\$ "
+copybutton_prompt_is_regexp = True
 latex_engine = "xelatex"
 latex_documents = [("index", "HFStudio-Manual.tex", "HelioFITS Studio User Manual", author, "manual")]
 latex_elements = {"papersize": "letterpaper", "pointsize": "11pt", "extraclassoptions": "openany"}
