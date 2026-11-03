@@ -444,7 +444,10 @@ public final class Actions {
                         .method("HEAD", java.net.http.HttpRequest.BodyPublishers.noBody())
                         .timeout(java.time.Duration.ofSeconds(5)).build();
                 return client.send(req, java.net.http.HttpResponse.BodyHandlers.discarding()).statusCode() / 100 == 2;
-            } catch (Exception ex) {
+            } catch (java.io.IOException | IllegalArgumentException ex) {
+                return false;
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
                 return false;
             }
         }
