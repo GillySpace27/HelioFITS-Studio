@@ -24,6 +24,18 @@ public final class AppInfo {
     // The field guide (HFStudio-Guide.pdf) ships as an asset of every release, so the releases
     // page is the one place that documents this build rather than upstream JHelioviewer.
     public static final String documentationURL = downloadURL;
+
+    /**
+     * The field guide that belongs to this build: the HFStudio-Guide.pdf attached to the release
+     * with the same version. Linked, not bundled: the guide is built at publish time, after the
+     * jars and CI packages, and a bundled copy would change the jar the parity check pins. The
+     * releases page when the version is not a plain x.y.z (a build with no VERSION file).
+     */
+    public static String guideURL(String version) {
+        if (version == null || !version.matches("\\d+\\.\\d+\\.\\d+"))
+            return downloadURL;
+        return downloadURL + "/download/v" + version + "/HFStudio-Guide.pdf";
+    }
     public static final String emailAddress = "gilly@nwra.com";
     public static String version = "2.-1.-1";
     public static String revision = "-1";
