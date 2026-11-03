@@ -115,7 +115,7 @@ the folds open up; double-click to reset); **Wireframe** and **Surface** with an
 (fits-library)=
 ## The FITS library
 
-HelioFITS Core is the FITS library engine shared by the HelioFITS programs; the HelioFITS Cache
+HelioFITS Core is the FITS library engine shared by the HelioFITS Suite programs; the HelioFITS Cache
 Manager is the Mac app that downloads solar data into that library. The macOS build of Studio
 carries its own copy of HelioFITS Core.
 
