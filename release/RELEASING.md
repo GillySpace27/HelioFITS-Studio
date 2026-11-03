@@ -280,7 +280,15 @@ a path that does not exist, or a path unchanged since the previous `v*` tag is r
 `ant check-all` (step `docs`) and `ship.sh gate` run it in warn-only mode for now; `--strict`
 makes it fail, and turning that on is Gilly's call. The pointers never reach people:
 `AppInfo.whatsNew` (the Welcome window), the release notes and the feed record strip them.
-When the user manual moves to Sphinx (`manual/`, DOCS-2), pointers name its pages instead.
+A pointer at the user manual names its page, for example `[docs: manual/loading-data.md]`.
+
+#### The user manual (DOCS-2)
+
+`manual/` is the user manual: Sphinx with MyST Markdown, HTML and PDF, built by Read the Docs from
+`.readthedocs.yaml`. How it is built and what is generated is in `manual/README.md`. `ant check-all`
+(steps `manual-refs` and `manual`) and `ship.sh gate` fail when its generated pages are stale, when it
+names a menu item that does not exist, or when Sphinx warns. Until Gilly switches the release asset
+over, the field guide above (`HFStudio-Guide.pdf`) is still what a release attaches.
 
 ### 4. Notarize (builds the dmg)
 

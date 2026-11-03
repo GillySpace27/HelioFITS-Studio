@@ -101,6 +101,14 @@ gate() {
     # Docs reconcile (DOCS-1), warn only: lists changelog bullets with no [docs: ...] pointer or whose
     # pointed-to file did not change since the last tag. Add --strict here when Gilly turns it on.
     python3 "$HERE/docs_check.py"
+    # The user manual (DOCS-2): generated pages current and menu paths real; then the strict HTML build
+    # when Sphinx is installed here (pip install -r manual/requirements.txt), a note when it is not.
+    python3 "$HERE/build_manual_refs.py" --check
+    if [ -f "$SRC/manual/conf.py" ] && python3 -c "import sphinx, myst_parser" > /dev/null 2>&1; then
+        python3 -m sphinx -q -W --keep-going -b html "$SRC/manual" "${TMPDIR:-/tmp}/hfs-manual-html"
+    else
+        echo "manual: not built here (Sphinx not installed, or no manual/); CI checks it"
+    fi
     # The machine half of step 5 on every dmg publish would attach: starts, draws, no uncaught exception.
     for _d in "$HERE/HFStudio-$(version).dmg" "$HERE/HFStudio-$(version)-intel.dmg"; do
         [ -f "$_d" ] && "$HERE/smoke_dmg.sh" "$_d"

@@ -1,0 +1,2 @@
+```{include} ../../docs/cli.md
+```

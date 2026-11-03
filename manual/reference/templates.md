@@ -1,0 +1,2 @@
+```{include} ../../docs/templates.md
+```
