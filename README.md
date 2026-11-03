@@ -46,7 +46,7 @@ Every package on the [Releases page](https://github.com/GillySpace27/HelioFITS-S
 - **Apple Silicon Mac:** open `HFStudio-<version>.dmg` and drag HelioFITS Studio to Applications. The dmg is signed and notarized.
 - **Intel Mac:** the same, with `HFStudio-<version>-intel.dmg`, also signed and notarized.
 - **Windows:** right-click `HFStudio-<version>-windows.zip`, choose *Extract All* (it will not start from inside the zip), and run `HFStudio\HFStudio.exe` from the folder it makes. There is no installer and no administrator rights are needed: the app writes only to your own folders. The app is not code-signed yet, so Windows may warn that it comes from an unknown publisher; choose *More info*, then *Run anyway*.
-- **Linux:** unpack `HFStudio-<version>-linux.tar.gz` anywhere and run `HFStudio/bin/HFStudio`.
+- **Linux:** unpack `HFStudio-<version>-linux.tar.gz` anywhere and run `HFStudio/bin/HFStudio`. This package is **x86_64 only** (64-bit Intel and AMD). On an ARM64 (aarch64) Linux machine, such as Ubuntu on an ARM server or a Raspberry Pi, the launcher stops with "Exec format error"; an ARM64 package is planned.
 
 The Intel Mac and Linux packages pass our automated checks but have not yet been used on real machines, and the Windows package only by a few people, so we would especially like to hear how they go.
 
