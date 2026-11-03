@@ -9,8 +9,9 @@ import org.json.JSONObject;
 /**
  * The small part of JSON Schema the command registry uses, enough to refuse a bad call before it
  * reaches a handler: an object with typed properties ({@code string}, {@code integer},
- * {@code number}, {@code boolean}), {@code required}, {@code enum}, {@code minimum},
- * {@code maximum} and {@code additionalProperties: false}. The same schema objects are published
+ * {@code number}, {@code boolean}, {@code object} for a bag of named values the handler reads
+ * itself), {@code required}, {@code enum}, {@code minimum}, {@code maximum} and
+ * {@code additionalProperties: false}. The same schema objects are published
  * in docs/commands.json, so an MCP, API or CLI front end reads exactly what is enforced here.
  */
 final class Schema {
@@ -45,11 +46,12 @@ final class Schema {
             case "integer" -> v instanceof Integer || v instanceof Long;
             case "number" -> v instanceof Number;
             case "boolean" -> v instanceof Boolean;
+            case "object" -> v instanceof JSONObject;
             case "" -> true;
             default -> false;
         };
         if (!ok) {
-            out.add("argument '" + key + "' must be " + (type.isEmpty() ? "a supported type" : (type.startsWith("i") ? "an " : "a ") + type));
+            out.add("argument '" + key + "' must be " + (type.isEmpty() ? "a supported type" : (type.startsWith("i") || type.startsWith("o") ? "an " : "a ") + type));
             return;
         }
         JSONArray allowed = p.optJSONArray("enum");

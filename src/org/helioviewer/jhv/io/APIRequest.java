@@ -93,7 +93,8 @@ public record APIRequest(@Nonnull String server, int sourceId, long startTime, l
         return new APIRequest(_server, _sourceId, _startTime, _endTime, _cadence);
     }
 
-    public static APIRequest fromRequestJson(JSONObject jo) throws Exception {
+    /** Throws IllegalArgumentException, in words, when no server or dataset matches. */
+    public static APIRequest fromRequestJson(JSONObject jo) {
         long t = System.currentTimeMillis();
         long _startTime = TimeUtils.optParse(jo.optString("startTime"), t - 2 * TimeUtils.DAY_IN_MILLIS);
         long _endTime = TimeUtils.optParse(jo.optString("endTime"), t);
@@ -106,11 +107,11 @@ public record APIRequest(@Nonnull String server, int sourceId, long startTime, l
         if (DataSources.getServer(_server) == null)
             _server = Settings.getProperty("dataSources.defaultServer");
         if (DataSources.getServer(_server) == null) // very unlikely
-            throw new Exception("Unknown server");
+            throw new IllegalArgumentException("Unknown server");
 
         int _sourceId = DataSources.selectDataset(_server, observatory, dataset);
         if (_sourceId < 0)
-            throw new Exception("Empty request result");
+            throw new IllegalArgumentException("No dataset matches '" + observatory + "' '" + dataset + "' on " + _server);
 
         return new APIRequest(_server, _sourceId, _startTime, _endTime, _cadence);
     }

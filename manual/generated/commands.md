@@ -358,6 +358,39 @@ These are run by scripts and Search Controls rather than from a menu; the argume
 * - Rotate the view 90 degrees about one axis of the screen
   - Arguments: `axis`
   - `rotateView90`
+* - Add an image layer for a dataset over a time range and wait for its frames
+  - Arguments: `observatory`, `wait`, `start`, `end`, `source`, `cadence_s`, `dataset`
+  - `layerAdd`
+* - The image layers in the scene, with their ids
+  - No arguments
+  - `layerList`
+* - Remove an image layer from the scene
+  - Arguments: `layer_id`
+  - `layerRemove`
+* - Read a layer's frames again; a FITS library layer queries the cache afresh, so files added since are picked up
+  - Arguments: `wait`, `layer_id`
+  - `layerReload`
+* - Set a layer's image filter and its FITS display parameters
+  - Arguments: `filter`, `layer_id`, `params`
+  - `filterSet`
+* - Set the view: projection, zoom, Box-Cox lambda, tracking, corona
+  - Arguments: `multiview`, `show_corona`, `zoom`, `differential_rotation`, `projection`, `warp_lambda`, `tracking`
+  - `viewSet`
+* - The current view
+  - No arguments
+  - `viewGet`
+* - Write one FITS frame's decoded values, as the layer shows them before any colour table, to an hf-decode-dump/1 document and return its path
+  - Arguments: `layer_id`, `frame`
+  - `frameGet`
+* - Render the scene as an export would, to a PNG in Studio's cache (not among the exports), and return its path
+  - Arguments: `long_side`
+  - `previewRender`
+* - Export the frame on screen as a PNG, with its processing record beside it
+  - Arguments: `path`, `long_side`
+  - `exportStill`
+* - Export one loop of the loaded frames as a movie in the format the settings choose, with its processing record beside it
+  - Arguments: `path`, `long_side`
+  - `exportMovie`
 * - List every command: its id, what it does and what it changes
   - No arguments
   - `listCommands`
