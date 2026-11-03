@@ -46,6 +46,11 @@ public final class FileDropCheck {
         expect("a folder opens its image files, by name: " + names, names.equals(List.of("a_0001.fits", "b_0002.fits", "c.fit")));
         expect("an empty folder opens nothing", FileDropHandler.folderImages(Files.createTempDirectory("hfs-drop-empty").toFile()).isEmpty());
 
+        List<File> dropped = List.of(new File("/x/b_0002.fits"), new File("/x/a_0001.fits"), new File("/y/c.fit"));
+        expect("files dropped together are one group, by name",
+                FileDropHandler.groupImages(dropped).stream().map(File::getName).toList().equals(List.of("a_0001.fits", "b_0002.fits", "c.fit")));
+        expect("one dropped file stays a group of one", FileDropHandler.groupImages(List.of(new File("a.fits"))).size() == 1);
+
         String one = FileDropHandler.skippedMessage(List.of("notes.txt"));
         expect("one file skipped is named, singular", one.startsWith("This was not opened:") && one.contains("notes.txt"));
         expect("and the message says what is accepted", one.contains(".fits") && one.contains("folder"));
