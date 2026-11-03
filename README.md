@@ -1,9 +1,15 @@
 # HelioFITS Studio
 
-[![checks](https://github.com/GillySpace27/HelioFITS-Studio/actions/workflows/checks.yml/badge.svg?branch=master)](https://github.com/GillySpace27/HelioFITS-Studio/actions/workflows/checks.yml) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23541893.svg)](https://doi.org/10.5281/zenodo.23541893)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23541893.svg)](https://doi.org/10.5281/zenodo.23541893)
+[![Latest release](https://img.shields.io/github/v/release/GillySpace27/HelioFITS-Studio?include_prereleases&style=flat)](https://github.com/GillySpace27/HelioFITS-Studio/releases)
+[![checks](https://github.com/GillySpace27/HelioFITS-Studio/actions/workflows/checks.yml/badge.svg?branch=master)](https://github.com/GillySpace27/HelioFITS-Studio/actions/workflows/checks.yml)
+[![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-blue.svg)](LICENSE)
+![Platforms: macOS, Windows, Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg)
 
-> **HelioFITS** previews solar FITS files in Finder and Quick Look. **HelioFITS Studio** is the full desktop application for working with coronagraph and wide-field solar imagery.
-> Looking for the Finder and Quick Look previews? See [HelioFITS](https://gilly.space/heliofits/).
+> **The HelioFITS suite**
+> - [HelioFITS Peek](https://github.com/GillySpace27/HelioFITS-Peek): solar FITS thumbnails and previews in macOS Finder and Quick Look.
+> - [HelioFITS Studio](https://github.com/GillySpace27/HelioFITS-Studio): a desktop viewer for coronagraph and wide-field solar imagery, forked from JHelioviewer.
+> - [HelioFITS Suite](https://github.com/GillySpace27/HelioFITS-suite): how the programs fit together, with one DOI to cite them all.
 
 HelioFITS Studio is a desktop viewer for solar and heliospheric imagery, built around coronagraph and wide-field data such as NASA's PUNCH mission, SOHO/LASCO and PROBA-3/ASPIICS. It is a fork of [JHelioviewer](https://www.jhelioviewer.org), the open-source solar image browser of the ESA/NASA Helioviewer Project. We kept JHelioviewer's 3-D view of the Sun, its timelines and its event overlays, and added the tools we needed to work with the outer corona.
 
@@ -48,7 +54,7 @@ For anything else, the cross-platform `HFStudio-<version>.zip` runs wherever Jav
 
 ## Coming from JHelioviewer
 
-The first time it runs, HelioFITS Studio copies your settings and saved states from `~/JHelioviewer-SWHV` into `~/HFStudio` and leaves the originals alone, so JHelioviewer keeps working beside it. The copy only happens while `~/HFStudio` does not exist yet. Old sessions can always be opened directly with File > Load State.
+The first time it runs, HelioFITS Studio copies your settings and saved states from `~/JHelioviewer-SWHV` into `~/HFStudio` and leaves the originals alone, so JHelioviewer keeps working beside it. The copy only happens while `~/HFStudio` does not exist yet. Old sessions can always be opened directly with File > Open Session...
 
 ## Licence, source code and bundled components
 
