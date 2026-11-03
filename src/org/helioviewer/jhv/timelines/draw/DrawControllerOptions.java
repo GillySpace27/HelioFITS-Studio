@@ -5,6 +5,7 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.util.Objects;
 
+import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -54,6 +55,11 @@ class DrawControllerOptions extends JPanel {
             zoomTo(item.zoom, item.number);
         });
 
+        // Zoom to fit: the window becomes the time bounds of the loaded layers (same as the Zoom Timeline to Fit command)
+        JButton fitButton = Buttons.flat("Fit");
+        fitButton.setToolTipText("Zoom the timeline to fit the loaded layers");
+        fitButton.addActionListener(e -> DrawController.zoomToFit());
+
         lockButton = Buttons.flatToggle(Buttons.unlock, false);
         lockButton.setToolTipText("Synchronize movie with time series");
         lockButton.addActionListener(e -> {
@@ -88,6 +94,7 @@ class DrawControllerOptions extends JPanel {
         JPanel togglePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         togglePanel.add(stackedButton);
         togglePanel.add(zoomCombo);
+        togglePanel.add(fitButton);
         togglePanel.add(lockButton);
         togglePanel.add(endpointsButton);
         togglePanel.add(new JLabel("↕"));

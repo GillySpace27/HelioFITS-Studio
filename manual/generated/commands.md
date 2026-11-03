@@ -119,6 +119,9 @@ Every command HelioFITS Studio has, as the menus, Help > Search Controls and the
 * - View > Zoom to Fit
   -
   - `zoomFit`
+* - View > Zoom Timeline to Fit
+  - Set the timeline window to the time bounds of the loaded layers
+  - `zoomTimelineFit`
 * - View > Zoom In
   -
   - `zoomIn`
