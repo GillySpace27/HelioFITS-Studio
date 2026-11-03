@@ -25,9 +25,12 @@ float warpRadius(const float r) {
     if (outerRadius <= 1. || r <= 1.) {
         unit = r * limbPos;
     } else {
-        float u = warp.lambda == 0.
-                ? log(r) / log(outerRadius)
-                : (pow(r, warp.lambda) - 1.) / (pow(outerRadius, warp.lambda) - 1.);
+        // Explicit branch, as in imageCommon.frag: no 0 / 0 is ever evaluated at lambda = 0.
+        float u;
+        if (warp.lambda == 0.)
+            u = log(r) / log(outerRadius);
+        else
+            u = (pow(r, warp.lambda) - 1.) / (pow(outerRadius, warp.lambda) - 1.);
         unit = limbPos + u * (1. - limbPos);
     }
     return unit * outerRadius;
