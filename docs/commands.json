@@ -317,6 +317,24 @@
         "type": "object",
         "properties": {}
       },
+      "name": "zoomTimelineFit",
+      "description": "Set the timeline window to the time bounds of the loaded layers",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": false
+      },
+      "x-effect": "write"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
       "name": "zoomIn",
       "description": "Zoom In",
       "annotations": {
