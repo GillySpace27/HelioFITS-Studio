@@ -18,3 +18,9 @@ and have not yet been checked against a live getDataSources listing; each layer'
 which channel it should be, so a wrong id shows on open. The thumbnail is a schematic of the
 wedges in approximate channel colours, not a rendering of data: replace it with a Save as
 Template thumbnail from a real scene.
+
+## radial-warp
+
+AIA 193 with LASCO C2 and C3 (Helioviewer source ids 11, 4 and 5) in the Helioradial projection at
+warp lambda -0.5, newest two hours. The thumbnail is a schematic, not a rendering of data: replace
+it with a Save as Template thumbnail from a real scene.
