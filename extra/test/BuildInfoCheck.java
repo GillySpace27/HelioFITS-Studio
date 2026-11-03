@@ -32,6 +32,11 @@ public final class BuildInfoCheck {
         expect("nothing loaded: the defaults, commit unknown, not dirty",
                 (AppInfo.version + " (r" + AppInfo.revision + ", unknown)").equals(AppInfo.buildId()));
 
+        expect("guide link: the release asset of this version",
+                "https://github.com/GillySpace27/HelioFITS-Studio/releases/download/v0.9.1/HFStudio-Guide.pdf".equals(AppInfo.guideURL("0.9.1")));
+        expect("guide link: no real version, the releases page",
+                AppInfo.downloadURL.equals(AppInfo.guideURL("2.-1.-1")) && AppInfo.downloadURL.equals(AppInfo.guideURL(null)));
+
         expect("at the release tag the label is the bare version", "0.8.3".equals(AppInfo.label("0.8.3", "0")));
         expect("112 commits past the tag: 0.8.3+112", "0.8.3+112".equals(AppInfo.label("0.8.3", "112")));
         expect("no tag here, or an unsubstituted token: the bare version",

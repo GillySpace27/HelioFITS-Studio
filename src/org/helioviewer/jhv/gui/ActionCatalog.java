@@ -116,7 +116,7 @@ public final class ActionCatalog {
         put("windowMinimize", new Actions.WindowMinimize(), mac ? "Window/Minimize" : "", "");
         put("windowZoom", new Actions.WindowZoom(), mac ? "Window/Zoom" : "", "");
         // Help
-        put("openUserManual", new Actions.OpenURLinBrowser("Open User Manual", AppInfo.documentationURL), "Help/Open User Manual", "");
+        put("openUserManual", new Actions.OpenUserManual(), "Help/Open User Manual", "");
         put("openChangeLog", new Actions.OpenURLinBrowser("Open Change Log", "https://github.com/GillySpace27/HelioFITS-Studio/blob/master/changelog.md"), "Help/Open Change Log", "");
         put("checkForUpdates", new Actions.CheckForUpdates(), "Help/Check for Updates...", "");
         put("reportBug", new Actions.OpenURLinBrowser("Report Bug/Request Feature", AppInfo.bugURL), "Help/Report Bug/Request Feature", "");
