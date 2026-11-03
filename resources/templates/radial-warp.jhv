@@ -1,0 +1,72 @@
+{
+ "org.helioviewer.jhv.state": {
+  "time": "2025-01-01T12:00:00",
+  "masterStartTime": "2025-01-01T10:00:00",
+  "masterEndTime": "2025-01-01T12:00:00",
+  "layers": [],
+  "imageLayers": [
+   {
+    "className": "org.helioviewer.jhv.layers.ImageLayer",
+    "name": "SDO AIA 193",
+    "id": "radial-aia-193",
+    "data": {
+     "APIRequest": {
+      "server": "ROB",
+      "sourceId": 11,
+      "startTime": "2025-01-01T10:00:00",
+      "endTime": "2025-01-01T12:00:00",
+      "cadence": 600
+     },
+     "filter": "NONE"
+    },
+    "enabled": true
+   },
+   {
+    "className": "org.helioviewer.jhv.layers.ImageLayer",
+    "name": "SOHO LASCO C2",
+    "id": "radial-lasco-c2",
+    "data": {
+     "APIRequest": {
+      "server": "ROB",
+      "sourceId": 4,
+      "startTime": "2025-01-01T10:00:00",
+      "endTime": "2025-01-01T12:00:00",
+      "cadence": 1200
+     },
+     "filter": "NONE"
+    },
+    "enabled": true,
+    "master": true
+   },
+   {
+    "className": "org.helioviewer.jhv.layers.ImageLayer",
+    "name": "SOHO LASCO C3",
+    "id": "radial-lasco-c3",
+    "data": {
+     "APIRequest": {
+      "server": "ROB",
+      "sourceId": 5,
+      "startTime": "2025-01-01T10:00:00",
+      "endTime": "2025-01-01T12:00:00",
+      "cadence": 1800
+     },
+     "filter": "NONE"
+    },
+    "enabled": true
+   }
+  ],
+  "projection": "Helioradial",
+  "warpLambda": -0.5,
+  "template": {
+   "name": "Radial warp (disk and corona)",
+   "description": "AIA 193 with LASCO C2 and C3 in the Helioradial projection, warped so the inner corona is stretched outward. Change the warp with Projection > Warp.",
+   "time": {
+    "mode": "latest",
+    "span": "PT2H",
+    "lag": "PT0S"
+   },
+   "thumbnail": "radial-warp.png",
+   "version": 1
+  }
+ }
+}
