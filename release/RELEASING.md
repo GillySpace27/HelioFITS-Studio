@@ -8,14 +8,17 @@ Gilly can follow this by hand with no assistant present. That is the point.
 
 ## One command: `release/release.sh <version>`
 
-Gilly runs this in Terminal.app and types the tag once. It does preflight (proxy, notary profile, Intel JDK,
+Gilly types the tag once in Terminal.app, or gives his yes in writing ("I confirm, deploy Studio v0.9.1") and
+an agent passes it as `--confirm v<version>` (the deploy-studio skill), which must equal the tag, implies
+`--auto-smoke`, and makes the run ask nothing more, so it can go unattended. It does preflight (proxy, notary profile, Intel JDK,
 parity Python, Friday rule), clones origin/master fresh on branch `master`, builds Intel then Apple Silicon
 (so the jar is final), notarizes, runs parity on the frozen jar (hash checked before and after), runs
 `ship.sh gate`, publishes, waits for `package.yml`, opens and merges the site PR from its own clone of the
 site repo (never `~/vscode/Website`), and verifies the live feed, asset hashes, stapling and Gatekeeper.
 `--resume` continues after a failure, `--auto-smoke` accepts `smoke_dmg.sh` as the smoke test, `--check`
-is the read-only preflight an agent may run. It must not be run from an agent session: the typed tag is
-the approval, and the per-step gates below stay in force underneath it.
+is the read-only preflight. Without `--confirm` it refuses an agent session or a missing terminal, since the
+typed tag is then the approval. Either way the yes covers that tag only, and the per-step gates below stay in
+force underneath it: release.sh hands them the approval itself, and nobody sets `HFS_*_APPROVED` from outside.
 
 ## What ships, and from where
 
@@ -800,3 +803,8 @@ release object; the next preview would have been `v5.6b-coronal-research`.
   failed with "gave no status" although Apple had already accepted the submission. The alarm
   in `notary_poll` is now 180 s. Before `prepare`, check that `release/.jdk-x64` exists in the
   tree it runs from.
+- **2026-11-03: release.sh could not be run by an agent at all, and asked a second question.** As merged
+  in PR 134 it refused any Claude Code session and any run without a terminal, so the agent-driven release
+  Gilly wanted had no path; and its site step ran `release_pr.py` without `--yes`, which asks y/N before the
+  push on a terminal and stops (exit 2) without one, so even a terminal run asked twice. Fix: `--confirm
+  v<version>` carries Gilly's written yes for that tag, and the site step passes `--yes` under the same yes.
