@@ -234,6 +234,7 @@ public final class MenuBar extends JMenuBar {
         viewMenu.setMnemonic(KeyEvent.VK_V);
         catalogItem(viewMenu, "zoomOne");
         catalogItem(viewMenu, "zoomFit");
+        catalogItem(viewMenu, "zoomTimelineFit");
         catalogItem(viewMenu, "zoomIn");
         catalogItem(viewMenu, "zoomOut");
         catalogItem(viewMenu, "resetAxis");

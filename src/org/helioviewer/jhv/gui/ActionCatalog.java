@@ -79,6 +79,7 @@ public final class ActionCatalog {
         // View
         put("zoomOne", new Actions.ZoomOneToOne(), "View/Actual Size", "Zoom to native resolution");
         put("zoomFit", new Actions.ZoomFit(), "View/Zoom to Fit", "");
+        put("zoomTimelineFit", new Actions.ZoomTimelineFit(), "View/Zoom Timeline to Fit", "Set the timeline window to the time bounds of the loaded layers");
         put("zoomIn", new Actions.ZoomIn(), "View/Zoom In", "");
         put("zoomOut", new Actions.ZoomOut(), "View/Zoom Out", "");
         put("resetAxis", new Actions.ResetCameraAxis(), "View/Reset View Axis", "");
