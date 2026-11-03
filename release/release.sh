@@ -183,7 +183,7 @@ verify() {
         sleep 30
     done
     [ -n "$_live" ] || fail "$FEED_URL does not list $V after 15 min"
-    VDIR="$HOME_DIR/verify-$V-$(date +%s)"; mkdir -p "$VDIR"   # fresh per run: no --clobber needed
+    VDIR="$HOME_DIR/verify-$V-$(date +%s)"; mkdir -p "$VDIR"   # fresh per run, so nothing is overwritten
     for n in $(release/deploy_release.sh assets all); do
         [ -f "release/$n" ] || { echo "   (no local copy of $n: CI asset or optional)"; continue; }
         gh release download "$TAG" --repo "$REPO" --pattern "$n" --dir "$VDIR"
