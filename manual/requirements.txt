@@ -1,3 +1,4 @@
 # The user manual's build (DOCS-2). Pinned; Dependabot does not watch this file.
-sphinx==9.2.0
+# Must install on Python 3.12 (ubuntu-latest's python3 in CI, and .readthedocs.yaml): Sphinx 9.2 needs 3.13.
+sphinx==9.1.1
 myst-parser==5.1.0
