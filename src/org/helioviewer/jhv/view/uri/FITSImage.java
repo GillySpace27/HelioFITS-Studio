@@ -247,6 +247,7 @@ public final class FITSImage {
             // A compressed cube decompresses whole and flat, plane-major, so the requested plane is
             // a slice of it. Asking unwrap for one plane more than we want is also the bounds check.
             Object all = unwrapPixelBuffer(chdu.getUncompressedData(), count * (plane + 1));
+            removeHalfQuantum(chdu, all, axes, plane);
             return plane == 0 && java.lang.reflect.Array.getLength(all) == count ? all : slice(all, plane * count, count);
         } else if (hdu instanceof ImageHDU ihdu) {
             int nAxis = ihdu.getHeader().getIntValue("NAXIS", 2);
@@ -260,6 +261,49 @@ public final class FITSImage {
             return ihdu.getData().getTiler().getTile(new int[]{plane, 0, 0}, new int[]{1, axes[0], axes[1]});
         } else {
             throw new Exception("Unsupported FITS HDU: " + hdu.getClass().getSimpleName());
+        }
+    }
+
+    /**
+     * nom-tam-fits 1.22.0 unquantizes a float image that is not dithered (ZQUANTIZ = NO_DITHER) as
+     * (i + 0.5) * ZSCALE + ZZERO; the 0.5 belongs to subtractive dithering only. The FITS convention
+     * (and astropy, cfitsio) give i * ZSCALE + ZZERO, so every such pixel came out half a quantum high.
+     * Seen on PUNCH L3 (CAM, PTM), where the quantum is about 1e-16 on pixels of 1e-15 to 3e-11.
+     * Only the requested plane is in {@code all} from index plane * count; tiles whose ZSCALE is 0
+     * (lossless fallback rows) are left alone. Remove this when the library is fixed.
+     */
+    private static void removeHalfQuantum(CompressedImageHDU chdu, Object all, int[] axes, int plane) throws Exception {
+        Header th = chdu.getHeader();
+        if (!(all instanceof float[]) && !(all instanceof double[]))
+            return;
+        String quantiz = th.getStringValue("ZQUANTIZ");
+        if (quantiz != null && !quantiz.trim().equalsIgnoreCase("NO_DITHER"))
+            return;
+        int col = -1;
+        for (int i = 1, n = th.getIntValue("TFIELDS", 0); i <= n; i++)
+            if ("ZSCALE".equalsIgnoreCase(th.getStringValue("TTYPE" + i)))
+                col = i - 1;
+        if (col < 0)
+            return;
+        double[] scale = (double[]) chdu.getData().getColumn(col);
+        int h = axes[0], w = axes[1];
+        int t1 = Math.max(1, th.getIntValue("ZTILE1", w)), t2 = Math.max(1, th.getIntValue("ZTILE2", 1)), t3 = Math.max(1, th.getIntValue("ZTILE3", 1));
+        int nx = (w + t1 - 1) / t1, ny = (h + t2 - 1) / t2;
+        long base = (long) plane * w * h;
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                int tile = (plane / t3) * nx * ny + (y / t2) * nx + x / t1;
+                double q = tile < scale.length ? 0.5 * scale[tile] : 0;
+                if (q == 0)
+                    continue;
+                int i = (int) (base + (long) y * w + x);
+                if (all instanceof float[] f) {
+                    if (f[i] != 0) // exactly 0 is how the library returns a blank pixel; not a quantized value
+                        f[i] = (float) (f[i] - q);
+                } else if (((double[]) all)[i] != 0) {
+                    ((double[]) all)[i] -= q;
+                }
+            }
         }
     }
 
