@@ -87,7 +87,7 @@ public final class AboutDialog extends StandardDialog implements Interfaces.Show
                 "changes to projection, filtering and export.<br/><br/>" +
                 "HelioFITS Studio is the full desktop application for working<br/>" +
                 "with coronagraph and wide-field solar imagery. Its sibling,<br/>" +
-                "the <a href='https://gilly.space/heliofits/'>HelioFITS</a> Quick Look extension, previews solar<br/>" +
+                "<a href='https://gilly.space/heliofits/'>HelioFITS Peek</a>, the Quick Look extension, previews solar<br/>" +
                 "FITS files in Finder and Quick Look.<br/><br/>" +
                 "JHelioviewer is © 2026 the <a href='https://www.jhelioviewer.org/about.html'>ESA JHelioviewer Team</a>,<br/>" +
                 "part of the ESA/NASA Helioviewer Project,<br/>" +

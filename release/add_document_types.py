@@ -4,7 +4,7 @@
     add_document_types.py <path to Contents/Info.plist>
 
 .jhv scenes: Editor, default handler. FITS images: Viewer at Alternate rank, so Finder keeps
-HelioFITS as the default and Studio is an "Open With" choice. Idempotent: running it again changes
+HelioFITS Peek as the default and Studio is an "Open With" choice. Idempotent: running it again changes
 nothing. Runs before signing, since it edits a file inside the bundle.
 """
 from __future__ import annotations

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the 1280 x 640 GitHub social preview card for a HelioFITS repository.
+"""Build the 1280 x 640 GitHub social preview card for a HelioFITS Suite repository.
 
 Usage (from the repository root):  python3 docs/social/make_social_card.py <peek|studio|suite>
 Needs Pillow. Writes docs/social/social-<name>.png. Upload it under
