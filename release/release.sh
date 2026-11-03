@@ -183,13 +183,13 @@ verify() {
         sleep 30
     done
     [ -n "$_live" ] || fail "$FEED_URL does not list $V after 15 min"
-    mkdir -p "$HOME_DIR/verify-$V"
+    VDIR="$HOME_DIR/verify-$V-$(date +%s)"; mkdir -p "$VDIR"   # fresh per run: no --clobber needed
     for n in $(release/deploy_release.sh assets all); do
         [ -f "release/$n" ] || { echo "   (no local copy of $n: CI asset or optional)"; continue; }
-        gh release download "$TAG" --repo "$REPO" --pattern "$n" --dir "$HOME_DIR/verify-$V" --clobber
-        [ "$(sha "$HOME_DIR/verify-$V/$n")" = "$(sha "release/$n")" ] || fail "uploaded $n differs from the local, notarized file"
+        gh release download "$TAG" --repo "$REPO" --pattern "$n" --dir "$VDIR"
+        [ "$(sha "$VDIR/$n")" = "$(sha "release/$n")" ] || fail "uploaded $n differs from the local, notarized file"
     done
-    for d in "$HOME_DIR"/verify-$V/*.dmg; do
+    for d in "$VDIR"/*.dmg; do
         [ -f "$d" ] || continue
         xcrun stapler validate "$d" >/dev/null || fail "$d: no stapled ticket"
         spctl -a -t open --context context:primary-signature "$d" 2>&1 | grep -q accepted || fail "$d: Gatekeeper rejects it"
