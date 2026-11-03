@@ -439,6 +439,16 @@ public final class Actions {
             try {
                 java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
                         .followRedirects(java.net.http.HttpClient.Redirect.NORMAL)
+                        // the proxy the app is configured with, credentials included (io/ProxySettings)
+                        .proxy(java.net.ProxySelector.getDefault())
+                        .authenticator(new java.net.Authenticator() {
+                            @Override
+                            protected java.net.PasswordAuthentication getPasswordAuthentication() {
+                                return java.net.Authenticator.requestPasswordAuthentication(getRequestingHost(), getRequestingSite(),
+                                        getRequestingPort(), getRequestingProtocol(), getRequestingPrompt(), getRequestingScheme(),
+                                        getRequestingURL(), getRequestorType());
+                            }
+                        })
                         .connectTimeout(java.time.Duration.ofSeconds(5)).build();
                 java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder(URI.create(url))
                         .method("HEAD", java.net.http.HttpRequest.BodyPublishers.noBody())
