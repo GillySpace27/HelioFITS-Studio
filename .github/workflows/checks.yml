@@ -49,12 +49,12 @@ jobs:
           linux-packages: xvfb glslang-tools python3-pil python3-numpy python3-jsonschema python3-astropy
 
       # The whole gate, strict: a check that prints SKIP fails here unless extra/test/ci-skips.txt
-      # names it with a reason. ruff comes from pip because the image does not carry it.
+      # names it with a reason. ruff and the manual's Sphinx come from pip because the image does not carry them.
       - name: Run ant check-all (strict)
         env:
           CHECKS_STRICT: '1'
         run: |
-          python3 -m pip install --quiet --user ruff
+          python3 -m pip install --quiet --user ruff -r manual/requirements.txt
           xvfb-run -a ant check-all
 
       # Kept for one release beside the strict gate: OpenJpegDecodeCheck and JpipRebuildCheck exit 0

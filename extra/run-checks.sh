@@ -182,7 +182,8 @@ unittests() {
         "$PY" extra/test/test_document_types.py &&
         "$PY" extra/test/test_smoke_dmg.py &&
         "$PY" extra/test/test_native_hashes.py &&
-        "$PY" extra/test/test_docs_check.py
+        "$PY" extra/test/test_docs_check.py &&
+        "$PY" extra/test/test_build_manual_refs.py
 }
 
 guards() {
@@ -233,6 +234,14 @@ fi
 # Docs reconcile (DOCS-1): every bullet in VERSION's changelog section names where it is documented.
 # Warn only for now: the warnings land in this step's log and the step stays ok.
 step docs "$PY" release/docs_check.py
+# The user manual (DOCS-2): its generated pages match the app's own files, every menu path it names is
+# a real menu item, and Sphinx builds it with no warnings (needs manual/requirements.txt).
+step manual-refs "$PY" release/build_manual_refs.py --check
+if "$PY" -c "import sphinx, myst_parser" > /dev/null 2>&1; then
+    step manual "$PY" -m sphinx -q -W --keep-going -b html manual "$OUT/manual-html"
+else
+    skipped_step manual "sphinx or myst-parser not installed (pip install -r manual/requirements.txt)"
+fi
 step ffmpeg "$PY" extra/ffmpeg/update_ffmpeg.py --check
 step licences "$PY" extra/licenses/sync_licenses.py --check
 

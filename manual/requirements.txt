@@ -1,0 +1,3 @@
+# The user manual's build (DOCS-2). Pinned; Dependabot does not watch this file.
+sphinx==9.2.0
+myst-parser==5.1.0

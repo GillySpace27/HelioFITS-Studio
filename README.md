@@ -54,7 +54,7 @@ For anything else, the cross-platform `HFStudio-<version>.zip` runs wherever Jav
 
 ## Coming from JHelioviewer
 
-The first time it runs, HelioFITS Studio copies your settings and saved states from `~/JHelioviewer-SWHV` into `~/HFStudio` and leaves the originals alone, so JHelioviewer keeps working beside it. The copy only happens while `~/HFStudio` does not exist yet. Old sessions can always be opened directly with File > Load State.
+The first time it runs, HelioFITS Studio copies your settings and saved states from `~/JHelioviewer-SWHV` into `~/HFStudio` and leaves the originals alone, so JHelioviewer keeps working beside it. The copy only happens while `~/HFStudio` does not exist yet. Old sessions can always be opened directly with File > Open Session...
 
 ## Licence, source code and bundled components
 
