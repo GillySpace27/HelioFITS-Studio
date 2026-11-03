@@ -44,7 +44,7 @@ release is cut. Older builds stay on the repository's `/releases` page, which is
 the way back to a previous one. GitHub Pages is case-sensitive, so `/jhv` and `/JHV` are separate paths;
 both exist and both were fixed. Only ever hand out the lowercase form.
 
-Eight assets, six from `publish` on the Mac and two added by CI. Their names are
+Eight assets, six from `publish` on the Mac and two added by CI. A ninth, `HFStudio-<version>-parity.json` (step 5b), was appended later and is also attached by `publish`. Their names are
 listed once, in **`release/assets.txt`** (`<pattern> local|ci`, `{v}` for the
 version); `publish`, the tracker and `package.yml` read that file, and rows are
 only ever appended:
@@ -349,6 +349,29 @@ Quit any running HelioFITS Studio first. A second instance cannot take the JPIP
 ehcache persistence lock, and the failure is not contained: `levelCache` stays
 null and every image read throws, which presents as a rendering bug rather than
 an "already running" message.
+
+### 5b. Decode-parity report
+
+`publish` refuses without `release/HFStudio-<version>-parity.json`, the record that this release's
+decoder equals sunpy's on a fixed set of real files (plus the named corrections in heliad's
+`docs/decode-parity.md`). It is the thing to cite in the paper for "this release". It needs the Mac that
+holds `~/HeliadLibrary`, a heliad checkout with its `[parity]` extras installed, and the network (the
+LASCO frames are also decoded with the NRL background subtracted):
+
+```sh
+cd ~/Documents/NWRA/PUNCH_Science/JHelioviewer-SWHV
+HELIAD_DIR=~/heliad HELIAD_PYTHON=~/heliad/.venv/bin/python release/parity.sh
+```
+
+It runs `DecodeParityDump` from inside the `HFStudio.jar` at the repository root, so build the jar
+(step 2) from a clean tree at HEAD first. The fixtures are pinned by SHA-256 in
+`release/parity-manifest.json`, which also lists what the library could not supply. The report records the
+Studio commit and jar hash, the heliad commit, the sunpy and astropy versions, every check with its value,
+tolerance and basis, and the observed maxima beside the assumed tolerances. Exit 0 means every pinned run
+passed; the report is written either way. `publish` then verifies that it names this jar, this commit,
+this manifest and a clean heliad, and `publish --dry-run` shows its hash. Rebuild the jar and the report
+is stale: run it again. Never edit the report by hand or the manifest to get a pass; a failing fixture is
+a finding (see heliad's docs). The report is attached as a new asset; the name is in `assets.txt`.
 
 ### 6. Publish (GATE)
 

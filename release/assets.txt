@@ -12,3 +12,4 @@ HFStudio-{v}-linux.tar.gz   ci
 HFStudio-Guide.pdf          local
 HFStudio-Guide.md           local
 fabric_suvi.json.gz         local
+HFStudio-{v}-parity.json    local
