@@ -60,6 +60,14 @@ public final class WelcomeChangelogCheck {
                 five.contains("- five") && five.contains("## HelioFITS Studio 0.8.4 (unreleased)") && five.contains("- four"));
         expect("and the folding stops at the last version that shipped", !five.contains("three"));
 
+        String pointed = """
+                ## HelioFITS Studio 0.8.6 (unreleased)
+                - six [docs: release/guide_content.json]
+                - seven [docs: none]
+                """;
+        String six = AppInfo.whatsNew(pointed, "0.8.6");
+        expect("[docs: ...] pointers are stripped from What's New: [" + six + "]", "- six\n- seven".equals(six));
+
         String real = Files.readString(Path.of("changelog.md"));
         String newest = null;
         for (String line : real.split("\n")) {

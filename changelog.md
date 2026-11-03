@@ -1,7 +1,36 @@
 
 # Revision history
 
-## HelioFITS Studio 0.8.8 (unreleased)
+Each new entry ends with a `[docs: ...]` pointer to where it is documented (`release/RELEASING.md`, "Docs pointers in the changelog"); the app and the release notes hide them.
+
+## HelioFITS Studio 0.9.0 (unreleased)
+
+### Command registry
+- Every command now has one stable id, a plain description, a note of what it changes (read, write, destructive or interface only) and a JSON Schema for its arguments and result, and every one is run through one place that checks the arguments first. Help > Search Controls (Cmd-K), the guided tours and the Welcome window run commands that way. docs/commands.json lists them all in the shape of an MCP tools list, so an MCP server, an API or a command line can be added later without a second list of verbs. Help > Search Controls now shows each command's keyboard shortcut and, for a control, the tours that show it. Three commands take arguments (seekFrame, seekTime, rotateView90) and two read (listCommands, describeControl). [docs: docs/commands.md, manual/index.md]
+- Eleven data commands, so a script can do a task rather than press a menu item: layerAdd (a Helioviewer or FITS library dataset over a time range, answered when its frames are loaded), layerList, layerRemove, layerReload (a FITS library layer asks the cache again, so a filled gap shows up), filterSet, viewSet and viewGet, frameGet (one frame's decoded values as an hf-decode-dump document, the form the sunpy parity test reads), previewRender, exportStill and exportMovie at a chosen size. Exports read the recording settings and never change them. [docs: docs/commands.md#data-commands]
+
+### Local API
+- Settings > General > Local API lets scripts and assistants on this computer drive Studio: the command registry over HTTP on 127.0.0.1 (JSON-RPC 2.0), at a port the system picks, with a key that is new each run in ~/HFStudio/api.json, readable by you alone. Off by default. The heliofits Python package and the heliofits-mcp server (Claude and other MCP clients) use it. A second switch, on by default, asks you in a dialog before a command that removes or discards something runs. [docs: docs/local-api.md]
+
+### Keybindings
+- Settings > Keybindings lists every command with its keybinding. Search by name, change a keybinding (Cmd or Ctrl, Alt, Shift and a key), remove it, or put it back to the default, one command or all at once. A keybinding that clashes with another command, with the system or with text editing (Cmd/Ctrl+C, X, A) is refused with the reason, and a keybinding must carry a modifier or be a function key so it cannot shadow J, K, L, I, O and the arrow keys. Changes apply at once, in the menus too, and are kept in the settings as `keys.<command id>`. The tip and tour texts that name a shortcut key are not rewritten when one is changed. [docs: manual/settings.md]
+
+### Fixes
+- Tile-compressed float images stored without dithering (the PUNCH L3 files among them) no longer read half a quantisation step too high. The FITS library Studio uses added that half step to every pixel, a bias of about 0.5% of the pixel on average and up to 50% on the faintest. Studio now takes it off, and agrees with astropy on the PUNCH files tested (the largest difference is 3.5e-18, float32 rounding). AIA, SUVI, ASPIICS and LASCO were not affected. [docs: release/RELEASING.md]
+
+### Documentation
+- HelioFITS Studio has a user manual, built with Sphinx in a light and a dark theme, and its revision history is generated from this changelog. [docs: manual/README.md]
+
+### App icon
+- The squircle window and the iris inside it are smaller (0.88 of their size), so a wider band of the violet ground shows around them, as on the RHEF icon on gilly.space [docs: none]
+
+### Windows
+- The Windows package is signed with Azure Artifact Signing. [docs: release/RELEASING.md]
+
+### Releasing
+- A release is published only with a decode-parity report for its own jar: Studio's decode of a fixed set of AIA, LASCO, PUNCH, ASPIICS and SUVI files is compared with sunpy and astropy, and the report is attached to the release. [docs: release/RELEASING.md]
+
+## HelioFITS Studio 0.8.8 (pre-release, 2026-10-28)
 
 ### Sun pizza and templates
 - Pizza, on the toolbar, cuts every shown image layer into its own wedges, squares or polar tiles of one Sun, so the same patch of the Sun is seen through every filter side by side. Nothing is resampled: each layer is drawn whole and keeps only its own cells. Wedges can be labelled with each channel's wavelength, the turn is animatable, and a spin can be recorded as a movie.
@@ -14,16 +43,6 @@
 - Decoded JPEG 2000 frames are converted to 8-bit grey straight from OpenJPEG's memory, without copying every frame into a 4-byte-a-pixel Java array first.
 - Counting the distinct levels of a frame for the layer readout no longer happens on the interface thread.
 - Settings > Network > Long requests chooses when the next piece of a request over the server's 1000-frame limit is asked for: as soon as the previous one has opened (the default and how it always worked), all at once, when the previous one is 80% downloaded, or when it has finished.
-
-### Command registry
-- Every command now has one stable id, a plain description, a note of what it changes (read, write, destructive or interface only) and a JSON Schema for its arguments and result, and every one is run through one place that checks the arguments first. Help > Search Controls (Cmd-K), the guided tours and the Welcome window run commands that way. docs/commands.json lists them all in the shape of an MCP tools list, so an MCP server, an API or a command line can be added later without a second list of verbs. Help > Search Controls now shows each command's keyboard shortcut and, for a control, the tours that show it. Three commands take arguments (seekFrame, seekTime, rotateView90) and two read (listCommands, describeControl).
-- Eleven data commands, so a script can do a task rather than press a menu item: layerAdd (a Helioviewer or FITS library dataset over a time range, answered when its frames are loaded), layerList, layerRemove, layerReload (a FITS library layer asks the cache again, so a filled gap shows up), filterSet, viewSet and viewGet, frameGet (one frame's decoded values as an hf-decode-dump document, the form the sunpy parity test reads), previewRender, exportStill and exportMovie at a chosen size. Exports read the recording settings and never change them.
-
-### Local API
-- Settings > General > Local API lets scripts and assistants on this computer drive Studio: the command registry over HTTP on 127.0.0.1 (JSON-RPC 2.0), at a port the system picks, with a key that is new each run in ~/HFStudio/api.json, readable by you alone. Off by default. The heliofits Python package and the heliofits-mcp server (Claude and other MCP clients) use it. A second switch, on by default, asks you in a dialog before a command that removes or discards something runs.
-
-### Keybindings
-- Settings > Keybindings lists every command with its keybinding. Search by name, change a keybinding (Cmd or Ctrl, Alt, Shift and a key), remove it, or put it back to the default, one command or all at once. A keybinding that clashes with another command, with the system or with text editing (Cmd/Ctrl+C, X, A) is refused with the reason, and a keybinding must carry a modifier or be a function key so it cannot shadow J, K, L, I, O and the arrow keys. Changes apply at once, in the menus too, and are kept in the settings as `keys.<command id>`. The tip and tour texts that name a shortcut key are not rewritten when one is changed.
 
 ### Fixes
 - Started with `java -jar` from a folder other than the jar's own, the Mac build loads the Metal library that sits beside the jar, not a possibly older copy in the working folder (which died with `UnsatisfiedLinkError: jhv_mirror_prepare`). The packaged app is unaffected.

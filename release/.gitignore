@@ -44,3 +44,4 @@ guide_content.prepanel.json
 .notarize-info.json
 .notarize-info.err
 .notarize-log-*.json
+HFStudio-*-parity.json
