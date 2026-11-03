@@ -160,7 +160,7 @@ $INTEL_INSTALL
 **Windows and Linux (early):** download **$TOP-windows.zip** or **$TOP-linux.tar.gz**. Each carries
 its own Java and needs no installer and no administrator rights. On Windows, right-click the zip,
 choose Extract All (it will not start from inside the zip), then run \`HFStudio\HFStudio.exe\`; on
-Linux, untar and run \`HFStudio/bin/HFStudio\`. 64-bit Intel and AMD machines only. The Windows build
+Linux, untar and run \`HFStudio/bin/HFStudio\`. Linux is x86_64 (64-bit Intel and AMD) only: on an ARM64 (aarch64) machine the launcher stops with \"Exec format error\"; an ARM64 package is planned. The Windows build
 is not code-signed yet, so Windows may say it "protected your PC"; choose More info, then Run anyway.
 Our build service adds these two to this page about ten minutes after it is published, and only
 once each has been started, drawn an image and decoded a JPEG 2000 file on a Windows and a Linux
