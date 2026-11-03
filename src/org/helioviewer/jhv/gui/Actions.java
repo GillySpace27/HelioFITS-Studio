@@ -923,6 +923,17 @@ public final class Actions {
         }
     }
 
+    public static class ZoomTimelineFit extends AbstractKeyAction {
+        public ZoomTimelineFit() {
+            super("Zoom Timeline to Fit", KeyStroke.getKeyStroke(KeyEvent.VK_9, DesktopIntegration.menuShortcutMask | InputEvent.SHIFT_DOWN_MASK));
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            org.helioviewer.jhv.timelines.draw.DrawController.zoomToFit();
+        }
+    }
+
     public static class ZoomFOVAnnotation extends AbstractAction {
         public ZoomFOVAnnotation() {
             super("Fit FOV Annotation");
