@@ -6,6 +6,17 @@ skill gets fixed.
 
 Gilly can follow this by hand with no assistant present. That is the point.
 
+## One command: `release/release.sh <version>`
+
+Gilly runs this in Terminal.app and types the tag once. It does preflight (proxy, notary profile, Intel JDK,
+parity Python, Friday rule), clones origin/master fresh on branch `master`, builds Intel then Apple Silicon
+(so the jar is final), notarizes, runs parity on the frozen jar (hash checked before and after), runs
+`ship.sh gate`, publishes, waits for `package.yml`, opens and merges the site PR from its own clone of the
+site repo (never `~/vscode/Website`), and verifies the live feed, asset hashes, stapling and Gatekeeper.
+`--resume` continues after a failure, `--auto-smoke` accepts `smoke_dmg.sh` as the smoke test, `--check`
+is the read-only preflight an agent may run. It must not be run from an agent session: the typed tag is
+the approval, and the per-step gates below stay in force underneath it.
+
 ## What ships, and from where
 
 One repository, **`GillySpace27/HelioFITS-Studio`**:
