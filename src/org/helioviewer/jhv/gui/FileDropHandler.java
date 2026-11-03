@@ -36,7 +36,8 @@ import org.json.JSONObject;
  * Cloud layer (several at once become its time series, matching the File-menu action), imagery
  * into image layers, a .jhv into a state load. A PNG this program exported carries its scene
  * (Provenance), and dropping it offers to reopen that scene instead. A folder loads the image
- * files directly inside it as one layer, as choosing them all in File > Open does. Anything not
+ * files directly inside it as one layer, as choosing them all in File > Open does; so do several
+ * image files dropped together (one layer, ordered by name), not one layer each. Anything not
  * recognized is named in a message, not only in the log: a drop that did nothing visible read
  * as a broken drop (Gilly, 2026-10-06).
  */
@@ -61,6 +62,7 @@ final class FileDropHandler extends DropTargetAdapter {
         }
 
         List<File> clouds = new ArrayList<>();
+        List<File> images = new ArrayList<>();
         List<String> skipped = new ArrayList<>();
         for (File f : files) {
             String n = f.getName().toLowerCase(Locale.ROOT);
@@ -78,7 +80,7 @@ final class FileDropHandler extends DropTargetAdapter {
             else if (n.endsWith(".jhv") || org.helioviewer.jhv.app.state.SessionArchive.isArchiveName(n))
                 Commands.loadState(f.toURI()); // a .data.zip carries its session inside it
             else if (ExtensionFileFilter.isImage(n))
-                Commands.loadImage(f.toURI());
+                images.add(f);
             else {
                 Log.warn("Dropped file not recognized: " + f.getName());
                 skipped.add(f.getName());
@@ -88,6 +90,10 @@ final class FileDropHandler extends DropTargetAdapter {
             PointCloudLayer layer = new PointCloudLayer(null);
             Layers.add(layer);
             clouds.forEach(f -> layer.load(f.toURI())); // all into the one layer, a time series
+        }
+        if (!images.isEmpty()) {
+            List<File> group = groupImages(images);
+            SwingUtilities.invokeLater(() -> offerImages(group.size() == 1 ? group.get(0).getName() : "the dropped files", group));
         }
         e.dropComplete(true);
         if (!skipped.isEmpty())
@@ -107,6 +113,13 @@ final class FileDropHandler extends DropTargetAdapter {
         return out;
     }
 
+    /** Image files dropped together load as one layer, in name order, like a folder's. */
+    static List<File> groupImages(List<File> dropped) {
+        List<File> out = new ArrayList<>(dropped);
+        out.sort(java.util.Comparator.comparing(File::getName));
+        return out;
+    }
+
     /** What the skipped-files message says. Pure, for the check. */
     static String skippedMessage(List<String> names) {
         int shown = Math.min(names.size(), 8);
@@ -120,9 +133,13 @@ final class FileDropHandler extends DropTargetAdapter {
     }
 
     private static void offerFolder(File dir, List<File> inside) {
+        offerImages(dir.getName(), inside);
+    }
+
+    private static void offerImages(String source, List<File> inside) {
         if (inside.size() > ASK_ABOVE) {
             int choice = JOptionPane.showConfirmDialog(MainFrame.get(),
-                    "Open the " + inside.size() + " image files in " + dir.getName() + " as one layer?",
+                    "Open the " + inside.size() + " image files in " + source + " as one layer?",
                     "Open Folder", JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
             if (choice != JOptionPane.OK_OPTION)
                 return;
