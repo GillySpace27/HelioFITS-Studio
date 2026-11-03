@@ -944,7 +944,7 @@ notarize_mac() {
     rm -rf "$CATOUT"
     echo "   Assets.car in the bundle, CFBundleIconName set"
 
-    # Document types (HS-16): .jhv opens in this app; FITS only as an "Open With" choice, so HelioFITS stays the default.
+    # Document types (HS-16): .jhv opens in this app; FITS only as an "Open With" choice, so HelioFITS Peek stays the default.
     python3 "$HERE/add_document_types.py" "$APP/Contents/Info.plist"
 
     # Before the smoke test and signing: it puts files in the bundle, and the signing loop below

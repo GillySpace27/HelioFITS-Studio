@@ -61,10 +61,10 @@ Each new entry ends with a `[docs: ...]` pointer to where it is documented (`rel
 - Helioviewer movies from the Royal Observatory of Belgium's server load again. That server sends each frame's FITS header as a separate piece of the stream, which the OpenJPEG reader did not follow, so every ROB movie failed with "readResolutionSet(int) is null" (frame counts also came out doubled). Movies from helioviewer.org were not affected
 
 ### App icon
-- The iris icon joins the family look of HelioFITS, the HelioFITS Cache Manager and Heliogram: its dividers are white instead of black, and the blue AIA 335 leaf is a full leaf running from the hexagon's right corner to the Sun's edge, so the red 304 leaf no longer spans the whole top. The new blue leaf and the cyan AIA 131 leaf are drawn from the real AIA frames of the same 2024-05-14 X8.7 flare the other leaves came from, by release/make_iris_art.py
-- The iris icon's white dividers are twice as wide, 44 px at 1024, the same stroke as the HelioFITS and Heliogram outlines. The ground around the orb is the family's violet-black, and the hexagon holds Heliogram's drawn Sun in place of the HFS letters, so one artwork reads at every size from 16 px up
+- The iris icon joins the family look of HelioFITS Peek, the HelioFITS Cache Manager and Heliogram: its dividers are white instead of black, and the blue AIA 335 leaf is a full leaf running from the hexagon's right corner to the Sun's edge, so the red 304 leaf no longer spans the whole top. The new blue leaf and the cyan AIA 131 leaf are drawn from the real AIA frames of the same 2024-05-14 X8.7 flare the other leaves came from, by release/make_iris_art.py
+- The iris icon's white dividers are twice as wide, 44 px at 1024, the same stroke as the HelioFITS Peek and Heliogram outlines. The ground around the orb is the family's violet-black, and the hexagon holds Heliogram's drawn Sun in place of the HFS letters, so one artwork reads at every size from 16 px up
 - The iris sits in a squircle window inset on that ground, enlarged so the orb's edge falls outside the window's corners, and the .icns now shows the whole art shrunk into the icon body, as the asset catalog does, instead of cropping its middle
-- The violet ground is lighter (#2F2263 to #15102A, was #171132 to #090711), the same lift made to the HelioFITS, Cache Manager and Heliogram icons, so it reads as violet on a dark Dock
+- The violet ground is lighter (#2F2263 to #15102A, was #171132 to #090711), the same lift made to the HelioFITS Peek, Cache Manager and Heliogram icons, so it reads as violet on a dark Dock
 
 ### From upstream JHelioviewer
 - Fixes taken from JHelioviewer's development line: grid lines no longer duplicate and longitude labels sit on their meridians; the calendar's month and year pickers stay within the chosen month; the timeline's Y-axis zoom stays positive; annotation point radius is kept in saved states; footpoints interpolate between the right neighbours; blank samples are skipped in the minute band cache; mapped image files are sized before mapping; layer downloads bypass the HTTP cache
@@ -340,7 +340,7 @@ Each new entry ends with a `[docs: ...]` pointer to where it is documented (`rel
 - Between 2026-09-21 and 2026-09-23 the development builds were called PUNCHStudio. Nothing was released under that name; settings those builds wrote to `~/PUNCHStudio` are carried into `~/HFStudio` if that folder does not exist yet
 
 ### Icon
-- The icon is the sun-pie iris again, lettered HFS: six wedges of the Sun at six wavelengths around a dark hexagon, an aperture made of solar images. It went to the HelioFITS plugin for a day and came back; HelioFITS keeps its AIA 171 Sun. A ladder of instrument rings was drawn for this release and dropped, because below 64 pixels it read as a grey target
+- The icon is the sun-pie iris again, lettered HFS: six wedges of the Sun at six wavelengths around a dark hexagon, an aperture made of solar images. It went to the HelioFITS Peek plugin for a day and came back; HelioFITS Peek keeps its AIA 171 Sun. A ladder of instrument rings was drawn for this release and dropped, because below 64 pixels it read as a grey target
 - HFS is set at 128 pixels and above, the application's technical name as its downloads and settings folder carry it. At 64 and below the iris is plain, since letters there only smudge and the six wedges still read as a rosette. `release/iris_plain_1024.png` is the unlettered source art
 - The Mac bundle now carries a compiled asset catalog as well as the .icns, because macOS 26 draws a .icns-only application on a grey plate at 16 and 32 pixels whatever its artwork does. The catalog is given the art unmasked, since macOS applies its own shape and insets anything that arrives already shaped
 - Windows gets a .ico with the same per-size artwork, so its small icons are not shrunken copies of the large one either
@@ -354,7 +354,7 @@ Each new entry ends with a `[docs: ...]` pointer to where it is documented (`rel
 A new name and icon, and a download for every platform that carries its own Java.
 
 ### Name and icon
-- Rename the application to HFStudio. HelioFITS Studio was too easily confused with the HelioFITS preview plugin. The repository is now `GillySpace27/HFStudio`, and GitHub forwards the old addresses
+- Rename the application to HFStudio. HelioFITS Studio was too easily confused with the preview plugin, now HelioFITS Peek. The repository is now `GillySpace27/HFStudio`, and GitHub forwards the old addresses
 - Register with SAMP as `HFStudio`, so a script that finds the application by its old name needs the new one
 - A new icon that fills the macOS squircle and reads HFS. macOS 26 had been shrinking the old one onto a grey plate on every fresh install
 
