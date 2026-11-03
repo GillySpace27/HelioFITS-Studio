@@ -1,18 +1,13 @@
 ---
-description: Ship a HelioFITS Studio release with release/release.sh (Gilly runs it in Terminal)
-argument-hint: <version, e.g. 0.9.1> [--auto-smoke] [--skip-intel]
+description: Ship a HelioFITS Studio release with release/release.sh, unattended after Gilly's one yes
+argument-hint: <version, e.g. 0.9.1> [--skip-intel]
 ---
-Release HelioFITS Studio $ARGUMENTS.
+Release HelioFITS Studio $ARGUMENTS by following the deploy-studio skill (~/.claude/skills/deploy-studio).
 
-The privileged steps (Apple upload, tag push, release, site merge) are Gilly's yes and run in his own
-Terminal.app via `release/release.sh`, never through this session. Do not run it and do not set any
-HFS_*_APPROVED variable.
-
-1. Confirm origin/master has VERSION and a changelog heading for the version (the bump PR is merged).
-2. Run `release/release.sh <version> --check` here; it is read-only and prints what would stop a release
-   (proxy, notary profile, Intel JDK, parity Python, Friday rule, running Studio). Report each `!!` line.
-3. Tell Gilly to open Terminal.app and run exactly:
-   `cd <any checkout> && release/release.sh <version> [--auto-smoke]`
-   and to type the tag once when asked. After a failure: the same command plus `--resume`.
-4. While it runs, do not touch ~/vscode/Website. When it prints `RELEASE v<version> DONE`, update the
-   team memory with the outcome.
+In short: confirm origin/master has VERSION and a changelog heading for the version; run
+`release/release.sh <version> --check` and fix or collect every `!!`; get Gilly's written yes naming the tag
+("I confirm, deploy Studio v<version>") once, at the start, unless he already gave it; then run
+`release/release.sh <version> --confirm v<version>` in the background and ask nothing more. After a failure,
+fix the cause and rerun with `--resume`; a fix that needs a change to master stops the run (Gilly merges).
+Never set an HFS_*_APPROVED variable and never touch ~/vscode/Website. Gilly can still run it himself in
+Terminal.app without `--confirm` and type the tag when asked.

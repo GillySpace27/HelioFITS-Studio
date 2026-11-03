@@ -3,12 +3,14 @@
 # smoke, tag + publish, wait for package.yml, site PR + merge, verify.
 #
 #   release/release.sh <version> [--auto-smoke] [--resume] [--skip-intel]
+#   release/release.sh <version> --confirm v<version> [--resume] [--skip-intel]
 #
-# RUN THIS YOURSELF IN TERMINAL.APP, not through an agent. It needs a real terminal (it refuses without one)
-# and asks ONE question: type the tag. That typed tag is Gilly's yes for this tag only, for the Apple
-# upload, the tag push, the release, and the site PR merge. The script then hands the existing per-step
-# gates (ship.sh, deploy_release.sh) their approval itself, so nothing is set by an agent and no approval
-# environment variable is needed from outside. Never run it, or set HFS_*_APPROVED, from a Claude session.
+# Gilly gives ONE yes per release, for that tag only: the Apple upload, the tag push, the release, and the
+# site PR and its merge. Either he types the tag in Terminal.app when asked, or an agent passes his written
+# yes as --confirm v<version> (the deploy-studio skill: his words in chat naming that tag, e.g. "I confirm,
+# deploy Studio v0.9.1"). --confirm must equal the tag, implies --auto-smoke, and makes the run ask nothing,
+# so it can go unattended. The script then hands the per-step gates (ship.sh, deploy_release.sh) their
+# approval itself; nobody sets HFS_*_APPROVED from outside, and an agent never does.
 #
 # Needs on origin/master before you start: VERSION = <version> and a changelog.md heading for it (the
 # version-bump PR, merged by Gilly). Nothing here pushes a branch; it pushes the tag, creates the release,
@@ -22,6 +24,7 @@
 # --check       run only the read-only preflight (safe for an agent; sends and builds nothing), then exit.
 # --auto-smoke  accept release/smoke_dmg.sh (starts the dmg, draws, no uncaught exception) as the smoke test
 #               instead of asking you to do the five manual steps. Declared up front, shown in the confirmation.
+# --confirm T   Gilly's yes for tag T, given in writing instead of typed here. T must be v<version>.
 # Exit: 0 done, 1 a step failed (rerun with --resume), 2 refused.
 set -euo pipefail
 
@@ -30,20 +33,26 @@ SITE_REPO=GillySpace27/GillySpace27.github.io
 HOME_DIR="${HFS_RELEASE_HOME:-$HOME/hfs-release}"
 FEED_URL=https://gilly.space/heliosoftware/feed/heliofits-studio.json
 
-VERSION_ARG="" AUTO_SMOKE=0 RESUME=0 SKIP_INTEL=0 CHECK_ONLY=0
-for a in "$@"; do
-    case "$a" in
+VERSION_ARG="" AUTO_SMOKE=0 RESUME=0 SKIP_INTEL=0 CHECK_ONLY=0 CONFIRM=""
+USAGE="usage: $0 <version, like 0.9.1> [--auto-smoke | --confirm v<version>] [--resume] [--skip-intel] [--check]"
+while [ $# -gt 0 ]; do
+    case "$1" in
         --auto-smoke) AUTO_SMOKE=1 ;;
         --resume) RESUME=1 ;;
         --skip-intel) SKIP_INTEL=1 ;;
         --check) CHECK_ONLY=1 ;;
-        -*) echo "usage: $0 <version> [--auto-smoke] [--resume] [--skip-intel]" >&2; exit 2 ;;
-        *) VERSION_ARG="$a" ;;
+        --confirm) [ $# -ge 2 ] || { echo "$USAGE" >&2; exit 2; }; shift; CONFIRM="$1" ;;
+        -*) echo "$USAGE" >&2; exit 2 ;;
+        *) VERSION_ARG="$1" ;;
     esac
+    shift
 done
-printf '%s\n' "$VERSION_ARG" | grep -qE '^[0-9]+(\.[0-9]+){0,2}$' \
-    || { echo "usage: $0 <version, like 0.9.1> [--auto-smoke] [--resume] [--skip-intel]" >&2; exit 2; }
+printf '%s\n' "$VERSION_ARG" | grep -qE '^[0-9]+(\.[0-9]+){0,2}$' || { echo "$USAGE" >&2; exit 2; }
 V="$VERSION_ARG"; TAG="v$V"
+if [ -n "$CONFIRM" ]; then
+    [ "$CONFIRM" = "$TAG" ] || { echo "!! --confirm is '$CONFIRM', not $TAG: a yes is for one tag. Nothing was sent." >&2; exit 2; }
+    AUTO_SMOKE=1
+fi
 CLONE="$HOME_DIR/studio-$V"; SITE_CLONE="$HOME_DIR/site-$V"; STATE="$HOME_DIR/$V.state"
 mkdir -p "$HOME_DIR"; touch "$STATE"
 
@@ -58,8 +67,11 @@ step() {  # step <name> <function>
 sha() { shasum -a 256 "$1" | awk '{print $1}'; }
 
 # ---- 0. refuse what must not run here --------------------------------------------------------------------
-{ [ "$CHECK_ONLY" = 1 ] || { [ -t 0 ] && [ -t 1 ]; }; } || die "needs a real terminal (Terminal.app). It is Gilly's one yes per release; an agent must not run it."
-[ "$CHECK_ONLY" = 1 ] || [ -z "${CLAUDECODE:-}${CLAUDE_CODE_ENTRYPOINT:-}" ] || die "run from Terminal.app, not from inside a Claude Code session"
+# Without --confirm the typed tag is the yes, so it needs a person at a terminal, not an agent session.
+[ "$CHECK_ONLY" = 1 ] || [ -n "$CONFIRM" ] || { [ -t 0 ] && [ -t 1 ]; } \
+    || die "no terminal: type the tag in Terminal.app, or pass Gilly's written yes as --confirm $TAG"
+[ "$CHECK_ONLY" = 1 ] || [ -n "$CONFIRM" ] || [ -z "${CLAUDECODE:-}${CLAUDE_CODE_ENTRYPOINT:-}" ] \
+    || die "inside a Claude Code session: pass Gilly's written yes as --confirm $TAG (deploy-studio skill)"
 [ "$(uname -s)" = Darwin ] || die "runs on Gilly's Mac (signing identity, notarization)"
 unset HFS_PUBLISH_APPROVED HFS_NOTARIZE_APPROVED HFS_SMOKE_APPROVED HFS_GUIDE_APPROVED
 
@@ -103,6 +115,7 @@ $TAG only: the upload to Apple, the tag push, the GitHub release, and merging th
 Smoke test: $([ "$AUTO_SMOKE" = 1 ] && echo "AUTOMATED (smoke_dmg.sh stands in for the five manual steps)" || echo "you will be asked to do the five manual steps and type smoke-tested")
 Intel dmg: $([ "$SKIP_INTEL" = 1 ] && echo "SKIPPED on purpose" || echo "built first, from $HFS_X64_JDK")
 EOT
+    if [ -n "$CONFIRM" ]; then echo "Confirmed in writing for $TAG (--confirm); this run asks nothing more."; return; fi
     printf 'Type the tag to go ahead (%s): ' "$TAG"; read -r ans
     [ "$ans" = "$TAG" ] || die "typed '$ans', not $TAG; nothing was sent anywhere"
 }
@@ -163,7 +176,9 @@ packages() { cd "$CLONE"; release/ship.sh confirm || fail "package.yml not green
 site() {
     cd "$SITE_CLONE"
     git status --porcelain | grep -q . || fail "no feed record in the site clone; run: (cd $CLONE/release && SITE=$SITE_CLONE ./deploy_release.sh feed)"
-    python3 tools/release_pr.py --product heliofits-studio --version "$V"
+    # --yes: the one yes above already covers the site PR; without it release_pr.py asks y/N mid-run on a
+    # terminal and stops before the push without one.
+    python3 tools/release_pr.py --product heliofits-studio --version "$V" --yes
     _pr="$(gh pr list --repo "$SITE_REPO" --state open --search "heliofits-studio $V" --json number --jq '.[0].number')"
     [ -n "$_pr" ] || fail "no site PR found for $V; open it by hand from $SITE_CLONE"
     echo "   site PR #$_pr"
