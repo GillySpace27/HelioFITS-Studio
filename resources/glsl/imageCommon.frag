@@ -375,9 +375,13 @@ float unwarpRadiusWith(float normalizedRadius, float outerRadius, float limbPosi
         return normalizedRadius / limbPosition;
 
     float u = (normalizedRadius - limbPosition) / (1. - limbPosition);
-    return lambda == 0.
-            ? pow(outerRadius, u)
-            : pow(1. + u * (pow(outerRadius, lambda) - 1.), 1. / lambda);
+    // An explicit branch rather than a ternary, so the lambda = 0 case never evaluates 1 / lambda
+    // or 0 / 0. GLSL discards the untaken operand; the translation to D3D11 that ANGLE does on
+    // Windows is not trusted to. Written after the helioradial imagery drew black on Windows
+    // (2026-11-03) while HPC, which shares everything here except this radial law, drew fine.
+    if (lambda == 0.)
+        return pow(outerRadius, u);
+    return pow(1. + u * (pow(outerRadius, lambda) - 1.), 1. / lambda);
 }
 
 // The forward direction, radius to normalized page position: MapScale.BoxCoxRadialScale.toUnitY.
@@ -385,9 +389,12 @@ float warpUnitWith(float radius, float outerRadius, float limbPosition, float la
     if (outerRadius <= 1. || radius <= 1.)
         return radius * limbPosition;
 
-    float u = lambda == 0.
-            ? log(radius) / log(outerRadius)
-            : (pow(radius, lambda) - 1.) / (pow(outerRadius, lambda) - 1.);
+    // Explicit branch for the same reason as unwarpRadiusWith above: no 0 / 0 at lambda = 0.
+    float u;
+    if (lambda == 0.)
+        u = log(radius) / log(outerRadius);
+    else
+        u = (pow(radius, lambda) - 1.) / (pow(outerRadius, lambda) - 1.);
     return limbPosition + u * (1. - limbPosition);
 }
 

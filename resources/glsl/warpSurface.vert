@@ -65,9 +65,10 @@ float unwarpRadius(const float normalizedRadius) {
 
     float u = (normalizedRadius - limbPos) / (1. - limbPos);
     float lambda = screen.lambda;
-    return lambda == 0.
-            ? pow(outerRadius, u)
-            : pow(1. + u * (pow(outerRadius, lambda) - 1.), 1. / lambda);
+    // Explicit branch, as in imageCommon.frag: no 1 / lambda is ever evaluated at lambda = 0.
+    if (lambda == 0.)
+        return pow(outerRadius, u);
+    return pow(1. + u * (pow(outerRadius, lambda) - 1.), 1. / lambda);
 }
 
 void main(void) {
