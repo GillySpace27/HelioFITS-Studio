@@ -3,7 +3,30 @@
 
 Each new entry ends with a `[docs: ...]` pointer to where it is documented (`release/RELEASING.md`, "Docs pointers in the changelog"); the app and the release notes hide them.
 
-## HelioFITS Studio 0.8.8 (unreleased)
+## HelioFITS Studio 0.9.0 (unreleased)
+
+### Command registry
+- Every command now has one stable id, a plain description, a note of what it changes (read, write, destructive or interface only) and a JSON Schema for its arguments and result, and every one is run through one place that checks the arguments first. Help > Search Controls (Cmd-K), the guided tours and the Welcome window run commands that way. docs/commands.json lists them all in the shape of an MCP tools list, so an MCP server, an API or a command line can be added later without a second list of verbs. Help > Search Controls now shows each command's keyboard shortcut and, for a control, the tours that show it. Three commands take arguments (seekFrame, seekTime, rotateView90) and two read (listCommands, describeControl). [docs: docs/commands.md, manual/index.md]
+
+### Keybindings
+- Settings > Keybindings lists every command with its keybinding. Search by name, change a keybinding (Cmd or Ctrl, Alt, Shift and a key), remove it, or put it back to the default, one command or all at once. A keybinding that clashes with another command, with the system or with text editing (Cmd/Ctrl+C, X, A) is refused with the reason, and a keybinding must carry a modifier or be a function key so it cannot shadow J, K, L, I, O and the arrow keys. Changes apply at once, in the menus too, and are kept in the settings as `keys.<command id>`. The tip and tour texts that name a shortcut key are not rewritten when one is changed. [docs: manual/settings.md]
+
+### Fixes
+- Tile-compressed float images stored without dithering (the PUNCH L3 files among them) no longer read half a quantisation step too high. The FITS library Studio uses added that half step to every pixel, a bias of about 0.5% of the pixel on average and up to 50% on the faintest. Studio now takes it off, and agrees with astropy on the PUNCH files tested (the largest difference is 3.5e-18, float32 rounding). AIA, SUVI, ASPIICS and LASCO were not affected. [docs: release/RELEASING.md]
+
+### Documentation
+- HelioFITS Studio has a user manual, built with Sphinx in a light and a dark theme, and its revision history is generated from this changelog. [docs: manual/README.md]
+
+### App icon
+- The squircle window and the iris inside it are smaller (0.88 of their size), so a wider band of the violet ground shows around them, as on the RHEF icon on gilly.space [docs: none]
+
+### Windows
+- The Windows package is signed with Azure Artifact Signing. [docs: release/RELEASING.md]
+
+### Releasing
+- A release is published only with a decode-parity report for its own jar: Studio's decode of a fixed set of AIA, LASCO, PUNCH, ASPIICS and SUVI files is compared with sunpy and astropy, and the report is attached to the release. [docs: release/RELEASING.md]
+
+## HelioFITS Studio 0.8.8 (pre-release, 2026-10-28)
 
 ### Sun pizza and templates
 - Pizza, on the toolbar, cuts every shown image layer into its own wedges, squares or polar tiles of one Sun, so the same patch of the Sun is seen through every filter side by side. Nothing is resampled: each layer is drawn whole and keeps only its own cells. Wedges can be labelled with each channel's wavelength, the turn is animatable, and a spin can be recorded as a movie.
@@ -16,12 +39,6 @@ Each new entry ends with a `[docs: ...]` pointer to where it is documented (`rel
 - Decoded JPEG 2000 frames are converted to 8-bit grey straight from OpenJPEG's memory, without copying every frame into a 4-byte-a-pixel Java array first.
 - Counting the distinct levels of a frame for the layer readout no longer happens on the interface thread.
 - Settings > Network > Long requests chooses when the next piece of a request over the server's 1000-frame limit is asked for: as soon as the previous one has opened (the default and how it always worked), all at once, when the previous one is 80% downloaded, or when it has finished.
-
-### Command registry
-- Every command now has one stable id, a plain description, a note of what it changes (read, write, destructive or interface only) and a JSON Schema for its arguments and result, and every one is run through one place that checks the arguments first. Help > Search Controls (Cmd-K), the guided tours and the Welcome window run commands that way. docs/commands.json lists them all in the shape of an MCP tools list, so an MCP server, an API or a command line can be added later without a second list of verbs. Help > Search Controls now shows each command's keyboard shortcut and, for a control, the tours that show it. Three commands take arguments (seekFrame, seekTime, rotateView90) and two read (listCommands, describeControl).
-
-### Keybindings
-- Settings > Keybindings lists every command with its keybinding. Search by name, change a keybinding (Cmd or Ctrl, Alt, Shift and a key), remove it, or put it back to the default, one command or all at once. A keybinding that clashes with another command, with the system or with text editing (Cmd/Ctrl+C, X, A) is refused with the reason, and a keybinding must carry a modifier or be a function key so it cannot shadow J, K, L, I, O and the arrow keys. Changes apply at once, in the menus too, and are kept in the settings as `keys.<command id>`. The tip and tour texts that name a shortcut key are not rewritten when one is changed.
 
 ### Fixes
 - Started with `java -jar` from a folder other than the jar's own, the Mac build loads the Metal library that sits beside the jar, not a possibly older copy in the working folder (which died with `UnsatisfiedLinkError: jhv_mirror_prepare`). The packaged app is unaffected.
@@ -44,7 +61,6 @@ Each new entry ends with a `[docs: ...]` pointer to where it is documented (`rel
 - The iris icon's white dividers are twice as wide, 44 px at 1024, the same stroke as the HelioFITS and Heliogram outlines. The ground around the orb is the family's violet-black, and the hexagon holds Heliogram's drawn Sun in place of the HFS letters, so one artwork reads at every size from 16 px up
 - The iris sits in a squircle window inset on that ground, enlarged so the orb's edge falls outside the window's corners, and the .icns now shows the whole art shrunk into the icon body, as the asset catalog does, instead of cropping its middle
 - The violet ground is lighter (#2F2263 to #15102A, was #171132 to #090711), the same lift made to the HelioFITS, Cache Manager and Heliogram icons, so it reads as violet on a dark Dock
-- The squircle window and the iris inside it are smaller (0.88 of their size), so a wider band of the violet ground shows around them, as on the RHEF icon on gilly.space
 
 ### From upstream JHelioviewer
 - Fixes taken from JHelioviewer's development line: grid lines no longer duplicate and longitude labels sit on their meridians; the calendar's month and year pickers stay within the chosen month; the timeline's Y-axis zoom stays positive; annotation point radius is kept in saved states; footpoints interpolate between the right neighbours; blank samples are skipped in the minute band cache; mapped image files are sized before mapping; layer downloads bypass the HTTP cache
