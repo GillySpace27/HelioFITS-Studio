@@ -371,31 +371,36 @@ vec2 normalizedMapToHelioprojective(const vec2 mapPos) {
 // radial scale of the mode it is composing WITH while its own screen block carries the sky page's
 // degrees. Every other mode wants its own scale and calls unwarpRadius() below.
 float unwarpRadiusWith(float normalizedRadius, float outerRadius, float limbPosition, float lambda) {
-    if (outerRadius <= 1. || normalizedRadius <= limbPosition)
-        return normalizedRadius / limbPosition;
-
-    float u = (normalizedRadius - limbPosition) / (1. - limbPosition);
-    // An explicit branch rather than a ternary, so the lambda = 0 case never evaluates 1 / lambda
-    // or 0 / 0. GLSL discards the untaken operand; the translation to D3D11 that ANGLE does on
-    // Windows is not trusted to. Written after the helioradial imagery drew black on Windows
-    // (2026-11-03) while HPC, which shares everything here except this radial law, drew fine.
-    if (lambda == 0.)
-        return pow(outerRadius, u);
-    return pow(1. + u * (pow(outerRadius, lambda) - 1.), 1. / lambda);
+    // Every operand below is kept finite whichever case applies, and the case is chosen only at
+    // the end. On the Windows CI runner (ANGLE D3D11, helioradial-diag, 2026-11-04) the unwarped
+    // radius came out NaN while the uniforms it reads were sane, so the untaken side of the old
+    // branches (pow(1, 1 / 0) at lambda = 0, or a negative pow base inside the disk) evidently
+    // reached the result; that turned the whole helioradial picture black.
+    float limb = max(limbPosition, 1e-6);
+    float linear = normalizedRadius / limb;
+    float rOut = max(outerRadius, 1. + 1e-6);
+    float u = max((normalizedRadius - limb) / max(1. - limb, 1e-6), 0.);
+    bool logLaw = abs(lambda) < 1e-6;
+    float lam = logLaw ? 1. : lambda;
+    float logRadius = pow(rOut, u);
+    float boxCox = pow(max(1. + u * (pow(rOut, lam) - 1.), 1e-6), 1. / lam);
+    float warped = logLaw ? logRadius : boxCox;
+    return (outerRadius <= 1. || normalizedRadius <= limbPosition) ? linear : warped;
 }
 
 // The forward direction, radius to normalized page position: MapScale.BoxCoxRadialScale.toUnitY.
 float warpUnitWith(float radius, float outerRadius, float limbPosition, float lambda) {
-    if (outerRadius <= 1. || radius <= 1.)
-        return radius * limbPosition;
-
-    // Explicit branch for the same reason as unwarpRadiusWith above: no 0 / 0 at lambda = 0.
-    float u;
-    if (lambda == 0.)
-        u = log(radius) / log(outerRadius);
-    else
-        u = (pow(radius, lambda) - 1.) / (pow(outerRadius, lambda) - 1.);
-    return limbPosition + u * (1. - limbPosition);
+    // Finite on every path, chosen at the end, for the same reason as unwarpRadiusWith above.
+    float linear = radius * limbPosition;
+    float rIn = max(radius, 1.);
+    float rOut = max(outerRadius, 1. + 1e-6);
+    bool logLaw = abs(lambda) < 1e-6;
+    float lam = logLaw ? 1. : lambda;
+    float uLog = log(rIn) / log(rOut);
+    float uBoxCox = (pow(rIn, lam) - 1.) / (pow(rOut, lam) - 1.);
+    float u = logLaw ? uLog : uBoxCox;
+    float warped = limbPosition + u * (1. - limbPosition);
+    return (outerRadius <= 1. || radius <= 1.) ? linear : warped;
 }
 
 // The current mode's own scale, which is what every mode but the composed sky wants.
