@@ -8,6 +8,25 @@ Each new entry ends with a `[docs: ...]` pointer to where it is documented (`rel
 ### Welcome window
 - What's New is now a button in the Welcome window's header instead of the main panel, so the window shows the ways to start first. Take a Tour is a button that opens a list of every tour with its number of steps (Getting started marked as the place to begin); clicking one starts it. The first time the window opens, Return opens that list instead of Continue. A new Find your way around panel lists the help in the app: Search Controls with its keyboard shortcut, tooltips, Tip of the Day, the User Manual, the Help menu and Send Feedback. The footer has one Settings button (Display Scaling, the text size and interface scale, is under Appearance) in place of Settings and Display Settings, which is renamed Display Scaling since it handles only scaling. [docs: manual/first-steps.md]
 
+### Window menu managers
+- The Window menu (the File menu off macOS) now holds Template Manager, Study Manager, Toolbar Manager, Cache Manager and Task Manager. Cache Manager replaces Load from Cache. Task Manager is the former Activity window under its new name, and its command id changes from `activity` to the Task Manager id. Two new tours show the managers. Study Manager's Save as template no longer keeps the source scene's export folder and overwrite policy, and the library's Delete button says why it is greyed out. [docs: docs/templates.md]
+
+### Parameter study
+- A Study window builds a set of movies or tiles by varying parameters of a scene. Jobs queue, run in the Task Manager, and a template can ask for its time range when it opens. [docs: none]
+
+### Live Log
+- The Live Log window has Wrap lines and Colors checkboxes, both remembered. Errors are bold red, warnings amber and debug lines grey. [docs: none]
+
+### Display Scaling
+- Display Settings is renamed Display Scaling (View > Display Scaling, its title and Settings > Appearance), since scaling is all it handles. [docs: manual/filters-and-colour.md]
+
+### Loading and help
+- Image files dropped together on the window load as one layer in name order, as a dropped folder and File > Open already do. [docs: manual/loading-data.md]
+- Help > Open User Manual opens the field guide of the version you are running instead of the releases page. [docs: none]
+
+### Fixes
+- Helioradial and Helioradial Unrolled no longer divide by zero at the default lambda of 0, which drew the image black on Windows. If your Windows build still shows a blank image in these projections, use Orthographic and tell us. [docs: none]
+
 ## HelioFITS Studio 0.9.0 (unreleased)
 
 ### Command registry
