@@ -94,7 +94,7 @@ test("rate limit: the sixth report from one install in an hour is refused before
 });
 
 test("rate limit: one address is capped across installs", async () => {
-  for (let i = 0; i < 20; i++)
+  for (let i = 0; i < 200; i++)
     assert.equal((await post(report({ installId: `aaaaaaaa-bbbb-4ccc-8ddd-${String(i).padStart(12, "0")}` }))).status, 201);
   assert.equal((await post(report({ installId: "aaaaaaaa-bbbb-4ccc-8ddd-999999999999" }))).status, 429);
 });
