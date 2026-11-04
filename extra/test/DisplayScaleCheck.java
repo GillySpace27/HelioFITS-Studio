@@ -1,7 +1,7 @@
 package org.helioviewer.jhv.gui;
 
 /**
- * View > Display Settings reads its two factors safely: absent, unreadable or absurd values give
+ * View > Display Scaling reads its two factors safely: absent, unreadable or absurd values give
  * 100%, so a hand-edited or corrupt settings file cannot launch the app at 0% or 4000% scale.
  *
  * <p>Run: java -Djava.awt.headless=true -cp "bin:extra/test-classes:resources:lib/*" org.helioviewer.jhv.gui.DisplayScaleCheck

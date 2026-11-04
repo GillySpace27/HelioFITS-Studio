@@ -84,7 +84,7 @@ public class CollapsiblePane extends JComponent implements ActionListener {
         // that builds a section before the LAF is installed) never runs; fall back to the button's
         // own font rather than dying on a null. The look is unchanged wherever the app itself is
         // concerned, since by then uiFont is set.
-        // At the heading level of View > Display Settings, and tagged so a size change finds it.
+        // At the heading level of View > Display Scaling, and tagged so a size change finds it.
         Font headerFont = UIGlobals.uiFont != null ? UIGlobals.headingFont(child)
                 : toggleButton.getFont().deriveFont(child ? Font.PLAIN : Font.BOLD,
                 toggleButton.getFont().getSize2D() + (child ? UIGlobals.CHILD_HEADING_STEP : UIGlobals.PARENT_HEADING_STEP));
