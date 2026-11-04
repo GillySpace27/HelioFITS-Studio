@@ -836,6 +836,44 @@ vec2 sampleHpcTexcoord(const Image img, vec2 helioprojective, const vec2 hpcXY, 
 }
 
 vec4 sampleWarpedHpcColor(const vec2 hpcXY) {
+#ifdef HFS_DEBUG_WARP
+    // Diagnostic stages (GLSLShader.DEBUG_WARP). Any NaN in a stage paints magenta.
+    //   1: solid green wherever a helioradial fragment is reached at all.
+    //   2: red = radius / outer radius (the unwarp), green = screen.limb, blue = screen.lambda + 0.5.
+    //   3: the texture coordinate as red and green, after the planar masks.
+    //   4: the raw image texel as grey, bypassing getColor (levels, RHEF, colour table).
+    //   5: as 4, but sampled at LOD 0 (textureLod), which takes screen derivatives out of it.
+    //   6: the mask texel getColor discards on: white kept, black discarded.
+    #if HFS_DEBUG_WARP == 1
+    return vec4(0., 1., 0., 1.);
+    #elif HFS_DEBUG_WARP == 2
+    float dbgR = length(hpcXY) / screen.mapBounds.w;
+    if (!(dbgR == dbgR) || !(screen.limb == screen.limb) || !(screen.lambda == screen.lambda))
+        return vec4(1., 0., 1., 1.);
+    return vec4(clamp(dbgR, 0., 1.), clamp(screen.limb, 0., 1.), clamp(screen.lambda + .5, 0., 1.), 1.);
+    #else
+    vec2 dbgHelioprojective = worldToHelioprojective(vec3(hpcXY, 0.), images[0].observerDistance);
+    clipPlanarMasks(hpcXY);
+    float dbgFactor;
+    vec2 dbgTex = sampleHpcTexcoord(images[0], dbgHelioprojective, hpcXY, pv0, dbgFactor);
+    if (!(dbgTex.x == dbgTex.x) || !(dbgTex.y == dbgTex.y))
+        return vec4(1., 0., 1., 1.);
+    #if HFS_DEBUG_WARP == 3
+    return vec4(clamp(dbgTex, 0., 1.), 0., 1.);
+    #else
+    #if HFS_DEBUG_WARP == 4
+    float dbgV = texture(image, dbgTex).r;
+    #elif HFS_DEBUG_WARP == 5
+    float dbgV = textureLod(image, dbgTex, 0.).r;
+    #else
+    float dbgV = texture(mask, dbgTex).r == 0. ? 0. : 1.;
+    #endif
+    if (!(dbgV == dbgV))
+        return vec4(1., 0., 1., 1.);
+    return vec4(vec3(clamp(dbgV, 0., 1.)), 1.);
+    #endif
+    #endif
+#endif
     vec2 helioprojective = worldToHelioprojective(vec3(hpcXY, 0.), images[0].observerDistance);
     clipPlanarMasks(hpcXY);
     float enhancementFactor;
