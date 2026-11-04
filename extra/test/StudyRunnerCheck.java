@@ -35,6 +35,7 @@ public final class StudyRunnerCheck {
     public static void main(String[] args) {
         try {
             pure();
+            scratch();
             endToEnd();
         } catch (Throwable t) {
             t.printStackTrace(System.out);
@@ -50,6 +51,25 @@ public final class StudyRunnerCheck {
                   {"name":"ortho","projection":"Orthographic"},
                   {"name":"radial","projection":"Helioradial","warpLambda":0.5,"camera":{"fov":0.02}}],
                  "output":{"folder":"~/Exports/{scene}_{date}","name":"{index}_{variant}","overwrite":"skip-if-unchanged"}}""");
+    }
+
+    private static void scratch() throws Exception {
+        Path root = Files.createTempDirectory("study-scratch");
+        Path run = Files.createDirectories(root.resolve("run"));
+        Path tmp = Files.createDirectories(root.resolve("HFStudio_x"));
+        Files.writeString(tmp.resolve("frame0001.png"), "a");
+        Files.writeString(tmp.resolve("frame0001.png.hfrec.json"), "{}");
+        StudyRunner.takeScratch(tmp.resolve("frame0001.png"), run.resolve("1.png"), run);
+        expect("scratch picture lands in the run folder", Files.exists(run.resolve("1.png")));
+        expect("emptied scratch folder is gone", !Files.exists(tmp));
+        Path other = Files.createDirectories(root.resolve("HFStudio_y"));
+        Files.writeString(other.resolve("frame0001.png"), "b");
+        Files.writeString(other.resolve("keep.txt"), "c");
+        StudyRunner.takeScratch(other.resolve("frame0001.png"), run.resolve("2.png"), run);
+        expect("a scratch folder holding other files stays", Files.exists(other.resolve("keep.txt")));
+        Files.writeString(run.resolve("3.png"), "d");
+        StudyRunner.takeScratch(run.resolve("3.png"), run.resolve("3.png"), run);
+        expect("a picture already in the run folder keeps its folder", Files.exists(run));
     }
 
     private static void pure() throws Exception {

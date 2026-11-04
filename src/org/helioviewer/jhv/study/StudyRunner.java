@@ -177,7 +177,7 @@ public final class StudyRunner {
                         return;
                     }
                     try {
-                        Files.copy(Path.of(output.contains("%04d") ? String.format(output, 1) : output), png, StandardCopyOption.REPLACE_EXISTING);
+                        takeScratch(Path.of(output.contains("%04d") ? String.format(output, 1) : output), png, folder);
                         Output o = describe(png, st, false);
                         if (!"none".equals(study.output().record()))
                             Files.writeString(sidecar(png), sidecarJson(st, resolved, sceneSha, time, print, o).toString(2) + "\n", StandardCharsets.UTF_8);
@@ -223,6 +223,24 @@ public final class StudyRunner {
     }
 
     // ---- pure parts, shared with StudyRunnerCheck ----
+
+    /**
+     * Moves a picture the ordinary export path wrote into a scratch folder to its place in the run folder,
+     * then drops that scratch folder if only the export's own sidecar is left. A folder that is the run
+     * folder, or holds anything else, stays.
+     */
+    static void takeScratch(Path from, Path to, Path runFolder) throws IOException {
+        Files.move(from, to, StandardCopyOption.REPLACE_EXISTING);
+        Path dir = from.toAbsolutePath().getParent();
+        if (dir == null || dir.equals(runFolder.toAbsolutePath()))
+            return;
+        Files.deleteIfExists(dir.resolve(from.getFileName() + ".hfrec.json"));
+        try {
+            Files.deleteIfExists(dir);
+        } catch (java.nio.file.DirectoryNotEmptyException ignored) {
+            // the folder holds other files; leave it
+        }
+    }
 
     /** The run folder from the study's pattern; {scene} is the scene file's name and {date} today, UTC. */
     public static Path expandFolder(Study study, long nowMilli) {
