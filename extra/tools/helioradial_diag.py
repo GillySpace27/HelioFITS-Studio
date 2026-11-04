@@ -59,12 +59,14 @@ def summary(paths: list[str]) -> int:
         except OSError as e:
             print(f"{Path(p).name}: unreadable ({e})")
             continue
-        drawn = green = magenta = 0
+        drawn = green = magenta = gold = 0
         rest = [0, 0, 0]
         for r, g, b in img.getdata():
             if r + g + b < 24:
                 continue
             drawn += 1
+            if r > g + 12 and g > b + 12:
+                gold += 1
             if g > 200 and r < 60 and b < 60:
                 green += 1
             elif r > 200 and b > 200 and g < 60:
@@ -75,7 +77,13 @@ def summary(paths: list[str]) -> int:
                 rest[2] += b
         other = drawn - green - magenta
         mean = tuple(round(c / other) for c in rest) if other else (0, 0, 0)
-        print(f"{Path(p).name}: {img.width}x{img.height} drawn={drawn} green={green} magenta={magenta} other={other} mean_other_rgb={mean}")
+        print(f"{Path(p).name}: {img.width}x{img.height} drawn={drawn} green={green} magenta={magenta} gold={gold} other={other} mean_other_rgb={mean}")
+        # A 48x24 luminance thumbnail, so the log shows where things are drawn (" .:-=+*#%@").
+        small = img.convert("L").resize((48, 24))
+        ramp = " .:-=+*#%@"
+        px = list(small.getdata())
+        for row in range(24):
+            print("    |" + "".join(ramp[min(9, v * 10 // 256)] for v in px[row * 48:(row + 1) * 48]) + "|")
     return 0
 
 

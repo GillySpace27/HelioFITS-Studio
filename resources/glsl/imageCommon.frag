@@ -844,6 +844,7 @@ vec4 sampleWarpedHpcColor(const vec2 hpcXY) {
     //   4: the raw image texel as grey, bypassing getColor (levels, RHEF, colour table).
     //   5: as 4, but sampled at LOD 0 (textureLod), which takes screen derivatives out of it.
     //   6: the mask texel getColor discards on: white kept, black discarded.
+    //   7 (imageRadialWarp.frag, imageRectWarp.frag main): solid green before any discard.
     #if HFS_DEBUG_WARP == 1
     return vec4(0., 1., 0., 1.);
     #elif HFS_DEBUG_WARP == 2
