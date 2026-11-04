@@ -851,6 +851,7 @@ vec4 sampleWarpedHpcColor(const vec2 hpcXY) {
     //   6: the mask texel getColor discards on: white kept, black discarded.
     //   7 (imageRadialWarp.frag, imageRectWarp.frag main): solid green before any discard.
     //   8: the uniforms alone, no hpcXY: red = limb, green = lambda + 0.5, blue = outer radius / 16.
+    //   10, 11 (imageRadialWarp.frag only): the pieces of warpHpcXY, and warpHpcXY itself.
     //   9: hpcXY tested with isnan/isinf (a D3D compiler may fold x == x to true): red = NaN,
     //      blue = infinite, otherwise grey = radius / outer radius.
     #if HFS_DEBUG_WARP == 1

@@ -19,9 +19,10 @@ public class DebugWarpDefineCheck {
     public static void main(String[] args) {
         expect("unset adds nothing", null, "");
         expect("empty adds nothing", "", "");
-        expect("out of range adds nothing", "10", "");
+        expect("out of range adds nothing", "12", "");
         expect("stage 7", "7", "#define HFS_DEBUG_WARP 7\n");
         expect("stage 9", "9", "#define HFS_DEBUG_WARP 9\n");
+        expect("stage 11", "11", "#define HFS_DEBUG_WARP 11\n");
         expect("non-numeric adds nothing", "yes", "");
         expect("stage 1", "1", "#define HFS_DEBUG_WARP 1\n");
         expect("stage 6 with whitespace", " 6 ", "#define HFS_DEBUG_WARP 6\n");

@@ -78,6 +78,9 @@ def summary(paths: list[str]) -> int:
         other = drawn - green - magenta
         mean = tuple(round(c / other) for c in rest) if other else (0, 0, 0)
         print(f"{Path(p).name}: {img.width}x{img.height} drawn={drawn} green={green} magenta={magenta} gold={gold} other={other} mean_other_rgb={mean}")
+        # Exact RGB at a few points along the horizontal midline, left edge to centre.
+        probes = [round(img.width * f) for f in (0.05, 0.15, 0.25, 0.35, 0.45, 0.5)]
+        print("    probes " + " ".join(f"x={x}:{img.getpixel((min(x, img.width - 1), img.height // 2))}" for x in probes))
         # A 48x24 luminance thumbnail, so the log shows where things are drawn (" .:-=+*#%@").
         small = img.convert("L").resize((48, 24))
         ramp = " .:-=+*#%@"
