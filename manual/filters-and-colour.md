@@ -59,4 +59,4 @@ has one: headroom, mapping, knee, in-range share and clipped pixels.
 
 ## Making the interface easier to read
 
-{menuselection}`View --> Display Settings…` sets the text size and interface scale.
+{menuselection}`View --> Display Scaling…` sets the text size and interface scale.

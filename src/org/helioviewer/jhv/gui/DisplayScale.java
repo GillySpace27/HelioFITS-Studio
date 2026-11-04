@@ -14,7 +14,7 @@ import javax.swing.Timer;
 import org.helioviewer.jhv.app.Settings;
 
 /**
- * View > Display Settings: text size and interface scale, the one place to make the app bigger.
+ * View > Display Scaling: text size and interface scale, the one place to make the app bigger.
  *
  * <p>Two knobs because they do different things. Text size scales the base font every other UI
  * font is derived from (UIGlobals.applyTheme), and the layouts grow around the text; it applies at
@@ -148,7 +148,7 @@ public final class DisplayScale {
 
         java.awt.Window owner = parent == null ? null
                 : parent instanceof java.awt.Window w ? w : SwingUtilities.getWindowAncestor(parent);
-        javax.swing.JDialog dialog = new javax.swing.JDialog(owner, "Display Settings", java.awt.Dialog.ModalityType.MODELESS);
+        javax.swing.JDialog dialog = new javax.swing.JDialog(owner, "Display Scaling", java.awt.Dialog.ModalityType.MODELESS);
         JButton revert = new JButton("Revert");
         revert.setToolTipText("Put the text sizes back as they were when this window opened");
         revert.addActionListener(e -> {
@@ -192,7 +192,7 @@ public final class DisplayScale {
         if (uiChanged) {
             String[] options = {"Restart Now", "Later"};
             if (JOptionPane.showOptionDialog(parent, "The interface scale changes when HelioFITS Studio starts again.\n"
-                            + "Restart now? Your session is saved and reopens.", "Display Settings",
+                            + "Restart now? Your session is saved and reopens.", "Display Scaling",
                     JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]) == 0)
                 org.helioviewer.jhv.app.Session.restart();
         }

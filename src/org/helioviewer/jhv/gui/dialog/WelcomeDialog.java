@@ -322,7 +322,7 @@ public final class WelcomeDialog {
         atStartup.addActionListener(e -> Settings.setProperty(SHOW_KEY, Boolean.toString(atStartup.isSelected())));
         row.add(atStartup, BorderLayout.LINE_START);
         JPanel links = new JPanel(new FlowLayout(FlowLayout.TRAILING, 6, 0));
-        // One Settings button: Settings > Appearance has the text size and interface scale (Display Settings).
+        // One Settings button: Settings > Appearance has the text size and interface scale (Display Scaling, its own window).
         JButton settings = new JButton("Settings\u2026");
         settings.setToolTipText("Everything adjustable, including text size and interface scale (Appearance)");
         settings.addActionListener(e -> org.helioviewer.jhv.gui.component.MenuBar.openSettings());

@@ -96,7 +96,7 @@ public final class UIGlobals {
         // belongs here rather than in setLaf: after a switch it would otherwise be gone.
         if (Platform.isMacOS())
             UIManager.getLookAndFeelDefaults().put("defaultFont", UIManager.getFont("medium.font")); // smaller, FlatLaf 2
-        // View > Display Settings: the body level scales the one font every other UI font derives
+        // View > Display Scaling: the body level scales the one font every other UI font derives
         // from; detail and headings are sized from the same unscaled base (headingFont). A
         // FontUIResource, so the look and feel's updateUI replaces it on components that took it.
         double textScale = DisplayScale.text();
@@ -207,7 +207,7 @@ public final class UIGlobals {
     }
 
     /**
-     * The same, leaving one window's components as they are: the Display Settings dialog, whose
+     * The same, leaving one window's components as they are: the Display Scaling dialog, whose
      * slider is mid-drag while the text size follows it. Rebuilding that slider's UI would end the
      * drag under the pointer.
      */
