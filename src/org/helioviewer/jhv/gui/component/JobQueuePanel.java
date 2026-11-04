@@ -24,7 +24,7 @@ import org.helioviewer.jhv.study.JobQueue;
 import org.helioviewer.jhv.study.JobQueue.Job;
 
 /**
- * The Activity window, opened from the footer's spinner or Window > Activity: what is running right
+ * The Task Manager, opened from the footer's spinner or Window > Task Manager: what is running right
  * now (downloads, loads, filters, event fetches, the export in progress), what did not land, and the
  * export queue (study runs, Screenshot, Record), which runs one job at a time with cancel, re-run and
  * open folder. Downloads are listed, not queued: they run side by side and are managed from their layer.
@@ -152,7 +152,7 @@ public final class JobQueuePanel extends JDialog {
     }
 
     private JobQueuePanel() {
-        super(MainFrame.get(), "Activity", false);
+        super(MainFrame.get(), "Task Manager", false);
         setDefaultCloseOperation(HIDE_ON_CLOSE);
         table.setModel(new Model());
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -208,7 +208,7 @@ public final class JobQueuePanel extends JDialog {
         scroll.setBorder(javax.swing.BorderFactory.createTitledBorder("Export queue: one job at a time, in order"));
         JPanel south = new JPanel(new BorderLayout());
         south.add(buttons, BorderLayout.CENTER);
-        javax.swing.JLabel hint = new javax.swing.JLabel("Movie > Study... queues a set here; Screenshot and Record from the Movie panel run directly.");
+        javax.swing.JLabel hint = new javax.swing.JLabel("Window > Study Manager... (File off macOS) queues a set here; Screenshot and Record from the Movie panel run directly.");
         hint.setBorder(javax.swing.BorderFactory.createEmptyBorder(0, 8, 6, 8));
         south.add(hint, BorderLayout.SOUTH);
         getContentPane().add(nowScroll, BorderLayout.NORTH);

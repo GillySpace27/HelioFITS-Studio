@@ -224,13 +224,13 @@
     {
       "id": "study",
       "title": "One scene, many pictures",
-      "text": "Movie > Study... makes a set of pictures of one scene, each with its own projection, lambda, field of view or layers. Start from a template such as the lambda ladder, then Export set writes every picture, a manifest and the command that remakes them.",
+      "text": "Window > Study Manager... (File > Study Manager... off macOS) makes a set of pictures of one scene, each with its own projection, lambda, field of view or layers. Start from a template such as the lambda ladder, then Export set writes every picture, a manifest and the command that remakes them.",
       "action": "study"
     },
     {
       "id": "activity",
       "title": "What is still running",
-      "text": "The spinner at the bottom left turns while anything downloads, loads or computes, and becomes a check when everything has landed. Click it for the Activity window: the running work, anything that did not land, and the export queue."
+      "text": "The spinner at the bottom left turns while anything downloads, loads or computes, and becomes a check when everything has landed. Click it for the Task Manager: the running work, anything that did not land, and the export queue."
     }
   ]
 }
