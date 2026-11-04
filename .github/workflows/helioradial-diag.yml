@@ -52,15 +52,25 @@ jobs:
           cmd //c "run.bat --export png --out $(W "$OUT/base.png") -load $(W "$PWD/$IMAGE")" || echo "base export exit $?"
           python extra/test/hfrecord_roundtrip.py prepare "$OUT/base.png" "$(cygpath -w "$RUNNER_TEMP")\\home-diag" "$OUT/base.jhv"
           python extra/tools/helioradial_diag.py sessions "$OUT/base.jhv" "$OUT"
-          for mode in HPC Helioradial HelioradialUnrolled; do
+          cp "$OUT/base.jhv" "$OUT/Orthographic.jhv"
+          LOGS="$RUNNER_TEMP/home-diag/HFStudio/Logs"
+          # One export may hang (the first run's HPC export never exited); cap each and show why.
+          for mode in Orthographic HPC Helioradial HelioradialUnrolled; do
             for stage in 0 1 2 3 4 5 6; do
-              [ "$mode" = HPC ] && [ "$stage" != 0 ] && continue
+              case "$mode" in Orthographic|HPC) [ "$stage" != 0 ] && continue ;; esac
               if [ "$stage" = 0 ]; then unset HFS_DEBUG_WARP; else export HFS_DEBUG_WARP=$stage; fi
-              cmd //c "run.bat --export png --out $(W "$OUT/$mode-$stage.png") -state $(W "$OUT/$mode.jhv")" > "$OUT/$mode-$stage.out" 2>&1 || echo "$mode stage $stage exit $?"
+              rc=0
+              timeout 240 cmd //c "run.bat --export png --out $(W "$OUT/$mode-$stage.png") -state $(W "$OUT/$mode.jhv")" > "$OUT/$mode-$stage.out" 2>&1 || rc=$?
+              echo "== $mode stage $stage: exit $rc"
+              if [ "$rc" != 0 ]; then
+                tail -n 25 "$OUT/$mode-$stage.out"
+                taskkill //F //IM java.exe > /dev/null 2>&1 || true
+              fi
             done
           done
           unset HFS_DEBUG_WARP
-          grep -h "OpenGL context" "$RUNNER_TEMP"/home-diag/HFStudio/Logs/*.log | tail -1 || true
+          grep -h "OpenGL context" "$LOGS"/*.log | tail -1 || true
+          grep -h "SEVERE\|Skipping\|GLException" "$LOGS"/*.log | sort -u | head -40 || true
           python extra/tools/helioradial_diag.py summary "$OUT"/*.png
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
