@@ -19,6 +19,15 @@ which channel it should be, so a wrong id shows on open. The thumbnail is a sche
 wedges in approximate channel colours, not a rendering of data: replace it with a Save as
 Template thumbnail from a real scene.
 
+## coronagraph-ladder
+
+PUNCH CAM (SDAC, level 3, newest version), LASCO C2 and C3 (NRL, lz) and AIA 171 (ROB
+Helioviewer, source 10), hourly, in Helioradial at lambda 0. Its time rule is `ask`: New from
+Template asks for a start and end time first (one day ending now to begin with), so nothing
+downloads until the dates are chosen; then every layer requests that range. Built from one of Gilly's sessions (layer settings and filters as he had them),
+with the PUNCH file list replaced by a query. The thumbnail is a frame of Gilly's ReversingComet movie
+(2026-04-03T12:28 UTC), this scene's layers, cropped to the disk and scaled to 512 pixels.
+
 ## radial-warp
 
 AIA 193 with LASCO C2 and C3 (Helioviewer source ids 11, 4 and 5) in the Helioradial projection at

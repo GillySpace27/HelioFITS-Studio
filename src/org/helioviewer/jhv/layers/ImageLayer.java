@@ -721,7 +721,8 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         if (imageData == null) {
             return;
         }
-        if (!isVisible[vp.idx] || org.helioviewer.jhv.display.Compare.hides(this)) // blink (HS-11): a draw-time skip, never setEnabled
+        if (!isVisible[vp.idx] || org.helioviewer.jhv.display.Compare.hides(this)
+                || org.helioviewer.jhv.display.StudyView.hides(this)) // blink (HS-11), study layer override: draw-time skips, never setEnabled
             return;
 
         MetaData meta0 = imageData.metaData();

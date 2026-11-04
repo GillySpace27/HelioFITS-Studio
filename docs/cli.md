@@ -9,7 +9,8 @@ option table in `CommandLine.java`; this page says what the table cannot.
 | `-request` | request file | Load a request file and issue the request. Repeatable. |
 | `-state` | `.jhv` file | Load a session; the window then belongs to it (autosave writes back to it). |
 | `-export` | `png` | Batch job: draw the scene, write one PNG, exit. Needs `-out`. |
-| `-out` | path | Where `-export` writes. |
+| `-out` | path | Where `-export` writes; with `-study`, the folder the set goes into. |
+| `-study` | path | Batch job: run a parameter study (`*.hfstudy.json`) on the `-state` scene, one PNG per variant plus a manifest, exit. |
 | `-dataset` | `dataset_uid` or `dataset_key` | Load that FITS library dataset as one image layer. Repeatable. |
 | `-start` | ISO 8601 UTC time | With `-dataset`: the first observation to load. |
 | `-end` | ISO 8601 UTC time | With `-dataset`: the last observation to load. |

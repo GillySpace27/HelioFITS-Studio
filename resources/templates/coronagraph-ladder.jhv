@@ -1,0 +1,614 @@
+{
+ "org.helioviewer.jhv.state": {
+  "multiview": false,
+  "showCorona": true,
+  "warpLambda": 0,
+  "plugins": {
+   "EVEPlugin": {
+    "stacked": false,
+    "selectedAxis": {
+     "startTime": "2026-03-26T12:28:29.000",
+     "endTime": "2026-05-11T22:36:29.000"
+    },
+    "locked": false
+   },
+   "PointCloudPlugin": {},
+   "PfssPlugin": {},
+   "SWEKPlugin": {}
+  },
+  "masterEndTime": "2026-05-11T22:36:29.000",
+  "refresh": false,
+  "recording": {
+   "mode": "SHOT",
+   "aspect": "SQUARE",
+   "longSide": 1024
+  },
+  "masterStartTime": "2026-03-26T12:28:29.000",
+  "surfaceModel": "PlaneOfSky",
+  "tracking": false,
+  "surfaceFromImage": false,
+  "annotationMode": "Cross",
+  "differentialRotation": false,
+  "helioradial3D": false,
+  "imageLayers": [
+   {
+    "data": {
+     "filter": "RHEF",
+     "imageParams": {
+      "plane": 0,
+      "color": {
+       "red": true,
+       "green": true,
+       "blue": true
+      },
+      "blend": 1,
+      "brightOffset": -0.37,
+      "upsilonHigh": 0.4,
+      "scalingMode": "Gamma",
+      "lut": "PUNCH",
+      "upsilonLow": 0.6,
+      "sectorWidth": 0,
+      "slitLeft": 0,
+      "colorbar": false,
+      "brightScale": 1.37,
+      "clippingMin": -500,
+      "alpha": 1000,
+      "beta": 0.015625,
+      "sharpen": -0.5,
+      "differenceMode": "None",
+      "backgroundMode": "INTERPOLATED",
+      "invert": false,
+      "clippingMax": 500,
+      "innerMask": 20.448880020649696,
+      "slitRight": 1,
+      "sectorCenter": 0,
+      "outerMask": null,
+      "enhanced": 0,
+      "clippingMode": "Percentile05",
+      "subtractBackground": true,
+      "opacity": 1,
+      "gamma": 0.3333333333333333
+     },
+     "fitsRequest": {
+      "archive": "PUNCH",
+      "level": "3",
+      "product": "CAM",
+      "version": "Latest",
+      "cadence": 3600000,
+      "startTime": "2026-03-26T12:28:29.000",
+      "endTime": "2026-05-11T22:36:29.000"
+     }
+    },
+    "name": "PUNCH CAM",
+    "className": "org.helioviewer.jhv.layers.ImageLayer",
+    "id": "25028dc4-e4c3-4e31-8f69-a8fafe0e5a3e",
+    "enabled": true
+   },
+   {
+    "data": {
+     "filter": "None",
+     "fitsRequest": {
+      "product": "C2",
+      "level": "lz",
+      "archive": "LASCO",
+      "startTime": "2026-03-26T12:28:29.000",
+      "endTime": "2026-05-11T22:36:29.000",
+      "version": "",
+      "cadence": 3600000
+     },
+     "imageParams": {
+      "plane": 0,
+      "color": {
+       "red": true,
+       "green": true,
+       "blue": true
+      },
+      "blend": 1,
+      "brightOffset": 0,
+      "upsilonHigh": 0.4,
+      "scalingMode": "Gamma",
+      "lut": "Red Temperature",
+      "upsilonLow": 0.6,
+      "sectorWidth": 0,
+      "slitLeft": 0,
+      "colorbar": false,
+      "brightScale": 1,
+      "clippingMin": -500,
+      "alpha": 1000,
+      "beta": 0.015625,
+      "sharpen": 0,
+      "differenceMode": "None",
+      "backgroundMode": "INTERPOLATED",
+      "invert": false,
+      "clippingMax": 500,
+      "innerMask": 0,
+      "slitRight": 1,
+      "sectorCenter": 0,
+      "outerMask": null,
+      "enhanced": 0,
+      "clippingMode": "Percentile05",
+      "subtractBackground": true,
+      "opacity": 1,
+      "gamma": 0.45454545454545453
+     }
+    },
+    "name": "LASCO C2",
+    "className": "org.helioviewer.jhv.layers.ImageLayer",
+    "id": "4d681a73-7031-4e26-8a9d-50a0e678ec1b",
+    "enabled": true,
+    "master": true
+   },
+   {
+    "data": {
+     "filter": "RHEF",
+     "fitsRequest": {
+      "product": "C3",
+      "level": "lz",
+      "archive": "LASCO",
+      "startTime": "2026-03-26T12:28:29.000",
+      "endTime": "2026-05-11T22:36:29.000",
+      "version": "",
+      "cadence": 3600000
+     },
+     "imageParams": {
+      "plane": 0,
+      "color": {
+       "red": true,
+       "green": true,
+       "blue": true
+      },
+      "blend": 1,
+      "brightOffset": 0,
+      "upsilonHigh": 0.4,
+      "scalingMode": "Gamma",
+      "lut": "Blue/White Linear",
+      "upsilonLow": 0.6,
+      "sectorWidth": 0,
+      "slitLeft": 0,
+      "colorbar": false,
+      "brightScale": 1,
+      "clippingMin": -500,
+      "alpha": 1000,
+      "beta": 0.015625,
+      "sharpen": -0.54,
+      "differenceMode": "None",
+      "backgroundMode": "INTERPOLATED",
+      "invert": false,
+      "clippingMax": 500,
+      "innerMask": 0,
+      "slitRight": 1,
+      "sectorCenter": 0,
+      "outerMask": null,
+      "enhanced": 0,
+      "clippingMode": "Percentile05",
+      "subtractBackground": true,
+      "opacity": 1,
+      "gamma": 0.45454545454545453
+     }
+    },
+    "name": "LASCO C3",
+    "className": "org.helioviewer.jhv.layers.ImageLayer",
+    "id": "e0d037a3-9fe4-4455-9e5e-a5508fbf25b3",
+    "enabled": true
+   },
+   {
+    "data": {
+     "APIRequest": {
+      "sourceId": 10,
+      "server": "ROB",
+      "startTime": "2026-03-26T12:28:29.000",
+      "endTime": "2026-05-11T22:36:29.000",
+      "cadence": 3600
+     },
+     "filter": "RHEF",
+     "imageParams": {
+      "plane": 0,
+      "color": {
+       "red": true,
+       "green": true,
+       "blue": true
+      },
+      "blend": 1,
+      "brightOffset": 0,
+      "upsilonHigh": 0.4,
+      "scalingMode": "Gamma",
+      "lut": "SDO-AIA 171 \u00c5",
+      "upsilonLow": 0.6,
+      "sectorWidth": 0,
+      "slitLeft": 0,
+      "colorbar": false,
+      "brightScale": 1,
+      "clippingMin": -500,
+      "alpha": 1000,
+      "beta": 0.015625,
+      "sharpen": 0,
+      "differenceMode": "None",
+      "backgroundMode": "INTERPOLATED",
+      "invert": false,
+      "clippingMax": 500,
+      "innerMask": 0,
+      "slitRight": 1,
+      "sectorCenter": 0,
+      "outerMask": null,
+      "enhanced": 0,
+      "clippingMode": "Percentile05",
+      "subtractBackground": true,
+      "opacity": 1,
+      "gamma": 0.45454545454545453
+     }
+    },
+    "name": "AIA 171",
+    "className": "org.helioviewer.jhv.layers.ImageLayer",
+    "id": "ef75d5c2-acb2-4b29-9172-1927cd7e082c",
+    "enabled": true
+   }
+  ],
+  "timelines": [
+   {
+    "data": {
+     "colormap": "Spectral"
+    },
+    "name": "Callisto Radiogram",
+    "className": "org.helioviewer.jhv.timelines.radio.RadioData",
+    "enabled": false
+   },
+   {
+    "data": {},
+    "name": "SWEK Events",
+    "className": "org.helioviewer.jhv.plugins.swek.EventTimelineLayer",
+    "enabled": true
+   },
+   {
+    "data": {},
+    "name": "Dataset Coverage",
+    "className": "org.helioviewer.jhv.timelines.CoverageTimelineLayer",
+    "enabled": true
+   },
+   {
+    "data": {},
+    "name": "Dataset Coverage",
+    "className": "org.helioviewer.jhv.timelines.CoverageTimelineLayer",
+    "enabled": true
+   },
+   {
+    "data": {},
+    "name": "Dataset Coverage",
+    "className": "org.helioviewer.jhv.timelines.CoverageTimelineLayer",
+    "enabled": true
+   },
+   {
+    "data": {},
+    "name": "Dataset Coverage",
+    "className": "org.helioviewer.jhv.timelines.CoverageTimelineLayer",
+    "enabled": true
+   },
+   {
+    "data": {},
+    "name": "Dataset Coverage",
+    "className": "org.helioviewer.jhv.timelines.CoverageTimelineLayer",
+    "enabled": true
+   },
+   {
+    "data": {},
+    "name": "Dataset Coverage",
+    "className": "org.helioviewer.jhv.timelines.CoverageTimelineLayer",
+    "enabled": true
+   },
+   {
+    "data": {},
+    "name": "Dataset Coverage",
+    "className": "org.helioviewer.jhv.timelines.CoverageTimelineLayer",
+    "enabled": true
+   },
+   {
+    "data": {},
+    "name": "Dataset Coverage",
+    "className": "org.helioviewer.jhv.timelines.CoverageTimelineLayer",
+    "enabled": true
+   },
+   {
+    "data": {},
+    "name": "Dataset Coverage",
+    "className": "org.helioviewer.jhv.timelines.CoverageTimelineLayer",
+    "enabled": true
+   },
+   {
+    "data": {},
+    "name": "Dataset Coverage",
+    "className": "org.helioviewer.jhv.timelines.CoverageTimelineLayer",
+    "enabled": true
+   },
+   {
+    "data": {},
+    "name": "Dataset Coverage",
+    "className": "org.helioviewer.jhv.timelines.CoverageTimelineLayer",
+    "enabled": true
+   },
+   {
+    "data": {},
+    "name": "Dataset Coverage",
+    "className": "org.helioviewer.jhv.timelines.CoverageTimelineLayer",
+    "enabled": true
+   },
+   {
+    "data": {},
+    "name": "Dataset Coverage",
+    "className": "org.helioviewer.jhv.timelines.CoverageTimelineLayer",
+    "enabled": true
+   },
+   {
+    "data": {},
+    "name": "Dataset Coverage",
+    "className": "org.helioviewer.jhv.timelines.CoverageTimelineLayer",
+    "enabled": true
+   },
+   {
+    "data": {},
+    "name": "Dataset Coverage",
+    "className": "org.helioviewer.jhv.timelines.CoverageTimelineLayer",
+    "enabled": true
+   },
+   {
+    "data": {},
+    "name": "Dataset Coverage",
+    "className": "org.helioviewer.jhv.timelines.CoverageTimelineLayer",
+    "enabled": true
+   },
+   {
+    "data": {},
+    "name": "Dataset Coverage",
+    "className": "org.helioviewer.jhv.timelines.CoverageTimelineLayer",
+    "enabled": true
+   },
+   {
+    "data": {},
+    "name": "Dataset Coverage",
+    "className": "org.helioviewer.jhv.timelines.CoverageTimelineLayer",
+    "enabled": true
+   },
+   {
+    "data": {},
+    "name": "Dataset Coverage",
+    "className": "org.helioviewer.jhv.timelines.CoverageTimelineLayer",
+    "enabled": true
+   },
+   {
+    "data": {},
+    "name": "Dataset Coverage",
+    "className": "org.helioviewer.jhv.timelines.CoverageTimelineLayer",
+    "enabled": true
+   },
+   {
+    "data": {},
+    "name": "Dataset Coverage",
+    "className": "org.helioviewer.jhv.timelines.CoverageTimelineLayer",
+    "enabled": true
+   },
+   {
+    "data": {},
+    "name": "Dataset Coverage",
+    "className": "org.helioviewer.jhv.timelines.CoverageTimelineLayer",
+    "enabled": true
+   },
+   {
+    "data": {},
+    "name": "Dataset Coverage",
+    "className": "org.helioviewer.jhv.timelines.CoverageTimelineLayer",
+    "enabled": true
+   },
+   {
+    "data": {},
+    "name": "Dataset Coverage",
+    "className": "org.helioviewer.jhv.timelines.CoverageTimelineLayer",
+    "enabled": true
+   }
+  ],
+  "masterCadence": 3600,
+  "layers": [
+   {
+    "data": {
+     "turntable": {
+      "axisLat": 90,
+      "degPerSec": 6,
+      "driver": "TURNTABLE",
+      "axisLon": 0,
+      "framesPerRev": 180
+     },
+     "behaviour": "FOLLOW",
+     "freeSource": "OBSERVER_1AU",
+     "location": {
+      "syncInterval": true,
+      "objects": [
+       "Earth"
+      ],
+      "relativeLongitude": false,
+      "frame": "SOLO_IAU_SUN_2009"
+     },
+     "camera": {
+      "translation": [
+       0,
+       0
+      ],
+      "zoom": 1,
+      "fov": 1.6056515020035884,
+      "dragRotation": [
+       1,
+       0,
+       0,
+       0
+      ]
+     },
+     "revolve": false,
+     "equatorial": {
+      "syncInterval": true,
+      "objects": [
+       "Earth"
+      ],
+      "relativeLongitude": false,
+      "frame": "SOLO_HCI"
+     }
+    },
+    "name": "Viewpoint",
+    "className": "org.helioviewer.jhv.layers.ViewpointLayer",
+    "id": "72466250-ee0c-43fa-a722-bd8acd674596",
+    "enabled": false
+   },
+   {
+    "data": {},
+    "name": "Connection",
+    "className": "org.helioviewer.jhv.layers.ConnectionLayer",
+    "id": "dd43443e-d551-4196-ac87-13c64004541d",
+    "enabled": false
+   },
+   {
+    "data": {
+     "celestialColor": "Magenta",
+     "planetOrbitAlpha": 0.5,
+     "showCelestial": false,
+     "celestialLineScale": 1,
+     "color": "ReducedGreen",
+     "showEcliptic": false,
+     "type": "Viewpoint",
+     "celestialDensity": 1,
+     "labelAlpha": 1,
+     "eclipticColor": "Yellow",
+     "limbLineScale": 1,
+     "limbColor": "White",
+     "planetsFollowRotation": true,
+     "eclipticLineScale": 1,
+     "labelSize": 16,
+     "eclipticDensity": 1,
+     "alpha": 1,
+     "thomsonDensity": 1,
+     "showRadial": false,
+     "showPlanetOrbits": true,
+     "showPlanetNames": true,
+     "showLimb": false,
+     "thomsonAlpha": 0.7,
+     "celestialAlpha": 0.7,
+     "showGrid": true,
+     "showPlanets": false,
+     "celestialExtent": 90,
+     "limbAlpha": 0.7,
+     "showLabels": true,
+     "thomsonColor": "Cyan",
+     "lonStep": 30,
+     "lineScale": 1,
+     "eclipticAlpha": 0.7,
+     "latStep": 20,
+     "labelAngle": 148,
+     "showAxis": true,
+     "showThomson": false,
+     "thomsonLineScale": 1
+    },
+    "name": "Grid",
+    "className": "org.helioviewer.jhv.layers.GridLayer",
+    "id": "9b2475e2-1305-45fb-8dcf-ecbf8294fb37",
+    "enabled": false
+   },
+   {
+    "data": {
+     "Solar Orbiter": {
+      "centerY": 0,
+      "PHI/FDT": false,
+      "EUI/FSI": false,
+      "centerX": 0,
+      "PHI/HRT": false,
+      "STIX": false,
+      "SPICE": false,
+      "Metis": false,
+      "EUI/HRI": false
+     },
+     "Earth orbit": {
+      "centerY": 0,
+      "SUVI": false,
+      "SWAP": false,
+      "centerX": 0,
+      "AIA & HMI": false,
+      "ASPIICS": false
+     },
+     "STEREO Ahead": {
+      "centerY": 0,
+      "EUVI": false,
+      "COR2": false,
+      "COR1": false,
+      "centerX": 0
+     }
+    },
+    "name": "FOV",
+    "className": "org.helioviewer.jhv.layers.FOVLayer",
+    "id": "f4437550-9778-458d-89ad-cd929bb66b16",
+    "enabled": false
+   },
+   {
+    "data": {
+     "offsetX": 0,
+     "offsetY": 0,
+     "showName": false,
+     "showProjection": false,
+     "showFilter": false,
+     "extra": false,
+     "scale": 100,
+     "showVersion": false,
+     "showObserver": false,
+     "showClock": true
+    },
+    "name": "Timestamp",
+    "className": "org.helioviewer.jhv.layers.TimestampLayer",
+    "id": "ca2e79c5-2c5f-43fc-a871-67c6125fff33",
+    "enabled": true
+   },
+   {
+    "data": {
+     "scale": 10
+    },
+    "name": "Miniview",
+    "className": "org.helioviewer.jhv.layers.MiniviewLayer",
+    "id": "68a4be81-76ab-455b-b4df-e9934818b108",
+    "enabled": false
+   },
+   {
+    "data": {
+     "extendDistance": 0,
+     "icons": true,
+     "extendCactus": false
+    },
+    "name": "SWEK Events",
+    "className": "org.helioviewer.jhv.plugins.swek.SWEKLayer",
+    "id": "2241194b-9059-4814-8a88-e4e6932bcbe5",
+    "enabled": true
+   },
+   {
+    "data": {
+     "fixedColor": false,
+     "detail": 0,
+     "radius": 2.5
+    },
+    "name": "PFSS Model",
+    "className": "org.helioviewer.jhv.plugins.pfss.PfssLayer",
+    "id": "db4f9985-a818-48b8-9321-e1580f29cb12",
+    "enabled": false
+   }
+  ],
+  "playback": {
+   "speedUnit": "FRAMES_PER_SECOND",
+   "advanceMode": "Loop",
+   "firstFrame": 0,
+   "lastFrame": 1050,
+   "speed": 20
+  },
+  "projection": "Helioradial",
+  "time": "2026-03-26T00:00:31.480",
+  "template": {
+   "name": "Coronagraph ladder (Helioradial, lambda 0)",
+   "description": "PUNCH CAM, LASCO C2, LASCO C3 and AIA 171 in Helioradial at lambda 0. Asks for a start and end time first, so nothing downloads until you choose the dates.",
+   "time": {
+    "mode": "ask",
+    "span": "P1D",
+    "lag": "PT0S"
+   },
+   "thumbnail": "coronagraph-ladder.png",
+   "version": 1
+  }
+ }
+}
