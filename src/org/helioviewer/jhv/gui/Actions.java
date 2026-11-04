@@ -522,7 +522,7 @@ public final class Actions {
 
     public static class DisplaySettingsDialog extends AbstractAction {
         public DisplaySettingsDialog() {
-            super("Display Settings\u2026");
+            super("Display Scaling\u2026");
         }
 
         @Override

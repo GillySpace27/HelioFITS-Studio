@@ -193,9 +193,9 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
 
         // Text size and interface scale keep their own modeless window, so the app behind it can be
         // watched resizing (DisplayScale); this modal one steps aside while it is open, then returns.
-        JButton display = new JButton("Text Size and Interface Scale\u2026");
+        JButton display = new JButton("Display Scaling\u2026");
         display.setToolTipText("Text " + Math.round(org.helioviewer.jhv.gui.DisplayScale.text() * 100) + "%, interface "
-                + Math.round(org.helioviewer.jhv.gui.DisplayScale.ui() * 100) + "%. Also View > Display Settings");
+                + Math.round(org.helioviewer.jhv.gui.DisplayScale.ui() * 100) + "%. Also View > Display Scaling");
         display.addActionListener(e -> {
             if (SwingUtilities.getWindowAncestor(display) instanceof SettingsDialog dialog) {
                 dialog.defaultsPanel.saveSettings();
