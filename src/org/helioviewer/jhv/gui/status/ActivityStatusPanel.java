@@ -41,7 +41,7 @@ import org.helioviewer.jhv.view.ComputedView;
 public final class ActivityStatusPanel extends StatusPanel.StatusPlugin implements Interfaces.LazyComponent {
 
     private static final int SIZE = 14;
-    private static final String DONE_TIP = "Everything has landed: nothing is downloading, loading or computing. Click for the Activity window.";
+    private static final String DONE_TIP = "Everything has landed: nothing is downloading, loading or computing. Click for the Task Manager.";
 
     private final BusyIndicator wheel = new BusyIndicator(); // shares the angle UITimer turns for the layer rows
     private final Icon spinning = new Icon() {
@@ -150,7 +150,7 @@ public final class ActivityStatusPanel extends StatusPanel.StatusPlugin implemen
         StringBuilder sb = new StringBuilder("<html>").append(heading);
         for (String line : lines)
             sb.append("<br>&nbsp;&nbsp;").append(line.replace("&", "&amp;").replace("<", "&lt;"));
-        return sb.append("<br>Click for the Activity window.</html>").toString();
+        return sb.append("<br>Click for the Task Manager.</html>").toString();
     }
 
 }

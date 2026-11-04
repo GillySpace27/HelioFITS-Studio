@@ -93,7 +93,7 @@ def commands_page():
 
 def tours_page():
     order = ["getting-started", "loading-data", "making-a-movie", "views-and-projections",
-             "rhef-and-filters", "sharing-your-work"]
+             "rhef-and-filters", "sharing-your-work", "manager-windows", "rearranging-the-interface"]
     files = sorted(glob.glob(os.path.join(ROOT, "resources", "data", "tours", "*.json")),
                    key=lambda p: (order.index(os.path.basename(p)[:-5]) if os.path.basename(p)[:-5] in order
                                   else len(order), p))

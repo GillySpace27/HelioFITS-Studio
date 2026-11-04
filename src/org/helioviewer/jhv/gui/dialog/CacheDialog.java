@@ -23,6 +23,7 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
@@ -85,9 +86,29 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
 
     private List<CacheIndex.Dataset> all = List.of();
 
-    public CacheDialog() {
-        super(MainFrame.get(), "Load from Cache");
+    // The second source: HelioFITS Core's FITS library, read-only here; its writes go through LibraryTools.
+    private final FitsLibraryTab libraryTab = new FitsLibraryTab(this::enableActions, this::load, this::rangeStart, this::rangeEnd);
+    private final JTabbedPane tabs = new JTabbedPane();
+    private final JLabel lede = new JLabel();
+    private final JPanel filters = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
+
+    private static final class Holder { // made on first use, on the event thread
+        static final CacheDialog INSTANCE = new CacheDialog();
+    }
+
+    /** The one Cache Manager window: Window > Cache Manager..., Layers > Cache Manager..., New Image Layer's button. */
+    public static CacheDialog get() {
+        return Holder.INSTANCE;
+    }
+
+    private CacheDialog() {
+        super(MainFrame.get(), "Cache Manager");
         setResizable(true);
+        LibraryTools.install(libraryTab, this);
+    }
+
+    private boolean libraryFront() {
+        return tabs.getSelectedComponent() == libraryTab;
     }
 
     @Override
@@ -95,10 +116,8 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
         JPanel top = new JPanel(new BorderLayout(0, 6));
         top.setBorder(BorderFactory.createEmptyBorder(8, 9, 4, 9));
 
-        JLabel lede = new JLabel("Datasets already on disk, and how much of the master time range each one covers.");
         top.add(lede, BorderLayout.PAGE_START);
 
-        JPanel filters = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
         filters.add(new JLabel("Find:"));
         search.setToolTipText("Match on mission, instrument, level, product type or version");
         search.getDocument().addDocumentListener(new DocumentListener() {
@@ -165,7 +184,15 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
 
         JScrollPane scroller = new JScrollPane(table);
         scroller.setPreferredSize(new Dimension(880, 330));
-        panel.add(scroller, BorderLayout.CENTER);
+        JPanel cache = new JPanel(new BorderLayout());
+        cache.add(scroller, BorderLayout.CENTER);
+        tabs.addTab("Studio Cache", cache);
+        tabs.setToolTipTextAt(0, "What Studio itself has downloaded, in ~/HFStudio's cache");
+        tabs.addTab("FITS Library", libraryTab);
+        tabs.setToolTipTextAt(1, "The FITS library HelioFITS Core keeps, which Studio reads and adds its own FITS downloads to");
+        tabs.addChangeListener(e -> tabChanged());
+        panel.add(tabs, BorderLayout.CENTER);
+        tabChanged();
         return panel;
     }
 
@@ -198,8 +225,11 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
 
     @Override
     public void showDialog() {
-        pack();
-        setLocationRelativeTo(MainFrame.get());
+        libraryTab.update(false);
+        if (!isVisible()) {
+            pack();
+            setLocationRelativeTo(MainFrame.get());
+        }
         rescan();
         setVisible(true);
     }
@@ -237,11 +267,37 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
         }.execute();
     }
 
+    private void tabChanged() {
+        boolean lib = libraryFront();
+        libraryTab.setFront(lib);
+        lede.setText(lib ? "The FITS library HelioFITS Core keeps on this computer, and how much of the master time range each dataset reaches."
+                : "Datasets Studio has already downloaded, and how much of the master time range each one covers.");
+        for (Component c : filters.getComponents())
+            c.setEnabled(!lib);
+        status.setVisible(!lib); // the library tab has its own status line
+        quickLook.setEnabled(!lib && selected() != null);
+        datasetFolders.setEnabled(!lib);
+        enableActions();
+    }
+
     private void enableActions() {
+        if (libraryFront()) {
+            boolean any = libraryTab.canLoad();
+            load.setEnabled(any);
+            reveal.setEnabled(libraryTab.library() != null);
+            boolean core = LibraryTools.coreFound(libraryTab);
+            delete.setEnabled(any && core);
+            delete.putValue(javax.swing.Action.SHORT_DESCRIPTION, core ? "Delete the selected datasets' files from the FITS library, after showing what would go"
+                    : LibraryTools.whyNoCore(libraryTab));
+            quickLook.setEnabled(false);
+            return;
+        }
         boolean one = selected() != null;
         load.setEnabled(one);
         reveal.setEnabled(one);
         delete.setEnabled(one);
+        delete.putValue(javax.swing.Action.SHORT_DESCRIPTION, "Delete the selected dataset's cached frames; they download again when needed");
+        quickLook.setEnabled(one);
     }
 
     @Nullable
@@ -252,6 +308,11 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
 
     /** The whole dataset as one layer, frames in time order. */
     private void load() {
+        if (libraryFront()) {
+            if (libraryTab.load())
+                setVisible(false);
+            return;
+        }
         Row row = selected();
         if (row == null)
             return;
@@ -269,6 +330,10 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
     }
 
     private void reveal() {
+        if (libraryFront()) {
+            LibraryTools.reveal(libraryTab);
+            return;
+        }
         Row row = selected();
         if (row != null)
             DesktopIntegration.reveal(CacheIndex.files(row.set()).getFirst());
@@ -294,6 +359,10 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
     }
 
     private void delete() {
+        if (libraryFront()) {
+            LibraryTools.delete(libraryTab, this);
+            return;
+        }
         Row row = selected();
         if (row == null)
             return;

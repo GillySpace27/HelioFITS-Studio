@@ -53,7 +53,7 @@ import org.helioviewer.jhv.gui.MainFrame;
  * appear on the bar more than once.
  */
 @SuppressWarnings("serial")
-final class ToolbarEditor {
+public final class ToolbarEditor {
 
     private static final String AVAILABLE = "available";
     private static final String ON_BAR = "bar";
@@ -71,6 +71,21 @@ final class ToolbarEditor {
     // list it started in, and that is enough to find where it came from.
     private static final DefaultListModel<String> barModel = new DefaultListModel<>();
     private static final DefaultListModel<String> availableModel = new DefaultListModel<>();
+
+    /**
+     * Window > Toolbar Manager...: the same editor, which the panel lock holds shut. Locked, it
+     * asks to unlock first rather than doing nothing, and says the padlock is where to lock again.
+     */
+    public static void openFromMenu() {
+        if (PanelLock.isLocked()) {
+            if (javax.swing.JOptionPane.showConfirmDialog(MainFrame.get(),
+                    "The panels are locked, which also holds the toolbar still.\nUnlock them to edit the toolbar? The padlock at the right end of the toolbar locks them again.",
+                    "Toolbar Manager", javax.swing.JOptionPane.OK_CANCEL_OPTION, javax.swing.JOptionPane.QUESTION_MESSAGE) != javax.swing.JOptionPane.OK_OPTION)
+                return;
+            PanelLock.setLocked(false);
+        }
+        open();
+    }
 
     static void open() {
         if (dialog != null) {
@@ -132,7 +147,7 @@ final class ToolbarEditor {
         south.add(buttons, BorderLayout.PAGE_END);
         content.add(south, BorderLayout.PAGE_END);
 
-        JDialog d = new JDialog(MainFrame.get(), "Edit Toolbar", false);
+        JDialog d = new JDialog(MainFrame.get(), "Toolbar Manager", false);
         d.setContentPane(content);
         d.pack();
         d.setLocationRelativeTo(MainFrame.get());

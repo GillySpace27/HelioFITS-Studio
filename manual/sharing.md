@@ -17,7 +17,7 @@ the template itself is never written over.
 - {menuselection}`File --> New from Template...` lists the templates with the range each would open
   on now. A built-in SDO sun pizza template comes with the app.
 - {menuselection}`File --> Save as Template...` saves this scene as a template.
-- {menuselection}`File --> Templates...` (Window > Templates... on macOS) manages them: open,
+- {menuselection}`File --> Template Manager...` (Window > Template Manager... on macOS) manages them: open,
   duplicate, rename, edit, set as startup, share or retire. **Refresh Data** asks HelioFITS Core to
   bring the library up to the newest frames of the template's FITS datasets.
 

@@ -55,7 +55,7 @@ final class FitsLibrarySettings extends JPanel {
     private final JLabel core = new JLabel(" ");
     private final JLabel downloads = new JLabel(" ");
     private final JButton showFolder = new JButton("Show Folder");
-    private final JButton openCacheManager = new JButton("Open Cache Manager");
+    private final JButton openCacheManager = new JButton("Open Cache Manager App");
     private final JButton getCacheManager = new JButton("Get Cache Manager");
     private final JButton again = new JButton("Check Again");
     private final JButton againMissing = new JButton("Check Again"); // a component has one parent, and each face needs one
