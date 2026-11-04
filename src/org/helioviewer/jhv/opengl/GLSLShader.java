@@ -19,6 +19,21 @@ abstract class GLSLShader {
     // so it reaches a user rather than the build.
     private static final String WARP_MARKER = "warpWorld";
 
+    // Diagnostic for the Windows helioradial imagery that draws black (2026-11-03). Set the
+    // environment variable HFS_DEBUG_WARP to a stage from 1 to 6 before starting the app and the
+    // helioradial shaders paint one stage of their pipeline instead of the picture; see
+    // sampleWarpedHpcColor in imageCommon.frag. Unset, nothing changes: no define is added.
+    private static final String DEBUG_WARP = debugWarpDefine(System.getenv("HFS_DEBUG_WARP"));
+
+    static String debugWarpDefine(String value) {
+        if (value == null)
+            return "";
+        return switch (value.trim()) {
+            case "1", "2", "3", "4", "5", "6" -> "#define HFS_DEBUG_WARP " + value.trim() + "\n";
+            default -> "";
+        };
+    }
+
     protected static void setupUniformBlock(int programID, UniformBlockLayout block) {
         int blockIndex = GL.glGetUniformBlockIndex(programID, block.glslName);
         if (blockIndex < 0)
@@ -68,7 +83,7 @@ abstract class GLSLShader {
             StringBuilder fragmentText = new StringBuilder();
             for (String fragment : fragments)
                 fragmentText.append(readSource(fragment));
-            fragmentID = compileShader(GL.FRAGMENT_SHADER, "fragment shader " + String.join(", ", fragments), fragmentText.toString());
+            fragmentID = compileShader(GL.FRAGMENT_SHADER, "fragment shader " + String.join(", ", fragments), withDebugDefine(fragmentText.toString()));
 
             progID = initializeProgram(vertexID, fragmentID);
             use();
@@ -82,6 +97,14 @@ abstract class GLSLShader {
             if (fragmentID != 0)
                 GL.glDeleteShader(fragmentID);
         }
+    }
+
+    // The define has to follow the #version line, which must stay first.
+    private static String withDebugDefine(String text) {
+        if (DEBUG_WARP.isEmpty())
+            return text;
+        int nl = text.indexOf('\n');
+        return nl < 0 ? text : text.substring(0, nl + 1) + DEBUG_WARP + text.substring(nl + 1);
     }
 
     private String vertexSource() {
