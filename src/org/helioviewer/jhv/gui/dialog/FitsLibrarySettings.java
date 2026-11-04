@@ -43,20 +43,6 @@ final class FitsLibrarySettings extends JPanel {
      * Where "Get Cache Manager" goes. The HelioFITS Cache Manager has no download page yet; the Help me decide page lists it
      * with its status. Point this at the download page once there is one.
      */
-    /** Window > Cache Manager...: starts the app as New Image Layer's button does; the download page when it is not installed. */
-    @SuppressWarnings("serial")
-    public static final class OpenCacheManager extends javax.swing.AbstractAction {
-        public OpenCacheManager() {
-            super("Cache Manager...");
-        }
-
-        @Override
-        public void actionPerformed(java.awt.event.ActionEvent e) {
-            java.nio.file.Path app = FitsLibrary.app();
-            DesktopIntegration.openURL(app != null ? app.toUri().toString() : GET_URL);
-        }
-    }
-
     static final String GET_URL = "https://gilly.space/heliosoftware/decide/";
 
     private static final Duration HELLO_WAIT = Duration.ofSeconds(15);
@@ -69,7 +55,7 @@ final class FitsLibrarySettings extends JPanel {
     private final JLabel core = new JLabel(" ");
     private final JLabel downloads = new JLabel(" ");
     private final JButton showFolder = new JButton("Show Folder");
-    private final JButton openCacheManager = new JButton("Open Cache Manager");
+    private final JButton openCacheManager = new JButton("Open Cache Manager App");
     private final JButton getCacheManager = new JButton("Get Cache Manager");
     private final JButton again = new JButton("Check Again");
     private final JButton againMissing = new JButton("Check Again"); // a component has one parent, and each face needs one

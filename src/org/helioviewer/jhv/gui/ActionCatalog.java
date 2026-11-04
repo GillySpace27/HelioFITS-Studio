@@ -190,9 +190,14 @@ public final class ActionCatalog {
                 "Save this scene as a template: a starting point with a name, a description, a thumbnail and a time rule");
         put("templates", new org.helioviewer.jhv.gui.dialog.TemplateManager.Open(), mac ? "Window/Template Manager..." : "File/Template Manager...",
                 "Manage scene templates: open, duplicate, rename, edit, share, set as startup or retire");
-        // The HelioFITS Cache Manager, opened as New Image Layer's Open Cache Manager button does
-        put("cacheManager", new org.helioviewer.jhv.gui.dialog.FitsLibrarySettings.OpenCacheManager(), mac ? "Window/Cache Manager..." : "File/Cache Manager...",
-                "Open the HelioFITS Cache Manager, to manage the local FITS library and download into it (the download page when it is not installed)");
+        // Studio's Cache Manager (was Load from Cache), also New Image Layer's Open Cache Manager button
+        put("cacheManager", new AbstractAction("Cache Manager...") {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                org.helioviewer.jhv.gui.dialog.CacheDialog.get().showDialog();
+            }
+        }, mac ? "Window/Cache Manager..." : "File/Cache Manager...",
+                "What is on disk, in Studio's cache and the FITS library: load, reveal, import, verify or delete");
         // The person's own keybindings (Settings > Keybindings), applied over the defaults stated above
         org.helioviewer.jhv.gui.registry.KeyBindings.apply();
     }

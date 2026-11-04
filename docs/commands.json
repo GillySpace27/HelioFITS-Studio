@@ -1560,7 +1560,7 @@
         "properties": {}
       },
       "name": "cacheManager",
-      "description": "Open the HelioFITS Cache Manager, to manage the local FITS library and download into it (the download page when it is not installed)",
+      "description": "What is on disk, in Studio's cache and the FITS library: load, reveal, import, verify or delete",
       "annotations": {
         "destructiveHint": false,
         "readOnlyHint": true
