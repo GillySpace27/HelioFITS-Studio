@@ -101,8 +101,9 @@ public final class StudyRunnerCheck {
         expect("manifest holds the resolved job and the scene hash", m.getJSONObject("job").getJSONArray("variants").length() == 2
                 && m.getString("sceneSha256").equals("abc"));
 
-        String cmd = StudyRunner.commandLine(study, Path.of("/tmp/my job.hfstudy.json"));
-        expect("commandLine is the headless invocation, quoted", cmd.startsWith("./run.sh -state /data/Figure1.jhv -study '/tmp/my job.hfstudy.json' -out ")
+        Path jobPath = Path.of("/tmp/my job.hfstudy.json"); // separators differ on Windows
+        String cmd = StudyRunner.commandLine(study, jobPath);
+        expect("commandLine is the headless invocation, quoted", cmd.startsWith("./run.sh -state /data/Figure1.jhv -study '" + jobPath + "' -out ")
                 && cmd.contains("Figure1_"));
     }
 
