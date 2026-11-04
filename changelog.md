@@ -3,6 +3,11 @@
 
 Each new entry ends with a `[docs: ...]` pointer to where it is documented (`release/RELEASING.md`, "Docs pointers in the changelog"); the app and the release notes hide them.
 
+## HelioFITS Studio 0.9.1 (unreleased)
+
+### Welcome window
+- What's New is now a button in the Welcome window's header instead of the main panel, so the window shows the ways to start first. Take a Tour is a button that opens a list of every tour (Getting started marked as the place to begin); clicking one starts it. A new Find your way around panel lists the help in the app: Search Controls with its keyboard shortcut, tooltips, Tip of the Day, the User Manual, the Help menu and Send Feedback. The footer has one Settings button (text size and interface scale are under Appearance) in place of Settings and Display Settings. [docs: manual/index.md]
+
 ## HelioFITS Studio 0.9.0 (unreleased)
 
 ### Command registry
