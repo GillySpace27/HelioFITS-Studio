@@ -94,7 +94,7 @@ test("rate limit: the sixth report from one install in an hour is refused before
 });
 
 test("rate limit: one address is capped across installs", async () => {
-  for (let i = 0; i < 20; i++)
+  for (let i = 0; i < 200; i++)
     assert.equal((await post(report({ installId: `aaaaaaaa-bbbb-4ccc-8ddd-${String(i).padStart(12, "0")}` }))).status, 201);
   assert.equal((await post(report({ installId: "aaaaaaaa-bbbb-4ccc-8ddd-999999999999" }))).status, 429);
 });
@@ -112,4 +112,21 @@ test("a huge log and session still fit GitHub's body limit, keeping the end of t
 test("GitHub failing is a 502, so the app keeps the report and retries", async () => {
   globalThis.fetch = async () => new Response("{}", { status: 503 });
   assert.equal((await post(report())).status, 502);
+});
+
+test("a Slack webhook gets one line per issue, and its failure changes nothing", async () => {
+  const urls = [];
+  globalThis.fetch = async (url, init) => {
+    urls.push(url);
+    if (url.startsWith("https://hooks.example/")) throw new Error("slack down");
+    return new Response(JSON.stringify({ number: 7, html_url: "https://github.com/x/y/issues/7" }), { status: 201 });
+  };
+  const pending = [];
+  const res = await worker.fetch(
+    new Request("https://w.example/", { method: "POST", body: JSON.stringify(report()) }),
+    { ...env, SLACK_WEBHOOK_URL: "https://hooks.example/T/B/x" },
+    { waitUntil: (p) => pending.push(p) });
+  await Promise.all(pending);
+  assert.equal(res.status, 201);
+  assert.ok(urls.some((u) => u.startsWith("https://hooks.example/")));
 });
