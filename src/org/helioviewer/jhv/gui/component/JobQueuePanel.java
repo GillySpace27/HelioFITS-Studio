@@ -24,7 +24,7 @@ import org.helioviewer.jhv.study.JobQueue;
 import org.helioviewer.jhv.study.JobQueue.Job;
 
 /**
- * The Activity window, opened from the footer's spinner or Window > Activity: what is running right
+ * The Task Manager, opened from the footer's spinner or Window > Task Manager: what is running right
  * now (downloads, loads, filters, event fetches, the export in progress), what did not land, and the
  * export queue (study runs, Screenshot, Record), which runs one job at a time with cancel, re-run and
  * open folder. Downloads are listed, not queued: they run side by side and are managed from their layer.
@@ -152,7 +152,7 @@ public final class JobQueuePanel extends JDialog {
     }
 
     private JobQueuePanel() {
-        super(MainFrame.get(), "Activity", false);
+        super(MainFrame.get(), "Task Manager", false);
         setDefaultCloseOperation(HIDE_ON_CLOSE);
         table.setModel(new Model());
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);

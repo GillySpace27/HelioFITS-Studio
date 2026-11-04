@@ -230,7 +230,7 @@
     {
       "id": "activity",
       "title": "What is still running",
-      "text": "The spinner at the bottom left turns while anything downloads, loads or computes, and becomes a check when everything has landed. Click it for the Activity window: the running work, anything that did not land, and the export queue."
+      "text": "The spinner at the bottom left turns while anything downloads, loads or computes, and becomes a check when everything has landed. Click it for the Task Manager: the running work, anything that did not land, and the export queue."
     }
   ]
 }

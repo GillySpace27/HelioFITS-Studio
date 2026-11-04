@@ -151,12 +151,12 @@ public final class ActionCatalog {
         }, "File/Show Dataset Folders", "Browse the cache as one folder per dataset (links, or a files.txt listing on Windows); the cache is not changed");
         put("openExportsFolder", ExportsFolder.action(), "File/Open Exports Folder", "Show the folder movies, screenshots and metadata are exported to");
         put("study", org.helioviewer.jhv.gui.component.StudyPanel.openAction(), "Movie/Study...", "A table of views of this scene to export as a set: projection, lambda, field of view, layers");
-        put("activity", new javax.swing.AbstractAction("Activity...") {
+        put("taskManager", new javax.swing.AbstractAction("Task Manager...") {
             @Override
             public void actionPerformed(java.awt.event.ActionEvent e) {
                 org.helioviewer.jhv.gui.component.JobQueuePanel.open();
             }
-        }, mac ? "Window/Activity..." : "File/Activity...", "What is downloading, loading or computing, and the export queue (also: click the footer's spinner)");
+        }, mac ? "Window/Task Manager..." : "File/Task Manager...", "What is downloading, loading or computing, and the export queue (also: click the footer's spinner)");
         put("studySaveView", org.helioviewer.jhv.gui.component.StudyPanel.saveViewAction(), "Movie/Save View to Study", "Add the view on screen to the Study table as a new row");
         // Help search (HS-15): the menu item, and the Projection palette's reveal for the controls in it
         put(org.helioviewer.jhv.gui.search.CommandPalette.ID, org.helioviewer.jhv.gui.search.CommandPalette.action(), "Help/Search Controls...", "Find any command or control by name and run it or show where it is");
@@ -188,8 +188,11 @@ public final class ActionCatalog {
                 "Start from a template: a saved scene whose dates can follow the newest data");
         put("saveAsTemplate", new org.helioviewer.jhv.gui.dialog.TemplateSave.Open(), "File/Save as Template...",
                 "Save this scene as a template: a starting point with a name, a description, a thumbnail and a time rule");
-        put("templates", new org.helioviewer.jhv.gui.dialog.TemplateManager.Open(), mac ? "Window/Templates..." : "File/Templates...",
+        put("templates", new org.helioviewer.jhv.gui.dialog.TemplateManager.Open(), mac ? "Window/Template Manager..." : "File/Template Manager...",
                 "Manage scene templates: open, duplicate, rename, edit, share, set as startup or retire");
+        // The HelioFITS Cache Manager, opened as New Image Layer's Open Cache Manager button does
+        put("cacheManager", new org.helioviewer.jhv.gui.dialog.FitsLibrarySettings.OpenCacheManager(), mac ? "Window/Cache Manager..." : "File/Cache Manager...",
+                "Open the HelioFITS Cache Manager, to manage the local FITS library and download into it (the download page when it is not installed)");
         // The person's own keybindings (Settings > Keybindings), applied over the defaults stated above
         org.helioviewer.jhv.gui.registry.KeyBindings.apply();
     }
