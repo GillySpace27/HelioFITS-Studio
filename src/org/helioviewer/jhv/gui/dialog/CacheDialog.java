@@ -285,7 +285,10 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
             boolean any = libraryTab.canLoad();
             load.setEnabled(any);
             reveal.setEnabled(libraryTab.library() != null);
-            delete.setEnabled(any && LibraryTools.coreFound(libraryTab));
+            boolean core = LibraryTools.coreFound(libraryTab);
+            delete.setEnabled(any && core);
+            delete.putValue(javax.swing.Action.SHORT_DESCRIPTION, core ? "Delete the selected datasets' files from the FITS library, after showing what would go"
+                    : LibraryTools.whyNoCore(libraryTab));
             quickLook.setEnabled(false);
             return;
         }
@@ -293,6 +296,7 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
         load.setEnabled(one);
         reveal.setEnabled(one);
         delete.setEnabled(one);
+        delete.putValue(javax.swing.Action.SHORT_DESCRIPTION, "Delete the selected dataset's cached frames; they download again when needed");
         quickLook.setEnabled(one);
     }
 
