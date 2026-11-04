@@ -70,3 +70,7 @@ The Tip of the Day collection (Help > Tip of the Day...), all on one page.
 
 **Fewer tips.** Snooze, in this window, stops tips at startup for a day, a week or a month, and Show a tip at startup turns them off. Neither touches the Welcome window.
 
+**One scene, many pictures.** Movie > Study... makes a set of pictures of one scene, each with its own projection, lambda, field of view or layers. Start from a template such as the lambda ladder, then Export set writes every picture, a manifest and the command that remakes them.
+
+**What is still running.** The spinner at the bottom left turns while anything downloads, loads or computes, and becomes a check when everything has landed. Click it for the Activity window: the running work, anything that did not land, and the export queue.
+

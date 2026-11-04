@@ -352,6 +352,15 @@ These are run by scripts and Search Controls rather than from a menu; the argume
 * - Command
   - What it does
   - Id
+* - A table of views of this scene to export as a set: projection, lambda, field of view, layers
+  - No arguments
+  - `study`
+* - What is downloading, loading or computing, and the export queue (also: click the footer's spinner)
+  - No arguments
+  - `activity`
+* - Add the view on screen to the Study table as a new row
+  - No arguments
+  - `studySaveView`
 * - Show the movie frame with this number (0 is the first)
   - Arguments: `frame`
   - `seekFrame`
