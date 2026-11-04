@@ -137,7 +137,7 @@ Every command HelioFITS Studio has, as the menus, Help > Search Controls and the
 * - View > Separate Multiview Zoom
   -
   - `separateMultiviewZoom`
-* - View > Display Settings…
+* - View > Display Scaling…
   - Text size and interface scale: make the app easier to read
   - `displaySettings`
 * - View > Zoom to Fit New Layers in Multiview

@@ -5,7 +5,7 @@
 ## HelioFITS Studio 0.9.1 (unreleased)
 
 ### Welcome window
-- What's New is now a button in the Welcome window's header instead of the main panel, so the window shows the ways to start first. Take a Tour is a button that opens a list of every tour with its number of steps (Getting started marked as the place to begin); clicking one starts it. The first time the window opens, Return opens that list instead of Continue. A new Find your way around panel lists the help in the app: Search Controls with its keyboard shortcut, tooltips, Tip of the Day, the User Manual, the Help menu and Send Feedback. The footer has one Settings button (text size and interface scale are under Appearance) in place of Settings and Display Settings.
+- What's New is now a button in the Welcome window's header instead of the main panel, so the window shows the ways to start first. Take a Tour is a button that opens a list of every tour with its number of steps (Getting started marked as the place to begin); clicking one starts it. The first time the window opens, Return opens that list instead of Continue. A new Find your way around panel lists the help in the app: Search Controls with its keyboard shortcut, tooltips, Tip of the Day, the User Manual, the Help menu and Send Feedback. The footer has one Settings button (Display Scaling, the text size and interface scale, is under Appearance) in place of Settings and Display Settings, which is renamed Display Scaling since it handles only scaling.
 
 ## HelioFITS Studio 0.9.0 (unreleased)
 
