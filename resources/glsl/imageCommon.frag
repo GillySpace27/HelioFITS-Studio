@@ -845,8 +845,20 @@ vec4 sampleWarpedHpcColor(const vec2 hpcXY) {
     //   5: as 4, but sampled at LOD 0 (textureLod), which takes screen derivatives out of it.
     //   6: the mask texel getColor discards on: white kept, black discarded.
     //   7 (imageRadialWarp.frag, imageRectWarp.frag main): solid green before any discard.
+    //   8: the uniforms alone, no hpcXY: red = limb, green = lambda + 0.5, blue = outer radius / 16.
+    //   9: hpcXY tested with isnan/isinf (a D3D compiler may fold x == x to true): red = NaN,
+    //      blue = infinite, otherwise grey = radius / outer radius.
     #if HFS_DEBUG_WARP == 1
     return vec4(0., 1., 0., 1.);
+    #elif HFS_DEBUG_WARP == 8
+    return vec4(clamp(screen.limb, 0., 1.), clamp(screen.lambda + .5, 0., 1.), clamp(screen.mapBounds.w / 16., 0., 1.), 1.);
+    #elif HFS_DEBUG_WARP == 9
+    float dbgL = length(hpcXY);
+    if (isnan(dbgL) || isnan(hpcXY.x) || isnan(hpcXY.y))
+        return vec4(1., 0., 0., 1.);
+    if (isinf(dbgL))
+        return vec4(0., 0., 1., 1.);
+    return vec4(vec3(clamp(dbgL / max(screen.mapBounds.w, 1e-6), 0., 1.)), 1.);
     #elif HFS_DEBUG_WARP == 2
     float dbgR = length(hpcXY) / screen.mapBounds.w;
     if (!(dbgR == dbgR) || !(screen.limb == screen.limb) || !(screen.lambda == screen.lambda))
