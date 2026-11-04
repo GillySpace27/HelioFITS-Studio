@@ -20,7 +20,7 @@ abstract class GLSLShader {
     private static final String WARP_MARKER = "warpWorld";
 
     // Diagnostic for the Windows helioradial imagery that draws black (2026-11-03). Set the
-    // environment variable HFS_DEBUG_WARP to a stage from 1 to 6 before starting the app and the
+    // environment variable HFS_DEBUG_WARP to a stage from 1 to 7 before starting the app and the
     // helioradial shaders paint one stage of their pipeline instead of the picture; see
     // sampleWarpedHpcColor in imageCommon.frag. Unset, nothing changes: no define is added.
     private static final String DEBUG_WARP = debugWarpDefine(System.getenv("HFS_DEBUG_WARP"));
@@ -29,7 +29,7 @@ abstract class GLSLShader {
         if (value == null)
             return "";
         return switch (value.trim()) {
-            case "1", "2", "3", "4", "5", "6" -> "#define HFS_DEBUG_WARP " + value.trim() + "\n";
+            case "1", "2", "3", "4", "5", "6", "7" -> "#define HFS_DEBUG_WARP " + value.trim() + "\n";
             default -> "";
         };
     }
