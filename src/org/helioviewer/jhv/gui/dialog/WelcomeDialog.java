@@ -4,6 +4,9 @@ import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GraphicsEnvironment;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
 import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
@@ -20,6 +23,8 @@ import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
+import javax.swing.JMenuItem;
+import javax.swing.JPopupMenu;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.KeyStroke;
@@ -37,9 +42,11 @@ import org.helioviewer.jhv.io.CommandLine;
 import com.google.common.html.HtmlEscapers;
 
 /**
- * The Welcome window (HS-10): the build, What's New from the changelog the jar carries, and the
- * ways to start: continue, a blank session, a session file, the tour or the demo scene. It also holds the startup
- * choice (reopen the last session or start blank) and its own "show at startup" switch.
+ * The Welcome window (HS-10): the ways to start (continue, a blank session, a session file, the demo
+ * scene, and Take a Tour, a list of every tour), where the help is (search, tooltips, Tip of the Day,
+ * the manual, the Help menu), and What's New as a button that opens the changelog section the jar
+ * carries. It also holds the startup choice (reopen the last session or start blank) and its own
+ * "show at startup" switch.
  *
  * <p>Shown on a plain launch only: never headless, in a spawned extra window, on CI, or when the
  * launch had arguments (a script's launch). It takes over the first-launch tour offer, since it
@@ -106,42 +113,31 @@ public final class WelcomeDialog {
 
         JPanel content = new JPanel(new BorderLayout(0, 12));
         content.setBorder(BorderFactory.createEmptyBorder(16, 18, 12, 18));
+        content.add(header(dialog), BorderLayout.PAGE_START);
 
-        JLabel title = new JLabel("<html><span style='font-size:150%'><b>HelioFITS Studio " + escape(AppInfo.version)
-                + "</b></span><br>Build " + escape(AppInfo.buildId()) + "</html>");
-        content.add(title, BorderLayout.PAGE_START);
+        JPanel center = new JPanel();
+        center.setLayout(new BoxLayout(center, BoxLayout.PAGE_AXIS));
 
-        JPanel center = new JPanel(new BorderLayout(0, 8));
         JPanel starts = new JPanel(new GridLayout(1, 0, 8, 0));
         JButton continueButton = card("Continue", "Keep working on " + Session.displayName(), dialog::dispose);
         starts.add(continueButton);
-        starts.add(card("Start Blank", "A new session on an empty canvas", () -> {
+        starts.add(card("Start Blank", "An empty canvas", () -> {
             dialog.dispose();
             run("newSession");
         }));
-        starts.add(card("Open Session...", "A saved .jhv session file", () -> {
+        starts.add(card("Open Session...", "A saved .jhv file", () -> {
             dialog.dispose();
             run("openSession");
         }));
-        starts.add(card("Take the Tour", "The main controls, one at a time", () -> {
-            dialog.dispose();
-            Tour.start(Tour.GETTING_STARTED);
-        }));
-        starts.add(card("Open Demo", "AIA 171 with RHEF, bundled: no download", () -> {
+        starts.add(card("Open Demo", "AIA 171, no download", () -> {
             dialog.dispose();
             run("openDemo");
         }));
-        JPanel top = new JPanel(new BorderLayout(0, 6));
-        top.add(starts, BorderLayout.PAGE_START);
-        center.add(top, BorderLayout.PAGE_START);
-
-        HTMLPane news = new HTMLPane();
-        news.setText(whatsNewHtml(AppInfo.whatsNew()));
-        news.setCaretPosition(0);
-        JScrollPane newsScroll = new JScrollPane(news);
-        newsScroll.setPreferredSize(new Dimension(620, 260));
-        newsScroll.setBorder(BorderFactory.createTitledBorder("What's New in " + AppInfo.version));
-        center.add(newsScroll, BorderLayout.CENTER);
+        starts.add(tourCard(dialog));
+        JPanel startBox = titled("Start", starts);
+        center.add(startBox);
+        center.add(Box.createVerticalStrut(10));
+        center.add(helpPanel(dialog));
         content.add(center, BorderLayout.CENTER);
 
         content.add(footer(dialog), BorderLayout.PAGE_END);
@@ -151,6 +147,141 @@ public final class WelcomeDialog {
         dialog.setLocationRelativeTo(MainFrame.get());
         showing.set(dialog);
         dialog.setVisible(true);
+    }
+
+    /** The build, and What's New as a button: the changelog is one click away, not the first thing seen. */
+    private static JPanel header(JDialog dialog) {
+        JPanel header = new JPanel(new BorderLayout(12, 0));
+        JLabel title = new JLabel("<html><span style='font-size:150%'><b>Welcome to HelioFITS Studio</b></span><br>Version "
+                + escape(AppInfo.version) + ", build " + escape(AppInfo.buildId()) + "</html>");
+        header.add(title, BorderLayout.LINE_START);
+        JButton news = new JButton("What's New in " + AppInfo.version);
+        news.setToolTipText("The changes in this version");
+        news.addActionListener(e -> showWhatsNew(dialog));
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.TRAILING, 0, 0));
+        right.add(news);
+        header.add(right, BorderLayout.CENTER);
+        return header;
+    }
+
+    /** What's New in its own small window, over the Welcome window, from the changelog the jar carries. */
+    private static void showWhatsNew(JDialog owner) {
+        JDialog d = new JDialog(owner, "What's New in HelioFITS Studio " + AppInfo.version, false);
+        HTMLPane news = new HTMLPane();
+        news.setText(whatsNewHtml(AppInfo.whatsNew()));
+        news.setCaretPosition(0);
+        JScrollPane scroll = new JScrollPane(news);
+        scroll.setPreferredSize(new Dimension(620, 380));
+        JButton changeLog = null;
+        ActionCatalog.Entry entry = ActionCatalog.get("openChangeLog");
+        if (entry != null) {
+            changeLog = new JButton("Full Change Log");
+            changeLog.setToolTipText("Every version's changes, on GitHub");
+            changeLog.addActionListener(entry.action());
+        }
+        JButton close = new JButton("Close");
+        close.addActionListener(e -> d.dispose());
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.TRAILING, 6, 0));
+        if (changeLog != null)
+            buttons.add(changeLog);
+        buttons.add(close);
+        JPanel content = new JPanel(new BorderLayout(0, 8));
+        content.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        content.add(scroll, BorderLayout.CENTER);
+        content.add(buttons, BorderLayout.PAGE_END);
+        d.setContentPane(content);
+        d.getRootPane().setDefaultButton(close);
+        d.getRootPane().registerKeyboardAction(e -> d.dispose(),
+                KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_IN_FOCUSED_WINDOW);
+        d.pack();
+        d.setLocationRelativeTo(owner);
+        d.setVisible(true);
+    }
+
+    /** "Take a Tour": one button that opens the list of every tour; clicking one starts it. */
+    private static JButton tourCard(JDialog dialog) {
+        JPopupMenu menu = new JPopupMenu();
+        for (String id : Tour.IDS) {
+            String name = Tour.title(id);
+            JMenuItem item = new JMenuItem(Tour.GETTING_STARTED.equals(id) ? name + " (start here)" : name);
+            item.addActionListener(e -> {
+                dialog.dispose();
+                Tour.start(id);
+            });
+            menu.add(item);
+        }
+        JButton b = cardButton("Take a Tour \u25BE", "Pick one of " + Tour.IDS.size() + " tours");
+        b.addActionListener(e -> menu.show(b, 0, b.getHeight()));
+        return b;
+    }
+
+    private static JPanel titled(String title, JComponent body) {
+        JPanel p = new JPanel(new BorderLayout());
+        p.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createTitledBorder(title),
+                BorderFactory.createEmptyBorder(2, 6, 6, 6)));
+        p.add(body, BorderLayout.CENTER);
+        p.setAlignmentX(0);
+        return p;
+    }
+
+    /** Every way the app helps: search, hover text, the Help menu and what is in it. */
+    private static JPanel helpPanel(JDialog dialog) {
+        JPanel rows = new JPanel(new GridBagLayout());
+        GridBagConstraints c = new GridBagConstraints();
+        c.gridy = 0;
+        c.insets = new Insets(3, 0, 3, 10);
+        c.anchor = GridBagConstraints.LINE_START;
+
+        ActionCatalog.Entry search = ActionCatalog.get("searchControls");
+        String key = search == null ? "" : shortcut(search.action());
+        helpRow(rows, c, search == null ? null : search.action(), "Search Controls\u2026" + (key.isEmpty() ? "" : "  " + key), dialog,
+                "Type what you want to do or the name of any control. It runs the command, or points at the control and shows where it is. The Help menu has a search box of its own on a Mac.");
+        helpRow(rows, c, null, "Hover any control", dialog,
+                "Every button, slider and field has a tooltip saying what it is for.");
+        ActionCatalog.Entry tip = ActionCatalog.get("tipOfTheDay");
+        helpRow(rows, c, tip == null ? null : tip.action(), "Tip of the Day", dialog,
+                "One short tip at a time, each with Show Me to point at the control it is about.");
+        ActionCatalog.Entry manual = ActionCatalog.get("openUserManual");
+        helpRow(rows, c, manual == null ? null : manual.action(), "User Manual", dialog,
+                "The full guide to every part of the app, as a PDF.");
+        helpRow(rows, c, null, "Help menu", dialog,
+                "Also holds Interaction Guide and Timeline Interaction (mouse and keyboard controls), the Change Log, "
+                        + "Check for Updates, Send Feedback and Report Bug.");
+        ActionCatalog.Entry feedback = ActionCatalog.get("sendFeedback");
+        helpRow(rows, c, feedback == null ? null : feedback.action(), "Send Feedback\u2026", dialog,
+                "A problem, a request or a question for the developer; no account needed.");
+        return titled("Find your way around", rows);
+    }
+
+    private static void helpRow(JPanel rows, GridBagConstraints c, @javax.annotation.Nullable Action action, String name,
+            JDialog dialog, String text) {
+        c.gridx = 0;
+        c.fill = GridBagConstraints.HORIZONTAL;
+        c.weightx = 0;
+        if (action == null) {
+            JLabel label = new JLabel("<html><b>" + escape(name) + "</b></html>");
+            rows.add(label, c);
+        } else {
+            JButton b = new JButton(name);
+            b.addActionListener(e -> {
+                dialog.dispose(); // each of these takes this window's place, as the tip does
+                action.actionPerformed(e);
+            });
+            rows.add(b, c);
+        }
+        c.gridx = 1;
+        c.weightx = 1;
+        JLabel desc = new JLabel("<html><div style='width:430px'>" + escape(text) + "</div></html>");
+        rows.add(desc, c);
+        c.gridy++;
+    }
+
+    private static String shortcut(Action action) {
+        Object key = action.getValue(Action.ACCELERATOR_KEY);
+        if (!(key instanceof KeyStroke ks))
+            return "";
+        String mods = java.awt.event.InputEvent.getModifiersExText(ks.getModifiers());
+        return "(" + (mods.isEmpty() ? "" : mods + "+") + KeyEvent.getKeyText(ks.getKeyCode()) + ")";
     }
 
     private static JPanel footer(JDialog dialog) {
@@ -173,34 +304,15 @@ public final class WelcomeDialog {
 
         JPanel row = new JPanel(new BorderLayout());
         JCheckBox atStartup = new JCheckBox("Show this window at startup", !"false".equals(Settings.getProperty(SHOW_KEY)));
-        atStartup.setToolTipText("This window only; Tip of the Day has its own switch");
+        atStartup.setToolTipText("This window only; Tip of the Day has its own switch. Help > Welcome opens it again");
         atStartup.addActionListener(e -> Settings.setProperty(SHOW_KEY, Boolean.toString(atStartup.isSelected())));
         row.add(atStartup, BorderLayout.LINE_START);
         JPanel links = new JPanel(new FlowLayout(FlowLayout.TRAILING, 6, 0));
+        // One Settings button: Settings > Appearance has the text size and interface scale (Display Settings).
         JButton settings = new JButton("Settings\u2026");
+        settings.setToolTipText("Everything adjustable, including text size and interface scale (Appearance)");
         settings.addActionListener(e -> org.helioviewer.jhv.gui.component.MenuBar.openSettings());
         links.add(settings);
-        JButton display = new JButton("Display Settings\u2026"); // text size and interface scale
-        display.addActionListener(e -> { // out of the way while it is open, so the change shows on the app
-            dialog.setVisible(false);
-            org.helioviewer.jhv.gui.DisplayScale.showDialog(MainFrame.get(), () -> {
-                if (dialog.isDisplayable())
-                    dialog.setVisible(true);
-            });
-        });
-        links.add(display);
-        ActionCatalog.Entry changeLog = ActionCatalog.get("openChangeLog");
-        if (changeLog != null) {
-            JButton changeLogButton = new JButton(changeLog.action());
-            changeLogButton.setToolTipText("Every version's changes, on GitHub");
-            links.add(changeLogButton);
-        }
-        ActionCatalog.Entry tip = ActionCatalog.get("tipOfTheDay");
-        if (tip != null) {
-            JButton tipButton = new JButton(tip.action());
-            tipButton.addActionListener(e -> dialog.dispose()); // the tip takes this window's place
-            links.add(tipButton);
-        }
         JButton close = new JButton("Close");
         close.addActionListener(e -> dialog.dispose());
         links.add(close);
@@ -211,9 +323,14 @@ public final class WelcomeDialog {
     }
 
     private static JButton card(String name, String line, Runnable onClick) {
+        JButton b = cardButton(name, line);
+        b.addActionListener(e -> onClick.run());
+        return b;
+    }
+
+    private static JButton cardButton(String name, String line) {
         JButton b = new JButton("<html><center><b>" + escape(name) + "</b><br><small>" + escape(line) + "</small></center></html>");
         b.setToolTipText(line);
-        b.addActionListener(e -> onClick.run());
         return b;
     }
 
