@@ -10,7 +10,7 @@ could not be settled from the code alone.
 
 To add your own Helioviewer image server or HAPI timeline server, see [sources.md](sources.md).
 
-## Images: Helioviewer JPEG 2000 (New Layer > JPEG 2000)
+## Images: Helioviewer JPEG 2000 (New Layer > HV (JPEG 2000))
 
 Helioviewer's browse product: streamed, fast, and 8-bit (scaled at ingest by the server). The
 dataset tree is fetched from each server when the application starts, so the exact list of
@@ -29,10 +29,10 @@ STEREO_A, STEREO_B, PROBA2, SOLO, GOES-R, IRIS, GONG, ROB, Kanzelhoehe, RHESSI, 
 Which instruments each group contains, and which server carries it, is **unconfirmed** here: it
 comes from the live catalog.
 
-How to load: New Layer, choose **JPEG 2000**, then **Choose datasets…** (or File > New JP2 Image
-Layer). Several datasets can be added at once.
+How to load: New Layer (or Layers > New Image Layer…), the **HV (JPEG 2000)** tab. Several datasets
+can be added at once.
 
-## Images: native FITS through the VSO (New Layer > FITS (VSO))
+## Images: native FITS through the VSO (New Layer > VSO (FITS))
 
 Calibrated FITS at full bit depth through the Virtual Solar Observatory's federated broker
 (`https://vso.nascom.nasa.gov/cgi-bin/sunpy_vsoi`, `src/org/helioviewer/jhv/io/VsoClient.java`).
@@ -53,7 +53,7 @@ so it follows the master time range and cadence. The leaves offered are fixed in
 The class comment records that each instrument name was checked against the live service when
 the leaf was added. MDI, TRACE and SXT are deliberately not listed.
 
-## Images: native FITS from a mission's own archive (New Layer > FITS (native))
+## Images: native FITS from a mission's own archive (New Layer > Direct (FITS))
 
 For archives the VSO serves badly or not at all. PUNCH, SOAR and ASPIICS are also in the Layers
 menu. Buttons are defined in `src/org/helioviewer/jhv/layers/selector/LayersSectionPanel.java`.
@@ -76,7 +76,7 @@ timelines rather than images.
 | HMI synoptic maps (magnetogram, continuum) | IAS IDOC, `https://idoc-ssa-prod.ias.u-psud.fr` | forecast, nowcast, temporary or archived | `gui/dialog/SynopticDialog.java` |
 | AIA synoptic maps (94, 131, 171, 193, 211, 304, 335, 1600, 1700) | same | same | same |
 
-## Your own files (File > Open Image Layer, or drag onto the window)
+## Your own files (Layers > Open Image Layer, or drag onto the window)
 
 The format is decided from the file's content, not only its name (`src/org/helioviewer/jhv/io/DataUri.java`).
 The open dialog offers these extensions (`src/org/helioviewer/jhv/io/ExtensionFileFilter.java`):

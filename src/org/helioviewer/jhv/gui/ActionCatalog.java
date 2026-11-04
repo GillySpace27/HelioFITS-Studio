@@ -79,6 +79,7 @@ public final class ActionCatalog {
         // View
         put("zoomOne", new Actions.ZoomOneToOne(), "View/Actual Size", "Zoom to native resolution");
         put("zoomFit", new Actions.ZoomFit(), "View/Zoom to Fit", "");
+        put("zoomTimelineFit", new Actions.ZoomTimelineFit(), "View/Zoom Timeline to Fit", "Set the timeline window to the time bounds of the loaded layers");
         put("zoomIn", new Actions.ZoomIn(), "View/Zoom In", "");
         put("zoomOut", new Actions.ZoomOut(), "View/Zoom Out", "");
         put("resetAxis", new Actions.ResetCameraAxis(), "View/Reset View Axis", "");
@@ -115,7 +116,7 @@ public final class ActionCatalog {
         put("windowMinimize", new Actions.WindowMinimize(), mac ? "Window/Minimize" : "", "");
         put("windowZoom", new Actions.WindowZoom(), mac ? "Window/Zoom" : "", "");
         // Help
-        put("openUserManual", new Actions.OpenURLinBrowser("Open User Manual", AppInfo.documentationURL), "Help/Open User Manual", "");
+        put("openUserManual", new Actions.OpenUserManual(), "Help/Open User Manual", "");
         put("openChangeLog", new Actions.OpenURLinBrowser("Open Change Log", "https://github.com/GillySpace27/HelioFITS-Studio/blob/master/changelog.md"), "Help/Open Change Log", "");
         put("checkForUpdates", new Actions.CheckForUpdates(), "Help/Check for Updates...", "");
         put("reportBug", new Actions.OpenURLinBrowser("Report Bug/Request Feature", AppInfo.bugURL), "Help/Report Bug/Request Feature", "");
@@ -189,6 +190,8 @@ public final class ActionCatalog {
                 "Save this scene as a template: a starting point with a name, a description, a thumbnail and a time rule");
         put("templates", new org.helioviewer.jhv.gui.dialog.TemplateManager.Open(), mac ? "Window/Templates..." : "File/Templates...",
                 "Manage scene templates: open, duplicate, rename, edit, share, set as startup or retire");
+        // The person's own keybindings (Settings > Keybindings), applied over the defaults stated above
+        org.helioviewer.jhv.gui.registry.KeyBindings.apply();
     }
 
     /**

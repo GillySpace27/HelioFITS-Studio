@@ -27,6 +27,8 @@ import javax.swing.JPanel;
 import javax.swing.Timer;
 
 import org.helioviewer.jhv.app.Log;
+import org.helioviewer.jhv.gui.registry.CommandRegistry;
+import org.helioviewer.jhv.gui.registry.Dispatch;
 import org.helioviewer.jhv.app.Session;
 import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.app.Theme;
@@ -91,6 +93,21 @@ public final class Tour {
         try (InputStream is = FileUtils.getResource("/data/tours/" + id + ".json")) {
             return JSONUtils.get(is);
         }
+    }
+
+    /** Every id the tour mentions: each step's target and its reveal action. Empty when the file cannot be read. */
+    public static List<String> references(String id) {
+        List<String> out = new ArrayList<>();
+        try {
+            for (Step s : load(id)) {
+                out.add(s.target());
+                if (s.action() != null)
+                    out.add(s.action());
+            }
+        } catch (IOException | RuntimeException e) {
+            Log.warn("Tour " + id + " could not be read", e);
+        }
+        return out;
     }
 
     /** The tour's own title, for its menu item; the id when the file cannot be read. */
@@ -224,16 +241,13 @@ public final class Tour {
         }
         index = i;
         String id = steps.get(i).action();
-        ActionCatalog.Entry entry = id == null ? null : ActionCatalog.get(id);
-        if (entry == null) {
+        if (id == null || CommandRegistry.get(id) == null) {
             show(i);
             return;
         }
-        try {
-            entry.action().actionPerformed(new ActionEvent(MainFrame.get(), ActionEvent.ACTION_PERFORMED, id));
-        } catch (RuntimeException e) { // a reveal that fails leaves the card centred, not the tour stuck
-            Log.warn("Tour step action " + id + " failed", e);
-        }
+        Dispatch.Result r = Dispatch.invoke(id, null); // a reveal that fails leaves the card centred, not the tour stuck
+        if (!r.ok())
+            Log.warn("Tour step action " + id + " " + r.error() + ": " + r.message());
         Timer settle = new Timer(SETTLE_MS, e -> show(i));
         settle.setRepeats(false);
         settle.start();

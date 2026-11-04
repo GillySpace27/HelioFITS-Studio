@@ -14,10 +14,12 @@ the family version (2026-10-23, Gilly's pick beside Peek, Heliad (now the HelioF
   * the ground outside the orb is Heliogram's violet-black, and the hexagon holds Heliogram's drawn
     Sun (2026-10-26), so the icon reads at 16 px and matches the family's sun-in-a-white-outline;
   * the dividers are Heliogram's chrome white (#E7EAF3), 44 px at 1024 (the stroke of the Heliogram
-    and HelioFITS outlines; 22 px until 2026-10-26), with round joints;
+    and HelioFITS Peek outlines; 22 px until 2026-10-26), with round joints;
   * the iris sits in an inset squircle window (2026-10-28, Gilly's pick of four in a family photo):
     the whole iris is enlarged by ZOOM about its centre, so the orb's edge falls outside the
     window's corners, and the violet-black ground shows as a band around the window.
+    On 2026-11-03 Gilly asked for more of the ground to show, as on the RHEF icon: the window and
+    the iris shrank together to SHRINK (0.88) of their size; the dividers stay 44 px.
 
 The red, olive, gold and purple leaves are the original art, untouched.
 
@@ -45,9 +47,10 @@ ORIGINAL = os.path.join(HERE, "iris_plain_1024.png")
 OUT = os.path.join(HERE, "iris_leaf_plain_1024.png")
 
 CHROME = (0xE7, 0xEA, 0xF3)
-ZOOM = 1.10                               # the iris enlarged about its centre: the orb's radius becomes 547,
-WINDOW = 0.86                             # past the corner of this squircle window (536 px out)
-LINE = 44 / ZOOM                          # divider width, 44 px after ZOOM: Heliogram's and HelioFITS's outline stroke
+SHRINK = 0.88                             # window and iris together, 2026-11-03 (as the RHEF icon on gilly.space)
+ZOOM = 1.10 * SHRINK                      # the iris enlarged about its centre: the orb's radius becomes 481,
+WINDOW = 0.86 * SHRINK                    # past the corner of this squircle window (472 px out)
+LINE = 44 / ZOOM                          # divider width, 44 px after ZOOM: Heliogram's and HelioFITS Peek's outline stroke
 C, APO = 511.5, 202                       # hexagon centre and apothem, to the middle of the old dividers
 R = APO / math.cos(math.radians(30))
 V = {"L": (C - R, C), "R": (C + R, C),

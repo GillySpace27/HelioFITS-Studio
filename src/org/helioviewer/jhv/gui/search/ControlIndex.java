@@ -8,19 +8,20 @@ import java.util.List;
 import java.util.Locale;
 
 import javax.annotation.Nullable;
-import javax.swing.Action;
 import javax.swing.JComponent;
 import javax.swing.AbstractButton;
 import javax.swing.JLabel;
 
 import org.helioviewer.jhv.gui.ActionCatalog;
+import org.helioviewer.jhv.gui.registry.ControlRegistry;
 
 /**
  * What Help > Search Controls can find, and how a query ranks it.
  *
- * <p>Two kinds of result: every ActionCatalog command (choosing one runs it), and every named
- * control the tour can spotlight (choosing one reveals and spotlights it). The controls are listed
- * in {@link #CONTROLS} with a title, where they live and a few words to match; when the control has
+ * <p>Two kinds of result: every command that takes no arguments (choosing one runs it), and every
+ * named control the tour can spotlight (choosing one reveals and spotlights it). Both come from
+ * {@link ControlRegistry}; the controls are listed in resources/data/controls.json with a title,
+ * where they live and a few words to match; when the control has
  * been built, its live text, tooltip and accessible name are added to what it matches.
  * ControlSearchCheck holds every listed id to a
  * name the code assigns and every assigned name to a listing, so a new named control is either
@@ -32,82 +33,37 @@ import org.helioviewer.jhv.gui.ActionCatalog;
 public final class ControlIndex {
 
     /** One search result. {@code reveal} is an ActionCatalog id run before a control is spotlit. */
-    record Item(boolean action, String id, String title, String where, String words, @Nullable String reveal) {}
+    record Item(boolean action, String id, String title, String where, String words, @Nullable String reveal, String shortcut) {
+        Item(boolean action, String id, String title, String where, String words, @Nullable String reveal) {
+            this(action, id, title, where, words, reveal, "");
+        }
+    }
 
-    private static final String TOOLBAR = "Toolbar";
-    private static final String LAYERS = "Image Layers section";
-    private static final String PROJECTION = "Projection palette";
-
-    /** id, title, where, words, reveal (null for none). Plain language; no em dashes. */
-    private static final String[][] CONTROLS = {
-            // The toolbar's controls that are not commands (ActionCatalog.TOOLBAR_CONTROLS)
-            {"rotate90", "Rotate View 90°", TOOLBAR, "turn quarter axis", null},
-            {"pan", "Pan", TOOLBAR, "drag move mouse mode", null},
-            {"rotate", "Rotate", TOOLBAR, "drag turn mouse mode", null},
-            {"axis", "Axis", TOOLBAR, "rotate about axis mouse mode", null},
-            {"track", "Track", TOOLBAR, "solar rotation follow", null},
-            {"diffRotation", "Differential", TOOLBAR, "differential rotation", null},
-            {"corona", "Corona", TOOLBAR, "off-disk offdisk", null},
-            {"multiview", "Multiview", TOOLBAR, "several views side by side split", null},
-            {"sidebarLeft", "Left Sidebar", TOOLBAR, "show fold panel", null},
-            {"timelines", "Timelines", TOOLBAR, "show timelines pane plots", null},
-            {"sidebarRight", "Right Sidebar", TOOLBAR, "show fold panel", null},
-            {"projection", "Projection", TOOLBAR, "map mode helioradial latitudinal orthographic warp dome", null},
-            {"trackCme", "Track CME", TOOLBAR, "CACTus front", null},
-            {"colour", "HDR", TOOLBAR, "colour color headroom mapping knee clipped extended range", null},
-            {"sequence", "Filters", TOOLBAR, "RHEF Fourier noise gate filter", null},
-            {"grid", "Grid", TOOLBAR, "Thomson sphere celestial ecliptic planets overlay", null},
-            {"camera", "Camera", TOOLBAR, "free follow turntable overview viewpoint", null},
-            {"compare", "Compare", TOOLBAR, "blink swipe divider difference minus before after two layers side by side", null},
-            {"pizza", "Pizza", TOOLBAR, "sun pizza wedges slices tiles squares every wavelength channel composite turntable spin labels coronagraph ring", null},
-            {"annotate", "Annotation", TOOLBAR, "draw thickness colour", null},
-            {"refresh", "Refresh", TOOLBAR, "automatic refresh reload", null},
-            {"samp", "SAMP", TOOLBAR, "send message", null},
-            // The main window
-            {"imageCanvas", "Image canvas", "Main window", "view picture display", null},
-            {"transport", "Movie transport", "Above the picture", "play pause step frame time slider scrub", null},
-            {"transportRecord", "Record button", "Above the picture", "record movie export video", null},
-            {"timelinesPane", "Timelines pane", "Under the picture (Timelines on the toolbar shows it)", "plots time series events", null},
-            {"playbackOptions", "Playback and Recording", "Left sidebar", "play rate speed loop swing clock record one loop screenshot unlimited format codec preset size", "showPlayback"},
-            // The Image Layers sidebar section
-            {"imageLayersNew", "New Layer", LAYERS, "add data load layer jp2 fits", "showImageLayers"},
-            {"imageLayersCadence", "Time step", LAYERS, "cadence frame count interval video length", "showImageLayers"},
-            {"imageLayersList", "Layer list", LAYERS, "layers rows show hide remove reorder", "showImageLayers"},
-            {"imageLayersOptions", "Layer options", LAYERS, "colour color table levels brightness display intensity", "showImageLayers"},
-            // The Projection palette
-            {"projectionSurface", "Surface", PROJECTION, "plane of sky Thomson sphere celestial depth", "showProjection"},
-            {"projectionSurfaceFrom", "Surface from", PROJECTION, "observer viewpoint image distance composed sky", "showProjection"},
-            {"projectionRender3d", "Render in 3D", PROJECTION, "helioradial 3D surface", "showProjection"},
-            {"projectionReset", "Reset view", PROJECTION, "warp crop zoom defaults", "showProjection"},
-            {"projectionSky", "Project onto the sky", PROJECTION, "observer sky dome", "showProjection"},
-            {"projectionSkyStyle", "Sky projection", PROJECTION, "observer sky dome fisheye", "showProjection"},
-            {"projectionSkyField", "Sky field", PROJECTION, "observer sky angular radius field of view", "showProjection"},
-            {"projectionAimAtSun", "Aim at Sun", PROJECTION, "observer sky centre center", "showProjection"},
-            {"projectionWarp", "Warp", PROJECTION, "Box-Cox lambda helioradial stretch", "showProjection"},
-            {"projectionDisk", "Disk", PROJECTION, "solar disk size helioradial", "showProjection"},
-            {"projectionZoom", "Zoom", PROJECTION, "magnification", "showProjection"},
-            {"projectionCrop", "Crop", PROJECTION, "circular crop solar radii", "showProjection"},
-    };
-
-    /** The ids of the listed controls, in order. */
+    /** The ids of the listed controls (resources/data/controls.json), in order. */
     static List<String> controlIds() {
-        List<String> ids = new ArrayList<>(CONTROLS.length);
-        for (String[] c : CONTROLS)
-            ids.add(c[0]);
+        List<String> ids = new ArrayList<>();
+        for (ControlRegistry.Entry e : ControlRegistry.all())
+            if (e.kind() == ControlRegistry.Kind.CONTROL)
+                ids.add(e.id());
         return ids;
     }
 
-    /** Every catalogued command, then every listed control; nothing read from the window. */
+    /**
+     * Every catalogued command that runs without arguments, then every listed control; nothing read from the
+     * window. Commands that need arguments (CommandRegistry) are for programs, not for a click.
+     */
     static List<Item> base() {
         List<Item> items = new ArrayList<>();
-        for (ActionCatalog.Entry e : ActionCatalog.all()) {
-            if (e.id().equals(CommandPalette.ID))
-                continue; // the search does not offer itself
-            String title = plain(String.valueOf(e.action().getValue(Action.NAME)));
-            items.add(new Item(true, e.id(), title, menu(e.menuPath(), title), e.description(), null));
+        for (ControlRegistry.Entry e : ControlRegistry.all()) {
+            if (e.kind() == ControlRegistry.Kind.COMMAND) {
+                if (e.id().equals(CommandPalette.ID) || e.command().needsArguments() || ActionCatalog.get(e.id()) == null)
+                    continue; // the search does not offer itself, nor a command for programs (arguments, or no menu or button behind it)
+                items.add(new Item(true, e.id(), e.title(), menu(e.where(), e.title()), e.words(), null, e.shortcut()));
+            }
         }
-        for (String[] c : CONTROLS)
-            items.add(new Item(false, c[0], c[1], c[2], c[3], c[4]));
+        for (ControlRegistry.Entry e : ControlRegistry.all())
+            if (e.kind() == ControlRegistry.Kind.CONTROL)
+                items.add(new Item(false, e.id(), e.title(), e.where(), e.words(), e.reveal(), ""));
         return items;
     }
 
@@ -121,7 +77,7 @@ public final class ControlIndex {
             }
             Component c = anywhere(it.id());
             String live = c == null ? "" : liveText(c);
-            items.add(live.isEmpty() ? it : new Item(false, it.id(), it.title(), it.where(), it.words() + " " + live, it.reveal()));
+            items.add(live.isEmpty() ? it : new Item(false, it.id(), it.title(), it.where(), it.words() + " " + live, it.reveal(), it.shortcut()));
         }
         return items;
     }
@@ -210,6 +166,12 @@ public final class ControlIndex {
         for (int i : order)
             out.add(hits.get(i));
         return out;
+    }
+
+    /** Whether {@code query} finds a command with this title, place and id, by the same rule as the search bar; true for an empty query. */
+    public static boolean matches(String query, String title, String where, String id) {
+        String q = query.strip().toLowerCase(Locale.ROOT);
+        return q.isEmpty() || score(q, q.split("\\s+"), new Item(true, id, title, where, "", null)) > 0;
     }
 
     static int score(String q, String[] tokens, Item it) {

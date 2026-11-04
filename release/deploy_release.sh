@@ -129,8 +129,9 @@ or \`brew install openjdk@25\`). Unzip, then double-click \`run.command\`."
         INTEL_FILE=""; INTEL_SHA=""
     fi
     # What is new in this version, lifted from changelog.md so the release page and the changelog
-    # cannot disagree. Its ### headings drop a level to sit under the page's own.
-    WHATSNEW="$(awk -v v="$VERSION" 'index($0, "## ") == 1 { if (on) exit; on = index($0, " " v " ") > 0; next } on' "$SRC/changelog.md" | sed 's/^### /#### /')"
+    # cannot disagree. Its ### headings drop a level to sit under the page's own, and the [docs: ...]
+    # pointers (release/docs_check.py) are dropped.
+    WHATSNEW="$(awk -v v="$VERSION" 'index($0, "## ") == 1 { if (on) exit; on = index($0, " " v " ") > 0; next } on' "$SRC/changelog.md" | sed -E -e 's/^### /#### /' -e 's/[[:space:]]*\[docs:.*\][[:space:]]*$//')"
     [ -n "$WHATSNEW" ] || { echo "changelog.md has no section for $VERSION; write one before publishing" >&2; exit 1; }
     PRE_NOTE=""; [ -n "$PRERELEASE" ] && PRE_NOTE="This is a pre-release, published for testing ahead of 1.0. It is used daily on Apple Silicon Macs; Windows and Linux are new. Please report anything that breaks."
     # The fork's standing description, kept as prose in notes-preamble.md; @APP_NAME@ and @REPO@ in it
@@ -159,7 +160,7 @@ $INTEL_INSTALL
 **Windows and Linux (early):** download **$TOP-windows.zip** or **$TOP-linux.tar.gz**. Each carries
 its own Java and needs no installer and no administrator rights. On Windows, right-click the zip,
 choose Extract All (it will not start from inside the zip), then run \`HFStudio\HFStudio.exe\`; on
-Linux, untar and run \`HFStudio/bin/HFStudio\`. 64-bit Intel and AMD machines only. The Windows build
+Linux, untar and run \`HFStudio/bin/HFStudio\`. Linux is x86_64 (64-bit Intel and AMD) only: on an ARM64 (aarch64) machine the launcher stops with \"Exec format error\"; an ARM64 package is planned. The Windows build
 is not code-signed yet, so Windows may say it "protected your PC"; choose More info, then Run anyway.
 Our build service adds these two to this page about ten minutes after it is published, and only
 once each has been started, drawn an image and decoded a JPEG 2000 file on a Windows and a Linux
@@ -346,6 +347,16 @@ preflight_publish() {
                     refuse "spctl not found; publish runs on the Mac" 4
                 fi ;;
             "${ZIP##*/}"|"${PDF##*/}"|"${MD##*/}") ;;
+            # The decode-parity report has to vouch for this exact jar, commit and fixture manifest (step 5b):
+            # it is what a paper points at for "this release decodes like sunpy". parity.py verify prints why not.
+            *-parity.json)
+                if [ ! -f "$HERE/$_n" ]; then
+                    refuse "release/$_n is missing; release/parity.sh makes it from HFStudio.jar" 5
+                elif [ -f "$SRC/HFStudio.jar" ]; then
+                    python3 "$HERE/parity.py" verify "$HERE/$_n" --jar "$SRC/HFStudio.jar" --commit "$_head" \
+                        --version "$VERSION" --manifest "$HERE/parity-manifest.json" \
+                        || refuse "release/$_n does not vouch for this jar, commit and manifest" 5
+                fi ;;
             *) [ -f "$HERE/$_n" ] || refuse "release/$_n is listed in assets.txt but missing" 1 ;;
         esac
     done
@@ -442,7 +453,7 @@ append_feed_record() {
         FEED_CONF="$FEED_CONFIRMED"
     fi
     FEED_NOTES="$(mktemp)"
-    awk -v v="$VERSION" 'index($0, "## ") == 1 { if (on) exit; on = index($0, " " v " ") > 0; next } on && /^[-*] / { sub(/^[-*] /, ""); print; exit }' "$SRC/changelog.md" \
+    awk -v v="$VERSION" 'index($0, "## ") == 1 { if (on) exit; on = index($0, " " v " ") > 0; next } on && /^[-*] / { sub(/^[-*] /, ""); sub(/[[:space:]]*\[docs:.*\][[:space:]]*$/, ""); print; exit }' "$SRC/changelog.md" \
         | python3 -c 'import sys; print(" ".join(sys.stdin.read().split())[:400].replace("\u2014", ";"))' > "$FEED_NOTES"
     [ -n "$(tr -d '[:space:]' < "$FEED_NOTES")" ] || echo "HelioFITS Studio $VERSION" > "$FEED_NOTES"
     FEED_CHANNEL=github-release
@@ -462,7 +473,10 @@ append_feed_record() {
            --channel "$FEED_CHANNEL" --tag "$TAG" --url "https://github.com/$REPO/releases/tag/$TAG" \
            --notes-file "$FEED_NOTES" "$@" \
        && python3 "$FEED_SITE/heliosoftware/feed/build_feed.py"; then
-        echo "==> feed record written in $FEED_SITE (heliofits-studio.json, feed.xml, whats-new). Review 'git -C $FEED_SITE diff --stat'; committing and pushing the Website is a separate step for Gilly."
+        echo "==> feed record written in $FEED_SITE (heliofits-studio.json, feed.xml, whats-new)."
+        echo "    Once package.yml has attached the Windows and Linux packages, open the site pull request with"
+        echo "    (cd $FEED_SITE && python3 tools/release_pr.py --product heliofits-studio --version $VERSION)"
+        echo "    or let the site's release-sync.yml open it (every 6 hours). Merging it publishes gilly.space."
     else
         echo "!! feed record NOT written (the release itself is fine). Fix the cause above, then run ./deploy_release.sh feed" >&2
     fi
@@ -930,7 +944,7 @@ notarize_mac() {
     rm -rf "$CATOUT"
     echo "   Assets.car in the bundle, CFBundleIconName set"
 
-    # Document types (HS-16): .jhv opens in this app; FITS only as an "Open With" choice, so HelioFITS stays the default.
+    # Document types (HS-16): .jhv opens in this app; FITS only as an "Open With" choice, so HelioFITS Peek stays the default.
     python3 "$HERE/add_document_types.py" "$APP/Contents/Info.plist"
 
     # Before the smoke test and signing: it puts files in the bundle, and the signing loop below

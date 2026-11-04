@@ -6,6 +6,20 @@ skill gets fixed.
 
 Gilly can follow this by hand with no assistant present. That is the point.
 
+## One command: `release/release.sh <version>`
+
+Gilly types the tag once in Terminal.app, or gives his yes in writing ("I confirm, deploy Studio v0.9.1") and
+an agent passes it as `--confirm v<version>` (the deploy-studio skill), which must equal the tag, implies
+`--auto-smoke`, and makes the run ask nothing more, so it can go unattended. It does preflight (proxy, notary profile, Intel JDK,
+parity Python, Friday rule), clones origin/master fresh on branch `master`, builds Intel then Apple Silicon
+(so the jar is final), notarizes, runs parity on the frozen jar (hash checked before and after), runs
+`ship.sh gate`, publishes, waits for `package.yml`, opens and merges the site PR from its own clone of the
+site repo (never `~/vscode/Website`), and verifies the live feed, asset hashes, stapling and Gatekeeper.
+`--resume` continues after a failure, `--auto-smoke` accepts `smoke_dmg.sh` as the smoke test, `--check`
+is the read-only preflight. Without `--confirm` it refuses an agent session or a missing terminal, since the
+typed tag is then the approval. Either way the yes covers that tag only, and the per-step gates below stay in
+force underneath it: release.sh hands them the approval itself, and nobody sets `HFS_*_APPROVED` from outside.
+
 ## What ships, and from where
 
 One repository, **`GillySpace27/HelioFITS-Studio`**:
@@ -44,7 +58,7 @@ release is cut. Older builds stay on the repository's `/releases` page, which is
 the way back to a previous one. GitHub Pages is case-sensitive, so `/jhv` and `/JHV` are separate paths;
 both exist and both were fixed. Only ever hand out the lowercase form.
 
-Eight assets, six from `publish` on the Mac and two added by CI. Their names are
+Eight assets, six from `publish` on the Mac and two added by CI. A ninth, `HFStudio-<version>-parity.json` (step 5b), was appended later and is also attached by `publish`. Their names are
 listed once, in **`release/assets.txt`** (`<pattern> local|ci`, `{v}` for the
 version); `publish`, the tracker and `package.yml` read that file, and rows are
 only ever appended:
@@ -68,8 +82,10 @@ only ever appended:
   `release/package-app.sh` in CI (`.github/workflows/package.yml`) and
   **attached by CI about ten minutes after `publish`**, only if each package
   started, drew an image and decoded a JPEG 2000 file with its own bundled
-  OpenJPEG. x86-64 only. The Windows build is not code-signed, so SmartScreen
-  warns on first run (More info, Run anyway; no admin needed: it is an
+  OpenJPEG. x86-64 only. The Windows files are code-signed in CI (Azure
+  Artifact Signing, publisher is Gilly's legal name) before zipping. A new
+  certificate has no SmartScreen reputation yet, so early downloads may still
+  warn on first run (More info, Run anyway; no admin needed: it is an
   app-image, not an installer). CI draws in software. A few people have run
   the Windows package; nobody has used the Linux one on real hardware yet.
 - `HFStudio-Guide.pdf` / `.md`: the field guide, generated from
@@ -262,6 +278,32 @@ literally. `@VERSION@` and `@REPO@` in `guide_content.json` are replaced with
 the `VERSION` file and `REPO` from `deploy_release.sh`, so the guide never names
 a stale version or repository.
 
+#### Docs pointers in the changelog (DOCS-1)
+
+Every top-level bullet in the version's `changelog.md` section ends with a pointer that says where
+the change is documented, so the changelog and the docs cannot drift apart unnoticed:
+
+```markdown
+- Templates open a saved scene on a relative date range. [docs: release/guide_content.json]
+- A race in the decode pool no longer drops a frame. [docs: none]
+```
+
+A pointer names one or more repository paths, comma separated (an `#anchor` is allowed), or
+`none`. `python3 release/docs_check.py` checks the section for `VERSION`: a bullet with no pointer,
+a path that does not exist, or a path unchanged since the previous `v*` tag is reported.
+`ant check-all` (step `docs`) and `ship.sh gate` run it in warn-only mode for now; `--strict`
+makes it fail, and turning that on is Gilly's call. The pointers never reach people:
+`AppInfo.whatsNew` (the Welcome window), the release notes and the feed record strip them.
+A pointer at the user manual names its page, for example `[docs: manual/loading-data.md]`.
+
+#### The user manual (DOCS-2)
+
+`manual/` is the user manual: Sphinx with MyST Markdown, HTML and PDF, built by Read the Docs from
+`.readthedocs.yaml`. How it is built and what is generated is in `manual/README.md`. `ant check-all`
+(steps `manual-refs` and `manual`) and `ship.sh gate` fail when its generated pages are stale, when it
+names a menu item that does not exist, or when Sphinx warns. Until Gilly switches the release asset
+over, the field guide above (`HFStudio-Guide.pdf`) is still what a release attaches.
+
 ### 4. Notarize (builds the dmg)
 
 ```sh
@@ -347,6 +389,29 @@ Quit any running HelioFITS Studio first. A second instance cannot take the JPIP
 ehcache persistence lock, and the failure is not contained: `levelCache` stays
 null and every image read throws, which presents as a rendering bug rather than
 an "already running" message.
+
+### 5b. Decode-parity report
+
+`publish` refuses without `release/HFStudio-<version>-parity.json`, the record that this release's
+decoder equals sunpy's on a fixed set of real files (plus the named corrections in heliad's
+`docs/decode-parity.md`). It is the thing to cite in the paper for "this release". It needs the Mac that
+holds `~/HeliadLibrary`, a heliad checkout with its `[parity]` extras installed, and the network (the
+LASCO frames are also decoded with the NRL background subtracted):
+
+```sh
+cd ~/Documents/NWRA/PUNCH_Science/JHelioviewer-SWHV
+HELIAD_DIR=~/heliad HELIAD_PYTHON=~/heliad/.venv/bin/python release/parity.sh
+```
+
+It runs `DecodeParityDump` from inside the `HFStudio.jar` at the repository root, so build the jar
+(step 2) from a clean tree at HEAD first. The fixtures are pinned by SHA-256 in
+`release/parity-manifest.json`, which also lists what the library could not supply. The report records the
+Studio commit and jar hash, the heliad commit, the sunpy and astropy versions, every check with its value,
+tolerance and basis, and the observed maxima beside the assumed tolerances. Exit 0 means every pinned run
+passed; the report is written either way. `publish` then verifies that it names this jar, this commit,
+this manifest and a clean heliad, and `publish --dry-run` shows its hash. Rebuild the jar and the report
+is stale: run it again. Never edit the report by hand or the manifest to get a pass; a failing fixture is
+a finding (see heliad's docs). The report is attached as a new asset; the name is in `assets.txt`.
 
 ### 6. Publish (GATE)
 
@@ -738,3 +803,8 @@ release object; the next preview would have been `v5.6b-coronal-research`.
   failed with "gave no status" although Apple had already accepted the submission. The alarm
   in `notary_poll` is now 180 s. Before `prepare`, check that `release/.jdk-x64` exists in the
   tree it runs from.
+- **2026-11-03: release.sh could not be run by an agent at all, and asked a second question.** As merged
+  in PR 134 it refused any Claude Code session and any run without a terminal, so the agent-driven release
+  Gilly wanted had no path; and its site step ran `release_pr.py` without `--yes`, which asks y/N before the
+  push on a terminal and stops (exit 2) without one, so even a terminal run asked twice. Fix: `--confirm
+  v<version>` carries Gilly's written yes for that tag, and the site step passes `--yes` under the same yes.

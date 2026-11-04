@@ -74,6 +74,16 @@ public final class ExportMovie {
     }
 
     /**
+     * One recording in {@code mode} at {@code longSide} pixels on its long side (the person's own
+     * aspect and encoding), for a script or the local API: nothing is written to the person's
+     * recording settings. A long side of 0 or less keeps their size too.
+     */
+    public static void startSized(@Nullable Commands.OperationContext context, ViewState.RecordingMode mode, int longSide) {
+        ViewState.RecordingData own = ViewState.recordingData();
+        startWith(context, null, null, new ViewState.RecordingData(mode, own.aspect(), longSide > 0 ? longSide : own.longSide()));
+    }
+
+    /**
      * A sun pizza spin (HS-25): one seamless turn of the wedges in {@code frames} frames, with the
      * data standing still. A Free recording at the person's own size and encoding, so a spin for a
      * 4K outreach video is as sharp as any other recording; {@link Pizza} turns the cut after each

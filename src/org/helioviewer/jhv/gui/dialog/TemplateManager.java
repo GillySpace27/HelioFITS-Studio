@@ -150,6 +150,7 @@ public final class TemplateManager {
         table.getColumnModel().getColumn(2).setPreferredWidth(220);
         table.getColumnModel().getColumn(4).setPreferredWidth(180);
 
+        JButton saveCurrent = button("Save Current Scene...", "Save the scene on screen as a new template of yours, with a name, a description, a time rule and a thumbnail");
         JButton openButton = button("Open", "Open the selected template; a session with unsaved changes stays, and the template opens in a new window");
         JButton duplicate = button("Duplicate...", "Copy the selected template under a new name, as one of yours");
         JButton rename = button("Rename...", "Give the selected template a new name");
@@ -182,6 +183,11 @@ public final class TemplateManager {
         };
         table.getSelectionModel().addListSelectionListener(ev -> update.run());
 
+        saveCurrent.addActionListener(ev -> {
+            TemplateSave.save(dialog);
+            model.reload(); // the file is written before the dialog returns; the thumbnail lands a moment later
+            update.run();
+        });
         openButton.addActionListener(ev -> act(table, model, update, e -> TemplateChooser.open(e)));
         duplicate.addActionListener(ev -> act(table, model, update, e -> {
             String name = ask(dialog, "Duplicate", "Name of the copy:", e.meta().name() + " copy");
@@ -222,7 +228,7 @@ public final class TemplateManager {
         close.addActionListener(ev -> dialog.dispose());
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        for (JButton b : List.of(openButton, duplicate, rename, edit, startup, reveal, share, retire, refresh))
+        for (JButton b : List.of(saveCurrent, openButton, duplicate, rename, edit, startup, reveal, share, retire, refresh))
             buttons.add(b);
         JPanel south = new JPanel(new BorderLayout());
         south.add(buttons, BorderLayout.CENTER);

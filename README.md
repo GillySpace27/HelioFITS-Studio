@@ -1,9 +1,15 @@
 # HelioFITS Studio
 
-[![checks](https://github.com/GillySpace27/HelioFITS-Studio/actions/workflows/checks.yml/badge.svg?branch=master)](https://github.com/GillySpace27/HelioFITS-Studio/actions/workflows/checks.yml) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23541893.svg)](https://doi.org/10.5281/zenodo.23541893)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23541893.svg)](https://doi.org/10.5281/zenodo.23541893)
+[![Latest release](https://img.shields.io/github/v/release/GillySpace27/HelioFITS-Studio?include_prereleases&style=flat)](https://github.com/GillySpace27/HelioFITS-Studio/releases)
+[![checks](https://github.com/GillySpace27/HelioFITS-Studio/actions/workflows/checks.yml/badge.svg?branch=master)](https://github.com/GillySpace27/HelioFITS-Studio/actions/workflows/checks.yml)
+[![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-blue.svg)](LICENSE)
+![Platforms: macOS, Windows, Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg)
 
-> **HelioFITS** previews solar FITS files in Finder and Quick Look. **HelioFITS Studio** is the full desktop application for working with coronagraph and wide-field solar imagery.
-> Looking for the Finder and Quick Look previews? See [HelioFITS](https://gilly.space/heliofits/).
+> **The HelioFITS suite**
+> - [HelioFITS Peek](https://github.com/GillySpace27/HelioFITS-Peek): solar FITS thumbnails and previews in macOS Finder and Quick Look.
+> - [HelioFITS Studio](https://github.com/GillySpace27/HelioFITS-Studio): a desktop viewer for coronagraph and wide-field solar imagery, forked from JHelioviewer.
+> - [HelioFITS Suite](https://github.com/GillySpace27/HelioFITS-suite): how the programs fit together, with one DOI to cite them all.
 
 HelioFITS Studio is a desktop viewer for solar and heliospheric imagery, built around coronagraph and wide-field data such as NASA's PUNCH mission, SOHO/LASCO and PROBA-3/ASPIICS. It is a fork of [JHelioviewer](https://www.jhelioviewer.org), the open-source solar image browser of the ESA/NASA Helioviewer Project. We kept JHelioviewer's 3-D view of the Sun, its timelines and its event overlays, and added the tools we needed to work with the outer corona.
 
@@ -13,7 +19,7 @@ HelioFITS Studio is a desktop viewer for solar and heliospheric imagery, built a
 
 We work with NASA's PUNCH mission and the wider coronagraph record, and that work needed several things JHelioviewer did not do: load PUNCH data, read calibrated LASCO FITS straight from NRL, stretch the outer corona so that it has room to read, and equalize its steep radial falloff. HelioFITS Studio is where we build those tools and share them with other researchers.
 
-We distribute it as a separate application under its own name so that it is not mistaken for an official JHelioviewer release, and so that problems with our additions come to us rather than to the JHelioviewer team, who did not write that code. Earlier builds were published on this repository as the *JHelioviewer PUNCH & Coronal Research Distribution* (tagged v5.6a to v5.6d); HelioFITS Studio continues that line. During September 2026 it was called HFStudio and then, briefly, PUNCHStudio, before coming back to this name; the [HelioFITS](https://gilly.space/heliofits/) Quick Look extension is a separate project. HFStudio remains its short technical name, which is why the downloads and the settings folder carry it.
+We distribute it as a separate application under its own name so that it is not mistaken for an official JHelioviewer release, and so that problems with our additions come to us rather than to the JHelioviewer team, who did not write that code. Earlier builds were published on this repository as the *JHelioviewer PUNCH & Coronal Research Distribution* (tagged v5.6a to v5.6d); HelioFITS Studio continues that line. During September 2026 it was called HFStudio and then, briefly, PUNCHStudio, before coming back to this name; the [HelioFITS Peek](https://gilly.space/heliofits/) Quick Look extension is a separate project. HFStudio remains its short technical name, which is why the downloads and the settings folder carry it.
 
 ## Relationship to JHelioviewer
 
@@ -40,7 +46,7 @@ Every package on the [Releases page](https://github.com/GillySpace27/HelioFITS-S
 - **Apple Silicon Mac:** open `HFStudio-<version>.dmg` and drag HelioFITS Studio to Applications. The dmg is signed and notarized.
 - **Intel Mac:** the same, with `HFStudio-<version>-intel.dmg`, also signed and notarized.
 - **Windows:** right-click `HFStudio-<version>-windows.zip`, choose *Extract All* (it will not start from inside the zip), and run `HFStudio\HFStudio.exe` from the folder it makes. There is no installer and no administrator rights are needed: the app writes only to your own folders. The app is not code-signed yet, so Windows may warn that it comes from an unknown publisher; choose *More info*, then *Run anyway*.
-- **Linux:** unpack `HFStudio-<version>-linux.tar.gz` anywhere and run `HFStudio/bin/HFStudio`.
+- **Linux:** unpack `HFStudio-<version>-linux.tar.gz` anywhere and run `HFStudio/bin/HFStudio`. This package is **x86_64 only** (64-bit Intel and AMD). On an ARM64 (aarch64) Linux machine, such as Ubuntu on an ARM server or a Raspberry Pi, the launcher stops with "Exec format error"; an ARM64 package is planned.
 
 The Intel Mac and Linux packages pass our automated checks but have not yet been used on real machines, and the Windows package only by a few people, so we would especially like to hear how they go.
 
@@ -48,7 +54,7 @@ For anything else, the cross-platform `HFStudio-<version>.zip` runs wherever Jav
 
 ## Coming from JHelioviewer
 
-The first time it runs, HelioFITS Studio copies your settings and saved states from `~/JHelioviewer-SWHV` into `~/HFStudio` and leaves the originals alone, so JHelioviewer keeps working beside it. The copy only happens while `~/HFStudio` does not exist yet. Old sessions can always be opened directly with File > Load State.
+The first time it runs, HelioFITS Studio copies your settings and saved states from `~/JHelioviewer-SWHV` into `~/HFStudio` and leaves the originals alone, so JHelioviewer keeps working beside it. The copy only happens while `~/HFStudio` does not exist yet. Old sessions can always be opened directly with File > Open Session...
 
 ## Licence, source code and bundled components
 

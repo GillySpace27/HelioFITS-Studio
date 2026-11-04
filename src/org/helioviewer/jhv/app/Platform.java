@@ -65,6 +65,9 @@ public class Platform {
         } else if (isLinux && "amd64".equals(jhvArch)) {
             return prefix + "linux-amd64/";
         }
+        if (isLinux && "aarch64".equals(jhvArch))
+            throw new IllegalStateException("HelioFITS Studio does not yet provide an ARM64 (aarch64) build for Linux; "
+                    + "only x86_64 Linux is supported. See https://gilly.space/heliofits-studio");
         throw new IllegalStateException("JHelioviewer does not provide native libraries for "
                 + System.getProperty("os.name") + " " + System.getProperty("os.arch"));
     }

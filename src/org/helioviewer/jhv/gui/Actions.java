@@ -15,6 +15,7 @@ import javax.swing.JFrame;
 import javax.swing.KeyStroke;
 
 import org.helioviewer.jhv.annotation.Annotations;
+import org.helioviewer.jhv.app.AppInfo;
 import org.helioviewer.jhv.app.Commands;
 import org.helioviewer.jhv.app.DisplaySettings;
 import org.helioviewer.jhv.app.ExitHooks;
@@ -411,6 +412,54 @@ public final class Actions {
         @Override
         public void actionPerformed(ActionEvent e) {
             DesktopIntegration.openURL(urlToOpen);
+        }
+    }
+
+    /**
+     * Help > Open User Manual: the HFStudio-Guide.pdf of this build's release. If that file is not
+     * there (a development build, a release not yet published, no network), the releases page opens
+     * instead, so the menu item always lands somewhere.
+     */
+    public static class OpenUserManual extends AbstractAction {
+        public OpenUserManual() {
+            super("Open User Manual");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            String guide = AppInfo.guideURL(AppInfo.version);
+            Thread t = new Thread(() -> DesktopIntegration.openURL(reachable(guide) ? guide : AppInfo.downloadURL), "open-user-manual");
+            t.setDaemon(true);
+            t.start();
+        }
+
+        private static boolean reachable(String url) {
+            if (url.equals(AppInfo.downloadURL))
+                return true;
+            try {
+                java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
+                        .followRedirects(java.net.http.HttpClient.Redirect.NORMAL)
+                        // the proxy the app is configured with, credentials included (io/ProxySettings)
+                        .proxy(java.net.ProxySelector.getDefault())
+                        .authenticator(new java.net.Authenticator() {
+                            @Override
+                            protected java.net.PasswordAuthentication getPasswordAuthentication() {
+                                return java.net.Authenticator.requestPasswordAuthentication(getRequestingHost(), getRequestingSite(),
+                                        getRequestingPort(), getRequestingProtocol(), getRequestingPrompt(), getRequestingScheme(),
+                                        getRequestingURL(), getRequestorType());
+                            }
+                        })
+                        .connectTimeout(java.time.Duration.ofSeconds(5)).build();
+                java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder(URI.create(url))
+                        .method("HEAD", java.net.http.HttpRequest.BodyPublishers.noBody())
+                        .timeout(java.time.Duration.ofSeconds(5)).build();
+                return client.send(req, java.net.http.HttpResponse.BodyHandlers.discarding()).statusCode() / 100 == 2;
+            } catch (java.io.IOException | IllegalArgumentException ex) {
+                return false;
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
         }
     }
 
@@ -920,6 +969,17 @@ public final class Actions {
         @Override
         public void actionPerformed(ActionEvent e) {
             Commands.zoomFit();
+        }
+    }
+
+    public static class ZoomTimelineFit extends AbstractKeyAction {
+        public ZoomTimelineFit() {
+            super("Zoom Timeline to Fit", KeyStroke.getKeyStroke(KeyEvent.VK_9, DesktopIntegration.menuShortcutMask | InputEvent.SHIFT_DOWN_MASK));
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            org.helioviewer.jhv.timelines.draw.DrawController.zoomToFit();
         }
     }
 
