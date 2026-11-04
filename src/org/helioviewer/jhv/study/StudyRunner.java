@@ -227,14 +227,20 @@ public final class StudyRunner {
     /**
      * Moves a picture the ordinary export path wrote into a scratch folder to its place in the run folder,
      * then drops that scratch folder if only the export's own sidecar is left. A folder that is the run
-     * folder, or holds anything else, stays.
+     * folder, the Exports folder itself (a movie is written straight into it), or holds anything else, stays.
      */
     static void takeScratch(Path from, Path to, Path runFolder) throws IOException {
+        takeScratch(from, to, runFolder, Path.of(org.helioviewer.jhv.io.Directories.EXPORTS.getPath()));
+    }
+
+    static void takeScratch(Path from, Path to, Path runFolder, Path exports) throws IOException {
         Files.move(from, to, StandardCopyOption.REPLACE_EXISTING);
         Path dir = from.toAbsolutePath().getParent();
         if (dir == null || dir.equals(runFolder.toAbsolutePath()))
             return;
         Files.deleteIfExists(dir.resolve(from.getFileName() + ".hfrec.json"));
+        if (dir.equals(exports.toAbsolutePath()))
+            return;
         try {
             Files.deleteIfExists(dir);
         } catch (java.nio.file.DirectoryNotEmptyException ignored) {
