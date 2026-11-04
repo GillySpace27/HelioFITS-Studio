@@ -37,7 +37,7 @@ file (the app then falls back to email) rather than deleting it. The file lives 
 - Accepts a POST of at most 6 MB and refuses anything that is not a schema 1 report: a UUID id and
   install id, a kind of `bug`, `feature` or `question`, a message of at most 20,000 characters, and
   a reply-to address only if it looks like one.
-- Rate-limits with KV counters per clock hour: 5 reports per install id and 20 per IP address. The
+- Rate-limits with KV counters per clock hour: 5 reports per install id and 200 per IP address (raised from 20 so a shared network such as a workshop can report; an optional `SLACK_WEBHOOK_URL` secret posts one line per issue). The
   address is stored only as a SHA-256 hash, and each counter expires after two hours. KV is
   eventually consistent, so a burst spread across several Cloudflare locations can let a few
   extra reports through; we accept that for a feedback form. An over-limit report gets 429 and

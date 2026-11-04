@@ -4,8 +4,9 @@
 // Configuration (nothing is hard-coded):
 //   GITHUB_TOKEN  Worker secret: a fine-grained token limited to Issues on one repository.
 //   GITHUB_REPO   variable: "owner/name" of that repository (keep it private; see README.md).
+//   SLACK_WEBHOOK_URL  optional secret: an incoming-webhook URL that gets one line per filed issue.
 //   RATE_LIMIT    KV namespace binding holding the rate-limit counters.
-//   LIMIT_PER_INSTALL, LIMIT_PER_IP  optional variables: reports per hour (defaults 5 and 20).
+//   LIMIT_PER_INSTALL, LIMIT_PER_IP  optional variables: reports per hour (defaults 5 and 200).
 //
 // The payload is what src/org/helioviewer/jhv/io/FeedbackReport.java builds (schema 1).
 
@@ -17,7 +18,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     if (request.method !== "POST")
       return reply(405, "POST a report");
     if (!env.GITHUB_TOKEN || !/^[\w.-]+\/[\w.-]+$/.test(env.GITHUB_REPO || "") || !env.RATE_LIMIT)
@@ -59,12 +60,22 @@ export default {
       return reply(502, "could not file the report; the app keeps it and tries again");
     }
     const created = await response.json();
+    if (env.SLACK_WEBHOOK_URL) // optional alert; a Slack failure never changes the answer to the app
+      ctx?.waitUntil(notifySlack(env.SLACK_WEBHOOK_URL, issue.title, created.html_url).catch(() => {}));
     return new Response(JSON.stringify({ ok: true, issue: created.number }), {
       status: 201,
       headers: { "Content-Type": "application/json" },
     });
   },
 };
+
+async function notifySlack(url, title, link) {
+  await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: `New Studio feedback: ${title}\n${link}`.replace(/@/g, "@\u200b") }),
+  });
+}
 
 function reply(status, error) {
   return new Response(JSON.stringify({ ok: false, error }), { status, headers: { "Content-Type": "application/json" } });
@@ -100,7 +111,7 @@ async function overLimit(env, installId, ip) {
   const ipHash = await sha256(ip);
   const counters = [
     [`install:${installId}:${hour}`, Number(env.LIMIT_PER_INSTALL) || 5],
-    [`ip:${ipHash}:${hour}`, Number(env.LIMIT_PER_IP) || 20],
+    [`ip:${ipHash}:${hour}`, Number(env.LIMIT_PER_IP) || 200],
   ];
   const counts = await Promise.all(counters.map(([key]) => env.RATE_LIMIT.get(key)));
   if (counters.some(([, limit], i) => Number(counts[i] || 0) >= limit))
