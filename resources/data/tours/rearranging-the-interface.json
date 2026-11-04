@@ -1,0 +1,30 @@
+{
+  "title": "Rearranging the interface",
+  "steps": [
+    {
+      "target": "panelLock",
+      "title": "Unlock first",
+      "body": "The padlock at the right end of the toolbar holds the panels and the toolbar where they are. It starts locked. Click it to let things move; every toolbar button works the same either way."
+    },
+    {
+      "target": "toolbarEdit",
+      "title": "Toolbar Manager",
+      "body": "This button, or Window > Toolbar Manager, chooses which tools are on the toolbar and in what order: drag a tool into the middle list to put it on the bar, drag it out to take it off. A Separator can be used more than once."
+    },
+    {
+      "target": "toolbarManager",
+      "title": "Nothing is lost",
+      "body": "A tool taken off the bar stays in the Tools menu, which lists every tool whether or not it is on the bar. Opened from the Window menu while the panels are locked, the Toolbar Manager offers to unlock them."
+    },
+    {
+      "target": "sidebarLeft",
+      "title": "Move the sections",
+      "body": "With the panels unlocked, each sidebar section's header carries arrows: up and down within its sidebar, across to the other sidebar, and out into a window of its own. These buttons show or hide each sidebar."
+    },
+    {
+      "target": "panelLock",
+      "title": "Lock it again",
+      "body": "Click the padlock again when the layout is how you want it, so a stray click cannot move a panel during a talk. The layout is kept for the next start."
+    }
+  ]
+}

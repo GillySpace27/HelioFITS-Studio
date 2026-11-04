@@ -53,7 +53,7 @@ import com.jidesoft.dialog.StandardDialog;
  *
  * <p>Every FITS route asks the FITS library first ({@link FitsLibraryFirst}), so data already on disk
  * is offered before it is downloaded again; Download Anyway keeps the old behaviour. Open Cache Manager
- * starts the HelioFITS Cache Manager itself, to manage that library and download into it.
+ * opens Studio's Cache Manager window ({@link CacheDialog}), to manage what is on disk.
  */
 @SuppressWarnings("serial")
 public final class ImageDialog extends StandardDialog implements DataSources.Listener {
@@ -98,12 +98,8 @@ public final class ImageDialog extends StandardDialog implements DataSources.Lis
             if (url != null)
                 DesktopIntegration.openURL(url);
         });
-        openCacheManager.setToolTipText("Start the HelioFITS Cache Manager, to manage the local FITS library and download into it");
-        openCacheManager.addActionListener(e -> {
-            java.nio.file.Path app = FitsLibrary.app();
-            if (app != null)
-                DesktopIntegration.openURL(app.toUri().toString());
-        });
+        openCacheManager.setToolTipText("Studio's Cache Manager: what is on disk, in Studio's cache and the FITS library, to load, reveal, import or delete");
+        openCacheManager.addActionListener(e -> CacheDialog.get().showDialog());
         DataSources.setListener(this);
         setDefaultCloseOperation(HIDE_ON_CLOSE);
         setResizable(false);
@@ -238,7 +234,6 @@ public final class ImageDialog extends StandardDialog implements DataSources.Lis
         // One way, master to here, and only as the window opens: what is typed here stays here.
         timeSelector.setTime(MoviePanel.getInstance().getStartTime(), MoviePanel.getInstance().getEndTime());
         cadencePanel.copyFrom(MainFrame.getLayersSectionPanel().getCadencePanel());
-        openCacheManager.setVisible(FitsLibrary.app() != null);
         libraryTab.update(changeMode);
         selectionChanged();
         if (!isVisible()) {

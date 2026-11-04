@@ -775,10 +775,12 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             }
         });
         PanelLock.setLockButton(lockCorner); // so a refused move can blink it
+        lockCorner.setName("panelLock"); // tour target
         add(lockCorner);
 
         editCorner = Buttons.flat(Buttons.editToolbarCorner);
-        editCorner.setToolTipText("Edit the toolbar: choose which tools are on it, and in what order");
+        editCorner.setToolTipText("Toolbar Manager: choose which tools are on the toolbar, and in what order");
+        editCorner.setName("toolbarEdit"); // tour target
         editCorner.setFocusPainted(false);
         editCorner.addActionListener(e -> ToolbarEditor.open()); // disabled outright while locked
         // Frozen with everything else. The editor is not only about which tools are on the bar: it

@@ -43,7 +43,7 @@ import org.helioviewer.jhv.io.ExtensionFileFilter;
 import org.helioviewer.jhv.time.TimeUtils;
 
 /**
- * The template manager (Window > Templates... on macOS, File > Templates... elsewhere;
+ * The template manager (Window > Template Manager... on macOS, File > Template Manager... elsewhere;
  * docs/templates.md): every template in one table, and what can be done to one. Built-ins are
  * read-only: they can be opened, duplicated, shared and set as startup, never changed or retired.
  * Retire moves a template's files into Templates/attic/; nothing here deletes.
@@ -75,7 +75,7 @@ public final class TemplateManager {
     @SuppressWarnings("serial")
     public static final class Open extends AbstractAction {
         public Open() {
-            super("Templates...");
+            super("Template Manager...");
         }
 
         @Override
@@ -140,7 +140,7 @@ public final class TemplateManager {
             open.toFront();
             return;
         }
-        JDialog dialog = new JDialog(MainFrame.get(), "Templates", false);
+        JDialog dialog = new JDialog(MainFrame.get(), "Template Manager", false);
         Model model = new Model();
         JTable table = new JTable(model);
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
