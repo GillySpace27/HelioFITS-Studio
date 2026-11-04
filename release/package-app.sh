@@ -2,7 +2,11 @@
 # Package HelioFITS Studio for Windows or Linux with its own Java, so nobody has to install anything:
 # the counterpart of what `deploy_release.sh notarize` builds for the Mac.
 #
-#   release/package-app.sh windows|linux|macos-x64     (run from the repository root, after `ant jar`)
+#   release/package-app.sh windows|linux|macos-x64 [image|archive]     (run from the repository root, after `ant jar`)
+#
+# With no second argument it builds the app-image and archives it. `image` stops before the archive
+# and `archive` archives the pkg-out/HFStudio already there (it needs only VERSION and this
+# script), so CI can sign the Windows files in between, in a job that builds nothing (package.yml).
 #
 # jpackage only builds for the system it runs on, which is why this runs in CI
 # (.github/workflows/package.yml) rather than on the Mac. Output, named so the download page's
@@ -15,8 +19,12 @@
 # `MAC_ARCH=x64 deploy_release.sh notarize`, which stages it the same way.
 set -euo pipefail
 OS="$1"
-case "$OS" in windows|linux|macos-x64) ;; *) echo "usage: $0 windows|linux|macos-x64" >&2; exit 2 ;; esac
+STEP="${2:-all}"
+case "$OS" in windows|linux|macos-x64) ;; *) echo "usage: $0 windows|linux|macos-x64 [image|archive]" >&2; exit 2 ;; esac
+case "$STEP" in all|image|archive) ;; *) echo "usage: $0 windows|linux|macos-x64 [image|archive]" >&2; exit 2 ;; esac
 VERSION="$(tr -d '[:space:]' < VERSION)"
+
+if [ "$STEP" != archive ]; then
 [ -f HFStudio.jar ] || { echo "!! no HFStudio.jar: run 'ant jar' first" >&2; exit 1; }
 
 rm -rf pkg-out; mkdir -p pkg-out
@@ -61,10 +69,6 @@ jpackage --type app-image --name HFStudio --app-version "$APP_VERSION" \
     --runtime-image pkg-runtime \
     --dest pkg-out
 
-if [ "$OS" = macos-x64 ]; then
-    echo "==> pkg-out/HFStudio.app (unsigned, for testing) $(du -sh pkg-out/HFStudio.app | cut -f1)"
-    exit 0
-fi
 if [ "$OS" = windows ]; then
     # The bundled JPEG 2000 decoder imports vcruntime140.dll. The JVM loads the copy in its own
     # runtime first, and Windows then reuses it, so a machine without the Visual C++
@@ -75,6 +79,20 @@ if [ "$OS" = windows ]; then
     # The first thing someone sees after unzipping: how to start it, that it must be extracted first,
     # and that it needs no admin rights. CRLF so Notepad on any Windows shows the lines.
     sed 's/$/\r/' release/windows-readme.txt > "pkg-out/HFStudio/README.txt"
+fi
+fi
+
+if [ "$OS" = macos-x64 ]; then
+    echo "==> pkg-out/HFStudio.app (unsigned, for testing) $(du -sh pkg-out/HFStudio.app | cut -f1)"
+    exit 0
+fi
+if [ "$STEP" = image ]; then
+    echo "==> pkg-out/HFStudio (not archived)"
+    exit 0
+fi
+[ -d pkg-out/HFStudio ] || { echo "!! no pkg-out/HFStudio to archive: run '$0 $OS image' first" >&2; exit 1; }
+rm -f "HFStudio-$VERSION-$OS".*
+if [ "$OS" = windows ]; then
     ARCHIVE="HFStudio-$VERSION-windows.zip"
     ( cd pkg-out && 7z a -tzip -mx=7 "../$ARCHIVE" HFStudio > /dev/null )
 else

@@ -38,6 +38,28 @@ public final class FitsLibraryDatasetLoad {
      */
     public static CompletableFuture<ImageLayer> load(String uidOrKey, @Nullable String start, @Nullable String end) {
         CompletableFuture<ImageLayer> out = new CompletableFuture<>();
+        uris(uidOrKey, start, end).whenComplete((uris, failed) -> {
+            if (failed != null) {
+                out.completeExceptionally(failed);
+                return;
+            }
+            Commands.loadImage(uris).whenComplete((layer, t) -> {
+                if (t != null)
+                    out.completeExceptionally(t);
+                else
+                    out.complete(layer);
+            });
+        });
+        return out;
+    }
+
+    /**
+     * The dataset's current files in [start, end], queried now: what {@link #load} loads, and what a
+     * layer reloads after the cache gained files (the registry's layerReload). Read off the event
+     * thread; completes on it. Fails with {@link Failed} as load does.
+     */
+    public static CompletableFuture<List<URI>> uris(String uidOrKey, @Nullable String start, @Nullable String end) {
+        CompletableFuture<List<URI>> out = new CompletableFuture<>();
         long from, to;
         try {
             from = start == null ? Long.MIN_VALUE : parse(start);
@@ -46,13 +68,7 @@ public final class FitsLibraryDatasetLoad {
             out.completeExceptionally(e);
             return out;
         }
-        Task.submitBackground(() -> files(FitsLibrary.find(), uidOrKey, from, to), uris ->
-                Commands.loadImage(uris).whenComplete((layer, t) -> {
-                    if (t != null)
-                        out.completeExceptionally(t);
-                    else
-                        out.complete(layer);
-                }), out::completeExceptionally);
+        Task.submitBackground(() -> files(FitsLibrary.find(), uidOrKey, from, to), out::complete, out::completeExceptionally);
         return out;
     }
 

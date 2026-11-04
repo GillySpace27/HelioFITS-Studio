@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(release/release.sh * --check)",
+      "Bash(python3 release/skills/ship-hfstudio/scripts/status.py*)",
+      "Bash(release/smoke_dmg.sh --grade *)"
+    ],
+    "deny": [
+      "Bash(HFS_PUBLISH_APPROVED=*)",
+      "Bash(HFS_NOTARIZE_APPROVED=*)",
+      "Bash(HFS_SMOKE_APPROVED=*)",
+      "Bash(HFS_GUIDE_APPROVED=*)"
+    ]
+  }
+}

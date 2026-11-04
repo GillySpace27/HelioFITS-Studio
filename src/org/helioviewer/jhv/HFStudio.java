@@ -214,6 +214,7 @@ public class HFStudio {
     private static void onSuccessInit(Void ignoredResult) {
         DataSources.loadSources(true);
         CommandLine.load();
+        org.helioviewer.jhv.io.api.LocalApi.startIfEnabled();
     }
 
     private static void onFailureInit(String ignoredLogContext, Throwable t) {

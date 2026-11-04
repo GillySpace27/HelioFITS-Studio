@@ -27,3 +27,9 @@ Template asks for a start and end time first (one day ending now to begin with),
 downloads until the dates are chosen; then every layer requests that range. Built from one of Gilly's sessions (layer settings and filters as he had them),
 with the PUNCH file list replaced by a query. The thumbnail is a frame of Gilly's ReversingComet movie
 (2026-04-03T12:28 UTC), this scene's layers, cropped to the disk and scaled to 512 pixels.
+
+## radial-warp
+
+AIA 193 with LASCO C2 and C3 (Helioviewer source ids 11, 4 and 5) in the Helioradial projection at
+warp lambda -0.5, newest two hours. The thumbnail is a schematic, not a rendering of data: replace
+it with a Save as Template thumbnail from a real scene.

@@ -24,6 +24,18 @@ public final class AppInfo {
     // The field guide (HFStudio-Guide.pdf) ships as an asset of every release, so the releases
     // page is the one place that documents this build rather than upstream JHelioviewer.
     public static final String documentationURL = downloadURL;
+
+    /**
+     * The field guide that belongs to this build: the HFStudio-Guide.pdf attached to the release
+     * with the same version. Linked, not bundled: the guide is built at publish time, after the
+     * jars and CI packages, and a bundled copy would change the jar the parity check pins. The
+     * releases page when the version is not a plain x.y.z (a build with no VERSION file).
+     */
+    public static String guideURL(String version) {
+        if (version == null || !version.matches("\\d+\\.\\d+\\.\\d+"))
+            return downloadURL;
+        return downloadURL + "/download/v" + version + "/HFStudio-Guide.pdf";
+    }
     public static final String emailAddress = "gilly@nwra.com";
     public static String version = "2.-1.-1";
     public static String revision = "-1";
@@ -32,6 +44,8 @@ public final class AppInfo {
     // with the SDAC and the VSO, not a string edit.
     public static String userAgent = "JHV/SWHV-";
     public static String versionDetail = "";
+
+    private static final java.util.regex.Pattern DOCS_POINTER = java.util.regex.Pattern.compile("\\s*\\[docs:[^\\]]*\\]\\s*$");
 
     /**
      * The changelog section for {@code version}: the lines under the "## " heading that names it,
@@ -42,6 +56,9 @@ public final class AppInfo {
      * <p>Sections right below it whose heading says "(unreleased)" follow, heading included: those
      * versions never shipped on their own (0.8.4 went out inside 0.8.5), so their changes are new to
      * everyone running this one (Gilly, 2026-10-06).
+     *
+     * <p>A trailing "[docs: ...]" pointer on a line (release/docs_check.py) is for the docs gate, not
+     * for people, so it is dropped here.
      */
     public static String whatsNew(String changelog, String version) {
         StringBuilder out = null;
@@ -54,7 +71,7 @@ public final class AppInfo {
                 } else if ((line + ' ').contains(' ' + version + ' '))
                     out = new StringBuilder();
             } else if (out != null)
-                out.append(line).append('\n');
+                out.append(DOCS_POINTER.matcher(line).replaceFirst("")).append('\n');
         }
         return out == null ? "" : out.toString().strip();
     }

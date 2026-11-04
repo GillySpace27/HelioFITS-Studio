@@ -77,6 +77,8 @@ class AssetListTest(unittest.TestCase):
         for var in ("ZIP", "PDF", "MD", "CLOUD", "DMG"):
             for path in re.findall(r"\b" + var + r'="\$HERE/([^"]+)"', text):
                 made.add(path.replace("$TOP", top))
+        if "*-parity.json)" in text:   # attached by name in the preflight, not through a variable
+            made.add("HFStudio-{v}-parity.json")
         self.assertEqual(made, {p for p, s in rows() if s == "local"})
 
     def test_tracker_reads_the_list(self):
@@ -149,6 +151,59 @@ class PreflightTest(unittest.TestCase):
         with zipfile.ZipFile(self.repo / "HFStudio.jar", "w") as z:
             z.writestr("META-INF/MANIFEST.MF", manifest)
 
+    def write_parity(self, edit=None, manifest=None):
+        """A parity report that vouches for the jar and manifest as they are now; edit(report) may spoil it."""
+        rel = self.repo / "release"
+        mpath = rel / "parity-manifest.json"
+        m = json.loads(mpath.read_text())
+        report = {
+            "format": "hf-parity-report/1", "passed": True,
+            "studio": {"version": self.V, "commit": self.git("rev-parse", "HEAD"), "dirty": False,
+                       "jar_sha256": hashlib.sha256((self.repo / "HFStudio.jar").read_bytes()).hexdigest()},
+            "heliad": {"commit": "a" * 40, "dirty": False},
+            "manifest": {"sha256": hashlib.sha256(mpath.read_bytes()).hexdigest()},
+            "entries": [{"key": f"{e['id']}:p{pl}" + (":bg" if bg else ""), "instrument": e["instrument"],
+                         "sha256": e["sha256"], "status": "ok", "checks": [{"name": "data", "ok": True}]}
+                        for e in m["entries"] for pl in e["planes"] for bg in ([False, True] if e.get("background") else [False])]}
+        if edit:
+            edit(report)
+        (rel / f"HFStudio-{self.V}-parity.json").write_text(json.dumps(report))
+
+    def test_missing_parity_report_refuses(self):
+        (self.repo / "release" / f"HFStudio-{self.V}-parity.json").rename(self.tmp / "aside.json")
+        self.refused(self.dry_run(), f"release/HFStudio-{self.V}-parity.json is missing")
+
+    def test_parity_report_for_another_jar_refuses(self):
+        self.write_jar(revision=self.git("rev-list", "--count", "HEAD"), note="rebuilt after the report")
+        r = self.dry_run()
+        self.refused(r, "report was made from a different HFStudio.jar")
+        self.assertIn("does not vouch for this jar, commit and manifest", r.stderr)
+
+    def test_parity_report_with_a_failed_check_refuses(self):
+        def spoil(rep):
+            rep["entries"][0]["checks"][0]["ok"] = False
+            rep["entries"][0]["status"] = "fail"
+        self.write_parity(spoil)
+        self.refused(self.dry_run(), "parity: aia-131-l15:p0: fail (data)")
+
+    def test_parity_report_that_skipped_a_pinned_fixture_refuses(self):
+        self.write_parity(lambda rep: rep["entries"].pop())
+        self.refused(self.dry_run(), "not in the report")
+
+    def test_parity_report_made_with_another_manifest_refuses(self):
+        self.write_parity(lambda rep: rep["manifest"].update(sha256="0" * 64))
+        self.refused(self.dry_run(), "report was made with a different parity-manifest.json")
+
+    def test_parity_report_from_a_dirty_tree_or_another_commit_refuses(self):
+        self.write_parity(lambda rep: rep["studio"].update(dirty=True))
+        self.refused(self.dry_run(), "report was made from a dirty Studio tree")
+        self.write_parity(lambda rep: rep["studio"].update(commit="b" * 40))
+        self.refused(self.dry_run(), f"report is for commit {'b' * 40!r}")
+
+    def test_parity_report_without_a_required_instrument_refuses(self):
+        self.write_parity(lambda rep: rep.update(entries=[e for e in rep["entries"] if e["instrument"] != "SUVI"]))
+        self.refused(self.dry_run(), "no passing fixture for SUVI")
+
     def write_receipt(self, dmg, build_sha, name=".notarize-run.json"):
         (self.repo / "release" / name).write_text(json.dumps({
             "dmg_sha256": hashlib.sha256(dmg.read_bytes()).hexdigest(),
@@ -160,7 +215,7 @@ class PreflightTest(unittest.TestCase):
         self.repo = self.tmp / "repo"
         self.site = self.tmp / "site"   # SITE for append_feed_record: absent, so the hook writes nothing
         (self.repo / "release").mkdir(parents=True)
-        for name in ("deploy_release.sh", "assets.txt"):
+        for name in ("deploy_release.sh", "assets.txt", "parity.py", "parity-manifest.json"):
             shutil.copy2(RELEASE / name, self.repo / "release" / name)
         (self.repo / "VERSION").write_text(self.V + "\n")
         (self.repo / "src").mkdir()
@@ -177,6 +232,7 @@ class PreflightTest(unittest.TestCase):
         self.git("push", "-q", "origin", "master")
         self.head = self.git("rev-parse", "HEAD")
         self.write_jar(revision=self.git("rev-list", "--count", "HEAD"))
+        self.write_parity()
         self.dmg = self.repo / "release" / f"HFStudio-{self.V}.dmg"
         self.dmg.write_bytes(b"the notarized dmg")
         self.write_receipt(self.dmg, self.head)
@@ -339,6 +395,7 @@ class PreflightTest(unittest.TestCase):
         self.write_jar(revision=count, commit=self.head[:12], dirty="true")
         self.refused(self.dry_run(), "was built from a dirty tree")
         self.write_jar(revision=count, commit=self.head[:12], dirty="false")
+        self.write_parity()   # the report names the jar by hash
         self.assertEqual(self.dry_run().returncode, 0)
 
     def test_friday_afternoon_refuses_unless_allowed(self):
@@ -689,7 +746,7 @@ class TrackerTest(unittest.TestCase):
                                                   "isPrerelease": True, "tagName": "v" + v})
         t = self.status.Target("v" + v, v, str(ROOT), str(RELEASE), self.status.REPO)
         self.assertEqual(self.status.check_assets_all(t),
-                         ("PASS", f"8 of 8 assets in release/assets.txt are on v{v}"))
+                         ("PASS", f"{len(names)} of {len(names)} assets in release/assets.txt are on v{v}"))
         self.status._release_cache.clear()
         self.status.gh_json = lambda args: ("ok", {"assets": [{"name": n} for n in names[:-1]]})
         self.assertEqual(self.status.check_assets_all(t)[0], "FAIL")
@@ -910,6 +967,8 @@ class ShipTest(unittest.TestCase):
              '[ "$1 $2" = "publish --dry-run" ] && echo "GATE: publish v9.9.9 at 0123456789ab from master; way back: v9.9.8"\n'
              'exit 0\n')
         (self.repo / "release" / "build_guide.py").write_text("import sys\nsys.exit(0)\n")
+        (self.repo / "release" / "docs_check.py").write_text("import sys\nsys.exit(0)\n")
+        (self.repo / "release" / "build_manual_refs.py").write_text("import sys\nsys.exit(0)\n")
 
     def ship(self, *args, **extra):
         env = {k: v for k, v in os.environ.items() if not k.startswith("HFS_")}

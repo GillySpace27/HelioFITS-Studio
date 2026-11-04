@@ -122,6 +122,35 @@ public final class DrawController implements Interfaces.LazyComponent, Interface
      * @return whether the window was moved
      */
     public static boolean showLoadedDataIfNothingInView() {
+        long[] span = loadedSpan();
+        if (span == null)
+            return false; // nothing loaded to aim at
+        if (span[0] <= selectedAxis.end() && span[1] >= selectedAxis.start())
+            return false; // some of it is already on screen; the window is the user's
+
+        long[] fit = fitInterval(span[0], span[1]);
+        setSelectedInterval(fit[0], fit[1]);
+        return true;
+    }
+
+    /**
+     * Zoom the timeline to fit: the window becomes the time bounds of every loaded image layer, with
+     * a little room either side. The bottom-timeline counterpart of View > Zoom to Fit.
+     *
+     * @return false when no image layer is loaded, so there is nothing to fit and the window is unchanged
+     */
+    public static boolean zoomToFit() {
+        long[] span = loadedSpan();
+        if (span == null)
+            return false;
+        long[] fit = fitInterval(span[0], span[1]);
+        setSelectedInterval(fit[0], fit[1]);
+        return true;
+    }
+
+    /** The first and last frame time (ms) over every loaded image layer, or null when none has a frame. */
+    @Nullable
+    private static long[] loadedSpan() {
         long first = Long.MAX_VALUE, last = Long.MIN_VALUE;
         for (org.helioviewer.jhv.layers.ImageLayer layer : org.helioviewer.jhv.layers.Layers.getImageLayers()) {
             org.helioviewer.jhv.view.View view = layer.getView();
@@ -130,15 +159,16 @@ public final class DrawController implements Interfaces.LazyComponent, Interface
             first = Math.min(first, view.getFirstTime().milli);
             last = Math.max(last, view.getLastTime().milli);
         }
-        if (first > last)
-            return false; // nothing loaded to aim at
-        if (first <= selectedAxis.end() && last >= selectedAxis.start())
-            return false; // some of it is already on screen; the window is the user's
+        return first > last ? null : new long[]{first, last};
+    }
 
-        // A single frame has no span of its own; give it an hour of context either side.
+    /**
+     * The window that shows first..last with 5% of room either side. A single frame has no span of its
+     * own, so it gets at least an hour of context either side.
+     */
+    static long[] fitInterval(long first, long last) {
         long pad = Math.max(TimeUtils.MINUTE_IN_MILLIS * 60, (last - first) / 20);
-        setSelectedInterval(first - pad, last + pad);
-        return true;
+        return new long[]{first - pad, last + pad};
     }
 
     public static void setSelectedInterval(long start, long end) {

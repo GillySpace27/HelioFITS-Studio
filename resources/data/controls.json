@@ -1,0 +1,280 @@
+{
+  "about": "Controls Help > Search Controls (Cmd-K) can find: the named components the tour can spotlight that are not catalogued commands. Fields: id (the component name; never renamed), title, where (plain language), words (extra match words), reveal (an ActionCatalog id run first to bring it on screen, or null), doc (optional path or URL of the page that explains it). Commands come from ActionCatalog and CommandRegistry, not from here. ControlSearchCheck and RegistryCheck hold every id to a name the code assigns. See docs/commands.md.",
+  "controls": [
+    {
+      "id": "rotate90",
+      "title": "Rotate View 90°",
+      "where": "Toolbar",
+      "words": "turn quarter axis"
+    },
+    {
+      "id": "pan",
+      "title": "Pan",
+      "where": "Toolbar",
+      "words": "drag move mouse mode"
+    },
+    {
+      "id": "rotate",
+      "title": "Rotate",
+      "where": "Toolbar",
+      "words": "drag turn mouse mode"
+    },
+    {
+      "id": "axis",
+      "title": "Axis",
+      "where": "Toolbar",
+      "words": "rotate about axis mouse mode"
+    },
+    {
+      "id": "track",
+      "title": "Track",
+      "where": "Toolbar",
+      "words": "solar rotation follow"
+    },
+    {
+      "id": "diffRotation",
+      "title": "Differential",
+      "where": "Toolbar",
+      "words": "differential rotation"
+    },
+    {
+      "id": "corona",
+      "title": "Corona",
+      "where": "Toolbar",
+      "words": "off-disk offdisk"
+    },
+    {
+      "id": "multiview",
+      "title": "Multiview",
+      "where": "Toolbar",
+      "words": "several views side by side split"
+    },
+    {
+      "id": "sidebarLeft",
+      "title": "Left Sidebar",
+      "where": "Toolbar",
+      "words": "show fold panel"
+    },
+    {
+      "id": "timelines",
+      "title": "Timelines",
+      "where": "Toolbar",
+      "words": "show timelines pane plots"
+    },
+    {
+      "id": "sidebarRight",
+      "title": "Right Sidebar",
+      "where": "Toolbar",
+      "words": "show fold panel"
+    },
+    {
+      "id": "projection",
+      "title": "Projection",
+      "where": "Toolbar",
+      "words": "map mode helioradial latitudinal orthographic warp dome"
+    },
+    {
+      "id": "trackCme",
+      "title": "Track CME",
+      "where": "Toolbar",
+      "words": "CACTus front"
+    },
+    {
+      "id": "colour",
+      "title": "HDR",
+      "where": "Toolbar",
+      "words": "colour color headroom mapping knee clipped extended range"
+    },
+    {
+      "id": "sequence",
+      "title": "Filters",
+      "where": "Toolbar",
+      "words": "RHEF Fourier noise gate filter"
+    },
+    {
+      "id": "grid",
+      "title": "Grid",
+      "where": "Toolbar",
+      "words": "Thomson sphere celestial ecliptic planets overlay"
+    },
+    {
+      "id": "camera",
+      "title": "Camera",
+      "where": "Toolbar",
+      "words": "free follow turntable overview viewpoint"
+    },
+    {
+      "id": "compare",
+      "title": "Compare",
+      "where": "Toolbar",
+      "words": "blink swipe divider difference minus before after two layers side by side"
+    },
+    {
+      "id": "pizza",
+      "title": "Pizza",
+      "where": "Toolbar",
+      "words": "sun pizza wedges slices tiles squares every wavelength channel composite turntable spin labels coronagraph ring"
+    },
+    {
+      "id": "annotate",
+      "title": "Annotation",
+      "where": "Toolbar",
+      "words": "draw thickness colour"
+    },
+    {
+      "id": "refresh",
+      "title": "Refresh",
+      "where": "Toolbar",
+      "words": "automatic refresh reload"
+    },
+    {
+      "id": "samp",
+      "title": "SAMP",
+      "where": "Toolbar",
+      "words": "send message"
+    },
+    {
+      "id": "imageCanvas",
+      "title": "Image canvas",
+      "where": "Main window",
+      "words": "view picture display"
+    },
+    {
+      "id": "transport",
+      "title": "Movie transport",
+      "where": "Above the picture",
+      "words": "play pause step frame time slider scrub"
+    },
+    {
+      "id": "transportRecord",
+      "title": "Record button",
+      "where": "Above the picture",
+      "words": "record movie export video"
+    },
+    {
+      "id": "timelinesPane",
+      "title": "Timelines pane",
+      "where": "Under the picture (Timelines on the toolbar shows it)",
+      "words": "plots time series events"
+    },
+    {
+      "id": "playbackOptions",
+      "title": "Playback and Recording",
+      "where": "Left sidebar",
+      "words": "play rate speed loop swing clock record one loop screenshot unlimited format codec preset size",
+      "reveal": "showPlayback"
+    },
+    {
+      "id": "imageLayersNew",
+      "title": "New Layer",
+      "where": "Image Layers section",
+      "words": "add data load layer jp2 fits",
+      "reveal": "showImageLayers"
+    },
+    {
+      "id": "imageLayersCadence",
+      "title": "Time step",
+      "where": "Image Layers section",
+      "words": "cadence frame count interval video length",
+      "reveal": "showImageLayers"
+    },
+    {
+      "id": "imageLayersList",
+      "title": "Layer list",
+      "where": "Image Layers section",
+      "words": "layers rows show hide remove reorder",
+      "reveal": "showImageLayers"
+    },
+    {
+      "id": "imageLayersOptions",
+      "title": "Layer options",
+      "where": "Image Layers section",
+      "words": "colour color table levels brightness display intensity",
+      "reveal": "showImageLayers"
+    },
+    {
+      "id": "projectionSurface",
+      "title": "Surface",
+      "where": "Projection palette",
+      "words": "plane of sky Thomson sphere celestial depth",
+      "reveal": "showProjection"
+    },
+    {
+      "id": "projectionSurfaceFrom",
+      "title": "Surface from",
+      "where": "Projection palette",
+      "words": "observer viewpoint image distance composed sky",
+      "reveal": "showProjection"
+    },
+    {
+      "id": "projectionRender3d",
+      "title": "Render in 3D",
+      "where": "Projection palette",
+      "words": "helioradial 3D surface",
+      "reveal": "showProjection"
+    },
+    {
+      "id": "projectionReset",
+      "title": "Reset view",
+      "where": "Projection palette",
+      "words": "warp crop zoom defaults",
+      "reveal": "showProjection"
+    },
+    {
+      "id": "projectionSky",
+      "title": "Project onto the sky",
+      "where": "Projection palette",
+      "words": "observer sky dome",
+      "reveal": "showProjection"
+    },
+    {
+      "id": "projectionSkyStyle",
+      "title": "Sky projection",
+      "where": "Projection palette",
+      "words": "observer sky dome fisheye",
+      "reveal": "showProjection"
+    },
+    {
+      "id": "projectionSkyField",
+      "title": "Sky field",
+      "where": "Projection palette",
+      "words": "observer sky angular radius field of view",
+      "reveal": "showProjection"
+    },
+    {
+      "id": "projectionAimAtSun",
+      "title": "Aim at Sun",
+      "where": "Projection palette",
+      "words": "observer sky centre center",
+      "reveal": "showProjection"
+    },
+    {
+      "id": "projectionWarp",
+      "title": "Warp",
+      "where": "Projection palette",
+      "words": "Box-Cox lambda helioradial stretch",
+      "reveal": "showProjection"
+    },
+    {
+      "id": "projectionDisk",
+      "title": "Disk",
+      "where": "Projection palette",
+      "words": "solar disk size helioradial",
+      "reveal": "showProjection"
+    },
+    {
+      "id": "projectionZoom",
+      "title": "Zoom",
+      "where": "Projection palette",
+      "words": "magnification",
+      "reveal": "showProjection"
+    },
+    {
+      "id": "projectionCrop",
+      "title": "Crop",
+      "where": "Projection palette",
+      "words": "circular crop solar radii",
+      "reveal": "showProjection"
+    }
+  ]
+}

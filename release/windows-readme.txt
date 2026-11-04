@@ -13,8 +13,9 @@ USB stick, and you can move it later. The program keeps its settings and saved
 sessions in %USERPROFILE%\HFStudio and its cache in %TEMP%\HFStudio; it never
 writes into this folder.
 
-The first time, Windows may say it "protected your PC", because the program is
-not code-signed yet. Choose More info, then Run anyway. You only do this once.
+The first time, Windows may say it "protected your PC": the program is signed,
+but Windows has seen few downloads of it so far. Choose More info, then Run
+anyway. You only do this once.
 
 To remove it, delete this folder (and %USERPROFILE%\HFStudio if you also want
 your settings and sessions gone).

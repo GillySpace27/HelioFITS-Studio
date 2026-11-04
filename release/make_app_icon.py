@@ -3,15 +3,15 @@
 
 Six wedges of the Sun at six wavelengths around a dark hexagon: an aperture made of solar images,
 the mark for an application that composites them. It was this application's icon (lettered HFS)
-until 2026-09-22, went to the HelioFITS plugin for a day, and came back; HelioFITS kept its AIA 171
-Sun. Lettered HFS, its technical name, at 128 px and above; plain below, where letters only smudge.
+until 2026-09-22, went to the HelioFITS Peek plugin for a day, and came back; HelioFITS Peek kept its
+AIA 171 Sun. Lettered HFS, its technical name, at 128 px and above; plain below, where letters only smudge.
 
 Since 2026-10-23 the art is iris_leaf_plain_1024.png, drawn by make_iris_art.py from
 iris_plain_1024.png and the AIA frames in iris_sources/: white dividers in Heliogram's chrome and a
 full blue leaf, to sit beside the Peek, Cache Manager and Heliogram icons.
 
 iris_plain_1024.png is the full-square art, letters already removed. It was produced by the
-HelioFITS repo's tools/make_app_icon.py (commit 773a575 there), which repaints the hexagon fill
+HelioFITS-Peek repo's tools/make_app_icon.py (commit 773a575 there), which repaints the hexagon fill
 and scales the orb to cover macOS's squircle. The plain art is what 64 px and below get: the six
 wedges still read as a rosette at 16 px.
 

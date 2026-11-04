@@ -2,8 +2,8 @@
 
 Small frames and the RHEF output they should give, for any RHEF implementation to test itself
 against. In this repository `extra/test/RhefConformanceCheck.java` holds `FilterRHEF` to them.
-HelioFITS (or any other port) can copy this folder as it is and read `manifest.json`: it is the
-shared RHEF contract between HelioFITS and HelioFITS Studio.
+HelioFITS Peek (or any other port) can copy this folder as it is and read `manifest.json`: it is
+the shared RHEF contract between HelioFITS Peek and HelioFITS Studio.
 
 Made once by `python3 extra/test/rhef/make_vectors.py` (needs numpy, scipy, astropy, sunpy and
 sunkit-image; the versions used are in `manifest.json`). Never edit the files by hand; rerun the

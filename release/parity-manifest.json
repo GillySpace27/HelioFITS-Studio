@@ -1,0 +1,146 @@
+{
+ "format": "hf-parity-manifest/1",
+ "about": "Fixed fixtures for the decode-parity gate. Files are pinned by SHA-256 (library_relpath is only a hint for finding them under the library root), so every release is tested on the same files. Append entries; never swap one. Edit this file and the report records its hash.",
+ "required_instruments": [
+  "AIA",
+  "LASCO",
+  "PUNCH",
+  "ASPIICS",
+  "SUVI"
+ ],
+ "entries": [
+  {
+   "id": "aia-131-l15",
+   "instrument": "AIA",
+   "name": "AIA20261028_111200_0131.fits",
+   "sha256": "d04c04b87c45deb7f8cd4dc9925ab483881867e4bf9f92e11d2d54649db991cd",
+   "size": 855360,
+   "date_obs": "2026-10-28T11:12:06.620",
+   "library_relpath": "store/sdo/aia/1.5/131/2026/10/28/AIA20261028_111200_0131.fits",
+   "planes": [
+    0
+   ],
+   "background": false
+  },
+  {
+   "id": "suvi-g18-195-l1b",
+   "instrument": "SUVI",
+   "name": "OR_SUVI-L1b-Fe195_G18_s20252672256507_e20252672256517_c20252672257157_60486b0d942f.fits.gz",
+   "sha256": "47b12c0fd67938ee6af81a986090cf965740fe00d7a7cd59fdb4886408aa52e2",
+   "size": 2231029,
+   "date_obs": "2025-09-24T22:56:50.771",
+   "library_relpath": "store/g18/goes-r-series-solar-ultraviolet-imager-suvi/national-aeronautics-and-space-administration-nasa-l1b/195/2025/09/24/OR_SUVI-L1b-Fe195_G18_s20252672256507_e20252672256517_c20252672257157_60486b0d942f.fits.gz",
+   "planes": [
+    0
+   ],
+   "background": false
+  },
+  {
+   "id": "aspiics-fe-l3",
+   "instrument": "ASPIICS",
+   "name": "aspiics_fe_l3_20250921T233400_1630607D0001_v03.fits",
+   "sha256": "8e04dc412c9450472aacc7c4653be09d410b8ac5df1bacd32106149f0f919b27",
+   "size": 16793280,
+   "date_obs": "2025-09-21T23:34:00.310",
+   "library_relpath": "store/proba-3/aspiics/3/5303/2025/09/21/aspiics_fe_l3_20250921T233400_1630607D0001_v03.fits",
+   "planes": [
+    0
+   ],
+   "background": false
+  },
+  {
+   "id": "punch-cam-l3",
+   "instrument": "PUNCH",
+   "name": "PUNCH_L3_CAM_20260928200000_v0l_f458c3a24a8f.fits",
+   "sha256": "9ff4424b5f8b7fd95d53f12d7c7efafa9276627ef4f6a62897bf161f17800a26",
+   "size": 24177600,
+   "date_obs": "2026-09-28T20:00:00.000",
+   "library_relpath": "store/punch/wfi+nfi-mosaic/cam/3/530/2026/09/28/PUNCH_L3_CAM_20260928200000_v0l_f458c3a24a8f.fits",
+   "planes": [
+    0
+   ],
+   "background": false
+  },
+  {
+   "id": "punch-ptm-l3",
+   "instrument": "PUNCH",
+   "name": "PUNCH_L3_PTM_20250924045829_v0l.fits",
+   "sha256": "fe99f00eaa375a29df437ced352466ee1b4ee42513e28c7380d78b5fe2b08a56",
+   "size": 26723520,
+   "date_obs": "2025-09-24T04:58:29.999",
+   "library_relpath": "store/punch/wfi+nfi-mosaic/ptm/3/530/2025/09/24/PUNCH_L3_PTM_20250924045829_v0l.fits",
+   "planes": [
+    0,
+    1,
+    2
+   ],
+   "background": false
+  },
+  {
+   "id": "lasco-c2-2026-08",
+   "instrument": "LASCO",
+   "name": "3503f8499f88c95ad68b1826d2cafe973145b007788edd0f2a250c50e0f3c163.fits",
+   "sha256": "82dcc7d57a64d106039936e972e3144377454dd08cd02f434e61072f9c72d1fc",
+   "size": 2108160,
+   "date_obs": "2026-08-18T23:24:15.433",
+   "library_relpath": "store/soho/lasco/c2/undated/3503f8499f88c95ad68b1826d2cafe973145b007788edd0f2a250c50e0f3c163.fits",
+   "planes": [
+    0
+   ],
+   "background": true
+  },
+  {
+   "id": "lasco-c3-2026-08",
+   "instrument": "LASCO",
+   "name": "108c5174a62aef72189b473dbca66b37f258d3be71455d05fb6bf68f185892a6.fits",
+   "sha256": "cc6ad164a0a5b68bbb133f03787d76a27f5c1858bb819eed62beceea2ac569d2",
+   "size": 2108160,
+   "date_obs": "2026-08-26T23:30:07.456",
+   "library_relpath": "store/soho/lasco/c3/undated/108c5174a62aef72189b473dbca66b37f258d3be71455d05fb6bf68f185892a6.fits",
+   "planes": [
+    0
+   ],
+   "background": true
+  },
+  {
+   "id": "lasco-c2-oldest",
+   "instrument": "LASCO",
+   "name": "24002968_5a39b41e9ec6.fts",
+   "sha256": "7363acea771166a2ae4eeeb9d10bde87889b84d4947842cdc5dcc7d3698932f0",
+   "size": 2108160,
+   "date_obs": "2025-09-18T00:00:05.660",
+   "library_relpath": "store/soho/lasco/c2/undated/24002968_5a39b41e9ec6.fts",
+   "planes": [
+    0
+   ],
+   "background": true
+  },
+  {
+   "id": "lasco-c3-oldest",
+   "instrument": "LASCO",
+   "name": "32831161_f7f6efa5c345.fts",
+   "sha256": "7c1ed168e89f28a07e54de5eb0a05d5e11ac7b3dc99e353fff7ee68f43abf261",
+   "size": 2108160,
+   "date_obs": "2025-08-30T00:06:05.607",
+   "library_relpath": "store/soho/lasco/c3/undated/32831161_f7f6efa5c345.fts",
+   "planes": [
+    0
+   ],
+   "background": true
+  }
+ ],
+ "unavailable": [
+  {
+   "want": "LASCO C2 frame from 2025-08-21 to 2025-08-31 (placeholder pointing, lasco_borrowed_pointing)",
+   "reason": "the library's C2 dataset starts 2025-09-18 (index checked 2026-11-02); the dump tool does not produce that correction yet either"
+  },
+  {
+   "want": "PUNCH product whose primary data HDU is dithered (SUBTRACTIVE_DITHER)",
+   "reason": "every PUNCH L3 file sampled (CAM, CTM, PAM, PTM; first, middle, last of each) has a NO_DITHER data HDU; only the uncertainty HDU is dithered, and Studio does not decode that HDU"
+  },
+  {
+   "want": "8-bit (BITPIX 8) image",
+   "reason": "no BITPIX 8 primary image in the headers sampled (first, middle, last file of each of the 34 datasets, checked 2026-11-02); SUVI's BITPIX 8 is an extension HDU. Not an exhaustive scan"
+  }
+ ]
+}
