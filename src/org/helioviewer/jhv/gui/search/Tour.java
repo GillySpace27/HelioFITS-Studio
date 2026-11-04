@@ -110,6 +110,15 @@ public final class Tour {
         return out;
     }
 
+    /** How many steps the tour has, for the Welcome window's list; 0 when the file cannot be read. */
+    public static int stepCount(String id) {
+        try {
+            return load(id).size();
+        } catch (IOException | RuntimeException e) {
+            return 0;
+        }
+    }
+
     /** The tour's own title, for its menu item; the id when the file cannot be read. */
     public static String title(String id) {
         try {
