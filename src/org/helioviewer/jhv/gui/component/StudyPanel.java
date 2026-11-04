@@ -13,6 +13,7 @@ import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -77,7 +78,7 @@ public final class StudyPanel extends JDialog {
     }
 
     public static Action openAction() {
-        return new AbstractAction("Study...") {
+        return new AbstractAction("Study Manager...") {
             @Override
             public void actionPerformed(ActionEvent e) {
                 open();
@@ -145,7 +146,7 @@ public final class StudyPanel extends JDialog {
     private boolean previewing;
 
     private StudyPanel() {
-        super(MainFrame.get(), "Study", false);
+        super(MainFrame.get(), "Study Manager", false);
         setDefaultCloseOperation(HIDE_ON_CLOSE);
 
         table.setDefaultRenderer(String.class, new StudyRowEditor.Renderer());
@@ -187,15 +188,18 @@ public final class StudyPanel extends JDialog {
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT));
         JButton preset = new JButton("Load template");
-        preset.setToolTipText("Replace the rows with a ready-made set, such as the lambda ladder");
+        preset.setToolTipText("Replace the rows with a ready-made set: the lambda ladder, or one you saved with Save as template");
         preset.addActionListener(e -> loadPreset(preset));
+        JButton saveTemplate = new JButton("Save as template...");
+        saveTemplate.setToolTipText("Keep these rows as a study template in ~/HFStudio/Studies, to start another scene's study from");
+        saveTemplate.addActionListener(e -> saveTemplate());
         JButton copy = new JButton("Copy command");
         copy.setToolTipText("Copy the command that runs this study headless");
         copy.addActionListener(e -> copyCommand());
         JButton jobs = new JButton("Task Manager...");
         jobs.setToolTipText("The export queue and everything else running (also: click the footer's spinner)");
         jobs.addActionListener(e -> JobQueuePanel.open());
-        for (JComponent c : new JComponent[]{save, update, apply, duplicate, delete, paste, preset, copy, export, jobs})
+        for (JComponent c : new JComponent[]{save, update, apply, duplicate, delete, paste, preset, saveTemplate, copy, export, jobs})
             buttons.add(c);
         JPanel south = new JPanel();
         south.setLayout(new BoxLayout(south, BoxLayout.Y_AXIS));
@@ -414,32 +418,68 @@ public final class StudyPanel extends JDialog {
     }
 
     /** The shipped templates: menu label and resource under resources/studies. */
-    private static final String[][] PRESETS = {
+    private static final String[][] SHIPPED = {
             {"Lambda ladder (Helioradial 1, 0, -1; Unrolled 0)", "/studies/lambda-ladder.hfstudy.json"}};
+    private static final String SUFFIX = ".hfstudy.json";
+
+    /** The shipped templates, then the person's own from ~/HFStudio/Studies by name: label and source (a resource or a file path). */
+    private static String[][] templates() {
+        List<String[]> out = new ArrayList<>(List.of(SHIPPED));
+        java.io.File[] files = org.helioviewer.jhv.io.Directories.STUDIES.getFile().listFiles((d, n) -> n.endsWith(SUFFIX));
+        if (files != null) {
+            java.util.Arrays.sort(files, java.util.Comparator.comparing(java.io.File::getName, String.CASE_INSENSITIVE_ORDER));
+            for (java.io.File f : files)
+                out.add(new String[]{f.getName().substring(0, f.getName().length() - SUFFIX.length()), f.getPath()});
+        }
+        return out.toArray(new String[0][]);
+    }
+
+    /** Save the rows as a study template: the scene reference is left out, so it fits any scene. */
+    private void saveTemplate() {
+        String name = javax.swing.JOptionPane.showInputDialog(this, "Name for this study template:", "Save Study Template",
+                javax.swing.JOptionPane.QUESTION_MESSAGE);
+        if (name == null || name.isBlank())
+            return;
+        String safe = name.trim().replaceAll("[\\\\/:*?\"<>|]", "-");
+        java.nio.file.Path file = org.helioviewer.jhv.io.Directories.STUDIES.getFile().toPath().resolve(safe + SUFFIX);
+        if (java.nio.file.Files.exists(file) && javax.swing.JOptionPane.showConfirmDialog(this, "Replace the study template \"" + safe + "\"?",
+                "Save Study Template", javax.swing.JOptionPane.OK_CANCEL_OPTION) != javax.swing.JOptionPane.OK_OPTION)
+            return;
+        try {
+            Study template = Study.fromJson(model.study().toJson());
+            template.setScene("", null);
+            java.nio.file.Files.createDirectories(file.getParent());
+            org.helioviewer.jhv.study.StudyIO.write(template, file);
+            reasonLine.setText("Saved the study template " + safe + " in ~/HFStudio/Studies; Load template lists it.");
+        } catch (IOException | RuntimeException ex) {
+            reasonLine.setText("The study template could not be saved: " + ex.getMessage());
+        }
+    }
 
     /**
      * Opening with no study: start from a template or from an empty table. False when the person
      * closes the question, and then the panel stays shut.
      */
     private boolean chooseStart() {
-        Object[] options = new Object[PRESETS.length + 1];
-        for (int i = 0; i < PRESETS.length; i++)
-            options[i] = "Template: " + PRESETS[i][0];
-        options[PRESETS.length] = "New empty study";
+        String[][] presets = templates();
+        Object[] options = new Object[presets.length + 1];
+        for (int i = 0; i < presets.length; i++)
+            options[i] = "Template: " + presets[i][0];
+        options[presets.length] = "New empty study";
         Object pick = javax.swing.JOptionPane.showInputDialog(MainFrame.get(),
                 "Start the study from a template (projections and lambda set, layers inherited from the scene), or from an empty table:",
                 "New study", javax.swing.JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
         if (pick == null)
             return false;
-        for (int i = 0; i < PRESETS.length; i++)
+        for (int i = 0; i < presets.length; i++)
             if (pick == options[i])
-                loadPresetResource(PRESETS[i][1]);
+                loadPresetResource(presets[i][1]);
         return true;
     }
 
     private void loadPreset(JComponent from) {
         javax.swing.JPopupMenu menu = new javax.swing.JPopupMenu();
-        for (String[] preset : PRESETS) {
+        for (String[] preset : templates()) {
             javax.swing.JMenuItem item = new javax.swing.JMenuItem(preset[0]);
             item.addActionListener(e -> {
                 loadPresetResource(preset[1]);
@@ -452,7 +492,8 @@ public final class StudyPanel extends JDialog {
 
     /** Makes a shipped template the session's study; the scene reference of the old one is kept. */
     private void loadPresetResource(String resource) {
-        try (java.io.InputStream in = org.helioviewer.jhv.io.FileUtils.getResource(resource)) {
+        try (java.io.InputStream in = resource.startsWith("/studies/") ? org.helioviewer.jhv.io.FileUtils.getResource(resource)
+                : java.nio.file.Files.newInputStream(java.nio.file.Path.of(resource))) {
             Study loaded = Study.fromJson(new JSONObject(new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)));
             Study old = Study.CURRENT.get();
             if (old != null)

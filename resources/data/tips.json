@@ -224,7 +224,7 @@
     {
       "id": "study",
       "title": "One scene, many pictures",
-      "text": "Movie > Study... makes a set of pictures of one scene, each with its own projection, lambda, field of view or layers. Start from a template such as the lambda ladder, then Export set writes every picture, a manifest and the command that remakes them.",
+      "text": "Window > Study Manager... (File > Study Manager... off macOS) makes a set of pictures of one scene, each with its own projection, lambda, field of view or layers. Start from a template such as the lambda ladder, then Export set writes every picture, a manifest and the command that remakes them.",
       "action": "study"
     },
     {

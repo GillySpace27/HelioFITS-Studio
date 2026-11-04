@@ -91,6 +91,13 @@ public enum Directories {
             return HOME.getPath() + "Templates" + File.separator;
         }
     },
+    // Study templates the user saved from the Study Manager (*.hfstudy.json, no scene in them)
+    STUDIES {
+        @Override
+        public String getPath() {
+            return HOME.getPath() + "Studies" + File.separator;
+        }
+    },
     // The downloads directory
     DOWNLOADS {
         @Override

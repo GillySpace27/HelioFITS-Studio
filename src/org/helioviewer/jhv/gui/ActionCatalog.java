@@ -150,7 +150,7 @@ public final class ActionCatalog {
             }
         }, "File/Show Dataset Folders", "Browse the cache as one folder per dataset (links, or a files.txt listing on Windows); the cache is not changed");
         put("openExportsFolder", ExportsFolder.action(), "File/Open Exports Folder", "Show the folder movies, screenshots and metadata are exported to");
-        put("study", org.helioviewer.jhv.gui.component.StudyPanel.openAction(), "Movie/Study...", "A table of views of this scene to export as a set: projection, lambda, field of view, layers");
+        put("study", org.helioviewer.jhv.gui.component.StudyPanel.openAction(), mac ? "Window/Study Manager..." : "File/Study Manager...", "What a scene exports: a table of views to export as a set (projection, lambda, field of view, layers), and study templates to start one from");
         put("taskManager", new javax.swing.AbstractAction("Task Manager...") {
             @Override
             public void actionPerformed(java.awt.event.ActionEvent e) {
@@ -190,6 +190,14 @@ public final class ActionCatalog {
                 "Save this scene as a template: a starting point with a name, a description, a thumbnail and a time rule");
         put("templates", new org.helioviewer.jhv.gui.dialog.TemplateManager.Open(), mac ? "Window/Template Manager..." : "File/Template Manager...",
                 "Manage scene templates: open, duplicate, rename, edit, share, set as startup or retire");
+        // The toolbar editor, under the name of the other managers; asks to unlock the panels first when they are locked
+        put("toolbarManager", new AbstractAction("Toolbar Manager...") {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                org.helioviewer.jhv.gui.component.ToolbarEditor.openFromMenu();
+            }
+        }, mac ? "Window/Toolbar Manager..." : "File/Toolbar Manager...",
+                "Choose which tools are on the toolbar and in what order (unlocks the panels first when they are locked)");
         // Studio's Cache Manager (was Load from Cache), also New Image Layer's Open Cache Manager button
         put("cacheManager", new AbstractAction("Cache Manager...") {
             @Override
