@@ -59,7 +59,7 @@ jobs:
           # Each picture's summary prints as soon as it exists, so a job timeout keeps the results.
           # One export may hang (the first run's HPC export never exited); cap each and show why.
           for mode in Orthographic HPC Helioradial HelioradialUnrolled; do
-            for stage in 0 7 1 8 9 2 3 4 5 6; do
+            for stage in 0 1 8 9 10 11; do
               case "$mode" in Orthographic|HPC) [ "$stage" != 0 ] && continue ;; esac
               if [ "$stage" = 0 ]; then unset HFS_DEBUG_WARP; else export HFS_DEBUG_WARP=$stage; fi
               rc=0
