@@ -63,7 +63,12 @@ final class LibraryTools {
     private static void judge(FitsLibraryTab tab, JButton button, String tip) {
         boolean ok = coreFound(tab);
         button.setEnabled(ok);
-        button.setToolTipText(ok ? tip : tab.library() == null ? "No FITS library on this computer" : NO_CORE);
+        button.setToolTipText(ok ? tip : whyNoCore(tab));
+    }
+
+    /** Why a library write is greyed out, for its tooltip. */
+    static String whyNoCore(FitsLibraryTab tab) {
+        return tab.library() == null ? "No FITS library on this computer" : NO_CORE;
     }
 
     static boolean coreFound(FitsLibraryTab tab) {

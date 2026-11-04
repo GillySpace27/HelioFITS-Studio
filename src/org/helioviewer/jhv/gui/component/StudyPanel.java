@@ -434,7 +434,7 @@ public final class StudyPanel extends JDialog {
         return out.toArray(new String[0][]);
     }
 
-    /** Save the rows as a study template: the scene reference is left out, so it fits any scene. */
+    /** Save the rows as a study template: the scene reference and the output settings are left out, so it fits any scene. */
     private void saveTemplate() {
         String name = javax.swing.JOptionPane.showInputDialog(this, "Name for this study template:", "Save Study Template",
                 javax.swing.JOptionPane.QUESTION_MESSAGE);
@@ -446,7 +446,9 @@ public final class StudyPanel extends JDialog {
                 "Save Study Template", javax.swing.JOptionPane.OK_CANCEL_OPTION) != javax.swing.JOptionPane.OK_OPTION)
             return;
         try {
-            Study template = Study.fromJson(model.study().toJson());
+            JSONObject rows = model.study().toJson();
+            rows.remove("output"); // a template carries the rows, never this scene's export folder or overwrite policy
+            Study template = Study.fromJson(rows);
             template.setScene("", null);
             java.nio.file.Files.createDirectories(file.getParent());
             org.helioviewer.jhv.study.StudyIO.write(template, file);
