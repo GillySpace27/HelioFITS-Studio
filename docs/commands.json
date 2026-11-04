@@ -1271,7 +1271,7 @@
         "type": "object",
         "properties": {}
       },
-      "name": "activity",
+      "name": "taskManager",
       "description": "What is downloading, loading or computing, and the export queue (also: click the footer's spinner)",
       "annotations": {
         "destructiveHint": false,
@@ -1543,6 +1543,24 @@
       },
       "name": "templates",
       "description": "Manage scene templates: open, duplicate, rename, edit, share, set as startup or retire",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "ui"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
+      "name": "cacheManager",
+      "description": "Open the HelioFITS Cache Manager, to manage the local FITS library and download into it (the download page when it is not installed)",
       "annotations": {
         "destructiveHint": false,
         "readOnlyHint": true
