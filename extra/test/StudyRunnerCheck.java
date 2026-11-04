@@ -70,6 +70,13 @@ public final class StudyRunnerCheck {
         Files.writeString(run.resolve("3.png"), "d");
         StudyRunner.takeScratch(run.resolve("3.png"), run.resolve("3.png"), run);
         expect("a picture already in the run folder keeps its folder", Files.exists(run));
+        // A movie is written straight into Exports; removing that folder made every later movie of the run fail
+        Path exports = Files.createDirectories(root.resolve("Exports"));
+        Files.writeString(exports.resolve("HFStudio_t.mp4"), "e");
+        Files.writeString(exports.resolve("HFStudio_t.mp4.hfrec.json"), "{}");
+        StudyRunner.takeScratch(exports.resolve("HFStudio_t.mp4"), run.resolve("4.mp4"), run, exports);
+        expect("a movie taken from Exports leaves the Exports folder", Files.isDirectory(exports));
+        expect("and takes the movie's own sidecar out of Exports", !Files.exists(exports.resolve("HFStudio_t.mp4.hfrec.json")));
     }
 
     private static void pure() throws Exception {
