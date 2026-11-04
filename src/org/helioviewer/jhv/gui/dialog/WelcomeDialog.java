@@ -59,6 +59,8 @@ public final class WelcomeDialog {
 
     /** "false" keeps the window from opening at startup; Help > Welcome still opens it. */
     static final String SHOW_KEY = "startup.welcome";
+    /** Written the first time this window opens, so the first one can lead with the tours. */
+    static final String SEEN_KEY = "startup.welcomeSeen";
     private static final int OFFER_DELAY_MS = 2000; // as the tour's offer: once the palettes are back
 
     private static final AtomicReference<JDialog> showing = new AtomicReference<>();
@@ -133,7 +135,8 @@ public final class WelcomeDialog {
             dialog.dispose();
             run("openDemo");
         }));
-        starts.add(tourCard(dialog));
+        JButton tour = tourCard(dialog);
+        starts.add(tour);
         JPanel startBox = titled("Start", starts);
         center.add(startBox);
         center.add(Box.createVerticalStrut(10));
@@ -142,7 +145,11 @@ public final class WelcomeDialog {
 
         content.add(footer(dialog), BorderLayout.PAGE_END);
         dialog.setContentPane(content);
-        dialog.getRootPane().setDefaultButton(continueButton);
+        // The first time this window opens, Return opens the tour list (Getting started first), not
+        // Continue on an empty Untitled session; after that it is Continue.
+        boolean first = Settings.getProperty(SEEN_KEY) == null;
+        Settings.setProperty(SEEN_KEY, "true");
+        dialog.getRootPane().setDefaultButton(first ? tour : continueButton);
         dialog.pack();
         dialog.setLocationRelativeTo(MainFrame.get());
         showing.set(dialog);
@@ -202,8 +209,9 @@ public final class WelcomeDialog {
     private static JButton tourCard(JDialog dialog) {
         JPopupMenu menu = new JPopupMenu();
         for (String id : Tour.IDS) {
-            String name = Tour.title(id);
-            JMenuItem item = new JMenuItem(Tour.GETTING_STARTED.equals(id) ? name + " (start here)" : name);
+            int n = Tour.stepCount(id);
+            String name = Tour.title(id) + (n > 0 ? " (" + n + " steps)" : "");
+            JMenuItem item = new JMenuItem(Tour.GETTING_STARTED.equals(id) ? name + ", start here" : name);
             item.addActionListener(e -> {
                 dialog.dispose();
                 Tour.start(id);
@@ -234,44 +242,50 @@ public final class WelcomeDialog {
 
         ActionCatalog.Entry search = ActionCatalog.get("searchControls");
         String key = search == null ? "" : shortcut(search.action());
-        helpRow(rows, c, search == null ? null : search.action(), "Search Controls\u2026" + (key.isEmpty() ? "" : "  " + key), dialog,
-                "Type what you want to do or the name of any control. It runs the command, or points at the control and shows where it is. The Help menu has a search box of its own on a Mac.");
-        helpRow(rows, c, null, "Hover any control", dialog,
+        helpRow(rows, c, search == null ? null : search.action(), true, "Search Controls\u2026" + (key.isEmpty() ? "" : "  " + key), dialog,
+                "Type what you want to do or the name of any control. It runs the command, or points at the control and shows where it is.");
+        helpRow(rows, c, null, false, "Hover any control", dialog,
                 "Every button, slider and field has a tooltip saying what it is for.");
         ActionCatalog.Entry tip = ActionCatalog.get("tipOfTheDay");
-        helpRow(rows, c, tip == null ? null : tip.action(), "Tip of the Day", dialog,
+        helpRow(rows, c, tip == null ? null : tip.action(), true, "Tip of the Day", dialog,
                 "One short tip at a time, each with Show Me to point at the control it is about.");
         ActionCatalog.Entry manual = ActionCatalog.get("openUserManual");
-        helpRow(rows, c, manual == null ? null : manual.action(), "User Manual", dialog,
+        helpRow(rows, c, manual == null ? null : manual.action(), false, "User Manual", dialog,
                 "The full guide to every part of the app, as a PDF.");
-        helpRow(rows, c, null, "Help menu", dialog,
-                "Also holds Interaction Guide and Timeline Interaction (mouse and keyboard controls), the Change Log, "
-                        + "Check for Updates, Send Feedback and Report Bug.");
+        helpRow(rows, c, null, false, "Help menu", dialog,
+                "Everything here, plus Interaction Guide and Timeline Interaction (mouse and keyboard controls), "
+                        + "the Change Log, Check for Updates and Report Bug.");
         ActionCatalog.Entry feedback = ActionCatalog.get("sendFeedback");
-        helpRow(rows, c, feedback == null ? null : feedback.action(), "Send Feedback\u2026", dialog,
+        helpRow(rows, c, feedback == null ? null : feedback.action(), false, "Send Feedback\u2026", dialog,
                 "A problem, a request or a question for the developer; no account needed.");
         return titled("Find your way around", rows);
     }
 
-    private static void helpRow(JPanel rows, GridBagConstraints c, @javax.annotation.Nullable Action action, String name,
-            JDialog dialog, String text) {
+    /**
+     * One row: a button and what it does, or, for help with nothing to press, the text alone with its
+     * name in bold, in the text column so the buttons stay one column.
+     *
+     * @param closes whether the button closes this window first: yes for what needs the main window
+     *               (the search, the tip), no for what opens elsewhere (a browser, a form)
+     */
+    private static void helpRow(JPanel rows, GridBagConstraints c, @javax.annotation.Nullable Action action, boolean closes,
+            String name, JDialog dialog, String text) {
         c.gridx = 0;
         c.fill = GridBagConstraints.HORIZONTAL;
         c.weightx = 0;
-        if (action == null) {
-            JLabel label = new JLabel("<html><b>" + escape(name) + "</b></html>");
-            rows.add(label, c);
-        } else {
+        if (action != null) {
             JButton b = new JButton(name);
             b.addActionListener(e -> {
-                dialog.dispose(); // each of these takes this window's place, as the tip does
+                if (closes)
+                    dialog.dispose();
                 action.actionPerformed(e);
             });
             rows.add(b, c);
         }
         c.gridx = 1;
         c.weightx = 1;
-        JLabel desc = new JLabel("<html><div style='width:430px'>" + escape(text) + "</div></html>");
+        String lead = action == null ? "<b>" + escape(name) + ".</b> " : "";
+        JLabel desc = new JLabel("<html><div style='width:430px'>" + lead + escape(text) + "</div></html>");
         rows.add(desc, c);
         c.gridy++;
     }

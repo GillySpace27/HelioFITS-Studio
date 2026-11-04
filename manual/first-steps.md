@@ -54,5 +54,7 @@ session.
   {doc}`generated/tours` has every tour written out.
 - {menuselection}`Help --> Tip of the Day...` shows a tip you have not seen yet, with **Show Me** to
   point at the control it is about. All of them are in {doc}`generated/tips`.
-- {menuselection}`Help --> Welcome to HelioFITS Studio...` shows what is new in this version.
+- {menuselection}`Help --> Welcome to HelioFITS Studio...` opens the Welcome window again: the ways
+  to start, **Take a Tour** (a list of every tour), where the help is, and **What's New** for this
+  version.
 - {menuselection}`Edit --> Undo` takes back the last change to the scene.
