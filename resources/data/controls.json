@@ -152,6 +152,18 @@
       "words": "record movie export video"
     },
     {
+      "id": "panelLock",
+      "title": "Panel lock",
+      "where": "Right end of the toolbar (the padlock)",
+      "words": "lock unlock padlock move rearrange panels sidebar sections layout freeze"
+    },
+    {
+      "id": "toolbarEdit",
+      "title": "Toolbar Manager",
+      "where": "Right end of the toolbar, beside the padlock (also Window > Toolbar Manager)",
+      "words": "edit toolbar customize tools buttons order add remove separator"
+    },
+    {
       "id": "timelinesPane",
       "title": "Timelines pane",
       "where": "Under the picture (Timelines on the toolbar shows it)",

@@ -80,7 +80,7 @@ public final class MenuBar extends JMenuBar {
                 catalogItem(toolsMenu, "findCmes");
                 catalogItem(toolsMenu, "findComets");
                 toolsMenu.addSeparator();
-                JMenuItem edit = new JMenuItem("Edit Toolbar...");
+                JMenuItem edit = new JMenuItem("Toolbar Manager...");
                 edit.setIcon(Buttons.editToolbar);
                 edit.addActionListener(ev -> ToolbarEditor.open());
                 toolsMenu.add(edit);
@@ -199,6 +199,8 @@ public final class MenuBar extends JMenuBar {
         if (!Platform.isMacOS()) {
             catalogItem(fileMenu, "newWindow"); // no Window menu off macOS
             catalogItem(fileMenu, "templates"); // HS-25: Window > Template Manager... on macOS
+            catalogItem(fileMenu, "study");
+            catalogItem(fileMenu, "toolbarManager");
             catalogItem(fileMenu, "cacheManager");
             catalogItem(fileMenu, "taskManager");
         }
@@ -413,7 +415,6 @@ public final class MenuBar extends JMenuBar {
         catalogItem(movieMenu, "previousFrame");
         catalogItem(movieMenu, "nextFrame");
         catalogItem(movieMenu, "record");
-        catalogItem(movieMenu, "study");
         catalogItem(movieMenu, "studySaveView");
         movieMenu.addSeparator();
         catalogItem(movieMenu, "trimStart");
@@ -425,10 +426,11 @@ public final class MenuBar extends JMenuBar {
             JMenu windowMenu = new JMenu("Window");
             windowMenu.setMnemonic(KeyEvent.VK_W);
             catalogItem(windowMenu, "newWindow");
-            catalogItem(windowMenu, "templates"); // HS-25
+            catalogItem(windowMenu, "templates"); // HS-25: what a scene loads
+            catalogItem(windowMenu, "study"); // what a scene exports
+            catalogItem(windowMenu, "toolbarManager"); // what the window shows
             catalogItem(windowMenu, "cacheManager");
             catalogItem(windowMenu, "taskManager");
-            catalogItem(windowMenu, "study");
             windowMenu.addSeparator();
             catalogItem(windowMenu, "windowMinimize");
             catalogItem(windowMenu, "windowZoom");

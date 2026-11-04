@@ -1254,7 +1254,7 @@
         "properties": {}
       },
       "name": "study",
-      "description": "A table of views of this scene to export as a set: projection, lambda, field of view, layers",
+      "description": "What a scene exports: a table of views to export as a set (projection, lambda, field of view, layers), and study templates to start one from",
       "annotations": {
         "destructiveHint": false,
         "readOnlyHint": true
@@ -1469,6 +1469,42 @@
         "type": "object",
         "properties": {}
       },
+      "name": "tourManagerWindows",
+      "description": "Guided tour: The manager windows",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "ui"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
+      "name": "tourRearrangingTheInterface",
+      "description": "Guided tour: Rearranging the interface",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "ui"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
       "name": "showPlayback",
       "description": "Open the Playback and Recording section, wherever it is docked",
       "annotations": {
@@ -1543,6 +1579,24 @@
       },
       "name": "templates",
       "description": "Manage scene templates: open, duplicate, rename, edit, share, set as startup or retire",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "ui"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
+      "name": "toolbarManager",
+      "description": "Choose which tools are on the toolbar and in what order (unlocks the panels first when they are locked)",
       "annotations": {
         "destructiveHint": false,
         "readOnlyHint": true

@@ -112,7 +112,10 @@ final class LibraryTools {
                     sb.append("\n").append(key.replace('_', ' ')).append(": ").append(String.format("%,d", counts.optLong(key)));
             if (bad > 0)
                 sb.append("\n").append(bad).append(bad == 1 ? " file" : " files").append(" could not be added; see the log.");
-            JOptionPane.showMessageDialog(parent, sb.toString(), "Import Folder", bad > 0 ? JOptionPane.WARNING_MESSAGE : JOptionPane.INFORMATION_MESSAGE);
+            if (bad > 0)
+                Message.warn("Import Folder", sb.toString());
+            else
+                JOptionPane.showMessageDialog(parent, sb.toString(), "Import Folder", JOptionPane.INFORMATION_MESSAGE);
             tab.refresh();
         });
     }
@@ -133,7 +136,10 @@ final class LibraryTools {
                     for (int i = 0; list != null && i < Math.min(5, list.length()); i++)
                         text += "\n  " + list.optString(i);
             }
-            JOptionPane.showMessageDialog(parent, text, "Verify", m + a == 0 ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.WARNING_MESSAGE);
+            if (m + a == 0)
+                JOptionPane.showMessageDialog(parent, text, "Verify", JOptionPane.INFORMATION_MESSAGE);
+            else
+                Message.warn("Verify", text);
         });
     }
 

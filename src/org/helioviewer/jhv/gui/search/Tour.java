@@ -54,7 +54,7 @@ public final class Tour {
     public static final String RHEF_AND_FILTERS = "rhef-and-filters";
     /** Every tour, in Help > Tours order. TourCheck holds this to the files in resources/data/tours, both ways. */
     public static final List<String> IDS = List.of(GETTING_STARTED, "loading-data", "making-a-movie",
-            "views-and-projections", RHEF_AND_FILTERS, "sharing-your-work");
+            "views-and-projections", RHEF_AND_FILTERS, "sharing-your-work", "manager-windows", "rearranging-the-interface");
 
     /** The catalog id that starts a tour: "tour" and the id in camel case ("rhef-and-filters", tourRhefAndFilters). */
     public static String catalogId(String id) {
