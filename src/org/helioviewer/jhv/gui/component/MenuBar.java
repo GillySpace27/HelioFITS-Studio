@@ -396,7 +396,7 @@ public final class MenuBar extends JMenuBar {
         layersMenu.addSeparator();
         // Loading something already downloaded is a way of adding a layer, not a tool: it was under
         // Tools only because that is where the dialog was written.
-        layersMenu.add(new Actions.ShowDialog("Load from Cache...", new org.helioviewer.jhv.gui.dialog.CacheDialog()));
+        catalogItem(layersMenu, "cacheManager"); // was Load from Cache...
         add(layersMenu);
 
         // Beside Layers, because it answers the same kind of question: Layers is what is in the
