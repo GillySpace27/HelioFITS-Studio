@@ -80,7 +80,7 @@ public final class MenuBar extends JMenuBar {
                 catalogItem(toolsMenu, "findCmes");
                 catalogItem(toolsMenu, "findComets");
                 toolsMenu.addSeparator();
-                JMenuItem edit = new JMenuItem("Edit Toolbar...");
+                JMenuItem edit = new JMenuItem("Toolbar Manager...");
                 edit.setIcon(Buttons.editToolbar);
                 edit.addActionListener(ev -> ToolbarEditor.open());
                 toolsMenu.add(edit);
@@ -198,8 +198,11 @@ public final class MenuBar extends JMenuBar {
         catalogItem(fileMenu, "openExportsFolder");
         if (!Platform.isMacOS()) {
             catalogItem(fileMenu, "newWindow"); // no Window menu off macOS
-            catalogItem(fileMenu, "templates"); // HS-25: Window > Templates... on macOS
-            catalogItem(fileMenu, "activity");
+            catalogItem(fileMenu, "templates"); // HS-25: Window > Template Manager... on macOS
+            catalogItem(fileMenu, "study");
+            catalogItem(fileMenu, "toolbarManager");
+            catalogItem(fileMenu, "cacheManager");
+            catalogItem(fileMenu, "taskManager");
         }
 
         if (Platform.isMacOS()) {
@@ -395,7 +398,7 @@ public final class MenuBar extends JMenuBar {
         layersMenu.addSeparator();
         // Loading something already downloaded is a way of adding a layer, not a tool: it was under
         // Tools only because that is where the dialog was written.
-        layersMenu.add(new Actions.ShowDialog("Load from Cache...", new org.helioviewer.jhv.gui.dialog.CacheDialog()));
+        catalogItem(layersMenu, "cacheManager"); // was Load from Cache...
         add(layersMenu);
 
         // Beside Layers, because it answers the same kind of question: Layers is what is in the
@@ -412,7 +415,6 @@ public final class MenuBar extends JMenuBar {
         catalogItem(movieMenu, "previousFrame");
         catalogItem(movieMenu, "nextFrame");
         catalogItem(movieMenu, "record");
-        catalogItem(movieMenu, "study");
         catalogItem(movieMenu, "studySaveView");
         movieMenu.addSeparator();
         catalogItem(movieMenu, "trimStart");
@@ -424,8 +426,11 @@ public final class MenuBar extends JMenuBar {
             JMenu windowMenu = new JMenu("Window");
             windowMenu.setMnemonic(KeyEvent.VK_W);
             catalogItem(windowMenu, "newWindow");
-            catalogItem(windowMenu, "templates"); // HS-25
-            catalogItem(windowMenu, "activity");
+            catalogItem(windowMenu, "templates"); // HS-25: what a scene loads
+            catalogItem(windowMenu, "study"); // what a scene exports
+            catalogItem(windowMenu, "toolbarManager"); // what the window shows
+            catalogItem(windowMenu, "cacheManager");
+            catalogItem(windowMenu, "taskManager");
             windowMenu.addSeparator();
             catalogItem(windowMenu, "windowMinimize");
             catalogItem(windowMenu, "windowZoom");

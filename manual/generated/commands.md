@@ -73,7 +73,7 @@ Every command HelioFITS Studio has, as the menus, Help > Search Controls and the
 * - File > Save as Template...
   - Save this scene as a template: a starting point with a name, a description, a thumbnail and a time rule
   - `saveAsTemplate`
-* - File > Templates...
+* - File > Template Manager...
   - Manage scene templates: open, duplicate, rename, edit, share, set as startup or retire
   - `templates`
 ```
@@ -339,6 +339,12 @@ Every command HelioFITS Studio has, as the menus, Help > Search Controls and the
 * - Help > Tours > Sharing your work
   - Guided tour: Sharing your work
   - `tourSharingYourWork`
+* - Help > Tours > The manager windows
+  - Guided tour: The manager windows
+  - `tourManagerWindows`
+* - Help > Tours > Rearranging the interface
+  - Guided tour: Rearranging the interface
+  - `tourRearrangingTheInterface`
 ```
 
 ## Commands that take arguments
@@ -352,15 +358,21 @@ These are run by scripts and Search Controls rather than from a menu; the argume
 * - Command
   - What it does
   - Id
-* - A table of views of this scene to export as a set: projection, lambda, field of view, layers
+* - What a scene exports: a table of views to export as a set (projection, lambda, field of view, layers), and study templates to start one from
   - No arguments
   - `study`
 * - What is downloading, loading or computing, and the export queue (also: click the footer's spinner)
   - No arguments
-  - `activity`
+  - `taskManager`
 * - Add the view on screen to the Study table as a new row
   - No arguments
   - `studySaveView`
+* - Choose which tools are on the toolbar and in what order (unlocks the panels first when they are locked)
+  - No arguments
+  - `toolbarManager`
+* - What is on disk, in Studio's cache and the FITS library: load, reveal, import, verify or delete
+  - No arguments
+  - `cacheManager`
 * - Show the movie frame with this number (0 is the first)
   - Arguments: `frame`
   - `seekFrame`

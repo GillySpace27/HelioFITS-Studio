@@ -56,7 +56,7 @@ import org.helioviewer.jhv.time.TimeUtils;
  * {@link CacheDialog}; past {@link #CONFIRM_FRAMES} frames that asks first. The range chips are
  * {@link CacheDialog}'s, so the two lists mean the same thing by green.
  *
- * <p>"Open in Cache Manager" hands the master range (and the selected dataset's instrument and
+ * <p>"Search in Cache Manager App" hands the master range (and the selected dataset's instrument and
  * wavelength) to the HelioFITS Cache Manager as an hfcore:// link, so a search for more starts where this left
  * off. It is shown only when the app is installed.
  */
@@ -71,7 +71,8 @@ final class FitsLibraryTab extends JPanel {
     private final JLabel status = new JLabel(" ");
     private final Model model = new Model();
     private final JTable table = new JTable(model);
-    private final JButton openInCacheManager = new JButton("Open in Cache Manager");
+    private final JButton openInCacheManager = new JButton("Search in Cache Manager App");
+    private final JPanel bottom = new JPanel(new FlowLayout(FlowLayout.TRAILING, 6, 0));
 
     @Nullable
     private FitsLibrary.Location library;
@@ -129,7 +130,6 @@ final class FitsLibraryTab extends JPanel {
         JButton columnsButton = new JButton("Columns\u2026");
         columnsButton.setToolTipText("Choose which columns to show (also a right-click on the column titles)");
         columnsButton.addActionListener(e -> columnMenu.show(columnsButton, 0, columnsButton.getHeight()));
-        JPanel bottom = new JPanel(new FlowLayout(FlowLayout.TRAILING, 6, 0));
         bottom.add(columnsButton);
         bottom.add(openInCacheManager);
 
@@ -203,9 +203,20 @@ final class FitsLibraryTab extends JPanel {
             model.setRows(List.of(), rangeStart(), rangeEnd());
             status.setText(FitsLibrary.app() == null
                     ? "No FITS library on this computer. HelioFITS Core downloads FITS into a local library that Studio reads."
-                    : "No FITS library yet. Open Cache Manager to download into one; Studio reads it from here.");
+                    : "No FITS library yet. Open the Cache Manager app to download into one; Studio reads it from here.");
         } else if (front)
             refresh();
+    }
+
+    /** The library this tab read when the dialog last opened, or null when there is none. */
+    @Nullable
+    FitsLibrary.Location library() {
+        return library;
+    }
+
+    /** A button beside Columns..., for the Cache Manager window's library tools. */
+    void addTool(JButton button) {
+        bottom.add(button, 0);
     }
 
     /** Whether the FITS Library tab is the one in front, so Add means "add from the FITS library". */
@@ -260,7 +271,7 @@ final class FitsLibraryTab extends JPanel {
     }
 
     /** Read the datasets off the event thread; the table fills when the read lands. */
-    private void refresh() {
+    void refresh() {
         FitsLibrary.Location lib = library;
         if (lib == null)
             return;
@@ -316,7 +327,7 @@ final class FitsLibraryTab extends JPanel {
         return root.startsWith(home) && !root.equals(home) ? "~/" + home.relativize(root) : root.toString();
     }
 
-    private List<FitsLibrary.Dataset> selected() {
+    List<FitsLibrary.Dataset> selected() {
         List<FitsLibrary.Dataset> out = new ArrayList<>();
         if (!showing())
             return out;
@@ -348,7 +359,7 @@ final class FitsLibraryTab extends JPanel {
             refresh();
     }
 
-    private static String diskSize(long bytes) {
+    static String diskSize(long bytes) {
         if (bytes >= 1L << 30)
             return String.format("%.1f GB", bytes / (double) (1L << 30));
         return bytes >= 1L << 20 ? (bytes >> 20) + " MB" : "< 1 MB";
