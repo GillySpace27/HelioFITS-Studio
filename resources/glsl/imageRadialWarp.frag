@@ -42,5 +42,10 @@ void main(void) {
     }
 #endif
 #endif
-    outColor = sampleWarpedHpcColor(warpHpcXY());
+    // Into a local first, not passed straight through as a call argument. On ANGLE D3D11 the
+    // nested form reached sampleWarpedHpcColor as garbage (helioradial-diag run 41787078939:
+    // warpHpcXY painted correctly on its own, stage 10 and 11, but read inside the callee,
+    // stage 9, it was not), which is what drew the helioradial imagery black on Windows.
+    vec2 hpcXY = warpHpcXY();
+    outColor = sampleWarpedHpcColor(hpcXY);
 }
