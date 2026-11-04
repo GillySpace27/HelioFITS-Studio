@@ -47,7 +47,9 @@ jobs:
         run: |
           python -m pip install --quiet jsonschema
           OUT="$RUNNER_TEMP/diag"; mkdir -p "$OUT"
-          export JAVA_TOOL_OPTIONS="-Duser.home=$(cygpath -w "$RUNNER_TEMP")\\home-diag"
+          # Run 41780821968 drew no imagery in any mode, Orthographic included (gold=0), after the
+          # default 3 s settle; give the software renderer 20 s before the shot.
+          export JAVA_TOOL_OPTIONS="-Duser.home=$(cygpath -w "$RUNNER_TEMP")\\home-diag -Djhv.exportSettleMs=20000"
           W() { cygpath -w "$1"; }
           cmd //c "run.bat --export png --out $(W "$OUT/base.png") -load $(W "$PWD/$IMAGE")" || echo "base export exit $?"
           python extra/test/hfrecord_roundtrip.py prepare "$OUT/base.png" "$(cygpath -w "$RUNNER_TEMP")\\home-diag" "$OUT/base.jhv"
