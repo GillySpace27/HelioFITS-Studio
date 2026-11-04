@@ -32,3 +32,6 @@ HFStudio-*-linux.tar.gz
 
 # The user manual's build output (DOCS-2)
 manual/_build/
+
+# javac argument files left by a failed or interrupted compile.
+javac.*.args
