@@ -36,6 +36,9 @@ abstract class GLSLShader {
 
     protected static void setupUniformBlock(int programID, UniformBlockLayout block) {
         int blockIndex = GL.glGetUniformBlockIndex(programID, block.glslName);
+        // A debug stage returns early, so the compiler may strip what the rest of the shader reads.
+        if (blockIndex < 0 && !DEBUG_WARP.isEmpty())
+            return;
         if (blockIndex < 0)
             throw new GLException("Required uniform block not found: " + block.glslName);
         int blockSize = GL.glGetActiveUniformBlocki(programID, blockIndex, GL.UNIFORM_BLOCK_DATA_SIZE);
@@ -47,7 +50,7 @@ abstract class GLSLShader {
 
     protected static int requiredUniform(int programID, String name) {
         int location = GL.glGetUniformLocation(programID, name);
-        if (location < 0)
+        if (location < 0 && DEBUG_WARP.isEmpty())
             throw new GLException("Required uniform not found: " + name);
         return location;
     }
