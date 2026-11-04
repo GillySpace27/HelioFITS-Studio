@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -117,7 +116,7 @@ public final class MovieRunner {
                         return;
                     }
                     try {
-                        Files.copy(Path.of(output), file, StandardCopyOption.REPLACE_EXISTING);
+                        StudyRunner.takeScratch(Path.of(output), file, folder);
                         StudyRunner.Output o = StudyRunner.describe(file, st, false);
                         if (!"none".equals(study.output().record()))
                             Files.writeString(StudyRunner.sidecar(file),
