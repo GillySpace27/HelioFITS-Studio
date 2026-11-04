@@ -67,10 +67,17 @@ public final class TemplateChooser {
 
     /** Open {@code e}: in this window, or in a new one when this session has unsaved changes. */
     public static void open(TemplateLibrary.Entry e) {
+        org.json.JSONObject session = e.session();
+        boolean asked = e.meta().mode() == TemplateTime.Mode.ASK;
+        if (asked) { // the layers wait for a date: nothing is requested until there is one
+            session = askDate(e);
+            if (session == null)
+                return;
+        }
         if (Session.isDirty()) {
             File f = Session.newWindowFile(); // the new window's own scratch session: it opens Untitled
             try {
-                Files.writeString(f.toPath(), e.session().toString(), StandardCharsets.UTF_8);
+                Files.writeString(f.toPath(), session.toString(), StandardCharsets.UTF_8);
             } catch (IOException ex) {
                 Log.error("Template " + e.meta().name(), ex);
                 Message.err("New from Template", "Could not open a new window: " + ex.getMessage());
@@ -78,15 +85,53 @@ public final class TemplateChooser {
             }
             Session.spawnWindow(f);
             Message.info("New from Template", "\"" + e.meta().name() + "\" opens in a new window, because this session has unsaved changes.");
-        } else if (e.file() != null) {
+        } else if (e.file() != null && !asked) {
             Commands.loadState(e.file().toURI()); // State.load sees the template and leaves the window Untitled
         } else {
-            Commands.loadState(null, e.session().toString());
+            Commands.loadState(null, session.toString());
         }
+    }
+
+    /**
+     * An ask template: a start and end time, picked with the same selector the New Layer panel uses
+     * (the template's span ending now to begin with), then a copy of the session moved to that range
+     * and marked fixed so loading it asks nothing more. Every layer then requests that range. Null
+     * when cancelled.
+     */
+    @javax.annotation.Nullable
+    static org.json.JSONObject askDate(TemplateLibrary.Entry e) {
+        org.helioviewer.jhv.gui.time.TimeSelectorPanel range = new org.helioviewer.jhv.gui.time.TimeSelectorPanel();
+        long now = System.currentTimeMillis();
+        range.setTime(now - e.meta().span().toMillis(), now);
+        javax.swing.JPanel panel = new javax.swing.JPanel(new java.awt.BorderLayout(0, 8));
+        panel.add(new javax.swing.JLabel("<html>\"" + e.meta().name() + "\" loads every layer for this time range (UTC).<br>"
+                + "Nothing downloads until you press OK.</html>"), java.awt.BorderLayout.NORTH);
+        panel.add(range, java.awt.BorderLayout.CENTER);
+        while (true) {
+            int ok = javax.swing.JOptionPane.showConfirmDialog(MainFrame.get(), panel, "Choose the dates",
+                    javax.swing.JOptionPane.OK_CANCEL_OPTION, javax.swing.JOptionPane.PLAIN_MESSAGE);
+            if (ok != javax.swing.JOptionPane.OK_OPTION)
+                return null;
+            long start = range.getStartTime(), end = range.getEndTime();
+            if (end > start)
+                return pointed(e.session(), e.meta(), start, end);
+            Message.warn("Choose the dates", "The end must be after the start.");
+        }
+    }
+
+    /** {@code session} (copied) moved to {@code start} to {@code end}, its rule now fixed. */
+    static org.json.JSONObject pointed(org.json.JSONObject session, TemplateTime.Meta meta, long start, long end) {
+        org.json.JSONObject copy = new org.json.JSONObject(session.toString());
+        org.json.JSONObject state = copy.getJSONObject("org.helioviewer.jhv.state");
+        TemplateState.rewrite(state, new TemplateTime.Range(start, end));
+        state.put(TemplateState.KEY, meta.withTime(meta.description(), TemplateTime.Mode.FIXED, meta.span(), meta.lag()).toJson());
+        return copy;
     }
 
     /** The range {@code e} would open on at {@code now}: its rule's, or the saved master range for a fixed one. */
     static String rangeText(TemplateLibrary.Entry e, long now) {
+        if (e.meta().mode() == TemplateTime.Mode.ASK)
+            return TemplateTime.describe(e.meta());
         TemplateTime.Range r = TemplateTime.resolve(e.meta(), now,
                 e.meta().mode() == TemplateTime.Mode.LATEST ? TemplateState.newest(e.state(), DataSources::newest) : Long.MIN_VALUE);
         long start = r == null ? TimeUtils.optParse(e.state().optString("masterStartTime"), Long.MIN_VALUE) : r.start();

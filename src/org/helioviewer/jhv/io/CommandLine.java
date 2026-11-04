@@ -37,7 +37,8 @@ public class CommandLine {
             new Option("-request", 1, "Load a request file and issue a request at program start. The option can be used multiple times."),
             new Option("-state", 1, "Load state file. The window then belongs to that session, so autosave and quit write back to it."),
             new Option("-export", 1, "Export mode: png writes the current view as one PNG with the session stamped in, then exits. Needs -out. Never writes autosave."),
-            new Option("-out", 1, "Where -export writes its file."),
+            new Option("-out", 1, "Where -export writes its file; with -study, the folder it writes the set into."),
+            new Option("-study", 1, "Run a parameter study (*.hfstudy.json) on the -state scene: one PNG per variant, a manifest, then exit."),
             new Option("-dataset", 1, "Load a FITS library dataset, named by its dataset_uid, its dataset_key or a former key, as one image layer, from its files between -start and -end. The option can be used multiple times."),
             new Option("-start", 1, "With -dataset: the first observation time to load, ISO 8601 UTC, Z and fractional seconds optional (2025-09-21T16:00:00.000)."),
             new Option("-end", 1, "With -dataset: the last observation time to load, ISO 8601 UTC."),
@@ -352,6 +353,9 @@ public class CommandLine {
             if (a.equals("-state") && "file".equals(schemeOf(args[i + 1])) && !Files.isReadable(Path.of(args[i + 1])))
                 return new Problem(Exit.INPUT_NOT_FOUND, "File not found: " + args[i + 1]);
         }
+        List<String> studies = valuesOf(args, "-study");
+        if (!studies.isEmpty() && !Files.isReadable(Path.of(studies.get(0))))
+            return new Problem(Exit.INPUT_NOT_FOUND, "File not found: " + studies.get(0));
         for (String time : valuesOf(args, "-start"))
             if (!isTime(time))
                 return new Problem(Exit.USAGE, "-start is not an ISO 8601 time: " + time);
@@ -398,9 +402,26 @@ public class CommandLine {
         return values;
     }
 
-    /** True when the line asks for -export: the window is a batch job, not a session. */
+    /** True when the line asks for -export or -study: the window is a batch job, not a session. */
     public static boolean isExportMode() {
-        return arguments != null && !valuesOf(arguments, "-export").isEmpty();
+        return arguments != null && (!valuesOf(arguments, "-export").isEmpty() || isStudyMode());
+    }
+
+    public static boolean isStudyMode() {
+        return arguments != null && !valuesOf(arguments, "-study").isEmpty();
+    }
+
+    @Nullable
+    public static String studyFile() {
+        List<String> v = arguments == null ? List.of() : valuesOf(arguments, "-study");
+        return v.isEmpty() ? null : v.get(0);
+    }
+
+    /** The first -state value, as written, for the study's scene hash. */
+    @Nullable
+    public static String stateFile() {
+        List<String> v = arguments == null ? List.of() : valuesOf(arguments, "-state");
+        return v.isEmpty() ? null : v.get(0);
     }
 
     @Nullable

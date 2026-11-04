@@ -429,6 +429,20 @@ Example:
 
 ### Recording Messages
 
+### Study messages
+
+Both reply with a completion message (`jhv.study.run.completed`, `jhv.study.status.completed`).
+
+### `jhv.study.run`
+
+Parameter: `job`, the text of a `*.hfstudy.json` file. Queues the study on the open scene; the
+completion is sent when the run ends, with `output` the run folder.
+
+### `jhv.study.status`
+
+No parameters. The completion's `output` is JSON: `{"jobs": [{"id", "kind", "label", "state", "done", "total", "message", "folder"}]}`.
+`state` is one of `QUEUED`, `RUNNING`, `DONE`, `FAILED`, `CANCELLED`.
+
 ### `jhv.record.set`
 
 Accepted parameters:

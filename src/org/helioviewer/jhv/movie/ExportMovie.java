@@ -68,6 +68,11 @@ public final class ExportMovie {
         start(context, null, once, mode);
     }
 
+    /** A parameter study's movie: {@code once}'s encoding and exactly {@code data}'s size, with nothing written to the person's settings. */
+    public static void startStudy(@Nullable Commands.OperationContext context, ExportPreset once, ViewState.RecordingData data) {
+        startWith(context, null, once, data);
+    }
+
     /**
      * One recording in {@code mode} at {@code longSide} pixels on its long side (the person's own
      * aspect and encoding), for a script or the local API: nothing is written to the person's

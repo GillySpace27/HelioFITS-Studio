@@ -60,6 +60,7 @@ public final class SceneUndo {
     private boolean pointerDown;
     private boolean installed;
     private boolean warned;
+    private boolean held;
 
     /** Start watching the scene. On the EDT, once the window exists; never headless. */
     public static void install() {
@@ -83,6 +84,21 @@ public final class SceneUndo {
     public static void settle() {
         scene.stack.adopt();
         scene.refresh();
+    }
+
+    /** A study row is on screen: its scene is not an edit, so the poll sees nothing until {@link #release}. */
+    public static void hold() {
+        scene.held = true;
+    }
+
+    /** The study's view is back: take the scene as it is now as the present, no step. */
+    public static void release() {
+        scene.held = false;
+        settle();
+    }
+
+    static boolean isHeld() {
+        return scene.held;
     }
 
     public static void undo() {
@@ -124,7 +140,7 @@ public final class SceneUndo {
     }
 
     private void poll() {
-        if (pointerDown || loading())
+        if (held || pointerDown || loading())
             return;
         JSONObject snapshot = snapshot();
         if (snapshot != null && stack.observe(snapshot, System.currentTimeMillis()))

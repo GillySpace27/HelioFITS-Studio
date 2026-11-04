@@ -52,7 +52,10 @@ public final class CliExport {
                     ready[0] = now;
                 else if (now - ready[0] >= settle) {
                     timer.stop();
-                    shoot();
+                    if (CommandLine.isStudyMode())
+                        study();
+                    else
+                        shoot();
                 }
             }
         });
@@ -81,6 +84,40 @@ public final class CliExport {
             halt(CommandLine.Exit.OK);
         });
         Commands.recordStart(context, new Commands.RecordStartInput("SHOT", null, null, null, null));
+    }
+
+    /** -study: the whole set in this process, then the exit code of the run. */
+    private static void study() {
+        try {
+            String file = CommandLine.studyFile();
+            org.helioviewer.jhv.study.Study study = org.helioviewer.jhv.study.StudyIO.read(Path.of(file));
+            String state = CommandLine.stateFile();
+            String sha = null;
+            if (state != null && Files.isReadable(Path.of(state))) { // the scene on the line is the scene the run is stamped with
+                sha = org.helioviewer.jhv.study.StudyIO.sha256(Path.of(state));
+                study.setScene(state, sha);
+            }
+            String out = CommandLine.exportOut();
+            new org.helioviewer.jhv.study.StudyRunner(study, out == null ? null : Path.of(out), sha,
+                    new org.helioviewer.jhv.study.StudyRunner.Listener() {
+                        @Override
+                        public void progress(int done, int total, String name) {
+                            if (!name.isEmpty())
+                                Log.info("Study " + (done + 1) + "/" + total + ": " + name);
+                        }
+
+                        @Override
+                        public void finished(org.helioviewer.jhv.study.StudyRunner.Result r) {
+                            if (r.ok()) {
+                                Log.info("Exported " + r.outputs().size() + " pictures to " + r.folder());
+                                halt(CommandLine.Exit.OK);
+                            } else
+                                fail(CommandLine.Exit.EXPORT_FAILED, r.error() == null ? "cancelled" : r.error());
+                        }
+                    }).start();
+        } catch (IOException | RuntimeException ex) {
+            fail(CommandLine.Exit.EXPORT_FAILED, ex.getMessage());
+        }
     }
 
     private static void end(Timer timer, CommandLine.Exit exit, String message) {

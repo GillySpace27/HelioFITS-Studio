@@ -130,6 +130,10 @@ public enum ExportFormat {
 
     private final String name;
     final String extension;
+
+    public String extension() {
+        return extension;
+    }
     private final List<String> base;
     @Nullable private final String paramFlag; // -x264-params / -x265-params, null if the codec has none
     @Nullable private final String paramBase;
