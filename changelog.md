@@ -26,7 +26,7 @@ Each new entry ends with a `[docs: ...]` pointer to where it is documented (`rel
 
 ### Fixes
 - A parameter study no longer leaves one extra `HFStudio_<time>` folder in the export folder for every variant; each picture or movie is moved into the study's run folder. [docs: none]
-- Helioradial and Helioradial Unrolled no longer divide by zero at the default lambda of 0, which drew the image black on Windows. If your Windows build still shows a blank image in these projections, use Orthographic and tell us. [docs: none]
+- Helioradial and Helioradial Unrolled no longer draw the image black on Windows. The fix is checked on the Windows runner that tests every change; it has not yet been seen on a physical Windows computer. If your image is still black there, use Orthographic, HPC or Latitudinal and tell us. [docs: none]
 
 ## HelioFITS Studio 0.9.0 (unreleased)
 
