@@ -25,7 +25,7 @@ env:
 jobs:
   windows:
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
@@ -54,17 +54,20 @@ jobs:
           python extra/tools/helioradial_diag.py sessions "$OUT/base.jhv" "$OUT"
           cp "$OUT/base.jhv" "$OUT/Orthographic.jhv"
           LOGS="$RUNNER_TEMP/home-diag/HFStudio/Logs"
+          # Each picture's summary prints as soon as it exists, so a job timeout keeps the results.
           # One export may hang (the first run's HPC export never exited); cap each and show why.
           for mode in Orthographic HPC Helioradial HelioradialUnrolled; do
             for stage in 0 1 2 3 4 5 6; do
               case "$mode" in Orthographic|HPC) [ "$stage" != 0 ] && continue ;; esac
               if [ "$stage" = 0 ]; then unset HFS_DEBUG_WARP; else export HFS_DEBUG_WARP=$stage; fi
               rc=0
-              timeout 240 cmd //c "run.bat --export png --out $(W "$OUT/$mode-$stage.png") -state $(W "$OUT/$mode.jhv")" > "$OUT/$mode-$stage.out" 2>&1 || rc=$?
+              timeout 150 cmd //c "run.bat --export png --out $(W "$OUT/$mode-$stage.png") -state $(W "$OUT/$mode.jhv")" > "$OUT/$mode-$stage.out" 2>&1 || rc=$?
               echo "== $mode stage $stage: exit $rc"
               if [ "$rc" != 0 ]; then
                 tail -n 25 "$OUT/$mode-$stage.out"
                 taskkill //F //IM java.exe > /dev/null 2>&1 || true
+              elif [ -f "$OUT/$mode-$stage.png" ]; then
+                python extra/tools/helioradial_diag.py summary "$OUT/$mode-$stage.png" || true
               fi
             done
           done
