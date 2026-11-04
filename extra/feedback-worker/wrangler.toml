@@ -6,14 +6,14 @@ compatibility_date = "2026-09-01"
 [vars]
 # owner/name of the PRIVATE repository that receives the issues. Empty on purpose: until it is
 # set, the Worker answers 500 "not configured" and the app keeps every report in its outbox.
-GITHUB_REPO = ""
-# Reports allowed per clock hour (these are the defaults in src/index.js).
+GITHUB_REPO = "GillySpace27/heliofits-studio-feedback"
+# Reports allowed per clock hour (per IP: raised from 20 for shared networks; defaults in src/index.js).
 LIMIT_PER_INSTALL = "5"
-LIMIT_PER_IP = "20"
+LIMIT_PER_IP = "200"
 
 # Rate-limit counters. Replace the id with the one `npx wrangler kv namespace create RATE_LIMIT` prints.
 [[kv_namespaces]]
 binding = "RATE_LIMIT"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "ad84fddc2cf341af90e929a3e7c15d9d"
 
 # GITHUB_TOKEN is a Worker secret and is never written in this file: npx wrangler secret put GITHUB_TOKEN
