@@ -35,6 +35,12 @@ public final class MovieRunner {
     private final List<StudyRunner.Step> steps;
     private final JSONObject sceneView;
     private final ViewState.PlaybackData savedPlayback = ViewState.playbackData();
+    private final ViewState.RecordingData savedRecording = ViewState.recordingData();
+    // What start() set, read back; finish() restores a setting only while it still holds these, so an edit made during the run survives
+    @Nullable
+    private ViewState.PlaybackData appliedPlayback;
+    @Nullable
+    private ViewState.RecordingData appliedRecording;
     private int next;
     private boolean finished;
     private volatile boolean cancelled;
@@ -85,6 +91,8 @@ public final class MovieRunner {
         ViewState.setPlaybackAdvanceMode(block.advanceMode());
         ViewState.setPlaybackSpeed(block.speed(), block.speedUnit());
         ViewState.setPlaybackRange(block.first(), block.last());
+        appliedPlayback = ViewState.playbackData();
+        appliedRecording = ViewState.recordingData();
         step();
     }
 
@@ -139,9 +147,13 @@ public final class MovieRunner {
         if (finished)
             return;
         finished = true;
-        ViewState.setPlaybackAdvanceMode(savedPlayback.advanceMode());
-        ViewState.setPlaybackSpeed(savedPlayback.speed(), savedPlayback.speedUnit());
-        ViewState.setPlaybackRange(savedPlayback.firstFrame(), savedPlayback.lastFrame());
+        if (appliedPlayback != null && appliedPlayback.equals(ViewState.playbackData())) {
+            ViewState.setPlaybackAdvanceMode(savedPlayback.advanceMode());
+            ViewState.setPlaybackSpeed(savedPlayback.speed(), savedPlayback.speedUnit());
+            ViewState.setPlaybackRange(savedPlayback.firstFrame(), savedPlayback.lastFrame());
+        }
+        if (appliedRecording != null && appliedRecording.equals(ViewState.recordingData()))
+            ViewState.applyRecordingUpdate(savedRecording.mode(), savedRecording.aspect(), savedRecording.longSide());
         Commands.restoreView(sceneView);
         if (error == null && !cancelled && block != null && block.tile()) {
             List<Path> in = new ArrayList<>();

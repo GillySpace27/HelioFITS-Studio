@@ -135,6 +135,14 @@ public final class StudyPanel extends JDialog {
 
     private final JTable table = new JTable();
     private final JLabel countLine = new JLabel(" ");
+    // Output strip: what Export set makes. Movies pin a copy of the Record settings (MovieBlock), never the live ones.
+    private final javax.swing.JCheckBox stillsBox = new javax.swing.JCheckBox("Stills", true);
+    private final javax.swing.JCheckBox moviesBox = new javax.swing.JCheckBox("Movies");
+    private final JLabel movieSummary = new JLabel(" ");
+    private final JButton useRecord = new JButton("Use Current Record Settings");
+    private final JButton editRecord = new JButton("Edit...");
+    @javax.annotation.Nullable
+    private JSONObject stillsAside; // the stills block while Stills is off, so a custom size comes back
     private final JLabel reasonLine = new JLabel(" ");
     private final JButton update = new JButton("Update row from view");
     private final JButton apply = new JButton("Apply row to view");
@@ -201,9 +209,24 @@ public final class StudyPanel extends JDialog {
         jobs.addActionListener(e -> JobQueuePanel.open());
         for (JComponent c : new JComponent[]{save, update, apply, duplicate, delete, paste, preset, saveTemplate, copy, export, jobs})
             buttons.add(c);
+        JPanel output = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        output.add(new JLabel("Output:"));
+        stillsBox.setToolTipText("One PNG per row (per step of a sweep)");
+        moviesBox.setToolTipText("One movie per row, recorded with the movie settings shown here; your own Record settings are put back afterwards");
+        useRecord.setToolTipText("Copy the Playback and Recording settings as they are now into this study: format, size, frame range, speed, loop mode");
+        editRecord.setToolTipText("Open the Playback and Recording pane to set them up, then press Use Current Record Settings");
+        stillsBox.addActionListener(e -> setStills(stillsBox.isSelected()));
+        moviesBox.addActionListener(e -> setMovies(moviesBox.isSelected()));
+        useRecord.addActionListener(e -> {
+            org.helioviewer.jhv.study.MovieBlock.fromCurrentSettings().saveTo(model.study());
+            outputChanged();
+        });
+        editRecord.addActionListener(e -> Palette.open("Playback and Recording"));
+        for (JComponent c : new JComponent[]{stillsBox, moviesBox, movieSummary, useRecord, editRecord})
+            output.add(c);
         JPanel south = new JPanel();
         south.setLayout(new BoxLayout(south, BoxLayout.Y_AXIS));
-        for (JComponent c : new JComponent[]{countLine, reasonLine, buttons, preview}) {
+        for (JComponent c : new JComponent[]{countLine, reasonLine, output, buttons, preview}) {
             c.setAlignmentX(LEFT_ALIGNMENT);
             south.add(c);
         }
@@ -279,7 +302,61 @@ public final class StudyPanel extends JDialog {
         refresh();
     }
 
+    /** Stills off only while Movies is on, so Export set always makes something. */
+    private void setStills(boolean on) {
+        org.helioviewer.jhv.study.StudyOutput out = model.study().output();
+        if (on)
+            out.setStills(stillsAside != null ? stillsAside : out.stills() != null ? out.stills() : new JSONObject());
+        else if (out.movies() != null) {
+            stillsAside = out.stills();
+            out.setStills(null);
+        }
+        outputChanged();
+    }
+
+    /** Movies on: pin the Record settings as they are now, unless this study already pinned some. */
+    private void setMovies(boolean on) {
+        org.helioviewer.jhv.study.StudyOutput out = model.study().output();
+        if (on) {
+            if (out.stills() == null)
+                out.setStills(stillsAside != null ? stillsAside : new JSONObject()); // keep stills on until unticked
+            if (out.movies() == null)
+                org.helioviewer.jhv.study.MovieBlock.fromCurrentSettings().saveTo(model.study());
+        } else {
+            out.setMovies(null);
+            if (out.stills() == null)
+                out.setStills(stillsAside != null ? stillsAside : new JSONObject());
+        }
+        outputChanged();
+    }
+
+    private void outputChanged() {
+        Study s = model.study();
+        if (Study.CURRENT.get() != s && !s.variants.isEmpty())
+            Study.CURRENT.set(s);
+        refresh();
+    }
+
+    private void refreshOutput() {
+        Study s = model.study();
+        org.helioviewer.jhv.study.MovieBlock m = org.helioviewer.jhv.study.MovieBlock.of(s);
+        boolean stills = s.output().stills() != null || m == null;
+        stillsBox.setSelected(stills);
+        stillsBox.setEnabled(m != null); // with no movies, stills are the only output
+        moviesBox.setSelected(m != null);
+        useRecord.setEnabled(m != null);
+        movieSummary.setText(m == null ? "" : movieText(m));
+    }
+
+    private static String movieText(org.helioviewer.jhv.study.MovieBlock m) {
+        String speed = m.speedUnit() == org.helioviewer.jhv.app.state.ViewState.PlaybackSpeedUnit.FRAMES_PER_SECOND
+                ? m.speed() + " fps" : m.speed() + " " + m.speedUnit();
+        String range = "frames " + (m.first() + 1) + " to " + (m.last() + 1); // the playback range, 0-based in the block
+        return m.format() + ", " + m.longSide() + " px, " + range + ", " + speed + ", " + m.advanceMode().toString().toLowerCase(java.util.Locale.ROOT);
+    }
+
     private void refresh() {
+        refreshOutput();
         int r = selectedRow();
         countLine.setText(model.countLine(1));
         if (model.study().sweep() != null)

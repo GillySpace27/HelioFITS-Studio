@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+import org.helioviewer.jhv.app.state.ViewState;
 import org.json.JSONObject;
 
 /**
@@ -78,8 +79,35 @@ public final class MovieRunnerCheck {
         List<String> a = TileMovies.args(List.of(Path.of("1.mp4"), Path.of("2.mp4"), Path.of("3.mp4"), Path.of("4.mp4")), Path.of("t.mp4"), 540);
         String joined = String.join(" ", a);
         expect("tile of four is a 2x2 xstack", joined.contains("xstack=inputs=4") && joined.contains("layout=0_0|540_0|0_540|540_540"));
+        restores(m);
         MovieBlock seeded = MovieBlock.fromCurrentSettings();
         expect("a new study's block is seeded from the Record settings", seeded.longSide() > 0 && seeded.format() != null);
+    }
+
+    /** A run with no variants applies the pinned settings and finishes at once; the person's Record settings come back. */
+    private static void restores(String m) throws Exception {
+        // Same boilerplate as StudyViewCheck: the camera behind Commands.getView reaches SPICE
+        org.helioviewer.jhv.app.Platform.init();
+        org.helioviewer.jhv.io.Directories.createPersistentDirs();
+        org.helioviewer.jhv.io.Directories.createCacheDirs();
+        org.helioviewer.jhv.app.AppInit.loadSpice();
+        ViewState.applyRecordingUpdate(ViewState.RecordingMode.SHOT, null, 999);
+        ViewState.RecordingData before = ViewState.recordingData();
+        Study none = Study.fromJson(new JSONObject("{\"hfstudy\":1,\"scene\":\"\",\"variants\":[],\"output\":{\"name\":\"{index}\",\"movies\":" + m + "}}"));
+        boolean[] done = {false};
+        new MovieRunner(none, Files.createTempDirectory("hfs-movie-restore").resolve("run"), null, List.of(), new StudyRunner.Listener() {
+            @Override
+            public void progress(int count, int total, String variant) {
+            }
+
+            @Override
+            public void finished(StudyRunner.Result result) {
+                done[0] = true;
+            }
+        }).start();
+        expect("a finished movie run says so", done[0]);
+        expect("a finished movie run puts the Record settings back (was " + before + ", now " + ViewState.recordingData() + ")",
+                before.equals(ViewState.recordingData()));
     }
 
     private static void endToEnd() throws Exception {
