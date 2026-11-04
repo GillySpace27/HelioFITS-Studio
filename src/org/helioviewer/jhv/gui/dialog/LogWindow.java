@@ -162,6 +162,10 @@ public final class LogWindow implements Interfaces.ShowableDialog {
 
     /** Whatever has been written since the last look, or the whole file if it rolled under us. */
     private void append() {
+        append(true);
+    }
+
+    private void append(boolean mayFollow) {
         String tail;
         try (RandomAccessFile file = new RandomAccessFile(Log.filename(), "r")) {
             long length = file.length();
@@ -183,16 +187,25 @@ public final class LogWindow implements Interfaces.ShowableDialog {
         JScrollBar bar = scroller.getVerticalScrollBar();
         boolean atBottom = bar.getValue() + bar.getVisibleAmount() >= bar.getMaximum() - 2;
         insert(tail);
-        if (atBottom) // only follow when the reader was already following; never yank a scrolled-back view
+        if (mayFollow && atBottom) // only follow when the reader was already following; never yank a scrolled-back view
             text.setCaretPosition(text.getDocument().getLength());
     }
 
     /** Start again from the top of the file, so that every line takes the current colours (or none). */
     private void reload() {
+        JScrollBar bar = scroller.getVerticalScrollBar();
+        boolean atBottom = bar.getValue() + bar.getVisibleAmount() >= bar.getMaximum() - 2;
+        int was = bar.getValue();
         read = 0;
         level = Level.INFO;
         text.setText("");
-        append();
+        append(false); // the emptied view always looks like it is at the bottom, so decide from before it was emptied
+        javax.swing.SwingUtilities.invokeLater(() -> { // the new text has no height until it has been laid out
+            if (atBottom)
+                text.setCaretPosition(text.getDocument().getLength());
+            else
+                bar.setValue(was);
+        });
     }
 
     /** Adds text line by line, each in the colour of its level; a line without a level belongs to the one before. */
