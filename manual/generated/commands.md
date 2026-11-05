@@ -303,8 +303,8 @@ Every command HelioFITS Studio has, as the menus, Help > Search Controls and the
 * - Help > Check for Updates...
   -
   - `checkForUpdates`
-* - Help > Report Bug > Request Feature
-  - Report Bug/Request Feature
+* - Help > Open the GitHub Page
+  -
   - `reportBug`
 * - Help > Welcome to HelioFITS Studio...
   - What's new in this version, and the ways to start
