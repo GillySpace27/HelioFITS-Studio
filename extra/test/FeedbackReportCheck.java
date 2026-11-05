@@ -199,6 +199,17 @@ public final class FeedbackReportCheck {
         expect("in the log", p.optString("log").contains("opened ~/data/a.fits"));
         expect("and in the session", p.toString().contains("file:~/data/a.fits"));
 
+        // The title: sent when given, whole up to its limit, and absent when blank (older apps sent none).
+        JSONObject titled = FeedbackReport.build(FeedbackReport.Category.FEATURE, "  Make   this the default  ", "Details here", "", null, null, null, null);
+        expect("the title is stripped and its blanks collapsed", "Make this the default".equals(titled.optString("title")));
+        expect("the details stay the message", "Details here".equals(titled.optString("message")));
+        expect("the preview shows the title", FeedbackReport.asText(titled).contains("Title: Make this the default"));
+        expect("the email subject uses the title", FeedbackReport.mailto(titled, null, "0.0").contains("Make%20this%20the%20default"));
+        JSONObject longTitle = FeedbackReport.build(FeedbackReport.Category.BUG, "t".repeat(500), "m", "", null, null, null, null);
+        expect("a title is cut at its limit", longTitle.optString("title").length() == FeedbackReport.TITLE_MAX);
+        JSONObject untitled = FeedbackReport.build(FeedbackReport.Category.BUG, "   ", "m", "", null, null, null, null);
+        expect("a blank title is absent", !untitled.has("title"));
+
         // Nothing the user left unticked.
         JSONObject bare = FeedbackReport.build(FeedbackReport.Category.QUESTION, "Why?", "", null, null, null, null);
         List<String> absent = Stream.of("replyTo", "error", "system", "log", "session", "screenshot").filter(bare::has).toList();

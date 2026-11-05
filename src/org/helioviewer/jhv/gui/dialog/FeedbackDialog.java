@@ -75,6 +75,7 @@ public final class FeedbackDialog extends JDialog {
     public static final String REPORT_THIS = "Report this...";
 
     private final JComboBox<FeedbackReport.Category> category = new JComboBox<>(FeedbackReport.Category.values());
+    private final JTextField title = new JTextField();
     private final JTextArea message = new JTextArea(8, 56);
     private final JTextField replyTo = new JTextField();
     private final JCheckBox errorBox = new JCheckBox("The error shown and its stack trace", true);
@@ -99,20 +100,21 @@ public final class FeedbackDialog extends JDialog {
 
         @Override
         public void actionPerformed(ActionEvent e) {
-            new FeedbackDialog(null, "").setVisible(true);
+            new FeedbackDialog(null, "", "").setVisible(true);
         }
     }
 
     /** About an error the user has just been shown: its text in the message, its stack as an item. */
     public static void report(String title, String text, @Nullable Throwable cause) {
-        new FeedbackDialog(FeedbackReport.ErrorContext.of(title, text, cause), title + ": " + text + "\n\n").setVisible(true);
+        new FeedbackDialog(FeedbackReport.ErrorContext.of(title, text, cause), title, text + "\n\n").setVisible(true);
     }
 
-    private FeedbackDialog(@Nullable FeedbackReport.ErrorContext _error, String prefill) {
+    private FeedbackDialog(@Nullable FeedbackReport.ErrorContext _error, String prefillTitle, String prefill) {
         super(MainFrame.get(), "Send Feedback", false);
         error = _error;
         if (error != null)
             category.setSelectedItem(FeedbackReport.Category.BUG);
+        title.setText(prefillTitle.length() > FeedbackReport.TITLE_MAX ? prefillTitle.substring(0, FeedbackReport.TITLE_MAX) : prefillTitle);
         message.setText(prefill);
         message.setLineWrap(true);
         message.setWrapStyleWord(true);
@@ -130,7 +132,9 @@ public final class FeedbackDialog extends JDialog {
         kind.add(new JLabel("Kind: "));
         kind.add(category);
         form.add(kind, c);
-        form.add(new JLabel("What happened, or what would you like? (required)"), c);
+        form.add(new JLabel("Title: a few words saying what this is about (required)"), c);
+        form.add(title, c);
+        form.add(new JLabel("Details: what happened, or what would you like? (optional)"), c);
         c.fill = GridBagConstraints.BOTH;
         c.weighty = 1;
         form.add(new JScrollPane(message), c);
@@ -199,6 +203,7 @@ public final class FeedbackDialog extends JDialog {
                 updateSend();
             }
         };
+        title.getDocument().addDocumentListener(validate);
         message.getDocument().addDocumentListener(validate);
         replyTo.getDocument().addDocumentListener(validate);
         updateSend();
@@ -217,8 +222,12 @@ public final class FeedbackDialog extends JDialog {
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowOpened(WindowEvent e) { // not before: a window not yet shown cannot take focus
-                message.requestFocusInWindow();
-                message.setCaretPosition(message.getDocument().getLength());
+                if (title.getText().isBlank())
+                    title.requestFocusInWindow();
+                else {
+                    message.requestFocusInWindow();
+                    message.setCaretPosition(message.getDocument().getLength());
+                }
             }
         });
     }
@@ -239,9 +248,9 @@ public final class FeedbackDialog extends JDialog {
     private void updateSend() {
         String email = replyTo.getText().strip();
         boolean emailOk = email.isEmpty() || email.matches("[^@\\s]+@[^@\\s]+\\.[^@\\s]+");
-        boolean described = !message.getText().isBlank();
+        boolean described = !title.getText().isBlank();
         send.setEnabled(described && emailOk);
-        send.setToolTipText(!described ? "Describe the problem or the request first" : emailOk ? null : "That email address looks incomplete");
+        send.setToolTipText(!described ? "Give the report a title first" : emailOk ? null : "That email address looks incomplete");
     }
 
     /**
@@ -281,7 +290,9 @@ public final class FeedbackDialog extends JDialog {
                 session = new JSONObject().put("unavailable", String.valueOf(e));
             }
         }
-        JSONObject p = FeedbackReport.build((FeedbackReport.Category) category.getSelectedItem(), message.getText(), replyTo.getText(),
+        // The Worker and the email need a message, so a report with no details sends its title as the message.
+        String details = message.getText().isBlank() ? title.getText() : message.getText();
+        JSONObject p = FeedbackReport.build((FeedbackReport.Category) category.getSelectedItem(), title.getText(), details, replyTo.getText(),
                 errorBox.isSelected() ? error : null,
                 systemBox.isSelected() ? FeedbackReport.systemInfo() : null,
                 logBox.isSelected() ? FeedbackReport.logTail(FeedbackReport.LOG_LINES) : null,

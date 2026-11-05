@@ -129,6 +129,19 @@ public final class FeedbackReport {
      */
     public static JSONObject build(Category category, String message, String replyTo, @Nullable ErrorContext error,
                                    @Nullable JSONObject system, @Nullable String log, @Nullable JSONObject session) {
+        return build(category, "", message, replyTo, error, system, log, session);
+    }
+
+    /** The longest title the form takes, in characters; the Worker refuses longer ones. */
+    public static final int TITLE_MAX = 120;
+
+    /**
+     * As {@link #build(Category, String, String, ErrorContext, JSONObject, String, JSONObject)}, with the title
+     * the user gave the report. A blank title is left out of the payload, as older versions did, and the
+     * Worker then titles the issue from the first line of the message.
+     */
+    public static JSONObject build(Category category, String title, String message, String replyTo, @Nullable ErrorContext error,
+                                   @Nullable JSONObject system, @Nullable String log, @Nullable JSONObject session) {
         JSONObject p = new JSONObject()
                 .put("schema", 1)
                 .put("id", UUID.randomUUID().toString())
@@ -137,6 +150,9 @@ public final class FeedbackReport {
                 .put("userAgent", AppInfo.userAgent)
                 .put("category", category.key)
                 .put("message", message.strip());
+        String t = title.strip().replaceAll("\\s+", " ");
+        if (!t.isEmpty())
+            p.put("title", t.length() > TITLE_MAX ? t.substring(0, TITLE_MAX) : t);
         if (!replyTo.isBlank())
             p.put("replyTo", replyTo.strip());
         if (error != null) {
@@ -450,6 +466,7 @@ public final class FeedbackReport {
     public static String asText(JSONObject p) {
         StringBuilder sb = new StringBuilder()
                 .append("Category: ").append(categoryLabel(p.optString("category"))).append('\n')
+                .append(p.has("title") ? "Title: " + p.optString("title") + "\n" : "")
                 .append("Message:\n").append(p.optString("message")).append("\n\n")
                 .append("Reply to: ").append(p.optString("replyTo", "(none given)")).append('\n')
                 .append("Report id: ").append(p.optString("id")).append('\n')
@@ -507,7 +524,7 @@ public final class FeedbackReport {
      */
     static String mailto(JSONObject p, @Nullable Path file, String version) {
         String message = p.optString("message").strip();
-        String first = message.lines().findFirst().orElse("").strip();
+        String first = p.optString("title", message.lines().findFirst().orElse("")).strip();
         String subject = "[HFS " + version + "] " + categoryLabel(p.optString("category")) + ": " + clip(first, 60);
 
         StringBuilder details = new StringBuilder();
