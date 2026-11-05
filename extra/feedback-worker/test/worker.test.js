@@ -67,6 +67,22 @@ test("a valid report becomes one issue in GITHUB_REPO, labelled from-app and its
   assert.ok(!/@someone/.test(body.title + body.body.replace(/`someone@example.org`/, "")), "an @mention would notify someone");
 });
 
+test("a report with a title is titled from it, whole, and an old client's report still is titled from its message", async () => {
+  const long = "The colour bar vanishes when I change the layer order, and stays hidden until restart";
+  await post(report({ title: long + " @someone" }));
+  assert.equal(calls[0].body.title, "[bug] " + long + " @\u200bsomeone");
+  assert.match(calls[0].body.body, /### Message/);
+  await post(report({ message: "Old client first line\nsecond line" }), "203.0.113.9");
+  assert.equal(calls[1].body.title, "[bug] Old client first line");
+});
+
+test("a title that is blank, not text or too long is refused", async () => {
+  assert.equal((await post(report({ title: "  " }))).status, 400);
+  assert.equal((await post(report({ title: 5 }))).status, 400);
+  assert.equal((await post(report({ title: "x".repeat(201) }))).status, 400);
+  assert.equal(calls.length, 0);
+});
+
 test("feature and question map to GitHub's default labels", async () => {
   await post(report({ category: "feature" }));
   await post(report({ category: "question" }), "203.0.113.8");
