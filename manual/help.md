@@ -7,7 +7,8 @@
   {doc}`generated/history`.
 - {menuselection}`Help --> Send Feedback...` sends a problem, a request or a question to the
   developer; no account is needed.
-- {menuselection}`Help --> Report Bug/Request Feature` opens the issue tracker at
-  [github.com/GillySpace27/HelioFITS-Studio/issues](https://github.com/GillySpace27/HelioFITS-Studio/issues).
+- {menuselection}`Help --> Open the GitHub Page` opens the project page at
+  [github.com/GillySpace27/HelioFITS-Studio](https://github.com/GillySpace27/HelioFITS-Studio),
+  where the issue tracker is, for a public thread.
 - {menuselection}`Help --> Check for Updates...` looks for a newer version. Releases are listed at
   [github.com/GillySpace27/HelioFITS-Studio/releases](https://github.com/GillySpace27/HelioFITS-Studio/releases).

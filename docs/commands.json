@@ -912,7 +912,7 @@
         "properties": {}
       },
       "name": "reportBug",
-      "description": "Report Bug/Request Feature",
+      "description": "Open the GitHub Page",
       "annotations": {
         "destructiveHint": false,
         "readOnlyHint": true
