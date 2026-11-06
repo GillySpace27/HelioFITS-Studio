@@ -150,6 +150,50 @@ public final class FitsCoreIngest {
         return command(root) != null;
     }
 
+    /** Whether a HelioFITS Core can be found to run a command line ({@link #runCommand}), without starting one. */
+    public static boolean coreFound() {
+        return command(Path.of(System.getProperty("user.home"))) != null;
+    }
+
+    /**
+     * Run one HelioFITS Core command line ({@code hfcore <args>}, no library named) with the core
+     * {@link #command} finds, and return what it printed. Throws with the core's error output when
+     * it exits nonzero, takes longer than {@code wait}, or no core is found. Blocks: call it off
+     * the event thread.
+     */
+    public static String runCommand(Duration wait, String... args) throws IOException {
+        List<String> serve = command(Path.of(System.getProperty("user.home")));
+        if (serve == null)
+            throw new IOException("no HelioFITS Core was found");
+        List<String> line = new ArrayList<>(serve.subList(0, serve.size() - 3)); // without --library <root> serve
+        line.addAll(List.of(args));
+        Path out = Files.createTempFile("hfcore-out", ".txt"); // files, so a chatty core cannot fill a pipe and hang
+        Path err = Files.createTempFile("hfcore-err", ".txt");
+        try {
+            ProcessBuilder builder = new ProcessBuilder(line).redirectOutput(out.toFile()).redirectError(err.toFile());
+            builder.environment().putAll(coreEnv(FitsLibrary.configDir()));
+            builder.environment().put("PYTHONIOENCODING", "utf-8");
+            Process process = builder.start();
+            process.getOutputStream().close();
+            try {
+                if (!process.waitFor(wait.toMillis(), TimeUnit.MILLISECONDS)) {
+                    process.destroyForcibly();
+                    throw new IOException("hfcore " + String.join(" ", args) + " did not finish in " + wait.toSeconds() + " s");
+                }
+            } catch (InterruptedException e) {
+                process.destroyForcibly();
+                Thread.currentThread().interrupt();
+                throw new InterruptedIOException("hfcore " + String.join(" ", args));
+            }
+            if (process.exitValue() != 0)
+                throw new IOException("HelioFITS Core failed (exit " + process.exitValue() + "): " + Files.readString(err, StandardCharsets.UTF_8).strip());
+            return Files.readString(out, StandardCharsets.UTF_8);
+        } finally {
+            Files.deleteIfExists(out);
+            Files.deleteIfExists(err);
+        }
+    }
+
     @Nullable
     private static List<String> command(Path root) {
         return command(System.getenv("HFCORE_CORE"), System.getenv("HELIAD_CORE"),

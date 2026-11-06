@@ -1,0 +1,212 @@
+package org.helioviewer.jhv.gui.dialog;
+
+import java.awt.BorderLayout;
+import java.awt.FileDialog;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.event.ActionEvent;
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.function.Consumer;
+
+import javax.annotation.Nullable;
+import javax.swing.AbstractAction;
+import javax.swing.Action;
+import javax.swing.BorderFactory;
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
+import javax.swing.WindowConstants;
+
+import org.helioviewer.jhv.app.Message;
+import org.helioviewer.jhv.gui.MainFrame;
+import org.helioviewer.jhv.gui.TransferAccess;
+import org.helioviewer.jhv.io.Directories;
+import org.helioviewer.jhv.io.FitsCoreIngest;
+import org.helioviewer.jhv.movie.ExportReport;
+import org.helioviewer.jhv.movie.ProcessingRecord;
+import org.helioviewer.jhv.thread.Task;
+
+/**
+ * File &gt; Open Export Record: an export's processing record (its .hfrec.json sidecar) as the
+ * readable report ExportReport makes, read-only, with Copy and Save as text. The methods
+ * paragraph, LaTeX and Python script come from HelioFITS Core ({@code hfcore record show
+ * --format methods|tex|python}), so those buttons need a core; Studio does not repeat that prose.
+ * With no sidecar beside the file, a core reads the record inside the PNG, EXR or movie instead.
+ */
+public final class ExportRecordDialog {
+
+    private static final Duration CORE_WAIT = Duration.ofMinutes(1);
+    private static final String NEEDS_CORE = "Needs HelioFITS Core";
+
+    private final File export; // the file the person picked: an export or its sidecar
+    @Nullable
+    private final Map<String, Object> record; // null: the core reads the record
+    private final JTextArea area = new JTextArea();
+    private final JLabel status = new JLabel(" ");
+
+    private ExportRecordDialog(File export, @Nullable Map<String, Object> record) {
+        this.export = export;
+        this.record = record;
+    }
+
+    public static Action openAction() {
+        return new AbstractAction("Open Export Record...") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                open();
+            }
+        };
+    }
+
+    /** Ask for an exported file or its .hfrec.json, then show its record. */
+    public static void open() {
+        FileDialog fd = new FileDialog(MainFrame.get(), "Open an exported file or its .hfrec.json record", FileDialog.LOAD);
+        fd.setDirectory(Directories.EXPORTS.getPath());
+        fd.setVisible(true);
+        File[] picked = fd.getFiles();
+        if (picked.length == 0 || !picked[0].isFile())
+            return;
+        File file = picked[0];
+        Path side = file.getName().endsWith(ProcessingRecord.SUFFIX) ? file.toPath() : ProcessingRecord.sidecar(file.toPath());
+        if (Files.isRegularFile(side)) {
+            Task.submitBackground(() -> ExportReport.parse(Files.readString(side, StandardCharsets.UTF_8)),
+                    rec -> new ExportRecordDialog(file, rec).show(),
+                    t -> Message.err("Export record unreadable", side.getFileName() + " could not be read as a processing record.", t));
+        } else if (FitsCoreIngest.coreFound()) {
+            ExportRecordDialog d = new ExportRecordDialog(file, null);
+            d.core("text", false, d::show, "read the record inside " + file.getName());
+        } else
+            Message.warn("No export record", "There is no " + side.getFileName() + " beside " + file.getName()
+                    + ". A record inside a PNG, EXR or movie is read by HelioFITS Core, which was not found.");
+    }
+
+    private void show() {
+        show(record == null ? null : ExportReport.text(record, false));
+    }
+
+    private void show(@Nullable String text) {
+        String title = export.getName().endsWith(ProcessingRecord.SUFFIX)
+                ? export.getName().substring(0, export.getName().length() - ProcessingRecord.SUFFIX.length()) : export.getName();
+        JDialog dialog = new JDialog(MainFrame.get(), "Export Record: " + title, false);
+        dialog.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+
+        area.setEditable(false);
+        area.setFont(new Font(Font.MONOSPACED, Font.PLAIN, area.getFont().getSize()));
+        area.setText(text);
+        area.setCaretPosition(0);
+        JScrollPane scroll = new JScrollPane(area);
+        area.setColumns(102);
+        area.setRows(36);
+
+        JCheckBox full = new JCheckBox("Show every source file");
+        full.addActionListener(e -> {
+            if (record != null) {
+                area.setText(ExportReport.text(record, full.isSelected()));
+                area.setCaretPosition(0);
+            } else
+                core("text", full.isSelected(), this::replaceText, "list the source files");
+        });
+
+        boolean coreFound = FitsCoreIngest.coreFound();
+        JButton copy = button("Copy", () -> {
+            TransferAccess.writeClipboard(area.getText());
+            status.setText("Copied the report.");
+        });
+        JButton save = button("Save as Text...", () -> save(area.getText(), title + ".report.txt", "Saved the report to "));
+        JButton methods = coreButton("Copy as Methods Paragraph", coreFound, () -> core("methods", false, s -> {
+            TransferAccess.writeClipboard(s);
+            status.setText("Copied the methods paragraph.");
+        }, "write the methods paragraph"));
+        JButton tex = coreButton("Copy as LaTeX", coreFound, () -> core("tex", false, s -> {
+            TransferAccess.writeClipboard(s);
+            status.setText("Copied the LaTeX.");
+        }, "write the LaTeX"));
+        JButton python = coreButton("Save as Python Script...", coreFound, () -> core("python", false,
+                s -> save(s, title + ".py", "Saved the script to "), "write the Python script"));
+
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        buttons.add(full);
+        buttons.add(copy);
+        buttons.add(save);
+        buttons.add(methods);
+        buttons.add(tex);
+        buttons.add(python);
+        JPanel south = new JPanel(new BorderLayout());
+        south.add(buttons, BorderLayout.CENTER);
+        status.setBorder(BorderFactory.createEmptyBorder(0, 8, 6, 8));
+        south.add(status, BorderLayout.SOUTH);
+
+        dialog.getContentPane().add(scroll, BorderLayout.CENTER);
+        dialog.getContentPane().add(south, BorderLayout.SOUTH);
+        dialog.pack();
+        dialog.setLocationRelativeTo(MainFrame.get());
+        dialog.setVisible(true);
+    }
+
+    private void replaceText(String text) {
+        area.setText(text);
+        area.setCaretPosition(0);
+    }
+
+    private static JButton button(String label, Runnable run) {
+        JButton b = new JButton(label);
+        b.addActionListener(e -> run.run());
+        return b;
+    }
+
+    private static JButton coreButton(String label, boolean coreFound, Runnable run) {
+        JButton b = button(label, run);
+        b.setEnabled(coreFound);
+        if (!coreFound)
+            b.setToolTipText(NEEDS_CORE);
+        return b;
+    }
+
+    /** hfcore record show &lt;the picked file&gt; --format fmt [--full] off the event thread, then {@code then} on it. */
+    private void core(String fmt, boolean fullList, Consumer<String> then, String what) {
+        status.setText("Asking HelioFITS Core to " + what + "...");
+        String[] args = fullList
+                ? new String[]{"record", "show", export.getPath(), "--format", fmt, "--full"}
+                : new String[]{"record", "show", export.getPath(), "--format", fmt};
+        Callable<String> run = () -> FitsCoreIngest.runCommand(CORE_WAIT, args);
+        Task.submitBackground(run, s -> {
+            status.setText(" ");
+            then.accept(s);
+        }, t -> {
+            status.setText(" ");
+            String msg = String.valueOf(t.getMessage());
+            if (msg.contains("invalid choice: 'record'")) // a core from before record show (pyHelioFITS, 2026-11)
+                msg = "The HelioFITS Core found here is older than its record command. Update the HelioFITS Cache Manager, "
+                        + "or name a newer core in HFCORE_CORE.";
+            Message.err("HelioFITS Core could not " + what, msg, t);
+        });
+    }
+
+    private void save(String text, String suggested, String done) {
+        FileDialog fd = new FileDialog(MainFrame.get(), "Save as...", FileDialog.SAVE);
+        fd.setDirectory(export.getParent());
+        fd.setFile(suggested);
+        fd.setVisible(true);
+        File[] picked = fd.getFiles();
+        if (picked.length == 0)
+            return;
+        try {
+            Files.writeString(picked[0].toPath(), text, StandardCharsets.UTF_8);
+            status.setText(done + picked[0].getName() + ".");
+        } catch (IOException e) {
+            Message.err("Not saved", "Could not write " + picked[0].getPath(), e);
+        }
+    }
+
+}

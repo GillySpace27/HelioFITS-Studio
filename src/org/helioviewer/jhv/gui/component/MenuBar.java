@@ -196,6 +196,7 @@ public final class MenuBar extends JMenuBar {
         catalogItem(fileMenu, "reloadSources");
         catalogItem(fileMenu, "copyProvenance");
         catalogItem(fileMenu, "openExportsFolder");
+        catalogItem(fileMenu, "openExportRecord");
         if (!Platform.isMacOS()) {
             catalogItem(fileMenu, "newWindow"); // no Window menu off macOS
             catalogItem(fileMenu, "templates"); // HS-25: Window > Template Manager... on macOS
