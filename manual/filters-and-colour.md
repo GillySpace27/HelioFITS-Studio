@@ -60,3 +60,5 @@ has one: headroom, mapping, knee, in-range share and clipped pixels.
 ## Making the interface easier to read
 
 {menuselection}`View --> Display Scaling…` sets the text size and interface scale.
+
+The Visibility section of {menuselection}`Managers --> Theme Manager…` makes the sidebar sections easier to find. It is on by default; untick **Easier to find panels** for the previous look. Under it, each can be turned off on its own: stronger section headers (a stronger band, a thicker rule and more space between sections), an accent stripe on each header, numbers in front of each section title in the order they appear, and a highlight on the header under the pointer. The options are kept in the settings, not in a theme, so they stay when you change or derive a theme.
