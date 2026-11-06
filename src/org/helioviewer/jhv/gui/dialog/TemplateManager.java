@@ -53,7 +53,7 @@ public final class TemplateManager {
     /**
      * The "Refresh data" hook, for the Heliad integration to fill: install an action and the
      * manager's Refresh Data button calls it with the selected template. Until something is
-     * installed the button stays disabled, with the tooltip "Needs Heliad". A final holder, so the
+     * installed the button stays disabled, with the tooltip "Needs HelioFITS Core". A final holder, so the
      * hook is not a non-final static field (guards.py ratchet).
      */
     public static final class RefreshData {
@@ -159,7 +159,7 @@ public final class TemplateManager {
         JButton reveal = button(Platform.isMacOS() ? "Reveal in Finder" : "Show in Folder", "Show the selected template's file");
         JButton share = button("Share Template...", "Save a copy to hand to someone else: home folder written as ~, thumbnail inside the file");
         JButton retire = button("Retire", "Move the selected template to the attic folder inside Templates; it is not deleted");
-        JButton refresh = button("Refresh Data", "Needs Heliad");
+        JButton refresh = button("Refresh Data", "Needs HelioFITS Core");
         JButton close = button("Close", "");
         List<JButton> needSelection = List.of(openButton, duplicate, rename, edit, startup, reveal, share, retire);
 
@@ -179,7 +179,7 @@ public final class TemplateManager {
             retire.setToolTipText(builtIn ? readOnly : "Move the selected template to the attic folder inside Templates; it is not deleted");
             reveal.setToolTipText(builtIn ? "A built-in template is inside the application, not in a folder" : "Show the selected template's file");
             refresh.setEnabled(e != null && refreshDataHook.action() != null);
-            refresh.setToolTipText(refreshDataHook.action() == null ? "Needs Heliad" : "Fetch the newest data for the selected template's datasets");
+            refresh.setToolTipText(refreshDataHook.action() == null ? "Needs HelioFITS Core" : "Fetch the newest data for the selected template's datasets");
         };
         table.getSelectionModel().addListSelectionListener(ev -> update.run());
 

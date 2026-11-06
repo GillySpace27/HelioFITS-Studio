@@ -26,7 +26,7 @@ public final class TemplateRefresh {
 
     private TemplateRefresh() {}
 
-    /** Installs Refresh Data when a Heliad library is found; without one the button keeps saying "Needs Heliad". */
+    /** Installs Refresh Data when a HelioFITS Core library is found; without one the button keeps saying "Needs HelioFITS Core". */
     public static void install() {
         if (FitsLibrary.find() == null)
             return;
