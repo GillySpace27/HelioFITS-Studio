@@ -142,8 +142,11 @@ public final class PresentationMode {
             settleListener = null;
         }
         if (audience != null) {
-            audience.close();
-            audience = null;
+            try {
+                audience.close();
+            } finally { // however the close went, the mode must end
+                audience = null;
+            }
         } else {
             // Give the screen back before moving anything, or the frame is restored while the
             // device still thinks it owns an exclusive full-screen window.
