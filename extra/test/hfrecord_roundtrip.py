@@ -113,6 +113,7 @@ def embedded(png: Path) -> int:
     expected["output"].pop("file_name", None)
     expected["output"]["sha256"] = None
     expected.pop("native", None)
+    expected.pop("report", None)  # the readable report is in the sidecar only
     expected["native_ref"] = "png:tEXt:hfstudio"
     if inside != expected:
         keys = sorted(k for k in set(inside) | set(expected) if inside.get(k) != expected.get(k))
