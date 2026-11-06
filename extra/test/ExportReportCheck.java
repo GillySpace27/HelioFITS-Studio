@@ -10,7 +10,7 @@ import org.json.JSONObject;
 
 /**
  * ExportReport against pyHelioFITS's report.py, line for line. Each fixture in extra/test/data
- * has the record (*.hfrec.json) and what {@code python -m heliofits.core record show <record>
+ * has the record (*.hfrec, or the older *.hfrec.json these fixtures keep) and what {@code python -m heliofits.core record show <record>
  * --format text} printed for it, without and with --full (*.report.txt, *.report-full.txt). The
  * first record is pyHelioFITS's tests/fixtures/example-studio-connect-still.hfrec.json; the
  * second is that record bent to reach every branch of the layout (hidden layer, shortened source

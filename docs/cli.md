@@ -49,7 +49,7 @@ autosave session, no pinned default), no `-state` is appended, the named `-state
 autosave timer runs, no welcome window, tour, outbox or update check starts, and the process ends with
 `Runtime.halt`, so no shutdown hook writes a session. The PNG is the Screenshot the Movie panel writes
 (16-bit RGB, 2048 pixels on a side at the stored size) with the session stamped in as its `hfstudio`
-tEXt chunk, and beside it its processing record `<out>.hfrec.json` (hfrecord 1.0,
+tEXt chunk, and beside it its processing record `<out>.hfrec` (hfrecord 1.0, JSON;
 `docs/spec/hfrecord-1.schema.json`): the layers' sources by SHA-256, every step in the order Studio runs
 it with the values used, and the session under `native.studio_session`, from which `-state` rebuilds the
 scene (`extra/test/hfrecord_roundtrip.py`, run by `launch.yml`). The PNG also carries a copy of the

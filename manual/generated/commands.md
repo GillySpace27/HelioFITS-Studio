@@ -68,8 +68,11 @@ Every command HelioFITS Studio has, as the menus, Help > Search Controls and the
   - Show the folder movies, screenshots and metadata are exported to
   - `openExportsFolder`
 * - File > Open Export Record...
-  - Read an export's processing record (.hfrec.json) as a report; copy it as a methods paragraph or LaTeX, or save a Python script
+  - Read an export's processing record (.hfrec) as a report; copy it as a methods paragraph or LaTeX, or save a Python script
   - `openExportRecord`
+* - File > Migrate Sidecars in Folder...
+  - Rename the older .hfrec.json export records in a folder and its subfolders to .hfrec, after a count to confirm; never replaces a .hfrec
+  - `migrateSidecars`
 * - File > New from Template...
   - Start from a template: a saved scene whose dates can follow the newest data
   - `newFromTemplate`

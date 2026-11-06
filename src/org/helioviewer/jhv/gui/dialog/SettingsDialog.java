@@ -241,11 +241,18 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         offlineSessions.addActionListener(e ->
                 org.helioviewer.jhv.app.state.SessionOffline.setEnabled(offlineSessions.isSelected()));
 
+        String renameKey = org.helioviewer.jhv.movie.ProcessingRecord.RENAME_KEY;
+        JCheckBox renameSidecars = new JCheckBox("Rename old .hfrec.json sidecars when opened", Boolean.parseBoolean(Settings.getProperty(renameKey)));
+        renameSidecars.setToolTipText("When Studio reads an export record still named .hfrec.json, rename it to .hfrec, "
+                + "unless a .hfrec is already there or the folder cannot be written. The content is not changed.");
+        renameSidecars.addActionListener(e -> Settings.setProperty(renameKey, Boolean.toString(renameSidecars.isSelected())));
+
         return new SettingsForm()
                 .row("For new layers:", normalizeAIA)
                 .row(null, normalizeRadius)
                 .row("Use time at:", timePanel)
                 .row("Sessions:", offlineSessions)
+                .row("Export records:", renameSidecars)
                 .end();
     }
 

@@ -238,7 +238,8 @@ public final class StudyRunner {
         Path dir = from.toAbsolutePath().getParent();
         if (dir == null || dir.equals(runFolder.toAbsolutePath()))
             return;
-        Files.deleteIfExists(dir.resolve(from.getFileName() + ".hfrec.json"));
+        Files.deleteIfExists(dir.resolve(from.getFileName() + org.helioviewer.jhv.movie.ProcessingRecord.SUFFIX));
+        Files.deleteIfExists(dir.resolve(from.getFileName() + org.helioviewer.jhv.movie.ProcessingRecord.LEGACY_SUFFIX));
         if (dir.equals(exports.toAbsolutePath()))
             return;
         try {
@@ -325,7 +326,10 @@ public final class StudyRunner {
                 return true;
             case SKIP_IF_UNCHANGED:
                 try {
-                    return print.equals(new JSONObject(Files.readString(sidecar(png))).optJSONObject("study").optString("fingerprint"));
+                    Path side = Files.isRegularFile(sidecar(png)) ? sidecar(png) : legacySidecar(png);
+                    String was = new JSONObject(Files.readString(side)).optJSONObject("study").optString("fingerprint");
+                    org.helioviewer.jhv.movie.ProcessingRecord.migrateLegacy(side); // an older .hfrec.json becomes .hfrec once read
+                    return print.equals(was);
                 } catch (IOException | RuntimeException e) { // no sidecar, or not ours: make it again
                     return false;
                 }
@@ -336,7 +340,13 @@ public final class StudyRunner {
 
     static Path sidecar(Path png) {
         String n = png.getFileName().toString();
-        return png.resolveSibling(n.substring(0, n.length() - 4) + ".hfrec.json");
+        return png.resolveSibling(n.substring(0, n.length() - 4) + org.helioviewer.jhv.movie.ProcessingRecord.SUFFIX);
+    }
+
+    /** The name a variant's sidecar had before .hfrec: still read by the skip-if-unchanged check. */
+    static Path legacySidecar(Path png) {
+        String n = png.getFileName().toString();
+        return png.resolveSibling(n.substring(0, n.length() - 4) + org.helioviewer.jhv.movie.ProcessingRecord.LEGACY_SUFFIX);
     }
 
     static JSONObject sidecarJson(Step st, JSONObject resolved, String sceneSha, long time, String print, Output o) {
