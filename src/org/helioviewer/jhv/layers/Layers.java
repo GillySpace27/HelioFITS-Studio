@@ -528,10 +528,26 @@ public final class Layers {
         return normalized;
     }
 
+    /**
+     * Layers an active plugin added at install (SWEK, PFSS, ...) whose class the state has no entry
+     * for, for example a state saved while the plugin was off or by an older build. The plugin
+     * only adds its layer once, so dropping it here would lose the row until the plugin is toggled.
+     */
+    private static List<Layer> pluginLayersMissingFrom(List<Layer> restoredLayers) {
+        List<Layer> kept = new ArrayList<>();
+        for (Layer layer : layers) {
+            if (layer.getClass().getName().startsWith("org.helioviewer.jhv.plugins.") // ponytail: by package; a Plugin hook if more owners appear
+                    && restoredLayers.stream().noneMatch(r -> r.getClass() == layer.getClass()))
+                kept.add(layer);
+        }
+        return kept;
+    }
+
     public static void restore(List<Layer> restoredLayers) {
+        List<Layer> kept = pluginLayersMissingFrom(restoredLayers);
         ArrayList<Layer> normalizedLayers = normalizeRestoreList(restoredLayers);
 
-        layers.forEach(Layers::detach);
+        layers.stream().filter(layer -> !kept.contains(layer)).forEach(Layers::detach);
         layers.clear();
         selection.clear();
         fanned.clear();
@@ -550,6 +566,10 @@ public final class Layers {
             } else {
                 layers.add(layer);
             }
+            cacheLayer(layer);
+        }
+        for (Layer layer : kept) { // already initialised: not in newLayers
+            layers.add(layer);
             cacheLayer(layer);
         }
 
