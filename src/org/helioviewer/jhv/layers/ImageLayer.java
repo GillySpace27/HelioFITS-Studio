@@ -378,9 +378,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
                 // the log; the archive genuinely holding no files for a range is a normal
                 // outcome (the VSO's LASCO catalog stops in 2025) and must say so.
                 org.helioviewer.jhv.app.Log.warn("No " + request.archive() + " files in range for " + request.product());
-                org.helioviewer.jhv.app.Message.warn("No data in range",
-                        request.archive() + " answered with no files for " + request.product()
-                                + " in the selected time range.");
+                org.helioviewer.jhv.app.Message.warn("No data in range", emptyAnswerText(request.archive(), request.product()));
                 Layers.remove(this);
                 return;
             }
@@ -398,6 +396,14 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             case LASCO -> org.helioviewer.jhv.io.LascoClient.submitResolve(request, receiver);
         }
         Layers.fireLayerUpdated(this);
+    }
+
+    /** The "No data in range" text; a LASCO answer from the VSO also names the route that may have newer data. */
+    static String emptyAnswerText(FitsRequest.Archive archive, String product) {
+        String text = archive + " answered with no files for " + product + " in the selected time range.";
+        if (archive == FitsRequest.Archive.VSO && product.toUpperCase(java.util.Locale.ROOT).contains("LASCO"))
+            text += " The LASCO source (NRL) in the Image dialog may have newer data.";
+        return text;
     }
 
     /** Attach a query to a layer whose URIs were loaded directly, so it can follow the date later. */
