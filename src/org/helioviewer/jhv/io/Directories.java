@@ -98,6 +98,13 @@ public enum Directories {
             return HOME.getPath() + "Studies" + File.separator;
         }
     },
+    // 3D models the 3D Model Manager downloaded (ModelAssets): checked against their SHA-256, never evicted.
+    MODELS {
+        @Override
+        public String getPath() {
+            return HOME.getPath() + "Models" + File.separator;
+        }
+    },
     // The downloads directory
     DOWNLOADS {
         @Override

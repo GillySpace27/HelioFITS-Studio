@@ -1,0 +1,236 @@
+{
+  "version": 1,
+  "note": "3D assets the 3D Model Manager offers for download. Nothing here is bundled: each file is fetched on request, pinned to one commit of its source, and kept only if its length and SHA-256 match. extent is the model length, in file units, that size.meters is matched to (its largest bounding-box side unless size.note names another), measured by loading it in Studio; metersPerUnit is size.meters / extent. Numbers in size come from the quoted page; a null size means none was checked.",
+  "sources": {
+    "nasa3d": {
+      "name": "NASA 3D Resources",
+      "repository": "https://github.com/nasa/NASA-3D-Resources",
+      "commit": "11ebb4ee043715aefbba6aeec8a61746fad67fa7",
+      "terms": "The repository README says these assets are \"free and without copyright\" and points to NASA's usage guidelines; its meta.json lists the NASA Open Source Agreement 1.3. NASA's guidelines ask for credit to NASA, do not allow the insignia or logos to imply endorsement, and leave any third-party material its own copyright.",
+      "terms_source": [
+        "https://github.com/nasa/NASA-3D-Resources/blob/11ebb4ee043715aefbba6aeec8a61746fad67fa7/README.md",
+        "https://github.com/nasa/NASA-3D-Resources/blob/11ebb4ee043715aefbba6aeec8a61746fad67fa7/meta.json",
+        "https://www.nasa.gov/nasa-brand-center/images-and-media"
+      ]
+    }
+  },
+  "models": [
+    {
+      "source": "nasa3d",
+      "id": "soho",
+      "name": "SOHO",
+      "url": "https://raw.githubusercontent.com/nasa/NASA-3D-Resources/11ebb4ee043715aefbba6aeec8a61746fad67fa7/3D%20Models/Solar%20and%20Heliospheric%20Observatory/Solar%20and%20Heliospheric%20Observatory.glb",
+      "page": "https://github.com/nasa/NASA-3D-Resources/tree/11ebb4ee043715aefbba6aeec8a61746fad67fa7/3D%20Models/Solar%20and%20Heliospheric%20Observatory",
+      "sha256": "fac23d6f1032bf08833b08d81a9c945f81e2883ca974f37ff7d99fb94a320d93",
+      "bytes": 83268,
+      "extent": 43.269,
+      "target": "SOHO",
+      "metersPerUnit": 0.219557,
+      "size": {
+        "meters": 9.5,
+        "source": "https://soho.nascom.nasa.gov/about/spacecraft.html",
+        "quote": "Width with solar array deployed: 9.5 m",
+        "note": "Assumes the model's longest side is the deployed solar array; its other two sides then come to 3.2 and 3.8 m, within the 4.3 x 2.7 x 3.7 m body dimensions on the same page."
+      },
+      "credit": "Model: NASA 3D Resources"
+    },
+    {
+      "source": "nasa3d",
+      "id": "sdo",
+      "name": "SDO",
+      "url": "https://raw.githubusercontent.com/nasa/NASA-3D-Resources/11ebb4ee043715aefbba6aeec8a61746fad67fa7/3D%20Models/Solar%20Dynamics%20Observatory/Solar%20Dynamics%20Observatory.glb",
+      "page": "https://github.com/nasa/NASA-3D-Resources/tree/11ebb4ee043715aefbba6aeec8a61746fad67fa7/3D%20Models/Solar%20Dynamics%20Observatory",
+      "sha256": "8ce4607bd65f098eee22f02717a182d6721610c940a961511dfbca832a3eda95",
+      "bytes": 497844,
+      "extent": 30.747,
+      "target": "SDO",
+      "metersPerUnit": 0.146356,
+      "size": {
+        "meters": 4.5,
+        "source": "https://sdo.gsfc.nasa.gov/mission/spacecraft.php",
+        "quote": "Its overall length along the sun-pointing axis is 4.5 m",
+        "note": "Matched to the model's vertical side (30.75 file units), along which its telescopes point. The same page gives a 6.25 m solar panel span, but the model's panels are shorter than its 37.0-unit width, so the span was not used; at this scale the model is 5.4 m wide."
+      },
+      "credit": "Model: NASA 3D Resources"
+    },
+    {
+      "source": "nasa3d",
+      "id": "stereo",
+      "name": "STEREO",
+      "url": "https://raw.githubusercontent.com/nasa/NASA-3D-Resources/11ebb4ee043715aefbba6aeec8a61746fad67fa7/3D%20Models/Solar%20TErrestrial%20RElations%20Observatory%20%28STEREO%29/Solar%20TErrestrial%20RElations%20Observatory%20%28STEREO%29.glb",
+      "page": "https://github.com/nasa/NASA-3D-Resources/tree/11ebb4ee043715aefbba6aeec8a61746fad67fa7/3D%20Models/Solar%20TErrestrial%20RElations%20Observatory%20%28STEREO%29",
+      "sha256": "0215f18b40bebb3652398b60e51cb5d8c6a4100a33a6a31768b9087d6239d9bf",
+      "bytes": 354212,
+      "extent": 3142.189,
+      "target": "STEREO Ahead",
+      "targetNote": "One model for both observatories; choose STEREO Behind in the layer for the other.",
+      "metersPerUnit": 0.002059,
+      "size": {
+        "meters": 6.47,
+        "source": "https://stereo.gsfc.nasa.gov/spacecraft.shtml",
+        "quote": "21.24 feet (6.47 meters) wide (solar arrays deployed)",
+        "note": "Matched to the model's longest side, which the preview shows is the deployed solar array. Its second side (0.77 as long) is a boom, not the 2.03 m deep body the same page gives."
+      },
+      "credit": "Model: NASA 3D Resources"
+    },
+    {
+      "source": "nasa3d",
+      "id": "psp",
+      "name": "Parker Solar Probe",
+      "url": "https://raw.githubusercontent.com/nasa/NASA-3D-Resources/11ebb4ee043715aefbba6aeec8a61746fad67fa7/3D%20Models/Parker%20Solar%20Probe/Parker%20Solar%20Probe.glb",
+      "page": "https://github.com/nasa/NASA-3D-Resources/tree/11ebb4ee043715aefbba6aeec8a61746fad67fa7/3D%20Models/Parker%20Solar%20Probe",
+      "sha256": "4d26e84efd29a78c5d07e474f6272bb111668b58da5a7555e305a65c72ddb1c5",
+      "bytes": 443572,
+      "extent": 6.611,
+      "target": "Parker Solar Probe",
+      "metersPerUnit": null,
+      "size": {
+        "meters": null,
+        "source": null,
+        "quote": null,
+        "note": "Size not checked against a source: file units are taken as metres."
+      },
+      "credit": "Model: NASA 3D Resources"
+    },
+    {
+      "source": "nasa3d",
+      "id": "hinode",
+      "name": "Hinode",
+      "url": "https://raw.githubusercontent.com/nasa/NASA-3D-Resources/11ebb4ee043715aefbba6aeec8a61746fad67fa7/3D%20Models/Hinode%20%28Solar-B%29/Hinode%20%28Solar-B%29.glb",
+      "page": "https://github.com/nasa/NASA-3D-Resources/tree/11ebb4ee043715aefbba6aeec8a61746fad67fa7/3D%20Models/Hinode%20%28Solar-B%29",
+      "sha256": "104f23212d379541990c28b26999db3bcfb2ef0731285f2366219e5438e125e6",
+      "bytes": 276248,
+      "extent": 229.62,
+      "target": "Earth",
+      "targetNote": "Low Earth orbit: drawn at Earth, which is exact to well under a pixel at heliospheric scales.",
+      "metersPerUnit": null,
+      "size": {
+        "meters": null,
+        "source": null,
+        "quote": null,
+        "note": "Size not checked against a source: file units are taken as metres."
+      },
+      "credit": "Model: NASA 3D Resources"
+    },
+    {
+      "source": "nasa3d",
+      "id": "ulysses",
+      "name": "Ulysses",
+      "url": "https://raw.githubusercontent.com/nasa/NASA-3D-Resources/11ebb4ee043715aefbba6aeec8a61746fad67fa7/3D%20Models/Ulysses/Ulysses.glb",
+      "page": "https://github.com/nasa/NASA-3D-Resources/tree/11ebb4ee043715aefbba6aeec8a61746fad67fa7/3D%20Models/Ulysses",
+      "sha256": "b1f9d9df7f5fd0da60f6a5a243dc0013b40f96b4178c6daf8281fbbb1c1061e4",
+      "bytes": 2462656,
+      "extent": 68.023,
+      "target": null,
+      "targetNote": "Studio has no ephemeris for Ulysses: added at Sun centre.",
+      "metersPerUnit": null,
+      "size": {
+        "meters": null,
+        "source": null,
+        "quote": null,
+        "note": "Size not checked against a source: file units are taken as metres."
+      },
+      "credit": "Model: NASA 3D Resources"
+    },
+    {
+      "source": "nasa3d",
+      "id": "messenger",
+      "name": "MESSENGER",
+      "url": "https://raw.githubusercontent.com/nasa/NASA-3D-Resources/11ebb4ee043715aefbba6aeec8a61746fad67fa7/3D%20Models/MErcury%20Surface%2C%20Space%20ENvironment%2C%20GEochemistry%2C%20and%20Ranging%20%28MESSENGER%29/MErcury%20Surface%2C%20Space%20ENvironment%2C%20GEochemistry%2C%20and%20Ranging%20%28MESSENGER%29.glb",
+      "page": "https://github.com/nasa/NASA-3D-Resources/tree/11ebb4ee043715aefbba6aeec8a61746fad67fa7/3D%20Models/MErcury%20Surface%2C%20Space%20ENvironment%2C%20GEochemistry%2C%20and%20Ranging%20%28MESSENGER%29",
+      "sha256": "c0268bfed0910e68a54c45925aea8edfc6e479d8131a849de7949252e01b9875",
+      "bytes": 2673396,
+      "extent": 6.957,
+      "target": null,
+      "targetNote": "Studio has no ephemeris for MESSENGER: added at Sun centre.",
+      "metersPerUnit": null,
+      "size": {
+        "meters": null,
+        "source": null,
+        "quote": null,
+        "note": "Size not checked against a source: file units are taken as metres."
+      },
+      "credit": "Model: NASA 3D Resources"
+    },
+    {
+      "source": "nasa3d",
+      "id": "rhessi",
+      "name": "RHESSI",
+      "url": "https://raw.githubusercontent.com/nasa/NASA-3D-Resources/11ebb4ee043715aefbba6aeec8a61746fad67fa7/3D%20Models/HESSI-RHESSI/HESSI-RHESSI.glb",
+      "page": "https://github.com/nasa/NASA-3D-Resources/tree/11ebb4ee043715aefbba6aeec8a61746fad67fa7/3D%20Models/HESSI-RHESSI",
+      "sha256": "7760caeeb166179c8aaecb8699a157274090b624c4d0994a751255c2545df894",
+      "bytes": 230764,
+      "extent": 747.335,
+      "target": null,
+      "targetNote": "Studio has no ephemeris for RHESSI: added at Sun centre.",
+      "metersPerUnit": null,
+      "size": {
+        "meters": null,
+        "source": null,
+        "quote": null,
+        "note": "Size not checked against a source: file units are taken as metres."
+      },
+      "credit": "Model: NASA 3D Resources"
+    },
+    {
+      "source": "nasa3d",
+      "id": "wind",
+      "name": "Wind",
+      "url": "https://raw.githubusercontent.com/nasa/NASA-3D-Resources/11ebb4ee043715aefbba6aeec8a61746fad67fa7/3D%20Models/Wind/Wind.glb",
+      "page": "https://github.com/nasa/NASA-3D-Resources/tree/11ebb4ee043715aefbba6aeec8a61746fad67fa7/3D%20Models/Wind",
+      "sha256": "59ddb3072cae38e3c8dc71cea8887f2db51a609251080add6c940241e1e7526f",
+      "bytes": 233988,
+      "extent": 52.431,
+      "target": null,
+      "targetNote": "Studio has no ephemeris for Wind (near L1): added at Sun centre.",
+      "metersPerUnit": null,
+      "size": {
+        "meters": null,
+        "source": null,
+        "quote": null,
+        "note": "Size not checked against a source: file units are taken as metres."
+      },
+      "credit": "Model: NASA 3D Resources"
+    },
+    {
+      "source": "nasa3d",
+      "id": "ace",
+      "name": "ACE",
+      "url": "https://raw.githubusercontent.com/nasa/NASA-3D-Resources/11ebb4ee043715aefbba6aeec8a61746fad67fa7/3D%20Models/Advanced%20Composition%20Explorer/Advanced%20Composition%20Explorer.glb",
+      "page": "https://github.com/nasa/NASA-3D-Resources/tree/11ebb4ee043715aefbba6aeec8a61746fad67fa7/3D%20Models/Advanced%20Composition%20Explorer",
+      "sha256": "b03a394e57b6af3a1f3700f450d94a67dd3eaec8a00e125d2d005bd1359b6e9c",
+      "bytes": 2030760,
+      "extent": 1345.304,
+      "target": null,
+      "targetNote": "Studio has no ephemeris for ACE (near L1): added at Sun centre.",
+      "metersPerUnit": null,
+      "size": {
+        "meters": null,
+        "source": null,
+        "quote": null,
+        "note": "Size not checked against a source: file units are taken as metres."
+      },
+      "credit": "Model: NASA 3D Resources"
+    },
+    {
+      "source": "nasa3d",
+      "id": "dscovr",
+      "name": "DSCOVR",
+      "url": "https://raw.githubusercontent.com/nasa/NASA-3D-Resources/11ebb4ee043715aefbba6aeec8a61746fad67fa7/3D%20Models/Deep%20Space%20Climate%20Observatory%20%28DSCOVR%29%20%28Triana%29/Deep%20Space%20Climate%20Observatory%20%28DSCOVR%29%20%28Triana%29.glb",
+      "page": "https://github.com/nasa/NASA-3D-Resources/tree/11ebb4ee043715aefbba6aeec8a61746fad67fa7/3D%20Models/Deep%20Space%20Climate%20Observatory%20%28DSCOVR%29%20%28Triana%29",
+      "sha256": "265b703538b635128ffa32bc9f4d7b528ba6900e9ac1fbcf201dcdd54a5dadae",
+      "bytes": 112488,
+      "extent": 266.371,
+      "target": null,
+      "targetNote": "Studio has no ephemeris for DSCOVR (near L1): added at Sun centre.",
+      "metersPerUnit": null,
+      "size": {
+        "meters": null,
+        "source": null,
+        "quote": null,
+        "note": "Size not checked against a source: file units are taken as metres."
+      },
+      "credit": "Model: NASA 3D Resources"
+    }
+  ]
+}

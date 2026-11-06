@@ -108,6 +108,17 @@ by a factor up to 10^10 and by a minimum on-screen size, and the panel says how 
 true size it is drawn. A model with heliocentric metadata keeps the placement its file declares
 (`layers/ModelLayer.java`, `layers/ModelPlacement.java`).
 
+Managers > 3D Model Manager offers spacecraft models from NASA 3D Resources without bundling them.
+The list is `resources/data/assets.json`: each entry is pinned to one commit of
+https://github.com/nasa/NASA-3D-Resources with its length and SHA-256, names the object it is placed
+at (or none, for spacecraft Studio has no ephemeris for), and gives its scale with the page and words
+it came from, or says the size was not checked. A download goes to `~/HFStudio/Models` and is kept
+only if both match. A downloaded model is drawn in the window in software (`gui/component/ModelPreview.java`),
+flat-shaded with the texture sampled once per triangle, so it can be turned over before Add as Layer
+puts it in the scene at that position and scale (`io/ModelAssets.java`, `gui/dialog/ModelManager.java`).
+glTF textures offered as WebP with a PNG or JPEG fallback (EXT_texture_webp) load from the fallback
+(`opengl/model/GltfWebpFallback.java`).
+
 The point cloud JSON layout is **unconfirmed** in this list; read `plugins/pointcloud/PointCloudLoader.java`
 before preparing files for it.
 

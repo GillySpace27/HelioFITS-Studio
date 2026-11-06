@@ -210,6 +210,14 @@ public final class ActionCatalog {
             }
         }, "Managers/Cache Manager...",
                 "What is on disk, in Studio's cache and the FITS library: load, reveal, import, verify or delete");
+        // Spacecraft models to download, preview and add to the scene (ModelManager, resources/data/assets.json)
+        put("modelManager", new AbstractAction("3D Model Manager...") {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                org.helioviewer.jhv.gui.dialog.ModelManager.get().showDialog();
+            }
+        }, "Managers/3D Model Manager...",
+                "Spacecraft models to download, preview and add to the scene at their real positions");
         put("themeManager", new AbstractAction("Theme Manager...") {
             @Override
             public void actionPerformed(java.awt.event.ActionEvent e) {
