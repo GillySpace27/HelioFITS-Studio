@@ -79,7 +79,7 @@ public class NewVersionDialog extends TextDialog {
     }
 
     private static String failedMessage(Exception e) {
-        return "While checking for a newer version got " + e.getMessage();
+        return org.helioviewer.jhv.app.update.UpdateCheck.failureText(e);
     }
 
 }
