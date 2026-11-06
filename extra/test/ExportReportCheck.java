@@ -75,7 +75,7 @@ public final class ExportReportCheck {
         String[] lines = text.split("\n");
         expect("the sidecar starts with hfrecord, got " + lines[1], lines[1].equals("  \"hfrecord\": \"1.0\","));
         expect("then report, got " + lines[2], lines[2].equals("  \"report\": ["));
-        expect("then the report's first line, got " + lines[3], lines[3].equals("    \"HELIOFITS PROCESSING RECORD\","));
+        expect("then the report's first line, got " + lines[3], lines[3].equals("    \"HELIOFITS SUITE PROCESSING RECORD\","));
         JSONObject written = new JSONObject(text);
         Object report = written.toMap().get("report");
         written.remove("report");
