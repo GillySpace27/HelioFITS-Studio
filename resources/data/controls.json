@@ -160,7 +160,7 @@
     {
       "id": "toolbarEdit",
       "title": "Toolbar Manager",
-      "where": "Right end of the toolbar, beside the padlock (also Window > Toolbar Manager)",
+      "where": "Right end of the toolbar, beside the padlock (also Managers > Toolbar Manager)",
       "words": "edit toolbar customize tools buttons order add remove separator"
     },
     {

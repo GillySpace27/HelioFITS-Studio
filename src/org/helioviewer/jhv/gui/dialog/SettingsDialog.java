@@ -129,6 +129,13 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         return null;
     }
 
+    /** Bring the named tab to the front, if there is one by that name. */
+    public void selectTab(String title) {
+        int i = tabs.indexOfTab(title);
+        if (i >= 0)
+            tabs.setSelectedIndex(i);
+    }
+
     @Override
     public void showDialog() {
         updateCacheSize();

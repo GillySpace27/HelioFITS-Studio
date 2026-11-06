@@ -1665,6 +1665,42 @@
       "inputSchema": {
         "additionalProperties": false,
         "type": "object",
+        "properties": {}
+      },
+      "name": "themeManager",
+      "description": "Pick, customize and save interface themes (View > Theme is the quick picker)",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "ui"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
+      "name": "keybindingsManager",
+      "description": "Every command with its keybinding: search, change or reset (opens Settings on the Keybindings tab)",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "ui"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
         "properties": {"frame": {
           "description": "Frame number, 0 is the first frame",
           "type": "integer",
