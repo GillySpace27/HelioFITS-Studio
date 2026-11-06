@@ -271,9 +271,11 @@ public final class LayersPanel extends JPanel {
             @Override
             public void mouseMoved(MouseEvent e) {
                 int row = grid.rowAtPoint(e.getPoint());
-                // Hand on image rows only, as upstream; it was judged the wrong cursor over overlay
-                // rows (working meeting, 2026-10-02). Every row still drags to reorder.
-                grid.setCursor(row >= 0 && grid.getValueAt(row, 0) instanceof ImageLayer
+                // Hand on the body of image rows only, as upstream; it was judged the wrong cursor over
+                // overlay rows (working meeting, 2026-10-02) and over the checkbox, radio and x, which
+                // react to a plain click. Every row still drags to reorder.
+                boolean imageRow = row >= 0 && grid.getValueAt(row, 0) instanceof ImageLayer;
+                grid.setCursor(LayerListCursor.handOver(grid.columnAtPoint(e.getPoint()), imageRow)
                         ? UIGlobals.openHandCursor : Cursor.getDefaultCursor());
             }
         });
