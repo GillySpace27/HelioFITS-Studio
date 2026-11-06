@@ -19,7 +19,9 @@ import org.json.JSONObject;
  * settings changed during a recording, the difference reference and Compare, the suite
  * provenance object, and no path anywhere. It also writes each record to
  * extra/test-classes/hfrecord/, where extra/test/test_hfrecord.py validates them against
- * docs/spec/hfrecord-1.schema.json (the hfrecord step of ant check-all).
+ * docs/spec/hfrecord-1.schema.json (the hfrecord step of ant check-all). The sidecar's preview:
+ * made from the raw frames, within the schema's limits, last in the sidecar, kept by a copy, out of
+ * the report and out of every embedded copy.
  *
  * <p>Run: java -Djava.awt.headless=true -cp "bin:extra/test-classes:resources:lib/*" org.helioviewer.jhv.movie.ProcessingRecordCheck
  */
@@ -253,6 +255,99 @@ public final class ProcessingRecordCheck {
                 && Files.readString(mig.resolve("b.png.hfrec")).equals("taken") && Files.exists(mig.resolve("b.png.hfrec.json"))
                 && Files.exists(mig.resolve("c.png.hfrec.json")) && !Files.exists(mig.resolve("c.png.hfrec"))
                 && java.util.Arrays.equals(legacyBytes, Files.readAllBytes(mig.resolve("a.png.hfrec"))));
+
+        // The preview: the sidecar's small picture, last in the file, never in the report or an embedded copy.
+        java.awt.image.BufferedImage smooth = new java.awt.image.BufferedImage(1920, 1080, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        for (int y = 0; y < 1080; y++)
+            for (int x = 0; x < 1920; x++)
+                smooth.setRGB(x, y, (x * 255 / 1919) << 16 | (y < 540 ? 0x2000 : 0xE000) | 128); // a ramp over two bands: a small PNG
+        JSONObject pv = ProcessingRecord.preview(smooth, null);
+        expect("a smooth 1920x1080 frame previews as a 320x180 PNG with no frame index: " + (pv == null ? null : pv.getString("media_type")
+                + " " + pv.getInt("width") + "x" + pv.getInt("height") + " " + pv.getString("data").length()), pv != null
+                && "image/png".equals(pv.getString("media_type")) && pv.getInt("width") == 320 && pv.getInt("height") == 180 && !pv.has("frame"));
+        java.awt.image.BufferedImage back = javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(java.util.Base64.getDecoder().decode(pv.getString("data"))));
+        expect("its data decodes to an image of the stated size", back != null && back.getWidth() == 320 && back.getHeight() == 180
+                && (back.getRGB(319, 0) >> 16 & 0xFF) > 240 && (back.getRGB(0, 0) >> 8 & 0xFF) < 0x30 && (back.getRGB(0, 179) >> 8 & 0xFF) > 0xD0);
+        java.util.Random rnd = new java.util.Random(7);
+        java.awt.image.BufferedImage noise = new java.awt.image.BufferedImage(640, 640, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        for (int y = 0; y < 640; y++)
+            for (int x = 0; x < 640; x++)
+                noise.setRGB(x, y, rnd.nextInt(0x1000000));
+        JSONObject pn = ProcessingRecord.preview(noise, 5);
+        int noiseBytes = pn == null ? -1 : java.util.Base64.getDecoder().decode(pn.getString("data")).length;
+        expect("noise, whose PNG is over 64 KB, previews as a JPEG within 64 KB with its frame index (" + noiseBytes + " bytes)", pn != null
+                && "image/jpeg".equals(pn.getString("media_type")) && noiseBytes <= ProcessingRecord.PREVIEW_BYTES && noiseBytes > 0
+                && pn.getInt("width") <= ProcessingRecord.PREVIEW_SIDE && pn.getInt("frame") == 5);
+
+        JSONObject withPreview = new JSONObject(r.toString()).put("preview", pv);
+        ProcessingRecord.writeJson(out.resolve("still-preview.hfrec"), withPreview); // test_hfrecord.py validates it
+        String plainText = ProcessingRecord.sidecarText(r), previewText = ProcessingRecord.sidecarText(withPreview);
+        java.util.Map<String, Object> parsed = ExportReport.parse(previewText);
+        List<String> keys = new ArrayList<>(parsed.keySet());
+        expect("the sidecar is hfrecord, report, ..., preview last: " + keys.get(0) + ", " + keys.get(1) + ", ..., " + keys.get(keys.size() - 1),
+                "hfrecord".equals(keys.get(0)) && "report".equals(keys.get(1)) && "preview".equals(keys.get(keys.size() - 1)));
+        expect("Studio's JSON parser reads the long base64 string whole",
+                pv.getString("data").equals(((java.util.Map<?, ?>) parsed.get("preview")).get("data")));
+        expect("the preview leaves the report unchanged", ExportReport.parse(plainText).get("report").equals(parsed.get("report"))
+                && ExportReport.text(parsed, true).equals(ExportReport.text(ExportReport.parse(plainText), true)));
+        expect("the sidecar text without the preview is unchanged by it", previewText.startsWith(plainText.substring(0, plainText.length() - 3)));
+        expect("no embedded copy carries the preview", !ProcessingRecord.pngText(withPreview).contains("\"preview\"")
+                && !ProcessingRecord.exrText(withPreview).contains("\"preview\"") && !ProcessingRecord.movieText(withPreview, true).contains("\"preview\"")
+                && !ProcessingRecord.embedded(withPreview, null).has("preview"));
+        Path pdir = Files.createTempDirectory("hfrec-preview");
+        Path stillPng = Files.writeString(pdir.resolve("still.png"), "pixels");
+        ProcessingRecord.writeJson(ProcessingRecord.sidecar(stillPng), withPreview);
+        Path stillCopy = Files.writeString(pdir.resolve("still-copy.png"), "pixels");
+        ProcessingRecord.copySidecar(stillPng, stillCopy);
+        java.util.Map<String, Object> copied = ExportReport.parse(Files.readString(ProcessingRecord.sidecar(stillCopy)));
+        List<String> copiedKeys = new ArrayList<>(copied.keySet());
+        expect("copySidecar keeps the preview, last", "preview".equals(copiedKeys.get(copiedKeys.size() - 1))
+                && pv.getString("data").equals(((java.util.Map<?, ?>) copied.get("preview")).get("data")));
+        JSONObject prep = ProcessingRecord.prepare(session, live(), null, still, "00000000-0000-4000-8000-000000000005", false);
+        Path writtenSide = ProcessingRecord.writePrepared(stillPng, prep, pv);
+        expect("writePrepared puts the preview in the sidecar", writtenSide != null
+                && Files.readString(writtenSide).contains("\"preview\": {\n    \"media_type\": \"image/png\""));
+
+        java.util.Map<String, Object> mapped = ExportReport.parse(previewText);
+        java.awt.image.BufferedImage shown = ProcessingRecord.previewImage(mapped, pdir.resolve("elsewhere.png.hfrec"));
+        expect("Open Export Record shows the embedded preview", shown != null && shown.getWidth() == 320 && shown.getHeight() == 180);
+        Path sibling = pdir.resolve("frame0001.png");
+        javax.imageio.ImageIO.write(smooth, "png", sibling.toFile());
+        java.util.Map<String, Object> old = ExportReport.parse(plainText); // output.file_name frame0001.png, no preview
+        java.awt.image.BufferedImage fallback = ProcessingRecord.previewImage(old, ProcessingRecord.sidecar(sibling));
+        expect("an old sidecar without a preview falls back to its PNG export, downscaled", fallback != null && fallback.getWidth() == 320);
+        expect("an old sidecar whose export is not there shows nothing", ProcessingRecord.previewImage(old, pdir.resolve("x/frame0001.png.hfrec")) == null);
+        expect("a movie sidecar without a preview shows nothing, no error",
+                ProcessingRecord.previewImage(ExportReport.parse(ProcessingRecord.sidecarText(m)), pdir.resolve("movie.mp4.hfrec")) == null);
+
+        // The raw frames ffmpeg reads: rgb24 and rgb48le, top row first; the middle frame, box-averaged.
+        Path raw = pdir.resolve("dump");
+        byte[] dump = new byte[3 * 3 * 4 * 2];
+        for (int fr = 0; fr < 3; fr++)
+            for (int px = 0; px < 8; px++) {
+                int o = (fr * 8 + px) * 3;
+                dump[o] = (byte) (fr == 1 ? 200 : 10);
+                dump[o + 1] = (byte) (px < 4 ? 50 : 150); // top row 50, bottom row 150
+                dump[o + 2] = (byte) 255;
+            }
+        Files.write(raw, dump);
+        java.awt.image.BufferedImage f1 = ExportWriter.rawFrame(raw, 4, 2, 3, 1, 320);
+        expect("rawFrame reads frame 1 of an rgb24 dump, top row first", f1.getWidth() == 4 && f1.getHeight() == 2
+                && f1.getRGB(0, 0) == (0xFF000000 | 200 << 16 | 50 << 8 | 255) && f1.getRGB(3, 1) == (0xFF000000 | 200 << 16 | 150 << 8 | 255));
+        java.awt.image.BufferedImage avg = ExportWriter.rawFrame(raw, 4, 2, 3, 1, 2);
+        expect("and box-averages it down to the side asked for", avg.getWidth() == 2 && avg.getHeight() == 1
+                && avg.getRGB(1, 0) == (0xFF000000 | 200 << 16 | 100 << 8 | 255));
+        byte[] deep = new byte[6 * 2 * 1 * 2];
+        for (int fr = 0; fr < 2; fr++)
+            for (int px = 0; px < 2; px++) {
+                int o = (fr * 2 + px) * 6;
+                deep[o] = 1; deep[o + 1] = (byte) (fr == 1 ? 0xC0 : 0); // little-endian: the high byte second
+                deep[o + 3] = (byte) 0x80;
+                deep[o + 5] = (byte) 0xFF;
+            }
+        Files.write(raw, deep);
+        java.awt.image.BufferedImage d1 = ExportWriter.rawFrame(raw, 2, 1, 6, 1, 320);
+        expect("rawFrame reads rgb48le by each sample's high byte", d1.getRGB(1, 0) == (0xFF000000 | 0xC0 << 16 | 0x80 << 8 | 0xFF));
 
         if (failures != 0) {
             System.out.println(failures + " processing record failure(s)");

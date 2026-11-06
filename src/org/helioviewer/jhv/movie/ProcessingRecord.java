@@ -1,5 +1,10 @@
 package org.helioviewer.jhv.movie;
 
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -11,16 +16,23 @@ import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 
 import javax.annotation.Nullable;
+import javax.imageio.IIOImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.stream.MemoryCacheImageOutputStream;
 
 import org.helioviewer.jhv.app.AppInfo;
 import org.helioviewer.jhv.app.Log;
@@ -994,12 +1006,21 @@ public final class ProcessingRecord {
      */
     @Nullable
     public static Path write(Path export, JSONObject session, JSONObject live, @Nullable JSONObject endScene, Output output) {
+        return write(export, session, live, endScene, output, null);
+    }
+
+    /** As above, with the sidecar's {@link #preview} (null for none). */
+    @Nullable
+    public static Path write(Path export, JSONObject session, JSONObject live, @Nullable JSONObject endScene, Output output,
+                             @Nullable JSONObject preview) {
         try {
             String hash = Files.isRegularFile(export) ? fileHash(export) : null;
             JSONObject record = build(session, live, endScene, output, export.getFileName().toString(), hash,
                     System.getProperty("user.home", ""), uri -> SourceIdentity.lookup(uri, SOURCE_WAIT_MS), UUID.randomUUID().toString());
             if (Files.isDirectory(export))
                 record.getJSONObject("output").put("frame_files", frameFiles(export));
+            if (preview != null)
+                record.put("preview", preview);
             Path side = sidecar(export);
             writeJson(side, record);
             return side;
@@ -1043,13 +1064,16 @@ public final class ProcessingRecord {
 
     /**
      * The sidecar's text: hfrecord first, then report (ExportReport, one line per element) so a
-     * person opening the file reads it before the data, then the rest. The report is made from
-     * this very text, so a reader that regenerates it from the file gets the same lines.
+     * person opening the file reads it before the data, then the rest, then preview last, so its
+     * long base64 string never pushes the report down. The report is made from this very text
+     * (less the preview, which it does not read), so a reader that regenerates it from the file
+     * gets the same lines.
      */
     static String sidecarText(JSONObject record) {
         JSONObject rest = new JSONObject(record.toString());
         Object format = rest.remove("hfrecord");
         rest.remove("report");
+        Object preview = rest.remove("preview");
         String body = rest.toString(2); // "{\n  ...\n}"
         String head = format == null ? "{\n" : "{\n  \"hfrecord\": " + JSONObject.valueToString(format) + (rest.isEmpty() ? "\n" : ",\n");
         String tail = rest.isEmpty() ? "}" : body.substring(2);
@@ -1060,7 +1084,133 @@ public final class ProcessingRecord {
             sep = ",\n    ";
         }
         report.append("\n  ]").append(rest.isEmpty() ? "\n" : ",\n");
-        return head + report + tail + "\n";
+        String text = head + report + tail; // ends "\n}"
+        if (preview instanceof JSONObject p)
+            text = text.substring(0, text.length() - 2) + ",\n  \"preview\": " + previewText(p) + "\n}";
+        return text + "\n";
+    }
+
+    /** The preview object, indented as the rest of the sidecar is, with data (the long one) last. */
+    private static String previewText(JSONObject preview) {
+        List<String> keys = new ArrayList<>(List.of("media_type", "width", "height", "frame"));
+        keys.retainAll(preview.keySet());
+        preview.keySet().stream().filter(k -> !keys.contains(k) && !"data".equals(k)).sorted().forEach(keys::add);
+        if (preview.has("data"))
+            keys.add("data");
+        StringBuilder sb = new StringBuilder("{");
+        String sep = "\n    ";
+        for (String k : keys) {
+            sb.append(sep).append(JSONObject.quote(k)).append(": ").append(JSONObject.valueToString(preview.get(k)));
+            sep = ",\n    ";
+        }
+        return sb.append(keys.isEmpty() ? "}" : "\n  }").toString();
+    }
+
+    // ---- the preview (schema: preview), in the sidecar only -----------------------------------------
+
+    /** The schema's limits on a preview: the long side in pixels, and the image's bytes before base64. */
+    public static final int PREVIEW_SIDE = 320;
+    static final int PREVIEW_BYTES = 64 * 1024;
+    private static final float[] JPEG_QUALITY = {0.85f, 0.7f, 0.5f};
+
+    /**
+     * The sidecar's preview of {@code image} (the pixels written): downscaled to at most 320 px on
+     * the long side, as PNG, or as JPEG when the PNG is over 64 KB, at lower quality and then a
+     * smaller size until it fits. Null when nothing fits or it cannot be encoded (logged): a
+     * sidecar without a preview is still whole. {@code frame} is the index of the frame shown (0
+     * first) for a movie or series; null leaves it out. It is embedded because HelioFITS Peek's
+     * sandboxed Quick Look and thumbnail extensions cannot read the export beside the sidecar.
+     */
+    @Nullable
+    public static JSONObject preview(BufferedImage image, @Nullable Integer frame) {
+        try {
+            for (int side = PREVIEW_SIDE; side >= 40; side = side * 3 / 4) {
+                BufferedImage small = downscale(image, side);
+                byte[] png = encode(small, "png", 0);
+                if (png.length <= PREVIEW_BYTES)
+                    return previewJson("image/png", small, png, frame);
+                for (float q : JPEG_QUALITY) {
+                    byte[] jpeg = encode(small, "jpeg", q);
+                    if (jpeg.length <= PREVIEW_BYTES)
+                        return previewJson("image/jpeg", small, jpeg, frame);
+                }
+            }
+        } catch (IOException | RuntimeException e) {
+            Log.warn("Processing record preview not made", e);
+        }
+        return null;
+    }
+
+    private static JSONObject previewJson(String mediaType, BufferedImage image, byte[] bytes, @Nullable Integer frame) {
+        JSONObject jo = new JSONObject().put("media_type", mediaType).put("width", image.getWidth()).put("height", image.getHeight());
+        if (frame != null)
+            jo.put("frame", frame.intValue());
+        return jo.put("data", Base64.getEncoder().encodeToString(bytes));
+    }
+
+    /** {@code src} as opaque RGB at most {@code side} px on the long side, halved bilinearly step by step so it does not alias. */
+    static BufferedImage downscale(BufferedImage src, int side) {
+        double s = Math.min(1, side / (double) Math.max(src.getWidth(), src.getHeight()));
+        int tw = Math.max(1, (int) Math.round(src.getWidth() * s)), th = Math.max(1, (int) Math.round(src.getHeight() * s));
+        BufferedImage cur = src;
+        do {
+            int w = Math.max(tw, cur.getWidth() / 2), h = Math.max(th, cur.getHeight() / 2);
+            BufferedImage next = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = next.createGraphics();
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.drawImage(cur, 0, 0, w, h, null);
+            g.dispose();
+            cur = next;
+        } while (cur.getWidth() != tw || cur.getHeight() != th);
+        return cur;
+    }
+
+    private static byte[] encode(BufferedImage image, String format, float quality) throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        if ("png".equals(format)) {
+            if (!ImageIO.write(image, format, bytes))
+                throw new IOException("no PNG writer");
+            return bytes.toByteArray();
+        }
+        ImageWriter writer = ImageIO.getImageWritersByFormatName(format).next();
+        try (MemoryCacheImageOutputStream out = new MemoryCacheImageOutputStream(bytes)) {
+            ImageWriteParam param = writer.getDefaultWriteParam();
+            param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+            param.setCompressionQuality(quality);
+            writer.setOutput(out);
+            writer.write(null, new IIOImage(image, null, null), param);
+        } finally {
+            writer.dispose();
+        }
+        return bytes.toByteArray();
+    }
+
+    /**
+     * The picture to show beside a record read from {@code sidecar}: its embedded preview, else
+     * the export beside it named in output.file_name when that is a PNG or JPEG (downscaled to
+     * 320 px), else null (FITS, EXR, a movie, a series, a missing file). Never throws.
+     */
+    @Nullable
+    public static BufferedImage previewImage(Map<String, Object> record, Path sidecar) {
+        try {
+            if (record.get("preview") instanceof Map<?, ?> p && p.get("data") instanceof String data) {
+                BufferedImage img = ImageIO.read(new ByteArrayInputStream(Base64.getMimeDecoder().decode(data)));
+                if (img != null)
+                    return img;
+            }
+            if (record.get("output") instanceof Map<?, ?> out && out.get("file_name") instanceof String name) {
+                String lower = name.toLowerCase(Locale.ROOT);
+                Path file = sidecar.resolveSibling(Path.of(name).getFileName());
+                if ((lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg")) && Files.isRegularFile(file)) {
+                    BufferedImage img = ImageIO.read(file.toFile());
+                    if (img != null)
+                        return downscale(img, PREVIEW_SIDE);
+                }
+            }
+        } catch (IOException | RuntimeException e) {
+            Log.warn("No preview for " + sidecar.getFileName(), e);
+        }
+        return null;
     }
 
     // ---- the embedded copy (heliosoftware/spec/processing-record.md, "Where each format keeps it") ---
@@ -1088,7 +1238,7 @@ public final class ProcessingRecord {
 
     /**
      * The copy that goes inside the file it describes: output.sha256 null (a file cannot hold its
-     * own hash), no output.file_name or frame_files (sidecars only), and, when {@code nativeRef} is
+     * own hash), no output.file_name, frame_files or preview (sidecars only), and, when {@code nativeRef} is
      * given, native_ref in place of native because the same file already carries the session under
      * that name. Everything else is the record unchanged, record_id included. The input is not changed.
      */
@@ -1098,6 +1248,7 @@ public final class ProcessingRecord {
         out.put("sha256", JSONObject.NULL);
         out.remove("file_name");
         out.remove("frame_files");
+        copy.remove("preview"); // sidecars only
         if (nativeRef != null) {
             copy.remove("native");
             copy.put("native_ref", nativeRef);
@@ -1159,6 +1310,12 @@ public final class ProcessingRecord {
      */
     @Nullable
     public static Path writePrepared(Path export, JSONObject record) {
+        return writePrepared(export, record, null);
+    }
+
+    /** As above, with the sidecar's {@link #preview} (null for none). */
+    @Nullable
+    public static Path writePrepared(Path export, JSONObject record, @Nullable JSONObject preview) {
         try {
             JSONObject full = new JSONObject(record.toString());
             JSONObject out = full.getJSONObject("output");
@@ -1166,6 +1323,8 @@ public final class ProcessingRecord {
             out.put("sha256", Files.isRegularFile(export) ? fileHash(export) : JSONObject.NULL);
             if (Files.isDirectory(export))
                 out.put("frame_files", frameFiles(export));
+            if (preview != null)
+                full.put("preview", preview);
             Path side = sidecar(export);
             writeJson(side, full);
             return side;

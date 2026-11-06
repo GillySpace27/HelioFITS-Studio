@@ -1,6 +1,7 @@
 package org.helioviewer.jhv.movie;
 
 import java.awt.image.BufferedImage;
+import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -41,6 +42,7 @@ class ExportWriter {
 
     private File tempFile;
     private @Nullable Exception failure;
+    private @Nullable JSONObject preview; // the sidecar's preview, made at close from the raw frames
 
     ExportWriter(ExportFormat _format, ExportFormat.Chroma _chroma, ExportFormat.Depth _depth,
                  int _w, int _h, int _fps, boolean _allIntra, @Nullable JSONObject _provenance) {
@@ -198,6 +200,7 @@ class ExportWriter {
             }
             if (format == ExportFormat.PNG)
                 stampPngSeries(record);
+            preview = rawPreview();
             return outPath;
         } catch (Exception e) {
             deleteOutputs();
@@ -206,6 +209,66 @@ class ExportWriter {
             tempFile.delete();
             tempFile = null;
         }
+    }
+
+    /** The sidecar's preview (ProcessingRecord.preview) once close() has run; null for an EXR series or when none was made. */
+    @Nullable
+    JSONObject preview() {
+        return preview;
+    }
+
+    /** The middle frame of what was handed to ffmpeg, as the sidecar's preview; a still is its only frame. Never fails the export. */
+    @Nullable
+    private JSONObject rawPreview() {
+        try {
+            long frames = tempFile.length() / ((long) bytesPerPixel * w * h);
+            if (frames == 0)
+                return null;
+            BufferedImage image = rawFrame(tempFile.toPath(), w, h, bytesPerPixel, frames / 2, ProcessingRecord.PREVIEW_SIDE);
+            return ProcessingRecord.preview(image, frames > 1 ? Integer.valueOf((int) (frames / 2)) : null);
+        } catch (IOException | RuntimeException e) {
+            Log.warn("Export preview not made", e);
+            return null;
+        }
+    }
+
+    /**
+     * Frame {@code frame} of a raw rgb24 (3 bytes per pixel) or rgb48le (6) dump of {@code w} x
+     * {@code h} frames, top row first, as ffmpeg reads it: box-averaged while it is read, a row at
+     * a time, to at most {@code side} px on the long side (16-bit samples by their high byte).
+     */
+    static BufferedImage rawFrame(Path raw, int w, int h, int bytesPerPixel, long frame, int side) throws IOException {
+        int f = Math.max(1, Math.ceilDiv(Math.max(w, h), side));
+        int tw = Math.ceilDiv(w, f), th = Math.ceilDiv(h, f);
+        long[] sum = new long[3 * tw * th];
+        int[] count = new int[tw * th];
+        int step = bytesPerPixel == 6 ? 2 : 1, high = step - 1; // little-endian: the high byte is the second
+        ByteBuffer row = ByteBuffer.allocate(bytesPerPixel * w);
+        byte[] b = row.array();
+        try (FileChannel channel = FileChannel.open(raw, StandardOpenOption.READ)) {
+            long base = frame * bytesPerPixel * w * h;
+            for (int y = 0; y < h; y++) {
+                row.clear();
+                long pos = base + (long) y * b.length;
+                while (row.hasRemaining())
+                    if (channel.read(row, pos + row.position()) < 0)
+                        throw new EOFException("raw frame " + frame + " is short");
+                int rowOut = (y / f) * tw;
+                for (int x = 0; x < w; x++) {
+                    int o = rowOut + x / f, i = x * bytesPerPixel + high;
+                    sum[3 * o] += b[i] & 0xFF;
+                    sum[3 * o + 1] += b[i + step] & 0xFF;
+                    sum[3 * o + 2] += b[i + 2 * step] & 0xFF;
+                    count[o]++;
+                }
+            }
+        }
+        BufferedImage image = new BufferedImage(tw, th, BufferedImage.TYPE_INT_RGB);
+        for (int o = 0; o < count.length; o++) {
+            int n = Math.max(1, count[o]);
+            image.setRGB(o % tw, o / tw, (int) (sum[3 * o] / n) << 16 | (int) (sum[3 * o + 1] / n) << 8 | (int) (sum[3 * o + 2] / n));
+        }
+        return image;
     }
 
     private List<String> buildCommand(String outPath, @Nullable File meta) {
