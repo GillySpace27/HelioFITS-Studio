@@ -42,9 +42,13 @@ final class ModelLayerOptions extends JPanel {
         mode.setSelectedItem(layer.getPlacementMode() == ModelPlacement.Mode.EPHEMERIS ? AT_OBJECT : AT_ORIGIN);
         mode.setToolTipText("Sun centre draws the file's coordinates as they are. Real position puts the model's centre where the chosen object is at the frame's time, at true size unless enlarged below.");
 
-        JComboBox<SpaceObject> target = new JComboBox<>(SpaceObject.getTargets(SpaceObject.SUN).toArray(SpaceObject[]::new));
-        target.setSelectedItem(SpaceObject.get(layer.getTarget()));
-        target.setToolTipText("Planets, the Moon, Solar Orbiter and STEREO Ahead come from the bundled SPICE kernels; the other spacecraft from the ROB position service, which needs the network.");
+        java.util.List<String> names = new java.util.ArrayList<>();
+        for (SpaceObject o : SpaceObject.getTargets(SpaceObject.SUN))
+            names.add(o.toString());
+        names.addAll(ModelPlacement.externalTargets());
+        JComboBox<String> target = new JComboBox<>(names.toArray(String[]::new));
+        target.setSelectedItem(layer.getTarget());
+        target.setToolTipText("Planets, the Moon, Solar Orbiter and STEREO Ahead come from the bundled SPICE kernels; SOHO, SDO, PSP and the others listed with them from the ROB position service; ACE, Wind and DSCOVR from HelioFleet; Ulysses and MESSENGER from JPL Horizons. All but the kernels need the network.");
 
         SpinnerNumberModel unitsModel = new SpinnerNumberModel(layer.getMetersPerUnit(), 1e-6, 1e6, 0.1);
         JSpinner units = new JSpinner(unitsModel);
@@ -74,8 +78,8 @@ final class ModelLayerOptions extends JPanel {
             updateStatus(layer);
         });
         target.addActionListener(e -> {
-            if (target.getSelectedItem() instanceof SpaceObject o)
-                layer.setTarget(o.toString());
+            if (target.getSelectedItem() instanceof String name)
+                layer.setTarget(name);
             updateStatus(layer);
         });
         units.addChangeListener(e -> layer.setMetersPerUnit(unitsModel.getNumber().doubleValue()));
