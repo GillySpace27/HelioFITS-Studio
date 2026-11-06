@@ -4,6 +4,9 @@
 
 ## HelioFITS Studio 0.9.1 (unreleased)
 
+### Image Layers list
+- The open drag hand now shows only on the body of an image row. Over the show checkbox, the drive radio and the remove x, which react to a plain click, the cursor is the ordinary arrow. Overlay rows keep the arrow.
+
 ### Welcome window
 - What's New is now a button in the Welcome window's header instead of the main panel, so the window shows the ways to start first. Take a Tour is a button that opens a list of every tour with its number of steps (Getting started marked as the place to begin); clicking one starts it. The first time the window opens, Return opens that list instead of Continue. A new Find your way around panel lists the help in the app: Search Controls with its keyboard shortcut, tooltips, Tip of the Day, the User Manual, the Help menu and Send Feedback. The footer has one Settings button (Display Scaling, the text size and interface scale, is under Appearance) in place of Settings and Display Settings, which is renamed Display Scaling since it handles only scaling.
 
