@@ -12,6 +12,7 @@
 
 const MAX_BYTES = 6 * 1024 * 1024; // a 1600 px PNG screenshot in base64 plus the log fits well inside
 const MAX_MESSAGE = 20000;
+const MAX_TITLE = 200; // the app sends at most 120; GitHub's limit is 256 (from memory; not checked here)
 const BODY_BUDGET = 60000; // GitHub's issue body limit is 65,536 characters (from memory; not checked here)
 const CATEGORIES = { bug: "bug", feature: "enhancement", question: "question" }; // GitHub's default labels
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -90,6 +91,9 @@ export function validate(r) {
   if (!(r.category in CATEGORIES)) return "category must be bug, feature or question";
   if (typeof r.message !== "string" || !r.message.trim()) return "message is required";
   if (r.message.length > MAX_MESSAGE) return "message too long";
+  // Optional: clients before the title field send none, and the issue is then titled from the message.
+  if (r.title !== undefined && (typeof r.title !== "string" || !r.title.trim() || r.title.length > MAX_TITLE))
+    return "title must be text of 1 to 200 characters";
   if (typeof r.created !== "string" || r.created.length > 40) return "created must be a time";
   if (r.replyTo !== undefined && (typeof r.replyTo !== "string" || r.replyTo.length > 254 || !EMAIL.test(r.replyTo)))
     return "replyTo must be an email address";
@@ -144,7 +148,7 @@ function details(summary, s, lang = "") {
 
 /** The issue: title, labels and a body that stays under GitHub's limit, cutting the log's head and the session's tail first. */
 export function toIssue(r) {
-  const first = r.message.trim().split("\n")[0].slice(0, 80);
+  const first = r.title !== undefined ? r.title.trim().replace(/\s+/g, " ") : r.message.trim().split("\n")[0].slice(0, 80);
   const parts = [
     `**Kind:** ${r.category}  `,
     `**Reply to:** ${r.replyTo ? "`" + r.replyTo + "`" : "not given"}  `,
