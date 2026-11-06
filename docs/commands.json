@@ -1253,6 +1253,24 @@
         "type": "object",
         "properties": {}
       },
+      "name": "openExportRecord",
+      "description": "Read an export's processing record (.hfrec.json) as a report; copy it as a methods paragraph or LaTeX, or save a Python script",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "ui"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
       "name": "study",
       "description": "What a scene exports: a table of views to export as a set (projection, lambda, field of view, layers), and study templates to start one from",
       "annotations": {

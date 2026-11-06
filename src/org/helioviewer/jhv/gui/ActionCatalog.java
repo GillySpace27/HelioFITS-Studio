@@ -150,6 +150,8 @@ public final class ActionCatalog {
             }
         }, "File/Show Dataset Folders", "Browse the cache as one folder per dataset (links, or a files.txt listing on Windows); the cache is not changed");
         put("openExportsFolder", ExportsFolder.action(), "File/Open Exports Folder", "Show the folder movies, screenshots and metadata are exported to");
+        put("openExportRecord", org.helioviewer.jhv.gui.dialog.ExportRecordDialog.openAction(), "File/Open Export Record...",
+                "Read an export's processing record (.hfrec.json) as a report; copy it as a methods paragraph or LaTeX, or save a Python script");
         put("study", org.helioviewer.jhv.gui.component.StudyPanel.openAction(), mac ? "Window/Study Manager..." : "File/Study Manager...", "What a scene exports: a table of views to export as a set (projection, lambda, field of view, layers), and study templates to start one from");
         put("taskManager", new javax.swing.AbstractAction("Task Manager...") {
             @Override

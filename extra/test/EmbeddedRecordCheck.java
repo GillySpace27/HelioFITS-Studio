@@ -32,7 +32,7 @@ import org.json.JSONObject;
  * format keeps it"), beside the sidecar:
  * <ul>
  * <li>PNG: tEXt hfrecord equals the sidecar except output.sha256 (null inside), output.file_name
- * (sidecars only) and native (native_ref png:tEXt:hfstudio inside); the suite
+ * and report (sidecars only) and native (native_ref png:tEXt:hfstudio inside); the suite
  * HelioSoftware-Provenance, RHEF and Disclaimer chunks are there; the sidecar hashes the file
  * with every chunk in it.</li>
  * <li>MP4: a real H.264 export through the bundled ffmpeg carries the shortened record in its
@@ -83,6 +83,7 @@ public final class EmbeddedRecordCheck {
         c.getJSONObject("output").remove("file_name");
         c.getJSONObject("output").put("sha256", JSONObject.NULL);
         c.remove("native");
+        c.remove("report"); // the readable report is in the sidecar only (ProcessingRecord.sidecarText)
         c.put("native_ref", nativeRef);
         return c;
     }
