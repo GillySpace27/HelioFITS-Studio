@@ -26,17 +26,19 @@ public final class StorageFoldersCheck {
         System.setProperty("user.home", home.toString());
         StorageFolders.reset();
         String def = Directories.EXPORTS.getPath();
-        expect("default exports folder when nothing is chosen", def.equals(home.resolve("HFStudio").resolve("Exports") + "/"));
+        expect("default exports folder when nothing is chosen", def.equals(home.resolve("HFStudio").resolve("Exports") + java.io.File.separator));
 
         Path drive = Files.createTempDirectory("hfs-drive").resolve("ex");
         StorageFolders.choose(StorageFolders.EXPORTS, drive.toString());
-        expect("a chosen folder is used at once and created", Directories.EXPORTS.getPath().equals(drive + "/") && Files.isDirectory(drive));
+        expect("a chosen folder is used at once and created", Directories.EXPORTS.getPath().equals(drive + java.io.File.separator) && Files.isDirectory(drive));
         expect("default path is still reported", Directories.EXPORTS.defaultPath().equals(def));
 
         StorageFolders.reset();
-        expect("the choice survives a reload", Directories.EXPORTS.getPath().equals(drive + "/"));
+        expect("the choice survives a reload", Directories.EXPORTS.getPath().equals(drive + java.io.File.separator));
 
-        Path gone = Path.of("/proc/hfs-no-such-drive/x");
+        // A folder under a regular file cannot be made on any platform, which a made-up absolute path could on Windows.
+        Path blocker = Files.writeString(Files.createTempDirectory("hfs-blocker").resolve("file"), "x");
+        Path gone = blocker.resolve("x");
         StorageFolders.choose(StorageFolders.EXPORTS, gone.toString());
         expect("an unavailable folder falls back to the default", Directories.EXPORTS.getPath().equals(def));
         expect("the fallback says so", StorageFolders.note() != null && StorageFolders.note().contains("not available"));
@@ -47,15 +49,23 @@ public final class StorageFoldersCheck {
         // A dangling link where the default folder should be: start up anyway.
         Path hf = home.resolve("HFStudio");
         Files.createDirectories(hf);
-        Files.createSymbolicLink(hf.resolve("Exports"), home.resolve("unplugged"));
-        boolean threw = false;
+        boolean linked = true;
         try {
-            Directories.createPersistentDirs();
-        } catch (IllegalStateException e) {
-            threw = true;
+            Files.createSymbolicLink(hf.resolve("Exports"), home.resolve("unplugged"));
+        } catch (java.io.IOException | UnsupportedOperationException e) {
+            linked = false; // Windows without Developer Mode or administrator rights
+            System.out.println("  skip dangling-link assertions: cannot make a symbolic link here");
         }
-        expect("a dangling Exports link does not stop startup", !threw);
-        expect("and the note says what happened", Directories.migrationNote != null && Directories.migrationNote.contains("Could not create"));
+        if (linked) {
+            boolean threw = false;
+            try {
+                Directories.createPersistentDirs();
+            } catch (IllegalStateException e) {
+                threw = true;
+            }
+            expect("a dangling Exports link does not stop startup", !threw);
+            expect("and the note says what happened", Directories.migrationNote != null && Directories.migrationNote.contains("Could not create"));
+        }
 
         // Moving.
         Path from = Files.createTempDirectory("hfs-from");
