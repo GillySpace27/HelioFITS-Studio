@@ -9,12 +9,12 @@
     {
       "target": "toolbarEdit",
       "title": "Toolbar Manager",
-      "body": "This button, or Window > Toolbar Manager, chooses which tools are on the toolbar and in what order: drag a tool into the middle list to put it on the bar, drag it out to take it off. A Separator can be used more than once."
+      "body": "This button, or Managers > Toolbar Manager, chooses which tools are on the toolbar and in what order: drag a tool into the middle list to put it on the bar, drag it out to take it off. A Separator can be used more than once."
     },
     {
       "target": "toolbarManager",
       "title": "Nothing is lost",
-      "body": "A tool taken off the bar stays in the Tools menu, which lists every tool whether or not it is on the bar. Opened from the Window menu while the panels are locked, the Toolbar Manager offers to unlock them."
+      "body": "A tool taken off the bar stays in the Tools menu, which lists every tool whether or not it is on the bar. Opened from the Managers menu while the panels are locked, the Toolbar Manager offers to unlock them."
     },
     {
       "target": "sidebarLeft",

@@ -43,7 +43,7 @@ import org.helioviewer.jhv.io.ExtensionFileFilter;
 import org.helioviewer.jhv.time.TimeUtils;
 
 /**
- * The template manager (Window > Template Manager... on macOS, File > Template Manager... elsewhere;
+ * The template manager (Managers > Template Manager... on macOS, File > Template Manager... elsewhere;
  * docs/templates.md): every template in one table, and what can be done to one. Built-ins are
  * read-only: they can be opened, duplicated, shared and set as startup, never changed or retired.
  * Retire moves a template's files into Templates/attic/; nothing here deletes.
