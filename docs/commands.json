@@ -1667,6 +1667,24 @@
         "type": "object",
         "properties": {}
       },
+      "name": "modelManager",
+      "description": "Spacecraft models to download, preview and add to the scene at their real positions",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "ui"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
       "name": "themeManager",
       "description": "Pick, customize and save interface themes (View > Theme is the quick picker)",
       "annotations": {
