@@ -3,6 +3,11 @@
 
 Each new entry ends with a `[docs: ...]` pointer to where it is documented (`release/RELEASING.md`, "Docs pointers in the changelog"); the app and the release notes hide them.
 
+## HelioFITS Studio 0.9.2 (unreleased)
+
+### Storage folders
+- Settings > Storage lets you choose where the exports and the download cache are kept, for example on an external drive, and shows how much each uses. Move existing files carries what is already there across, keeping every export beside its .hfrec record and never overwriting a file. If a chosen drive is not connected, Studio uses the default folder for that session and says so, and a link at the default place that points at a missing drive no longer stops Studio from starting. [docs: docs/storage-folders.md]
+
 ## HelioFITS Studio 0.9.1 (unreleased)
 
 ### Image Layers list
