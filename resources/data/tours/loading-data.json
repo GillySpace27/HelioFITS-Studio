@@ -17,7 +17,7 @@
       "target": "imageLayersList",
       "action": "showImageLayers",
       "title": "Your layers",
-      "body": "Each layer you load gets a row here. Double-click a layer's name to change its dataset. The checkbox shows or hides a layer, the x removes it, and dragging a row reorders the layers."
+      "body": "Each layer you load gets a row here. Double-click a layer's name to change its dataset. The checkbox shows or hides a layer, the radio button beside it picks the layer that drives the movie clock, the x removes it, and dragging a row reorders the layers."
     },
     {
       "target": "imageCanvas",
