@@ -92,11 +92,14 @@ preflight() {
     xcrun notarytool history --keychain-profile "${NOTARY_PROFILE:-jhv-notary}" >/dev/null 2>&1 \
         || die "notarytool profile '${NOTARY_PROFILE:-jhv-notary}' unusable (screen locked, or re-run notarytool store-credentials)"
     PY="${HELIAD_PYTHON:-$HOME/Documents/NWRA/heliad/.venv/bin/python}"
-    "$PY" -c 'import sunpy, astropy' >/dev/null 2>&1 \
+    "$PY" -c 'import sunpy, astropy, heliofits_core.parity' >/dev/null 2>&1 \
         || die "parity needs a Python with sunpy, astropy and the core: set HELIAD_PYTHON (now: $PY)"
     [ -d "$HOME/HeliadLibrary" ] || die "parity needs ~/HeliadLibrary"
     pgrep -fq 'HelioFITS Studio|HFStudio' && die "quit every running HelioFITS Studio first (JPIP cache lock; smoke test)"
-    gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1 && die "release $TAG already exists; bump VERSION"
+    # A resume past publish finds the release it made; only a run that has not published must not.
+    if ! grep -qsx publish "$STATE" && gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+        die "release $TAG already exists; bump VERSION"
+    fi
     _mv="$(gh api "repos/$REPO/contents/VERSION?ref=master" --jq .content | base64 -d | tr -d '[:space:]')"
     [ "$_mv" = "$V" ] || die "origin/master VERSION is '$_mv', not $V: merge the version-bump PR first"
     [ -n "${HFS_X64_JDK:-}" ] || HFS_X64_JDK="$HOME/Documents/NWRA/PUNCH_Science/JHelioviewer-SWHV/release/.jdk-x64"
@@ -179,7 +182,11 @@ site() {
     # --yes: the one yes above already covers the site PR; without it release_pr.py asks y/N mid-run on a
     # terminal and stops before the push without one.
     python3 tools/release_pr.py --product heliofits-studio --version "$V" --yes
-    _pr="$(gh pr list --repo "$SITE_REPO" --state open --search "heliofits-studio $V" --json number --jq '.[0].number')"
+    _pr=""
+    for _ in 1 2 3 4 5 6; do   # search indexes a new PR some seconds after it opens
+        _pr="$(gh pr list --repo "$SITE_REPO" --state open --search "heliofits-studio $V" --json number --jq '.[0].number')"
+        [ -n "$_pr" ] && break; sleep 10
+    done
     [ -n "$_pr" ] || fail "no site PR found for $V; open it by hand from $SITE_CLONE"
     echo "   site PR #$_pr"
     for _ in $(seq 1 20); do
@@ -207,7 +214,8 @@ verify() {
     for d in "$VDIR"/*.dmg; do
         [ -f "$d" ] || continue
         xcrun stapler validate "$d" >/dev/null || fail "$d: no stapled ticket"
-        spctl -a -t open --context context:primary-signature "$d" 2>&1 | grep -q accepted || fail "$d: Gatekeeper rejects it"
+        # spctl -a prints nothing when it accepts; its exit status is the verdict.
+        spctl -a -t open --context context:primary-signature "$d" >/dev/null 2>&1 || fail "$d: Gatekeeper rejects it"
     done
     python3 release/skills/ship-hfstudio/scripts/status.py --done smoketest
     echo; echo "RELEASE $TAG DONE: https://github.com/$REPO/releases/tag/$TAG"
