@@ -9,7 +9,7 @@ import org.json.JSONObject;
 public class PfssPlugin extends Plugin {
 
     private static final PfssCache pfssCache = new PfssCache();
-    private static final PfssLayer layer = new PfssLayer(null);
+    private static final java.util.concurrent.atomic.AtomicReference<PfssLayer> layer = new java.util.concurrent.atomic.AtomicReference<>(new PfssLayer(null));
 
     public PfssPlugin() {
         super("PFSS", "Visualize PFSS model data");
@@ -19,14 +19,19 @@ public class PfssPlugin extends Plugin {
         return pfssCache;
     }
 
+    /** A layer restored from a session replaces the one made at class load, so uninstall removes the right one. */
+    static void restoreLayer(PfssLayer _layer) {
+        layer.set(_layer);
+    }
+
     @Override
     public void install() {
-        Layers.add(layer);
+        Layers.add(layer.get());
     }
 
     @Override
     public void uninstall() {
-        Layers.remove(layer);
+        Layers.remove(layer.get());
         pfssCache.clear();
     }
 
