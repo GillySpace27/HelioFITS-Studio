@@ -53,6 +53,7 @@ public final class CommandRegistry {
             Map.entry("newSession", Effect.DESTRUCTIVE), Map.entry("openSession", Effect.DESTRUCTIVE),
             Map.entry("closeWindow", Effect.DESTRUCTIVE), Map.entry("quit", Effect.DESTRUCTIVE),
             Map.entry("revertToSaved", Effect.DESTRUCTIVE), Map.entry("clearRecents", Effect.WRITE),
+            Map.entry("migrateSidecars", Effect.WRITE), // renames files, after its own confirmation
             Map.entry("clearAnnotations", Effect.DESTRUCTIVE), Map.entry("clearDefaultSession", Effect.WRITE),
             Map.entry("setDefaultSession", Effect.WRITE), Map.entry("saveSession", Effect.WRITE),
             Map.entry("saveSessionAs", Effect.WRITE), Map.entry("exportSessionWithData", Effect.WRITE),

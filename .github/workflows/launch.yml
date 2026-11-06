@@ -67,7 +67,7 @@ jobs:
       - name: Rebuild the export from its processing record
         run: |
           export JAVA_TOOL_OPTIONS="-Duser.home=$RUNNER_TEMP/home-export"
-          ls -l "$RUNNER_TEMP/export.png.hfrec.json"
+          ls -l "$RUNNER_TEMP/export.png.hfrec"
           python3 extra/test/hfrecord_roundtrip.py prepare "$RUNNER_TEMP/export.png" "$RUNNER_TEMP/home-export" "$RUNNER_TEMP/rebuild.jhv"
           python3 extra/test/hfrecord_roundtrip.py embedded "$RUNNER_TEMP/export.png"
           xvfb-run -a -s "-screen 0 1600x1000x24" ./run.sh --export png --out "$RUNNER_TEMP/rebuild.png" -state "$RUNNER_TEMP/rebuild.jhv"
@@ -76,7 +76,7 @@ jobs:
       - name: Show the round trip's inputs when it fails
         if: failure()
         run: |
-          for f in "$RUNNER_TEMP/rebuild.jhv" "$RUNNER_TEMP/rebuild.png.hfrec.json"; do
+          for f in "$RUNNER_TEMP/rebuild.jhv" "$RUNNER_TEMP/rebuild.png.hfrec"; do
             echo "== $f"; cat "$f" || true; echo
           done
 
@@ -88,8 +88,8 @@ jobs:
             shot-linux.png
             app-linux.log
             app-linux.out
-            ${{ runner.temp }}/export.png.hfrec.json
-            ${{ runner.temp }}/rebuild.png.hfrec.json
+            ${{ runner.temp }}/export.png.hfrec
+            ${{ runner.temp }}/rebuild.png.hfrec
 
   windows:
     runs-on: windows-latest

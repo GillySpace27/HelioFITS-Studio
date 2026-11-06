@@ -2,7 +2,7 @@
 """Rebuild an exported still from its processing record, the test design.md asks for.
 
     hfrecord_roundtrip.py prepare EXPORT.png HOME STATE.jhv
-        EXPORT.png.hfrec.json must exist, pass the schema (test_hfrecord.py), and its output.sha256
+        EXPORT.png.hfrec (or the older EXPORT.png.hfrec.json) must exist, pass the schema (test_hfrecord.py), and its output.sha256
         must be the file's. Writes the record's native.studio_session scene, with "~" put back as
         HOME (the way Provenance.scene does), as a session file for -state.
     hfrecord_roundtrip.py compare FIRST.png SECOND.png
@@ -38,8 +38,15 @@ import test_hfrecord  # noqa: E402
 HOME_REF = re.compile(r"^(file:/*)?~(?=[/\\]|$)")
 
 
+def sidecar_of(png: Path) -> Path:
+    """The sidecar beside png: .hfrec, else the older .hfrec.json (which is also the name reported when neither exists)."""
+    new = Path(str(png) + ".hfrec")
+    old = Path(str(png) + ".hfrec.json")
+    return new if new.is_file() or not old.is_file() else old
+
+
 def record_of(png: Path) -> dict:
-    return json.loads(Path(str(png) + ".hfrec.json").read_text(encoding="utf-8"))
+    return json.loads(sidecar_of(png).read_text(encoding="utf-8"))
 
 
 def expand(node, home: str):
@@ -61,7 +68,7 @@ def fail(what: str) -> int:
 
 
 def prepare(png: Path, home: str, state: Path) -> int:
-    side = Path(str(png) + ".hfrec.json")
+    side = sidecar_of(png)
     if not side.is_file():
         return fail(f"no sidecar {side.name}")
     if test_hfrecord.main([str(side)]) != 0:
@@ -105,7 +112,7 @@ def embedded(png: Path) -> int:
         return fail(f"no hfrecord chunk in {png.name}")
     inside = json.loads(text["hfrecord"])
     with tempfile.TemporaryDirectory() as tmp:
-        copy = Path(tmp) / "embedded.hfrec.json"
+        copy = Path(tmp) / "embedded.hfrec"
         copy.write_text(json.dumps(inside), encoding="utf-8")
         if test_hfrecord.main([str(copy)]) != 0:
             return fail("the embedded copy does not pass the schema")

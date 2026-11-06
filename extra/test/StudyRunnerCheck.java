@@ -58,7 +58,8 @@ public final class StudyRunnerCheck {
         Path run = Files.createDirectories(root.resolve("run"));
         Path tmp = Files.createDirectories(root.resolve("HFStudio_x"));
         Files.writeString(tmp.resolve("frame0001.png"), "a");
-        Files.writeString(tmp.resolve("frame0001.png.hfrec.json"), "{}");
+        Files.writeString(tmp.resolve("frame0001.png.hfrec"), "{}");
+        Files.writeString(tmp.resolve("frame0001.png.hfrec.json"), "{}"); // an older sidecar name goes too
         StudyRunner.takeScratch(tmp.resolve("frame0001.png"), run.resolve("1.png"), run);
         expect("scratch picture lands in the run folder", Files.exists(run.resolve("1.png")));
         expect("emptied scratch folder is gone", !Files.exists(tmp));
@@ -73,10 +74,10 @@ public final class StudyRunnerCheck {
         // A movie is written straight into Exports; removing that folder made every later movie of the run fail
         Path exports = Files.createDirectories(root.resolve("Exports"));
         Files.writeString(exports.resolve("HFStudio_t.mp4"), "e");
-        Files.writeString(exports.resolve("HFStudio_t.mp4.hfrec.json"), "{}");
+        Files.writeString(exports.resolve("HFStudio_t.mp4.hfrec"), "{}");
         StudyRunner.takeScratch(exports.resolve("HFStudio_t.mp4"), run.resolve("4.mp4"), run, exports);
         expect("a movie taken from Exports leaves the Exports folder", Files.isDirectory(exports));
-        expect("and takes the movie's own sidecar out of Exports", !Files.exists(exports.resolve("HFStudio_t.mp4.hfrec.json")));
+        expect("and takes the movie's own sidecar out of Exports", !Files.exists(exports.resolve("HFStudio_t.mp4.hfrec")));
     }
 
     private static void pure() throws Exception {
@@ -114,9 +115,12 @@ public final class StudyRunnerCheck {
         StudyRunner.Output o = new StudyRunner.Output("2_radial.png", "radial", StudyIO.sha256(png), 3, false);
         JSONObject side = StudyRunner.sidecarJson(steps.get(1), r1, "abc", 100L, p1, o);
         Files.writeString(StudyRunner.sidecar(png), side.toString(2), StandardCharsets.UTF_8);
-        expect("the sidecar sits beside the png with the study key", StudyRunner.sidecar(png).getFileName().toString().equals("2_radial.hfrec.json")
+        expect("the sidecar sits beside the png with the study key", StudyRunner.sidecar(png).getFileName().toString().equals("2_radial.hfrec")
                 && side.getJSONObject("study").getJSONObject("resolved").getString("projection").equals("Helioradial"));
         expect("skip-if-unchanged skips when the fingerprint matches", StudyRunner.skip(Overwrite.SKIP_IF_UNCHANGED, png, p1));
+        Files.move(StudyRunner.sidecar(png), StudyRunner.legacySidecar(png));
+        expect("and reads an older 2_radial.hfrec.json sidecar too", StudyRunner.skip(Overwrite.SKIP_IF_UNCHANGED, png, p1));
+        expect("which it renames to 2_radial.hfrec once read", Files.isRegularFile(StudyRunner.sidecar(png)) && !Files.exists(StudyRunner.legacySidecar(png)));
         expect("skip-if-unchanged redoes it when the time moved",
                 !StudyRunner.skip(Overwrite.SKIP_IF_UNCHANGED, png, StudyRunner.fingerprint("abc", r1, 101L)));
 
@@ -151,7 +155,7 @@ public final class StudyRunnerCheck {
         expect("headless run exits 0", code == 0);
         List<String> names = list(out);
         expect("two PNGs", names.stream().filter(n -> n.endsWith(".png")).count() == 2);
-        expect("two sidecars", names.stream().filter(n -> n.endsWith(".hfrec.json")).count() == 2);
+        expect("two sidecars", names.stream().filter(n -> n.endsWith(".hfrec")).count() == 2);
         expect("one manifest and the job copy", names.contains("manifest.hfstudy.json") && names.contains("job.hfstudy.json"));
         JSONObject m = new JSONObject(Files.readString(out.resolve("manifest.hfstudy.json")));
         boolean match = m.getJSONArray("outputs").length() == 2;

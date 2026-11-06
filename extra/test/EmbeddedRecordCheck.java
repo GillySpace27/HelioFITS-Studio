@@ -105,7 +105,7 @@ public final class EmbeddedRecordCheck {
 
         // -- the embedded copy and the shortened copy, as objects
         JSONObject png = new JSONObject(ProcessingRecord.pngText(prepared));
-        ProcessingRecord.writeJson(out.resolve("embedded-png.hfrec.json"), png);
+        ProcessingRecord.writeJson(out.resolve("embedded-png.hfrec"), png);
         expect("embedded: output.sha256 is null", png.getJSONObject("output").isNull("sha256"));
         expect("embedded: native by reference to the hfstudio chunk", !png.has("native") && "png:tEXt:hfstudio".equals(png.optString("native_ref")));
         expect("embedded: the same record_id", id.equals(png.getString("record_id")));
@@ -114,7 +114,7 @@ public final class EmbeddedRecordCheck {
         expect("embedded() leaves its input alone", prepared.has("native") && !prepared.has("native_ref"));
 
         JSONObject movieCopy = new JSONObject(ProcessingRecord.movieText(prepared, true));
-        ProcessingRecord.writeJson(out.resolve("embedded-movie.hfrec.json"), movieCopy);
+        ProcessingRecord.writeJson(out.resolve("embedded-movie.hfrec"), movieCopy);
         JSONObject ml = movieCopy.getJSONArray("layers").getJSONObject(0);
         expect("shortened: sources emptied, source_count 2", ml.getJSONArray("sources").isEmpty() && ml.getInt("source_count") == 2);
         expect("shortened: source_set_sha256 still matches the full record",
