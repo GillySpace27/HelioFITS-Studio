@@ -135,6 +135,11 @@ public class HFStudio {
     private static void startGUI(boolean bareLaunch) {
         EventQueue.invokeLater(() -> {
             Log.info("Start main window");
+            String missingExports = org.helioviewer.jhv.app.JvmExports.missingMessage();
+            if (missingExports != null) {
+                Log.warn(missingExports);
+                EventQueue.invokeLater(() -> org.helioviewer.jhv.app.Message.warn("Java option missing", missingExports));
+            }
             UIGlobals.setLaf();
             JFrame frame = MainFrame.prepare();
 
