@@ -38,7 +38,7 @@ import org.helioviewer.jhv.movie.ProcessingRecord;
 import org.helioviewer.jhv.thread.Task;
 
 /**
- * File &gt; Open Export Record: an export's processing record (its .hfrec.json sidecar) as the
+ * File &gt; Open Export Record: an export's processing record (its .hfrec sidecar, or the older .hfrec.json) as the
  * readable report ExportReport makes, read-only, with Copy and Save as text. The methods
  * paragraph, LaTeX and Python script come from HelioFITS Core ({@code hfcore record show
  * --format methods|tex|python}), so those buttons need a core; Studio does not repeat that prose.
@@ -60,6 +60,49 @@ public final class ExportRecordDialog {
         this.record = record;
     }
 
+    private record Opened(File file, Map<String, Object> record, @Nullable String renamed) {
+    }
+
+    public static Action migrateAction() {
+        return new AbstractAction("Migrate Sidecars in Folder...") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                migrateFolder();
+            }
+        };
+    }
+
+    /** Pick a folder, count its .hfrec.json records, confirm, rename them to .hfrec, report. Ignores the rename setting: it is asked for. */
+    static void migrateFolder() {
+        javax.swing.JFileChooser chooser = new javax.swing.JFileChooser(Directories.EXPORTS.getPath());
+        chooser.setDialogTitle("Migrate Sidecars in Folder");
+        chooser.setFileSelectionMode(javax.swing.JFileChooser.DIRECTORIES_ONLY);
+        if (chooser.showOpenDialog(MainFrame.get()) != javax.swing.JFileChooser.APPROVE_OPTION)
+            return;
+        Path dir = chooser.getSelectedFile().toPath();
+        Task.submitBackground(() -> ProcessingRecord.migrateFolder(dir, false), plan -> {
+            long todo = plan.stream().filter(r -> "would_rename".equals(r[2])).count();
+            if (todo == 0) {
+                Message.info("Migrate Sidecars", "Nothing to rename in " + dir.getFileName() + ": " + skipped(plan) + ".");
+                return;
+            }
+            if (javax.swing.JOptionPane.showConfirmDialog(MainFrame.get(), "Rename " + todo + " .hfrec.json sidecar" + (todo == 1 ? "" : "s")
+                    + " in " + dir.getFileName() + " (and its subfolders) to .hfrec? The content is not changed; an existing .hfrec is never replaced.",
+                    "Migrate Sidecars", javax.swing.JOptionPane.OK_CANCEL_OPTION) != javax.swing.JOptionPane.OK_OPTION)
+                return;
+            Task.submitBackground(() -> ProcessingRecord.migrateFolder(dir, true), done -> Message.info("Migrate Sidecars",
+                            done.stream().filter(r -> "renamed".equals(r[2])).count() + " renamed; " + skipped(done) + "."),
+                    t -> Message.err("Migrate Sidecars", "Could not rename the sidecars in " + dir, t));
+        }, t -> Message.err("Migrate Sidecars", "Could not read " + dir, t));
+    }
+
+    private static String skipped(java.util.List<String[]> rows) {
+        long exists = rows.stream().filter(r -> "exists".equals(r[2])).count();
+        long bad = rows.stream().filter(r -> "not_a_record".equals(r[2])).count();
+        long err = rows.stream().filter(r -> r[2].startsWith("error")).count();
+        return "skipped " + (exists + bad + err) + " (" + exists + " with a .hfrec already there, " + bad + " not a record, " + err + " unreadable)";
+    }
+
     public static Action openAction() {
         return new AbstractAction("Open Export Record...") {
             @Override
@@ -69,25 +112,35 @@ public final class ExportRecordDialog {
         };
     }
 
-    /** Ask for an exported file or its .hfrec.json, then show its record. */
+    /** Ask for an exported file or its .hfrec (or older .hfrec.json), then show its record. */
     public static void open() {
-        FileDialog fd = new FileDialog(MainFrame.get(), "Open an exported file or its .hfrec.json record", FileDialog.LOAD);
+        FileDialog fd = new FileDialog(MainFrame.get(), "Open an exported file or its .hfrec record", FileDialog.LOAD);
         fd.setDirectory(Directories.EXPORTS.getPath());
         fd.setVisible(true);
         File[] picked = fd.getFiles();
         if (picked.length == 0 || !picked[0].isFile())
             return;
         File file = picked[0];
-        Path side = file.getName().endsWith(ProcessingRecord.SUFFIX) ? file.toPath() : ProcessingRecord.sidecar(file.toPath());
-        if (Files.isRegularFile(side)) {
-            Task.submitBackground(() -> ExportReport.parse(Files.readString(side, StandardCharsets.UTF_8)),
-                    rec -> new ExportRecordDialog(file, rec).show(),
+        Path side = ProcessingRecord.isSidecarName(file.getName()) ? file.toPath() : ProcessingRecord.existingSidecar(file.toPath());
+        if (side != null) {
+            Task.submitBackground(() -> {
+                        Map<String, Object> rec = ExportReport.parse(Files.readString(side, StandardCharsets.UTF_8));
+                        Path now = ProcessingRecord.migrateLegacy(side); // an older .hfrec.json becomes .hfrec once read
+                        return new Opened(side.equals(file.toPath()) ? now.toFile() : file, rec,
+                                now.equals(side) ? null : now.getFileName().toString());
+                    },
+                    o -> {
+                        ExportRecordDialog d = new ExportRecordDialog(o.file(), o.record());
+                        if (o.renamed() != null)
+                            d.status.setText("Renamed to " + o.renamed());
+                        d.show();
+                    },
                     t -> Message.err("Export record unreadable", side.getFileName() + " could not be read as a processing record.", t));
         } else if (FitsCoreIngest.coreFound()) {
             ExportRecordDialog d = new ExportRecordDialog(file, null);
             d.core("text", false, d::show, "read the record inside " + file.getName());
         } else
-            Message.warn("No export record", "There is no " + side.getFileName() + " beside " + file.getName()
+            Message.warn("No export record", "There is no " + ProcessingRecord.sidecar(file.toPath()).getFileName() + " beside " + file.getName()
                     + ". A record inside a PNG, EXR or movie is read by HelioFITS Core, which was not found.");
     }
 
@@ -96,8 +149,7 @@ public final class ExportRecordDialog {
     }
 
     private void show(@Nullable String text) {
-        String title = export.getName().endsWith(ProcessingRecord.SUFFIX)
-                ? export.getName().substring(0, export.getName().length() - ProcessingRecord.SUFFIX.length()) : export.getName();
+        String title = ProcessingRecord.exportName(export.getName());
         JDialog dialog = new JDialog(MainFrame.get(), "Export Record: " + title, false);
         dialog.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
 

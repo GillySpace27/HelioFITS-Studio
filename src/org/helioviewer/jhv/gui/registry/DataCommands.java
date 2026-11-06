@@ -377,8 +377,8 @@ final class DataCommands {
                     Files.createDirectories(previews);
                     out = previews.resolve(written.getFileName());
                     Files.move(written, out, StandardCopyOption.REPLACE_EXISTING);
-                    Path sidecar = ProcessingRecord.sidecar(written);
-                    if (Files.exists(sidecar))
+                    Path sidecar = ProcessingRecord.existingSidecar(written);
+                    if (sidecar != null)
                         Files.move(sidecar, ProcessingRecord.sidecar(out), StandardCopyOption.REPLACE_EXISTING);
                 }
                 JSONObject result = new JSONObject().put("path", out.toString());

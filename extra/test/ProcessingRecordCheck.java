@@ -114,7 +114,7 @@ public final class ProcessingRecordCheck {
         ProcessingRecord.Output still = new ProcessingRecord.Output("still", "image/png", 2048, 2048, 1, null, "png", 16, true);
         JSONObject r = ProcessingRecord.build(session, live(), null, still, "frame0001.png", "a".repeat(64), HOME,
                 ProcessingRecordCheck::identify, "00000000-0000-4000-8000-000000000001");
-        ProcessingRecord.writeJson(out.resolve("still.hfrec.json"), r);
+        ProcessingRecord.writeJson(out.resolve("still.hfrec"), r);
 
         expect("format 1.0, reader_compat 1", "1.0".equals(r.getString("hfrecord")) && r.getInt("reader_compat") == 1);
         expect("the output names the file and its sha256", "frame0001.png".equals(r.getJSONObject("output").getString("file_name"))
@@ -161,7 +161,7 @@ public final class ProcessingRecordCheck {
         ProcessingRecord.Output movie = new ProcessingRecord.Output("movie", "video/mp4", 1920, 1080, 120, 24, "H.264", 8, true);
         JSONObject m = ProcessingRecord.build(mSession, live(), scene(0.6, true), movie, "movie.mp4", "b".repeat(64), HOME,
                 ProcessingRecordCheck::identify, "00000000-0000-4000-8000-000000000002");
-        ProcessingRecord.writeJson(out.resolve("movie.hfrec.json"), m);
+        ProcessingRecord.writeJson(out.resolve("movie.hfrec"), m);
         JSONObject ma = m.getJSONArray("layers").getJSONObject(0);
         JSONObject ob = stepOf(ma, "opacity_blend").optJSONObject("varies");
         expect("an automated parameter varies, pointing at its track", ob != null && ob.getJSONArray("automation").getString(0).equals("layer:" + A + "/opacity")
@@ -192,8 +192,67 @@ public final class ProcessingRecordCheck {
         expect("and credits the instrument it was given", f.getJSONObject("provenance").getString("credit").startsWith("Courtesy of SOHO/LASCO")
                 && fl.getString("acknowledgement").startsWith("The SOHO/LASCO data"));
 
-        expect("the sidecar is the full file name plus .hfrec.json",
-                ProcessingRecord.sidecar(Path.of("/x/frame0001.png")).equals(Path.of("/x/frame0001.png.hfrec.json")));
+        expect("the sidecar is the full file name plus .hfrec",
+                ProcessingRecord.sidecar(Path.of("/x/frame0001.png")).equals(Path.of("/x/frame0001.png.hfrec")));
+        expect("both sidecar names are recognised and stripped back to the export's",
+                ProcessingRecord.isSidecarName("a.png.hfrec") && ProcessingRecord.isSidecarName("a.png.hfrec.json")
+                        && !ProcessingRecord.isSidecarName("a.png") && ProcessingRecord.exportName("a.png.hfrec").equals("a.png")
+                        && ProcessingRecord.exportName("a.png.hfrec.json").equals("a.png") && ProcessingRecord.exportName("a.png").equals("a.png"));
+        Path dir = Files.createTempDirectory("hfrec-names");
+        Path png = Files.writeString(dir.resolve("frame.png"), "pixels");
+        expect("no sidecar beside a bare export", ProcessingRecord.existingSidecar(png) == null);
+        Files.copy(out.resolve("movie.hfrec"), dir.resolve("frame.png.hfrec.json"));
+        expect("an older .hfrec.json sidecar is still found", dir.resolve("frame.png.hfrec.json").equals(ProcessingRecord.existingSidecar(png)));
+        byte[] legacyBytes = Files.readAllBytes(dir.resolve("frame.png.hfrec.json"));
+        Path copy = Files.writeString(dir.resolve("copy.png"), "pixels");
+        ProcessingRecord.copySidecar(png, copy);
+        expect("copySidecar reads the older name and writes copy.png.hfrec", Files.isRegularFile(dir.resolve("copy.png.hfrec"))
+                && !Files.exists(dir.resolve("copy.png.hfrec.json"))
+                && "copy.png".equals(new JSONObject(Files.readString(dir.resolve("copy.png.hfrec"))).getJSONObject("output").getString("file_name")));
+        expect("and, once read, the older sidecar is renamed to frame.png.hfrec with its bytes untouched",
+                !Files.exists(dir.resolve("frame.png.hfrec.json")) && Files.isRegularFile(dir.resolve("frame.png.hfrec"))
+                        && java.util.Arrays.equals(legacyBytes, Files.readAllBytes(dir.resolve("frame.png.hfrec"))));
+        expect("migrateLegacy leaves a .hfrec name alone", dir.resolve("frame.png.hfrec").equals(ProcessingRecord.migrateLegacy(dir.resolve("frame.png.hfrec"))));
+        Files.write(dir.resolve("frame.png.hfrec.json"), "{\"older\": true}".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        expect(".hfrec is preferred when both are there", dir.resolve("frame.png.hfrec").equals(ProcessingRecord.existingSidecar(png)));
+        expect("no clobber: with both there the older one is not renamed over .hfrec",
+                dir.resolve("frame.png.hfrec.json").equals(ProcessingRecord.migrateLegacy(dir.resolve("frame.png.hfrec.json")))
+                        && Files.exists(dir.resolve("frame.png.hfrec.json"))
+                        && java.util.Arrays.equals(legacyBytes, Files.readAllBytes(dir.resolve("frame.png.hfrec"))));
+        Path ro = Files.createDirectories(dir.resolve("readonly"));
+        Path roSide = Files.write(ro.resolve("a.png.hfrec.json"), legacyBytes);
+        java.io.File roDir = ro.toFile();
+        if (roDir.setWritable(false, false) && !Files.isWritable(ro)) {
+            Path back = ProcessingRecord.migrateLegacy(roSide);
+            roDir.setWritable(true, false);
+            expect("read-only folder: no rename, no error, the older name is still read",
+                    roSide.equals(back) && Files.isRegularFile(roSide) && !Files.exists(ro.resolve("a.png.hfrec")));
+        } else {
+            roDir.setWritable(true, false);
+            System.out.println("  skip read-only rename case: this file system or user can write a read-only folder");
+        }
+
+        // Migrate Sidecars in Folder: hfcore record migrate's rule (recursive, records only, no clobber)
+        Path mig = Files.createTempDirectory("hfrec-migrate");
+        Files.write(mig.resolve("a.png.hfrec.json"), legacyBytes);
+        Files.write(mig.resolve("b.png.hfrec.json"), legacyBytes);
+        Files.writeString(mig.resolve("b.png.hfrec"), "taken");
+        Files.writeString(mig.resolve("c.png.hfrec.json"), "not json");
+        Files.writeString(mig.resolve("e.png.hfrec.json"), "{\"other\": 1}");
+        Files.write(Files.createDirectories(mig.resolve("sub")).resolve("d.png.hfrec.json"), legacyBytes);
+        java.util.Map<String, String> plan = new java.util.TreeMap<>();
+        for (String[] row : ProcessingRecord.migrateFolder(mig, false))
+            plan.put(Path.of(row[0]).getFileName().toString(), row[2]);
+        expect("migrate plan: " + plan, plan.equals(java.util.Map.of("a.png.hfrec.json", "would_rename", "b.png.hfrec.json", "exists",
+                "c.png.hfrec.json", "not_a_record", "e.png.hfrec.json", "not_a_record", "d.png.hfrec.json", "would_rename"))
+                && Files.exists(mig.resolve("a.png.hfrec.json")) && !Files.exists(mig.resolve("a.png.hfrec")));
+        long renamed = ProcessingRecord.migrateFolder(mig, true).stream().filter(row -> "renamed".equals(row[2])).count();
+        expect("migrate renames the two records, subfolder included, and nothing else", renamed == 2
+                && Files.isRegularFile(mig.resolve("a.png.hfrec")) && !Files.exists(mig.resolve("a.png.hfrec.json"))
+                && Files.isRegularFile(mig.resolve("sub/d.png.hfrec")) && !Files.exists(mig.resolve("sub/d.png.hfrec.json"))
+                && Files.readString(mig.resolve("b.png.hfrec")).equals("taken") && Files.exists(mig.resolve("b.png.hfrec.json"))
+                && Files.exists(mig.resolve("c.png.hfrec.json")) && !Files.exists(mig.resolve("c.png.hfrec"))
+                && java.util.Arrays.equals(legacyBytes, Files.readAllBytes(mig.resolve("a.png.hfrec"))));
 
         if (failures != 0) {
             System.out.println(failures + " processing record failure(s)");

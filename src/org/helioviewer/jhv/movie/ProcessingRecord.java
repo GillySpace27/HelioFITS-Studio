@@ -36,7 +36,7 @@ import org.json.JSONObject;
 
 /**
  * The processing record (hfrecord 1.0, docs/spec/hfrecord-1.schema.json): a sidecar
- * {@code <export file name>.hfrec.json} beside every export that says, per layer, which source
+ * {@code <export file name>.hfrec} (JSON; the older {@code .hfrec.json} name is still read) beside every export that says, per layer, which source
  * frames it read (by SHA-256, with HelioFITS Core's identity when the library has them), every step from
  * decoded file to pixel in the order Studio runs them with the values it used, and the session
  * itself under {@code native.studio_session}, verbatim, which is what a rebuild loads.
@@ -65,7 +65,10 @@ import org.json.JSONObject;
  */
 public final class ProcessingRecord {
 
-    public static final String SUFFIX = ".hfrec.json";
+    /** What a sidecar's name adds to its export's file name. The content is JSON all the same. */
+    public static final String SUFFIX = ".hfrec";
+    /** The sidecar name Studio wrote before: never written now, read everywhere a sidecar is. */
+    public static final String LEGACY_SUFFIX = ".hfrec.json";
     static final String FORMAT = "1.0";
     static final int READER_COMPAT = 1;
 
@@ -873,9 +876,110 @@ public final class ProcessingRecord {
 
     // ---- writing ---------------------------------------------------------------------------------
 
-    /** Where the sidecar of {@code export} goes: its full file name plus .hfrec.json, beside it. */
+    /** Where the sidecar of {@code export} goes: its full file name plus .hfrec, beside it. */
     public static Path sidecar(Path export) {
         return export.resolveSibling(export.getFileName() + SUFFIX);
+    }
+
+    /** The sidecar beside {@code export} to read: .hfrec, else the older .hfrec.json, else null. */
+    @Nullable
+    public static Path existingSidecar(Path export) {
+        Path side = sidecar(export);
+        if (Files.isRegularFile(side))
+            return side;
+        Path old = export.resolveSibling(export.getFileName() + LEGACY_SUFFIX);
+        return Files.isRegularFile(old) ? old : null;
+    }
+
+    /** Settings key of "Rename old .hfrec.json sidecars when opened" (default on, in Settings' defaults). */
+    public static final String RENAME_KEY = "export.renameOldSidecars";
+
+    /**
+     * Called after an older .hfrec.json sidecar was read and parsed: when the setting
+     * {@link #RENAME_KEY} is on, {@link #renameLegacy}. Returns where the sidecar is now.
+     */
+    public static Path migrateLegacy(Path side) {
+        return Boolean.parseBoolean(org.helioviewer.jhv.app.Settings.getProperty(RENAME_KEY)) ? renameLegacy(side) : side;
+    }
+
+    /**
+     * Renames an older .hfrec.json sidecar to .hfrec, content untouched. Only when no .hfrec is
+     * there already (never overwrites; both stay, and .hfrec is the one read) and the folder is
+     * writable. Any failure is silent and the old name stays. Returns where the sidecar is now;
+     * any other name comes back unchanged.
+     */
+    public static Path renameLegacy(Path side) {
+        String name = side.getFileName().toString();
+        if (!name.endsWith(LEGACY_SUFFIX))
+            return side;
+        Path to = side.resolveSibling(exportName(name) + SUFFIX);
+        Path dir = side.toAbsolutePath().getParent();
+        if (dir == null || Files.exists(to) || !Files.isWritable(dir))
+            return side;
+        try {
+            Files.move(side, to); // no REPLACE_EXISTING: a .hfrec that appeared meanwhile is kept
+            Log.info("Processing record renamed to the current name: " + name + " -> " + to.getFileName());
+            return to;
+        } catch (IOException | RuntimeException e) {
+            return side;
+        }
+    }
+
+    /**
+     * Migrate Sidecars in Folder, the rule of HelioFITS Core's {@code hfcore record migrate}: every
+     * *.hfrec.json under {@code root} (recursively, in name order) that parses as a record (a JSON
+     * object with a string "hfrecord") is renamed to .hfrec when {@code apply}, never over an
+     * existing .hfrec. Each row is {from, to, status}, status one of renamed, would_rename, exists,
+     * not_a_record or "error: ...". Off the event thread.
+     */
+    public static List<String[]> migrateFolder(Path root, boolean apply) throws IOException {
+        List<Path> todo;
+        try (java.util.stream.Stream<Path> walk = Files.walk(root)) {
+            todo = walk.filter(p -> p.getFileName().toString().endsWith(LEGACY_SUFFIX) && Files.isRegularFile(p)).sorted().toList();
+        }
+        List<String[]> out = new ArrayList<>();
+        for (Path old : todo) {
+            Path to = old.resolveSibling(exportName(old.getFileName().toString()) + SUFFIX);
+            String status;
+            try {
+                if (!isRecord(Files.readString(old, StandardCharsets.UTF_8)))
+                    status = "not_a_record";
+                else if (Files.exists(to))
+                    status = "exists";
+                else if (apply) {
+                    Files.move(old, to);
+                    status = "renamed";
+                } else
+                    status = "would_rename";
+            } catch (IOException | RuntimeException e) {
+                status = "error: " + e.getMessage();
+            }
+            out.add(new String[]{old.toString(), to.toString(), status});
+        }
+        if (apply)
+            Log.info("Migrate sidecars in " + root + ": " + out.stream().filter(r -> "renamed".equals(r[2])).count() + " renamed of " + out.size());
+        return out;
+    }
+
+    private static boolean isRecord(String text) {
+        try {
+            return new JSONObject(text).opt("hfrecord") instanceof String;
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    /** True for a sidecar's file name, either extension. */
+    public static boolean isSidecarName(String name) {
+        return name.endsWith(SUFFIX) || name.endsWith(LEGACY_SUFFIX);
+    }
+
+    /** The export's file name from its sidecar's, either extension; other names unchanged. */
+    public static String exportName(String sidecarName) {
+        for (String s : new String[]{LEGACY_SUFFIX, SUFFIX})
+            if (sidecarName.endsWith(s))
+                return sidecarName.substring(0, sidecarName.length() - s.length());
+        return sidecarName;
     }
 
     /** SHA-256 of a written file. */
@@ -909,7 +1013,7 @@ public final class ProcessingRecord {
     private static JSONArray frameFiles(Path dir) throws IOException {
         JSONArray out = new JSONArray();
         try (java.util.stream.Stream<Path> files = Files.list(dir)) {
-            for (Path f : files.filter(Files::isRegularFile).filter(f -> !f.getFileName().toString().endsWith(SUFFIX)).sorted().toList())
+            for (Path f : files.filter(Files::isRegularFile).filter(f -> !isSidecarName(f.getFileName().toString())).sorted().toList())
                 out.put(new JSONObject().put("file_name", f.getFileName().toString()).put("sha256", fileHash(f)));
         }
         return out;
@@ -917,11 +1021,12 @@ public final class ProcessingRecord {
 
     /** The record of {@code from} for a copy at {@code to} (the command line's -out): same pixels, its own name. */
     public static void copySidecar(Path from, Path to) {
-        Path side = sidecar(from);
-        if (!Files.isRegularFile(side))
+        Path side = existingSidecar(from);
+        if (side == null)
             return;
         try {
             JSONObject record = new JSONObject(Files.readString(side, StandardCharsets.UTF_8));
+            migrateLegacy(side);
             record.getJSONObject("output").put("file_name", to.getFileName().toString())
                     .put("sha256", fileHash(to));
             writeJson(sidecar(to), record);
