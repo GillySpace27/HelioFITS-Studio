@@ -4,6 +4,9 @@
 
 ## HelioFITS Studio 0.9.1 (unreleased)
 
+### 3D model layers
+- A model layer (Layers > Open Model Layer) has options: place it at Sun centre as before, or at the real position of a planet or spacecraft at the frame's time. Placed models are drawn at true size, with Units for files that are not in metres, an Enlarge slider up to 10^10x and a minimum on-screen size so a spacecraft stays visible at its real distance; a status line says how much larger than true size it is drawn. Positions come from the bundled SPICE kernels, or the ROB position service for Parker Solar Probe, SOHO, SDO, STEREO Behind, BepiColombo and PROBA-2. Models with heliocentric metadata are unchanged. Sessions keep the placement.
+
 ### Image Layers list
 - The open drag hand now shows only on the body of an image row. Over the show checkbox, the drive radio and the remove x, which react to a plain click, the cursor is the ordinary arrow. Overlay rows keep the arrow.
 
