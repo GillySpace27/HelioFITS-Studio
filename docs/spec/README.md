@@ -6,7 +6,9 @@
 | `../../resources/data/attribution.json` | GillySpace27.github.io `heliosoftware/spec/attribution.json` (2026-10-23, with `credits`) | A byte copy (sha256 `c06146fcd5c166c561f044bb7d56353388e96ffb925c3c702ad68de82cdd75be`) on the classpath, read by `src/org/helioviewer/jhv/movie/InstrumentCredit.java` for the export credit line and each layer's acknowledgement. Copy it again when the canonical file changes. |
 
 The schema is no longer that byte copy: it has `scene.pizza` (HS-25), and on 2026-11-05 it took the
-top-level `report` property verbatim from pyHelioFITS (`src/heliofits/core/schemas/hfrecord-1.schema.json`).
+top-level `report` property verbatim from pyHelioFITS (`src/heliofits/core/schemas/hfrecord-1.schema.json`),
+and on 2026-11-06 its top-level `preview` property, verbatim from the same file on pyHelioFITS's branch
+`claude/project-thread-j9fagc`.
 
 A sidecar is named `<export file name>.hfrec` (for example `frame.png.hfrec`); the content is the
 JSON this schema describes. Studio wrote `<export file name>.hfrec.json` before and reads both
@@ -32,6 +34,23 @@ Every sidecar starts with `hfrecord`, then `report`: the record as readable line
 (`python -m heliofits.core record show <record> --format text`, with and without `--full`) line for
 line, for the fixtures `extra/test/data/hfrecord-*.hfrec.json` (kept under the older name to prove it is still read). File > Open Export Record shows the
 report, and copies the methods paragraph, LaTeX or Python script from the bundled HelioFITS Core.
+
+Every sidecar Studio writes for a picture, a movie or a PNG frame series ends with `preview`, a small
+picture of the export: `{"media_type": "image/png" | "image/jpeg", "width", "height", "frame"?,
+"data"}`, `data` the image file in base64, at most 320 px on the long side and 64 KB of image bytes.
+It is embedded because HelioFITS Peek's sandboxed Quick Look and thumbnail extensions cannot read the
+export beside the sidecar. Studio makes it at close from the raw frames it handed to ffmpeg
+(`ExportWriter.rawFrame`, `ProcessingRecord.preview`): the only frame of a still, the middle frame of
+a movie or series (`frame`, counted from 0, names it; a still has none). It is a PNG, or a JPEG at
+lower quality and then a smaller size when the PNG is over 64 KB; when nothing fits, the sidecar has
+no preview. `sidecarText` writes it last, `data` last inside it, so the report stays at the top; a
+rewrite (`copySidecar`) keeps it there, and a rename never touches the bytes. The copies inside a
+PNG, EXR, movie or FITS file never carry it (`ProcessingRecord.embedded`), a layered EXR series and a
+Send to Python file get none, and ExportReport does not read it, so the report is the same with or
+without it. File > Open Export Record shows the preview at the top left beside the export's name;
+for a record without one it reads the PNG or JPEG named in `output.file_name` beside the sidecar, and
+shows nothing for anything else (`ProcessingRecord.previewImage`). A 16-bit frame is taken to 8 bits by
+each sample's high byte, with no tone mapping; the preview of an HDR export has not been checked by eye.
 
 Send to Python (`src/org/helioviewer/jhv/io/FitsExport.java`) also puts the record inside each FITS
 file: an 8-bit image extension named `HFRECORD` holding the record as UTF-8 JSON (HelioFITS Core's reader takes
