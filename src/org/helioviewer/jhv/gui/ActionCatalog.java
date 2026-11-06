@@ -119,7 +119,7 @@ public final class ActionCatalog {
         put("openUserManual", new Actions.OpenUserManual(), "Help/Open User Manual", "");
         put("openChangeLog", new Actions.OpenURLinBrowser("Open Change Log", "https://github.com/GillySpace27/HelioFITS-Studio/blob/master/changelog.md"), "Help/Open Change Log", "");
         put("checkForUpdates", new Actions.CheckForUpdates(), "Help/Check for Updates...", "");
-        put("reportBug", new Actions.OpenURLinBrowser("Report Bug/Request Feature", AppInfo.bugURL), "Help/Report Bug/Request Feature", "");
+        put("reportBug", new Actions.OpenURLinBrowser("Open the GitHub Page", AppInfo.sourceURL), "Help/Open the GitHub Page", "");
         // Not in a menu: the toolbar's More, its Rotate View 90 dropdown, the Annotation palette
         put("sdoCutout", new Actions.SDOCutOut(), "", "Open LMSAL's AIA cut-out service for the enabled AIA layers and the current view");
         put("rotate90X", new Actions.Rotate90Camera("X Axis", "X"), "", "Rotate the view 90° about X");

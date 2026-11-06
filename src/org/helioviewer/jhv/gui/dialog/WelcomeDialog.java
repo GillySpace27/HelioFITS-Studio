@@ -254,7 +254,7 @@ public final class WelcomeDialog {
                 "The full guide to every part of the app, as a PDF.");
         helpRow(rows, c, null, false, "Help menu", dialog,
                 "Everything here, plus Interaction Guide and Timeline Interaction (mouse and keyboard controls), "
-                        + "the Change Log, Check for Updates and Report Bug.");
+                        + "the Change Log, Check for Updates and the GitHub Page.");
         ActionCatalog.Entry feedback = ActionCatalog.get("sendFeedback");
         helpRow(rows, c, feedback == null ? null : feedback.action(), false, "Send Feedback\u2026", dialog,
                 "A problem, a request or a question for the developer; no account needed.");
