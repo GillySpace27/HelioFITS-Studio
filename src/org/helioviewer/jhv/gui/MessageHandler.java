@@ -26,6 +26,16 @@ final class MessageHandler implements Message.Handler {
     }
 
     @Override
+    public void notice(String title, Object msg) {
+        show(title, msg, JOptionPane.WARNING_MESSAGE, null, false);
+    }
+
+    /** The buttons of a dialog: an error or a warning can be reported from where it is shown, unless its cause is known. */
+    static String[] optionsFor(int type, boolean reportable) {
+        return type == JOptionPane.INFORMATION_MESSAGE || !reportable ? new String[]{"Close"} : new String[]{FeedbackDialog.REPORT_THIS, "Close"};
+    }
+
+    @Override
     public void info(String title, Object msg) {
         show(title, msg, JOptionPane.INFORMATION_MESSAGE);
     }
@@ -96,6 +106,10 @@ final class MessageHandler implements Message.Handler {
     }
 
     private static void show(String title, Object msg, int type, @Nullable Throwable cause) {
+        show(title, msg, type, cause, true);
+    }
+
+    private static void show(String title, Object msg, int type, @Nullable Throwable cause, boolean reportable) {
         if (Thread.currentThread().isInterrupted())
             return;
 
@@ -150,7 +164,7 @@ final class MessageHandler implements Message.Handler {
             optionPane.setMessage(report == null ? new Object[]{body} : new Object[]{report, body});
             optionPane.setMessageType(type);
             // An error or a warning can be reported from where it is shown (FeedbackDialog); Close stays the default.
-            String[] options = type == JOptionPane.INFORMATION_MESSAGE ? new String[]{"Close"} : new String[]{FeedbackDialog.REPORT_THIS, "Close"};
+            String[] options = optionsFor(type, reportable);
             optionPane.setOptions(options);
             optionPane.setInitialValue(options[options.length - 1]);
             optionPane.createDialog(MainFrame.get(), title).setVisible(true);

@@ -50,7 +50,7 @@ public final class UseFitsDialog {
         }
         Path root = lib.root();
         if (!FitsCoreIngest.coreFound(root)) {
-            Message.warn(TITLE, UseFits.NoCore.TEXT);
+            Message.notice(TITLE, UseFits.NoCore.TEXT);
             return;
         }
         status.accept("Checking the FITS library");
@@ -79,7 +79,7 @@ public final class UseFitsDialog {
         }
         Path root = FitsLibrary.defaultRoot();
         if (!FitsCoreIngest.coreFound(root)) {
-            Message.warn(TITLE, UseFits.NoCore.TEXT);
+            Message.notice(TITLE, UseFits.NoCore.TEXT);
             return;
         }
         if (!FitsLibrary.canMakeLibraryAt(root)) {
@@ -167,7 +167,7 @@ public final class UseFitsDialog {
         status.accept(null);
         Log.warn("Use FITS", t);
         if (t instanceof UseFits.NoCore || t instanceof UseFits.TooOld) // known causes, said in full: nothing to report
-            Message.warn(TITLE, t.getMessage());
+            Message.notice(TITLE, t.getMessage());
         else
             Message.err(TITLE, t.getMessage(), t);
     }
