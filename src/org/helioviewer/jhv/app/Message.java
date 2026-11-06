@@ -15,6 +15,11 @@ public class Message {
 
         void warn(String title, Object msg);
 
+        /** A warning whose cause is known and said in full, so there is nothing to report. */
+        default void notice(String title, Object msg) {
+            warn(title, msg);
+        }
+
         void info(String title, Object msg);
 
         void fatalErr(String msg);
@@ -43,6 +48,11 @@ public class Message {
 
     public static void warn(String title, Object msg) {
         handler.warn(title, msg);
+    }
+
+    /** A warning whose cause is known and said in full: shown without the offer to report it. */
+    public static void notice(String title, Object msg) {
+        handler.notice(title, msg);
     }
 
     /** Report something that went right. A warning icon on a success is its own small lie. */
