@@ -76,7 +76,7 @@ public final class CommandRegistry {
     static final Set<String> UI_ONLY = Set.of("newJp2Layer", "newSynopticLayer", "newPunchLayer", "newSoarLayer", "newAspiicsLayer",
             "newPointCloudLayer", "openImageLayer", "openModel", "findCmes", "findComets", "displaySettings", "present", "windowMinimize",
             "windowZoom", "newWindow", "openUserManual", "openChangeLog", "checkForUpdates", "reportBug", "sdoCutout", "takeTour", "welcome",
-            "tipOfTheDay", "showImageLayers", "sendFeedback", "datasetFolders", "openExportsFolder", "searchControls", "showProjection",
+            "tipOfTheDay", "showImageLayers", "sendFeedback", "datasetFolders", "openExportsFolder", "openExportRecord", "searchControls", "showProjection",
             "showPlayback", "newFromTemplate", "saveAsTemplate", "templates", "tourGettingStarted", "tourLoadingData", "tourMakingAMovie",
             "tourViewsAndProjections", "tourRhefAndFilters", "tourSharingYourWork", "tourManagerWindows", "tourRearrangingTheInterface",
             "study", "taskManager", "cacheManager", "toolbarManager", "studySaveView");

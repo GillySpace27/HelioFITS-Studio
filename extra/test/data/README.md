@@ -28,6 +28,12 @@ instrument facts. Sizes are bytes (`ls -l`). "Used by" is every tracked file nam
 | `opj-8bit.j2k` | 9675 | not FITS: a bare JPEG 2000 codestream, one greyscale component, 8 bits, 128 x 96, a smooth ramp plus seeded noise with the full range present; made 2026-10-25 with numpy (seed 20261025) and `opj_compress -n 4` | n/a | `extra/test/OpjGray8Check.java` |
 | `opj-12bit.j2k` | 16081 | not FITS: a bare JPEG 2000 codestream, one greyscale component, 12 bits, 128 x 96, a smooth ramp plus seeded noise with the full range present; made 2026-10-25 with numpy (seed 20261025) and `opj_compress -n 4` | n/a | `extra/test/OpjGray8Check.java` |
 | `opj-16bit.j2k` | 22533 | not FITS: a bare JPEG 2000 codestream, one greyscale component, 16 bits, 128 x 96, a smooth ramp plus seeded noise with the full range present; made 2026-10-25 with numpy (seed 20261025) and `opj_compress -n 4` | n/a | `extra/test/OpjGray8Check.java` |
+| `hfrecord-studio-connect-still.hfrec.json` | 21764 | not FITS: a processing record (hfrecord 1.0), a byte copy of pyHelioFITS's `tests/fixtures/example-studio-connect-still.hfrec.json` (main, 2026-11-05) | n/a | `extra/test/ExportReportCheck.java` |
+| `hfrecord-studio-connect-still.report.txt` | 6061 | not FITS: the report of the record above as pyHelioFITS `python -m heliofits.core record show <record> --format text` (main, 2026-11-05) printed it | n/a | `extra/test/ExportReportCheck.java` |
+| `hfrecord-studio-connect-still.report-full.txt` | 6061 | not FITS: the same with `--full` | n/a | `extra/test/ExportReportCheck.java` |
+| `hfrecord-report-edges.hfrec.json` | 26864 | not FITS: the record above bent by hand to reach every branch of the report layout (hidden layer, seven invented sources under another layer's names, unknown step, odd numbers, a layer that is not an object); not a real export, and its datasets and files do not match | n/a | `extra/test/ExportReportCheck.java` |
+| `hfrecord-report-edges.report.txt` | 7759 | not FITS: the report of the record above as pyHelioFITS `python -m heliofits.core record show <record> --format text` (main, 2026-11-05) printed it | n/a | `extra/test/ExportReportCheck.java` |
+| `hfrecord-report-edges.report-full.txt` | 7919 | not FITS: the same with `--full` | n/a | `extra/test/ExportReportCheck.java` |
 
 How the columns were made (2026-10-01, at 7671c40d9): bytes with `ls -l extra/test/data`; header
 values by reading the first `TELESCOP`, `INSTRUME`, `DETECTOR`, `WAVELNTH`, `OBSRVTRY`, `DATE-OBS`,

@@ -165,8 +165,10 @@ public final class FitsRecordCheck {
                     Files.writeString(records.resolve("fits-sidecar-" + i + ProcessingRecord.SUFFIX), side.toString(2), StandardCharsets.UTF_8);
                 expect(name + ": the sidecar holds the written file's hash", side != null
                         && SourceIdentity.sha256(written).equals(side.getJSONObject("output").optString("sha256")));
-                if (side != null && embedded != null)
+                if (side != null && embedded != null) {
                     side.getJSONObject("output").put("sha256", JSONObject.NULL);
+                    side.remove("report"); // the readable report is in the sidecar only (ProcessingRecord.sidecarText)
+                }
                 expect(name + ": the sidecar is the embedded record but for that hash", side != null && embedded != null && side.similar(embedded));
                 JSONObject entry = manifest.getJSONArray("files").getJSONObject(i);
                 expect(name + ": the manifest entry names its record", recordId != null && recordId.equals(entry.optString("record_id"))
