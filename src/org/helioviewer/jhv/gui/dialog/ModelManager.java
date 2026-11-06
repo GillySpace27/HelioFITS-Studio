@@ -88,7 +88,7 @@ public final class ModelManager extends StandardDialog implements Interfaces.Sho
         public void actionPerformed(ActionEvent e) {
             ModelAssets.Entry s = selected();
             if (s != null)
-                DesktopIntegration.reveal(ModelAssets.isPresent(s) ? ModelAssets.file(s).toFile() : ModelAssets.folder().toFile());
+                DesktopIntegration.reveal(ModelAssets.isDownloaded(s) ? ModelAssets.file(s).toFile() : ModelAssets.folder().toFile());
         }
     };
     private final AbstractAction page = new AbstractAction("Source Page") {
@@ -97,6 +97,25 @@ public final class ModelManager extends StandardDialog implements Interfaces.Sho
             ModelAssets.Entry s = selected();
             if (s != null)
                 DesktopIntegration.openURL(s.page());
+        }
+    };
+
+    private final AbstractAction importFile = new AbstractAction("Import File...") {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            importFile();
+        }
+    };
+    private final AbstractAction importUrl = new AbstractAction("Import from URL...") {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            importUrl();
+        }
+    };
+    private final AbstractAction remove = new AbstractAction("Remove from List") {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            removeImport();
         }
     };
 
@@ -111,18 +130,35 @@ public final class ModelManager extends StandardDialog implements Interfaces.Sho
     private ModelManager() {
         super(MainFrame.get(), "3D Model Manager");
         setResizable(true);
+        reload();
+        importFile.putValue(AbstractAction.SHORT_DESCRIPTION, "Add a .glb or .gltf from this computer; a .glb is copied into the models folder, a .gltf is used where it is");
+        importUrl.putValue(AbstractAction.SHORT_DESCRIPTION, "Download a .glb from an address and add it to the list");
+        remove.putValue(AbstractAction.SHORT_DESCRIPTION, "Take an imported model off the list; its file stays on disk");
+    }
+
+    private void reload() {
         try {
             rows.all = ModelAssets.entries();
         } catch (java.io.IOException | org.json.JSONException e) {
             Log.warn("Could not read the model list", e);
             status.setText("Could not read the model list: " + e.getMessage());
         }
+        rows.fireTableDataChanged();
+    }
+
+    private void select(String id) {
+        for (int i = 0; i < rows.all.size(); i++)
+            if (rows.all.get(i).id().equals(id)) {
+                int view = table.convertRowIndexToView(i);
+                table.setRowSelectionInterval(view, view);
+                table.scrollRectToVisible(table.getCellRect(view, 0, true));
+            }
     }
 
     @Override
     public JComponent createBannerPanel() {
-        JLabel lede = new JLabel("<html><div style='width:640px'>Spacecraft models from NASA 3D Resources. Each downloads once, is checked against the list, and stays in "
-                + esc(ModelAssets.folder().toString()) + ". Select a downloaded model to turn it over in the preview before adding it.</div></html>");
+        JLabel lede = new JLabel("<html><div style='width:640px'>Spacecraft models from NASA 3D Resources ship with Studio; your own files, or files from any address, can be imported beside them. Select a model to turn it over in the preview before adding it. Imports are kept in "
+                + esc(ModelAssets.folder().toString()) + ".</div></html>");
         lede.setBorder(BorderFactory.createEmptyBorder(8, 9, 4, 9));
         return lede;
     }
@@ -181,6 +217,9 @@ public final class ModelManager extends StandardDialog implements Interfaces.Sho
         panel.add(new JButton(download), ButtonPanel.OTHER_BUTTON);
         panel.add(new JButton(reveal), ButtonPanel.OTHER_BUTTON);
         panel.add(new JButton(page), ButtonPanel.OTHER_BUTTON);
+        panel.add(new JButton(importFile), ButtonPanel.OTHER_BUTTON);
+        panel.add(new JButton(importUrl), ButtonPanel.OTHER_BUTTON);
+        panel.add(new JButton(remove), ButtonPanel.OTHER_BUTTON);
         panel.add(new JButton(close), ButtonPanel.CANCEL_BUTTON);
         getRootPane().setDefaultButton(addButton);
         return panel;
@@ -213,7 +252,9 @@ public final class ModelManager extends StandardDialog implements Interfaces.Sho
         download.setEnabled(downloading != null || (s != null && !present));
         download.putValue(AbstractAction.NAME, downloading != null ? "Cancel Download" : "Download");
         reveal.setEnabled(s != null);
-        page.setEnabled(s != null);
+        page.setEnabled(s != null && s.page().startsWith("http"));
+        remove.setEnabled(s != null && s.origin() == ModelAssets.Origin.IMPORTED);
+        importUrl.setEnabled(downloading == null);
     }
 
     private void selectionChanged() {
@@ -236,11 +277,10 @@ public final class ModelManager extends StandardDialog implements Interfaces.Sho
             return;
         }
         preview.show(null, "Loading the preview...");
-        Path file = ModelAssets.file(s);
         new SwingWorker<ModelPreview.Prepared, Void>() {
             @Override
             protected ModelPreview.Prepared doInBackground() throws Exception {
-                return ModelPreview.prepare(AssimpModelLoader.load(NetFileCache.get(file.toUri())));
+                return ModelPreview.prepare(AssimpModelLoader.load(NetFileCache.get(ModelAssets.localPath(s).toUri())));
             }
 
             @Override
@@ -252,7 +292,7 @@ public final class ModelManager extends StandardDialog implements Interfaces.Sho
                         preview.show(p, "");
                 } catch (InterruptedException | ExecutionException e) {
                     Throwable cause = e.getCause() == null ? e : e.getCause();
-                    Log.warn("Could not preview " + file, cause);
+                    Log.warn("Could not preview " + s.name(), cause);
                     if (s.equals(selected()))
                         preview.show(null, "Could not load: " + cause.getMessage());
                 }
@@ -312,12 +352,86 @@ public final class ModelManager extends StandardDialog implements Interfaces.Sho
         ModelAssets.Entry s = selected();
         if (s == null || !ModelAssets.isPresent(s))
             return;
-        URI uri = ModelAssets.file(s).toUri();
-        Task.submitBackground(uri.toString(), () -> new ModelLayer(uri), layer -> {
+        Task.submitBackground(s.name(), () -> new ModelLayer(ModelAssets.localPath(s).toUri()), layer -> {
             configure(layer, s);
             Layers.add(layer);
             status.setText(s.name() + " added" + (s.target() == null ? " at Sun centre." : " at the position of " + s.target() + "."));
         }, "Error loading model");
+    }
+
+    private void importFile() {
+        java.awt.FileDialog fd = new java.awt.FileDialog(this, "Import a 3D Model", java.awt.FileDialog.LOAD);
+        fd.setFilenameFilter((dir, name) -> name.toLowerCase(java.util.Locale.ROOT).matches(".*\\.(glb|gltf)(\\.gz)?"));
+        fd.setVisible(true);
+        if (fd.getFile() == null || fd.getDirectory() == null)
+            return;
+        Path src = Path.of(fd.getDirectory(), fd.getFile());
+        String name = fd.getFile().replaceFirst("(?i)\\.(glb|gltf)(\\.gz)?$", "");
+        status.setText("Importing " + src.getFileName() + "...");
+        Task.submitBackground("import " + src, () -> ModelAssets.importFile(src, name), e -> {
+            reload();
+            select(e.id());
+            status.setText(e.name() + " imported. Set its object and Units in the layer's options after adding it.");
+        }, "Could not import the model");
+    }
+
+    private void importUrl() {
+        String text = javax.swing.JOptionPane.showInputDialog(this, "Address of a .glb model (https://...):", "Import from URL", javax.swing.JOptionPane.PLAIN_MESSAGE);
+        if (text == null || text.isBlank())
+            return;
+        URI uri;
+        try {
+            uri = new URI(text.strip());
+            if (!"https".equalsIgnoreCase(uri.getScheme()) && !"http".equalsIgnoreCase(uri.getScheme()))
+                throw new java.net.URISyntaxException(text, "not an http or https address");
+        } catch (java.net.URISyntaxException ex) {
+            status.setText("Not a web address: " + text.strip());
+            return;
+        }
+        String file = uri.getPath() == null ? "model" : Path.of(uri.getPath().isEmpty() ? "model" : uri.getPath()).getFileName().toString();
+        String name = file.replaceFirst("(?i)\\.(glb|gltf)(\\.gz)?$", "");
+        cancel.set(false);
+        status.setText("Downloading " + file + "...");
+        SwingWorker<ModelAssets.Entry, Long> worker = new SwingWorker<>() {
+            @Override
+            protected ModelAssets.Entry doInBackground() throws Exception {
+                return ModelAssets.importUrl(uri, name, got -> publish(got), cancel::get);
+            }
+
+            @Override
+            protected void process(List<Long> got) {
+                status.setText("Downloading " + file + ": " + megabytes(got.getLast()));
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    ModelAssets.Entry e = get();
+                    reload();
+                    select(e.id());
+                    status.setText(e.name() + " imported from " + uri.getHost() + ".");
+                } catch (InterruptedException | ExecutionException ex) {
+                    Throwable cause = ex.getCause() == null ? ex : ex.getCause();
+                    Log.warn("Could not import " + uri, cause);
+                    status.setText("Could not import from " + uri.getHost() + ": " + cause.getMessage());
+                }
+            }
+        };
+        worker.execute();
+    }
+
+    private void removeImport() {
+        ModelAssets.Entry s = selected();
+        if (s == null || s.origin() != ModelAssets.Origin.IMPORTED)
+            return;
+        try {
+            ModelAssets.removeImport(s);
+            reload();
+            status.setText(s.name() + " taken off the list; its file is still at " + ModelAssets.file(s) + ".");
+        } catch (java.io.IOException ex) {
+            Log.warn("Could not update the imported model list", ex);
+            status.setText("Could not update the list: " + ex.getMessage());
+        }
     }
 
     /** The placement the list gives: the spacecraft's position and size, or Sun centre when Studio has no ephemeris for it. */
@@ -393,7 +507,8 @@ public final class ModelManager extends StandardDialog implements Interfaces.Sho
                 case 0 -> e.name();
                 case 1 -> e.target() == null ? "Sun centre" : e.target();
                 case 2 -> e.size().meters() == null ? "unchecked" : String.format("%.2f m", e.size().meters());
-                default -> e.id().equals(downloadingId) ? "Downloading" : ModelAssets.isPresent(e) ? "Downloaded" : megabytes(e.bytes());
+                default -> e.id().equals(downloadingId) ? "Downloading" : e.origin() == ModelAssets.Origin.IMPORTED ? "Imported"
+                        : ModelAssets.isBundled(e) ? "Included" : ModelAssets.isDownloaded(e) ? "Downloaded" : megabytes(e.bytes());
             };
         }
     }
