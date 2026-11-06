@@ -92,7 +92,7 @@ frame, so the CME's leading front stays at a fixed radius on the screen and you 
 evolve rather than recede. It works in both Helioradial projections.
 
 First load the CACTus CME catalogue as an event layer, so there are events to choose from, then open
-{menuselection}`Tools --> Find CMEs to Track...` and select a CME. An option propagates each CACTus
+{menuselection}`Layers --> Find CMEs to Track...` and select a CME. An option propagates each CACTus
 front past the LASCO edge, by constant-speed extrapolation, out to the field of view you have loaded.
-{menuselection}`Tools --> Find Comets to Track...` does the same for comets. **Cancel**, beside each
+{menuselection}`Layers --> Find Comets to Track...` does the same for comets. **Cancel**, beside each
 panel's status line, stops tracking and puts the warp and crop back as they were.
