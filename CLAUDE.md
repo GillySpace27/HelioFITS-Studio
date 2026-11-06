@@ -234,9 +234,12 @@ the menu when the session matters.
 Each with its source (vault paths are Gilly's notes in `research-tasks`).
 
 - Delete nothing. Retire a file with `git mv` into `archive/` plus a row in `archive/README.md`;
-  retire a branch with an annotated tag `archive/branch/<name>` and leave the branch. Never `git rm`,
-  `git push --force`, rewrite history, or delete a branch, tag, release, release asset, cache or
-  settings key. (Gilly, 2026-09-28; `archive/README.md`.)
+  retire an unmerged branch with an annotated tag `archive/branch/<name>` and leave the branch. A
+  branch whose tip is already an ancestor of `origin/master` (`git merge-base --is-ancestor <tip>
+  origin/master`) may be deleted, local and remote, after Gilly's yes for that batch; its work stays
+  reachable from master. Never `git rm`, `git push --force`, rewrite history, or delete a tag,
+  release, release asset, cache or settings key. (Gilly, 2026-09-28; `archive/README.md`; branch
+  exception 2026-11-06.)
 - Never push, publish, notarize for release, edit a release or run a workflow without Gilly's yes
   for that one action; a yes for one release never carries to the next. Publish only after
   `./deploy_release.sh publish --dry-run` and his yes to its output (RELEASING.md step 6;
