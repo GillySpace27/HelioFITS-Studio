@@ -48,7 +48,7 @@ public final class ExportReport {
     public static String text(Map<String, Object> record, boolean full) {
         Map<String, Object> producer = map(record.get("producer"));
         List<Map<String, Object>> rawLayers = maps(record.get("layers"));
-        List<String> out = new ArrayList<>(List.of("HELIOFITS PROCESSING RECORD", ""));
+        List<String> out = new ArrayList<>(List.of("HELIOFITS SUITE PROCESSING RECORD", ""));
         String head = joinTruthy(" ", producer.get("program"), producer.get("version"));
         List<String> build = new ArrayList<>();
         if (truthy(producer.get("build_id")))
