@@ -161,7 +161,7 @@ $INTEL_INSTALL
 its own Java and needs no installer and no administrator rights. On Windows, right-click the zip,
 choose Extract All (it will not start from inside the zip), then run \`HFStudio\HFStudio.exe\`; on
 Linux, untar and run \`HFStudio/bin/HFStudio\`. Linux is x86_64 (64-bit Intel and AMD) only: on an ARM64 (aarch64) machine the launcher stops with \"Exec format error\"; an ARM64 package is planned. The Windows build
-is not code-signed yet, so Windows may say it "protected your PC"; choose More info, then Run anyway.
+is code-signed, but Windows SmartScreen may still say it "protected your PC" until the signing certificate builds reputation; if so, choose More info, then Run anyway.
 Our build service adds these two to this page about ten minutes after it is published, and only
 once each has been started, drawn an image and decoded a JPEG 2000 file on a Windows and a Linux
 machine without a graphics card. A few people have used the Windows package; nobody has tried the
