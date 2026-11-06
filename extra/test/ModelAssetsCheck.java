@@ -16,7 +16,6 @@ import java.util.regex.Pattern;
 
 import org.helioviewer.jhv.app.AppInit;
 import org.helioviewer.jhv.app.Platform;
-import org.helioviewer.jhv.astronomy.SpaceObject;
 import org.helioviewer.jhv.gui.component.ModelPreview;
 import org.helioviewer.jhv.gui.dialog.ModelManager;
 import org.helioviewer.jhv.layers.ModelLayer;
@@ -54,7 +53,9 @@ public final class ModelAssetsCheck {
         AppInit.loadSpice(); // a model layer's setters reach DisplayController, which needs Earth's position
 
         List<ModelAssets.Entry> entries = checkRegistry();
+        checkBundled(entries);
         checkDownload(home);
+        checkImport(home);
         checkPreview();
         checkConfigure(home, entries);
 
@@ -66,7 +67,7 @@ public final class ModelAssetsCheck {
     }
 
     private static List<ModelAssets.Entry> checkRegistry() throws IOException {
-        List<ModelAssets.Entry> entries = ModelAssets.entries();
+        List<ModelAssets.Entry> entries = ModelAssets.listed();
         expect(!entries.isEmpty(), "the model list reads (" + entries.size() + " entries)");
         String raw = new String(Files.readAllBytes(Path.of("resources/data/assets.json")), StandardCharsets.UTF_8);
         expect(raw.indexOf(0x2014) < 0, "the model list has no em dash");
@@ -76,7 +77,7 @@ public final class ModelAssetsCheck {
             expect(ids.add(e.id()), n + "id is unique");
             expect(PINNED.matcher(e.url()).matches(), n + "URL is pinned to a full commit (" + e.url() + ")");
             expect(SHA.matcher(e.sha256()).matches() && e.bytes() > 0 && e.extent() > 0, n + "has a SHA-256, a length and an extent");
-            expect(e.target() == null || (SpaceObject.get(e.target()) != null && !"Sun".equals(e.target())), n + "target is one Studio can place, or none");
+            expect(e.target() == null || ModelPlacement.isTarget(e.target()), n + "target is one Studio can place, or none");
             if (e.size().meters() == null)
                 expect(e.metersPerUnit() == null, n + "no checked size, so no scale is claimed");
             else
@@ -88,9 +89,42 @@ public final class ModelAssetsCheck {
         return entries;
     }
 
+    private static void checkBundled(List<ModelAssets.Entry> entries) throws Exception {
+        for (ModelAssets.Entry e : entries) {
+            Path bundled = Path.of("resources/models", e.fileName());
+            expect(ModelAssets.isBundled(e) && Files.size(bundled) == e.bytes() && ModelAssets.sha256(bundled).equals(e.sha256()),
+                    e.id() + ": ships inside Studio as the exact file the list pins");
+        }
+        ModelAssets.Entry first = entries.getFirst();
+        expect(!ModelAssets.isDownloaded(first) && ModelAssets.isPresent(first), "a bundled model is usable before anything is on disk");
+        Path out = ModelAssets.localPath(first);
+        expect(out.equals(ModelAssets.file(first)) && ModelAssets.sha256(out).equals(first.sha256()) && ModelAssets.isDownloaded(first),
+                "first use copies a bundled model into the models folder, checked against its hash");
+    }
+
+    private static void checkImport(Path home) throws Exception {
+        Path mine = home.resolve("my probe.glb");
+        Files.writeString(mine, "glTF but not really");
+        ModelAssets.Entry e = ModelAssets.importFile(mine, "My probe");
+        List<ModelAssets.Entry> imported = ModelAssets.imported();
+        expect(imported.size() == 1 && imported.getFirst().name().equals("My probe") && imported.getFirst().origin() == ModelAssets.Origin.IMPORTED,
+                "an imported file is listed under the name given");
+        Path copy = ModelAssets.file(e);
+        expect(copy.startsWith(ModelAssets.folder()) && Files.readString(copy).equals("glTF but not really"), "an imported .glb is copied into the models folder");
+        expect(ModelAssets.entries().size() == ModelAssets.listed().size() + 1, "imports show after the listed models");
+
+        Path gltf = home.resolve("scene.gltf");
+        Files.writeString(gltf, "{}");
+        ModelAssets.Entry inPlace = ModelAssets.importFile(gltf, "Scene");
+        expect(ModelAssets.file(inPlace).equals(gltf), "an imported .gltf is used where it is, beside its buffers and textures");
+
+        ModelAssets.removeImport(e);
+        expect(ModelAssets.imported().size() == 1 && Files.exists(copy), "removing an import takes it off the list and leaves its file");
+    }
+
     private static ModelAssets.Entry fake(String id, Path file, String sha, long bytes) {
         return new ModelAssets.Entry(id, id, file.toUri().toString(), "https://example.invalid", sha, bytes, 1, null, null, null,
-                new ModelAssets.Size(null, null, null, "test"), "test", "test", "test");
+                new ModelAssets.Size(null, null, null, "test"), "test", "test", "test", ModelAssets.Origin.LISTED);
     }
 
     private static void checkDownload(Path home) throws Exception {
@@ -193,11 +227,11 @@ public final class ModelAssetsCheck {
                 "Add as Layer puts " + placed.name() + " at " + placed.target() + " at " + placed.metersPerUnit() + " m per unit");
         layer.remove();
 
-        ModelAssets.Entry loose = entries.stream().filter(e -> e.target() == null).findFirst().orElseThrow();
+        ModelAssets.Entry loose = fake("loose", model, "0".repeat(64), 1); // like an import: no target, no checked size
         ModelLayer origin = new ModelLayer(model.toUri());
         ModelManager.configure(origin, loose);
         expect(origin.getPlacementMode() == ModelPlacement.Mode.ORIGIN && origin.getMetersPerUnit() == 1,
-                "Add as Layer leaves " + loose.name() + " (no ephemeris, no checked size) at Sun centre in file units");
+                "Add as Layer leaves a model with no target and no checked size at Sun centre in file units");
         origin.remove();
     }
 
