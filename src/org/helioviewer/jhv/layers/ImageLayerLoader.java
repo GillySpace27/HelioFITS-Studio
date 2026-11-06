@@ -266,7 +266,8 @@ final class ImageLayerLoader {
                     (seedBytes[0] > 0 ? downloaded : cached).incrementAndGet();
                     rest = uriList.subList(1, total); // the seed is in; do not fetch it twice
                     preview.accept(movie);
-                } catch (Exception ignore) {
+                } catch (Exception e) {
+                    Log.warn("First frame did not load, trying all frames: " + uriList.getFirst(), e);
                 }
 
                 if (movie == null) { // no seed: build them all and wrap at the end, as before
@@ -284,6 +285,8 @@ final class ImageLayerLoader {
                     statusSink.accept("Assembling " + views.size() + " frames…");
                     reportFailed(failed);
                     reportShortfall(failed, total);
+                    if (views.isEmpty()) // ManyView would only say "Empty list of views"
+                        throw new java.io.IOException(noFramesMessage(total));
                     return new ManyView(views);
                 }
 
@@ -362,6 +365,11 @@ final class ImageLayerLoader {
     private static void reportShortfall(List<URI> failed, int total) {
         if (!failed.isEmpty())
             Log.warn(failed.size() + " of " + total + " frames did not arrive; Refresh retries them");
+    }
+
+    /** What the user reads when every frame of a layer failed. */
+    static String noFramesMessage(int total) {
+        return "None of the " + total + " frames could be fetched or read. Use Refresh on the layer to try again.";
     }
 
     static final String CONNECTING = "Connecting\u2026";
