@@ -4,7 +4,7 @@
     {
       "target": "templates",
       "title": "Template Manager: what a scene loads",
-      "body": "Window > Template Manager lists your scene templates: saved scenes whose layers, view and dates can follow the newest data. Open one to start from it, or duplicate, rename, edit, share or retire it."
+      "body": "Managers > Template Manager lists your scene templates: saved scenes whose layers, view and dates can follow the newest data. Open one to start from it, or duplicate, rename, edit, share or retire it."
     },
     {
       "target": "saveAsTemplate",
@@ -14,7 +14,7 @@
     {
       "target": "study",
       "title": "Study Manager: what a scene exports",
-      "body": "Window > Study Manager holds a table of views of one scene, each with its own projection, lambda, field of view or layers. Export set writes every picture with a manifest. Load template and Save as template keep a set of rows to reuse on another scene."
+      "body": "Managers > Study Manager holds a table of views of one scene, each with its own projection, lambda, field of view or layers. Export set writes every picture with a manifest. Load template and Save as template keep a set of rows to reuse on another scene."
     },
     {
       "target": "studySaveView",
@@ -24,12 +24,12 @@
     {
       "target": "cacheManager",
       "title": "Cache Manager: what is on disk",
-      "body": "Window > Cache Manager lists what is already on this computer: Studio's own downloads and the FITS library. Load a dataset as a layer, reveal it, delete it to get the space back, or import a folder of FITS into the library."
+      "body": "Managers > Cache Manager lists what is already on this computer: Studio's own downloads and the FITS library. Load a dataset as a layer, reveal it, delete it to get the space back, or import a folder of FITS into the library."
     },
     {
       "target": "taskManager",
       "title": "Task Manager: what is running",
-      "body": "Window > Task Manager shows what is downloading, loading or computing, anything that did not land, and the export queue. The spinner at the bottom left opens it too."
+      "body": "Managers > Task Manager shows what is downloading, loading or computing, anything that did not land, and the export queue. The spinner at the bottom left opens it too."
     }
   ]
 }

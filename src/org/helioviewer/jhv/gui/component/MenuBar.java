@@ -41,6 +41,17 @@ public final class MenuBar extends JMenuBar {
     }
 
 
+    private static final java.util.concurrent.atomic.AtomicReference<SettingsDialog> SETTINGS_DIALOG = new java.util.concurrent.atomic.AtomicReference<>();
+
+    /** Open Settings on the named tab (Keybindings Manager); nothing until the menu bar exists. */
+    public static void openSettingsTab(String title) {
+        SettingsDialog dialog = SETTINGS_DIALOG.get();
+        if (dialog == null)
+            return;
+        dialog.selectTab(title);
+        dialog.showDialog();
+    }
+
     private JMenu layersMenu;
 
     public JMenu getLayersMenu() {
@@ -72,20 +83,13 @@ public final class MenuBar extends JMenuBar {
                 java.util.Set<String> onBar = ToolBar.shownIds();
                 for (ToolBar.Tool tool : ToolBar.allTools())
                     toolsMenu.add(toolItem(tool, onBar.contains(tool.id())));
-                toolsMenu.addSeparator();
-                // Below the tools: commands that load a catalog and then open the palette that
-                // browses it (the toolbar toggle above only shows the palette), and two
-                // dialogs with no toolbar button. They were in View, which is where a thing you
-                // look through goes, not a thing you work with.
-                catalogItem(toolsMenu, "findCmes");
-                catalogItem(toolsMenu, "findComets");
-                toolsMenu.addSeparator();
-                JMenuItem edit = new JMenuItem("Toolbar Manager...");
-                edit.setIcon(Buttons.editToolbar);
-                edit.addActionListener(ev -> ToolbarEditor.open());
-                toolsMenu.add(edit);
-                if (settings != null)
+                // Nothing else: the managers (Toolbar included) are in the Managers menu and Find
+                // CMEs / Find Comets are in Layers. Settings stays here off macOS, which has no
+                // application menu to hold it.
+                if (settings != null) {
+                    toolsMenu.addSeparator();
                     toolsMenu.add(settings);
+                }
             }
 
             @Override public void menuDeselected(javax.swing.event.MenuEvent e) {}
@@ -200,11 +204,6 @@ public final class MenuBar extends JMenuBar {
         catalogItem(fileMenu, "migrateSidecars");
         if (!Platform.isMacOS()) {
             catalogItem(fileMenu, "newWindow"); // no Window menu off macOS
-            catalogItem(fileMenu, "templates"); // HS-25: Window > Template Manager... on macOS
-            catalogItem(fileMenu, "study");
-            catalogItem(fileMenu, "toolbarManager");
-            catalogItem(fileMenu, "cacheManager");
-            catalogItem(fileMenu, "taskManager");
         }
 
         if (Platform.isMacOS()) {
@@ -398,6 +397,11 @@ public final class MenuBar extends JMenuBar {
         catalogItem(layersMenu, "duplicateLayer"); // HS-11
         catalogItem(layersMenu, "sendToPython");
         layersMenu.addSeparator();
+        // Events and targets: each loads a catalog and then drives the view to what you pick.
+        // They were in Tools, which lists the toolbar's controls; these are things to add to a scene.
+        catalogItem(layersMenu, "findCmes");
+        catalogItem(layersMenu, "findComets");
+        layersMenu.addSeparator();
         // Loading something already downloaded is a way of adding a layer, not a tool: it was under
         // Tools only because that is where the dialog was written.
         catalogItem(layersMenu, "cacheManager"); // was Load from Cache...
@@ -405,8 +409,10 @@ public final class MenuBar extends JMenuBar {
 
         // Beside Layers, because it answers the same kind of question: Layers is what is in the
         // scene, Tools is what you have to work on it with.
-        Actions.ShowDialog settingsAction = new Actions.ShowDialog("Settings...", new SettingsDialog());
+        SettingsDialog settingsDialog = new SettingsDialog();
+        Actions.ShowDialog settingsAction = new Actions.ShowDialog("Settings...", settingsDialog);
         SETTINGS.set(settingsAction); // the one dialog, for the Welcome window's button too
+        SETTINGS_DIALOG.set(settingsDialog);
         if (Platform.isMacOS())
             DesktopIntegration.setPreferencesHandler(e -> settingsAction.actionPerformed(null));
         add(buildToolsMenu(Platform.isMacOS() ? null : settingsAction));
@@ -424,15 +430,24 @@ public final class MenuBar extends JMenuBar {
         catalogItem(movieMenu, "trimReset");
         add(movieMenu);
 
+        // Every manager in one menu, on every platform. They were under Window on macOS and at
+        // the foot of File elsewhere; a Mac Window menu is meant for window management.
+        JMenu managersMenu = new JMenu("Managers");
+        managersMenu.setMnemonic(KeyEvent.VK_A);
+        catalogItem(managersMenu, "templates"); // HS-25: what a scene loads
+        catalogItem(managersMenu, "study"); // what a scene exports
+        catalogItem(managersMenu, "cacheManager");
+        catalogItem(managersMenu, "taskManager");
+        managersMenu.addSeparator();
+        catalogItem(managersMenu, "toolbarManager"); // what the window shows
+        catalogItem(managersMenu, "themeManager");
+        catalogItem(managersMenu, "keybindingsManager");
+        add(managersMenu);
+
         if (Platform.isMacOS()) {
             JMenu windowMenu = new JMenu("Window");
             windowMenu.setMnemonic(KeyEvent.VK_W);
             catalogItem(windowMenu, "newWindow");
-            catalogItem(windowMenu, "templates"); // HS-25: what a scene loads
-            catalogItem(windowMenu, "study"); // what a scene exports
-            catalogItem(windowMenu, "toolbarManager"); // what the window shows
-            catalogItem(windowMenu, "cacheManager");
-            catalogItem(windowMenu, "taskManager");
             windowMenu.addSeparator();
             catalogItem(windowMenu, "windowMinimize");
             catalogItem(windowMenu, "windowZoom");

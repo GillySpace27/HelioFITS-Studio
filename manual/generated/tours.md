@@ -71,18 +71,18 @@ These are the app's own tours, written out. To take one in the app, with each co
 
 ## The manager windows
 
-1. **Template Manager: what a scene loads.** Window > Template Manager lists your scene templates: saved scenes whose layers, view and dates can follow the newest data. Open one to start from it, or duplicate, rename, edit, share or retire it.
+1. **Template Manager: what a scene loads.** Managers > Template Manager lists your scene templates: saved scenes whose layers, view and dates can follow the newest data. Open one to start from it, or duplicate, rename, edit, share or retire it.
 2. **Make a template.** File > Save as Template keeps the scene on screen as a template, with a name, a description, a thumbnail and a time rule. File > New from Template starts from one.
-3. **Study Manager: what a scene exports.** Window > Study Manager holds a table of views of one scene, each with its own projection, lambda, field of view or layers. Export set writes every picture with a manifest. Load template and Save as template keep a set of rows to reuse on another scene.
+3. **Study Manager: what a scene exports.** Managers > Study Manager holds a table of views of one scene, each with its own projection, lambda, field of view or layers. Export set writes every picture with a manifest. Load template and Save as template keep a set of rows to reuse on another scene.
 4. **Add views as you go.** Movie > Save View to Study adds the view on screen to the Study Manager as a new row, without opening it.
-5. **Cache Manager: what is on disk.** Window > Cache Manager lists what is already on this computer: Studio's own downloads and the FITS library. Load a dataset as a layer, reveal it, delete it to get the space back, or import a folder of FITS into the library.
-6. **Task Manager: what is running.** Window > Task Manager shows what is downloading, loading or computing, anything that did not land, and the export queue. The spinner at the bottom left opens it too.
+5. **Cache Manager: what is on disk.** Managers > Cache Manager lists what is already on this computer: Studio's own downloads and the FITS library. Load a dataset as a layer, reveal it, delete it to get the space back, or import a folder of FITS into the library.
+6. **Task Manager: what is running.** Managers > Task Manager shows what is downloading, loading or computing, anything that did not land, and the export queue. The spinner at the bottom left opens it too.
 
 ## Rearranging the interface
 
 1. **Unlock first.** The padlock at the right end of the toolbar holds the panels and the toolbar where they are. It starts locked. Click it to let things move; every toolbar button works the same either way.
-2. **Toolbar Manager.** This button, or Window > Toolbar Manager, chooses which tools are on the toolbar and in what order: drag a tool into the middle list to put it on the bar, drag it out to take it off. A Separator can be used more than once.
-3. **Nothing is lost.** A tool taken off the bar stays in the Tools menu, which lists every tool whether or not it is on the bar. Opened from the Window menu while the panels are locked, the Toolbar Manager offers to unlock them.
+2. **Toolbar Manager.** This button, or Managers > Toolbar Manager, chooses which tools are on the toolbar and in what order: drag a tool into the middle list to put it on the bar, drag it out to take it off. A Separator can be used more than once.
+3. **Nothing is lost.** A tool taken off the bar stays in the Tools menu, which lists every tool whether or not it is on the bar. Opened from the Managers menu while the panels are locked, the Toolbar Manager offers to unlock them.
 4. **Move the sections.** With the panels unlocked, each sidebar section's header carries arrows: up and down within its sidebar, across to the other sidebar, and out into a window of its own. These buttons show or hide each sidebar.
 5. **Lock it again.** Click the padlock again when the layout is how you want it, so a stray click cannot move a panel during a talk. The layout is kept for the next start.
 
