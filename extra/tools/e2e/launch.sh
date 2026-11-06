@@ -6,5 +6,5 @@ H=$(mktemp -d /tmp/hfs-e2e-$NAME-XXXXXX)
 echo "$H" > "$D/$NAME.home"
 mkdir -p "$H/HFStudio/Settings" && echo "dataSources.defaultServer=GSFC" > "$H/HFStudio/Settings/user.properties"
 cd "$WT" || exit 1
-JAVA_TOOL_OPTIONS="-Duser.home=$H" nohup java --enable-native-access=ALL-UNNAMED $HFS_JVM_EXTRA -jar HFStudio.jar > "$D/$NAME.log" 2>&1 &
+JAVA_TOOL_OPTIONS="-Duser.home=$H" nohup java --enable-native-access=ALL-UNNAMED --add-exports=java.desktop/sun.awt=ALL-UNNAMED --add-exports=java.desktop/sun.swing=ALL-UNNAMED $HFS_JVM_EXTRA -jar HFStudio.jar > "$D/$NAME.log" 2>&1 &
 echo $! > "$D/$NAME.pid"
