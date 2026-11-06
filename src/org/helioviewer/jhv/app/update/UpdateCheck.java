@@ -80,6 +80,14 @@ public final class UpdateCheck {
         }
     }
 
+    /** What a failed manual check tells the user: offline is said plainly, anything else keeps its text. */
+    public static String failureText(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause())
+            if (t instanceof java.net.UnknownHostException || t instanceof java.net.ConnectException)
+                return "Could not reach GitHub. Check your internet connection.";
+        return "While checking for a newer version got " + e.getMessage();
+    }
+
     // On the EDT. The time is recorded when the automatic check goes out, not when it succeeds, so an
     // offline computer asks once a day rather than at every launch.
     private static void start(boolean manual) {
@@ -94,7 +102,7 @@ public final class UpdateCheck {
             } catch (IOException | URISyntaxException | RuntimeException e) { // RuntimeException covers a malformed reply (JSONException)
                 if (manual) {
                     Log.warn(e);
-                    Message.warn("Update check error", "While checking for a newer version got " + e.getMessage());
+                    Message.warn("Update check error", failureText(e));
                 } else
                     Log.info("Automatic update check did not complete: " + e.getMessage());
             } finally {
