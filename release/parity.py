@@ -120,7 +120,7 @@ def find_fixture(library, entry):
 def dump_one(jar, libs, src, plane, bg, outdir):
     """Run the release jar's DecodeParityDump on one file; return the path of the dump json."""
     classpath = os.pathsep.join([str(jar), *libs])
-    cmd = ["java", "--enable-native-access=ALL-UNNAMED", f"-Duser.home={tempfile.mkdtemp(prefix='hfs-parity-home-')}",
+    cmd = ["java", "--enable-native-access=ALL-UNNAMED", "--add-exports=java.desktop/sun.awt=ALL-UNNAMED", "--add-exports=java.desktop/sun.swing=ALL-UNNAMED", f"-Duser.home={tempfile.mkdtemp(prefix='hfs-parity-home-')}",
            "-Djava.awt.headless=true", "-cp", classpath, "org.helioviewer.jhv.view.uri.DecodeParityDump",
            str(outdir), str(src), "--plane", str(plane)] + (["--subtract-background"] if bg else [])
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=900)

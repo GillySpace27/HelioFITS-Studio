@@ -33,4 +33,4 @@ if [ -z "$JAVA" ] || ! "$JAVA" -version >/dev/null 2>&1; then
     exit 1
 fi
 
-exec "$JAVA" --enable-native-access=ALL-UNNAMED -jar HFStudio.jar "$@"
+exec "$JAVA" --enable-native-access=ALL-UNNAMED --add-exports=java.desktop/sun.awt=ALL-UNNAMED --add-exports=java.desktop/sun.swing=ALL-UNNAMED -jar HFStudio.jar "$@"

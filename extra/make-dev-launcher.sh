@@ -214,7 +214,7 @@ ln -sfn "\$JAVA" "\$runner" 2>/dev/null
 [ -x "\$runner" ] && JAVA="\$runner"
 
 icon="\$(cd "\$(dirname "\$0")/../Resources" 2>/dev/null && pwd)/AppIcon.icns"
-exec "\$JAVA" --enable-native-access=ALL-UNNAMED -Xdock:name="$name" -Xdock:icon="\$icon" -jar "\$checkout/HFStudio.jar" "\$@"
+exec "\$JAVA" --enable-native-access=ALL-UNNAMED --add-exports=java.desktop/sun.awt=ALL-UNNAMED --add-exports=java.desktop/sun.swing=ALL-UNNAMED -Xdock:name="$name" -Xdock:icon="\$icon" -jar "\$checkout/HFStudio.jar" "\$@"
 LAUNCH
 chmod +x "$app/Contents/MacOS/launch"
 
