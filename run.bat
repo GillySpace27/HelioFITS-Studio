@@ -15,4 +15,4 @@ if errorlevel 1 (
     exit /b 1
 )
 
-"%JAVA%" --enable-native-access=ALL-UNNAMED -jar HFStudio.jar %*
+"%JAVA%" --enable-native-access=ALL-UNNAMED --add-exports=java.desktop/sun.awt=ALL-UNNAMED --add-exports=java.desktop/sun.swing=ALL-UNNAMED -jar HFStudio.jar %*

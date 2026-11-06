@@ -209,6 +209,8 @@
     <target name="run" depends="build-metal-host,jar">
         <java jar="${jarfile}" fork="true">
             <jvmarg value="--enable-native-access=ALL-UNNAMED"/>
+            <jvmarg value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED"/>
+            <jvmarg value="--add-exports=java.desktop/sun.swing=ALL-UNNAMED"/>
         </java>
     </target>
 
