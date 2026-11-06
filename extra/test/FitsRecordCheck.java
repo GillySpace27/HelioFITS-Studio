@@ -25,7 +25,7 @@ import org.json.JSONObject;
  * with the written file's hash; hfrecord.json beside manifest.json, named by it; and a snippet
  * that points to both. Read back with nom.tam, the FITS library Studio itself reads with.
  *
- * <p>The records go to extra/test-classes/hfrecord/ (fits-*.hfrec.json) and the files to
+ * <p>The records go to extra/test-classes/hfrecord/ (fits-*.hfrec) and the files to
  * extra/test-classes/hfrecord-fits/, where extra/test/test_hfrecord.py validates the records
  * against the schema and reads the files again with astropy.
  *

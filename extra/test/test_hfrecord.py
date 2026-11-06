@@ -2,10 +2,10 @@
 """Validate processing records (hfrecord 1.0) against docs/spec/hfrecord-1.schema.json.
 
     python3 extra/test/test_hfrecord.py                 # the records ProcessingRecordCheck wrote
-    python3 extra/test/test_hfrecord.py a.hfrec.json    # any records
+    python3 extra/test/test_hfrecord.py a.hfrec         # any records (.hfrec or the older .hfrec.json)
     python3 extra/test/test_hfrecord.py --fits DIR      # and the Send to Python files in DIR
 
-With no arguments it reads extra/test-classes/hfrecord/*.hfrec.json, which ProcessingRecordCheck
+With no arguments it reads extra/test-classes/hfrecord/*.hfrec and *.hfrec.json, which ProcessingRecordCheck
 writes during the checks step of ant check-all, and fails when there are none, so a check that
 stopped writing them cannot pass by validating nothing. Each record must pass the schema (draft
 2020-12) and carry no em dash; a record claiming a format this schema does not describe must be
@@ -83,7 +83,7 @@ def check_fits(folder: Path, validator) -> int:
             block = [v.strip() for v in history if v.strip().startswith(PREFIX)]
             expect(f"{f.name}: the record block opens with the record card and closes with the sidecar card",
                    len(block) >= 2 and block[0] == PREFIX + "record " + str(header.get("HFRECID"))
-                   and block[-1] == PREFIX + "sidecar " + f.name + ".hfrec.json")
+                   and block[-1] == PREFIX + "sidecar " + f.name + ".hfrec")
             expect(f"{f.name}: every HISTORY card's text is within 72 characters", all(len(v) <= 72 for v in history))
             numbers = [int(m.group(1)) for v in block if (m := re.match(re.escape(PREFIX) + r"step (\d+) ", v))]
             expect(f"{f.name}: step cards numbered 1 to {len(numbers)} in order", numbers == list(range(1, len(numbers) + 1)) and numbers)
@@ -107,7 +107,7 @@ def main(argv: list[str]) -> int:
     fits_dir = FITS_DEFAULT if not argv else None
     if len(argv) >= 2 and argv[0] == "--fits":
         fits_dir, argv = Path(argv[1]), argv[2:]
-    files = [Path(a) for a in argv] or sorted(DEFAULT.glob("*.hfrec.json"))
+    files = [Path(a) for a in argv] or sorted([*DEFAULT.glob("*.hfrec"), *DEFAULT.glob("*.hfrec.json")])
     if not files:
         print(f"  FAIL no records to validate in {DEFAULT} (ProcessingRecordCheck writes them)")
         return 1

@@ -1254,12 +1254,30 @@
         "properties": {}
       },
       "name": "openExportRecord",
-      "description": "Read an export's processing record (.hfrec.json) as a report; copy it as a methods paragraph or LaTeX, or save a Python script",
+      "description": "Read an export's processing record (.hfrec) as a report; copy it as a methods paragraph or LaTeX, or save a Python script",
       "annotations": {
         "destructiveHint": false,
         "readOnlyHint": true
       },
       "x-effect": "ui"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
+      "name": "migrateSidecars",
+      "description": "Rename the older .hfrec.json export records in a folder and its subfolders to .hfrec, after a count to confirm; never replaces a .hfrec",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": false
+      },
+      "x-effect": "write"
     },
     {
       "outputSchema": {
