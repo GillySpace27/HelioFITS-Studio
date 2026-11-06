@@ -14,7 +14,7 @@
     hfrecord_roundtrip.py embedded EXPORT.png
         The PNG's own tEXt hfrecord chunk passes the schema and equals the sidecar except where
         processing-record.md says an embedded copy differs: output.sha256 null, no
-        output.file_name, and native_ref "png:tEXt:hfstudio" in place of native. The
+        output.file_name, no preview (which the sidecar must have), and native_ref "png:tEXt:hfstudio" in place of native. The
         HelioSoftware-Provenance chunk equals the record's provenance object.
 
 Needs Pillow and jsonschema. Exit 0 on pass, 1 on a failure, 2 on bad arguments.
@@ -117,6 +117,10 @@ def embedded(png: Path) -> int:
         if test_hfrecord.main([str(copy)]) != 0:
             return fail("the embedded copy does not pass the schema")
     expected = record_of(png)
+    preview = expected.pop("preview", None)  # the picture is in the sidecar only
+    if not isinstance(preview, dict) or not 0 < preview.get("width", 0) <= 320 or not 0 < preview.get("height", 0) <= 320:
+        return fail(f"the sidecar has no preview within 320 px: {None if preview is None else {k: v for k, v in preview.items() if k != 'data'}}")
+    print(f"  ok   the sidecar has a {preview['media_type']} preview, {preview['width']}x{preview['height']}")
     expected["output"].pop("file_name", None)
     expected["output"]["sha256"] = None
     expected.pop("native", None)
