@@ -99,6 +99,15 @@ Other local inputs:
 | 3-D model | `.gltf`, `.glb` (also gzipped) | File > Open Model Layer | `ExtensionFileFilter.java` |
 | Point cloud | `.json`, `.json.gz` (several files become a time series) | Layers > New Point Cloud Layer, or drag onto the window | `gui/Actions.java`, `plugins/pointcloud/` |
 
+A 3-D model without heliocentric metadata (an ordinary spacecraft model) opens at Sun centre in its
+file's own units. Its layer options can instead place it at the real position of any object in
+`astronomy/SpaceObject.java`: the bundled SPICE kernels for planets, the Moon, Solar Orbiter and
+STEREO Ahead, the ROB position service below for the other spacecraft. It is then drawn at true size
+(Units sets metres per file unit; glTF declares metres, but not every export follows that), enlarged
+by a factor up to 10^10 and by a minimum on-screen size, and the panel says how much larger than
+true size it is drawn. A model with heliocentric metadata keeps the placement its file declares
+(`layers/ModelLayer.java`, `layers/ModelPlacement.java`).
+
 The point cloud JSON layout is **unconfirmed** in this list; read `plugins/pointcloud/PointCloudLoader.java`
 before preparing files for it.
 
