@@ -79,9 +79,6 @@ Every command HelioFITS Studio has, as the menus, Help > Search Controls and the
 * - File > Save as Template...
   - Save this scene as a template: a starting point with a name, a description, a thumbnail and a time rule
   - `saveAsTemplate`
-* - File > Template Manager...
-  - Manage scene templates: open, duplicate, rename, edit, share, set as startup or retire
-  - `templates`
 ```
 
 ## Edit
@@ -193,26 +190,15 @@ Every command HelioFITS Studio has, as the menus, Help > Search Controls and the
 * - Layers > Open Model Layer...
   -
   - `openModel`
+* - Layers > Find CMEs to Track...
+  -
+  - `findCmes`
+* - Layers > Find Comets to Track...
+  -
+  - `findComets`
 * - Layers > Duplicate Layer
   - Add a copy of the selected image layer, for a before and after with the Compare palette
   - `duplicateLayer`
-```
-
-## Tools
-
-```{list-table}
-:header-rows: 1
-:widths: 40 40 20
-
-* - Command
-  - What it does
-  - Id
-* - Tools > Find CMEs to Track...
-  -
-  - `findCmes`
-* - Tools > Find Comets to Track...
-  -
-  - `findComets`
 ```
 
 ## Movie
@@ -245,6 +231,9 @@ Every command HelioFITS Studio has, as the menus, Help > Search Controls and the
 * - Movie > Reset Trim
   -
   - `trimReset`
+* - Movie > Save View to Study
+  - Add the view on screen to the Study table as a new row
+  - `studySaveView`
 ```
 
 ## Not in a menu
@@ -353,6 +342,38 @@ Every command HelioFITS Studio has, as the menus, Help > Search Controls and the
   - `tourRearrangingTheInterface`
 ```
 
+## Managers
+
+```{list-table}
+:header-rows: 1
+:widths: 40 40 20
+
+* - Command
+  - What it does
+  - Id
+* - Managers > Study Manager...
+  - What a scene exports: a table of views to export as a set (projection, lambda, field of view, layers), and study templates to start one from
+  - `study`
+* - Managers > Task Manager...
+  - What is downloading, loading or computing, and the export queue (also: click the footer's spinner)
+  - `taskManager`
+* - Managers > Template Manager...
+  - Manage scene templates: open, duplicate, rename, edit, share, set as startup or retire
+  - `templates`
+* - Managers > Toolbar Manager...
+  - Choose which tools are on the toolbar and in what order (unlocks the panels first when they are locked)
+  - `toolbarManager`
+* - Managers > Cache Manager...
+  - What is on disk, in Studio's cache and the FITS library: load, reveal, import, verify or delete
+  - `cacheManager`
+* - Managers > Theme Manager...
+  - Pick, customize and save interface themes (View > Theme is the quick picker)
+  - `themeManager`
+* - Managers > Keybindings Manager...
+  - Every command with its keybinding: search, change or reset (opens Settings on the Keybindings tab)
+  - `keybindingsManager`
+```
+
 ## Commands that take arguments
 
 These are run by scripts and Search Controls rather than from a menu; the arguments are named after the description.
@@ -364,21 +385,6 @@ These are run by scripts and Search Controls rather than from a menu; the argume
 * - Command
   - What it does
   - Id
-* - What a scene exports: a table of views to export as a set (projection, lambda, field of view, layers), and study templates to start one from
-  - No arguments
-  - `study`
-* - What is downloading, loading or computing, and the export queue (also: click the footer's spinner)
-  - No arguments
-  - `taskManager`
-* - Add the view on screen to the Study table as a new row
-  - No arguments
-  - `studySaveView`
-* - Choose which tools are on the toolbar and in what order (unlocks the panels first when they are locked)
-  - No arguments
-  - `toolbarManager`
-* - What is on disk, in Studio's cache and the FITS library: load, reveal, import, verify or delete
-  - No arguments
-  - `cacheManager`
 * - Show the movie frame with this number (0 is the first)
   - Arguments: `frame`
   - `seekFrame`

@@ -73,7 +73,7 @@ public final class ToolbarEditor {
     private static final DefaultListModel<String> availableModel = new DefaultListModel<>();
 
     /**
-     * Window > Toolbar Manager...: the same editor, which the panel lock holds shut. Locked, it
+     * Managers > Toolbar Manager...: the same editor, which the panel lock holds shut. Locked, it
      * asks to unlock first rather than doing nothing, and says the padlock is where to lock again.
      */
     public static void openFromMenu() {

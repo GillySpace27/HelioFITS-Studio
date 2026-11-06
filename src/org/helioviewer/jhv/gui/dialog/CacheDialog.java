@@ -96,7 +96,7 @@ public final class CacheDialog extends StandardDialog implements Interfaces.Show
         static final CacheDialog INSTANCE = new CacheDialog();
     }
 
-    /** The one Cache Manager window: Window > Cache Manager..., Layers > Cache Manager..., New Image Layer's button. */
+    /** The one Cache Manager window: Managers > Cache Manager..., Layers > Cache Manager..., New Image Layer's button. */
     public static CacheDialog get() {
         return Holder.INSTANCE;
     }

@@ -7,6 +7,9 @@
 ### Welcome window
 - What's New is now a button in the Welcome window's header instead of the main panel, so the window shows the ways to start first. Take a Tour is a button that opens a list of every tour with its number of steps (Getting started marked as the place to begin); clicking one starts it. The first time the window opens, Return opens that list instead of Continue. A new Find your way around panel lists the help in the app: Search Controls with its keyboard shortcut, tooltips, Tip of the Day, the User Manual, the Help menu and Send Feedback. The footer has one Settings button (Display Scaling, the text size and interface scale, is under Appearance) in place of Settings and Display Settings, which is renamed Display Scaling since it handles only scaling.
 
+### Managers menu
+- All managers now live in a new Managers menu on every platform: Template, Study, Cache, Task, Toolbar, Theme and Keybindings Manager. The Window menu (macOS) returns to window management, and the managers no longer sit at the foot of File elsewhere. Find CMEs to Track and Find Comets to Track moved from Tools to Layers; Toolbar Manager moved from Tools to Managers. Command ids are unchanged; `themeManager` and `keybindingsManager` are new.
+
 ### Window menu managers
 - The Window menu (the File menu off macOS) now holds Template Manager, Study Manager, Toolbar Manager, Cache Manager and Task Manager. Cache Manager replaces Load from Cache. Task Manager is the former Activity window under its new name, and its command id changes from `activity` to the Task Manager id. Two new tours show the managers. Study Manager's Save as template no longer keeps the source scene's export folder and overwrite policy, and the library's Delete button says why it is greyed out.
 

@@ -101,9 +101,9 @@ public final class ActionCatalog {
         put("newPointCloudLayer", new Actions.NewPointCloudLayer(), "Layers/New Point Cloud Layer...", "");
         put("openImageLayer", new Actions.OpenLocalFile(), "Layers/Open Image Layer...", "");
         put("openModel", new Actions.OpenModel(), "Layers/Open Model Layer...", "");
-        // Tools
-        put("findCmes", new Actions.TrackCME(), "Tools/Find CMEs to Track...", "");
-        put("findComets", new Actions.TrackComet(), "Tools/Find Comets to Track...", "");
+        // Events and targets (Layers menu): catalogs that load and then drive the view
+        put("findCmes", new Actions.TrackCME(), "Layers/Find CMEs to Track...", "");
+        put("findComets", new Actions.TrackComet(), "Layers/Find Comets to Track...", "");
         // Movie: the shared instances the movie panel and the time slider already use
         put("playPause", Actions.PLAY_PAUSE, "Movie/Play/Pause Movie", "");
         put("previousFrame", Actions.PREVIOUS_FRAME, "Movie/Step to Previous Frame", "");
@@ -154,13 +154,13 @@ public final class ActionCatalog {
                 "Read an export's processing record (.hfrec) as a report; copy it as a methods paragraph or LaTeX, or save a Python script");
         put("migrateSidecars", org.helioviewer.jhv.gui.dialog.ExportRecordDialog.migrateAction(), "File/Migrate Sidecars in Folder...",
                 "Rename the older .hfrec.json export records in a folder and its subfolders to .hfrec, after a count to confirm; never replaces a .hfrec");
-        put("study", org.helioviewer.jhv.gui.component.StudyPanel.openAction(), mac ? "Window/Study Manager..." : "File/Study Manager...", "What a scene exports: a table of views to export as a set (projection, lambda, field of view, layers), and study templates to start one from");
+        put("study", org.helioviewer.jhv.gui.component.StudyPanel.openAction(), "Managers/Study Manager...", "What a scene exports: a table of views to export as a set (projection, lambda, field of view, layers), and study templates to start one from");
         put("taskManager", new javax.swing.AbstractAction("Task Manager...") {
             @Override
             public void actionPerformed(java.awt.event.ActionEvent e) {
                 org.helioviewer.jhv.gui.component.JobQueuePanel.open();
             }
-        }, mac ? "Window/Task Manager..." : "File/Task Manager...", "What is downloading, loading or computing, and the export queue (also: click the footer's spinner)");
+        }, "Managers/Task Manager...", "What is downloading, loading or computing, and the export queue (also: click the footer's spinner)");
         put("studySaveView", org.helioviewer.jhv.gui.component.StudyPanel.saveViewAction(), "Movie/Save View to Study", "Add the view on screen to the Study table as a new row");
         // Help search (HS-15): the menu item, and the Projection palette's reveal for the controls in it
         put(org.helioviewer.jhv.gui.search.CommandPalette.ID, org.helioviewer.jhv.gui.search.CommandPalette.action(), "Help/Search Controls...", "Find any command or control by name and run it or show where it is");
@@ -192,7 +192,7 @@ public final class ActionCatalog {
                 "Start from a template: a saved scene whose dates can follow the newest data");
         put("saveAsTemplate", new org.helioviewer.jhv.gui.dialog.TemplateSave.Open(), "File/Save as Template...",
                 "Save this scene as a template: a starting point with a name, a description, a thumbnail and a time rule");
-        put("templates", new org.helioviewer.jhv.gui.dialog.TemplateManager.Open(), mac ? "Window/Template Manager..." : "File/Template Manager...",
+        put("templates", new org.helioviewer.jhv.gui.dialog.TemplateManager.Open(), "Managers/Template Manager...",
                 "Manage scene templates: open, duplicate, rename, edit, share, set as startup or retire");
         // The toolbar editor, under the name of the other managers; asks to unlock the panels first when they are locked
         put("toolbarManager", new AbstractAction("Toolbar Manager...") {
@@ -200,7 +200,7 @@ public final class ActionCatalog {
             public void actionPerformed(java.awt.event.ActionEvent e) {
                 org.helioviewer.jhv.gui.component.ToolbarEditor.openFromMenu();
             }
-        }, mac ? "Window/Toolbar Manager..." : "File/Toolbar Manager...",
+        }, "Managers/Toolbar Manager...",
                 "Choose which tools are on the toolbar and in what order (unlocks the panels first when they are locked)");
         // Studio's Cache Manager (was Load from Cache), also New Image Layer's Open Cache Manager button
         put("cacheManager", new AbstractAction("Cache Manager...") {
@@ -208,8 +208,20 @@ public final class ActionCatalog {
             public void actionPerformed(java.awt.event.ActionEvent e) {
                 org.helioviewer.jhv.gui.dialog.CacheDialog.get().showDialog();
             }
-        }, mac ? "Window/Cache Manager..." : "File/Cache Manager...",
+        }, "Managers/Cache Manager...",
                 "What is on disk, in Studio's cache and the FITS library: load, reveal, import, verify or delete");
+        put("themeManager", new AbstractAction("Theme Manager...") {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                new org.helioviewer.jhv.gui.dialog.ThemeDialog().showDialog();
+            }
+        }, "Managers/Theme Manager...", "Pick, customize and save interface themes (View > Theme is the quick picker)");
+        put("keybindingsManager", new AbstractAction("Keybindings Manager...") {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                org.helioviewer.jhv.gui.component.MenuBar.openSettingsTab("Keybindings");
+            }
+        }, "Managers/Keybindings Manager...", "Every command with its keybinding: search, change or reset (opens Settings on the Keybindings tab)");
         // The person's own keybindings (Settings > Keybindings), applied over the defaults stated above
         org.helioviewer.jhv.gui.registry.KeyBindings.apply();
     }
