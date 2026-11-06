@@ -118,8 +118,22 @@ final class AudienceWindow {
             }
             fullScreenOn = null;
         }
-        window.dispose(); // no GL here: nothing to lose
+        // On macOS the full-screen reset above can fail and dispose() then retries it and throws
+        // again; hiding first and guarding both keeps exit from aborting half way.
+        tryRun("hide the projector window", () -> window.setVisible(false));
+        tryRun("dispose the projector window", window::dispose); // no GL here: nothing to lose
         mirror.handoff.clear();
+    }
+
+    /** Runs r; a RuntimeException is logged, not thrown. True when r completed. */
+    static boolean tryRun(String what, Runnable r) {
+        try {
+            r.run();
+            return true;
+        } catch (RuntimeException e) {
+            Log.warn("Could not " + what, e);
+            return false;
+        }
     }
 
     @SuppressWarnings("serial")
