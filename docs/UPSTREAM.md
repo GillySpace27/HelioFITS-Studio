@@ -78,6 +78,7 @@ git merge-tree --write-tree --name-only origin/master upstream/master | grep -c 
 | 2026-09-30 | 6b874317543f | 55 | (not measured) |
 | 2026-10-02 | | | 37 |
 | 2026-10-23 | 4f0dd068 | 234 | 128 |
+| 2026-11-06 | a49cfad52 | 290 | 156 |
 
 Cherry-picked on 2026-10-24 (branch `sync/upstream-picks-2026-10-24`): dd00d8ad, e2e8a84c,
 9b89c4e7, d6690677, 990c8343, 148262f1, 9351e775, 3de99722, ac7e861c, f12f9aa6, 4c68e0ac and
@@ -85,6 +86,17 @@ Cherry-picked on 2026-10-24 (branch `sync/upstream-picks-2026-10-24`): dd00d8ad,
 taken: 6b874317 (fast Rice for short and integer FITS), which conflicts with this fork's own
 PUNCH Rice decoder in `FastRiceProvider`; merging two "values unchanged" rewrites needs a
 bit-for-bit comparison on real files first (`FrameBench --rice`, then the parity harness).
+
+Cherry-picked on 2026-11-06 (branch `sync/upstream-picks-2026-11-06`, Studio 45aa5f8b6 vs upstream
+a49cfad52, 290 behind, 156 dry-run conflicts): 4d315c0b2, 222faed96, 71abd665c, ac0ba1e66,
+6b083fdcc, 15c435851, 4c573db36, 41ec858c6, 02f887fd0, 506c18244, 2982be704, 5ec0c2d1e,
+6a38e452a, 04818089a, 6e347cc55, 617091a05, 30d36ac02, c77051d75 and 4f0dd068d (adds
+`sta.bsp`). Dropped, because the tree did not compile with them: f98a73c22 (`getXMLMetaData`
+signature change, Studio's `ComputedView` and `RadioJ2KData` still use the old one), a964092f7
+(removes a timeline callback override Studio's `ChartDrawIntervalPane` still needs) and
+1a7b6009a (Spice API change breaking `PlanetMarkers`, `GaiaClient`, `TimestampLayer`,
+`Provenance`). Not taken on purpose: 24561bf62 (swaps the nom-tam-fits jar; would double-correct
+against Studio's `removeHalfQuantum`).
 
 ## Syncing upstream into master
 
