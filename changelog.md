@@ -20,6 +20,9 @@ Each new entry ends with a `[docs: ...]` pointer to where it is documented (`rel
 ### Display Scaling
 - Display Settings is renamed Display Scaling (View > Display Scaling, its title and Settings > Appearance), since scaling is all it handles. [docs: manual/filters-and-colour.md]
 
+### Export records
+- Each export's processing record (`<file>.hfrec.json`) now opens with a readable report: who made the file and when, the output, the scene, and per layer the dataset, frames, time range, the first and last source file and every processing step with its values, then caveats and citations. The full source file list stays in the data below it. File > Open Export Record... shows the report for an export or its record, with Copy, Save as Text and Show every source file; Copy as Methods Paragraph, Copy as LaTeX and Save as Python Script use HelioFITS Core and are greyed out when it is not found. [docs: docs/spec/README.md]
+
 ### Loading and help
 - Image files dropped together on the window load as one layer in name order, as a dropped folder and File > Open already do. [docs: manual/loading-data.md]
 - Help > Open User Manual opens the field guide of the version you are running instead of the releases page. [docs: none]

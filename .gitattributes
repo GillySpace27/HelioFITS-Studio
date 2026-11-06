@@ -2,3 +2,5 @@
 # hunks; extra/ci/guards.py diff then read a data line as a hunk header and crashed.
 *.fits binary
 *.fts binary
+# Golden report text that ExportReportCheck compares byte for byte: no CRLF on a Windows checkout.
+extra/test/data/hfrecord-* -text

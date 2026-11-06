@@ -932,8 +932,30 @@ public final class ProcessingRecord {
 
     static void writeJson(Path to, JSONObject record) throws IOException {
         Path tmp = to.resolveSibling(to.getFileName() + ".tmp");
-        Files.writeString(tmp, record.toString(2) + "\n", StandardCharsets.UTF_8);
+        Files.writeString(tmp, sidecarText(record), StandardCharsets.UTF_8);
         Files.move(tmp, to, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+    }
+
+    /**
+     * The sidecar's text: hfrecord first, then report (ExportReport, one line per element) so a
+     * person opening the file reads it before the data, then the rest. The report is made from
+     * this very text, so a reader that regenerates it from the file gets the same lines.
+     */
+    static String sidecarText(JSONObject record) {
+        JSONObject rest = new JSONObject(record.toString());
+        Object format = rest.remove("hfrecord");
+        rest.remove("report");
+        String body = rest.toString(2); // "{\n  ...\n}"
+        String head = format == null ? "{\n" : "{\n  \"hfrecord\": " + JSONObject.valueToString(format) + (rest.isEmpty() ? "\n" : ",\n");
+        String tail = rest.isEmpty() ? "}" : body.substring(2);
+        StringBuilder report = new StringBuilder("  \"report\": [");
+        String sep = "\n    ";
+        for (String line : ExportReport.block(ExportReport.parse(head + tail))) {
+            report.append(sep).append(JSONObject.quote(line));
+            sep = ",\n    ";
+        }
+        report.append("\n  ]").append(rest.isEmpty() ? "\n" : ",\n");
+        return head + report + tail + "\n";
     }
 
     // ---- the embedded copy (heliosoftware/spec/processing-record.md, "Where each format keeps it") ---
