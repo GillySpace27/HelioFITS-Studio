@@ -12,6 +12,8 @@ import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.movie.Player;
 import org.helioviewer.jhv.time.JHVTime;
 
+import spice.basic.SpiceErrorException;
+
 /**
  * Where a model layer's target is at a given time, in the Carrington frame.
  *
@@ -72,7 +74,7 @@ final class ModelEphemeris {
                 }
                 status = "";
                 return ModelPlacement.carringtonPosition(time, v[0], v[1], v[2]);
-            } catch (Exception e) { // outside the kernel's coverage: say so, do not log every frame
+            } catch (SpiceErrorException e) { // outside the kernel's coverage: say so, do not log every frame
                 status = "No position for " + target + " at " + time + " (outside the bundled ephemeris)";
                 return null;
             }
