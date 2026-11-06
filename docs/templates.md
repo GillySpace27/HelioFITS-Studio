@@ -43,7 +43,7 @@ Before any layer is built (`State.load`, through `TemplateState.prepare`), a `la
 `relative` template has every image layer's `APIRequest` and `fitsRequest` start and end, the
 master range and the playhead moved to the resolved range. A FITS layer's cached file list is
 dropped from the copy in memory, so it re-runs its query over the new range. A layer with only a
-file list (a local file, or a Heliad dataset opened from the library) has no query and keeps its
+file list (a local file, or a HelioFITS Core dataset opened from the library) has no query and keeps its
 files. Then the window is pointed at its own Untitled session file. The range is kept from the
 startup default the way a session's is (`MoviePanel.keepSessionRange`).
 
@@ -84,9 +84,9 @@ Set as Startup stores the template's path in the pinned default session setting
 (`startup.loadState`, the one File > Set Current Session as Default uses), so each launch opens
 the template and works its times out fresh; File > Clear Default Session undoes it.
 
-Refresh Data asks Heliad (`template.refresh`, docs/api.md in the heliad repository) to bring the
-library up to the newest frames of every Heliad dataset the template shows, and says what it
+Refresh Data asks HelioFITS Core (`template.refresh`, docs/api.md in the heliad repository) to bring the
+library up to the newest frames of every HelioFITS Core dataset the template shows, and says what it
 queued; open the template again once the downloads finish. Layers from a Helioviewer server are
-not Heliad's: the template's time rule already asks them for the newest data when it opens.
-`io/TemplateRefresh` installs the hook at launch when a Heliad library is found; without one
-the button stays disabled with the tooltip "Needs Heliad".
+not HelioFITS Core's: the template's time rule already asks them for the newest data when it opens.
+`io/TemplateRefresh` installs the hook at launch when a HelioFITS Core library is found; without one
+the button stays disabled with the tooltip "Needs HelioFITS Core".
