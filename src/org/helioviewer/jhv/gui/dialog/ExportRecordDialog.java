@@ -5,6 +5,7 @@ import java.awt.FileDialog;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.event.ActionEvent;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -21,6 +22,7 @@ import javax.swing.Action;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
+import javax.swing.ImageIcon;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -43,6 +45,7 @@ import org.helioviewer.jhv.thread.Task;
  * paragraph, LaTeX and Python script come from HelioFITS Core ({@code hfcore record show
  * --format methods|tex|python}), so those buttons need a core; Studio does not repeat that prose.
  * With no sidecar beside the file, a core reads the record inside the PNG, EXR or movie instead.
+ * A record's picture (its preview, else a PNG or JPEG export beside it) heads the dialog.
  */
 public final class ExportRecordDialog {
 
@@ -54,13 +57,16 @@ public final class ExportRecordDialog {
     private final Map<String, Object> record; // null: the core reads the record
     private final JTextArea area = new JTextArea();
     private final JLabel status = new JLabel(" ");
+    @Nullable
+    private final BufferedImage picture; // ProcessingRecord.previewImage, or null for none
 
-    private ExportRecordDialog(File export, @Nullable Map<String, Object> record) {
+    private ExportRecordDialog(File export, @Nullable Map<String, Object> record, @Nullable BufferedImage picture) {
         this.export = export;
         this.record = record;
+        this.picture = picture;
     }
 
-    private record Opened(File file, Map<String, Object> record, @Nullable String renamed) {
+    private record Opened(File file, Map<String, Object> record, @Nullable String renamed, @Nullable BufferedImage picture) {
     }
 
     public static Action migrateAction() {
@@ -127,17 +133,17 @@ public final class ExportRecordDialog {
                         Map<String, Object> rec = ExportReport.parse(Files.readString(side, StandardCharsets.UTF_8));
                         Path now = ProcessingRecord.migrateLegacy(side); // an older .hfrec.json becomes .hfrec once read
                         return new Opened(side.equals(file.toPath()) ? now.toFile() : file, rec,
-                                now.equals(side) ? null : now.getFileName().toString());
+                                now.equals(side) ? null : now.getFileName().toString(), ProcessingRecord.previewImage(rec, now));
                     },
                     o -> {
-                        ExportRecordDialog d = new ExportRecordDialog(o.file(), o.record());
+                        ExportRecordDialog d = new ExportRecordDialog(o.file(), o.record(), o.picture());
                         if (o.renamed() != null)
                             d.status.setText("Renamed to " + o.renamed());
                         d.show();
                     },
                     t -> Message.err("Export record unreadable", side.getFileName() + " could not be read as a processing record.", t));
         } else if (FitsCoreIngest.coreFound()) {
-            ExportRecordDialog d = new ExportRecordDialog(file, null);
+            ExportRecordDialog d = new ExportRecordDialog(file, null, null);
             d.core("text", false, d::show, "read the record inside " + file.getName());
         } else
             Message.warn("No export record", "There is no " + ProcessingRecord.sidecar(file.toPath()).getFileName() + " beside " + file.getName()
@@ -199,6 +205,17 @@ public final class ExportRecordDialog {
         status.setBorder(BorderFactory.createEmptyBorder(0, 8, 6, 8));
         south.add(status, BorderLayout.SOUTH);
 
+        if (picture != null) { // top left, beside the export's name
+            JLabel name = new JLabel(title);
+            name.setFont(name.getFont().deriveFont(Font.BOLD));
+            name.setIcon(new ImageIcon(picture));
+            name.setIconTextGap(12);
+            name.setVerticalTextPosition(JLabel.TOP);
+            name.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+            JPanel north = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+            north.add(name);
+            dialog.getContentPane().add(north, BorderLayout.NORTH);
+        }
         dialog.getContentPane().add(scroll, BorderLayout.CENTER);
         dialog.getContentPane().add(south, BorderLayout.SOUTH);
         dialog.pack();

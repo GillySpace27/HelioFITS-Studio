@@ -595,20 +595,23 @@ public final class ExportMovie {
      * directory. Off the event thread, on the encoder, after the file is complete.
      */
     static void writeRecord(@Nullable String output, @Nullable RecordInput in) {
-        writeRecord(output, in, null);
+        writeRecord(output, in, null, null);
     }
 
-    /** As above; {@code prepared}, when given, is the record the file already carries a copy of, completed and written as the sidecar. */
-    static void writeRecord(@Nullable String output, @Nullable RecordInput in, @Nullable JSONObject prepared) {
+    /**
+     * As above; {@code prepared}, when given, is the record the file already carries a copy of,
+     * completed and written as the sidecar; {@code preview}, when given, goes into the sidecar only.
+     */
+    static void writeRecord(@Nullable String output, @Nullable RecordInput in, @Nullable JSONObject prepared, @Nullable JSONObject preview) {
         if (output == null || in == null)
             return;
         java.nio.file.Path path = java.nio.file.Path.of(output.contains("%04d") ? String.format(output, 1) : output);
         if (output.contains("%04d") && !"still".equals(in.output().kind()))
             path = path.getParent(); // a series is its directory
         if (prepared != null)
-            ProcessingRecord.writePrepared(path, prepared);
+            ProcessingRecord.writePrepared(path, prepared, preview);
         else
-            ProcessingRecord.write(path, in.session(), in.live(), in.endScene(), in.output());
+            ProcessingRecord.write(path, in.session(), in.live(), in.endScene(), in.output(), preview);
     }
 
     private record CloseWriter(ExportWriter writer,
@@ -620,7 +623,7 @@ public final class ExportMovie {
                 // EXR frames took their copy when captured; the sidecar is still built here, at the end.
                 JSONObject prepared = record == null ? null : record.prepare();
                 String output = writer.close(writer.format() == ExportFormat.EXR ? null : prepared);
-                writeRecord(output, record, prepared); // before the report, so a caller that copies the file finds its record
+                writeRecord(output, record, prepared, writer.preview()); // before the report, so a caller that copies the file finds its record
                 Commands.notifyRecordingFinished(operationContext, true, "Recording finished.", output);
             } catch (Exception e) {
                 Log.error(e);
