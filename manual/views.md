@@ -71,11 +71,19 @@ Projection palette; its sky controls appear alongside.
   Helioradial) each field is drawn as a translucent cone from its spacecraft to as far from it as
   the Sun is, named on screen at its far end: a coronagraph's annulus about the Sun line, a
   heliospheric imager's square field to one side (STEREO HI toward Earth, SoloHI to solar east,
-  WISPR ahead along Parker Solar Probe's orbit). **Cones from spacecraft** and **Labels**, at the
-  top of its options, switch these off; with Cones off, fields are outlines on the plane of the sky. A
+  WISPR ahead along Parker Solar Probe's orbit). **Cones** and **Labels**, at the top of its
+  options, switch these off; with Cones off, fields are outlines on the plane of the sky. A
   field is not drawn before its instrument started observing. Off-Sun fields are drawn as squares
   at the elongations HelioFleet lists, which is the precision of a planning view, not of a
   pointing solution.
+  In the flat projections (HPC, Observer Sky, Helioradial Unrolled, flat Helioradial) the fields are
+  projected onto the current observer's sky. **Coverage** draws the edge of the solar surface each
+  spacecraft with a field on can see, in every flat projection including Latitudinal, where
+  several viewpoints' overlap shows on the map. **Bodies** marks the inner planets, Jupiter and each
+  spacecraft with a field on; one off screen gets an arrow at the edge of the view with its
+  elongation from the Sun. Controls that do nothing in the current projection stay visible but
+  greyed, and their tooltips say where they apply; the 3D Scene's sizes are greyed in 2D for the
+  same reason.
 - **Track** keeps the view turning with the Sun as the movie plays; **Differential**, beside it,
   toggles differential rotation.
 - {menuselection}`View --> Reset View` (or a double-click on the canvas) returns the view to its

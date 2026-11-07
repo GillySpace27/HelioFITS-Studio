@@ -16,8 +16,16 @@ import org.joml.Vector3f;
  */
 final class FOVLabels {
 
-    /** {@code anchor} in world coordinates; {@code color} premultiplied bytes, as the platform's. */
-    record Label(String text, double[] anchor, byte[] color) {}
+    /**
+     * {@code anchor} in the coordinates being drawn in (world in 3D, map units in 2D); {@code color}
+     * premultiplied bytes, as the platform's; {@code align} 0 puts the text right of the anchor,
+     * 1 left of it, 0.5 centred on it.
+     */
+    record Label(String text, double[] anchor, byte[] color, double align) {
+        Label(String text, double[] anchor, byte[] color) {
+            this(text, anchor, color, 0);
+        }
+    }
 
     private static final double TEXT_PX = 13;
 
@@ -37,7 +45,10 @@ final class FOVLabels {
             double[] a = labels.get(i).anchor();
             Transform.toNdc((float) a[0], (float) a[1], (float) a[2], ndc);
             on[i] = Float.isFinite(ndc.x) && Float.isFinite(ndc.y) && Math.abs(ndc.x) <= 1 && Math.abs(ndc.y) <= 1;
-            xs[i] = (float) ((ndc.x + 1) * .5 * vp.width) + 4 * scale * renderer.getFontSize() / (float) TEXT_PX;
+            float align = (float) labels.get(i).align();
+            float gap = 4 * scale * renderer.getFontSize() / (float) TEXT_PX;
+            float w = renderer.measureWidth(labels.get(i).text()) * scale;
+            xs[i] = (float) ((ndc.x + 1) * .5 * vp.width) + gap * (1 - 2 * align) - align * w;
             ys[i] = (float) ((ndc.y + 1) * .5 * vp.height);
         }
         // Fields whose far ends meet (everything centred on the Sun) would print on top of one
