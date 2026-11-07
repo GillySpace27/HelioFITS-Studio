@@ -160,7 +160,8 @@ public class ViewpointLayer extends AbstractLayer {
     public void renderFullFloat(Viewport vp) {
         if (!enabled)
             return;
-        GLText.drawTextFloat(vp, hoverText, mouseX + MOUSE_OFFSET_X, mouseY + MOUSE_OFFSET_Y);
+        // The pointer is in canvas pixels; the text is placed in the viewport, which a fixed output aspect insets
+        GLText.drawTextFloat(vp, hoverText, mouseX - vp.x + MOUSE_OFFSET_X, mouseY - vp.yAWT + MOUSE_OFFSET_Y);
     }
 
     private void clearHoverTextIfNeeded() {
@@ -171,28 +172,35 @@ public class ViewpointLayer extends AbstractLayer {
     }
 
     private void handleMouseMoved(PointerEvent e) {
-        if (!options.isHeliospheric()) {
-            clearHoverTextIfNeeded();
-            return;
+        mouseX = e.x();
+        mouseY = e.y();
+        String name = markerAt(GLRenderer.getMapView(), Display.getActiveViewport(), mouseX, mouseY);
+        clearHoverTextIfNeeded();
+        if (name != null) {
+            hoverText.add(name);
+            DisplayController.display();
         }
+    }
 
+    /**
+     * The name of the orbit plot's marker at canvas point (x, y), or null when the plot is not
+     * shown or no marker is within 1% of the view's half width. The hover label and the cursor
+     * identifier's footer both ask here.
+     */
+    @Nullable
+    public String markerAt(MapView mv, Viewport vp, int x, int y) {
+        if (!enabled || !options.isHeliospheric())
+            return null;
         List<PositionLoad> positionLoads = options.getVisibleLoads();
-        if (positionLoads.isEmpty()) {
-            clearHoverTextIfNeeded();
-            return;
-        }
+        if (positionLoads.isEmpty())
+            return null;
 
-        MapView mv = GLRenderer.getMapView();
         long time = Player.getTime().milli, start = Player.getStartTime(), end = Player.getEndTime();
         double relativeLon = getRelativeLongitude(time, start, end);
 
-        mouseX = e.x();
-        mouseY = e.y();
-
-        Viewport vp = Display.getActiveViewport();
         double width = mv.cameraWidth(vp);
-        double mousePlaneX = ViewportMath.computeUpX(vp, width, mv.cameraTranslationX(), mouseX);
-        double mousePlaneY = ViewportMath.computeUpY(vp, width, mv.cameraTranslationY(), mouseY);
+        double mousePlaneX = ViewportMath.computeUpX(vp, width, mv.cameraTranslationX(), x);
+        double mousePlaneY = ViewportMath.computeUpY(vp, width, mv.cameraTranslationY(), y);
         Quat dragRotation = mv.dragRotation();
 
         double halfWidth = width / 2;
@@ -209,10 +217,10 @@ public class ViewpointLayer extends AbstractLayer {
 
             response.interpolateRectangular(time, start, end, hoverPoint, hoverInterpolated); // should be shared with the one in renderPlanets
             if (relativeLon != 0) {
-                double x = hoverPoint[0];
-                double y = hoverPoint[1];
-                hoverPoint[0] = x * cosRelativeLon - y * sinRelativeLon;
-                hoverPoint[1] = x * sinRelativeLon + y * cosRelativeLon;
+                double px = hoverPoint[0];
+                double py = hoverPoint[1];
+                hoverPoint[0] = px * cosRelativeLon - py * sinRelativeLon;
+                hoverPoint[1] = px * sinRelativeLon + py * cosRelativeLon;
             }
             dragRotation.qxv(hoverPoint, rotatedHoverPoint);
 
@@ -224,11 +232,7 @@ public class ViewpointLayer extends AbstractLayer {
                 name = positionLoad.target().toString();
             }
         }
-        clearHoverTextIfNeeded();
-        if (name != null && minDist2 < hoverThreshold2) {
-            hoverText.add(name);
-            DisplayController.display();
-        }
+        return minDist2 < hoverThreshold2 ? name : null;
     }
 
     private void handleMouseExited() {
