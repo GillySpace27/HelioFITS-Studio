@@ -2,6 +2,8 @@ package org.helioviewer.jhv.display;
 
 import java.util.List;
 
+import javax.annotation.Nullable;
+
 import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.math.Vec2;
@@ -138,6 +140,17 @@ public abstract class MapView {
     }
 
     public abstract Vec2 projectToScreen(Viewport vp, Vec3 v);
+
+    /**
+     * Where a direction from the observer lands on the screen, for things at infinity such as the
+     * stars. The ray is a unit vector in the observer's frame (the Sun along -z, x toward
+     * increasing helioprojective longitude, y toward increasing latitude). Null when this mode has
+     * no place for a direction (only the sky maps do) or the direction is off what it can draw.
+     */
+    @Nullable
+    public Vec2 projectDirection(Viewport vp, Vec3 ray) {
+        return null;
+    }
 
     public abstract Vec2 mouseToMap(Viewport vp, int x, int y);
 
