@@ -131,7 +131,6 @@ public final class MainFrame {
 
     private static JFrame mainFrame;
     private static JScrollPane leftScrollPane;
-    private static final int SCROLLBAR_WIDTH = 10; // FlatLaf's own ScrollBar.width default
     private static FixedWidthPanel leftPaneHost;
 
     private static JPanel centerPanel;
@@ -248,7 +247,7 @@ public final class MainFrame {
                 c -> c.setBackground(javax.swing.UIManager.getColor("Panel.background")));
         // A thin bar, and a fixed one: this width is what the frozen sidebar width reserves, so
         // it has to be the same number in both places, which an explicit preferred size gives.
-        leftScrollPane.getVerticalScrollBar().setPreferredSize(new Dimension(SCROLLBAR_WIDTH, 0));
+        org.helioviewer.jhv.gui.component.PanelVisibility.styleScrollBar(leftScrollPane.getVerticalScrollBar());
         leftScrollPane.getVerticalScrollBar().setUnitIncrement(layersPanel.getGridRowHeight());
         leftPaneHost = new FixedWidthPanel();
         leftPaneHost.add(buildSessionBar(), BorderLayout.NORTH); // document name + save/load, above Playback and Recording
