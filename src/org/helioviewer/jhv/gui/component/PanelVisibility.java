@@ -11,7 +11,7 @@ import org.helioviewer.jhv.app.Theme;
  * <p>Four independent options under one master switch, all on by default, all in {@link Settings}
  * rather than in a theme, so they follow whichever theme is chosen and a theme derived from an
  * accent colour keeps them. Everything below is computed from the current theme's tokens and
- * clamped so the header title keeps 4.5:1 on the band and the band and stripe keep 3:1, which is
+ * clamped so the header title keeps 4.5:1 (3.5:1 for the strong title) on the band and the band and stripe keep 3:1, which is
  * what lets one set of rules serve built-in and user themes alike. With the master switch off
  * every value here is the theme's own and the look is exactly what it was before.
  */
@@ -78,7 +78,7 @@ public final class PanelVisibility {
             Color away = theme.get(Theme.Token.Foreground);
             for (double f = 0.05; f <= 0.6 && Theme.contrast(band, panel) < STRONG_BAND; f += 0.05) {
                 Color c = Theme.mix(base, away, f);
-                if (Theme.contrast(Theme.legibleOn(text, c, Theme.TEXT_MIN), c) < Theme.TEXT_MIN)
+                if (Theme.contrast(Theme.legibleOn(text, c, Theme.STRONG_TEXT_MIN), c) < Theme.STRONG_TEXT_MIN)
                     break; // any further and the title cannot be made to read, even brightened
                 band = c;
             }
@@ -93,10 +93,11 @@ public final class PanelVisibility {
         return Theme.legibleOn(nested, panel, Theme.SURFACE_MIN);
     }
 
-    /** The title colour for a band, held to 4.5:1 on whichever fill is in use: the strong one when headers are strong. */
+    /** The title colour for a band, held to 4.5:1 (3.5:1 for the strong one) on whichever fill is in use: the strong one when headers are strong. */
     public static Color headerText(Theme theme, Color fill) {
-        Theme.Token token = headers() ? Theme.Token.HeaderTextStrong : Theme.Token.HeaderText;
-        return Theme.legibleOn(theme.get(token), fill, Theme.TEXT_MIN);
+        if (headers())
+            return Theme.legibleOn(theme.get(Theme.Token.HeaderTextStrong), fill, Theme.STRONG_TEXT_MIN);
+        return Theme.legibleOn(theme.get(Theme.Token.HeaderText), fill, Theme.TEXT_MIN);
     }
 
     /** The accent stripe, held to 3:1 against the band it sits on. */

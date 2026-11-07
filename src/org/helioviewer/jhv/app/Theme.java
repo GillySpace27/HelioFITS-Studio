@@ -73,7 +73,7 @@ public final class Theme {
         Separator("Separator", "The hairline between a list and the panel above it. Needs 3:1 against the panel or it is not there."),
         HeaderFill("Section header", "The band behind a collapsible section title. Needs 3:1 against the panel."),
         HeaderText("Section header text", "The section title itself. Needs 4.5:1 against the band it sits on."),
-        HeaderTextStrong("Section header text (strong)", "The section title when \"Stronger section headers\" is on. Starts as a muted complement of the accent; held to 4.5:1 on whichever band it is drawn."),
+        HeaderTextStrong("Section header text (strong)", "The section title when \"Stronger section headers\" is on. Starts as a muted complement of the accent; held to 3.5:1 on whichever band it is drawn."),
         ChildHeaderFill("Nested section header", "The band behind an indented sub-section. Same two rules as the parent."),
 
         TimelinePlot("Timeline plot", "The ground of the timeline's interval strip."),
@@ -233,12 +233,12 @@ public final class Theme {
 
     /**
      * The strong header title: the accent's complement, muted, at the least lightness that still
-     * clears 4.5:1 on the worse of the two bands, on the same side of them as the theme's own
+     * clears 3.5:1 on the worse of the two bands, on the same side of them as the theme's own
      * title (lighter where the title is lighter than the band, darker where it is darker).
      *
      * <p>Asking for the least lightness that passes, rather than tinting the theme's own title and
      * pushing it until it passes, is what keeps the hue: a tinted white pushed toward white is
-     * white again. Where the band leaves almost no room (a pale title needs a nearly white colour
+     * white again. Where the band leaves almost no room (a pale title needs a very light colour
      * on a mid-tone band) the tint that survives is faint, and that is the contrast rule working,
      * not a fault; the swatch in the theme editor sets any colour wanted, with the ratio shown.
      */
@@ -246,7 +246,7 @@ public final class Theme {
         float hue = (hsb(c.get(Token.Accent))[0] + 0.5f) % 1f;
         Color fill = c.get(Token.HeaderFill);
         Color child = c.get(Token.ChildHeaderFill);
-        double margin = TEXT_MIN + 0.05;
+        double margin = STRONG_TEXT_MIN + 0.05;
         boolean lighter = luminance(c.get(Token.HeaderText)) >= luminance(fill);
         Color out;
         if (lighter) {
@@ -256,7 +256,7 @@ public final class Theme {
             double target = (Math.min(luminance(fill), luminance(child)) + 0.05) / margin - 0.05;
             out = target <= 0 ? Color.BLACK : atLuminance(hue, 0.65f, target);
         }
-        return legible(out, worse(out, fill, child), TEXT_MIN);
+        return legible(out, worse(out, fill, child), STRONG_TEXT_MIN);
     }
 
     public static Color mix(Color a, Color b, double f) {
@@ -321,6 +321,8 @@ public final class Theme {
      */
     public static final double TEXT_MIN = 4.5;
     public static final double SURFACE_MIN = 3;
+    /** The floor for the strong section title, a compromise (Gilly) between 4.5 and room for a visible hue. */
+    public static final double STRONG_TEXT_MIN = 3.5;
 
     /** Below this saturation a colour counts as a neutral, and the most tint a neutral may take. */
     private static final float NEUTRAL_MAX = 0.18f;
