@@ -324,6 +324,14 @@ private, so the clone needs GitHub access; `HFCORE_REPO=<local clone>` (or `HELI
 old name) uses a checkout that has the commit instead. To give a release a
 newer core, change the pin on a branch and say what it brings in the notes.
 
+The Windows and Linux packages carry the same core, in `heliofits-core` beside the launcher's
+folder (`python.exe` on Windows, `bin/python3` on Linux). `package.yml` checks out the pinned
+commit with the repository secret `HFCORE_READ_TOKEN` (a read-only token for
+`GillySpace27/heliad`) and `package-app.sh` calls `release/bundle-core.sh`, which unpacks a
+checksum-checked python-build-standalone build and installs the core into it. Without the secret
+(a fork's pull request) the package is built without a core, as before, and Studio says so in
+Settings > FITS Library. The Windows signing job signs the Python's own `.exe` and `.dll` files.
+
 Before the dmg is built, `notarize` checks the ffmpeg and licence manifests
 (`--check`, offline), signs with the tracked `release/entitlements.plist`, and runs
 `release/verify_signatures.sh` on the app: every Mach-O in the bundle and inside its
