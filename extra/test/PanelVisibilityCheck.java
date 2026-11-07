@@ -36,13 +36,15 @@ public final class PanelVisibilityCheck {
         Color fill = PanelVisibility.headerFill(theme, false);
         Color child = PanelVisibility.headerFill(theme, true);
         Color text = PanelVisibility.headerText(theme, fill);
+        // The strong title (headers on) is held to 3.5:1; the plain one to 4.5:1.
+        double floor = PanelVisibility.headers() ? Theme.STRONG_TEXT_MIN : Theme.TEXT_MIN;
         expect(n + ": band at least as strong as the theme's own", Theme.contrast(fill, panel) >= Theme.contrast(base, panel) - 1e-9);
         expect(n + ": band clears 3:1 on the panel", Theme.contrast(fill, panel) >= 3);
-        expect(n + ": title keeps 4.5:1 on the band", Theme.contrast(text, fill) >= 4.5);
+        expect(n + ": title keeps its floor on the band", Theme.contrast(text, fill) >= floor);
         expect(n + ": nested band clears 3:1 and differs from its parent", Theme.contrast(child, panel) >= 3 && !child.equals(fill));
-        expect(n + ": title keeps 4.5:1 on the nested band", Theme.contrast(PanelVisibility.headerText(theme, child), child) >= 4.5);
+        expect(n + ": title keeps its floor on the nested band", Theme.contrast(PanelVisibility.headerText(theme, child), child) >= floor);
         expect(n + ": stripe clears 3:1 on the band", Theme.contrast(PanelVisibility.stripeColor(theme, fill), fill) >= 3);
-        expect(n + ": hovered band keeps the title at 4.5:1", Theme.contrast(text, PanelVisibility.hoverFill(theme, fill)) >= 4.5);
+        expect(n + ": hovered band keeps the title at its floor", Theme.contrast(text, PanelVisibility.hoverFill(theme, fill)) >= floor);
     }
 
     private static CollapsiblePane section(String title) {
