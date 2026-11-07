@@ -343,6 +343,12 @@ public final class State {
                 hasCoverage = true;
         if (!hasCoverage)
             Timelines.getLayers().add(new org.helioviewer.jhv.timelines.CoverageTimelineLayer());
+        boolean hasBodies = false;
+        for (TimelineLayer tl : TimelineLayers.get())
+            if (tl instanceof org.helioviewer.jhv.timelines.BodiesTimelineLayer)
+                hasBodies = true;
+        if (!hasBodies)
+            Timelines.getLayers().add(new org.helioviewer.jhv.timelines.BodiesTimelineLayer());
     }
 
     private static void loadLayers(JSONObject data, @Nullable Commands.OperationContext context, ViewState.ModeData modeData) {

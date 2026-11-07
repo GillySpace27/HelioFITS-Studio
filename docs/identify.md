@@ -58,3 +58,19 @@ degrees times 2048 pixels in a PTM header), `layer` (the active layer's own pixe
 (inner and outer elongation and an optional square cut), samples every hour by default and
 refines each edge to a minute. It reads the ephemeris, not the files on disk, so it answers for
 dates nothing has been downloaded for.
+
+## Calendar and timeline
+
+The date picker's calendar can show which bodies are in a field on each day. Below the days,
+**Bodies** chooses the field: Off, PUNCH field (the same square as `identifyInField punch`, seen
+from Earth) or Active layer (the active layer's own pixels, its observer kept at a fixed offset
+from Earth). Each day then carries one small dot per body in the field at any hour that day
+(Moon white, planets in their marker colours), and hovering a day lists them. **Hide** greys out
+and disables days: No days, Moon days (days the Moon is in the field) or Any body. A month is
+computed in the background the first time it is shown and kept for the session; the days look
+plain until it is ready.
+
+The timeline's **Bodies in Field** track, off by default and enabled from the Timeline Layers
+list, draws one lane per body across the visible time range, with the same field choice in its
+options. It is computed from the ephemeris for the window (two years at most), so it shows bodies
+for times nothing has been downloaded for.

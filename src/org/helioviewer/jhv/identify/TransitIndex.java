@@ -82,6 +82,23 @@ public final class TransitIndex {
         @Nullable
         Position at(JHVTime time);
 
+        /**
+         * An observer that keeps its place relative to Earth (its Stonyhurst longitude, latitude
+         * and distance at {@code at}). Exact for Earth-centred, L1 and geosynchronous observers;
+         * an approximation for a spacecraft that drifts, such as STEREO (about 2 degrees a month)
+         * or Parker Solar Probe (none useful).
+         */
+        static Observer fixedFromEarth(Position at) {
+            Position earth0 = Spice.getCarrington("EARTH", at.time);
+            if (earth0 == null)
+                return t -> null;
+            double dLon = at.lon - earth0.lon;
+            return t -> {
+                Position e = Spice.getCarrington("EARTH", t);
+                return e == null ? null : new Position(t, at.distance, e.lon + dLon, at.lat);
+            };
+        }
+
         /** A SPICE target, as the viewpoint menus name them: EARTH, SOHO, STEREO AHEAD, SOLO, PSP. */
         static Observer spice(String name) {
             return t -> Spice.getCarrington(name, t);
