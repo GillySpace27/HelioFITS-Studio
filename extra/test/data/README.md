@@ -40,3 +40,6 @@ How the columns were made (2026-10-01, at 7671c40d9): bytes with `ls -l extra/te
 values by reading the first `TELESCOP`, `INSTRUME`, `DETECTOR`, `WAVELNTH`, `OBSRVTRY`, `DATE-OBS`,
 `NAXIS1`, `NAXIS2`, `BITPIX`, `ZNAXIS1`, `ZNAXIS2`, `ZBITPIX` and `ZCMPTYPE` cards in each file's
 headers (for a tile-compressed file the image keys are in HDU 1); "Used by" with `git grep -l -F <file name> -- . ':!extra/test/data'`.
+| `identify_oracle.py` | 1698 | not FITS: the sunpy/astropy script that computed the helioprojective rows in IdentifyCheck, from the bundled de432s_reduced kernel (needs jplephem) | n/a | `extra/test/IdentifyCheck.java` |
+| `identify_transit_oracle.py` | 1020 | not FITS: the sunpy script behind the Moon entry and exit times in IdentifyCheck.checkTransit (needs jplephem) | n/a | `extra/test/IdentifyCheck.java` |
+| `identify_cam_oracle.py` | 1656 | not FITS: the sunpy/astropy script behind IdentifyCheck.checkPunchFixture (body positions and pixel membership for `PUNCH_L3_CAM_20260425001600_v0k.fits`) | n/a | `extra/test/IdentifyCheck.java` |

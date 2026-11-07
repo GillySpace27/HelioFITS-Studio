@@ -67,7 +67,8 @@ public final class CommandRegistry {
             Map.entry("record", Effect.WRITE), Map.entry("trimStart", Effect.WRITE), Map.entry("trimEnd", Effect.WRITE),
             Map.entry("trimReset", Effect.WRITE), Map.entry("copyFrame", Effect.WRITE), Map.entry("copyProvenance", Effect.WRITE),
             Map.entry("quickShare", Effect.WRITE), Map.entry("shareScene", Effect.WRITE), Map.entry("sendToPython", Effect.WRITE),
-            Map.entry("openDemo", Effect.DESTRUCTIVE), Map.entry("punchLatest", Effect.WRITE));
+            Map.entry("openDemo", Effect.DESTRUCTIVE), Map.entry("punchLatest", Effect.WRITE),
+            Map.entry("identifyUnderCursor", Effect.WRITE), Map.entry("identifyTooltip", Effect.WRITE), Map.entry("identifyStars", Effect.WRITE));
 
     /**
      * Commands that only open or show part of the interface (a dialog, a palette, a tour, a page in
@@ -103,6 +104,7 @@ public final class CommandRegistry {
         }
         registerParameterised();
         DataCommands.register();
+        IdentifyCommands.register();
         registerIntrospection();
     }
 
