@@ -15,9 +15,10 @@ public interface Layer {
      * <p>Three answers rather than two, because "not an image" turned out to cover two unrelated
      * things. An overlay is drawn on top of the picture; a viewpoint layer decides where the
      * picture is seen from and may draw nothing at all. Putting the camera among the grid and the
-     * timestamps filed a cause under its effects.
+     * timestamps filed a cause under its effects. A scene layer is a thing placed in 3D space
+     * (a spacecraft model, a point cloud), listed in the 3D Scene pane with the scene-wide sizes.
      */
-    enum Kind {IMAGE, VIEWPOINT, OVERLAY}
+    enum Kind {IMAGE, VIEWPOINT, OVERLAY, SCENE}
 
     /** Overlay unless a layer says otherwise, which is what most of them are. */
     default Kind kind() {

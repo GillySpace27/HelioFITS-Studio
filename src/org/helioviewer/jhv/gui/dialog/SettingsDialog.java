@@ -182,6 +182,7 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
                 .row(null, sampHub)
                 .row(null, checkUpdates)
                 .row("Live data:", punchLive)
+                .row("3D scene:", sceneDefaultsPanel())
                 .row("Local API:", api)
                 .row(null, apiConfirm)
                 .end();
@@ -368,6 +369,36 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         cache.add(cacheSizeLabel);
         cache.add(clearCache);
         return cache;
+    }
+
+    /**
+     * The 3D Scene pane's sizes a new session starts with. A session keeps its own sizes, so this
+     * takes the current ones rather than repeating the pane's controls.
+     */
+    private static JPanel sceneDefaultsPanel() {
+        JLabel now = new JLabel();
+        Runnable show = () -> now.setText("New sessions: Enlarge " + org.helioviewer.jhv.layers.ModelLayer.times(org.helioviewer.jhv.layers.SceneScale.defaultEnlarge())
+                + ", Min size " + Math.round(org.helioviewer.jhv.layers.SceneScale.defaultMinPixels()) + " px");
+        JButton use = new JButton("Use Current Sizes");
+        use.setToolTipText("Start new sessions with the 3D Scene pane's Enlarge and Min size as they are now; a saved session keeps its own");
+        use.addActionListener(e -> {
+            org.helioviewer.jhv.layers.SceneScale.setDefaultEnlarge(org.helioviewer.jhv.layers.SceneScale.enlarge());
+            org.helioviewer.jhv.layers.SceneScale.setDefaultMinPixels(org.helioviewer.jhv.layers.SceneScale.minPixels());
+            show.run();
+        });
+        JButton reset = new JButton("Reset");
+        reset.setToolTipText("Start new sessions at 1x and a 24 px minimum");
+        reset.addActionListener(e -> {
+            org.helioviewer.jhv.layers.SceneScale.setDefaultEnlarge(org.helioviewer.jhv.layers.SceneScale.BUILT_IN_ENLARGE);
+            org.helioviewer.jhv.layers.SceneScale.setDefaultMinPixels(org.helioviewer.jhv.layers.SceneScale.BUILT_IN_MIN_PIXELS);
+            show.run();
+        });
+        show.run();
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
+        panel.add(now);
+        panel.add(use);
+        panel.add(reset);
+        return panel;
     }
 
     private static JPanel getStatePanel() {
