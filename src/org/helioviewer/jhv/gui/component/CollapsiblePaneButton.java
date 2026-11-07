@@ -1,5 +1,6 @@
 package org.helioviewer.jhv.gui.component;
 
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Graphics;
 
@@ -29,13 +30,23 @@ class CollapsiblePaneButton extends JToggleButton {
     CollapsiblePaneButton(boolean _child) {
         child = _child;
         setBorder(BorderFactory.createEmptyBorder(0, 2, 0, 0));
+        setRolloverEnabled(true);
         setContentAreaFilled(false);
         setFocusPainted(false);
         setBorderPainted(false);
         setHorizontalAlignment(SwingConstants.LEFT);
         // The look-and-feel's own label colour is chosen against the panel, not against this band,
         // so the title has to be told which of the two it is sitting on.
-        UIGlobals.themed(this, c -> c.setForeground(Theme.current().get(Theme.Token.HeaderText)));
+        UIGlobals.themed(this, c -> restyle());
+    }
+
+    /** Title colour and inset for the current theme and panel-visibility options. */
+    void restyle() {
+        Theme theme = Theme.current();
+        setForeground(PanelVisibility.headerText(theme, PanelVisibility.headerFill(theme, child)));
+        setBorder(BorderFactory.createEmptyBorder(0, child ? 2 : 2 + PanelVisibility.stripeWidth() + (PanelVisibility.stripe() ? 5 : 0), 0, 0));
+        revalidate();
+        repaint();
     }
 
     /**
@@ -75,8 +86,16 @@ class CollapsiblePaneButton extends JToggleButton {
     @Override
     protected void paintComponent(Graphics g) {
         int h = getHeight();
-        g.setColor(Theme.current().get(child ? Theme.Token.ChildHeaderFill : Theme.Token.HeaderFill));
+        Theme theme = Theme.current();
+        Color fill = PanelVisibility.headerFill(theme, child);
+        if (PanelVisibility.hover() && getModel().isRollover())
+            fill = PanelVisibility.hoverFill(theme, fill);
+        g.setColor(fill);
         g.fillRect(0, 0, getWidth(), h - 1);
+        if (!child && PanelVisibility.stripe()) {
+            g.setColor(PanelVisibility.stripeColor(theme, fill));
+            g.fillRect(2, 0, PanelVisibility.stripeWidth(), h - 1); // inset: band colour shows to its left, so it reads as a stripe in the band, not a gap in it
+        }
         // A hairline of the panel colour along the bottom. Six collapsed sections sit directly on
         // top of one another, and at one fill with no gap they paint as a single slab with titles
         // written on it rather than as six bands. The groove is what makes them read as separate.
