@@ -4,6 +4,9 @@
 
 ## HelioFITS Studio 0.9.2 (unreleased)
 
+### Helioradial 3D
+- In Helioradial with Render in 3D, each image layer now stands as its own observer saw it, as in Orthographic: a Solar Orbiter or STEREO frame is tilted against an Earth-view frame by the angle between the spacecraft, so the instruments' offsets show when the view is turned. The Projection palette's Each image at its observer turns it off, which faces every layer to the viewpoint as before. On for a new session; a session saved before opens with it off, as it was drawn.
+
 ### One store for FITS downloads
 - When there is a FITS library, a FITS file Studio downloads now moves into the library instead of being kept twice (once in Studio's cache, once in the library). Studio finds it there again by its download address, with or without HelioFITS Core running, and an existing cache moves into the library once, in the background, so its space comes back. Without a library, or with a HelioFITS Core older than this release, nothing changes: downloads stay in Studio's cache as before.
 - Settings > FITS Library has Choose Folder..., which puts the FITS library in another folder or on another drive: an empty or new folder becomes a new library, a folder that already holds one is used as it is, and HelioFITS Core's warnings about the place (a sync service folder, a network drive) are shown. The library used before stays where it is, with its files.

@@ -26,6 +26,14 @@ corona more of the screen. The disk itself is never warped, so the Sun does not 
 the picture to a disc, in solar radii, and frames that disc without changing the warp; leftmost is
 automatic, no crop.
 
+**Render in 3D** draws Helioradial as a surface the camera can orbit. With **Each image at its
+observer** (on for a new session) every image layer's surface stands as its own observer saw it, as
+in Orthographic: a Solar Orbiter or STEREO frame is tilted against an Earth-view frame by the
+angle between the spacecraft, so the offsets between instruments show when the view is turned.
+The warp moves each point along its direction from Sun centre, so a tilted surface keeps its shape.
+Off, every layer faces the viewpoint, as before; a session saved before the choice opens with it
+off.
+
 **Helioradial Unrolled** unrolls the corona into a strip: position angle along one axis and the same
 radial stretch along the other, so radial structure can be read at a glance.
 
