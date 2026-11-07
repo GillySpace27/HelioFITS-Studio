@@ -27,6 +27,13 @@ public class FOVLayer extends AbstractLayer {
     }
 
     @Override
+    public void renderScale(MapView mv, Viewport vp) {
+        if (!isVisible[vp.idx])
+            return;
+        catalog.renderFlat(mv, vp);
+    }
+
+    @Override
     public void init() {
         catalog.init();
     }

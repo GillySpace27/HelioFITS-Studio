@@ -11,6 +11,7 @@ import javax.swing.JPanel;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
 
+import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.gui.component.JHVSlider;
 import org.helioviewer.jhv.layers.ModelLayer;
 import org.helioviewer.jhv.layers.ModelPlacement;
@@ -67,6 +68,20 @@ public final class SceneSizePanel extends JPanel {
 
         addRow("Enlarge", enlarge, enlargeValue, 0);
         addRow("Min size (px)", pixels, null, 1);
+
+        // Models are drawn only in a 3D view: in a flat projection the sizes stay visible but
+        // greyed, and say where they apply.
+        String enlargeTip = enlarge.getToolTipText(), pixelsTip = pixels.getToolTipText();
+        Runnable follow = () -> {
+            boolean in3D = ViewState.getProjection().rendersIn3D();
+            String note = in3D ? "" : " Models are drawn in Orthographic and 3D Helioradial only.";
+            enlarge.setEnabled(in3D);
+            pixels.setEnabled(in3D);
+            enlarge.setToolTipText(enlargeTip + note);
+            pixels.setToolTipText(pixelsTip + note);
+        };
+        follow.run();
+        ViewState.addModeListener(follow::run);
     }
 
     private static int toSteps(double factor) {
