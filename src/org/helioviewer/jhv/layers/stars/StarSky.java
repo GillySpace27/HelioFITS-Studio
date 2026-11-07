@@ -12,13 +12,20 @@ import org.helioviewer.jhv.time.JHVTime;
 import spice.basic.SpiceErrorException;
 
 /**
- * Where the background stars and planets fall in an observer's view, and how each one is drawn.
+ * Where the background stars and planets lie in an observer's sky, and how each one is drawn.
  *
- * <p>The geometry is GaiaClient's, which the starfield spike (2026-11-07) checked against sunpy's
- * Helioprojective frame for real stars from Earth and from an observer at 0.3 AU: agreement better
- * than 0.0001 deg. Two things are new, both found by that spike. Stars on the far side of the sky
- * are culled (calcProj3 alone folds them onto the field, shifted 180 deg in Tx), and so is anything
- * more than {@link #MAX_ELONGATION_DEG} from the Sun, where the d tan(T) placement runs away.
+ * <p>Everything is computed once per viewpoint as a DIRECTION: a unit ray in the observer's frame,
+ * which is the frame the sky maps already speak (the Sun along -z, x toward increasing
+ * helioprojective longitude, y toward increasing latitude, solar north up, so P = 0). Each view
+ * then places those directions its own way: the 3D views on the plane through Sun centre
+ * ({@link #plane}), HPC and Observer Sky through their page mapping (MapView.projectDirection).
+ *
+ * <p>The geometry reproduces GaiaClient.calcProj3, which the starfield spike (2026-11-07) checked
+ * against sunpy's Helioprojective frame for real stars from Earth and from an observer at 0.3 AU:
+ * agreement better than 0.0001 deg. Working in rays rather than calcProj3's angles also removes the
+ * fold the spike found, where a star on the far side of the sky came back onto the field shifted
+ * 180 deg in Tx. The 3D placement d tan(T) still runs away far from the Sun, so {@link #plane}
+ * drops anything more than {@link #MAX_ELONGATION_DEG} from it; the sky maps need no such cut.
  *
  * <p>Solar light deflection, parallax and aberration are ignored: they are arcsecond effects, far
  * below a point a few pixels wide on a coronagraph field. Proper motion is applied.
@@ -27,6 +34,13 @@ public final class StarSky {
 
     /** What the options panel controls. Saturation 0 is white, 1 the blackbody colour, above 1 exaggerated. */
     public record Style(double magLimit, boolean colour, double saturation, double sizeScale, boolean planets, boolean moon) {}
+
+    /**
+     * Every body drawn for one viewpoint: n unit rays in the observer's frame (x, y, z per body),
+     * sizes in pixels, and premultiplied RGBA. Arrays are not copied; nothing writes them after
+     * {@link #compute} returns.
+     */
+    public record Points(int count, float[] ray, float[] size, byte[] colour) {}
 
     public static final double MAX_ELONGATION_DEG = 80;
     private static final double COS_MAX_ELONGATION = Math.cos(Math.toRadians(MAX_ELONGATION_DEG));
@@ -39,21 +53,32 @@ public final class StarSky {
     private static final List<String> PLANETS = List.of("Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune");
     private static final float PLANET_PX = 6;
     private static final float MOON_PX = 7;
+    // Nearer than this (solar radii, about 170,000 km) a body is the one the view is from, or the
+    // one it orbits: an observer at Earth whose location carries no name, or SDO over Earth. Its
+    // "direction" is then light-time and frame noise, and it was drawn as a dot on the Sun.
+    private static final double NEAR_RSUN = 0.25;
+    // A body this close to the Sun line (1 arcsec) is one the viewpoint was placed on: an image
+    // with no observer position is put on the Sun-Earth line, and Earth then lands exactly in
+    // front of or behind the Sun. A real planet is never that exactly aligned with a real observer.
+    private static final double SUN_LINE_SIN = Math.toRadians(1 / 3600.);
 
-    /** Vertices for one viewpoint: x, y on the plane through Sun centre normal to the line of sight, size in pixels. */
-    public static BufVertex compute(Position viewpoint, StarCatalog cat, Style style) throws SpiceErrorException {
-        BufVertex buf = new BufVertex(Math.min(cat.size(), 20000) + 10);
+    /** The whole sky for one viewpoint, brighter than the style's limit, planets first. */
+    public static Points compute(Position viewpoint, StarCatalog cat, Style style) throws SpiceErrorException {
+        int max = cat.size() + PLANETS.size() + 1;
+        Points out = new Points(0, new float[3 * max], new float[max], new byte[4 * max]);
+        int n = 0;
         JHVTime time = viewpoint.time;
         double[] sc = observer(viewpoint);
-        double[] theta = new double[2];
+        double[][] frame = frame(sc[1], sc[2]);
+        double[] ray = new double[3];
 
         if (style.planets()) {
             double[] rsc = SpiceMath.radrec(sc[0], sc[1], sc[2]);
             String self = viewpoint.getLocation();
             for (String name : PLANETS)
-                putBody(name, self, PLANET_PX, rsc, sc, time, theta, buf, style);
+                n = putBody(name, self, PLANET_PX, rsc, frame, time, ray, out, n, style);
             if (style.moon())
-                putBody("Moon", self, MOON_PX, rsc, sc, time, theta, buf, style);
+                n = putBody("Moon", self, MOON_PX, rsc, frame, time, ray, out, n, style);
         }
 
         double dyr = (time.milli / 1000. - EPOCH_SEC) / JYEAR_SEC;
@@ -64,63 +89,104 @@ public final class StarSky {
                 continue;
             double dec = Math.toRadians(cat.dec[i]) + cat.pmdec[i] * MAS * dyr;
             double ra = Math.toRadians(cat.ra[i]) + cat.pmra[i] * MAS * dyr / Math.cos(Math.toRadians(cat.dec[i]));
-            if (!starTheta(sc, carr, ra, dec, theta))
+            starRay(frame, carr, ra, dec, ray);
+            n = put(ray, starSize(mag, style), starColour(cat.bv[i], mag, style), out, n);
+        }
+        return new Points(n, out.ray(), out.size(), out.colour());
+    }
+
+    /**
+     * Vertices for the 3D views: x, y on the plane through Sun centre normal to the line of sight
+     * (d tan Tx, d tan Ty, the placement GaiaClient used), size in pixels. Bodies more than
+     * MAX_ELONGATION_DEG from the Sun are left out.
+     */
+    public static BufVertex plane(Points p, double distance) {
+        BufVertex buf = new BufVertex(Math.min(p.count(), 20000) + 10);
+        double[] ray = new double[3];
+        double[] theta = new double[2];
+        byte[] colour = new byte[4];
+        for (int i = 0; i < p.count(); i++) {
+            ray[0] = p.ray()[3 * i];
+            ray[1] = p.ray()[3 * i + 1];
+            ray[2] = p.ray()[3 * i + 2];
+            if (!theta(ray, theta))
                 continue;
-            put(theta, sc[0], starSize(mag, style), starColour(cat.bv[i], mag, style), buf);
+            System.arraycopy(p.colour(), 4 * i, colour, 0, 4);
+            buf.putVertex((float) (distance * Math.tan(theta[0])), (float) (distance * Math.tan(theta[1])), 0, p.size()[i], colour);
         }
         return buf;
     }
 
-    /** One star's (Tx, Ty) for an observer at sc = {distance, Carrington lon, lat}; false when culled. ra, dec ICRS radians. */
-    static boolean starTheta(double[] sc, double[][] j2000ToCarrington, double ra, double dec, double[] theta) {
-        double[] st = SpiceMath.recrad(SpiceMath.mxv(j2000ToCarrington, SpiceMath.radrec(1, ra, dec)));
-        return project(st[1], st[2], sc[1], sc[2], theta);
+    /**
+     * The observer's frame in Carrington coordinates, for an observer at Carrington (lon0, lat0)
+     * radians: rows are the x (solar west on the sky), y (solar north) and z (Sun toward observer)
+     * axes, so multiplying a Carrington direction by it gives the ray in the observer's frame.
+     */
+    static double[][] frame(double lon0, double lat0) {
+        double cl = Math.cos(lon0), sl = Math.sin(lon0), cb = Math.cos(lat0), sb = Math.sin(lat0);
+        return new double[][]{{-sl, cl, 0}, {-sb * cl, -sb * sl, cb}, {cb * cl, cb * sl, sb}};
     }
 
-    /** The {distance, Carrington lon, lat} the projection wants, from a viewpoint (whose lon is stored negated). */
+    /** A Carrington direction, any length, as a unit ray in the observer's frame. */
+    static void toRay(double[][] frame, double[] carrington, double[] ray) {
+        double[] r = SpiceMath.mxv(frame, carrington);
+        double len = Math.sqrt(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]);
+        ray[0] = r[0] / len;
+        ray[1] = r[1] / len;
+        ray[2] = r[2] / len;
+    }
+
+    /** One star's ray; ra, dec ICRS radians. */
+    static void starRay(double[][] frame, double[][] j2000ToCarrington, double ra, double dec, double[] ray) {
+        toRay(frame, SpiceMath.mxv(j2000ToCarrington, SpiceMath.radrec(1, ra, dec)), ray);
+    }
+
+    /**
+     * Helioprojective (Tx, Ty) of a ray, in radians, for the 3D placement. False, with theta
+     * untouched, for anything more than MAX_ELONGATION_DEG from the Sun, which includes the whole
+     * far hemisphere.
+     */
+    static boolean theta(double[] ray, double[] theta) {
+        if (-ray[2] < COS_MAX_ELONGATION) // the Sun is along -z, so -z is the cosine of the elongation
+            return false;
+        theta[0] = Math.atan2(ray[0], -ray[2]);
+        theta[1] = Math.asin(Math.clamp(ray[1], -1, 1));
+        return true;
+    }
+
+    /** The {distance, Carrington lon, lat} of the observer, from a viewpoint (whose lon is stored negated). */
     static double[] observer(Position viewpoint) {
         return new double[]{viewpoint.distance, -viewpoint.lon, viewpoint.lat};
     }
 
-    private static void putBody(String name, String self, float px, double[] rsc, double[] sc, JHVTime time, double[] theta, BufVertex buf, Style style) {
+    private static int putBody(String name, String self, float px, double[] rsc, double[][] frame, JHVTime time, double[] ray, Points out, int n, Style style) {
         SpaceObject body = SpaceObject.get(name);
         if (body == null || body.getSpiceName().equals(self))
-            return;
+            return n;
         double[] pl;
         try {
             pl = Spice.getPosition("SUN", body.getSpiceName(), "SOLO_IAU_SUN_2009", time);
         } catch (SpiceErrorException e) { // the outer-planet kernel is optional; a missing body is skipped, not the sky
-            return;
+            return n;
         }
         pl[0] -= rsc[0]; // observer -> body = Sun -> body - Sun -> observer
         pl[1] -= rsc[1];
         pl[2] -= rsc[2];
-        pl = SpiceMath.recrad(pl);
-        if (project(pl[1], pl[2], sc[1], sc[2], theta))
-            put(theta, sc[0], (float) (px * style.sizeScale()), body.getColor(), buf);
+        if (pl[0] * pl[0] + pl[1] * pl[1] + pl[2] * pl[2] < NEAR_RSUN * NEAR_RSUN)
+            return n;
+        toRay(frame, pl, ray);
+        if (Math.hypot(ray[0], ray[1]) < SUN_LINE_SIN)
+            return n;
+        return put(ray, (float) (px * style.sizeScale()), body.getColor(), out, n);
     }
 
-    private static void put(double[] theta, double dist, float size, byte[] colour, BufVertex buf) {
-        buf.putVertex((float) (dist * Math.tan(theta[0])), (float) (dist * Math.tan(theta[1])), 0, size, colour);
-    }
-
-    /**
-     * GaiaClient.calcProj3 with P = 0, plus the cull. (lon, lat) is the direction of the star from
-     * the observer, (lon0, lat0) the direction of the observer from the Sun, both Carrington and in
-     * radians. Returns false for anything more than MAX_ELONGATION_DEG from the Sun as seen by the
-     * observer, which includes the whole far hemisphere.
-     */
-    static boolean project(double lon, double lat, double lon0, double lat0, double[] theta) {
-        double cosRho = Math.cos(lat) * Math.cos(lat0) * Math.cos(lon - lon0) + Math.sin(lat) * Math.sin(lat0);
-        // rho is measured from the observer's own direction, so the Sun lies at rho = 180 deg and
-        // the elongation from the Sun is 180 - rho: keep cos(180 - rho) = -cosRho >= cos(max)
-        if (-cosRho < COS_MAX_ELONGATION)
-            return false;
-        double phi = Math.atan2(Math.sin(lon - lon0), Math.tan(lat) * Math.cos(lat0) - Math.sin(lat0) * Math.cos(lon - lon0));
-        double rho = Math.acos(Math.clamp(cosRho, -1, 1));
-        theta[0] = Math.atan(-Math.tan(rho) * Math.sin(phi));
-        theta[1] = Math.asin(Math.clamp(Math.sin(rho) * Math.cos(phi), -1, 1));
-        return true;
+    private static int put(double[] ray, float size, byte[] colour, Points out, int n) {
+        out.ray()[3 * n] = (float) ray[0];
+        out.ray()[3 * n + 1] = (float) ray[1];
+        out.ray()[3 * n + 2] = (float) ray[2];
+        out.size()[n] = size;
+        System.arraycopy(colour, 0, out.colour(), 4 * n, 4);
+        return n + 1;
     }
 
     /** Point diameter in pixels: the faintest star shown is 1.2 px, each magnitude brighter adds 0.8, capped. */

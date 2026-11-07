@@ -2,11 +2,14 @@ package org.helioviewer.jhv.layers.stars;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 
 import org.helioviewer.jhv.app.AppInit;
 import org.helioviewer.jhv.app.Platform;
 import org.helioviewer.jhv.astronomy.Position;
+import org.helioviewer.jhv.astronomy.SpaceObject;
 import org.helioviewer.jhv.astronomy.Spice;
+import org.helioviewer.jhv.astronomy.SpiceMath;
 import org.helioviewer.jhv.io.Directories;
 import org.helioviewer.jhv.layers.StarLayer;
 import org.helioviewer.jhv.time.JHVTime;
@@ -19,7 +22,7 @@ import org.json.JSONObject;
  * <p>Expected star positions come from sunpy 8.0.1 / astropy 8.0.2 Helioprojective for real
  * Hipparcos stars, computed 2026-11-07 by the starfield spike's fixtures.py (project file
  * heliad/starfield/spike/). Positions are the catalogue's, with no proper motion, on both sides.
- * Pins: (1) the projection formula; (2) the end-to-end path through Spice.j2000ToSun and the
+ * Pins: (1) the observer frame and Tx, Ty from its rays; (2) the end-to-end path through Spice.j2000ToSun and the
  * viewpoint's negated longitude, for Earth on 2026-08-22; (3) the far-side and wide-angle cull;
  * (4) B-V to temperature and the colour direction; (5) catalogue parsing; (6) settings round trip.
  */
@@ -36,7 +39,7 @@ public final class StarSkyCheck {
     // stars that must be culled: far side of the sky, or more than 80 deg from the Sun
     private static final Object[][] CULLED = {
             {"HIP 92016 from Earth (132 deg from the Sun)", 54.275217, 5.045428, 102.554430, 6.927789},
-            {"HIP 78401 from 0.3 AU (176 deg from the Sun)", 16.969550, -3.621956, 12.496141, 7.000000},
+            {"HIP 78401 from 0.3 AU (168.5 deg from the Sun)", 16.969550, -3.621956, 12.496141, 7.000000},
             {"HIP 112519 from Earth (84.8 deg from the Sun)", 224.130255, 67.065283, 102.554430, 6.927789},
     };
     // HIP, ICRS ra, dec [deg] (Hipparcos), expected Tx, Ty from Earth on 2026-08-22T00:00 [deg]
@@ -69,34 +72,55 @@ public final class StarSkyCheck {
         System.out.println("StarSkyCheck: PASS");
     }
 
+    // The ray in the observer's frame for a Carrington direction (lon, lat) seen from (lon0, lat0)
+    private static double[] ray(Object[] r) {
+        double[] ray = new double[3];
+        StarSky.toRay(StarSky.frame(rad(r[3]), rad(r[4])), SpiceMath.radrec(1, rad(r[1]), rad(r[2])), ray);
+        return ray;
+    }
+
     private static void checkProjection() {
         double[] theta = new double[2];
         for (Object[] r : PROJ) {
-            boolean in = StarSky.project(rad(r[1]), rad(r[2]), rad(r[3]), rad(r[4]), theta);
+            boolean in = StarSky.theta(ray(r), theta);
             double dx = Math.toDegrees(theta[0]) - (double) r[5], dy = Math.toDegrees(theta[1]) - (double) r[6];
             expect(in && Math.abs(dx) < 1e-4 && Math.abs(dy) < 1e-4,
                     r[0] + ": Tx, Ty match sunpy to 1e-4 deg (off by " + fmt(dx) + ", " + fmt(dy) + ")");
         }
         for (Object[] r : CULLED)
-            expect(!StarSky.project(rad(r[1]), rad(r[2]), rad(r[3]), rad(r[4]), theta), r[0] + " is culled");
+            expect(!StarSky.theta(ray(r), theta), r[0] + " is culled from the 3D plane");
+        // The sky maps place far-side stars themselves; HPC drops a ray pointing away from the Sun (z > 0)
+        double[] back = ray(CULLED[1]);
+        expect(Math.abs(back[2] - Math.cos(Math.toRadians(180 - 168.5))) < 1e-3, "a star 168.5 deg from the Sun points away from it (ray z " + fmt(back[2]) + ")");
     }
 
-    private static void checkEndToEnd() {
+    private static void checkEndToEnd() throws Exception {
         JHVTime time = new JHVTime("2026-08-22T00:00:00");
         Position earth = Spice.getCarrington("EARTH", time);
         expect(earth != null, "Earth's Carrington position from SPICE");
         if (earth == null)
             return;
         double[] sc = StarSky.observer(earth);
+        double[][] frame = StarSky.frame(sc[1], sc[2]);
         double[][] carr = Spice.j2000ToSun.get(time);
         double[] theta = new double[2];
+        double[] ray = new double[3];
         for (double[] s : END_TO_END) {
-            boolean in = StarSky.starTheta(sc, carr, Math.toRadians(s[1]), Math.toRadians(s[2]), theta);
+            StarSky.starRay(frame, carr, Math.toRadians(s[1]), Math.toRadians(s[2]), ray);
+            boolean in = StarSky.theta(ray, theta);
             double dx = Math.toDegrees(theta[0]) - s[3], dy = Math.toDegrees(theta[1]) - s[4];
             // SPICE's Earth and sunpy's differ by light time and frame details; 0.02 deg is about a pixel on a LASCO C3 frame
             expect(in && Math.abs(dx) < 0.02 && Math.abs(dy) < 0.02,
                     "HIP " + (int) s[0] + " from Earth through SPICE: within 0.02 deg of sunpy (off by " + fmt(dx) + ", " + fmt(dy) + ")");
         }
+
+        // A viewpoint at Earth whose location carries no name must not draw Earth (it came out as a dot on the Sun)
+        StarSky.Points p = StarSky.compute(earth, StarCatalog.parse("hip,ra,de,pmra,pmde,vmag,b_v\n"), new StarSky.Style(6, true, 1, 1, true, true));
+        byte[] blue = SpaceObject.get("Earth").getColor();
+        boolean drawsEarth = false;
+        for (int i = 0; i < p.count(); i++)
+            drawsEarth |= Arrays.equals(Arrays.copyOfRange(p.colour(), 4 * i, 4 * i + 4), blue);
+        expect(p.count() >= 2 && !drawsEarth, "the planets from Earth leave out Earth itself (" + p.count() + " bodies)");
     }
 
     private static void checkColour() {

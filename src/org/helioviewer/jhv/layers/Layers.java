@@ -314,27 +314,30 @@ public final class Layers {
     }
 
     public static void render(MapView mv, Viewport vp) {
-        // The starfield is a background: drawn first, so the imagery covers it wherever the
-        // imagery has data, whatever its place in the list. Its "Draw over the imagery" option
-        // puts it last instead.
-        layers.forEach(layer -> {
-            if (layer instanceof StarLayer s && !s.isOnTop() && shown(layer))
-                RenderGuard.run(layer.getName(), () -> layer.render(mv, vp));
-        });
-        layers.forEach(layer -> {
-            if (!(layer instanceof StarLayer) && shown(layer))
-                RenderGuard.run(layer.getName(), () -> layer.render(mv, vp));
-        });
-        layers.forEach(layer -> {
-            if (layer instanceof StarLayer s && s.isOnTop() && shown(layer))
-                RenderGuard.run(layer.getName(), () -> layer.render(mv, vp));
-        });
+        inDrawOrder(layer -> RenderGuard.run(layer.getName(), () -> layer.render(mv, vp)));
     }
 
     public static void renderScale(MapView mv, Viewport vp) {
+        inDrawOrder(layer -> RenderGuard.run(layer.getName(), () -> layer.renderScale(mv, vp)));
+    }
+
+    /**
+     * The shown layers in list order, except the starfield: it is a background, drawn first so the
+     * imagery covers it wherever the imagery has data, whatever its place in the list. Its "Draw
+     * over the imagery" option puts it last instead.
+     */
+    private static void inDrawOrder(Consumer<Layer> draw) {
         layers.forEach(layer -> {
-            if (shown(layer))
-                RenderGuard.run(layer.getName(), () -> layer.renderScale(mv, vp));
+            if (layer instanceof StarLayer s && !s.isOnTop() && shown(layer))
+                draw.accept(layer);
+        });
+        layers.forEach(layer -> {
+            if (!(layer instanceof StarLayer) && shown(layer))
+                draw.accept(layer);
+        });
+        layers.forEach(layer -> {
+            if (layer instanceof StarLayer s && s.isOnTop() && shown(layer))
+                draw.accept(layer);
         });
     }
 

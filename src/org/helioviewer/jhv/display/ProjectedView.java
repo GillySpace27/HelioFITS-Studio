@@ -128,6 +128,23 @@ final class ProjectedView extends MapView {
         return WcsProjection.helioprojectiveToWorld(viewpoint, Math.toRadians(longitudeDeg), Math.toRadians(latitudeDeg));
     }
 
+    @Nullable
+    @Override
+    public Vec2 projectDirection(Viewport vp, Vec3 ray) {
+        MapScale scale = scale(vp);
+        Vec2 pt = switch (mode) {
+            // HPC is the plane of the sky about the Sun; a direction behind the observer has no
+            // place on it, and atan2 would fold it onto the page instead of dropping it
+            case HPC -> ray.z >= 0 ? null : new Vec2(
+                    scale.toUnitX(Math.toDegrees(Math.atan2(ray.x, -ray.z))) - 0.5,
+                    scale.toUnitY(Math.toDegrees(Math.asin(Math.clamp(ray.y, -1, 1)))) - 0.5);
+            case ObserverSky -> SkyMap.projectRay(viewpoint, scale, Display.getSkyProjection(),
+                    Display.getSkyLookLon(), Display.getSkyLookLat(), ray);
+            default -> null;
+        };
+        return pt == null ? null : new Vec2(pt.x * vp.aspect, pt.y);
+    }
+
     @Override
     public Vec2 projectToScreen(Viewport vp, Vec3 v) {
         MapScale scale = scale(vp);
