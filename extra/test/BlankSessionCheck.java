@@ -43,7 +43,7 @@ public final class BlankSessionCheck {
         MapMode other = fresh.projection() == MapMode.Orthographic ? MapMode.Latitudinal : MapMode.Orthographic;
         ViewState.applyMode(new ViewState.ModeData(other, fresh.surfaceModel(), 0.5, fresh.annotationMode(),
                 !fresh.multiview(), fresh.tracking(), fresh.refresh(), !fresh.showCorona(),
-                fresh.differentialRotation(), fresh.helioradial3D(), !fresh.surfaceFromImage()));
+                fresh.differentialRotation(), fresh.helioradial3D(), !fresh.surfaceFromImage(), !fresh.helioradialPerObserver()));
         expect("the mode changed before the reset (projection " + ViewState.getProjection() + ")",
                 !ViewState.DEFAULT_MODE.equals(ViewState.modeData()));
 

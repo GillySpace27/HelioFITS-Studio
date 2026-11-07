@@ -226,6 +226,13 @@
       "reveal": "showProjection"
     },
     {
+      "id": "projectionPerObserver",
+      "title": "Each image at its observer",
+      "where": "Projection palette",
+      "words": "helioradial 3D observer angle tilt spacecraft offset",
+      "reveal": "showProjection"
+    },
+    {
       "id": "projectionReset",
       "title": "Reset view",
       "where": "Projection palette",
