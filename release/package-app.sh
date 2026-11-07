@@ -80,6 +80,14 @@ if [ "$OS" = windows ]; then
     # and that it needs no admin rights. CRLF so Notepad on any Windows shows the lines.
     sed 's/$/\r/' release/windows-readme.txt > "pkg-out/HFStudio/README.txt"
 fi
+
+# HelioFITS Core, when the build has it: a checkout of the commit release/fits-core.txt pins, named by
+# HFCORE_SRC. The macOS app carries it too (deploy_release.sh); without HFCORE_SRC (a fork's pull
+# request has no access to the private repository) the package is built as before, without a core.
+if [ "$OS" != macos-x64 ] && [ -n "${HFCORE_SRC:-}" ]; then
+    echo "==> bundling HelioFITS Core"
+    release/bundle-core.sh "$OS" pkg-out/HFStudio/heliofits-core
+fi
 fi
 
 if [ "$OS" = macos-x64 ]; then

@@ -90,7 +90,11 @@ public final class FitsCoreIngestCheck {
         Path studio2 = FitsCoreIngest.studioCore("/Applications/HelioFITS Studio.app/Contents/MacOS/HelioFITS Studio", "Mac OS X");
         expect("Studio's own core is in its bundle's Resources, got " + studio2, studio.equals(studio2));
         expect("a build tree has no packaged core", FitsCoreIngest.studioCore(null, "Mac OS X") == null);
-        expect("no packaged core outside macOS yet", FitsCoreIngest.studioCore("/opt/hfstudio/bin/HFStudio", "Linux") == null);
+        expect("Linux package: core in heliofits-core beside bin, got " + FitsCoreIngest.studioCore("/opt/hfstudio/bin/HFStudio", "Linux"),
+                Path.of("/opt/hfstudio/heliofits-core/bin/python3").equals(FitsCoreIngest.studioCore("/opt/hfstudio/bin/HFStudio", "Linux")));
+        expect("Windows package: python.exe in heliofits-core beside the launcher, got " + FitsCoreIngest.studioCore("/opt/hfstudio/HFStudio.exe", "Windows 11"),
+                Path.of("/opt/hfstudio/heliofits-core/python.exe").equals(FitsCoreIngest.studioCore("/opt/hfstudio/HFStudio.exe", "Windows 11")));
+        expect("an unknown OS has no packaged core", FitsCoreIngest.studioCore("/opt/hfstudio/bin/HFStudio", "SunOS") == null);
         List<String> own = FitsCoreIngest.command(null, null, studio, oldApp, home, root, p -> true);
         expect("Studio's own core wins over an installed app's, isolated, got " + own,
                 own != null && own.subList(0, 6).equals(List.of(studio.toString(), "-B", "-s", "-P", "-m", "heliofits_core"))
