@@ -4,6 +4,7 @@ import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.app.Settings;
+import org.helioviewer.jhv.astronomy.Position;
 
 public final class Display {
 
@@ -186,6 +187,28 @@ public final class Display {
      * shows when you look at it edge-on.
      */
     private static boolean helioradial3D = false;
+
+    // Helioradial in 3D: whether each image layer's surface (disk hemisphere and corona) is placed
+    // as its own observer saw it, so a Solar Orbiter or STEREO frame stands at its real angle to
+    // an Earth-view one, as in Orthographic; or every layer is placed facing the viewpoint, as it
+    // was before. The warp moves points along their direction from Sun centre, so a surface placed
+    // at any angle stays the same surface, warped. On for a new session; a session saved before
+    // the choice opens without it (ViewState.readModeJson). A final holder: guards ratchet.
+    private static final java.util.concurrent.atomic.AtomicBoolean helioradialPerObserver =
+            new java.util.concurrent.atomic.AtomicBoolean(true);
+
+    public static boolean isHelioradialPerObserver() {
+        return helioradialPerObserver.get();
+    }
+
+    public static void setHelioradialPerObserver(boolean value) {
+        helioradialPerObserver.set(value);
+    }
+
+    /** Whose frame a layer's Helioradial 3D surface is placed in: its own observer's, or the viewpoint's. */
+    public static Position surfaceObserver(Position viewpoint, Position imageObserver) {
+        return isHelioradialPerObserver() && imageObserver.distance > 0 ? imageObserver : viewpoint;
+    }
 
     public static boolean isHelioradial3D() {
         return helioradial3D;
