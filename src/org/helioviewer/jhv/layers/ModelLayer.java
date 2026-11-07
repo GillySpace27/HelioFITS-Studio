@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.FloatBuffer;
 
+import javax.annotation.Nullable;
+
 import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.MapView;
@@ -186,6 +188,24 @@ public final class ModelLayer extends AbstractLayer {
     }
 
     /** The model's largest bounding-box dimension, in file units. */
+    /**
+     * Where the model's centre is drawn at time t, in solar radii in the scene, or null when it is
+     * not placed by ephemeris (at the origin, or by the file's own heliocentric frame) or the
+     * ephemeris has no position then. The cursor identifier names it there.
+     */
+    @Nullable
+    public Vec3 placedAt(JHVTime time) {
+        if (heliocentric || placement.mode() == ModelPlacement.Mode.ORIGIN)
+            return null;
+        Position p = ephemeris.at(time);
+        return p == null ? null : ModelPlacement.toWorld(p);
+    }
+
+    /** Half the drawn size, in solar radii, in this view: what render scales the model to. */
+    public double drawnRadius(MapView mv, Viewport vp) {
+        return placement.drawnScale(extent, mv.cameraWidth(vp), vp.height) * extent / 2;
+    }
+
     public double extent() {
         return extent;
     }
