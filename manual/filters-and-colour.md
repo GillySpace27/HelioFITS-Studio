@@ -24,7 +24,7 @@ provenance.
 
 ## The Filters palette
 
-**Filters**, on the toolbar, opens a palette for one layer. RHEF comes first and works frame by frame.
+**Filters**, on the toolbar or in its More menu, opens a palette for one layer. RHEF comes first and works frame by frame.
 Below it, the Fourier filter and the noise gate work over the whole movie.
 
 ## Colour table legend
@@ -54,7 +54,7 @@ On macOS the canvas renders into a 10-bit surface, four times the levels per cha
 canvas, so smooth coronal gradients do not band. It is on by default; to compare against the old
 canvas, add `display.deepColorCanvas=false` to `~/HFStudio/Settings/user.properties` and relaunch.
 
-**HDR**, on the toolbar, sets how the whole view is mapped into the extended range of a display that
+**HDR**, on the toolbar or in its More menu, sets how the whole view is mapped into the extended range of a display that
 has one: headroom, mapping, knee, in-range share and clipped pixels.
 
 ## Making the interface easier to read

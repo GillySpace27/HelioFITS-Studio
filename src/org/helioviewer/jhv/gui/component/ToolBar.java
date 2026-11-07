@@ -749,6 +749,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         // Two menus at the same end of the bar meaning different things. Now there is one: it
         // holds whatever is after the divider plus whatever the width pushed past it.
         overflowButton = toolButton(MORE);
+        overflowButton.setName("toolbarMore"); // where a tour points when the tool it wants is parked in More
         overflowButton.setFocusPainted(false);
         overflowButton.addActionListener(e -> showOverflow());
         overflowButton.setVisible(false);

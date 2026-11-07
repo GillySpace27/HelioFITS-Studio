@@ -47,8 +47,11 @@ final class ToolbarOrder {
             "resetCamera", "resetAxis", "rotate90", SEPARATOR,
             "pan", "rotate", "axis", SEPARATOR,
             "track", "diffRotation", "corona", "multiview", "sidebarLeft", "timelines", "sidebarRight", SEPARATOR,
-            "projection", "trackCme", "colour", "sequence", "grid", "camera", "compare", "pizza", "annotate", SEPARATOR,
             MORE_DIVIDER,
+            // Only fold or show a palette, and change nothing by being pressed, so on a fresh bar they
+            // wait in More; the View menu's sidebar panel keys reach them too (Gilly, 2026-11-07). A
+            // saved bar keeps whatever it had.
+            "projection", "trackCme", "colour", "sequence", "grid", "camera", "compare", "pizza", "annotate", SEPARATOR,
             "refresh", "sdoCutout", "samp");
 
     /**
