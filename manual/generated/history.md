@@ -24,6 +24,7 @@
 
 ### Image Layers list
 - The open drag hand now shows only on the body of an image row. Over the show checkbox, the drive radio and the remove x, which react to a plain click, the cursor is the ordinary arrow. Overlay rows keep the arrow.
+- The hand closes while the mouse is pressed on a row and stays closed while the row is dragged; the faded copy of the row now travels beside the cursor instead of replacing it, where the system draws drag images.
 - The show checkbox and the x have tooltips (the drive radio already had one), and the Getting started and Loading data tours now say what the radio does.
 
 ### Welcome window
