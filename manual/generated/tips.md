@@ -40,13 +40,13 @@ The Tip of the Day collection (Help > Tip of the Day...), all on one page.
 
 **The newest PUNCH day.** Layers > PUNCH Latest opens the newest day of PUNCH clear average mosaics (CAM) in Helioradial with RHEF.
 
-**Before and after.** Layers > Duplicate Layer adds a copy of the selected image layer. Compare, on the toolbar, then blinks between two layers or swipes a divider across the view.
+**Before and after.** Layers > Duplicate Layer adds a copy of the selected image layer. Compare, on the toolbar or in its More menu, then blinks between two layers or swipes a divider across the view.
 
-**Every channel at once.** Pizza, on the toolbar, cuts every shown image layer into its own wedges of one Sun, so the same patch is seen through every filter. Turn the cut, or record a seamless spin while the data stands still.
+**Every channel at once.** Pizza, on the toolbar or in its More menu, cuts every shown image layer into its own wedges of one Sun, so the same patch is seen through every filter. Turn the cut, or record a seamless spin while the data stands still.
 
 **Side by side.** Multiview, on the toolbar, puts each shown image layer in a view of its own, side by side.
 
-**Change the projection.** Projection, on the toolbar, opens a palette that changes how the Sun is mapped onto the screen: Orthographic, HPC, Helioradial or Latitudinal.
+**Change the projection.** Projection, on the toolbar or in its More menu, opens a palette that changes how the Sun is mapped onto the screen: Orthographic, HPC, Helioradial or Latitudinal.
 
 **Timelines.** The Timelines pane plots time series and events against the movie time. Click an empty part of the plot to move the movie to that time.
 
@@ -64,7 +64,7 @@ The Tip of the Day collection (Help > Tip of the Day...), all on one page.
 
 **On to Python.** Layers > Send to Python writes the active layer's FITS files as double-precision science FITS, plus a manifest and a sunpy snippet.
 
-**HDR.** HDR, on the toolbar, sets how the whole view is mapped into the display's extended range: headroom, mapping, knee, in-range share and clipped pixels.
+**HDR.** HDR, on the toolbar or in its More menu, sets how the whole view is mapped into the display's extended range: headroom, mapping, knee, in-range share and clipped pixels.
 
 **Tell the developer.** Help > Send Feedback... sends a problem, a request or a question to the developer; no account needed.
 

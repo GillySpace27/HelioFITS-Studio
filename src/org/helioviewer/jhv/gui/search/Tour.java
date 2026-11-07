@@ -267,6 +267,10 @@ public final class Tour {
             return;
         Step step = steps.get(i);
         Component target = find(step.target());
+        // A toolbar tool parked in More (a fresh bar parks the palette toggles there) is not on screen,
+        // so point at More, which is where it is, rather than leave the card in the middle.
+        if (target == null && org.helioviewer.jhv.gui.component.ToolBar.allTools().stream().anyMatch(t -> t.id().equals(step.target())))
+            target = find("toolbarMore");
         if (target instanceof JComponent c) // into view inside the sidebar's scroller
             c.scrollRectToVisible(new Rectangle(c.getWidth(), Math.min(c.getHeight(), 240)));
         boolean last = i == steps.size() - 1;

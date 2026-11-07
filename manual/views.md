@@ -10,7 +10,7 @@ out to about 200 solar radii.
 
 ## Projections
 
-**Projection**, on the toolbar, opens a palette that changes how the Sun is mapped onto the screen.
+**Projection**, on the toolbar or in its More menu, opens a palette that changes how the Sun is mapped onto the screen.
 **Orthographic** draws it in 3-D; **HPC**, **Helioradial** and **Helioradial Unrolled** are flat maps
 of the sky around it; **Latitudinal** is a map of the surface. Sliders that do nothing in the current
 projection are hidden, and come back when you pick a projection that uses them. **Reset view** in the

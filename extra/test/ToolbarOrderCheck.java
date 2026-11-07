@@ -31,10 +31,12 @@ public final class ToolbarOrderCheck {
     public static void main(String[] args) {
         List<String> fallback = resolve(null);
         expect("no stored order falls back to the default", fallback.equals(resolve("")));
-        expect("and the default is the bar as it has always been, minus what this check pretends exists",
+        // The palette toggles (Grid among them) wait in More on a fresh bar since 2026-11-07 (Gilly):
+        // they only fold or show a palette, and the sidebar panel keys reach them too.
+        expect("and the default is the bar as it has always been, palette toggles in More, minus what this check pretends exists",
                 fallback.equals(List.of("present", ToolbarOrder.SEPARATOR, ToolbarOrder.SEPARATOR, "zoomIn", "zoomOut",
                         ToolbarOrder.SEPARATOR, ToolbarOrder.SEPARATOR, ToolbarOrder.SEPARATOR, ToolbarOrder.SEPARATOR,
-                        "grid", ToolbarOrder.SEPARATOR, ToolbarOrder.MORE_DIVIDER)));
+                        ToolbarOrder.MORE_DIVIDER, "grid", ToolbarOrder.SEPARATOR)));
 
         expect("a stored order is honoured as given",
                 resolve("grid|zoomIn").equals(List.of("grid", "zoomIn")));
