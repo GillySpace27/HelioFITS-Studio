@@ -30,8 +30,6 @@ public class CollapsiblePane extends JComponent implements ActionListener {
     private static final int CHILD_INDENT = 12; // how far a nested section steps in from its parent
 
     final CollapsiblePaneButton toggleButton;
-    /** Ground under a top-level section, between its last control and the next section's band. */
-    private static final int SECTION_GAP = 5;
 
     /** Carries the band's fill behind whatever sits beside the title, so there is no notch in it. */
     private final JPanel header = new JPanel(new BorderLayout());
@@ -66,6 +64,7 @@ public class CollapsiblePane extends JComponent implements ActionListener {
     public CollapsiblePane(String _title, JComponent _managed, boolean startExpanded, boolean child,
                            @Nullable Icon _sectionIcon, @Nullable String _prefKey) {
         prefKey = _prefKey;
+        topLevel = !child;
         setLayout(new BorderLayout());
 
         managed = _managed;
@@ -77,8 +76,7 @@ public class CollapsiblePane extends JComponent implements ActionListener {
 
         toggleButton = new CollapsiblePaneButton(child);
         header.setOpaque(true);
-        UIGlobals.themed(header, c -> c.setBackground(
-                Theme.current().get(child ? Theme.Token.ChildHeaderFill : Theme.Token.HeaderFill)));
+        UIGlobals.themed(header, c -> c.setBackground(PanelVisibility.headerFill(Theme.current(), child)));
         toggleButton.setSelected(expanded);
         // UIGlobals fills its fonts from the look and feel, which a headless check (and any code
         // that builds a section before the LAF is installed) never runs; fall back to the button's
@@ -105,9 +103,21 @@ public class CollapsiblePane extends JComponent implements ActionListener {
             // on the end of it, so two open panels read as one long one with a stripe through the
             // middle. A rule and a few pixels of ground under each closes the block: the band
             // opens it, this ends it, and the gap says the next band belongs to something else.
-            UIGlobals.themed(this, c -> c.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createMatteBorder(0, 0, 1, 0, UIGlobals.separator()),
-                    BorderFactory.createEmptyBorder(0, 0, SECTION_GAP, 0))));
+            UIGlobals.themed(this, c -> restyle());
+            // Section numbers follow what is on screen, so they are worked out again whenever
+            // a sibling appears, goes, or moves. Only the displayed text changes, never getTitle().
+            addHierarchyListener(e -> renumberSiblings());
+            addComponentListener(new java.awt.event.ComponentAdapter() {
+                @Override
+                public void componentShown(java.awt.event.ComponentEvent e) {
+                    renumberSiblings();
+                }
+
+                @Override
+                public void componentHidden(java.awt.event.ComponentEvent e) {
+                    renumberSiblings();
+                }
+            });
         }
         if (child) {
             setBorder(BorderFactory.createEmptyBorder(0, CHILD_INDENT, 0, 0));
@@ -185,11 +195,53 @@ public class CollapsiblePane extends JComponent implements ActionListener {
             toggleButton.setIcons(sectionIcon, null);
         else
             toggleButton.setIcons(toggleButton.isSelected() ? Buttons.chevronDown : Buttons.chevronRight, sectionIcon);
-        toggleButton.setText(title);
+        toggleButton.setText(PanelVisibility.numberPrefix(number) + title);
         toggleButton.setToolTipText(pinned ? title + ", for what is selected above" : (toggleButton.isSelected() ? "Hide" : "Show") + " the " + title + " controls");
     }
 
     private boolean pinned;
+    private final boolean topLevel;
+    private int number; // 1-based place among the visible top-level sections beside it, 0 for none
+
+    /** The border and title colour for the current theme and options; the theme-switch recipe of a top-level section. */
+    private void restyle() {
+        setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, PanelVisibility.separatorThickness(), 0, UIGlobals.separator()),
+                BorderFactory.createEmptyBorder(0, 0, PanelVisibility.sectionGap(), 0)));
+        header.setBackground(PanelVisibility.headerFill(Theme.current(), false));
+        toggleButton.restyle();
+        renumberSiblings();
+        revalidate();
+    }
+
+    /** Number the visible top-level sections in the order they are laid out in their parent. */
+    private void renumberSiblings() {
+        java.awt.Container parent = getParent();
+        if (parent == null) {
+            setNumber(0);
+            return;
+        }
+        int shown = 0;
+        for (java.awt.Component c : parent.getComponents())
+            if (c instanceof CollapsiblePane p && p.topLevel && p.isVisible())
+                shown++;
+        int n = 0;
+        // A lone section is not one of a series, so it gets no number.
+        for (java.awt.Component c : parent.getComponents())
+            if (c instanceof CollapsiblePane p && p.topLevel)
+                p.setNumber(p.isVisible() && shown > 1 ? ++n : 0);
+    }
+
+    private void setNumber(int n) {
+        number = n;
+        if (!toggleButton.getText().equals(PanelVisibility.numberPrefix(n) + title))
+            setTitle(title);
+    }
+
+    /** The number shown in front of this section's title, or 0. For checks. */
+    public int number() {
+        return number;
+    }
 
     /**
      * Hold this section open for good: no chevron, no click, no remembered fold state.
