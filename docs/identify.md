@@ -74,3 +74,20 @@ The timeline's **Bodies in Field** track, off by default and enabled from the Ti
 list, draws one lane per body across the visible time range, with the same field choice in its
 options. It is computed from the ephemeris for the window (two years at most), so it shows bodies
 for times nothing has been downloaded for.
+
+## The 3D view
+
+In the Orthographic view the identifier also names what the scene draws as objects:
+
+- **Model layers** placed at an ephemeris target (Managers > 3D Model Manager, or an image layer's
+  Spacecraft button) are named by their target when the pointer is within the model's drawn size
+  or the pointer tolerance of its centre, unless the Sun is in front of it. The label gives its
+  distance from the Sun.
+- **Orbit plot markers** (the Viewpoint layer's overview camera) are named in the footer; the
+  orbit plot draws its own label beside them.
+
+When the camera is turned more than 1 degree from an image layer's line of sight (orbited, by
+dragging in Rotate mode or with a rotate command; a roll about the line of sight does not count),
+that layer names only bodies on its imagery. A body behind the Sun, behind the occulter or off
+the field is not drawn anywhere in an orbited view, so it is not named, and with no image layer
+the empty sky names nothing. Turned back to within 1 degree, every ephemeris body is named again.
