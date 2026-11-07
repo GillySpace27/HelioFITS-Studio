@@ -1,5 +1,6 @@
 package org.helioviewer.jhv.io;
 
+import java.awt.EventQueue;
 import java.io.File;
 import java.io.IOException;
 import java.io.Writer;
@@ -11,11 +12,15 @@ import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.Nullable;
 
 import org.helioviewer.jhv.app.Log;
+import org.helioviewer.jhv.app.Message;
+import org.helioviewer.jhv.app.Platform;
+import org.helioviewer.jhv.app.Settings;
 
 /**
  * The FITS library as Studio's one store for downloaded FITS (Gilly, 2026-11-07, option A).
@@ -29,21 +34,32 @@ import org.helioviewer.jhv.app.Log;
  * <p>Finding a file again needs no running core. Two ways, first that answers:
  * <ol>
  * <li>{@code FileCache/library-moves.tsv}: one line per file Studio moved, its FileCache name (a pure
- * function of the URL, {@link NetFileCache}) and its path in the library. This covers files moved
- * from an old cache, whose URL Studio no longer knows.</li>
+ * function of the URL, {@link NetFileCache}), its path in the library and the library's root, so a
+ * line about another library (one used before a change of folder) is never followed. This covers
+ * files moved from an old cache, whose URL Studio no longer knows.</li>
  * <li>The library index read-only, {@code file_sources} by URL ({@link FitsLibrary#bySource}),
  * for files that came into the library some other way.</li>
  * </ol>
  * A hit whose file is gone (deleted from the library, a drive not connected) is a miss, and the file
  * downloads again.
+ *
+ * <p>On macOS, where Studio carries its own HelioFITS Core, the first FITS download on a computer
+ * with no library makes one at {@code ~/HelioFITSLibrary} ({@link #autoCreate}), once, and says so.
  */
 public final class LibraryStore {
 
     static final String MOVES = "library-moves.tsv";
 
-    private record Moves(Path file, Map<String, String> byName) {}
+    /** Where a moved file went: its path in the library, and that library's root. */
+    private record Move(String relpath, String root) {}
+
+    private record Moves(Path file, Map<String, Move> byName) {}
 
     private static final AtomicReference<Moves> MOVES_READ = new AtomicReference<>();
+
+    /** Set once Studio has made a library on its own ({@link #autoCreate}), so it never does that twice. */
+    static final String AUTO_KEY = "fitslibrary.autoCreated";
+    private static final AtomicBoolean AUTO_TRIED = new AtomicBoolean();
 
     /** The library's copy of what {@code uri} delivered, or null. Never starts a core. */
     @Nullable
@@ -51,11 +67,12 @@ public final class LibraryStore {
         FitsLibrary.Location lib = FitsLibrary.find();
         if (lib == null || !Files.isDirectory(lib.root()))
             return null;
-        Map<String, String> moved = moves().byName();
+        Map<String, Move> moved = moves().byName();
+        String root = lib.root().toAbsolutePath().toString();
         for (String name : cacheNames) {
-            String rel = moved.get(name);
-            if (rel != null) {
-                File f = lib.root().resolve(rel).toFile();
+            Move m = moved.get(name);
+            if (m != null && m.root().equals(root)) {
+                File f = lib.root().resolve(m.relpath()).toFile();
                 if (f.isFile())
                     return f;
             }
@@ -72,24 +89,61 @@ public final class LibraryStore {
     @Nullable
     public static File adopt(@Nullable URI uri, File file) {
         FitsLibrary.Location lib = FitsLibrary.find();
+        if (lib == null)
+            lib = autoCreate(file, Platform.isMacOS());
         if (lib == null || !Files.isDirectory(lib.root()))
             return null;
         String rel = FitsCoreIngest.consume(lib.root(), uri, file);
         if (rel == null)
             return null;
-        remember(file.getName(), rel);
+        remember(lib.root(), file.getName(), rel);
         File stored = lib.root().resolve(rel).toFile();
         return stored.isFile() ? stored : null;
     }
 
-    /** Record that the FileCache file {@code name} now lives at {@code relpath} in the library. */
-    static void remember(String name, String relpath) {
+    /**
+     * Make a FITS library at HelioFITS Core's default folder ({@code ~/HelioFITSLibrary}) for the
+     * first FITS download on a computer that has none, and say so once; null when it does not
+     * apply. It applies only on macOS (where Studio carries HelioFITS Core), only once per
+     * computer, only where HelioFITS Core has no config at all (one that names a library on a
+     * drive not connected now is never rewritten), only into an absent or empty folder, and only
+     * with a core to run. Blocks while the core makes the library.
+     *
+     * @param mac whether this is macOS, a parameter so a check can run it anywhere
+     */
+    @Nullable
+    static FitsLibrary.Location autoCreate(File file, boolean mac) {
+        if (!mac || Settings.isSet(AUTO_KEY) || !FitsCoreIngest.isFits(file)
+                || Files.exists(FitsLibrary.configDir().resolve("config.json")))
+            return null;
+        Path root = FitsLibrary.defaultRoot();
+        if (!FitsLibrary.canMakeLibraryAt(root) || !FitsCoreIngest.coreFound(root) || !AUTO_TRIED.compareAndSet(false, true))
+            return null;
+        EventQueue.invokeLater(() -> Settings.setProperty(AUTO_KEY, root.toString())); // Settings is written on the EDT
+        try {
+            FitsCoreIngest.makeLibrary(root);
+        } catch (IOException e) {
+            Log.warn("Could not make a FITS library at " + root + "; FITS downloads stay in Studio's cache", e);
+            return null;
+        }
+        FitsLibrary.Location lib = FitsLibrary.find();
+        if (lib != null) {
+            Log.info("Made the FITS library at " + root);
+            EventQueue.invokeLater(() -> Message.info("FITS library", "Studio made a FITS library at " + root
+                    + " and keeps FITS downloads there, one copy each.\n\nSettings > FITS Library can put it in another folder or on another drive."));
+        }
+        return lib;
+    }
+
+    /** Record that the FileCache file {@code name} now lives at {@code relpath} in the library at root. */
+    static void remember(Path root, String name, String relpath) {
         Moves m = moves();
-        m.byName().put(name, relpath);
+        String rootText = root.toAbsolutePath().toString();
+        m.byName().put(name, new Move(relpath, rootText));
         synchronized (LibraryStore.class) {
             try (Writer w = Files.newBufferedWriter(m.file(), StandardCharsets.UTF_8,
                     StandardOpenOption.CREATE, StandardOpenOption.APPEND)) {
-                w.write(name + '\t' + relpath + '\n');
+                w.write(name + '\t' + relpath + '\t' + rootText + '\n');
             } catch (IOException e) {
                 Log.warn("Could not record where " + name + " went in the FITS library", e); // the index by URL still finds it
             }
@@ -101,13 +155,13 @@ public final class LibraryStore {
         Moves m = MOVES_READ.get();
         if (m != null && m.file().equals(file))
             return m;
-        Map<String, String> byName = new ConcurrentHashMap<>();
+        Map<String, Move> byName = new ConcurrentHashMap<>();
         if (Files.isRegularFile(file)) {
             try {
                 for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
-                    int tab = line.indexOf('\t');
-                    if (tab > 0 && tab < line.length() - 1)
-                        byName.put(line.substring(0, tab), line.substring(tab + 1)); // a later line wins
+                    String[] parts = line.split("\t", -1); // name, relpath, library root
+                    if (parts.length == 3 && !parts[0].isEmpty() && !parts[1].isEmpty() && !parts[2].isEmpty())
+                        byName.put(parts[0], new Move(parts[1], parts[2])); // a later line wins
                 }
             } catch (IOException e) {
                 Log.warn("Could not read " + file, e);
@@ -118,9 +172,10 @@ public final class LibraryStore {
         return fresh;
     }
 
-    /** Forget what was read, for a check that points the cache elsewhere. */
+    /** Forget what was read and tried, for a check that points the cache or the home elsewhere. */
     static void reset() {
         MOVES_READ.set(null);
+        AUTO_TRIED.set(false);
     }
 
     private LibraryStore() {}
