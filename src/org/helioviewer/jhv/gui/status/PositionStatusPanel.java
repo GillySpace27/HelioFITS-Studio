@@ -204,6 +204,8 @@ public final class PositionStatusPanel extends StatusPanel.StatusPlugin implemen
     @Override
     public void mouseClicked(PointerEvent e) {
         maybeCopyToClipboard(e);
+        if (e.altDown() && e.button() == 1 && !e.metaDown() && !e.ctrlDown()) // Alt-click pins the body under the pointer (docs/identify.md)
+            org.helioviewer.jhv.identify.IdentifyPins.toggleAt(Display.getActiveViewport(), GLRenderer.getMapView(), e.x(), e.y());
     }
 
     @Override

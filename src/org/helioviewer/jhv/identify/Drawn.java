@@ -3,6 +3,7 @@ package org.helioviewer.jhv.identify;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import javax.annotation.Nullable;
 
@@ -14,6 +15,7 @@ import org.helioviewer.jhv.layers.Layer;
 import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.layers.ModelLayer;
 import org.helioviewer.jhv.layers.ViewpointLayer;
+import org.helioviewer.jhv.math.PolarBasis;
 import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.math.Vec3;
 
@@ -44,9 +46,45 @@ public final class Drawn {
     /** The kind of a hit on the orbit plot, which draws its own hover label. */
     public static final String ORBIT_PLOT = "orbit plot";
 
-    /** Every drawn object at canvas point (x, y), nearest first. Empty outside the orthographic view. */
+    /** The kind of a catalog event (SWEK), whose popup is its label; a source adds the supplier after a comma. */
+    public static final String EVENT = "event";
+
+    /** The kind of an FOV outline the pointer is inside. */
+    public static final String FOV = "inside the FOV outline";
+
+    /** Whether the hit's own layer already labels it beside the pointer, so the identifier's label leaves it out. */
+    public static boolean labelledElsewhere(Hit h) {
+        return h.kind().equals(ORBIT_PLOT) || h.kind().equals(EVENT) || h.kind().startsWith(EVENT + ",");
+    }
+
+    /**
+     * Something else the scene draws that can name itself under the pointer, in any view mode: a
+     * plugin registers one (the SWEK events) so the identifier does not depend on the plugin.
+     */
+    public interface Source {
+        List<Hit> at(Viewport vp, MapView mv, int x, int y, double tolerancePixels);
+    }
+
+    private static final List<Source> sources = new CopyOnWriteArrayList<>();
+
+    public static void register(Source source) {
+        if (!sources.contains(source))
+            sources.add(source);
+    }
+
+    public static void unregister(Source source) {
+        sources.remove(source);
+    }
+
+    /**
+     * Every drawn object at canvas point (x, y): the registered sources first, then the orbit
+     * plot's marker, then (in the orthographic view only) the model layers, nearest first.
+     */
     public static List<Hit> at(Viewport vp, MapView mv, int x, int y, double tolerancePixels) {
         List<Hit> out = new ArrayList<>();
+        for (Source source : sources)
+            out.addAll(source.at(vp, mv, x, y, tolerancePixels));
+        int fixed = out.size();
         ViewpointLayer orbits = Layers.getViewpointLayer();
         String marker = orbits == null ? null : orbits.markerAt(mv, vp, x, y);
         if (marker != null)
@@ -70,8 +108,33 @@ public final class Drawn {
             if (px != null)
                 out.add(new Hit(m.getTarget(), "model", px, at.length() * Sun.MeanEarthDistanceInv));
         }
-        out.sort(Comparator.comparingDouble(Hit::pixels));
+        out.subList(fixed, out.size()).sort(Comparator.comparingDouble(Hit::pixels));
         return out;
+    }
+
+    /**
+     * A thing drawn at a plane-of-sky point (radius in solar radii, position angle in degrees
+     * counter-clockwise from solar north, as the helioradial view and the trackers use them), seen
+     * from the first target's observer: a hit when the pointer's sight line is within the
+     * tolerance of it, or null. A comet track names its comet this way.
+     */
+    @Nullable
+    public static Hit planeOfSky(Viewport vp, MapView mv, int x, int y, double tolerancePixels, String name, String kind, double radius, double paDeg) {
+        Identifier.Probe probe = Probes.at(mv, vp, x, y);
+        Identifier.Probe probe1 = Probes.at(mv, vp, x + 1, y);
+        if (probe == null || probe1 == null || !Double.isFinite(radius) || !Double.isFinite(paDeg))
+            return null;
+        org.helioviewer.jhv.astronomy.Position obs = IdentifyHover.targets(vp, mv).getFirst().observer();
+        Vec3 dir = probe.direction(obs), dir1 = probe1.direction(obs);
+        if (dir == null || dir1 == null)
+            return null;
+        double theta = Math.toRadians(paDeg);
+        Vec3 at = Probes.plane(PolarBasis.x(radius, theta), PolarBasis.y(radius, theta)).direction(obs);
+        double perPixel = Identifier.angle(dir, dir1);
+        if (!(perPixel > 0))
+            return null;
+        double px = Identifier.angle(dir, at) / perPixel;
+        return px <= tolerancePixels ? new Hit(name, kind, px, Double.NaN) : null;
     }
 
     /**

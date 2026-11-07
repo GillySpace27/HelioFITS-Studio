@@ -72,6 +72,7 @@ public final class IdentifyCheck {
         checkIdentify();
         checkOrtho();
         checkDrawn();
+        checkPins();
         checkPlaneProbe();
         checkTransit();
         checkPunchFixture();
@@ -208,6 +209,41 @@ public final class IdentifyCheck {
         List<Identifier.Match> kept = IdentifyHover.drawnOnly(ms, List.of(image, bare), orbitedView);
         expect(kept.size() == 1 && kept.getFirst().body() == venus, "orbited: only the body on the imagery is kept: " + kept);
         expect(IdentifyHover.drawnOnly(ms, List.of(image, bare), q).size() == 3, "not orbited: every match is kept");
+    }
+
+    /** Pins: the screen solver inverts the orthographic probe; bookkeeping and session JSON. */
+    private static void checkPins() {
+        JHVTime t = new JHVTime("2025-09-22T05:46:30");
+        Position layerObs = observer("earth", t);
+        Bodies.Body moon = Bodies.byName("Moon");
+        Vec3 want = Identifier.bodyDirection(moon, layerObs, false);
+        // A 1000 x 600 canvas, 10 px per solar radius (the Moon is near 19 on the image plane), y down, camera 30 degrees round the Sun
+        Quat view = new Position(t, layerObs.distance, layerObs.lon + Math.toRadians(30), layerObs.lat).toQuat();
+        IdentifyPins.Sky sky = (x, y) -> {
+            Vec3 d = Probes.ortho(view, (x - 500) / 10, (300 - y) / 10).direction(layerObs);
+            return d == null ? null : Identifier.helioprojective(d);
+        };
+        double[] p = IdentifyPins.solve(sky, Identifier.helioprojective(want), 0, 0, 1000, 600);
+        expect(p != null, "the solver finds the Moon on an orbited orthographic page");
+        if (p != null) {
+            Identifier.Probe probe = Probes.ortho(view, (p[0] - 500) / 10, (300 - p[1]) / 10);
+            Identifier.Probe probe1 = Probes.ortho(view, (p[0] + 1 - 500) / 10, (300 - p[1]) / 10);
+            List<Identifier.Match> m = Identifier.identify(List.of(Identifier.Target.viewpoint(layerObs)), probe, probe1,
+                    new Identifier.Options(0.5, 0, false, true));
+            expect(!m.isEmpty() && m.getFirst().body() == moon, "hovering the pin's point names the Moon within half a pixel: " + m);
+        }
+        expect(IdentifyPins.solve(sky, new Vec2(Math.toRadians(80), 0), 0, 0, 1000, 600) == null, "a direction off the page gives no pin");
+
+        IdentifyPins.set(List.of("Moon", "Vulcan", "Moon", "Venus"));
+        expect(IdentifyPins.all().equals(List.of("Moon", "Venus")), "set keeps known bodies once, in order: " + IdentifyPins.all());
+        expect(!IdentifyPins.toggle("Moon") && IdentifyPins.toggle("Mars") && IdentifyPins.all().equals(List.of("Venus", "Mars")),
+                "toggle unpins a pinned body and pins a new one: " + IdentifyPins.all());
+        org.json.JSONArray ja = IdentifyPins.toJson();
+        IdentifyPins.fromJson(null);
+        expect(IdentifyPins.all().isEmpty(), "a session without pins clears them");
+        IdentifyPins.fromJson(ja);
+        expect(IdentifyPins.all().equals(List.of("Venus", "Mars")), "pins come back from the session JSON");
+        IdentifyPins.set(List.of());
     }
 
     private static void checkPlaneProbe() {

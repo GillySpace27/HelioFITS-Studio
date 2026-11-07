@@ -81,7 +81,7 @@ public final class CommandRegistry {
             "tipOfTheDay", "showImageLayers", "sendFeedback", "datasetFolders", "openExportsFolder", "openExportRecord", "searchControls", "showProjection",
             "showPlayback", "newFromTemplate", "saveAsTemplate", "templates", "tourGettingStarted", "tourLoadingData", "tourMakingAMovie",
             "tourViewsAndProjections", "tourRhefAndFilters", "tourSharingYourWork", "tourManagerWindows", "tourRearrangingTheInterface",
-            "study", "taskManager", "cacheManager", "modelManager", "toolbarManager", "themeManager", "keybindingsManager", "studySaveView");
+            "study", "taskManager", "cacheManager", "modelManager", "toolbarManager", "themeManager", "keybindingsManager", "studySaveView", "identifyFindBody");
 
     private static final Map<String, CommandSpec> specs = new LinkedHashMap<>(); // the map is the only state (guards.py ratchet)
 
