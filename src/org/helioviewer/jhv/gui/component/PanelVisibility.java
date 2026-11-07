@@ -22,6 +22,14 @@ public final class PanelVisibility {
     public static final String STRIPE = "ui.visibility.stripe";
     public static final String NUMBERS = "ui.visibility.numbers";
     public static final String HOVER = "ui.visibility.hover";
+    public static final String SCROLLBAR = "ui.visibility.scrollbar";
+
+    /** The scroll bar width Studio has always had, and the narrowest the slider offers. */
+    public static final int SCROLLBAR_DEFAULT = 10;
+    public static final int SCROLLBAR_MAX = 30;
+
+    private static final java.util.Set<java.awt.Component> scrollBars =
+            java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
 
     /** How far above the 3:1 floor a stronger band tries to get, where the title can still be read on it. */
     static final double STRONG_BAND = 4.5;
@@ -47,6 +55,36 @@ public final class PanelVisibility {
 
     public static boolean hover() {
         return on(HOVER);
+    }
+
+    /** Width of the sidebars' and palettes' scroll bars in pixels: wide enough to grab for those who scroll by dragging. */
+    public static int scrollBarWidth() {
+        if (!enabled())
+            return SCROLLBAR_DEFAULT;
+        try {
+            return Math.clamp(Integer.parseInt(Settings.getProperty(SCROLLBAR)), SCROLLBAR_DEFAULT, SCROLLBAR_MAX);
+        } catch (NumberFormatException e) {
+            return SCROLLBAR_DEFAULT; // unset, or not a number
+        }
+    }
+
+    /** Give a sidebar or palette scroll bar the chosen width, and keep it following the setting. */
+    public static void styleScrollBar(javax.swing.JScrollBar bar) {
+        scrollBars.add(bar);
+        applyScrollBar(bar);
+    }
+
+    private static void applyScrollBar(javax.swing.JScrollBar bar) {
+        int w = scrollBarWidth();
+        bar.setPreferredSize(bar.getOrientation() == javax.swing.JScrollBar.VERTICAL
+                ? new java.awt.Dimension(w, 0) : new java.awt.Dimension(0, w));
+        bar.revalidate();
+    }
+
+    /** After the setting changes: every scroll bar styled so far takes the new width. */
+    public static void refreshScrollBars() {
+        for (java.awt.Component bar : new java.util.ArrayList<>(scrollBars))
+            applyScrollBar((javax.swing.JScrollBar) bar);
     }
 
     public static boolean enabled() {
