@@ -117,7 +117,11 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         tabs.addTab("Keybindings", new KeybindingsPanel());
         tabs.addTab("Identify", IdentifyTab.build());
         tabs.addTab("FITS Library", library);
+        StorageTab storage = new StorageTab();
+        tabs.addTab("Storage", storage);
         tabs.addChangeListener(e -> {
+            if (tabs.getSelectedComponent() == storage)
+                storage.refresh();
             if (tabs.getSelectedComponent() == library)
                 library.refresh();
         });

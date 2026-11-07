@@ -45,6 +45,11 @@ public enum Directories {
     EXPORTS {
         @Override
         public String getPath() {
+            return StorageFolders.resolve(StorageFolders.EXPORTS, defaultPath());
+        }
+
+        @Override
+        public String defaultPath() {
             return HOME.getPath() + "Exports" + File.separator;
         }
     },
@@ -74,6 +79,11 @@ public enum Directories {
     FILECACHE {
         @Override
         public String getPath() {
+            return StorageFolders.resolve(StorageFolders.FILECACHE, defaultPath());
+        }
+
+        @Override
+        public String defaultPath() {
             return HOME.getPath() + "FileCache" + File.separator;
         }
     },
@@ -105,6 +115,13 @@ public enum Directories {
             return HOME.getPath() + "Models" + File.separator;
         }
     },
+    // Reference catalogues fetched at first use and kept (the background stars: StarCatalog)
+    CATALOGS {
+        @Override
+        public String getPath() {
+            return HOME.getPath() + "Catalogs" + File.separator;
+        }
+    },
     // The downloads directory
     DOWNLOADS {
         @Override
@@ -115,6 +132,11 @@ public enum Directories {
 
     // A String representation of the path of the directory
     public abstract String getPath();
+
+    // Where the folder is when nobody has chosen another place (see StorageFolders); getPath() is the one in use
+    public String defaultPath() {
+        return getPath();
+    }
 
     // A File representation of the path of the directory
     public File getFile() {
@@ -152,8 +174,15 @@ public enum Directories {
                 continue;
 
             File f = dir.getFile();
-            if (!f.isDirectory() && !f.mkdirs())
+            if (!f.isDirectory() && !f.mkdirs()) {
+                if (dir == Directories.EXPORTS || dir == Directories.FILECACHE) {
+                    // A link to a drive that is not connected, say: not a reason to refuse to start. The
+                    // folder is tried again when something needs it, and the exports folder reports it.
+                    migrationNote = (migrationNote == null ? "" : migrationNote + "; ") + "Could not create " + f + ", carrying on without it";
+                    continue;
+                }
                 throw new IllegalStateException("HelioFITS Studio cannot create its folder " + f + ". Check that the location is writable and has free space.");
+            }
         }
     }
 
