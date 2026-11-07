@@ -43,6 +43,7 @@ public final class PositionStatusPanel extends StatusPanel.StatusPlugin implemen
         MapView mv = GLRenderer.getMapView();
         Vec2 coord = mv.mouseToMap(vp, x, y);
         value = valueUnderPointer(vp, mv, x, y);
+        identified = org.helioviewer.jhv.identify.IdentifyHover.footer(vp, mv, x, y); // null unless View > Identify Under Cursor is on
 
         if (mv.isHpc()) {
             setText(formatHpc(coord));
@@ -96,9 +97,14 @@ public final class PositionStatusPanel extends StatusPanel.StatusPlugin implemen
     @Nullable
     private String value;
 
+    /** What is under the pointer (the Moon, a planet), from the identifier; null when it is off or names nothing. */
+    @Nullable
+    private String identified;
+
     @Override
     public void setText(String text) {
-        super.setText(value == null ? text : text + " | " + value);
+        String t = value == null ? text : text + " | " + value;
+        super.setText(identified == null ? t : t + " | " + identified);
     }
 
     private static StringBuilder appendXY(StringBuilder sb, double p) {
@@ -188,6 +194,11 @@ public final class PositionStatusPanel extends StatusPanel.StatusPlugin implemen
     @Override
     public void mouseMoved(PointerEvent e) {
         update(e.x(), e.y());
+    }
+
+    @Override
+    public void mouseExited(PointerEvent e) {
+        org.helioviewer.jhv.identify.IdentifyHover.exited();
     }
 
     @Override

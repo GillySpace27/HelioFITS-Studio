@@ -4,6 +4,10 @@
 
 ## HelioFITS Studio 0.9.2 (unreleased)
 
+### Identify under cursor
+- View > Identify Under Cursor names the Sun, the Moon or a planet under the pointer in the footer, as each image layer's own observer saw it at that frame's time, so the Moon in a PUNCH mosaic or a planet in LASCO C3 is named where it is drawn. It works in Orthographic, HPC, Observer Sky, Helioradial and Helioradial Unrolled. A body that is off the imagery says why (behind the Sun, behind the occulter, outside the field). View > Identify Tooltip adds the name, distance and angle from the Sun beside the pointer when it rests. Settings > Identify has the tolerances.
+- New commands identifyAt, identifyLocate, identifyInField and identifySet. identifyInField says when each body is in a field of view over a date range, by day, from the ephemeris: a quick way to find a date without the Moon in PUNCH.
+
 ### Starfield
 - A Stars row under Overlays (off by default) draws the background stars and, optionally, the planets in the observer's view, at their true directions for that observer and time: real stars line up with the stars in a LASCO C3 frame. Stars come from the Hipparcos catalogue down to V = 9, downloaded from ESA the first time the row is ticked (about 4.5 MB, kept in ~/HFStudio/Catalogs) and never shipped with Studio. Options: the faintest magnitude shown (default 6), star colours from B-V with a saturation slider, point size, Mercury to Neptune (not the observer's own planet), the Moon, and drawing over the imagery instead of under it. Sessions keep the settings. Shown in the 3D views from the observer for now; Observer Sky and the orbited camera come later.
 - Stars and planets also show in HPC and Observer Sky, placed through the same mapping as the imagery, so they follow zoom, the sky projection and where the view is aimed. Observer Sky shows the whole sky, not only the 80 degrees about the Sun the 3D views keep.
