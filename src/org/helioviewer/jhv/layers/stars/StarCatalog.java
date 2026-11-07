@@ -67,18 +67,21 @@ public final class StarCatalog {
     public final double[] pmdec;
     public final double[] vmag;
     public final double[] bv;
+    // Hipparcos number, 0 when the row has none: the key the cursor identifier names a star by (StarNames)
+    public final int[] hip;
 
-    private StarCatalog(double[] _ra, double[] _dec, double[] _pmra, double[] _pmdec, double[] _vmag, double[] _bv) {
+    private StarCatalog(double[] _ra, double[] _dec, double[] _pmra, double[] _pmdec, double[] _vmag, double[] _bv, int[] _hip) {
         ra = _ra;
         dec = _dec;
         pmra = _pmra;
         pmdec = _pmdec;
         vmag = _vmag;
         bv = _bv;
+        hip = _hip;
     }
 
     private StarCatalog(int n) {
-        this(new double[n], new double[n], new double[n], new double[n], new double[n], new double[n]);
+        this(new double[n], new double[n], new double[n], new double[n], new double[n], new double[n], new int[n]);
     }
 
     public int size() {
@@ -184,7 +187,7 @@ public final class StarCatalog {
     }
 
     /** Parses the cached CSV. Rows without a position or a magnitude are skipped (a few Hipparcos entries have none). */
-    static StarCatalog parse(String csv) throws IOException {
+    public static StarCatalog parse(String csv) throws IOException { // public for IdentifyCheck
         String[] lines = csv.split("\n");
         if (lines.length == 0 || !lines[0].strip().equals(HEADER))
             throw new IOException("Not a star catalogue file");
@@ -203,6 +206,8 @@ public final class StarCatalog {
             c.pmdec[n] = zeroIfNaN(num(f[4]));
             c.vmag[n] = v;
             c.bv[n] = num(f[6]);
+            double h = num(f[0]);
+            c.hip[n] = Double.isNaN(h) ? 0 : (int) h;
             n++;
         }
         return n == c.size() ? c : c.trim(n);
@@ -210,7 +215,7 @@ public final class StarCatalog {
 
     private StarCatalog trim(int n) {
         return new StarCatalog(Arrays.copyOf(ra, n), Arrays.copyOf(dec, n), Arrays.copyOf(pmra, n),
-                Arrays.copyOf(pmdec, n), Arrays.copyOf(vmag, n), Arrays.copyOf(bv, n));
+                Arrays.copyOf(pmdec, n), Arrays.copyOf(vmag, n), Arrays.copyOf(bv, n), Arrays.copyOf(hip, n));
     }
 
     private static double num(String s) {

@@ -41,10 +41,12 @@ class CalendarPicker extends JPanel {
 
     private DisplayMode displayMode = DisplayMode.DAYS;
     private CalendarViewController calendarViewController = new DayViewController();
+    // Bodies in a field on each day, and the switch that hides days with them (docs/identify.md)
+    private final CalendarBodies bodies = new CalendarBodies(() -> selectionPanel.table.repaint());
 
     CalendarPicker() {
         setLayout(new BorderLayout());
-        setMinimumSize(new Dimension(250, 200));
+        setMinimumSize(new Dimension(250, 250)); // 200 before the Bodies and Hide rows (docs/identify.md)
         // add sub components
         add(navigationPanel, BorderLayout.PAGE_START);
         add(selectionPanel, BorderLayout.CENTER);
@@ -232,6 +234,8 @@ class CalendarPicker extends JPanel {
                     TableValue v = TableValue.tableValueAtPoint(table, e.getPoint());
                     if (v == null || v.value == null)
                         return;
+                    if (displayMode == DisplayMode.DAYS && v.value instanceof Integer d && bodies.hidden(dayOf(d)))
+                        return; // hidden by Bodies > Hide
                     calendarViewController.setTimeOfCellValue(v.value);
 
                     switch (displayMode) {
@@ -282,7 +286,7 @@ class CalendarPicker extends JPanel {
             // set header visible or not
             table.getTableHeader().setVisible(showHeader);
             // add a cell renderer to all cells which shows cell content centered
-            TableCellRenderer cellRenderer = new CenterTableCellRenderer();
+            TableCellRenderer cellRenderer = showHeader ? new DayCellRenderer() : new CenterTableCellRenderer();
             int columnCount = table.getColumnCount();
             for (int i = 0; i < columnCount; i++) {
                 table.getColumnModel().getColumn(i).setCellRenderer(cellRenderer);
@@ -336,12 +340,90 @@ class CalendarPicker extends JPanel {
 
     }
 
+    /** The UTC date of a day number in the month on show. */
+    private java.time.LocalDate dayOf(int day) {
+        java.time.LocalDate d = java.time.Instant.ofEpochMilli(calendarViewController.getTime()).atZone(java.time.ZoneOffset.UTC).toLocalDate();
+        return d.withDayOfMonth(Math.min(day, d.lengthOfMonth()));
+    }
+
+    // A day number with a dot per body in the chosen field under it; a hidden day greyed out
+    private class DayCellRenderer extends DefaultTableCellRenderer {
+
+        private java.util.Set<String> dots = java.util.Set.of();
+
+        DayCellRenderer() {
+            setHorizontalAlignment(CENTER);
+        }
+
+        @Override
+        public java.awt.Component getTableCellRendererComponent(JTable t, Object value, boolean selected, boolean focus, int row, int column) {
+            java.awt.Component c = super.getTableCellRendererComponent(t, value, selected, focus, row, column);
+            setToolTipText(null);
+            dots = java.util.Set.of();
+            setEnabled(true);
+            if (!(value instanceof Integer d))
+                return c;
+            java.time.LocalDate day = dayOf(d);
+            java.util.Set<String> on = bodies.on(day);
+            if (on != null && !on.isEmpty()) {
+                dots = on;
+                setToolTipText(day + ": " + String.join(", ", on) + " in the field");
+            }
+            if (bodies.hidden(day)) {
+                setEnabled(false);
+                setToolTipText(day + ": hidden (" + String.join(", ", on) + " in the field)");
+            }
+            return c;
+        }
+
+        @Override
+        protected void paintComponent(java.awt.Graphics g) {
+            super.paintComponent(g);
+            if (dots.isEmpty())
+                return;
+            int n = dots.size(), size = 3, gap = 1;
+            int x = (getWidth() - n * (size + gap) + gap) / 2, y = getHeight() - size - 1;
+            for (String b : dots) {
+                g.setColor(CalendarBodies.color(b));
+                g.fillRect(x, y, size, size);
+                x += size + gap;
+            }
+        }
+    }
+
     // Panel which acts as a container of the button which displays the current
     // date and allows to set the current date to the calendar component.
     private class BottomPanel extends JPanel {
 
         BottomPanel() {
-            setLayout(new FlowLayout(FlowLayout.CENTER, 2, 2));
+            setLayout(new BoxLayout(this, BoxLayout.PAGE_AXIS));
+            JPanel bodiesRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 2, 0));
+            javax.swing.JComboBox<org.helioviewer.jhv.identify.FieldChoice> field = new javax.swing.JComboBox<>(org.helioviewer.jhv.identify.FieldChoice.values());
+            field.setSelectedItem(org.helioviewer.jhv.identify.FieldChoice.get());
+            field.setToolTipText("Mark each day with the Moon and planets in this field (from the ephemeris, whether or not data is on disk)");
+            field.setName("calendarBodiesField");
+            javax.swing.JComboBox<CalendarBodies.Hide> hide = new javax.swing.JComboBox<>(CalendarBodies.Hide.values());
+            hide.setSelectedItem(CalendarBodies.hide());
+            hide.setToolTipText("Grey out and skip days with these bodies in the field: for a date without the Moon");
+            hide.setName("calendarBodiesHide");
+            field.addActionListener(e -> {
+                org.helioviewer.jhv.identify.FieldChoice.set((org.helioviewer.jhv.identify.FieldChoice) field.getSelectedItem());
+                selectionPanel.table.repaint();
+            });
+            hide.addActionListener(e -> {
+                org.helioviewer.jhv.app.Settings.setProperty(CalendarBodies.HIDE_KEY, ((CalendarBodies.Hide) hide.getSelectedItem()).name());
+                selectionPanel.table.repaint();
+            });
+            bodiesRow.add(new javax.swing.JLabel("Bodies:"));
+            bodiesRow.add(field);
+            add(bodiesRow);
+            JPanel hideRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 2, 0));
+            hideRow.add(new javax.swing.JLabel("Hide:"));
+            hideRow.add(hide);
+            add(hideRow);
+
+            JPanel todayRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 2, 2));
+            add(todayRow);
 
             JButton dateButton = Buttons.flat("Today is " + TimeUtils.formatDate(System.currentTimeMillis()));
             // set the calendar component to the current date
@@ -349,7 +431,7 @@ class CalendarPicker extends JPanel {
                 changeDisplayMode(DisplayMode.DAYS);
                 setTime(System.currentTimeMillis());
             });
-            add(dateButton);
+            todayRow.add(dateButton);
         }
 
     }

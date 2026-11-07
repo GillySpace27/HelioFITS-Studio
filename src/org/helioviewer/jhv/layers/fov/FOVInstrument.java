@@ -68,6 +68,20 @@ class FOVInstrument {
         }
     }
 
+    /**
+     * Whether a point of the observer's plane of sky, in units of the observer's distance (the
+     * tangent of the angle from the platform's boresight), lies inside the outline putGeometry draws:
+     * outside the inner circle, within the rectangle's half sizes or the circle's radius.
+     */
+    boolean contains(double u, double v) {
+        if (!enabled)
+            return false;
+        double du = u - centerX, dv = v - centerY;
+        if (inner > 0 && Math.hypot(du, dv) < inner)
+            return false;
+        return type == FOVType.RECTANGULAR ? Math.abs(du) <= wide && Math.abs(dv) <= high : Math.hypot(du, dv) <= wide;
+    }
+
     boolean isEnabled() {
         return enabled;
     }

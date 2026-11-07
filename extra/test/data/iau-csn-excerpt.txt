@@ -1,0 +1,9 @@
+# Excerpt of the IAU Catalog of Star Names (IAU-CSN), IAU Division C Working Group on Star Names (WGSN),
+# https://www.pas.rochester.edu/~emamajek/WGSN/IAU-CSN.txt, fetched 2026-11-07 (file last updated 2022-04-04). IAU products: Creative Commons Attribution.
+#(1)              (2)               (3)          (4)   (5)   (6) (7)  (8)         (9)  (10) (11)   (12) (13)       (14)       (15)       (16)    
+#Name/ASCII       Name/Diacritics   Designation  ID    ID    Con #    WDS_J       mag  bnd  HIP     HD  RA(J2000)  Dec(J2000) Date       Notes
+Absolutno         Absolutno         XO-5         _     _     Lyn _    _          11.95  G      _      _ 116.716506  39.094572 2019-12-17 
+Acamar            Acamar            HR 897       tet01 θ1    Eri A    02583-4018  2.88  V  13847  18622  44.565311 -40.304672 2016-07-20 *
+Alula Australis   Alula Australis   HR 4375      ksi   ξ     UMa Aa   11182+3132  4.41  V  55203  98231 169.545423  31.529161 2016-07-20 
+Barnard's Star    Barnard's Star    GJ 699       V2500 V2500 Oph _    _           9.54  V  87937      _ 269.454023   4.668288 2017-02-01 
+Sirius            Sirius            HR 2491      alf   α     CMa A    06451-1643 -1.45  V  32349  48915 101.287155 -16.716116 2016-06-30 
