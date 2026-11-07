@@ -5,14 +5,14 @@ Each new entry ends with a `[docs: ...]` pointer to where it is documented (`rel
 
 ## HelioFITS Studio 0.9.2 (unreleased)
 
-### Easier to find panels
-- The sidebars' top-level sections are easier to tell apart, and it is on by default. Managers > Theme Manager has a Visibility section with an Easier to find panels checkbox and four options under it: stronger section headers (a stronger band where the title can still be read on it, a thicker rule and more space under each section), an accent stripe on the leading edge of each header, section numbers (1, 2, 3 in the order the sections appear, only where there are two or more), and a highlight on the header under the pointer. Each applies at once and is remembered in the settings, so it follows whichever theme is chosen. Turning the checkbox off restores the previous look exactly. [docs: manual/filters-and-colour.md]
-
 ### One store for FITS downloads
 - When there is a FITS library, a FITS file Studio downloads now moves into the library instead of being kept twice (once in Studio's cache, once in the library). Studio finds it there again by its download address, with or without HelioFITS Core running, and an existing cache moves into the library once, in the background, so its space comes back. Without a library, or with a HelioFITS Core older than this release, nothing changes: downloads stay in Studio's cache as before. [docs: docs/storage-folders.md]
 - Settings > FITS Library has Choose Folder..., which puts the FITS library in another folder or on another drive: an empty or new folder becomes a new library, a folder that already holds one is used as it is, and HelioFITS Core's warnings about the place (a sync service folder, a network drive) are shown. The library used before stays where it is, with its files. [docs: docs/storage-folders.md]
 - The FITS Library tab now says plainly which case applies, with the action that fixes it: the library is on, its drive is not connected, there is none yet (Choose Folder... makes one), or this computer has no HelioFITS Core (Studio works without one, and the tab says where to get it). It replaces "None found: install the HelioFITS Cache Manager, or set HFCORE_CORE". [docs: docs/storage-folders.md]
 - On macOS, the first FITS download on a computer with no library makes one at ~/HelioFITSLibrary and says so once. It never happens where HelioFITS Core already has settings, so a library on a drive that is not connected is never replaced. [docs: docs/storage-folders.md]
+
+### Easier to find panels
+- The sidebars' top-level sections are easier to tell apart, and it is on by default. Managers > Theme Manager has a Visibility section with an Easier to find panels checkbox and four options under it: stronger section headers (a stronger band where the title can still be read on it, a thicker rule and more space under each section), an accent stripe on the leading edge of each header, section numbers (1, 2, 3 in the order the sections appear, only where there are two or more), and a highlight on the header under the pointer. Each applies at once and is remembered in the settings, so it follows whichever theme is chosen. Turning the checkbox off restores the previous look exactly. [docs: manual/filters-and-colour.md]
 
 ## HelioFITS Studio 0.9.1 (unreleased)
 
