@@ -57,7 +57,7 @@ final class FitsLibrarySettings extends JPanel {
 
     private static final Duration HELLO_WAIT = Duration.ofSeconds(15);
     static final String NONE_FOUND = "Not found, so Studio keeps FITS downloads in its own cache. "
-            + "Studio for macOS includes HelioFITS Core; elsewhere, set HFCORE_CORE to a pyHelioFITS install";
+            + "Studio's packages include HelioFITS Core; from a source build, set HFCORE_CORE to a pyHelioFITS install";
     private static final String TITLE = "FITS library";
 
     private final JLabel headline = new JLabel(" ");
@@ -256,8 +256,8 @@ final class FitsLibrarySettings extends JPanel {
                             + (Platform.isMacOS() ? " Studio also makes one at ~/HelioFITSLibrary by itself at the first FITS download." : "")};
         return new String[]{"Not available",
                 "Studio keeps FITS downloads in its own cache, and everything works without a library. A library needs HelioFITS Core: "
-                        + "Studio for macOS includes it; on Windows and Linux it comes with a later release, or set HFCORE_CORE to a "
-                        + "pyHelioFITS install now.<br><br>Studio looks for the library's settings (HelioFITS Core's) in " + configDir
+                        + "The Studio packages for macOS, Windows and Linux include it (a package built without it, or a build from source, "
+                        + "does not); or set HFCORE_CORE to a pyHelioFITS install.<br><br>Studio looks for the library's settings (HelioFITS Core's) in " + configDir
                         + ", or in the folder HFCORE_HOME names."};
     }
 
