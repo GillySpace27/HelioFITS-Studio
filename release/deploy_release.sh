@@ -655,10 +655,12 @@ retry_codesign() {
 # finds it there (FitsCoreIngest.studioCore) and uses it before any installed Cache Manager, so
 # Use FITS never depends on which one, if any, is on the computer. HFCORE_REPO (or HELIAD_REPO,
 # its name before the rename) may name a local clone that has the commit; the default is the
-# GitHub repository, still at its old address.
+# GitHub repository, GillySpace27/pyHelioFITS. The module the core runs as (pyheliofits.core from
+# pyHelioFITS #44 on, heliofits_core before) is found by trying each and written to HFCORE_MODULE
+# in the bundle, which Studio reads (FitsCoreIngest.moduleOf).
 bundle_fits_core() {
     _out=$1
-    _repo=${HFCORE_REPO:-${HELIAD_REPO:-https://github.com/GillySpace27/heliad.git}}
+    _repo=${HFCORE_REPO:-${HELIAD_REPO:-https://github.com/GillySpace27/pyHelioFITS.git}}
     _pin=$(grep -v '^#' "$HERE/fits-core.txt" | grep -v '^[[:space:]]*$' | head -1 | tr -d '[:space:]')
     case "$_pin" in
         *[!0-9a-f]*|"") echo "!! release/fits-core.txt must give one full HelioFITS Core commit hash, got '$_pin'" >&2; exit 1 ;;
@@ -670,12 +672,16 @@ bundle_fits_core() {
     git -C "$_src/core" -c advice.detachedHead=false checkout --quiet "$_pin" \
         || { echo "!! HelioFITS Core commit $_pin is not in $_repo" >&2; exit 1; }
     OUT="$_out" "$_src/core/app/tools/bundle_python.sh" || { echo "!! bundling HelioFITS Core failed" >&2; exit 1; }
-    "$_out/bin/python3" -B -s -P -m heliofits_core --help 2>/dev/null | grep -q 'layer-upgrade' \
-        || { echo "!! the bundled core at $_pin has no heliofits_core with layer-upgrade: Use FITS would not work" >&2; exit 1; }
+    _module=
+    for _m in pyheliofits.core heliofits_core; do
+        if "$_out/bin/python3" -B -s -P -m "$_m" --help 2>/dev/null | grep -q 'layer-upgrade'; then _module=$_m; break; fi
+    done
+    [ -n "$_module" ] || { echo "!! the bundled core at $_pin has neither pyheliofits.core nor heliofits_core with layer-upgrade: Use FITS would not work" >&2; exit 1; }
     find "$_out" -name __pycache__ -type d -prune -exec rm -rf {} +   # -B above writes none; this is belt and braces before signing
     echo "$_pin" > "$_out/HFCORE_COMMIT"
+    echo "$_module" > "$_out/HFCORE_MODULE"   # FitsCoreIngest.MODULE_MARK: the module Studio runs this core as
     rm -rf "$_src"
-    echo "   HelioFITS Core $_pin in the bundle ($(du -sh "$_out" | cut -f1))"
+    echo "   HelioFITS Core $_pin (-m $_module) in the bundle ($(du -sh "$_out" | cut -f1))"
 }
 
 # Notarization unpacks jars and rejects any unsigned Mach-O inside them (lwjgl, flatlaf,

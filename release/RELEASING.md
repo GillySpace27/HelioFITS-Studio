@@ -317,9 +317,11 @@ service). Both are network steps that fail transiently; see the incident log.
 
 The app carries HelioFITS Core (the FITS library engine behind Use FITS and Studio's
 ingest) at `Contents/Resources/heliofits-core`: `notarize` clones the core's repository
-(still `GillySpace27/heliad`) at the commit `release/fits-core.txt` pins, builds a Python with
-that commit's `app/tools/bundle_python.sh` (python-build-standalone, checksum-checked, from
-GitHub) and refuses a core whose `heliofits_core` lacks `layer-upgrade`. The repository is
+(`GillySpace27/pyHelioFITS`, once `GillySpace27/heliad`) at the commit `release/fits-core.txt` pins,
+builds a Python with that commit's `app/tools/bundle_python.sh` (python-build-standalone,
+checksum-checked, from GitHub), works out whether the core runs as `pyheliofits.core` (pyHelioFITS
+#44 and later) or `heliofits_core` (before it), writes that to `HFCORE_MODULE` in the bundle for
+Studio to read, and refuses a core that has neither with `layer-upgrade`. The repository is
 private, so the clone needs GitHub access; `HFCORE_REPO=<local clone>` (or `HELIAD_REPO`, its
 old name) uses a checkout that has the commit instead. To give a release a
 newer core, change the pin on a branch and say what it brings in the notes.

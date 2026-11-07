@@ -141,7 +141,7 @@ public final class UseFitsCheck {
         }
         Path tmp = Files.createTempDirectory("hfs-fitscore-fits-real");
         Path root = tmp.resolve("library");
-        List<String> command = FitsCoreIngest.command(fitsCore, legacyCore, null, null, tmp, root, Files::isExecutable);
+        List<String> command = FitsCoreIngest.command(fitsCore, legacyCore, null, null, tmp, root, Files::isExecutable, FitsCoreIngest::moduleOf);
         expect("HFCORE_CORE gives a command, got " + command, command != null);
         if (command == null)
             return;
@@ -169,7 +169,7 @@ public final class UseFitsCheck {
 
         Path home = tmp.resolve("fresh-home");
         Path made = tmp.resolve("fresh-library");
-        List<String> serve = FitsCoreIngest.command(fitsCore, legacyCore, null, null, tmp, made, Files::isExecutable);
+        List<String> serve = FitsCoreIngest.command(fitsCore, legacyCore, null, null, tmp, made, Files::isExecutable, FitsCoreIngest::moduleOf);
         FitsCoreIngest.init(serve, Map.of("HFCORE_HOME", home.toString(), "HELIAD_HOME", home.toString()));
         FitsLibrary.Location found = FitsLibrary.read(home);
         expect("init on a computer with no config makes the library and points the config at it, got " + found,

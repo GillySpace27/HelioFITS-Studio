@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import org.json.JSONObject;
 
@@ -53,7 +54,9 @@ public final class FitsCoreIngestCheck {
         }
     }
 
-    private static void commands() {
+    private static void commands() throws IOException {
+        Function<Path, String> old = p -> "heliofits_core"; // what every Python had until pyHelioFITS #44
+        Function<Path, String> renamed = p -> "pyheliofits.core";
         Path home = Path.of("/home/u");
         Path root = Path.of("/data/HelioFITSLibrary");
         Path app = Path.of("/Applications/HelioFITS Cache Manager.app");
@@ -64,28 +67,68 @@ public final class FitsCoreIngestCheck {
         List<String> tail = List.of("--library", root.toString(), "serve");
 
         String py = Path.of("/opt/py/bin/python3").toString(); // as this platform spells it
-        List<String> python = FitsCoreIngest.command("/opt/py/bin/python3", null, null, null, home, root, p -> true);
+        List<String> python = FitsCoreIngest.command("/opt/py/bin/python3", null, null, null, home, root, p -> true, old);
         // Isolated like the bundled ones: a ~/.local astropy whose asdf_astropy lacked asdf broke every
         // download of a core named this way (Gilly, 2026-10-25).
         expect("HFCORE_CORE naming a Python runs it isolated with -m heliofits_core, got " + python,
                 List.of(py, "-s", "-P", "-m", "heliofits_core", "--library", root.toString(), "serve").equals(python));
-        List<String> legacy = FitsCoreIngest.command(null, "/opt/py/bin/python3", null, null, home, root, p -> true);
+        List<String> legacy = FitsCoreIngest.command(null, "/opt/py/bin/python3", null, null, home, root, p -> true, old);
         expect("HELIAD_CORE, its name before the rename, runs a Python with -m heliad, got " + legacy,
                 List.of(py, "-s", "-P", "-m", "heliad", "--library", root.toString(), "serve").equals(legacy));
-        List<String> both = FitsCoreIngest.command("/opt/py/bin/python3", "/old/bin/python3", null, null, home, root, p -> true);
+        List<String> both = FitsCoreIngest.command("/opt/py/bin/python3", "/old/bin/python3", null, null, home, root, p -> true, old);
         expect("HFCORE_CORE wins over HELIAD_CORE, got " + both, both != null && both.equals(python));
-        List<String> command = FitsCoreIngest.command("~/venv/bin/hfcore", null, studio, app, home, root, p -> true);
+        List<String> command = FitsCoreIngest.command("~/venv/bin/hfcore", null, studio, app, home, root, p -> true, old);
         expect("HFCORE_CORE naming the hfcore command runs it as it is, ~ expanded, and wins over the app, got " + command,
                 List.of(home.resolve("venv/bin/hfcore").toString(), "--library", root.toString(), "serve").equals(command));
-        List<String> inApp = FitsCoreIngest.command("/gone/hfcore", null, null, app, home, root, bundled::equals);
+        List<String> inApp = FitsCoreIngest.command("/gone/hfcore", null, null, app, home, root, bundled::equals, old);
         expect("an HFCORE_CORE that is not there falls back to the app's own Python, isolated, got " + inApp,
                 inApp != null && inApp.subList(0, 6).equals(List.of(bundled.toString(), "-B", "-s", "-P", "-m", "heliofits_core"))
                         && inApp.subList(6, inApp.size()).equals(tail));
-        List<String> inOldApp = FitsCoreIngest.command(null, null, null, oldApp, home, root, oldBundled::equals);
+        List<String> inOldApp = FitsCoreIngest.command(null, null, null, oldApp, home, root, oldBundled::equals, old);
         expect("Heliad.app from before the rename runs its Python with -m heliad, got " + inOldApp,
                 inOldApp != null && inOldApp.subList(0, 6).equals(List.of(oldBundled.toString(), "-B", "-s", "-P", "-m", "heliad")));
-        expect("no core variable and no app: no core", FitsCoreIngest.command(null, null, null, null, home, root, p -> true) == null);
-        expect("an app without its Python: no core", FitsCoreIngest.command("", "", studio, app, home, root, p -> false) == null);
+        expect("no core variable and no app: no core", FitsCoreIngest.command(null, null, null, null, home, root, p -> true, old) == null);
+        expect("an app without its Python: no core", FitsCoreIngest.command("", "", studio, app, home, root, p -> false, old) == null);
+
+        List<String> newer = FitsCoreIngest.command("/opt/py/bin/python3", null, null, null, home, root, p -> true, renamed);
+        expect("a Python that has pyheliofits runs -m pyheliofits.core, got " + newer,
+                List.of(py, "-s", "-P", "-m", "pyheliofits.core", "--library", root.toString(), "serve").equals(newer));
+        List<String> legacyStill = FitsCoreIngest.command(null, "/opt/py/bin/python3", null, null, home, root, p -> true, renamed);
+        expect("HELIAD_CORE runs -m heliad whatever the Python has, got " + legacyStill,
+                List.of(py, "-s", "-P", "-m", "heliad", "--library", root.toString(), "serve").equals(legacyStill));
+        List<String> ownNewer = FitsCoreIngest.command(null, null, studio, app, home, root, p -> true, renamed);
+        expect("Studio's own core runs the module its bundle names, got " + ownNewer,
+                ownNewer != null && ownNewer.subList(0, 6).equals(List.of(studio.toString(), "-B", "-s", "-P", "-m", "pyheliofits.core")));
+        List<String> inAppNewer = FitsCoreIngest.command(null, null, null, app, home, root, bundled::equals, renamed);
+        expect("a Cache Manager built from pyheliofits runs -m pyheliofits.core, got " + inAppNewer,
+                inAppNewer != null && inAppNewer.subList(0, 6).equals(List.of(bundled.toString(), "-B", "-s", "-P", "-m", "pyheliofits.core")));
+
+        // The HFCORE_MODULE file the bundling scripts write: beside python.exe (Windows), above bin/ (the rest).
+        Path mac = Files.createTempDirectory("hfcore-mark-mac");
+        Files.writeString(mac.resolve("HFCORE_MODULE"), "pyheliofits.core\n");
+        Path macPy = Files.writeString(Files.createDirectories(mac.resolve("bin")).resolve("python3"), "");
+        expect("a bundle's HFCORE_MODULE above bin/ names the module, got " + FitsCoreIngest.moduleOf(macPy),
+                "pyheliofits.core".equals(FitsCoreIngest.moduleOf(macPy)));
+        Path win = Files.createTempDirectory("hfcore-mark-win");
+        Files.writeString(win.resolve("HFCORE_MODULE"), "  heliofits_core  \n");
+        Path winPy = Files.writeString(win.resolve("python.exe"), "");
+        expect("a bundle's HFCORE_MODULE beside python.exe names the module, trimmed, got " + FitsCoreIngest.moduleOf(winPy),
+                "heliofits_core".equals(FitsCoreIngest.moduleOf(winPy)));
+        Path bad = Files.createTempDirectory("hfcore-mark-bad");
+        Files.writeString(bad.resolve("HFCORE_MODULE"), "rm -rf /\n");
+        Path badPy = Files.writeString(Files.createDirectories(bad.resolve("bin")).resolve("python3"), "");
+        expect("an HFCORE_MODULE that is not a module name is ignored and the old module runs, got " + FitsCoreIngest.moduleOf(badPy),
+                "heliofits_core".equals(FitsCoreIngest.moduleOf(badPy)));
+        Path none = Files.createTempDirectory("hfcore-mark-none");
+        Path nonePy = Files.writeString(Files.createDirectories(none.resolve("bin")).resolve("python3"), "");
+        expect("no HFCORE_MODULE and a Python that cannot answer: the old module, as before, got " + FitsCoreIngest.moduleOf(nonePy),
+                "heliofits_core".equals(FitsCoreIngest.moduleOf(nonePy)));
+        String real = System.getenv("HFCORE_CORE");
+        if (real != null && !real.isEmpty() && Files.isExecutable(Path.of(real)) && Path.of(real).getFileName().toString().startsWith("python")) {
+            String asked = FitsCoreIngest.moduleOf(Path.of(real));
+            expect("the real HFCORE_CORE Python names a core module it has, got " + asked,
+                    asked.equals("pyheliofits.core") || asked.equals("heliofits_core"));
+        }
 
         Path studio2 = FitsCoreIngest.studioCore("/Applications/HelioFITS Studio.app/Contents/MacOS/HelioFITS Studio", "Mac OS X");
         expect("Studio's own core is in its bundle's Resources, got " + studio2, studio.equals(studio2));
@@ -97,14 +140,14 @@ public final class FitsCoreIngestCheck {
         expect("the Windows package's core is beside the launcher, got " + windows,
                 Path.of("/apps/HFStudio/heliofits-core/python.exe").equals(windows));
         expect("an unknown system has no packaged core", FitsCoreIngest.studioCore("/x/HFStudio", "SunOS") == null);
-        List<String> own = FitsCoreIngest.command(null, null, studio, oldApp, home, root, p -> true);
+        List<String> own = FitsCoreIngest.command(null, null, studio, oldApp, home, root, p -> true, old);
         expect("Studio's own core wins over an installed app's, isolated, got " + own,
                 own != null && own.subList(0, 6).equals(List.of(studio.toString(), "-B", "-s", "-P", "-m", "heliofits_core"))
                         && own.subList(6, own.size()).equals(tail));
-        List<String> appOnly = FitsCoreIngest.command(null, null, studio, app, home, root, bundled::equals);
+        List<String> appOnly = FitsCoreIngest.command(null, null, studio, app, home, root, bundled::equals, old);
         expect("a Studio core that is not there falls back to the app's, got " + appOnly,
                 appOnly != null && appOnly.getFirst().equals(bundled.toString()));
-        List<String> dev = FitsCoreIngest.command("/opt/py/bin/python3", null, studio, app, home, root, p -> true);
+        List<String> dev = FitsCoreIngest.command("/opt/py/bin/python3", null, studio, app, home, root, p -> true, old);
         expect("HFCORE_CORE wins over Studio's own core, got " + dev, dev != null && dev.getFirst().equals(py));
     }
 
@@ -267,7 +310,7 @@ public final class FitsCoreIngestCheck {
         Path appSupport = tmp.resolve("appsupport");
         Path root = tmp.resolve("library");
         Map<String, String> env = Map.of("HFCORE_HOME", appSupport.toString(), "HELIAD_HOME", appSupport.toString());
-        List<String> command = FitsCoreIngest.command(fitsCore, legacyCore, null, null, tmp, root, Files::isExecutable);
+        List<String> command = FitsCoreIngest.command(fitsCore, legacyCore, null, null, tmp, root, Files::isExecutable, FitsCoreIngest::moduleOf);
         expect("HFCORE_CORE gives a command, got " + command, command != null);
         if (command == null)
             return;

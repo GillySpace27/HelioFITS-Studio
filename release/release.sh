@@ -92,7 +92,11 @@ preflight() {
     xcrun notarytool history --keychain-profile "${NOTARY_PROFILE:-jhv-notary}" >/dev/null 2>&1 \
         || die "notarytool profile '${NOTARY_PROFILE:-jhv-notary}' unusable (screen locked, or re-run notarytool store-credentials)"
     PY="${HELIAD_PYTHON:-$HOME/Documents/NWRA/heliad/.venv/bin/python}"
-    "$PY" -c 'import sunpy, astropy, heliofits_core.parity' >/dev/null 2>&1 \
+    "$PY" -c 'import sunpy, astropy
+try:
+    import pyheliofits.core.parity
+except ImportError:
+    import heliofits_core.parity' >/dev/null 2>&1 \
         || die "parity needs a Python with sunpy, astropy and the core: set HELIAD_PYTHON (now: $PY)"
     [ -d "$HOME/HeliadLibrary" ] || die "parity needs ~/HeliadLibrary"
     pgrep -fq 'HelioFITS Studio|HFStudio' && die "quit every running HelioFITS Studio first (JPIP cache lock; smoke test)"

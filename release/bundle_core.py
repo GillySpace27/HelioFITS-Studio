@@ -29,7 +29,9 @@ PY_MINOR = os.environ.get("PY_MINOR", "3.12")
 TRIPLES = {"windows": "x86_64-pc-windows-msvc", "linux": "x86_64-unknown-linux-gnu"}
 ARM_TRIPLES = {"linux": "aarch64-unknown-linux-gnu"}
 RELEASES = "https://api.github.com/repos/astral-sh/python-build-standalone/releases/latest"
-MODULE = "heliofits_core"  # FitsCoreIngest.MODULE
+# The module Studio runs the core as (FitsCoreIngest.moduleOf): pyheliofits.core from pyHelioFITS #44 on,
+# heliofits_core before it. Whichever the pinned commit has is written to HFCORE_MODULE in the bundle.
+MODULES = ("pyheliofits.core", "heliofits_core")
 
 
 def die(msg):
@@ -79,7 +81,7 @@ def main():
         sys.exit("usage: bundle_core.py windows|linux <output folder>")
     target, out = sys.argv[1], Path(sys.argv[2]).resolve()
     commit = pin()
-    repo = os.environ.get("HFCORE_REPO") or os.environ.get("HELIAD_REPO") or "https://github.com/GillySpace27/heliad.git"
+    repo = os.environ.get("HFCORE_REPO") or os.environ.get("HELIAD_REPO") or "https://github.com/GillySpace27/pyHelioFITS.git"
 
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
@@ -120,12 +122,20 @@ def main():
     for cache in list(out.rglob("__pycache__")):
         shutil.rmtree(cache, ignore_errors=True)
     # The same command Studio runs (FitsCoreIngest.command), so a core Use FITS cannot use fails here.
-    run = subprocess.run([str(py), "-B", "-s", "-P", "-m", MODULE, "--help"], capture_output=True, text=True)
-    if run.returncode or "layer-upgrade" not in run.stdout:
-        die(f"the bundled core at {commit} has no {MODULE} with layer-upgrade: Use FITS would not work\n{run.stderr}")
+    module = None
+    errors = []
+    for name in MODULES:
+        run = subprocess.run([str(py), "-B", "-s", "-P", "-m", name, "--help"], capture_output=True, text=True)
+        if run.returncode == 0 and "layer-upgrade" in run.stdout:
+            module = name
+            break
+        errors.append(f"-m {name}: exit {run.returncode}\n{run.stderr.strip()}")
+    if module is None:
+        die(f"the bundled core at {commit} has none of {MODULES} with layer-upgrade: Use FITS would not work\n" + "\n".join(errors))
     (out / "HFCORE_COMMIT").write_text(commit + "\n")
+    (out / "HFCORE_MODULE").write_text(module + "\n")  # FitsCoreIngest.MODULE_MARK
     size = sum(f.stat().st_size for f in out.rglob("*") if f.is_file())
-    print(f"   HelioFITS Core {commit} in {out} ({size / 2**20:.0f} MB)")
+    print(f"   HelioFITS Core {commit} (-m {module}) in {out} ({size / 2**20:.0f} MB)")
 
 
 if __name__ == "__main__":

@@ -134,7 +134,10 @@ def run(library, out):
     from astropy import __version__ as astropy_version
     import numpy
     import sunpy
-    from heliofits_core import parity
+    try:
+        from pyheliofits.core import parity  # pyHelioFITS #44 and later
+    except ImportError:
+        from heliofits_core import parity  # before it
 
     jar = SRC / "HFStudio.jar"
     if not jar.is_file():
