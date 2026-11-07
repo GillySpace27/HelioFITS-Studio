@@ -189,6 +189,44 @@ public final class DisplayController {
         camera.setFOV(2 * Math.atan2(halfSize, viewpoint.distance), viewpoint);
     }
 
+    /**
+     * Centre the main camera on the Sun and frame {@code halfSize} solar radii either side, as
+     * seen from the viewpoint now in force (the layer options' View from outside).
+     */
+    public static void frameAround(double halfSize) {
+        Camera camera = Display.getCamera();
+        Position viewpoint = viewpointModel.update(Player.getTime());
+        camera.setTranslation(0, 0);
+        camera.resetDragRotation();
+        ViewpointLayerOptions.cameraDragRotationCleared();
+        camera.setFOV(2 * Math.atan2(halfSize, viewpoint.distance), viewpoint);
+        Display.resetViewportZoom();
+        render(1);
+    }
+
+    /**
+     * Turn the main camera about its line of sight until the world point {@code world} sits
+     * straight below the centre of the view (View from outside puts the layer's observer there).
+     * Which way a turn about the view axis goes is found by trying it, not assumed.
+     */
+    public static void turnToBelow(Vec3 world) {
+        Camera camera = Display.getCamera();
+        Position viewpoint = viewpointModel.update(Player.getTime());
+        double off = offBelow(camera, viewpoint, world);
+        if (Double.isNaN(off) || Math.abs(off) < 1e-9)
+            return;
+        camera.rotateDragRotation(Quat.createAxisZ(off));
+        if (Math.abs(offBelow(camera, viewpoint, world)) > Math.abs(off)) // turned the wrong way
+            camera.rotateDragRotation(Quat.createAxisZ(-2 * off));
+        render(1);
+    }
+
+    /** The angle of {@code world} on screen away from straight below the centre; NaN on the line of sight. */
+    static double offBelow(Camera camera, Position viewpoint, Vec3 world) {
+        Vec3 s = Quat.rotate(camera.getDragRotation(), viewpoint.toQuat()).rotateVector(world);
+        return s.x == 0 && s.y == 0 ? Double.NaN : Math.atan2(s.x, -s.y);
+    }
+
     private static void fitCameraToImageLayers(Camera camera, Position viewpoint) {
         // Helioradial's warped scene reaches exactly the warp's outer radius, because the warp
         // holds that radius as a fixed point; fit to its diameter.
