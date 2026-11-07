@@ -172,6 +172,8 @@ final class ImageLayerManagePanel extends JPanel {
         fitsButton.addActionListener(e -> org.helioviewer.jhv.gui.dialog.UseFitsDialog.start(layer, this, this::fitsStatus));
         icons.add(fitsButton);
         icons.add(makeSyncButton());
+        icons.add(makeSpacecraftButton());
+        icons.add(makeOutsideButton());
         icons.add(metaButton);
 
         readout.setBorder(BorderFactory.createEmptyBorder(8, 0, 8, 0)); // let the readout breathe
@@ -211,6 +213,37 @@ final class ImageLayerManagePanel extends JPanel {
      */
     // Lives with the layer's other actions, beside Refresh. It used to sit at the end of the
     // Difference row, where nothing about it is specific to differencing.
+    // The spacecraft that took this layer, in place (ObserverModels): its 3D model at its position,
+    // and a camera that looks down on it from solar north.
+    private JToggleButton makeSpacecraftButton() {
+        JToggleButton b = Buttons.flatToggle("Spacecraft", org.helioviewer.jhv.layers.ObserverModels.isShown(layer));
+        b.setToolTipText("Show this layer's spacecraft as a 3D model at its position");
+        b.addActionListener(e -> {
+            if (!org.helioviewer.jhv.layers.ObserverModels.hasModel(layer)) {
+                b.setSelected(false);
+                String obs = org.helioviewer.jhv.layers.ObserverModels.observatory(layer);
+                b.setToolTipText("No 3D model for " + (obs.isEmpty() ? "this layer's observatory" : obs) + " yet: add one in the 3D Model Manager");
+                return;
+            }
+            b.setEnabled(false);
+            org.helioviewer.jhv.layers.ObserverModels.toggle(layer, () -> {
+                b.setEnabled(true);
+                b.setSelected(org.helioviewer.jhv.layers.ObserverModels.isShown(layer));
+            });
+        });
+        return b;
+    }
+
+    private JToggleButton makeOutsideButton() {
+        JToggleButton b = Buttons.flatToggle("Outside", org.helioviewer.jhv.layers.ObserverModels.isOutside());
+        b.setToolTipText("View from outside: look down from solar north on the Sun and this layer's observer; press again to go back");
+        b.addActionListener(e -> {
+            org.helioviewer.jhv.layers.ObserverModels.toggleOutside(layer);
+            b.setSelected(org.helioviewer.jhv.layers.ObserverModels.isOutside());
+        });
+        return b;
+    }
+
     private JButton makeSyncButton() {
         JButton sync = Buttons.flat(Buttons.sync);
         sync.setToolTipText("Synchronize time intervals of other layers");

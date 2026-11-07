@@ -94,9 +94,22 @@ public final class SettingsFormCheck {
         expect("a read-only core serving another library says both",
                 FitsLibrarySettings.coreText(new JSONObject().put("version", "0.0.1").put("readonly", true).put("library_root", "/elsewhere"), root)
                         .equals("HelioFITS Core 0.0.1 is running, read-only, serving another library: /elsewhere"));
-        expect("no core means downloads stay in Studio's cache", FitsLibrarySettings.downloadsText(false, 0).startsWith("Kept in Studio's cache only"));
-        expect("a core means downloads go to the library", FitsLibrarySettings.downloadsText(true, Long.MIN_VALUE)
-                .equals("Studio adds each FITS download to this library"));
+        expect("no core means downloads stay in Studio's cache", FitsLibrarySettings.downloadsText(false, true, 0).startsWith("Kept in Studio's cache only"));
+        expect("a core that takes files over means one copy, in the library", FitsLibrarySettings.downloadsText(true, true, Long.MIN_VALUE)
+                .equals("Studio moves each FITS download into this library, so there is one copy"));
+        expect("an older core gets a copy, and says why", FitsLibrarySettings.downloadsText(true, false, Long.MIN_VALUE)
+                .startsWith("Studio adds a copy of each FITS download"));
+        Path drive = Path.of("/Volumes/Data/HelioFITSLibrary");
+        String[] unplugged = FitsLibrarySettings.missingText(drive, true, "~/cfg");
+        expect("a library on a drive not connected says so and names it", // drive.toString(): backslashes on Windows
+                unplugged[0].equals("Not connected") && unplugged[1].contains(drive.toString()) && unplugged[1].contains("connect it"));
+        expect("without a core it offers no Choose Folder... it cannot show",
+                !FitsLibrarySettings.missingText(Path.of("/Volumes/Data/HelioFITSLibrary"), false, "~/cfg")[1].contains("Choose Folder"));
+        expect("no library yet, with a core, offers to make one", FitsLibrarySettings.missingText(null, true, "~/cfg")[1].contains("Choose Folder..."));
+        String[] noCore = FitsLibrarySettings.missingText(null, false, "~/cfg");
+        expect("no core says Studio works without one and how to get one",
+                noCore[0].equals("Not available") && noCore[1].contains("works without a library") && noCore[1].contains("HFCORE_CORE"));
+        expect("the no-core line is no longer the old dead end", !FitsLibrarySettings.NONE_FOUND.contains("install the HelioFITS Cache Manager"));
         expect("the Get Cache Manager link is https on gilly.space", FitsLibrarySettings.GET_URL.startsWith("https://gilly.space/"));
 
         System.out.println(failures == 0 ? "SettingsFormCheck: all passed" : "SettingsFormCheck: " + failures + " failed");
