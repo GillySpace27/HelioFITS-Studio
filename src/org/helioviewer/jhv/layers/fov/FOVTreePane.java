@@ -3,6 +3,7 @@ package org.helioviewer.jhv.layers.fov;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.GridLayout;
 import java.util.Enumeration;
 
@@ -48,6 +49,7 @@ public final class FOVTreePane extends JScrollPane {
         //tree.setRowHeight(0); // force calculation of nodes heights
 
         setViewportView(tree);
+        setColumnHeaderView(createViewOptions(catalog));
         setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         UIGlobals.themed(this, c -> c.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, UIGlobals.separator())));
@@ -65,6 +67,28 @@ public final class FOVTreePane extends JScrollPane {
             if (node instanceof TreeNodeComponent componentNode)
                 ComponentUtils.setEnabled(componentNode.component, enabled);
         }
+    }
+
+    /** How the fields are drawn in a 3D view; neither applies in 2D, where they are outlines on the plane of the sky. */
+    private static JPanel createViewOptions(FOVCatalog catalog) {
+        JCheckBox cones = new JCheckBox("Cones from spacecraft", catalog.cones());
+        cones.setToolTipText("In a 3D view, draw each field as a solid from its spacecraft, as HelioFleet does. Off: outlines on the plane of the sky.");
+        JCheckBox labels = new JCheckBox("Labels", catalog.labels());
+        labels.setToolTipText("Name each field on screen, at its far end (3D cones only).");
+        labels.setEnabled(catalog.cones());
+        cones.addActionListener(e -> {
+            catalog.setCones(cones.isSelected());
+            labels.setEnabled(cones.isSelected());
+            DisplayController.display();
+        });
+        labels.addActionListener(e -> {
+            catalog.setLabels(labels.isSelected());
+            DisplayController.display();
+        });
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
+        panel.add(cones);
+        panel.add(labels);
+        return panel;
     }
 
     private static Component createPlatformComponent(FOVPlatform platform) {
