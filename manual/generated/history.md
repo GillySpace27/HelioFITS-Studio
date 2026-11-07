@@ -9,6 +9,7 @@
 - Settings > FITS Library has Choose Folder..., which puts the FITS library in another folder or on another drive: an empty or new folder becomes a new library, a folder that already holds one is used as it is, and HelioFITS Core's warnings about the place (a sync service folder, a network drive) are shown. The library used before stays where it is, with its files.
 - The FITS Library tab now says plainly which case applies, with the action that fixes it: the library is on, its drive is not connected, there is none yet (Choose Folder... makes one), or this computer has no HelioFITS Core (Studio works without one, and the tab says where to get it). It replaces "None found: install the HelioFITS Cache Manager, or set HFCORE_CORE".
 - On macOS, the first FITS download on a computer with no library makes one at ~/HelioFITSLibrary and says so once. It never happens where HelioFITS Core already has settings, so a library on a drive that is not connected is never replaced.
+- Studio for macOS now carries HelioFITS Core at pyHelioFITS a8c769f (was be1e7a1), the first core that can take a download over (consume) and find a file by its download address, which the one store above needs.
 
 ## HelioFITS Studio 0.9.1 (unreleased)
 
