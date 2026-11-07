@@ -158,7 +158,7 @@ public final class CacheIndex {
         Map<String, Frame> found = new LinkedHashMap<>();
         // Not the dl*.tmp a download writes before it is published under its hash: one in flight
         // is not a frame yet, and one left by a download that never finished never will be.
-        File[] files = Directories.FILECACHE.getFile().listFiles(f -> f.isFile() && !f.getName().endsWith(".tmp"));
+        File[] files = Directories.FILECACHE.getFile().listFiles(f -> f.isFile() && !f.getName().endsWith(".tmp") && !f.getName().equals(LibraryStore.MOVES));
         if (files == null)
             return List.of();
         int done = 0;
