@@ -3,6 +3,11 @@
 
 Each new entry ends with a `[docs: ...]` pointer to where it is documented (`release/RELEASING.md`, "Docs pointers in the changelog"); the app and the release notes hide them.
 
+## HelioFITS Studio 0.9.2 (unreleased)
+
+### One store for FITS downloads
+- When there is a FITS library, a FITS file Studio downloads now moves into the library instead of being kept twice (once in Studio's cache, once in the library). Studio finds it there again by its download address, with or without HelioFITS Core running, and an existing cache moves into the library once, in the background, so its space comes back. Without a library, or with a HelioFITS Core older than this release, nothing changes: downloads stay in Studio's cache as before. [docs: docs/storage-folders.md]
+
 ## HelioFITS Studio 0.9.1 (unreleased)
 
 ### Image Layers list
