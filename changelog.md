@@ -7,6 +7,8 @@ Each new entry ends with a `[docs: ...]` pointer to where it is documented (`rel
 
 ### Fixes
 - The Windows and Linux packages now carry HelioFITS Core, the FITS library engine, as the Mac app already did, so Use FITS and the FITS library work there without installing anything. It is the same pinned core, in its own Python inside the package, and on Windows its files are signed with the rest of Studio. [docs: docs/storage-folders.md]
+- Scrolling the left sidebar with the pointer over the image layer list no longer stalls: the list was keeping the wheel events for itself although it never has anything of its own to scroll.
+- Settings > Theme > Visibility has a Scroll bar width slider, from the usual thin bar up to 30 pixels, for those who prefer to drag the bar. It applies to the left and right sidebars and to palettes, at once.
 - The imagery no longer flickers as the pointer moves over it. The colour legend asked for a full redraw on every mouse move, wherever the pointer was; it now redraws only while the pointer is on the legend or its tooltip is up. With Stars on, a redraw at a viewpoint whose stars were not yet built also dropped every star for a frame; the previous stars now stay until the new ones are ready. [docs: docs/starfield.md]
 
 ### Identify under cursor
