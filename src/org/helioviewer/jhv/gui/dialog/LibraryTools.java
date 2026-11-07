@@ -36,7 +36,7 @@ final class LibraryTools {
 
     private static final Duration QUICK = Duration.ofMinutes(2);
     private static final Duration LONG = Duration.ofHours(2); // a checksum of every file, or a large folder
-    private static final String NO_CORE = "Needs HelioFITS Core: carried by the macOS app; elsewhere set HFCORE_CORE";
+    private static final String NO_CORE = "Needs HelioFITS Core: carried by the Studio packages; from a source build set HFCORE_CORE";
 
     private LibraryTools() {
     }
