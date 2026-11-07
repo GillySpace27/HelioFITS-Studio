@@ -72,7 +72,7 @@ Projection palette; its sky controls appear alongside.
   the Sun is, named on screen at its far end: a coronagraph's annulus about the Sun line, a
   heliospheric imager's square field to one side (STEREO HI toward Earth, SoloHI to solar east,
   WISPR ahead along Parker Solar Probe's orbit). **Cones from spacecraft** and **Labels**, at the
-  top of its options, switch these off; in a 2D view fields are outlines on the plane of the sky. A
+  top of its options, switch these off; with Cones off, fields are outlines on the plane of the sky. A
   field is not drawn before its instrument started observing. Off-Sun fields are drawn as squares
   at the elongations HelioFleet lists, which is the precision of a planning view, not of a
   pointing solution.
