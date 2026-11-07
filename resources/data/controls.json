@@ -152,6 +152,12 @@
       "words": "record movie export video"
     },
     {
+      "id": "toolbarMore",
+      "title": "More",
+      "where": "Last button of the toolbar",
+      "words": "more overflow parked hidden tools projection hdr filters grid camera compare pizza annotation track cme"
+    },
+    {
       "id": "panelLock",
       "title": "Panel lock",
       "where": "Right end of the toolbar (the padlock)",

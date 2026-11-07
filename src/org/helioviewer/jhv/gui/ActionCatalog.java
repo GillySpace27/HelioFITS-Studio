@@ -235,6 +235,15 @@ public final class ActionCatalog {
                 org.helioviewer.jhv.gui.component.MenuBar.openSettingsTab("Keybindings");
             }
         }, "Managers/Keybindings Manager...", "Every command with its keybinding: search, change or reset (opens Settings on the Keybindings tab)");
+        // Fold or show a sidebar section by its number: Cmd+1..8 left, Cmd+Option+1..8 right (PanelKeys)
+        for (boolean right : new boolean[]{false, true}) {
+            String side = right ? "Right" : "Left";
+            for (int n = 1; n <= org.helioviewer.jhv.gui.component.PanelKeys.SLOTS; n++)
+                put(org.helioviewer.jhv.gui.component.PanelKeys.id(right, n), org.helioviewer.jhv.gui.component.PanelKeys.action(right, n),
+                        "View/" + side + " Sidebar Panels/" + side + " Sidebar Panel " + n,
+                        "Fold or show section " + n + " of the " + side.toLowerCase(java.util.Locale.ROOT)
+                                + " sidebar, the one numbered " + n + "; moving a section changes its number");
+        }
         // The person's own keybindings (Settings > Keybindings), applied over the defaults stated above
         org.helioviewer.jhv.gui.registry.KeyBindings.apply();
     }
@@ -248,6 +257,11 @@ public final class ActionCatalog {
             throw new IllegalStateException("duplicate action id " + id);
         String text = description.isEmpty() ? String.valueOf(action.getValue(Action.NAME)) : description;
         entries.put(id, new Entry(id, action, menuPath, text));
+    }
+
+    /** Whether the catalog has been built: for a reader that must not be the one that builds it (a tooltip). */
+    public static synchronized boolean isBuilt() {
+        return !entries.isEmpty();
     }
 
     @Nullable

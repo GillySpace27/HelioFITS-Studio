@@ -373,6 +373,11 @@ public final class RightSidebar implements SectionHost {
         return sections.containsKey(title);
     }
 
+    /** The pane the sections are stacked in, for PanelKeys to count places in. */
+    SideContentPane pane() {
+        return pane;
+    }
+
     /** The sections top to bottom, for a check and for anything that wants to report the state. */
     public java.util.List<String> sectionTitles() {
         return java.util.List.copyOf(sections.keySet());

@@ -292,6 +292,10 @@ public final class MenuBar extends JMenuBar {
         }
         catalogItem(viewMenu, "identifyFindBody");
 
+        // Fold or show a section by its number: Cmd+1..8 on the left, Cmd+Option+1..8 on the right
+        viewMenu.add(PanelKeys.menu(false));
+        viewMenu.add(PanelKeys.menu(true));
+
         viewMenu.addSeparator();
 
         JCheckBoxMenuItem clipping = new JCheckBoxMenuItem("Show Clipped Pixels", Display.showClipping);

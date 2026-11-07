@@ -44,6 +44,11 @@ session.
   reorders the layers. Double-click a layer's name to change its dataset.
 - Under **Display**, **Color** picks the colour table; under **Intensity**, the two **Levels**
   handles set the brightness window.
+- Each sidebar section carries a number in front of its title. Cmd-1 to Cmd-8 (Ctrl-1 to Ctrl-8
+  elsewhere) fold or show the section with that number in the left sidebar, and Cmd-Option-1 to
+  Cmd-Option-8 (Ctrl-Shift-1 to Ctrl-Shift-8) do the same in the right one. Moving a section changes
+  its number, and so its key. The **Left Sidebar Panels** and **Right Sidebar Panels** submenus of
+  **View** list what each key reaches now, and Settings > Keybindings can change the keys.
 
 ## Finding things
 
