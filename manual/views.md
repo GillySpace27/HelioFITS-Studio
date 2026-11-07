@@ -60,6 +60,13 @@ Projection palette; its sky controls appear alongside.
   When no model matches, its tooltip says so. **Outside**, beside it, switches the camera to
   **Overview**, framed to hold the Sun and that layer's observer, turned so the observer sits
   straight below the Sun; press it again to put the camera back as it was.
+- **3D Scene**, a section of the left sidebar, lists what is placed in 3D space: spacecraft models
+  and point clouds. Its **Enlarge** (1x to 10^10x) and **Min size** (0 to 50 px across) size every
+  model at once, so spacecraft stay visible at their real distances. A model's own **Enlarge
+  (x scene)** multiplies the scene's, and its **Min size (x scene)** is a multiple of the scene's
+  (1 is the scene's, 0 switches the floor off), so one model can stand out. The scene's sizes are
+  saved with the session; **Settings > General > 3D scene** takes the current sizes as the ones a new
+  session starts with.
 - **Track** keeps the view turning with the Sun as the movie plays; **Differential**, beside it,
   toggles differential rotation.
 - {menuselection}`View --> Reset View` (or a double-click on the canvas) returns the view to its

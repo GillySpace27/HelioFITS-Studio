@@ -23,7 +23,7 @@ import org.json.JSONObject;
 public final class ModelLayer extends AbstractLayer {
 
     private final URI source;
-    private final String name;
+    private String name; // the file's scene name, or the model list's name for a listed model
     private final JHVTime time;
     private final GLSLModel model;
     private final boolean heliocentric;
@@ -59,6 +59,11 @@ public final class ModelLayer extends AbstractLayer {
         this(URI.create(jo.getString("uri")));
         placement.deserialize(jo);
         ephemeris.setTarget(placement.target());
+        String listed = jo.optString("listedName", "");
+        if (!listed.isBlank()) {
+            listedName = listed;
+            name = listed;
+        }
     }
 
     private static double[] bounds(ModelScene scene) {
@@ -84,6 +89,8 @@ public final class ModelLayer extends AbstractLayer {
     @Override
     public void serialize(JSONObject jo) {
         jo.put("uri", source.toString());
+        if (listedName != null)
+            jo.put("listedName", listedName);
         placement.serialize(jo);
     }
 
@@ -137,6 +144,25 @@ public final class ModelLayer extends AbstractLayer {
     @Override
     public String getName() {
         return name;
+    }
+
+    private String listedName;
+
+    /**
+     * Name the row after the model list's entry ("SDO") rather than the file's scene name, which
+     * for these files is often just "Scene". Kept in the session.
+     */
+    public void setListedName(String _name) {
+        if (_name == null || _name.isBlank())
+            return;
+        listedName = _name;
+        name = _name;
+        Layers.fireNameUpdated(this);
+    }
+
+    @Override
+    public Kind kind() {
+        return Kind.SCENE;
     }
 
     @Override
@@ -229,7 +255,7 @@ public final class ModelLayer extends AbstractLayer {
         String size = String.format("%.3g m", extent * placement.metersPerUnit());
         if (f < 1.0001)
             return "True size (" + size + " across).";
-        String raised = f > placement.exaggeration() * 1.0001 ? ", raised to the minimum on-screen size" : "";
+        String raised = f > placement.effectiveExaggeration(SceneScale.enlarge()) * 1.0001 ? ", raised to the minimum on-screen size" : "";
         return "Drawn " + times(f) + " true size" + raised + "; " + size + " across in reality.";
     }
 
