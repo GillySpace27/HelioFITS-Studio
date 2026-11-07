@@ -491,6 +491,11 @@ public final class Theme {
         return out;
     }
 
+    /** {@link #legible} for callers outside the theme, such as the panel-visibility options. */
+    public static Color legibleOn(Color fore, Color back, double min) {
+        return legible(fore, back, min);
+    }
+
     /** {@code fore} mixed toward {@code away} in steps until it clears, or the whole way. */
     private static Color toward(Color fore, Color back, double min, Color away) {
         for (double f = 0.05; f < 1; f += 0.05) {
