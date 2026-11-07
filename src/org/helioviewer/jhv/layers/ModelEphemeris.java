@@ -32,7 +32,7 @@ import spice.basic.SpiceErrorException;
  * <p>No position means nothing is drawn: never a fallback to the origin, which would put a false
  * spacecraft on the Sun (the rule PlanetMarkers keeps too).
  */
-final class ModelEphemeris {
+public final class ModelEphemeris { // public for the FOV layer's spacecraft not in the kernels
 
     private static final String CARRINGTON = Frame.SOLO_IAU_SUN_2009.toString();
     /** Padding around the movie interval, so a still frame (start == end) still gets a short series. */
@@ -57,7 +57,7 @@ final class ModelEphemeris {
     private final double[] xyz = new double[3];
 
     /** A SpaceObject name or one of {@link ExternalEphemeris#names()}; anything else places nothing. */
-    void setTarget(@Nullable String name) {
+    public void setTarget(@Nullable String name) {
         String n = name == null ? "" : name;
         if (n.equals(targetName) && (target != null || external != null))
             return;
@@ -68,11 +68,11 @@ final class ModelEphemeris {
         status = "";
     }
 
-    String status() {
+    public String status() {
         return status;
     }
 
-    void cancel() {
+    public void cancel() {
         if (load != null)
             load.cancel();
         load = null;
@@ -84,7 +84,7 @@ final class ModelEphemeris {
     }
 
     @Nullable
-    Position at(JHVTime time) {
+    public Position at(JHVTime time) {
         if (external != null)
             return fromExternal(external, time);
         if (target == null) {
@@ -108,8 +108,13 @@ final class ModelEphemeris {
         return fromService(time);
     }
 
+    /**
+     * The movie's span padded by an hour, widened only for a time outside that, so times inside the
+     * pad (the FOV layer's direction of travel, half an hour either side) reuse the same request.
+     */
     private long[] interval(JHVTime time) {
-        return new long[]{Math.min(Player.getStartTime(), time.milli) - PAD, Math.max(Player.getEndTime(), time.milli) + PAD};
+        long lo = Player.getStartTime() - PAD, hi = Player.getEndTime() + PAD;
+        return new long[]{time.milli < lo ? time.milli - PAD : lo, time.milli > hi ? time.milli + PAD : hi};
     }
 
     @Nullable
