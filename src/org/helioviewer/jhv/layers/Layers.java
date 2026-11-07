@@ -195,7 +195,7 @@ public final class Layers {
         DEFAULT_LAYERS.put(ConnectionLayer.class, () -> new ConnectionLayer(null));
         DEFAULT_LAYERS.put(GridLayer.class, () -> new GridLayer(null));
         DEFAULT_LAYERS.put(FOVLayer.class, () -> new FOVLayer(null));
-        // DEFAULT_LAYERS.put(StarLayer.class, () -> new StarLayer(null));
+        DEFAULT_LAYERS.put(StarLayer.class, () -> new StarLayer(null)); // the starfield, off until ticked
         DEFAULT_LAYERS.put(TimestampLayer.class, () -> new TimestampLayer(null));
         DEFAULT_LAYERS.put(MiniviewLayer.class, () -> new MiniviewLayer(null));
         // No Camera layer beside the Viewpoint one: revolving the camera is now one of the
@@ -314,16 +314,30 @@ public final class Layers {
     }
 
     public static void render(MapView mv, Viewport vp) {
-        layers.forEach(layer -> {
-            if (shown(layer))
-                RenderGuard.run(layer.getName(), () -> layer.render(mv, vp));
-        });
+        inDrawOrder(layer -> RenderGuard.run(layer.getName(), () -> layer.render(mv, vp)));
     }
 
     public static void renderScale(MapView mv, Viewport vp) {
+        inDrawOrder(layer -> RenderGuard.run(layer.getName(), () -> layer.renderScale(mv, vp)));
+    }
+
+    /**
+     * The shown layers in list order, except the starfield: it is a background, drawn first so the
+     * imagery covers it wherever the imagery has data, whatever its place in the list. Its "Draw
+     * over the imagery" option puts it last instead.
+     */
+    private static void inDrawOrder(Consumer<Layer> draw) {
         layers.forEach(layer -> {
-            if (shown(layer))
-                RenderGuard.run(layer.getName(), () -> layer.renderScale(mv, vp));
+            if (layer instanceof StarLayer s && !s.isOnTop() && shown(layer))
+                draw.accept(layer);
+        });
+        layers.forEach(layer -> {
+            if (!(layer instanceof StarLayer) && shown(layer))
+                draw.accept(layer);
+        });
+        layers.forEach(layer -> {
+            if (layer instanceof StarLayer s && s.isOnTop() && shown(layer))
+                draw.accept(layer);
         });
     }
 
