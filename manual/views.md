@@ -54,6 +54,12 @@ Projection palette; its sky controls appear alongside.
 - **Camera** sets where the view is seen from: **Free**, from the active image layer's observer;
   **Follow**, from a selected object; or **Overview**, down on the solar equatorial plane. It can also
   revolve the camera about an axis.
+- **Spacecraft**, a button on an image layer's panel, adds the 3D model of the observatory that
+  took that layer, placed at its real position at each frame's time (models come from the 3D Model
+  Manager's list; STEREO picks Ahead or Behind from the header). Press it again to remove the model.
+  When no model matches, its tooltip says so. **Outside**, beside it, switches the camera to
+  **Overview**, framed to hold the Sun and that layer's observer, turned so the observer sits
+  straight below the Sun; press it again to put the camera back as it was.
 - **Track** keeps the view turning with the Sun as the movie plays; **Differential**, beside it,
   toggles differential rotation.
 - {menuselection}`View --> Reset View` (or a double-click on the canvas) returns the view to its

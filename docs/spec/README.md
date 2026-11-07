@@ -19,11 +19,13 @@ one info line (`ProcessingRecord.migrateLegacy`): only when the setting Rename o
 sidecars when opened is on (the default; key `export.renameOldSidecars`), no `.hfrec` is there and
 the folder is writable, and any failure leaves the old name, which is still read. Open Export Record
 shows "Renamed to <name>.hfrec" in its status line when it renamed one. Listing files never renames.
-File > Migrate Sidecars in Folder... (`migrateSidecars`, `ProcessingRecord.migrateFolder`) does the
-same for a whole folder, recursively and whatever the setting, with HelioFITS Core's `hfcore record
-migrate` rule: only files ending in `.hfrec.json` that parse as a record (a JSON object with a string
-`hfrecord`), never over an existing `.hfrec`; it shows the count and asks first, then reports what it
-renamed and skipped. HelioFITS Peek only reads; it renames nothing.
+File > Upgrade Sidecars in Folder... (`migrateSidecars`, `ProcessingRecord.migrateFolder`; called
+Migrate Sidecars in Folder before 2026-11-06, same command id) does the same for a whole folder,
+recursively and whatever the setting, with HelioFITS Core's `hfcore record migrate` rule: only files
+ending in `.hfrec.json` that parse as a record (a JSON object with a string `hfrecord`), never over an
+existing `.hfrec`. It also adds a preview (below) to every record in the folder that has none. It
+shows both counts and asks first, then reports what it renamed, how many previews it added, and what
+it skipped. HelioFITS Peek only reads; it renames nothing.
 
 Studio writes processing records with `src/org/helioviewer/jhv/movie/ProcessingRecord.java`;
 `extra/test/test_hfrecord.py` validates them against this schema in `ant check-all`.
@@ -51,6 +53,17 @@ without it. File > Open Export Record shows the preview at the top left beside t
 for a record without one it reads the PNG or JPEG named in `output.file_name` beside the sidecar, and
 shows nothing for anything else (`ProcessingRecord.previewImage`). A 16-bit frame is taken to 8 bits by
 each sample's high byte, with no tone mapping; the preview of an HDR export has not been checked by eye.
+
+A sidecar written before Studio embedded previews gains one (`ProcessingRecord.addPreview`) when it is
+renamed from `.hfrec.json` on read, when Open Export Record opens it, and in Upgrade Sidecars in
+Folder; the first two only while the setting above is on. The preview is made by the same encoder and
+limits, from the export beside the sidecar named in `output.file_name`: a PNG or JPEG still itself
+(downscaled), the middle file of a PNG frame series (`frame` its index in name order), and for a
+movie the frame `output.frames / 2` (as at export, placed with `output.fps`) decoded by the ffmpeg
+Studio unpacks for exports; with no ffmpeg there, a movie gets none. EXR, FITS, a missing or
+unreadable export: none. The file is rewritten only when a preview was made, and then the text gains
+`,` and `"preview": {...}` just before its closing brace, so every other byte (key order, number
+formatting, indentation) stays as it was; a read-only sidecar or folder is not touched.
 
 Send to Python (`src/org/helioviewer/jhv/io/FitsExport.java`) also puts the record inside each FITS
 file: an 8-bit image extension named `HFRECORD` holding the record as UTF-8 JSON (HelioFITS Core's reader takes
