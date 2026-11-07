@@ -135,14 +135,21 @@ final class SkyMap {
         double len = Math.sqrt(rx * rx + ry * ry + rz * rz);
         if (len == 0)
             return null;
-        rx /= len;
-        ry /= len;
-        rz /= len;
+        return projectRay(viewpoint, scale, projection, lookLon, lookLat, new Vec3(rx / len, ry / len, rz / len));
+    }
 
-        Vec3 placed = uncomposeRay(new Vec3(rx, ry, rz), viewpoint); // identity unless the sky is composed
-        rx = placed.x;
-        ry = placed.y;
-        rz = placed.z;
+    /**
+     * Where a direction from the observer lands on the page: a unit ray in the observer's frame
+     * (the Sun along -z), for things that are directions rather than points, such as the stars.
+     * Null as for {@link #project}.
+     */
+    @Nullable
+    static Vec2 projectRay(Position viewpoint, MapScale scale, SkyProjection projection,
+                           double lookLon, double lookLat, Vec3 ray) {
+        Vec3 placed = uncomposeRay(ray, viewpoint); // identity unless the sky is composed
+        double rx = placed.x;
+        double ry = placed.y;
+        double rz = placed.z;
 
         Vec3 look = lookRay(lookLon, lookLat);
         double cosRho = Math.clamp(rx * look.x + ry * look.y + rz * look.z, -1, 1);
@@ -153,7 +160,12 @@ final class SkyMap {
         double radius = projection.radiusFromAngle(rho);
         double x, y;
         double sinRho = Math.sqrt(Math.max(0, 1 - cosRho * cosRho));
-        if (sinRho < 1e-12) { // dead centre: the azimuth is undefined and the radius is zero anyway
+        if (sinRho < 1e-12) {
+            // Directly behind the aim the azimuth is undefined too, but the radius is not zero: the
+            // point is the whole rim. It has no single place, and the centre is the wrong one.
+            if (cosRho < 0)
+                return null;
+            // dead centre: the azimuth is undefined and the radius is zero anyway
             x = 0;
             y = 0;
         } else {
