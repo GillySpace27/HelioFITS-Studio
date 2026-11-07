@@ -91,19 +91,31 @@ public final class Colorbar {
     // AWT/mouse convention (origin top-left); -1 sentinel keeps Viewport.contains() false until
     // the first real mouseMoved arrives.
     private int mouseX = -1, mouseY = -1;
+    // The legend's hover area in the same AWT coordinates, and whether a tooltip was drawn last frame
+    private volatile boolean hoverShown;
+    private volatile double hoverX0 = Double.NaN, hoverX1, hoverY0, hoverY1;
+
+    private boolean overLegend(int x, int y) {
+        return x >= hoverX0 && x <= hoverX1 && y >= hoverY0 && y <= hoverY1; // false while NaN
+    }
 
     private final class HoverListener implements InputMouseListener {
         @Override
         public void mouseMoved(PointerEvent e) {
             mouseX = e.x();
             mouseY = e.y();
-            DisplayController.display(); // render loop is redraw-on-demand; without this the tooltip lags behind the cursor
+            // The loop is redraw-on-demand, so the tooltip needs a redraw to follow the cursor, but only
+            // while the cursor is on the legend or the tooltip is still up to be taken down. A redraw for
+            // every move over the imagery re-rendered the whole scene on each mouse event.
+            if (hoverShown || overLegend(mouseX, mouseY))
+                DisplayController.display();
         }
 
         @Override
         public void mouseExited(PointerEvent e) {
             mouseX = mouseY = -1;
-            DisplayController.display();
+            if (hoverShown)
+                DisplayController.display();
         }
     }
 
@@ -212,6 +224,11 @@ public final class Colorbar {
     // -- it falls back to the plain display-range percentage.
     private void updateHover(Viewport vp, LUT lut, List<LUTLabels.Group> groups, ImageDisplaySettings settings, View.ImageData imageData,
                              boolean rhefActive, double x0, double xSplit, double x1, double yBar, double yTop, double labelH, float gain) {
+        hoverShown = false;
+        hoverX0 = vp.x + x0;
+        hoverX1 = vp.x + x1;
+        hoverY0 = vp.yAWT + vp.height - yTop;
+        hoverY1 = vp.yAWT + vp.height - (yBar - labelH);
         if (!vp.contains(mouseX, mouseY))
             return;
         double localX = mouseX - vp.x;
@@ -257,6 +274,7 @@ public final class Colorbar {
         hoverText.clear();
         hoverText.add(text);
         GLText.drawTextFloat(vp, hoverText, mouseX + HOVER_OFFSET_X, mouseY - HOVER_OFFSET_Y);
+        hoverShown = true;
     }
 
     // frac is the value the shader fed into the LUT lookup: display-space, after this layer's own
