@@ -99,9 +99,10 @@ public final class SettingsFormCheck {
                 .equals("Studio moves each FITS download into this library, so there is one copy"));
         expect("an older core gets a copy, and says why", FitsLibrarySettings.downloadsText(true, false, Long.MIN_VALUE)
                 .startsWith("Studio adds a copy of each FITS download"));
-        String[] unplugged = FitsLibrarySettings.missingText(Path.of("/Volumes/Data/HelioFITSLibrary"), true, "~/cfg");
-        expect("a library on a drive not connected says so and names it",
-                unplugged[0].equals("Not connected") && unplugged[1].contains("/Volumes/Data/HelioFITSLibrary") && unplugged[1].contains("connect it"));
+        Path drive = Path.of("/Volumes/Data/HelioFITSLibrary");
+        String[] unplugged = FitsLibrarySettings.missingText(drive, true, "~/cfg");
+        expect("a library on a drive not connected says so and names it", // drive.toString(): backslashes on Windows
+                unplugged[0].equals("Not connected") && unplugged[1].contains(drive.toString()) && unplugged[1].contains("connect it"));
         expect("without a core it offers no Choose Folder... it cannot show",
                 !FitsLibrarySettings.missingText(Path.of("/Volumes/Data/HelioFITSLibrary"), false, "~/cfg")[1].contains("Choose Folder"));
         expect("no library yet, with a core, offers to make one", FitsLibrarySettings.missingText(null, true, "~/cfg")[1].contains("Choose Folder..."));
