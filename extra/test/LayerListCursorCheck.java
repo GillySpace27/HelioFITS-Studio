@@ -1,7 +1,8 @@
 package org.helioviewer.jhv.layers.selector;
 
 /**
- * The Image Layers list shows the drag hand over the body of an image row and the ordinary arrow
+ * The Image Layers list shows the open drag hand over the body of an image row, the closed hand while
+ * the mouse is pressed there, and the ordinary arrow
  * over the show checkbox, the drive radio and the remove x, and over overlay rows and empty space.
  *
  * <p>Run: java -Djava.awt.headless=true -cp "bin:extra/test-classes:resources:lib/*" org.helioviewer.jhv.layers.selector.LayerListCursorCheck
@@ -24,6 +25,18 @@ public final class LayerListCursorCheck {
         expect("remove x is an arrow", !LayerListCursor.handOver(LayersPanel.REMOVE_COL, true));
         expect("name column of an overlay row is an arrow", !LayerListCursor.handOver(LayersPanel.NAME_COL, false));
         expect("outside every column is an arrow", !LayerListCursor.handOver(-1, true));
+        expect("pressing the body of an image row closes the hand",
+                LayerListCursor.kindAt(LayersPanel.NAME_COL, true, true) == LayerListCursor.Kind.CLOSED_HAND);
+        expect("hovering the body of an image row is an open hand",
+                LayerListCursor.kindAt(LayersPanel.TIME_COL, true, false) == LayerListCursor.Kind.OPEN_HAND);
+        expect("pressing the show checkbox stays an arrow",
+                LayerListCursor.kindAt(LayersPanel.ENABLED_COL, true, true) == LayerListCursor.Kind.ARROW);
+        expect("pressing the drive radio stays an arrow",
+                LayerListCursor.kindAt(LayersPanel.MASTER_COL, true, true) == LayerListCursor.Kind.ARROW);
+        expect("pressing the remove x stays an arrow",
+                LayerListCursor.kindAt(LayersPanel.REMOVE_COL, true, true) == LayerListCursor.Kind.ARROW);
+        expect("pressing an overlay row stays an arrow",
+                LayerListCursor.kindAt(LayersPanel.NAME_COL, false, true) == LayerListCursor.Kind.ARROW);
         System.out.println(failures == 0 ? "LayerListCursorCheck: ok" : "LayerListCursorCheck: " + failures + " FAILED");
         System.exit(failures == 0 ? 0 : 1);
     }
