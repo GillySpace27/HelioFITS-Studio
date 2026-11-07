@@ -5,6 +5,9 @@ Each new entry ends with a `[docs: ...]` pointer to where it is documented (`rel
 
 ## HelioFITS Studio 0.9.2 (unreleased)
 
+### Starfield
+- A Stars row under Overlays (off by default) draws the background stars and, optionally, the planets in the observer's view, at their true directions for that observer and time: real stars line up with the stars in a LASCO C3 frame. Stars come from the Hipparcos catalogue down to V = 9, downloaded from ESA the first time the row is ticked (about 4.5 MB, kept in ~/HFStudio/Catalogs) and never shipped with Studio. Options: the faintest magnitude shown (default 6), star colours from B-V with a saturation slider, point size, Mercury to Neptune (not the observer's own planet), the Moon, and drawing over the imagery instead of under it. Sessions keep the settings. Shown in the 3D views from the observer for now; Observer Sky and the orbited camera come later. [docs: docs/starfield.md]
+
 ### Storage folders
 - Settings > Storage lets you choose where the exports and the download cache are kept, for example on an external drive, and shows how much each uses. Move existing files carries what is already there across, keeping every export beside its .hfrec record and never overwriting a file. If a chosen drive is not connected, Studio uses the default folder for that session and says so, and a link at the default place that points at a missing drive no longer stops Studio from starting. [docs: docs/storage-folders.md]
 
