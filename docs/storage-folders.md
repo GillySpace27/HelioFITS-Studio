@@ -51,7 +51,8 @@ With a FITS library (HelioFITS Core), the library is the one place a downloaded 
   moved or emptied; the cache then moves into the new library once (`importCacheInBackground`).
 - **Status.** The tab names one case and its fix: on; set to a folder that is not there now (connect
   the drive, or choose another folder); none yet with a core (Choose Folder...); no core (Studio
-  works without one; macOS Studio includes it; elsewhere `HFCORE_CORE`).
+  works without one; the release packages include it: the Mac app since 0.9.1, the Windows and Linux
+  packages from 0.9.2 (`release/bundle_core.py`); a build from source needs `HFCORE_CORE`).
 - **Made by itself on macOS** (`LibraryStore.autoCreate`): the first FITS download makes
   `~/HelioFITSLibrary` when HelioFITS Core has no config at all, the folder is absent or empty, and a
   core is found. Once per computer (`fitslibrary.autoCreated` in Settings), with one notice.

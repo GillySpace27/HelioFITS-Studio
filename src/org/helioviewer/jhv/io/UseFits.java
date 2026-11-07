@@ -58,8 +58,8 @@ public final class UseFits {
         private static final long serialVersionUID = 1L;
         /** Why there is none, in words for a dialog. */
         public static final String TEXT = "Use FITS needs the FITS library engine (HelioFITS Core), and this Studio has none: it was not packaged with one, "
-                + "no HelioFITS Cache Manager is installed and HFCORE_CORE is not set. Studio's macOS release carries its own; elsewhere, set "
-                + "HFCORE_CORE to a Python that has HelioFITS Core (heliofits-core) installed.";
+                + "no HelioFITS Cache Manager is installed and HFCORE_CORE is not set. Studio's release downloads carry their own (on Windows "
+                + "and Linux from 0.9.2); a Studio built from source needs HFCORE_CORE set to a Python that has HelioFITS Core installed.";
 
         NoCore() {
             super(TEXT);
