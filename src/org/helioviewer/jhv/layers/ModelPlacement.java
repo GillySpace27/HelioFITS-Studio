@@ -109,10 +109,27 @@ public final class ModelPlacement {
      * @param extent the model's largest bounding-box dimension, in file units
      */
     public double drawnScale(double extent, double cameraWidth, double viewportHeight) {
-        double scale = trueScale() * exaggeration;
-        if (minPixels > 0 && extent > 0 && cameraWidth > 0 && viewportHeight > 0)
-            scale = Math.max(scale, minPixels * cameraWidth / (viewportHeight * extent));
+        return drawnScale(extent, cameraWidth, viewportHeight, SceneScale.enlarge(), SceneScale.minPixels());
+    }
+
+    /**
+     * The same under given scene-wide sizes (the 3D Scene pane, SceneScale): this layer's
+     * enlargement multiplies the scene's, capped at the slider's top, and its minimum is relative
+     * to the scene's, {@link #DEFAULT_MIN_PIXELS} meaning "the scene's". At the scene's defaults
+     * (1x, 24 px) this is exactly the per-layer arithmetic it replaced.
+     */
+    public double drawnScale(double extent, double cameraWidth, double viewportHeight, double sceneEnlarge, double sceneMinPixels) {
+        double scale = trueScale() * effectiveExaggeration(sceneEnlarge);
+        double floor = minPixels * sceneMinPixels / DEFAULT_MIN_PIXELS;
+        if (floor > 0 && extent > 0 && cameraWidth > 0 && viewportHeight > 0)
+            scale = Math.max(scale, floor * cameraWidth / (viewportHeight * extent));
         return scale;
+    }
+
+    /** This layer's enlargement times the scene's, capped at 10^{@value #MAX_EXAGGERATION_DECADES}. */
+    public double effectiveExaggeration(double sceneEnlarge) {
+        double e = exaggeration * (Double.isFinite(sceneEnlarge) && sceneEnlarge >= 1 ? sceneEnlarge : 1);
+        return Math.min(e, Math.pow(10, MAX_EXAGGERATION_DECADES));
     }
 
     /**

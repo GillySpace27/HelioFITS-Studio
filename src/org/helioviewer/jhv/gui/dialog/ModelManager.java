@@ -436,6 +436,7 @@ public final class ModelManager extends StandardDialog implements Interfaces.Sho
 
     /** The placement the list gives: the spacecraft's position and size, or Sun centre when Studio has no ephemeris for it. */
     public static void configure(ModelLayer layer, ModelAssets.Entry s) {
+        layer.setListedName(s.name());
         if (s.metersPerUnit() != null)
             layer.setMetersPerUnit(s.metersPerUnit());
         if (s.target() != null) {

@@ -3,6 +3,7 @@ package org.helioviewer.jhv.layers.fov;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.GridLayout;
 import java.util.Enumeration;
 
@@ -17,6 +18,7 @@ import javax.swing.JTree;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 
+import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.ComponentUtils;
 import org.helioviewer.jhv.gui.UIGlobals;
@@ -48,6 +50,7 @@ public final class FOVTreePane extends JScrollPane {
         //tree.setRowHeight(0); // force calculation of nodes heights
 
         setViewportView(tree);
+        setColumnHeaderView(createViewOptions(catalog));
         setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         UIGlobals.themed(this, c -> c.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, UIGlobals.separator())));
@@ -65,6 +68,55 @@ public final class FOVTreePane extends JScrollPane {
             if (node instanceof TreeNodeComponent componentNode)
                 ComponentUtils.setEnabled(componentNode.component, enabled);
         }
+    }
+
+    /**
+     * How the fields are drawn. Cones apply in a 3D view (Orthographic, Helioradial in 3D);
+     * Coverage and Bodies in a flat one; Labels in both. The ones that do nothing in the current
+     * projection stay visible but greyed, and say where they apply.
+     */
+    private static JPanel createViewOptions(FOVCatalog catalog) {
+        JCheckBox cones = new JCheckBox("Cones", catalog.cones());
+        JCheckBox labels = new JCheckBox("Labels", catalog.labels());
+        labels.setToolTipText("Name each field on screen, at its far end.");
+        JCheckBox coverage = new JCheckBox("Coverage", catalog.coverage());
+        JCheckBox bodies = new JCheckBox("Bodies", catalog.bodies());
+        cones.addActionListener(e -> {
+            catalog.setCones(cones.isSelected());
+            DisplayController.display();
+        });
+        labels.addActionListener(e -> {
+            catalog.setLabels(labels.isSelected());
+            DisplayController.display();
+        });
+        coverage.addActionListener(e -> {
+            catalog.setCoverage(coverage.isSelected());
+            DisplayController.display();
+        });
+        bodies.addActionListener(e -> {
+            catalog.setBodies(bodies.isSelected());
+            DisplayController.display();
+        });
+        Runnable follow = () -> {
+            boolean in3D = ViewState.getProjection().rendersIn3D(); // the projection chosen, which a crossfade applies a moment later
+            cones.setEnabled(in3D);
+            cones.setToolTipText("Draw each field as a solid from its spacecraft, as HelioFleet does; off, outlines on the plane of the sky."
+                    + (in3D ? "" : " Applies in Orthographic and 3D Helioradial."));
+            coverage.setEnabled(!in3D);
+            coverage.setToolTipText("Draw the edge of the solar surface each spacecraft with a field on can see."
+                    + (in3D ? " Applies in the flat projections (HPC, Latitudinal, Observer Sky, flat Helioradial)." : ""));
+            bodies.setEnabled(!in3D);
+            bodies.setToolTipText("Mark the planets, and each spacecraft with a field on; one off screen gets an arrow at the edge with its elongation."
+                    + (in3D ? " Applies in the flat projections; in 3D the Viewpoint layer shows them." : ""));
+        };
+        follow.run();
+        ViewState.addModeListener(follow::run);
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
+        panel.add(cones);
+        panel.add(labels);
+        panel.add(coverage);
+        panel.add(bodies);
+        return panel;
     }
 
     private static Component createPlatformComponent(FOVPlatform platform) {

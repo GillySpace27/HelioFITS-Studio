@@ -58,11 +58,14 @@ final class ModelLayerOptions extends JPanel {
         int decades = ModelPlacement.MAX_EXAGGERATION_DECADES;
         JHVSlider enlarge = new JHVSlider(0, decades * STEPS, (int) Math.round(Math.log10(layer.getExaggeration()) * STEPS)).nominal(0);
         JLabel enlargeValue = new JLabel();
-        enlarge.setToolTipText("Enlarges the model by a factor from 1x (true size) to 10^" + decades + "x. Double-click for true size.");
+        enlarge.setToolTipText("Enlarges this model by a factor from 1x to 10^" + decades + "x on top of the 3D Scene pane's Enlarge. Double-click for 1x, the scene's size.");
 
-        SpinnerNumberModel pixelsModel = new SpinnerNumberModel(layer.getMinPixels(), 0., 2000., 4.);
+        // Shown relative to the scene's Min size: 1 is the scene's, 2 twice it. Stored as pixels at
+        // the built-in scene size (ModelPlacement.DEFAULT_MIN_PIXELS), as sessions always held it.
+        double perScene = ModelPlacement.DEFAULT_MIN_PIXELS;
+        SpinnerNumberModel pixelsModel = new SpinnerNumberModel(layer.getMinPixels() / perScene, 0., 2000. / perScene, 0.25);
         JSpinner pixels = new JSpinner(pixelsModel);
-        pixels.setToolTipText("The smallest the model is drawn on screen, in pixels across, so it stays visible at its real distance. 0 draws exactly true size times the enlargement.");
+        pixels.setToolTipText("The smallest this model is drawn, as a multiple of the 3D Scene pane's Min size: 1 is the scene's, 0 draws exactly true size times the enlargement.");
 
         Runnable enable = () -> {
             boolean placed = !layer.isHeliocentric() && mode.getSelectedItem() == AT_OBJECT;
@@ -87,13 +90,13 @@ final class ModelLayerOptions extends JPanel {
             layer.setExaggeration(Math.pow(10, enlarge.getValue() / (double) STEPS));
             showFactor.run();
         });
-        pixels.addChangeListener(e -> layer.setMinPixels(pixelsModel.getNumber().doubleValue()));
+        pixels.addChangeListener(e -> layer.setMinPixels(pixelsModel.getNumber().doubleValue() * perScene));
 
         addRow("Place at", mode, null, 0);
         addRow("Object", target, null, 1);
         addRow("Units (m)", units, null, 2);
-        addRow("Enlarge", enlarge, enlargeValue, 3);
-        addRow("Min size (px)", pixels, null, 4);
+        addRow("Enlarge (x scene)", enlarge, enlargeValue, 3);
+        addRow("Min size (x scene)", pixels, null, 4);
 
         GridBagConstraints c = new GridBagConstraints();
         c.gridx = 0;
