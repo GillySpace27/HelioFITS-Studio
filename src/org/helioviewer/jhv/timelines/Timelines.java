@@ -31,6 +31,7 @@ public class Timelines implements Interfaces.MainContentPanelPlugin {
     public Timelines() {
         layers.add(new RadioData(null));
         layers.add(new CoverageTimelineLayer()); // per-image-layer frame coverage track
+        layers.add(new BodiesTimelineLayer()); // when the Moon and planets are in a field (docs/identify.md)
     }
 
     public static TimelineLayers getLayers() {
