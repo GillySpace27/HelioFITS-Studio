@@ -4,3 +4,5 @@
 *.fts binary
 # Golden report text that ExportReportCheck compares byte for byte: no CRLF on a Windows checkout.
 extra/test/data/hfrecord-* -text
+# 3D models shipped in resources/models: binary, never diffed or normalised.
+*.glb binary

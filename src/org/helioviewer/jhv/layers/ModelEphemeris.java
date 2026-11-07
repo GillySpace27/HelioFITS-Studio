@@ -1,5 +1,7 @@
 package org.helioviewer.jhv.layers;
 
+import java.util.concurrent.Future;
+
 import javax.annotation.Nullable;
 
 import org.helioviewer.jhv.astronomy.Frame;
@@ -9,7 +11,9 @@ import org.helioviewer.jhv.astronomy.PositionResponse;
 import org.helioviewer.jhv.astronomy.SpaceObject;
 import org.helioviewer.jhv.astronomy.Spice;
 import org.helioviewer.jhv.display.DisplayController;
+import org.helioviewer.jhv.io.HelioFleet;
 import org.helioviewer.jhv.movie.Player;
+import org.helioviewer.jhv.thread.Task;
 import org.helioviewer.jhv.time.JHVTime;
 
 import spice.basic.SpiceErrorException;
@@ -17,11 +21,13 @@ import spice.basic.SpiceErrorException;
 /**
  * Where a model layer's target is at a given time, in the Carrington frame.
  *
- * <p>Two sources, the same two the rest of Studio uses (docs/data-sources.md, "Models and
- * positions"). Bodies with a bundled kernel (planets, Moon, Solar Orbiter, STEREO Ahead) are asked
- * of SPICE directly, per frame, which is local and exact. The others (Parker Solar Probe, SOHO, SDO,
- * STEREO Behind, BepiColombo, PROBA-2) come from the ROB position service through PositionLoad, one
- * request covering the movie interval, interpolated per frame as the viewpoint layer does.
+ * <p>Three sources. Bodies with a bundled kernel (planets, Moon, Solar Orbiter, STEREO Ahead) are
+ * asked of SPICE directly, per frame, which is local and exact. Parker Solar Probe, SOHO, SDO,
+ * STEREO Behind, BepiColombo and PROBA-2 come from the ROB position service through PositionLoad,
+ * as the viewpoint layer does (docs/data-sources.md, "Models and positions"). Spacecraft neither
+ * knows (ACE, Wind, DSCOVR, Ulysses, MESSENGER) come from HelioFleet or JPL Horizons
+ * ({@link ExternalEphemeris}). The network sources make one request covering the movie interval,
+ * interpolated per frame.
  *
  * <p>No position means nothing is drawn: never a fallback to the origin, which would put a false
  * spacecraft on the Sun (the rule PlanetMarkers keeps too).
@@ -35,17 +41,30 @@ final class ModelEphemeris {
     @Nullable
     private SpaceObject target;
     @Nullable
+    private ExternalEphemeris.Source external;
+    private String targetName = "";
+    @Nullable
     private PositionLoad load;
+    @Nullable
+    private Future<HelioFleet.Samples> externalLoad;
+    @Nullable
+    private volatile HelioFleet.Samples samples;
     private long loadStart, loadEnd;
-    private String status = "";
+    private volatile String status = "";
+    /** Bumped by every cancel, so a request that lands after the target or interval moved on is dropped. */
+    private volatile int generation;
     private final PositionResponse.Interpolated interpolated = new PositionResponse.Interpolated();
     private final double[] xyz = new double[3];
 
-    void setTarget(@Nullable SpaceObject _target) {
-        if (_target != null && _target.equals(target))
+    /** A SpaceObject name or one of {@link ExternalEphemeris#names()}; anything else places nothing. */
+    void setTarget(@Nullable String name) {
+        String n = name == null ? "" : name;
+        if (n.equals(targetName) && (target != null || external != null))
             return;
         cancel();
-        target = _target;
+        targetName = n;
+        external = ExternalEphemeris.get(n);
+        target = external == null ? SpaceObject.get(n) : null;
         status = "";
     }
 
@@ -57,10 +76,17 @@ final class ModelEphemeris {
         if (load != null)
             load.cancel();
         load = null;
+        if (externalLoad != null)
+            externalLoad.cancel(true);
+        externalLoad = null;
+        samples = null;
+        generation++;
     }
 
     @Nullable
     Position at(JHVTime time) {
+        if (external != null)
+            return fromExternal(external, time);
         if (target == null) {
             status = "No object chosen";
             return null;
@@ -82,15 +108,18 @@ final class ModelEphemeris {
         return fromService(time);
     }
 
+    private long[] interval(JHVTime time) {
+        return new long[]{Math.min(Player.getStartTime(), time.milli) - PAD, Math.max(Player.getEndTime(), time.milli) + PAD};
+    }
+
     @Nullable
     private Position fromService(JHVTime time) {
-        long start = Math.min(Player.getStartTime(), time.milli) - PAD;
-        long end = Math.max(Player.getEndTime(), time.milli) + PAD;
+        long[] iv = interval(time);
         // A new request only when the interval moves; a failed one is not retried every frame.
-        if (load == null || start != loadStart || end != loadEnd) {
+        if (load == null || iv[0] != loadStart || iv[1] != loadEnd) {
             cancel();
-            loadStart = start;
-            loadEnd = end;
+            loadStart = iv[0];
+            loadEnd = iv[1];
             load = PositionLoad.submit(s -> {
                 status = s == null || "Loaded".equals(s) ? "" : s;
                 DisplayController.display();
@@ -104,6 +133,42 @@ final class ModelEphemeris {
         }
         response.interpolateRectangular(time.milli, loadStart, loadEnd, xyz, interpolated);
         return ModelPlacement.carringtonPosition(time, xyz[0], xyz[1], xyz[2]);
+    }
+
+    @Nullable
+    private Position fromExternal(ExternalEphemeris.Source src, JHVTime time) {
+        long[] iv = interval(time);
+        if (externalLoad == null || iv[0] != loadStart || iv[1] != loadEnd) {
+            cancel();
+            loadStart = iv[0];
+            loadEnd = iv[1];
+            long s0 = loadStart, s1 = loadEnd;
+            status = "Loading positions for " + src.name() + " from " + (src.kind() == ExternalEphemeris.Kind.HELIOFLEET ? "HelioFleet" : "JPL Horizons") + "...";
+            int mine = generation;
+            externalLoad = Task.submitBackground(() -> ExternalEphemeris.fetch(src, s0, s1), got -> {
+                if (mine != generation)
+                    return; // the interval or the target moved on
+                samples = got;
+                status = "";
+                DisplayController.display();
+            }, e -> {
+                if (mine != generation)
+                    return;
+                status = "No position for " + src.name() + ": " + (e.getMessage() == null ? e.toString() : e.getMessage());
+                DisplayController.display();
+            });
+        }
+        HelioFleet.Samples s = samples;
+        if (s == null)
+            return null;
+        try {
+            Position p = ExternalEphemeris.at(s, time);
+            status = p == null ? "No position for " + src.name() + " at " + time + " (" + src.coverage() + ")" : "";
+            return p;
+        } catch (SpiceErrorException e) {
+            status = "No position for " + src.name() + " at " + time + " (Earth or the frame is outside the bundled kernels)";
+            return null;
+        }
     }
 
 }

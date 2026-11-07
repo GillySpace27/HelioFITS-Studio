@@ -366,6 +366,9 @@ Every command HelioFITS Studio has, as the menus, Help > Search Controls and the
 * - Managers > Cache Manager...
   - What is on disk, in Studio's cache and the FITS library: load, reveal, import, verify or delete
   - `cacheManager`
+* - Managers > 3D Model Manager...
+  - Spacecraft models to download, preview and add to the scene at their real positions
+  - `modelManager`
 * - Managers > Theme Manager...
   - Pick, customize and save interface themes (View > Theme is the quick picker)
   - `themeManager`
