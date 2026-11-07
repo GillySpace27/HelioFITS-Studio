@@ -93,6 +93,11 @@ public final class Transform {
         view.scale((float) factor);
     }
 
+    /** Move the view origin, for geometry placed somewhere other than Sun centre (a model layer at a spacecraft). */
+    public static void translateView(double x, double y, double z) {
+        view.translate((float) x, (float) y, (float) z);
+    }
+
     public static void rotateView(Quat q) {
         view.rotateAffine(quat.set((float) q.x, (float) q.y, (float) q.z, (float) q.w));
     }
