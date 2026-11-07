@@ -128,6 +128,7 @@ public final class GLRenderer {
             // the box, and then it threw on every frame and blanked the canvas.
             printableLine.init();
             Annotations.init();
+            org.helioviewer.jhv.layers.LocatorInset.init();
         } catch (RuntimeException | Error e) {
             Annotations.dispose();
             disposeShaders();
@@ -282,6 +283,7 @@ public final class GLRenderer {
     public static void dispose() {
         Layers.dispose();
         Annotations.dispose();
+        org.helioviewer.jhv.layers.LocatorInset.dispose();
         ExportMovie.dispose();
         GLText.dispose();
 
@@ -395,6 +397,7 @@ public final class GLRenderer {
         Viewport vp = Display.fullViewport;
         GL.glViewport(vp.x, vp.yGL, vp.width, vp.height);
         Layers.renderFullFloat(vp);
+        RenderGuard.run("locator inset", () -> org.helioviewer.jhv.layers.LocatorInset.render(vp));
         RenderGuard.run("recording-area outline", () -> renderPrintableArea(vp));
         RenderGuard.run("empty-canvas hint", () -> renderEmptyHint(vp));
     }

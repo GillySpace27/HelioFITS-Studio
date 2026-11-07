@@ -54,6 +54,13 @@ Projection palette; its sky controls appear alongside.
 - **Camera** sets where the view is seen from: **Free**, from the active image layer's observer;
   **Follow**, from a selected object; or **Overview**, down on the solar equatorial plane. It can also
   revolve the camera about an axis.
+- **Where**, a button on an image layer's panel, shows a small map in the top-right corner of the
+  view: the Sun, the inner planets and Earth's orbit seen from solar north with Earth straight below
+  the Sun, every shown layer's observer as a dot, and this layer's observer in orange with its field
+  of view as a wedge toward the Sun, plus its distance and how far ahead of or behind Earth it is.
+  Click the map to switch the camera to **Overview**, framed to the map and turned so Earth is below
+  the Sun, where model layers placed at spacecraft are seen in place; click it again to put the camera
+  back as it was. Hovering a layer in the list shows the same distance and angle.
 - **Track** keeps the view turning with the Sun as the movie plays; **Differential**, beside it,
   toggles differential rotation.
 - {menuselection}`View --> Reset View` (or a double-click on the canvas) returns the view to its
