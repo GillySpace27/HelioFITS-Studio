@@ -7,12 +7,18 @@
 ### Starfield
 - A Stars row under Overlays (off by default) draws the background stars and, optionally, the planets in the observer's view, at their true directions for that observer and time: real stars line up with the stars in a LASCO C3 frame. Stars come from the Hipparcos catalogue down to V = 9, downloaded from ESA the first time the row is ticked (about 4.5 MB, kept in ~/HFStudio/Catalogs) and never shipped with Studio. Options: the faintest magnitude shown (default 6), star colours from B-V with a saturation slider, point size, Mercury to Neptune (not the observer's own planet), the Moon, and drawing over the imagery instead of under it. Sessions keep the settings. Shown in the 3D views from the observer for now; Observer Sky and the orbited camera come later.
 
+### Storage folders
+- Settings > Storage lets you choose where the exports and the download cache are kept, for example on an external drive, and shows how much each uses. Move existing files carries what is already there across, keeping every export beside its .hfrec record and never overwriting a file. If a chosen drive is not connected, Studio uses the default folder for that session and says so, and a link at the default place that points at a missing drive no longer stops Studio from starting.
+
 ### One store for FITS downloads
 - When there is a FITS library, a FITS file Studio downloads now moves into the library instead of being kept twice (once in Studio's cache, once in the library). Studio finds it there again by its download address, with or without HelioFITS Core running, and an existing cache moves into the library once, in the background, so its space comes back. Without a library, or with a HelioFITS Core older than this release, nothing changes: downloads stay in Studio's cache as before.
 - Settings > FITS Library has Choose Folder..., which puts the FITS library in another folder or on another drive: an empty or new folder becomes a new library, a folder that already holds one is used as it is, and HelioFITS Core's warnings about the place (a sync service folder, a network drive) are shown. The library used before stays where it is, with its files.
 - The FITS Library tab now says plainly which case applies, with the action that fixes it: the library is on, its drive is not connected, there is none yet (Choose Folder... makes one), or this computer has no HelioFITS Core (Studio works without one, and the tab says where to get it). It replaces "None found: install the HelioFITS Cache Manager, or set HFCORE_CORE".
 - On macOS, the first FITS download on a computer with no library makes one at ~/HelioFITSLibrary and says so once. It never happens where HelioFITS Core already has settings, so a library on a drive that is not connected is never replaced.
 - Studio for macOS now carries HelioFITS Core at pyHelioFITS a8c769f (was be1e7a1), the first core that can take a download over (consume) and find a file by its download address, which the one store above needs.
+
+### Easier to find panels
+- The sidebars' top-level sections are easier to tell apart, and it is on by default. Managers > Theme Manager has a Visibility section with an Easier to find panels checkbox and four options under it: stronger section headers (a stronger band where the title can still be read on it, a thicker rule and more space under each section), an accent stripe on the leading edge of each header, section numbers (1, 2, 3 in the order the sections appear, only where there are two or more), and a highlight on the header under the pointer. Each applies at once and is remembered in the settings, so it follows whichever theme is chosen. Turning the checkbox off restores the previous look exactly.
 
 ## HelioFITS Studio 0.9.1 (unreleased)
 
@@ -24,6 +30,7 @@
 
 ### Image Layers list
 - The open drag hand now shows only on the body of an image row. Over the show checkbox, the drive radio and the remove x, which react to a plain click, the cursor is the ordinary arrow. Overlay rows keep the arrow.
+- The hand closes while the mouse is pressed on a row and stays closed while the row is dragged; the faded copy of the row now travels beside the cursor instead of replacing it, where the system draws drag images.
 - The show checkbox and the x have tooltips (the drive radio already had one), and the Getting started and Loading data tours now say what the radio does.
 
 ### Welcome window
