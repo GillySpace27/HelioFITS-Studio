@@ -67,7 +67,8 @@ public final class CommandRegistry {
             Map.entry("record", Effect.WRITE), Map.entry("trimStart", Effect.WRITE), Map.entry("trimEnd", Effect.WRITE),
             Map.entry("trimReset", Effect.WRITE), Map.entry("copyFrame", Effect.WRITE), Map.entry("copyProvenance", Effect.WRITE),
             Map.entry("quickShare", Effect.WRITE), Map.entry("shareScene", Effect.WRITE), Map.entry("sendToPython", Effect.WRITE),
-            Map.entry("openDemo", Effect.DESTRUCTIVE), Map.entry("punchLatest", Effect.WRITE));
+            Map.entry("openDemo", Effect.DESTRUCTIVE), Map.entry("punchLatest", Effect.WRITE),
+            Map.entry("identifyUnderCursor", Effect.WRITE), Map.entry("identifyTooltip", Effect.WRITE), Map.entry("identifyStars", Effect.WRITE));
 
     /**
      * Commands that only open or show part of the interface (a dialog, a palette, a tour, a page in
@@ -80,7 +81,7 @@ public final class CommandRegistry {
             "tipOfTheDay", "showImageLayers", "sendFeedback", "datasetFolders", "openExportsFolder", "openExportRecord", "searchControls", "showProjection",
             "showPlayback", "newFromTemplate", "saveAsTemplate", "templates", "tourGettingStarted", "tourLoadingData", "tourMakingAMovie",
             "tourViewsAndProjections", "tourRhefAndFilters", "tourSharingYourWork", "tourManagerWindows", "tourRearrangingTheInterface",
-            "study", "taskManager", "cacheManager", "modelManager", "toolbarManager", "themeManager", "keybindingsManager", "studySaveView",
+            "study", "taskManager", "cacheManager", "modelManager", "toolbarManager", "themeManager", "keybindingsManager", "studySaveView", "identifyFindBody",
             // Fold or show a sidebar section by its number (PanelKeys)
             "foldLeftPanel1", "foldLeftPanel2", "foldLeftPanel3", "foldLeftPanel4", "foldLeftPanel5", "foldLeftPanel6", "foldLeftPanel7", "foldLeftPanel8",
             "foldRightPanel1", "foldRightPanel2", "foldRightPanel3", "foldRightPanel4", "foldRightPanel5", "foldRightPanel6", "foldRightPanel7", "foldRightPanel8");
@@ -106,6 +107,7 @@ public final class CommandRegistry {
         }
         registerParameterised();
         DataCommands.register();
+        IdentifyCommands.register();
         registerIntrospection();
     }
 

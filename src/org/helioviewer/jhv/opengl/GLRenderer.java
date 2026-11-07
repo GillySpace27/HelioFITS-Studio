@@ -397,6 +397,8 @@ public final class GLRenderer {
         Layers.renderFullFloat(vp);
         RenderGuard.run("recording-area outline", () -> renderPrintableArea(vp));
         RenderGuard.run("empty-canvas hint", () -> renderEmptyHint(vp));
+        RenderGuard.run("identify label", () -> org.helioviewer.jhv.identify.IdentifyHover.renderLabel(vp));
+        RenderGuard.run("identify pins", () -> org.helioviewer.jhv.identify.IdentifyPins.render(vp));
     }
 
     private static final List<String> EMPTY_HINT = List.of("Drop a FITS or JPEG 2000 file here,", "or choose New Layer to load data");

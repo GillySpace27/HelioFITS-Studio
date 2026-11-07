@@ -3,6 +3,8 @@ package org.helioviewer.jhv.layers.fov;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.annotation.Nullable;
+
 import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.astronomy.Spice;
 import org.helioviewer.jhv.astronomy.Sun;
@@ -11,8 +13,14 @@ import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.display.ViewportMath;
+import org.helioviewer.jhv.layers.ModelEphemeris;
+import org.helioviewer.jhv.layers.ModelPlacement;
+import org.helioviewer.jhv.identify.Identifier;
 import org.helioviewer.jhv.math.Quat;
+import org.helioviewer.jhv.math.Vec2;
+import org.helioviewer.jhv.math.Vec3;
 import org.helioviewer.jhv.opengl.BufVertex;
+import org.helioviewer.jhv.opengl.GL;
 import org.helioviewer.jhv.opengl.GLHelper;
 import org.helioviewer.jhv.opengl.GLSLLine;
 import org.helioviewer.jhv.opengl.GLSLShape;
@@ -34,12 +42,19 @@ class FOVPlatform {
     private final GLSLLine hemiLine = new GLSLLine(false);
     private final GLSLLine instrumentLines = new GLSLLine(true);
     private final GLSLShape instrumentCenters = new GLSLShape(true);
+    private final GLSLShape coneFill = new GLSLShape(true);
+    private final GLSLLine coneLines = new GLSLLine(true);
+    private final BufVertex fillBuf = new BufVertex();
+    private final BufVertex coneLineBuf = new BufVertex();
+    /** Where a platform with no SPICE observer is (SOHO, Parker Solar Probe): the position services. Also gives the RAM direction. */
+    private final ModelEphemeris ephemeris = new ModelEphemeris();
     private final BufVertex lineBuf = new BufVertex();
     private final BufVertex centerBuf = new BufVertex();
 
     private final List<FOVInstrument> instruments = new ArrayList<>();
 
     private final String name;
+    @Nullable
     private final String observer;
     private final byte[] color;
     private final boolean isSOLO;
@@ -47,11 +62,17 @@ class FOVPlatform {
     private double centerX;
     private double centerY;
 
-    FOVPlatform(String _name, String _observer, byte[] _color, JSONObject jo) {
+    /**
+     * {@code _observer} is its SPICE name in the bundled kernels, or null; {@code target} is the
+     * object it is placed at (a SpaceObject name, as ModelEphemeris takes), used when there is no
+     * SPICE observer and for the direction of travel.
+     */
+    FOVPlatform(String _name, @Nullable String _observer, String target, byte[] _color, JSONObject jo) {
         name = _name;
         observer = _observer;
         color = _color;
         isSOLO = "SOLO".equals(observer);
+        ephemeris.setTarget(target);
 
         centerX = Math.clamp(jo.optDouble("centerX", 0), MIN_CENTER_ARCMIN, MAX_CENTER_ARCMIN);
         centerY = Math.clamp(jo.optDouble("centerY", 0), MIN_CENTER_ARCMIN, MAX_CENTER_ARCMIN);
@@ -82,22 +103,31 @@ class FOVPlatform {
         putHemiLine();
         instrumentLines.init();
         instrumentCenters.init();
+        coneFill.init();
+        coneLines.init();
     }
 
     void dispose() {
         hemiLine.dispose();
         instrumentLines.dispose();
         instrumentCenters.dispose();
+        coneFill.dispose();
+        coneLines.dispose();
+        ephemeris.cancel();
     }
 
-    void render(MapView mv, Viewport vp) {
+    void render(MapView mv, Viewport vp, boolean cones, List<FOVLabels.Label> labels) {
         if (!hasEnabled())
             return;
 
         JHVTime time = mv.viewpoint().time;
-        Position obsPosition = Spice.getCarrington(observer, time);
+        Position obsPosition = position(time);
         if (obsPosition == null)
             return;
+        if (cones) {
+            renderCones(vp, obsPosition, labels);
+            return;
+        }
 
         Transform.pushView();
         Transform.rotateViewInverse(obsPosition.toQuat());
@@ -115,7 +145,10 @@ class FOVPlatform {
         renderer.begin3DRendering();
         renderer.setSurfacePut();
 
-        instruments.forEach(instrument -> instrument.putGeometry(obsPosition.distance, LINEWIDTH_FOV, color, renderer, lineBuf, centerBuf));
+        instruments.forEach(instrument -> {
+            if (instrument.flyingAt(time))
+                instrument.putGeometry(obsPosition.distance, LINEWIDTH_FOV, color, renderer, lineBuf, centerBuf);
+        });
 
         instrumentCenters.uploadAndClear(centerBuf);
         instrumentCenters.renderPoints(ViewportMath.getPixelFactor(vp, mv.cameraWidth(vp)));
@@ -126,6 +159,201 @@ class FOVPlatform {
         renderer.end3DRendering();
 
         Transform.popView();
+    }
+
+    /**
+     * Each enabled field as a translucent solid from the spacecraft (FOVCone), outlined, with its
+     * label's anchor handed to {@code labels} for the screen-space pass. World coordinates: no
+     * view rotation, the frame model layers are drawn in.
+     */
+    private void renderCones(Viewport vp, Position obsPosition, List<FOVLabels.Label> labels) {
+        JHVTime time = obsPosition.time;
+        double[] o = world(obsPosition);
+        double[] north = world(new Position(time, 1, 0, Math.PI / 2));
+        byte[] fill = fade(color, FILL_ALPHA), side = fade(color, SIDE_ALPHA), line = fade(color, LINE_ALPHA);
+        for (FOVInstrument instrument : instruments) {
+            if (!instrument.isEnabled() || !instrument.flyingAt(time))
+                continue;
+            FOVCone cone = instrument.cone(o, north, sideVector(instrument.side(), obsPosition, o, north));
+            if (cone == null)
+                continue;
+            putCone(cone, fill, side, line);
+            labels.add(new FOVLabels.Label(name + ' ' + instrument, cone.labelAnchor(), color));
+        }
+        coneFill.uploadAndClear(fillBuf);
+        coneLines.uploadAndClear(coneLineBuf);
+        // Translucent: drawn without writing depth, so fields behind one another all show.
+        GL.glDepthMask(false);
+        coneFill.renderShape(GL.TRIANGLES);
+        GL.glDepthMask(true);
+        coneLines.renderLine(vp, LINEWIDTH_FOV);
+    }
+
+    /**
+     * The flat projections: each enabled field projected onto the current observer's map (its far
+     * outline and four edges from the spacecraft), and, with {@code coverage}, the edge of the
+     * solar surface this spacecraft sees. In Latitudinal, a surface map, only the coverage.
+     */
+    void renderFlat(MapView mv, Viewport vp, boolean coverage, List<FOVLabels.Label> labels) {
+        if (!hasEnabled())
+            return;
+        JHVTime time = mv.viewpoint().time;
+        Position obsPosition = position(time);
+        if (obsPosition == null || !(obsPosition.distance > 0))
+            return;
+        double[] o = world(obsPosition);
+        double[] viewer = world(mv.viewpoint());
+        double[] north = world(new Position(time, 1, 0, Math.PI / 2));
+        byte[] line = fade(color, LINE_ALPHA);
+        if (!mv.isLatitudinal()) {
+            for (FOVInstrument instrument : instruments) {
+                if (!instrument.isEnabled() || !instrument.flyingAt(time))
+                    continue;
+                FOVCone cone = instrument.cone(o, north, sideVector(instrument.side(), obsPosition, o, north));
+                if (cone == null)
+                    continue;
+                FOVFlat.putLine(mv, vp, viewer, FOVFlat.loop(cone.outer), line, coneLineBuf);
+                if (cone.inner != null)
+                    FOVFlat.putLine(mv, vp, viewer, FOVFlat.loop(cone.inner), line, coneLineBuf);
+                int step = Math.max(1, cone.outer.length / 4);
+                for (int i = 0; i < cone.outer.length; i += step)
+                    FOVFlat.putLine(mv, vp, viewer, FOVFlat.segment(cone.apex, cone.outer[i], FOVFlat.EDGE_STEPS), line, coneLineBuf);
+                Vec2 at = FOVFlat.project(mv, vp, viewer, cone.labelAnchor());
+                if (at != null)
+                    labels.add(new FOVLabels.Label(name + ' ' + instrument, new double[]{at.x, at.y, 0}, color));
+            }
+        }
+        if (coverage) {
+            List<Vec3> ring = FOVFlat.coverage(o, SUBDIVISIONS);
+            if (ring != null)
+                mv.emitMapLine(vp, ring, 1, line, coneLineBuf);
+        }
+        coneLines.uploadAndClear(coneLineBuf);
+        coneLines.renderLine(vp, LINEWIDTH_FOV);
+    }
+
+    /** Where the platform is at {@code time}, or null. */
+    @Nullable
+    Position position(JHVTime time) {
+        Position p = observer != null ? Spice.getCarrington(observer, time) : ephemeris.at(time);
+        return p == null || !(p.distance > 0) ? null : p;
+    }
+
+    /** Earth orbit and MLSO: Earth itself stands for them among the bodies. */
+    boolean atEarth() {
+        return "EARTH".equals(observer);
+    }
+
+    boolean hasEnabledField() {
+        return hasEnabled();
+    }
+
+    byte[] color() {
+        return color;
+    }
+
+    /** The direction an off-Sun field points, or null for a centred one or when it is unknown. */
+    @Nullable
+    private double[] sideVector(FOVInstrument.Side side, Position obsPosition, double[] o, double[] north) {
+        return switch (side) {
+            case CENTRED -> null;
+            case EAST -> FOVCone.cross(o, north); // (toward the observer) x north
+            case EARTH -> FOVCone.sub(world(Sun.getEarth(obsPosition.time)), o);
+            case RAM -> {
+                long dt = 1800_000L;
+                Position a = position(new JHVTime(obsPosition.time.milli - dt)), b = position(new JHVTime(obsPosition.time.milli + dt));
+                yield a == null || b == null ? null : FOVCone.sub(world(b), world(a));
+            }
+        };
+    }
+
+    static double[] world(Position p) {
+        Vec3 v = ModelPlacement.toWorld(p);
+        return new double[]{v.x, v.y, v.z};
+    }
+
+    private void putCone(FOVCone cone, byte[] fill, byte[] side, byte[] line) {
+        double[][] out = cone.outer;
+        int n = out.length;
+        // the sides, from the spacecraft
+        for (int i = 0; i < n; i++) {
+            tri(cone.apex, out[i], out[(i + 1) % n], side);
+        }
+        // the far end: a disk, or a ring with the inner hole
+        if (cone.inner == null) {
+            double[] c = cone.labelAnchor();
+            for (int i = 0; i < n; i++)
+                tri(c, out[i], out[(i + 1) % n], fill);
+        } else {
+            double[][] in = cone.inner;
+            for (int i = 0; i < n; i++) {
+                int j = (i + 1) % n;
+                tri(in[i], out[i], out[j], fill);
+                tri(in[i], out[j], in[j], fill);
+            }
+            loop(in, line);
+        }
+        loop(out, line);
+        int step = Math.max(1, n / 4);
+        for (int i = 0; i < n; i += step) { // the edges from the spacecraft
+            coneLineBuf.startLine((float) cone.apex[0], (float) cone.apex[1], (float) cone.apex[2], 1, line);
+            coneLineBuf.putVertex((float) out[i][0], (float) out[i][1], (float) out[i][2], 1, line);
+            coneLineBuf.endLine();
+        }
+    }
+
+    private void tri(double[] a, double[] b, double[] c, byte[] col) {
+        fillBuf.putVertex((float) a[0], (float) a[1], (float) a[2], 1, col);
+        fillBuf.putVertex((float) b[0], (float) b[1], (float) b[2], 1, col);
+        fillBuf.putVertex((float) c[0], (float) c[1], (float) c[2], 1, col);
+    }
+
+    private void loop(double[][] pts, byte[] col) {
+        for (int i = 0; i <= pts.length; i++) {
+            double[] p = pts[i % pts.length];
+            if (i == 0)
+                coneLineBuf.startLine((float) p[0], (float) p[1], (float) p[2], 1, col);
+            else
+                coneLineBuf.putVertex((float) p[0], (float) p[1], (float) p[2], 1, col);
+        }
+        coneLineBuf.endLine();
+    }
+
+    /** Premultiplied, as every colour here is: each channel scaled with the alpha. */
+    static byte[] fade(byte[] c, double alpha) {
+        byte[] f = new byte[4];
+        for (int i = 0; i < 4; i++)
+            f[i] = (byte) Math.round((c[i] & 0xff) * alpha);
+        return f;
+    }
+
+    private static final double FILL_ALPHA = 0.22;
+    private static final double SIDE_ALPHA = 0.10;
+    private static final double LINE_ALPHA = 0.9;
+
+    /**
+     * The enabled outlines of this platform that the sight line under the pointer passes through,
+     * as render draws them: in the observer's frame, on its plane of sky, Solar Orbiter rolled by
+     * its SPICE attitude.
+     */
+    List<String> namesAt(Identifier.Probe probe, JHVTime time) {
+        if (!hasEnabled())
+            return List.of();
+        Position obs = position(time); // SOHO and PSP have no SPICE observer
+        if (obs == null)
+            return List.of();
+        Vec3 dir = probe.direction(obs);
+        if (dir == null || dir.z >= 0)
+            return List.of();
+        Vec3 p = new Vec3(dir.x / -dir.z, dir.y / -dir.z, 0);
+        double[] rot;
+        if (isSOLO && null != (rot = Spice.getRotationEuler("SOLO_SRF", "SOLO_IAU_SUN_2009", time)))
+            p = Quat.createAxisZ(rot[2]).rotateInverseVector(p);
+        List<String> out = new ArrayList<>();
+        for (FOVInstrument instrument : instruments)
+            if (instrument.flyingAt(time) && instrument.contains(p.x, p.y))
+                out.add(instrument + " (" + name + ")");
+        return out;
     }
 
     private boolean hasEnabled() {

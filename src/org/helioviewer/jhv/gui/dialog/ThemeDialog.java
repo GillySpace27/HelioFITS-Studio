@@ -219,6 +219,36 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
             c.insets = new Insets(0, 28, 0, 6);
             box.add(sub, c);
         }
+
+        // Wide bars for those who scroll by dragging the bar rather than with the wheel or a trackpad
+        javax.swing.JSlider bar = new javax.swing.JSlider(PanelVisibility.SCROLLBAR_DEFAULT, PanelVisibility.SCROLLBAR_MAX,
+                Math.max(PanelVisibility.SCROLLBAR_DEFAULT, PanelVisibility.scrollBarWidth()));
+        bar.setToolTipText("How wide the sidebar and palette scroll bars are, in pixels. Wider is easier to grab; the leftmost position is the usual thin bar.");
+        JLabel barLabel = new JLabel("Scroll bar width");
+        barLabel.setToolTipText(bar.getToolTipText());
+        bar.addChangeListener(e -> {
+            Settings.setProperty(PanelVisibility.SCROLLBAR, Integer.toString(bar.getValue()));
+            PanelVisibility.refreshScrollBars();
+            for (java.awt.Window w : java.awt.Window.getWindows()) {
+                w.revalidate();
+                w.repaint();
+            }
+        });
+        master.addActionListener(e -> {
+            bar.setEnabled(master.isSelected());
+            barLabel.setEnabled(master.isSelected());
+            PanelVisibility.refreshScrollBars();
+        });
+        bar.setEnabled(master.isSelected());
+        barLabel.setEnabled(master.isSelected());
+        c.gridy = row++;
+        c.insets = new Insets(4, 28, 0, 6);
+        box.add(barLabel, c);
+        c.gridy = row++;
+        c.insets = new Insets(0, 28, 0, 6);
+        c.fill = GridBagConstraints.HORIZONTAL;
+        box.add(bar, c);
+        c.fill = GridBagConstraints.NONE;
         return box;
     }
 

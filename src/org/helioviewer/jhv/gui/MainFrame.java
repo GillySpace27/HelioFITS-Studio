@@ -131,7 +131,6 @@ public final class MainFrame {
 
     private static JFrame mainFrame;
     private static JScrollPane leftScrollPane;
-    private static final int SCROLLBAR_WIDTH = 10; // FlatLaf's own ScrollBar.width default
     private static FixedWidthPanel leftPaneHost;
 
     private static JPanel centerPanel;
@@ -206,6 +205,14 @@ public final class MainFrame {
         cameraPanel = new LayersPanel(new LayerOptionSections(
                 cameraOptionsWrapper, new JPanel(new BorderLayout()), new JPanel(new BorderLayout())), Layer.Kind.VIEWPOINT);
         JPanel cameraPane = sidePane(cameraPanel, "Camera options", cameraOptionsWrapper);
+
+        // Things placed in 3D space (spacecraft models, point clouds), with the scene-wide sizes
+        // above them. They used to sit among the overlays, which are drawn over the picture.
+        JPanel sceneOptionsWrapper = new JPanel(new BorderLayout());
+        LayersPanel scenePanel = new LayersPanel(new LayerOptionSections(
+                sceneOptionsWrapper, new JPanel(new BorderLayout()), new JPanel(new BorderLayout())), Layer.Kind.SCENE);
+        JPanel scenePane = sidePane(scenePanel, "3D object options", sceneOptionsWrapper);
+        scenePane.add(new org.helioviewer.jhv.layers.selector.SceneSizePanel(), 0);
         MoviePanel moviePanel = MoviePanel.getInstance();
         imageLayersPane = new ImageLayersPane(moviePanel.getTimeSelectorPanel(), layersSectionPanel, layerOptionsWrapper, geometryWrapper, manageWrapper);
         // The scrubber + playback buttons are always docked at the top (see below); the sidebar keeps
@@ -227,6 +234,7 @@ public final class MainFrame {
         org.helioviewer.jhv.gui.component.LeftSidebar.register("Image Layers", Buttons.colourSettings, imageLayersPane);
         org.helioviewer.jhv.gui.component.LeftSidebar.register("Overlays", Buttons.annotate, overlaysPane);
         org.helioviewer.jhv.gui.component.LeftSidebar.register("Camera", Buttons.camera, cameraPane);
+        org.helioviewer.jhv.gui.component.LeftSidebar.register("3D Scene", Buttons.scene3d, scenePane);
 
         // As-needed, not always: a permanent empty scrollbar down the side of the sidebar is the
         // most dated thing on the window, and the width it used to guard is reserved by the
@@ -248,7 +256,7 @@ public final class MainFrame {
                 c -> c.setBackground(javax.swing.UIManager.getColor("Panel.background")));
         // A thin bar, and a fixed one: this width is what the frozen sidebar width reserves, so
         // it has to be the same number in both places, which an explicit preferred size gives.
-        leftScrollPane.getVerticalScrollBar().setPreferredSize(new Dimension(SCROLLBAR_WIDTH, 0));
+        org.helioviewer.jhv.gui.component.PanelVisibility.styleScrollBar(leftScrollPane.getVerticalScrollBar());
         leftScrollPane.getVerticalScrollBar().setUnitIncrement(layersPanel.getGridRowHeight());
         leftPaneHost = new FixedWidthPanel();
         leftPaneHost.add(buildSessionBar(), BorderLayout.NORTH); // document name + save/load, above Playback and Recording

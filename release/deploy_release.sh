@@ -869,7 +869,7 @@ notarize_mac() {
     # Offline, before anything is built or sent to Apple: the bundled ffmpeg is the GPL build its
     # manifest names, and the licence notices match the jars.
     echo "==> checking the ffmpeg and licence manifests"
-    ( cd "$SRC" && python3 extra/ffmpeg/update_ffmpeg.py --check && python3 extra/licenses/sync_licenses.py --check ) \
+    ( cd "$SRC" && ant -q natives && python3 extra/ffmpeg/update_ffmpeg.py --check && python3 extra/licenses/sync_licenses.py --check ) \
         || { echo "!! the ffmpeg or licence manifest check failed; nothing was built or sent" >&2; exit 1; }
     notarize_preconditions
 

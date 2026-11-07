@@ -126,7 +126,7 @@ EOT
 # ---- 3. fresh clone on master ----------------------------------------------------------------------------
 fresh_clone() {
     [ ! -e "$CLONE" ] || die "$CLONE exists (a previous attempt). Rerun with --resume, or move it aside yourself"
-    git clone --branch master "https://github.com/$REPO.git" "$CLONE"
+    git clone --filter=blob:none --branch master "https://github.com/$REPO.git" "$CLONE"
     [ "$(git -C "$CLONE" rev-parse HEAD)" = "$(git -C "$CLONE" rev-parse origin/master)" ] || fail "clone is not at origin/master"
     [ "$(tr -d '[:space:]' < "$CLONE/VERSION")" = "$V" ] || fail "VERSION in the clone is not $V"
     [ "$SKIP_INTEL" = 1 ] || ln -s "$HFS_X64_JDK" "$CLONE/release/.jdk-x64"

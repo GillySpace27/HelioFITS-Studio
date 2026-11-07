@@ -13,6 +13,10 @@ extra/test-classes
 # out of git because history cannot be shrunk again once a blob is in it.
 resources/kernels/outer_planets_de440s.bsp
 
+# Fetched by `ant natives` from a release, pinned by SHA-256 in build.xml; not in git (size).
+lib/jhv/jhv-natives-windows.jar
+lib/jhv/jhv-natives-linux.jar
+
 # Python bytecode and the metadata validator's compiled helper
 __pycache__/
 *.pyc

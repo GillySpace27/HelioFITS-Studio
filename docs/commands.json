@@ -479,6 +479,78 @@
         "type": "object",
         "properties": {}
       },
+      "name": "identifyUnderCursor",
+      "description": "Identify Under Cursor",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": false
+      },
+      "x-effect": "write"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
+      "name": "identifyTooltip",
+      "description": "Identify Tooltip",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": false
+      },
+      "x-effect": "write"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
+      "name": "identifyStars",
+      "description": "Identify Stars",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": false
+      },
+      "x-effect": "write"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
+      "name": "identifyFindBody",
+      "description": "Find Body...",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "ui"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
       "name": "newJp2Layer",
       "description": "New Image Layer\u2026",
       "annotations": {
@@ -2451,6 +2523,226 @@
       },
       "name": "exportMovie",
       "description": "Export one loop of the loaded frames as a movie in the format the settings choose, with its processing record beside it",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": false
+      },
+      "x-effect": "write"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "observer": {"type": "object"},
+          "matches": {"type": "array"}
+        }
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {
+          "observer": {
+            "description": "A SPICE observer such as EARTH, SOHO, STEREO AHEAD, SOLO or PSP; omit for the active image layer's own observer",
+            "type": "string"
+          },
+          "tx_deg": {
+            "description": "Helioprojective longitude Tx in degrees",
+            "type": "number"
+          },
+          "ty_deg": {
+            "description": "Helioprojective latitude Ty in degrees",
+            "type": "number"
+          },
+          "tolerance_deg": {
+            "description": "Extra radius in degrees; default 0",
+            "type": "number",
+            "minimum": 0
+          },
+          "time": {
+            "description": "UTC time, ISO 8601; omit for the active image layer's frame (or the displayed time when no layer is loaded)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tx_deg",
+          "ty_deg"
+        ]
+      },
+      "name": "identifyAt",
+      "description": "Name the Sun, Moon and planets at a helioprojective direction, as an observer sees them",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "read"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "distance_au": {"type": "number"},
+          "tx_deg": {"type": "number"},
+          "elongation_deg": {"type": "number"},
+          "in_field": {"type": "boolean"},
+          "ty_deg": {"type": "number"}
+        }
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {
+          "observer": {
+            "description": "A SPICE observer such as EARTH, SOHO, STEREO AHEAD, SOLO or PSP; omit for the active image layer's own observer",
+            "type": "string"
+          },
+          "time": {
+            "description": "UTC time, ISO 8601; omit for the active image layer's frame (or the displayed time when no layer is loaded)",
+            "type": "string"
+          },
+          "body": {
+            "description": "Sun, Mercury, Venus, Earth, Moon, Mars, Jupiter, Saturn, Uranus, Neptune or Pluto",
+            "type": "string"
+          }
+        },
+        "required": ["body"]
+      },
+      "name": "identifyLocate",
+      "description": "Where a body is in an observer's sky: helioprojective Tx and Ty, distance, elongation, and whether the active layer's field holds it",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "read"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "bodies": {"type": "object"},
+          "days": {"type": "object"}
+        }
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {
+          "observer": {
+            "description": "A SPICE observer; default EARTH",
+            "type": "string"
+          },
+          "inner_deg": {
+            "type": "number",
+            "minimum": 0
+          },
+          "half_width_deg": {
+            "description": "0 for no square cut",
+            "type": "number",
+            "minimum": 0
+          },
+          "field": {
+            "description": "punch: a 46.08 degree half-width square; layer: the active image layer's own field; custom: inner_deg, outer_deg and half_width_deg. Default punch",
+            "type": "string",
+            "enum": [
+              "punch",
+              "layer",
+              "custom"
+            ]
+          },
+          "outer_deg": {
+            "type": "number",
+            "minimum": 0
+          },
+          "start": {
+            "description": "UTC start, ISO 8601",
+            "type": "string"
+          },
+          "end": {
+            "description": "UTC end, ISO 8601",
+            "type": "string"
+          },
+          "step_minutes": {
+            "description": "Sampling step; edges are refined to a minute. Default 60",
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ]
+      },
+      "name": "identifyInField",
+      "description": "When each body is in a field of view over a time range, by body and by UTC day: find dates with or without the Moon",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "read"
+    },
+    {
+      "outputSchema": {"type": "object"},
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {
+          "star_names_bayer": {"type": "boolean"},
+          "tolerance_pixels": {
+            "type": "number",
+            "minimum": 0
+          },
+          "earth_observer_uncertainty_km": {
+            "type": "number",
+            "minimum": 0
+          },
+          "tooltip_dwell_ms": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "light_time": {"type": "boolean"},
+          "tooltip": {"type": "boolean"},
+          "star_max_magnitude": {"type": "number"},
+          "pluto": {"type": "boolean"},
+          "stars": {"type": "boolean"},
+          "star_names_iau": {"type": "boolean"},
+          "enabled": {"type": "boolean"}
+        }
+      },
+      "name": "identifySet",
+      "description": "Turn the cursor identifier and its tooltip and stars on or off, and set its tolerances; answers with every setting",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": false
+      },
+      "x-effect": "write"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {"pins": {
+          "type": "array",
+          "items": {"type": "string"}
+        }}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {
+          "pinned": {
+            "description": "true pins, false unpins; omit to toggle",
+            "type": "boolean"
+          },
+          "clear": {
+            "description": "true removes every pin first",
+            "type": "boolean"
+          },
+          "body": {
+            "description": "Sun, Mercury, Venus, Earth, Moon, Mars, Jupiter, Saturn, Uranus, Neptune or Pluto; omit to list",
+            "type": "string"
+          }
+        }
+      },
+      "name": "identifyPin",
+      "description": "Pin a body's label to the view, or unpin it, or list the pins; pins follow their body and are saved with the session",
       "annotations": {
         "destructiveHint": false,
         "readOnlyHint": false
