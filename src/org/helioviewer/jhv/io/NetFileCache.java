@@ -64,8 +64,18 @@ public class NetFileCache {
         // ponytail: no eviction — a research tool re-visits the same datasets; add an LRU/size
         // cap (in Settings) if the FileCache dir ever grows past what the disk can spare.
         File cached = persistentPath(uri);
-        if (cached.isFile() && cached.length() > 0)
-            return new DataUri(uri, cached.toURI(), cached);
+        if (cached.isFile() && cached.length() > 0) {
+            // One store (LibraryStore): a FITS file still in the cache moves into the library the
+            // first time it is asked for, so an old cache empties as it is used.
+            File stored = LibraryStore.adopt(uri, cached);
+            if (stored != null)
+                return new DataUri(uri, stored.toURI(), stored);
+            if (cached.isFile())
+                return new DataUri(uri, cached.toURI(), cached);
+        }
+        File inLibrary = LibraryStore.lookup(uri, cacheNames(uri));
+        if (inLibrary != null)
+            return new DataUri(uri, inLibrary.toURI(), inLibrary);
 
         // Download to a sibling temp file, then atomically publish, so a killed download never
         // leaves a truncated file that a later launch would mistake for a complete one.
@@ -89,7 +99,16 @@ public class NetFileCache {
             } catch (IOException e) {
                 Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING); // ATOMIC_MOVE unsupported across devices
             }
-            FitsCoreIngest.offer(uri, cached); // a copy for the FITS library, if there is one; this file stays
+            File stored = LibraryStore.adopt(uri, cached); // the library keeps the only copy, when it can
+            if (stored != null)
+                return new DataUri(uri, stored.toURI(), stored);
+            if (!cached.isFile()) { // taken by the core but its answer was lost: the library has it
+                File found = LibraryStore.lookup(uri, cacheNames(uri));
+                if (found != null)
+                    return new DataUri(uri, found.toURI(), found);
+                throw new IOException("The FITS library took " + cached.getName() + " but cannot say where it is; try loading it again");
+            }
+            FitsCoreIngest.offer(uri, cached); // an older core: a copy for the FITS library, if there is one; this file stays
             return new DataUri(uri, target.toUri(), cached);
         } finally {
             // Whatever ended the download, not only an IOException; nothing to do once it was moved.
@@ -99,9 +118,22 @@ public class NetFileCache {
         }
     }
 
-    /** Where this URI's bytes live on disk once cached, whether or not the file exists yet. */
+    /**
+     * Where this URI's bytes are on disk: Studio's cache, else the FITS library when it holds them
+     * (LibraryStore), else the cache path where a download would put them (not there yet).
+     */
     public static File cachedFile(@Nonnull URI uri) {
-        return persistentPath(uri);
+        File f = persistentPath(uri);
+        if (f.isFile())
+            return f;
+        File stored = LibraryStore.lookup(uri, cacheNames(uri));
+        return stored != null ? stored : f;
+    }
+
+    /** The names this URI's file has or had in the cache: today's readable name, then the bare digest of before 2026-09-28. */
+    static java.util.List<String> cacheNames(URI uri) {
+        String hash = sha256(uri.toString());
+        return java.util.List.of(readableName(uri, hash), hash);
     }
 
     /**

@@ -76,13 +76,24 @@ public final class FitsCoreIngest {
     private static final Pattern SECRET_PARAM = Pattern.compile(
             "(?i).*(token|key|sig|pass|secret|auth|credential|session|cookie).*|x-(amz|goog)-.*");
 
+    /** The thread QUEUE runs on, so a call made on it does not wait for itself. */
+    private static final AtomicReference<Thread> QUEUE_THREAD = new AtomicReference<>();
     private static final ExecutorService QUEUE = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "FITS core ingest");
         t.setDaemon(true);
+        QUEUE_THREAD.set(t);
         return t;
     });
     private static final AtomicReference<Core> CORE = new AtomicReference<>(); // touched only on QUEUE
     private static final AtomicBoolean NO_CORE = new AtomicBoolean(); // looked once and found none
+    /** Whether this session's core takes ingest.path's consume (pyHelioFITS schema 6); cleared at its first refusal. */
+    private static final AtomicBoolean CONSUME = new AtomicBoolean(true);
+
+    /**
+     * The library root, and whether every FITS file in Studio's cache has been moved into it
+     * ({@link LibraryStore}), as {@code "<epoch ms> <root>"}: the one-store migration, once per library.
+     */
+    static final String MOVED_KEY = "fitscore.cacheMoved";
 
     /**
      * The library root, and the launch time up to which every file in Studio's cache was offered
@@ -104,6 +115,63 @@ public final class FitsCoreIngest {
     }
 
     private FitsCoreIngest() {}
+
+    /**
+     * Move {@code file} into the library at root ({@code ingest.path} with {@code consume}) and return
+     * its path in the library, or null when it was not moved: not FITS, no core, an older core
+     * without consume (remembered for the session), or a refusal. A duplicate of a stored file is
+     * removed and the stored one returned. Blocks for up to TIMEOUT; safe on the ingest thread too.
+     */
+    @Nullable
+    static String consume(Path root, @Nullable URI source, File file) {
+        if (NO_CORE.get() || !CONSUME.get() || !isFits(file))
+            return null;
+        if (Thread.currentThread() == QUEUE_THREAD.get())
+            return consumeHere(root, source, file);
+        try {
+            return QUEUE.submit(() -> consumeHere(root, source, file)).get(TIMEOUT.toMillis() * 2, TimeUnit.MILLISECONDS);
+        } catch (ExecutionException | TimeoutException e) {
+            Log.warn("HelioFITS Core did not take " + file.getName() + " in time; it stays in Studio's cache", e);
+            return null;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return null;
+        }
+    }
+
+    @Nullable
+    private static String consumeHere(Path root, @Nullable URI source, File file) {
+        if (!file.isFile())
+            return null;
+        Core core = core(root);
+        if (core == null)
+            return null;
+        JSONObject params = new JSONObject().put("path", file.getAbsolutePath()).put("consume", true);
+        String url = source == null ? null : provenance(source);
+        if (url != null)
+            params.put("source_url", url);
+        try {
+            String rel = core.call("ingest.path", params, TIMEOUT).optString("relpath", "");
+            return rel.isEmpty() ? null : rel;
+        } catch (RpcError e) {
+            if (e.code == RpcError.INVALID_PARAMS) {
+                CONSUME.set(false);
+                Log.info("This HelioFITS Core cannot take files over (no consume); Studio keeps its downloads in its own cache too");
+            } else
+                Log.warn("HelioFITS Core did not take " + file.getName() + ": " + e.getMessage());
+            return null;
+        } catch (IOException e) {
+            Log.warn("Lost the HelioFITS Core while moving " + file.getName(), e);
+            CORE.set(null);
+            core.close();
+            return null;
+        }
+    }
+
+    /** Whether downloads go into the library and leave Studio's cache (a library and a core that can take them over). */
+    public static boolean consumes() {
+        return CONSUME.get() && !NO_CORE.get();
+    }
 
     /**
      * Queue a just-downloaded file for the FITS library. False when nothing was queued: not a
@@ -131,6 +199,10 @@ public final class FitsCoreIngest {
         long launched = System.currentTimeMillis();
         long since = importedThrough(importedMark(), lib.root());
         File dir = Directories.FILECACHE.getFile();
+        if (Files.isDirectory(lib.root()) && importedThrough(Settings.getProperty(MOVED_KEY), lib.root()) == Long.MIN_VALUE) {
+            QUEUE.execute(() -> moveCache(lib.root(), dir, launched));
+            return;
+        }
         QUEUE.execute(() -> {
             List<File> files = pending(dir, since);
             if (files.isEmpty())
@@ -143,6 +215,38 @@ public final class FitsCoreIngest {
                 EventQueue.invokeLater(() -> Settings.setProperty(IMPORTED_KEY, mark)); // Settings is written on the EDT
             }
         });
+    }
+
+    /**
+     * The one-store migration: move every FITS file in Studio's cache into the library at root, oldest
+     * first, each recorded in {@link LibraryStore} so Studio finds it there by its URL's cache name.
+     * Falls back to today's copying import when the core cannot take files over. Runs on the ingest
+     * thread; a file a layer has open is safe on macOS and Linux (a move leaves an open file readable),
+     * and NetFileCache asks the library first whenever the cache no longer has a file.
+     */
+    private static void moveCache(Path root, File dir, long launched) {
+        List<File> files = pending(dir, Long.MIN_VALUE);
+        int moved = 0, kept = 0;
+        for (File file : files) {
+            String rel = consumeHere(root, null, file);
+            if (rel != null) {
+                LibraryStore.remember(file.getName(), rel);
+                moved++;
+            } else if (!CONSUME.get() || NO_CORE.get() || CORE.get() == null) {
+                break; // an older core, or none: the copying import below takes over next launch
+            } else
+                kept++;
+        }
+        if (moved > 0)
+            Log.info("Moved " + moved + " file(s) from Studio's cache into the FITS library at " + root
+                    + (kept > 0 ? "; " + kept + " stayed (see above)" : ""));
+        if (CONSUME.get() && !NO_CORE.get() && kept == 0) {
+            String mark = launched + " " + root;
+            EventQueue.invokeLater(() -> {
+                Settings.setProperty(MOVED_KEY, mark);
+                Settings.setProperty(IMPORTED_KEY, mark); // nothing left to copy either
+            });
+        }
     }
 
     /** Whether a HelioFITS Core can be found to serve the library at root, without starting one. */
@@ -557,6 +661,8 @@ public final class FitsCoreIngest {
         static final int UNSTORABLE = -32001;
         /** JSON-RPC's code for a method the core does not have: an older core. */
         static final int METHOD_NOT_FOUND = -32601;
+        /** JSON-RPC's code for params the core does not take: consume, on a core older than schema 6. */
+        static final int INVALID_PARAMS = -32602;
 
         final int code;
 
