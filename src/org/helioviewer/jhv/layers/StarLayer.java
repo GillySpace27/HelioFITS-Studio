@@ -14,6 +14,8 @@ import org.helioviewer.jhv.display.ViewpointListener;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.layers.stars.StarCatalog;
 import org.helioviewer.jhv.layers.stars.StarSky;
+import org.helioviewer.jhv.math.Vec2;
+import org.helioviewer.jhv.math.Vec3;
 import org.helioviewer.jhv.opengl.BufVertex;
 import org.helioviewer.jhv.opengl.GLSLShape;
 import org.helioviewer.jhv.opengl.Transform;
@@ -32,8 +34,10 @@ import com.github.benmanes.caffeine.cache.Caffeine;
  * switched on (StarCatalog). A failed fetch says so in the options panel and stays quiet otherwise:
  * this is a background, and a modal error over the picture would be worse than no stars.
  *
- * <p>Drawn only where the camera looks out from the observer (the 3D-capable projections). The
- * orbited camera and Observer Sky are later phases of the starfield scope.
+ * <p>Drawn where the picture is the observer's own sky: the 3D views (on the plane through Sun
+ * centre), HPC and Observer Sky (through the page mapping, so the stars follow the projection and
+ * the look direction). Latitudinal and the unrolled helioradial map are maps of the Sun, not of the
+ * sky, and get none. The orbited camera is a later phase of the starfield scope.
  */
 public final class StarLayer extends AbstractLayer implements ViewpointListener {
 
@@ -67,11 +71,18 @@ public final class StarLayer extends AbstractLayer implements ViewpointListener 
 
     private record Key(Position viewpoint, StarSky.Style style) {}
 
-    private final Cache<Key, BufVertex> cache = Caffeine.newBuilder().softValues().maximumSize(64).build();
+    // One viewpoint's sky: its directions, and their 3D placement, built together off the GUI thread
+    private record Sky(StarSky.Points points, BufVertex plane) {}
+
+    private final Cache<Key, Sky> cache = Caffeine.newBuilder().softValues().maximumSize(64).build();
     private final Set<Key> pending = new HashSet<>();
     private final GLSLShape points = new GLSLShape(true);
     @Nullable
     private BufVertex uploadedBuf;
+    // The flat views re-place every point each frame: the page mapping moves with zoom, pan and
+    // the Observer Sky aim, and a few thousand projections cost less than tracking all of those
+    private final GLSLShape flatPoints = new GLSLShape(true);
+    private final BufVertex flatBuf = new BufVertex();
 
     public StarLayer(JSONObject jo) {
         if (jo == null)
@@ -155,9 +166,12 @@ public final class StarLayer extends AbstractLayer implements ViewpointListener 
         Key key = new Key(viewpoint, style());
         if (cache.getIfPresent(key) != null || !pending.add(key))
             return;
-        Task.submitBackground(() -> StarSky.compute(viewpoint, c, key.style()), buf -> {
+        Task.submitBackground(() -> {
+            StarSky.Points p = StarSky.compute(viewpoint, c, key.style());
+            return new Sky(p, StarSky.plane(p, viewpoint.distance));
+        }, sky -> {
             pending.remove(key);
-            cache.put(key, buf);
+            cache.put(key, sky);
             DisplayController.display();
         }, t -> {
             pending.remove(key);
@@ -167,14 +181,11 @@ public final class StarLayer extends AbstractLayer implements ViewpointListener 
 
     @Override
     public void render(MapView mv, Viewport vp) {
-        if (!isVisible[vp.idx] || catalog == null)
+        Sky sky = sky(mv, vp);
+        if (sky == null)
             return;
         Position viewpoint = mv.viewpoint();
-        BufVertex buf = cache.getIfPresent(new Key(viewpoint, style()));
-        if (buf == null) {
-            viewpointChanged(viewpoint); // first frame after a style change, or an interpolated viewpoint
-            return;
-        }
+        BufVertex buf = sky.plane();
         if (buf != uploadedBuf) {
             points.upload(buf);
             uploadedBuf = buf;
@@ -183,6 +194,38 @@ public final class StarLayer extends AbstractLayer implements ViewpointListener 
         Transform.rotateViewInverse(viewpoint.toQuat()); // viewpoint was interpolated for Viewpoint->Location
         points.renderPoints(1); // vertex sizes are in pixels
         Transform.popView();
+    }
+
+    @Override
+    public void renderScale(MapView mv, Viewport vp) {
+        if (!mv.isHpc() && !mv.isObserverSky())
+            return;
+        Sky sky = sky(mv, vp);
+        if (sky == null)
+            return;
+        StarSky.Points p = sky.points();
+        float[] ray = p.ray();
+        byte[] colour = new byte[4];
+        for (int i = 0; i < p.count(); i++) {
+            Vec2 pt = mv.projectDirection(vp, new Vec3(ray[3 * i], ray[3 * i + 1], ray[3 * i + 2]));
+            if (pt == null)
+                continue;
+            System.arraycopy(p.colour(), 4 * i, colour, 0, 4);
+            flatBuf.putVertex((float) pt.x, (float) pt.y, 0, p.size()[i], colour);
+        }
+        flatPoints.uploadAndClear(flatBuf);
+        flatPoints.renderPoints(1);
+    }
+
+    @Nullable
+    private Sky sky(MapView mv, Viewport vp) {
+        if (!isVisible[vp.idx] || catalog == null)
+            return null;
+        Position viewpoint = mv.viewpoint();
+        Sky sky = cache.getIfPresent(new Key(viewpoint, style()));
+        if (sky == null)
+            viewpointChanged(viewpoint); // first frame after a style change, or an interpolated viewpoint
+        return sky;
     }
 
     // Options
@@ -268,12 +311,14 @@ public final class StarLayer extends AbstractLayer implements ViewpointListener 
     @Override
     public void init() {
         points.init();
+        flatPoints.init();
     }
 
     @Override
     public void dispose() {
         uploadedBuf = null;
         points.dispose();
+        flatPoints.dispose();
     }
 
     @Override
