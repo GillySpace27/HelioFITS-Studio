@@ -15,6 +15,7 @@ import org.helioviewer.jhv.layers.Layer;
 import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.layers.MiniviewLayer;
 import org.helioviewer.jhv.layers.ModelLayer;
+import org.helioviewer.jhv.layers.StarLayer;
 import org.helioviewer.jhv.layers.TimestampLayer;
 import org.helioviewer.jhv.layers.ViewpointLayer;
 import org.helioviewer.jhv.layers.fov.FOVTreePane;
@@ -36,6 +37,7 @@ public final class LayerOptions implements Layers.Listener {
                 org.helioviewer.jhv.gui.component.ToolBar::showGridPalette));
         register(ModelLayer.class, layer -> new ModelLayerOptions((ModelLayer) layer));
         register(MiniviewLayer.class, layer -> new MiniviewLayerOptions((MiniviewLayer) layer));
+        register(StarLayer.class, layer -> new StarLayerOptions((StarLayer) layer));
         register(TimestampLayer.class, layer -> new TimestampLayerOptions((TimestampLayer) layer));
         register(ViewpointLayer.class, layer -> new PalettePointer("Camera settings\u2026",
                 "Also the Camera button on the toolbar, or View > Camera Settings.",
