@@ -67,6 +67,15 @@ Projection palette; its sky controls appear alongside.
   (1 is the scene's, 0 switches the floor off), so one model can stand out. The scene's sizes are
   saved with the session; **Settings > General > 3D scene** takes the current sizes as the ones a new
   session starts with.
+- **FOV**, an overlay, outlines instruments' fields of view. In a 3D view (Orthographic or
+  Helioradial) each field is drawn as a translucent cone from its spacecraft to as far from it as
+  the Sun is, named on screen at its far end: a coronagraph's annulus about the Sun line, a
+  heliospheric imager's square field to one side (STEREO HI toward Earth, SoloHI to solar east,
+  WISPR ahead along Parker Solar Probe's orbit). **Cones from spacecraft** and **Labels**, at the
+  top of its options, switch these off; in a 2D view fields are outlines on the plane of the sky. A
+  field is not drawn before its instrument started observing. Off-Sun fields are drawn as squares
+  at the elongations HelioFleet lists, which is the precision of a planning view, not of a
+  pointing solution.
 - **Track** keeps the view turning with the Sun as the movie plays; **Differential**, beside it,
   toggles differential rotation.
 - {menuselection}`View --> Reset View` (or a double-click on the canvas) returns the view to its
