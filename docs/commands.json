@@ -533,6 +533,24 @@
         "type": "object",
         "properties": {}
       },
+      "name": "identifyFindBody",
+      "description": "Find Body...",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "ui"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
       "name": "newJp2Layer",
       "description": "New Image Layer\u2026",
       "annotations": {
@@ -2403,6 +2421,40 @@
       },
       "name": "identifySet",
       "description": "Turn the cursor identifier and its tooltip and stars on or off, and set its tolerances; answers with every setting",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": false
+      },
+      "x-effect": "write"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {"pins": {
+          "type": "array",
+          "items": {"type": "string"}
+        }}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {
+          "pinned": {
+            "description": "true pins, false unpins; omit to toggle",
+            "type": "boolean"
+          },
+          "clear": {
+            "description": "true removes every pin first",
+            "type": "boolean"
+          },
+          "body": {
+            "description": "Sun, Mercury, Venus, Earth, Moon, Mars, Jupiter, Saturn, Uranus, Neptune or Pluto; omit to list",
+            "type": "string"
+          }
+        }
+      },
+      "name": "identifyPin",
+      "description": "Pin a body's label to the view, or unpin it, or list the pins; pins follow their body and are saved with the session",
       "annotations": {
         "destructiveHint": false,
         "readOnlyHint": false

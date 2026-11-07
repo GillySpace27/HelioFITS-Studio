@@ -112,8 +112,8 @@ public final class IdentifyHover {
             if (!sb.isEmpty())
                 sb.append(", ");
             sb.append(h.name());
-            if (h.kind().equals(Drawn.ORBIT_PLOT))
-                continue; // the orbit plot labels its own markers
+            if (Drawn.labelledElsewhere(h))
+                continue; // the orbit plot and the event popup label their own
             label.add(h.name());
             label.add(h.details());
         }

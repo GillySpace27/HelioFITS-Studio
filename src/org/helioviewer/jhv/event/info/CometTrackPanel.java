@@ -21,6 +21,7 @@ import javax.swing.table.DefaultTableModel;
 import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.astronomy.Comets;
 import org.helioviewer.jhv.display.CMETracker;
+import org.helioviewer.jhv.identify.Drawn;
 import org.helioviewer.jhv.display.MapMode;
 import org.helioviewer.jhv.gui.component.Palette;
 import org.helioviewer.jhv.gui.component.RightSidebar;
@@ -257,6 +258,24 @@ public final class CometTrackPanel extends JPanel implements TimeListener.Range 
         }, (logContext, t) -> status.setText("No track for " + comet.label() + ": " + t.getMessage()));
     }
 
+    /** The comet being tracked, for the cursor identifier; the track is SOHO's view (Comets). */
+    private record Tracked(Comets.Comet comet, Comets.Track track) {}
+
+    private static final java.util.concurrent.atomic.AtomicReference<Tracked> tracked = new java.util.concurrent.atomic.AtomicReference<>();
+
+    // Names the tracked comet where its track puts it now, while the tracker follows it.
+    private static final Drawn.Source IDENTIFY = (vp, mv, x, y, tolerancePixels) -> {
+        Tracked t = tracked.get();
+        if (t == null || !CMETracker.isTracking())
+            return java.util.List.of();
+        long now = mv.viewpoint().time.milli;
+        if (now < t.track().milli()[0] || now > t.track().milli()[t.track().milli().length - 1])
+            return java.util.List.of(); // off the sampled track: no position to name
+        Drawn.Hit h = Drawn.planeOfSky(vp, mv, x, y, tolerancePixels, t.comet().label(), "comet, tracked",
+                t.track().radius(now), t.track().positionAngle(now));
+        return h == null ? java.util.List.of() : java.util.List.of(h);
+    };
+
     private void engage(Comets.Comet comet, Comets.Track track, CMETracker.Mode mode) {
         double fov = ImageLayers.getLargestRadialSize();
         CMETracker.stop();                            // as the CME panel: disengage before setTime, whose listeners
@@ -264,6 +283,8 @@ public final class CometTrackPanel extends JPanel implements TimeListener.Range 
         Player.setTime(new JHVTime(track.entry(fov > 1 ? fov : 30)));
         ViewState.setProjection(MapMode.Helioradial); // no-op if already there; fits on entry
         CMETracker.track(track::radius, track::positionAngle);
+        tracked.set(new Tracked(comet, track));
+        Drawn.register(IDENTIFY);
         status.setText(comet.label() + ": closest approach " + Math.round(track.minRadius() * 10) / 10. + " R☉ on the sky" +
                 (track.minRadius() > fov && fov > 1 ? ", outside the loaded field of view" : ""));
     }

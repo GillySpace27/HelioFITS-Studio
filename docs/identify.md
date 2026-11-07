@@ -52,6 +52,8 @@ Earth and the planets by up to about 0.01 degrees.
 | `identifyLocate` | Where a body is: Tx, Ty, distance, elongation, and whether the active layer holds it |
 | `identifyInField` | When each body is in a field over a time range, by body and by UTC day |
 | `identifySet` | Change any identifier setting; answers with all of them |
+| `identifyPin` | Pin, unpin, toggle, clear or list pinned body labels |
+| `identifyFindBody` | View > Find Body...: choose a body, pin it, and say where it is |
 
 `identifyInField` takes a field of `punch` (a 46.08 degree half-width square, from CDELT 0.0225
 degrees times 2048 pixels in a PTM header), `layer` (the active layer's own pixels) or `custom`
@@ -91,3 +93,30 @@ dragging in Rotate mode or with a rotate command; a roll about the line of sight
 that layer names only bodies on its imagery. A body behind the Sun, behind the occulter or off
 the field is not drawn anywhere in an orbited view, so it is not named, and with no image layer
 the empty sky names nothing. Turned back to within 1 degree, every ephemeris body is named again.
+
+## Events, comets and FOV outlines
+
+With the identifier on, the footer also names, in every view mode:
+
+- **Catalog events** the SWEK layer draws under the pointer, by the same hit test as its popup:
+  "AR 13664" when the event carries a NOAA number, otherwise its group ("Flare", "Coronal Mass
+  Ejection"). The popup stays the event's label; the identifier adds no second one.
+- **The tracked comet** (Track comet panel) where its track puts it at the current time, while
+  the tracker follows it. The track is SOHO's view (Comets), so it is placed on the plane of sky
+  and seen from the first visible layer's observer.
+- **FOV outlines** (the FOV layer) the pointer is inside, as "AIA & HMI (Earth orbit)": the sight
+  line from each platform's observer onto its plane of sky, against the outline as drawn, Solar
+  Orbiter rolled by its attitude.
+
+## Pins and Find Body
+
+Alt-click a named body to pin its label to the view; Alt-click it again to unpin it. A pin shows
+"+ Name" at the body and follows it through time and every view mode the identifier works in. It
+sits exactly where hovering would name the body, because its place comes from running the
+identifier's own sight line backwards (Newton's method on the screen), not from a second
+projection. A pin whose body is off the page, behind the Sun in the 3D view, or in a mode with no
+sky is not drawn. Pins are saved with the session.
+
+**View > Find Body...** asks for a body, pins it, and says where it is from the active layer's
+observer (Tx, Ty, angle from the Sun) and whether that layer's imagery holds it. The
+`identifyPin` command pins, unpins, toggles, clears or lists pins.
