@@ -5,6 +5,9 @@ Each new entry ends with a `[docs: ...]` pointer to where it is documented (`rel
 
 ## HelioFITS Studio 0.9.2 (unreleased)
 
+### Starfield
+- A Stars row under Overlays (off by default) draws the background stars and, optionally, the planets in the observer's view, at their true directions for that observer and time: real stars line up with the stars in a LASCO C3 frame. Stars come from the Hipparcos catalogue down to V = 9, downloaded from ESA the first time the row is ticked (about 4.5 MB, kept in ~/HFStudio/Catalogs) and never shipped with Studio. Options: the faintest magnitude shown (default 6), star colours from B-V with a saturation slider, point size, Mercury to Neptune (not the observer's own planet), the Moon, and drawing over the imagery instead of under it. Sessions keep the settings. Shown in the 3D views from the observer for now; Observer Sky and the orbited camera come later. [docs: docs/starfield.md]
+
 ### One store for FITS downloads
 - When there is a FITS library, a FITS file Studio downloads now moves into the library instead of being kept twice (once in Studio's cache, once in the library). Studio finds it there again by its download address, with or without HelioFITS Core running, and an existing cache moves into the library once, in the background, so its space comes back. Without a library, or with a HelioFITS Core older than this release, nothing changes: downloads stay in Studio's cache as before. [docs: docs/storage-folders.md]
 - Settings > FITS Library has Choose Folder..., which puts the FITS library in another folder or on another drive: an empty or new folder becomes a new library, a folder that already holds one is used as it is, and HelioFITS Core's warnings about the place (a sync service folder, a network drive) are shown. The library used before stays where it is, with its files. [docs: docs/storage-folders.md]

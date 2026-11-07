@@ -105,6 +105,13 @@ public enum Directories {
             return HOME.getPath() + "Models" + File.separator;
         }
     },
+    // Reference catalogues fetched at first use and kept (the background stars: StarCatalog)
+    CATALOGS {
+        @Override
+        public String getPath() {
+            return HOME.getPath() + "Catalogs" + File.separator;
+        }
+    },
     // The downloads directory
     DOWNLOADS {
         @Override
