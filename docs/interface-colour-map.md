@@ -41,6 +41,19 @@ mirrored top-to-bottom depending on whether the section is open. It is the one p
 chrome in the sidebar, it is a static field so it is fixed at class-load time, and it is where a
 header would get more or less contrast against the panel behind it.
 
+### Easier to find panels
+
+`PanelVisibility` (gui/component) holds the Visibility options of the Theme dialog, under the settings
+`ui.visibility.enabled` (master) and `ui.visibility.headers|stripe|numbers|hover`, all on unless stored as
+`false`. They are not theme tokens. With the master off every value is the theme's own. On, from the
+current theme's tokens: the `HeaderFill` band is mixed toward `Foreground` until it reaches 4.5:1 on
+`Background`, stopping where the title (`HeaderText`, brightened or darkened if needed) can no longer be
+held at 4.5:1 on it; the nested band is stepped down from it as `Theme.derive` does from the stated one
+and held to 3:1; the rule is 2px and the gap under a section 9px; the stripe is `Accent` held to 3:1 on the
+band (`Theme.legibleOn`), inset 2px so band colour shows beside it; the hover fill mixes the band toward
+`Foreground` where the title still reads. Numbers are display text only: `CollapsiblePane.getTitle()`,
+the section's preference key and every control id are unchanged. `PanelVisibilityCheck` covers all of this.
+
 ## The layer rows
 
 `CellRenderer` paints all six columns of every layer table. Its colour rules:
