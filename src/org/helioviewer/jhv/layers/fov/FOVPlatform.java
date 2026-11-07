@@ -17,6 +17,7 @@ import org.helioviewer.jhv.layers.ModelEphemeris;
 import org.helioviewer.jhv.layers.ModelPlacement;
 import org.helioviewer.jhv.identify.Identifier;
 import org.helioviewer.jhv.math.Quat;
+import org.helioviewer.jhv.math.Vec2;
 import org.helioviewer.jhv.math.Vec3;
 import org.helioviewer.jhv.opengl.BufVertex;
 import org.helioviewer.jhv.opengl.GL;
@@ -120,8 +121,8 @@ class FOVPlatform {
             return;
 
         JHVTime time = mv.viewpoint().time;
-        Position obsPosition = observer != null ? Spice.getCarrington(observer, time) : ephemeris.at(time);
-        if (obsPosition == null || !(obsPosition.distance > 0))
+        Position obsPosition = position(time);
+        if (obsPosition == null)
             return;
         if (cones) {
             renderCones(vp, obsPosition, labels);
@@ -188,6 +189,69 @@ class FOVPlatform {
         coneLines.renderLine(vp, LINEWIDTH_FOV);
     }
 
+    /**
+     * The flat projections: each enabled field projected onto the current observer's map (its far
+     * outline and four edges from the spacecraft), and, with {@code coverage}, the edge of the
+     * solar surface this spacecraft sees. In Latitudinal, a surface map, only the coverage.
+     */
+    void renderFlat(MapView mv, Viewport vp, boolean coverage, List<FOVLabels.Label> labels) {
+        if (!hasEnabled())
+            return;
+        JHVTime time = mv.viewpoint().time;
+        Position obsPosition = position(time);
+        if (obsPosition == null || !(obsPosition.distance > 0))
+            return;
+        double[] o = world(obsPosition);
+        double[] viewer = world(mv.viewpoint());
+        double[] north = world(new Position(time, 1, 0, Math.PI / 2));
+        byte[] line = fade(color, LINE_ALPHA);
+        if (!mv.isLatitudinal()) {
+            for (FOVInstrument instrument : instruments) {
+                if (!instrument.isEnabled() || !instrument.flyingAt(time))
+                    continue;
+                FOVCone cone = instrument.cone(o, north, sideVector(instrument.side(), obsPosition, o, north));
+                if (cone == null)
+                    continue;
+                FOVFlat.putLine(mv, vp, viewer, FOVFlat.loop(cone.outer), line, coneLineBuf);
+                if (cone.inner != null)
+                    FOVFlat.putLine(mv, vp, viewer, FOVFlat.loop(cone.inner), line, coneLineBuf);
+                int step = Math.max(1, cone.outer.length / 4);
+                for (int i = 0; i < cone.outer.length; i += step)
+                    FOVFlat.putLine(mv, vp, viewer, FOVFlat.segment(cone.apex, cone.outer[i], FOVFlat.EDGE_STEPS), line, coneLineBuf);
+                Vec2 at = FOVFlat.project(mv, vp, viewer, cone.labelAnchor());
+                if (at != null)
+                    labels.add(new FOVLabels.Label(name + ' ' + instrument, new double[]{at.x, at.y, 0}, color));
+            }
+        }
+        if (coverage) {
+            List<Vec3> ring = FOVFlat.coverage(o, SUBDIVISIONS);
+            if (ring != null)
+                mv.emitMapLine(vp, ring, 1, line, coneLineBuf);
+        }
+        coneLines.uploadAndClear(coneLineBuf);
+        coneLines.renderLine(vp, LINEWIDTH_FOV);
+    }
+
+    /** Where the platform is at {@code time}, or null. */
+    @Nullable
+    Position position(JHVTime time) {
+        Position p = observer != null ? Spice.getCarrington(observer, time) : ephemeris.at(time);
+        return p == null || !(p.distance > 0) ? null : p;
+    }
+
+    /** Earth orbit and MLSO: Earth itself stands for them among the bodies. */
+    boolean atEarth() {
+        return "EARTH".equals(observer);
+    }
+
+    boolean hasEnabledField() {
+        return hasEnabled();
+    }
+
+    byte[] color() {
+        return color;
+    }
+
     /** The direction an off-Sun field points, or null for a centred one or when it is unknown. */
     @Nullable
     private double[] sideVector(FOVInstrument.Side side, Position obsPosition, double[] o, double[] north) {
@@ -203,12 +267,7 @@ class FOVPlatform {
         };
     }
 
-    @Nullable
-    private Position position(JHVTime t) {
-        return observer != null ? Spice.getCarrington(observer, t) : ephemeris.at(t);
-    }
-
-    private static double[] world(Position p) {
+    static double[] world(Position p) {
         Vec3 v = ModelPlacement.toWorld(p);
         return new double[]{v.x, v.y, v.z};
     }
