@@ -11,11 +11,10 @@ for example to find a date without the Moon in PUNCH.
   pixel value. Right-click on the canvas copies the footer, name included.
 - **View > Identify Tooltip** also draws the name, its distance and its angle from the Sun beside
   the pointer once it rests (Settings > Identify > Label delay). The label is never recorded.
-- **View > Identify Stars** includes stars. It needs the star catalog of the starfield layer and
-  names nothing until that catalog is present.
+- **View > Identify Stars** includes stars (see "Stars" below).
 - **Settings > Identify** holds the pointer tolerance in screen pixels (default 6), the label delay
   (400 ms), the near-Earth observer uncertainty (7,400 km), light travel time (off), Pluto (on),
-  and the star options (IAU names, Bayer and Flamsteed designations, faintest magnitude).
+  and the star options (IAU names, Bayer designations, faintest magnitude).
 
 All defaults are judgements and can be changed. Settings keys start with `identify.`.
 
@@ -120,3 +119,22 @@ sky is not drawn. Pins are saved with the session.
 **View > Find Body...** asks for a body, pins it, and says where it is from the active layer's
 observer (Tx, Ty, angle from the Sun) and whether that layer's imagery holds it. The
 `identifyPin` command pins, unpins, toggles, clears or lists pins.
+
+## Stars
+
+With View > Identify Stars on, the footer names the nearest star within the pointer tolerance: the
+Hipparcos catalogue the Stars overlay draws, at the same directions, down to the faintest magnitude
+set in Settings > Identify (the overlay need not be shown). The name is the IAU proper name
+("Alpheratz") when IAU names is on, else the Bayer designation ("α And") when that is on and the
+star has one, else the Hipparcos number ("HIP 677"). The tooltip adds the V magnitude and the
+Hipparcos number.
+
+Names come from the IAU Catalog of Star Names of the IAU Working Group on Star Names (about 450
+named stars, CC BY), fetched once from the WGSN table and kept beside the Hipparcos catalogue in
+the catalogs folder; Bayer letters come from the same table, so only IAU-named stars have one here.
+Both tables load in the background the first time the switch is on, from disk if cached. Stars are
+not named in the 3D view when the camera is turned away from the image layer's line of sight,
+because the sky drawn there is no observer's.
+
+Checked live on a PUNCH CAM frame (2026-04-25): Alpheratz, Mirfak, Algol and Sheratan were named
+at the screen points predicted from their astropy positions in that frame.

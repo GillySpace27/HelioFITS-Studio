@@ -84,6 +84,9 @@ public final class Drawn {
         List<Hit> out = new ArrayList<>();
         for (Source source : sources)
             out.addAll(source.at(vp, mv, x, y, tolerancePixels));
+        Stars.Star star = Stars.at(vp, mv, x, y, tolerancePixels);
+        if (star != null)
+            out.add(new Hit(star.label(), star.details().strip(), star.pixels(), Double.NaN));
         int fixed = out.size();
         ViewpointLayer orbits = Layers.getViewpointLayer();
         String marker = orbits == null ? null : orbits.markerAt(mv, vp, x, y);

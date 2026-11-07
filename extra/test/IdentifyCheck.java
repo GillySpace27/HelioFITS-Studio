@@ -73,6 +73,7 @@ public final class IdentifyCheck {
         checkOrtho();
         checkDrawn();
         checkPins();
+        checkStars();
         checkPlaneProbe();
         checkTransit();
         checkPunchFixture();
@@ -244,6 +245,44 @@ public final class IdentifyCheck {
         IdentifyPins.fromJson(ja);
         expect(IdentifyPins.all().equals(List.of("Venus", "Mars")), "pins come back from the session JSON");
         IdentifyPins.set(List.of());
+    }
+
+    /** Stars: the IAU table parser on a real excerpt, the label rules, nearest-star search, HIP numbers kept. */
+    private static void checkStars() throws Exception {
+        java.nio.file.Path excerpt = java.nio.file.Path.of("extra/test/data/iau-csn-excerpt.txt");
+        if (!java.nio.file.Files.isRegularFile(excerpt)) {
+            System.out.println("SKIP: " + excerpt + " is not here (run from the repository root)");
+            return;
+        }
+        org.helioviewer.jhv.layers.stars.StarNames names = org.helioviewer.jhv.layers.stars.StarNames.parse(
+                java.nio.file.Files.readString(excerpt, java.nio.charset.StandardCharsets.UTF_8));
+        expect(names.size() == 4, "four of the five rows have a Hipparcos number (Absolutno has none): " + names.size());
+        org.helioviewer.jhv.layers.stars.StarNames.Entry sirius = names.get(32349);
+        expect(sirius != null && sirius.name().equals("Sirius") && "α CMa".equals(sirius.designation()), "HIP 32349 is Sirius, α CMa: " + sirius);
+        org.helioviewer.jhv.layers.stars.StarNames.Entry acamar = names.get(13847), alula = names.get(55203);
+        expect(acamar != null && "θ1 Eri".equals(acamar.designation()), "a numbered Bayer letter: " + acamar);
+        expect(alula != null && alula.name().equals("Alula Australis"), "a name with a space is cut at its column: " + alula);
+
+        // Two synthetic stars (not real catalogue values): one with an IAU entry, one without
+        org.helioviewer.jhv.layers.stars.StarCatalog cat = org.helioviewer.jhv.layers.stars.StarCatalog.parse(
+                "hip,ra,de,pmra,pmde,vmag,b_v\n32349,100,-16,0,0,-1.4,0.0\n99999,101,-16,0,0,5.5,1.0\n,102,-16,0,0,7.25,0.5\n");
+        expect(cat.size() == 3 && cat.hip[0] == 32349 && cat.hip[1] == 99999 && cat.hip[2] == 0, "the catalogue keeps HIP numbers, 0 when absent");
+        expect(Stars.label(cat, names, 0, true, true).equals("Sirius"), "IAU names on: the proper name");
+        expect(Stars.label(cat, names, 0, false, true).equals("α CMa"), "IAU names off, Bayer on: the designation");
+        expect(Stars.label(cat, names, 0, false, false).equals("HIP 32349"), "both off: the Hipparcos number");
+        expect(Stars.label(cat, names, 1, true, true).equals("HIP 99999"), "a star the table does not name: the Hipparcos number");
+        expect(Stars.label(cat, null, 0, true, true).equals("HIP 32349"), "no names table yet: the Hipparcos number");
+        expect(Stars.label(cat, names, 2, true, true).equals("star V 7.25"), "no number either: the magnitude");
+
+        Position earth = Spice.getCarrington("EARTH", new JHVTime("2026-04-25T00:16:00"));
+        double[] rays = new double[9];
+        int[] index = new int[3];
+        int n = org.helioviewer.jhv.layers.stars.StarSky.rays(earth, cat, 6, rays, index);
+        expect(n == 2 && index[0] == 0 && index[1] == 1, "the magnitude limit leaves out the V 7.25 star: " + n);
+        Vec3 star1 = new Vec3(rays[3], rays[4], rays[5]);
+        expect(Stars.nearest(rays, n, star1, Math.cos(Math.toRadians(0.01))) == 1, "the nearest ray to a star's own direction is that star");
+        Vec3 between = Identifier.unit(new Vec3(rays[0] + rays[3], rays[1] + rays[4], rays[2] + rays[5]));
+        expect(Stars.nearest(rays, n, between, Math.cos(Math.toRadians(0.01))) == -1, "half a degree from both, within 0.01 degrees: none");
     }
 
     private static void checkPlaneProbe() {
