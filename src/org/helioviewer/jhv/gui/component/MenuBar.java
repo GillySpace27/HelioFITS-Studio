@@ -290,6 +290,7 @@ public final class MenuBar extends JMenuBar {
             item.setName(id);
             viewMenu.add(item);
         }
+        catalogItem(viewMenu, "identifyFindBody");
 
         viewMenu.addSeparator();
 
