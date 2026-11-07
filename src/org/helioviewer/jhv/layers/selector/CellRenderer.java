@@ -191,6 +191,9 @@ class CellRenderer {
                 // The tint alone is a private code; the tooltip is what makes it readable.
                 String format = formatName(value);
                 String tip = format == null ? null : layerName + "  \u00b7  " + format;
+                String where = layer instanceof org.helioviewer.jhv.layers.ImageLayer il ? org.helioviewer.jhv.layers.LocatorInset.describe(il) : null;
+                if (where != null)
+                    tip = (tip == null ? layerName : tip) + "  \u00b7  " + where;
                 if (master) {
                     setToolTipText(format == null ? layerName + " (master)" : tip + "  \u00b7  master");
                     setFont(UIGlobals.uiFontBold);

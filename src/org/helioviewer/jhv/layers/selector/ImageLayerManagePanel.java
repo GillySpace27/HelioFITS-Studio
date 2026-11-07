@@ -172,6 +172,7 @@ final class ImageLayerManagePanel extends JPanel {
         fitsButton.addActionListener(e -> org.helioviewer.jhv.gui.dialog.UseFitsDialog.start(layer, this, this::fitsStatus));
         icons.add(fitsButton);
         icons.add(makeSyncButton());
+        icons.add(makeWhereButton());
         icons.add(metaButton);
 
         readout.setBorder(BorderFactory.createEmptyBorder(8, 0, 8, 0)); // let the readout breathe
@@ -211,6 +212,17 @@ final class ImageLayerManagePanel extends JPanel {
      */
     // Lives with the layer's other actions, beside Refresh. It used to sit at the end of the
     // Difference row, where nothing about it is specific to differencing.
+    // The locator map in the main view's corner: where this layer's observer is (LocatorInset).
+    private javax.swing.JToggleButton makeWhereButton() {
+        javax.swing.JToggleButton where = Buttons.flatToggle("Where", org.helioviewer.jhv.layers.LocatorInset.isShowing(layer));
+        where.setToolTipText("Show where this layer's observer is: a map in the corner of the view, seen from solar north. Click the map for the overview.");
+        where.addActionListener(e -> {
+            org.helioviewer.jhv.layers.LocatorInset.toggle(layer);
+            where.setSelected(org.helioviewer.jhv.layers.LocatorInset.isShowing(layer));
+        });
+        return where;
+    }
+
     private JButton makeSyncButton() {
         JButton sync = Buttons.flat(Buttons.sync);
         sync.setToolTipText("Synchronize time intervals of other layers");
