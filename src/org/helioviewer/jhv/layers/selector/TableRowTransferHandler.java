@@ -4,7 +4,6 @@ import java.awt.AlphaComposite;
 import java.awt.Cursor;
 import java.awt.Graphics2D;
 import java.awt.Point;
-import java.awt.Toolkit;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.Transferable;
@@ -18,6 +17,7 @@ import javax.swing.TransferHandler;
 
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.display.DisplayController;
+import org.helioviewer.jhv.gui.UIGlobals;
 // Handles DnD row reordering
 @SuppressWarnings("serial")
 class TableRowTransferHandler extends TransferHandler {
@@ -64,7 +64,10 @@ class TableRowTransferHandler extends TransferHandler {
             return null;
 
         createImageOfRow(row);
-        dragCursor = Toolkit.getDefaultToolkit().createCustomCursor(image, new Point(10, 10), "DnD");
+        // The closed hand while dragging; the row's ghost travels beside it where the platform draws drag images.
+        dragCursor = UIGlobals.closedHandCursor;
+        setDragImage(image);
+        setDragImageOffset(new Point(-10, -10));
         return new StringSelection(Integer.toString(row));
     }
 
