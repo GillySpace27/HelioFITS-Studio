@@ -15,11 +15,13 @@ import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.event.EventCache;
 import org.helioviewer.jhv.event.EventGeometry;
+import org.helioviewer.jhv.event.EventParameter;
 import org.helioviewer.jhv.event.RelatedEvents;
 import org.helioviewer.jhv.event.SolarEvent;
 import org.helioviewer.jhv.event.info.SWEKEventInformationDialog;
 import org.helioviewer.jhv.gui.AwtInputAdapter;
 import org.helioviewer.jhv.gui.MainFrame;
+import org.helioviewer.jhv.identify.Drawn;
 import org.helioviewer.jhv.input.InputController;
 import org.helioviewer.jhv.input.InputMouseListener;
 import org.helioviewer.jhv.input.PointerEvent;
@@ -66,11 +68,36 @@ class SWEKPopupController implements InputMouseListener {
     void install() {
         guiInstalled = true;
         updateMouseTracking();
+        Drawn.register(identifySource);
     }
 
     void uninstall() {
         guiInstalled = false;
         updateMouseTracking();
+        Drawn.unregister(identifySource);
+    }
+
+    // The cursor identifier's view of the events: the same hit test as the popup, named for the footer.
+    private final Drawn.Source identifySource = (vp, mv, x, y, tolerancePixels) -> {
+        SWEKLayer l = layer;
+        if (l == null || !l.isEnabled())
+            return List.of();
+        RelatedEvents hit = eventsAt(l, mv, vp, x, y);
+        if (hit == null)
+            return List.of();
+        SolarEvent evt = hit.getClosestTo(GLRenderer.getDisplayedViewpoint().time.milli);
+        return List.of(new Drawn.Hit(eventName(evt), Drawn.EVENT + ", " + evt.getSupplier().displayName(), 0, Double.NaN));
+    };
+
+    /** "AR 13664" when the event carries a NOAA number, otherwise its group's name ("Flare", "CME"). */
+    static String eventName(SolarEvent evt) {
+        for (EventParameter p : evt.getAllEventParameters())
+            if ("ar_noaanum".equals(p.getParameterName())) {
+                String v = p.getSimpleDisplayParameterValue().trim();
+                if (!v.isEmpty() && !v.equals("0"))
+                    return "AR " + v;
+            }
+        return evt.getSupplier().group().getName();
     }
 
     private void updateMouseTracking() {
@@ -195,32 +222,16 @@ class SWEKPopupController implements InputMouseListener {
 
     @Override
     public void mouseMoved(PointerEvent e) {
-        Position viewpoint = GLRenderer.getDisplayedViewpoint();
-        long currentTime = viewpoint.time.milli;
-        // Same set the layer draws: events live at this time, plus the extended fronts propagated
-        // past their catalog window. Without the latter a wedge stays on screen but stops being
-        // selectable the moment it leaves the catalog, which is when its icon changes too.
-        List<SWEKLayer.ActiveEvent> activeEvents = layer.activeEvents(currentTime);
-        List<SWEKLayer.ActiveEvent> extended = layer.propagatingNow(currentTime);
-        if (!extended.isEmpty()) {
-            List<SWEKLayer.ActiveEvent> both = new ArrayList<>(activeEvents.size() + extended.size());
-            both.addAll(activeEvents);
-            both.addAll(extended);
-            activeEvents = both;
-        }
-        if (activeEvents.isEmpty()) {
+        if (layer == null)
+            return;
+        int mouseOverX = e.x();
+        int mouseOverY = e.y();
+        long currentTime = GLRenderer.getDisplayedViewpoint().time.milli;
+        RelatedEvents mouseOverEvents = eventsAt(layer, GLRenderer.getMapView(), Display.getActiveViewport(), mouseOverX, mouseOverY);
+        if (mouseOverEvents == null && layer.activeEvents(currentTime).isEmpty() && layer.propagatingNow(currentTime).isEmpty()) {
             clearHoverPreview();
             return;
         }
-
-        int mouseOverX = e.x();
-        int mouseOverY = e.y();
-
-        Viewport vp = Display.getActiveViewport();
-        MapView mv = GLRenderer.getMapView();
-        RelatedEvents mouseOverEvents = mv.rendersIn3D()
-                ? findOrthographicEvent(activeEvents, currentTime, mv.mouseToSurface(vp, mouseOverX, mouseOverY), mv.mouseToPlane(vp, mouseOverX, mouseOverY))
-                : findProjectedEvent(activeEvents, currentTime, mv, vp, mv.mouseToScreen(vp, mouseOverX, mouseOverY));
 
         swekContext.setMouseOver(mouseOverX, mouseOverY, currentTime, mouseOverEvents);
         Component canvas = component();
@@ -233,6 +244,31 @@ class SWEKPopupController implements InputMouseListener {
         } else {
             canvas.setCursor(lastCursor != null ? lastCursor : Cursor.getDefaultCursor());
         }
+    }
+
+    /**
+     * The events drawn at canvas point (x, y), or null: the hit test behind the hover popup, which
+     * the cursor identifier also asks so the footer can name an event (EventIdentifySource).
+     */
+    @Nullable
+    static RelatedEvents eventsAt(SWEKLayer layer, MapView mv, Viewport vp, int x, int y) {
+        long currentTime = GLRenderer.getDisplayedViewpoint().time.milli;
+        // Same set the layer draws: events live at this time, plus the extended fronts propagated
+        // past their catalog window. Without the latter a wedge stays on screen but stops being
+        // selectable the moment it leaves the catalog, which is when its icon changes too.
+        List<SWEKLayer.ActiveEvent> activeEvents = layer.activeEvents(currentTime);
+        List<SWEKLayer.ActiveEvent> extended = layer.propagatingNow(currentTime);
+        if (!extended.isEmpty()) {
+            List<SWEKLayer.ActiveEvent> both = new ArrayList<>(activeEvents.size() + extended.size());
+            both.addAll(activeEvents);
+            both.addAll(extended);
+            activeEvents = both;
+        }
+        if (activeEvents.isEmpty())
+            return null;
+        return mv.rendersIn3D()
+                ? findOrthographicEvent(activeEvents, currentTime, mv.mouseToSurface(vp, x, y), mv.mouseToPlane(vp, x, y))
+                : findProjectedEvent(activeEvents, currentTime, mv, vp, mv.mouseToScreen(vp, x, y));
     }
 
     private static RelatedEvents findOrthographicEvent(List<SWEKLayer.ActiveEvent> activeEvents, long currentTime, Vec3 sphereHitpoint, Vec3 planeHitpoint) {
