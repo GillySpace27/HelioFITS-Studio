@@ -284,6 +284,13 @@ public final class MenuBar extends JMenuBar {
         JCheckBoxMenuItem showStatusBar = new JCheckBoxMenuItem("Show Status Bar", statusPanel.isVisible());
         showStatusBar.addItemListener(e -> statusPanel.setStatusBarVisible(showStatusBar.getState()));
         viewMenu.add(showStatusBar);
+        // The cursor identifier's switches sit with the footer's own setting (Gilly, 2026-11-07)
+        for (String id : new String[]{"identifyUnderCursor", "identifyTooltip", "identifyStars"}) {
+            JCheckBoxMenuItem item = new JCheckBoxMenuItem(catalogAction(id));
+            item.setName(id);
+            viewMenu.add(item);
+        }
+        catalogItem(viewMenu, "identifyFindBody");
 
         // Fold or show a section by its number: Cmd+1..8 on the left, Cmd+Option+1..8 on the right
         viewMenu.add(PanelKeys.menu(false));

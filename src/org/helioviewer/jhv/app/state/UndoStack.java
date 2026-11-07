@@ -178,8 +178,8 @@ public final class UndoStack {
     // Top-level entries State.apply restores. The mode names are ViewState.writeModeJson's.
     private static final List<String> SCENE = List.of("multiview", "projection", "surfaceModel", "warpLambda",
             "annotationMode", "tracking", "refresh", "showCorona", "differentialRotation", "helioradial3D",
-            "playback", "recording", "annotations");
-    private static final Set<String> PROJECTION = Set.of("projection", "surfaceModel", "warpLambda", "helioradial3D");
+            "helioradialPerObserver", "playback", "recording", "annotations");
+    private static final Set<String> PROJECTION = Set.of("projection", "surfaceModel", "warpLambda", "helioradial3D", "helioradialPerObserver");
 
     // An image layer's entry, cut to what State.apply changes in place. Its source (request, files,
     // pointing, fixed range) is left out on purpose: see the class comment.

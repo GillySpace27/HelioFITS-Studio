@@ -181,7 +181,8 @@ public final class ViewState {
 
     public record ModeData(MapMode projection, SurfaceModel surfaceModel, double warpLambda, AnnotationMode annotationMode,
                            boolean multiview, boolean tracking, boolean refresh, boolean showCorona,
-                           boolean differentialRotation, boolean helioradial3D, boolean surfaceFromImage) {}
+                           boolean differentialRotation, boolean helioradial3D, boolean surfaceFromImage,
+                           boolean helioradialPerObserver) {}
 
     public record PlaybackData(Player.AdvanceMode advanceMode, int speed, PlaybackSpeedUnit speedUnit,
                                int firstFrame, int lastFrame) {}
@@ -237,12 +238,12 @@ public final class ViewState {
      * BlankSessionCheck fails if a default changes without this.
      */
     public static final ModeData DEFAULT_MODE = new ModeData(MapMode.Orthographic, SurfaceModel.PlaneOfSky, 0,
-            AnnotationMode.Cross, false, false, false, true, false, false, false);
+            AnnotationMode.Cross, false, false, false, true, false, false, false, true);
 
     public static ModeData modeData() {
         return new ModeData(getProjection(), Display.getSurfaceModel(), getWarpLambda(), getAnnotationMode(),
                 isMultiview(), isTracking(), isRefresh(), isShowCorona(), isDifferentialRotation(), Display.isHelioradial3D(),
-                Display.isSurfaceFromImage());
+                Display.isSurfaceFromImage(), Display.isHelioradialPerObserver());
     }
 
     public static PlaybackData playbackData() {
@@ -354,6 +355,7 @@ public final class ViewState {
         target.put("differentialRotation", data.differentialRotation());
         target.put("helioradial3D", data.helioradial3D());
         target.put("surfaceFromImage", data.surfaceFromImage());
+        target.put("helioradialPerObserver", data.helioradialPerObserver());
     }
 
     public static ModeData readModeJson(JSONObject source) {
@@ -393,7 +395,10 @@ public final class ViewState {
                 readBoolean(source, "differentialRotation", current.differentialRotation()),
                 readBoolean(source, "helioradial3D", current.helioradial3D()),
                 // Absent from sessions written before the choice existed: they keep the default.
-                readBoolean(source, "surfaceFromImage", DEFAULT_MODE.surfaceFromImage()));
+                readBoolean(source, "surfaceFromImage", DEFAULT_MODE.surfaceFromImage()),
+                // Absent from sessions written before the choice existed: they open as they were
+                // drawn then, every layer facing the viewpoint.
+                readBoolean(source, "helioradialPerObserver", false));
     }
 
     public static void applyMode(ModeData data) {
@@ -407,7 +412,8 @@ public final class ViewState {
                 || isShowCorona() != data.showCorona()
                 || isDifferentialRotation() != data.differentialRotation()
                 || Display.isHelioradial3D() != data.helioradial3D()
-                || Display.isSurfaceFromImage() != data.surfaceFromImage();
+                || Display.isSurfaceFromImage() != data.surfaceFromImage()
+                || Display.isHelioradialPerObserver() != data.helioradialPerObserver();
 
         if (!changed)
             return;
@@ -425,6 +431,7 @@ public final class ViewState {
             setDifferentialRotation(data.differentialRotation());
             Display.setHelioradial3D(data.helioradial3D());
             Display.setSurfaceFromImage(data.surfaceFromImage());
+            Display.setHelioradialPerObserver(data.helioradialPerObserver());
         } finally {
             suppressModeNotifications = false;
         }
@@ -452,7 +459,8 @@ public final class ViewState {
                 showCorona == null ? current.showCorona() : showCorona,
                 differentialRotation == null ? current.differentialRotation() : differentialRotation,
                 current.helioradial3D(),
-                current.surfaceFromImage()));
+                current.surfaceFromImage(),
+                current.helioradialPerObserver()));
     }
 
     public static void applyModeUpdateRaw(

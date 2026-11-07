@@ -50,7 +50,6 @@ public final class RightSidebar implements SectionHost {
     private static final int MAX_WIDTH = 900;
     private static final int DEFAULT_WIDTH = 320;
     private static final int HANDLE_WIDTH = 16;
-    private static final int SCROLLBAR_WIDTH = 10; // FlatLaf's own default, as both other scrollers use
     private static final int DRAG_THRESHOLD = 3;
 
     private static final String KEY_WIDTH = "ui.rightSidebarWidth";
@@ -127,7 +126,7 @@ public final class RightSidebar implements SectionHost {
         // a viewport background is a plain Color that updateComponentTreeUI will not touch.
         org.helioviewer.jhv.gui.UIGlobals.themed(scroller.getViewport(),
                 c -> c.setBackground(javax.swing.UIManager.getColor("Panel.background")));
-        scroller.getVerticalScrollBar().setPreferredSize(new Dimension(SCROLLBAR_WIDTH, 0));
+        PanelVisibility.styleScrollBar(scroller.getVerticalScrollBar());
         scroller.getVerticalScrollBar().setUnitIncrement(16);
         // The same pair the left sidebar has had at its top. Both bars can hold any palette now,
         // so a control that exists on one and not the other is just a thing you have to remember

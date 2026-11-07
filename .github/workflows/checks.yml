@@ -101,24 +101,10 @@ jobs:
   # macOS was left out at first on the grounds that it is tested by hand every day. That was wrong
   # in one specific way: OpenJpeg.lookup() prefers /opt/homebrew/opt/openjpeg before anything else,
   # so a local run links Homebrew's copy and the dylib that actually ships in the dmg is never
-  # exercised. These jobs name the shipped one outright. Intel is here because an Apple Silicon Mac
-  # cannot run jhv-natives-macos.jar at all, and we ship it. The setup action picks the natives jar
+  # exercised. These jobs name the shipped one outright. The setup action picks the natives jar
   # from runner.arch.
-  macos:
-    name: macos-${{ matrix.arch }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: arm64
-            runner: macos-latest
-          # macos-13 was retired and a job asking for it queues silently rather than failing, so
-          # it sat five hours without starting. macOS 26 is the last release Apple ships for
-          # Intel, so this is the longest-lived x64 label there will be. Not -large: that suffix
-          # is a paid larger runner.
-          - arch: x64
-            runner: macos-26-intel
-    runs-on: ${{ matrix.runner }}
+  macos-arm64:
+    runs-on: macos-latest
     timeout-minutes: 30
 
     steps:
@@ -132,6 +118,71 @@ jobs:
 
       # -Djhv.openjpeg rather than a search path: a runner carrying Homebrew's openjpeg would
       # otherwise shadow ours silently, which is the exact trap that hid this gap on the laptop.
+      - name: Prove the decoder actually ran
+        run: |
+          CP="bin:extra/test-classes:resources:$(find lib -name '*.jar' | tr '\n' ':')"
+          java -Djhv.openjpeg="$PWD/natives/libopenjp2.dylib" -cp "$CP" \
+               org.helioviewer.jhv.view.j2k.opj.OpenJpegDecodeCheck | tee decode.log
+          if grep -q SKIPPED decode.log; then
+            echo "::error::OpenJPEG did not load from the dylib we ship"
+            exit 1
+          fi
+
+  # Decides whether a pull request needs the Intel Mac job. It takes about 10 minutes against 3
+  # to 4 for every other job (measured: queue time is about 3 seconds, the runner is just slow),
+  # and an Intel Mac differs from the Apple Silicon one only in the amd64 natives we ship. So a
+  # pull request runs it only when it touches natives, the OpenJPEG or Metal code, the setup
+  # action or this workflow. Pushes to master and manual runs always run it.
+  intel-needed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Decide
+        id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT" != pull_request ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          files=$(git diff --name-only "$BASE_SHA...$HEAD_SHA")
+          echo "$files"
+          if echo "$files" | grep -Eiq '^(native/|lib/jhv/|build\.xml$|extra/run-checks\.sh$|\.github/(workflows/checks\.yml|actions/))|(openjp|opj|metal|natives)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No native-facing change, so the Intel Mac job is skipped on this pull request."
+          fi
+
+  # Intel is here because an Apple Silicon Mac cannot run jhv-natives-macos.jar at all, and we
+  # ship it. macos-13 was retired and a job asking for it queues silently rather than failing, so
+  # it sat five hours without starting. macOS 26 is the last release Apple ships for Intel, so
+  # this is the longest-lived x64 label there will be. Not -large: that suffix is a paid larger
+  # runner. Not a required check: it is slow, so a skipped or red run here does not block a merge.
+  macos-x64:
+    needs: intel-needed
+    if: needs.intel-needed.outputs.run == 'true'
+    runs-on: macos-26-intel
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: ./.github/actions/setup-hfstudio
+
+      - name: Run the checks
+        run: ant test
+
       - name: Prove the decoder actually ran
         run: |
           CP="bin:extra/test-classes:resources:$(find lib -name '*.jar' | tr '\n' ':')"

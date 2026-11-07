@@ -26,6 +26,14 @@ corona more of the screen. The disk itself is never warped, so the Sun does not 
 the picture to a disc, in solar radii, and frames that disc without changing the warp; leftmost is
 automatic, no crop.
 
+**Render in 3D** draws Helioradial as a surface the camera can orbit. With **Each image at its
+observer** (on for a new session) every image layer's surface stands as its own observer saw it, as
+in Orthographic: a Solar Orbiter or STEREO frame is tilted against an Earth-view frame by the
+angle between the spacecraft, so the offsets between instruments show when the view is turned.
+The warp moves each point along its direction from Sun centre, so a tilted surface keeps its shape.
+Off, every layer faces the viewpoint, as before; a session saved before the choice opens with it
+off.
+
 **Helioradial Unrolled** unrolls the corona into a strip: position angle along one axis and the same
 radial stretch along the other, so radial structure can be read at a glance.
 
@@ -60,6 +68,30 @@ Projection palette; its sky controls appear alongside.
   When no model matches, its tooltip says so. **Outside**, beside it, switches the camera to
   **Overview**, framed to hold the Sun and that layer's observer, turned so the observer sits
   straight below the Sun; press it again to put the camera back as it was.
+- **3D Scene**, a section of the left sidebar, lists what is placed in 3D space: spacecraft models
+  and point clouds. Its **Enlarge** (1x to 10^10x) and **Min size** (0 to 50 px across) size every
+  model at once, so spacecraft stay visible at their real distances. A model's own **Enlarge
+  (x scene)** multiplies the scene's, and its **Min size (x scene)** is a multiple of the scene's
+  (1 is the scene's, 0 switches the floor off), so one model can stand out. The scene's sizes are
+  saved with the session; **Settings > General > 3D scene** takes the current sizes as the ones a new
+  session starts with.
+- **FOV**, an overlay, outlines instruments' fields of view. In a 3D view (Orthographic or
+  Helioradial) each field is drawn as a translucent cone from its spacecraft to as far from it as
+  the Sun is, named on screen at its far end: a coronagraph's annulus about the Sun line, a
+  heliospheric imager's square field to one side (STEREO HI toward Earth, SoloHI to solar east,
+  WISPR ahead along Parker Solar Probe's orbit). **Cones** and **Labels**, at the top of its
+  options, switch these off; with Cones off, fields are outlines on the plane of the sky. A
+  field is not drawn before its instrument started observing. Off-Sun fields are drawn as squares
+  at the elongations HelioFleet lists, which is the precision of a planning view, not of a
+  pointing solution.
+  In the flat projections (HPC, Observer Sky, Helioradial Unrolled, flat Helioradial) the fields are
+  projected onto the current observer's sky. **Coverage** draws the edge of the solar surface each
+  spacecraft with a field on can see, in every flat projection including Latitudinal, where
+  several viewpoints' overlap shows on the map. **Bodies** marks the inner planets, Jupiter and each
+  spacecraft with a field on; one off screen gets an arrow at the edge of the view with its
+  elongation from the Sun. Controls that do nothing in the current projection stay visible but
+  greyed, and their tooltips say where they apply; the 3D Scene's sizes are greyed in 2D for the
+  same reason.
 - **Track** keeps the view turning with the Sun as the movie plays; **Differential**, beside it,
   toggles differential rotation.
 - {menuselection}`View --> Reset View` (or a double-click on the canvas) returns the view to its
