@@ -98,7 +98,7 @@ jobs:
 
   windows:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -189,7 +189,7 @@ jobs:
     needs: windows
     if: github.event_name != 'push'
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 45   # HelioFITS Core's Python and its extension modules are signed too
     environment: Signing
     permissions:
       contents: read
@@ -209,11 +209,13 @@ jobs:
 
       # Files that already carry a valid signature keep it; the launcher and anything else unsigned
       # is signed and timestamped, so the signature stays valid after the certificate expires.
+      # That includes HelioFITS Core's Python and its .pyd extension modules, so Smart App Control
+      # does not block the engine behind Use FITS.
       - name: List the unsigned files
         id: unsigned
         shell: pwsh
         run: |
-          $files = Get-ChildItem pkg-out/HFStudio -Recurse -Include *.exe,*.dll |
+          $files = Get-ChildItem pkg-out/HFStudio -Recurse -Include *.exe,*.dll,*.pyd |
             Where-Object { (Get-AuthenticodeSignature $_.FullName).Status -ne 'Valid' } |
             ForEach-Object { $_.FullName }
           if (-not ($files -match '\\HFStudio\.exe$')) { throw "HFStudio.exe is not among the files to sign" }

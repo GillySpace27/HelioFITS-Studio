@@ -307,18 +307,30 @@ public final class FitsCoreIngest {
 
     /**
      * The Python of the HelioFITS Core packaged inside this Studio, or null when Studio runs from a
-     * build tree (no {@code jpackage.app-path}) or on a platform whose packages carry none yet. On
-     * macOS, release/deploy_release.sh puts it at {@code Contents/Resources/heliofits-core}.
+     * build tree (no {@code jpackage.app-path}). On macOS, release/deploy_release.sh puts it at
+     * {@code Contents/Resources/heliofits-core}; in the Windows and Linux packages,
+     * release/bundle_core.py puts it at {@code heliofits-core} beside the launcher and at
+     * {@code lib/heliofits-core}.
      *
      * @param appPath the launcher's own path, the {@code jpackage.app-path} property
      */
     @Nullable
     static Path studioCore(@Nullable String appPath, String osName) {
-        if (appPath == null || appPath.isEmpty() || !osName.startsWith("Mac"))
+        if (appPath == null || appPath.isEmpty())
             return null;
-        Path macos = Path.of(appPath).getParent(); // <app>/Contents/MacOS/<launcher>
-        Path contents = macos == null ? null : macos.getParent();
-        return contents == null ? null : contents.resolve("Resources").resolve("heliofits-core").resolve("bin").resolve("python3");
+        Path dir = Path.of(appPath).getParent();
+        if (dir == null)
+            return null;
+        if (osName.startsWith("Windows")) // <package>/HFStudio.exe
+            return dir.resolve("heliofits-core").resolve("python.exe");
+        Path up = dir.getParent(); // <app>/Contents/MacOS/<launcher> or <package>/bin/HFStudio
+        if (up == null)
+            return null;
+        if (osName.startsWith("Mac"))
+            return up.resolve("Resources").resolve("heliofits-core").resolve("bin").resolve("python3");
+        if (osName.startsWith("Linux"))
+            return up.resolve("lib").resolve("heliofits-core").resolve("bin").resolve("python3");
+        return null;
     }
 
     /** How long making a library may take: the core creates an empty index and writes HelioFITS Core's config. */
