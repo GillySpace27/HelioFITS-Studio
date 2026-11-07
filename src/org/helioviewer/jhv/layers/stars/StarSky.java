@@ -96,6 +96,33 @@ public final class StarSky {
     }
 
     /**
+     * Every star at or brighter than magLimit as a unit ray in the viewpoint's frame (x solar west,
+     * y solar north, z from the Sun toward the observer), the same rays compute() draws, with each
+     * one's catalogue row in {@code index}. Returns how many were written. For the cursor identifier.
+     */
+    public static int rays(Position viewpoint, StarCatalog cat, double magLimit, double[] rays, int[] index) throws SpiceErrorException {
+        double[] sc = observer(viewpoint);
+        double[][] frame = frame(sc[1], sc[2]);
+        double dyr = (viewpoint.time.milli / 1000. - EPOCH_SEC) / JYEAR_SEC;
+        double[][] carr = Spice.j2000ToSun.get(viewpoint.time);
+        double[] ray = new double[3];
+        int n = 0;
+        for (int i = 0; i < cat.size() && n < index.length; i++) {
+            if (cat.vmag[i] > magLimit)
+                continue;
+            double dec = Math.toRadians(cat.dec[i]) + cat.pmdec[i] * MAS * dyr;
+            double ra = Math.toRadians(cat.ra[i]) + cat.pmra[i] * MAS * dyr / Math.cos(Math.toRadians(cat.dec[i]));
+            starRay(frame, carr, ra, dec, ray);
+            rays[3 * n] = ray[0];
+            rays[3 * n + 1] = ray[1];
+            rays[3 * n + 2] = ray[2];
+            index[n] = i;
+            n++;
+        }
+        return n;
+    }
+
+    /**
      * Vertices for the 3D views: x, y on the plane through Sun centre normal to the line of sight
      * (d tan Tx, d tan Ty, the placement GaiaClient used), size in pixels. Bodies more than
      * MAX_ELONGATION_DEG from the Sun are left out.
