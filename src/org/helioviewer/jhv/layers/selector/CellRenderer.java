@@ -96,6 +96,7 @@ class CellRenderer {
             if (value instanceof Layer layer) {
                 checkBox.setSelected(layer.isEnabled());
             }
+            checkBox.setToolTipText("Show or hide this layer");
             checkBox.setBackground(background(table, value, isSelected));
             return checkBox;
         }
@@ -258,8 +259,11 @@ class CellRenderer {
             if (value instanceof Layer layer && layer.isDeletable()) {
                 setFont(font);
                 setText(Buttons.close);
-            } else
+                setToolTipText("Remove this layer");
+            } else {
                 setText(null);
+                setToolTipText(null);
+            }
         }
 
     }

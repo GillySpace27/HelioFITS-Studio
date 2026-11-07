@@ -255,7 +255,8 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         String renameKey = org.helioviewer.jhv.movie.ProcessingRecord.RENAME_KEY;
         JCheckBox renameSidecars = new JCheckBox("Rename old .hfrec.json sidecars when opened", Boolean.parseBoolean(Settings.getProperty(renameKey)));
         renameSidecars.setToolTipText("When Studio reads an export record still named .hfrec.json, rename it to .hfrec, "
-                + "unless a .hfrec is already there or the folder cannot be written. The content is not changed.");
+                + "unless a .hfrec is already there or the folder cannot be written. A record with no preview, renamed or opened in "
+                + "Open Export Record, also gains one made from the export beside it; nothing else in it changes.");
         renameSidecars.addActionListener(e -> Settings.setProperty(renameKey, Boolean.toString(renameSidecars.isSelected())));
 
         return new SettingsForm()

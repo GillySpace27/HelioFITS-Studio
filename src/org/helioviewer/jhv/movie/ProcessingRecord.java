@@ -906,12 +906,23 @@ public final class ProcessingRecord {
     /** Settings key of "Rename old .hfrec.json sidecars when opened" (default on, in Settings' defaults). */
     public static final String RENAME_KEY = "export.renameOldSidecars";
 
+    /** The setting {@link #RENAME_KEY}: upgrade an older sidecar when it is read (rename it, add a preview). */
+    public static boolean upgradeOnRead() {
+        return Boolean.parseBoolean(org.helioviewer.jhv.app.Settings.getProperty(RENAME_KEY));
+    }
+
     /**
      * Called after an older .hfrec.json sidecar was read and parsed: when the setting
-     * {@link #RENAME_KEY} is on, {@link #renameLegacy}. Returns where the sidecar is now.
+     * {@link #RENAME_KEY} is on, {@link #renameLegacy}, and when it was renamed, {@link #addPreview}.
+     * Returns where the sidecar is now.
      */
     public static Path migrateLegacy(Path side) {
-        return Boolean.parseBoolean(org.helioviewer.jhv.app.Settings.getProperty(RENAME_KEY)) ? renameLegacy(side) : side;
+        if (!upgradeOnRead())
+            return side;
+        Path now = renameLegacy(side);
+        if (!now.equals(side))
+            addPreview(now);
+        return now;
     }
 
     /**
@@ -938,46 +949,59 @@ public final class ProcessingRecord {
     }
 
     /**
-     * Migrate Sidecars in Folder, the rule of HelioFITS Core's {@code hfcore record migrate}: every
-     * *.hfrec.json under {@code root} (recursively, in name order) that parses as a record (a JSON
-     * object with a string "hfrecord") is renamed to .hfrec when {@code apply}, never over an
-     * existing .hfrec. Each row is {from, to, status}, status one of renamed, would_rename, exists,
-     * not_a_record or "error: ...". Off the event thread.
+     * Upgrade Sidecars in Folder. The rename is the rule of HelioFITS Core's {@code hfcore record
+     * migrate}: every *.hfrec.json under {@code root} (recursively, in name order) that parses as a
+     * record (a JSON object with a string "hfrecord") is renamed to .hfrec when {@code apply}, never
+     * over an existing .hfrec. Then every record now named .hfrec (renamed, or already so) that has no
+     * preview gains one when {@code apply} ({@link #addPreview}). Each row is {from, to, status,
+     * preview}: status one of renamed, would_rename, current (already .hfrec), exists, not_a_record or
+     * "error: ..."; preview one of has, missing (not applied), added, none (no export to make one
+     * from), or "" (not looked at). Off the event thread.
      */
     public static List<String[]> migrateFolder(Path root, boolean apply) throws IOException {
         List<Path> todo;
         try (java.util.stream.Stream<Path> walk = Files.walk(root)) {
-            todo = walk.filter(p -> p.getFileName().toString().endsWith(LEGACY_SUFFIX) && Files.isRegularFile(p)).sorted().toList();
+            todo = walk.filter(p -> isSidecarName(p.getFileName().toString()) && Files.isRegularFile(p)).sorted().toList();
         }
         List<String[]> out = new ArrayList<>();
-        for (Path old : todo) {
-            Path to = old.resolveSibling(exportName(old.getFileName().toString()) + SUFFIX);
-            String status;
+        for (Path side : todo) {
+            boolean legacy = side.getFileName().toString().endsWith(LEGACY_SUFFIX);
+            Path to = side.resolveSibling(exportName(side.getFileName().toString()) + SUFFIX);
+            String status, preview = "";
             try {
-                if (!isRecord(Files.readString(old, StandardCharsets.UTF_8)))
+                JSONObject record = record(Files.readString(side, StandardCharsets.UTF_8));
+                if (record == null)
                     status = "not_a_record";
+                else if (!legacy)
+                    status = "current";
                 else if (Files.exists(to))
                     status = "exists";
                 else if (apply) {
-                    Files.move(old, to);
+                    Files.move(side, to);
                     status = "renamed";
                 } else
                     status = "would_rename";
+                if (record != null && !"exists".equals(status))
+                    preview = record.has("preview") ? "has" : !apply ? "missing" : addPreview(to) ? "added" : "none";
             } catch (IOException | RuntimeException e) {
                 status = "error: " + e.getMessage();
             }
-            out.add(new String[]{old.toString(), to.toString(), status});
+            out.add(new String[]{side.toString(), to.toString(), status, preview});
         }
         if (apply)
-            Log.info("Migrate sidecars in " + root + ": " + out.stream().filter(r -> "renamed".equals(r[2])).count() + " renamed of " + out.size());
+            Log.info("Upgrade sidecars in " + root + ": " + out.stream().filter(r -> "renamed".equals(r[2])).count() + " renamed, "
+                    + out.stream().filter(r -> "added".equals(r[3])).count() + " previews added, of " + out.size());
         return out;
     }
 
-    private static boolean isRecord(String text) {
+    /** The record in {@code text}, or null when it is not one (not a JSON object with a string "hfrecord"). */
+    @Nullable
+    private static JSONObject record(String text) {
         try {
-            return new JSONObject(text).opt("hfrecord") instanceof String;
+            JSONObject jo = new JSONObject(text);
+            return jo.opt("hfrecord") instanceof String ? jo : null;
         } catch (RuntimeException e) {
-            return false;
+            return null;
         }
     }
 
@@ -1211,6 +1235,140 @@ public final class ProcessingRecord {
             Log.warn("No preview for " + sidecar.getFileName(), e);
         }
         return null;
+    }
+
+    // ---- adding a preview to a sidecar written before there was one -------------------------------
+
+    /** The ffmpeg Studio unpacks at startup and exports with (AppInit, ExportWriter), or null when it is not there. */
+    @Nullable
+    static Path ffmpeg() {
+        String dir = org.helioviewer.jhv.io.Directories.libCacheDir;
+        Path f = dir == null ? null : Path.of(dir, "ffmpeg");
+        return f != null && Files.isExecutable(f) ? f : null;
+    }
+
+    /** {@link #addPreview(Path, Path)} with Studio's own ffmpeg. */
+    public static boolean addPreview(Path side) {
+        return addPreview(side, ffmpeg());
+    }
+
+    /**
+     * Gives a sidecar written before Studio embedded a preview one, made from the export beside it
+     * named in output.file_name, by the same {@link #preview} an export uses: a PNG or JPEG still
+     * itself, the middle file of a PNG frame series, the middle frame of a movie through
+     * {@code ffmpeg} (output.frames and output.fps place it; with no ffmpeg, a movie gets none).
+     * EXR, FITS, anything missing or unreadable: none. The file is rewritten only when a preview was
+     * made, and then only gains {@code ,\n  "preview": {...}} before its closing brace, so every
+     * other byte stays as it was. Only a writable record without a preview, in a writable folder.
+     * Returns true when it wrote. Never throws.
+     */
+    static boolean addPreview(Path side, @Nullable Path ffmpeg) {
+        try {
+            Path dir = side.toAbsolutePath().getParent();
+            if (dir == null || !Files.isRegularFile(side) || !Files.isWritable(side) || !Files.isWritable(dir))
+                return false;
+            String text = Files.readString(side, StandardCharsets.UTF_8);
+            JSONObject record = record(text);
+            if (record == null || record.has("preview"))
+                return false;
+            JSONObject preview = exportPreview(record, side, ffmpeg);
+            String out = preview == null ? null : withPreview(text, preview);
+            if (out == null)
+                return false;
+            Path tmp = side.resolveSibling(side.getFileName() + ".tmp");
+            Files.writeString(tmp, out, StandardCharsets.UTF_8);
+            Files.move(tmp, side, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            Log.info("Processing record preview added: " + side.getFileName());
+            return true;
+        } catch (IOException | RuntimeException e) {
+            Log.info("No preview added to " + side.getFileName() + ": " + e); // skipped quietly: the sidecar is whole without one
+            return false;
+        }
+    }
+
+    /** {@code text} (a JSON object) with "preview" added as its last member, the rest byte for byte; null when it is not an object with members. */
+    @Nullable
+    static String withPreview(String text, JSONObject preview) {
+        int end = text.length();
+        while (end > 0 && Character.isWhitespace(text.charAt(end - 1)))
+            end--;
+        if (end == 0 || text.charAt(end - 1) != '}')
+            return null;
+        int last = end - 1;
+        while (last > 0 && Character.isWhitespace(text.charAt(last - 1)))
+            last--;
+        if (last <= 1 || text.charAt(last - 1) == '{')
+            return null;
+        return text.substring(0, last) + ",\n  \"preview\": " + previewText(preview) + text.substring(last);
+    }
+
+    private static boolean isPicture(String name) {
+        String lower = name.toLowerCase(Locale.ROOT);
+        return lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg");
+    }
+
+    /** The preview of the export {@code record} describes, beside {@code side}; null when there is none to make. */
+    @Nullable
+    private static JSONObject exportPreview(JSONObject record, Path side, @Nullable Path ffmpeg) throws IOException {
+        JSONObject out = record.optJSONObject("output");
+        String name = out == null ? "" : out.optString("file_name");
+        Path base = name.isEmpty() ? null : Path.of(name).getFileName();
+        if (base == null)
+            return null;
+        Path file = side.resolveSibling(base);
+        switch (out.optString("kind")) {
+            case "still":
+                return isPicture(name) && Files.isRegularFile(file) ? stillPreview(file, null) : null;
+            case "frame_series":
+                if (!Files.isDirectory(file))
+                    return null;
+                List<Path> frames;
+                try (java.util.stream.Stream<Path> list = Files.list(file)) {
+                    frames = list.filter(f -> isPicture(f.getFileName().toString()) && Files.isRegularFile(f)).sorted().toList();
+                }
+                if (frames.isEmpty())
+                    return null;
+                int mid = frames.size() / 2;
+                return stillPreview(frames.get(mid), frames.size() > 1 ? Integer.valueOf(mid) : null);
+            case "movie":
+                return ffmpeg != null && Files.isRegularFile(file) ? moviePreview(ffmpeg, file, out.optInt("frames"), out.optDouble("fps", 0)) : null;
+            default: // exr_series, fits_data
+                return null;
+        }
+    }
+
+    @Nullable
+    private static JSONObject stillPreview(Path file, @Nullable Integer frame) throws IOException {
+        BufferedImage image = ImageIO.read(file.toFile());
+        return image == null ? null : preview(image, frame);
+    }
+
+    /** Frame frames/2 of {@code movie} (as ExportWriter picks it), decoded by ffmpeg to one PNG; the first frame when frames or fps is unknown. */
+    @Nullable
+    private static JSONObject moviePreview(Path ffmpeg, Path movie, int frames, double fps) throws IOException {
+        List<String> command = new ArrayList<>(List.of(ffmpeg.toString(), "-nostdin", "-v", "error"));
+        Integer frame = null;
+        if (frames > 1 && fps > 0) {
+            frame = frames / 2;
+            // half a frame early: the first frame at or after it is the one asked for, whatever the rounding
+            command.addAll(List.of("-ss", String.format(Locale.ROOT, "%.6f", (frame - 0.5) / fps)));
+        }
+        command.addAll(List.of("-i", movie.toString(), "-frames:v", "1", "-pix_fmt", "rgb24", "-c:v", "png", "-f", "image2pipe", "pipe:1"));
+        Process p = new ProcessBuilder(command).redirectError(ProcessBuilder.Redirect.DISCARD).start();
+        byte[] png;
+        try (java.io.InputStream in = p.getInputStream()) {
+            png = in.readAllBytes();
+        } finally {
+            try {
+                if (!p.waitFor(30, java.util.concurrent.TimeUnit.SECONDS))
+                    p.destroyForcibly();
+            } catch (InterruptedException e) {
+                p.destroyForcibly();
+                Thread.currentThread().interrupt();
+            }
+        }
+        BufferedImage image = png.length == 0 ? null : ImageIO.read(new ByteArrayInputStream(png));
+        return image == null ? null : preview(image, frame);
     }
 
     // ---- the embedded copy (heliosoftware/spec/processing-record.md, "Where each format keeps it") ---

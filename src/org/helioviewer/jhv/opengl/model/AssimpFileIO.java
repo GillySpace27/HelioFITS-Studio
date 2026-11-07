@@ -76,6 +76,8 @@ final class AssimpFileIO implements AutoCloseable {
                 boolean mainResource = uri.equals(source.sourceUri());
                 DataUri dataUri = mainResource ? source : NetFileCache.get(uri);
                 data = readResource(dataUri, mainResource);
+                if (mainResource)
+                    data = GltfWebpFallback.apply(data);
                 resources.put(uri, data);
             }
 
