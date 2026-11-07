@@ -131,14 +131,14 @@
     {
       "id": "compare",
       "title": "Before and after",
-      "text": "Layers > Duplicate Layer adds a copy of the selected image layer. Compare, on the toolbar, then blinks between two layers or swipes a divider across the view.",
+      "text": "Layers > Duplicate Layer adds a copy of the selected image layer. Compare, on the toolbar or in its More menu, then blinks between two layers or swipes a divider across the view.",
       "action": "duplicateLayer",
       "target": "compare"
     },
     {
       "id": "pizza",
       "title": "Every channel at once",
-      "text": "Pizza, on the toolbar, cuts every shown image layer into its own wedges of one Sun, so the same patch is seen through every filter. Turn the cut, or record a seamless spin while the data stands still.",
+      "text": "Pizza, on the toolbar or in its More menu, cuts every shown image layer into its own wedges of one Sun, so the same patch is seen through every filter. Turn the cut, or record a seamless spin while the data stands still.",
       "target": "pizza"
     },
     {
@@ -150,7 +150,7 @@
     {
       "id": "projection",
       "title": "Change the projection",
-      "text": "Projection, on the toolbar, opens a palette that changes how the Sun is mapped onto the screen: Orthographic, HPC, Helioradial or Latitudinal.",
+      "text": "Projection, on the toolbar or in its More menu, opens a palette that changes how the Sun is mapped onto the screen: Orthographic, HPC, Helioradial or Latitudinal.",
       "target": "projection",
       "tour": "views-and-projections"
     },
@@ -207,7 +207,7 @@
     {
       "id": "hdr",
       "title": "HDR",
-      "text": "HDR, on the toolbar, sets how the whole view is mapped into the display's extended range: headroom, mapping, knee, in-range share and clipped pixels.",
+      "text": "HDR, on the toolbar or in its More menu, sets how the whole view is mapped into the display's extended range: headroom, mapping, knee, in-range share and clipped pixels.",
       "target": "colour"
     },
     {

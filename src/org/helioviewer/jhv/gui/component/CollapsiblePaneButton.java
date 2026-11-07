@@ -40,6 +40,19 @@ class CollapsiblePaneButton extends JToggleButton {
         UIGlobals.themed(this, c -> restyle());
     }
 
+    /**
+     * The tooltip with the section's key after it, worked out when it is shown: the key follows the
+     * section's place in its sidebar, which changes whenever a section is moved, added or popped out.
+     */
+    @Override
+    public String getToolTipText() {
+        String tip = super.getToolTipText();
+        if (tip == null || !(javax.swing.SwingUtilities.getAncestorOfClass(CollapsiblePane.class, this) instanceof CollapsiblePane pane))
+            return tip;
+        String key = PanelKeys.keyText(pane);
+        return key == null ? tip : tip + " (" + key + ")";
+    }
+
     /** Title colour and inset for the current theme and panel-visibility options. */
     void restyle() {
         Theme theme = Theme.current();

@@ -149,6 +149,54 @@ Every command HelioFITS Studio has, as the menus, Help > Search Controls and the
 * - View > Present
   - Presentation mode: output only, fullscreen (Esc to leave)
   - `present`
+* - View > Left Sidebar Panels > Left Sidebar Panel 1
+  - Fold or show section 1 of the left sidebar, the one numbered 1; moving a section changes its number
+  - `foldLeftPanel1`
+* - View > Left Sidebar Panels > Left Sidebar Panel 2
+  - Fold or show section 2 of the left sidebar, the one numbered 2; moving a section changes its number
+  - `foldLeftPanel2`
+* - View > Left Sidebar Panels > Left Sidebar Panel 3
+  - Fold or show section 3 of the left sidebar, the one numbered 3; moving a section changes its number
+  - `foldLeftPanel3`
+* - View > Left Sidebar Panels > Left Sidebar Panel 4
+  - Fold or show section 4 of the left sidebar, the one numbered 4; moving a section changes its number
+  - `foldLeftPanel4`
+* - View > Left Sidebar Panels > Left Sidebar Panel 5
+  - Fold or show section 5 of the left sidebar, the one numbered 5; moving a section changes its number
+  - `foldLeftPanel5`
+* - View > Left Sidebar Panels > Left Sidebar Panel 6
+  - Fold or show section 6 of the left sidebar, the one numbered 6; moving a section changes its number
+  - `foldLeftPanel6`
+* - View > Left Sidebar Panels > Left Sidebar Panel 7
+  - Fold or show section 7 of the left sidebar, the one numbered 7; moving a section changes its number
+  - `foldLeftPanel7`
+* - View > Left Sidebar Panels > Left Sidebar Panel 8
+  - Fold or show section 8 of the left sidebar, the one numbered 8; moving a section changes its number
+  - `foldLeftPanel8`
+* - View > Right Sidebar Panels > Right Sidebar Panel 1
+  - Fold or show section 1 of the right sidebar, the one numbered 1; moving a section changes its number
+  - `foldRightPanel1`
+* - View > Right Sidebar Panels > Right Sidebar Panel 2
+  - Fold or show section 2 of the right sidebar, the one numbered 2; moving a section changes its number
+  - `foldRightPanel2`
+* - View > Right Sidebar Panels > Right Sidebar Panel 3
+  - Fold or show section 3 of the right sidebar, the one numbered 3; moving a section changes its number
+  - `foldRightPanel3`
+* - View > Right Sidebar Panels > Right Sidebar Panel 4
+  - Fold or show section 4 of the right sidebar, the one numbered 4; moving a section changes its number
+  - `foldRightPanel4`
+* - View > Right Sidebar Panels > Right Sidebar Panel 5
+  - Fold or show section 5 of the right sidebar, the one numbered 5; moving a section changes its number
+  - `foldRightPanel5`
+* - View > Right Sidebar Panels > Right Sidebar Panel 6
+  - Fold or show section 6 of the right sidebar, the one numbered 6; moving a section changes its number
+  - `foldRightPanel6`
+* - View > Right Sidebar Panels > Right Sidebar Panel 7
+  - Fold or show section 7 of the right sidebar, the one numbered 7; moving a section changes its number
+  - `foldRightPanel7`
+* - View > Right Sidebar Panels > Right Sidebar Panel 8
+  - Fold or show section 8 of the right sidebar, the one numbered 8; moving a section changes its number
+  - `foldRightPanel8`
 ```
 
 ## Layers
