@@ -5,6 +5,9 @@ Each new entry ends with a `[docs: ...]` pointer to where it is documented (`rel
 
 ## HelioFITS Studio 0.9.2 (unreleased)
 
+### Fixes
+- The imagery no longer flickers as the pointer moves over it. The colour legend asked for a full redraw on every mouse move, wherever the pointer was; it now redraws only while the pointer is on the legend or its tooltip is up. With Stars on, a redraw at a viewpoint whose stars were not yet built also dropped every star for a frame; the previous stars now stay until the new ones are ready. [docs: docs/starfield.md]
+
 ### Identify under cursor
 - View > Identify Under Cursor names the Sun, the Moon or a planet under the pointer in the footer, as each image layer's own observer saw it at that frame's time, so the Moon in a PUNCH mosaic or a planet in LASCO C3 is named where it is drawn. It works in Orthographic, HPC, Observer Sky, Helioradial and Helioradial Unrolled. A body that is off the imagery says why (behind the Sun, behind the occulter, outside the field). View > Identify Tooltip adds the name, distance and angle from the Sun beside the pointer when it rests. Settings > Identify has the tolerances. [docs: docs/identify.md]
 - New commands identifyAt, identifyLocate, identifyInField and identifySet. identifyInField says when each body is in a field of view over a date range, by day, from the ephemeris: a quick way to find a date without the Moon in PUNCH. [docs: docs/identify.md]

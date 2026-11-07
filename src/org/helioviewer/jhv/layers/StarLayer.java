@@ -76,6 +76,8 @@ public final class StarLayer extends AbstractLayer implements ViewpointListener 
 
     private final Cache<Key, Sky> cache = Caffeine.newBuilder().softValues().maximumSize(64).build();
     private final Set<Key> pending = new HashSet<>();
+    @Nullable
+    private Sky lastSky;
     private final GLSLShape points = new GLSLShape(true);
     @Nullable
     private BufVertex uploadedBuf;
@@ -133,6 +135,7 @@ public final class StarLayer extends AbstractLayer implements ViewpointListener 
         Log.info("Star catalogue ready: " + c.size() + " stars");
         setStatus(String.format("%,d stars to V = %.0f", c.size(), StarCatalog.MAX_MAGNITUDE));
         cache.invalidateAll();
+        lastSky = null;
         DisplayController.display();
     }
 
@@ -223,9 +226,14 @@ public final class StarLayer extends AbstractLayer implements ViewpointListener 
             return null;
         Position viewpoint = mv.viewpoint();
         Sky sky = cache.getIfPresent(new Key(viewpoint, style()));
-        if (sky == null)
-            viewpointChanged(viewpoint); // first frame after a style change, or an interpolated viewpoint
-        return sky;
+        if (sky != null) {
+            lastSky = sky;
+            return sky;
+        }
+        viewpointChanged(viewpoint); // first frame after a style change, or an interpolated viewpoint
+        // Keep drawing the previous sky until the new one is built; returning nothing blanked every star
+        // for the frame in between, which showed as flicker on any redraw at a viewpoint not yet cached.
+        return lastSky;
     }
 
     // Options
