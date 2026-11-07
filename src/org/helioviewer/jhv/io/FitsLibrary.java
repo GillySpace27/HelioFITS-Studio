@@ -218,6 +218,11 @@ public final class FitsLibrary {
         return !Files.exists(root) && Files.isRegularFile(legacy.resolve(LEGACY_DB_NAME)) ? legacy : root;
     }
 
+    /** Whether a folder already is a FITS library: it has an index. */
+    public static boolean isLibrary(Path root) {
+        return Files.isRegularFile(index(root));
+    }
+
     /** Whether a folder could become a new library: absent, empty, or already a library (it has an index). */
     public static boolean canMakeLibraryAt(Path root) {
         if (!Files.exists(root) || Files.isRegularFile(index(root)))

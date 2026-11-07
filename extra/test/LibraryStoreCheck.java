@@ -42,6 +42,7 @@ public final class LibraryStoreCheck {
             return;
         }
         Directories.FILECACHE.getFile().mkdirs();
+        Directories.SETTINGS.getFile().mkdirs(); // autoCreate marks itself done in Settings
         Path root = home.resolve("HelioFITSLibrary");
         Files.createDirectories(root.resolve("store"));
         Files.createDirectories(configDir);
@@ -68,14 +69,26 @@ public final class LibraryStoreCheck {
         expect("a stored file that is gone is a miss", LibraryStore.lookup(gone, NetFileCache.cacheNames(gone)) == null);
         expect("a URL nobody stored is a miss", LibraryStore.lookup(never, NetFileCache.cacheNames(never)) == null);
 
-        LibraryStore.remember(NetFileCache.cacheNames(moved).getFirst(), "store/moved.fits");
+        LibraryStore.remember(root, NetFileCache.cacheNames(moved).getFirst(), "store/moved.fits");
         LibraryStore.reset(); // read the moves file back, as a new launch would
         File m = LibraryStore.lookup(moved, NetFileCache.cacheNames(moved));
         expect("a file moved from the cache is found by its cache name, after a relaunch",
                 m != null && m.toPath().equals(root.resolve("store/moved.fits")));
-        LibraryStore.remember(NetFileCache.cacheNames(never).get(1), "store/moved.fits");
+        LibraryStore.remember(root, NetFileCache.cacheNames(never).get(1), "store/moved.fits");
         File legacy = LibraryStore.lookup(never, NetFileCache.cacheNames(never));
         expect("a file moved under its pre-2026-09-28 digest name is found too", legacy != null);
+        URI elsewhere = URI.create("https://a.example/elsewhere.fits");
+        LibraryStore.remember(home.resolve("OtherLibrary"), NetFileCache.cacheNames(elsewhere).getFirst(), "store/moved.fits");
+        LibraryStore.reset();
+        expect("a move recorded for another library (one used before a change of folder) is not followed",
+                LibraryStore.lookup(elsewhere, NetFileCache.cacheNames(elsewhere)) == null);
+
+        File fits = home.resolve("probe.fits").toFile();
+        Files.copy(FIXTURE, fits.toPath());
+        expect("no library is made by itself off macOS", LibraryStore.autoCreate(fits, false) == null);
+        String config = Files.readString(configDir.resolve("config.json"));
+        expect("nor where HelioFITS Core already has a config (a library on a drive not connected is never replaced)",
+                LibraryStore.autoCreate(fits, true) == null && Files.readString(configDir.resolve("config.json")).equals(config));
 
         File inCache = NetFileCache.cachedFile(byUrl);
         expect("cachedFile gives the library's copy when the cache has none", inCache.toPath().equals(root.resolve("store/by-url.fits")));
@@ -91,6 +104,7 @@ public final class LibraryStoreCheck {
                 LibraryStore.lookup(byUrl, NetFileCache.cacheNames(byUrl)) == null);
 
         realCore(home);
+        autoCreateReal(fits);
         System.out.println(failures == 0 ? "LibraryStoreCheck: all passed" : "LibraryStoreCheck: " + failures + " FAILED");
         System.exit(failures == 0 ? 0 : 1);
     }
@@ -103,9 +117,13 @@ public final class LibraryStoreCheck {
             return;
         }
         Path root = home.resolve("RealLibrary");
-        FitsCoreIngest.runCommand(java.time.Duration.ofMinutes(1), "--library", root.toString(), "init");
+        java.util.List<String> synced = FitsCoreIngest.useLibrary(home.resolve("Dropbox").resolve("Library"));
+        expect("a folder in a sync service comes back with HelioFITS Core's warning, got " + synced,
+                synced.size() == 1 && synced.getFirst().contains("sync service"));
+        java.util.List<String> warnings = FitsCoreIngest.useLibrary(root); // Settings > FITS Library > Choose Folder...
         FitsLibrary.Location lib = FitsLibrary.find();
-        expect("hfcore init made the library Studio finds, got " + lib, lib != null && lib.root().equals(root));
+        expect("choosing a new folder made the library Studio finds, got " + lib + ", warnings " + warnings,
+                lib != null && lib.root().equals(root) && warnings.isEmpty());
         URI uri = URI.create("https://archive.example/" + FIXTURE.getFileName());
         File first = new File(Directories.FILECACHE.getFile(), NetFileCache.cacheNames(uri).getFirst());
         Files.copy(FIXTURE, first.toPath());
@@ -128,6 +146,25 @@ public final class LibraryStoreCheck {
                 dup != null && dup.equals(stored) && !second.exists());
         expect("the mirror URL is found through the index too",
                 lib != null && FitsLibrary.bySource(lib, FitsCoreIngest.provenance(mirror)) != null);
+    }
+
+    /** With a real core, on a fresh home with no config: the first FITS download makes ~/HelioFITSLibrary, once. */
+    private static void autoCreateReal(File fits) throws Exception {
+        if (System.getenv("HFCORE_CORE") == null || System.getenv("HFCORE_CORE").isEmpty()) {
+            System.out.println("  skip making a library by itself: HFCORE_CORE is not set");
+            return;
+        }
+        Path home = Files.createTempDirectory("hfs-autolib");
+        System.setProperty("user.home", home.toString());
+        LibraryStore.reset();
+        File text = home.resolve("notes.txt").toFile();
+        Files.writeString(text.toPath(), "not FITS");
+        expect("a file that is not FITS makes no library", LibraryStore.autoCreate(text, true) == null);
+        FitsLibrary.Location lib = LibraryStore.autoCreate(fits, true);
+        expect("the first FITS download on a Mac with no library makes ~/HelioFITSLibrary, got " + lib,
+                lib != null && lib.root().equals(home.resolve("HelioFITSLibrary")));
+        Files.delete(FitsLibrary.configDir().resolve("config.json"));
+        expect("and only once", LibraryStore.autoCreate(fits, true) == null);
     }
 
     private LibraryStoreCheck() {}
