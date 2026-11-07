@@ -6,6 +6,7 @@ Each new entry ends with a `[docs: ...]` pointer to where it is documented (`rel
 ## HelioFITS Studio 0.9.2 (unreleased)
 
 ### Fixes
+- The Windows and Linux packages now carry HelioFITS Core, the FITS library engine, as the Mac app already did, so Use FITS and the FITS library work there without installing anything. It is the same pinned core, in its own Python inside the package, and on Windows its files are signed with the rest of Studio. [docs: docs/storage-folders.md]
 - The imagery no longer flickers as the pointer moves over it. The colour legend asked for a full redraw on every mouse move, wherever the pointer was; it now redraws only while the pointer is on the legend or its tooltip is up. With Stars on, a redraw at a viewpoint whose stars were not yet built also dropped every star for a frame; the previous stars now stay until the new ones are ready. [docs: docs/starfield.md]
 
 ### Identify under cursor
