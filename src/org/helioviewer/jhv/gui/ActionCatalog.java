@@ -152,8 +152,8 @@ public final class ActionCatalog {
         put("openExportsFolder", ExportsFolder.action(), "File/Open Exports Folder", "Show the folder movies, screenshots and metadata are exported to");
         put("openExportRecord", org.helioviewer.jhv.gui.dialog.ExportRecordDialog.openAction(), "File/Open Export Record...",
                 "Read an export's processing record (.hfrec) as a report; copy it as a methods paragraph or LaTeX, or save a Python script");
-        put("migrateSidecars", org.helioviewer.jhv.gui.dialog.ExportRecordDialog.migrateAction(), "File/Migrate Sidecars in Folder...",
-                "Rename the older .hfrec.json export records in a folder and its subfolders to .hfrec, after a count to confirm; never replaces a .hfrec");
+        put("migrateSidecars", org.helioviewer.jhv.gui.dialog.ExportRecordDialog.migrateAction(), "File/Upgrade Sidecars in Folder...",
+                "Rename the older .hfrec.json export records in a folder and its subfolders to .hfrec and add a preview to those without one, after a count to confirm; never replaces a .hfrec");
         put("study", org.helioviewer.jhv.gui.component.StudyPanel.openAction(), "Managers/Study Manager...", "What a scene exports: a table of views to export as a set (projection, lambda, field of view, layers), and study templates to start one from");
         put("taskManager", new javax.swing.AbstractAction("Task Manager...") {
             @Override
