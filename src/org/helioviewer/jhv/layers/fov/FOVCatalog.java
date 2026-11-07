@@ -93,6 +93,13 @@ public final class FOVCatalog {
         showLabels = v;
     }
 
+    /** Every enabled outline the pointer's sight line passes through, for the cursor identifier. */
+    public List<String> namesAt(org.helioviewer.jhv.identify.Identifier.Probe probe, org.helioviewer.jhv.time.JHVTime time) {
+        List<String> out = new ArrayList<>();
+        platforms.forEach(platform -> out.addAll(platform.namesAt(probe, time)));
+        return out;
+    }
+
     List<FOVPlatform> platforms() {
         return platforms;
     }

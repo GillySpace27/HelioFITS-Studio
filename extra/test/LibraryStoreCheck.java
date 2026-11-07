@@ -34,7 +34,7 @@ public final class LibraryStoreCheck {
     }
 
     public static void main(String[] args) throws Exception {
-        Path home = Files.createTempDirectory("hfs-onestore");
+        Path home = Files.createTempDirectory("hfs-onestore").toRealPath(); // real: on macOS /var is /private/var, and HelioFITS Core answers with real paths
         System.setProperty("user.home", home.toString());
         Path configDir = FitsLibrary.configDir();
         if (!configDir.startsWith(home)) {
@@ -154,7 +154,7 @@ public final class LibraryStoreCheck {
             System.out.println("  skip making a library by itself: HFCORE_CORE is not set");
             return;
         }
-        Path home = Files.createTempDirectory("hfs-autolib");
+        Path home = Files.createTempDirectory("hfs-autolib").toRealPath();
         System.setProperty("user.home", home.toString());
         LibraryStore.reset();
         File text = home.resolve("notes.txt").toFile();

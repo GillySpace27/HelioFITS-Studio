@@ -1,5 +1,27 @@
 # Storage folders
 
+Two folders can be large: the exports (`~/HFStudio/Exports`, movies, screenshots, Send to Python
+folders and their `.hfrec` records) and the persistent download cache (`~/HFStudio/FileCache`).
+Settings, sessions and the log always stay under `~/HFStudio`.
+
+Settings > Storage chooses another place for either. The choice is kept in
+`~/HFStudio/storage.properties` (keys `exports` and `filecache`), a file of its own because the
+folders are created before Settings is read. It takes effect at once; `Directories.EXPORTS` and
+`Directories.FILECACHE` ask `StorageFolders` on every call.
+
+- **Missing drive.** A chosen folder that is missing or not writable is not fatal: the default folder
+  is used for that session, Settings > Storage and the log say so, and the choice is kept for the next
+  launch. A link at the default place whose target is missing (the old workaround) also no longer
+  stops startup.
+- **Move existing files** (`StorageMove`) moves every top-level entry as a unit, so an export stays beside
+  its `.hfrec` / `.hfrec.json` and a `python-*` folder keeps its `hfrecord.json`. Cache files keep their
+  hashed names. A file is deleted from the source only after the copy has the same length, nothing at
+  the destination is overwritten, download temp files (`*.tmp`) stay, and overlapping folders are refused.
+- With a FITS library, FITS downloads move into the library (one store, below), so the download
+  cache holds only downloads in flight, files that are not FITS, and `library-moves.tsv`, which moves
+  with the folder like any other file.
+- Check: `extra/test/StorageFoldersCheck.java`.
+
 ## One store for FITS downloads
 
 With a FITS library (HelioFITS Core), the library is the one place a downloaded FITS file is kept
@@ -29,7 +51,8 @@ With a FITS library (HelioFITS Core), the library is the one place a downloaded 
   moved or emptied; the cache then moves into the new library once (`importCacheInBackground`).
 - **Status.** The tab names one case and its fix: on; set to a folder that is not there now (connect
   the drive, or choose another folder); none yet with a core (Choose Folder...); no core (Studio
-  works without one; macOS Studio includes it; elsewhere `HFCORE_CORE`).
+  works without one; the release packages include it: the Mac app since 0.9.1, the Windows and Linux
+  packages from 0.9.2 (`release/bundle_core.py`); a build from source needs `HFCORE_CORE`).
 - **Made by itself on macOS** (`LibraryStore.autoCreate`): the first FITS download makes
   `~/HelioFITSLibrary` when HelioFITS Core has no config at all, the folder is absent or empty, and a
   core is found. Once per computer (`fitslibrary.autoCreated` in Settings), with one notice.

@@ -93,6 +93,8 @@ public class HFStudio {
         Log.info("HelioFITS Studio started with command-line options: " + String.join(" ", args));
         if (Directories.migrationNote != null)
             Log.info(Directories.migrationNote);
+        if (org.helioviewer.jhv.io.StorageFolders.note() != null)
+            Log.warn(org.helioviewer.jhv.io.StorageFolders.note());
 
         // Read the version and revision from the JAR metafile
         AppInfo.loadVersion();

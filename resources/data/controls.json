@@ -287,6 +287,20 @@
       "where": "Projection palette",
       "words": "circular crop solar radii",
       "reveal": "showProjection"
+    },
+    {
+      "id": "calendarBodiesField",
+      "title": "Calendar: Bodies",
+      "where": "The date picker's calendar, below the days",
+      "words": "moon planets transit field calendar day without moon ephemeris",
+      "doc": "docs/identify.md"
+    },
+    {
+      "id": "calendarBodiesHide",
+      "title": "Calendar: Hide days with bodies",
+      "where": "The date picker's calendar, below the days",
+      "words": "moon free date without moon skip hide grey days",
+      "doc": "docs/identify.md"
     }
   ]
 }
