@@ -388,6 +388,15 @@ These are run by scripts and Search Controls rather than from a menu; the argume
 * - Command
   - What it does
   - Id
+* - Identify Under Cursor
+  - No arguments
+  - `identifyUnderCursor`
+* - Identify Tooltip
+  - No arguments
+  - `identifyTooltip`
+* - Identify Stars
+  - No arguments
+  - `identifyStars`
 * - Show the movie frame with this number (0 is the first)
   - Arguments: `frame`
   - `seekFrame`
@@ -430,6 +439,18 @@ These are run by scripts and Search Controls rather than from a menu; the argume
 * - Export one loop of the loaded frames as a movie in the format the settings choose, with its processing record beside it
   - Arguments: `path`, `long_side`
   - `exportMovie`
+* - Name the Sun, Moon and planets at a helioprojective direction, as an observer sees them
+  - Arguments: `observer`, `tx_deg`, `ty_deg`, `tolerance_deg`, `time`
+  - `identifyAt`
+* - Where a body is in an observer's sky: helioprojective Tx and Ty, distance, elongation, and whether the active layer's field holds it
+  - Arguments: `observer`, `time`, `body`
+  - `identifyLocate`
+* - When each body is in a field of view over a time range, by body and by UTC day: find dates with or without the Moon
+  - Arguments: `observer`, `inner_deg`, `half_width_deg`, `field`, `outer_deg`, `start`, `end`, `step_minutes`
+  - `identifyInField`
+* - Turn the cursor identifier and its tooltip and stars on or off, and set its tolerances; answers with every setting
+  - Arguments: `star_names_bayer`, `tolerance_pixels`, `earth_observer_uncertainty_km`, `tooltip_dwell_ms`, `light_time`, `tooltip`, `star_max_magnitude`, `pluto`, `stars`, `star_names_iau`, `enabled`
+  - `identifySet`
 * - List every command: its id, what it does and what it changes
   - No arguments
   - `listCommands`
