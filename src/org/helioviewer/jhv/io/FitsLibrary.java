@@ -218,6 +218,11 @@ public final class FitsLibrary {
         return !Files.exists(root) && Files.isRegularFile(legacy.resolve(LEGACY_DB_NAME)) ? legacy : root;
     }
 
+    /** Whether a folder already is a FITS library: it has an index. */
+    public static boolean isLibrary(Path root) {
+        return Files.isRegularFile(index(root));
+    }
+
     /** Whether a folder could become a new library: absent, empty, or already a library (it has an index). */
     public static boolean canMakeLibraryAt(Path root) {
         if (!Files.exists(root) || Files.isRegularFile(index(root)))
@@ -419,6 +424,26 @@ public final class FitsLibrary {
             // A key the dataset had before a rename (schema 5): the alias names its uid.
             String aliased = first(conn, "SELECT dataset_uid FROM dataset_aliases WHERE old_key = ?", uidOrKey);
             return aliased == null ? null : first(conn, byUid, aliased);
+        }
+    }
+
+    /**
+     * The stored file a download URL delivered (schema 6 {@code file_sources}, written by
+     * {@code ingest.path}), or null: no such table yet, no such URL, the file is gone, or the index
+     * cannot be read. Never throws: a miss means the file downloads again.
+     */
+    @Nullable
+    public static File bySource(Location lib, String url) {
+        try (Connection conn = open(lib)) {
+            if (!hasColumn(conn, "file_sources", "url"))
+                return null;
+            String rel = first(conn, "SELECT f.relpath FROM file_sources s JOIN files f ON f.id = s.file_id WHERE s.url = ?", url);
+            if (rel == null)
+                return null;
+            File f = lib.root().resolve(rel).toFile();
+            return f.isFile() ? f : null;
+        } catch (SQLException | TooNew e) {
+            return null;
         }
     }
 

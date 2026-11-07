@@ -96,7 +96,7 @@ public final class AssimpModelLoader {
 
         String name = source.mName().dataString();
         return new ModelScene(name.isEmpty() ? data.baseName() : name, time, meshes,
-                materialData.stream().map(MaterialData::material).toList(), textures);
+                materialData.stream().map(MaterialData::material).toList(), textures, observerRotation != null);
     }
 
     private static Matrix4f coordinateTransform(@Nullable Quat worldToObserver) {

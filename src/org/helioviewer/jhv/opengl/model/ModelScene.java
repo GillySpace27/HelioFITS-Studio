@@ -4,8 +4,18 @@ import java.util.List;
 
 import org.helioviewer.jhv.time.JHVTime;
 
+/**
+ * A loaded model. {@code heliocentric} is true when the file declared the heliocentric WCS metadata
+ * (docs/jhv-heliocentric-3d-data-interface.md), so its vertices are already placed about the Sun and
+ * must not be moved or rescaled by a model layer's placement settings.
+ */
 public record ModelScene(String name, JHVTime time, List<ModelMesh> meshes, List<ModelMaterial> materials,
-                         List<ModelTexture> textures) {
+                         List<ModelTexture> textures, boolean heliocentric) {
+
+    public ModelScene(String name, JHVTime time, List<ModelMesh> meshes, List<ModelMaterial> materials,
+                      List<ModelTexture> textures) {
+        this(name, time, meshes, materials, textures, false);
+    }
 
     public ModelScene {
         meshes = List.copyOf(meshes);
