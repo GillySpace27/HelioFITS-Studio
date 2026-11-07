@@ -111,6 +111,11 @@ def main():
         if subprocess.run([str(py), "-s", "-m", "pip", "install", "--quiet", "--no-cache-dir", "--no-compile",
                            "--disable-pip-version-check", f"{src}[archives]"]).returncode:
             die("installing HelioFITS Core failed")
+        # The trim the Mac bundle gets too (pyHelioFITS app/tools/trim_python.py, from #43 on): test
+        # suites, pip, IDLE, headers. Older pins have no script and ship untrimmed.
+        trim = Path(src) / "app" / "tools" / "trim_python.py"
+        if trim.is_file() and subprocess.run([sys.executable, str(trim), str(out)]).returncode:
+            die("trimming the bundled Python failed")
 
     for cache in list(out.rglob("__pycache__")):
         shutil.rmtree(cache, ignore_errors=True)

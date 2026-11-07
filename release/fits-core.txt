@@ -4,4 +4,4 @@
 # comment. Change it on a branch, with the release notes saying what the new core brings; Studio's
 # Use FITS and ingest speak to exactly this core. The core must have the heliofits_core package
 # (the rename): Studio runs it with -m heliofits_core.
-a8c769f6e6511c0397f80e0cbcc9143e0e2f05f5
+938b22997d77525440f529657e4dd675773ac80e
