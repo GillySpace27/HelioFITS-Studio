@@ -1,7 +1,9 @@
-# The HelioFITS Core commit (repository GillySpace27/heliad) that HelioFITS Studio's macOS app carries
-# (Contents/Resources/heliofits-core), built by deploy_release.sh with that commit's own
-# app/tools/bundle_python.sh. One full commit hash on the core's main, on the first line that is not a
-# comment. Change it on a branch, with the release notes saying what the new core brings; Studio's
-# Use FITS and ingest speak to exactly this core. The core must have the heliofits_core package
-# (the rename): Studio runs it with -m heliofits_core.
+# The HelioFITS Core commit (repository GillySpace27/pyHelioFITS, once GillySpace27/heliad) that
+# HelioFITS Studio's macOS app carries (Contents/Resources/heliofits-core), built by deploy_release.sh
+# with that commit's own app/tools/bundle_python.sh; release/bundle_core.py does the same for the
+# Windows and Linux packages. One full commit hash on the core's main, on the first line that is
+# not a comment. Change it on a branch, with the release notes saying what the new core brings;
+# Studio's Use FITS and ingest speak to exactly this core. The core must provide the Python package
+# Studio runs it as: pyheliofits.core (pyHelioFITS #44 and later) or heliofits_core (before it).
+# The bundling scripts find out which and write it to HFCORE_MODULE in the bundle.
 938b22997d77525440f529657e4dd675773ac80e

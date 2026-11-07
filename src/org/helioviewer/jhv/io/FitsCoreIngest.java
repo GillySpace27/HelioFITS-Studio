@@ -104,9 +104,93 @@ public final class FitsCoreIngest {
     /** The key's name before HelioFITS Core was renamed (it was Heliad): read while the new one is unset. */
     static final String LEGACY_IMPORTED_KEY = "heliad.cacheImported";
 
-    /** The core's Python package, and its name from before the rename, which cores from both sides of it have. */
+    /**
+     * The core's Python package: {@code pyheliofits.core} from pyHelioFITS #44 on, {@code heliofits_core}
+     * before it (and the default when a Python cannot be asked), {@code heliad} from before the rename to
+     * HelioFITS Core. {@link #moduleOf} tells which one a given Python has.
+     */
+    static final String PYHELIOFITS_MODULE = "pyheliofits.core";
     static final String MODULE = "heliofits_core";
     static final String LEGACY_MODULE = "heliad";
+    /**
+     * The file a bundled core carries beside its Python (Windows) or above its {@code bin} (macOS, Linux)
+     * naming the module to run, written by release/deploy_release.sh and release/bundle_core.py. Bundles
+     * from before it have none; their Python is asked, and runs {@link #MODULE} when it cannot say.
+     */
+    static final String MODULE_MARK = "HFCORE_MODULE";
+    private static final Pattern MODULE_NAME = Pattern.compile("[A-Za-z_][A-Za-z0-9_.]*");
+    private static final Map<Path, String> MODULES = new ConcurrentHashMap<>();
+    /** How long asking a Python which module it has may take (a cold start of a bundled Python). */
+    private static final Duration ASK_WAIT = Duration.ofSeconds(20);
+
+    /**
+     * The module the Python at python runs HelioFITS Core as: what its bundle's {@link #MODULE_MARK} says
+     * when there is one, else what the Python itself says it has (asked once, isolated the way the core is
+     * run), else {@link #MODULE}, which every Studio before this one assumed.
+     */
+    static String moduleOf(Path python) {
+        return MODULES.computeIfAbsent(python.toAbsolutePath().normalize(), p -> {
+            String marked = markedModule(p);
+            if (marked != null)
+                return marked;
+            String asked = askModule(p);
+            return asked != null ? asked : MODULE;
+        });
+    }
+
+    /** The module named by a {@link #MODULE_MARK} file beside python or one folder up, or null. */
+    @Nullable
+    static String markedModule(Path python) {
+        Path dir = python.getParent();
+        Path up = dir == null ? null : dir.getParent();
+        for (Path at : new Path[]{dir, up}) {
+            if (at == null)
+                continue;
+            Path mark = at.resolve(MODULE_MARK);
+            if (!Files.isRegularFile(mark))
+                continue;
+            try {
+                String name = Files.readString(mark, StandardCharsets.UTF_8).strip();
+                if (MODULE_NAME.matcher(name).matches())
+                    return name;
+                Log.warn(mark + " names no module: '" + name + "'");
+            } catch (IOException e) {
+                Log.warn("Could not read " + mark, e);
+            }
+        }
+        return null;
+    }
+
+    /** Ask the Python which core package it has, newest name first; null when it cannot run or has neither. */
+    @Nullable
+    private static String askModule(Path python) {
+        if (!Files.isExecutable(python))
+            return null;
+        String probe = "import importlib.util as u; print('" + PYHELIOFITS_MODULE + "' if u.find_spec('pyheliofits') else '"
+                + MODULE + "' if u.find_spec('" + MODULE + "') else '')";
+        try {
+            Process p = new ProcessBuilder(python.toString(), "-s", "-P", "-c", probe).redirectErrorStream(true).start();
+            if (!p.waitFor(ASK_WAIT.toMillis(), TimeUnit.MILLISECONDS)) {
+                p.destroyForcibly();
+                Log.warn(python + " did not say which HelioFITS Core module it has in time; running " + MODULE);
+                return null;
+            }
+            String out;
+            try (InputStream in = p.getInputStream()) {
+                out = new String(in.readAllBytes(), StandardCharsets.UTF_8).strip();
+            }
+            if (p.exitValue() == 0 && MODULE_NAME.matcher(out).matches())
+                return out;
+            Log.info(python + " has no HelioFITS Core package it could name (" + out + "); running " + MODULE);
+            return null;
+        } catch (IOException e) {
+            Log.warn("Could not ask " + python + " which HelioFITS Core module it has", e);
+            return null;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return null;
+        }
+    }
 
     @Nullable
     private static String importedMark() {
@@ -302,7 +386,7 @@ public final class FitsCoreIngest {
     private static List<String> command(Path root) {
         return command(System.getenv("HFCORE_CORE"), System.getenv("HELIAD_CORE"),
                 studioCore(System.getProperty("jpackage.app-path"), System.getProperty("os.name", "")),
-                FitsLibrary.app(), Path.of(System.getProperty("user.home")), root, p -> Files.isExecutable(p));
+                FitsLibrary.app(), Path.of(System.getProperty("user.home")), root, p -> Files.isExecutable(p), FitsCoreIngest::moduleOf);
     }
 
     /**
@@ -637,10 +721,12 @@ public final class FitsCoreIngest {
      *                      Python named there runs {@code -m heliad}, which cores from before the rename have
      * @param studioCore    the Python of the core packaged with this Studio ({@link #studioCore}), if any
      * @param app           the installed HelioFITS Cache Manager (or Heliad.app from before the rename), if any
+     * @param executable    whether a path is a program that can be run
+     * @param moduleOf      the module a Python runs the core as ({@link #moduleOf}; a constant in checks)
      */
     @Nullable
     static List<String> command(@Nullable String coreVar, @Nullable String legacyCoreVar, @Nullable Path studioCore, @Nullable Path app,
-                                Path home, Path root, Predicate<Path> executable) {
+                                Path home, Path root, Predicate<Path> executable, Function<Path, String> moduleOf) {
         List<String> command = new ArrayList<>();
         boolean legacy = coreVar == null || coreVar.isEmpty();
         String named = legacy ? legacyCoreVar : coreVar;
@@ -652,18 +738,18 @@ public final class FitsCoreIngest {
                 // ~/.local (an astropy there whose asdf_astropy lacked asdf broke every download,
                 // 2026-10-25). A core installed with pip --user is named by its command instead.
                 if (path.getFileName().toString().toLowerCase(java.util.Locale.ROOT).startsWith("python"))
-                    command.addAll(List.of("-s", "-P", "-m", legacy ? LEGACY_MODULE : MODULE));
+                    command.addAll(List.of("-s", "-P", "-m", legacy ? LEGACY_MODULE : moduleOf.apply(path)));
             }
         }
         if (command.isEmpty() && studioCore != null && executable.test(studioCore))
-            command.addAll(List.of(studioCore.toString(), "-B", "-s", "-P", "-m", MODULE));
+            command.addAll(List.of(studioCore.toString(), "-B", "-s", "-P", "-m", moduleOf.apply(studioCore)));
         if (command.isEmpty() && app != null) {
             Path python = app.resolve("Contents").resolve("Resources").resolve("python").resolve("bin").resolve("python3");
             boolean oldApp = app.getFileName().toString().equals(FitsLibrary.LEGACY_APP);
             if (executable.test(python))
                 // -B: writing bytecode into a signed app would break its signature.
                 // -s, -P: no user site-packages, no current folder on sys.path.
-                command.addAll(List.of(python.toString(), "-B", "-s", "-P", "-m", oldApp ? LEGACY_MODULE : MODULE));
+                command.addAll(List.of(python.toString(), "-B", "-s", "-P", "-m", oldApp ? LEGACY_MODULE : moduleOf.apply(python)));
         }
         if (command.isEmpty())
             return null;
