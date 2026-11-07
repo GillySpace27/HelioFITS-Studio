@@ -196,6 +196,7 @@ public final class State {
             main.put("masterCadence", MainFrame.getLayersSectionPanel().getCadence());
         main.put("annotations", Annotations.toJson());
         main.put("scene", org.helioviewer.jhv.layers.SceneScale.toJson()); // the 3D Scene pane's sizes
+        main.put("identifyPins", org.helioviewer.jhv.identify.IdentifyPins.toJson()); // pinned body labels (docs/identify.md)
         org.helioviewer.jhv.study.Study.addTo(main); // only when a study exists
 
         JSONArray ja = new JSONArray();
@@ -344,6 +345,12 @@ public final class State {
                 hasCoverage = true;
         if (!hasCoverage)
             Timelines.getLayers().add(new org.helioviewer.jhv.timelines.CoverageTimelineLayer());
+        boolean hasBodies = false;
+        for (TimelineLayer tl : TimelineLayers.get())
+            if (tl instanceof org.helioviewer.jhv.timelines.BodiesTimelineLayer)
+                hasBodies = true;
+        if (!hasBodies)
+            Timelines.getLayers().add(new org.helioviewer.jhv.timelines.BodiesTimelineLayer());
     }
 
     private static void loadLayers(JSONObject data, @Nullable Commands.OperationContext context, ViewState.ModeData modeData) {
@@ -408,6 +415,7 @@ public final class State {
         org.helioviewer.jhv.display.Pizza.fromJson(data.optJSONObject("pizza"), restoredLayers); // by layer id (HS-25)
         Annotations.fromJson(data.optJSONObject("annotations"));
         org.helioviewer.jhv.layers.SceneScale.fromJson(data.optJSONObject("scene")); // absent: the built-in sizes, as drawn then
+        org.helioviewer.jhv.identify.IdentifyPins.fromJson(data.optJSONArray("identifyPins")); // absent in older sessions: no pins
         org.helioviewer.jhv.study.Study.readFrom(data);
 
         // Restore the range before the playhead, so the playhead lands inside it rather than
