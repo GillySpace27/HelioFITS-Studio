@@ -71,6 +71,7 @@ public final class IdentifyCheck {
         checkOracle();
         checkIdentify();
         checkOrtho();
+        checkDrawn();
         checkPlaneProbe();
         checkTransit();
         checkPunchFixture();
@@ -163,6 +164,50 @@ public final class IdentifyCheck {
             expect(m.size() == 1 && m.getFirst().body().name().equals("Moon") && m.getFirst().separation() < 1e-6,
                     "orthographic, display " + dLon + " deg from the layer's observer, names the Moon: " + m);
         }
+    }
+
+    /** The orbited 3D view: where a drawn object lands on screen, when the view counts as orbited, what it keeps. */
+    private static void checkDrawn() {
+        JHVTime t = new JHVTime("2025-09-22T05:46:30");
+        Position obs = observer("earth", t);
+        // A world point seen from the observer, against the identifier's direction (sunpy-checked above)
+        Vec3 moonWorld = Bodies.world(Bodies.byName("Moon"), t);
+        Vec3 s = Drawn.screen(obs.toQuat(), moonWorld);
+        Vec2 hpc = Identifier.helioprojective(Identifier.bodyDirection(Bodies.byName("Moon"), obs, false));
+        double tx = Math.toDegrees(Math.atan2(s.x, obs.distance - s.z));
+        double ty = Math.toDegrees(Math.atan2(s.y, Math.hypot(s.x, obs.distance - s.z)));
+        double ex = Math.toDegrees(hpc.x), ey = Math.toDegrees(hpc.y);
+        expect(Math.abs(tx - ex) < 1e-6 && Math.abs(ty - ey) < 1e-6,
+                "screen(): the Moon's world point lands where the observer sees it: " + tx + "," + ty + " vs " + ex + "," + ey);
+
+        Quat q = obs.toQuat();
+        expect(!Drawn.orbited(q, q), "the camera at the layer's observer is not orbited");
+        expect(!Drawn.orbited(Quat.rotate(Quat.createAxisZ(Math.toRadians(30)), q), q), "a roll about the line of sight is not orbited");
+        expect(Drawn.orbited(new Position(t, obs.distance, obs.lon + Math.toRadians(5), obs.lat).toQuat(), q), "5 degrees round the Sun is orbited");
+        expect(!Drawn.orbited(new Position(t, obs.distance, obs.lon + Math.toRadians(0.5), obs.lat).toQuat(), q), "half a degree is not");
+
+        // pixelsFrom: tolerance, drawn size, and the Sun in front
+        Quat view = Quat.ZERO;
+        expect(Drawn.pixelsFrom(view, new Vec3(3, 0, 0), 3.05, 0, 0.01, 0, 6) != null, "5 px from a point model, 6 px tolerance: named");
+        expect(Drawn.pixelsFrom(view, new Vec3(3, 0, 0), 3.10, 0, 0.01, 0, 6) == null, "10 px from a point model: not named");
+        expect(Drawn.pixelsFrom(view, new Vec3(3, 0, 0), 3.10, 0, 0.01, 0.2, 6) != null, "10 px inside a model drawn 20 px wide: named");
+        expect(Drawn.pixelsFrom(view, new Vec3(0.2, 0, -5), 0.2, 0, 0.01, 0, 6) == null, "behind the solar disk: hidden");
+        expect(Drawn.pixelsFrom(view, new Vec3(0.2, 0, 5), 0.2, 0, 0.01, 0, 6) != null, "in front of the disk: named");
+
+        // drawnOnly: an orbited layer keeps only what its imagery shows; the bare viewpoint keeps nothing
+        org.helioviewer.jhv.wcs.WcsHeader wcs = new org.helioviewer.jhv.wcs.WcsHeader(
+                org.helioviewer.jhv.wcs.WcsHeader.Projection.TAN, new float[6], 215, Vec2.ZERO, org.helioviewer.jhv.math.Mat2.IDENTITY);
+        Identifier.Target image = new Identifier.Target("img", obs, wcs, null, 0, 0);
+        Identifier.Target bare = Identifier.Target.viewpoint(obs);
+        Bodies.Body venus = Bodies.byName("Venus"), mars = Bodies.byName("Mars"), moon = Bodies.byName("Moon");
+        List<Identifier.Match> ms = List.of(
+                new Identifier.Match(venus, "img", 0, 0, 0, 1, 10, Identifier.Qualifier.NONE),
+                new Identifier.Match(mars, "img", 0, 0, 0, 1, 10, Identifier.Qualifier.OUTSIDE_FIELD),
+                new Identifier.Match(moon, bare.name(), 0, 0, 0, 1, 10, Identifier.Qualifier.NONE));
+        Quat orbitedView = new Position(t, obs.distance, obs.lon + Math.toRadians(40), obs.lat).toQuat();
+        List<Identifier.Match> kept = IdentifyHover.drawnOnly(ms, List.of(image, bare), orbitedView);
+        expect(kept.size() == 1 && kept.getFirst().body() == venus, "orbited: only the body on the imagery is kept: " + kept);
+        expect(IdentifyHover.drawnOnly(ms, List.of(image, bare), q).size() == 3, "not orbited: every match is kept");
     }
 
     private static void checkPlaneProbe() {
