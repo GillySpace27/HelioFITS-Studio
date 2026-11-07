@@ -11,7 +11,9 @@ import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.display.ViewportMath;
+import org.helioviewer.jhv.identify.Identifier;
 import org.helioviewer.jhv.math.Quat;
+import org.helioviewer.jhv.math.Vec3;
 import org.helioviewer.jhv.opengl.BufVertex;
 import org.helioviewer.jhv.opengl.GLHelper;
 import org.helioviewer.jhv.opengl.GLSLLine;
@@ -126,6 +128,31 @@ class FOVPlatform {
         renderer.end3DRendering();
 
         Transform.popView();
+    }
+
+    /**
+     * The enabled outlines of this platform that the sight line under the pointer passes through,
+     * as render draws them: in the observer's frame, on its plane of sky, Solar Orbiter rolled by
+     * its SPICE attitude.
+     */
+    List<String> namesAt(Identifier.Probe probe, JHVTime time) {
+        if (!hasEnabled())
+            return List.of();
+        Position obs = Spice.getCarrington(observer, time);
+        if (obs == null)
+            return List.of();
+        Vec3 dir = probe.direction(obs);
+        if (dir == null || dir.z >= 0)
+            return List.of();
+        Vec3 p = new Vec3(dir.x / -dir.z, dir.y / -dir.z, 0);
+        double[] rot;
+        if (isSOLO && null != (rot = Spice.getRotationEuler("SOLO_SRF", "SOLO_IAU_SUN_2009", time)))
+            p = Quat.createAxisZ(rot[2]).rotateInverseVector(p);
+        List<String> out = new ArrayList<>();
+        for (FOVInstrument instrument : instruments)
+            if (instrument.contains(p.x, p.y))
+                out.add(instrument + " (" + name + ")");
+        return out;
     }
 
     private boolean hasEnabled() {

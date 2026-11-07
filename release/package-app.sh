@@ -80,6 +80,13 @@ if [ "$OS" = windows ]; then
     # and that it needs no admin rights. CRLF so Notepad on any Windows shows the lines.
     sed 's/$/\r/' release/windows-readme.txt > "pkg-out/HFStudio/README.txt"
 fi
+# HelioFITS Core, the FITS library engine behind Use FITS, at the commit release/fits-core.txt pins,
+# where FitsCoreIngest.studioCore looks for it (the Mac app gets it from deploy_release.sh).
+if [ "$OS" = windows ]; then
+    python release/bundle_core.py windows pkg-out/HFStudio/heliofits-core
+elif [ "$OS" = linux ]; then
+    python3 release/bundle_core.py linux pkg-out/HFStudio/lib/heliofits-core
+fi
 fi
 
 if [ "$OS" = macos-x64 ]; then

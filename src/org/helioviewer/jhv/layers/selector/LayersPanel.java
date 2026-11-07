@@ -170,6 +170,9 @@ public final class LayersPanel extends JPanel {
         grid = new LayersTable(model);
 
         jsp = new JScrollPane(grid, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        // The list is sized to every row, so it never has anything of its own to scroll; a pane that handles the
+        // wheel anyway keeps the events and the sidebar around it will not move while the pointer is over the list.
+        jsp.setWheelScrollingEnabled(false);
         UIGlobals.themed(jsp, c -> c.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, UIGlobals.separator())));
         // Plain, so updateComponentTreeUI leaves it behind: the strip below the last row would
         // otherwise stay in the previous theme's colour after a switch.
@@ -237,6 +240,16 @@ public final class LayersPanel extends JPanel {
 
         grid.addMouseListener(new MouseAdapter() {
             @Override
+            public void mousePressed(MouseEvent e) {
+                updateCursor(e, true); // the hand closes on the grab
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                updateCursor(e, false);
+            }
+
+            @Override
             public void mouseClicked(MouseEvent e) {
                 TableValue v = TableValue.tableValueAtPoint(grid, e.getPoint());
                 if (v == null || !(v.value instanceof Layer layer))
@@ -270,13 +283,7 @@ public final class LayersPanel extends JPanel {
         grid.addMouseMotionListener(new MouseAdapter() {
             @Override
             public void mouseMoved(MouseEvent e) {
-                int row = grid.rowAtPoint(e.getPoint());
-                // Hand on the body of image rows only, as upstream; it was judged the wrong cursor over
-                // overlay rows (working meeting, 2026-10-02) and over the checkbox, radio and x, which
-                // react to a plain click. Every row still drags to reorder.
-                boolean imageRow = row >= 0 && grid.getValueAt(row, 0) instanceof ImageLayer;
-                grid.setCursor(LayerListCursor.handOver(grid.columnAtPoint(e.getPoint()), imageRow)
-                        ? UIGlobals.openHandCursor : Cursor.getDefaultCursor());
+                updateCursor(e, false);
             }
         });
 
@@ -336,6 +343,19 @@ public final class LayersPanel extends JPanel {
             if (grid.getValueAt(row, 0) instanceof Layer layer)
                 picked.add(layer);
         return picked;
+    }
+
+    // Hand on the body of image rows only, as upstream; it was judged the wrong cursor over overlay rows
+    // (working meeting, 2026-10-02) and over the checkbox, radio and x, which react to a plain click.
+    // It closes while the mouse is pressed there. Every row still drags to reorder.
+    private void updateCursor(MouseEvent e, boolean pressed) {
+        int row = grid.rowAtPoint(e.getPoint());
+        boolean imageRow = row >= 0 && grid.getValueAt(row, 0) instanceof ImageLayer;
+        grid.setCursor(switch (LayerListCursor.kindAt(grid.columnAtPoint(e.getPoint()), imageRow, pressed)) {
+            case OPEN_HAND -> UIGlobals.openHandCursor;
+            case CLOSED_HAND -> UIGlobals.closedHandCursor;
+            case ARROW -> Cursor.getDefaultCursor();
+        });
     }
 
     private void selectExistingRow(int preferredRow) {
