@@ -62,6 +62,12 @@ Also not taken: deletions of files this fork keeps or replaced (`release/`, `JHe
 Deferred, not refused: upstream's move to WCSLIB (0d9c2ea7) and its image-geometry split. Port
 them after the sunpy decode-parity harness exists, so the harness shows what changed.
 
+Decided 2026-11-06: upstream's OpenJPEG backend for its esajpip bridge
+(`JHV_J2K_DECODER=openjpeg`, `jhv_opj.cc`, 2026-10-25 to 10-27) is not adopted. This fork already
+decodes with OpenJPEG in Java over FFM, so the backend brings no licence gain; adopting it would
+swap that code for a C++ bridge built per platform from esajpip's `client` branch. Revisit only if
+a measured decode-speed or memory comparison favours the bridge.
+
 ## Measuring the gap
 
 Rerun monthly and record the result here:
