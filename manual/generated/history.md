@@ -4,6 +4,10 @@
 
 ## HelioFITS Studio 0.9.2 (unreleased)
 
+### Identify under cursor
+- View > Identify Under Cursor names the Sun, the Moon or a planet under the pointer in the footer, as each image layer's own observer saw it at that frame's time, so the Moon in a PUNCH mosaic or a planet in LASCO C3 is named where it is drawn. It works in Orthographic, HPC, Observer Sky, Helioradial and Helioradial Unrolled. A body that is off the imagery says why (behind the Sun, behind the occulter, outside the field). View > Identify Tooltip adds the name, distance and angle from the Sun beside the pointer when it rests. Settings > Identify has the tolerances.
+- New commands identifyAt, identifyLocate, identifyInField and identifySet. identifyInField says when each body is in a field of view over a date range, by day, from the ephemeris: a quick way to find a date without the Moon in PUNCH.
+
 ### One store for FITS downloads
 - When there is a FITS library, a FITS file Studio downloads now moves into the library instead of being kept twice (once in Studio's cache, once in the library). Studio finds it there again by its download address, with or without HelioFITS Core running, and an existing cache moves into the library once, in the background, so its space comes back. Without a library, or with a HelioFITS Core older than this release, nothing changes: downloads stay in Studio's cache as before.
 - Settings > FITS Library has Choose Folder..., which puts the FITS library in another folder or on another drive: an empty or new folder becomes a new library, a folder that already holds one is used as it is, and HelioFITS Core's warnings about the place (a sync service folder, a network drive) are shown. The library used before stays where it is, with its files.
