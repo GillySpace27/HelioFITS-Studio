@@ -230,7 +230,7 @@ public final class FitsCoreIngest {
         for (File file : files) {
             String rel = consumeHere(root, null, file);
             if (rel != null) {
-                LibraryStore.remember(file.getName(), rel);
+                LibraryStore.remember(root, file.getName(), rel);
                 moved++;
             } else if (!CONSUME.get() || NO_CORE.get() || CORE.get() == null) {
                 break; // an older core, or none: the copying import below takes over next launch
@@ -330,6 +330,27 @@ public final class FitsCoreIngest {
      */
     public static void makeLibrary(Path root) throws IOException {
         makeLibrary(command(root));
+    }
+
+    /**
+     * Make root the FITS library Studio and HelioFITS Core use from now on ({@code hfcore --library
+     * root init}): it opens the library there, or makes one in an empty or new folder, and points
+     * HelioFITS Core's config at it. It never empties a library; the one used before stays where it
+     * is. Returns HelioFITS Core's warnings about the place (a sync folder, a network drive), empty
+     * when it has none or a core too old to give them. Blocks: call it off the event thread.
+     */
+    public static List<String> useLibrary(Path root) throws IOException {
+        String out = runCommand(INIT_WAIT, "--library", root.toAbsolutePath().toString(), "--json", "init");
+        List<String> warnings = new ArrayList<>();
+        try {
+            org.json.JSONArray list = new JSONObject(out.strip()).optJSONArray("location_warnings");
+            if (list != null)
+                for (int i = 0; i < list.length(); i++)
+                    warnings.add(list.optString(i));
+        } catch (JSONException e) {
+            Log.warn("HelioFITS Core made the library at " + root + " but its answer was not JSON", e);
+        }
+        return warnings;
     }
 
     /** {@link #makeLibrary(Path)} with the serve command already found (null when there is no core). */
