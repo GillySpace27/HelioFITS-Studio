@@ -43,3 +43,4 @@ headers (for a tile-compressed file the image keys are in HDU 1); "Used by" with
 | `identify_oracle.py` | 1698 | not FITS: the sunpy/astropy script that computed the helioprojective rows in IdentifyCheck, from the bundled de432s_reduced kernel (needs jplephem) | n/a | `extra/test/IdentifyCheck.java` |
 | `identify_transit_oracle.py` | 1020 | not FITS: the sunpy script behind the Moon entry and exit times in IdentifyCheck.checkTransit (needs jplephem) | n/a | `extra/test/IdentifyCheck.java` |
 | `identify_cam_oracle.py` | 1656 | not FITS: the sunpy/astropy script behind IdentifyCheck.checkPunchFixture (body positions and pixel membership for `PUNCH_L3_CAM_20260425001600_v0k.fits`) | n/a | `extra/test/IdentifyCheck.java` |
+| `iau-csn-excerpt.txt` | 1243 | not FITS: five rows of the IAU Catalog of Star Names with its column headings, fetched 2026-11-07 (CC BY, credit in the file) | n/a | `extra/test/IdentifyCheck.java` |
