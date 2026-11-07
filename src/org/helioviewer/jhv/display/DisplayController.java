@@ -215,9 +215,30 @@ public final class DisplayController {
         double off = offBelow(camera, viewpoint, world);
         if (Double.isNaN(off) || Math.abs(off) < 1e-9)
             return;
-        camera.rotateDragRotation(Quat.createAxisZ(off));
-        if (Math.abs(offBelow(camera, viewpoint, world)) > Math.abs(off)) // turned the wrong way
-            camera.rotateDragRotation(Quat.createAxisZ(-2 * off));
+        // The drag rotation is applied before the viewpoint's, so a turn about the line of sight
+        // is a turn about the screen's Z axis carried back through the current drag rotation; the
+        // fixed Z axis only coincides with it while the drag rotation is zero. Which way back that
+        // carry goes, and which sign the angle needs, is found by trying the four, not assumed
+        // (measured 2026-11-07: a fixed-Z turn left an Overview view 109 degrees off).
+        Quat start = camera.getDragRotation();
+        Quat best = null;
+        double bestOff = Math.abs(off);
+        Vec3[] axes = {start.rotateVector(Vec3.ZAxis), start.rotateInverseVector(Vec3.ZAxis)};
+        for (Vec3 axis : axes) {
+            for (double sign : new double[]{1, -1}) {
+                double half = sign * off / 2, sin = Math.sin(half);
+                Quat turn = new Quat(Math.cos(half), sin * axis.x, sin * axis.y, sin * axis.z);
+                camera.resetDragRotation();
+                camera.rotateDragRotation(Quat.rotate(start, turn));
+                double left = Math.abs(offBelow(camera, viewpoint, world));
+                if (left < bestOff) {
+                    bestOff = left;
+                    best = camera.getDragRotation();
+                }
+            }
+        }
+        camera.resetDragRotation();
+        camera.rotateDragRotation(best != null ? best : start);
         render(1);
     }
 

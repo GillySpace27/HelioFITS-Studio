@@ -22,7 +22,14 @@ import org.helioviewer.jhv.time.TimeMap;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.Receiver, org.helioviewer.jhv.layers.TimelineSource { // public for state restore
+public class PointCloudLayer extends AbstractLayer implements PointCloudLoader.Receiver, org.helioviewer.jhv.layers.TimelineSource {
+
+    /** Listed in the 3D Scene pane, with the models, not among the overlays. */
+    @Override
+    public Kind kind() {
+        return Kind.SCENE;
+    }
+ // public for state restore
 
     private static final double WIRE_WIDTH = 2 * GLSLLine.LINEWIDTH_BASIC;
     static final double DEFAULT_ALPHA_PCT = 92; // just below the convex hull: the ripples resolve
