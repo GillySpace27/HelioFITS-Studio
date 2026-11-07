@@ -397,6 +397,9 @@ These are run by scripts and Search Controls rather than from a menu; the argume
 * - Identify Stars
   - No arguments
   - `identifyStars`
+* - Find Body...
+  - No arguments
+  - `identifyFindBody`
 * - Show the movie frame with this number (0 is the first)
   - Arguments: `frame`
   - `seekFrame`
@@ -451,6 +454,9 @@ These are run by scripts and Search Controls rather than from a menu; the argume
 * - Turn the cursor identifier and its tooltip and stars on or off, and set its tolerances; answers with every setting
   - Arguments: `star_names_bayer`, `tolerance_pixels`, `earth_observer_uncertainty_km`, `tooltip_dwell_ms`, `light_time`, `tooltip`, `star_max_magnitude`, `pluto`, `stars`, `star_names_iau`, `enabled`
   - `identifySet`
+* - Pin a body's label to the view, or unpin it, or list the pins; pins follow their body and are saved with the session
+  - Arguments: `pinned`, `clear`, `body`
+  - `identifyPin`
 * - List every command: its id, what it does and what it changes
   - No arguments
   - `listCommands`

@@ -11,6 +11,7 @@ import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.astronomy.Spice;
 import org.helioviewer.jhv.identify.Bodies;
 import org.helioviewer.jhv.identify.Identifier;
+import org.helioviewer.jhv.identify.IdentifyPins;
 import org.helioviewer.jhv.identify.IdentifySettings;
 import org.helioviewer.jhv.identify.Probes;
 import org.helioviewer.jhv.identify.TransitIndex;
@@ -148,6 +149,32 @@ final class IdentifyCommands {
                         if (args.has(k[0]))
                             IdentifySettings.set(k[1], String.valueOf(args.get(k[0])));
                     return IdentifySettings.toJson();
+                }, () -> true));
+        registerPins();
+    }
+
+    private static void registerPins() {
+        CommandRegistry.add(new CommandSpec("identifyPin",
+                "Pin a body's label to the view, or unpin it, or list the pins; pins follow their body and are saved with the session", Effect.WRITE,
+                new JSONObject("{\"type\":\"object\",\"additionalProperties\":false,\"properties\":{"
+                        + "\"body\":{\"type\":\"string\",\"description\":\"Sun, Mercury, Venus, Earth, Moon, Mars, Jupiter, Saturn, Uranus, Neptune or Pluto; omit to list\"},"
+                        + "\"pinned\":{\"type\":\"boolean\",\"description\":\"true pins, false unpins; omit to toggle\"},"
+                        + "\"clear\":{\"type\":\"boolean\",\"description\":\"true removes every pin first\"}}}"),
+                new JSONObject("{\"type\":\"object\",\"properties\":{\"pins\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}}}"), args -> {
+                    if (args.optBoolean("clear", false))
+                        IdentifyPins.set(java.util.List.of());
+                    if (args.has("body")) {
+                        Bodies.Body body = Bodies.byName(args.getString("body"));
+                        if (body == null)
+                            throw new IllegalArgumentException("no body '" + args.getString("body") + "'");
+                        if (!args.has("pinned"))
+                            IdentifyPins.toggle(body.name());
+                        else if (args.getBoolean("pinned"))
+                            IdentifyPins.pin(body.name());
+                        else if (IdentifyPins.isPinned(body.name()))
+                            IdentifyPins.toggle(body.name());
+                    }
+                    return new JSONObject().put("pins", IdentifyPins.toJson());
                 }, () -> true));
     }
 

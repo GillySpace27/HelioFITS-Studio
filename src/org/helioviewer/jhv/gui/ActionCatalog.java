@@ -94,6 +94,7 @@ public final class ActionCatalog {
         put(org.helioviewer.jhv.identify.IdentifyActions.UNDER_CURSOR, org.helioviewer.jhv.identify.IdentifyActions.underCursor(), "View/Identify Under Cursor", "");
         put(org.helioviewer.jhv.identify.IdentifyActions.TOOLTIP, org.helioviewer.jhv.identify.IdentifyActions.tooltip(), "View/Identify Tooltip", "");
         put(org.helioviewer.jhv.identify.IdentifyActions.STARS, org.helioviewer.jhv.identify.IdentifyActions.stars(), "View/Identify Stars", "");
+        put(org.helioviewer.jhv.identify.IdentifyActions.FIND_BODY, org.helioviewer.jhv.identify.IdentifyActions.findBody(), "View/Find Body...", "");
         // Layers
         put("newJp2Layer", new Actions.NewLayer(), "Layers/New Image Layer…", "");
         put("newSynopticLayer", new Actions.NewSynopticLayer(), "Layers/New Synoptic Layer...", "");
