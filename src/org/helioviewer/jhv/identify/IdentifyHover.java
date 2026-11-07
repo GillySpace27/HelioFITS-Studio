@@ -1,7 +1,9 @@
 package org.helioviewer.jhv.identify;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import javax.annotation.Nullable;
 import javax.swing.Timer;
@@ -11,6 +13,7 @@ import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layers;
+import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.metadata.MetaData;
 import org.helioviewer.jhv.movie.ExportMovie;
 import org.helioviewer.jhv.opengl.GLText;
@@ -35,6 +38,7 @@ public final class IdentifyHover {
     private boolean labelShown;
     private int mouseX, mouseY;
     private List<Identifier.Match> last = List.of();
+    private List<Drawn.Hit> lastDrawn = List.of();
 
     private IdentifyHover() {
         dwell = new Timer(IdentifySettings.DEFAULT_DWELL_MS, e -> {
@@ -59,6 +63,11 @@ public final class IdentifyHover {
         return INSTANCE.update(vp, mv, x, y);
     }
 
+    /** The drawn 3D objects named at the last pointer position. */
+    public static List<Drawn.Hit> lastDrawn() {
+        return INSTANCE.lastDrawn;
+    }
+
     /** The pointer left the canvas. */
     public static void exited() {
         INSTANCE.clear();
@@ -75,14 +84,17 @@ public final class IdentifyHover {
             clear();
             return null;
         }
-        List<Identifier.Match> matches = identify(vp, mv, x, y, Identifier.Options.fromSettings());
+        Identifier.Options options = Identifier.Options.fromSettings();
+        List<Identifier.Match> matches = identify(vp, mv, x, y, options);
+        List<Drawn.Hit> drawn = Drawn.at(vp, mv, x, y, options.tolerancePixels());
         last = matches;
+        lastDrawn = drawn;
         boolean wasShown = labelShown && !label.isEmpty();
         label.clear();
         labelShown = false;
         mouseX = x;
         mouseY = y;
-        if (matches.isEmpty()) {
+        if (matches.isEmpty() && drawn.isEmpty()) {
             dwell.stop();
             if (wasShown)
                 DisplayController.display();
@@ -95,6 +107,15 @@ public final class IdentifyHover {
             sb.append(m.label());
             label.add(m.label());
             label.add(details(m));
+        }
+        for (Drawn.Hit h : drawn) {
+            if (!sb.isEmpty())
+                sb.append(", ");
+            sb.append(h.name());
+            if (h.kind().equals(Drawn.ORBIT_PLOT))
+                continue; // the orbit plot labels its own markers
+            label.add(h.name());
+            label.add(h.details());
         }
         if (IdentifySettings.tooltip()) {
             dwell.setInitialDelay(IdentifySettings.dwellMillis());
@@ -117,7 +138,33 @@ public final class IdentifyHover {
         if (probe == null)
             return List.of();
         Identifier.Probe probe1 = Probes.at(mv, vp, x + 1, y);
-        return Identifier.identify(targets(vp, mv), probe, probe1, options);
+        List<Identifier.Target> targets = targets(vp, mv);
+        List<Identifier.Match> matches = Identifier.identify(targets, probe, probe1, options);
+        return mv.isOrthographic() ? drawnOnly(matches, targets, mv.viewRotation()) : matches;
+    }
+
+    /**
+     * In the orthographic view turned away from a layer's line of sight, that layer names only
+     * what it draws: a body on its imagery, not one behind the Sun, the occulter or off the field,
+     * and nothing at all from a layer with no imagery (the bare viewpoint), since the sky behind
+     * the pointer is not that observer's sky any more.
+     */
+    static List<Identifier.Match> drawnOnly(List<Identifier.Match> matches, List<Identifier.Target> targets, Quat viewRotation) {
+        Set<String> orbited = new HashSet<>();
+        Set<String> imageless = new HashSet<>();
+        for (Identifier.Target t : targets) {
+            if (Drawn.orbited(viewRotation, t.observer().toQuat()))
+                orbited.add(t.name());
+            if (t.wcs() == null)
+                imageless.add(t.name());
+        }
+        if (orbited.isEmpty())
+            return matches;
+        List<Identifier.Match> out = new ArrayList<>();
+        for (Identifier.Match m : matches)
+            if (!orbited.contains(m.layer()) || (m.qualifier() == Identifier.Qualifier.NONE && !imageless.contains(m.layer())))
+                out.add(m);
+        return out;
     }
 
     /** The visible image layers, each with its own observer, or the display viewpoint when there are none. */
@@ -142,6 +189,7 @@ public final class IdentifyHover {
     private void clear() {
         dwell.stop();
         last = List.of();
+        lastDrawn = List.of();
         if (!label.isEmpty()) {
             label.clear();
             if (labelShown)

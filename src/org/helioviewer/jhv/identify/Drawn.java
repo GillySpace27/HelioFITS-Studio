@@ -1,0 +1,108 @@
+package org.helioviewer.jhv.identify;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+
+import javax.annotation.Nullable;
+
+import org.helioviewer.jhv.astronomy.Sun;
+import org.helioviewer.jhv.display.MapView;
+import org.helioviewer.jhv.display.Viewport;
+import org.helioviewer.jhv.display.ViewportMath;
+import org.helioviewer.jhv.layers.Layer;
+import org.helioviewer.jhv.layers.Layers;
+import org.helioviewer.jhv.layers.ModelLayer;
+import org.helioviewer.jhv.layers.ViewpointLayer;
+import org.helioviewer.jhv.math.Quat;
+import org.helioviewer.jhv.math.Vec3;
+
+/**
+ * The objects the 3D scene draws, under the pointer: what the orbited view names, as decided for
+ * the identifier (2D imagery reports every ephemeris body; the orbited 3D view only what it draws).
+ *
+ * <p>Two kinds are drawn as objects rather than as imagery: model layers placed at an ephemeris
+ * target (a spacecraft model at SOHO, the image layer's own observatory) and the orbit plot's
+ * markers. A model is named when the pointer is within its drawn size or the pointer tolerance of
+ * its centre and the Sun does not hide it; a marker when the orbit plot itself would label it.
+ */
+public final class Drawn {
+
+    /** A drawn object under the pointer. {@code distanceAu} is from the Sun's centre, NaN when unknown. */
+    public record Hit(String name, String kind, double pixels, double distanceAu) {
+        public String details() {
+            return Double.isNaN(distanceAu) ? "  " + kind : String.format("  %s, %.3f AU from the Sun", kind, distanceAu);
+        }
+    }
+
+    /**
+     * How far the camera may turn from a layer's own line of sight, in degrees, before the view
+     * counts as orbited and that layer's sky stops naming bodies the scene does not draw.
+     */
+    public static final double ORBITED_DEGREES = 1;
+
+    /** The kind of a hit on the orbit plot, which draws its own hover label. */
+    public static final String ORBIT_PLOT = "orbit plot";
+
+    /** Every drawn object at canvas point (x, y), nearest first. Empty outside the orthographic view. */
+    public static List<Hit> at(Viewport vp, MapView mv, int x, int y, double tolerancePixels) {
+        List<Hit> out = new ArrayList<>();
+        ViewpointLayer orbits = Layers.getViewpointLayer();
+        String marker = orbits == null ? null : orbits.markerAt(mv, vp, x, y);
+        if (marker != null)
+            out.add(new Hit(marker, ORBIT_PLOT, 0, Double.NaN));
+        if (!mv.isOrthographic())
+            return out;
+
+        double width = mv.cameraWidth(vp);
+        double upX = ViewportMath.computeUpX(vp, width, mv.cameraTranslationX(), x);
+        double upY = ViewportMath.computeUpY(vp, width, mv.cameraTranslationY(), y);
+        double perPixel = Math.abs(ViewportMath.computeUpX(vp, width, mv.cameraTranslationX(), x + 1) - upX);
+        if (!(perPixel > 0))
+            return out;
+        for (Layer l : Layers.getLayers()) {
+            if (!(l instanceof ModelLayer m) || !m.isVisible(vp.idx))
+                continue;
+            Vec3 at = m.placedAt(mv.viewpoint().time);
+            if (at == null)
+                continue;
+            Double px = pixelsFrom(mv.viewRotation(), at, upX, upY, perPixel, m.drawnRadius(mv, vp), tolerancePixels);
+            if (px != null)
+                out.add(new Hit(m.getTarget(), "model", px, at.length() * Sun.MeanEarthDistanceInv));
+        }
+        out.sort(Comparator.comparingDouble(Hit::pixels));
+        return out;
+    }
+
+    /**
+     * How many pixels the pointer (upX, upY) is from a drawn object centred at world point
+     * {@code at} with drawn radius {@code radius} (both in solar radii), or null when it is not
+     * within the radius or the tolerance, or the Sun hides it. The screen frame is the view
+     * rotation applied to the world, the camera looking down -z (Transform.ortho).
+     */
+    @Nullable
+    static Double pixelsFrom(Quat viewRotation, Vec3 at, double upX, double upY, double perPixel, double radius, double tolerancePixels) {
+        Vec3 s = screen(viewRotation, at);
+        if (s.z < 0 && Math.hypot(s.x, s.y) < 1)
+            return null; // behind the solar disk
+        double px = Math.hypot(s.x - upX, s.y - upY) / perPixel;
+        return px <= Math.max(tolerancePixels, radius / perPixel) ? px : null;
+    }
+
+    /** A world point in the orthographic view's frame: x, y on the page in solar radii, +z toward the camera. */
+    public static Vec3 screen(Quat viewRotation, Vec3 world) {
+        return viewRotation.rotateVector(world);
+    }
+
+    /**
+     * True when the camera's line of sight is more than ORBITED_DEGREES from the line of sight of
+     * the layer whose frame is {@code layerQuat}. A roll about the line of sight does not count.
+     */
+    public static boolean orbited(Quat viewRotation, Quat layerQuat) {
+        Vec3 axis = Quat.rotateWithConjugate(viewRotation, layerQuat).rotateVector(Vec3.ZAxis);
+        double angle = Math.atan2(Math.hypot(axis.x, axis.y), axis.z);
+        return Math.toDegrees(angle) > ORBITED_DEGREES;
+    }
+
+    private Drawn() {}
+}
