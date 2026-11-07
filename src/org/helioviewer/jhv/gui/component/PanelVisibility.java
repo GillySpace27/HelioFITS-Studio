@@ -74,7 +74,7 @@ public final class PanelVisibility {
         Color band = base;
         if (headers()) {
             Color panel = theme.get(Theme.Token.Background);
-            Color text = theme.get(Theme.Token.HeaderText);
+            Color text = theme.get(Theme.Token.HeaderTextStrong);
             Color away = theme.get(Theme.Token.Foreground);
             for (double f = 0.05; f <= 0.6 && Theme.contrast(band, panel) < STRONG_BAND; f += 0.05) {
                 Color c = Theme.mix(base, away, f);
@@ -93,9 +93,10 @@ public final class PanelVisibility {
         return Theme.legibleOn(nested, panel, Theme.SURFACE_MIN);
     }
 
-    /** The title colour for a band, held to 4.5:1 on whichever fill is in use. */
+    /** The title colour for a band, held to 4.5:1 on whichever fill is in use: the strong one when headers are strong. */
     public static Color headerText(Theme theme, Color fill) {
-        return Theme.legibleOn(theme.get(Theme.Token.HeaderText), fill, Theme.TEXT_MIN);
+        Theme.Token token = headers() ? Theme.Token.HeaderTextStrong : Theme.Token.HeaderText;
+        return Theme.legibleOn(theme.get(token), fill, Theme.TEXT_MIN);
     }
 
     /** The accent stripe, held to 3:1 against the band it sits on. */

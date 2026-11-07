@@ -17,6 +17,7 @@ Each new entry ends with a `[docs: ...]` pointer to where it is documented (`rel
 
 ### Easier to find panels
 - The sidebars' top-level sections are easier to tell apart, and it is on by default. Managers > Theme Manager has a Visibility section with an Easier to find panels checkbox and four options under it: stronger section headers (a stronger band where the title can still be read on it, a thicker rule and more space under each section), an accent stripe on the leading edge of each header, section numbers (1, 2, 3 in the order the sections appear, only where there are two or more), and a highlight on the header under the pointer. Each applies at once and is remembered in the settings, so it follows whichever theme is chosen. Turning the checkbox off restores the previous look exactly. [docs: manual/filters-and-colour.md]
+- The theme editor has a new colour, Section header text (strong), for the section titles when Stronger section headers is on. It starts as a muted complement of the theme's accent, so it is clearly a different hue; it is still held to 4.5:1 on its band, so on a theme with a mid-tone band the tint can be faint. Click its swatch to choose any colour.
 
 ## HelioFITS Studio 0.9.1 (unreleased)
 

@@ -73,6 +73,7 @@ public final class Theme {
         Separator("Separator", "The hairline between a list and the panel above it. Needs 3:1 against the panel or it is not there."),
         HeaderFill("Section header", "The band behind a collapsible section title. Needs 3:1 against the panel."),
         HeaderText("Section header text", "The section title itself. Needs 4.5:1 against the band it sits on."),
+        HeaderTextStrong("Section header text (strong)", "The section title when \"Stronger section headers\" is on. Starts as a muted complement of the accent; held to 4.5:1 on whichever band it is drawn."),
         ChildHeaderFill("Nested section header", "The band behind an indented sub-section. Same two rules as the parent."),
 
         TimelinePlot("Timeline plot", "The ground of the timeline's interval strip."),
@@ -217,6 +218,7 @@ public final class Theme {
             // A nested header pulled back toward the panel, so it reads as subordinate. Pulled
             // only part of the way: past about a third it stops clearing 3:1 against the panel.
             case ChildHeaderFill -> mix(c.get(Token.HeaderFill), c.get(Token.Background), 0.22);
+            case HeaderTextStrong -> complementText(c);
             case TimelinePlot -> c.get(Token.Component);
             // A tenth of the accent, not half of it. At 0.45 the plotted span became a lavender
             // wash across the whole strip, and the four coloured layer bands drawn on it lost most
@@ -227,6 +229,34 @@ public final class Theme {
             case TimelineMovieBand -> mix(c.get(Token.Component), c.get(Token.Foreground), 0.55);
             default -> throw new IllegalArgumentException(t + " is stated, not derived");
         };
+    }
+
+    /**
+     * The strong header title: the accent's complement, muted, at the least lightness that still
+     * clears 4.5:1 on the worse of the two bands, on the same side of them as the theme's own
+     * title (lighter where the title is lighter than the band, darker where it is darker).
+     *
+     * <p>Asking for the least lightness that passes, rather than tinting the theme's own title and
+     * pushing it until it passes, is what keeps the hue: a tinted white pushed toward white is
+     * white again. Where the band leaves almost no room (a pale title needs a nearly white colour
+     * on a mid-tone band) the tint that survives is faint, and that is the contrast rule working,
+     * not a fault; the swatch in the theme editor sets any colour wanted, with the ratio shown.
+     */
+    private static Color complementText(Map<Token, Color> c) {
+        float hue = (hsb(c.get(Token.Accent))[0] + 0.5f) % 1f;
+        Color fill = c.get(Token.HeaderFill);
+        Color child = c.get(Token.ChildHeaderFill);
+        double margin = TEXT_MIN + 0.05;
+        boolean lighter = luminance(c.get(Token.HeaderText)) >= luminance(fill);
+        Color out;
+        if (lighter) {
+            double target = margin * (Math.max(luminance(fill), luminance(child)) + 0.05) - 0.05;
+            out = target >= 1 ? Color.WHITE : atLuminance(hue, 0.45f, target);
+        } else {
+            double target = (Math.min(luminance(fill), luminance(child)) + 0.05) / margin - 0.05;
+            out = target <= 0 ? Color.BLACK : atLuminance(hue, 0.65f, target);
+        }
+        return legible(out, worse(out, fill, child), TEXT_MIN);
     }
 
     public static Color mix(Color a, Color b, double f) {

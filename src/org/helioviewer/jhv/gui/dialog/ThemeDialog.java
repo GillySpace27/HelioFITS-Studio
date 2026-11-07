@@ -182,7 +182,7 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
         c.insets = new Insets(0, 6, 0, 6);
 
         String[][] options = {
-                {PanelVisibility.HEADERS, "Stronger section headers", "Bolder bands, a thicker rule and a little more space between sections."},
+                {PanelVisibility.HEADERS, "Stronger section headers", "Bolder bands, a thicker rule and a little more space between sections. Titles use the Section header text (strong) colour above."},
                 {PanelVisibility.STRIPE, "Accent stripe on each section", "A thin stripe in the accent colour on the leading edge of every top-level header."},
                 {PanelVisibility.NUMBERS, "Number the sections", "Put 1, 2, 3 in front of each top-level title, in the order they appear."},
                 {PanelVisibility.HOVER, "Highlight a header under the pointer", "So a header reads as something to click."},

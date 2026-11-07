@@ -46,6 +46,9 @@ public final class ThemeContrastCheck {
             ratio(theme, "header text on section header", text, theme.get(Theme.Token.HeaderFill), TEXT_ON_HEADER);
             ratio(theme, "nested header on panel", theme.get(Theme.Token.ChildHeaderFill), panel, HEADER_ON_PANEL);
             ratio(theme, "header text on nested header", text, theme.get(Theme.Token.ChildHeaderFill), TEXT_ON_HEADER);
+            Color strong = theme.get(Theme.Token.HeaderTextStrong);
+            ratio(theme, "strong header text on section header", strong, theme.get(Theme.Token.HeaderFill), TEXT_ON_HEADER);
+            ratio(theme, "strong header text on nested header", strong, theme.get(Theme.Token.ChildHeaderFill), TEXT_ON_HEADER);
             ratio(theme, "separator on panel", theme.get(Theme.Token.Separator), panel, SEPARATOR_ON_PANEL);
             ratio(theme, "body text on panel", theme.get(Theme.Token.Foreground), panel, BODY_ON_PANEL);
 
