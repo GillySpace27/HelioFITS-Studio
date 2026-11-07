@@ -105,6 +105,11 @@ public class Spice {
         return null;
     }
 
+    /** {@code v} expressed in {@code fromFrame}, rotated into {@code toFrame} at {@code time}. */
+    public static double[] rotate(String fromFrame, String toFrame, long milli, double[] v) throws SpiceErrorException {
+        return CSPICE.mxv(CSPICE.pxform(fromFrame, toFrame, milli2et(milli)), v);
+    }
+
     public static final LoadingCache<JHVTime, double[][]> j2000ToSun = Caffeine.newBuilder().maximumSize(10000)
             .build(t -> getRotationMatrix("J2000", "SOLO_IAU_SUN_2009", t));
 

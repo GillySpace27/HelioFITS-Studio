@@ -58,7 +58,7 @@ public final class ModelLayer extends AbstractLayer {
     public ModelLayer(JSONObject jo) throws IOException {
         this(URI.create(jo.getString("uri")));
         placement.deserialize(jo);
-        ephemeris.setTarget(placement.targetObject());
+        ephemeris.setTarget(placement.target());
     }
 
     private static double[] bounds(ModelScene scene) {
@@ -170,7 +170,7 @@ public final class ModelLayer extends AbstractLayer {
 
     public void setPlacementMode(ModelPlacement.Mode mode) {
         placement.setMode(mode);
-        ephemeris.setTarget(placement.targetObject());
+        ephemeris.setTarget(placement.target());
         DisplayController.display();
     }
 
@@ -180,7 +180,7 @@ public final class ModelLayer extends AbstractLayer {
 
     public void setTarget(String target) {
         placement.setTarget(target);
-        ephemeris.setTarget(placement.targetObject());
+        ephemeris.setTarget(placement.target());
         DisplayController.display();
     }
 

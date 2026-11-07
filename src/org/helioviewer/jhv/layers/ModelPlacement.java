@@ -50,9 +50,19 @@ public final class ModelPlacement {
         return target;
     }
 
-    /** Only names SpaceObject knows are kept; anything else falls back to Earth. */
+    /** Only names SpaceObject or {@link #externalTargets()} know are kept; anything else falls back to Earth. */
     public void setTarget(String _target) {
-        target = _target != null && SpaceObject.get(_target) != null && !"Sun".equals(_target) ? _target : DEFAULT_TARGET;
+        target = isTarget(_target) ? _target : DEFAULT_TARGET;
+    }
+
+    /** Whether a model can be placed at this name: a SpaceObject other than the Sun, or a spacecraft from HelioFleet or JPL Horizons. */
+    public static boolean isTarget(@Nullable String name) {
+        return name != null && !"Sun".equals(name) && (SpaceObject.get(name) != null || ExternalEphemeris.get(name) != null);
+    }
+
+    /** Spacecraft placed from HelioFleet or JPL Horizons rather than Studio's kernels or the ROB service. */
+    public static java.util.Set<String> externalTargets() {
+        return ExternalEphemeris.names();
     }
 
     @Nullable

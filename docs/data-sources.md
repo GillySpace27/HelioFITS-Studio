@@ -108,6 +108,31 @@ by a factor up to 10^10 and by a minimum on-screen size, and the panel says how 
 true size it is drawn. A model with heliocentric metadata keeps the placement its file declares
 (`layers/ModelLayer.java`, `layers/ModelPlacement.java`).
 
+Managers > 3D Model Manager offers spacecraft models from NASA 3D Resources, shipped inside Studio
+in `resources/models/`. The list is `resources/data/assets.json`: each entry is pinned to one commit of
+https://github.com/nasa/NASA-3D-Resources with its length and SHA-256, names the object it is placed
+at, and gives its scale with the page and words it came from, or says the size was not checked. A
+model is copied into `~/HFStudio/Models` the first time it is used and checked against its hash on
+the way; a build without a model's file downloads it under the same check. Import File (a .glb is
+copied in, a .gltf is used where it is) and Import from URL add models of your own, listed in
+`~/HFStudio/Models/imported.json`; removing one from the list leaves its file. A model is drawn in
+the window in software (`gui/component/ModelPreview.java`), flat-shaded with the texture sampled once
+per triangle, so it can be turned over before Add as Layer puts it in the scene at that position and
+scale (`io/ModelAssets.java`, `gui/dialog/ModelManager.java`). glTF textures offered as WebP with a
+PNG or JPEG fallback (EXT_texture_webp) load from the fallback (`opengl/model/GltfWebpFallback.java`).
+
+Spacecraft that neither the kernels nor the ROB service know are placed from two more sources
+(`layers/ExternalEphemeris.java`). ACE, Wind and DSCOVR come from HelioFleet (Soumyaranjan Dash, NSO;
+MIT licence), which republishes JPL Horizons vectors monthly from 2010 as static JSON
+(`io/HelioFleet.java`; the format is in https://sr-dash.github.io/heliofleet/llms.txt): geocentric km
+in the J2000 ecliptic frame, every 12 hours. Ulysses and MESSENGER come from the JPL Horizons API
+itself (`io/JplHorizons.java`), Sun-centred km in the same frame, up to 2000 samples over the movie
+interval. Both are interpolated linearly, rotated into the Carrington frame with the bundled SPICE
+kernels, and for the geocentric ones offset by Earth's kernel position. On 2024-06-01 HelioFleet's
+ACE, Wind and DSCOVR positions agreed with Horizons queried directly to within 120 km (measured with
+both services that day; a solar radius is 695,700 km). Hinode and RHESSI, in low Earth orbit and in
+neither source, are drawn at Earth.
+
 The point cloud JSON layout is **unconfirmed** in this list; read `plugins/pointcloud/PointCloudLoader.java`
 before preparing files for it.
 
