@@ -58,6 +58,7 @@ runs:
       if: inputs.natives == 'true' && runner.os == 'Linux'
       shell: bash
       run: |
+        ant -q natives   # not in git (build.xml)
         mkdir -p natives
         unzip -j -o lib/jhv/jhv-natives-linux.jar 'jhv/linux-amd64/*' -d natives
         ls -l natives
@@ -68,6 +69,7 @@ runs:
       if: inputs.natives == 'true' && runner.os == 'Windows'
       shell: bash
       run: |
+        ant -q natives   # not in git (build.xml)
         mkdir -p natives
         unzip -j -o lib/jhv/jhv-natives-windows.jar 'jhv/windows-amd64/*' -d natives
         ls -l natives
