@@ -66,11 +66,11 @@ public final class ExportRecordDialog {
         this.picture = picture;
     }
 
-    private record Opened(File file, Map<String, Object> record, @Nullable String renamed, @Nullable BufferedImage picture) {
+    private record Opened(File file, Map<String, Object> record, @Nullable String renamed, boolean previewAdded, @Nullable BufferedImage picture) {
     }
 
     public static Action migrateAction() {
-        return new AbstractAction("Migrate Sidecars in Folder...") {
+        return new AbstractAction("Upgrade Sidecars in Folder...") {
             @Override
             public void actionPerformed(ActionEvent e) {
                 migrateFolder();
@@ -78,35 +78,48 @@ public final class ExportRecordDialog {
         };
     }
 
-    /** Pick a folder, count its .hfrec.json records, confirm, rename them to .hfrec, report. Ignores the rename setting: it is asked for. */
+    private static final String UPGRADE = "Upgrade Sidecars";
+
+    /**
+     * Pick a folder, count its .hfrec.json records to rename and its records without a preview,
+     * confirm, rename them to .hfrec and add the previews, report. Ignores the setting: it is asked for.
+     */
     static void migrateFolder() {
         javax.swing.JFileChooser chooser = new javax.swing.JFileChooser(Directories.EXPORTS.getPath());
-        chooser.setDialogTitle("Migrate Sidecars in Folder");
+        chooser.setDialogTitle("Upgrade Sidecars in Folder");
         chooser.setFileSelectionMode(javax.swing.JFileChooser.DIRECTORIES_ONLY);
         if (chooser.showOpenDialog(MainFrame.get()) != javax.swing.JFileChooser.APPROVE_OPTION)
             return;
         Path dir = chooser.getSelectedFile().toPath();
         Task.submitBackground(() -> ProcessingRecord.migrateFolder(dir, false), plan -> {
-            long todo = plan.stream().filter(r -> "would_rename".equals(r[2])).count();
-            if (todo == 0) {
-                Message.info("Migrate Sidecars", "Nothing to rename in " + dir.getFileName() + ": " + skipped(plan) + ".");
+            long rename = count(plan, 2, "would_rename"), previews = count(plan, 3, "missing");
+            if (rename + previews == 0) {
+                Message.info(UPGRADE, "Nothing to upgrade in " + dir.getFileName() + ": " + skipped(plan) + ".");
                 return;
             }
-            if (javax.swing.JOptionPane.showConfirmDialog(MainFrame.get(), "Rename " + todo + " .hfrec.json sidecar" + (todo == 1 ? "" : "s")
-                    + " in " + dir.getFileName() + " (and its subfolders) to .hfrec? The content is not changed; an existing .hfrec is never replaced.",
-                    "Migrate Sidecars", javax.swing.JOptionPane.OK_CANCEL_OPTION) != javax.swing.JOptionPane.OK_OPTION)
+            if (javax.swing.JOptionPane.showConfirmDialog(MainFrame.get(), "In " + dir.getFileName() + " and its subfolders, rename " + rename
+                    + " .hfrec.json sidecar" + (rename == 1 ? "" : "s") + " to .hfrec, and add a preview to the " + previews + " sidecar"
+                    + (previews == 1 ? "" : "s") + " without one, where the export beside it can be read? Nothing else in a sidecar changes; "
+                    + "an existing .hfrec is never replaced.", UPGRADE, javax.swing.JOptionPane.OK_CANCEL_OPTION) != javax.swing.JOptionPane.OK_OPTION)
                 return;
-            Task.submitBackground(() -> ProcessingRecord.migrateFolder(dir, true), done -> Message.info("Migrate Sidecars",
-                            done.stream().filter(r -> "renamed".equals(r[2])).count() + " renamed; " + skipped(done) + "."),
-                    t -> Message.err("Migrate Sidecars", "Could not rename the sidecars in " + dir, t));
-        }, t -> Message.err("Migrate Sidecars", "Could not read " + dir, t));
+            Task.submitBackground(() -> ProcessingRecord.migrateFolder(dir, true), done -> Message.info(UPGRADE,
+                            count(done, 2, "renamed") + " renamed, " + count(done, 3, "added") + " preview" + (count(done, 3, "added") == 1 ? "" : "s")
+                                    + " added; " + skipped(done) + "."),
+                    t -> Message.err(UPGRADE, "Could not upgrade the sidecars in " + dir, t));
+        }, t -> Message.err(UPGRADE, "Could not read " + dir, t));
+    }
+
+    private static long count(java.util.List<String[]> rows, int column, String value) {
+        return rows.stream().filter(r -> value.equals(r[column])).count();
     }
 
     private static String skipped(java.util.List<String[]> rows) {
-        long exists = rows.stream().filter(r -> "exists".equals(r[2])).count();
-        long bad = rows.stream().filter(r -> "not_a_record".equals(r[2])).count();
+        long exists = count(rows, 2, "exists");
+        long bad = count(rows, 2, "not_a_record");
         long err = rows.stream().filter(r -> r[2].startsWith("error")).count();
-        return "skipped " + (exists + bad + err) + " (" + exists + " with a .hfrec already there, " + bad + " not a record, " + err + " unreadable)";
+        long none = count(rows, 3, "none");
+        return "skipped " + (exists + bad + err + none) + " (" + exists + " with a .hfrec already there, " + bad + " not a record, " + err
+                + " unreadable, " + none + " with no export beside it to make a preview from)";
     }
 
     public static Action openAction() {
@@ -131,14 +144,24 @@ public final class ExportRecordDialog {
         if (side != null) {
             Task.submitBackground(() -> {
                         Map<String, Object> rec = ExportReport.parse(Files.readString(side, StandardCharsets.UTF_8));
-                        Path now = ProcessingRecord.migrateLegacy(side); // an older .hfrec.json becomes .hfrec once read
+                        Path now = ProcessingRecord.migrateLegacy(side); // an older .hfrec.json becomes .hfrec once read, with a preview
+                        boolean added = false;
+                        if (!rec.containsKey("preview") && ProcessingRecord.upgradeOnRead()) {
+                            if (now.equals(side))
+                                ProcessingRecord.addPreview(now); // a sidecar written before previews gains one
+                            Map<String, Object> again = ExportReport.parse(Files.readString(now, StandardCharsets.UTF_8));
+                            added = again.containsKey("preview");
+                            if (added)
+                                rec = again;
+                        }
                         return new Opened(side.equals(file.toPath()) ? now.toFile() : file, rec,
-                                now.equals(side) ? null : now.getFileName().toString(), ProcessingRecord.previewImage(rec, now));
+                                now.equals(side) ? null : now.getFileName().toString(), added, ProcessingRecord.previewImage(rec, now));
                     },
                     o -> {
                         ExportRecordDialog d = new ExportRecordDialog(o.file(), o.record(), o.picture());
-                        if (o.renamed() != null)
-                            d.status.setText("Renamed to " + o.renamed());
+                        if (o.renamed() != null || o.previewAdded())
+                            d.status.setText(o.renamed() == null ? "Added a preview to the record."
+                                    : "Renamed to " + o.renamed() + (o.previewAdded() ? ", with a preview added." : ""));
                         d.show();
                     },
                     t -> Message.err("Export record unreadable", side.getFileName() + " could not be read as a processing record.", t));

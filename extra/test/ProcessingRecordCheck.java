@@ -36,6 +36,150 @@ public final class ProcessingRecordCheck {
     }
 
     private static final String HOME = "/Users/someone";
+
+    private static java.awt.image.BufferedImage flat(int w, int h, int rgb) {
+        java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                img.setRGB(x, y, rgb);
+        return img;
+    }
+
+    private static int previewRgb(JSONObject pv) throws java.io.IOException {
+        java.awt.image.BufferedImage img = javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(java.util.Base64.getDecoder().decode(pv.getString("data"))));
+        return img.getRGB(img.getWidth() / 2, img.getHeight() / 2) & 0xFFFFFF;
+    }
+
+    private static boolean near(int rgb, int want) {
+        for (int sh = 0; sh <= 16; sh += 8)
+            if (Math.abs((rgb >> sh & 0xFF) - (want >> sh & 0xFF)) > 24)
+                return false;
+        return true;
+    }
+
+    /** The record of {@code side} as parsed, its keys in order. */
+    private static List<String> keys(Path side) throws java.io.IOException {
+        return new ArrayList<>(ExportReport.parse(Files.readString(side)).keySet());
+    }
+
+    /**
+     * Adding a preview to a sidecar written before there were any: only the preview is added, last,
+     * every other byte the same; nothing is written when no preview can be made.
+     */
+    private static void backfill(String plainText, JSONObject r) throws Exception {
+        Path dir = Files.createTempDirectory("hfrec-backfill");
+        // a still: plainText names frame0001.png and has no preview
+        javax.imageio.ImageIO.write(flat(1600, 800, 0x3366CC), "png", dir.resolve("frame0001.png").toFile());
+        Path side = Files.writeString(dir.resolve("frame0001.png.hfrec"), plainText);
+        List<String> before = keys(side);
+        expect("addPreview writes a still's sidecar that has none", ProcessingRecord.addPreview(side, null));
+        String after = Files.readString(side);
+        expect("every byte before the closing brace is the same, the file ends as it did",
+                after.startsWith(plainText.substring(0, plainText.length() - 3)) && after.endsWith("\n  }\n}\n"));
+        List<String> now = keys(side);
+        expect("the keys are the same, in the same order, with preview added last: " + now.get(now.size() - 1),
+                now.subList(0, now.size() - 1).equals(before) && "preview".equals(now.get(now.size() - 1)));
+        JSONObject was = new JSONObject(plainText), is = new JSONObject(after);
+        boolean same = true;
+        for (String k : was.keySet())
+            same &= was.get(k) instanceof JSONObject o ? o.similar(is.get(k)) : was.get(k) instanceof JSONArray a ? a.similar(is.get(k)) : was.get(k).equals(is.get(k));
+        expect("report and every other value unchanged", same && was.getJSONArray("report").similar(is.getJSONArray("report")));
+        JSONObject pv = is.getJSONObject("preview");
+        expect("the preview is the export at 320x160, by the export encoder: " + pv.optString("media_type"), "image/png".equals(pv.getString("media_type"))
+                && pv.getInt("width") == 320 && pv.getInt("height") == 160 && !pv.has("frame") && near(previewRgb(pv), 0x3366CC));
+        expect("and its text is what a new sidecar writes", after.equals(ProcessingRecord.sidecarText(new JSONObject(plainText).put("preview", pv))));
+        byte[] once = Files.readAllBytes(side);
+        expect("a sidecar that has a preview is not written again", !ProcessingRecord.addPreview(side, null)
+                && java.util.Arrays.equals(once, Files.readAllBytes(side)));
+
+        // any formatting survives: numbers as written, other indentation, no final newline
+        String odd = "{\"summary\":\"x\",\"hfrecord\":\"1.0\",\n\t\"output\": {\"kind\": \"still\", \"file_name\": \"odd.jpg\", \"fps\": 1.50, \"e\": 2.0E3},  \"z\": [1, 2.000]   }";
+        javax.imageio.ImageIO.write(flat(100, 50, 0xCC3300), "jpeg", dir.resolve("odd.jpg").toFile());
+        Path oddSide = Files.writeString(dir.resolve("odd.jpg.hfrec"), odd);
+        expect("a JPEG still gains a preview", ProcessingRecord.addPreview(oddSide, null));
+        String oddAfter = Files.readString(oddSide);
+        int cut = odd.lastIndexOf("]") + 1;
+        expect("an oddly formatted record keeps every byte, 1.50 and 2.0E3 included", oddAfter.startsWith(odd.substring(0, cut))
+                && oddAfter.endsWith(odd.substring(cut)) && oddAfter.substring(cut).startsWith(",\n  \"preview\": {")
+                && new JSONObject(oddAfter).getJSONObject("preview").getInt("width") == 100);
+
+        // nothing to make one from: the file is not touched
+        Path lone = Files.writeString(dir.resolve("gone.png.hfrec"), plainText.replace("frame0001.png", "gone.png"));
+        byte[] loneBytes = Files.readAllBytes(lone);
+        java.nio.file.attribute.FileTime loneTime = Files.getLastModifiedTime(lone);
+        expect("a sidecar with no export beside it is left byte for byte, not rewritten", !ProcessingRecord.addPreview(lone, null)
+                && java.util.Arrays.equals(loneBytes, Files.readAllBytes(lone)) && loneTime.equals(Files.getLastModifiedTime(lone))
+                && !Files.exists(dir.resolve("gone.png.hfrec.tmp")));
+        Files.writeString(dir.resolve("cube.exr"), "exr");
+        Path exr = Files.writeString(dir.resolve("cube.exr.hfrec"), "{\"hfrecord\": \"1.0\", \"output\": {\"kind\": \"exr_series\", \"file_name\": \"cube.exr\"}}\n");
+        Files.writeString(dir.resolve("bad.png"), "not a png");
+        Path bad = Files.writeString(dir.resolve("bad.png.hfrec"), plainText.replace("frame0001.png", "bad.png"));
+        byte[] badBytes = Files.readAllBytes(bad);
+        expect("EXR and an unreadable PNG get none, untouched", !ProcessingRecord.addPreview(exr, null) && !ProcessingRecord.addPreview(bad, null)
+                && java.util.Arrays.equals(badBytes, Files.readAllBytes(bad)));
+
+        // a PNG frame series: its middle file
+        Path series = Files.createDirectories(dir.resolve("series"));
+        int[] colours = {0xFF0000, 0x00FF00, 0x0000FF};
+        for (int i = 0; i < 3; i++)
+            javax.imageio.ImageIO.write(flat(64, 64, colours[i]), "png", series.resolve(String.format("frame%04d.png", i + 1)).toFile());
+        Path seriesSide = Files.writeString(dir.resolve("series.hfrec"),
+                "{\n  \"hfrecord\": \"1.0\",\n  \"output\": {\"kind\": \"frame_series\", \"file_name\": \"series\"}\n}\n");
+        expect("a frame series gains its middle file, frame 1", ProcessingRecord.addPreview(seriesSide, null)
+                && new JSONObject(Files.readString(seriesSide)).getJSONObject("preview").getInt("frame") == 1
+                && near(previewRgb(new JSONObject(Files.readString(seriesSide)).getJSONObject("preview")), 0x00FF00));
+
+        // a movie: the middle frame through ffmpeg; without one, nothing
+        Path movieSide = Files.writeString(dir.resolve("clip.mp4.hfrec"),
+                "{\n  \"hfrecord\": \"1.0\",\n  \"output\": {\"kind\": \"movie\", \"file_name\": \"clip.mp4\", \"frames\": 5, \"fps\": 10}\n}\n");
+        Files.writeString(dir.resolve("clip.mp4"), "movie");
+        byte[] movieBytes = Files.readAllBytes(movieSide);
+        expect("a movie with no ffmpeg reachable gets none, untouched", !ProcessingRecord.addPreview(movieSide, null)
+                && java.util.Arrays.equals(movieBytes, Files.readAllBytes(movieSide)));
+        Path ffmpeg = null;
+        for (String d : System.getenv().getOrDefault("PATH", "").split(java.io.File.pathSeparator))
+            if (!d.isEmpty() && Files.isExecutable(Path.of(d, "ffmpeg")))
+                ffmpeg = ffmpeg == null ? Path.of(d, "ffmpeg") : ffmpeg;
+        if (ffmpeg == null)
+            System.out.println("  skip movie preview through ffmpeg: no ffmpeg on PATH");
+        else {
+            int[] five = {0xFF0000, 0xFFFF00, 0x0000FF, 0x00FFFF, 0xFF00FF};
+            for (int i = 0; i < 5; i++)
+                javax.imageio.ImageIO.write(flat(64, 64, five[i]), "png", dir.resolve(String.format("m%d.png", i)).toFile());
+            Files.delete(dir.resolve("clip.mp4"));
+            Process enc = new ProcessBuilder(ffmpeg.toString(), "-nostdin", "-v", "error", "-framerate", "10", "-i", dir.resolve("m%d.png").toString(),
+                    "-c:v", "mpeg4", "-q:v", "2", "-pix_fmt", "yuv420p", dir.resolve("clip.mp4").toString()).redirectErrorStream(true).start();
+            enc.getInputStream().readAllBytes();
+            expect("ffmpeg made the test movie", enc.waitFor() == 0);
+            expect("a movie gains its middle frame, frame 2, through ffmpeg", ProcessingRecord.addPreview(movieSide, ffmpeg)
+                    && new JSONObject(Files.readString(movieSide)).getJSONObject("preview").getInt("frame") == 2
+                    && near(previewRgb(new JSONObject(Files.readString(movieSide)).getJSONObject("preview")), 0x0000FF));
+        }
+
+        // (a) a rename on read adds one too; (b) Upgrade Sidecars in Folder renames and adds, and says so per file
+        Path legacy = Files.writeString(dir.resolve("frame0002.png.hfrec.json"), plainText.replace("frame0001.png", "frame0002.png"));
+        Files.copy(dir.resolve("frame0001.png"), dir.resolve("frame0002.png"));
+        Path renamed = ProcessingRecord.migrateLegacy(legacy);
+        expect("an older sidecar renamed on read gains a preview", renamed.getFileName().toString().equals("frame0002.png.hfrec")
+                && new JSONObject(Files.readString(renamed)).has("preview"));
+        Path up = Files.createTempDirectory("hfrec-upgrade");
+        Files.copy(dir.resolve("frame0001.png"), up.resolve("f.png"));
+        Files.copy(dir.resolve("frame0001.png"), up.resolve("g.png"));
+        Files.writeString(up.resolve("f.png.hfrec.json"), plainText.replace("frame0001.png", "f.png"));
+        Files.writeString(up.resolve("g.png.hfrec"), plainText.replace("frame0001.png", "g.png"));
+        Path h = Files.writeString(up.resolve("h.png.hfrec"), plainText.replace("frame0001.png", "h.png"));
+        byte[] hBytes = Files.readAllBytes(h);
+        java.util.Map<String, String> plan = new java.util.TreeMap<>(), done = new java.util.TreeMap<>();
+        for (String[] row : ProcessingRecord.migrateFolder(up, false))
+            plan.put(Path.of(row[0]).getFileName().toString(), row[2] + "/" + row[3]);
+        expect("upgrade plan: " + plan, plan.equals(java.util.Map.of("f.png.hfrec.json", "would_rename/missing", "g.png.hfrec", "current/missing",
+                "h.png.hfrec", "current/missing")) && !new JSONObject(Files.readString(up.resolve("g.png.hfrec"))).has("preview"));
+        for (String[] row : ProcessingRecord.migrateFolder(up, true))
+            done.put(Path.of(row[0]).getFileName().toString(), row[2] + "/" + row[3]);
+        expect("upgrade: " + done, done.equals(java.util.Map.of("f.png.hfrec.json", "renamed/added", "g.png.hfrec", "current/added",
+                "h.png.hfrec", "current/none")) && new JSONObject(Files.readString(up.resolve("f.png.hfrec"))).has("preview")
+                && java.util.Arrays.equals(hBytes, Files.readAllBytes(h)));
+    }
     private static final String A = "00000000-0000-4000-8000-00000000000a";
     private static final String B = "00000000-0000-4000-8000-00000000000b";
 
@@ -245,7 +389,7 @@ public final class ProcessingRecordCheck {
         java.util.Map<String, String> plan = new java.util.TreeMap<>();
         for (String[] row : ProcessingRecord.migrateFolder(mig, false))
             plan.put(Path.of(row[0]).getFileName().toString(), row[2]);
-        expect("migrate plan: " + plan, plan.equals(java.util.Map.of("a.png.hfrec.json", "would_rename", "b.png.hfrec.json", "exists",
+        expect("migrate plan: " + plan, plan.equals(java.util.Map.of("a.png.hfrec.json", "would_rename", "b.png.hfrec.json", "exists", "b.png.hfrec", "not_a_record",
                 "c.png.hfrec.json", "not_a_record", "e.png.hfrec.json", "not_a_record", "d.png.hfrec.json", "would_rename"))
                 && Files.exists(mig.resolve("a.png.hfrec.json")) && !Files.exists(mig.resolve("a.png.hfrec")));
         long renamed = ProcessingRecord.migrateFolder(mig, true).stream().filter(row -> "renamed".equals(row[2])).count();
@@ -348,6 +492,8 @@ public final class ProcessingRecordCheck {
         Files.write(raw, deep);
         java.awt.image.BufferedImage d1 = ExportWriter.rawFrame(raw, 2, 1, 6, 1, 320);
         expect("rawFrame reads rgb48le by each sample's high byte", d1.getRGB(1, 0) == (0xFF000000 | 0xC0 << 16 | 0x80 << 8 | 0xFF));
+
+        backfill(plainText, r);
 
         if (failures != 0) {
             System.out.println(failures + " processing record failure(s)");
