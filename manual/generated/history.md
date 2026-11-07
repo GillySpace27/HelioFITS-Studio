@@ -4,11 +4,37 @@
 
 ## HelioFITS Studio 0.9.2 (unreleased)
 
+### Fixes
+- The Windows and Linux packages now carry HelioFITS Core, the FITS library engine, as the Mac app already did, so Use FITS and the FITS library work there without installing anything. It is the same pinned core, in its own Python inside the package, and on Windows its files are signed with the rest of Studio.
+- Scrolling the left sidebar with the pointer over the image layer list no longer stalls: the list was keeping the wheel events for itself although it never has anything of its own to scroll.
+- Settings > Theme > Visibility has a Scroll bar width slider, from the usual thin bar up to 30 pixels, for those who prefer to drag the bar. It applies to the left and right sidebars and to palettes, at once.
+- The imagery no longer flickers as the pointer moves over it. The colour legend asked for a full redraw on every mouse move, wherever the pointer was; it now redraws only while the pointer is on the legend or its tooltip is up. With Stars on, a redraw at a viewpoint whose stars were not yet built also dropped every star for a frame; the previous stars now stay until the new ones are ready.
+
+### Identify under cursor
+- View > Identify Under Cursor names the Sun, the Moon or a planet under the pointer in the footer, as each image layer's own observer saw it at that frame's time, so the Moon in a PUNCH mosaic or a planet in LASCO C3 is named where it is drawn. It works in Orthographic, HPC, Observer Sky, Helioradial and Helioradial Unrolled. A body that is off the imagery says why (behind the Sun, behind the occulter, outside the field). View > Identify Tooltip adds the name, distance and angle from the Sun beside the pointer when it rests. Settings > Identify has the tolerances.
+- New commands identifyAt, identifyLocate, identifyInField and identifySet. identifyInField says when each body is in a field of view over a date range, by day, from the ephemeris: a quick way to find a date without the Moon in PUNCH.
+- The date picker's calendar can mark the bodies in the PUNCH field (or the active layer's) under each day and grey out days with the Moon, or with any body, so a Moon-free date is a glance. A Bodies in Field timeline track draws the same as one lane per body.
+- In the 3D (Orthographic) view the identifier names spacecraft model layers and the orbit plot's markers under the pointer. With the camera turned away from an image layer's line of sight it names only what is drawn: bodies on the imagery and the models, not bodies hidden or off the field. The orbit plot's hover label now sits beside the pointer when the view is inset.
+- The identifier also names SWEK events under the pointer ("AR 13664"), the comet the Track comet panel follows, and the FOV outlines the pointer is inside. Alt-click pins a body's label to the view, where it follows the body and is saved with the session; View > Find Body... pins a body and says where it is. New command identifyPin.
+- View > Identify Stars names the star under the pointer from the Hipparcos catalogue: its IAU name ("Alpheratz"), Bayer designation or Hipparcos number, as Settings > Identify chooses, down to the faintest magnitude set there. Names come from the IAU Catalog of Star Names, downloaded once and cached.
+
+### Starfield
+- A Stars row under Overlays (off by default) draws the background stars and, optionally, the planets in the observer's view, at their true directions for that observer and time: real stars line up with the stars in a LASCO C3 frame. Stars come from the Hipparcos catalogue down to V = 9, downloaded from ESA the first time the row is ticked (about 4.5 MB, kept in ~/HFStudio/Catalogs) and never shipped with Studio. Options: the faintest magnitude shown (default 6), star colours from B-V with a saturation slider, point size, Mercury to Neptune (not the observer's own planet), the Moon, and drawing over the imagery instead of under it. Sessions keep the settings. Shown in the 3D views from the observer for now; Observer Sky and the orbited camera come later.
+- Stars and planets also show in HPC and Observer Sky, placed through the same mapping as the imagery, so they follow zoom, the sky projection and where the view is aimed. Observer Sky shows the whole sky, not only the 80 degrees about the Sun the 3D views keep.
+
+### Storage folders
+- Settings > Storage lets you choose where the exports and the download cache are kept, for example on an external drive, and shows how much each uses. Move existing files carries what is already there across, keeping every export beside its .hfrec record and never overwriting a file. If a chosen drive is not connected, Studio uses the default folder for that session and says so, and a link at the default place that points at a missing drive no longer stops Studio from starting.
+
 ### One store for FITS downloads
 - When there is a FITS library, a FITS file Studio downloads now moves into the library instead of being kept twice (once in Studio's cache, once in the library). Studio finds it there again by its download address, with or without HelioFITS Core running, and an existing cache moves into the library once, in the background, so its space comes back. Without a library, or with a HelioFITS Core older than this release, nothing changes: downloads stay in Studio's cache as before.
 - Settings > FITS Library has Choose Folder..., which puts the FITS library in another folder or on another drive: an empty or new folder becomes a new library, a folder that already holds one is used as it is, and HelioFITS Core's warnings about the place (a sync service folder, a network drive) are shown. The library used before stays where it is, with its files.
 - The FITS Library tab now says plainly which case applies, with the action that fixes it: the library is on, its drive is not connected, there is none yet (Choose Folder... makes one), or this computer has no HelioFITS Core (Studio works without one, and the tab says where to get it). It replaces "None found: install the HelioFITS Cache Manager, or set HFCORE_CORE".
 - On macOS, the first FITS download on a computer with no library makes one at ~/HelioFITSLibrary and says so once. It never happens where HelioFITS Core already has settings, so a library on a drive that is not connected is never replaced.
+- Studio for macOS now carries HelioFITS Core at pyHelioFITS a8c769f (was be1e7a1), the first core that can take a download over (consume) and find a file by its download address, which the one store above needs.
+
+### Easier to find panels
+- The sidebars' top-level sections are easier to tell apart, and it is on by default. Managers > Theme Manager has a Visibility section with an Easier to find panels checkbox and four options under it: stronger section headers (a stronger band where the title can still be read on it, a thicker rule and more space under each section), an accent stripe on the leading edge of each header, section numbers (1, 2, 3 in the order the sections appear, only where there are two or more), and a highlight on the header under the pointer. Each applies at once and is remembered in the settings, so it follows whichever theme is chosen. Turning the checkbox off restores the previous look exactly.
+- The theme editor has a new colour, Section header text (strong), for the section titles when Stronger section headers is on. It starts as a muted complement of the theme's accent, so it is clearly a different hue; it is held to 3.5:1 on its band (the plain title keeps 4.5:1), so the hue stays visible on the built-in themes. Click its swatch to choose any colour.
 
 ## HelioFITS Studio 0.9.1 (unreleased)
 
@@ -22,6 +48,7 @@
 
 ### Image Layers list
 - The open drag hand now shows only on the body of an image row. Over the show checkbox, the drive radio and the remove x, which react to a plain click, the cursor is the ordinary arrow. Overlay rows keep the arrow.
+- The hand closes while the mouse is pressed on a row and stays closed while the row is dragged; the faded copy of the row now travels beside the cursor instead of replacing it, where the system draws drag images.
 - The show checkbox and the x have tooltips (the drive radio already had one), and the Getting started and Loading data tours now say what the radio does.
 
 ### Welcome window

@@ -69,7 +69,6 @@ public final class Palette {
     private static final int MIN_WIDTH = 180; // small enough to be useful, large enough to still be grabbable
     private static final int MIN_HEIGHT = 90;
     private static final int GRIP = 6; // border pixels that resize instead of doing nothing
-    private static final int SCROLLBAR_WIDTH = 10; // FlatLaf's own ScrollBar.width default, as the sidebar uses
 
     private final String title;
     private final Supplier<Component> contentSupplier;
@@ -810,8 +809,8 @@ public final class Palette {
         scroller.setFocusable(false);
         scroller.setOpaque(false);
         scroller.getViewport().setOpaque(false);
-        scroller.getVerticalScrollBar().setPreferredSize(new Dimension(SCROLLBAR_WIDTH, 0));
-        scroller.getHorizontalScrollBar().setPreferredSize(new Dimension(0, SCROLLBAR_WIDTH));
+        PanelVisibility.styleScrollBar(scroller.getVerticalScrollBar());
+        PanelVisibility.styleScrollBar(scroller.getHorizontalScrollBar());
         scroller.getVerticalScrollBar().setUnitIncrement(16);
         scroller.getHorizontalScrollBar().setUnitIncrement(16);
         content.add(scroller, BorderLayout.CENTER);

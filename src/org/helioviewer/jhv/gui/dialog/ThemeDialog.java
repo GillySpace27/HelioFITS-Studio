@@ -28,7 +28,9 @@ import javax.swing.SwingConstants;
 import org.helioviewer.jhv.app.Theme;
 import org.helioviewer.jhv.gui.Interfaces;
 import org.helioviewer.jhv.gui.MainFrame;
+import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.gui.UIGlobals;
+import org.helioviewer.jhv.gui.component.PanelVisibility;
 
 import com.jidesoft.dialog.ButtonPanel;
 import com.jidesoft.dialog.StandardDialog;
@@ -159,8 +161,95 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
         load();
 
         JScrollPane scroll = new JScrollPane(grid);
-        scroll.setPreferredSize(new Dimension(720, 420));
-        return scroll;
+        scroll.setPreferredSize(new Dimension(720, 360));
+        JPanel both = new JPanel(new java.awt.BorderLayout());
+        both.add(scroll, java.awt.BorderLayout.CENTER);
+        both.add(visibilityPanel(), java.awt.BorderLayout.PAGE_END);
+        return both;
+    }
+
+    /**
+     * Easier to find panels. Applies at once and is kept in the settings, not in the theme, so it
+     * follows whichever theme is chosen and survives deriving one from a colour.
+     */
+    private static JPanel visibilityPanel() {
+        JPanel box = new JPanel(new GridBagLayout());
+        box.setBorder(BorderFactory.createTitledBorder("Visibility"));
+        GridBagConstraints c = new GridBagConstraints();
+        c.gridx = 0;
+        c.weightx = 1;
+        c.anchor = GridBagConstraints.LINE_START;
+        c.insets = new Insets(0, 6, 0, 6);
+
+        String[][] options = {
+                {PanelVisibility.HEADERS, "Stronger section headers", "Bolder bands, a thicker rule and a little more space between sections. Titles use the Section header text (strong) colour above."},
+                {PanelVisibility.STRIPE, "Accent stripe on each section", "A thin stripe in the accent colour on the leading edge of every top-level header."},
+                {PanelVisibility.NUMBERS, "Number the sections", "Put 1, 2, 3 in front of each top-level title, in the order they appear."},
+                {PanelVisibility.HOVER, "Highlight a header under the pointer", "So a header reads as something to click."},
+        };
+        javax.swing.JCheckBox master = new javax.swing.JCheckBox("Easier to find panels", PanelVisibility.enabled());
+        master.setToolTipText("Off restores the look from before these options existed.");
+        java.util.List<javax.swing.JCheckBox> subs = new java.util.ArrayList<>();
+        Runnable apply = () -> {
+            for (javax.swing.JCheckBox sub : subs)
+                sub.setEnabled(master.isSelected());
+            UIGlobals.refreshThemed();
+            for (java.awt.Window w : java.awt.Window.getWindows()) {
+                w.revalidate();
+                w.repaint();
+            }
+        };
+        master.addActionListener(e -> {
+            Settings.setProperty(PanelVisibility.MASTER, Boolean.toString(master.isSelected()));
+            apply.run();
+        });
+        c.gridy = 0;
+        box.add(master, c);
+        int row = 1;
+        for (String[] o : options) {
+            javax.swing.JCheckBox sub = new javax.swing.JCheckBox(o[1], !"false".equals(Settings.getProperty(o[0])));
+            sub.setToolTipText(o[2]);
+            sub.setEnabled(master.isSelected());
+            sub.addActionListener(e -> {
+                Settings.setProperty(o[0], Boolean.toString(sub.isSelected()));
+                apply.run();
+            });
+            subs.add(sub);
+            c.gridy = row++;
+            c.insets = new Insets(0, 28, 0, 6);
+            box.add(sub, c);
+        }
+
+        // Wide bars for those who scroll by dragging the bar rather than with the wheel or a trackpad
+        javax.swing.JSlider bar = new javax.swing.JSlider(PanelVisibility.SCROLLBAR_DEFAULT, PanelVisibility.SCROLLBAR_MAX,
+                Math.max(PanelVisibility.SCROLLBAR_DEFAULT, PanelVisibility.scrollBarWidth()));
+        bar.setToolTipText("How wide the sidebar and palette scroll bars are, in pixels. Wider is easier to grab; the leftmost position is the usual thin bar.");
+        JLabel barLabel = new JLabel("Scroll bar width");
+        barLabel.setToolTipText(bar.getToolTipText());
+        bar.addChangeListener(e -> {
+            Settings.setProperty(PanelVisibility.SCROLLBAR, Integer.toString(bar.getValue()));
+            PanelVisibility.refreshScrollBars();
+            for (java.awt.Window w : java.awt.Window.getWindows()) {
+                w.revalidate();
+                w.repaint();
+            }
+        });
+        master.addActionListener(e -> {
+            bar.setEnabled(master.isSelected());
+            barLabel.setEnabled(master.isSelected());
+            PanelVisibility.refreshScrollBars();
+        });
+        bar.setEnabled(master.isSelected());
+        barLabel.setEnabled(master.isSelected());
+        c.gridy = row++;
+        c.insets = new Insets(4, 28, 0, 6);
+        box.add(barLabel, c);
+        c.gridy = row++;
+        c.insets = new Insets(0, 28, 0, 6);
+        c.fill = GridBagConstraints.HORIZONTAL;
+        box.add(bar, c);
+        c.fill = GridBagConstraints.NONE;
+        return box;
     }
 
     @Override
