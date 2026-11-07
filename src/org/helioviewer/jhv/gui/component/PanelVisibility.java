@@ -107,10 +107,11 @@ public final class PanelVisibility {
 
     /** The band under the pointer: one step toward the text colour, if the title still reads on it. */
     public static Color hoverFill(Theme theme, Color fill) {
-        Color text = theme.get(Theme.Token.HeaderText);
+        double min = headers() ? Theme.STRONG_TEXT_MIN : Theme.TEXT_MIN;
+        Color text = headerText(theme, fill);
         for (double f : new double[]{0.16, 0.10, 0.06}) {
             Color c = Theme.mix(fill, theme.get(Theme.Token.Foreground), f);
-            if (Theme.contrast(text, c) >= Theme.TEXT_MIN)
+            if (Theme.contrast(text, c) >= min)
                 return c;
         }
         return fill;
