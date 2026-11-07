@@ -337,7 +337,19 @@ final class ProjectionPaletteContent {
         helioradial3DBox.setName("projectionRender3d");
         helioradial3DBox.setToolTipText("Draw Helioradial as a rotatable surface instead of a flat face-on disk");
         // setHelioradial3D does the camera reset itself, the same way a projection change does.
-        helioradial3DBox.addItemListener(e -> Display.setHelioradial3D(helioradial3DBox.isSelected()));
+        helioradial3DBox.addItemListener(e -> {
+            Display.setHelioradial3D(helioradial3DBox.isSelected());
+            refreshPerObserverBox();
+        });
+        perObserverBox = new javax.swing.JCheckBox("Each image at its observer", Display.isHelioradialPerObserver());
+        perObserverBox.setName("projectionPerObserver");
+        perObserverBox.setToolTipText("In 3D, place each image as its own observer saw it, so a Solar Orbiter or STEREO frame "
+                + "stands at its real angle to an Earth-view one, as in Orthographic. Off: every image faces the viewpoint.");
+        perObserverBox.addItemListener(e -> {
+            Display.setHelioradialPerObserver(perObserverBox.isSelected());
+            org.helioviewer.jhv.display.DisplayController.display();
+        });
+        refreshPerObserverBox();
 
         // Puts every control in this palette back to neutral in one press: warp off, crop wide
         // open, magnification 1x. "Warp off" is lambda = 1, NOT the app's start-up lambda of 0
@@ -352,9 +364,22 @@ final class ProjectionPaletteContent {
 
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(BorderFactory.createEmptyBorder(3, 8, 3, 8));
-        panel.add(helioradial3DBox, BorderLayout.LINE_START);
+        JPanel boxes = new JPanel(new java.awt.GridLayout(2, 1));
+        boxes.setOpaque(false);
+        boxes.add(helioradial3DBox);
+        boxes.add(perObserverBox);
+        panel.add(boxes, BorderLayout.LINE_START);
         panel.add(resetView, BorderLayout.LINE_END);
         return panel;
+    }
+
+    private javax.swing.JCheckBox perObserverBox;
+
+    private void refreshPerObserverBox() {
+        if (perObserverBox == null)
+            return;
+        perObserverBox.setEnabled(ViewState.getProjection() == MapMode.Helioradial && Display.isHelioradial3D());
+        perObserverBox.setSelected(Display.isHelioradialPerObserver());
     }
 
     // Tracking animates lambda / the crop frame by frame, so it has to let go before the
@@ -758,6 +783,7 @@ final class ProjectionPaletteContent {
             helioradial3DBox.setEnabled(ViewState.getProjection() == MapMode.Helioradial);
             helioradial3DBox.setSelected(Display.isHelioradial3D());
         }
+        refreshPerObserverBox();
         setSkyPanelEnabled(ViewState.getProjection() == MapMode.ObserverSky);
         if (warpLambdaValue != null)
             warpLambdaValue.setText(String.format("%.3f", ViewState.getWarpLambda()));

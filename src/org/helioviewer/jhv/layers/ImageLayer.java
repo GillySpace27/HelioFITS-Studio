@@ -819,11 +819,15 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             // the camera orbiting a surface that stays put, which is what dragging should mean.
             // GridLayer does the same thing around the radial grid, for the same reason.
             Transform.pushView();
-            Transform.rotateViewInverse(renderViewpoint.toQuat());
+            // Each layer on its own observer's surface (Display.surfaceObserver): the mesh is in
+            // that observer's frame, which is also the frame the fragment stage samples it in, so
+            // only where it stands changes, not what it shows.
+            Position surfaceObserver = org.helioviewer.jhv.display.Display.surfaceObserver(renderViewpoint, metaViewpoint0);
+            Transform.rotateViewInverse(surfaceObserver.toQuat());
             // The model is never downgraded here. Past r = D it has no surface, and the fragment
             // stage discards those pixels rather than drawing the flat sheet the clamp produces,
             // so choosing the Thomson sphere costs the outer field rather than the whole mode.
-            GLSLImageShader.renderWarpSurface(renderViewpoint.distance, org.helioviewer.jhv.display.Display.getSurfaceModel());
+            GLSLImageShader.renderWarpSurface(surfaceObserver.distance, org.helioviewer.jhv.display.Display.getSurfaceModel());
             Transform.popView();
         } else
             GLSLImageShader.drawImage();
