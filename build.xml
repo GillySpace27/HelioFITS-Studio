@@ -113,7 +113,34 @@
               level="warning" if:set="kernel.missing"/>
     </target>
 
-    <target name="compile" depends="kernels">
+    <!--
+      The Windows and Linux natives jars (58 MB each) are not in git: every version committed stays
+      in every clone for good, and those two had made the repository 3 GB. They are fetched from
+      the natives-2026-09-16 release and checked against the SHA-256 pinned here. Fatal when
+      missing, unlike the kernel above: the jar manifest's Class-Path lists the lib/ jars present
+      at build time, so a jar built without them would ship a Windows or Linux package that
+      cannot load its natives. To change one (extra/ffmpeg/update_ffmpeg.py writes into them),
+      attach the new jar to a new natives-<date> release, then update natives.url and the hash.
+    -->
+    <property name="natives.url" value="https://github.com/GillySpace27/HelioFITS-Studio/releases/download/natives-2026-09-16"/>
+    <macrodef name="fetch-native">
+        <attribute name="name"/>
+        <attribute name="sha256"/>
+        <sequential>
+            <get src="${natives.url}/@{name}" dest="lib/jhv/@{name}" skipexisting="true"/>
+            <local name="native.ok"/>
+            <checksum file="lib/jhv/@{name}" algorithm="SHA-256" property="@{sha256}" verifyproperty="native.ok"/>
+            <fail message="lib/jhv/@{name} does not match its pinned SHA-256: delete it and build again">
+                <condition><isfalse value="${native.ok}"/></condition>
+            </fail>
+        </sequential>
+    </macrodef>
+    <target name="natives" description="fetch the Windows and Linux natives jars that are not in git">
+        <fetch-native name="jhv-natives-windows.jar" sha256="d67351f5c497d12766741450fa281bc3160c205cbfa210aa7d2af7f027caac82"/>
+        <fetch-native name="jhv-natives-linux.jar" sha256="32c3a87718e2c3225a02e2e460fc1690a9b073d470f845ba51af510206484ce8"/>
+    </target>
+
+    <target name="compile" depends="kernels,natives">
         <mkdir dir="${bin}"/>
         <!-- javac recompiles only changed sources; drop classes whose dependencies changed so no jar links against stale bytecode -->
         <depend srcdir="${src}" destdir="${bin}" cache="${bin}/.dependcache" closure="yes"/>
@@ -125,7 +152,7 @@
         </javac>
     </target>
 
-    <target name="prone">
+    <target name="prone" depends="natives">
         <mkdir dir="${bin}"/>
         <!-- using github.com/google/error-prone-javac is required when running on JDK 8 -->
         <condition property="jdk9orlater">
