@@ -78,6 +78,10 @@ public final class ExportReplay {
         JSONObject session = nat == null ? null : nat.optJSONObject("studio_session");
         if (session == null)
             return null;
+        // The writer stores Provenance.session(): the scene is inside "scene" (found by running a replay of a real export)
+        JSONObject inner = session.optJSONObject("scene");
+        if (inner != null && !session.has(STATE))
+            session = inner;
         return (JSONObject) Provenance.rewrite(session, s -> Provenance.expandHome(s, System.getProperty("user.home", "")));
     }
 
