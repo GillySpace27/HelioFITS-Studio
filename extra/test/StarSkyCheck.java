@@ -12,6 +12,7 @@ import org.helioviewer.jhv.astronomy.Spice;
 import org.helioviewer.jhv.astronomy.SpiceMath;
 import org.helioviewer.jhv.io.Directories;
 import org.helioviewer.jhv.layers.StarLayer;
+import org.helioviewer.jhv.opengl.BufVertex;
 import org.helioviewer.jhv.time.JHVTime;
 
 import org.json.JSONObject;
@@ -63,6 +64,7 @@ public final class StarSkyCheck {
         Directories.createCacheDirs();
         AppInit.loadSpice();
         checkEndToEnd();
+        checkOrbit();
         checkSettings();
 
         if (failures != 0) {
@@ -164,6 +166,19 @@ public final class StarSkyCheck {
         expect(threw, "a result with other columns is refused");
         expect(StarCatalog.bandQuery(60, 90, true).endsWith("de <= 90") && StarCatalog.bandQuery(-90, -60, false).contains("de >= -90"),
                 "declination bands cover both poles");
+    }
+
+    // The 3D sheet is a sky at infinity: orbiting turns the directions instead of swinging a flat plane edge-on
+    private static void checkOrbit() {
+        StarSky.Points p = new StarSky.Points(2, new float[]{0, 0, -1, 1, 0, 0}, new float[]{3, 3}, new byte[8]);
+        BufVertex none = new BufVertex(), turned = new BufVertex();
+        StarSky.plane(p, 215, null, none);
+        StarSky.plane(p, 215, org.helioviewer.jhv.math.Quat.createAxisY(Math.PI / 2), turned);
+        expect(none.getCount() == 1 && none.toBuffer().getFloat(0) == 0, "no drag: the Sun-line star is placed, the one 90 deg west is culled");
+        expect(turned.getCount() == 1 && Math.abs(turned.toBuffer().getFloat(0)) < 1e-3 && Math.abs(turned.toBuffer().getFloat(4)) < 1e-3,
+                "a 90 deg orbit brings the star that was 90 deg west onto the new line of sight and culls the old one");
+        BufVertex flat = StarSky.plane(p, 215);
+        expect(flat.getCount() == none.getCount() && flat.toBuffer().getFloat(0) == none.toBuffer().getFloat(0), "plane(p, d) is the no-drag placement");
     }
 
     private static void checkSettings() {
