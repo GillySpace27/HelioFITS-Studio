@@ -30,6 +30,8 @@ The file format and where templates are kept are in {doc}`reference/templates`.
   ahead.
 - {menuselection}`File --> Export Session with Data...` saves the session plus a `.data.zip` of its
   local files, to open on another computer.
+- The Record panel's {guilabel}`Bundle source data with export` writes the same kind of `.data.zip` beside
+  each still or movie, holding only the files that export needs. It is off unless you choose it.
 - {menuselection}`File --> Copy Provenance` puts the program, its build and each layer's data source
   on the clipboard, for a caption or a methods section.
 - {menuselection}`Edit --> Copy Frame` puts the canvas picture on the clipboard, as an 8-bit

@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -130,8 +131,64 @@ public final class SessionArchive {
             return new Export(sessionPath, null, 0, 0);
         }
 
-        String id = UUID.randomUUID().toString();
         Path archive = dir.resolve(archiveName(name));
+        long total = writeArchive(wrapped, state, files, archive);
+        // The session last: until it lands, whatever .jhv was there before still opens.
+        writeSession(wrapped, sessionPath);
+        return new Export(sessionPath, archive, files.size(), total);
+    }
+
+    /** What {@link #exportData} wrote: the archive, how many local files it holds, their bytes and the archive's SHA-256. */
+    public record Bundle(Path archive, int files, long bytes, String sha256, long archiveBytes) {}
+
+    /** How much {@link #exportData} would pack: local files and their bytes (the archive itself is a little smaller for files that compress). */
+    public record Estimate(int files, long bytes) {}
+
+    /**
+     * Only the archive, no .jhv beside it, for an export that already has its own sidecar record: the same
+     * format {@link #export} writes, so {@link #reattach} opens it unchanged, and its session.jhv inside is the scene.
+     * {@code only}, when given, limits the packed files to those URIs (a still's frames and what they depend
+     * on); the scene inside still names every file, and whatever the archive does not hold is missing on load as it
+     * would be without one. Returns null when the scene reads no local file in {@code only}.
+     */
+    @Nullable
+    public static Bundle exportData(JSONObject session, Path archive, @Nullable Set<URI> only) throws IOException {
+        JSONObject wrapped = new JSONObject(session.toString());
+        JSONObject state = wrapped.getJSONObject(STATE_KEY);
+        state.remove(SESSION_KEY);
+        Map<URI, Path> files = localFiles(state);
+        if (only != null)
+            files.keySet().retainAll(only);
+        if (files.isEmpty())
+            return null;
+        long total = writeArchive(wrapped, state, files, archive.toAbsolutePath());
+        return new Bundle(archive, files.size(), total, org.helioviewer.jhv.io.SourceIdentity.sha256(archive), Files.size(archive));
+    }
+
+    /** The local files {@link #exportData} would pack for {@code session} (limited to {@code only} when given), summed. Reads sizes only. */
+    public static Estimate estimate(JSONObject session, @Nullable Set<URI> only) {
+        JSONObject state = session.optJSONObject(STATE_KEY);
+        if (state == null)
+            return new Estimate(0, 0);
+        int n = 0;
+        long bytes = 0;
+        for (Map.Entry<URI, Path> e : localFiles(state).entrySet()) {
+            if (only != null && !only.contains(e.getKey()))
+                continue;
+            try {
+                bytes += Files.size(e.getValue());
+                n++;
+            } catch (IOException ex) {
+                // a file that vanished between the check and now is not packed
+            }
+        }
+        return new Estimate(n, bytes);
+    }
+
+    /** Write the zip: each file, then session.jhv and the manifest, atomically at {@code archive}. Returns the packed bytes. */
+    private static long writeArchive(JSONObject wrapped, JSONObject state, Map<URI, Path> files, Path archive) throws IOException {
+        String id = UUID.randomUUID().toString();
+        Path dir = archive.toAbsolutePath().getParent();
         state.put(SESSION_KEY, new JSONObject().put("file", archive.getFileName().toString()).put("id", id));
         byte[] sessionBytes = wrapped.toString(1).getBytes(StandardCharsets.UTF_8);
 
@@ -173,9 +230,7 @@ public final class SessionArchive {
         } finally {
             Files.deleteIfExists(temp);
         }
-        // The session last: until it lands, whatever .jhv was there before still opens.
-        writeSession(wrapped, sessionPath);
-        return new Export(sessionPath, archive, files.size(), total);
+        return total;
     }
 
     /**

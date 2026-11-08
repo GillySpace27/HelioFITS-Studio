@@ -43,6 +43,7 @@ import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.layers.selector.LayersSectionPanel;
+import org.helioviewer.jhv.movie.ExportBundle;
 import org.helioviewer.jhv.movie.ExportFormat;
 import org.helioviewer.jhv.movie.ExportMovie;
 import org.helioviewer.jhv.movie.ExportPreset;
@@ -147,6 +148,8 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
     private final JLabel presetLabel;
     private final JPanel presetRow;
     private final JPanel encodingPane;
+    private final javax.swing.JCheckBox bundleDataCheckBox;
+    private final JLabel bundleSizeLabel;
     private boolean syncingRecordSize;
 
     // Everything the "Playback and Recording" pane shows, in one grid so the label column lines up
@@ -322,6 +325,21 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         timelinesCheckBox.addItemListener(e ->
                 Settings.setProperty("video.recordTimelines", Boolean.toString(timelinesCheckBox.isSelected())));
 
+        // Applies to a still as much as to a movie, so it sits outside the encoding pane, which a screenshot hides.
+        // Off unless chosen, and remembered like the keyframe choice: a bundle can be gigabytes, so the size shows.
+        bundleDataCheckBox = new javax.swing.JCheckBox("Bundle source data with export", ExportBundle.enabled());
+        bundleDataCheckBox.setFont(UIGlobals.uiFontSmall);
+        bundleDataCheckBox.setToolTipText("<html>Write the local source files beside each export, as <i>&lt;export&gt;.data.zip</i> (the format of Export Session with Data),"
+                + "<br>so the export can be reproduced on another computer. A screenshot packs the frame it shows and what that frame depends on;"
+                + "<br>a movie packs the layers' files. Archive layers download again on the other computer; Helioviewer layers have no file to pack."
+                + "<br>The size beside the box is read when you change the setting, the recording mode or open this panel.</html>");
+        bundleDataCheckBox.addItemListener(e -> {
+            Settings.setProperty(ExportBundle.KEY, Boolean.toString(bundleDataCheckBox.isSelected()));
+            refreshBundleEstimate();
+        });
+        bundleSizeLabel = new JLabel();
+        bundleSizeLabel.setFont(UIGlobals.uiFontSmall);
+
         recordPresetComboBox = new JComboBox<>();
         recordPresetComboBox.addActionListener(e -> {
             if (syncingRecordFormat)
@@ -424,6 +442,7 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         addSpan(encodingPanel, 3, row(timelinesCheckBox));
         encodingPane = encodingPanel;
         addSpan(optionsPanel, 5, encodingPane); // its own row: sharing the Preset row's cell drew one over the other
+        addSpan(optionsPanel, 6, row(bundleDataCheckBox, bundleSizeLabel));
 
         syncPixelCombos();
         syncPresetList(null);
@@ -624,6 +643,24 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         return summary.toString();
     }
 
+    /** Read the size an export would bundle, off the event thread; the scene and frames are read here. Nothing when the box is off. */
+    private void refreshBundleEstimate() {
+        if (!bundleDataCheckBox.isSelected()) {
+            bundleSizeLabel.setText("");
+            return;
+        }
+        bundleSizeLabel.setText("estimating...");
+        try {
+            org.helioviewer.jhv.thread.Task.submitBackground(
+                    ExportBundle.estimateTask(ViewState.recordingData().mode() == ViewState.RecordingMode.SHOT),
+                    e -> java.awt.EventQueue.invokeLater(() -> bundleSizeLabel.setText(e.files() == 0 ? "no local files to pack"
+                            : "about " + org.helioviewer.jhv.gui.ExportSessionWithData.humanBytes(e.bytes()) + ", " + e.files() + " file(s)")),
+                    t -> java.awt.EventQueue.invokeLater(() -> bundleSizeLabel.setText("size unknown")));
+        } catch (RuntimeException e) {
+            bundleSizeLabel.setText("size unknown");
+        }
+    }
+
     /**
      * Whether the encoding choices apply at all. A screenshot is written as a 16-bit RGB PNG
      * whatever the video settings say (see ExportMovie.start), so in that mode the preset row and
@@ -644,6 +681,8 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         presetLabel.setVisible(encoding);
         presetRow.setVisible(encoding);
         encodingPane.setVisible(encoding);
+        if (bundleDataCheckBox != null) // null while the constructor is still building the panel
+            refreshBundleEstimate();
 
         // With "On screen" the long side is not consulted at all: RecordingAspect.sizeFor returns
         // the viewport, so nothing is left invisibly in force.

@@ -79,8 +79,14 @@ public final class ExportMovie {
      * recording settings. A long side of 0 or less keeps their size too.
      */
     public static void startSized(@Nullable Commands.OperationContext context, ViewState.RecordingMode mode, int longSide) {
+        startSized(context, mode, longSide, null);
+    }
+
+    /** As above; {@code bundleData} true or false decides "Bundle source data with export" for this one recording, null follows the setting. */
+    public static void startSized(@Nullable Commands.OperationContext context, ViewState.RecordingMode mode, int longSide,
+                                  @Nullable Boolean bundleData) {
         ViewState.RecordingData own = ViewState.recordingData();
-        startWith(context, null, null, new ViewState.RecordingData(mode, own.aspect(), longSide > 0 ? longSide : own.longSide()));
+        startWith(context, null, null, new ViewState.RecordingData(mode, own.aspect(), longSide > 0 ? longSide : own.longSide()), bundleData);
     }
 
     /**
@@ -127,6 +133,11 @@ public final class ExportMovie {
 
     private static void startWith(@Nullable Commands.OperationContext context, @Nullable Commands.RecordStartInput input,
                                   @Nullable ExportPreset once, @Nullable ViewState.RecordingData override) {
+        startWith(context, input, once, override, null);
+    }
+
+    private static void startWith(@Nullable Commands.OperationContext context, @Nullable Commands.RecordStartInput input,
+                                  @Nullable ExportPreset once, @Nullable ViewState.RecordingData override, @Nullable Boolean bundleData) {
         if (isRecording()) {
             if (context != null)
                 Commands.notifyRecordingFinished(context, false, "Recording already in progress.", null);
@@ -142,7 +153,7 @@ public final class ExportMovie {
             ViewState.RecordingData data = override == null ? ViewState.recordingData() : override;
             framesQueued.set(0);
             framesEncoded.set(0);
-            recordingSession = new RecordingSession(context, data, fps, encodingFor(once));
+            recordingSession = new RecordingSession(context, data, fps, encodingFor(once), bundleData);
             notifyStatusChanged();
             recordingSession.start();
         } catch (Exception e) {
@@ -268,6 +279,7 @@ public final class ExportMovie {
         private final JSONObject live; // ProcessingRecord.live() beside the provenance, same moment
         private final String recordId = java.util.UUID.randomUUID().toString(); // shared by the sidecar and every embedded copy
         private @Nullable String exrRecord; // the EXR frames' embedded copy, built once at the first frame
+        private final @Nullable ExportBundle.Plan bundle; // "Bundle source data with export": the scene and the files to pack, or null
         private @Nullable JSONObject endScene; // the scene as the recording ended, for "changed during export"
         private final Semaphore exrPermits = new Semaphore(EXR_IN_FLIGHT);
 
@@ -278,9 +290,10 @@ public final class ExportMovie {
         private boolean stopAfterFrame;
 
         RecordingSession(@Nullable Commands.OperationContext _operationContext,
-                         ViewState.RecordingData recordingData, int fps, Encoding encoding) {
+                         ViewState.RecordingData recordingData, int fps, Encoding encoding, @Nullable Boolean bundleData) {
             operationContext = _operationContext;
             provenance = takeProvenance();
+            bundle = ExportBundle.plan(recordingData.mode() == ViewState.RecordingMode.SHOT, bundleData);
             exrProvenance = provenance == null ? null : provenance.toString();
             live = ProcessingRecord.live();
             mode = recordingData.mode();
@@ -534,7 +547,7 @@ public final class ExportMovie {
             ProcessingRecord.Output output = new ProcessingRecord.Output(kind, media, width, height, shot ? 1 : frames,
                     shot ? null : writer.fps(), shot ? "png" : format.toString(), shot ? 16 : format == ExportFormat.EXR ? 16 : bytesPerPixel == 6 ? 16 : 8,
                     true);
-            return new RecordInput(provenance, live, endScene, output, recordId);
+            return new RecordInput(provenance, live, endScene, output, recordId, bundle);
         }
 
         void disposeGrabber() {
@@ -576,7 +589,7 @@ public final class ExportMovie {
 
     /** Everything ProcessingRecord.write needs besides the written file. */
     record RecordInput(JSONObject session, JSONObject live, @Nullable JSONObject endScene, ProcessingRecord.Output output,
-                       String recordId) {
+                       String recordId, @Nullable ExportBundle.Plan bundle) {
 
         /** The record before the file is written, so the file can carry a copy; null when it cannot be built (logged). */
         @Nullable
@@ -603,14 +616,29 @@ public final class ExportMovie {
      * completed and written as the sidecar; {@code preview}, when given, goes into the sidecar only.
      */
     static void writeRecord(@Nullable String output, @Nullable RecordInput in, @Nullable JSONObject prepared, @Nullable JSONObject preview) {
-        if (output == null || in == null)
-            return;
+        writeRecord(output, in, prepared, preview, null);
+    }
+
+    /** The export file or, for a frame series, its directory: what the record and the data archive are named after. */
+    static java.nio.file.Path exportPath(String output, RecordInput in) {
         java.nio.file.Path path = java.nio.file.Path.of(output.contains("%04d") ? String.format(output, 1) : output);
         if (output.contains("%04d") && !"still".equals(in.output().kind()))
             path = path.getParent(); // a series is its directory
-        if (prepared != null)
-            ProcessingRecord.writePrepared(path, prepared, preview);
-        else
+        return path;
+    }
+
+    /** As above; {@code companions} (the data archive written beside the export) goes into the sidecar. */
+    static void writeRecord(@Nullable String output, @Nullable RecordInput in, @Nullable JSONObject prepared, @Nullable JSONObject preview,
+                            @Nullable JSONObject companions) {
+        if (output == null || in == null)
+            return;
+        java.nio.file.Path path = exportPath(output, in);
+        JSONObject full = prepared != null || companions == null ? prepared : in.prepare();
+        if (full != null) {
+            if (companions != null)
+                full = ProcessingRecord.withCompanions(full, companions);
+            ProcessingRecord.writePrepared(path, full, preview);
+        } else
             ProcessingRecord.write(path, in.session(), in.live(), in.endScene(), in.output(), preview);
     }
 
@@ -623,8 +651,15 @@ public final class ExportMovie {
                 // EXR frames took their copy when captured; the sidecar is still built here, at the end.
                 JSONObject prepared = record == null ? null : record.prepare();
                 String output = writer.close(writer.format() == ExportFormat.EXR ? null : prepared);
-                writeRecord(output, record, prepared, writer.preview()); // before the report, so a caller that copies the file finds its record
-                Commands.notifyRecordingFinished(operationContext, true, "Recording finished.", output);
+                JSONObject companions = null;
+                String note = null;
+                if (output != null && record != null && record.bundle() != null) { // the archive first: the record names it and its hash
+                    ExportBundle.Result bundled = ExportBundle.write(record.bundle(), exportPath(output, record));
+                    companions = bundled.companions();
+                    note = bundled.note();
+                }
+                writeRecord(output, record, prepared, writer.preview(), companions); // before the report, so a caller that copies the file finds its record
+                Commands.notifyRecordingFinished(operationContext, true, note == null ? "Recording finished." : "Recording finished. " + note, output);
             } catch (Exception e) {
                 Log.error(e);
                 String message = e.getMessage() == null || e.getMessage().isBlank() ?
