@@ -28,6 +28,20 @@ public final class ActivityRows {
     private ActivityRows() {
     }
 
+    /** What a row is, across refreshes: its layer if it has one, else its name (the detail text changes every tick). */
+    public static Object key(Row r) {
+        return r.layer() != null ? r.layer() : r.name();
+    }
+
+    /** The index of the row with this key, or -1: how a list that is rebuilt every tick keeps its selection. */
+    public static int indexOf(List<Row> rows, @Nullable Object key) {
+        if (key != null)
+            for (int i = 0; i < rows.size(); i++)
+                if (key.equals(key(rows.get(i))))
+                    return i;
+        return -1;
+    }
+
     public static List<Row> rows() {
         List<Row> out = new ArrayList<>();
         for (Layer layer : Layers.getLayers()) {
