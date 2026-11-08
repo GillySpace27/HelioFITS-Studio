@@ -268,6 +268,7 @@ public final class ExportMovie {
         private final JSONObject live; // ProcessingRecord.live() beside the provenance, same moment
         private final String recordId = java.util.UUID.randomUUID().toString(); // shared by the sidecar and every embedded copy
         private @Nullable String exrRecord; // the EXR frames' embedded copy, built once at the first frame
+        private final RecordFrameMap frameMap = new RecordFrameMap(); // which source each output frame showed
         private @Nullable JSONObject endScene; // the scene as the recording ended, for "changed during export"
         private final Semaphore exrPermits = new Semaphore(EXR_IN_FLIGHT);
 
@@ -425,6 +426,8 @@ public final class ExportMovie {
                     encodeExecutor.execute(new FrameConsumer(writer, mainImage, timelineImage, movieLinePosition, bytesPerPixel));
                     submitted = true;
                 }
+                if (mode != ViewState.RecordingMode.SHOT)
+                    frameMap.add(Player.getTime().toString());
             } catch (Exception e) {
                 Log.error(e);
                 writer.recordFailure(e);
@@ -534,7 +537,7 @@ public final class ExportMovie {
             ProcessingRecord.Output output = new ProcessingRecord.Output(kind, media, width, height, shot ? 1 : frames,
                     shot ? null : writer.fps(), shot ? "png" : format.toString(), shot ? 16 : format == ExportFormat.EXR ? 16 : bytesPerPixel == 6 ? 16 : 8,
                     true);
-            return new RecordInput(provenance, live, endScene, output, recordId);
+            return new RecordInput(provenance, live, endScene, output, recordId, shot ? null : frameMap.toJson());
         }
 
         void disposeGrabber() {
@@ -576,13 +579,13 @@ public final class ExportMovie {
 
     /** Everything ProcessingRecord.write needs besides the written file. */
     record RecordInput(JSONObject session, JSONObject live, @Nullable JSONObject endScene, ProcessingRecord.Output output,
-                       String recordId) {
+                       String recordId, @Nullable JSONObject frameMap) {
 
         /** The record before the file is written, so the file can carry a copy; null when it cannot be built (logged). */
         @Nullable
         JSONObject prepare() {
             try {
-                return ProcessingRecord.prepare(session, live, endScene, output, recordId, true);
+                return ProcessingRecord.prepare(session, live, endScene, output, recordId, true, frameMap);
             } catch (RuntimeException e) {
                 Log.warn("Processing record not built before the export closed", e);
                 return null;
@@ -603,15 +606,21 @@ public final class ExportMovie {
      * completed and written as the sidecar; {@code preview}, when given, goes into the sidecar only.
      */
     static void writeRecord(@Nullable String output, @Nullable RecordInput in, @Nullable JSONObject prepared, @Nullable JSONObject preview) {
+        writeRecord(output, in, prepared, preview, null);
+    }
+
+    /** As above, with the pixel digests the writer took of the frames it handed to the encoder (null: none). */
+    static void writeRecord(@Nullable String output, @Nullable RecordInput in, @Nullable JSONObject prepared, @Nullable JSONObject preview,
+                            @Nullable ProcessingRecord.Pixels pixels) {
         if (output == null || in == null)
             return;
         java.nio.file.Path path = java.nio.file.Path.of(output.contains("%04d") ? String.format(output, 1) : output);
         if (output.contains("%04d") && !"still".equals(in.output().kind()))
             path = path.getParent(); // a series is its directory
         if (prepared != null)
-            ProcessingRecord.writePrepared(path, prepared, preview);
+            ProcessingRecord.writePrepared(path, prepared, preview, pixels);
         else
-            ProcessingRecord.write(path, in.session(), in.live(), in.endScene(), in.output(), preview);
+            ProcessingRecord.write(path, in.session(), in.live(), in.endScene(), in.output(), preview, in.frameMap(), pixels, in.recordId());
     }
 
     private record CloseWriter(ExportWriter writer,
@@ -623,7 +632,7 @@ public final class ExportMovie {
                 // EXR frames took their copy when captured; the sidecar is still built here, at the end.
                 JSONObject prepared = record == null ? null : record.prepare();
                 String output = writer.close(writer.format() == ExportFormat.EXR ? null : prepared);
-                writeRecord(output, record, prepared, writer.preview()); // before the report, so a caller that copies the file finds its record
+                writeRecord(output, record, prepared, writer.preview(), writer.pixels()); // before the report, so a caller that copies the file finds its record
                 Commands.notifyRecordingFinished(operationContext, true, "Recording finished.", output);
             } catch (Exception e) {
                 Log.error(e);

@@ -81,7 +81,8 @@ public final class ProcessingRecord {
     public static final String SUFFIX = ".hfrec";
     /** The sidecar name Studio wrote before: never written now, read everywhere a sidecar is. */
     public static final String LEGACY_SUFFIX = ".hfrec.json";
-    static final String FORMAT = "1.0";
+    static final String FORMAT = "1.1"; // 1.1 adds environment, output digests, frame_map and reproducibility (additive)
+    static final String FORMAT_FITS = "1.0"; // Send to Python records use none of the 1.1 keys
     static final int READER_COMPAT = 1;
 
     // Copied from GillySpace27.github.io heliosoftware/spec/attribution.json (version 1); the credit
@@ -117,6 +118,78 @@ public final class ProcessingRecord {
         }
     }
 
+    /** The encoder a movie went through: ffmpeg's version line, the codec's name and its arguments (no paths). */
+    public record Encoder(@Nullable String version, String encoder, List<String> arguments) {}
+
+    /**
+     * The pixels as handed to the encoder, before any codec, one hfpix/1 digest per frame (the format
+     * pyHelioFITS's reproduce reads): SHA-256 over the ASCII header {@code "hfpix/1 <width> <height> <channels>
+     * <bit_depth>\n"} then every sample, row-major, channel-interleaved (R G B), each a big-endian unsigned
+     * integer of bit_depth bits. The raw dump Studio hands ffmpeg is little-endian at 16 bits, so it is
+     * swapped while hashed. The timeline strip is part of the frame. {@code frames} is in output order; a
+     * still's one frame is the picture's digest.
+     */
+    public record Pixels(List<String> frames, @Nullable Encoder encoder) {
+
+        /** The digest of the first frame: output.pixel_sha256 (a movie: of its first frame). */
+        public String sha256() {
+            return frames.get(0);
+        }
+
+        /** Hash a raw dump of whole rgb24 (bytesPerPixel 3) or rgb48le (6) frames; a partial last frame is ignored. */
+        static Pixels of(Path raw, int w, int h, int bytesPerPixel, @Nullable Encoder encoder) throws IOException {
+            long frameBytes = (long) bytesPerPixel * w * h;
+            boolean wide = bytesPerPixel == 6;
+            byte[] header = hfpixHeader(w, h, 3, wide ? 16 : 8);
+            List<String> frames = new ArrayList<>();
+            byte[] buf = new byte[1 << 20]; // even, so a 16-bit sample is never split across two reads
+            try (java.io.InputStream in = new java.io.BufferedInputStream(Files.newInputStream(raw), 1 << 20)) {
+                for (long n = Files.size(raw) / frameBytes; n > 0; n--) {
+                    MessageDigest md = digest();
+                    md.update(header);
+                    for (long left = frameBytes; left > 0; ) {
+                        int want = (int) Math.min(buf.length, left);
+                        int got = in.readNBytes(buf, 0, want);
+                        if (got != want)
+                            throw new java.io.EOFException("raw dump shorter than its size");
+                        if (wide)
+                            for (int k = 0; k < got; k += 2) {
+                                byte lo = buf[k];
+                                buf[k] = buf[k + 1];
+                                buf[k + 1] = lo;
+                            }
+                        md.update(buf, 0, got);
+                        left -= got;
+                    }
+                    frames.add(HexFormat.of().formatHex(md.digest()));
+                }
+            }
+            if (frames.isEmpty())
+                throw new IOException("no whole frame in the raw dump");
+            return new Pixels(List.copyOf(frames), encoder);
+        }
+
+        private static byte[] hfpixHeader(int w, int h, int channels, int bits) {
+            return ("hfpix/1 " + w + " " + h + " " + channels + " " + bits + "\n").getBytes(StandardCharsets.US_ASCII);
+        }
+
+        /** The hfpix/1 digest of {@code samples} (big-endian, row-major, channel-interleaved), as one frame. */
+        public static String hfpix(int w, int h, int channels, int bits, byte[] samples) {
+            MessageDigest md = digest();
+            md.update(hfpixHeader(w, h, channels, bits));
+            md.update(samples);
+            return HexFormat.of().formatHex(md.digest());
+        }
+
+        private static MessageDigest digest() {
+            try {
+                return MessageDigest.getInstance("SHA-256");
+            } catch (NoSuchAlgorithmException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+    }
+
     private ProcessingRecord() {}
 
     // ---- the live half, read on the event thread at export start ---------------------------------
@@ -141,6 +214,18 @@ public final class ProcessingRecord {
             live.put("frame", Provenance.frame(0, false));
         } catch (RuntimeException e) { // no window, or no map view yet
             Log.warn("Processing record: no frame block", e);
+        }
+        try {
+            String stars = RecordEnvironment.starCatalogSha256();
+            if (stars != null)
+                live.put("star_catalog_sha256", stars);
+        } catch (RuntimeException e) {
+            Log.warn("Processing record: star catalogue not hashed", e);
+        }
+        try {
+            live.put("environment", RecordEnvironment.capture());
+        } catch (RuntimeException e) {
+            Log.warn("Processing record: no environment block", e);
         }
         return live;
     }
@@ -175,6 +260,13 @@ public final class ProcessingRecord {
     static JSONObject build(JSONObject session, JSONObject live, @Nullable JSONObject endScene, Output output,
                             @Nullable String fileName, @Nullable String sha256, String home,
                             Function<URI, SourceIdentity.Entry> identify, String recordId) {
+        return build(session, live, endScene, output, fileName, sha256, home, identify, recordId, null);
+    }
+
+    /** As above; {@code frameMap} is RecordFrameMap.toJson() for a movie or series (null for none). */
+    static JSONObject build(JSONObject session, JSONObject live, @Nullable JSONObject endScene, Output output,
+                            @Nullable String fileName, @Nullable String sha256, String home,
+                            Function<URI, SourceIdentity.Entry> identify, String recordId, @Nullable JSONObject frameMap) {
         JSONObject portable = session.optJSONObject("scene");
         JSONObject state = portable == null ? new JSONObject() : portable.optJSONObject(STATE);
         if (state == null)
@@ -240,9 +332,218 @@ public final class ProcessingRecord {
         record.put("citations", citations);
         record.put("provenance", suite(session, state, endState, movie, layers, InstrumentCredit.line(creditKeys)));
         record.put("snapshot", new JSONObject().put("taken", "export_start").put("changed_during_export", changed));
+        JSONObject env = live.optJSONObject("environment");
+        if (env != null)
+            record.put("environment", environment(env, output));
+        record.put("inputs_external", inputsExternal(state, live, layers));
+        List<String> reasons = new ArrayList<>();
+        if ("exr_series".equals(output.kind()))
+            reasons.add("No pixel digest is taken of an EXR series, so a replay cannot be checked pixel for pixel.");
+        JSONObject map = movie ? frameMap(frameMap, layers, output, reasons) : null;
+        if (map != null)
+            record.put("frame_map", map);
+        record.put("reproducibility", reproducibility(record, record.optJSONObject("environment"), reasons));
         record.put("native", new JSONObject().put("studio_session", session));
         record.put("summary", summary(record));
         return record;
+    }
+
+    /**
+     * The record's environment: the captured block, with the display reduced to what decides the picture:
+     * whether the shader dithered (the setting, unless a deep canvas or a deeper-than-8-bit capture skips it) and
+     * whether the capture was deeper than 8 bits.
+     */
+    private static JSONObject environment(JSONObject captured, Output output) {
+        JSONObject env = new JSONObject(captured.toString());
+        JSONObject display = env.optJSONObject("display");
+        boolean deepCapture = output.bitDepth() != null && output.bitDepth() > 8;
+        boolean dither = display != null && display.optBoolean("dither_enabled", true) && !display.optBoolean("deep_canvas") && !deepCapture;
+        env.put("display", new JSONObject().put("dither", dither).put("high_bit_depth_capture", deepCapture));
+        return env;
+    }
+
+    /**
+     * The record's frame_map for a movie or series: the frame number each enabled layer showed in each output
+     * frame, as an index into that layer's sources. Kept only for a layer with one identified source file per
+     * frame, and only when it covers every output frame; otherwise the reason goes to {@code reasons}.
+     */
+    @Nullable
+    private static JSONObject frameMap(@Nullable JSONObject captured, JSONArray layers, Output output, List<String> reasons) {
+        JSONArray times = captured == null ? null : captured.optJSONArray("times");
+        JSONObject by = captured == null ? null : captured.optJSONObject("by_layer");
+        if (times == null || by == null || times.isEmpty() || (output.frames() != null && output.frames() != times.length())) {
+            reasons.add("No frame map: which source each output frame showed was not recorded, so only the whole range can be replayed.");
+            return null;
+        }
+        JSONObject kept = new JSONObject();
+        for (Object o : layers) {
+            if (!(o instanceof JSONObject l) || !l.optBoolean("enabled", true) || !by.has(l.optString("id")))
+                continue;
+            JSONArray sources = l.optJSONArray("sources");
+            JSONObject shown = l.optJSONObject("shown_frame");
+            boolean oneFilePerFrame = sources != null && !sources.isEmpty() && !l.has("source_count") && shown != null
+                    && sources.length() == shown.optInt("frames", -1);
+            if (!oneFilePerFrame) {
+                reasons.add("Frame map omits layer \"" + l.optString("name") + "\": it is not one identified source file per frame.");
+                continue;
+            }
+            kept.put(l.getString("id"), by.getJSONArray(l.getString("id")));
+        }
+        return kept.isEmpty() ? null : new JSONObject().put("times", times).put("by_layer", kept);
+    }
+
+    /** Layer kinds that draw the same from the same build and scene; any other overlay is declared, not claimed. */
+    private static final Set<String> BUILT_IN_OVERLAYS = Set.of("GridLayer", "FOVLayer", "TimestampLayer", "Colorbar",
+            "MiniviewLayer", "ViewpointLayer");
+
+    private static JSONObject external(String kind, String name, @Nullable String version, @Nullable String sha256, boolean pinned, String caveat) {
+        JSONObject jo = new JSONObject().put("kind", kind).put("name", name);
+        if (version != null)
+            jo.put("version", version);
+        return jo.put("sha256", sha256 == null ? JSONObject.NULL : sha256).put("source_url", JSONObject.NULL).put("pinned", pinned).put("caveat", caveat);
+    }
+
+    /**
+     * Inputs besides the layers' source files that shaped the picture (the schema's inputs_external), each pinned by
+     * a hash or declared as not pinned. Read from the scene and from {@code live}: the Hipparcos star file is hashed
+     * where the export starts ({@code live.star_catalog_sha256}). Nothing is claimed for a layer kind this code does not know.
+     */
+    private static JSONArray inputsExternal(JSONObject state, JSONObject live, JSONArray layers) {
+        JSONArray list = new JSONArray();
+        JSONArray others = state.optJSONArray("layers");
+        if (others != null)
+            for (Object o : others)
+                if (o instanceof JSONObject l && l.optBoolean("enabled", true)) {
+                    String cls = l.optString("className");
+                    String simple = cls.substring(cls.lastIndexOf('.') + 1);
+                    String name = l.optString("name");
+                    if ("StarLayer".equals(simple)) {
+                        String sha = live.optString("star_catalog_sha256", null);
+                        list.put(external("star_catalog", "hipparcos", "v9", sha, sha != null,
+                                "Downloaded from ESA to this computer, not shipped with Studio; the hash is of the cached file"
+                                        + (sha == null ? ", which could not be read when the export started." : ".")));
+                    } else if ("ModelLayer".equals(simple))
+                        list.put(external("model", name, null, null, false, "The model file is not hashed in this record."));
+                    else if (!simple.isEmpty() && !BUILT_IN_OVERLAYS.contains(simple))
+                        list.put(external("other", name + " (" + simple + ")", null, null, false, "Not pinned by content: a model file or a live feed can differ between runs."));
+                }
+        for (Object o : layers)
+            if (o instanceof JSONObject l && l.optBoolean("enabled", true) && hasStep(l, "instrument_correction"))
+                list.put(external("background", l.optString("name") + ": NRL monthly background", null, null, false,
+                        "Fetched when the frame was decoded; the array used is not hashed in this record."));
+        return list;
+    }
+
+    private static boolean hasStep(JSONObject layer, String op) {
+        for (Object s : layer.optJSONArray("steps") == null ? new JSONArray() : layer.getJSONArray("steps"))
+            if (s instanceof JSONObject so && op.equals(so.optString("op")))
+                return true;
+        return false;
+    }
+
+    /**
+     * The record's own verdict on a replay (hfrecord 1.1 "reproducibility"): exact_replay_possible is true only
+     * when nothing in {@code reasons} stands in the way. It is a statement about the record's inputs, never a
+     * promise about another machine's pixels.
+     */
+    private static JSONObject reproducibility(JSONObject record, JSONObject env, List<String> reasons) {
+        List<String> all = new ArrayList<>(reasons);
+        JSONObject producer = record.getJSONObject("producer");
+        if (producer.optBoolean("dirty"))
+            all.add("Made by a build with uncommitted changes: the build cannot be recovered from its commit.");
+        if (record.getJSONObject("snapshot").optBoolean("changed_during_export"))
+            all.add("The scene changed during the export; the record holds the scene at export start.");
+        if (env == null)
+            all.add("No environment block: the GPU, the operating system and the display settings are not recorded.");
+        else if (env.getJSONObject("display").optBoolean("dither"))
+            all.add("The shader dithered this render (a hash of the pixel coordinate): it repeats exactly only at the same output size on the same GPU.");
+        int pending = 0;
+        for (Object o : record.getJSONArray("layers")) {
+            if (!(o instanceof JSONObject l) || !l.optBoolean("enabled", true))
+                continue;
+            String name = l.optString("name");
+            String kind = l.getJSONObject("source_spec").optString("kind");
+            if ("helioviewer_api".equals(kind))
+                all.add("Layer \"" + name + "\" is a Helioviewer image: the server reprocesses it and there is no source file.");
+            if (l.has("source_count")) {
+                pending += Math.max(0, l.getInt("source_count") - l.getJSONArray("sources").length());
+                all.add("Layer \"" + name + "\": some source frames were not identified when the export ended.");
+            } else if (l.getJSONArray("sources").isEmpty() && !"helioviewer_api".equals(kind))
+                all.add("Layer \"" + name + "\" has no identified source files.");
+            else
+                for (Object s : l.getJSONArray("sources"))
+                    if (s instanceof JSONObject so && !so.has("sha256")) {
+                        all.add("Layer \"" + name + "\" is read from a URL and is not pinned by a hash.");
+                        break;
+                    }
+        }
+        for (Object o : record.getJSONArray("inputs_external"))
+            if (o instanceof JSONObject in && !in.optBoolean("pinned"))
+                all.add("Input \"" + in.optString("name") + "\" (" + in.optString("kind") + ") is not pinned: " + in.optString("caveat"));
+        return new JSONObject().put("exact_replay_possible", all.isEmpty()).put("reasons", new JSONArray(all)).put("frames_pending", pending);
+    }
+
+    /** The content hash of a PNG keeping only its signature and the IHDR, PLTE, tRNS, IDAT and IEND chunks, in file order. */
+    @Nullable
+    static String pngContentSha256(Path png) throws IOException {
+        byte[] b = Files.readAllBytes(png);
+        byte[] sig = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
+        if (b.length < 8 || !java.util.Arrays.equals(java.util.Arrays.copyOf(b, 8), sig))
+            return null;
+        MessageDigest md = Pixels.digest();
+        md.update(b, 0, 8);
+        for (int p = 8; p + 12 <= b.length; ) {
+            long len = (b[p] & 0xFFL) << 24 | (b[p + 1] & 0xFFL) << 16 | (b[p + 2] & 0xFFL) << 8 | (b[p + 3] & 0xFFL);
+            if (len < 0 || p + 12 + len > b.length)
+                return null; // truncated
+            String type = new String(b, p + 4, 4, StandardCharsets.ISO_8859_1);
+            if (Set.of("IHDR", "PLTE", "tRNS", "IDAT", "IEND").contains(type))
+                md.update(b, p, (int) (12 + len));
+            p += (int) (12 + len);
+        }
+        return HexFormat.of().formatHex(md.digest());
+    }
+
+    /**
+     * Put the digests into a sidecar's output (a record from build()/prepare(); never an embedded copy, which
+     * cannot hold its own picture's hash): pixel_sha256 (the first frame's hfpix/1 digest), frame_digests for a
+     * movie or series, content_sha256 (a PNG still; null for a movie), and the encoder for a movie. With no pixels
+     * the record says so and gives up the claim of an exact replay.
+     */
+    static void addPixels(JSONObject record, @Nullable Pixels pixels, @Nullable Path export) {
+        JSONObject out = record.getJSONObject("output");
+        JSONObject repro = record.optJSONObject("reproducibility");
+        String kind = out.optString("kind");
+        if (pixels == null) {
+            if (repro != null && !"fits_data".equals(kind) && !"exr_series".equals(kind)) {
+                repro.getJSONArray("reasons").put("No pixel digest could be taken for this output, so a replay cannot be checked pixel for pixel.");
+                repro.put("exact_replay_possible", false);
+            }
+            return;
+        }
+        out.put("pixel_sha256", pixels.sha256());
+        if ("movie".equals(kind) || "frame_series".equals(kind)) {
+            out.put("frame_digests", new JSONArray(pixels.frames()));
+            if ("movie".equals(kind))
+                out.put("content_sha256", JSONObject.NULL);
+        }
+        try {
+            if ("still".equals(kind) && export != null && Files.isRegularFile(export)
+                    && export.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".png")) {
+                String content = pngContentSha256(export);
+                if (content != null)
+                    out.put("content_sha256", content);
+            }
+        } catch (IOException | RuntimeException e) {
+            Log.warn("Processing record: content hash not made for " + export, e);
+        }
+        Encoder enc = pixels.encoder();
+        if (enc != null && record.optJSONObject("environment") != null) {
+            JSONObject ff = new JSONObject().put("encoder", enc.encoder()).put("arguments", new JSONArray(enc.arguments()));
+            if (enc.version() != null)
+                ff.put("version", enc.version());
+            record.getJSONObject("environment").put("ffmpeg", ff);
+        }
     }
 
     private record LayerOut(JSONObject json, boolean rhef, boolean changed) {}
@@ -706,7 +1007,7 @@ public final class ProcessingRecord {
                 .put("sources", sources).put("steps", steps).put("native", new JSONObject().put("manifest", entry))
                 .put("acknowledgement", ack == null ? JSONObject.NULL : ack);
         JSONObject record = new JSONObject()
-                .put("hfrecord", FORMAT)
+                .put("hfrecord", FORMAT_FITS)
                 .put("reader_compat", READER_COMPAT)
                 .put("record_id", recordId)
                 .put("created", session.optString("created"))
@@ -856,7 +1157,7 @@ public final class ProcessingRecord {
         }
         JSONObject first = records.isEmpty() ? null : records.get(0);
         JSONObject record = new JSONObject()
-                .put("hfrecord", FORMAT)
+                .put("hfrecord", FORMAT_FITS)
                 .put("reader_compat", READER_COMPAT)
                 .put("record_id", recordId)
                 .put("created", session.optString("created"))
@@ -1037,10 +1338,18 @@ public final class ProcessingRecord {
     @Nullable
     public static Path write(Path export, JSONObject session, JSONObject live, @Nullable JSONObject endScene, Output output,
                              @Nullable JSONObject preview) {
+        return write(export, session, live, endScene, output, preview, null, null, UUID.randomUUID().toString());
+    }
+
+    /** As above, with the frame map (RecordFrameMap.toJson()), the pixel digests and the record id of the export (null digests: none taken). */
+    @Nullable
+    public static Path write(Path export, JSONObject session, JSONObject live, @Nullable JSONObject endScene, Output output,
+                             @Nullable JSONObject preview, @Nullable JSONObject frameMap, @Nullable Pixels pixels, String recordId) {
         try {
             String hash = Files.isRegularFile(export) ? fileHash(export) : null;
             JSONObject record = build(session, live, endScene, output, export.getFileName().toString(), hash,
-                    System.getProperty("user.home", ""), uri -> SourceIdentity.lookup(uri, SOURCE_WAIT_MS), UUID.randomUUID().toString());
+                    System.getProperty("user.home", ""), uri -> SourceIdentity.lookup(uri, SOURCE_WAIT_MS), recordId, frameMap);
+            addPixels(record, pixels, export);
             if (Files.isDirectory(export))
                 record.getJSONObject("output").put("frame_files", frameFiles(export));
             if (preview != null)
@@ -1389,9 +1698,15 @@ public final class ProcessingRecord {
      */
     public static JSONObject prepare(JSONObject session, JSONObject live, @Nullable JSONObject endScene, Output output,
                                      String recordId, boolean waitForSources) {
+        return prepare(session, live, endScene, output, recordId, waitForSources, null);
+    }
+
+    /** As above, with the frame map of a movie or series (RecordFrameMap.toJson()). */
+    public static JSONObject prepare(JSONObject session, JSONObject live, @Nullable JSONObject endScene, Output output,
+                                     String recordId, boolean waitForSources, @Nullable JSONObject frameMap) {
         long wait = waitForSources ? SOURCE_WAIT_MS : 0;
         return build(session, live, endScene, output, null, null, System.getProperty("user.home", ""),
-                uri -> SourceIdentity.lookup(uri, wait), recordId);
+                uri -> SourceIdentity.lookup(uri, wait), recordId, frameMap);
     }
 
     /**
@@ -1407,6 +1722,10 @@ public final class ProcessingRecord {
         out.remove("file_name");
         out.remove("frame_files");
         copy.remove("preview"); // sidecars only
+        copy.remove("frame_map"); // sidecars only
+        out.remove("pixel_sha256"); // a file cannot hold the digest of its own picture
+        out.remove("frame_digests");
+        out.remove("content_sha256");
         if (nativeRef != null) {
             copy.remove("native");
             copy.put("native_ref", nativeRef);
@@ -1474,8 +1793,15 @@ public final class ProcessingRecord {
     /** As above, with the sidecar's {@link #preview} (null for none). */
     @Nullable
     public static Path writePrepared(Path export, JSONObject record, @Nullable JSONObject preview) {
+        return writePrepared(export, record, preview, null);
+    }
+
+    /** As above, with the pixel digests of what the export handed to the encoder (null: none taken). */
+    @Nullable
+    public static Path writePrepared(Path export, JSONObject record, @Nullable JSONObject preview, @Nullable Pixels pixels) {
         try {
             JSONObject full = new JSONObject(record.toString());
+            addPixels(full, pixels, export);
             JSONObject out = full.getJSONObject("output");
             out.put("file_name", export.getFileName().toString());
             out.put("sha256", Files.isRegularFile(export) ? fileHash(export) : JSONObject.NULL);

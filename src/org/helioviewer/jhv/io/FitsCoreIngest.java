@@ -417,6 +417,31 @@ public final class FitsCoreIngest {
         return null;
     }
 
+    /**
+     * The HelioFITS Core commit packaged inside this Studio (the {@code HFCORE_COMMIT} file that
+     * release/bundle_core.py writes at the core's root), or null when Studio runs from a build
+     * tree or the file is unreadable. For the processing record's environment block.
+     */
+    @Nullable
+    public static String bundledCommit() {
+        try {
+            Path python = studioCore(System.getProperty("jpackage.app-path"), System.getProperty("os.name", ""));
+            if (python == null)
+                return null;
+            Path bin = python.getParent();
+            Path root = python.getFileName().toString().endsWith(".exe") || bin == null ? bin : bin.getParent();
+            if (root == null)
+                return null;
+            Path file = root.resolve("HFCORE_COMMIT");
+            if (!Files.isRegularFile(file))
+                return null;
+            String commit = Files.readString(file, StandardCharsets.UTF_8).strip();
+            return commit.matches("[0-9a-f]{40}") ? commit : null;
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
+    }
+
     /** How long making a library may take: the core creates an empty index and writes HelioFITS Core's config. */
     private static final Duration INIT_WAIT = Duration.ofMinutes(1);
 
