@@ -292,12 +292,13 @@ public final class MenuBar extends JMenuBar {
         }
         catalogItem(viewMenu, "identifyFindBody");
 
-        // Fold or show a section by its number: Ctrl+1..9 on the left, Option+1..9 on the right, 0 for all
+        // Fold or show a section by its number: Ctrl+1..9 on the left, Alt+1..9 on the right (with Cmd on a Mac), 0 for all
         viewMenu.add(PanelKeys.menu(false));
         viewMenu.add(PanelKeys.menu(true));
         // The sidebars and the timeline themselves: Cmd+[ Cmd+] Cmd+\ (LayoutKeys)
         LayoutKeys.addLayoutItems(viewMenu);
         PanelKeyHint.install(); // hold Ctrl or Option alone: that side's numbers turn bold
+        CommandKeys.install(); // the section and layout keys reach their commands ahead of the system menu bar
 
         viewMenu.addSeparator();
 
