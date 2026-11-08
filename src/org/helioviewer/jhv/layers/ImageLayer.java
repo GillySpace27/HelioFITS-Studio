@@ -527,6 +527,15 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         // Framing, now that there is something to frame. Until this moment the layer is an empty
         // placeholder with no physical size, which is why a camera reset before it lands does
         // nothing useful and a freshly opened dataset arrives framed for whatever came before it.
+        //
+        // The layer has to count as enabled first. ImageLayers.getLargestPhysicalHeight skips
+        // disabled layers, and a new layer is only enabled in activateView(), below the fit. So the
+        // first dataset of a run (nothing else enabled to supply a size) was fitted to a size of
+        // zero, which leaves the default field of view: zoomed far out until a double-click on the
+        // canvas, which runs the same fit once the layer is enabled. Later layers were framed by
+        // the layers already on screen, which hid it.
+        if (!enabled)
+            setEnabled(true);
         if (org.helioviewer.jhv.app.DisplaySettings.resetsViewOnLoad(restored)) {
             fitOnLoad = false;
             DisplayController.resetView(); // exactly what the Reset View button does
