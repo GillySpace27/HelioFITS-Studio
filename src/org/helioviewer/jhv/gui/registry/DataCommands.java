@@ -173,6 +173,14 @@ final class DataCommands {
                 object("{\"long_side\":{\"type\":\"integer\",\"minimum\":16,\"description\":\"Pixels on the long side; omit for the export size in the settings\"}}"),
                 out("{\"path\":{\"type\":\"string\"}}"),
                 args -> record(ViewState.RecordingMode.SHOT, args.optInt("long_side", 0), null), () -> true));
+        CommandRegistry.add(new CommandSpec("sessionLoad",
+                "Load a scene from a session file (.jhv), a session data archive (.data.zip) or an export's processing record (.hfrec); "
+                        + "a record opens in a new window by default and checks its picture against the record's, one frame of a movie unless range", Effect.DESTRUCTIVE,
+                object("{\"path\":{\"type\":\"string\",\"description\":\"The .jhv, .data.zip or .hfrec to load\"},"
+                        + "\"window\":{\"enum\":[\"this\",\"new\"],\"description\":\"Where to load it; a record defaults to new, anything else to this\"},"
+                        + "\"range\":{\"type\":\"boolean\",\"description\":\"A movie record: load every frame, not the one checked\"}}", "path"),
+                out("{\"path\":{\"type\":\"string\"},\"window\":{\"type\":\"string\"},\"notes\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}}"),
+                DataCommands::sessionLoad, () -> true));
         CommandRegistry.add(new CommandSpec("exportStill", "Export the frame on screen as a PNG, with its processing record beside it", Effect.WRITE,
                 object("{\"path\":{\"type\":\"string\",\"description\":\"Where to write the PNG\"},"
                         + "\"long_side\":{\"type\":\"integer\",\"minimum\":16,\"description\":\"Pixels on the long side; omit for the export size in the settings\"}}", "path"),
@@ -351,6 +359,41 @@ final class DataCommands {
      * there with its processing record; without, the written file is moved into the cache (a
      * preview is not an export to keep) and its record goes with it.
      */
+    private static JSONObject sessionLoad(JSONObject args) {
+        Path path = Path.of(args.getString("path")).toAbsolutePath();
+        if (!Files.isRegularFile(path))
+            throw new IllegalArgumentException("no such file: " + path);
+        String name = path.getFileName().toString();
+        boolean record = org.helioviewer.jhv.movie.ExportReplay.isRecordName(name);
+        String window = args.optString("window", record ? "new" : "this");
+        boolean range = args.optBoolean("range", false);
+        JSONObject result = new JSONObject().put("path", path.toString()).put("window", window);
+        if (record && window.equals("new")) {
+            org.helioviewer.jhv.gui.dialog.ExportReplayWindow.openInNewWindow(path, range);
+            return result;
+        }
+        CompletableFuture<JSONObject> done = new CompletableFuture<>();
+        org.helioviewer.jhv.app.Session.onNextStateLoad(ok -> {
+            if (ok)
+                done.complete(result);
+            else
+                done.completeExceptionally(new IllegalStateException("the scene could not be loaded"));
+        });
+        if (record) {
+            try {
+                org.helioviewer.jhv.movie.ExportReplay.Prepared p = org.helioviewer.jhv.movie.ExportReplay.prepare(
+                        org.helioviewer.jhv.movie.ExportReplay.read(path), path, range,
+                        Path.of(Directories.CACHE.getPath(), "ReplayData", ProcessingRecord.exportName(name)));
+                result.put("notes", new JSONArray(p.notes()));
+                Commands.loadState(null, p.session().toString());
+            } catch (IOException e) {
+                throw new IllegalArgumentException(e.getMessage());
+            }
+        } else
+            Commands.loadState(path.toUri());
+        return new Dispatch.Deferred(done);
+    }
+
     private static JSONObject record(ViewState.RecordingMode mode, int longSide, @Nullable Path target) {
         ImageLayer active = Layers.getActiveImageLayer();
         if (active == null || !active.hasPixels())

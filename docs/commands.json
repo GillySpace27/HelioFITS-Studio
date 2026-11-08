@@ -2471,6 +2471,48 @@
     {
       "outputSchema": {
         "type": "object",
+        "properties": {
+          "path": {"type": "string"},
+          "notes": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "window": {"type": "string"}
+        }
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {
+          "path": {
+            "description": "The .jhv, .data.zip or .hfrec to load",
+            "type": "string"
+          },
+          "range": {
+            "description": "A movie record: load every frame, not the one checked",
+            "type": "boolean"
+          },
+          "window": {
+            "description": "Where to load it; a record defaults to new, anything else to this",
+            "enum": [
+              "this",
+              "new"
+            ]
+          }
+        },
+        "required": ["path"]
+      },
+      "name": "sessionLoad",
+      "description": "Load a scene from a session file (.jhv), a session data archive (.data.zip) or an export's processing record (.hfrec); a record opens in a new window by default and checks its picture against the record's, one frame of a movie unless range",
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "x-effect": "destructive"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
         "properties": {"path": {"type": "string"}}
       },
       "inputSchema": {

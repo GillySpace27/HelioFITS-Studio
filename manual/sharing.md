@@ -30,6 +30,10 @@ The file format and where templates are kept are in {doc}`reference/templates`.
   ahead.
 - {menuselection}`File --> Export Session with Data...` saves the session plus a `.data.zip` of its
   local files, to open on another computer.
+- An export's `.hfrec` record opens on its own: drop it on Studio or use {guilabel}`Open in New Window` in
+  {menuselection}`File --> Open Export Record...`. Its scene loads in a new window (a movie as its first frame
+  unless you choose {guilabel}`Load whole range`), and the window draws the picture again and says Identical,
+  Equivalent, Different or Cannot check. {guilabel}`Save Scene as .jhv...` keeps the scene as a session file.
 - {menuselection}`File --> Copy Provenance` puts the program, its build and each layer's data source
   on the clipboard, for a caption or a methods section.
 - {menuselection}`Edit --> Copy Frame` puts the canvas picture on the clipboard, as an 8-bit

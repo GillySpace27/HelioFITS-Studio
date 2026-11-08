@@ -40,6 +40,8 @@ public final class DesktopDocuments {
                     session = f;
                 else
                     Log.warn("One window holds one session; not opening " + f + " as well as " + session);
+            } else if (org.helioviewer.jhv.movie.ExportReplay.isRecordName(f.getName())) {
+                org.helioviewer.jhv.gui.dialog.ExportReplayWindow.openInNewWindow(f.toPath(), false); // its scene, in a new window
             } else
                 Log.warn("Opened from the desktop but not a session file, not loaded: " + f);
         }
