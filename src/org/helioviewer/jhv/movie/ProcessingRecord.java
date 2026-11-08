@@ -1069,7 +1069,7 @@ public final class ProcessingRecord {
     /** The record of a whole Send to Python export, written beside its manifest.json. */
     public static final String FOLDER_RECORD = "hfrecord.json";
     /** How each HISTORY card of a FITS file's record block starts. */
-    public static final String FITS_HISTORY_PREFIX = "HFREC " + FORMAT + " ";
+    public static final String FITS_HISTORY_PREFIX = "HFREC " + FORMAT_FITS + " ";
 
     /** The live identity lookup the export uses: waits for a source frame still being hashed. */
     public static Function<URI, SourceIdentity.Entry> identities() {
