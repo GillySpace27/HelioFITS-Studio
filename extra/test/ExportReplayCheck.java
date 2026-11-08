@@ -33,6 +33,11 @@ public final class ExportReplayCheck {
         return new JSONObject().put("id", id).put("data", data);
     }
 
+    /** What the writer stores under native.studio_session: Provenance.session(), the scene inside "scene" (ProcessingRecordCheck). */
+    private static JSONObject wrapped(JSONObject scene) {
+        return new JSONObject().put("writer", "HelioFITS Studio 0 (check)").put("dirty", false).put("sources", new JSONArray()).put("scene", scene);
+    }
+
     private static JSONObject movieRecord() {
         JSONArray layers = new JSONArray().put(layer("plain", "None", 5)).put(layer("run", "Running", 5)).put(layer("unmapped", "None", 5));
         JSONObject session = new JSONObject().put(STATE, new JSONObject().put("imageLayers", layers));
@@ -41,7 +46,7 @@ public final class ExportReplayCheck {
         for (String id : new String[]{"plain", "run"})
             rl.put(new JSONObject().put("id", id).put("sources", new JSONArray().put(new JSONObject()).put(new JSONObject()).put(new JSONObject()).put(new JSONObject()).put(new JSONObject())));
         return new JSONObject().put("layers", rl).put("hfrecord", "1.1").put("output", new JSONObject().put("kind", "movie").put("frames", 2).put("width", 64).put("height", 32))
-                .put("native", new JSONObject().put("studio_session", session))
+                .put("native", new JSONObject().put("studio_session", wrapped(session)))
                 .put("frame_map", new JSONObject().put("times", new JSONArray().put("a").put("b")).put("by_layer", by));
     }
 
@@ -58,6 +63,8 @@ public final class ExportReplayCheck {
         JSONObject scene = ExportReplay.sessionOf(rec);
         expect("the scene has the home directory put back", uris(scene, 0).get(0).startsWith("file:" + home.replace('\\', '/')) || uris(scene, 0).get(0).startsWith("file://" + home));
         expect("sessionOf does not change the record", rec.toString().contains("file:~/data/plain-0.fits"));
+        JSONObject bare = new JSONObject().put("native", new JSONObject().put("studio_session", new JSONObject().put(STATE, new JSONObject())));
+        expect("a bare scene under studio_session is still read", ExportReplay.sessionOf(bare) != null && ExportReplay.sessionOf(bare).has(STATE));
         expect("a record without a scene has none", ExportReplay.sessionOf(new JSONObject().put("hfrecord", "1.1")) == null);
 
         expect("a movie record is a movie", ExportReplay.isMovie(rec));
