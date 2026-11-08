@@ -36,21 +36,26 @@ import org.helioviewer.jhv.opengl.GLRenderer;
  */
 public final class IdentifyPalette {
 
-    private static Palette palette;
-    private static Readout readout;
+    /** The one palette and its readout, in a final holder (guards.py ratchet: no non-final statics). */
+    private static final class Holder {
+        Palette palette;
+        Readout readout;
+    }
+
+    private static final Holder HOLDER = new Holder();
 
     private IdentifyPalette() {}
 
     /** The palette, built on first call and docked where it lives (the right sidebar unless moved). */
     public static Palette palette() {
-        if (palette == null) {
-            palette = new Palette("Identify", IdentifyPalette::build, () -> {
-                if (readout != null)
-                    readout.refresh();
+        if (HOLDER.palette == null) {
+            HOLDER.palette = new Palette("Identify", IdentifyPalette::build, () -> {
+                if (HOLDER.readout != null)
+                    HOLDER.readout.refresh();
             }, true); // spinners take keystrokes
-            palette.restoreHome(RightSidebar.getInstance());
+            HOLDER.palette.restoreHome(RightSidebar.getInstance());
         }
-        return palette;
+        return HOLDER.palette;
     }
 
     /** Show the palette wherever it lives. */
@@ -59,9 +64,9 @@ public final class IdentifyPalette {
     }
 
     private static JComponent build() {
-        readout = new Readout();
+        HOLDER.readout = new Readout();
         JPanel root = new JPanel(new BorderLayout());
-        root.add(readout, BorderLayout.NORTH);
+        root.add(HOLDER.readout, BorderLayout.NORTH);
         root.add(IdentifyTab.build(), BorderLayout.CENTER);
         return root;
     }
