@@ -37,6 +37,15 @@ public class DisplaySettings {
         return autoResetView;
     }
 
+    /**
+     * Whether a layer's first frame resets the view. Never for a layer restored from a session: the
+     * session restored its own camera, and resetting here would throw that framing away (ImageLayer's
+     * constructor says the same for the fit; this setting used to slip past it).
+     */
+    public static boolean resetsViewOnLoad(boolean restoredFromSession) {
+        return autoResetView && !restoredFromSession;
+    }
+
     public static void setAutoResetView(boolean b) {
         Settings.setProperty("display.autoResetView", Boolean.toString(b));
         autoResetView = b;

@@ -140,6 +140,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         // session must not be, because the session restored its own camera and re-fitting would
         // throw that framing away. Every interactive route builds this with a null jo
         // (ImageLayer.create(null)); only State's createDetached passes one.
+        restored = jo != null;
         fitOnLoad = jo == null;
         fitViewOnLoad = jo == null;
         if (jo != null)
@@ -491,7 +492,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         // Framing, now that there is something to frame. Until this moment the layer is an empty
         // placeholder with no physical size, which is why a camera reset before it lands does
         // nothing useful and a freshly opened dataset arrives framed for whatever came before it.
-        if (org.helioviewer.jhv.app.DisplaySettings.getAutoResetView()) {
+        if (org.helioviewer.jhv.app.DisplaySettings.resetsViewOnLoad(restored)) {
             fitOnLoad = false;
             DisplayController.resetView(); // exactly what the Reset View button does
         } else if (fitOnLoad) {
@@ -603,6 +604,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     // the camera is reset while the layer is still an empty placeholder, so
     // fitCameraToImageLayers sees no physical size and leaves the default field of view, which is
     // how a freshly loaded movie ended up microscopic in a view sized for nothing in particular.
+    private boolean restored; // built from a saved session, whose camera is not to be reset
     private boolean fitOnLoad; // this layer is an interactive one, so it is eligible
 
     // And once per run, not once per layer. The first load has nothing to disturb, so framing it
