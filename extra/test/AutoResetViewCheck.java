@@ -1,17 +1,16 @@
 package org.helioviewer.jhv.app;
 
-import org.helioviewer.jhv.io.Directories;
+import java.nio.file.Files;
 
 /**
- * A layer restored from a session must not reset the view, whatever "Reset the view when a layer loads" says.
+ * Framing a newly opened dataset is on unless it has been turned off.
  *
- * <p>ImageLayer.setView reset the camera on every layer's first frame while that setting (on by default)
- * was on, restored layers included, so a session or an export record opened with the default setting came
- * back at the default zoom instead of the saved one. Found replaying a movie export with
- * pyheliofits.reproduce: zoom 2 saved, zoom 1 after the load, every frame digest different. The camera
- * itself restored correctly with the setting off.
+ * <p>The setting is stored as text and read back at startup, where the absent case is the one that
+ * matters: a preferences file written before this existed, or a fresh install, must arrive with
+ * the framing on rather than off. Boolean.parseBoolean says false to anything it does not
+ * recognise, including nothing at all, so the default cannot be left to it.
  *
- * <p>Run: java -Djava.awt.headless=true -cp "bin:extra/test-classes:resources:lib/*" org.helioviewer.jhv.app.AutoResetViewCheck
+ * <p>Run: java -cp "bin:extra/test-classes" org.helioviewer.jhv.app.AutoResetViewCheck
  */
 public final class AutoResetViewCheck {
 
@@ -24,21 +23,44 @@ public final class AutoResetViewCheck {
     }
 
     public static void main(String[] args) throws Exception {
-        System.setProperty("user.home", java.nio.file.Files.createTempDirectory("hfs-autoreset").toString());
+        System.setProperty("user.home", Files.createTempDirectory("hfs-auto-reset").toString());
         Platform.init();
-        Directories.createCacheDirs();
-        Directories.SETTINGS.getFile().mkdirs();
+        org.helioviewer.jhv.io.Directories.createCacheDirs();
+        org.helioviewer.jhv.io.Directories.SETTINGS.getFile().mkdirs(); // else every Settings write logs a stack trace
 
+        expect("a fresh install frames a newly opened dataset", DisplaySettings.getAutoResetView());
+        expect("and fits a layer added in multiview to its own view", DisplaySettings.getFitNewMultiviewLayers());
+        expect("and zooms the multiview viewports separately", org.helioviewer.jhv.display.Display.separateViewportZoom);
+
+        DisplaySettings.setAutoResetView(false);
+        expect("turning it off is remembered", !DisplaySettings.getAutoResetView());
+        expect("and is written as text a later run can read",
+                "false".equals(Settings.getProperty("display.autoResetView")));
+
+        DisplaySettings.setAutoResetView(true);
+        expect("turning it back on is remembered", DisplaySettings.getAutoResetView());
+
+        // How the stored value reads at startup, which is where the absent case decides the default.
+        expect("a preferences file from before this setting reads as on", DisplaySettings.parseDefaultOn(null));
+        expect("an empty value reads as on", DisplaySettings.parseDefaultOn(""));
+        expect("an off value reads as off", !DisplaySettings.parseDefaultOn("false"));
+        expect("an on value reads as on", DisplaySettings.parseDefaultOn("true"));
+        expect("anything unrecognised reads as off, as everywhere else in these settings",
+                !DisplaySettings.parseDefaultOn("maybe"));
+
+        // A layer restored from a session must not reset the view even with the setting on: found replaying a
+        // movie export (zoom 2 saved, zoom 1 after the load), where the camera restored fine with the setting off.
         DisplaySettings.setAutoResetView(true);
         expect("an interactive layer resets the view when the setting is on", DisplaySettings.resetsViewOnLoad(false));
         expect("a layer restored from a session does not, though the setting is on", !DisplaySettings.resetsViewOnLoad(true));
         DisplaySettings.setAutoResetView(false);
         expect("with the setting off nothing resets", !DisplaySettings.resetsViewOnLoad(false) && !DisplaySettings.resetsViewOnLoad(true));
+        DisplaySettings.setAutoResetView(true);
 
-        if (failures > 0) {
-            System.out.println("AutoResetViewCheck: " + failures + " failed");
-            System.exit(1);
-        }
-        System.out.println("AutoResetViewCheck: all passed");
+        System.out.println(failures == 0 ? "AutoResetViewCheck: PASS" : "AutoResetViewCheck: " + failures + " FAILURE(S)");
+        System.exit(failures == 0 ? 0 : 1);
     }
+
+    private AutoResetViewCheck() {}
+
 }
