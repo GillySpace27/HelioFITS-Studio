@@ -78,12 +78,20 @@ public final class EmbeddedRecordCheck {
     }
 
     /** The sidecar as its embedded copy should read: the three differences the spec allows, undone. */
+    private static boolean inFileHasDigest(Path png) throws Exception {
+        JSONObject out = new JSONObject(org.helioviewer.jhv.movie.Provenance.readPngText(png, ProcessingRecord.EMBED_KEY)).getJSONObject("output");
+        return out.has("pixel_sha256") || out.has("content_sha256") || out.has("frame_digests");
+    }
+
     private static JSONObject asEmbedded(JSONObject sidecar, String nativeRef) {
         JSONObject c = new JSONObject(sidecar.toString());
         c.getJSONObject("output").remove("file_name");
         c.getJSONObject("output").put("sha256", JSONObject.NULL);
         c.remove("native");
         c.remove("report"); // the readable report is in the sidecar only (ProcessingRecord.sidecarText)
+        for (String k : new String[]{"pixel_sha256", "frame_digests", "content_sha256"}) // a file cannot hold its own picture's digest
+            c.getJSONObject("output").remove(k);
+        c.remove("frame_map");
         c.put("native_ref", nativeRef);
         return c;
     }
@@ -128,8 +136,12 @@ public final class EmbeddedRecordCheck {
         ImageIO.write(new BufferedImage(8, 8, BufferedImage.TYPE_INT_RGB), "png", file.toFile());
         Provenance.writePngChunk(file, session);
         ExportWriter.stampRecord(file, prepared, ProcessingRecord.pngText(prepared));
-        Path side = ProcessingRecord.writePrepared(file, prepared);
+        Path side = ProcessingRecord.writePrepared(file, prepared, null,
+                new ProcessingRecord.Pixels(List.of("c".repeat(64)), null));
         JSONObject sidecar = new JSONObject(Files.readString(side, StandardCharsets.UTF_8));
+        expect("the sidecar, not the embedded copy, holds the pixel digest and the PNG content hash",
+                "c".repeat(64).equals(sidecar.getJSONObject("output").optString("pixel_sha256"))
+                        && sidecar.getJSONObject("output").has("content_sha256") && !inFileHasDigest(file));
         JSONObject inFile = new JSONObject(Provenance.readPngText(file, ProcessingRecord.EMBED_KEY));
         expect("the sidecar hashes the file as written, chunks and all", SourceIdentity.sha256(file).equals(sidecar.getJSONObject("output").getString("sha256")));
         expect("the PNG's hfrecord chunk equals the sidecar (sha256 null, no file_name, native_ref)",
