@@ -13,7 +13,7 @@
         Identical bytes are not expected.
     hfrecord_roundtrip.py embedded EXPORT.png
         The PNG's own tEXt hfrecord chunk passes the schema and equals the sidecar except where
-        processing-record.md says an embedded copy differs: output.sha256 null, no
+        processing-record.md says an embedded copy differs: output.sha256 null, no digests (pixel_sha256, frame_digests, content_sha256), no frame_map, no
         output.file_name, no preview (which the sidecar must have), and native_ref "png:tEXt:hfstudio" in place of native. The
         HelioSoftware-Provenance chunk equals the record's provenance object.
 
@@ -122,6 +122,9 @@ def embedded(png: Path) -> int:
         return fail(f"the sidecar has no preview within 320 px: {None if preview is None else {k: v for k, v in preview.items() if k != 'data'}}")
     print(f"  ok   the sidecar has a {preview['media_type']} preview, {preview['width']}x{preview['height']}")
     expected["output"].pop("file_name", None)
+    for key in ("pixel_sha256", "frame_digests", "content_sha256"):  # a file cannot hold the digest of its own picture
+        expected["output"].pop(key, None)
+    expected.pop("frame_map", None)  # the sidecar only
     expected["output"]["sha256"] = None
     expected.pop("native", None)
     expected.pop("report", None)  # the readable report is in the sidecar only
