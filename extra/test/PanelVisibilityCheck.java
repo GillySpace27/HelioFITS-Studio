@@ -118,8 +118,9 @@ public final class PanelVisibilityCheck {
         Settings.setProperty(PanelVisibility.NUMBERS, "true");
 
         System.out.println(failures == 0 ? "PanelVisibilityCheck: PASS" : "PanelVisibilityCheck: " + failures + " FAIL");
-        if (failures != 0)
-            System.exit(1);
+        // Exit explicitly: CollapsiblePane.side() reaches RightSidebar, which starts the AWT event thread, and
+        // that non-daemon thread would otherwise keep the JVM (and CI) alive after the check has passed.
+        System.exit(failures == 0 ? 0 : 1);
     }
 
 }

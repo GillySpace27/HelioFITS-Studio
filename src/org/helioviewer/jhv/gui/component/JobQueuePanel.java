@@ -20,6 +20,7 @@ import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.gui.status.ActivityRows;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layers;
+import org.helioviewer.jhv.movie.ExportMovie;
 import org.helioviewer.jhv.study.JobQueue;
 import org.helioviewer.jhv.study.JobQueue.Job;
 
@@ -80,7 +81,7 @@ public final class JobQueuePanel extends JDialog {
         }
     };
     private final JTable now = new JTable(nowModel);
-    private final JButton stop = new JButton("Stop download");
+    private final JButton stop = new JButton("Stop");
     private final JButton show = new JButton("Show layer");
 
     /** A bar where the amount is known, a moving bar where it is not, nothing for a finished or failed row. */
@@ -102,23 +103,32 @@ public final class JobQueuePanel extends JDialog {
 
     private void refreshNow() {
         List<ActivityRows.Row> rows = ActivityRows.rows();
-        ImageLayer sel = selectedLayer();
+        ActivityRows.Row selRow = selectedRow();
         nowRows = rows;
-        nowModel.fireTableDataChanged();
-        for (int i = 0; i < rows.size(); i++)
-            if (sel != null && rows.get(i).layer() == sel)
-                now.setRowSelectionInterval(i, i);
+        nowModel.fireTableDataChanged(); // clears the selection
+        int i = ActivityRows.indexOf(rows, selRow == null ? null : ActivityRows.key(selRow));
+        if (i >= 0)
+            now.setRowSelectionInterval(i, i);
         updateNowButtons();
     }
 
-    private @javax.annotation.Nullable ImageLayer selectedLayer() {
+    private @javax.annotation.Nullable ActivityRows.Row selectedRow() {
         int r = now.getSelectedRow();
-        return r >= 0 && r < nowRows.size() ? nowRows.get(r).layer() : null;
+        return r >= 0 && r < nowRows.size() ? nowRows.get(r) : null;
+    }
+
+    private @javax.annotation.Nullable ImageLayer selectedLayer() {
+        ActivityRows.Row r = selectedRow();
+        return r == null ? null : r.layer();
+    }
+
+    private static boolean isRecording(@javax.annotation.Nullable ActivityRows.Row r) {
+        return r != null && r.layer() == null && "Recording".equals(r.name()) && ExportMovie.isRecording();
     }
 
     private void updateNowButtons() {
         ImageLayer l = selectedLayer();
-        stop.setEnabled(l != null && l.isDownloading());
+        stop.setEnabled(l != null && l.isDownloading() || isRecording(selectedRow()));
         show.setEnabled(l != null);
     }
     private final JobQueue.Listener listener;
@@ -188,11 +198,13 @@ public final class JobQueuePanel extends JDialog {
                     showLayer();
             }
         });
-        stop.setToolTipText("Stop this layer's download; the frames already here stay");
+        stop.setToolTipText("Stop the selected download (the frames already here stay) or the recording (the frames so far become the movie)");
         stop.addActionListener(e -> {
             ImageLayer l = selectedLayer();
             if (l != null)
                 l.cancelDownloadTask();
+            else if (isRecording(selectedRow()))
+                ExportMovie.shallStop();
         });
         show.setToolTipText("Select this layer in the Layers list (or double-click the row)");
         show.addActionListener(e -> showLayer());
