@@ -6,6 +6,7 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.swing.JButton;
@@ -53,9 +54,19 @@ public final class JobQueuePanel extends JDialog {
     private static final String[] COLUMNS = {"Job", "State", "Progress", "Message"};
 
     private final JTable table = new JTable();
-    private List<ActivityRows.Row> nowRows = List.of();
+    /** One line of "Right now": live work, or work that has ended and stays until dismissed. */
+    private record Item(ActivityRows.Row row, String status, boolean ended) {
+        Object key() {
+            return ended ? this : ActivityRows.key(row);
+        }
+    }
+
+    private List<Item> nowRows = List.of();
+    private final java.util.Map<Object, ActivityRows.Row> seen = new java.util.LinkedHashMap<>(); // tracked work running at the last tick
+    private final List<Item> endedItems = new java.util.ArrayList<>();
+    private final java.util.Set<Object> stoppedByUser = new java.util.HashSet<>();
     private final AbstractTableModel nowModel = new AbstractTableModel() {
-        private final String[] cols = {"What", "Progress", "Status"};
+        private final String[] cols = {"What", "Status", "Progress", "Message"};
 
         @Override
         public int getRowCount() {
@@ -75,14 +86,22 @@ public final class JobQueuePanel extends JDialog {
         @Override
         public Object getValueAt(int r, int c) {
             if (nowRows.isEmpty())
-                return c == 0 ? "Nothing running" : c == 1 ? null : "Everything has landed.";
-            ActivityRows.Row row = nowRows.get(r);
-            return c == 0 ? (row.failed() ? "\u26a0 " : "") + row.name() : c == 1 ? row : row.detail();
+                return c == 0 ? "Nothing running" : c == 3 ? "Everything has landed." : c == 2 ? null : "";
+            Item it = nowRows.get(r);
+            ActivityRows.Row row = it.row();
+            return switch (c) {
+                case 0 -> (row.failed() ? "\u26a0 " : "") + row.name();
+                case 1 -> it.status();
+                case 2 -> it.ended() ? null : row;
+                default -> row.detail();
+            };
         }
     };
     private final JTable now = new JTable(nowModel);
     private final JButton stop = new JButton("Stop");
     private final JButton show = new JButton("Show layer");
+    private final JButton dismiss = new JButton("Dismiss");
+    private final JButton clear = new JButton("Clear finished");
 
     /** A bar where the amount is known, a moving bar where it is not, nothing for a finished or failed row. */
     private static final class Bar extends javax.swing.JProgressBar implements javax.swing.table.TableCellRenderer {
@@ -103,18 +122,55 @@ public final class JobQueuePanel extends JDialog {
 
     private void refreshNow() {
         List<ActivityRows.Row> rows = ActivityRows.rows();
-        ActivityRows.Row selRow = selectedRow();
-        nowRows = rows;
+        Item selItem = selectedItem();
+        Object selKey = selItem == null ? null : selItem.key();
+        java.util.Set<Object> liveKeys = new java.util.HashSet<>();
+        for (ActivityRows.Row r : rows)
+            liveKeys.add(ActivityRows.key(r));
+        for (var it = seen.entrySet().iterator(); it.hasNext(); ) { // tracked work that is gone: keep it, with how it ended
+            var e = it.next();
+            if (liveKeys.contains(e.getKey()))
+                continue;
+            it.remove();
+            Item done = new Item(e.getValue(), outcome(e.getKey(), e.getValue()), true);
+            endedItems.add(done);
+            if (Objects.equals(selKey, e.getKey()))
+                selKey = done.key();
+        }
+        List<Item> all = new java.util.ArrayList<>();
+        for (ActivityRows.Row r : rows) {
+            if (tracked(r))
+                seen.put(ActivityRows.key(r), r);
+            all.add(new Item(r, r.failed() ? "failed" : "running", false));
+        }
+        all.addAll(endedItems);
+        nowRows = all;
         nowModel.fireTableDataChanged(); // clears the selection
-        int i = ActivityRows.indexOf(rows, selRow == null ? null : ActivityRows.key(selRow));
-        if (i >= 0)
-            now.setRowSelectionInterval(i, i);
+        for (int i = 0; i < all.size(); i++)
+            if (selKey != null && selKey.equals(all.get(i).key()))
+                now.setRowSelectionInterval(i, i);
         updateNowButtons();
     }
 
-    private @javax.annotation.Nullable ActivityRows.Row selectedRow() {
+    private @javax.annotation.Nullable Item selectedItem() {
         int r = now.getSelectedRow();
         return r >= 0 && r < nowRows.size() ? nowRows.get(r) : null;
+    }
+
+    private @javax.annotation.Nullable ActivityRows.Row selectedRow() { // live work only: an ended line has nothing to stop
+        Item it = selectedItem();
+        return it == null || it.ended() ? null : it.row();
+    }
+
+    /** Work worth confirming when it ends: a layer's load, the recording, a Python send, a timeline band. */
+    private static boolean tracked(ActivityRows.Row r) {
+        return !r.failed() && (r.layer() != null || "Recording".equals(r.name()) || "Python".equals(r.name()) || r.name().startsWith("Timeline:"));
+    }
+
+    private String outcome(Object key, ActivityRows.Row r) {
+        if (stoppedByUser.remove(key))
+            return "cancelled";
+        return "Recording".equals(r.name()) ? ExportMovie.lastOutcome() : "success";
     }
 
     private @javax.annotation.Nullable ImageLayer selectedLayer() {
@@ -130,6 +186,8 @@ public final class JobQueuePanel extends JDialog {
         ImageLayer l = selectedLayer();
         stop.setEnabled(l != null && l.isDownloading() || isRecording(selectedRow()));
         show.setEnabled(l != null);
+        dismiss.setEnabled(selectedItem() != null && selectedItem().ended());
+        clear.setEnabled(!endedItems.isEmpty());
     }
     private final JobQueue.Listener listener;
 
@@ -186,9 +244,10 @@ public final class JobQueuePanel extends JDialog {
         now.setFillsViewportHeight(true);
         now.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         now.getColumnModel().getColumn(0).setPreferredWidth(220);
-        now.getColumnModel().getColumn(1).setPreferredWidth(160);
-        now.getColumnModel().getColumn(2).setPreferredWidth(480);
-        now.getColumnModel().getColumn(1).setCellRenderer(new Bar());
+        now.getColumnModel().getColumn(1).setPreferredWidth(80);
+        now.getColumnModel().getColumn(2).setPreferredWidth(160);
+        now.getColumnModel().getColumn(3).setPreferredWidth(400);
+        now.getColumnModel().getColumn(2).setCellRenderer(new Bar());
         now.setRowHeight(Math.max(now.getRowHeight(), 22));
         now.getSelectionModel().addListSelectionListener(e -> updateNowButtons());
         now.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -201,9 +260,10 @@ public final class JobQueuePanel extends JDialog {
         stop.setToolTipText("Stop the selected download (the frames already here stay) or the recording (the frames so far become the movie)");
         stop.addActionListener(e -> {
             ImageLayer l = selectedLayer();
-            if (l != null)
+            if (l != null) {
+                stoppedByUser.add(ActivityRows.key(selectedRow()));
                 l.cancelDownloadTask();
-            else if (isRecording(selectedRow()))
+            } else if (isRecording(selectedRow()))
                 ExportMovie.shallStop();
         });
         show.setToolTipText("Select this layer in the Layers list (or double-click the row)");
@@ -211,12 +271,27 @@ public final class JobQueuePanel extends JDialog {
         JPanel nowButtons = new JPanel(new FlowLayout(FlowLayout.LEFT));
         nowButtons.add(stop);
         nowButtons.add(show);
+        dismiss.setToolTipText("Remove the selected finished line from this list");
+        dismiss.addActionListener(e -> {
+            Item it = selectedItem();
+            if (it != null && it.ended()) {
+                endedItems.remove(it);
+                refreshNow();
+            }
+        });
+        clear.setToolTipText("Remove every finished line from this list");
+        clear.addActionListener(e -> {
+            endedItems.clear();
+            refreshNow();
+        });
+        nowButtons.add(dismiss);
+        nowButtons.add(clear);
         JScrollPane nowTable = new JScrollPane(now);
         nowTable.setPreferredSize(new Dimension(900, 170));
         JPanel nowScroll = new JPanel(new BorderLayout());
         nowScroll.add(nowTable, BorderLayout.CENTER);
         nowScroll.add(nowButtons, BorderLayout.SOUTH);
-        nowScroll.setBorder(javax.swing.BorderFactory.createTitledBorder("Right now: downloads, loads and computing (managed from their layers)"));
+        nowScroll.setBorder(javax.swing.BorderFactory.createTitledBorder("Right now: downloads, loads and computing; finished work stays until dismissed"));
         scroll.setBorder(javax.swing.BorderFactory.createTitledBorder("Export queue: one job at a time, in order"));
         JPanel south = new JPanel(new BorderLayout());
         south.add(buttons, BorderLayout.CENTER);
