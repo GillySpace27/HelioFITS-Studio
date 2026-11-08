@@ -70,7 +70,43 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
     // Only for state restore, which batches layer registration.
     public static ImageLayer createDetached(JSONObject jo) {
-        return new ImageLayer(jo);
+        return new ImageLayer(jo, false);
+    }
+
+    /**
+     * As above, but with {@code hold} the layer remembers what it would load and loads nothing
+     * until {@link #releaseHold}. A save still writes it (the request or URIs are recorded), so a
+     * session opened with its downloads postponed does not lose them (LoadGuard).
+     */
+    public static ImageLayer createDetached(JSONObject jo, boolean hold) {
+        return new ImageLayer(jo, hold);
+    }
+
+    private boolean held;
+    @Nullable private Runnable heldStart;
+
+    public boolean isHeld() {
+        return held;
+    }
+
+    /** Start the postponed load. The layer is an ordinary one from here. */
+    public void releaseHold() {
+        Runnable start = heldStart;
+        held = false;
+        heldStart = null;
+        setLoadStatus(null);
+        if (start != null)
+            start.run();
+        Layers.fireLayerUpdated(this);
+    }
+
+    // True when the load was parked instead of started.
+    private boolean park(Runnable start) {
+        if (!held)
+            return false;
+        heldStart = start;
+        setLoadStatus("Postponed. Refresh downloads it");
+        return true;
     }
 
     @Override
@@ -145,7 +181,8 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         loader = new ImageLayerLoader(processingSettings, v -> {}, v -> {}, () -> {}, st -> {}, failed -> {}, () -> {});
     }
 
-    private ImageLayer(JSONObject jo) {
+    private ImageLayer(JSONObject jo, boolean hold) {
+        held = hold;
         // A layer the user just asked for should be framed when it arrives; one restored from a
         // session must not be, because the session restored its own camera and re-fitting would
         // throw that framing away. Every interactive route builds this with a null jo
@@ -205,6 +242,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
                     }
 
                     if (!list.isEmpty()) {
+                        Runnable begin = () -> {
                         if (!haveTable && fitsRequest != null && fitsRequest.archive() == FitsRequest.Archive.LASCO) {
                             // Marked before the probe is submitted, because State's post-restore prune
                             // removes any layer that has not loaded yet and the probe takes seconds: a
@@ -221,6 +259,12 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
                         }
                         else
                             load(list);
+                        };
+                        if (held) { // postponed: the probe goes over the network too, so it waits with the load
+                            sourceUris = List.copyOf(list);
+                            park(begin);
+                        } else
+                            begin.run();
                     }
 
                     JSONArray range = jo.optJSONArray("fixedRange");
@@ -331,6 +375,8 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             return;
 
         pendingRequest = req; // so serialize() can persist the layer before the view arrives
+        if (park(() -> load(req)))
+            return;
         loader.load(req);
         Layers.fireLayerUpdated(this); // give feedback asap
     }
@@ -348,6 +394,8 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             return;
 
         sourceUris = List.copyOf(uris); // remembered so serialize() can persist a direct-URI layer
+        if (park(() -> load(uris)))
+            return;
         org.helioviewer.jhv.io.SourceIdentity.prefetch(sourceUris); // sha256 and HelioFITS Core identity for provenance, in the background
         loader.load(uris);
         Layers.fireLayerUpdated(this); // give feedback asap
@@ -406,6 +454,8 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             return;
         }
         fitsRequest = request;
+        if (park(() -> load(request)))
+            return;
         java.util.function.Consumer<List<URI>> receiver = uris -> {
             if (removed)
                 return;
@@ -453,7 +503,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         // getBaseName defaults to null for anything not backed by a single DataUri. So the old
         // test read every successfully loaded multi-file layer as a failure, and State's
         // post-restore prune deleted it the moment it finished loading: it appeared, then vanished.
-        if (!viewLoaded && !lendPending)
+        if (!viewLoaded && !lendPending && !held)
             Layers.remove(this);
         if (!lendPending)
             loader.cancelLoad();
@@ -1115,7 +1165,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
     }
 
     public boolean isViewLoadFinished() {
-        return !loader.isLoading() && view.getFrameCompletion(view.getMaximumFrameNumber()) != null;
+        return held || !loader.isLoading() && view.getFrameCompletion(view.getMaximumFrameNumber()) != null;
     }
 
     public void cancelDownloadTask() {
