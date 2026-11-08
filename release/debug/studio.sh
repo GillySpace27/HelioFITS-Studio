@@ -10,7 +10,9 @@ target_build() {
     local clone=$1 out=$2 tag=$3 ver dmg mnt
     ver=$(tr -d '[:space:]' < "$clone/VERSION")
     rm -f "$clone/release/HFStudio-$ver.dmg"
-    ( cd "$clone" && HFS_UNSIGNED=1 release/deploy_release.sh notarize ) || return 1
+    # The build smoke-launches the app: give it a throwaway home so it cannot write into the real ~/HFStudio.
+    ( cd "$clone" && HFS_UNSIGNED=1 HFS_HOME="$clone/.smoke-home" release/deploy_release.sh notarize ) || return 1
+    rm -rf "$clone/.smoke-home"
     dmg="$clone/release/HFStudio-$ver.dmg"
     [ -f "$dmg" ] || { echo "!! no dmg at $dmg" >&2; return 1; }
     cp "$dmg" "$HOME/hfs-rc/HFStudio-$ver-debug-$tag.dmg"
