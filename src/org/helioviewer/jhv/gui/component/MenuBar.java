@@ -450,6 +450,7 @@ public final class MenuBar extends JMenuBar {
         catalogItem(managersMenu, "cacheManager");
         catalogItem(managersMenu, "modelManager");
         catalogItem(managersMenu, "taskManager");
+        catalogItem(managersMenu, "activityWindow");
         managersMenu.addSeparator();
         catalogItem(managersMenu, "toolbarManager"); // what the window shows
         catalogItem(managersMenu, "themeManager");

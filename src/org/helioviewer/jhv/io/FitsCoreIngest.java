@@ -39,6 +39,8 @@ import java.util.zip.GZIPInputStream;
 
 import javax.annotation.Nullable;
 
+import org.helioviewer.jhv.activity.Activity;
+import org.helioviewer.jhv.activity.OutputTail;
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.Settings;
 import org.json.JSONException;
@@ -363,16 +365,30 @@ public final class FitsCoreIngest {
             builder.environment().put("PYTHONIOENCODING", "utf-8");
             Process process = builder.start();
             process.getOutputStream().close();
+            String what = "hfcore " + String.join(" ", args);
+            Activity.event(Activity.Kind.CORE, "core", "$ " + what);
+            OutputTail stdout = new OutputTail(out, "core"), stderr = new OutputTail(err, "core stderr");
+            long start = System.nanoTime(), deadline = start + wait.toNanos();
             try {
-                if (!process.waitFor(wait.toMillis(), TimeUnit.MILLISECONDS)) {
-                    process.destroyForcibly();
-                    throw new IOException("hfcore " + String.join(" ", args) + " did not finish in " + wait.toSeconds() + " s");
+                // Polled rather than one waitFor, so the Activity window shows Core's output as it is written.
+                while (!process.waitFor(200, TimeUnit.MILLISECONDS)) {
+                    stdout.drain(false);
+                    stderr.drain(false);
+                    if (System.nanoTime() > deadline) {
+                        process.destroyForcibly();
+                        throw new IOException(what + " did not finish in " + wait.toSeconds() + " s");
+                    }
                 }
             } catch (InterruptedException e) {
                 process.destroyForcibly();
                 Thread.currentThread().interrupt();
-                throw new InterruptedIOException("hfcore " + String.join(" ", args));
+                throw new InterruptedIOException(what);
+            } finally {
+                stdout.drain(true);
+                stderr.drain(true);
             }
+            Activity.event(Activity.Kind.CORE, "core", String.format(java.util.Locale.ROOT, "exit %d in %.1f s: %s",
+                    process.isAlive() ? -1 : process.exitValue(), (System.nanoTime() - start) / 1e9, what));
             if (process.exitValue() != 0)
                 throw new IOException("HelioFITS Core failed (exit " + process.exitValue() + "): " + Files.readString(err, StandardCharsets.UTF_8).strip());
             return Files.readString(out, StandardCharsets.UTF_8);

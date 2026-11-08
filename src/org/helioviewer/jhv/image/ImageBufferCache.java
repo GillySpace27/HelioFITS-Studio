@@ -41,6 +41,11 @@ public final class ImageBufferCache {
         cache.policy().eviction().ifPresent(eviction -> eviction.setMaximum(bytes));
     }
 
+    /** Bytes of decoded frames the cache holds now, for the footer's memory light. */
+    public static long heldBytes() {
+        return cache.policy().eviction().map(e -> e.weightedSize().orElse(0L)).orElse(0L);
+    }
+
     /** What evicted frames still hold until the next reap frees them, for the budget to see. */
     public static long retiredCount() {
         synchronized (retired) {

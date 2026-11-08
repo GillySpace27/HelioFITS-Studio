@@ -60,7 +60,7 @@ public class HTTPSocket {
                 sslSocket.setSSLParameters(parameters);
             }
 
-            InputStream openInputStream = new BufferedInputStream(openSocket.getInputStream());
+            InputStream openInputStream = new BufferedInputStream(org.helioviewer.jhv.activity.Activity.countingNet(openSocket.getInputStream())); // the NET light
 
             HashMap<String, String> hdr = new HashMap<>();
             hdr.put("User-Agent", AppInfo.userAgent);
@@ -73,6 +73,7 @@ public class HTTPSocket {
             hdr.forEach((key, value) -> sb.append(key).append(": ").append(value).append("\r\n"));
             String header = " HTTP/1.1\r\n" + sb + "\r\n";
 
+            org.helioviewer.jhv.activity.Activity.event(org.helioviewer.jhv.activity.Activity.Kind.NET, "jpip", "connected to " + host + ':' + port);
             socket = openSocket;
             inputStream = openInputStream;
             httpHeader = header;

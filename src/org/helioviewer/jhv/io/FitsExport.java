@@ -196,6 +196,7 @@ public final class FitsExport {
                 manifest.put("hfrecord", folder);
         }
         Files.writeString(outDir.resolve("manifest.json"), manifest.toString(2), StandardCharsets.UTF_8);
+        org.helioviewer.jhv.activity.Activity.event(org.helioviewer.jhv.activity.Activity.Kind.DISK, "export", "wrote FITS export to " + outDir);
         return manifest;
     }
 

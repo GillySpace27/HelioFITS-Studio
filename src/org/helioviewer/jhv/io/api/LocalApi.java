@@ -20,6 +20,8 @@ import javax.annotation.Nullable;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 
+import org.helioviewer.jhv.activity.Activity;
+import org.helioviewer.jhv.activity.Driver;
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.gui.MainFrame;
@@ -55,6 +57,8 @@ public final class LocalApi {
 
     public static final String ENABLED = "api.enabled";
     public static final String CONFIRM = "api.confirmDestructive";
+    /** The header a client names itself in: "pyheliofits/1.0", "heliofits-mcp/1.0; Claude Desktop". Optional. */
+    public static final String CLIENT_HEADER = "X-HFS-Client";
     static final int MAX_BODY = 1 << 20;
 
     /** Asks the person about a destructive command; on the event thread. */
@@ -213,7 +217,7 @@ public final class LocalApi {
             }
             JSONObject response;
             try {
-                response = handle(request);
+                response = handle(request, exchange.getRequestHeaders().getFirst(CLIENT_HEADER));
             } catch (RuntimeException e) { // a failure Dispatch did not translate; the caller still gets an answer
                 Log.warn("Local API request failed", e);
                 response = error(request.opt("id") == null ? JSONObject.NULL : request.opt("id"), -32000, String.valueOf(e.getMessage()), "failed");
@@ -259,6 +263,14 @@ public final class LocalApi {
 
     /** One JSON-RPC 2.0 request to its response; the transport is not involved, so a check calls it directly. */
     public static JSONObject handle(JSONObject request) {
+        return handle(request, null);
+    }
+
+    /**
+     * As {@link #handle(JSONObject)}, for a caller that named itself in the {@code X-HFS-Client}
+     * header: the name goes on the window's glow, the footer's CMD light and the activity log.
+     */
+    public static JSONObject handle(JSONObject request, @Nullable String client) {
         Object id = request.opt("id") == null ? JSONObject.NULL : request.opt("id");
         String method = request.optString("method", "");
         JSONObject params = request.optJSONObject("params");
@@ -266,19 +278,38 @@ public final class LocalApi {
             params = new JSONObject();
         switch (method) {
             case "commands.list":
+                Activity.event(Activity.Kind.CMD, Driver.name(client, ""), "commands.list"); // asking what exists: the light, not the glow
                 return result(id, new JSONObject().put("tools", CommandRegistry.manifest().getJSONArray("tools")));
             case "commands.invoke":
-                return invoke(id, params);
+                return invoke(id, params, client);
             default:
                 return error(id, -32601, "no method '" + method + "'; commands.list and commands.invoke exist", "unknown-method");
         }
     }
 
-    private static JSONObject invoke(Object id, JSONObject params) {
+    private static JSONObject invoke(Object id, JSONObject params, @Nullable String client) {
         String command = params.optString("id", "");
         JSONObject args = params.optJSONObject("args");
         if (args == null)
             args = new JSONObject();
+        String who = Driver.name(client, "");
+        Activity.event(Activity.Kind.CMD, who, "> " + command + (args.isEmpty() ? "" : " " + args));
+        Log.info("Local API: " + who + " runs " + command + (args.isEmpty() ? "" : " " + Activity.cut(args.toString())));
+        Driver.begin(Driver.classify(client), who, command);
+        long t0 = System.nanoTime();
+        JSONObject answer = null;
+        try {
+            answer = invoke(id, command, args);
+            return answer;
+        } finally {
+            Driver.end();
+            JSONObject err = answer == null ? null : answer.optJSONObject("error");
+            String outcome = answer == null ? "failed" : err == null ? "ok" : err.optJSONObject("data") == null ? "error" : err.getJSONObject("data").optString("kind", "error");
+            Activity.event(Activity.Kind.CMD, who, String.format(java.util.Locale.ROOT, "< %s %s in %.1f s", command, outcome, (System.nanoTime() - t0) / 1e9));
+        }
+    }
+
+    private static JSONObject invoke(Object id, String command, JSONObject args) {
         CommandSpec spec = CommandRegistry.get(command);
         if (spec == null)
             return error(id, -32601, "no command '" + command + "'", "unknown-command");

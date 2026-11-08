@@ -33,7 +33,8 @@ import org.json.JSONTokener;
  *
  * <p>Eight tokens are stated by every theme; the seven timeline tokens are derived from those
  * unless a theme states them, which is how a user theme can restate one colour and have the
- * timeline follow it.
+ * timeline follow it. The three driver tokens (the glow while a script or assistant drives Studio)
+ * are fixed colours a theme may restate.
  *
  * <p>Two of the four built-ins sit on FlatLaf's own dark and light look-and-feels, where the
  * colours below are pushed in as {@code @background} and friends and cascade through every
@@ -82,7 +83,11 @@ public final class Theme {
         TimelineTick("Timeline tick", "Tick marks along the time axis."),
         TimelineLabel("Timeline label", "Text along the time axis."),
         TimelineMovie("Timeline movie line", "The line marking the current movie frame."),
-        TimelineMovieBand("Timeline movie band", "The hatched band showing how much of the interval the movie covers.");
+        TimelineMovieBand("Timeline movie band", "The hatched band showing how much of the interval the movie covers."),
+
+        DriverMcp("Driven by an assistant", "The glow around the window, the footer chip and the CMD light while an assistant drives Studio through heliofits-mcp."),
+        DriverPython("Driven from Python", "The same, while a Python script drives Studio through the pyheliofits package."),
+        DriverOther("Driven by another program", "The same, for any other caller of the local API, and for SAMP.");
 
         public final String label;
         public final String description;
@@ -227,6 +232,12 @@ public final class Theme {
             case TimelineIntervalBorder, TimelineTick -> c.get(Token.Separator);
             case TimelineLabel, TimelineMovie -> c.get(Token.Foreground);
             case TimelineMovieBand -> mix(c.get(Token.Component), c.get(Token.Foreground), 0.55);
+            // Who is driving, the same in every theme unless a theme states its own: an orange
+            // near Claude's for an assistant, the blue of Python's logo for a script, and green for
+            // anything else. Chosen by eye (Gilly, 2026-11-08), not taken from a brand guide.
+            case DriverMcp -> new Color(0xD97757);
+            case DriverPython -> new Color(0x3776AB);
+            case DriverOther -> new Color(0x2EA043);
             default -> throw new IllegalArgumentException(t + " is stated, not derived");
         };
     }

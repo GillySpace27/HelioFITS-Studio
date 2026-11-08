@@ -14,6 +14,7 @@ class NetClientLocal implements NetClient {
     NetClientLocal(URI uri) throws IOException {
         try {
             response = Okio.buffer(Okio.source(new File(uri.getPath()))); // for files with authority (//localhost) and Windows
+            org.helioviewer.jhv.activity.Activity.event(org.helioviewer.jhv.activity.Activity.Kind.DISK, "file", "read " + uri.getPath());
         } catch (Exception e) {
             throw new IOException(e);
         }

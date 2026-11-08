@@ -81,7 +81,7 @@ public final class CommandRegistry {
             "tipOfTheDay", "showImageLayers", "sendFeedback", "datasetFolders", "openExportsFolder", "openExportRecord", "searchControls", "showProjection",
             "showPlayback", "newFromTemplate", "saveAsTemplate", "templates", "tourGettingStarted", "tourLoadingData", "tourMakingAMovie",
             "tourViewsAndProjections", "tourRhefAndFilters", "tourSharingYourWork", "tourManagerWindows", "tourRearrangingTheInterface",
-            "study", "taskManager", "cacheManager", "modelManager", "toolbarManager", "themeManager", "keybindingsManager", "studySaveView", "identifyFindBody",
+            "study", "taskManager", "activityWindow", "cacheManager", "modelManager", "toolbarManager", "themeManager", "keybindingsManager", "studySaveView", "identifyFindBody",
             // Fold or show a sidebar section by its number (PanelKeys)
             "foldLeftPanel1", "foldLeftPanel2", "foldLeftPanel3", "foldLeftPanel4", "foldLeftPanel5", "foldLeftPanel6", "foldLeftPanel7", "foldLeftPanel8",
             "foldRightPanel1", "foldRightPanel2", "foldRightPanel3", "foldRightPanel4", "foldRightPanel5", "foldRightPanel6", "foldRightPanel7", "foldRightPanel8");
@@ -108,6 +108,7 @@ public final class CommandRegistry {
         registerParameterised();
         DataCommands.register();
         IdentifyCommands.register();
+        ActivityCommands.register();
         registerIntrospection();
     }
 

@@ -41,6 +41,7 @@ public class Log {
         LogManager.getLogManager().reset();
         root.addHandler(fileHandler);
         root.addHandler(consoleHandler);
+        root.addHandler(new org.helioviewer.jhv.activity.LogMirror()); // the Activity window's Log lines
     }
 
     public static void setLoggerLevel(String name, Level level) {

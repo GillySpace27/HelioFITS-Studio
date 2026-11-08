@@ -143,7 +143,7 @@ public final class StarCatalog {
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .header("User-Agent", AppInfo.userAgent)
                 .POST(HttpRequest.BodyPublishers.ofString(form)).build();
-        HttpResponse<String> created = client.send(create, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> created = org.helioviewer.jhv.activity.NetActivity.send(client, create, HttpResponse.BodyHandlers.ofString());
         String job = created.headers().firstValue("Location").orElseThrow(
                 () -> new IOException("The ESA archive did not start a query (HTTP " + created.statusCode() + ')'));
 
@@ -163,7 +163,7 @@ public final class StarCatalog {
     private static String get(HttpClient client, String url) throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder(URI.create(url)).timeout(TIMEOUT)
                 .header("User-Agent", AppInfo.userAgent).GET().build();
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = org.helioviewer.jhv.activity.NetActivity.send(client, request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() != 200)
             throw new IOException("HTTP " + response.statusCode() + " from the ESA archive");
         return response.body();

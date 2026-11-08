@@ -60,6 +60,7 @@ public final class FITSImage {
     }
 
     static FITSData readData(File file, int plane, boolean subtractBackground, LascoBackground.Choice background) throws Exception {
+        org.helioviewer.jhv.activity.Activity.event(org.helioviewer.jhv.activity.Activity.Kind.DISK, "fits", "read " + file.getName() + " plane " + plane);
         try (Fits f = new Fits(file)) {
             BasicHDU<?> hdu = findHDU(f);
             Header header = imageHeader(hdu);

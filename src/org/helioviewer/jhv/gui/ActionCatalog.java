@@ -166,6 +166,12 @@ public final class ActionCatalog {
                 org.helioviewer.jhv.gui.component.JobQueuePanel.open();
             }
         }, "Managers/Task Manager...", "What is downloading, loading or computing, and the export queue (also: click the footer's spinner)");
+        put("activityWindow", new javax.swing.AbstractAction("Activity...") {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                org.helioviewer.jhv.gui.dialog.ActivityWindow.open(null);
+            }
+        }, "Managers/Activity...", "A live record of what Studio does: commands from scripts and assistants, downloads, disk, Core's output, memory and the log (also: click the footer's lights)");
         put("studySaveView", org.helioviewer.jhv.gui.component.StudyPanel.saveViewAction(), "Movie/Save View to Study", "Add the view on screen to the Study table as a new row");
         // Help search (HS-15): the menu item, and the Projection palette's reveal for the controls in it
         put(org.helioviewer.jhv.gui.search.CommandPalette.ID, org.helioviewer.jhv.gui.search.CommandPalette.action(), "Help/Search Controls...", "Find any command or control by name and run it or show where it is");

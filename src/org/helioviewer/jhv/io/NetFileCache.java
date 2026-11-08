@@ -99,6 +99,8 @@ public class NetFileCache {
             } catch (IOException e) {
                 Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING); // ATOMIC_MOVE unsupported across devices
             }
+            org.helioviewer.jhv.activity.Activity.event(org.helioviewer.jhv.activity.Activity.Kind.DISK, "cache",
+                    "saved " + target.getFileName() + " (" + (cached.length() >> 10) + " kB)");
             File stored = LibraryStore.adopt(uri, cached); // the library keeps the only copy, when it can
             if (stored != null)
                 return new DataUri(uri, stored.toURI(), stored);
