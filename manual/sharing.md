@@ -32,6 +32,10 @@ The file format and where templates are kept are in {doc}`reference/templates`.
   local files, to open on another computer.
 - The Record panel's {guilabel}`Bundle source data with export` writes the same kind of `.data.zip` beside
   each still or movie, holding only the files that export needs. It is off unless you choose it.
+- An export's `.hfrec` record opens on its own: drop it on Studio or use {guilabel}`Open in New Window` in
+  {menuselection}`File --> Open Export Record...`. Its scene loads in a new window (a movie as its first frame
+  unless you choose {guilabel}`Load whole range`), and the window draws the picture again and says Identical,
+  Equivalent, Different or Cannot check. {guilabel}`Save Scene as .jhv...` keeps the scene as a session file.
 - {menuselection}`File --> Copy Provenance` puts the program, its build and each layer's data source
   on the clipboard, for a caption or a methods section.
 - {menuselection}`Edit --> Copy Frame` puts the canvas picture on the clipboard, as an 8-bit

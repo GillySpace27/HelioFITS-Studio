@@ -235,7 +235,13 @@ public final class ProcessingRecordCheck {
                         .put(A, new JSONObject().put("fits", true).put("frame", 0).put("frames", 2)
                                 .put("clip", new JSONArray().put(12.5).put(3400.25)).put("clip_from", "decoded frame").put("credit_key", "SDO/AIA"))
                         .put(B, new JSONObject().put("fits", false).put("frame", 3).put("frames", 10)))
-                .put("frame", Provenance.frame(0, false, "2025-09-21T20:32:00.000", "Earth", 0, 0, 215, "Orthographic", "Viewpoint", 6.4, 1, null));
+                .put("frame", Provenance.frame(0, false, "2025-09-21T20:32:00.000", "Earth", 0, 0, 215, "Orthographic", "Viewpoint", 6.4, 1, null))
+                .put("environment", new JSONObject()
+                        .put("os", new JSONObject().put("name", "Mac OS X").put("version", "15.1").put("arch", "aarch64"))
+                        .put("jvm", new JSONObject().put("version", "25").put("vendor", "Eclipse Adoptium"))
+                        .put("gpu", new JSONObject().put("vendor", "Apple").put("renderer", "ANGLE (Apple M3)").put("version", "OpenGL ES 3.0").put("glsl", "300"))
+                        .put("display", new JSONObject().put("dither_enabled", true).put("deep_canvas", false).put("edr_canvas", false))
+                        .put("core", new JSONObject().put("commit", "864b2362b195bf453ae8982c854053af1d4b8f44")));
     }
 
     private static List<String> ops(JSONObject layer) {
@@ -252,6 +258,185 @@ public final class ProcessingRecordCheck {
         return null;
     }
 
+    private static String sha256Hex(byte[]... parts) throws Exception {
+        java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+        for (byte[] p : parts)
+            md.update(p);
+        return java.util.HexFormat.of().formatHex(md.digest());
+    }
+
+    /** hfrecord 1.1: environment, reproducibility, frame_map, and the pixel and content digests. */
+    private static void reproducibility(Path out, JSONObject session, JSONObject mSession, ProcessingRecord.Output still,
+                                        ProcessingRecord.Output movie) throws Exception {
+        JSONObject r = ProcessingRecord.build(session, live(), null, still, "frame0001.png", "a".repeat(64), HOME,
+                ProcessingRecordCheck::identify, "00000000-0000-4000-8000-000000000011");
+        JSONObject env = r.getJSONObject("environment");
+        expect("the environment block is in the record: os, jvm, gpu, display, core", env.keySet().containsAll(List.of("os", "jvm", "gpu", "display", "core")));
+        expect("a 16-bit output skips the dither and says the capture was high bit depth",
+                !env.getJSONObject("display").getBoolean("dither") && env.getJSONObject("display").getBoolean("high_bit_depth_capture")
+                        && env.getJSONObject("display").keySet().equals(java.util.Set.of("dither", "high_bit_depth_capture")));
+        JSONObject m8 = ProcessingRecord.build(mSession, live(), null, movie, "movie.mp4", null, HOME,
+                ProcessingRecordCheck::identify, "00000000-0000-4000-8000-000000000012");
+        expect("an 8-bit output dithers, and the verdict names it",
+                m8.getJSONObject("environment").getJSONObject("display").getBoolean("dither") && m8.getJSONObject("reproducibility").getJSONArray("reasons")
+                        .toList().stream().anyMatch(s -> s.toString().startsWith("The shader dithered")));
+        expect("the core commit is in environment.core", "864b2362b195bf453ae8982c854053af1d4b8f44".equals(env.getJSONObject("core").getString("commit")));
+        String user = System.getProperty("user.name", "");
+        expect("the environment carries no user name and no host name",
+                (user.length() < 3 || !env.toString().contains(user)) && !env.toString().toLowerCase().contains("hostname"));
+        JSONObject noEnv = live();
+        noEnv.remove("environment");
+        JSONObject old = ProcessingRecord.build(session, noEnv, null, still, "f.png", null, HOME, ProcessingRecordCheck::identify,
+                "00000000-0000-4000-8000-000000000013");
+        expect("a build with no environment block says so and writes none", !old.has("environment")
+                && old.getJSONObject("reproducibility").getJSONArray("reasons").toList().stream().anyMatch(s -> s.toString().startsWith("No environment block")));
+
+        JSONObject repro = r.getJSONObject("reproducibility");
+        List<Object> reasons = repro.getJSONArray("reasons").toList();
+        expect("a Helioviewer layer makes an exact replay impossible, and the reason names the layer",
+                !repro.getBoolean("exact_replay_possible") && reasons.stream().anyMatch(s -> s.toString().contains("AIA 171") && s.toString().contains("Helioviewer")));
+        JSONObject cleanSession = Provenance.session(scene(0.45, false), HOME, Instant.parse("2026-10-23T00:00:00Z"), u -> null);
+        JSONObject oneLayerScene = scene(0.45, false);
+        oneLayerScene.getJSONObject("org.helioviewer.jhv.state").getJSONArray("imageLayers").remove(1);
+        oneLayerScene.getJSONObject("org.helioviewer.jhv.state").remove("compare");
+        JSONObject clean = ProcessingRecord.build(Provenance.session(oneLayerScene, HOME, Instant.parse("2026-10-23T00:00:00Z"), u -> null),
+                live(), null, still, "f.png", null, HOME, ProcessingRecordCheck::identify, "00000000-0000-4000-8000-000000000014");
+        boolean dirty = clean.getJSONObject("producer").getBoolean("dirty");
+        expect("two identified library files, one layer, a known environment: exact replay possible unless the build is dirty: "
+                        + clean.getJSONObject("reproducibility").getJSONArray("reasons"),
+                clean.getJSONObject("reproducibility").getBoolean("exact_replay_possible") == !dirty);
+
+        JSONObject starScene = scene(0.45, false);
+        starScene.getJSONObject("org.helioviewer.jhv.state").getJSONArray("imageLayers").remove(1);
+        starScene.getJSONObject("org.helioviewer.jhv.state").remove("compare");
+        starScene.getJSONObject("org.helioviewer.jhv.state").put("layers", new JSONArray()
+                .put(new JSONObject().put("className", "org.helioviewer.jhv.layers.StarLayer").put("name", "Stars").put("enabled", true))
+                .put(new JSONObject().put("className", "org.helioviewer.jhv.layers.GridLayer").put("name", "Grid").put("enabled", true)));
+        JSONObject stars = ProcessingRecord.build(Provenance.session(starScene, HOME, Instant.parse("2026-10-23T00:00:00Z"), u -> null),
+                live(), null, still, "f.png", null, HOME, ProcessingRecordCheck::identify, "00000000-0000-4000-8000-000000000022");
+        List<Object> starReasons = stars.getJSONObject("reproducibility").getJSONArray("reasons").toList();
+        JSONObject starIn = stars.getJSONArray("inputs_external").getJSONObject(0);
+        expect("a Stars overlay is an unpinned star_catalog input when its file could not be hashed, a Grid is not an input: " + starReasons,
+                stars.getJSONArray("inputs_external").length() == 1 && "star_catalog".equals(starIn.getString("kind")) && !starIn.getBoolean("pinned")
+                        && starIn.isNull("sha256") && starReasons.stream().anyMatch(s -> s.toString().contains("hipparcos")));
+        JSONObject starLive = live().put("star_catalog_sha256", "5".repeat(64));
+        JSONObject starPinned = ProcessingRecord.build(Provenance.session(starScene, HOME, Instant.parse("2026-10-23T00:00:00Z"), u -> null),
+                starLive, null, still, "f.png", null, HOME, ProcessingRecordCheck::identify, "00000000-0000-4000-8000-000000000023");
+        expect("hashed, the star file pins the input and adds no reason", starPinned.getJSONArray("inputs_external").getJSONObject(0).getBoolean("pinned")
+                && "5".repeat(64).equals(starPinned.getJSONArray("inputs_external").getJSONObject(0).getString("sha256"))
+                && starPinned.getJSONObject("reproducibility").getJSONArray("reasons").toList().stream().noneMatch(s -> s.toString().contains("hipparcos")));
+
+        // frame_map: layer A has two sources and live frames 2; B is a Helioviewer layer; a map of the wrong length is dropped.
+        String lib = "file:" + HOME + "/HelioFITSLibrary/store/aia/"; // the real URIs, home put back
+        // the movie showed a2 first, then a1: the frame key is a file, and the index is where it sits in the layer's list
+        JSONObject map = new JSONObject().put("times", new JSONArray().put("2025-09-21T20:00:00").put("2025-09-21T20:01:00"))
+                .put("by_layer_key", new JSONObject().put(A, new JSONArray().put(lib + "a2.fits").put(lib + "a1.fits")).put(B, new JSONArray().put("jpip://x").put("jpip://x")));
+        ProcessingRecord.Output two = new ProcessingRecord.Output("movie", "video/mp4", 64, 64, 2, 10, "H.264", 8, true);
+        JSONObject withMap = ProcessingRecord.build(mSession, live(), null, two, "movie.mp4", null, HOME, ProcessingRecordCheck::identify,
+                "00000000-0000-4000-8000-000000000015", map);
+        JSONObject fm = withMap.getJSONObject("frame_map");
+        expect("frame_map indexes the sources by the file shown, not by the frame number", fm.getJSONObject("by_layer").has(A)
+                && fm.getJSONObject("by_layer").getJSONArray(A).getInt(0) == 1 && fm.getJSONObject("by_layer").getJSONArray(A).getInt(1) == 0
+                && fm.getJSONArray("times").length() == 2);
+        JSONObject unknownKey = new JSONObject(map.toString());
+        unknownKey.getJSONObject("by_layer_key").put(A, new JSONArray().put(lib + "zzz.fits").put(lib + "a1.fits"));
+        JSONObject dropped = ProcessingRecord.build(mSession, live(), null, two, "movie.mp4", null, HOME, ProcessingRecordCheck::identify,
+                "00000000-0000-4000-8000-000000000024", unknownKey);
+        expect("a frame whose file is not in the layer's list drops the layer, with a reason", !dropped.has("frame_map")
+                && dropped.getJSONObject("reproducibility").getJSONArray("reasons").toList().stream().anyMatch(s -> s.toString().contains("\"SDO AIA 193")));
+        expect("and leaves out the Helioviewer layer, saying why", !fm.getJSONObject("by_layer").has(B)
+                && withMap.getJSONObject("reproducibility").getJSONArray("reasons").toList().stream().anyMatch(s -> s.toString().startsWith("Frame map omits layer \"AIA 171\"")));
+        ProcessingRecord.Output three = new ProcessingRecord.Output("movie", "video/mp4", 64, 64, 3, 10, "H.264", 8, true);
+        JSONObject shortMap = ProcessingRecord.build(mSession, live(), null, three, "movie.mp4", null, HOME, ProcessingRecordCheck::identify,
+                "00000000-0000-4000-8000-000000000016", map);
+        expect("a map that does not cover every output frame is dropped with a reason", !shortMap.has("frame_map")
+                && shortMap.getJSONObject("reproducibility").getJSONArray("reasons").toList().stream().anyMatch(s -> s.toString().startsWith("No frame map")));
+        expect("a still has no frame_map", !ProcessingRecord.build(session, live(), null, still, "f.png", null, HOME, ProcessingRecordCheck::identify,
+                "00000000-0000-4000-8000-000000000017", map).has("frame_map"));
+        expect("the embedded copy of a movie never holds the frame map or a digest",
+                !ProcessingRecord.embedded(withMap, null).has("frame_map") && !ProcessingRecord.shortened(ProcessingRecord.embedded(withMap, null)).has("frame_map"));
+
+        // pixel digests: hfpix/1 of whole frames of a raw dump (top row first, R G B), a partial last frame ignored
+        Path dir = Files.createTempDirectory("hfrec-pixels");
+        byte[] raw = new byte[3 * 24 + 5]; // three 4 x 2 rgb24 frames and a tail
+        new java.util.Random(7).nextBytes(raw);
+        Path dump = Files.write(dir.resolve("dump"), raw);
+        ProcessingRecord.Pixels px = ProcessingRecord.Pixels.of(dump, 4, 2, 3, null);
+        expect("Pixels: one digest per whole frame, a partial tail ignored", px.frames().size() == 3);
+        expect("Pixels: frame 1 is the hfpix/1 digest of its 24 bytes",
+                px.frames().get(1).equals(ProcessingRecord.Pixels.hfpix(4, 2, 3, 8, java.util.Arrays.copyOfRange(raw, 24, 48))));
+        expect("Pixels: sha256 is the first frame's", px.sha256().equals(px.frames().get(0)));
+        expect("hfpix/1 hashes the header 'hfpix/1 4 2 3 8' then the samples",
+                ProcessingRecord.Pixels.hfpix(4, 2, 3, 8, new byte[24]).equals(sha256Hex("hfpix/1 4 2 3 8\n".getBytes(java.nio.charset.StandardCharsets.US_ASCII), new byte[24])));
+        // 16 bit: the dump is little-endian, hfpix/1 is big-endian
+        byte[] le = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}; // two rgb48le pixels (w 2, h 1)
+        byte[] be = {2, 1, 4, 3, 6, 5, 8, 7, 10, 9, 12, 11};
+        expect("a 16-bit dump is swapped to big-endian before it is hashed",
+                ProcessingRecord.Pixels.of(Files.write(dir.resolve("deep"), le), 2, 1, 6, null).sha256().equals(ProcessingRecord.Pixels.hfpix(2, 1, 3, 16, be)));
+        JSONObject sc = ProcessingRecord.build(session, live(), null, still, "f.png", null, HOME, ProcessingRecordCheck::identify,
+                "00000000-0000-4000-8000-000000000018");
+        ProcessingRecord.addPixels(sc, ProcessingRecord.Pixels.of(dump, 4, 2, 3, null), null);
+        expect("a still gets pixel_sha256 and no frame_digests", sc.getJSONObject("output").getString("pixel_sha256").equals(px.sha256())
+                && !sc.getJSONObject("output").has("frame_digests"));
+        JSONObject mv = ProcessingRecord.build(mSession, live(), null, two, "movie.mp4", null, HOME, ProcessingRecordCheck::identify,
+                "00000000-0000-4000-8000-000000000019");
+        ProcessingRecord.addPixels(mv, ProcessingRecord.Pixels.of(dump, 4, 2, 3, new ProcessingRecord.Encoder("ffmpeg version 9.0.1", "H.264", List.of("-c:v", "libx264"))), null);
+        expect("a movie gets frame_digests, a null content_sha256 and the encoder under environment.ffmpeg", mv.getJSONObject("output").getJSONArray("frame_digests").length() == 3
+                && mv.getJSONObject("output").isNull("content_sha256")
+                && "ffmpeg version 9.0.1".equals(mv.getJSONObject("environment").getJSONObject("ffmpeg").getString("version"))
+                && "H.264".equals(mv.getJSONObject("environment").getJSONObject("ffmpeg").getString("encoder"))
+                && mv.getJSONObject("environment").getJSONObject("ffmpeg").getJSONArray("arguments").length() == 2);
+        JSONObject none = ProcessingRecord.build(mSession, live(), null, two, "movie.mp4", null, HOME, ProcessingRecordCheck::identify,
+                "00000000-0000-4000-8000-000000000020");
+        ProcessingRecord.addPixels(none, null, null);
+        expect("no digest taken: the record says exact replay cannot be checked", !none.getJSONObject("reproducibility").getBoolean("exact_replay_possible")
+                && none.getJSONObject("reproducibility").getJSONArray("reasons").toList().stream().anyMatch(s -> s.toString().startsWith("No pixel digest")));
+        JSONObject exr = ProcessingRecord.build(session, live(), null, new ProcessingRecord.Output("exr_series", "image/x-exr", 64, 64, 2, 10, "EXR", 16, true),
+                "frame.exr", null, HOME, ProcessingRecordCheck::identify, "00000000-0000-4000-8000-000000000021");
+        expect("an EXR series says at build time that no pixel digest is taken", exr.getJSONObject("reproducibility").getJSONArray("reasons").toList().stream()
+                .anyMatch(s -> s.toString().startsWith("No pixel digest")));
+        expect("frames_pending counts sources not identified", exr.getJSONObject("reproducibility").getInt("frames_pending") == 0);
+
+        // content_sha256: the PNG without its text chunks
+        Path png = dir.resolve("c.png");
+        javax.imageio.ImageIO.write(flat(8, 4, 0x336699), "png", png.toFile());
+        String plain = ProcessingRecord.pngContentSha256(png);
+        Provenance.writePngChunk(png, session);
+        expect("content_sha256 ignores the text chunks Studio adds (it keeps only IHDR, PLTE, tRNS, IDAT, IEND)", plain != null && plain.equals(ProcessingRecord.pngContentSha256(png)));
+        javax.imageio.ImageIO.write(flat(8, 4, 0x336698), "png", png.toFile());
+        expect("and changes with the picture", !plain.equals(ProcessingRecord.pngContentSha256(png)));
+
+        // the dump ffmpeg reads is the picture it writes: raw rgb24 -> PNG -> decoded samples give the same digest
+        Path ffmpeg = null;
+        for (String d : System.getenv().getOrDefault("PATH", "").split(java.io.File.pathSeparator))
+            if (ffmpeg == null && !d.isEmpty() && Files.isExecutable(Path.of(d, "ffmpeg")))
+                ffmpeg = Path.of(d, "ffmpeg");
+        if (ffmpeg == null)
+            System.out.println("  skip raw dump through ffmpeg to PNG: no ffmpeg on PATH");
+        else {
+            byte[] frame = new byte[8 * 4 * 3];
+            new java.util.Random(11).nextBytes(frame);
+            Path one = Files.write(dir.resolve("one.raw"), frame);
+            Path viaFfmpeg = dir.resolve("one.png");
+            Process p = new ProcessBuilder(ffmpeg.toString(), "-nostdin", "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "8x4",
+                    "-i", one.toString(), "-vf", "scale=in_range=pc:out_range=pc", "-frames:v", "1", viaFfmpeg.toString()).redirectErrorStream(true).start();
+            p.getInputStream().readAllBytes();
+            expect("ffmpeg wrote the PNG", p.waitFor() == 0);
+            java.awt.image.BufferedImage back = javax.imageio.ImageIO.read(viaFfmpeg.toFile());
+            byte[] samples = new byte[frame.length];
+            for (int y = 0, i = 0; y < 4; y++)
+                for (int x = 0; x < 8; x++) {
+                    int rgb = back.getRGB(x, y);
+                    samples[i++] = (byte) (rgb >> 16);
+                    samples[i++] = (byte) (rgb >> 8);
+                    samples[i++] = (byte) rgb;
+                }
+            expect("the decoded PNG samples hash to the digest of the raw dump", ProcessingRecord.Pixels.of(one, 8, 4, 3, null).sha256()
+                    .equals(ProcessingRecord.Pixels.hfpix(8, 4, 3, 8, samples)));
+        }
+        ProcessingRecord.writeJson(out.resolve("movie-map.hfrec"), withMap);
+    }
+
     public static void main(String[] args) throws Exception {
         Path out = Path.of("extra", "test-classes", "hfrecord");
         Files.createDirectories(out);
@@ -262,7 +447,7 @@ public final class ProcessingRecordCheck {
                 ProcessingRecordCheck::identify, "00000000-0000-4000-8000-000000000001");
         ProcessingRecord.writeJson(out.resolve("still.hfrec"), r);
 
-        expect("format 1.0, reader_compat 1", "1.0".equals(r.getString("hfrecord")) && r.getInt("reader_compat") == 1);
+        expect("format 1.1, reader_compat 1", "1.1".equals(r.getString("hfrecord")) && r.getInt("reader_compat") == 1);
         expect("the output names the file and its sha256", "frame0001.png".equals(r.getJSONObject("output").getString("file_name"))
                 && "a".repeat(64).equals(r.getJSONObject("output").getString("sha256")));
         JSONObject a = r.getJSONArray("layers").getJSONObject(0), b = r.getJSONArray("layers").getJSONObject(1);
@@ -492,6 +677,8 @@ public final class ProcessingRecordCheck {
         Files.write(raw, deep);
         java.awt.image.BufferedImage d1 = ExportWriter.rawFrame(raw, 2, 1, 6, 1, 320);
         expect("rawFrame reads rgb48le by each sample's high byte", d1.getRGB(1, 0) == (0xFF000000 | 0xC0 << 16 | 0x80 << 8 | 0xFF));
+
+        reproducibility(out, session, mSession, still, movie);
 
         backfill(plainText, r);
 

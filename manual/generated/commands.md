@@ -484,6 +484,9 @@ These are run by scripts and Search Controls rather than from a menu; the argume
 * - Render the scene as an export would, to a PNG in Studio's cache (not among the exports), and return its path
   - Arguments: `long_side`
   - `previewRender`
+* - Load a scene from a session file (.jhv), a session data archive (.data.zip) or an export's processing record (.hfrec); a record opens in a new window by default and checks its picture against the record's, one frame of a movie unless range
+  - Arguments: `path`, `range`, `window`
+  - `sessionLoad`
 * - Export the frame on screen as a PNG, with its processing record beside it
   - Arguments: `path`, `long_side`, `bundle_data`
   - `exportStill`

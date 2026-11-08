@@ -399,8 +399,16 @@ public final class Session {
     // Launch another window as a separate process, assigned its own session file. Used both by
     // the "Open New Window" action (new empty file) and by the primary's reopen fan-out.
     public static void spawnWindow(File assignedSession) {
+        spawnWindow(assignedSession, new String[0]);
+    }
+
+    /** As above, with more system properties for the new window (a replay window names the record it checks). */
+    public static void spawnWindow(File assignedSession, String... properties) {
         try {
-            new ProcessBuilder(javaCommand("-Djhv.sessionFile=" + assignedSession.getAbsolutePath())).inheritIO().start();
+            String[] all = new String[properties.length + 1];
+            all[0] = "-Djhv.sessionFile=" + assignedSession.getAbsolutePath();
+            System.arraycopy(properties, 0, all, 1, properties.length);
+            new ProcessBuilder(javaCommand(all)).inheritIO().start();
         } catch (Exception e) {
             Log.error(e);
             Message.err("New window", "Could not open a new window: " + (e.getMessage() == null ? "See the log for details." : e.getMessage()));

@@ -216,8 +216,20 @@ public final class ExportRecordDialog {
         JButton python = coreButton("Save as Python Script...", coreFound, () -> core("python", false,
                 s -> save(s, title + ".py", "Saved the script to "), "write the Python script"));
 
+        Path sidecar = ProcessingRecord.isSidecarName(export.getName()) ? export.toPath() : ProcessingRecord.existingSidecar(export.toPath());
+        boolean replayable = record != null && sidecar != null && record.get("native") != null;
+        JButton replay = button("Open in New Window", () -> ExportReplayWindow.openInNewWindow(sidecar, false));
+        JButton scene = button("Save Scene as .jhv...", () -> ExportReplayWindow.saveScene(sidecar, MainFrame.get()));
+        replay.setEnabled(replayable);
+        scene.setEnabled(replayable);
+        if (!replayable) {
+            replay.setToolTipText("This record carries no scene to open.");
+            scene.setToolTipText("This record carries no scene to save.");
+        }
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT));
         buttons.add(full);
+        buttons.add(replay);
+        buttons.add(scene);
         buttons.add(copy);
         buttons.add(save);
         buttons.add(methods);

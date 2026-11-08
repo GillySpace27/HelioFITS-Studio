@@ -43,6 +43,7 @@ class ExportWriter {
     private File tempFile;
     private @Nullable Exception failure;
     private @Nullable JSONObject preview; // the sidecar's preview, made at close from the raw frames
+    private @Nullable ProcessingRecord.Pixels pixels; // digests of the raw frames, made at close
 
     ExportWriter(ExportFormat _format, ExportFormat.Chroma _chroma, ExportFormat.Depth _depth,
                  int _w, int _h, int _fps, boolean _allIntra, @Nullable JSONObject _provenance) {
@@ -201,6 +202,7 @@ class ExportWriter {
             if (format == ExportFormat.PNG)
                 stampPngSeries(record);
             preview = rawPreview();
+            pixels = rawPixels();
             return outPath;
         } catch (Exception e) {
             deleteOutputs();
@@ -215,6 +217,31 @@ class ExportWriter {
     @Nullable
     JSONObject preview() {
         return preview;
+    }
+
+    /** Digests of every frame handed to ffmpeg (the record's pixel_sha256 and frame_digests); null for an EXR series or when none could be made. */
+    @Nullable
+    ProcessingRecord.Pixels pixels() {
+        return pixels;
+    }
+
+    @Nullable
+    private ProcessingRecord.Pixels rawPixels() {
+        try {
+            if ((long) bytesPerPixel * w * h == 0 || tempFile.length() < (long) bytesPerPixel * w * h)
+                return null;
+            ProcessingRecord.Encoder encoder = null;
+            if (!format.isSeries()) { // a movie: the encoder's version and arguments, with no path in them
+                List<String> args = new ArrayList<>();
+                for (String a : encodeArgs(format, chroma, depth, w, h, fps, allIntra))
+                    args.add(a.contains("/") || a.contains("\\") ? "<path>" : a);
+                encoder = new ProcessingRecord.Encoder(RecordEnvironment.ffmpegVersion(ffmpeg.get(0)), format.toString(), args);
+            }
+            return ProcessingRecord.Pixels.of(tempFile.toPath(), w, h, bytesPerPixel, encoder);
+        } catch (IOException | RuntimeException e) {
+            Log.warn("Export pixel digests not made", e);
+            return null;
+        }
     }
 
     /** The middle frame of what was handed to ffmpeg, as the sidecar's preview; a still is its only frame. Never fails the export. */

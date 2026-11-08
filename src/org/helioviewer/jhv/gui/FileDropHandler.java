@@ -67,7 +67,9 @@ final class FileDropHandler extends DropTargetAdapter {
         for (File f : files) {
             String n = f.getName().toLowerCase(Locale.ROOT);
             JSONObject scene = n.endsWith(".png") ? sceneOf(f) : null;
-            if (scene != null)
+            if (org.helioviewer.jhv.movie.ExportReplay.isRecordName(n))
+                org.helioviewer.jhv.gui.dialog.ExportReplayWindow.openInNewWindow(f.toPath(), false); // a record: its scene, in a new window
+            else if (scene != null)
                 SwingUtilities.invokeLater(() -> offerScene(f, scene)); // after the drop completes
             else if (f.isDirectory()) {
                 List<File> inside = folderImages(f);
