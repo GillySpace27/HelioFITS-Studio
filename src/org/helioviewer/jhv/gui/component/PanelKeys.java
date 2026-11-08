@@ -23,18 +23,20 @@ import org.helioviewer.jhv.gui.registry.KeyBindings;
 import org.helioviewer.jhv.gui.registry.Shortcuts;
 
 /**
- * Fold or show a sidebar section from the keyboard, by its place in the sidebar: Cmd+1 to Cmd+8 for
- * the left one, Cmd+Option+1 to Cmd+Option+8 for the right one (Ctrl+N and Ctrl+Shift+N elsewhere).
+ * Fold or show a sidebar section from the keyboard, by its place in the sidebar: Ctrl+1 to Ctrl+9 for
+ * the left one, Alt+1 to Alt+9 for the right one. On a Mac each is a chord with Cmd (Ctrl+Cmd+N,
+ * Option+Cmd+N): bare Ctrl+digit is the system's switch-to-desktop, and bare Option+digit types a symbol.
  *
  * <p>Positional on purpose (Gilly, 2026-11-07): the key follows the number drawn in front of the
  * section's title, so moving a section changes which key reaches it, and what you see is what the
- * key does. Eight a side, because Cmd+9 and Cmd+0 are Zoom to Fit and Actual Size.
+ * key does. Off a Mac, Ctrl+9 and Ctrl+0 are the zoom keys, so the left side has eight there.
  *
  * <p>Not Cmd+Shift+N for the right side on a Mac: Cmd+Shift+3, 4 and 5 are the system's screenshot
  * keys. Not Ctrl+Alt+N elsewhere: on many keyboard layouts Ctrl+Alt is AltGr, which types characters.
  *
- * <p>Each slot is an ordinary catalogued command ({@code foldLeftPanel1} to {@code foldRightPanel8}),
- * so it can be rebound in Settings > Keybindings, found with Cmd+K, and run by name.
+ * <p>Each slot is an ordinary catalogued command ({@code foldLeftPanel1} to {@code foldRightPanel9}),
+ * so it can be rebound in Settings > Keybindings, found with Cmd+K, and run by name. {@link CommandKeys}
+ * hands the keys to them ahead of the menu bar.
  */
 public final class PanelKeys {
 
@@ -53,14 +55,20 @@ public final class PanelKeys {
         return right ? "foldRightPanelAll" : "foldLeftPanelAll";
     }
 
-    /** The modifier that reaches a side: Ctrl on the left, Option (Alt) on the right. */
+    /**
+     * The modifiers that reach a side. Off a Mac: Ctrl on the left, Alt on the right. On a Mac a
+     * chord of two: Ctrl+Cmd on the left, Option+Cmd on the right, because Ctrl+digit is the system's
+     * "switch to desktop" and Option+digit makes a symbol in the key's place (Gilly, 2026-11-08: only
+     * some of the keys got through).
+     */
     static int sideMask(boolean right) {
-        return right ? InputEvent.ALT_DOWN_MASK : InputEvent.CTRL_DOWN_MASK;
+        int side = right ? InputEvent.ALT_DOWN_MASK : InputEvent.CTRL_DOWN_MASK;
+        return Platform.isMacOS() ? side | InputEvent.META_DOWN_MASK : side;
     }
 
     /**
      * The default keystroke of place {@code n} (0 for fold-all), or null for none: Ctrl+N on the
-     * left, Option+N on the right. Off a Mac, Ctrl+9 and Ctrl+0 are the zoom keys, so left 9 and
+     * left, Alt+N on the right (Ctrl+Cmd+N and Option+Cmd+N on a Mac). Off a Mac, Ctrl+9 and Ctrl+0 are the zoom keys, so left 9 and
      * left fold-all have none.
      */
     @Nullable

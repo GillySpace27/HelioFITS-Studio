@@ -48,13 +48,14 @@ public final class PanelKeysCheck {
                 ActionCatalog.Entry e = ActionCatalog.get(n == 0 ? PanelKeys.idAll(right) : PanelKeys.id(right, n));
                 // Ctrl+N left, Option+N right; off a Mac, Ctrl+9 and Ctrl+0 stay the zoom keys
                 KeyStroke want = !right && (n == 9 || n == 0) && !mac ? null
-                        : KeyStroke.getKeyStroke(KeyEvent.VK_0 + n, right ? InputEvent.ALT_DOWN_MASK : InputEvent.CTRL_DOWN_MASK);
+                        : KeyStroke.getKeyStroke(KeyEvent.VK_0 + n, (right ? InputEvent.ALT_DOWN_MASK : InputEvent.CTRL_DOWN_MASK)
+                                | (mac ? InputEvent.META_DOWN_MASK : 0)); // a Mac needs the Cmd chord: bare Ctrl+digit is the system's desktop switch
                 Object got = e == null ? "missing" : e.action().getValue(Action.ACCELERATOR_KEY);
                 keysOk &= e != null && java.util.Objects.equals(want, got);
                 if (e != null && want != null)
                     clashFree &= KeyBindings.set(e.id(), want) == null; // refused if another command or the system has it
             }
-        expect("foldLeftPanel1..9 / foldRightPanel1..9 and the two fold-alls are catalogued with Ctrl+N and Option+N", keysOk);
+        expect("foldLeftPanel1..9 / foldRightPanel1..9 and the two fold-alls are catalogued with Ctrl+N and Option+N (Ctrl+Cmd+N and Option+Cmd+N on a Mac)", keysOk);
         expect("none of those keys is taken by another command or by the system", clashFree);
         expect("Cmd+9 and Cmd+0 stay Zoom to Fit and Actual Size", KeyStroke.getKeyStroke(KeyEvent.VK_9, menu).equals(KeyBindings.current("zoomFit"))
                 && KeyStroke.getKeyStroke(KeyEvent.VK_0, menu).equals(KeyBindings.current("zoomOne")));
@@ -70,6 +71,29 @@ public final class PanelKeysCheck {
         expect("Cmd+[ Cmd+] Cmd+\\ toggle the sidebars and timeline; Cmd+Shift+= - 0 scale the interface", layoutOk);
         expect("Cmd+= and Cmd+- stay the picture's zoom", KeyStroke.getKeyStroke(KeyEvent.VK_EQUALS, menu).equals(KeyBindings.current("zoomIn"))
                 && KeyStroke.getKeyStroke(KeyEvent.VK_MINUS, menu).equals(KeyBindings.current("zoomOut")));
+
+        // CommandKeys: the key is matched by its code, with the shifted symbols a Mac names read as their keys
+        java.awt.Component src = new JPanel();
+        int shift = InputEvent.SHIFT_DOWN_MASK;
+        expect("a key press finds the command that owns it", CommandKeys.commandFor(new KeyEvent(src, KeyEvent.KEY_PRESSED, 0, menu, KeyEvent.VK_OPEN_BRACKET, '['))
+                == ActionCatalog.get("toggleLeftSidebar").action());
+        expect("Cmd+Shift+= arriving as '+' still scales the interface up", CommandKeys.commandFor(new KeyEvent(src, KeyEvent.KEY_PRESSED, 0, menu | shift, KeyEvent.VK_PLUS, '+'))
+                == ActionCatalog.get("interfaceScaleUp").action());
+        expect("Cmd+Shift+- arriving as '_' scales it down", CommandKeys.commandFor(new KeyEvent(src, KeyEvent.KEY_PRESSED, 0, menu | shift, KeyEvent.VK_UNDERSCORE, '_'))
+                == ActionCatalog.get("interfaceScaleDown").action());
+        expect("Cmd+Shift+0 arriving as ')' puts it back", CommandKeys.commandFor(new KeyEvent(src, KeyEvent.KEY_PRESSED, 0, menu | shift, KeyEvent.VK_RIGHT_PARENTHESIS, ')'))
+                == ActionCatalog.get("interfaceScaleReset").action());
+        expect("a key with no keycode is read from its character", CommandKeys.commandFor(new KeyEvent(src, KeyEvent.KEY_PRESSED, 0, menu | shift, KeyEvent.VK_UNDEFINED, '+'))
+                == ActionCatalog.get("interfaceScaleUp").action());
+        expect("Cmd+= without Shift stays the picture's zoom, not the interface scale", CommandKeys.commandFor(new KeyEvent(src, KeyEvent.KEY_PRESSED, 0, menu, KeyEvent.VK_EQUALS, '=')) == null);
+        int rightMask = PanelKeys.sideMask(true), leftMask = PanelKeys.sideMask(false);
+        expect("the section keys are found by code whatever character the modifier makes (Option+2 types a symbol)",
+                CommandKeys.commandFor(new KeyEvent(src, KeyEvent.KEY_PRESSED, 0, rightMask, KeyEvent.VK_2, '\u2122')) == ActionCatalog.get("foldRightPanel2").action()
+                        && CommandKeys.commandFor(new KeyEvent(src, KeyEvent.KEY_PRESSED, 0, leftMask, KeyEvent.VK_2, '2')) == ActionCatalog.get("foldLeftPanel2").action());
+        expect("the two sides need different modifiers, and only exactly those", leftMask != rightMask
+                && CommandKeys.commandFor(new KeyEvent(src, KeyEvent.KEY_PRESSED, 0, leftMask | rightMask, KeyEvent.VK_2, '2')) == null);
+        expect("holding exactly a side's modifiers lights that side", PanelKeyHint.sideOf(leftMask) == 'L' && PanelKeyHint.sideOf(rightMask) == 'R'
+                && PanelKeyHint.sideOf(InputEvent.SHIFT_DOWN_MASK) == 0);
 
         RightSidebar bar = RightSidebar.getInstance();
         bar.setCollapsed(false);
