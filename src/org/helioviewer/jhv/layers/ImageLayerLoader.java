@@ -47,9 +47,24 @@ final class ImageLayerLoader {
     private final Consumer<List<URI>> onFailedUris; // URIs that failed during a multi-frame load
     private final Runnable onFrameAdded; // one frame of a streaming load has joined the movie
 
-    private Future<View> loadFuture;
-    private Future<?> downloadFuture;
-    private int loadGeneration;
+    private volatile Future<View> loadFuture; // volatile: the watchdog cancels from its own thread while the event thread is stuck
+    private volatile Future<?> downloadFuture;
+    private volatile int loadGeneration;
+
+    /** Loaders with a load in flight, so a stop does not have to reach through the layer list the stuck event thread owns. */
+    private static final java.util.Set<ImageLayerLoader> ACTIVE = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /** Cancel every load and download under way, from any thread. Returns how many it stopped. */
+    static int cancelAllActive() {
+        int n = 0;
+        for (ImageLayerLoader loader : ACTIVE) {
+            loader.cancelLoad();
+            loader.cancelDownload();
+            n++;
+        }
+        ACTIVE.clear();
+        return n;
+    }
 
     ImageLayerLoader(ImageProcessingSettings _processingSettings,
                      @Nonnull Consumer<View> _onViewLoaded, @Nonnull Consumer<View> _onPreviewLoaded, @Nonnull Runnable _onUnload,
@@ -67,6 +82,7 @@ final class ImageLayerLoader {
     void load(APIRequest req) {
         cancelLoad();
         int gen = ++loadGeneration;
+        ACTIVE.add(this);
         loadFuture = Task.submitBackground("request", () -> {
                     List<APIRequest> parts = req.chunks();
                     if (parts.size() > 1)
@@ -86,6 +102,7 @@ final class ImageLayerLoader {
         cancelLoad();
         onFailedUris.accept(List.of()); // clear any stale failures from a previous load
         int gen = ++loadGeneration;
+        ACTIVE.add(this);
         loadFuture = Task.submitBackground(uriList.toString(),
                 () -> loadPresent(uriList, view -> EventQueue.invokeLater(() -> onPreview(view, gen))),
                 result -> onSuccess(result, gen),
@@ -134,6 +151,7 @@ final class ImageLayerLoader {
     }
 
     void cancelLoad() {
+        ACTIVE.remove(this);
         loadGeneration++; // Invalidate any pending callbacks
         if (loadFuture != null) {
             loadFuture.cancel(true);
@@ -155,6 +173,8 @@ final class ImageLayerLoader {
     }
 
     private void onSuccess(View result, int gen) {
+        if (gen == loadGeneration)
+            ACTIVE.remove(this);
         statusSink.accept(null);
         if (gen != loadGeneration) {
             if (result != null) {
@@ -170,6 +190,8 @@ final class ImageLayerLoader {
     }
 
     private void onFailure(Throwable t, int gen, String title) {
+        if (gen == loadGeneration)
+            ACTIVE.remove(this);
         statusSink.accept(null);
         if (gen != loadGeneration) {
             return;
