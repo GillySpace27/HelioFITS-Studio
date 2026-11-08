@@ -49,6 +49,7 @@ while [ $# -gt 0 ]; do
 done
 printf '%s\n' "$VERSION_ARG" | grep -qE '^[0-9]+(\.[0-9]+){0,2}$' || { echo "$USAGE" >&2; exit 2; }
 V="$VERSION_ARG"; TAG="v$V"
+[ -z "${HFS_UNSIGNED:-}" ] || { echo "!! HFS_UNSIGNED is set: that is release/debug-build.sh's switch and must never reach a release. Unset it." >&2; exit 2; }
 if [ -n "$CONFIRM" ]; then
     [ "$CONFIRM" = "$TAG" ] || { echo "!! --confirm is '$CONFIRM', not $TAG: a yes is for one tag. Nothing was sent." >&2; exit 2; }
     AUTO_SMOKE=1

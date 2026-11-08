@@ -22,9 +22,12 @@ public enum Directories {
      */
     HOME {
         private final String path = System.getProperty("user.home");
+        private final String override = homeOverride();
 
         @Override
         public String getPath() {
+            if (override != null)
+                return override;
             return path + File.separator + NAME + File.separator;
         }
     },
@@ -282,7 +285,24 @@ public enum Directories {
     // the migration itself runs before logging exists, so its own Log.info reaches only the console.
     public static String migrationNote;
 
+    /**
+     * A debug build keeps its files somewhere of its own, so it never touches the real ~/HFStudio and
+     * survives being rebuilt: HFS_HOME in the environment, or -Dhfs.home, names that folder (release/debug-build.sh
+     * sets it). The environment is inherited by Session.restart; the property is not, so prefer the variable.
+     * Null (the normal case) means ~/HFStudio.
+     */
+    static String homeOverride() {
+        String v = System.getenv("HFS_HOME");
+        if (v == null || v.isBlank())
+            v = System.getProperty("hfs.home");
+        if (v == null || v.isBlank())
+            return null;
+        return v.endsWith(File.separator) ? v : v + File.separator;
+    }
+
     public static void migrateLegacyHome() {
+        if (homeOverride() != null)
+            return; // a debug home starts empty; it never copies the real install's settings
         java.nio.file.Path home = java.nio.file.Path.of(System.getProperty("user.home"));
         java.nio.file.Path target = home.resolve(NAME);
         if (java.nio.file.Files.exists(target))

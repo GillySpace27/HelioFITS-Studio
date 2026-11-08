@@ -877,7 +877,13 @@ notarize_mac() {
     echo "==> checking the ffmpeg and licence manifests"
     ( cd "$SRC" && ant -q natives && python3 extra/ffmpeg/update_ffmpeg.py --check && python3 extra/licenses/sync_licenses.py --check ) \
         || { echo "!! the ffmpeg or licence manifest check failed; nothing was built or sent" >&2; exit 1; }
-    notarize_preconditions
+    # HFS_UNSIGNED=1 (release/debug-build.sh only): an ad-hoc signed local build, never signed with the
+    # Developer ID, never sent to Apple, never stapled, no receipt. release.sh refuses to run with it set.
+    if [ "${HFS_UNSIGNED:-}" = 1 ]; then
+        JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home -v 25)}"; DEV_ID_APP=-; NOTARY_PROFILE=none
+    else
+        notarize_preconditions
+    fi
 
     echo "==> building a fresh jar + dylib"
     ( cd "$SRC" && ant clean jar build-metal-host >/dev/null )
@@ -974,6 +980,10 @@ notarize_mac() {
     fi
     echo "   app launches OK"; rm -f "$HERE/.app_smoke.log"
 
+    if [ "${HFS_UNSIGNED:-}" = 1 ]; then
+    echo "==> UNSIGNED local build (HFS_UNSIGNED=1): ad-hoc signature only"
+    codesign --force --deep --sign - "$APP"
+    else
     echo "==> codesign (nested Mach-O first, then the bundle)"
     find "$APP/Contents" -type f | while IFS= read -r f; do
         if file "$f" 2>/dev/null | grep -q 'Mach-O'; then
@@ -994,6 +1004,7 @@ if got != want:
 ' "$ENT"
     "$HERE/verify_signatures.sh" "$APP"
     python3 "$HERE/check_native_hashes.py" "$APP" || exit 1
+    fi
 
     echo "==> building + signing the .dmg"
     rm -f "$DMG"
@@ -1009,6 +1020,7 @@ if got != want:
     # Signing the dmg is a courtesy; Gatekeeper checks the stapled ticket, not the dmg
     # signature. Apple's timestamp server occasionally blips, so retry, then continue
     # unsigned rather than abort (the .app inside is signed + will be notarized + stapled).
+    if [ "${HFS_UNSIGNED:-}" != 1 ]; then
     dmg_signed=0
     for attempt in 1 2 3; do
         if codesign --force --timestamp --sign "$DEV_ID_APP" "$DMG" 2>/dev/null; then dmg_signed=1; break; fi
@@ -1029,6 +1041,7 @@ if got != want:
         notary_poll "$(receipt_key "$PENDING" submission_id)"
     fi
     staple_and_receipt "$(cd "$SRC" && git rev-parse HEAD)"
+    fi
 
     rm -rf "$APPSTAGE" "$OUT"
     echo "==> done: $DMG  ($(du -h "$DMG" | awk '{print $1}'))"
