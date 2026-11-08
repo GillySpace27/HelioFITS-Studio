@@ -261,6 +261,10 @@ final class ImageLayerManagePanel extends JPanel {
         refreshSpinner.setVisible(false);
         refreshSpinner.setPreferredSize(new Dimension(20, 20));
         refreshButton.addActionListener(e -> {
+            if (layer.isHeld()) { // a download the person postponed at load (LoadGuard)
+                layer.releaseHold();
+                return;
+            }
             int missing = layer.getFailedUris().size();
             if (missing > 0) {
                 layer.reloadSources();
@@ -318,7 +322,7 @@ final class ImageLayerManagePanel extends JPanel {
      */
     private void updateRefreshVisible() {
         if (refreshButton != null)
-            refreshButton.setVisible(PunchClient.hasRememberedQuery(layer) || !layer.getFailedUris().isEmpty());
+            refreshButton.setVisible(layer.isHeld() || PunchClient.hasRememberedQuery(layer) || !layer.getFailedUris().isEmpty());
         if (liveBox != null)
             liveBox.setVisible(org.helioviewer.jhv.io.LiveRefresh.enabled() && layer.getFitsRequest() != null);
         fitsButton.setVisible(org.helioviewer.jhv.io.UseFits.applies(layer.getView()));

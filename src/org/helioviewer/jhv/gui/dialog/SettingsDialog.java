@@ -323,6 +323,7 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
                 .row("Memory:", createMemoryPanel())
                 .row("Decoding:", createDecodePanel())
                 .row("Long requests:", createChunkPanel())
+                .row("Ask before downloading:", createLoadGuardPanel())
                 .row("Proxy:", new JLabel("Used for every download; leave empty when there is no proxy."))
                 .wide(defaultsPanel)
                 .end();
@@ -379,6 +380,21 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
         panel.add(new JLabel("Ask the server for the next piece:"));
         panel.add(mode);
+        return panel;
+    }
+
+    /** A session or load that would download more than either limit shows its manifest first (LoadGuard). */
+    private static JPanel createLoadGuardPanel() {
+        javax.swing.JSpinner frames = new javax.swing.JSpinner(new javax.swing.SpinnerNumberModel((int) org.helioviewer.jhv.app.state.LoadGuard.maxFrames(), 0, 10_000_000, 100));
+        javax.swing.JSpinner mb = new javax.swing.JSpinner(new javax.swing.SpinnerNumberModel((int) (org.helioviewer.jhv.app.state.LoadGuard.maxBytes() / 1_000_000L), 0, 10_000_000, 100));
+        frames.addChangeListener(e -> Settings.setProperty(org.helioviewer.jhv.app.state.LoadGuard.KEY_FRAMES, String.valueOf(frames.getValue())));
+        mb.addChangeListener(e -> Settings.setProperty(org.helioviewer.jhv.app.state.LoadGuard.KEY_MB, String.valueOf(mb.getValue())));
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
+        panel.add(new JLabel("more than"));
+        panel.add(frames);
+        panel.add(new JLabel("frames or"));
+        panel.add(mb);
+        panel.add(new JLabel("MB"));
         return panel;
     }
 
