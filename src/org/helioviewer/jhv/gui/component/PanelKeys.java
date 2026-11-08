@@ -182,10 +182,10 @@ public final class PanelKeys {
         return menu;
     }
 
-    /** "2. Image Layers", or "7. (no section)" for an empty place. */
+    /** "L2. Image Layers", or "R7. (no section)" for an empty place. */
     static String label(boolean right, int n) {
         CollapsiblePane pane = at(right, n);
-        return n + ". " + (pane == null ? "(no section)" : pane.getTitle());
+        return (right ? "R" : "L") + n + ". " + (pane == null ? "(no section)" : pane.getTitle());
     }
 
 }

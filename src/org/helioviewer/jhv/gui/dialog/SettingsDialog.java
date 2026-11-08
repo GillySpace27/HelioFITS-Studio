@@ -106,6 +106,20 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         return panel;
     }
 
+    /**
+     * The identifier's settings moved to its own panel in the sidebar, where they can be changed
+     * while watching the result; this page only points there, so the old habit still lands somewhere.
+     */
+    private static JComponent identifyTab() {
+        javax.swing.JPanel page = new javax.swing.JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEADING, 9, 9));
+        page.add(new javax.swing.JLabel("<html>The identifier's settings are in the Identify panel in the sidebar, "
+                + "beside what it matched under the pointer."));
+        javax.swing.JButton open = new javax.swing.JButton("Open the Identify panel");
+        open.addActionListener(e -> org.helioviewer.jhv.gui.component.IdentifyPalette.open());
+        page.add(open);
+        return page;
+    }
+
     @Override
     public JComponent createContentPanel() {
         defaultsPanel = new DefaultsSelectionPanel();
@@ -115,7 +129,7 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         tabs.addTab("Plugins", pluginsTab());
         tabs.addTab("Network", networkTab());
         tabs.addTab("Keybindings", new KeybindingsPanel());
-        tabs.addTab("Identify", IdentifyTab.build());
+        tabs.addTab("Identify", identifyTab());
         tabs.addTab("FITS Library", library);
         StorageTab storage = new StorageTab();
         tabs.addTab("Storage", storage);
