@@ -18,7 +18,6 @@ import javax.swing.event.MenuListener;
 
 import org.helioviewer.jhv.app.Platform;
 import org.helioviewer.jhv.gui.ActionCatalog;
-import org.helioviewer.jhv.gui.DesktopIntegration;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.gui.registry.KeyBindings;
 import org.helioviewer.jhv.gui.registry.Shortcuts;
@@ -39,8 +38,8 @@ import org.helioviewer.jhv.gui.registry.Shortcuts;
  */
 public final class PanelKeys {
 
-    /** Places per sidebar that get a key. */
-    public static final int SLOTS = 8;
+    /** Places per sidebar that get a command. */
+    public static final int SLOTS = 9;
 
     private PanelKeys() {}
 
@@ -49,12 +48,26 @@ public final class PanelKeys {
         return (right ? "foldRightPanel" : "foldLeftPanel") + n;
     }
 
-    /** The default keystroke of place {@code n}: menu+N on the left, menu+Option+N (menu+Shift+N off a Mac) on the right. */
+    /** The catalog id of the fold-all command of a side. Ids are API. */
+    public static String idAll(boolean right) {
+        return right ? "foldRightPanelAll" : "foldLeftPanelAll";
+    }
+
+    /** The modifier that reaches a side: Ctrl on the left, Option (Alt) on the right. */
+    static int sideMask(boolean right) {
+        return right ? InputEvent.ALT_DOWN_MASK : InputEvent.CTRL_DOWN_MASK;
+    }
+
+    /**
+     * The default keystroke of place {@code n} (0 for fold-all), or null for none: Ctrl+N on the
+     * left, Option+N on the right. Off a Mac, Ctrl+9 and Ctrl+0 are the zoom keys, so left 9 and
+     * left fold-all have none.
+     */
+    @Nullable
     static KeyStroke defaultKey(boolean right, int n) {
-        int mods = DesktopIntegration.menuShortcutMask;
-        if (right)
-            mods |= Platform.isMacOS() ? InputEvent.ALT_DOWN_MASK : InputEvent.SHIFT_DOWN_MASK;
-        return KeyStroke.getKeyStroke(KeyEvent.VK_0 + n, mods);
+        if (!right && (n == 9 || n == 0) && !Platform.isMacOS())
+            return null;
+        return KeyStroke.getKeyStroke(KeyEvent.VK_0 + n, sideMask(right));
     }
 
     /** The command for place {@code n}, for ActionCatalog to register. */
@@ -65,8 +78,62 @@ public final class PanelKeys {
                 toggle(right, n);
             }
         };
-        a.putValue(Action.ACCELERATOR_KEY, defaultKey(right, n));
+        KeyStroke ks = defaultKey(right, n);
+        if (ks != null)
+            a.putValue(Action.ACCELERATOR_KEY, ks);
         return a;
+    }
+
+    /** The fold-all command of a side, for ActionCatalog to register. */
+    public static Action actionAll(boolean right) {
+        Action a = new AbstractAction("Fold or Restore All " + (right ? "Right" : "Left") + " Sidebar Panels") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                toggleAll(right);
+            }
+        };
+        KeyStroke ks = defaultKey(right, 0);
+        if (ks != null)
+            a.putValue(Action.ACCELERATOR_KEY, ks);
+        return a;
+    }
+
+    /** The titles fold-all closed on each side, so the next press opens exactly those. Index 0 left, 1 right. */
+    private static final List<java.util.Set<String>> REMEMBERED = List.of(new java.util.LinkedHashSet<>(), new java.util.LinkedHashSet<>());
+
+    /**
+     * Fold every section of a side if any is open, remembering which were; otherwise open the ones
+     * remembered (all of them when nothing is remembered, or none of those is still there). A flip,
+     * not a setting: press it twice and the sidebar is as it was.
+     */
+    public static void toggleAll(boolean right) {
+        List<CollapsiblePane> panes = shown(paneOf(right));
+        java.util.Set<String> remembered = REMEMBERED.get(right ? 1 : 0);
+        List<CollapsiblePane> open = new ArrayList<>();
+        for (CollapsiblePane p : panes)
+            if (!p.isPinned() && p.toggleButton.isSelected())
+                open.add(p);
+        if (!open.isEmpty()) {
+            remembered.clear();
+            for (CollapsiblePane p : open) {
+                remembered.add(p.getTitle());
+                p.toggleButton.doClick();
+            }
+        } else {
+            boolean any = false;
+            for (CollapsiblePane p : panes)
+                any |= remembered.contains(p.getTitle());
+            for (CollapsiblePane p : panes)
+                if (!p.isPinned() && (!any || remembered.contains(p.getTitle())))
+                    p.toggleButton.doClick();
+            remembered.clear();
+            boolean hidden = right ? RightSidebar.getInstance().isCollapsed() : MainFrame.isSidebarCollapsed();
+            if (hidden && right)
+                RightSidebar.getInstance().setCollapsed(false);
+            else if (hidden)
+                MainFrame.setSidebarCollapsed(false);
+        }
+        Palette.syncToggles();
     }
 
     @Nullable
@@ -154,6 +221,12 @@ public final class PanelKeys {
         JMenu menu = new JMenu(right ? "Right Sidebar Panels" : "Left Sidebar Panels");
         menu.setToolTipText("Fold or show a section by its number in the sidebar; moving a section changes its number");
         List<JMenuItem> items = new ArrayList<>();
+        ActionCatalog.Entry all = ActionCatalog.get(idAll(right));
+        if (all != null) {
+            JMenuItem item = menu.add(all.action());
+            item.setName(all.id());
+            menu.addSeparator();
+        }
         for (int n = 1; n <= SLOTS; n++) {
             ActionCatalog.Entry entry = ActionCatalog.get(id(right, n));
             if (entry == null)
