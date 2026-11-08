@@ -36,7 +36,9 @@ import javax.imageio.stream.MemoryCacheImageOutputStream;
 
 import org.helioviewer.jhv.app.AppInfo;
 import org.helioviewer.jhv.app.Log;
+import org.helioviewer.jhv.image.FilterChain;
 import org.helioviewer.jhv.image.ImageBuffer;
+import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.io.SourceIdentity;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.app.state.SessionArchive;
@@ -653,7 +655,8 @@ public final class ProcessingRecord {
         // -- steps, in the order the code runs them (see the class comment)
         boolean fits = live == null || live.optBoolean("fits", true);
         String filter = data.optString("filter", "None");
-        boolean rhef = "RHEF".equals(filter);
+        FilterChain chain = "None".equals(filter) ? FilterChain.EMPTY : FilterChain.fromJson(data.optJSONArray("filterChain"));
+        boolean rhef = "RHEF".equals(filter) || chain.stages().stream().anyMatch(s -> s.type() == ImageFilter.Type.RHEF && s.strength() > 0);
         JSONArray steps = new JSONArray();
         if (fits) {
             steps.put(step("select_plane", "decode", params(p, "plane", "planes")));
@@ -700,11 +703,34 @@ public final class ProcessingRecord {
                     .put("caveat", "Computed over every frame of the layer from the clipped, stretched, unfiltered frames."));
         if (!"None".equals(filter)) {
             JSONObject f = step("image_filter", "cpu", new JSONObject().put("filter", filter)).put("algorithm", filter).put("implementation", "hfstudio-java");
-            if (rhef) {
+            if ("RHEF".equals(filter)) {
                 f.put("citation", Provenance.RHEF_CITATION).put("caveat", Provenance.RHEF_CAVEAT)
                         .put("stamp", Provenance.rhefStampLine(p));
             }
+            if (!chain.isEmpty()) {
+                // Everything needed to run the chain again: the order is the step order, each strength is in its
+                // params, and the settings that change the arithmetic are named here on the first stage.
+                f.put("chain", new JSONObject()
+                        .put("blend", "y_i = (1 - w_i) * y_(i-1) + w_i * F_i(y_(i-1)); stage 1 is F_1(x) at full strength, x the clipped and stretched frame")
+                        .put("stages", chain.size() + 1)
+                        .put("max_stages", FilterChain.maxStages())
+                        .put("intermediates", "float32")
+                        .put("rhef_input", "float".equalsIgnoreCase(System.getProperty(ImageFilter.RHEF_INPUT_PROPERTY, "half")) ? "float32 (sort path)" : "float16 (histogram path)")
+                        .put("final_buffer", "float16, clamped to [0, 1]"));
+            }
             steps.put(f);
+            for (int i = 0; i < chain.size(); i++) {
+                FilterChain.Stage st = chain.stages().get(i);
+                String name = st.type().name();
+                JSONObject cs = step("image_filter", "cpu", new JSONObject().put("filter", name).put("strength", FilterChain.exact(st.strength()))
+                        .put("chain_index", i + 1)).put("algorithm", name).put("implementation", "hfstudio-java");
+                cs.put("formula", "y = (1 - " + st.strength() + ") * y_prev + " + st.strength() + " * " + name + "(y_prev)");
+                if (st.type() == ImageFilter.Type.RHEF && st.strength() > 0) {
+                    cs.put("citation", Provenance.RHEF_CITATION).put("caveat", Provenance.RHEF_CAVEAT)
+                            .put("stamp", Provenance.rhefStampLine(p));
+                }
+                steps.put(cs);
+            }
         }
         steps.put(step("geometric_mask", "gpu", params(p, "innerMask", "outerMask", "slitLeft", "slitRight", "sectorCenter", "sectorWidth")));
         steps.put(step("levels", "gpu", params(p, "brightOffset", "brightScale")));
@@ -746,9 +772,11 @@ public final class ProcessingRecord {
                 for (String k : p.keySet())
                     if (!automated.contains(k) && !String.valueOf(p.opt(k)).equals(String.valueOf(ep.opt(k))))
                         userChanged.add(k);
-            if (ed != null && (!data.optString("filter").equals(ed.optString("filter"))
+            boolean filterMoved = ed != null && (!data.optString("filter").equals(ed.optString("filter"))
+                    || !FilterChain.fromJson(data.optJSONArray("filterChain")).equals(FilterChain.fromJson(ed.optJSONArray("filterChain"))));
+            if (ed != null && (filterMoved
                     || !String.valueOf(data.optJSONObject("sequence")).equals(String.valueOf(ed.optJSONObject("sequence")))))
-                userChanged.add(!data.optString("filter").equals(ed.optString("filter")) ? "filter" : "sequence");
+                userChanged.add(filterMoved ? "filter" : "sequence");
             changed = !userChanged.isEmpty();
         }
         for (int i = 0; i < steps.length(); i++) {
@@ -793,7 +821,7 @@ public final class ProcessingRecord {
             case "clippingMode", "clippingMin", "clippingMax" -> "clip";
             case "scalingMode", "gamma", "beta", "alpha" -> "stretch";
             case "plane", "planes" -> "select_plane";
-            case "filter" -> "image_filter";
+            case "filter", "filterChain" -> "image_filter";
             case "sequence" -> "sequence_filter";
             default -> "";
         };
@@ -956,12 +984,14 @@ public final class ProcessingRecord {
             for (Object o : l.getJSONArray("steps")) {
                 JSONObject s = (JSONObject) o;
                 if ("image_filter".equals(s.optString("op")))
-                    filter = s.optString("algorithm");
+                    filter = s.optJSONObject("params") != null && s.getJSONObject("params").has("chain_index")
+                            ? filter + " then " + Math.round(s.getJSONObject("params").optDouble("strength", 1) * 100) + "% " + s.optString("algorithm")
+                            : s.optString("algorithm");
                 if ("sequence_filter".equals(s.optString("op")))
                     filter = ("no filter".equals(filter) ? "" : filter + ", ") + "sequence filter";
                 if ("colormap".equals(s.optString("op")))
                     lut = s.getJSONObject("params").optString("lut");
-                if ("image_filter".equals(s.optString("op")) && "RHEF".equals(s.optString("algorithm")))
+                if ("image_filter".equals(s.optString("op")) && "RHEF".equals(s.optString("algorithm")) && s.optString("caveat").length() > 0)
                     caveat = " (RHEF output is a visualization, not a calibrated radiance)";
                 if (s.optJSONObject("varies") != null)
                     for (Object n : s.getJSONObject("varies").getJSONArray("params"))

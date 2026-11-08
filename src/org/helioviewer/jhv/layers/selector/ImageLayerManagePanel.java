@@ -489,7 +489,7 @@ final class ImageLayerManagePanel extends JPanel {
         boolean subtracted = data != null && data.imageBuffer().isBackgroundSubtracted();
         StringBuilder line = new StringBuilder(ObservationType.of(layer.getMetaData(), subtracted, subtracted && data.imageBuffer().isBackgroundLocal()));
         StringBuilder tips = new StringBuilder();
-        if (layer.getFilter() == ImageFilter.Type.RHEF)
+        if (layer.usesRhef())
             badge(line, tips, "RHEF: visualization", "RHEF output is a visualization, not a calibrated radiance");
         ImageDisplaySettings.DifferenceMode diff = layer.getDisplaySettings().getDifferenceMode();
         if (diff == ImageDisplaySettings.DifferenceMode.Running)

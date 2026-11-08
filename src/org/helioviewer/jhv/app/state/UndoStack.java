@@ -183,7 +183,7 @@ public final class UndoStack {
 
     // An image layer's entry, cut to what State.apply changes in place. Its source (request, files,
     // pointing, fixed range) is left out on purpose: see the class comment.
-    private static final List<String> IMAGE_DATA = List.of("imageParams", "filter", "sequence");
+    private static final List<String> IMAGE_DATA = List.of("imageParams", "filter", "filterChain", "sequence");
     // Written by the loader from the file itself, not chosen by anyone.
     private static final String PLANES = "planes";
 
@@ -313,7 +313,7 @@ public final class UndoStack {
             what.add("Show/Hide layer");
         if (a.optBoolean("master") != b.optBoolean("master"))
             what.add("Master layer change");
-        if (!a.optString("filter").equals(b.optString("filter")))
+        if (!a.optString("filter").equals(b.optString("filter")) || !same(a.opt("filterChain"), b.opt("filterChain")))
             what.add("Filter change");
         if (!same(a.opt("sequence"), b.opt("sequence")))
             what.add("Sequence filter change");

@@ -22,6 +22,46 @@ filter set to None. A movie or PNG made with RHEF on records each RHEF setting i
 provenance.
 :::
 
+## Chaining filters
+
+A layer can apply up to three filters in series: the one in the **Filter** row, then one or two more,
+each applied to the result of the one before. Choose a filter in the **Filter** row, then press
+**+ Add another filter in series**. Each added row has:
+
+- the filter to apply (Multi-scale Gaussian normalization, Wavelet-optimized whitening or RHEF);
+- a **Weight**, 0 to 100%. The step's result is `(1 - weight) * previous + weight * filtered`, so 0%
+  leaves the previous result alone and 100% is the plain nested filter. The change is applied when you
+  let go of the slider, because each value is a new pass over the frame;
+- **⇅**, which swaps the filter with the one before it. The weight stays with its position, so MGN at
+  60% on RHEF becomes RHEF at 60% on MGN;
+- **✕**, which removes the step.
+
+A line under the last row reads the chain back in words, for example "RHEF then 60% MGN (40% previous)".
+That is `0.4 * RHEF(x) + 0.6 * MGN(RHEF(x))`, where x is the frame after clipping and stretching. Choosing
+**No filter** in the first row removes the whole chain. The first filter always runs at full strength.
+
+The filters do not commute, and the weighted mix of an RHEF rank with MGN output (which stays near the
+input's scale) looks different in each order, so look at both orders on your data before you settle on one.
+Where RHEF is in the chain, the display blends the instrument response factor and the Υ curve toward
+their RHEF values in proportion to the RHEF fraction of the result (RHEF alone, or on top at 100%,
+is exactly the old RHEF display); this blending of display constants is Studio's choice and not part of
+the filters. The Υ button is live whenever RHEF takes part.
+
+A chain costs the sum of its filters, plus one cheap mix per added step, and every weight change
+re-decodes the layer's frames. Two settings change the arithmetic, and both are written into the export
+record so a chain can be redone: `-Djhv.filterChain.maxStages=` (2 to 4 filters in all, default 3) and
+`-Djhv.filterChain.rhefInput=` (`half`, the default, hands a later RHEF stage its input rounded to
+half floats, as a single RHEF receives it; `float` ranks the full precision values by sorting, which
+is slower). Intermediate results are always kept as 32-bit floats; the final picture is a half float
+clamped to 0 to 1.
+
+:::{important}
+A chain that contains RHEF is a visualization too. The export record lists every stage in order with its
+weight, the formula, the settings above and the RHEF stamp. Sessions keep the chain beside the first
+filter (`filter` and `filterChain`); a Studio without chains opens such a session with the first filter only.
+From a script, `filterSet` takes `chain`, a list of `{filter, strength}`, and `layerList` reports it.
+:::
+
 ## The Filters palette
 
 **Filters**, on the toolbar or in its More menu, opens a palette for one layer. RHEF comes first and works frame by frame.

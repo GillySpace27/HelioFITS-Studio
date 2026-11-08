@@ -141,6 +141,11 @@ public class ManyView implements View {
     }
 
     @Override
+    public org.helioviewer.jhv.image.FilterChain getFilterChain() {
+        return frameMap.indexedValue(0).view.getFilterChain();
+    }
+
+    @Override
     public void decode(Position viewpoint, double pixFactor, float factor, @Nullable ClipSet.Range clipRange) {
         // indexedValue clamps through key(), so a targetFrame left over from a shorter map is
         // pulled into range rather than reaching past the end of the index.

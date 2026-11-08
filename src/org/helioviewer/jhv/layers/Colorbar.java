@@ -121,7 +121,8 @@ public final class Colorbar {
 
     private final HoverListener hoverListener = new HoverListener();
 
-    void render(Viewport vp, ImageDisplaySettings settings, GLSLImage glImage, View.ImageData imageData, boolean rhefActive, int slot) {
+    void render(Viewport vp, ImageDisplaySettings settings, GLSLImage glImage, View.ImageData imageData, double rank, int slot) {
+        boolean rhefActive = rank > 0; // any RHEF in the chain: the values are no longer a plain physical scale
         LUT lut = settings.getLUT();
         boolean inverted = settings.getInvertLUT();
         if (lut == null)
@@ -190,7 +191,7 @@ public final class Colorbar {
 
         // 2. A continuous table's ramp, through the picture's own pipeline.
         if (groups == null)
-            drawRamp(vp, glImage, settings, imageData, rhefActive, x0, xSplit, x1, yBar, yTop, headroom ? gain : 1);
+            drawRamp(vp, glImage, settings, imageData, rank, x0, xSplit, x1, yBar, yTop, headroom ? gain : 1);
 
         // 3. The marks on top: the knee, and the edge of the headroom section.
         if (groups == null) {
@@ -336,10 +337,10 @@ public final class Colorbar {
      * <p>The full-screen strip is drawn into a viewport set to the bar's own rectangle, which is
      * how a quad in clip space becomes a bar in pixels without a second vertex buffer.
      */
-    private void drawRamp(Viewport vp, GLSLImage glImage, ImageDisplaySettings settings, View.ImageData imageData, boolean rhefActive,
+    private void drawRamp(Viewport vp, GLSLImage glImage, ImageDisplaySettings settings, View.ImageData imageData, double rank,
                           double x0, double xSplit, double x1, double yBar, double yTop, float gain) {
         double offset = settings.getBrightOffset();
-        double scale = settings.getBrightScale() * (rhefActive ? 1 : imageData.metaData().getResponseFactor());
+        double scale = settings.getBrightScale() * GLSLImage.responseScale(rank, imageData.metaData().getResponseFactor());
         if (scale == 0)
             return;
         double split = (xSplit - x0) / (x1 - x0);
@@ -360,7 +361,7 @@ public final class Colorbar {
 
         GLSLImageShader.useLegend();
         // Display block and colour table; not its image or mask, which the two binds below replace.
-        glImage.applyFilters(imageData.imageBuffer(), imageData.metaData(), rhefActive, true);
+        glImage.applyFilters(imageData.imageBuffer(), imageData.metaData(), rank, true);
         rampTex.bind();
         blankMask.bind();
 

@@ -290,15 +290,19 @@ public class J2KView extends BaseView {
             signalReader(decodeParams, viewpoint);
         }
 
-        J2KDecodeKey key = new J2KDecodeKey(serial, decodeParams, processingSettings.getFilter());
+        J2KDecodeKey key = new J2KDecodeKey(serial, decodeParams, processingSettings.getFilter(), processingSettings.getFilterChain());
         DecodedImage image = ImageBufferCache.get(key);
         if (image != null) {
             // Mark running decodes stale before publishing this cached result.
             executor.invalidate();
-            sendDataToHandler(decodeParams.frame, viewpoint, image, () -> key.filter() == processingSettings.getFilter());
+            sendDataToHandler(decodeParams.frame, viewpoint, image, () -> sameFilter(key));
             return;
         }
         submitDecode(decodeParams, viewpoint, cacheResult);
+    }
+
+    private boolean sameFilter(J2KDecodeKey key) {
+        return key.filter() == processingSettings.getFilter() && key.chain().equals(processingSettings.getFilterChain());
     }
 
     void refreshDecodeFromReader(J2KParams.Decode decodeParams, Position viewpoint) {
@@ -310,13 +314,13 @@ public class J2KView extends BaseView {
     }
 
     private void submitDecode(J2KParams.Decode decodeParams, Position viewpoint, boolean cacheResult) {
-        J2KDecodeKey key = new J2KDecodeKey(serial, decodeParams, processingSettings.getFilter());
+        J2KDecodeKey key = new J2KDecodeKey(serial, decodeParams, processingSettings.getFilter(), processingSettings.getFilterChain());
         int numComps = source.resolutionSet(decodeParams.frame).numComps;
         int frame = decodeParams.frame;
         ResolutionSet.Level resolution = getResolutionLevel(frame, decodeParams.level);
         try {
             executor.submit(
-                    new OpjDecoder(source.source(), decodeParams, numComps, key.filter(), metaData[frame], resolution.factorX(), resolution.factorY()),
+                    new OpjDecoder(source.source(), decodeParams, numComps, key.filter(), key.chain(), metaData[frame], resolution.factorX(), resolution.factorY()),
                     new J2KCallback(key, viewpoint, cacheResult));
         } catch (RejectedExecutionException ignore) {
             // Teardown may shut the executor down before a late refresh/resubmit reaches this point.
@@ -337,12 +341,12 @@ public class J2KView extends BaseView {
 
         @Override
         public void onSuccess(DecodedImage result, boolean fresh) {
-            if (dataHandler == null || key.filter() != processingSettings.getFilter()) return; // detached or filter changed in-flight
+            if (dataHandler == null || !sameFilter(key)) return; // detached or filter changed in-flight
             if (cacheResult) ImageBufferCache.put(key, result);
 
             // This decode was superseded after it started; do not publish it to the layer.
             if (!fresh) return;
-            sendDataToHandler(key.params().frame, viewpoint, result, () -> key.filter() == processingSettings.getFilter());
+            sendDataToHandler(key.params().frame, viewpoint, result, () -> sameFilter(key));
         }
 
         @Override

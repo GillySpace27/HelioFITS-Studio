@@ -178,7 +178,7 @@ public final class Compare {
         FitsMetaData f = m instanceof FitsMetaData fm ? fm : null;
         return new CompareDifference.Side(m.getDisplayName(), f == null ? "" : f.getInstrument(), f == null ? "" : f.getUnit(),
                 data.imageBuffer().physicalScale(), data.imageBuffer().width, data.imageBuffer().height,
-                m.getViewpoint().time.milli, layer.getFilter().name(),
+                m.getViewpoint().time.milli, org.helioviewer.jhv.image.FilterChain.describe(layer.getFilter(), layer.getFilterChain()),
                 layer.getDisplaySettings().getDifferenceMode() != ImageDisplaySettings.DifferenceMode.None);
     }
 

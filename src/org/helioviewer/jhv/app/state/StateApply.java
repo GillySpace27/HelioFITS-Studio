@@ -10,6 +10,7 @@ import org.helioviewer.jhv.annotation.Annotations;
 import org.helioviewer.jhv.app.Commands;
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.display.DisplayController;
+import org.helioviewer.jhv.image.FilterChain;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.image.fourier.SequenceParams;
 import org.helioviewer.jhv.layers.ConnectionLayer;
@@ -189,9 +190,11 @@ final class StateApply {
         }
 
         String filter = data.optString("filter", ImageFilter.Type.None.name());
-        if (!filter.equals(now.optString("filter", ImageFilter.Type.None.name()))) {
+        org.json.JSONArray chain = data.optJSONArray("filterChain");
+        boolean sameChain = FilterChain.fromJson(chain).equals(FilterChain.fromJson(now.optJSONArray("filterChain")));
+        if (!filter.equals(now.optString("filter", ImageFilter.Type.None.name())) || !sameChain) {
             try {
-                layer.setFilter(ImageFilter.Type.valueOf(filter));
+                layer.setFilter(ImageFilter.Type.valueOf(filter), FilterChain.fromJson(chain));
                 changed = true;
             } catch (IllegalArgumentException ignore) { // a filter this build does not have
             }

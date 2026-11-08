@@ -17,6 +17,7 @@ import java.nio.ShortBuffer;
 import org.helioviewer.jhv.image.DecodedImage;
 import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.ImageBufferCache;
+import org.helioviewer.jhv.image.FilterChain;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.image.fourier.ComputedCache;
 import org.helioviewer.jhv.image.fourier.FourierFilter;
@@ -52,7 +53,7 @@ import org.helioviewer.jhv.time.JHVTime;
 public final class ComputedView implements View {
 
     /** filter is the per-frame filter applied on top; None is the job's own output. */
-    public record ComputedKey(ComputedView view, int frame, ImageFilter.Type filter) {}
+    public record ComputedKey(ComputedView view, int frame, ImageFilter.Type filter, FilterChain chain) {}
 
     private final View wrapped;
     private final SequenceParams params;
@@ -123,7 +124,7 @@ public final class ComputedView implements View {
                             continue;
                         ImageFilter.Type filter = wrapped.getFilter();
                         if (filter != ImageFilter.Type.None)
-                            image = filtered(image, filter, wrapped.getMetaData(wrapped.getFrameTime(frame)));
+                            image = filtered(image, filter, wrapped.getFilterChain(), wrapped.getMetaData(wrapped.getFrameTime(frame)));
                         if (previewGeneration != generation)
                             return null;
                         previewFrames.put(frame, image);
@@ -261,8 +262,9 @@ public final class ComputedView implements View {
         DecodedImage[] frames = computed;
         if (ready && frames != null && frame < frames.length && frames[frame] != null) {
             ImageFilter.Type filter = wrapped.getFilter();
+            FilterChain chain = wrapped.getFilterChain();
             DecodedImage image = filter == ImageFilter.Type.None
-                    ? frames[frame] : ImageBufferCache.get(new ComputedKey(this, frame, filter));
+                    ? frames[frame] : ImageBufferCache.get(new ComputedKey(this, frame, filter, chain));
             if (image == null) {
                 // The per-frame filter on top of the computed frame, the way URIView applies it to a
                 // decoded one: off the EDT, the plain computed frame shown meanwhile.
@@ -280,11 +282,11 @@ public final class ComputedView implements View {
                         filtering.remove(frame);
                     } else {
                         MetaData meta = wrapped.getMetaData(wrapped.getFrameTime(frame));
-                        Task.submitBackground("sequence filter " + filter, () -> filtered(plain, filter, meta),
+                        Task.submitBackground("sequence filter " + filter, () -> filtered(plain, filter, chain, meta),
                                 result -> {
                                     filtering.remove(frame);
-                                    if (wrapped.getFilter() == filter) { // not changed in flight
-                                        ImageBufferCache.put(new ComputedKey(this, frame, filter), result);
+                                    if (wrapped.getFilter() == filter && wrapped.getFilterChain().equals(chain)) { // not changed in flight
+                                        ImageBufferCache.put(new ComputedKey(this, frame, filter, chain), result);
                                         DisplayController.render(1);
                                     }
                                 },
@@ -314,13 +316,13 @@ public final class ComputedView implements View {
     }
 
     // A computed frame through a per-frame filter: the same ImageFilter the decoders use.
-    private static DecodedImage filtered(DecodedImage plain, ImageFilter.Type filter, MetaData meta) {
+    private static DecodedImage filtered(DecodedImage plain, ImageFilter.Type filter, FilterChain chain, MetaData meta) {
         ImageBuffer src = plain.imageBuffer();
         if (src.format != ImageBuffer.Format.Gray16F)
             return plain;
         short[] data = new short[src.width * src.height];
         ((ShortBuffer) src.buffer).get(0, data);
-        ImageBuffer out = ImageBuffer.fromShorts(src.width, src.height, ImageBuffer.Format.Gray16F, data, ImageFilter.of(filter, plain.region(), meta));
+        ImageBuffer out = ImageBuffer.fromShorts(src.width, src.height, ImageBuffer.Format.Gray16F, data, ImageFilter.of(filter, chain, plain.region(), meta));
         out.setPhysicalScale(src.physicalScale());
         return new DecodedImage(out, plain.region());
     }
@@ -397,6 +399,11 @@ public final class ComputedView implements View {
     @Override
     public ImageFilter.Type getFilter() {
         return wrapped.getFilter();
+    }
+
+    @Override
+    public FilterChain getFilterChain() {
+        return wrapped.getFilterChain();
     }
 
     @Nullable

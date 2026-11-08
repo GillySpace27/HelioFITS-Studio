@@ -56,6 +56,11 @@ public class BaseView implements View {
     }
 
     @Override
+    public org.helioviewer.jhv.image.FilterChain getFilterChain() {
+        return processingSettings.getFilterChain();
+    }
+
+    @Override
     public JHVTime getFirstTime() {
         return metaData[0].getViewpoint().time;
     }

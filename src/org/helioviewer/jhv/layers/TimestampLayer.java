@@ -289,7 +289,7 @@ public final class TimestampLayer extends AbstractLayer {
     private String creditLine() {
         ImageLayer master = Layers.getActiveImageLayer();
         String name = master == null || master.getImageData() == null ? "" : master.getName();
-        boolean rhef = master != null && master.getFilter() == ImageFilter.Type.RHEF;
+        boolean rhef = master != null && master.usesRhef();
         if (creditCache == null || !name.equals(creditName) || rhef != creditRhef) {
             creditName = name;
             creditRhef = rhef;

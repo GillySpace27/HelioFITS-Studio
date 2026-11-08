@@ -235,7 +235,7 @@ final class ImageLayerRenderingPanel extends JPanel {
         if (s.getSharpen() != DEFAULTS.getSharpen())
             joiner.add("Sharpen " + percent(s.getSharpen()));
         if (layer.getFilter() != ImageFilter.Type.None)
-            joiner.add(layer.getFilter().toString());
+            joiner.add(org.helioviewer.jhv.image.FilterChain.describe(layer.getFilter(), layer.getFilterChain()));
         if (s.getEnhanced() != DEFAULTS.getEnhanced())
             joiner.add("Enhance");
         if (layer.getSequence() != null)
