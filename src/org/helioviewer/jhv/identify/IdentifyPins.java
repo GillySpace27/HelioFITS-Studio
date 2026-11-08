@@ -112,17 +112,29 @@ public final class IdentifyPins {
      */
     @Nullable
     static double[] locate(Viewport vp, MapView mv, Identifier.Target target, Vec3 want) {
+        return locate(vp, mv, target, want, null);
+    }
+
+    /** As {@link #locate(Viewport, MapView, Identifier.Target, Vec3)}, starting from {@code seed} (canvas pixels) when given. */
+    @Nullable
+    static double[] locate(Viewport vp, MapView mv, Identifier.Target target, Vec3 want, @Nullable double[] seed) {
         return solve((x, y) -> {
             Identifier.Probe p = Probes.at(mv, vp, x, y);
             Vec3 dir = p == null ? null : p.direction(target.observer());
             return dir == null ? null : Identifier.helioprojective(dir);
-        }, Identifier.helioprojective(want), vp.x, vp.yAWT, vp.width, vp.height);
+        }, Identifier.helioprojective(want), vp.x, vp.yAWT, vp.width, vp.height, seed);
     }
 
     /** Newton's method on the screen: the point in the box (x0, y0, w, h) where {@code sky} reads {@code goal}. */
     @Nullable
     static double[] solve(Sky sky, Vec2 goal, double x0, double y0, double w, double h) {
-        double x = x0 + w / 2, y = y0 + h / 2;
+        return solve(sky, goal, x0, y0, w, h, null);
+    }
+
+    /** As above, starting at {@code seed} instead of the middle of the box when one is given. */
+    @Nullable
+    static double[] solve(Sky sky, Vec2 goal, double x0, double y0, double w, double h, @Nullable double[] seed) {
+        double x = seed == null ? x0 + w / 2 : seed[0], y = seed == null ? y0 + h / 2 : seed[1];
         double limit = Math.max(w, h);
         for (int step = 0; step < MAX_STEPS; step++) {
             Vec2 f = sky.at(x, y), fx = sky.at(x + 1, y), fy = sky.at(x, y + 1);
