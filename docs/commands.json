@@ -2527,6 +2527,10 @@
             "description": "Pixels on the long side; omit for the export size in the settings",
             "type": "integer",
             "minimum": 16
+          },
+          "bundle_data": {
+            "description": "Write the local source files beside the export as <export>.data.zip (a still: its frames and what they depend on; a movie: the layers' files). Omit to follow Bundle source data with export in the Record panel",
+            "type": "boolean"
           }
         },
         "required": ["path"]
@@ -2559,6 +2563,10 @@
             "description": "Pixels on the long side; omit for the export size in the settings",
             "type": "integer",
             "minimum": 16
+          },
+          "bundle_data": {
+            "description": "Write the local source files beside the export as <export>.data.zip (a still: its frames and what they depend on; a movie: the layers' files). Omit to follow Bundle source data with export in the Record panel",
+            "type": "boolean"
           }
         },
         "required": ["path"]

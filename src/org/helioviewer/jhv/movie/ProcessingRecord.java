@@ -39,6 +39,7 @@ import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.io.SourceIdentity;
 import org.helioviewer.jhv.layers.ImageLayer;
+import org.helioviewer.jhv.app.state.SessionArchive;
 import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.view.ClipSet;
 import org.helioviewer.jhv.view.View;
@@ -1396,6 +1397,27 @@ public final class ProcessingRecord {
         return out;
     }
 
+    /**
+     * The data archive an export has beside it (companions.data_archive), copied beside {@code to} under the name its
+     * export gives it, and the record pointed at the copy. Nothing when the record names none or the file is gone.
+     */
+    private static void copyDataArchive(JSONObject record, Path from, Path to) throws IOException {
+        JSONObject companions = record.optJSONObject("companions");
+        JSONObject archive = companions == null ? null : companions.optJSONObject("data_archive");
+        String name = archive == null ? null : archive.optString("file_name", null);
+        if (name == null)
+            return;
+        Path source = from.resolveSibling(name);
+        Path target = to.resolveSibling(to.getFileName() + SessionArchive.SUFFIX);
+        if (Files.isRegularFile(source)) {
+            if (!source.equals(target))
+                Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+            archive.put("file_name", target.getFileName().toString());
+        } else {
+            companions.remove("data_archive"); // the record must not name a file that is not there
+        }
+    }
+
     /** The record of {@code from} for a copy at {@code to} (the command line's -out): same pixels, its own name. */
     public static void copySidecar(Path from, Path to) {
         Path side = existingSidecar(from);
@@ -1406,6 +1428,7 @@ public final class ProcessingRecord {
             migrateLegacy(side);
             record.getJSONObject("output").put("file_name", to.getFileName().toString())
                     .put("sha256", fileHash(to));
+            copyDataArchive(record, from, to);
             writeJson(sidecar(to), record);
         } catch (IOException | RuntimeException e) {
             Log.warn("Processing record not copied beside " + to.getFileName(), e);
@@ -1745,6 +1768,7 @@ public final class ProcessingRecord {
         out.remove("file_name");
         out.remove("frame_files");
         copy.remove("preview"); // sidecars only
+        copy.remove("companions"); // sidecars only: the files beside an export are written after it
         copy.remove("frame_map"); // sidecars only
         out.remove("pixel_sha256"); // a file cannot hold the digest of its own picture
         out.remove("frame_digests");
@@ -1811,6 +1835,11 @@ public final class ProcessingRecord {
     @Nullable
     public static Path writePrepared(Path export, JSONObject record) {
         return writePrepared(export, record, null);
+    }
+
+    /** A copy of {@code record} with {@code companions} (files written beside the export, with their hashes) added. */
+    public static JSONObject withCompanions(JSONObject record, JSONObject companions) {
+        return new JSONObject(record.toString()).put("companions", companions);
     }
 
     /** As above, with the sidecar's {@link #preview} (null for none). */

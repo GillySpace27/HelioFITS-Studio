@@ -64,7 +64,7 @@ public final class ExportSessionWithData extends AbstractAction {
                     + " opening the .jhv on another computer unpacks the data automatically.");
     }
 
-    static String humanBytes(long bytes) {
+    public static String humanBytes(long bytes) {
         if (bytes < 1024)
             return bytes + " B";
         String[] units = {"KB", "MB", "GB", "TB"};

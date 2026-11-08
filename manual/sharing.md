@@ -30,6 +30,8 @@ The file format and where templates are kept are in {doc}`reference/templates`.
   ahead.
 - {menuselection}`File --> Export Session with Data...` saves the session plus a `.data.zip` of its
   local files, to open on another computer.
+- The Record panel's {guilabel}`Bundle source data with export` writes the same kind of `.data.zip` beside
+  each still or movie, holding only the files that export needs. It is off unless you choose it.
 - An export's `.hfrec` record opens on its own: drop it on Studio or use {guilabel}`Open in New Window` in
   {menuselection}`File --> Open Export Record...`. Its scene loads in a new window (a movie as its first frame
   unless you choose {guilabel}`Load whole range`), and the window draws the picture again and says Identical,

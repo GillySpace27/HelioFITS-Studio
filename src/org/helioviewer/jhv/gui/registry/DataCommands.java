@@ -183,15 +183,17 @@ final class DataCommands {
                 DataCommands::sessionLoad, () -> true));
         CommandRegistry.add(new CommandSpec("exportStill", "Export the frame on screen as a PNG, with its processing record beside it", Effect.WRITE,
                 object("{\"path\":{\"type\":\"string\",\"description\":\"Where to write the PNG\"},"
-                        + "\"long_side\":{\"type\":\"integer\",\"minimum\":16,\"description\":\"Pixels on the long side; omit for the export size in the settings\"}}", "path"),
+                        + "\"long_side\":{\"type\":\"integer\",\"minimum\":16,\"description\":\"Pixels on the long side; omit for the export size in the settings\"},"
+                        + BUNDLE_DATA + "}", "path"),
                 out("{\"path\":{\"type\":\"string\"}}"),
-                args -> record(ViewState.RecordingMode.SHOT, args.optInt("long_side", 0), Path.of(args.getString("path"))), () -> true));
+                args -> record(ViewState.RecordingMode.SHOT, args.optInt("long_side", 0), Path.of(args.getString("path")), bundleData(args)), () -> true));
         CommandRegistry.add(new CommandSpec("exportMovie",
                 "Export one loop of the loaded frames as a movie in the format the settings choose, with its processing record beside it", Effect.WRITE,
                 object("{\"path\":{\"type\":\"string\",\"description\":\"Where to write the movie\"},"
-                        + "\"long_side\":{\"type\":\"integer\",\"minimum\":16,\"description\":\"Pixels on the long side; omit for the export size in the settings\"}}", "path"),
+                        + "\"long_side\":{\"type\":\"integer\",\"minimum\":16,\"description\":\"Pixels on the long side; omit for the export size in the settings\"},"
+                        + BUNDLE_DATA + "}", "path"),
                 out("{\"path\":{\"type\":\"string\"},\"frames\":{\"type\":\"integer\"}}"),
-                args -> record(ViewState.RecordingMode.LOOP, args.optInt("long_side", 0), Path.of(args.getString("path"))), () -> true));
+                args -> record(ViewState.RecordingMode.LOOP, args.optInt("long_side", 0), Path.of(args.getString("path")), bundleData(args)), () -> true));
     }
 
     // layers --------------------------------------------------------------------------------------
@@ -359,6 +361,14 @@ final class DataCommands {
      * there with its processing record; without, the written file is moved into the cache (a
      * preview is not an export to keep) and its record goes with it.
      */
+    private static final String BUNDLE_DATA = "\"bundle_data\":{\"type\":\"boolean\",\"description\":\"Write the local source files beside the export as <export>.data.zip"
+            + " (a still: its frames and what they depend on; a movie: the layers' files). Omit to follow Bundle source data with export in the Record panel\"}";
+
+    @Nullable
+    private static Boolean bundleData(JSONObject args) {
+        return args.has("bundle_data") ? args.getBoolean("bundle_data") : null;
+    }
+
     private static JSONObject sessionLoad(JSONObject args) {
         Path path = Path.of(args.getString("path")).toAbsolutePath();
         if (!Files.isRegularFile(path))
@@ -395,6 +405,10 @@ final class DataCommands {
     }
 
     private static JSONObject record(ViewState.RecordingMode mode, int longSide, @Nullable Path target) {
+        return record(mode, longSide, target, null);
+    }
+
+    private static JSONObject record(ViewState.RecordingMode mode, int longSide, @Nullable Path target, @Nullable Boolean bundleData) {
         ImageLayer active = Layers.getActiveImageLayer();
         if (active == null || !active.hasPixels())
             throw new IllegalStateException("nothing to render: no image layer with frames");
@@ -414,7 +428,7 @@ final class DataCommands {
                     if (out.getParent() != null)
                         Files.createDirectories(out.getParent());
                     Files.copy(written, out, StandardCopyOption.REPLACE_EXISTING);
-                    ProcessingRecord.copySidecar(written, out);
+                    ProcessingRecord.copySidecar(written, out); // and the data archive beside it, when the export has one
                 } else {
                     Path previews = Path.of(Directories.CACHE.getPath(), "Previews");
                     Files.createDirectories(previews);
@@ -423,6 +437,9 @@ final class DataCommands {
                     Path sidecar = ProcessingRecord.existingSidecar(written);
                     if (sidecar != null)
                         Files.move(sidecar, ProcessingRecord.sidecar(out), StandardCopyOption.REPLACE_EXISTING);
+                    Path archive = org.helioviewer.jhv.movie.ExportBundle.archivePath(written);
+                    if (Files.isRegularFile(archive))
+                        Files.move(archive, org.helioviewer.jhv.movie.ExportBundle.archivePath(out), StandardCopyOption.REPLACE_EXISTING);
                 }
                 JSONObject result = new JSONObject().put("path", out.toString());
                 if (mode != ViewState.RecordingMode.SHOT) {
@@ -435,7 +452,7 @@ final class DataCommands {
                 done.completeExceptionally(new IllegalStateException("could not place the export: " + e.getMessage()));
             }
         });
-        ExportMovie.startSized(context, mode, longSide);
+        ExportMovie.startSized(context, mode, longSide, bundleData);
         return new Dispatch.Deferred(done);
     }
 

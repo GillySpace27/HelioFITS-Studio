@@ -97,6 +97,37 @@ public final class SessionArchiveCheck {
         expect("same machine: originals still referenced", uris(here, 0).getString(0).equals(a.toUri().toString()));
         expect("same machine: the archive is not unpacked when it holds none of the missing files", !Files.exists(unpack));
 
+        // The archive beside an export (Bundle source data with export): the zip only, no .jhv, limited to the files asked for.
+        Path export = Files.write(outDir.resolve("still.png"), bytes("png", 40));
+        SessionArchive.Estimate estAll = SessionArchive.estimate(wrapped, null);
+        SessionArchive.Estimate estOne = SessionArchive.estimate(wrapped, java.util.Set.of(a.toUri()));
+        expect("estimate: all local files, 3 files and 15000 bytes, got " + estAll, estAll.files() == 3 && estAll.bytes() == 15000);
+        expect("estimate: one file asked for, 1 file and 5000 bytes, got " + estOne, estOne.files() == 1 && estOne.bytes() == 5000);
+        expect("estimate: a file asked for that is not a local file counts for nothing",
+                SessionArchive.estimate(wrapped, java.util.Set.of(URI.create(remote))).files() == 0);
+        org.helioviewer.jhv.movie.ExportBundle.Result bundled = org.helioviewer.jhv.movie.ExportBundle.write(
+                new org.helioviewer.jhv.movie.ExportBundle.Plan(wrapped, java.util.Set.of(a.toUri()), true), export);
+        Path dataZip = outDir.resolve("still.png.data.zip");
+        expect("bundle: written beside the export as <export file name>.data.zip", Files.isRegularFile(dataZip));
+        expect("bundle: no .jhv is written beside the export", !Files.exists(outDir.resolve("still.png.jhv")) && !Files.exists(outDir.resolve("still.jhv.png")));
+        JSONObject entry = bundled.companions() == null ? new JSONObject() : bundled.companions().optJSONObject("data_archive");
+        expect("bundle: the record names the archive, its SHA-256, its size and the scope", entry != null
+                && "still.png.data.zip".equals(entry.optString("file_name")) && "one".equals(entry.optString("scope"))
+                && entry.optString("sha256").equals(org.helioviewer.jhv.io.SourceIdentity.sha256(dataZip))
+                && entry.optLong("size") == Files.size(dataZip));
+        try (ZipFile z = new ZipFile(dataZip.toFile())) {
+            JSONObject manifest = new JSONObject(new String(z.getInputStream(z.getEntry("manifest.json")).readAllBytes(), StandardCharsets.UTF_8));
+            expect("bundle: only the file asked for is packed, got " + manifest.getJSONArray("files").length(), manifest.getJSONArray("files").length() == 1);
+        }
+        expect("bundle: the scene inside still names every layer", SessionArchive.sessionIn(dataZip).getJSONArray("imageLayers").length() == 3);
+        org.helioviewer.jhv.movie.ExportBundle.Result movieBundle = org.helioviewer.jhv.movie.ExportBundle.write(
+                new org.helioviewer.jhv.movie.ExportBundle.Plan(wrapped, null, false), outDir.resolve("movie.mp4"));
+        expect("bundle: a movie packs every local file, scope range", movieBundle.companions() != null
+                && "range".equals(movieBundle.companions().getJSONObject("data_archive").getString("scope")));
+        expect("bundle: a scene with no local file in the scope writes no archive and says so",
+                org.helioviewer.jhv.movie.ExportBundle.write(new org.helioviewer.jhv.movie.ExportBundle.Plan(wrapped, java.util.Set.of(URI.create(remote)), true),
+                        outDir.resolve("none.png")).note() != null && !Files.exists(outDir.resolve("none.png.data.zip")));
+
         // Another computer: the local folder is gone.
         Files.move(home.resolve("mine"), home.resolve("mine-away"));
         JSONObject there = new JSONObject(Files.readString(jhv)).getJSONObject("org.helioviewer.jhv.state");
