@@ -32,9 +32,21 @@ public class CollapsiblePane extends JComponent implements ActionListener {
     final CollapsiblePaneButton toggleButton;
 
     /** Carries the band's fill behind whatever sits beside the title, so there is no notch in it. */
-    private final JPanel header = new JPanel(new BorderLayout());
+    private final JPanel header = new JPanel(new BorderLayout()) {
+        // The title's band stops a row short and draws the groove in that last row (see
+        // CollapsiblePaneButton). The strip beside it is not part of that button, so without this
+        // the groove broke off under the padlock and the strip looked taller than the band.
+        @Override
+        protected void paintComponent(java.awt.Graphics g) {
+            super.paintComponent(g);
+            g.setColor(Theme.current().get(Theme.Token.Background));
+            g.fillRect(0, getHeight() - 1, getWidth(), 1);
+        }
+    };
     @Nullable
     private JComponent accessory;
+    @Nullable
+    private JPanel accessorySlot;
     private final JComponent managed;
     private final float headerSize;
     private String title;
@@ -165,12 +177,21 @@ public class CollapsiblePane extends JComponent implements ActionListener {
      * whole line of sidebar height per section and read as content rather than as chrome.
      */
     public void setAccessory(@Nullable JComponent accessory) {
-        if (this.accessory != null)
-            header.remove(this.accessory);
+        if (accessorySlot != null)
+            header.remove(accessorySlot);
+        accessorySlot = null;
         this.accessory = accessory;
         if (accessory != null) {
             accessory.setOpaque(false);
-            header.add(accessory, BorderLayout.LINE_END);
+            // Inside the band and nowhere else: the title's button is a row shorter than the
+            // header (its groove), so the strip leaves that row free, and is centred in the rest
+            // at its own size (a FlowLayout inside would stick to the top of a taller band).
+            JPanel slot = new JPanel(new java.awt.GridBagLayout());
+            slot.setOpaque(false);
+            slot.setBorder(BorderFactory.createEmptyBorder(0, 0, 1, 0));
+            slot.add(accessory);
+            accessorySlot = slot;
+            header.add(slot, BorderLayout.LINE_END);
         }
         header.revalidate();
     }
