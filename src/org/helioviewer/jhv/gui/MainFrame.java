@@ -317,6 +317,11 @@ public final class MainFrame {
         statusPanel = new StatusPanel(5, 5);
         // First, at the far left: spinning while anything is still arriving or computing, a check when it has all landed.
         statusPanel.addPlugin(new org.helioviewer.jhv.gui.status.ActivityStatusPanel(), StatusPanel.Alignment.LEFT);
+        // Beside it, the activity lights (CMD, CPU, DISK, NET, MEM) and, while a script or assistant
+        // drives Studio, who it is; that chip also lights the window's edge in the driver's colour.
+        statusPanel.addPlugin(new org.helioviewer.jhv.gui.status.ActivityLightsPanel(), StatusPanel.Alignment.LEFT);
+        statusPanel.addPlugin(new org.helioviewer.jhv.gui.status.DriverChip((javax.swing.JComponent) mainFrame.getContentPane()), StatusPanel.Alignment.LEFT);
+        org.helioviewer.jhv.activity.Sampler.start();
         // Then the render rate. It was dropped once as a developer number with no audience; it turns
         // out to have one, because a frame that is not advancing and a frame that is advancing
         // slowly look the same without it.

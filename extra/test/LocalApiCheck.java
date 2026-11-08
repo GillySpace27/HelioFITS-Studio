@@ -35,11 +35,15 @@ public final class LocalApiCheck {
     private record Reply(int status, String body) {}
 
     private static Reply post(int port, String host, String auth, String body) throws IOException {
+        return post(port, host, auth, body, null);
+    }
+
+    private static Reply post(int port, String host, String auth, String body, String client) throws IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         try (Socket socket = new Socket("127.0.0.1", port)) {
             socket.setSoTimeout(30_000);
             OutputStream out = socket.getOutputStream();
-            String head = "POST /rpc HTTP/1.1\r\nHost: " + host + "\r\n" + (auth == null ? "" : "Authorization: " + auth + "\r\n")
+            String head = "POST /rpc HTTP/1.1\r\nHost: " + host + "\r\n" + (auth == null ? "" : "Authorization: " + auth + "\r\n") + (client == null ? "" : "X-HFS-Client: " + client + "\r\n")
                     + "Content-Type: application/json\r\nContent-Length: " + bytes.length + "\r\nConnection: close\r\n\r\n";
             out.write(head.getBytes(StandardCharsets.US_ASCII));
             out.write(bytes);
@@ -122,6 +126,24 @@ public final class LocalApiCheck {
         JSONObject described = new JSONObject(describe.body());
         expect("commands.invoke runs a command and returns its result: " + describe.body(),
                 described.has("result") && described.getJSONObject("result").optString("title").equals("Search Controls"));
+        // Who is driving: the client header names it, the activity log records command and answer, the glow state follows
+        long mark = org.helioviewer.jhv.activity.Activity.nextSeq() - 1;
+        post(ep.port(), "127.0.0.1", bearer, rpc("commands.invoke", new JSONObject().put("id", "listCommands")), "heliofits-mcp/1.0; Claude Desktop");
+        org.helioviewer.jhv.activity.Driver.State driver = org.helioviewer.jhv.activity.Driver.current(System.nanoTime());
+        expect("after a call the driver is the MCP client from the header: " + driver,
+                driver != null && driver.kind() == org.helioviewer.jhv.activity.Driver.Kind.MCP && driver.name().equals("Claude Desktop via heliofits-mcp") && !driver.inFlight());
+        java.util.List<org.helioviewer.jhv.activity.Activity.Event> cmds = org.helioviewer.jhv.activity.Activity.since(mark,
+                java.util.EnumSet.of(org.helioviewer.jhv.activity.Activity.Kind.CMD), 20);
+        expect("the log has the command and its answer with a timing: " + cmds.size(),
+                cmds.size() == 2 && cmds.get(0).text().equals("> listCommands") && cmds.get(1).text().startsWith("< listCommands ok in ")
+                        && cmds.get(0).source().equals("Claude Desktop via heliofits-mcp"));
+        post(ep.port(), "127.0.0.1", bearer, rpc("commands.invoke", new JSONObject().put("id", "listCommands")));
+        expect("a call without the header is still answered, as another program",
+                org.helioviewer.jhv.activity.Driver.current(System.nanoTime()).kind() == org.helioviewer.jhv.activity.Driver.Kind.OTHER);
+        post(ep.port(), "127.0.0.1", bearer, rpc("commands.invoke", new JSONObject().put("id", "activityLog").put("args", new JSONObject().put("kinds", new org.json.JSONArray().put("cmd")))));
+        Reply seen = post(ep.port(), "127.0.0.1", bearer, rpc("commands.invoke", new JSONObject().put("id", "activityLog").put("args", new JSONObject().put("since_seq", mark))));
+        expect("activityLog over the API returns the calls just made: " + seen.body().length(),
+                new JSONObject(seen.body()).getJSONObject("result").getJSONArray("events").length() >= 4);
         Reply unknown = post(ep.port(), "127.0.0.1", bearer, rpc("commands.invoke", new JSONObject().put("id", "noSuchCommand")));
         expect("an unknown command carries data.kind unknown-command", kind(unknown).equals("unknown-command"));
         Reply missing = post(ep.port(), "127.0.0.1", bearer, rpc("commands.invoke", new JSONObject().put("id", "seekFrame")));

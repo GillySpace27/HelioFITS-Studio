@@ -453,7 +453,7 @@ public final class Actions {
                 java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder(URI.create(url))
                         .method("HEAD", java.net.http.HttpRequest.BodyPublishers.noBody())
                         .timeout(java.time.Duration.ofSeconds(5)).build();
-                return client.send(req, java.net.http.HttpResponse.BodyHandlers.discarding()).statusCode() / 100 == 2;
+                return org.helioviewer.jhv.activity.NetActivity.send(client, req, java.net.http.HttpResponse.BodyHandlers.discarding()).statusCode() / 100 == 2;
             } catch (java.io.IOException | IllegalArgumentException ex) {
                 return false;
             } catch (InterruptedException ex) {

@@ -176,6 +176,22 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         JCheckBox apiConfirm = new JCheckBox("Ask before a script removes or discards something", org.helioviewer.jhv.io.api.LocalApi.confirmsDestructive());
         apiConfirm.addActionListener(e -> org.helioviewer.jhv.io.api.LocalApi.setConfirmsDestructive(apiConfirm.isSelected()));
 
+        JCheckBox glow = new JCheckBox("<html>Glow around the window while a script or assistant drives Studio<br/><small>In the driver's colour, set in the Theme Manager; the edge is kept while the API is on, so the view does not resize",
+                org.helioviewer.jhv.activity.Driver.glowEnabled());
+        glow.addActionListener(e -> Settings.setProperty(org.helioviewer.jhv.activity.Driver.GLOW_KEY, Boolean.toString(glow.isSelected())));
+        javax.swing.JSpinner linger = new javax.swing.JSpinner(new javax.swing.SpinnerNumberModel(org.helioviewer.jhv.activity.Driver.lingerSeconds(), 0, 120, 1));
+        linger.setToolTipText("How long the glow stays after the last command has answered");
+        linger.addChangeListener(e -> Settings.setProperty(org.helioviewer.jhv.activity.Driver.LINGER_KEY, String.valueOf(linger.getValue())));
+        JPanel lingerRow = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEADING, 0, 0));
+        lingerRow.add(new javax.swing.JLabel("Keep the glow for "));
+        lingerRow.add(linger);
+        lingerRow.add(new javax.swing.JLabel(" s after the last command"));
+        JCheckBox lights = new JCheckBox("Activity lights in the footer (CMD, CPU, DISK, NET, MEM)", org.helioviewer.jhv.gui.status.ActivityLightsPanel.shown());
+        lights.addActionListener(e -> Settings.setProperty(org.helioviewer.jhv.gui.status.ActivityLightsPanel.VISIBLE_KEY, Boolean.toString(lights.isSelected())));
+        JCheckBox osCounters = new JCheckBox("<html>Read the system's disk counters for the DISK light<br/><small>Off: only the files Studio names (downloads, FITS reads, exports) light it",
+                org.helioviewer.jhv.activity.Sampler.osCountersEnabled());
+        osCounters.addActionListener(e -> Settings.setProperty(org.helioviewer.jhv.activity.Sampler.OS_COUNTERS_KEY, Boolean.toString(osCounters.isSelected())));
+
         return new SettingsForm()
                 .row("Preferred server:", comboServer)
                 .row("At start-up:", getStatePanel())
@@ -185,6 +201,10 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
                 .row("3D scene:", sceneDefaultsPanel())
                 .row("Local API:", api)
                 .row(null, apiConfirm)
+                .row(null, glow)
+                .row(null, lingerRow)
+                .row("Activity:", lights)
+                .row(null, osCounters)
                 .end();
     }
 

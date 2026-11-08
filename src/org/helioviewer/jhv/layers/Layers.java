@@ -446,6 +446,19 @@ public final class Layers {
         retained.clear();
     }
 
+    /**
+     * Frees the decoded frames the scene is not showing, on the event thread: the cache is emptied,
+     * what no layer holds is released, and the collector is asked to run. Nothing is lost: a frame
+     * decodes again from its source the next time it is wanted. Returns the bytes the cache held.
+     */
+    public static long freeDecodedFrames() {
+        long held = ImageBufferCache.heldBytes();
+        ImageBufferCache.clear();
+        reapImageBuffers();
+        System.gc(); // a request, not a command; the heap figure the memory light reads moves after it runs
+        return held;
+    }
+
     public static void setImageLayersNearestFrame(JHVTime dateTime) {
         if (imageLayersCount == 0)
             nullImageLayer.getView().setNearestFrame(dateTime);

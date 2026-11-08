@@ -26,9 +26,17 @@ final class SampHandlers {
             @Nullable
             @Override
             public Map<?, ?> processCall(HubConnection c, String senderId, Message msg) {
+                String who = "SAMP";
                 try {
                     String sender = c.getMetadata(senderId).getName();
-                    consumer.accept(senderId, sender, msg);
+                    who = sender == null || sender.isBlank() ? "SAMP" : "SAMP: " + sender;
+                    org.helioviewer.jhv.activity.Activity.event(org.helioviewer.jhv.activity.Activity.Kind.CMD, who, "> " + type);
+                    org.helioviewer.jhv.activity.Driver.begin(org.helioviewer.jhv.activity.Driver.Kind.OTHER, who, type);
+                    try {
+                        consumer.accept(senderId, sender, msg);
+                    } finally {
+                        org.helioviewer.jhv.activity.Driver.end();
+                    }
                 } catch (Exception e) {
                     Log.warn(type, e);
                 }

@@ -59,6 +59,7 @@ class NetClientRemote implements NetClient {
             .readTimeout(60, TimeUnit.SECONDS)
             .cache(new Cache(Directories.clientCacheDir, cacheSize))
             .cookieJar(MlsoClient.COOKIES) // the MLSO download session; that host only, memory only
+            .eventListenerFactory(org.helioviewer.jhv.activity.NetActivity.OKHTTP) // the footer's NET light and the activity log
             //.addInterceptor(logging)
             //.addInterceptor(new LoggingInterceptor())
             .build();

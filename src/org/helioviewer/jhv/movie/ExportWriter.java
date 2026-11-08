@@ -203,6 +203,7 @@ class ExportWriter {
                 stampPngSeries(record);
             preview = rawPreview();
             pixels = rawPixels();
+            org.helioviewer.jhv.activity.Activity.event(org.helioviewer.jhv.activity.Activity.Kind.DISK, "export", "wrote " + outPath);
             return outPath;
         } catch (Exception e) {
             deleteOutputs();

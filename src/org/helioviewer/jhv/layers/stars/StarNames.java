@@ -88,7 +88,7 @@ public final class StarNames {
                 .followRedirects(HttpClient.Redirect.NORMAL).build()) {
             HttpRequest request = HttpRequest.newBuilder(URI.create(URL)).timeout(TIMEOUT)
                     .header("User-Agent", AppInfo.userAgent).GET().build();
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            HttpResponse<String> response = org.helioviewer.jhv.activity.NetActivity.send(client, request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             if (response.statusCode() != 200)
                 throw new IOException("HTTP " + response.statusCode() + " from the IAU star names table");
             body = response.body();

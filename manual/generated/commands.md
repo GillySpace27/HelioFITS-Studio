@@ -448,6 +448,9 @@ These are run by scripts and Search Controls rather than from a menu; the argume
 * - Find Body...
   - No arguments
   - `identifyFindBody`
+* - A live record of what Studio does: commands from scripts and assistants, downloads, disk, Core's output, memory and the log (also: click the footer's lights)
+  - No arguments
+  - `activityWindow`
 * - Show the movie frame with this number (0 is the first)
   - Arguments: `frame`
   - `seekFrame`
@@ -508,6 +511,12 @@ These are run by scripts and Search Controls rather than from a menu; the argume
 * - Pin a body's label to the view, or unpin it, or list the pins; pins follow their body and are saved with the session
   - Arguments: `pinned`, `clear`, `body`
   - `identifyPin`
+* - Read Studio's activity record: commands from scripts and assistants with their answers and timings, downloads, disk, HelioFITS Core's output, memory changes and log lines, oldest first, after since_seq
+  - Arguments: `since_seq`, `limit`, `kinds`
+  - `activityLog`
+* - Open the Activity window, on one kind of line if light is given, so the person can watch what Studio does
+  - Arguments: `light`
+  - `activityShow`
 * - List every command: its id, what it does and what it changes
   - No arguments
   - `listCommands`

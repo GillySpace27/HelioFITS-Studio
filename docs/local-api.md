@@ -23,6 +23,24 @@ Windows the home folder's own permissions apply. The token is new each run and t
 when the API is switched off or Studio quits, so a client reads the file each time it is refused.
 The `heliofits` package also honours `HFSTUDIO_API=<path>` for a file elsewhere.
 
+## Who is calling, and what Studio shows
+
+A client may name itself in an optional `X-HFS-Client` header: `pyheliofits/<version>` from the
+Python package, `heliofits-mcp/<version>; <MCP client name>` from the MCP server (for example
+`heliofits-mcp/1.0; Claude Desktop`). Anything else, a missing header and SAMP are "another program".
+The name picks the glow and chip colour while the call runs and for `api.glowLingerSeconds` (5)
+after: `DriverMcp`, `DriverPython` and `DriverOther` tokens in the Theme Manager. `api.glow=false`
+turns the window glow off. The header is the caller's own words and decides nothing but colour and
+text; it is never a credential.
+
+Everything is also written to the activity record that the footer lights and the Activity window
+read: each `commands.invoke` as a `> command {args}` line and a `< command ok in 1.2 s` line, plus
+downloads, file reads and exports, Core's output and memory changes. `activityLog` reads it back
+over the API (`since_seq`, `kinds`, `limit`; answers `events`, `next_seq`, `driving`, `memory`), so
+a script can see what Studio did, and `activityShow` opens the window. The record lives in memory
+(the last 5000 events); the log file gets one line per command. `commands.list` blinks the CMD
+light but does not start the glow. Code: `activity/`; check: `ActivityCheck`.
+
 ## Calling
 
 POST a JSON-RPC 2.0 request to `http://127.0.0.1:<port>/rpc` with `Authorization: Bearer <token>`.
