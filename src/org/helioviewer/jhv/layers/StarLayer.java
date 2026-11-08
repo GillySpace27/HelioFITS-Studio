@@ -14,6 +14,7 @@ import org.helioviewer.jhv.display.ViewpointListener;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.layers.stars.StarCatalog;
 import org.helioviewer.jhv.layers.stars.StarSky;
+import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.math.Vec2;
 import org.helioviewer.jhv.math.Vec3;
 import org.helioviewer.jhv.opengl.BufVertex;
@@ -37,7 +38,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
  * <p>Drawn where the picture is the observer's own sky: the 3D views (on the plane through Sun
  * centre), HPC and Observer Sky (through the page mapping, so the stars follow the projection and
  * the look direction). Latitudinal and the unrolled helioradial map are maps of the Sun, not of the
- * sky, and get none. The orbited camera is a later phase of the starfield scope.
+ * sky, and get none. In the orbited camera the stars are at infinity: the sky turns with the drag (see StarSky.plane).
  */
 public final class StarLayer extends AbstractLayer implements ViewpointListener {
 
@@ -188,6 +189,18 @@ public final class StarLayer extends AbstractLayer implements ViewpointListener 
         if (sky == null)
             return;
         Position viewpoint = mv.viewpoint();
+        Quat drag = mv.dragRotation();
+        if (!drag.equals(Quat.ZERO)) {
+            // Orbited camera: stars are at infinity, so the sky turns about the viewer with the
+            // drag instead of the sheet swinging edge-on. Redone each frame, as the flat views are.
+            StarSky.plane(sky.points(), viewpoint.distance, drag, flatBuf);
+            flatPoints.uploadAndClear(flatBuf);
+            Transform.pushView();
+            Transform.rotateViewInverse(mv.viewRotation()); // vertices are already in the screen frame
+            flatPoints.renderPoints(1);
+            Transform.popView();
+            return;
+        }
         BufVertex buf = sky.plane();
         if (buf != uploadedBuf) {
             points.upload(buf);

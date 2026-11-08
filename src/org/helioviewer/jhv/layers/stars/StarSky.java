@@ -6,6 +6,7 @@ import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.astronomy.SpaceObject;
 import org.helioviewer.jhv.astronomy.Spice;
 import org.helioviewer.jhv.astronomy.SpiceMath;
+import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.opengl.BufVertex;
 import org.helioviewer.jhv.time.JHVTime;
 
@@ -129,19 +130,36 @@ public final class StarSky {
      */
     public static BufVertex plane(Points p, double distance) {
         BufVertex buf = new BufVertex(Math.min(p.count(), 20000) + 10);
+        plane(p, distance, null, buf);
+        return buf;
+    }
+
+    /**
+     * The same placement for a camera orbited by {@code drag} (the world rotation the user's drag
+     * applies, null for none), written into {@code buf}. The stars are at infinity, so orbiting
+     * turns each direction by the drag and the placement is redone on the turned ray: the sky
+     * rotates about the viewer and the 80 degree cut follows the camera. A flat sheet turned with
+     * the scene would go edge-on instead. The result is in the screen frame, drawn with the whole
+     * view rotation undone. With no drag it equals {@link #plane(Points, double)}.
+     */
+    public static void plane(Points p, double distance, Quat drag, BufVertex buf) {
+        double[] in = new double[3];
         double[] ray = new double[3];
         double[] theta = new double[2];
         byte[] colour = new byte[4];
         for (int i = 0; i < p.count(); i++) {
-            ray[0] = p.ray()[3 * i];
-            ray[1] = p.ray()[3 * i + 1];
-            ray[2] = p.ray()[3 * i + 2];
+            in[0] = p.ray()[3 * i];
+            in[1] = p.ray()[3 * i + 1];
+            in[2] = p.ray()[3 * i + 2];
+            if (drag == null)
+                System.arraycopy(in, 0, ray, 0, 3);
+            else
+                drag.qxv(in, ray);
             if (!theta(ray, theta))
                 continue;
             System.arraycopy(p.colour(), 4 * i, colour, 0, 4);
             buf.putVertex((float) (distance * Math.tan(theta[0])), (float) (distance * Math.tan(theta[1])), 0, p.size()[i], colour);
         }
-        return buf;
     }
 
     /**

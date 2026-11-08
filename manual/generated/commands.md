@@ -149,6 +149,21 @@ Every command HelioFITS Studio has, as the menus, Help > Search Controls and the
 * - View > Present
   - Presentation mode: output only, fullscreen (Esc to leave)
   - `present`
+* - View > Identify Under Cursor
+  -
+  - `identifyUnderCursor`
+* - View > Identify Tooltip
+  -
+  - `identifyTooltip`
+* - View > Identify Stars
+  -
+  - `identifyStars`
+* - View > Find Body...
+  -
+  - `identifyFindBody`
+* - View > Left Sidebar Panels > Fold or Restore All
+  - Fold every section of the left sidebar; the next press opens again the ones that were open
+  - `foldLeftPanelAll`
 * - View > Left Sidebar Panels > Left Sidebar Panel 1
   - Fold or show section 1 of the left sidebar, the one numbered 1; moving a section changes its number
   - `foldLeftPanel1`
@@ -173,6 +188,12 @@ Every command HelioFITS Studio has, as the menus, Help > Search Controls and the
 * - View > Left Sidebar Panels > Left Sidebar Panel 8
   - Fold or show section 8 of the left sidebar, the one numbered 8; moving a section changes its number
   - `foldLeftPanel8`
+* - View > Left Sidebar Panels > Left Sidebar Panel 9
+  - Fold or show section 9 of the left sidebar, the one numbered 9; moving a section changes its number
+  - `foldLeftPanel9`
+* - View > Right Sidebar Panels > Fold or Restore All
+  - Fold every section of the right sidebar; the next press opens again the ones that were open
+  - `foldRightPanelAll`
 * - View > Right Sidebar Panels > Right Sidebar Panel 1
   - Fold or show section 1 of the right sidebar, the one numbered 1; moving a section changes its number
   - `foldRightPanel1`
@@ -197,6 +218,27 @@ Every command HelioFITS Studio has, as the menus, Help > Search Controls and the
 * - View > Right Sidebar Panels > Right Sidebar Panel 8
   - Fold or show section 8 of the right sidebar, the one numbered 8; moving a section changes its number
   - `foldRightPanel8`
+* - View > Right Sidebar Panels > Right Sidebar Panel 9
+  - Fold or show section 9 of the right sidebar, the one numbered 9; moving a section changes its number
+  - `foldRightPanel9`
+* - View > Show or Hide Left Sidebar
+  - Fold the left sidebar to its rail, or open it
+  - `toggleLeftSidebar`
+* - View > Show or Hide Right Sidebar
+  - Fold the right sidebar to its rail, or open it
+  - `toggleRightSidebar`
+* - View > Show or Hide Timeline
+  - Show or hide the timeline pane under the picture
+  - `toggleTimeline`
+* - View > Interface Scale > Larger Interface
+  - Scale the whole interface (text, spacing, icons) one step up, at once
+  - `interfaceScaleUp`
+* - View > Interface Scale > Smaller Interface
+  - Scale the whole interface one step down, at once
+  - `interfaceScaleDown`
+* - View > Interface Scale > Interface at 100%
+  - Put the interface scale back to 100%
+  - `interfaceScaleReset`
 ```
 
 ## Layers
@@ -405,6 +447,9 @@ Every command HelioFITS Studio has, as the menus, Help > Search Controls and the
 * - Managers > Task Manager...
   - What is downloading, loading or computing, and the export queue (also: click the footer's spinner)
   - `taskManager`
+* - Managers > Activity...
+  - A live record of what Studio does: commands from scripts and assistants, downloads, disk, Core's output, memory and the log (also: click the footer's lights)
+  - `activityWindow`
 * - Managers > Template Manager...
   - Manage scene templates: open, duplicate, rename, edit, share, set as startup or retire
   - `templates`
@@ -436,21 +481,6 @@ These are run by scripts and Search Controls rather than from a menu; the argume
 * - Command
   - What it does
   - Id
-* - Identify Under Cursor
-  - No arguments
-  - `identifyUnderCursor`
-* - Identify Tooltip
-  - No arguments
-  - `identifyTooltip`
-* - Identify Stars
-  - No arguments
-  - `identifyStars`
-* - Find Body...
-  - No arguments
-  - `identifyFindBody`
-* - A live record of what Studio does: commands from scripts and assistants, downloads, disk, Core's output, memory and the log (also: click the footer's lights)
-  - No arguments
-  - `activityWindow`
 * - Show the movie frame with this number (0 is the first)
   - Arguments: `frame`
   - `seekFrame`
@@ -506,7 +536,7 @@ These are run by scripts and Search Controls rather than from a menu; the argume
   - Arguments: `observer`, `inner_deg`, `half_width_deg`, `field`, `outer_deg`, `start`, `end`, `step_minutes`
   - `identifyInField`
 * - Turn the cursor identifier and its tooltip and stars on or off, and set its tolerances; answers with every setting
-  - Arguments: `star_names_bayer`, `tolerance_pixels`, `earth_observer_uncertainty_km`, `tooltip_dwell_ms`, `light_time`, `tooltip`, `star_max_magnitude`, `pluto`, `stars`, `star_names_iau`, `enabled`
+  - Arguments: `earth_observer_uncertainty_km`, `light_time`, `tooltip`, `star_max_magnitude`, `pluto`, `stars`, `enabled`, `star_names_bayer`, `tolerance_pixels`, `tooltip_dwell_ms`, `pulse`, `star_names_iau`, `glow`
   - `identifySet`
 * - Pin a body's label to the view, or unpin it, or list the pins; pins follow their body and are saved with the session
   - Arguments: `pinned`, `clear`, `body`

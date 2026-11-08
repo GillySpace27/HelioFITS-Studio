@@ -160,4 +160,9 @@ public final class PanelVisibility {
         return numbers() && number > 0 ? number + ". " : "";
     }
 
+    /** "L2. " or "R2. ": the number and the side it counts on, which is also what the keys say (Gilly, 2026-11-08). */
+    public static String numberPrefix(int number, char side) {
+        return numbers() && number > 0 ? side + "" + number + ". " : "";
+    }
+
 }

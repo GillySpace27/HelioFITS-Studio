@@ -12,9 +12,28 @@ for example to find a date without the Moon in PUNCH.
 - **View > Identify Tooltip** also draws the name, its distance and its angle from the Sun beside
   the pointer once it rests (Settings > Identify > Label delay). The label is never recorded.
 - **View > Identify Stars** includes stars (see "Stars" below).
-- **Settings > Identify** holds the pointer tolerance in screen pixels (default 6), the label delay
-  (400 ms), the near-Earth observer uncertainty (7,400 km), light travel time (off), Pluto (on),
-  and the star options (IAU names, Bayer designations, faintest magnitude).
+- **The Identify panel** (right sidebar; the toolbar's More menu has its button) holds the three
+  switches, the pointer tolerance in screen pixels (default 6), the label delay (400 ms), the
+  near-Earth observer uncertainty (7,400 km), light travel time (off), Pluto (on), and the star
+  options (IAU names, Bayer designations, faintest magnitude). Above them it shows what the
+  identifier matched under the pointer and why: for each body the layer, how far the pointer was
+  from the body's centre against the allowed radius (the body's angular radius plus the pointer
+  tolerance, in degrees), its distance, its angle from the Sun and any qualifier; and, for each
+  visible image layer, the observer and frame time the identification used. The last answer stays
+  after the pointer leaves the image (marked as old), **Freeze this result** holds it, **Copy**
+  puts the settings, result and observers on the clipboard as text for a bug report, and **Reset**
+  restores the numbers and finer switches (the three main switches stay as they are).
+- **Glow around what is identified** (Identify panel, on) draws a soft glow along the outline of
+  the body named under the pointer, and **Pulse when it changes** (on) sends a short ring outward
+  from that outline when the pointer reaches a different body. The outline is the body's own
+  perimeter as the current view draws it: the ring of sight lines that grazes the body's limb, as
+  seen by the observer of the layer that named it, put on the page by the identifier run backwards
+  (as pins are placed). It is round in the orthographic view and stretched where a helioradial or
+  unrolled view stretches the sky. A body only a few pixels across keeps its shape, enlarged about
+  its centre to 7 points so the glow can be seen. The Sun is not outlined (it is under the pointer
+  everywhere on the disk), nor yet are models, orbit plot markers, events or stars. Neither is
+  ever drawn into a grab, an export or a recording. identifySet takes `glow` and `pulse`.
+- **Settings > Identify** now only points at the panel.
 
 All defaults are judgements and can be changed. Settings keys start with `identify.`.
 

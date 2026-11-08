@@ -195,11 +195,23 @@ public class CollapsiblePane extends JComponent implements ActionListener {
             toggleButton.setIcons(sectionIcon, null);
         else
             toggleButton.setIcons(toggleButton.isSelected() ? Buttons.chevronDown : Buttons.chevronRight, sectionIcon);
-        toggleButton.setText(PanelVisibility.numberPrefix(number) + title);
+        if (number > 0 && PanelKeyHint.lit(side())) // the side's modifier is held: its numbers stand out (PanelKeyHint)
+            toggleButton.setText("<html><b>" + side() + number + ".</b> " + escape(title) + "</html>");
+        else
+            toggleButton.setText(PanelVisibility.numberPrefix(number, side()) + title);
         toggleButton.setToolTipText(pinned ? title + ", for what is selected above" : (toggleButton.isSelected() ? "Hide" : "Show") + " the " + title + " controls");
     }
 
     private boolean pinned;
+
+    private static String escape(String t) {
+        return t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
+    /** Held open for good (pinOpen): no fold state of its own. */
+    public boolean isPinned() {
+        return pinned;
+    }
     private final boolean topLevel;
     private int number; // 1-based place among the visible top-level sections beside it, 0 for none
 
@@ -232,9 +244,14 @@ public class CollapsiblePane extends JComponent implements ActionListener {
                 p.setNumber(p.isVisible() && shown > 1 ? ++n : 0);
     }
 
+    /** L for a section in the left sidebar, R for the right one, so a number says which key reaches it. */
+    private char side() {
+        return getParent() != null && getParent() == RightSidebar.getInstance().pane() ? 'R' : 'L';
+    }
+
     private void setNumber(int n) {
         number = n;
-        if (!toggleButton.getText().equals(PanelVisibility.numberPrefix(n) + title))
+        if (!toggleButton.getText().equals(PanelVisibility.numberPrefix(n, side()) + title))
             setTitle(title);
     }
 

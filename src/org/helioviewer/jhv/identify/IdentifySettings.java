@@ -25,6 +25,8 @@ public final class IdentifySettings {
     public static final String LIGHT_TIME = "identify.lightTime";
     public static final String EARTH_UNCERTAINTY_KM = "identify.earthObserverUncertaintyKm";
     public static final String PLUTO = "identify.pluto";
+    public static final String GLOW = "identify.glow";
+    public static final String PULSE = "identify.pulse";
 
     /** Off: the footer looks as it always has until someone asks for this. */
     static final boolean DEFAULT_ENABLED = false;
@@ -119,6 +121,16 @@ public final class IdentifySettings {
         return bool(PLUTO, true);
     }
 
+    /** A soft glow along the outline of what is named under the pointer (Gilly, 2026-11-08: on by default). */
+    public static boolean glow() {
+        return bool(GLOW, true);
+    }
+
+    /** A short pulse outward from that outline when the pointer reaches something new. */
+    public static boolean pulse() {
+        return bool(PULSE, true);
+    }
+
     public static void setEnabled(boolean b) {
         set(ENABLED, Boolean.toString(b));
     }
@@ -131,6 +143,25 @@ public final class IdentifySettings {
         set(STARS, Boolean.toString(b));
     }
 
+    /**
+     * Put every number and finer switch back to its default, leaving the three main switches
+     * (identify, tooltip, stars) as they are: resetting is for a setup that went wrong, and
+     * switching the feature off as a side effect would hide the evidence.
+     */
+    public static void resetToDefaults() {
+        Settings.setProperty(TOLERANCE_PX, String.valueOf(DEFAULT_TOLERANCE_PX));
+        Settings.setProperty(DWELL_MS, String.valueOf((double) DEFAULT_DWELL_MS));
+        Settings.setProperty(EARTH_UNCERTAINTY_KM, String.valueOf(DEFAULT_EARTH_UNCERTAINTY_KM));
+        Settings.setProperty(STAR_MAX_MAG, String.valueOf(DEFAULT_STAR_MAX_MAG));
+        Settings.setProperty(LIGHT_TIME, "false");
+        Settings.setProperty(PLUTO, "true");
+        Settings.setProperty(STAR_NAMES_IAU, "true");
+        Settings.setProperty(STAR_NAMES_BAYER, "true");
+        Settings.setProperty(GLOW, "true");
+        Settings.setProperty(PULSE, "true");
+        fire();
+    }
+
     /** What the identifier is set to, for the identifySet command's answer. */
     public static org.json.JSONObject toJson() {
         return new org.json.JSONObject()
@@ -138,7 +169,8 @@ public final class IdentifySettings {
                 .put("starNamesIau", starNamesIau()).put("starNamesBayer", starNamesBayer())
                 .put("starMaxMagnitude", starMaxMagnitude()).put("tolerancePixels", tolerancePixels())
                 .put("tooltipDwellMillis", dwellMillis()).put("lightTime", lightTime())
-                .put("earthObserverUncertaintyKm", earthUncertaintyKm()).put("pluto", pluto());
+                .put("earthObserverUncertaintyKm", earthUncertaintyKm()).put("pluto", pluto())
+                .put("glow", glow()).put("pulse", pulse());
     }
 
     private IdentifySettings() {}

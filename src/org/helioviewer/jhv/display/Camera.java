@@ -59,6 +59,15 @@ public final class Camera {
         dragRotation = Quat.rotate(dragRotation, _dragRotation);
     }
 
+    /**
+     * Turn the scene by {@code angle} radians about a screen axis (x right, y up, z toward the viewer),
+     * which stays put on the screen whatever the camera already has. Positive turns the nearer side of the
+     * scene toward +x about y, toward -y about x, and counter-clockwise about z, as the right-hand rule says.
+     */
+    public void rotateAboutScreenAxis(Vec3 axis, double angle) {
+        rotateDragRotation(Quat.axisAngle(angle, dragRotation.rotateInverseVector(axis)));
+    }
+
     void resetDragRotation() {
         dragRotation = Quat.ZERO;
     }

@@ -38,7 +38,7 @@ final class ToolbarOrder {
      * an id here when the tool is introduced; remove it once nobody is running a build older than
      * that.
      */
-    private static final java.util.Set<String> SEED_ONCE = java.util.Set.of("timelines", "sidebarLeft", "sidebarRight", "trackCme", "undo", "redo", "compare", "pizza");
+    private static final java.util.Set<String> SEED_ONCE = java.util.Set.of("timelines", "sidebarLeft", "sidebarRight", "trackCme", "undo", "redo", "compare", "pizza", "identify");
 
     static final String DEFAULT_ORDER = String.join("|",
             "present", SEPARATOR,
@@ -51,7 +51,7 @@ final class ToolbarOrder {
             // Only fold or show a palette, and change nothing by being pressed, so on a fresh bar they
             // wait in More; the View menu's sidebar panel keys reach them too (Gilly, 2026-11-07). A
             // saved bar keeps whatever it had.
-            "projection", "trackCme", "colour", "sequence", "grid", "camera", "compare", "pizza", "annotate", SEPARATOR,
+            "projection", "trackCme", "colour", "sequence", "grid", "camera", "compare", "pizza", "identify", "annotate", SEPARATOR,
             "refresh", "sdoCutout", "samp");
 
     /**

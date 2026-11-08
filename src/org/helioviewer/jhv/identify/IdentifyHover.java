@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import javax.annotation.Nullable;
 import javax.swing.Timer;
@@ -39,6 +40,21 @@ public final class IdentifyHover {
     private int mouseX, mouseY;
     private List<Identifier.Match> last = List.of();
     private List<Drawn.Hit> lastDrawn = List.of();
+    private Snapshot kept = Snapshot.NONE;
+    private boolean frozen;
+    private final List<Runnable> keptListeners = new CopyOnWriteArrayList<>();
+
+    /** Whether the pointer is on a result now, on the image with nothing under it, or has left the image. */
+    public enum State { LIVE, EMPTY, AWAY }
+
+    /**
+     * The last non-empty answer, kept for the Identify panel. Moving the pointer from the image to
+     * the sidebar clears {@link #lastMatches()}, which would blank a live readout at the moment you
+     * reach for it, so this keeps the last answer and says how old it is.
+     */
+    public record Snapshot(long millis, List<Identifier.Match> matches, List<Drawn.Hit> drawn, State state) {
+        static final Snapshot NONE = new Snapshot(0, List.of(), List.of(), State.AWAY);
+    }
 
     private IdentifyHover() {
         dwell = new Timer(IdentifySettings.DEFAULT_DWELL_MS, e -> {
@@ -73,6 +89,44 @@ public final class IdentifyHover {
         INSTANCE.clear();
     }
 
+    /** The last non-empty answer and whether the pointer is still on it. */
+    public static Snapshot snapshot() {
+        return INSTANCE.kept;
+    }
+
+    /** Hold the current snapshot while the pointer moves about, so it can be read at leisure. */
+    public static void setFrozen(boolean b) {
+        INSTANCE.frozen = b;
+        INSTANCE.fireKept();
+    }
+
+    public static boolean frozen() {
+        return INSTANCE.frozen;
+    }
+
+    /** Called (on the thread that moved the pointer) whenever the snapshot changes; coalesce in the listener. */
+    public static void addSnapshotListener(Runnable r) {
+        INSTANCE.keptListeners.add(r);
+    }
+
+    private void fireKept() {
+        for (Runnable r : keptListeners)
+            r.run();
+    }
+
+    private void keep(List<Identifier.Match> matches, List<Drawn.Hit> drawn) {
+        if (frozen)
+            return;
+        Snapshot was = kept;
+        if (!matches.isEmpty() || !drawn.isEmpty())
+            kept = new Snapshot(System.currentTimeMillis(), matches, drawn, State.LIVE);
+        else if (was.state() != State.EMPTY)
+            kept = new Snapshot(was.millis(), was.matches(), was.drawn(), State.EMPTY);
+        else
+            return;
+        fireKept();
+    }
+
     /** The bodies named at the last pointer position, for a command or a check. */
     public static List<Identifier.Match> lastMatches() {
         return INSTANCE.last;
@@ -89,6 +143,8 @@ public final class IdentifyHover {
         List<Drawn.Hit> drawn = Drawn.at(vp, mv, x, y, options.tolerancePixels());
         last = matches;
         lastDrawn = drawn;
+        keep(matches, drawn);
+        IdentifyGlow.matched(matches);
         boolean wasShown = labelShown && !label.isEmpty();
         label.clear();
         labelShown = false;
@@ -190,6 +246,11 @@ public final class IdentifyHover {
         dwell.stop();
         last = List.of();
         lastDrawn = List.of();
+        IdentifyGlow.matched(last);
+        if (!frozen && kept.state() != State.AWAY) {
+            kept = new Snapshot(kept.millis(), kept.matches(), kept.drawn(), State.AWAY);
+            fireKept();
+        }
         if (!label.isEmpty()) {
             label.clear();
             if (labelShown)

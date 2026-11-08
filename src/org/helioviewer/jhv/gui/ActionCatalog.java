@@ -49,7 +49,7 @@ public final class ActionCatalog {
     public static final Set<String> TOOLBAR_CONTROLS = Set.of(
             "rotate90", "pan", "rotate", "axis", "track", "diffRotation", "corona", "multiview",
             "sidebarLeft", "timelines", "sidebarRight", "projection", "trackCme", "colour", "sequence",
-            "grid", "camera", "compare", "pizza", "annotate", "refresh", "samp");
+            "grid", "camera", "compare", "pizza", "identify", "annotate", "refresh", "samp");
 
     private static final Map<String, Entry> entries = new LinkedHashMap<>(); // the map is the only state: no static flag (guards.py ratchet)
 
@@ -241,17 +241,28 @@ public final class ActionCatalog {
                 org.helioviewer.jhv.gui.component.MenuBar.openSettingsTab("Keybindings");
             }
         }, "Managers/Keybindings Manager...", "Every command with its keybinding: search, change or reset (opens Settings on the Keybindings tab)");
-        // Fold or show a sidebar section by its number: Cmd+1..8 left, Cmd+Option+1..8 right (PanelKeys)
+        // Fold or show a sidebar section by its number: Ctrl+1..9 left, Option+1..9 right, 0 for all (PanelKeys)
         for (boolean right : new boolean[]{false, true}) {
             String side = right ? "Right" : "Left";
+            put(org.helioviewer.jhv.gui.component.PanelKeys.idAll(right), org.helioviewer.jhv.gui.component.PanelKeys.actionAll(right),
+                    "View/" + side + " Sidebar Panels/Fold or Restore All", "Fold every section of the " + side.toLowerCase(java.util.Locale.ROOT)
+                            + " sidebar; the next press opens again the ones that were open");
             for (int n = 1; n <= org.helioviewer.jhv.gui.component.PanelKeys.SLOTS; n++)
                 put(org.helioviewer.jhv.gui.component.PanelKeys.id(right, n), org.helioviewer.jhv.gui.component.PanelKeys.action(right, n),
                         "View/" + side + " Sidebar Panels/" + side + " Sidebar Panel " + n,
                         "Fold or show section " + n + " of the " + side.toLowerCase(java.util.Locale.ROOT)
                                 + " sidebar, the one numbered " + n + "; moving a section changes its number");
         }
+        // The window's layout and the interface scale: Cmd+[ Cmd+] Cmd+\, Cmd+Shift+= - 0 (LayoutKeys)
+        org.helioviewer.jhv.gui.component.LayoutKeys.register(ActionCatalog::put);
         // The person's own keybindings (Settings > Keybindings), applied over the defaults stated above
         org.helioviewer.jhv.gui.registry.KeyBindings.apply();
+    }
+
+    /** How a catalogue in another package hands its commands to register(). */
+    @FunctionalInterface
+    public interface Registrar {
+        void put(String id, Action action, String menuPath, String description);
     }
 
     /**

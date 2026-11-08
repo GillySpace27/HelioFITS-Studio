@@ -104,6 +104,8 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             "Blink between two image layers, swipe a divider across the view with one on each side, or show one minus the other");
     private final ButtonText PIZZA = new ButtonText(Buttons.pizza, "Pizza",
             "Cut every image layer into its own wedges or tiles of one Sun, turn the cut, and record a seamless spin");
+    private final ButtonText IDENTIFY = new ButtonText(Buttons.identify, "Identify",
+            "The cursor identifier: its settings, and what it matched under the pointer and why");
     private final ButtonText ANNOTATE = new ButtonText(Buttons.annotate, "Annotation",
             "Draw on the view: mode, colour and thickness (hold Shift to draw)");
     private final ButtonText SDO_CUTOUT = new ButtonText(Buttons.sdoCutout, "SDO Cut-out",
@@ -685,6 +687,12 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         JToggleButton pizzaButton = toolToggleButton(PIZZA);
         pizzaPalette.bind(pizzaButton);
         register("pizza", PIZZA, pizzaButton);
+
+        // The identifier's settings and a readout of what it matched, in the sidebar so a setting can
+        // be changed and its effect watched together; parked in More with the other palettes.
+        JToggleButton identifyButton = toolToggleButton(IDENTIFY);
+        IdentifyPalette.palette().bind(identifyButton);
+        register("identify", IDENTIFY, identifyButton);
 
         // Everything reached once a session rather than once a minute, plus annotation, behind
         // one button. Annotation used to have its own top-level button; it is a mode you set once
