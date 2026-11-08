@@ -26,6 +26,7 @@ public final class AutoResetViewCheck {
         System.setProperty("user.home", Files.createTempDirectory("hfs-auto-reset").toString());
         Platform.init();
         org.helioviewer.jhv.io.Directories.createCacheDirs();
+        org.helioviewer.jhv.io.Directories.SETTINGS.getFile().mkdirs(); // else every Settings write logs a stack trace
 
         expect("a fresh install frames a newly opened dataset", DisplaySettings.getAutoResetView());
         expect("and fits a layer added in multiview to its own view", DisplaySettings.getFitNewMultiviewLayers());
@@ -46,6 +47,15 @@ public final class AutoResetViewCheck {
         expect("an on value reads as on", DisplaySettings.parseDefaultOn("true"));
         expect("anything unrecognised reads as off, as everywhere else in these settings",
                 !DisplaySettings.parseDefaultOn("maybe"));
+
+        // A layer restored from a session must not reset the view even with the setting on: found replaying a
+        // movie export (zoom 2 saved, zoom 1 after the load), where the camera restored fine with the setting off.
+        DisplaySettings.setAutoResetView(true);
+        expect("an interactive layer resets the view when the setting is on", DisplaySettings.resetsViewOnLoad(false));
+        expect("a layer restored from a session does not, though the setting is on", !DisplaySettings.resetsViewOnLoad(true));
+        DisplaySettings.setAutoResetView(false);
+        expect("with the setting off nothing resets", !DisplaySettings.resetsViewOnLoad(false) && !DisplaySettings.resetsViewOnLoad(true));
+        DisplaySettings.setAutoResetView(true);
 
         System.out.println(failures == 0 ? "AutoResetViewCheck: PASS" : "AutoResetViewCheck: " + failures + " FAILURE(S)");
         System.exit(failures == 0 ? 0 : 1);
