@@ -5,7 +5,6 @@ import java.awt.Component;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JSlider;
 import javax.swing.SwingUtilities;
@@ -74,8 +73,61 @@ public final class DisplayScale {
     /** Before anything loads the look and feel: FlatLaf reads its scale once. An explicit -D wins. */
     public static void applyUiScaleProperty() {
         double scale = ui();
-        if (scale != 1 && System.getProperty("flatlaf.uiScale") == null)
-            System.setProperty("flatlaf.uiScale", Double.toString(scale));
+        String explicit = System.getProperty("flatlaf.uiScale");
+        if (explicit == null) {
+            if (scale != 1)
+                System.setProperty("flatlaf.uiScale", Double.toString(scale));
+            LAUNCH[0] = scale;
+        } else
+            LAUNCH[0] = read(explicit);
+    }
+
+    /**
+     * The interface scale the look and feel was started with. A change after launch is FlatLaf's
+     * zoom factor relative to it (UIScale.setZoomFactor, FlatLaf 3.x), which applies at once; the
+     * next launch starts at the new scale with no zoom. Gilly, 2026-11-08: the scale should be live.
+     */
+    private static final double[] LAUNCH = {1};
+
+    /** Set the interface scale now, store it, and redraw every window at it. */
+    public static void setUiLive(double scale) {
+        double s = Math.clamp(scale, UI[0], UI[UI.length - 1]);
+        Settings.setProperty(UI_KEY, Double.toString(s));
+        float[] factors = new float[UI.length];
+        for (int i = 0; i < UI.length; i++)
+            factors[i] = (float) (UI[i] / LAUNCH[0]);
+        com.formdev.flatlaf.util.UIScale.setSupportedZoomFactors(factors);
+        if (com.formdev.flatlaf.util.UIScale.setZoomFactor((float) (s / LAUNCH[0])))
+            UIGlobals.reapplyTheme(null);
+        syncCombo();
+    }
+
+    /** One step up or down the interface scale ladder (Cmd+Shift+= and Cmd+Shift+-). */
+    public static void stepUi(int direction) {
+        setUiLive(UI[Math.clamp(nearest(UI, ui()) + Integer.signum(direction), 0, UI.length - 1)]);
+    }
+
+    /** Back to 100% (Cmd+Shift+0). */
+    public static void resetUi() {
+        setUiLive(1);
+    }
+
+    private static int nearest(double[] steps, double v) {
+        int best = 0;
+        for (int i = 0; i < steps.length; i++)
+            if (Math.abs(steps[i] - v) < Math.abs(steps[best] - v))
+                best = i;
+        return best;
+    }
+
+    // The open window's scale menu, so a key press shows in it too.
+    private static final java.util.concurrent.atomic.AtomicReference<JComboBox<String>> COMBO =
+            new java.util.concurrent.atomic.AtomicReference<>();
+
+    private static void syncCombo() {
+        JComboBox<String> box = COMBO.get();
+        if (box != null && box.getSelectedIndex() != nearest(UI, ui()))
+            box.setSelectedIndex(nearest(UI, ui()));
     }
 
     // The open window, so a second request brings it forward instead of opening another.
@@ -136,13 +188,18 @@ public final class DisplayScale {
         apply.addActionListener(e -> setScales(keys, values(sliders), SwingUtilities.getWindowAncestor(sliders[0])));
 
         JComboBox<String> ui = combo(UI, ui());
+        ui.addActionListener(e -> { // live: no restart (Gilly, 2026-11-08)
+            if (UI[ui.getSelectedIndex()] != ui())
+                setUiLive(UI[ui.getSelectedIndex()]);
+        });
+        COMBO.set(ui);
         c.gridy = keys.length;
         panel.add(new JLabel("Interface scale"), c);
         panel.add(ui, c);
         JPanel box = new JPanel(new java.awt.BorderLayout(0, 10));
         box.add(panel, java.awt.BorderLayout.CENTER);
         JLabel note = new JLabel("<html><body style='width:340px'>Text size sets all text; Headings, Body and Detail "
-                + "each adjust one level against it. Interface scale also sizes spacing and icons, after a restart.</body></html>");
+                + "each adjust one level against it. Interface scale also sizes spacing and icons, at once; View > Interface Scale has its keys.</body></html>");
         note.setFont(UIGlobals.uiFontSmall);
         box.add(note, java.awt.BorderLayout.PAGE_END);
 
@@ -174,7 +231,7 @@ public final class DisplayScale {
                     return; // closed once already
                 apply.stop();
                 setScales(keys, values(sliders), null); // the last step; nothing is skipped now
-                finishUiScale(parent, UI[ui.getSelectedIndex()]);
+                COMBO.set(null);
                 if (onClose != null)
                     onClose.run();
             }
@@ -183,19 +240,6 @@ public final class DisplayScale {
         dialog.pack();
         dialog.setLocationRelativeTo(owner);
         dialog.setVisible(true);
-    }
-
-    /** Store the interface scale and, when it changed, offer the restart it needs. */
-    private static void finishUiScale(Component parent, double newUi) {
-        boolean uiChanged = newUi != ui();
-        Settings.setProperty(UI_KEY, Double.toString(newUi));
-        if (uiChanged) {
-            String[] options = {"Restart Now", "Later"};
-            if (JOptionPane.showOptionDialog(parent, "The interface scale changes when HelioFITS Studio starts again.\n"
-                            + "Restart now? Your session is saved and reopens.", "Display Scaling",
-                    JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]) == 0)
-                org.helioviewer.jhv.app.Session.restart();
-        }
     }
 
     private static JSlider slider(double current, boolean axis) {

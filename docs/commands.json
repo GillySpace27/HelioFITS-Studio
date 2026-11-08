@@ -1811,6 +1811,24 @@
         "type": "object",
         "properties": {}
       },
+      "name": "foldLeftPanelAll",
+      "description": "Fold every section of the left sidebar; the next press opens again the ones that were open",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "ui"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
       "name": "foldLeftPanel1",
       "description": "Fold or show section 1 of the left sidebar, the one numbered 1; moving a section changes its number",
       "annotations": {
@@ -1955,6 +1973,42 @@
         "type": "object",
         "properties": {}
       },
+      "name": "foldLeftPanel9",
+      "description": "Fold or show section 9 of the left sidebar, the one numbered 9; moving a section changes its number",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "ui"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
+      "name": "foldRightPanelAll",
+      "description": "Fold every section of the right sidebar; the next press opens again the ones that were open",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "ui"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
       "name": "foldRightPanel1",
       "description": "Fold or show section 1 of the right sidebar, the one numbered 1; moving a section changes its number",
       "annotations": {
@@ -2083,6 +2137,132 @@
       },
       "name": "foldRightPanel8",
       "description": "Fold or show section 8 of the right sidebar, the one numbered 8; moving a section changes its number",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "ui"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
+      "name": "foldRightPanel9",
+      "description": "Fold or show section 9 of the right sidebar, the one numbered 9; moving a section changes its number",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "ui"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
+      "name": "toggleLeftSidebar",
+      "description": "Fold the left sidebar to its rail, or open it",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "ui"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
+      "name": "toggleRightSidebar",
+      "description": "Fold the right sidebar to its rail, or open it",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "ui"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
+      "name": "toggleTimeline",
+      "description": "Show or hide the timeline pane under the picture",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "ui"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
+      "name": "interfaceScaleUp",
+      "description": "Scale the whole interface (text, spacing, icons) one step up, at once",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "ui"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
+      "name": "interfaceScaleDown",
+      "description": "Scale the whole interface one step down, at once",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "ui"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
+      "name": "interfaceScaleReset",
+      "description": "Put the interface scale back to 100%",
       "annotations": {
         "destructiveHint": false,
         "readOnlyHint": true
