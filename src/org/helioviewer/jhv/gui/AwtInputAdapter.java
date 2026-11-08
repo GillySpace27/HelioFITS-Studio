@@ -46,7 +46,7 @@ public final class AwtInputAdapter extends MouseAdapter implements KeyListener, 
             case KeyEvent.VK_Y -> KeyInputEvent.Key.Y;
             case KeyEvent.VK_Z -> KeyInputEvent.Key.Z;
             default -> KeyInputEvent.Key.OTHER;
-        }, e.isShiftDown(), e.isMetaDown(), e.isAltDown(), e.isControlDown());
+        }, e.isShiftDown(), e.isMetaDown(), e.isAltDown(), e.isControlDown(), e.getKeyCode());
     }
 
     @Override

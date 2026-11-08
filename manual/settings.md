@@ -18,7 +18,8 @@ keybinding, remove it, or put it back to the default, one command or all at once
 carry Cmd or Ctrl, or Alt, or be a function key, so it cannot shadow the keys the canvas and time
 slider use (J, K, L, I, O and the arrows), and one that clashes with another command, the system or
 text editing is refused with the reason. Changes apply at once, in the menus too. Every command and
-its id is listed in {doc}`generated/commands`.
+its id is listed in {doc}`generated/commands`. The bare keys the picture answers to (W A S D Q E, Up and
+Down) are not commands; **Canvas keys...** on the same tab changes them (see {doc}`views`).
 
 ## Settings kept in a file
 

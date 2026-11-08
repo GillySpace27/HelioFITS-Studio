@@ -187,6 +187,8 @@ public final class Interaction {
         hold(e.metaDown(), e.altDown(), e.ctrlDown());
         if (annotating(e.shiftDown())) {
             interactionAnnotate.keyPressed(e);
+        } else if (CanvasKeys.pressed(e)) {
+            // W A S D Q E turn the scene and Up and Down set the playback rate (rebindable)
         } else if (e.key() == KeyInputEvent.Key.X || e.key() == KeyInputEvent.Key.Y || e.key() == KeyInputEvent.Key.Z) {
             if (axisKeys.add(e.key()))
                 updateAxis();
@@ -207,11 +209,13 @@ public final class Interaction {
 
     public void keyReleased(KeyInputEvent e) {
         hold(e.metaDown(), e.altDown(), e.ctrlDown()); // the event's modifiers no longer include the released key
+        CanvasKeys.released(e);
         if (axisKeys.remove(e.key()))
             updateAxis();
     }
 
     public void focusLost() {
+        CanvasKeys.focusLost();
         axisKeys.clear();
         updateAxis();
         hold(false, false, false); // no release event arrives for a key let go elsewhere

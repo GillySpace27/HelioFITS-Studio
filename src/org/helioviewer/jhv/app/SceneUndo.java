@@ -61,6 +61,7 @@ public final class SceneUndo {
     private boolean installed;
     private boolean warned;
     private boolean held;
+    private boolean keysDown;
 
     /** Start watching the scene. On the EDT, once the window exists; never headless. */
     public static void install() {
@@ -95,6 +96,11 @@ public final class SceneUndo {
     public static void release() {
         scene.held = false;
         settle();
+    }
+
+    /** A canvas key that changes the scene is held: the poll waits, so the whole hold is one step, as a drag is. */
+    public static void keysDown(boolean down) {
+        scene.keysDown = down;
     }
 
     static boolean isHeld() {
@@ -140,7 +146,7 @@ public final class SceneUndo {
     }
 
     private void poll() {
-        if (held || pointerDown || loading())
+        if (held || pointerDown || keysDown || loading())
             return;
         JSONObject snapshot = snapshot();
         if (snapshot != null && stack.observe(snapshot, System.currentTimeMillis()))
@@ -149,7 +155,7 @@ public final class SceneUndo {
 
     private void stepBy(boolean forward, int count) {
         // An edit made a moment ago has not settled yet, and it is the one Undo is expected to take.
-        if (!pointerDown && !loading()) {
+        if (!pointerDown && !keysDown && !loading()) {
             JSONObject now = snapshot();
             if (now != null)
                 stack.flush(now);
