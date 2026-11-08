@@ -2779,17 +2779,8 @@
         "additionalProperties": false,
         "type": "object",
         "properties": {
-          "star_names_bayer": {"type": "boolean"},
-          "tolerance_pixels": {
-            "type": "number",
-            "minimum": 0
-          },
           "earth_observer_uncertainty_km": {
             "type": "number",
-            "minimum": 0
-          },
-          "tooltip_dwell_ms": {
-            "type": "integer",
             "minimum": 0
           },
           "light_time": {"type": "boolean"},
@@ -2797,8 +2788,19 @@
           "star_max_magnitude": {"type": "number"},
           "pluto": {"type": "boolean"},
           "stars": {"type": "boolean"},
+          "enabled": {"type": "boolean"},
+          "star_names_bayer": {"type": "boolean"},
+          "tolerance_pixels": {
+            "type": "number",
+            "minimum": 0
+          },
+          "tooltip_dwell_ms": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pulse": {"type": "boolean"},
           "star_names_iau": {"type": "boolean"},
-          "enabled": {"type": "boolean"}
+          "glow": {"type": "boolean"}
         }
       },
       "name": "identifySet",
