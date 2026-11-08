@@ -43,7 +43,9 @@ B-V to temperature by Ballesteros (2012, EPL 97, 34008), then Planck's law at 61
 
 The 3D-capable projections from the observer, HPC, and Observer Sky (any sky projection, aim and
 field). Not drawn in Latitudinal or the unrolled helioradial map, which are maps of the Sun rather
-than of the sky. Not yet: the orbited camera.
+than of the sky. In the orbited 3D camera the sky is at infinity: dragging turns each star's direction about the
+viewer (the placement is redone every frame, so the sheet no longer swings edge-on) and the 80 degree
+cut follows the camera.
 
 The flat views re-place every point each frame, so a deep limit (V = 9, about 83,000 points) costs
 more there than in the 3D views, which place them once per viewpoint.
