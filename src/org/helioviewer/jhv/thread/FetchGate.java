@@ -24,7 +24,7 @@ public final class FetchGate {
 
     private static final int WIDTH = readWidth();
     private static final Semaphore PERMITS = new Semaphore(WIDTH, true);
-    private static volatile boolean paused;
+    private static final java.util.concurrent.atomic.AtomicBoolean PAUSED = new java.util.concurrent.atomic.AtomicBoolean();
 
     private FetchGate() {}
 
@@ -42,16 +42,16 @@ public final class FetchGate {
 
     /** Hold new fetches back, or let them go. Fetches already under way are not touched. */
     public static void pause(boolean hold) {
-        paused = hold;
+        PAUSED.set(hold);
     }
 
     public static boolean isPaused() {
-        return paused;
+        return PAUSED.get();
     }
 
     /** Run one fetch when a place is free. Throws InterruptedException if the load is cancelled while waiting. */
     public static <T> T get(Callable<T> fetch) throws Exception {
-        while (paused)
+        while (PAUSED.get())
             Thread.sleep(200);
         PERMITS.acquire();
         try {
@@ -63,7 +63,7 @@ public final class FetchGate {
 
     /** As {@link #get}, for a fetch that returns nothing and handles its own failures. */
     public static void run(Runnable fetch) throws InterruptedException {
-        while (paused)
+        while (PAUSED.get())
             Thread.sleep(200);
         PERMITS.acquire();
         try {
