@@ -50,6 +50,11 @@ public interface View {
         return ImageFilter.Type.None;
     }
 
+    /** The filters applied after getFilter(), each with a strength; empty for a single filter. */
+    default org.helioviewer.jhv.image.FilterChain getFilterChain() {
+        return org.helioviewer.jhv.image.FilterChain.EMPTY;
+    }
+
     default void decode(Position viewpoint, double pixFactor, float factor, @Nullable ClipSet.Range clipRange) {}
 
     /** Decode this frame into the image cache in the background, ahead of being asked for it. Shows nothing. */

@@ -56,10 +56,10 @@ reads that file; the Java registry is the source, the Python package follows it.
 | Command | Effect | What it does |
 |---|---|---|
 | `layerAdd` | write | Adds an image layer: `source` `jp2` (Helioviewer, `dataset` plus `observatory` as the server lists them, optional `cadence_s`) or `fits-library` (a HelioFITS Core dataset key or uid), over `start` to `end`. Answers when every frame is loaded (`wait`: `all`, `first` or `none`) with `layer_id`, `frames`, `name`. |
-| `layerList` | read | Every image layer: `layer_id`, `name`, `frames`, `loading`, `active`, `source`, `filter`, `start`, `end`, `frame`. |
+| `layerList` | read | Every image layer: `layer_id`, `name`, `frames`, `loading`, `active`, `source`, `filter`, `chain`, `start`, `end`, `frame`. |
 | `layerRemove` | destructive | Removes a layer. |
 | `layerReload` | write | Reads a layer's frames again; a FITS library layer queries the cache afresh, so files added since are picked up. A jp2 layer streams and is refused. |
-| `filterSet` | write | Sets a layer's `filter` (`none`, `mgn`, `wow`, `rhef`) and `params`, the image parameters by the names a saved session uses (`gamma`, `clippingMin`, `plane`, ...). |
+| `filterSet` | write | Sets a layer's `filter` (`none`, `mgn`, `wow`, `rhef`), a `chain` of further filters applied in series (a list of `{filter, strength}`, strength 0 to 1, at most 3 filters in all; `[]` clears it) and `params`, the image parameters by the names a saved session uses (`gamma`, `clippingMin`, `plane`, ...). |
 | `viewSet` | write | `projection`, `zoom` (a factor), `warp_lambda`, `tracking`, `show_corona`, `differential_rotation`, `multiview`. |
 | `viewGet` | read | The same, as it stands. |
 | `frameGet` | read | Writes one FITS frame's decoded values (before any colour table) as an hf-decode-dump/1 document (`DecodeDump`, the form the sunpy parity test reads) and answers its path. |

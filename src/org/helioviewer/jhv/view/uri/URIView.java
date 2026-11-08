@@ -11,6 +11,7 @@ import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.image.DecodedImage;
 import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.ImageBufferCache;
+import org.helioviewer.jhv.image.FilterChain;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.image.ImageProcessingSettings;
 import org.helioviewer.jhv.image.lut.LUT;
@@ -87,7 +88,7 @@ public final class URIView extends BaseView {
             sendDataToHandler(0, viewpoint, image, () -> key.equals(decodeKey()));
             return;
         }
-        ImageFilter filter = createFilter(key.filter());
+        ImageFilter filter = createFilter(key.filter(), key.chain());
         executor.submit(() -> decodeImage(key, filter), new Callback(key, viewpoint));
     }
 
@@ -102,14 +103,14 @@ public final class URIView extends BaseView {
     @Override
     public void prefetch(@Nullable ClipSet.Range range) {
         ClipSet.Range fixed = fixedRange;
-        DecodeKey key = new DecodeKey(dataUri, processingSettings.getFilter(), hasFITS() ? processingSettings.fitsParameters() : null,
+        DecodeKey key = new DecodeKey(dataUri, processingSettings.getFilter(), processingSettings.getFilterChain(), hasFITS() ? processingSettings.fitsParameters() : null,
                 hasFITS() ? (fixed != null ? fixed : range) : null);
         if (ImageBufferCache.get(key) != null || prefetching.size() >= PREFETCH_QUEUE_MAX || !prefetching.add(key))
             return;
         prefetchPool.execute(() -> {
             try {
                 if (ImageBufferCache.get(key) == null) {
-                    DecodedImage image = decodeImage(key, createFilter(key.filter()));
+                    DecodedImage image = decodeImage(key, createFilter(key.filter(), key.chain()));
                     if (!image.imageBuffer().isProvisional())
                         ImageBufferCache.put(key, image);
                 }
@@ -145,12 +146,12 @@ public final class URIView extends BaseView {
             range = fixed != null ? fixed : data.clipRange(clipSet);
         }
 
-        DecodeKey key = new DecodeKey(dataUri, ImageFilter.Type.None, data, range);
+        DecodeKey key = new DecodeKey(dataUri, ImageFilter.Type.None, FilterChain.EMPTY, data, range);
         DecodedImage image = ImageBufferCache.get(key);
         if (image != null)
             return image;
         try {
-            image = decodeImage(key, createFilter(ImageFilter.Type.None));
+            image = decodeImage(key, createFilter(ImageFilter.Type.None, FilterChain.EMPTY));
         } catch (Exception e) {
             Log.warn("Could not re-read " + dataUri.baseName(), e);
             return null;
@@ -165,8 +166,8 @@ public final class URIView extends BaseView {
         return dataUri.uri().toString();
     }
 
-    private ImageFilter createFilter(ImageFilter.Type type) {
-        return ImageFilter.of(type, imageRegion, metaData[0]);
+    private ImageFilter createFilter(ImageFilter.Type type, FilterChain chain) {
+        return ImageFilter.of(type, chain, imageRegion, metaData[0]);
     }
 
     @Nullable
@@ -190,12 +191,12 @@ public final class URIView extends BaseView {
         return dataUri.format() == DataUri.Format.FITS;
     }
 
-    private record DecodeKey(DataUri uri, ImageFilter.Type filter, @Nullable ImageProcessingSettings.FITSParameters fitsData,
+    private record DecodeKey(DataUri uri, ImageFilter.Type filter, FilterChain chain, @Nullable ImageProcessingSettings.FITSParameters fitsData,
                              @Nullable ClipSet.Range clipRange) {}
 
     private DecodeKey decodeKey() {
         ImageProcessingSettings.FITSParameters data = hasFITS() ? processingSettings.fitsParameters() : null;
-        return new DecodeKey(dataUri, processingSettings.getFilter(), data, clipRange);
+        return new DecodeKey(dataUri, processingSettings.getFilter(), processingSettings.getFilterChain(), data, clipRange);
     }
 
     private DecodedImage decodeImage(DecodeKey key, ImageFilter filter) throws Exception {

@@ -463,6 +463,31 @@ public final class ProcessingRecordCheck {
                 && "compare".equals(stepOf(a, "difference").getJSONObject("reference").getString("kind")));
         expect("a Running difference is referenced as running", "running".equals(stepOf(b, "difference").getJSONObject("reference").getString("kind")));
         expect("scene.compare is the session's Compare", "Difference".equals(r.getJSONObject("scene").getJSONObject("compare").getString("mode")));
+
+        // A chained filter: MGN at 60% on RHEF. Every stage, its strength, the order and the settings that move the arithmetic are in the record.
+        JSONObject chained = scene(0.45, false);
+        chained.getJSONObject("org.helioviewer.jhv.state").getJSONArray("imageLayers").getJSONObject(0).getJSONObject("data")
+                .put("filterChain", new JSONArray().put(new JSONObject().put("type", "MGN").put("strength", 0.6)));
+        JSONObject chainedSession = Provenance.session(chained, HOME, Instant.parse("2026-10-23T00:00:00Z"), u -> null);
+        JSONObject cr = ProcessingRecord.build(chainedSession, live(), null, still, "frame0001.png", "a".repeat(64), HOME,
+                ProcessingRecordCheck::identify, "00000000-0000-4000-8000-000000000002");
+        JSONObject ca = cr.getJSONArray("layers").getJSONObject(0);
+        expect("a chain writes one image_filter step per stage, in order: " + ops(ca), ops(ca).equals(List.of("select_plane", "clip", "stretch", "image_filter",
+                "image_filter", "geometric_mask", "levels", "radial_gain", "difference", "sharpen", "rhef_upsilon", "colormap", "channel_mask", "opacity_blend")));
+        List<JSONObject> filters = new ArrayList<>();
+        for (Object o : ca.getJSONArray("steps"))
+            if ("image_filter".equals(((JSONObject) o).getString("op")))
+                filters.add((JSONObject) o);
+        expect("stage 1 is RHEF with the chain's settings: " + filters.get(0).opt("chain"), "RHEF".equals(filters.get(0).getString("algorithm"))
+                && filters.get(0).getJSONObject("chain").getInt("stages") == 2 && filters.get(0).getJSONObject("chain").getInt("max_stages") == 3
+                && filters.get(0).getJSONObject("chain").getString("intermediates").equals("float32")
+                && filters.get(0).getJSONObject("chain").getString("rhef_input").startsWith("float16"));
+        expect("stage 2 is MGN at 0.6, index 1, with its formula: " + filters.get(1), "MGN".equals(filters.get(1).getString("algorithm"))
+                && filters.get(1).getJSONObject("params").getDouble("strength") == 0.6 && filters.get(1).getJSONObject("params").getInt("chain_index") == 1
+                && filters.get(1).getString("formula").contains("MGN(y_prev)"));
+        expect("the RHEF stamp stays on the RHEF stage and the layer is still flagged RHEF", filters.get(0).has("stamp") && !filters.get(1).has("stamp")
+                && cr.getString("summary").contains("RHEF then 60% MGN"));
+        expect("a single filter has no chain block", !stepOf(a, "image_filter").has("chain"));
         expect("library sources by sha256 and obs_key, with the dataset",
                 a.getJSONArray("sources").length() == 2 && "1".repeat(64).equals(a.getJSONArray("sources").getJSONObject(0).getString("sha256"))
                         && a.getJSONArray("sources").getJSONObject(0).has("heliad_obs_key")

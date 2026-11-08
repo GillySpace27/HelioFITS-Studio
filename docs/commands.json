@@ -2307,7 +2307,7 @@
         "type": "object",
         "properties": {
           "filter": {
-            "description": "The filter",
+            "description": "The filter; with chain, the first of them, at full strength",
             "type": "string",
             "enum": [
               "none",
@@ -2315,6 +2315,32 @@
               "wow",
               "rhef"
             ]
+          },
+          "chain": {
+            "maxItems": 3,
+            "description": "Filters applied after filter, in series, replacing any chain the layer has; [] clears it. Each stage mixes its output with its input: (1 - strength) * input + strength * filtered. At most 3 filters in all, filter included (the jhv.filterChain.maxStages setting, 2 to 4). Ignored when filter is none.",
+            "type": "array",
+            "items": {
+              "additionalProperties": false,
+              "type": "object",
+              "properties": {
+                "filter": {
+                  "type": "string",
+                  "enum": [
+                    "mgn",
+                    "wow",
+                    "rhef"
+                  ]
+                },
+                "strength": {
+                  "maximum": 1,
+                  "description": "Default 1",
+                  "type": "number",
+                  "minimum": 0
+                }
+              },
+              "required": ["filter"]
+            }
           },
           "layer_id": {
             "description": "From layerAdd or layerList",
@@ -2328,7 +2354,7 @@
         "required": ["layer_id"]
       },
       "name": "filterSet",
-      "description": "Set a layer's image filter and its FITS display parameters",
+      "description": "Set a layer's image filter (optionally chained with more filters, each with a strength) and its FITS display parameters",
       "annotations": {
         "destructiveHint": false,
         "readOnlyHint": false

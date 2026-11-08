@@ -18,6 +18,7 @@ import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.ImageDisplaySettings;
 import org.helioviewer.jhv.image.ImageDisplaySettings.DifferenceMode;
+import org.helioviewer.jhv.image.FilterChain;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.image.ImageProcessingSettings;
 import org.helioviewer.jhv.image.fourier.SequenceParams;
@@ -84,6 +85,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             jo.put("APIRequest", apiRequest.toJson());
             jo.put("imageParams", imageParams());
             jo.put("filter", RhefPeek.persisted(this).name()); // never a held peek (RH-17)
+            putFilterChain(jo);
         } else if (sourceUris != null && !sourceUris.isEmpty() || fitsRequest != null) {
             // Direct-URI layers (e.g. PUNCH FITS) have no server request; persist the remote
             // URIs so a restored session reloads them — from the persistent cache, no re-download.
@@ -113,11 +115,19 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             }
             jo.put("imageParams", imageParams());
             jo.put("filter", RhefPeek.persisted(this).name()); // never a held peek (RH-17)
+            putFilterChain(jo);
             if (fixedRange != null) // keep the shared FITS range so a restored PUNCH movie does not strobe
                 jo.put("fixedRange", new JSONArray().put(fixedRange[0]).put(fixedRange[1]));
             if (sequenceParams != null)
                 jo.put("sequence", sequenceParams.toJson());
         }
+    }
+
+    // Beside "filter", and only when there is a chain, so a single-filter session is byte-for-byte what it was.
+    private void putFilterChain(JSONObject jo) {
+        FilterChain chain = RhefPeek.persistedChain(this);
+        if (!chain.isEmpty())
+            jo.put("filterChain", chain.toJson());
     }
 
     // Display state and FITS clipping/scaling share one object in the session file, as upstream
@@ -154,7 +164,9 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
             applyImageParams(jo.optJSONObject("imageParams"));
             sequenceParams = SequenceParams.fromJson(jo.optJSONObject("sequence")); // applied once the full movie arrives
             try {
-                setFilter(ImageFilter.Type.valueOf(jo.optString("filter", "None")));
+                // Stage 1 in "filter", the rest in "filterChain": an older build reads the first and ignores
+                // the second. A missing or unreadable chain is a single filter.
+                setFilter(ImageFilter.Type.valueOf(jo.optString("filter", "None")), FilterChain.fromJson(jo.optJSONArray("filterChain")));
             } catch (IllegalArgumentException ignore) {
             }
 
@@ -270,6 +282,29 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
 
     public void setFilter(ImageFilter.Type type) {
         processingSettings.setFilter(type);
+    }
+
+    public FilterChain getFilterChain() {
+        return processingSettings.getFilterChain();
+    }
+
+    /** The first filter and the chain together; None as the first drops the chain. */
+    public void setFilter(ImageFilter.Type type, FilterChain chain) {
+        processingSettings.setFilter(type, chain);
+    }
+
+    public void setFilterChain(FilterChain chain) {
+        processingSettings.setFilterChain(chain);
+    }
+
+    /** How much of the picture is RHEF rank, 0 to 1 (FilterChain.rankFraction). */
+    public double rankFraction() {
+        return processingSettings.rankFraction();
+    }
+
+    /** Whether any stage is RHEF, at any strength above zero. */
+    public boolean usesRhef() {
+        return processingSettings.usesRhef();
     }
 
     void decode(Position viewpoint, double pixFactor, float factor) {
@@ -681,7 +716,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
                 || org.helioviewer.jhv.display.Compare.differenceFor(this) != null // its colour table is not what is drawn
                 || org.helioviewer.jhv.display.Compare.insideDifference(this)) // B: its picture is inside A's
             return;
-        colorbar.render(vp, displaySettings, glImage, imageData, getFilter() == ImageFilter.Type.RHEF, colorbarSlot());
+        colorbar.render(vp, displaySettings, glImage, imageData, rankFraction(), colorbarSlot());
     }
 
     // Legends stack upward from the bottom, so each enabled layer needs a distinct slot. Counting
@@ -736,7 +771,7 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         glImage.setPizza(org.helioviewer.jhv.display.Pizza.uniforms(this, vp, mv.mode()));
         org.helioviewer.jhv.display.Compare.DifferenceDraw cmp = org.helioviewer.jhv.display.Compare.differenceFor(this);
         glImage.setCompareDifference(cmp == null ? null : cmp.coefficients());
-        glImage.applyFilters(imageData.imageBuffer(), meta0, getFilter() == ImageFilter.Type.RHEF);
+        glImage.applyFilters(imageData.imageBuffer(), meta0, rankFraction());
 
         Position metaViewpoint0 = meta0.getViewpoint();
         View.ImageData imageDataDiff = cmp == null ? comparisonImageData() : cmp.subtrahend();

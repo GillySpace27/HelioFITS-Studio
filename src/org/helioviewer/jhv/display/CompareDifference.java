@@ -65,7 +65,7 @@ public final class CompareDifference {
             String who = (s == a ? "A (" : "B (") + s.name() + ")";
             if (s.scale() == null)
                 return refuse(who + " has no physical units: only FITS layers carry them");
-            if ("RHEF".equals(s.filter()))
+            if (s.filter().contains("RHEF"))
                 return refuse(who + " has RHEF on: RHEF output is a visualization, not a calibrated radiance");
             if (!"None".equals(s.filter()))
                 return refuse(who + " has the " + s.filter() + " filter on, which changes the values");

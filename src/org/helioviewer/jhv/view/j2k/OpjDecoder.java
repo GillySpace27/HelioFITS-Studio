@@ -6,6 +6,7 @@ import java.util.concurrent.CancellationException;
 
 import org.helioviewer.jhv.image.DecodedImage;
 import org.helioviewer.jhv.image.ImageBuffer;
+import org.helioviewer.jhv.image.FilterChain;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.metadata.MetaData;
 import org.helioviewer.jhv.metadata.Region;
@@ -25,7 +26,7 @@ import org.helioviewer.jhv.view.j2k.opj.OpenJpeg;
  * scales it the rest of the way. The alternative is resampling every frame in Java to save a
  * texture upload; measure before adding it.
  */
-record OpjDecoder(OpjSource src, J2KParams.Decode params, int numComps, ImageFilter.Type filterType,
+record OpjDecoder(OpjSource src, J2KParams.Decode params, int numComps, ImageFilter.Type filterType, FilterChain chain,
                   MetaData metaData, double factorX, double factorY) implements Callable<DecodedImage> {
 
     @Override
@@ -44,7 +45,7 @@ record OpjDecoder(OpjSource src, J2KParams.Decode params, int numComps, ImageFil
         try {
             return OpenJpeg.decode(codestream, false, params.level, threads, area[0], area[1], area[2], area[3], plane -> {
                 Region imageRegion = metaData.roiToRegion(sub.x(), sub.y(), plane.width(), plane.height(), factorX, factorY);
-                ImageFilter filter = ImageFilter.of(filterType, imageRegion, metaData);
+                ImageFilter filter = ImageFilter.of(filterType, chain, imageRegion, metaData);
                 ImageBuffer.WriteBuffer outBuffer = ImageBuffer.createWriteBuffer(plane.width(), plane.height(), ImageBuffer.Format.Gray8, filter);
                 plane.gray8(outBuffer.byteBuffer());
                 return DecodedImage.measured(outBuffer.finish(), imageRegion);

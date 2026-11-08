@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 import org.helioviewer.jhv.display.DisplayController;
+import org.helioviewer.jhv.image.FilterChain;
 import org.helioviewer.jhv.image.ImageFilter;
 
 /**
@@ -14,23 +15,25 @@ import org.helioviewer.jhv.image.ImageFilter;
  */
 public final class RhefPeek {
 
-    private static final Map<ImageLayer, ImageFilter.Type> held = new WeakHashMap<>();
+    private record Held(ImageFilter.Type filter, FilterChain chain) {}
 
-    /** Show {@code layer} unfiltered; nothing unless it is on RHEF and not already held. */
+    private static final Map<ImageLayer, Held> held = new WeakHashMap<>();
+
+    /** Show {@code layer} unfiltered; nothing unless RHEF is in its chain and it is not already held. */
     public static void begin(ImageLayer layer) {
-        if (held.containsKey(layer) || layer.getFilter() != ImageFilter.Type.RHEF)
+        if (held.containsKey(layer) || !layer.usesRhef())
             return;
-        held.put(layer, layer.getFilter());
+        held.put(layer, new Held(layer.getFilter(), layer.getFilterChain()));
         layer.setFilter(ImageFilter.Type.None);
         DisplayController.render(1);
     }
 
     /** Put back what {@link #begin} took off; nothing if it was not held. */
     public static void end(ImageLayer layer) {
-        ImageFilter.Type was = held.remove(layer);
+        Held was = held.remove(layer);
         if (was == null)
             return;
-        layer.setFilter(was);
+        layer.setFilter(was.filter(), was.chain());
         DisplayController.render(1);
     }
 
@@ -40,8 +43,14 @@ public final class RhefPeek {
 
     /** The filter to save for {@code layer}: the one it had before a peek, else its own. */
     public static ImageFilter.Type persisted(ImageLayer layer) {
-        ImageFilter.Type was = held.get(layer);
-        return was == null ? layer.getFilter() : was;
+        Held was = held.get(layer);
+        return was == null ? layer.getFilter() : was.filter();
+    }
+
+    /** The chain to save for {@code layer}: the one it had before a peek, else its own. */
+    public static FilterChain persistedChain(ImageLayer layer) {
+        Held was = held.get(layer);
+        return was == null ? layer.getFilterChain() : was.chain();
     }
 
     private RhefPeek() {}

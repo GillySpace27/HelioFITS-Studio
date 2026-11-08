@@ -67,7 +67,7 @@ public final class AbsoluteLevels {
     @Nullable
     static ImageBuffer.PhysicalScale scaleOf(ImageLayer layer) {
         ImageDisplaySettings s = layer.getDisplaySettings();
-        if (layer.getFilter() == ImageFilter.Type.RHEF || s.getDifferenceMode() != ImageDisplaySettings.DifferenceMode.None)
+        if (layer.usesRhef() || s.getDifferenceMode() != ImageDisplaySettings.DifferenceMode.None)
             return null;
         View.ImageData data = layer.getImageData();
         if (data == null || data.metaData().getResponseFactor() == 0 || s.getBrightScale() == 0)

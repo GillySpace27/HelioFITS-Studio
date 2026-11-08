@@ -33,6 +33,8 @@ import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.image.ImageDisplaySettings;
+import org.helioviewer.jhv.image.FilterChain;
+import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.image.RHEFStamp;
 import org.helioviewer.jhv.io.SourceIdentity;
 import org.helioviewer.jhv.opengl.GLRenderer;
@@ -196,8 +198,11 @@ public final class Provenance {
                 if (data.optJSONObject("fitsRequest") != null)
                     source.put("query", rewrite(data.getJSONObject("fitsRequest"), x -> stripHome(x, home)));
                 sources.put(source);
-                rhef |= "RHEF".equals(data.optString("filter"));
-                if ("RHEF".equals(data.optString("filter")))
+                boolean layerRhef = "RHEF".equals(data.optString("filter"))
+                        || (!"None".equals(data.optString("filter", "None"))
+                        && FilterChain.fromJson(data.optJSONArray("filterChain")).usesRhef(ImageFilter.Type.None));
+                rhef |= layerRhef;
+                if (layerRhef)
                     stamps.add(rhefStamp(data.optJSONObject("imageParams")));
             }
         session.put("sources", sources);

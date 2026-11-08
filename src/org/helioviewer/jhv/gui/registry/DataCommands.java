@@ -20,6 +20,7 @@ import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.MapMode;
+import org.helioviewer.jhv.image.FilterChain;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.image.ImageProcessingSettings;
 import org.helioviewer.jhv.io.APIRequest;
@@ -102,16 +103,24 @@ final class DataCommands {
                         + "\"wait\":{\"type\":\"string\",\"enum\":[\"all\",\"first\",\"none\"],\"description\":\"As layerAdd\"}}", "layer_id"),
                 out("{\"layer_id\":{\"type\":\"integer\"},\"frames\":{\"type\":\"integer\"},\"name\":{\"type\":\"string\"},\"loading\":{\"type\":\"boolean\"}}"),
                 DataCommands::layerReload, () -> true));
-        CommandRegistry.add(new CommandSpec("filterSet", "Set a layer's image filter and its FITS display parameters", Effect.WRITE,
+        CommandRegistry.add(new CommandSpec("filterSet", "Set a layer's image filter (optionally chained with more filters, each with a strength) and its FITS display parameters", Effect.WRITE,
                 object("{\"layer_id\":{\"type\":\"integer\",\"description\":\"From layerAdd or layerList\"},"
-                        + "\"filter\":{\"type\":\"string\",\"enum\":[\"none\",\"mgn\",\"wow\",\"rhef\"],\"description\":\"The filter\"},"
+                        + "\"filter\":{\"type\":\"string\",\"enum\":[\"none\",\"mgn\",\"wow\",\"rhef\"],\"description\":\"The filter; with chain, the first of them, at full strength\"},"
+                        + "\"chain\":{\"type\":\"array\",\"maxItems\":3,\"description\":\"Filters applied after filter, in series, replacing any chain the layer has; [] clears it. "
+                        + "Each stage mixes its output with its input: (1 - strength) * input + strength * filtered. At most 3 filters in all, filter included "
+                        + "(the jhv.filterChain.maxStages setting, 2 to 4). Ignored when filter is none.\","
+                        + "\"items\":{\"type\":\"object\",\"properties\":{\"filter\":{\"type\":\"string\",\"enum\":[\"mgn\",\"wow\",\"rhef\"]},"
+                        + "\"strength\":{\"type\":\"number\",\"minimum\":0,\"maximum\":1,\"description\":\"Default 1\"}},\"required\":[\"filter\"],\"additionalProperties\":false}},"
                         + "\"params\":{\"type\":\"object\",\"description\":\"The layer's image parameters by the names a saved session uses: "
                         + "clippingMode, clippingMin, clippingMax, scalingMode, gamma, beta, alpha, plane, subtractBackground, and the display settings\"}}",
                         "layer_id"),
                 CommandRegistry.object("{}"), args -> {
+                    // Read before the layer is looked up, so a bad chain is refused on its own account.
+                    FilterChain chain = args.has("chain") ? chain(args.getJSONArray("chain")) : null;
+                    ImageFilter.Type first = args.has("filter") ? filter(args.getString("filter")) : null;
                     ImageLayer layer = layer(args);
-                    if (args.has("filter"))
-                        layer.setFilter(filter(args.getString("filter")));
+                    if (first != null || chain != null)
+                        layer.setFilter(first != null ? first : layer.getFilter(), chain != null ? chain : layer.getFilterChain());
                     if (args.has("params"))
                         layer.applyImageParams(args.getJSONObject("params"));
                     Layers.fireLayerUpdated(layer);
@@ -301,7 +310,8 @@ final class DataCommands {
                 .put("loading", layer.isLoadingView() || !layer.isViewLoadFinished())
                 .put("active", layer == Layers.getActiveImageLayer())
                 .put("source", view.getAPIRequest() != null ? "jp2" : view.hasFITS() ? "fits" : "file")
-                .put("filter", lower(layer.getFilter().name()));
+                .put("filter", lower(layer.getFilter().name()))
+                .put("chain", chainJson(layer.getFilterChain()));
         if (pixels) {
             o.put("start", TimeUtils.format(view.getFirstTime().milli));
             o.put("end", TimeUtils.format(view.getLastTime().milli));
@@ -330,6 +340,9 @@ final class DataCommands {
         File file = localFile(key);
         if (file == null || !view.hasFITS())
             throw new IllegalArgumentException("frameGet reads FITS files on this computer; this layer's frame is " + (key == null ? "not a file" : key));
+        if (!layer.getFilterChain().isEmpty())
+            throw new IllegalStateException("frameGet dumps the frame through one filter; this layer chains " + (layer.getFilterChain().size() + 1)
+                    + ". Set filter with an empty chain first");
         ImageProcessingSettings.FITSParameters p = layer.getProcessingSettings().fitsParameters();
         String time = TimeUtils.format(view.getFrameTime(frame).milli);
         Path outDir = Path.of(Directories.CACHE.getPath(), "Dumps");
@@ -471,6 +484,32 @@ final class DataCommands {
             if (lower(t.name()).equals(name))
                 return t;
         throw new IllegalArgumentException("no filter '" + name + "'");
+    }
+
+    // [{filter, strength}] to a chain; a stage the schema cannot refuse (the cap, which a setting moves) is refused here
+    private static FilterChain chain(JSONArray stages) {
+        if (stages.length() > FilterChain.maxExtraStages())
+            throw new IllegalArgumentException("a chain holds at most " + FilterChain.maxStages() + " filters in all, the first one included; got "
+                    + (stages.length() + 1));
+        FilterChain out = FilterChain.EMPTY;
+        for (int i = 0; i < stages.length(); i++) {
+            JSONObject s = stages.getJSONObject(i);
+            ImageFilter.Type type = filter(s.getString("filter"));
+            if (type == ImageFilter.Type.None)
+                throw new IllegalArgumentException("a chain stage needs a filter; leave it out of chain to drop it");
+            double w = s.has("strength") ? s.getDouble("strength") : 1;
+            if (!(w >= 0 && w <= 1))
+                throw new IllegalArgumentException("strength " + w + " is outside 0 to 1");
+            out = out.add(new FilterChain.Stage(type, (float) w));
+        }
+        return out;
+    }
+
+    static JSONArray chainJson(FilterChain chain) {
+        JSONArray a = new JSONArray();
+        for (FilterChain.Stage s : chain.stages())
+            a.put(new JSONObject().put("filter", lower(s.type().name())).put("strength", FilterChain.exact(s.strength())));
+        return a;
     }
 
     private static MapMode projection(String name) {

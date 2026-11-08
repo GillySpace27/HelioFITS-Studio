@@ -90,8 +90,22 @@ public class GLSLImage {
         compareDifference = coefficients;
     }
 
-    public void applyFilters(ImageBuffer imageBuffer, MetaData metaData, boolean rhefActive) {
-        applyFilters(imageBuffer, metaData, rhefActive, false);
+    public void applyFilters(ImageBuffer imageBuffer, MetaData metaData, double rank) {
+        applyFilters(imageBuffer, metaData, rank, false);
+    }
+
+    /**
+     * The instrument response factor as the display applies it, given the rank fraction m of the picture
+     * (FilterChain.rankFraction): (1 - m) * factor + m. A rank is already normalized, so full RHEF (m = 1)
+     * turns the factor off; no RHEF (m = 0) leaves it alone; a blend moves between them.
+     */
+    public static double responseScale(double rank, double responseFactor) {
+        return (1 - rank) * responseFactor + rank;
+    }
+
+    /** Υ blended toward the straight line in proportion to the rank fraction: 1 + m * (Υ - 1). */
+    public static double upsilonScale(double rank, double upsilon) {
+        return 1 + rank * (upsilon - 1);
     }
 
     /**
@@ -102,7 +116,7 @@ public class GLSLImage {
      *               name). Everything else, Levels, response, HDR gain, mode and knee, is exactly
      *               the picture's, which is the point. The caller binds its own image and mask.
      */
-    public void applyFilters(ImageBuffer imageBuffer, MetaData metaData, boolean rhefActive, boolean legend) {
+    public void applyFilters(ImageBuffer imageBuffer, MetaData metaData, double rank, boolean legend) {
         float userSectorCenter = 0;
         float userSectorHalfWidth = 0;
         if (settings.getSectorWidth() != 0) {
@@ -133,9 +147,9 @@ public class GLSLImage {
                 // clamps it to white). The user's Levels (brightOffset/brightScale) still
                 // apply as a black/white-point control on the equalized output.
                 data ? 0 : (float) settings.getBrightOffset(),
-                data ? 1 : (float) (settings.getBrightScale() * (rhefActive ? 1 : metaData.getResponseFactor())),
-                (float) (rhefActive && !data ? settings.getUpsilonLow() : 1),
-                (float) (rhefActive && !data ? settings.getUpsilonHigh() : 1),
+                data ? 1 : (float) (settings.getBrightScale() * responseScale(rank, metaData.getResponseFactor())),
+                (float) (data ? 1 : upsilonScale(rank, settings.getUpsilonLow())),
+                (float) (data ? 1 : upsilonScale(rank, settings.getUpsilonHigh())),
                 userSectorCenter, userSectorHalfWidth, metadataSectorCenter, (float) metadataHalfWidth,
                 metaData.getCutOffX(), metaData.getCutOffY(), metaData.getCutOffValue(), metaData.getCalculateDepth() ? 1 : 0,
                 // Both masks are stored in solar radii, with an infinite outer mask meaning "no

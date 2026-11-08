@@ -469,8 +469,8 @@ These are run by scripts and Search Controls rather than from a menu; the argume
 * - Read a layer's frames again; a FITS library layer queries the cache afresh, so files added since are picked up
   - Arguments: `wait`, `layer_id`
   - `layerReload`
-* - Set a layer's image filter and its FITS display parameters
-  - Arguments: `filter`, `layer_id`, `params`
+* - Set a layer's image filter (optionally chained with more filters, each with a strength) and its FITS display parameters
+  - Arguments: `filter`, `chain`, `layer_id`, `params`
   - `filterSet`
 * - Set the view: projection, zoom, Box-Cox lambda, tracking, corona
   - Arguments: `multiview`, `show_corona`, `zoom`, `differential_rotation`, `projection`, `warp_lambda`, `tracking`

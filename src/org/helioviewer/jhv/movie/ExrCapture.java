@@ -11,6 +11,7 @@ import javax.annotation.Nullable;
 import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.MapView;
+import org.helioviewer.jhv.image.FilterChain;
 import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.ImageDisplaySettings;
 import org.helioviewer.jhv.image.ImageFilter;
@@ -123,13 +124,13 @@ final class ExrCapture {
         ImageDisplaySettings g = layer.getDisplaySettings();
         View.ImageData imageData = layer.getImageData();
         MetaData meta = imageData.metaData();
-        boolean rhef = layer.getView().getFilter() == ImageFilter.Type.RHEF;
+        boolean rhef = layer.usesRhef();
         boolean diff = g.getDifferenceMode() != ImageDisplaySettings.DifferenceMode.None;
 
         JSONObject o = new JSONObject()
                 .put("name", layer.getName())
                 .put("time", meta.getViewpoint().time.toString())
-                .put("filter", layer.getView().getFilter().toString())
+                .put("filter", FilterChain.describe(layer.getView().getFilter(), layer.getView().getFilterChain()))
                 .put("differenceMode", g.getDifferenceMode().toString())
                 .put("levels", new JSONObject()
                         .put("offset", g.getBrightOffset())

@@ -132,6 +132,12 @@ public final class RegistryCheck {
         expect("dispatch: layerRemove on an unknown id is invalid-arguments", "invalid-arguments".equals(Dispatch.invoke("layerRemove", o("{\"layer_id\":99}")).error()));
         expect("dispatch: frameGet on an unknown id is invalid-arguments", "invalid-arguments".equals(Dispatch.invoke("frameGet", o("{\"layer_id\":99}")).error()));
         expect("dispatch: filterSet with an unknown filter is invalid-arguments", "invalid-arguments".equals(Dispatch.invoke("filterSet", o("{\"layer_id\":1,\"filter\":\"blur\"}")).error()));
+        expect("dispatch: filterSet with a chain over the cap is invalid-arguments", "invalid-arguments".equals(Dispatch.invoke("filterSet",
+                o("{\"layer_id\":1,\"filter\":\"rhef\",\"chain\":[{\"filter\":\"mgn\"},{\"filter\":\"wow\"},{\"filter\":\"mgn\"}]}")).error()));
+        expect("dispatch: filterSet with a chain stage of none is invalid-arguments", "invalid-arguments".equals(Dispatch.invoke("filterSet",
+                o("{\"layer_id\":1,\"filter\":\"rhef\",\"chain\":[{\"filter\":\"none\"}]}")).error()));
+        expect("dispatch: filterSet with a chain strength above 1 is invalid-arguments", "invalid-arguments".equals(Dispatch.invoke("filterSet",
+                o("{\"layer_id\":1,\"filter\":\"rhef\",\"chain\":[{\"filter\":\"mgn\",\"strength\":1.5}]}")).error()));
         expect("dispatch: layerAdd without its arguments is invalid-arguments", "invalid-arguments".equals(Dispatch.invoke("layerAdd", o("{\"source\":\"jp2\"}")).error()));
         expect("dispatch: layerAdd from an unknown source is invalid-arguments", "invalid-arguments".equals(Dispatch.invoke("layerAdd",
                 o("{\"source\":\"tape\",\"dataset\":\"x\",\"start\":\"2024-01-01T00:00\",\"end\":\"2024-01-01T01:00\"}")).error()));

@@ -75,6 +75,7 @@ public final class ImageProcessingSettings {
     }
 
     private ImageFilter.Type filter = ImageFilter.Type.None;
+    private volatile FilterChain chain = FilterChain.EMPTY;
 
     private double clippingMin = -500;
     private double clippingMax = 500;
@@ -116,10 +117,35 @@ public final class ImageProcessingSettings {
     }
 
     public void setFilter(ImageFilter.Type type) {
-        if (filter == type)
+        setFilter(type, type == ImageFilter.Type.None ? FilterChain.EMPTY : chain);
+    }
+
+    /** The filters after the first, each with a strength. Empty unless the layer chains filters. */
+    public FilterChain getFilterChain() {
+        return chain;
+    }
+
+    /** Both at once, so one change reaches the decoders. None as the first filter drops the chain. */
+    public void setFilter(ImageFilter.Type type, FilterChain _chain) {
+        FilterChain next = type == ImageFilter.Type.None ? FilterChain.EMPTY : _chain;
+        if (filter == type && chain.equals(next))
             return;
         filter = type;
+        chain = next;
         onChange.run();
+    }
+
+    public void setFilterChain(FilterChain _chain) {
+        setFilter(filter, _chain);
+    }
+
+    /** How much of what is shown is RHEF rank, 0 to 1; see FilterChain.rankFraction. */
+    public double rankFraction() {
+        return chain.rankFraction(filter);
+    }
+
+    public boolean usesRhef() {
+        return rankFraction() > 0;
     }
 
     public FITSParameters fitsParameters() {
