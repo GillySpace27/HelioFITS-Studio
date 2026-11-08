@@ -400,6 +400,7 @@ public final class GLRenderer {
         RenderGuard.run("recording-area outline", () -> renderPrintableArea(vp));
         RenderGuard.run("empty-canvas hint", () -> renderEmptyHint(vp));
         RenderGuard.run("identify glow", () -> org.helioviewer.jhv.identify.IdentifyGlow.render(vp));
+        RenderGuard.run("canvas key readout", () -> org.helioviewer.jhv.display.interaction.CanvasKeys.render(vp));
         RenderGuard.run("identify label", () -> org.helioviewer.jhv.identify.IdentifyHover.renderLabel(vp));
         RenderGuard.run("identify pins", () -> org.helioviewer.jhv.identify.IdentifyPins.render(vp));
     }

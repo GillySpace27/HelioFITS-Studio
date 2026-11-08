@@ -18,15 +18,18 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSpinner;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 import javax.swing.ListSelectionModel;
+import javax.swing.SpinnerNumberModel;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.AbstractTableModel;
 
 import org.helioviewer.jhv.app.Platform;
+import org.helioviewer.jhv.display.interaction.CanvasKeys;
 import org.helioviewer.jhv.gui.ActionCatalog;
 import org.helioviewer.jhv.gui.DesktopIntegration;
 import org.helioviewer.jhv.gui.registry.ControlRegistry;
@@ -113,6 +116,8 @@ public final class KeybindingsPanel extends JPanel {
             }
         });
 
+        JButton canvasBtn = button("Canvas keys...", "The bare keys the picture answers to while it has focus: W A S D Q E turn the scene, Up and Down set the playback rate", this::canvasKeys);
+
         JPanel top = new JPanel(new BorderLayout(6, 0));
         top.add(new JLabel("Search:"), BorderLayout.LINE_START);
         top.add(filter, BorderLayout.CENTER);
@@ -121,6 +126,7 @@ public final class KeybindingsPanel extends JPanel {
         buttons.add(removeBtn);
         buttons.add(resetBtn);
         buttons.add(resetAllBtn);
+        buttons.add(canvasBtn);
         JPanel bottom = new JPanel(new GridLayout(2, 1, 0, 4));
         bottom.add(buttons);
         bottom.add(status);
@@ -129,6 +135,59 @@ public final class KeybindingsPanel extends JPanel {
         add(bottom, BorderLayout.PAGE_END);
         setPreferredSize(new Dimension(640, 420));
         refilter();
+    }
+
+    /** The canvas keys: not accelerators (they are bare keys), so they have their own small table. */
+    private void canvasKeys() {
+        List<JComboBox<String>> combos = new ArrayList<>();
+        JPanel grid = new JPanel(new GridLayout(0, 2, 8, 4));
+        for (CanvasKeys.Cmd c : CanvasKeys.ALL) {
+            JLabel label = new JLabel(c.title());
+            label.setToolTipText(c.what());
+            JComboBox<String> box = new JComboBox<>(prepend("none", KEYS));
+            box.setSelectedItem(CanvasKeys.text(CanvasKeys.key(c.id())));
+            box.setToolTipText(c.what());
+            grid.add(label);
+            grid.add(box);
+            combos.add(box);
+        }
+        JCheckBox invert = new JCheckBox("Invert pitch and yaw", CanvasKeys.invert());
+        invert.setToolTipText("By default a key moves the near side of the scene the way a drag that way would: D to the right, W up");
+        JSpinner rate = new JSpinner(new SpinnerNumberModel(CanvasKeys.degreesPerSecond(), 1, 360, 5));
+        rate.setToolTipText("How fast a held key turns the scene; Option held makes it five times slower");
+        JPanel extra = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
+        extra.add(invert);
+        extra.add(new JLabel("Degrees per second"));
+        extra.add(rate);
+        JPanel p = new JPanel(new BorderLayout(0, 8));
+        p.add(grid, BorderLayout.CENTER);
+        p.add(extra, BorderLayout.PAGE_END);
+        if (JOptionPane.showConfirmDialog(this, p, "Canvas keys", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION)
+            return;
+        // Clear every binding first so a swap between two of them is not refused as a clash
+        for (CanvasKeys.Cmd c : CanvasKeys.ALL)
+            CanvasKeys.set(c.id(), -1);
+        StringBuilder problems = new StringBuilder();
+        for (int i = 0; i < CanvasKeys.ALL.size(); i++) {
+            CanvasKeys.Cmd c = CanvasKeys.ALL.get(i);
+            String name = (String) combos.get(i).getSelectedItem();
+            int code = "none".equals(name) ? -1 : KeyBindings.keyCode(name);
+            String problem = CanvasKeys.set(c.id(), code);
+            if (problem != null) {
+                CanvasKeys.set(c.id(), -1);
+                problems.append(c.title()).append(": ").append(problem).append(' ');
+            }
+        }
+        org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.INVERT, Boolean.toString(invert.isSelected()));
+        org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.RATE, String.valueOf(((Number) rate.getValue()).doubleValue()));
+        status.setText(problems.length() == 0 ? "Canvas keys saved." : problems.toString().strip());
+    }
+
+    private static String[] prepend(String first, String[] rest) {
+        String[] out = new String[rest.length + 1];
+        out[0] = first;
+        System.arraycopy(rest, 0, out, 1, rest.length);
+        return out;
     }
 
     private static JButton button(String text, String tip, Runnable run) {

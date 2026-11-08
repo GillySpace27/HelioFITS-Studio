@@ -28,6 +28,7 @@ import javax.swing.JToggleButton;
 import javax.swing.JToolBar;
 import javax.swing.SpinnerNumberModel;
 
+import org.helioviewer.jhv.display.interaction.CanvasKeys;
 import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.app.state.ViewState;
@@ -443,6 +444,13 @@ public class MoviePanel extends JPanel implements ImageDialog.Handler, Player.St
         encodingPane = encodingPanel;
         addSpan(optionsPanel, 5, encodingPane); // its own row: sharing the Preset row's cell drew one over the other
         addSpan(optionsPanel, 6, row(bundleDataCheckBox, bundleSizeLabel));
+
+        javax.swing.JCheckBox liveChanges = new javax.swing.JCheckBox("Record live changes", CanvasKeys.liveWhileRecording());
+        liveChanges.setFont(UIGlobals.uiFontSmall);
+        liveChanges.setToolTipText("<html>Keep the canvas keys (W A S D Q E turn the scene) working while recording."
+                + "<br>Off: they are ignored during a recording, so it stays reproducible from its record.<br>On: the turn is in the pixels, but a replay from the record cannot repeat it yet.</html>");
+        liveChanges.addItemListener(e -> Settings.setProperty(CanvasKeys.LIVE_WHILE_RECORDING, Boolean.toString(liveChanges.isSelected())));
+        addSpan(optionsPanel, 7, row(liveChanges));
 
         syncPixelCombos();
         syncPresetList(null);

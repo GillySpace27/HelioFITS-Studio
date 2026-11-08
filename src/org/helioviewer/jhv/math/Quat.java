@@ -31,6 +31,11 @@ public class Quat {
         return new Quat(Math.cos(a), 0, 0, Math.sin(a));
     }
 
+    /** The rotation by {@code a} radians about axis {@code v} (any length but zero). */
+    public static Quat axisAngle(double a, Vec3 v) {
+        return createRotation(a, v);
+    }
+
     private static Quat createRotation(double a, Vec3 v) {
         if (a == 0.)
             return ZERO;
