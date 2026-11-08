@@ -273,7 +273,7 @@ final class ImageLayerLoader {
                 if (movie == null) { // no seed: build them all and wrap at the end, as before
                     List<View> views = rest.parallelStream().map(uri -> {
                         try {
-                            View v = createView(null, uri, onBytes);
+                            View v = org.helioviewer.jhv.thread.FetchGate.get(() -> createView(null, uri, onBytes));
                             downloaded.incrementAndGet();
                             return v;
                         } catch (Exception e) {
@@ -347,7 +347,13 @@ final class ImageLayerLoader {
     private static void fetchFrames(List<URI> uris, Consumer<URI> fetch) throws Exception {
         java.util.concurrent.ForkJoinPool pool = new java.util.concurrent.ForkJoinPool(FRAME_FETCHERS);
         try {
-            pool.submit(() -> uris.parallelStream().forEach(fetch)).get();
+            pool.submit(() -> uris.parallelStream().forEach(uri -> {
+                try {
+                    org.helioviewer.jhv.thread.FetchGate.run(() -> fetch.accept(uri));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt(); // a cancelled load stops waiting for its turn
+                }
+            })).get();
         } catch (InterruptedException e) {
             pool.shutdownNow();
             Thread.currentThread().interrupt();
@@ -502,7 +508,7 @@ final class ImageLayerLoader {
         ChunkLoading.Mode mode = ChunkLoading.current();
         java.util.List<java.util.concurrent.Future<URI>> queries = new java.util.ArrayList<>();
         if (mode == ChunkLoading.Mode.ALL) { // every query in flight at once
-            java.util.concurrent.ExecutorService pool = org.helioviewer.jhv.thread.AppThread.createIdleExecutor("Chunk-Query", parts.size());
+            java.util.concurrent.ExecutorService pool = org.helioviewer.jhv.thread.AppThread.createIdleExecutor("Chunk-Query", Math.min(parts.size(), org.helioviewer.jhv.thread.FetchGate.width()));
             for (APIRequest part : parts)
                 queries.add(pool.submit(() -> requestAPI(part.toJpipRequest())));
             pool.shutdown(); // the queries already submitted still run
@@ -585,10 +591,21 @@ final class ImageLayerLoader {
             landed.add(v);
             if (scheduled.compareAndSet(false, true))
                 EventQueue.invokeLater(() -> {
-                    javax.swing.Timer timer = new javax.swing.Timer(BATCH_MS, e -> drain());
+                    javax.swing.Timer timer = new javax.swing.Timer(batchDelay(), e -> drain());
                     timer.setRepeats(false);
                     timer.start();
                 });
+        }
+
+        /**
+         * Each hand-over copies and re-indexes the whole movie, so its cost grows with the movie.
+         * A fixed 150 ms made the event thread spend more and more of its time on it until a very
+         * long request never caught up. Waiting a twentieth of a millisecond per frame keeps that
+         * share bounded: 1 s at 20,000 frames, 10 s at 200,000. ponytail: the 20 is a guess, not
+         * a measurement; the cost per frame still wants measuring.
+         */
+        private int batchDelay() {
+            return Math.max(BATCH_MS, (movie.getMaximumFrameNumber() + 1) / 20);
         }
 
         /** Hand over what is left, queued on the EDT ahead of anything posted after this call. */
