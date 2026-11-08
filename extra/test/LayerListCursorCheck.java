@@ -1,9 +1,10 @@
 package org.helioviewer.jhv.layers.selector;
 
+import org.helioviewer.jhv.layers.selector.LayerListCursor.Kind;
+
 /**
- * The Image Layers list shows the open drag hand over the body of an image row, the closed hand while
- * the mouse is pressed there, and the ordinary arrow
- * over the show checkbox, the drive radio and the remove x, and over overlay rows and empty space.
+ * Layer lists: the open hand is on the grip only (closed while pressed), the pointing hand is on the
+ * click controls, and everything else is the arrow.
  *
  * <p>Run: java -Djava.awt.headless=true -cp "bin:extra/test-classes:resources:lib/*" org.helioviewer.jhv.layers.selector.LayerListCursorCheck
  */
@@ -18,25 +19,24 @@ public final class LayerListCursorCheck {
     }
 
     public static void main(String[] args) {
-        expect("name column of an image row is a drag hand", LayerListCursor.handOver(LayersPanel.NAME_COL, true));
-        expect("time column of an image row is a drag hand", LayerListCursor.handOver(LayersPanel.TIME_COL, true));
-        expect("show checkbox is an arrow", !LayerListCursor.handOver(LayersPanel.ENABLED_COL, true));
-        expect("drive radio is an arrow", !LayerListCursor.handOver(LayersPanel.MASTER_COL, true));
-        expect("remove x is an arrow", !LayerListCursor.handOver(LayersPanel.REMOVE_COL, true));
-        expect("name column of an overlay row is an arrow", !LayerListCursor.handOver(LayersPanel.NAME_COL, false));
-        expect("outside every column is an arrow", !LayerListCursor.handOver(-1, true));
-        expect("pressing the body of an image row closes the hand",
-                LayerListCursor.kindAt(LayersPanel.NAME_COL, true, true) == LayerListCursor.Kind.CLOSED_HAND);
-        expect("hovering the body of an image row is an open hand",
-                LayerListCursor.kindAt(LayersPanel.TIME_COL, true, false) == LayerListCursor.Kind.OPEN_HAND);
-        expect("pressing the show checkbox stays an arrow",
-                LayerListCursor.kindAt(LayersPanel.ENABLED_COL, true, true) == LayerListCursor.Kind.ARROW);
-        expect("pressing the drive radio stays an arrow",
-                LayerListCursor.kindAt(LayersPanel.MASTER_COL, true, true) == LayerListCursor.Kind.ARROW);
-        expect("pressing the remove x stays an arrow",
-                LayerListCursor.kindAt(LayersPanel.REMOVE_COL, true, true) == LayerListCursor.Kind.ARROW);
-        expect("pressing an overlay row stays an arrow",
-                LayerListCursor.kindAt(LayersPanel.NAME_COL, false, true) == LayerListCursor.Kind.ARROW);
+        expect("grip is an open hand", LayerListCursor.kindAt(LayersPanel.HANDLE_COL, true, false) == Kind.OPEN_HAND);
+        expect("pressed grip is a closed hand", LayerListCursor.kindAt(LayersPanel.HANDLE_COL, true, true) == Kind.CLOSED_HAND);
+        expect("name is an arrow", LayerListCursor.kindAt(LayersPanel.NAME_COL, true, false) == Kind.ARROW);
+        expect("time is an arrow", LayerListCursor.kindAt(LayersPanel.TIME_COL, true, true) == Kind.ARROW);
+        expect("show checkbox is a pointer", LayerListCursor.kindAt(LayersPanel.ENABLED_COL, true, false) == Kind.POINTER);
+        expect("drive radio is a pointer", LayerListCursor.kindAt(LayersPanel.MASTER_COL, true, true) == Kind.POINTER);
+        expect("remove x is a pointer", LayerListCursor.kindAt(LayersPanel.REMOVE_COL, true, false) == Kind.POINTER);
+        expect("below the last row is an arrow", LayerListCursor.kindAt(LayersPanel.HANDLE_COL, false, false) == Kind.ARROW);
+        expect("outside every column is an arrow", LayerListCursor.kindAt(-1, true, false) == Kind.ARROW);
+        expect("grip is not a click control", !LayerListCursor.isClickControl(LayersPanel.HANDLE_COL));
+
+        // Wheel pass-through: a control that listens for the wheel swallows the scroll meant for the sidebar.
+        java.util.List<javax.swing.JComponent> controls = java.util.List.of(
+                new org.helioviewer.jhv.gui.component.JHVSlider(0, 10, 5),
+                new org.helioviewer.jhv.gui.component.JHVSpinner(new javax.swing.SpinnerNumberModel(1, 0, 9, 1)));
+        for (javax.swing.JComponent c : controls)
+            expect(c.getClass().getSimpleName() + " has no wheel listener", c.getMouseWheelListeners().length == 0);
+
         System.out.println(failures == 0 ? "LayerListCursorCheck: ok" : "LayerListCursorCheck: " + failures + " FAILED");
         System.exit(failures == 0 ? 0 : 1);
     }
