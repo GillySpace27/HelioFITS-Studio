@@ -180,6 +180,7 @@ public class HFStudio {
                 org.helioviewer.jhv.io.FitsCoreIngest.importCacheInBackground(); // cached files the FITS library lacks; no-op without HelioFITS Core
                 org.helioviewer.jhv.io.TemplateRefresh.install(); // the template manager's Refresh Data; no-op without HelioFITS Core
                 org.helioviewer.jhv.app.update.UpdateCheck.atStartup(); // at most daily, in the background, after a delay
+                org.helioviewer.jhv.activity.Watchdog.start(); // pauses and cancels downloads when the window stops answering
                 org.helioviewer.jhv.gui.dialog.ExportReplayWindow.startIfRequested(); // a window opened from an .hfrec draws its picture again; no-op otherwise
             }
 
