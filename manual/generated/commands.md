@@ -161,8 +161,8 @@ Every command HelioFITS Studio has, as the menus, Help > Search Controls and the
 * - View > Find Body...
   -
   - `identifyFindBody`
-* - View > Left Sidebar Panels > Fold or Restore All
-  - Fold every section of the left sidebar; the next press opens again the ones that were open
+* - View > Left Sidebar Panels > Collapse All, Left First
+  - Collapse all, never unfolding: press 1 folds every section of the left sidebar, press 2 within 5 seconds the other sidebar's too, press 3 collapses both sidebars and the timeline strip
   - `foldLeftPanelAll`
 * - View > Left Sidebar Panels > Left Sidebar Panel 1
   - Fold or show section 1 of the left sidebar, the one numbered 1; moving a section changes its number
@@ -191,8 +191,8 @@ Every command HelioFITS Studio has, as the menus, Help > Search Controls and the
 * - View > Left Sidebar Panels > Left Sidebar Panel 9
   - Fold or show section 9 of the left sidebar, the one numbered 9; moving a section changes its number
   - `foldLeftPanel9`
-* - View > Right Sidebar Panels > Fold or Restore All
-  - Fold every section of the right sidebar; the next press opens again the ones that were open
+* - View > Right Sidebar Panels > Collapse All, Right First
+  - Collapse all, never unfolding: press 1 folds every section of the right sidebar, press 2 within 5 seconds the other sidebar's too, press 3 collapses both sidebars and the timeline strip
   - `foldRightPanelAll`
 * - View > Right Sidebar Panels > Right Sidebar Panel 1
   - Fold or show section 1 of the right sidebar, the one numbered 1; moving a section changes its number

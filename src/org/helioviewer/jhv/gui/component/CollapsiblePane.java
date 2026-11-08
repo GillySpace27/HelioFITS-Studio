@@ -195,18 +195,19 @@ public class CollapsiblePane extends JComponent implements ActionListener {
             toggleButton.setIcons(sectionIcon, null);
         else
             toggleButton.setIcons(toggleButton.isSelected() ? Buttons.chevronDown : Buttons.chevronRight, sectionIcon);
-        if (number > 0 && PanelKeyHint.lit(side())) // the side's modifier is held: its numbers stand out (PanelKeyHint)
-            toggleButton.setText("<html><b>" + side() + number + ".</b> " + escape(title) + "</html>");
-        else
-            toggleButton.setText(PanelVisibility.numberPrefix(number, side()) + title);
+        toggleButton.setText(PanelVisibility.numberPrefix(number, side()) + title);
+        // The side's modifier is held: its numbers stand out in a box (PanelKeyHint). Painted over the
+        // same text, so the headers do not move.
+        refreshBadge();
         toggleButton.setToolTipText(pinned ? title + ", for what is selected above" : (toggleButton.isSelected() ? "Hide" : "Show") + " the " + title + " controls");
     }
 
-    private boolean pinned;
-
-    private static String escape(String t) {
-        return t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    /** Box the key number while this side's modifier is held (PanelKeyHint), or clear it. Repaints only. */
+    void refreshBadge() {
+        toggleButton.setBadge(number > 0 && PanelKeyHint.lit(side()) ? side() + "" + number : null);
     }
+
+    private boolean pinned;
 
     /** Held open for good (pinOpen): no fold state of its own. */
     public boolean isPinned() {

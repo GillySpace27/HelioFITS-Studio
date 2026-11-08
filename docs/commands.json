@@ -1812,7 +1812,7 @@
         "properties": {}
       },
       "name": "foldLeftPanelAll",
-      "description": "Fold every section of the left sidebar; the next press opens again the ones that were open",
+      "description": "Collapse all, never unfolding: press 1 folds every section of the left sidebar, press 2 within 5 seconds the other sidebar's too, press 3 collapses both sidebars and the timeline strip",
       "annotations": {
         "destructiveHint": false,
         "readOnlyHint": true
@@ -1992,7 +1992,7 @@
         "properties": {}
       },
       "name": "foldRightPanelAll",
-      "description": "Fold every section of the right sidebar; the next press opens again the ones that were open",
+      "description": "Collapse all, never unfolding: press 1 folds every section of the right sidebar, press 2 within 5 seconds the other sidebar's too, press 3 collapses both sidebars and the timeline strip",
       "annotations": {
         "destructiveHint": false,
         "readOnlyHint": true
