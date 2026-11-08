@@ -44,10 +44,23 @@ public final class ExportReplay {
     /** A replayable scene: the session to load, and what was done to it, one sentence each. */
     public record Prepared(JSONObject session, List<String> notes, boolean movie, boolean narrowed) {}
 
-    /** The tolerance of an EQUIVALENT picture. Estimates, the ones extra/test/hfrecord_roundtrip.py uses; no GPU spread is measured. */
-    static final double MEAN_ABS_DIFF_MAX = 1.0; // of 255
-    static final double FRACTION_OFF_MAX = 0.01; // of pixels
-    static final int OFF_BY = 8; // of 255
+    /**
+     * The tolerance of an EQUIVALENT picture: none unless the person sets one (system property jhv.replayTolerance, the largest
+     * mean absolute difference in levels of 255), because no spread across GPUs has been measured. Without it, pictures whose digests
+     * differ are DIFFERENT, with the numbers in the sentence.
+     */
+    static final String TOLERANCE_PROPERTY = "jhv.replayTolerance";
+    static final int OFF_BY = 8; // of 255, only to report how many samples are off by more than this
+
+    @Nullable
+    static Double tolerance() {
+        String v = System.getProperty(TOLERANCE_PROPERTY);
+        try {
+            return v == null ? null : Double.valueOf(v);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
 
     private static final String STATE = "org.helioviewer.jhv.state";
 
@@ -119,7 +132,8 @@ public final class ExportReplay {
             JSONObject data = layer.optJSONObject("data");
             JSONArray uris = data == null ? null : data.optJSONArray("uris");
             JSONArray column = byLayer.optJSONArray(id);
-            if (uris == null || column == null || column.isEmpty() || column.isNull(0) || column.optInt(0, -1) >= uris.length())
+            if (uris == null || column == null || column.isEmpty() || column.isNull(0) || column.optInt(0, -1) >= uris.length()
+                    || sourceCount(record, id) != uris.length())
                 continue; // loads whole: no uri list, no map for this layer, or nothing shown at the first frame
             JSONObject params = data.optJSONObject("imageParams");
             Set<Integer> keep = framesNeeded(params == null ? "None" : params.optString("differenceMode", "None"),
@@ -134,6 +148,18 @@ public final class ExportReplay {
         notes.add(any ? "Loaded the first output frame only (and what its difference needs); \"Load whole range\" loads them all."
                 : "No layer could be narrowed to one frame, so the whole range is loaded.");
         return any;
+    }
+
+    /** How many sources the record lists for a layer: the frame map indexes that list, which matches the scene's uris only when the counts agree. */
+    private static int sourceCount(JSONObject record, String layerId) {
+        JSONArray layers = record.optJSONArray("layers");
+        if (layers != null)
+            for (Object o : layers)
+                if (o instanceof JSONObject l && layerId.equals(l.optString("id"))) {
+                    JSONArray sources = l.optJSONArray("sources");
+                    return sources == null ? -1 : sources.length();
+                }
+        return -1;
     }
 
     /** The source indexes one output frame needs: the one shown, what its difference reads, and every one for a sequence filter. */
@@ -281,9 +307,10 @@ public final class ExportReplay {
                 }
         double mean = n == 0 ? 0 : sum / n, frac = n == 0 ? 0 : (double) off / n;
         String numbers = String.format(Locale.ROOT, "mean absolute difference %.3f of 255, %.2f%% of samples off by more than %d", mean, 100 * frac, OFF_BY);
-        return mean <= MEAN_ABS_DIFF_MAX && frac <= FRACTION_OFF_MAX
-                ? new Outcome(Verdict.EQUIVALENT, "The digests differ but the pictures agree within the estimated tolerance: " + numbers + ".")
-                : new Outcome(Verdict.DIFFERENT, "The pictures differ: " + numbers + ".");
+        Double tol = tolerance();
+        return tol != null && mean <= tol
+                ? new Outcome(Verdict.EQUIVALENT, "The digests differ but the pictures agree within the tolerance you set (" + tol + " of 255): " + numbers + ".")
+                : new Outcome(Verdict.DIFFERENT, "The digests differ; " + numbers + ". No tolerance is set, so this is not called equivalent.");
     }
 
     /** Parse a record file. */

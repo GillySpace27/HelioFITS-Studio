@@ -37,7 +37,10 @@ public final class ExportReplayCheck {
         JSONArray layers = new JSONArray().put(layer("plain", "None", 5)).put(layer("run", "Running", 5)).put(layer("unmapped", "None", 5));
         JSONObject session = new JSONObject().put(STATE, new JSONObject().put("imageLayers", layers));
         JSONObject by = new JSONObject().put("plain", new JSONArray().put(3).put(4)).put("run", new JSONArray().put(2).put(3));
-        return new JSONObject().put("hfrecord", "1.1").put("output", new JSONObject().put("kind", "movie").put("frames", 2).put("width", 64).put("height", 32))
+        JSONArray rl = new JSONArray();
+        for (String id : new String[]{"plain", "run"})
+            rl.put(new JSONObject().put("id", id).put("sources", new JSONArray().put(new JSONObject()).put(new JSONObject()).put(new JSONObject()).put(new JSONObject()).put(new JSONObject())));
+        return new JSONObject().put("layers", rl).put("hfrecord", "1.1").put("output", new JSONObject().put("kind", "movie").put("frames", 2).put("width", 64).put("height", 32))
                 .put("native", new JSONObject().put("studio_session", session))
                 .put("frame_map", new JSONObject().put("times", new JSONArray().put("a").put("b")).put("by_layer", by));
     }
@@ -71,6 +74,11 @@ public final class ExportReplayCheck {
         expect("a running difference keeps the frame before it as well", uris(session, 1).size() == 2
                 && uris(session, 1).get(0).endsWith("run-1.fits") && uris(session, 1).get(1).endsWith("run-2.fits"));
         expect("a layer the frame map does not cover loads whole", uris(session, 2).size() == 5);
+        JSONObject mismatched = new JSONObject(rec.toString());
+        mismatched.getJSONArray("layers").getJSONObject(0).getJSONArray("sources").remove(0);
+        JSONObject ms = ExportReplay.sessionOf(mismatched);
+        ExportReplay.narrow(ms, mismatched, new ArrayList<>());
+        expect("a layer whose source list differs from the scene's uris loads whole", uris(ms, 0).size() == 5);
         expect("a note says what was done", notes.size() == 1 && notes.get(0).contains("first output frame"));
 
         expect("a base difference needs frame 0 too", ExportReplay.framesNeeded("Base", false, 4, 9).equals(java.util.Set.of(0, 4)));
@@ -99,9 +107,12 @@ public final class ExportReplayCheck {
         expect("a different size cannot be checked, and says the sizes", size.verdict() == ExportReplay.Verdict.CANNOT_CHECK && size.why().contains("8 by 4"));
 
         Path p1 = picture(dir, "p1.png", 100), p2 = picture(dir, "p2.png", 100), p3 = picture(dir, "p3.png", 101), p4 = picture(dir, "p4.png", 160);
-        expect("the same picture under different digests is equivalent", ExportReplay.verdict(a, other, p1, p2).verdict() == ExportReplay.Verdict.EQUIVALENT);
-        expect("one level of 255 off is still equivalent", ExportReplay.verdict(a, other, p1, p3).verdict() == ExportReplay.Verdict.EQUIVALENT);
+        expect("with no tolerance set, differing digests are different even for the same picture", ExportReplay.verdict(a, other, p1, p2).verdict() == ExportReplay.Verdict.DIFFERENT);
+        System.setProperty("jhv.replayTolerance", "1.0");
+        expect("with a tolerance set, the same picture is equivalent", ExportReplay.verdict(a, other, p1, p2).verdict() == ExportReplay.Verdict.EQUIVALENT);
+        expect("one level of 255 off is within a tolerance of 1", ExportReplay.verdict(a, other, p1, p3).verdict() == ExportReplay.Verdict.EQUIVALENT);
         expect("sixty levels off is different", ExportReplay.verdict(a, other, p1, p4).verdict() == ExportReplay.Verdict.DIFFERENT);
+        System.clearProperty("jhv.replayTolerance");
 
         if (failures > 0) {
             System.out.println("ExportReplayCheck: " + failures + " failed");
