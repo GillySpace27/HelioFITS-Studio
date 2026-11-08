@@ -76,7 +76,7 @@ public final class CommandRegistry {
      * sends the current view's time and field of view to LMSAL's cut-out service in the URL.
      */
     static final Set<String> UI_ONLY = Set.of("newJp2Layer", "newSynopticLayer", "newPunchLayer", "newSoarLayer", "newAspiicsLayer",
-            "newPointCloudLayer", "openImageLayer", "openModel", "findCmes", "findComets", "displaySettings", "present", "windowMinimize",
+            "newPointCloudLayer", "openImageLayer", "openModel", "savePreferences", "loadPreferences", "findCmes", "findComets", "displaySettings", "present", "windowMinimize",
             "windowZoom", "newWindow", "openUserManual", "openChangeLog", "checkForUpdates", "reportBug", "sdoCutout", "takeTour", "welcome",
             "tipOfTheDay", "showImageLayers", "sendFeedback", "datasetFolders", "openExportsFolder", "openExportRecord", "searchControls", "showProjection",
             "showPlayback", "newFromTemplate", "saveAsTemplate", "templates", "tourGettingStarted", "tourLoadingData", "tourMakingAMovie",

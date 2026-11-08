@@ -34,6 +34,12 @@ Every command HelioFITS Studio has, as the menus, Help > Search Controls and the
 * - File > Export Session with Data...
   - Save the session plus a .data.zip of its local files, to open on another computer
   - `exportSessionWithData`
+* - File > Save Global Preferences...
+  - Save settings, keybindings, Canvas keys and layout to one JSON file, for a reinstall or another computer
+  - `savePreferences`
+* - File > Load Global Preferences...
+  - Load a saved preferences file after a list of what would change and a confirm
+  - `loadPreferences`
 * - File > Revert to Saved
   - *(discards work)*
   - `revertToSaved`

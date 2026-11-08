@@ -150,6 +150,26 @@ public class Settings {
         }
     }
 
+    /** Set several settings with one write. */
+    public static void setProperties(java.util.Map<String, String> values) {
+        boolean changed = false;
+        for (java.util.Map.Entry<String, String> e : values.entrySet())
+            if (!e.getValue().equals(settings.get(e.getKey()))) {
+                settings.setProperty(e.getKey(), e.getValue());
+                changed = true;
+            }
+        if (changed)
+            write();
+    }
+
+    /** The user's own settings, defaults left out, in key order: what GlobalPreferences saves. */
+    public static java.util.Map<String, String> own() {
+        java.util.Map<String, String> m = new java.util.TreeMap<>();
+        for (java.util.Map.Entry<Object, Object> e : settings.entrySet())
+            m.put((String) e.getKey(), (String) e.getValue());
+        return m;
+    }
+
     /**
      * Write every setting through a temporary file and move it into place.
      *
