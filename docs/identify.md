@@ -151,9 +151,9 @@ Hipparcos number.
 Names come from the IAU Catalog of Star Names of the IAU Working Group on Star Names (about 450
 named stars, CC BY), fetched once from the WGSN table and kept beside the Hipparcos catalogue in
 the catalogs folder; Bayer letters come from the same table, so only IAU-named stars have one here.
-Both tables load in the background the first time the switch is on, from disk if cached. Stars are
-not named in the 3D view when the camera is turned away from the image layer's line of sight,
-because the sky drawn there is no observer's.
+Both tables load in the background the first time the switch is on, from disk if cached. In the orbited 3D view the Stars overlay draws the sky at infinity, turned by the drag, and the
+name comes from the same placement run backwards (the pointer's screen point, the drag undone), so
+it names the star drawn under the pointer, out to the 80 degree cut the overlay uses.
 
 Checked live on a PUNCH CAM frame (2026-04-25): Alpheratz, Mirfak, Algol and Sheratan were named
 at the screen points predicted from their astropy positions in that frame.
