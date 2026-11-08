@@ -28,14 +28,15 @@ done
 # shellcheck source=/dev/null
 . "$HERE/debug/$TARGET.sh"
 command -v gh >/dev/null && gh auth status >/dev/null 2>&1 || { echo "!! gh is not signed in" >&2; exit 2; }
-ROOT="${HFS_DEBUG_ROOT:-$HOME/hfs-rc/debug}"; CLONE="$ROOT/$TARGET-clone"; REPORT="$ROOT/REPORT.md"
+ROOT="${HFS_DEBUG_ROOT:-$HOME/hfs-rc/debug}"; CLONE="$ROOT/$TARGET-clone"; REPORT="$ROOT/REPORT-$TARGET.md"
 mkdir -p "$ROOT" "$HOME/hfs-rc"
 
 [ -d "$CLONE/.git" ] || git clone --quiet "https://github.com/$TARGET_REPO.git" "$CLONE"
 cd "$CLONE"
 git merge --abort 2>/dev/null || true
-git fetch --quiet origin master
-git checkout --quiet -f -B rc/debug origin/master
+git fetch --quiet origin
+MAIN=$(git remote show origin | sed -n 's/.*HEAD branch: //p')   # master for Studio, main for Peek and pyHelioFITS
+git checkout --quiet -f -B rc/debug "origin/$MAIN"
 git clean -fdq -e 'release/.runtime' >/dev/null 2>&1 || true
 BASE=$(git rev-parse --short HEAD)
 if [ -n "$EXTRA" ]; then
@@ -53,7 +54,7 @@ while IFS=$'\t' read -r n sha why title; do
             INC="$INC$n\t${sha:0:9}\t$title\n"; continue
         fi
         git merge --abort 2>/dev/null || git reset --quiet --hard HEAD
-        why="conflicts with master plus the PRs merged before it"
+        why="conflicts with $MAIN plus the PRs merged before it"
     fi
     SKP="$SKP$n\t$why\t$title\n"
 done < <(gh pr list --repo "$TARGET_REPO" --state open --limit 100 \
@@ -67,19 +68,19 @@ for p in sorted(json.load(sys.stdin), key=lambda p: p["number"]):
         if c.get("status", "COMPLETED") != "COMPLETED" or res in ("PENDING", "EXPECTED", ""): wait.append(name)
         elif res not in ("SUCCESS", "SKIPPED", "NEUTRAL"): bad.append(name)
     why = "OK"
-    if p["baseRefName"] != "master": why = "base is " + p["baseRefName"]
+    if p["baseRefName"] != sys.argv[1]: why = "base is " + p["baseRefName"]
     elif p["isDraft"]: why = "draft"
-    elif p["mergeable"] == "CONFLICTING": why = "conflicts with master"
+    elif p["mergeable"] == "CONFLICTING": why = "conflicts with " + sys.argv[1]
     elif p["mergeable"] != "MERGEABLE": why = "GitHub has not computed mergeability yet"
     elif bad: why = "CI failed: " + ", ".join(sorted(set(bad)))
     elif wait: why = "CI not finished: " + ", ".join(sorted(set(wait)))
     print("%d\t%s\t%s\t%s" % (p["number"], p["headRefOid"], why, p["title"].replace("\t", " ")))
-')
+' "$MAIN")
 TAG=$(git rev-parse --short=9 HEAD)
 
 {
     echo "# Debug build $TARGET $TAG  ($(date '+%Y-%m-%d %H:%M %Z'))"
-    echo "origin/master $BASE; branch rc/debug is local and was never pushed."
+    echo "origin/$MAIN $BASE; branch rc/debug is local and was never pushed."
     echo; echo "## Included"; [ -n "$INC" ] && printf %b "$INC" | awk -F'\t' '{printf "- #%s `%s` %s\n",$1,$2,$3}' || echo "- (none)"
     echo; echo "## Skipped"; [ -n "$SKP" ] && printf %b "$SKP" | awk -F'\t' '{printf "- #%s %s: %s\n",$1,$3,$2}' || echo "- (none)"
     echo; echo "## What to click"
@@ -95,14 +96,14 @@ if [ "$DRY" = 1 ]; then cat "$REPORT"; echo; echo "(dry run: nothing built)"; ex
 
 LOG="$ROOT/build-$TAG.log"
 echo "==> building $TARGET $TAG (log: $LOG)"
-target_build "$CLONE" "$ROOT/app" "$TAG" >"$LOG" 2>&1 || { tail -25 "$LOG"; echo "!! build failed; full log $LOG" >&2; exit 1; }
-APP="$ROOT/app/$TARGET_NAME.app"
+target_build "$CLONE" "$ROOT/$TARGET-app" "$TAG" >"$LOG" 2>&1 || { tail -25 "$LOG"; echo "!! build failed; full log $LOG" >&2; exit 1; }
+APP="$ROOT/$TARGET-app/$TARGET_NAME.app"
 
 if [ "$LAUNCH" = 1 ]; then
     pkill -f "$APP/Contents" 2>/dev/null && sleep 2 || true      # only the previous debug build, never the installed app
     mkdir -p "$TARGET_DATA"
-    open -n --env "$TARGET_ENV" "$APP"
-    for _ in $(seq 20); do sleep 2; pgrep -f "$APP/Contents" >/dev/null && ls "$TARGET_DATA"/Logs/*.log >/dev/null 2>&1 && break; done
+    open -n ${TARGET_ENV:+--env "$TARGET_ENV"} "$APP" ${TARGET_ARGS:+--args $TARGET_ARGS}
+    for _ in $(seq 20); do sleep 2; pgrep -f "$APP/Contents" >/dev/null && { [ -z "${TARGET_READY:-}" ] || eval "$TARGET_READY" >/dev/null 2>&1; } && break; done
     pgrep -f "$APP/Contents" >/dev/null && echo "launched, data in $TARGET_DATA" >> "$REPORT" \
         || { echo "!! the app did not stay up; see $LOG and $TARGET_DATA/Logs" >&2; cat "$REPORT"; exit 1; }
 fi

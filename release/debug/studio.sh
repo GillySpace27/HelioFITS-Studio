@@ -4,6 +4,7 @@ TARGET_REPO=GillySpace27/HelioFITS-Studio
 TARGET_NAME="HelioFITS Studio"
 TARGET_DATA="${HFS_DEBUG_HOME:-$HOME/HFStudio-debug}"   # survives rebuilds; the app bundle does not
 TARGET_ENV="HFS_HOME=$TARGET_DATA"                      # Directories.homeOverride reads this
+TARGET_READY='ls "$TARGET_DATA"/Logs/*.log'   # evidence the app came up against its data folder
 
 # target_build <clone> <outdir> <tag>: leave "$outdir/$TARGET_NAME.app" built from the clone's checked-out tree.
 target_build() {

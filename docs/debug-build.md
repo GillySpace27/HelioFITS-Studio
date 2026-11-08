@@ -54,10 +54,22 @@ The script supplies raw material (titles, the "Not verified" bullets, checkboxes
 reader's: open the diff, name each visible change, and give it as steps, one line each, for example
 "Press Ctrl+1: left section 1 folds". Anything the PR says was not checked in a real window goes first.
 
-## Another app (Peek, pyHelioFITS)
+## Other apps
 
-A target is one file, `release/debug/<name>.sh`, setting `TARGET_REPO`, `TARGET_NAME`, `TARGET_DATA`,
-`TARGET_ENV` (the env var that moves its data folder) and defining
-`target_build <clone> <outdir> <tag>` that leaves `<outdir>/<TARGET_NAME>.app` built from the clone.
-`debug-build.sh --target <name>` does the rest. The driver assumes `master` as the base branch and a
-macOS app; copy it into the other repository with its own `release/debug/` for now.
+`release/debug-build.sh --target <name>` works for any repository: it clones that repository itself, takes its default
+branch (`master` or `main`) as the base, and uses `release/debug/<name>.sh` for what is specific. The driver stays in
+this repository; the other repositories need nothing.
+
+| Target | Repo | Debug data | Status |
+|---|---|---|---|
+| `studio` | HelioFITS-Studio | `~/HFStudio-debug` (`HFS_HOME`) | built, launched, data folder checked |
+| `pyhelio` | pyHelioFITS, the Cache Manager app | `~/HelioFITS-debug` (library via `-libraryPath`; own bundle id, so own settings; no `hfcore://` scheme; the core is the clone's own code in a venv) | built and launched, 47 s |
+| `peek` | HelioFITS-Peek | none | recipe written from RELEASING.md, **never built or launched**; see below |
+
+Peek is sandboxed, shares settings with its extensions through an app group, and running a debug copy registers
+its extensions with LaunchServices (the recurring generic-icon thumbnail bug in RELEASING.md). So its debug build
+does not isolate settings, and after trying it you quit it and run `./lsclean.sh` in the clone.
+
+A new target is a file setting `TARGET_REPO`, `TARGET_NAME`, `TARGET_DATA`, `TARGET_ENV` (env var that moves its
+data), `TARGET_ARGS` (launch arguments), `TARGET_READY` (a command that succeeds once it is up) and defining
+`target_build <clone> <outdir> <tag>`, which leaves `<outdir>/<TARGET_NAME>.app` built from the clone.
