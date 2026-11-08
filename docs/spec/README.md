@@ -86,8 +86,9 @@ schema above; what Studio writes into each, and when:
   encoder, before any codec, the timeline strip included; `pixel_sha256` is the first frame's. The raw dump is little-endian
   at 16 bits and is swapped while hashed. `output.content_sha256`: a PNG still keeping only signature, IHDR, PLTE, tRNS, IDAT
   and IEND; null for a movie. An EXR series takes no digest.
-- `frame_map` (movies and frame series, sidecar only): per output frame, the layer's frame number, which is an index into its
-  `sources` for a layer with one identified file per frame; other layers are left out and named in `reproducibility`.
+- `frame_map` (movies and frame series, sidecar only): per output frame, the index into the layer's `sources` of the file it
+  showed (found by the file's URI, since the frame order is by time and the source list is not). A layer whose sources are not
+  all identified, or one frame of which cannot be matched, is left out and named in `reproducibility`.
 - `inputs_external`: the Hipparcos star file (hashed at export start, so pinned), 3D model layers and any overlay this
   code does not know to be deterministic (declared, `pinned: false`), and the LASCO monthly background (declared; the array
   is not hashed).

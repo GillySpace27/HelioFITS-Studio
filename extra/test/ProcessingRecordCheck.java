@@ -327,14 +327,23 @@ public final class ProcessingRecordCheck {
                 && starPinned.getJSONObject("reproducibility").getJSONArray("reasons").toList().stream().noneMatch(s -> s.toString().contains("hipparcos")));
 
         // frame_map: layer A has two sources and live frames 2; B is a Helioviewer layer; a map of the wrong length is dropped.
+        String lib = "file:" + HOME + "/HelioFITSLibrary/store/aia/"; // the real URIs, home put back
+        // the movie showed a2 first, then a1: the frame key is a file, and the index is where it sits in the layer's list
         JSONObject map = new JSONObject().put("times", new JSONArray().put("2025-09-21T20:00:00").put("2025-09-21T20:01:00"))
-                .put("by_layer", new JSONObject().put(A, new JSONArray().put(0).put(1)).put(B, new JSONArray().put(3).put(3)));
+                .put("by_layer_key", new JSONObject().put(A, new JSONArray().put(lib + "a2.fits").put(lib + "a1.fits")).put(B, new JSONArray().put("jpip://x").put("jpip://x")));
         ProcessingRecord.Output two = new ProcessingRecord.Output("movie", "video/mp4", 64, 64, 2, 10, "H.264", 8, true);
         JSONObject withMap = ProcessingRecord.build(mSession, live(), null, two, "movie.mp4", null, HOME, ProcessingRecordCheck::identify,
                 "00000000-0000-4000-8000-000000000015", map);
         JSONObject fm = withMap.getJSONObject("frame_map");
-        expect("frame_map keeps the layer with one identified file per frame, as indices", fm.getJSONObject("by_layer").has(A)
-                && fm.getJSONObject("by_layer").getJSONArray(A).getInt(1) == 1 && fm.getJSONArray("times").length() == 2);
+        expect("frame_map indexes the sources by the file shown, not by the frame number", fm.getJSONObject("by_layer").has(A)
+                && fm.getJSONObject("by_layer").getJSONArray(A).getInt(0) == 1 && fm.getJSONObject("by_layer").getJSONArray(A).getInt(1) == 0
+                && fm.getJSONArray("times").length() == 2);
+        JSONObject unknownKey = new JSONObject(map.toString());
+        unknownKey.getJSONObject("by_layer_key").put(A, new JSONArray().put(lib + "zzz.fits").put(lib + "a1.fits"));
+        JSONObject dropped = ProcessingRecord.build(mSession, live(), null, two, "movie.mp4", null, HOME, ProcessingRecordCheck::identify,
+                "00000000-0000-4000-8000-000000000024", unknownKey);
+        expect("a frame whose file is not in the layer's list drops the layer, with a reason", !dropped.has("frame_map")
+                && dropped.getJSONObject("reproducibility").getJSONArray("reasons").toList().stream().anyMatch(s -> s.toString().contains("\"SDO AIA 193")));
         expect("and leaves out the Helioviewer layer, saying why", !fm.getJSONObject("by_layer").has(B)
                 && withMap.getJSONObject("reproducibility").getJSONArray("reasons").toList().stream().anyMatch(s -> s.toString().startsWith("Frame map omits layer \"AIA 171\"")));
         ProcessingRecord.Output three = new ProcessingRecord.Output("movie", "video/mp4", 64, 64, 3, 10, "H.264", 8, true);

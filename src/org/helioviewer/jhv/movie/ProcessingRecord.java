@@ -339,7 +339,16 @@ public final class ProcessingRecord {
         List<String> reasons = new ArrayList<>();
         if ("exr_series".equals(output.kind()))
             reasons.add("No pixel digest is taken of an EXR series, so a replay cannot be checked pixel for pixel.");
-        JSONObject map = movie ? frameMap(frameMap, layers, output, reasons) : null;
+        Map<String, List<String>> uriLists = new java.util.HashMap<>();
+        if (scenes != null && realLayers != null)
+            for (int i = 0; i < scenes.length(); i++) {
+                JSONObject rl = realLayers.optJSONObject(i), sl = scenes.optJSONObject(i);
+                JSONObject rd = rl == null ? null : rl.optJSONObject("data");
+                JSONArray ru = rd == null ? null : rd.optJSONArray("uris");
+                if (sl != null && ru != null)
+                    uriLists.put(sl.optString("id", "layer-" + i), ru.toList().stream().map(String::valueOf).toList());
+            }
+        JSONObject map = movie ? frameMap(frameMap, layers, uriLists, output, reasons) : null;
         if (map != null)
             record.put("frame_map", map);
         record.put("reproducibility", reproducibility(record, record.optJSONObject("environment"), reasons));
@@ -363,14 +372,17 @@ public final class ProcessingRecord {
     }
 
     /**
-     * The record's frame_map for a movie or series: the frame number each enabled layer showed in each output
-     * frame, as an index into that layer's sources. Kept only for a layer with one identified source file per
-     * frame, and only when it covers every output frame; otherwise the reason goes to {@code reasons}.
+     * The record's frame_map for a movie or series: for each enabled layer, per output frame, the index into the
+     * layer's sources of the file it showed (null when it showed nothing). {@code captured} holds each frame's key, the
+     * URI of its file; the index is where that URI sits in the layer's list. Kept only for a layer whose sources are
+     * that list one for one (none unidentified), whose every key is found there, and only when the map covers every
+     * output frame; otherwise the reason goes to {@code reasons}.
      */
     @Nullable
-    private static JSONObject frameMap(@Nullable JSONObject captured, JSONArray layers, Output output, List<String> reasons) {
+    private static JSONObject frameMap(@Nullable JSONObject captured, JSONArray layers, Map<String, List<String>> uriLists,
+                                       Output output, List<String> reasons) {
         JSONArray times = captured == null ? null : captured.optJSONArray("times");
-        JSONObject by = captured == null ? null : captured.optJSONObject("by_layer");
+        JSONObject by = captured == null ? null : captured.optJSONObject("by_layer_key");
         if (times == null || by == null || times.isEmpty() || (output.frames() != null && output.frames() != times.length())) {
             reasons.add("No frame map: which source each output frame showed was not recorded, so only the whole range can be replayed.");
             return null;
@@ -379,15 +391,26 @@ public final class ProcessingRecord {
         for (Object o : layers) {
             if (!(o instanceof JSONObject l) || !l.optBoolean("enabled", true) || !by.has(l.optString("id")))
                 continue;
+            String id = l.getString("id");
             JSONArray sources = l.optJSONArray("sources");
-            JSONObject shown = l.optJSONObject("shown_frame");
-            boolean oneFilePerFrame = sources != null && !sources.isEmpty() && !l.has("source_count") && shown != null
-                    && sources.length() == shown.optInt("frames", -1);
-            if (!oneFilePerFrame) {
-                reasons.add("Frame map omits layer \"" + l.optString("name") + "\": it is not one identified source file per frame.");
+            List<String> uris = uriLists.get(id);
+            JSONArray keys = by.getJSONArray(id);
+            JSONArray column = new JSONArray();
+            boolean ok = sources != null && uris != null && !l.has("source_count") && sources.length() == uris.size() && keys.length() == times.length();
+            for (int k = 0; ok && k < keys.length(); k++) {
+                if (keys.isNull(k)) {
+                    column.put(JSONObject.NULL);
+                    continue;
+                }
+                int index = uris.indexOf(keys.getString(k));
+                ok = index >= 0;
+                column.put(index);
+            }
+            if (!ok) {
+                reasons.add("Frame map omits layer \"" + l.optString("name") + "\": its frames could not all be matched to identified source files.");
                 continue;
             }
-            kept.put(l.getString("id"), by.getJSONArray(l.getString("id")));
+            kept.put(id, column);
         }
         return kept.isEmpty() ? null : new JSONObject().put("times", times).put("by_layer", kept);
     }
