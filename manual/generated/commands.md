@@ -485,10 +485,10 @@ These are run by scripts and Search Controls rather than from a menu; the argume
   - Arguments: `long_side`
   - `previewRender`
 * - Export the frame on screen as a PNG, with its processing record beside it
-  - Arguments: `path`, `long_side`
+  - Arguments: `path`, `long_side`, `bundle_data`
   - `exportStill`
 * - Export one loop of the loaded frames as a movie in the format the settings choose, with its processing record beside it
-  - Arguments: `path`, `long_side`
+  - Arguments: `path`, `long_side`, `bundle_data`
   - `exportMovie`
 * - Name the Sun, Moon and planets at a helioprojective direction, as an observer sees them
   - Arguments: `observer`, `tx_deg`, `ty_deg`, `tolerance_deg`, `time`
