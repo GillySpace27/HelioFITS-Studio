@@ -131,6 +131,7 @@ public final class LocalApi {
         String token = HexFormat.of().formatHex(secret);
         HttpServer http = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 8);
         http.createContext("/rpc", exchange -> serve(exchange, token));
+        http.createContext("/stop", exchange -> stopAll(exchange, token));
         ExecutorService pool = Executors.newCachedThreadPool(r -> {
             Thread t = new Thread(r, "HFS-LocalApi");
             t.setDaemon(true);
@@ -223,6 +224,31 @@ public final class LocalApi {
                 response = error(request.opt("id") == null ? JSONObject.NULL : request.opt("id"), -32000, String.valueOf(e.getMessage()), "failed");
             }
             reply(exchange, 200, response.toString());
+        }
+    }
+
+    /**
+     * Cancel every load and download. Served on this thread, never handed to the event thread, so
+     * it works when the window does not answer. Same host and token checks as /rpc.
+     */
+    private static void stopAll(HttpExchange exchange, String token) throws IOException {
+        try (exchange) {
+            if (!"POST".equals(exchange.getRequestMethod())) {
+                reply(exchange, 405, "{\"error\":\"POST to stop everything\"}");
+                return;
+            }
+            if (!localHost(exchange.getRequestHeaders().getFirst("Host"))) {
+                reply(exchange, 403, "{\"error\":\"this API answers this computer only\"}");
+                return;
+            }
+            if (!bearerMatches(exchange.getRequestHeaders().getFirst("Authorization"), token)) {
+                reply(exchange, 401, "{\"error\":\"the token in ~/HFStudio/api.json is needed\"}");
+                return;
+            }
+            org.helioviewer.jhv.activity.Watchdog.stopped(); // nothing new starts until the person resumes
+            int n = org.helioviewer.jhv.layers.LoadStop.cancelAll();
+            Log.warn("Stop everything from the local API: " + n + " load(s) cancelled, new fetches held");
+            reply(exchange, 200, new JSONObject().put("cancelled", n).put("paused", true).toString());
         }
     }
 
