@@ -18,7 +18,7 @@ import org.helioviewer.jhv.gui.MainFrame;
 
 /**
  * Hold Ctrl alone and the left sidebar's numbers (L1, L2, ...) turn bold; hold Option alone and the
- * right one's (R1, R2, ...) do (on a Mac, Ctrl+Cmd and Option+Cmd, the two chords that reach them), the way holding Cmd shows the keys of pinned sessions in Claude Code
+ * right one's (R1, R2, ...) do (on a Mac the left is Ctrl and Option together), the way holding Cmd shows the keys of pinned sessions in Claude Code
  * (Gilly, 2026-11-08). The numbers show while held even with section numbers switched off.
  *
  * <p>Only a modifier held alone, for {@link #DELAY_MS}: any mouse press or other key cancels it, so
@@ -64,9 +64,9 @@ public final class PanelKeyHint {
         }, AWTEvent.MOUSE_EVENT_MASK | AWTEvent.WINDOW_EVENT_MASK);
     }
 
-    /** The modifier keys whose being held alone lights a side: Ctrl and Alt, and on a Mac Cmd too (the chords). */
+    /** The modifier keys whose being held alone lights a side: Ctrl and Alt. */
     private static boolean isSideKey(int code) {
-        return code == KeyEvent.VK_CONTROL || code == KeyEvent.VK_ALT || Platform.isMacOS() && code == KeyEvent.VK_META;
+        return code == KeyEvent.VK_CONTROL || code == KeyEvent.VK_ALT;
     }
 
     /** 'L' or 'R' when exactly the modifiers of that side's key are held, else 0. */

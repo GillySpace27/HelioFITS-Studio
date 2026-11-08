@@ -24,8 +24,8 @@ import org.helioviewer.jhv.gui.registry.Shortcuts;
 
 /**
  * Fold or show a sidebar section from the keyboard, by its place in the sidebar: Ctrl+1 to Ctrl+9 for
- * the left one, Alt+1 to Alt+9 for the right one. On a Mac each is a chord with Cmd (Ctrl+Cmd+N,
- * Option+Cmd+N): bare Ctrl+digit is the system's switch-to-desktop, and bare Option+digit types a symbol.
+ * the left one, Alt+1 to Alt+9 for the right one. On a Mac, Option+N for the right one and Ctrl+Option+N
+ * for the left: bare Ctrl+digit is the system's switch-to-desktop.
  *
  * <p>Positional on purpose (Gilly, 2026-11-07): the key follows the number drawn in front of the
  * section's title, so moving a section changes which key reaches it, and what you see is what the
@@ -56,19 +56,20 @@ public final class PanelKeys {
     }
 
     /**
-     * The modifiers that reach a side. Off a Mac: Ctrl on the left, Alt on the right. On a Mac a
-     * chord of two: Ctrl+Cmd on the left, Option+Cmd on the right, because Ctrl+digit is the system's
-     * "switch to desktop" and Option+digit makes a symbol in the key's place (Gilly, 2026-11-08: only
-     * some of the keys got through).
+     * The modifiers that reach a side. On a Mac (Gilly, 2026-11-08): Option on the right, Ctrl+Option
+     * on the left; bare Ctrl+digit is the system's "switch to desktop", so the left side adds Option.
+     * Option+digit types a symbol, which {@link CommandKeys} sees past by matching the key's code.
+     * Elsewhere: Ctrl on the left, Alt on the right (Ctrl+Alt is AltGr on many layouts).
      */
     static int sideMask(boolean right) {
-        int side = right ? InputEvent.ALT_DOWN_MASK : InputEvent.CTRL_DOWN_MASK;
-        return Platform.isMacOS() ? side | InputEvent.META_DOWN_MASK : side;
+        if (right)
+            return InputEvent.ALT_DOWN_MASK;
+        return Platform.isMacOS() ? InputEvent.CTRL_DOWN_MASK | InputEvent.ALT_DOWN_MASK : InputEvent.CTRL_DOWN_MASK;
     }
 
     /**
      * The default keystroke of place {@code n} (0 for fold-all), or null for none: Ctrl+N on the
-     * left, Alt+N on the right (Ctrl+Cmd+N and Option+Cmd+N on a Mac). Off a Mac, Ctrl+9 and Ctrl+0 are the zoom keys, so left 9 and
+     * left, Alt+N on the right (Ctrl+Option+N and Option+N on a Mac). Off a Mac, Ctrl+9 and Ctrl+0 are the zoom keys, so left 9 and
      * left fold-all have none.
      */
     @Nullable

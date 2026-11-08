@@ -49,13 +49,13 @@ public final class PanelKeysCheck {
                 // Ctrl+N left, Option+N right; off a Mac, Ctrl+9 and Ctrl+0 stay the zoom keys
                 KeyStroke want = !right && (n == 9 || n == 0) && !mac ? null
                         : KeyStroke.getKeyStroke(KeyEvent.VK_0 + n, (right ? InputEvent.ALT_DOWN_MASK : InputEvent.CTRL_DOWN_MASK)
-                                | (mac ? InputEvent.META_DOWN_MASK : 0)); // a Mac needs the Cmd chord: bare Ctrl+digit is the system's desktop switch
+                                | (mac && !right ? InputEvent.ALT_DOWN_MASK : 0)); // a Mac's left side adds Option: bare Ctrl+digit is the system's desktop switch
                 Object got = e == null ? "missing" : e.action().getValue(Action.ACCELERATOR_KEY);
                 keysOk &= e != null && java.util.Objects.equals(want, got);
                 if (e != null && want != null)
                     clashFree &= KeyBindings.set(e.id(), want) == null; // refused if another command or the system has it
             }
-        expect("foldLeftPanel1..9 / foldRightPanel1..9 and the two fold-alls are catalogued with Ctrl+N and Option+N (Ctrl+Cmd+N and Option+Cmd+N on a Mac)", keysOk);
+        expect("foldLeftPanel1..9 / foldRightPanel1..9 and the two fold-alls are catalogued with Ctrl+N and Option+N (Ctrl+Option+N and Option+N on a Mac)", keysOk);
         expect("none of those keys is taken by another command or by the system", clashFree);
         expect("Cmd+9 and Cmd+0 stay Zoom to Fit and Actual Size", KeyStroke.getKeyStroke(KeyEvent.VK_9, menu).equals(KeyBindings.current("zoomFit"))
                 && KeyStroke.getKeyStroke(KeyEvent.VK_0, menu).equals(KeyBindings.current("zoomOne")));
@@ -91,7 +91,7 @@ public final class PanelKeysCheck {
                 CommandKeys.commandFor(new KeyEvent(src, KeyEvent.KEY_PRESSED, 0, rightMask, KeyEvent.VK_2, '\u2122')) == ActionCatalog.get("foldRightPanel2").action()
                         && CommandKeys.commandFor(new KeyEvent(src, KeyEvent.KEY_PRESSED, 0, leftMask, KeyEvent.VK_2, '2')) == ActionCatalog.get("foldLeftPanel2").action());
         expect("the two sides need different modifiers, and only exactly those", leftMask != rightMask
-                && CommandKeys.commandFor(new KeyEvent(src, KeyEvent.KEY_PRESSED, 0, leftMask | rightMask, KeyEvent.VK_2, '2')) == null);
+                && CommandKeys.commandFor(new KeyEvent(src, KeyEvent.KEY_PRESSED, 0, leftMask | rightMask | InputEvent.META_DOWN_MASK, KeyEvent.VK_2, '2')) == null);
         expect("holding exactly a side's modifiers lights that side", PanelKeyHint.sideOf(leftMask) == 'L' && PanelKeyHint.sideOf(rightMask) == 'R'
                 && PanelKeyHint.sideOf(InputEvent.SHIFT_DOWN_MASK) == 0);
 
