@@ -153,6 +153,7 @@ public final class ExportMovie {
             ViewState.RecordingData data = override == null ? ViewState.recordingData() : override;
             framesQueued.set(0);
             framesEncoded.set(0);
+            stopAsked.set(false);
             recordingSession = new RecordingSession(context, data, fps, encodingFor(once), bundleData);
             notifyStatusChanged();
             recordingSession.start();
@@ -164,14 +165,25 @@ public final class ExportMovie {
             if (failedSession != null)
                 failedSession.disposeGrabber();
             notifyStatusChanged();
+            lastOutcome.set("failed");
             String message = e.getMessage() == null || e.getMessage().isBlank() ? "Recording failed." : e.getMessage();
             Commands.notifyRecordingFinished(context, false, message, null);
         }
     }
 
     public static void shallStop() {
-        if (recordingSession != null)
+        if (recordingSession != null) {
+            stopAsked.set(true);
             recordingSession.requestStop();
+        }
+    }
+
+    private static final java.util.concurrent.atomic.AtomicBoolean stopAsked = new java.util.concurrent.atomic.AtomicBoolean();
+    private static final java.util.concurrent.atomic.AtomicReference<String> lastOutcome = new java.util.concurrent.atomic.AtomicReference<>("success");
+
+    /** How the last recording ended, for the Task Manager's Status column: success, stopped (by the user, frames kept) or failed. */
+    public static String lastOutcome() {
+        return lastOutcome.get();
     }
 
     public static boolean isRecording() {
@@ -668,9 +680,11 @@ public final class ExportMovie {
                     note = bundled.note();
                 }
                 writeRecord(output, record, prepared, writer.preview(), writer.pixels(), companions); // before the report, so a caller that copies the file finds its record
+                lastOutcome.set(stopAsked.get() ? "stopped" : "success");
                 Commands.notifyRecordingFinished(operationContext, true, note == null ? "Recording finished." : "Recording finished. " + note, output);
             } catch (Exception e) {
                 Log.error(e);
+                lastOutcome.set("failed");
                 String message = e.getMessage() == null || e.getMessage().isBlank() ?
                         "Recording failed." : e.getMessage();
                 Commands.notifyRecordingFinished(operationContext, false, message, null);
