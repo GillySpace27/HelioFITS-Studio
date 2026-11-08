@@ -5,6 +5,7 @@
 ## HelioFITS Studio 0.9.2 (unreleased)
 
 ### Fixes
+- The Task Manager's Right now list keeps finished work instead of dropping it the moment it ends: each line has a Status (running, success, failed, cancelled; stopped for a recording you stopped), stays until you press Dismiss, and Clear finished empties them all.
 - In the Task Manager, the Recording row no longer deselects itself every half second, and Stop now stops the recording (the frames so far become the movie). The Right now list was keeping its selection by layer, which a recording does not have.
 - The Windows and Linux packages now carry HelioFITS Core, the FITS library engine, as the Mac app already did, so Use FITS and the FITS library work there without installing anything. It is the same pinned core, in its own Python inside the package, and on Windows its files are signed with the rest of Studio.
 - Scrolling the left sidebar with the pointer over the image layer list no longer stalls: the list was keeping the wheel events for itself although it never has anything of its own to scroll.
