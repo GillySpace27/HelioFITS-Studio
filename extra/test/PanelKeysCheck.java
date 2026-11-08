@@ -65,9 +65,9 @@ public final class PanelKeysCheck {
                 "Alpha".equals(PanelKeys.at(true, 1).getTitle()) && "Beta".equals(PanelKeys.at(true, 2).getTitle())
                         && "Gamma".equals(PanelKeys.at(true, 3).getTitle()));
         expect("an empty place has no section, and pressing its key does nothing", PanelKeys.at(true, 4) == null
-                && PanelKeys.at(true, 0) == null && "4. (no section)".equals(PanelKeys.label(true, 4)));
+                && PanelKeys.at(true, 0) == null && "R4. (no section)".equals(PanelKeys.label(true, 4)));
         PanelKeys.toggle(true, 4); // must not throw
-        expect("the menu label names what the key reaches now", "2. Beta".equals(PanelKeys.label(true, 2)));
+        expect("the menu label names what the key reaches now", "R2. Beta".equals(PanelKeys.label(true, 2)));
         expect("the place agrees with the number drawn in front of the title",
                 PanelKeys.at(true, 2).number() == 2 || !PanelVisibility.numbers());
 

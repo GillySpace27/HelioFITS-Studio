@@ -195,7 +195,7 @@ public class CollapsiblePane extends JComponent implements ActionListener {
             toggleButton.setIcons(sectionIcon, null);
         else
             toggleButton.setIcons(toggleButton.isSelected() ? Buttons.chevronDown : Buttons.chevronRight, sectionIcon);
-        toggleButton.setText(PanelVisibility.numberPrefix(number) + title);
+        toggleButton.setText(PanelVisibility.numberPrefix(number, side()) + title);
         toggleButton.setToolTipText(pinned ? title + ", for what is selected above" : (toggleButton.isSelected() ? "Hide" : "Show") + " the " + title + " controls");
     }
 
@@ -232,9 +232,14 @@ public class CollapsiblePane extends JComponent implements ActionListener {
                 p.setNumber(p.isVisible() && shown > 1 ? ++n : 0);
     }
 
+    /** L for a section in the left sidebar, R for the right one, so a number says which key reaches it. */
+    private char side() {
+        return getParent() != null && getParent() == RightSidebar.getInstance().pane() ? 'R' : 'L';
+    }
+
     private void setNumber(int n) {
         number = n;
-        if (!toggleButton.getText().equals(PanelVisibility.numberPrefix(n) + title))
+        if (!toggleButton.getText().equals(PanelVisibility.numberPrefix(n, side()) + title))
             setTitle(title);
     }
 

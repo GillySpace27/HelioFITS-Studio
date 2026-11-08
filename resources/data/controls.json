@@ -116,6 +116,12 @@
       "words": "sun pizza wedges slices tiles squares every wavelength channel composite turntable spin labels coronagraph ring"
     },
     {
+      "id": "identify",
+      "title": "Identify",
+      "where": "Toolbar (More), or the right sidebar",
+      "words": "identify cursor pointer hover moon planet star body match tolerance settings diagnostics why"
+    },
+    {
       "id": "annotate",
       "title": "Annotation",
       "where": "Toolbar",
@@ -155,7 +161,7 @@
       "id": "toolbarMore",
       "title": "More",
       "where": "Last button of the toolbar",
-      "words": "more overflow parked hidden tools projection hdr filters grid camera compare pizza annotation track cme"
+      "words": "more overflow parked hidden tools projection hdr filters grid camera compare pizza identify annotation track cme"
     },
     {
       "id": "panelLock",

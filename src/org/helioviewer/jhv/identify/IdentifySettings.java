@@ -131,6 +131,23 @@ public final class IdentifySettings {
         set(STARS, Boolean.toString(b));
     }
 
+    /**
+     * Put every number and finer switch back to its default, leaving the three main switches
+     * (identify, tooltip, stars) as they are: resetting is for a setup that went wrong, and
+     * switching the feature off as a side effect would hide the evidence.
+     */
+    public static void resetToDefaults() {
+        Settings.setProperty(TOLERANCE_PX, String.valueOf(DEFAULT_TOLERANCE_PX));
+        Settings.setProperty(DWELL_MS, String.valueOf((double) DEFAULT_DWELL_MS));
+        Settings.setProperty(EARTH_UNCERTAINTY_KM, String.valueOf(DEFAULT_EARTH_UNCERTAINTY_KM));
+        Settings.setProperty(STAR_MAX_MAG, String.valueOf(DEFAULT_STAR_MAX_MAG));
+        Settings.setProperty(LIGHT_TIME, "false");
+        Settings.setProperty(PLUTO, "true");
+        Settings.setProperty(STAR_NAMES_IAU, "true");
+        Settings.setProperty(STAR_NAMES_BAYER, "true");
+        fire();
+    }
+
     /** What the identifier is set to, for the identifySet command's answer. */
     public static org.json.JSONObject toJson() {
         return new org.json.JSONObject()
