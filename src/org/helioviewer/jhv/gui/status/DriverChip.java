@@ -45,11 +45,11 @@ public final class DriverChip extends StatusPanel.StatusPlugin implements Interf
         window = contentPane;
         window.setBorder(glow);
         setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        setToolTipText("A script or assistant is driving Studio through the local API or SAMP. Click for the Activity window.");
+        setToolTipText("A script or assistant is driving Studio through the local API or SAMP. Click for what it is doing and how to stop it.");
         addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                ActivityWindow.open(org.helioviewer.jhv.activity.Activity.Kind.CMD);
+                ActivityPopover.show(org.helioviewer.jhv.activity.Activity.Kind.CMD, DriverChip.this, 0);
             }
         });
         UITimer.register(this);

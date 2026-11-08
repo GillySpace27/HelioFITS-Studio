@@ -6,6 +6,11 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
+import org.helioviewer.jhv.image.DecodedImage;
+import org.helioviewer.jhv.image.ImageBuffer;
+import org.helioviewer.jhv.image.ImageBufferCache;
+import org.helioviewer.jhv.image.ImageFilter;
+import org.helioviewer.jhv.metadata.Region;
 import org.json.JSONObject;
 
 /**
@@ -36,6 +41,7 @@ public final class ActivityCheck {
         tail();
         counters();
         command();
+        freeMemory();
 
         System.out.println(failures == 0 ? "ActivityCheck: ok" : "ActivityCheck: " + failures + " FAIL");
         System.exit(failures == 0 ? 0 : 1);
@@ -175,6 +181,15 @@ public final class ActivityCheck {
                         && r.getJSONArray("events").getJSONObject(0).getString("kind").equals("cmd"));
         JSONObject empty = org.helioviewer.jhv.gui.registry.ActivityCommands.log(new JSONObject().put("since_seq", r.getLong("next_seq") + 1_000_000));
         expect("asking past the end gives nothing new", empty.getJSONArray("events").isEmpty());
+    }
+
+    private static void freeMemory() {
+        short[] half = new short[40 * 24];
+        ImageBuffer buffer = ImageBuffer.fromShorts(40, 24, ImageBuffer.Format.Gray16F, half, ImageFilter.NONE);
+        ImageBufferCache.put("activity-check", new DecodedImage(buffer, new Region(-1.5, -0.75, 3, 1.5)));
+        expect("a decoded frame is held before Free up memory", ImageBufferCache.get("activity-check") != null);
+        ImageBufferCache.clear();
+        expect("Free up memory drops every decoded frame", ImageBufferCache.get("activity-check") == null);
     }
 
 }

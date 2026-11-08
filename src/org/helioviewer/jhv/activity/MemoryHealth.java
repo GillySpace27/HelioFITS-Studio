@@ -141,7 +141,7 @@ public final class MemoryHealth {
         return sum;
     }
 
-    static String gib(long bytes) {
+    public static String gib(long bytes) {
         return bytes >= 1L << 30 ? String.format(Locale.ROOT, "%.1f GiB", bytes / (double) (1L << 30)) : (bytes >> 20) + " MiB";
     }
 

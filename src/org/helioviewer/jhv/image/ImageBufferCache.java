@@ -41,6 +41,12 @@ public final class ImageBufferCache {
         cache.policy().eviction().ifPresent(eviction -> eviction.setMaximum(bytes));
     }
 
+    /** Drops every decoded frame the cache holds; what a layer still shows stays until it moves on, and the rest decodes again when asked for. */
+    public static void clear() {
+        cache.invalidateAll();
+        cache.cleanUp();
+    }
+
     /** Bytes of decoded frames the cache holds now, for the footer's memory light. */
     public static long heldBytes() {
         return cache.policy().eviction().map(e -> e.weightedSize().orElse(0L)).orElse(0L);

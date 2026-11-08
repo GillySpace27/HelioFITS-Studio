@@ -32,7 +32,7 @@ import org.helioviewer.jhv.gui.dialog.ActivityWindow;
  * blinking red means act now; the tooltip says what is short and what to do.
  *
  * <p>Read on UITimer's 10 Hz tick from {@link Activity}; repainted only when a light changes.
- * Clicking a light opens the Activity window on that light's lines.
+ * Clicking a light opens a popover to see and manage that kind of work.
  */
 @SuppressWarnings("serial")
 public final class ActivityLightsPanel extends StatusPanel.StatusPlugin implements Interfaces.LazyComponent {
@@ -52,7 +52,7 @@ public final class ActivityLightsPanel extends StatusPanel.StatusPlugin implemen
         addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                ActivityWindow.open(lightAt(e.getX()));
+                ActivityPopover.show(lightAt(e.getX()), ActivityLightsPanel.this, e.getX());
             }
         });
         UITimer.register(this);
@@ -122,7 +122,7 @@ public final class ActivityLightsPanel extends StatusPanel.StatusPlugin implemen
     }
 
     /** The colour of a lit light; CMD takes the colour of whoever drives Studio, or last did. */
-    static Color color(Activity.Kind kind, Theme theme) {
+    public static Color color(Activity.Kind kind, Theme theme) {
         return switch (kind) {
             case CMD -> theme.get(driverToken());
             case CPU -> CPU;
@@ -171,7 +171,7 @@ public final class ActivityLightsPanel extends StatusPanel.StatusPlugin implemen
             }
             default -> "";
         };
-        return "<html><b>" + kind.label + "</b>: " + kind.meaning + "<br>" + body + "<br>Click for the Activity window.</html>";
+        return "<html><b>" + kind.label + "</b>: " + kind.meaning + "<br>" + body + "<br>Click to see what it is doing and manage it.</html>";
     }
 
     private static String escape(String s) {
