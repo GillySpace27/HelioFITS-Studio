@@ -195,11 +195,23 @@ public class CollapsiblePane extends JComponent implements ActionListener {
             toggleButton.setIcons(sectionIcon, null);
         else
             toggleButton.setIcons(toggleButton.isSelected() ? Buttons.chevronDown : Buttons.chevronRight, sectionIcon);
-        toggleButton.setText(PanelVisibility.numberPrefix(number, side()) + title);
+        if (number > 0 && PanelKeyHint.lit(side())) // the side's modifier is held: its numbers stand out (PanelKeyHint)
+            toggleButton.setText("<html><b>" + side() + number + ".</b> " + escape(title) + "</html>");
+        else
+            toggleButton.setText(PanelVisibility.numberPrefix(number, side()) + title);
         toggleButton.setToolTipText(pinned ? title + ", for what is selected above" : (toggleButton.isSelected() ? "Hide" : "Show") + " the " + title + " controls");
     }
 
     private boolean pinned;
+
+    private static String escape(String t) {
+        return t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
+    /** Held open for good (pinOpen): no fold state of its own. */
+    public boolean isPinned() {
+        return pinned;
+    }
     private final boolean topLevel;
     private int number; // 1-based place among the visible top-level sections beside it, 0 for none
 

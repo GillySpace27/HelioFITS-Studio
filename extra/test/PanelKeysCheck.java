@@ -41,21 +41,35 @@ public final class PanelKeysCheck {
         org.helioviewer.jhv.io.Directories.SETTINGS.getFile().mkdirs(); // else every Settings write logs a stack trace over the results
 
         int menu = DesktopIntegration.menuShortcutMask;
-        int other = Platform.isMacOS() ? InputEvent.ALT_DOWN_MASK : InputEvent.SHIFT_DOWN_MASK;
+        boolean mac = Platform.isMacOS();
         boolean keysOk = true, clashFree = true;
         for (boolean right : new boolean[]{false, true})
-            for (int n = 1; n <= PanelKeys.SLOTS; n++) {
-                ActionCatalog.Entry e = ActionCatalog.get(PanelKeys.id(right, n));
-                KeyStroke want = KeyStroke.getKeyStroke(KeyEvent.VK_0 + n, menu | (right ? other : 0));
-                keysOk &= e != null && want.equals(e.action().getValue(Action.ACCELERATOR_KEY));
-                if (e != null)
+            for (int n = 0; n <= PanelKeys.SLOTS; n++) {
+                ActionCatalog.Entry e = ActionCatalog.get(n == 0 ? PanelKeys.idAll(right) : PanelKeys.id(right, n));
+                // Ctrl+N left, Option+N right; off a Mac, Ctrl+9 and Ctrl+0 stay the zoom keys
+                KeyStroke want = !right && (n == 9 || n == 0) && !mac ? null
+                        : KeyStroke.getKeyStroke(KeyEvent.VK_0 + n, right ? InputEvent.ALT_DOWN_MASK : InputEvent.CTRL_DOWN_MASK);
+                Object got = e == null ? "missing" : e.action().getValue(Action.ACCELERATOR_KEY);
+                keysOk &= e != null && java.util.Objects.equals(want, got);
+                if (e != null && want != null)
                     clashFree &= KeyBindings.set(e.id(), want) == null; // refused if another command or the system has it
             }
-        expect("foldLeftPanel1..8 and foldRightPanel1..8 are catalogued with menu+N and menu+"
-                + (Platform.isMacOS() ? "Option" : "Shift") + "+N", keysOk);
-        expect("none of the sixteen keys is taken by another command or by the system", clashFree);
-        expect("there is no ninth place: menu+9 stays Zoom to Fit", ActionCatalog.get("foldLeftPanel9") == null
-                && KeyStroke.getKeyStroke(KeyEvent.VK_9, menu).equals(KeyBindings.current("zoomFit")));
+        expect("foldLeftPanel1..9 / foldRightPanel1..9 and the two fold-alls are catalogued with Ctrl+N and Option+N", keysOk);
+        expect("none of those keys is taken by another command or by the system", clashFree);
+        expect("Cmd+9 and Cmd+0 stay Zoom to Fit and Actual Size", KeyStroke.getKeyStroke(KeyEvent.VK_9, menu).equals(KeyBindings.current("zoomFit"))
+                && KeyStroke.getKeyStroke(KeyEvent.VK_0, menu).equals(KeyBindings.current("zoomOne")));
+        boolean layoutOk = true;
+        String[][] layout = {{"toggleLeftSidebar", "" + KeyEvent.VK_OPEN_BRACKET, "0"}, {"toggleRightSidebar", "" + KeyEvent.VK_CLOSE_BRACKET, "0"},
+                {"toggleTimeline", "" + KeyEvent.VK_BACK_SLASH, "0"}, {"interfaceScaleUp", "" + KeyEvent.VK_EQUALS, "1"},
+                {"interfaceScaleDown", "" + KeyEvent.VK_MINUS, "1"}, {"interfaceScaleReset", "" + KeyEvent.VK_0, "1"}};
+        for (String[] l : layout) {
+            KeyStroke want = KeyStroke.getKeyStroke(Integer.parseInt(l[1]), menu | ("1".equals(l[2]) ? InputEvent.SHIFT_DOWN_MASK : 0));
+            ActionCatalog.Entry e = ActionCatalog.get(l[0]);
+            layoutOk &= e != null && want.equals(KeyBindings.current(l[0]));
+        }
+        expect("Cmd+[ Cmd+] Cmd+\\ toggle the sidebars and timeline; Cmd+Shift+= - 0 scale the interface", layoutOk);
+        expect("Cmd+= and Cmd+- stay the picture's zoom", KeyStroke.getKeyStroke(KeyEvent.VK_EQUALS, menu).equals(KeyBindings.current("zoomIn"))
+                && KeyStroke.getKeyStroke(KeyEvent.VK_MINUS, menu).equals(KeyBindings.current("zoomOut")));
 
         RightSidebar bar = RightSidebar.getInstance();
         bar.setCollapsed(false);
@@ -86,6 +100,26 @@ public final class PanelKeysCheck {
         PanelKeys.toggle(true, 3);
         expect("in a collapsed sidebar the key shows the section rather than folding it out of sight",
                 !bar.isCollapsed() && bar.isUnfolded("Gamma"));
+
+        // Fold-all: a flip that remembers what was open
+        if (!bar.isUnfolded("Alpha"))
+            PanelKeys.toggle(true, 1);
+        if (bar.isUnfolded("Beta"))
+            PanelKeys.toggle(true, 2);
+        PanelKeys.toggleAll(true);
+        boolean allFolded = !bar.isUnfolded("Alpha") && !bar.isUnfolded("Beta") && !bar.isUnfolded("Gamma");
+        PanelKeys.toggleAll(true);
+        expect("fold-all folds every section", allFolded);
+        expect("and the next press opens exactly the ones that were open", bar.isUnfolded("Alpha") && !bar.isUnfolded("Beta") && bar.isUnfolded("Gamma"));
+        PanelKeys.toggle(true, 1); // fold the two open ones by hand: everything folded, nothing remembered
+        PanelKeys.toggle(true, 3);
+        PanelKeys.toggleAll(true);
+        expect("with nothing remembered it opens them all", bar.isUnfolded("Alpha") && bar.isUnfolded("Beta") && bar.isUnfolded("Gamma"));
+
+        PanelKeyHint.lightForCheck('R');
+        expect("holding Option bolds the right numbers", PanelKeys.at(true, 2).toggleButton.getText().startsWith("<html><b>R2.</b>"));
+        PanelKeyHint.cancel();
+        expect("and letting go puts them back", !PanelKeys.at(true, 2).toggleButton.getText().startsWith("<html>"));
 
         // Taken out and put back, Alpha goes to the end: the keys follow the order on screen.
         bar.removeSection("Alpha");

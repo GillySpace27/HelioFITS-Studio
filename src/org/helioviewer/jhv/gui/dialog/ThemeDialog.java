@@ -184,7 +184,8 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
         String[][] options = {
                 {PanelVisibility.HEADERS, "Stronger section headers", "Bolder bands, a thicker rule and a little more space between sections. Titles use the Section header text (strong) colour above."},
                 {PanelVisibility.STRIPE, "Accent stripe on each section", "A thin stripe in the accent colour on the leading edge of every top-level header."},
-                {PanelVisibility.NUMBERS, "Number the sections", "Put 1, 2, 3 in front of each top-level title, in the order they appear."},
+                {PanelVisibility.NUMBERS, "Number the sections", "Put L1, L2 (left) and R1, R2 (right) in front of each top-level title, in the order they appear: Ctrl+N and Option+N reach them."},
+                {org.helioviewer.jhv.gui.component.PanelKeyHint.KEY, "Bold the numbers while Ctrl or Option is held", "Hold Ctrl alone for the left sidebar's numbers, Option alone for the right one's; shown even when numbering is off."},
                 {PanelVisibility.HOVER, "Highlight a header under the pointer", "So a header reads as something to click."},
         };
         javax.swing.JCheckBox master = new javax.swing.JCheckBox("Easier to find panels", PanelVisibility.enabled());

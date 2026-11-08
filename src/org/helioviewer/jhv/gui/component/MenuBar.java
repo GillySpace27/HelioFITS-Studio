@@ -292,9 +292,12 @@ public final class MenuBar extends JMenuBar {
         }
         catalogItem(viewMenu, "identifyFindBody");
 
-        // Fold or show a section by its number: Cmd+1..8 on the left, Cmd+Option+1..8 on the right
+        // Fold or show a section by its number: Ctrl+1..9 on the left, Option+1..9 on the right, 0 for all
         viewMenu.add(PanelKeys.menu(false));
         viewMenu.add(PanelKeys.menu(true));
+        // The sidebars and the timeline themselves: Cmd+[ Cmd+] Cmd+\ (LayoutKeys)
+        LayoutKeys.addLayoutItems(viewMenu);
+        PanelKeyHint.install(); // hold Ctrl or Option alone: that side's numbers turn bold
 
         viewMenu.addSeparator();
 
@@ -376,6 +379,7 @@ public final class MenuBar extends JMenuBar {
         viewMenu.addSeparator();
         viewMenu.add(themeMenu());
         viewMenu.add(catalogAction("displaySettings")); // beside Theme: how the app looks, in one place
+        viewMenu.add(LayoutKeys.scaleMenu()); // Cmd+Shift+= - 0, live
 
         viewMenu.addSeparator();
         // Presentation stays: it is a way of looking at the scene rather than a thing to work on

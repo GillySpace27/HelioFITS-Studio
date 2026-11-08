@@ -84,7 +84,10 @@ public final class CommandRegistry {
             "study", "taskManager", "activityWindow", "cacheManager", "modelManager", "toolbarManager", "themeManager", "keybindingsManager", "studySaveView", "identifyFindBody",
             // Fold or show a sidebar section by its number (PanelKeys)
             "foldLeftPanel1", "foldLeftPanel2", "foldLeftPanel3", "foldLeftPanel4", "foldLeftPanel5", "foldLeftPanel6", "foldLeftPanel7", "foldLeftPanel8",
-            "foldRightPanel1", "foldRightPanel2", "foldRightPanel3", "foldRightPanel4", "foldRightPanel5", "foldRightPanel6", "foldRightPanel7", "foldRightPanel8");
+            "foldRightPanel1", "foldRightPanel2", "foldRightPanel3", "foldRightPanel4", "foldRightPanel5", "foldRightPanel6", "foldRightPanel7", "foldRightPanel8",
+            "foldLeftPanel9", "foldRightPanel9", "foldLeftPanelAll", "foldRightPanelAll",
+            // The window's layout and interface scale (LayoutKeys)
+            "toggleLeftSidebar", "toggleRightSidebar", "toggleTimeline", "interfaceScaleUp", "interfaceScaleDown", "interfaceScaleReset");
 
     private static final Map<String, CommandSpec> specs = new LinkedHashMap<>(); // the map is the only state (guards.py ratchet)
 
