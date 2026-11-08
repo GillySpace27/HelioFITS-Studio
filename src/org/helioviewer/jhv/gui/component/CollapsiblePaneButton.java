@@ -26,6 +26,9 @@ import org.helioviewer.jhv.gui.UIGlobals;
 class CollapsiblePaneButton extends JToggleButton {
 
     private final boolean child;
+    /** "L2" or "R2" while that side's modifier is held, else null; drawn in a box, never by changing the text, so nothing moves. */
+    @Nullable
+    private String badge;
 
     CollapsiblePaneButton(boolean _child) {
         child = _child;
@@ -51,6 +54,35 @@ class CollapsiblePaneButton extends JToggleButton {
             return tip;
         String key = PanelKeys.keyText(pane);
         return key == null ? tip : tip + " (" + key + ")";
+    }
+
+    /** Show or clear the key number in its box. Repaints only: the text and the layout stay as they were. */
+    void setBadge(@Nullable String text) {
+        if (!java.util.Objects.equals(badge, text)) {
+            badge = text;
+            repaint();
+        }
+    }
+
+    /**
+     * Where the box goes: over the number in front of the title when the title carries one, else at the
+     * right end of the band (numbers are switched off, but the hint is shown anyway). Null for no badge.
+     */
+    @Nullable
+    java.awt.Rectangle badgeBox(java.awt.FontMetrics fm, boolean overNumber) {
+        if (badge == null)
+            return null;
+        int pad = Math.max(2, fm.getHeight() / 5);
+        int textW = fm.stringWidth(badge);
+        int h = fm.getAscent() + fm.getDescent();
+        java.awt.Insets in = getInsets();
+        java.awt.Rectangle viewR = new java.awt.Rectangle(in.left, in.top, getWidth() - in.left - in.right, getHeight() - in.top - in.bottom);
+        java.awt.Rectangle iconR = new java.awt.Rectangle(), textR = new java.awt.Rectangle();
+        javax.swing.SwingUtilities.layoutCompoundLabel(this, fm, getText(), getIcon(), getVerticalAlignment(), getHorizontalAlignment(),
+                getVerticalTextPosition(), getHorizontalTextPosition(), viewR, iconR, textR, getText() == null ? 0 : getIconTextGap());
+        int x = overNumber ? textR.x : Math.max(in.left, getWidth() - in.right - textW - 2 * pad - 4);
+        int y = textR.y + (textR.height - h) / 2;
+        return new java.awt.Rectangle(x - pad, y - 1, textW + 2 * pad, h + 2);
     }
 
     /** Title colour and inset for the current theme and panel-visibility options. */
@@ -114,7 +146,39 @@ class CollapsiblePaneButton extends JToggleButton {
         // written on it rather than as six bands. The groove is what makes them read as separate.
         g.setColor(Theme.current().get(Theme.Token.Background));
         g.fillRect(0, h - 1, getWidth(), 1);
-        super.paintComponent(g);
+        java.awt.FontMetrics fm = getFontMetrics(getFont());
+        boolean over = badge != null && getText() != null && getText().startsWith(badge);
+        java.awt.Rectangle box = badgeBox(fm, over);
+        if (box == null) {
+            super.paintComponent(g);
+            return;
+        }
+        // The title is painted everywhere but the box, so the number is drawn once, in the box's colour
+        java.awt.Graphics2D g2 = (java.awt.Graphics2D) g.create();
+        try {
+            if (over) {
+                java.awt.geom.Area rest = new java.awt.geom.Area(new java.awt.Rectangle(0, 0, getWidth(), h));
+                rest.subtract(new java.awt.geom.Area(box));
+                g2.clip(rest);
+            }
+            super.paintComponent(g2);
+        } finally {
+            g2.dispose();
+        }
+        Color[] colors = PanelVisibility.badgeColors(theme, fill);
+        java.awt.Graphics2D b = (java.awt.Graphics2D) g.create();
+        try {
+            b.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+            b.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING, java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            b.setColor(colors[0]);
+            int arc = Math.max(6, fm.getHeight() / 2);
+            b.fillRoundRect(box.x, box.y, box.width, box.height, arc, arc);
+            b.setFont(getFont());
+            b.setColor(colors[1]);
+            b.drawString(badge, box.x + (box.width - fm.stringWidth(badge)) / 2, box.y + 1 + fm.getAscent());
+        } finally {
+            b.dispose();
+        }
     }
 
 }

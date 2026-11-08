@@ -138,6 +138,32 @@ public final class PanelVisibility {
         return Theme.legibleOn(theme.get(Theme.Token.HeaderText), fill, Theme.TEXT_MIN);
     }
 
+    /**
+     * The box behind a section's key number while its modifier is held: the theme's accent, pushed
+     * toward white or toward black until the number's text has 4.5:1 and the box has 3:1 against the
+     * band, whichever of the two ends up standing out most from the band it is on. Returns {fill, text}. The hue stays the
+     * accent's, so it belongs to the theme, but the box is a pastel or a deep tone rather than the
+     * raw accent, which keeps it clear of garish.
+     */
+    public static Color[] badgeColors(Theme theme, Color band) {
+        Color accent = theme.get(Theme.Token.Accent);
+        Color[] best = null;
+        double bestScore = -1;
+        for (Color text : new Color[]{Color.WHITE, Color.BLACK}) {
+            Color away = text.equals(Color.WHITE) ? Color.BLACK : Color.WHITE; // push the fill away from the text colour
+            Color fill = accent;
+            // far enough for the number (4.5:1) and for the box to stand out from the band (3:1), if the hue allows
+            for (double f = 0.04; (Theme.contrast(text, fill) < Theme.TEXT_MIN || Theme.contrast(fill, band) < Theme.SURFACE_MIN) && f <= 1.0001; f += 0.04)
+                fill = Theme.mix(accent, away, Math.min(1, f));
+            double score = Theme.contrast(fill, band);
+            if (Theme.contrast(text, fill) >= Theme.TEXT_MIN && score > bestScore) {
+                bestScore = score;
+                best = new Color[]{fill, text};
+            }
+        }
+        return best;
+    }
+
     /** The accent stripe, held to 3:1 against the band it sits on. */
     public static Color stripeColor(Theme theme, Color fill) {
         return Theme.legibleOn(theme.get(Theme.Token.Accent), fill, Theme.SURFACE_MIN);

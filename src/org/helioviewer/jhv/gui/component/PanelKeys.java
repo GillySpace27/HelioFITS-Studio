@@ -50,7 +50,7 @@ public final class PanelKeys {
         return (right ? "foldRightPanel" : "foldLeftPanel") + n;
     }
 
-    /** The catalog id of the fold-all command of a side. Ids are API. */
+    /** The catalog id of the collapse-all command that starts with a side. Ids are API (they began as fold-all). */
     public static String idAll(boolean right) {
         return right ? "foldRightPanelAll" : "foldLeftPanelAll";
     }
@@ -68,9 +68,9 @@ public final class PanelKeys {
     }
 
     /**
-     * The default keystroke of place {@code n} (0 for fold-all), or null for none: Ctrl+N on the
+     * The default keystroke of place {@code n} (0 for collapse-all), or null for none: Ctrl+N on the
      * left, Alt+N on the right (Ctrl+Option+N and Option+N on a Mac). Off a Mac, Ctrl+9 and Ctrl+0 are the zoom keys, so left 9 and
-     * left fold-all have none.
+     * left collapse-all have none.
      */
     @Nullable
     static KeyStroke defaultKey(boolean right, int n) {
@@ -93,12 +93,12 @@ public final class PanelKeys {
         return a;
     }
 
-    /** The fold-all command of a side, for ActionCatalog to register. */
+    /** The collapse-all command that starts with a side, for ActionCatalog to register. */
     public static Action actionAll(boolean right) {
-        Action a = new AbstractAction("Fold or Restore All " + (right ? "Right" : "Left") + " Sidebar Panels") {
+        Action a = new AbstractAction("Collapse All, " + (right ? "Right" : "Left") + " First") {
             @Override
             public void actionPerformed(ActionEvent e) {
-                toggleAll(right);
+                collapseAll(right);
             }
         };
         KeyStroke ks = defaultKey(right, 0);
@@ -107,42 +107,53 @@ public final class PanelKeys {
         return a;
     }
 
-    /** The titles fold-all closed on each side, so the next press opens exactly those. Index 0 left, 1 right. */
-    private static final List<java.util.Set<String>> REMEMBERED = List.of(new java.util.LinkedHashSet<>(), new java.util.LinkedHashSet<>());
+    /** How long after a press the next one still counts as the same sequence (Gilly, 2026-11-08). */
+    static final long WINDOW_MS = 5000;
+    /** Last press time, then the presses so far in this sequence; in a final holder (guards.py ratchet). */
+    private static final long[] SEQUENCE = {0, 0};
+    /** The side the sequence began with: true for the right. */
+    private static final boolean[] FIRST = {false};
 
     /**
-     * Fold every section of a side if any is open, remembering which were; otherwise open the ones
-     * remembered (all of them when nothing is remembered, or none of those is still there). A flip,
-     * not a setting: press it twice and the sidebar is as it was.
+     * Collapse all, in three escalating presses within {@link #WINDOW_MS} of one another: the first
+     * folds every section on one side (the right for Option+0, the left for Ctrl+Option+0), the
+     * second folds the other side's too, the third collapses both sidebars and the timeline strip.
+     * It never unfolds anything; a pause longer than the window starts over. Returns which press this
+     * was (1 to 3; more presses stay at 3).
      */
-    public static void toggleAll(boolean right) {
-        List<CollapsiblePane> panes = shown(paneOf(right));
-        java.util.Set<String> remembered = REMEMBERED.get(right ? 1 : 0);
-        List<CollapsiblePane> open = new ArrayList<>();
-        for (CollapsiblePane p : panes)
-            if (!p.isPinned() && p.toggleButton.isSelected())
-                open.add(p);
-        if (!open.isEmpty()) {
-            remembered.clear();
-            for (CollapsiblePane p : open) {
-                remembered.add(p.getTitle());
-                p.toggleButton.doClick();
+    public static int collapseAll(boolean rightFirst) {
+        return collapseAllAt(rightFirst, System.currentTimeMillis());
+    }
+
+    static int collapseAllAt(boolean rightFirst, long nowMs) {
+        if (nowMs - SEQUENCE[0] > WINDOW_MS || SEQUENCE[1] == 0) {
+            SEQUENCE[1] = 0;
+            FIRST[0] = rightFirst;
+        }
+        SEQUENCE[0] = nowMs;
+        int press = (int) Math.min(3, ++SEQUENCE[1]);
+        SEQUENCE[1] = press;
+        switch (press) {
+            case 1 -> foldAll(FIRST[0]);
+            case 2 -> {
+                foldAll(FIRST[0]);
+                foldAll(!FIRST[0]);
             }
-        } else {
-            boolean any = false;
-            for (CollapsiblePane p : panes)
-                any |= remembered.contains(p.getTitle());
-            for (CollapsiblePane p : panes)
-                if (!p.isPinned() && (!any || remembered.contains(p.getTitle())))
-                    p.toggleButton.doClick();
-            remembered.clear();
-            boolean hidden = right ? RightSidebar.getInstance().isCollapsed() : MainFrame.isSidebarCollapsed();
-            if (hidden && right)
-                RightSidebar.getInstance().setCollapsed(false);
-            else if (hidden)
-                MainFrame.setSidebarCollapsed(false);
+            default -> {
+                foldAll(true);
+                foldAll(false);
+                LayoutKeys.collapseEverything();
+            }
         }
         Palette.syncToggles();
+        return press;
+    }
+
+    /** Fold every open, unpinned section of a side. */
+    static void foldAll(boolean right) {
+        for (CollapsiblePane p : shown(paneOf(right)))
+            if (!p.isPinned() && p.toggleButton.isSelected())
+                p.toggleButton.doClick();
     }
 
     @Nullable

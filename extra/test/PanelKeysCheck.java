@@ -125,25 +125,71 @@ public final class PanelKeysCheck {
         expect("in a collapsed sidebar the key shows the section rather than folding it out of sight",
                 !bar.isCollapsed() && bar.isUnfolded("Gamma"));
 
-        // Fold-all: a flip that remembers what was open
+        // Collapse all: three escalating presses, never an unfold
         if (!bar.isUnfolded("Alpha"))
             PanelKeys.toggle(true, 1);
-        if (bar.isUnfolded("Beta"))
+        if (!bar.isUnfolded("Beta"))
             PanelKeys.toggle(true, 2);
-        PanelKeys.toggleAll(true);
+        long t0 = 1_000_000;
+        int first = PanelKeys.collapseAllAt(true, t0);
         boolean allFolded = !bar.isUnfolded("Alpha") && !bar.isUnfolded("Beta") && !bar.isUnfolded("Gamma");
-        PanelKeys.toggleAll(true);
-        expect("fold-all folds every section", allFolded);
-        expect("and the next press opens exactly the ones that were open", bar.isUnfolded("Alpha") && !bar.isUnfolded("Beta") && bar.isUnfolded("Gamma"));
-        PanelKeys.toggle(true, 1); // fold the two open ones by hand: everything folded, nothing remembered
-        PanelKeys.toggle(true, 3);
-        PanelKeys.toggleAll(true);
-        expect("with nothing remembered it opens them all", bar.isUnfolded("Alpha") && bar.isUnfolded("Beta") && bar.isUnfolded("Gamma"));
+        expect("the first press folds every section of the right sidebar", first == 1 && allFolded);
+        PanelKeys.toggle(true, 1); // open one by hand between presses
+        int second = PanelKeys.collapseAllAt(true, t0 + 4000);
+        expect("a second press within 5 seconds folds both sides (and counts 2)", second == 2 && !bar.isUnfolded("Alpha"));
+        int third = PanelKeys.collapseAllAt(true, t0 + 8000); // 4 s after the second: the window slides
+        expect("a third press is the full collapse (the sidebars and timeline need a window, so only the count is checked here)", third == 3);
+        expect("further presses stay at the third and still never unfold", PanelKeys.collapseAllAt(true, t0 + 9000) == 3 && !bar.isUnfolded("Alpha"));
+        bar.setCollapsed(false);
+        int again = PanelKeys.collapseAllAt(true, t0 + 9000 + PanelKeys.WINDOW_MS + 1);
+        expect("after more than 5 seconds it starts over with the first press, which leaves the sidebar where it is", again == 1 && !bar.isCollapsed());
+        PanelKeys.collapseAllAt(false, t0 + 20000);
+        expect("started from the left key, the left sidebar is the first target",
+                PanelKeys.collapseAllAt(false, t0 + 20001) == 2);
+        PanelKeys.collapseAllAt(false, t0 + 40000); // let it lapse and reopen for what follows
+        bar.setCollapsed(false);
+        for (String t : new String[]{"Alpha", "Beta", "Gamma"})
+            if (!bar.isUnfolded(t))
+                PanelKeys.toggle(true, "Alpha".equals(t) ? 1 : "Beta".equals(t) ? 2 : 3);
 
+        CollapsiblePaneButton btn = PanelKeys.at(true, 2).toggleButton;
+        btn.setSize(260, 24);
+        String textBefore = btn.getText();
+        java.awt.Dimension sizeBefore = btn.getPreferredSize();
+        java.awt.image.BufferedImage plain = new java.awt.image.BufferedImage(260, 24, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        btn.paint(plain.getGraphics());
         PanelKeyHint.lightForCheck('R');
-        expect("holding Option bolds the right numbers", PanelKeys.at(true, 2).toggleButton.getText().startsWith("<html><b>R2.</b>"));
+        java.awt.image.BufferedImage lit = new java.awt.image.BufferedImage(260, 24, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        btn.paint(lit.getGraphics());
+        expect("holding Option leaves the header's text and size exactly as they were (no jitter)",
+                btn.getText().equals(textBefore) && btn.getPreferredSize().equals(sizeBefore));
+        java.awt.Rectangle box = btn.badgeBox(btn.getFontMetrics(btn.getFont()), btn.getText().startsWith("R2"));
+        expect("and boxes the number: the box is where the number is, and painted", box != null && box.width > 4
+                && lit.getRGB(box.x + 2, box.y + box.height / 2) != plain.getRGB(box.x + 2, box.y + box.height / 2));
+        boolean diffElsewhere = false;
+        for (int x = box == null ? 0 : box.x + box.width + 1; x < 260; x++)
+            for (int y = 0; y < 24; y++)
+                diffElsewhere |= lit.getRGB(x, y) != plain.getRGB(x, y);
+        expect("nothing else on the header changes, so the title does not move", !diffElsewhere);
         PanelKeyHint.cancel();
-        expect("and letting go puts them back", !PanelKeys.at(true, 2).toggleButton.getText().startsWith("<html>"));
+        expect("letting go takes the box away", btn.badgeBox(btn.getFontMetrics(btn.getFont()), true) == null && btn.getText().equals(textBefore));
+
+        // The box's colours: 4.5:1 for the number in every theme, and clear of the band behind it
+        double worstText = 99, worstBand = 99;
+        String worstTheme = "";
+        for (org.helioviewer.jhv.app.Theme t : org.helioviewer.jhv.app.Theme.all())
+            for (boolean child : new boolean[]{false, true}) {
+                java.awt.Color band = PanelVisibility.headerFill(t, child);
+                java.awt.Color[] c = PanelVisibility.badgeColors(t, band);
+                worstText = Math.min(worstText, org.helioviewer.jhv.app.Theme.contrast(c[1], c[0]));
+                double vsBand = org.helioviewer.jhv.app.Theme.contrast(c[0], band);
+                if (vsBand < worstBand) {
+                    worstBand = vsBand;
+                    worstTheme = t.name();
+                }
+            }
+        expect(String.format("the number reads on its box in every theme (worst %.1f:1, needs 4.5)", worstText), worstText >= 4.5);
+        expect(String.format("and the box stands out from its band (worst %.1f:1 in %s, needs 2)", worstBand, worstTheme), worstBand >= 2);
 
         // Taken out and put back, Alpha goes to the end: the keys follow the order on screen.
         bar.removeSection("Alpha");

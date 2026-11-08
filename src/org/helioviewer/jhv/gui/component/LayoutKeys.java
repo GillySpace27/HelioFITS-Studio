@@ -79,6 +79,20 @@ public final class LayoutKeys {
             menu.add(e.action()).setName(id);
     }
 
+    /** Both sidebars and the timeline strip out of the way, whatever state they were in; the end of Collapse All. */
+    static void collapseEverything() {
+        if (MainFrame.get() == null)
+            return; // no window yet (a check): nothing to collapse
+        MainFrame.setSidebarCollapsed(true);
+        if (MainFrame.isEastVisible())
+            RightSidebar.getInstance().setCollapsed(true);
+        MainContentPanel panel = MainFrame.getMainContentPanel();
+        if (panel != null)
+            panel.setPluginsShowing(false);
+        ToolBar.syncSidebarToggles();
+        ToolBar.syncTimelinesToggle();
+    }
+
     static void toggleLeft() {
         MainFrame.setSidebarCollapsed(!MainFrame.isSidebarCollapsed());
         ToolBar.syncSidebarToggles();

@@ -241,12 +241,12 @@ public final class ActionCatalog {
                 org.helioviewer.jhv.gui.component.MenuBar.openSettingsTab("Keybindings");
             }
         }, "Managers/Keybindings Manager...", "Every command with its keybinding: search, change or reset (opens Settings on the Keybindings tab)");
-        // Fold or show a sidebar section by its number: Ctrl+1..9 left, Alt+1..9 right, 0 for all; Ctrl+Option on the left on a Mac (PanelKeys, CommandKeys)
+        // Fold or show a sidebar section by its number: Ctrl+1..9 left, Alt+1..9 right, 0 collapses all (press again within 5 s to escalate); Ctrl+Option on the left on a Mac (PanelKeys, CommandKeys)
         for (boolean right : new boolean[]{false, true}) {
             String side = right ? "Right" : "Left";
             put(org.helioviewer.jhv.gui.component.PanelKeys.idAll(right), org.helioviewer.jhv.gui.component.PanelKeys.actionAll(right),
-                    "View/" + side + " Sidebar Panels/Fold or Restore All", "Fold every section of the " + side.toLowerCase(java.util.Locale.ROOT)
-                            + " sidebar; the next press opens again the ones that were open");
+                    "View/" + side + " Sidebar Panels/Collapse All, " + side + " First", "Collapse all, never unfolding: press 1 folds every section of the "
+                            + side.toLowerCase(java.util.Locale.ROOT) + " sidebar, press 2 within 5 seconds the other sidebar's too, press 3 collapses both sidebars and the timeline strip");
             for (int n = 1; n <= org.helioviewer.jhv.gui.component.PanelKeys.SLOTS; n++)
                 put(org.helioviewer.jhv.gui.component.PanelKeys.id(right, n), org.helioviewer.jhv.gui.component.PanelKeys.action(right, n),
                         "View/" + side + " Sidebar Panels/" + side + " Sidebar Panel " + n,
