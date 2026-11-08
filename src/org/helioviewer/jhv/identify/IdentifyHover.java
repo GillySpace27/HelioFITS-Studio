@@ -144,6 +144,7 @@ public final class IdentifyHover {
         last = matches;
         lastDrawn = drawn;
         keep(matches, drawn);
+        IdentifyGlow.matched(matches);
         boolean wasShown = labelShown && !label.isEmpty();
         label.clear();
         labelShown = false;
@@ -245,6 +246,7 @@ public final class IdentifyHover {
         dwell.stop();
         last = List.of();
         lastDrawn = List.of();
+        IdentifyGlow.matched(last);
         if (!frozen && kept.state() != State.AWAY) {
             kept = new Snapshot(kept.millis(), kept.matches(), kept.drawn(), State.AWAY);
             fireKept();

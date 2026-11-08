@@ -22,6 +22,8 @@ public final class IdentifyTab {
     public static JComponent build() {
         JCheckBox enabled = box("Identify under cursor (footer)", IdentifySettings.enabled(), IdentifySettings.ENABLED);
         JCheckBox tooltip = box("Show the name beside the pointer", IdentifySettings.tooltip(), IdentifySettings.TOOLTIP);
+        JCheckBox glow = box("Glow around what is identified", IdentifySettings.glow(), IdentifySettings.GLOW);
+        JCheckBox pulse = box("Pulse when it changes", IdentifySettings.pulse(), IdentifySettings.PULSE);
         JCheckBox stars = box("Include stars", IdentifySettings.stars(), IdentifySettings.STARS);
         JCheckBox iau = box("IAU proper names (Sirius)", IdentifySettings.starNamesIau(), IdentifySettings.STAR_NAMES_IAU);
         JCheckBox bayer = box("Bayer designations (α CMa)", IdentifySettings.starNamesBayer(), IdentifySettings.STAR_NAMES_BAYER);
@@ -37,6 +39,8 @@ public final class IdentifyTab {
         IdentifySettings.addListener(() -> {
             enabled.setSelected(IdentifySettings.enabled());
             tooltip.setSelected(IdentifySettings.tooltip());
+            glow.setSelected(IdentifySettings.glow());
+            pulse.setSelected(IdentifySettings.pulse());
             stars.setSelected(IdentifySettings.stars());
             iau.setSelected(IdentifySettings.starNamesIau());
             bayer.setSelected(IdentifySettings.starNamesBayer());
@@ -56,6 +60,8 @@ public final class IdentifyTab {
         form.add(heading("Switches"));
         form.add(line(enabled));
         form.add(line(tooltip));
+        form.add(line(glow));
+        form.add(line(pulse));
         form.add(line(stars));
         form.add(heading("Pointer"));
         form.add(line(new JLabel("Tolerance (screen pixels)"), tolerance));

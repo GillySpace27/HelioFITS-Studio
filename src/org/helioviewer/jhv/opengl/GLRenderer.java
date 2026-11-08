@@ -127,6 +127,7 @@ public final class GLRenderer {
             // Display.showPrintableArea is on, so the null VBO stayed hidden until someone ticked
             // the box, and then it threw on every frame and blanked the canvas.
             printableLine.init();
+            org.helioviewer.jhv.identify.IdentifyGlow.init();
             Annotations.init();
         } catch (RuntimeException | Error e) {
             Annotations.dispose();
@@ -294,6 +295,7 @@ public final class GLRenderer {
 
     private static void disposeShaders() {
         printableLine.dispose();
+        org.helioviewer.jhv.identify.IdentifyGlow.dispose();
         GLSLTransitionShader.dispose();
         GLSLTextureShader.dispose();
         GLSLShapeShader.dispose();
@@ -397,6 +399,7 @@ public final class GLRenderer {
         Layers.renderFullFloat(vp);
         RenderGuard.run("recording-area outline", () -> renderPrintableArea(vp));
         RenderGuard.run("empty-canvas hint", () -> renderEmptyHint(vp));
+        RenderGuard.run("identify glow", () -> org.helioviewer.jhv.identify.IdentifyGlow.render(vp));
         RenderGuard.run("canvas key readout", () -> org.helioviewer.jhv.display.interaction.CanvasKeys.render(vp));
         RenderGuard.run("identify label", () -> org.helioviewer.jhv.identify.IdentifyHover.renderLabel(vp));
         RenderGuard.run("identify pins", () -> org.helioviewer.jhv.identify.IdentifyPins.render(vp));

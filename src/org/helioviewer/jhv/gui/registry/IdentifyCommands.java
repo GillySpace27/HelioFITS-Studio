@@ -138,13 +138,15 @@ final class IdentifyCommands {
                         + "\"star_names_iau\":{\"type\":\"boolean\"},\"star_names_bayer\":{\"type\":\"boolean\"},"
                         + "\"star_max_magnitude\":{\"type\":\"number\"},\"tolerance_pixels\":{\"type\":\"number\",\"minimum\":0},"
                         + "\"tooltip_dwell_ms\":{\"type\":\"integer\",\"minimum\":0},\"light_time\":{\"type\":\"boolean\"},"
-                        + "\"earth_observer_uncertainty_km\":{\"type\":\"number\",\"minimum\":0},\"pluto\":{\"type\":\"boolean\"}}}"),
+                        + "\"earth_observer_uncertainty_km\":{\"type\":\"number\",\"minimum\":0},\"pluto\":{\"type\":\"boolean\"},"
+                        + "\"glow\":{\"type\":\"boolean\"},\"pulse\":{\"type\":\"boolean\"}}}"),
                 new JSONObject("{\"type\":\"object\"}"), args -> {
                     String[][] keys = {{"enabled", IdentifySettings.ENABLED}, {"tooltip", IdentifySettings.TOOLTIP}, {"stars", IdentifySettings.STARS},
                             {"star_names_iau", IdentifySettings.STAR_NAMES_IAU}, {"star_names_bayer", IdentifySettings.STAR_NAMES_BAYER},
                             {"star_max_magnitude", IdentifySettings.STAR_MAX_MAG}, {"tolerance_pixels", IdentifySettings.TOLERANCE_PX},
                             {"tooltip_dwell_ms", IdentifySettings.DWELL_MS}, {"light_time", IdentifySettings.LIGHT_TIME},
-                            {"earth_observer_uncertainty_km", IdentifySettings.EARTH_UNCERTAINTY_KM}, {"pluto", IdentifySettings.PLUTO}};
+                            {"earth_observer_uncertainty_km", IdentifySettings.EARTH_UNCERTAINTY_KM}, {"pluto", IdentifySettings.PLUTO},
+                            {"glow", IdentifySettings.GLOW}, {"pulse", IdentifySettings.PULSE}};
                     for (String[] k : keys)
                         if (args.has(k[0]))
                             IdentifySettings.set(k[1], String.valueOf(args.get(k[0])));
