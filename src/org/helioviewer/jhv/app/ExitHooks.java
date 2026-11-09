@@ -15,6 +15,7 @@ public class ExitHooks {
     public static void attach() {
         // At the moment this runs, the EventQueue is blocked (by enforcing to run System.exit on it which is blocking)
         Runtime.getRuntime().addShutdownHook(finishMovieThread);
+        Runtime.getRuntime().addShutdownHook(new Thread(GlobalPreferences::backupOnExit, "HFS-PreferencesBackup"));
     }
 
     // Returns false to abort the quit (unsaved-changes "Cancel"), which blocks an OS shutdown.

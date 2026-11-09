@@ -137,6 +137,42 @@
         "type": "object",
         "properties": {}
       },
+      "name": "savePreferences",
+      "description": "Save settings, keybindings, Canvas keys and layout to one JSON file, for a reinstall or another computer",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "ui"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
+      "name": "loadPreferences",
+      "description": "Load a saved preferences file after a list of what would change and a confirm",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "ui"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
       "name": "revertToSaved",
       "description": "Revert to Saved",
       "annotations": {

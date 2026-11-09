@@ -197,6 +197,9 @@ public final class MenuBar extends JMenuBar {
         catalogItem(fileMenu, "setDefaultSession");
         catalogItem(fileMenu, "clearDefaultSession");
         fileMenu.addSeparator();
+        catalogItem(fileMenu, "savePreferences");
+        catalogItem(fileMenu, "loadPreferences");
+        fileMenu.addSeparator();
         catalogItem(fileMenu, "reloadSources");
         catalogItem(fileMenu, "copyProvenance");
         catalogItem(fileMenu, "openExportsFolder");

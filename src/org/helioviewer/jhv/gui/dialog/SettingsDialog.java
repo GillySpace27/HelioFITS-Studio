@@ -206,6 +206,19 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
                 org.helioviewer.jhv.activity.Sampler.osCountersEnabled());
         osCounters.addActionListener(e -> Settings.setProperty(org.helioviewer.jhv.activity.Sampler.OS_COUNTERS_KEY, Boolean.toString(osCounters.isSelected())));
 
+        JButton savePrefs = new JButton("Save\u2026");
+        savePrefs.setToolTipText("File > Save Global Preferences: settings, keybindings, Canvas keys and layout to one JSON file");
+        savePrefs.addActionListener(e -> PreferencesTransfer.save());
+        JButton loadPrefs = new JButton("Load\u2026");
+        loadPrefs.setToolTipText("File > Load Global Preferences: shows what would change and asks first");
+        loadPrefs.addActionListener(e -> PreferencesTransfer.load());
+        JPanel prefsRow = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEADING, 6, 0));
+        prefsRow.add(savePrefs);
+        prefsRow.add(loadPrefs);
+        JCheckBox prefsBackup = new JCheckBox("<html>Keep a dated copy of these preferences when Studio quits<br/><small>In the Backups folder of the Studio data folder, one file a day, none removed",
+                !"false".equals(Settings.getProperty(org.helioviewer.jhv.app.GlobalPreferences.BACKUP_KEY)));
+        prefsBackup.addActionListener(e -> Settings.setProperty(org.helioviewer.jhv.app.GlobalPreferences.BACKUP_KEY, Boolean.toString(prefsBackup.isSelected())));
+
         return new SettingsForm()
                 .row("Preferred server:", comboServer)
                 .row("At start-up:", getStatePanel())
@@ -219,6 +232,8 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
                 .row(null, lingerRow)
                 .row("Activity:", lights)
                 .row(null, osCounters)
+                .row("Global preferences:", prefsRow)
+                .row(null, prefsBackup)
                 .end();
     }
 

@@ -67,6 +67,10 @@ public final class ActionCatalog {
         put("saveSessionAs", new Actions.SaveStateAs(), "File/Save Session As...", "");
         put("exportSessionWithData", new ExportSessionWithData(), "File/Export Session with Data...",
                 "Save the session plus a .data.zip of its local files, to open on another computer");
+        put("savePreferences", new org.helioviewer.jhv.gui.dialog.PreferencesTransfer.Save(), "File/Save Global Preferences...",
+                "Save settings, keybindings, Canvas keys and layout to one JSON file, for a reinstall or another computer");
+        put("loadPreferences", new org.helioviewer.jhv.gui.dialog.PreferencesTransfer.Load(), "File/Load Global Preferences...",
+                "Load a saved preferences file after a list of what would change and a confirm");
         put("revertToSaved", new Actions.RevertToSaved(), "File/Revert to Saved", "");
         put("setDefaultSession", new Actions.SetDefaultSession(), "File/Set Current Session as Default", "");
         put("clearDefaultSession", new Actions.ClearDefaultSession(), "File/Clear Default Session", "");
