@@ -197,6 +197,10 @@ public final class PanelKeysCheck {
             if (!bar.isUnfolded(tt))
                 PanelKeys.toggle(true, "Alpha".equals(tt) ? 1 : "Beta".equals(tt) ? 2 : 3);
 
+        // The sections were folded and opened since the first paint, and the Mac look and feel draws a
+        // header by its state: the unlit picture to compare with is taken now, in the state the lit one is
+        btn.paint(plain.getGraphics());
+        btn.paint(plain2.getGraphics());
         PanelKeyHint.lightForCheck('R');
         java.awt.image.BufferedImage lit = new java.awt.image.BufferedImage(260, 24, java.awt.image.BufferedImage.TYPE_INT_ARGB);
         btn.paint(lit.getGraphics());
