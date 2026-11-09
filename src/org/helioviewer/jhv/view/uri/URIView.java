@@ -81,7 +81,7 @@ public final class URIView extends BaseView {
         ClipSet.Range fixed = fixedRange;
         clipRange = hasFITS() ? (fixed != null ? fixed : range) : null;
         DecodeKey key = decodeKey();
-        DecodedImage image = ImageBufferCache.get(key);
+        DecodedImage image = cached(key);
         if (image != null) {
             // Mark running decodes stale before publishing this cached result.
             executor.invalidate();
@@ -105,14 +105,14 @@ public final class URIView extends BaseView {
         ClipSet.Range fixed = fixedRange;
         DecodeKey key = new DecodeKey(dataUri, processingSettings.getFilter(), processingSettings.getFilterChain(), hasFITS() ? processingSettings.fitsParameters() : null,
                 hasFITS() ? (fixed != null ? fixed : range) : null);
-        if (ImageBufferCache.get(key) != null || prefetching.size() >= PREFETCH_QUEUE_MAX || !prefetching.add(key))
+        if (cached(key) != null || prefetching.size() >= PREFETCH_QUEUE_MAX || !prefetching.add(key))
             return;
         prefetchPool.execute(() -> {
             try {
-                if (ImageBufferCache.get(key) == null) {
+                if (cached(key) == null) {
                     DecodedImage image = decodeImage(key, createFilter(key.filter(), key.chain()));
                     if (!image.imageBuffer().isProvisional())
-                        ImageBufferCache.put(key, image);
+                        keep(key, image);
                 }
             } catch (Exception e) {
                 Log.warn("Could not prefetch " + dataUri.baseName(), e); // the on-demand decode will try again and say so
@@ -147,7 +147,7 @@ public final class URIView extends BaseView {
         }
 
         DecodeKey key = new DecodeKey(dataUri, ImageFilter.Type.None, FilterChain.EMPTY, data, range);
-        DecodedImage image = ImageBufferCache.get(key);
+        DecodedImage image = cached(key);
         if (image != null)
             return image;
         try {
@@ -157,7 +157,7 @@ public final class URIView extends BaseView {
             return null;
         }
         if (!image.imageBuffer().isProvisional())
-            ImageBufferCache.put(key, image);
+            keep(key, image);
         return image;
     }
 
@@ -199,8 +199,41 @@ public final class URIView extends BaseView {
         return new DecodeKey(dataUri, processingSettings.getFilter(), processingSettings.getFilterChain(), data, clipRange);
     }
 
+    /**
+     * Whether this frame is served from the streaming store (StreamStore): its layer was loaded with
+     * "Stream (memory-mapped)" and it is a plain frame, no filter on. Any other frame uses ImageBufferCache.
+     */
+    private boolean streamed(DecodeKey key) {
+        return hasFITS() && key.filter() == ImageFilter.Type.None && key.chain() == FilterChain.EMPTY && StreamStore.isStreaming(key.uri().file());
+    }
+
+    @Nullable
+    private DecodedImage cached(DecodeKey key) {
+        return streamed(key) ? StreamStore.windowGet(key) : ImageBufferCache.get(key);
+    }
+
+    private void keep(DecodeKey key, DecodedImage image) {
+        if (streamed(key))
+            StreamStore.windowPut(key, image);
+        else
+            ImageBufferCache.put(key, image);
+    }
+
     private DecodedImage decodeImage(DecodeKey key, ImageFilter filter) throws Exception {
         File file = key.uri().file();
+        if (streamed(key)) {
+            String name = StreamStore.id(file, key.fitsData() + "|" + key.clipRange());
+            java.nio.file.Path dir = StreamStore.root();
+            DecodedImage stored = StreamStore.read(dir.resolve(name), imageRegion, key.fitsData());
+            if (stored != null)
+                return stored;
+            DecodedImage fresh = decodeFile(key, filter, file);
+            return StreamStore.storable(fresh.imageBuffer()) ? StreamStore.store(dir, name, fresh, imageRegion, key.fitsData()) : fresh;
+        }
+        return decodeFile(key, filter, file);
+    }
+
+    private DecodedImage decodeFile(DecodeKey key, ImageFilter filter, File file) throws Exception {
         ImageBuffer imageBuffer = hasFITS()
                 ? FITSImage.decode(file, filter, key.fitsData(), key.clipRange())
                 : GenericImage.decode(file, filter);
@@ -226,7 +259,7 @@ public final class URIView extends BaseView {
             // A provisional frame (its LASCO background could not be fetched) is shown but not kept,
             // so the next request decodes it again and gets the correction once the server is back.
             if (!result.imageBuffer().isProvisional())
-                ImageBufferCache.put(key, result);
+                keep(key, result);
             // This decode was superseded after it started; do not publish it to the layer.
             if (!fresh) return;
             sendDataToHandler(0, viewpoint, result, () -> key.equals(decodeKey()));
@@ -248,6 +281,7 @@ public final class URIView extends BaseView {
     @Override
     public void abolish() {
         ImageBufferCache.invalidateIf(key -> key instanceof DecodeKey k && k.uri() == dataUri);
+        StreamStore.windowDrop(key -> key instanceof DecodeKey k && k.uri() == dataUri);
     }
 
     @Override
