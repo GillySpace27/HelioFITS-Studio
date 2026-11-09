@@ -203,10 +203,21 @@ public final class PanelKeysCheck {
         java.awt.Rectangle box = btn.badgeBox(btn.getFontMetrics(btn.getFont()), btn.getText().startsWith("R2"));
         expect("and boxes the number: the box is where the number is, and painted", box != null && box.width > 4
                 && lit.getRGB(box.x + 2, box.y + box.height / 2) != plain.getRGB(box.x + 2, box.y + box.height / 2));
-        boolean diffElsewhere = false;
-        for (int x = box == null ? 0 : box.x + box.width + 1; x < 260; x++)
+        // Glyph edges next to the box may antialias differently under a clip (seen on the Mac's look and feel): leave a margin
+        int firstX = box == null ? 0 : box.x + box.width + 4;
+        int diffCount = 0, diffX = -1, diffY = -1;
+        for (int x = firstX; x < 260; x++)
             for (int y = 0; y < 24; y++)
-                diffElsewhere |= lit.getRGB(x, y) != plain.getRGB(x, y);
+                if (lit.getRGB(x, y) != plain.getRGB(x, y)) {
+                    if (diffCount++ == 0) {
+                        diffX = x;
+                        diffY = y;
+                    }
+                }
+        boolean diffElsewhere = diffCount > 0;
+        if (diffElsewhere)
+            System.out.println("  header differs at " + diffCount + " pixels right of the box, first at " + diffX + "," + diffY
+                    + " (box " + box + ", L&F " + javax.swing.UIManager.getLookAndFeel().getName() + ")");
         expect("nothing else on the header changes, so the title does not move", !diffElsewhere);
         PanelKeyHint.cancel();
         expect("letting go takes the box away", btn.badgeBox(btn.getFontMetrics(btn.getFont()), true) == null && btn.getText().equals(textBefore));
