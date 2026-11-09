@@ -18,6 +18,7 @@ import java.util.concurrent.ExecutionException;
 import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPopupMenu;
@@ -35,11 +36,13 @@ import javax.swing.table.TableRowSorter;
 
 import org.helioviewer.jhv.app.Commands;
 import org.helioviewer.jhv.app.Message;
+import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.gui.DesktopIntegration;
 import org.helioviewer.jhv.gui.UIGlobals;
 import org.helioviewer.jhv.io.CacheIndex;
 import org.helioviewer.jhv.io.FitsLibrary;
 import org.helioviewer.jhv.time.TimeUtils;
+import org.helioviewer.jhv.view.uri.StreamStore;
 
 /**
  * The "FITS library" tab of the New Image Layer dialog: datasets HelioFITS Core has already downloaded,
@@ -244,14 +247,18 @@ final class FitsLibraryTab extends JPanel {
             for (FitsLibrary.Dataset set : sets) {
                 // Asked again rather than taken from the row: the range may have moved since the list was read.
                 List<File> files = FitsLibrary.files(lib, set.key(), start, end);
+                boolean stream = false;
                 if (files.isEmpty()) {
-                    if (set.frames() > CONFIRM_FRAMES && JOptionPane.showConfirmDialog(this,
-                            set.label() + " has nothing in the master time range.\nLoad all " + String.format("%,d", set.frames())
-                                    + " frames (" + diskSize(set.bytes()) + ")?", "Load Whole Dataset",
-                            JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE) != JOptionPane.OK_OPTION)
-                        continue;
+                    if (set.frames() > CONFIRM_FRAMES) {
+                        String how = askWhole(set);
+                        if (how == null)
+                            continue;
+                        stream = "stream".equals(how);
+                    }
                     files = FitsLibrary.files(lib, set.key());
                 }
+                if (stream)
+                    StreamStore.mark(files);
                 List<URI> uris = new ArrayList<>();
                 for (File file : files)
                     if (file.isFile()) // a delete in HelioFITS Core since the list was read
@@ -268,6 +275,32 @@ final class FitsLibraryTab extends JPanel {
             Message.err("Could not read the FITS library", e.getMessage(), e);
         }
         return loaded;
+    }
+
+    /**
+     * How to load a dataset that has nothing in the master time range: "all", "stream", or null for
+     * Cancel. A remembered choice (Settings, stream.choice) skips the question; Settings can set it back to ask.
+     */
+    @Nullable
+    private String askWhole(FitsLibrary.Dataset set) {
+        String saved = String.valueOf(Settings.getProperty(StreamStore.KEY_CHOICE)).trim();
+        if (saved.equals("all") || saved.equals("stream"))
+            return saved;
+        JCheckBox remember = new JCheckBox("Remember my choice (Settings > Network > Streaming undoes it)");
+        JPanel body = new JPanel(new java.awt.BorderLayout(0, 8));
+        body.add(new JLabel("<html>" + set.label() + " has nothing in the master time range.<br>Load all " + String.format("%,d", set.frames())
+                + " frames (" + diskSize(set.bytes()) + ")?<br><br>Stream keeps the decoded frames on disk and maps them, so the dataset<br>"
+                + "may be bigger than memory. It needs disk space for the decoded frames (see Settings).</html>"), java.awt.BorderLayout.CENTER);
+        body.add(remember, java.awt.BorderLayout.SOUTH);
+        String[] options = {"Load all", "Stream (memory-mapped)", "Cancel"};
+        int picked = JOptionPane.showOptionDialog(this, body, "Load Whole Dataset", JOptionPane.DEFAULT_OPTION,
+                JOptionPane.QUESTION_MESSAGE, null, options, options[1]);
+        if (picked != 0 && picked != 1)
+            return null;
+        String how = picked == 0 ? "all" : "stream";
+        if (remember.isSelected())
+            Settings.setProperty(StreamStore.KEY_CHOICE, how);
+        return how;
     }
 
     /** Read the datasets off the event thread; the table fills when the read lands. */

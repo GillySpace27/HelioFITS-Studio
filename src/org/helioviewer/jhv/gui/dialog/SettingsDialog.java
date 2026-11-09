@@ -54,6 +54,7 @@ import org.helioviewer.jhv.thread.Task;
 import org.helioviewer.jhv.view.j2k.jpip.JPIPCacheManager;
 import org.helioviewer.jhv.image.ImageBufferCache;
 import org.helioviewer.jhv.app.MemoryBudget;
+import org.helioviewer.jhv.view.uri.StreamStore;
 import org.helioviewer.jhv.thread.DecodePool;
 
 import com.jidesoft.dialog.ButtonPanel;
@@ -336,6 +337,7 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         return new SettingsForm()
                 .row("Image cache:", createCachePanel())
                 .row("Memory:", createMemoryPanel())
+                .row("Streaming:", createStreamPanel())
                 .row("Decoding:", createDecodePanel())
                 .row("Long requests:", createChunkPanel())
                 .row("Ask before downloading:", createLoadGuardPanel())
@@ -360,6 +362,29 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
         panel.add(share);
         panel.add(detail);
+        return panel;
+    }
+
+    /**
+     * The limits of "Stream (memory-mapped)": how much memory the window of mapped frames may hold,
+     * how much disk the decoded frames may take, and what to do with a whole dataset without asking.
+     */
+    private static JPanel createStreamPanel() {
+        javax.swing.JSpinner mb = new javax.swing.JSpinner(new javax.swing.SpinnerNumberModel((int) (StreamStore.windowBytes() >> 20), 64, 1 << 20, 256));
+        javax.swing.JSpinner gb = new javax.swing.JSpinner(new javax.swing.SpinnerNumberModel((int) (StreamStore.diskBytes() >> 30), 1, 1 << 16, 10));
+        mb.addChangeListener(e -> Settings.setProperty(StreamStore.KEY_MB, String.valueOf(mb.getValue())));
+        gb.addChangeListener(e -> Settings.setProperty(StreamStore.KEY_GB, String.valueOf(gb.getValue())));
+        javax.swing.JComboBox<String> choice = new javax.swing.JComboBox<>(new String[]{"ask", "all", "stream"});
+        String saved = String.valueOf(Settings.getProperty(StreamStore.KEY_CHOICE)).trim();
+        choice.setSelectedItem(saved.equals("all") || saved.equals("stream") ? saved : "ask");
+        choice.addActionListener(e -> Settings.setProperty(StreamStore.KEY_CHOICE, String.valueOf(choice.getSelectedItem())));
+
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
+        panel.add(mb);
+        panel.add(new JLabel("MB of mapped frames in memory,"));
+        panel.add(gb);
+        panel.add(new JLabel("GB of decoded frames on disk; a whole dataset: "));
+        panel.add(choice);
         return panel;
     }
 
