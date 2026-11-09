@@ -26,8 +26,11 @@ class TableRowTransferHandler extends TransferHandler {
     private BufferedImage image;
     private Cursor dragCursor;
 
-    TableRowTransferHandler(JTable table) {
+    private final java.util.function.BooleanSupplier fromGrip;
+
+    TableRowTransferHandler(JTable table, java.util.function.BooleanSupplier _fromGrip) {
         grid = table;
+        fromGrip = _fromGrip;
     }
 
     private boolean isOurs(TransferHandler.TransferSupport info) {
@@ -52,7 +55,7 @@ class TableRowTransferHandler extends TransferHandler {
     @Nullable
     @Override
     protected Transferable createTransferable(JComponent c) {
-        if (c != grid)
+        if (c != grid || !fromGrip.getAsBoolean())
             return null;
 
         int row = grid.getSelectedRow();

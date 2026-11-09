@@ -86,6 +86,57 @@ class CellRenderer {
         };
     }
 
+    /**
+     * The grip, and the mark of the selected row.
+     *
+     * <p>Six dots say "pick me up". A selected row is already tinted, and a tint alone is read as
+     * hover or as a format wash, so the grip also gets a solid bar down the row's left edge and a
+     * small arrow on its right, in the selection foreground so they stand out against the tint
+     * in both themes. Sizes come from the row height, so they follow UIScale.
+     */
+    static final class Handle extends DefaultTableCellRenderer {
+
+        private boolean selected;
+        private boolean layer;
+
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+            selected = isSelected;
+            layer = value instanceof Layer;
+            setText(null);
+            setBorder(null);
+            setToolTipText(layer ? "Drag to reorder: the order is the draw order" : null);
+            setForeground(isSelected ? table.getSelectionForeground() : javax.swing.UIManager.getColor("Label.disabledForeground"));
+            setBackground(background(table, value, isSelected));
+            return this;
+        }
+
+        @Override
+        protected void paintComponent(java.awt.Graphics g) {
+            super.paintComponent(g);
+            if (!layer)
+                return;
+            java.awt.Graphics2D g2 = (java.awt.Graphics2D) g.create();
+            g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(getForeground());
+            int h = getHeight(), w = getWidth();
+            int d = Math.max(2, h / 9); // dot size
+            int gap = d;
+            int gx = (w - (2 * d + gap)) / 2 + (selected ? d / 2 : 0);
+            int gy = (h - (3 * d + 2 * gap)) / 2;
+            for (int r = 0; r < 3; r++)
+                for (int c = 0; c < 2; c++)
+                    g2.fillOval(gx + c * (d + gap), gy + r * (d + gap), d, d);
+            if (selected) {
+                g2.fillRect(0, 0, Math.max(3, h / 8), h); // the bar
+                int t = Math.max(3, h / 6); // the arrow
+                g2.fillPolygon(new int[]{w - t - 1, w - t - 1, w - 1}, new int[]{h / 2 - t, h / 2 + t, h / 2}, 3);
+            }
+            g2.dispose();
+        }
+
+    }
+
     static final class Enabled extends DefaultTableCellRenderer {
 
         private final JCheckBox checkBox = new JCheckBox();
@@ -96,7 +147,7 @@ class CellRenderer {
             if (value instanceof Layer layer) {
                 checkBox.setSelected(layer.isEnabled());
             }
-            checkBox.setToolTipText("Show or hide this layer");
+            checkBox.setToolTipText("Show or hide this layer in the scene (does not change which layer drives the clock)");
             checkBox.setBackground(background(table, value, isSelected));
             return checkBox;
         }
@@ -165,7 +216,7 @@ class CellRenderer {
             radio.setSelected(isSource
                     ? value == Layers.getMasterTimelineSource()
                     : Layers.getMasterTimelineSource() == null && value == Layers.getActiveImageLayer());
-            radio.setToolTipText("Use this layer as the master for the movie clock and frame rate");
+            radio.setToolTipText("Hand the calendar, timeline and frame rate to this layer");
             radio.setBackground(background);
             return radio;
         }

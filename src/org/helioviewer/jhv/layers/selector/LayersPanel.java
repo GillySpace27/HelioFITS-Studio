@@ -42,13 +42,14 @@ public final class LayersPanel extends JPanel {
 
     private static final int ICON_WIDTH = 12;
 
-    static final int ENABLED_COL = 0;
-    static final int MASTER_COL = 1;
-    static final int NAME_COL = 2;
-    static final int TIME_COL = 3;
-    static final int FILTER_COL = 4;
-    static final int DOWNLOAD_COL = 5;
-    static final int REMOVE_COL = 6;
+    static final int HANDLE_COL = 0; // the grip: the only place a row is picked up to reorder it
+    static final int ENABLED_COL = 1;
+    static final int MASTER_COL = 2;
+    static final int NAME_COL = 3;
+    static final int TIME_COL = 4;
+    static final int FILTER_COL = 5;
+    static final int DOWNLOAD_COL = 6;
+    static final int REMOVE_COL = 7;
     // Deliberately a method, not a static final int. A constant would be inlined
     // into LayersTableModel at compile time, and an incremental build that
     // recompiled only this file would leave the model reporting a stale column
@@ -63,6 +64,7 @@ public final class LayersPanel extends JPanel {
     private JScrollPane jsp; // sized to its contents, always: see showAllRows
 
     private final LayersTable grid;
+    private boolean pressedOnHandle; // a drag counts only if it began on the grip
     private final LayerOptionSections sections;
 
     // Both tables show one selection between them, because there is one options section per table
@@ -189,6 +191,10 @@ public final class LayersPanel extends JPanel {
         grid.setColumnSelectionAllowed(false);
         grid.setIntercellSpacing(new Dimension(0, 0));
 
+        grid.getColumnModel().getColumn(HANDLE_COL).setCellRenderer(new CellRenderer.Handle());
+        grid.getColumnModel().getColumn(HANDLE_COL).setPreferredWidth(ICON_WIDTH + 4);
+        grid.getColumnModel().getColumn(HANDLE_COL).setMaxWidth(ICON_WIDTH + 4);
+
         grid.getColumnModel().getColumn(ENABLED_COL).setCellRenderer(new CellRenderer.Enabled());
         grid.getColumnModel().getColumn(ENABLED_COL).setPreferredWidth(ICON_WIDTH + 8);
         grid.getColumnModel().getColumn(ENABLED_COL).setMaxWidth(ICON_WIDTH + 8);
@@ -241,6 +247,7 @@ public final class LayersPanel extends JPanel {
         grid.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
+                pressedOnHandle = grid.columnAtPoint(e.getPoint()) == HANDLE_COL;
                 updateCursor(e, true); // the hand closes on the grab
             }
 
@@ -305,7 +312,7 @@ public final class LayersPanel extends JPanel {
         // another is an overlay drawn on top of it.
         grid.setDragEnabled(true);
         grid.setDropMode(DropMode.INSERT_ROWS);
-        grid.setTransferHandler(new TableRowTransferHandler(grid));
+        grid.setTransferHandler(new TableRowTransferHandler(grid, () -> pressedOnHandle));
 
         showAllRows(); // and every time the row count changes, which is the only height it has
     }
@@ -345,13 +352,13 @@ public final class LayersPanel extends JPanel {
         return picked;
     }
 
-    // Hand on the body of image rows only, as upstream; it was judged the wrong cursor over overlay rows
-    // (working meeting, 2026-10-02) and over the checkbox, radio and x, which react to a plain click.
-    // It closes while the mouse is pressed there. Every row still drags to reorder.
+    // Open hand on the grip, closed while it is held or dragged; pointing hand over the checkbox, radio and x,
+    // which react to a plain click; the ordinary arrow elsewhere. Only the grip starts a reorder.
     private void updateCursor(MouseEvent e, boolean pressed) {
         int row = grid.rowAtPoint(e.getPoint());
-        boolean imageRow = row >= 0 && grid.getValueAt(row, 0) instanceof ImageLayer;
+        boolean imageRow = row >= 0 && grid.getValueAt(row, 0) instanceof Layer;
         grid.setCursor(switch (LayerListCursor.kindAt(grid.columnAtPoint(e.getPoint()), imageRow, pressed)) {
+            case POINTER -> Cursor.getPredefinedCursor(Cursor.HAND_CURSOR);
             case OPEN_HAND -> UIGlobals.openHandCursor;
             case CLOSED_HAND -> UIGlobals.closedHandCursor;
             case ARROW -> Cursor.getDefaultCursor();
