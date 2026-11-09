@@ -553,12 +553,12 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
             }
             java.awt.Component view = org.helioviewer.jhv.gui.MainFrame.getRenderComponent();
             if (view != null)
-                view.setCursor(java.awt.Cursor.getPredefinedCursor(switch (effective) {
+                view.setCursor(org.helioviewer.jhv.gui.PresentationCursor.forMode(java.awt.Cursor.getPredefinedCursor(switch (effective) {
                     case PAN -> java.awt.Cursor.MOVE_CURSOR;
                     case ROTATE -> java.awt.Cursor.DEFAULT_CURSOR;
                     case AXIS -> java.awt.Cursor.CROSSHAIR_CURSOR;
                     case ZOOM -> java.awt.Cursor.N_RESIZE_CURSOR;
-                }));
+                })));
         });
 
         trackingButton = toolToggleButton(TRACK);

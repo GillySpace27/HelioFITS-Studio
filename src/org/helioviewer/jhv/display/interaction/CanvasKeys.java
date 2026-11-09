@@ -9,6 +9,8 @@ import java.util.Set;
 import javax.annotation.Nullable;
 import javax.swing.Timer;
 
+import org.helioviewer.jhv.app.Commands;
+import org.helioviewer.jhv.app.Platform;
 import org.helioviewer.jhv.app.SceneUndo;
 import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.app.state.ViewState;
@@ -21,25 +23,32 @@ import org.helioviewer.jhv.movie.ExportMovie;
 import org.helioviewer.jhv.opengl.GLText;
 
 /**
- * The keys the canvas answers to while it has focus (Gilly, 2026-11-08): W and S pitch, A and D yaw
- * and Q and E roll the scene, Up and Down change the playback rate. The arrows' stepping and Space
- * stay where they were ({@link Interaction}).
+ * The keys the canvas answers to while it has focus (Gilly, 2026-11-08, revised 2026-11-09): W and S
+ * pitch, A and D yaw and Q and E roll the scene; Up and Down zoom, continuously while held; R resets the
+ * view; Cmd+Left and Cmd+Right (Ctrl off a Mac) lower and raise the playback rate. The plain arrows'
+ * stepping and Space stay where they were ({@link Interaction}).
  *
  * <p>They are bare keys on purpose: the canvas is the one place they cannot be mistaken for typing,
  * and a held key turning the scene smoothly is the point. So they are not accelerators in the
  * {@link org.helioviewer.jhv.gui.ActionCatalog} (the catalogue refuses a key with no modifier, so that
  * it can never shadow a text field); they have their own table here, each key rebindable in
- * Settings &gt; Keybindings &gt; Canvas keys, kept as {@code canvasKeys.<id>} in the settings.
+ * Settings &gt; Keybindings &gt; Canvas keys, kept as {@code canvasKeys.<id>} in the settings. The two
+ * playback keys carry Cmd as part of the command; only the arrows, Page and Home/End can be put on
+ * them, so they cannot meet a menu accelerator.
  *
  * <p>Signs are "grab the Sun": the key moves the near side of the scene the way a drag in that
  * direction would (D to the right, W up), counter-clockwise for Q. <b>Invert</b> flips pitch and
- * yaw. Option held makes it slow, for fine framing. Shift on the canvas means annotate, and Cmd and
- * Ctrl pick the pan and axis modes, so none of those three is ever taken as a camera key.
+ * yaw. Option held makes any of the held keys slow, for fine framing. Zoom runs at half the turn rate,
+ * in the same terms: the turn rate in radians a second is the zoom in e-folds a second, halved, so the
+ * picture grows or shrinks by the same factor each second whatever its size, the way the mouse
+ * wheel zooms. Shift on the canvas means annotate, and Cmd and Ctrl pick the pan and axis modes, so
+ * none of those three is taken with a held key.
  *
  * <p>The turn is applied to the camera's drag rotation, as a trackball drag is, so it is part of the
  * saved scene and of undo; a hold is one undo step ({@link SceneUndo#keysDown}). It applies to the
  * 3D views. In Observer Sky, pitch and yaw aim the look direction as a drag does. Roll, and every
- * attitude key in the flat views, does nothing there (there is no camera attitude to turn).
+ * attitude key in the flat views, does nothing there (there is no camera attitude to turn). Zoom works
+ * in every view.
  *
  * <p>While recording they are off unless Record live changes is on: what is turned during a recording
  * is in its pixels, but a replay from the sidecar cannot repeat it until the camera has an
@@ -47,18 +56,24 @@ import org.helioviewer.jhv.opengl.GLText;
  */
 public final class CanvasKeys {
 
-    /** One bindable key: id (API, never renamed), name, default AWT key code, what it does. */
-    public record Cmd(String id, String title, int defaultKey, String what) {}
+    /**
+     * One bindable key: id (API, never renamed), name, default AWT key code, whether it is pressed with
+     * Cmd (Ctrl off a Mac), what it does.
+     */
+    public record Cmd(String id, String title, int defaultKey, boolean withCmd, String what) {}
 
     public static final List<Cmd> ALL = List.of(
-            new Cmd("canvasPitchUp", "Pitch Up", KeyEvent.VK_W, "Turn the scene so its near side moves up"),
-            new Cmd("canvasPitchDown", "Pitch Down", KeyEvent.VK_S, "Turn the scene so its near side moves down"),
-            new Cmd("canvasYawLeft", "Yaw Left", KeyEvent.VK_A, "Turn the scene so its near side moves left"),
-            new Cmd("canvasYawRight", "Yaw Right", KeyEvent.VK_D, "Turn the scene so its near side moves right"),
-            new Cmd("canvasRollLeft", "Roll Counter-clockwise", KeyEvent.VK_Q, "Turn the scene counter-clockwise about the line of sight"),
-            new Cmd("canvasRollRight", "Roll Clockwise", KeyEvent.VK_E, "Turn the scene clockwise about the line of sight"),
-            new Cmd("canvasFasterPlayback", "Faster Playback", KeyEvent.VK_UP, "Raise the playback rate by one"),
-            new Cmd("canvasSlowerPlayback", "Slower Playback", KeyEvent.VK_DOWN, "Lower the playback rate by one"));
+            new Cmd("canvasPitchUp", "Pitch Up", KeyEvent.VK_W, false, "Turn the scene so its near side moves up"),
+            new Cmd("canvasPitchDown", "Pitch Down", KeyEvent.VK_S, false, "Turn the scene so its near side moves down"),
+            new Cmd("canvasYawLeft", "Yaw Left", KeyEvent.VK_A, false, "Turn the scene so its near side moves left"),
+            new Cmd("canvasYawRight", "Yaw Right", KeyEvent.VK_D, false, "Turn the scene so its near side moves right"),
+            new Cmd("canvasRollLeft", "Roll Counter-clockwise", KeyEvent.VK_Q, false, "Turn the scene counter-clockwise about the line of sight"),
+            new Cmd("canvasRollRight", "Roll Clockwise", KeyEvent.VK_E, false, "Turn the scene clockwise about the line of sight"),
+            new Cmd("canvasZoomIn", "Zoom In", KeyEvent.VK_UP, false, "Zoom in while held, at half the turn rate"),
+            new Cmd("canvasZoomOut", "Zoom Out", KeyEvent.VK_DOWN, false, "Zoom out while held, at half the turn rate"),
+            new Cmd("canvasResetView", "Reset View", KeyEvent.VK_R, false, "Put the view back to its default"),
+            new Cmd("canvasFasterPlayback", "Faster Playback (with Cmd)", KeyEvent.VK_RIGHT, true, "Raise the playback rate by one"),
+            new Cmd("canvasSlowerPlayback", "Slower Playback (with Cmd)", KeyEvent.VK_LEFT, true, "Lower the playback rate by one"));
 
     public static final String PREFIX = "canvasKeys.";
     public static final String INVERT = PREFIX + "invert";
@@ -69,12 +84,15 @@ public final class CanvasKeys {
     /** Turn rate, degrees a second (judgement: a quarter turn in two seconds), and the factor Option takes off it. */
     public static final double DEFAULT_DEGREES_PER_SECOND = 45;
     static final double SLOW = 0.2;
+    /** Zoom runs at this fraction of the turn rate: radians a second of turn, e-folds a second of zoom. Gilly: about half. */
+    static final double ZOOM_FRACTION = 0.5;
     static final int TICK_MS = 16;
     private static final String NONE = "none";
     private static final long TOAST_MS = 1400;
 
     private static final class State {
         final Set<String> down = new LinkedHashSet<>();
+        final Set<String> shot = new LinkedHashSet<>(); // one-press commands whose key is still down: a held key does not repeat them
         boolean slow;
         long lastNanos;
         boolean sky; // a look-around was steered: commit it when the keys are let go
@@ -113,10 +131,16 @@ public final class CanvasKeys {
         if (code >= 0) {
             if (name(code) == null)
                 return "That key cannot be used.";
+            Cmd target = byId(id);
+            if (target == null)
+                return "no canvas key '" + id + "'";
             for (Cmd c : ALL)
-                if (!c.id().equals(id) && key(c.id()) == code)
+                if (!c.id().equals(id) && c.withCmd() == target.withCmd() && key(c.id()) == code)
                     return name(code) + " is already " + c.title() + ".";
-            if (taken(code) >= 0)
+            if (target.withCmd()) {
+                if (!cmdKeyAllowed(code))
+                    return "With Cmd only the arrows, Page Up, Page Down, Home and End can be used, so the key cannot meet a menu shortcut.";
+            } else if (taken(code) >= 0)
                 return name(code) + " is already used on the canvas.";
         }
         for (Cmd c : ALL)
@@ -137,6 +161,23 @@ public final class CanvasKeys {
     }
 
     /** Keys the canvas already answers to for other reasons (Space, the arrows, X, Y, Z, N, P): not free to take. */
+    @Nullable
+    static Cmd byId(String id) {
+        for (Cmd c : ALL)
+            if (c.id().equals(id))
+                return c;
+        return null;
+    }
+
+    /** The keys a Cmd command may be put on: the navigation keys, which no menu item carries with Cmd alone. */
+    public static boolean cmdKeyAllowed(int code) {
+        return switch (code) {
+            case KeyEvent.VK_LEFT, KeyEvent.VK_RIGHT, KeyEvent.VK_UP, KeyEvent.VK_DOWN, KeyEvent.VK_PAGE_UP, KeyEvent.VK_PAGE_DOWN,
+                 KeyEvent.VK_HOME, KeyEvent.VK_END -> true;
+            default -> false;
+        };
+    }
+
     private static int taken(int code) {
         return switch (code) {
             case KeyEvent.VK_SPACE, KeyEvent.VK_LEFT, KeyEvent.VK_RIGHT, KeyEvent.VK_X, KeyEvent.VK_Y, KeyEvent.VK_Z,
@@ -166,10 +207,17 @@ public final class CanvasKeys {
         return code < 0 ? "none" : name(code) == null ? Integer.toString(code) : name(code);
     }
 
+    /** The plain-key command on {@code code}, or null. */
     @Nullable
     static Cmd command(int code) {
+        return command(code, false);
+    }
+
+    /** The command on {@code code} among those pressed with Cmd ({@code withCmd}) or plain, or null. */
+    @Nullable
+    static Cmd command(int code, boolean withCmd) {
         for (Cmd c : ALL)
-            if (key(c.id()) == code)
+            if (c.withCmd() == withCmd && key(c.id()) == code)
                 return c;
         return null;
     }
@@ -193,17 +241,42 @@ public final class CanvasKeys {
 
     // ---- key events, from Interaction ----
 
+    /** Cmd on a Mac, Ctrl elsewhere: the modifier the playback keys carry. */
+    private static boolean cmd(KeyInputEvent e) {
+        return Platform.isMacOS() ? e.metaDown() : e.ctrlDown();
+    }
+
+    /** The other of the two (Ctrl on a Mac, Meta elsewhere): pans and axis modes, never a canvas key. */
+    private static boolean otherMod(KeyInputEvent e) {
+        return Platform.isMacOS() ? e.ctrlDown() : e.metaDown();
+    }
+
     /** A key went down. True when the canvas keys took it. */
     static boolean pressed(KeyInputEvent e) {
-        if (e.metaDown() || e.ctrlDown() || e.shiftDown())
+        if (e.shiftDown() || otherMod(e))
             return false;
-        Cmd c = command(e.code());
+        boolean withCmd = cmd(e);
+        Cmd c = command(e.code(), withCmd);
         if (c == null)
             return false;
+        if (withCmd && e.altDown())
+            return false; // Cmd+Option+Left and Right are the Step Frame menu items
         STATE.slow = e.altDown();
         switch (c.id()) {
-            case "canvasFasterPlayback" -> stepPlayback(1);
-            case "canvasSlowerPlayback" -> stepPlayback(-1);
+            case "canvasFasterPlayback" -> {
+                if (STATE.shot.add(c.id()))
+                    stepPlayback(1);
+            }
+            case "canvasSlowerPlayback" -> {
+                if (STATE.shot.add(c.id()))
+                    stepPlayback(-1);
+            }
+            case "canvasResetView" -> {
+                if (STATE.shot.add(c.id())) {
+                    Commands.resetView();
+                    toast("View reset");
+                }
+            }
             default -> {
                 if (STATE.down.add(c.id()) && STATE.down.size() == 1) {
                     STATE.lastNanos = System.nanoTime();
@@ -215,12 +288,14 @@ public final class CanvasKeys {
         return true;
     }
 
-    /** A key came up. */
+    /** A key came up. Whatever the modifiers were, the key's own commands end. */
     static void released(KeyInputEvent e) {
         STATE.slow = e.altDown();
-        Cmd c = command(e.code());
-        if (c != null)
-            STATE.down.remove(c.id());
+        for (Cmd c : ALL)
+            if (key(c.id()) == e.code()) {
+                STATE.down.remove(c.id());
+                STATE.shot.remove(c.id());
+            }
         if (STATE.down.isEmpty())
             stop();
     }
@@ -228,6 +303,7 @@ public final class CanvasKeys {
     /** The canvas lost focus: no release arrives for a key let go elsewhere. */
     static void focusLost() {
         STATE.down.clear();
+        STATE.shot.clear();
         stop();
     }
 
@@ -249,6 +325,7 @@ public final class CanvasKeys {
         if (STATE.down.isEmpty() || (ExportMovie.isRecording() && !liveWhileRecording()))
             return;
         double step = Math.toRadians(degreesPerSecond()) * dt * (STATE.slow ? SLOW : 1);
+        boolean changed = false;
         double[] turn = turn(STATE.down, step, invert());
         boolean three = Display.mode.rendersIn3D();
         if (three) {
@@ -259,14 +336,39 @@ public final class CanvasKeys {
                 camera.rotateAboutScreenAxis(Vec3.YAxis, turn[1]);
             if (turn[2] != 0)
                 camera.rotateAboutScreenAxis(Vec3.ZAxis, turn[2]);
+            changed = turn[0] != 0 || turn[1] != 0 || turn[2] != 0;
         } else if (Display.mode == org.helioviewer.jhv.display.MapMode.ObserverSky && (turn[0] != 0 || turn[1] != 0)) {
             // The sky follows the key as it follows a drag, so the aim goes the other way
             Display.steerSkyLook(-turn[1], turn[0]);
             STATE.sky = true;
-        } else {
-            return;
+            changed = true;
         }
-        DisplayController.display();
+        double zoom = zoomFactor(STATE.down, step);
+        if (zoom != 1) {
+            if (Display.separateViewportZoom)
+                Display.getActiveViewport().zoom *= zoom;
+            else
+                for (Viewport viewport : Display.getViewports())
+                    viewport.zoom *= zoom;
+            changed = true;
+        }
+        if (changed)
+            DisplayController.display();
+    }
+
+    /**
+     * The factor the picture is zoomed by in a step of {@code step} radians of turn: exponential, so a
+     * held key zooms by the same ratio every second whatever the size, at {@link #ZOOM_FRACTION} of the turn
+     * rate in e-folds a second. Both keys held cancel; 1 for none.
+     */
+    static double zoomFactor(Set<String> down, double step) {
+        double in = 0;
+        for (String id : down)
+            if (id.equals("canvasZoomIn"))
+                in += 1;
+            else if (id.equals("canvasZoomOut"))
+                in -= 1;
+        return in == 0 ? 1 : Math.exp(in * step * ZOOM_FRACTION);
     }
 
     /**
@@ -296,13 +398,13 @@ public final class CanvasKeys {
         ViewState.PlaybackData p = ViewState.playbackData();
         int speed = Math.clamp((long) p.speed() + by, ViewState.PLAYBACK_SPEED_MIN, ViewState.PLAYBACK_SPEED_MAX);
         ViewState.setPlaybackSpeed(speed, p.speedUnit());
-        toast(p.speedUnit().isRelative() ? speed + " fps" : speed + " " + p.speedUnit());
+        toast("Playback " + (p.speedUnit().isRelative() ? speed + " fps" : speed + " " + p.speedUnit()));
     }
 
     // ---- the reading, in the screen pass ----
 
     private static void toast(String text) {
-        STATE.toast = "Playback " + text;
+        STATE.toast = text;
         STATE.toastUntil = System.currentTimeMillis() + TOAST_MS;
         DisplayController.display();
         Timer off = new Timer((int) TOAST_MS + 50, e -> DisplayController.display());
@@ -310,7 +412,7 @@ public final class CanvasKeys {
         off.start();
     }
 
-    /** The playback-rate reading near the top left of the canvas for a moment after Up or Down; never recorded. */
+    /** The playback-rate (or reset) reading near the top left of the canvas for a moment after its key; never recorded. */
     public static void render(Viewport vp) {
         if (System.currentTimeMillis() >= STATE.toastUntil || ExportMovie.isRecording())
             return;

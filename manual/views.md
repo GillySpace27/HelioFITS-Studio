@@ -97,18 +97,27 @@ Projection palette; its sky controls appear alongside.
 - **Keys on the canvas**, while it has focus (the pointer is over it): **W** and **S** pitch, **A** and
   **D** yaw and **Q** and **E** roll the scene, smoothly while held, by about 45 degrees a second
   (Option held makes it five times slower). A key moves the near side of the scene the way a drag
-  that way would: D to the right, W up, Q counter-clockwise. **Up** and **Down** raise and lower the
-  playback rate by one, and the new rate shows for a moment at the top left of the canvas; Left and
-  Right step a frame, and Space plays and pauses. Pitch and yaw turn the 3D views and aim Observer Sky; the
+  that way would: D to the right, W up, Q counter-clockwise. **Up** and **Down** zoom in and out
+  while held, at half the turn rate, and **R** resets the view. **Cmd+Right** and **Cmd+Left**
+  (Ctrl off a Mac) raise and lower the playback rate by one, and the new rate shows for a moment
+  at the top left of the canvas; plain Left and Right step a frame, and Space plays and pauses. Pitch and yaw turn the 3D views and aim Observer Sky; the
   flat projections have no camera attitude to turn. A held key is one undo step. Shift, Cmd and Ctrl
   with a key are not camera keys (Shift annotates). Every one of these keys can be changed under
-  **Settings > Keybindings > Canvas keys...**, which also has **Invert pitch and yaw** and the
+  **Settings > Keybindings > Canvas keys...** (the playback keys take only the arrows, Page Up, Page Down, Home and End), which also has **Invert pitch and yaw** and the
   turn rate. While recording they are ignored unless **Record live changes** is ticked in the
   Record panel; what is turned during a recording is in its pixels, but a replay from its record
   cannot repeat it yet.
 - {menuselection}`View --> Reset View` (or a double-click on the canvas) returns the view to its
   default; {menuselection}`View --> Zoom to Fit` and {menuselection}`View --> Actual Size` set the
   zoom.
+
+## Presentation mode
+
+**View > Present** (Cmd+Shift+P; Ctrl+Shift+P elsewhere) fills the screen with the picture alone. The
+pointer in it is a large white arrow with a heavy black outline, so it shows on the black sky and on a
+white frame alike, on the main canvas and on the projector's window when there are two screens. Esc
+leaves. The system keys (Cmd+Tab, Cmd+Q, Cmd+H, Cmd+M, Cmd+Space) are never taken by Studio; if Cmd+Tab
+seems not to work, **Help > Show Log** says whether Studio ever saw it.
 
 ## Several layers at once
 

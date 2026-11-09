@@ -50,7 +50,8 @@ public final class LayoutKeys {
             Action a = new AbstractAction(s.name()) {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    s.run().run();
+                    if (CommandKeys.fresh(s.id()))
+                        s.run().run();
                 }
             };
             a.putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(s.key(),

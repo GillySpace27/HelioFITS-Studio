@@ -32,12 +32,26 @@ import org.helioviewer.jhv.gui.registry.KeyBindings;
  *
  * <p>Only the commands listed in {@link #ids()} are routed, and only while the main window has the
  * focus, which is where the menu bar's own accelerators work.
+ *
+ * <p>Never a system key: Cmd+Tab, Cmd+Shift+Tab, Cmd+Q, Cmd+H, Cmd+M, Cmd+Space and Cmd+` are
+ * passed over before anything is matched, whatever a command is bound to (Gilly, 2026-11-09: Cmd+Tab
+ * seemed shadowed). A press reaching Studio is logged for Cmd+Tab, so the log says whether the system
+ * handed it over.
+ *
+ * <p>The same press can reach a command twice on a Mac: once from here and once from the system menu
+ * bar, whose accelerator the same Action carries, if the menu does not honour a consumed event. A toggle
+ * pressed twice does nothing and Collapse All would count two presses, so each routed Action runs through
+ * {@link #fresh}, which drops the second of two identical calls within {@link #DOUBLE_MS}.
  */
 public final class CommandKeys {
 
     private static final AtomicBoolean INSTALLED = new AtomicBoolean();
     /** The key code of the press just run, so a held key does not repeat the command; -1 for none (guards.py ratchet: final holder). */
     private static final int[] HELD = {-1};
+    /** Two calls of one command closer than this are one key press, delivered twice. Faster than anyone taps. */
+    static final long DOUBLE_MS = 120;
+    private static final String[] LAST_ID = {""};
+    private static final long[] LAST_AT = {0};
     private static final int MODS = InputEvent.CTRL_DOWN_MASK | InputEvent.ALT_DOWN_MASK | InputEvent.META_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK;
 
     private CommandKeys() {}
@@ -54,6 +68,31 @@ public final class CommandKeys {
         return ids;
     }
 
+    /**
+     * Whether this call of command {@code id} is a real press: false when the same command ran less than
+     * {@link #DOUBLE_MS} ago, which is the one press arriving by both routes.
+     */
+    public static boolean fresh(String id) {
+        return fresh(id, System.nanoTime() / 1_000_000);
+    }
+
+    static synchronized boolean fresh(String id, long nowMs) {
+        boolean twice = id.equals(LAST_ID[0]) && nowMs - LAST_AT[0] < DOUBLE_MS;
+        LAST_ID[0] = id;
+        LAST_AT[0] = nowMs;
+        return !twice;
+    }
+
+    /** The keys the system owns on a Mac, which Studio never takes: app switching, quit, hide, minimize, Spotlight, window cycling. */
+    static boolean isSystemKey(KeyEvent e) {
+        if ((e.getModifiersEx() & InputEvent.META_DOWN_MASK) == 0)
+            return false;
+        return switch (e.getKeyCode()) {
+            case KeyEvent.VK_TAB, KeyEvent.VK_Q, KeyEvent.VK_H, KeyEvent.VK_M, KeyEvent.VK_SPACE, KeyEvent.VK_BACK_QUOTE -> true;
+            default -> false;
+        };
+    }
+
     /** Watch the keyboard for the whole application. Once. */
     public static void install() {
         if (INSTALLED.compareAndSet(false, true))
@@ -66,6 +105,11 @@ public final class CommandKeys {
             return false;
         if (e.getID() == KeyEvent.KEY_RELEASED) {
             HELD[0] = -1;
+            return false;
+        }
+        if (e.getID() == KeyEvent.KEY_PRESSED && isSystemKey(e)) {
+            if (e.getKeyCode() == KeyEvent.VK_TAB)
+                org.helioviewer.jhv.app.Log.info("Cmd+Tab reached Studio (passed on untouched); the system did not take it");
             return false;
         }
         if (e.getID() != KeyEvent.KEY_PRESSED || (e.getModifiersEx() & (InputEvent.CTRL_DOWN_MASK | InputEvent.ALT_DOWN_MASK | InputEvent.META_DOWN_MASK)) == 0)
