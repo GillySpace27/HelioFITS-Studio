@@ -121,3 +121,12 @@ Changing what a session saves, the server's 1000 frame cap handling, or the Task
 
 Yes to PR 1 as scoped (default 5,000 frames, the three-button dialog, local API refuses without an
 override)? And is 5,000 the right threshold for you?
+
+## Update 2026-11-09: one choice per layer
+
+The review dialog asks per layer, not once for the session: two radio columns, Postpone and
+Download / load from disk, and a single Go button with a live total of what the current choices
+will download. A layer starts on Postpone when it alone is over the frame limit or the size limit,
+and on Download / load from disk otherwise (a fully cached, empty or unknown-count layer loads).
+Closing the window postpones everything that would download. A third "Stream" column for #243 is
+left out: that PR is not merged, and a column for a mode that does not exist yet would be dead.
