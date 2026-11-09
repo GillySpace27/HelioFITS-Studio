@@ -95,6 +95,22 @@ public final class PanelKeysCheck {
         expect("holding exactly a side's modifiers lights that side", PanelKeyHint.sideOf(leftMask) == 'L' && PanelKeyHint.sideOf(rightMask) == 'R'
                 && PanelKeyHint.sideOf(InputEvent.SHIFT_DOWN_MASK) == 0);
 
+        // System keys are never taken, and one press that arrives twice runs a command once
+        for (int code : new int[]{KeyEvent.VK_TAB, KeyEvent.VK_Q, KeyEvent.VK_H, KeyEvent.VK_M, KeyEvent.VK_SPACE, KeyEvent.VK_BACK_QUOTE})
+            expect("Cmd+" + KeyEvent.getKeyText(code) + " is a system key, passed over untouched",
+                    CommandKeys.isSystemKey(new KeyEvent(src, KeyEvent.KEY_PRESSED, 0, InputEvent.META_DOWN_MASK, code, KeyEvent.CHAR_UNDEFINED))
+                            && !CommandKeys.onKey(new KeyEvent(src, KeyEvent.KEY_PRESSED, 0, InputEvent.META_DOWN_MASK, code, KeyEvent.CHAR_UNDEFINED)));
+        expect("Cmd+Shift+Tab too", CommandKeys.isSystemKey(new KeyEvent(src, KeyEvent.KEY_PRESSED, 0, InputEvent.META_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK, KeyEvent.VK_TAB, '\t')));
+        expect("a key that is not a system key is not one", !CommandKeys.isSystemKey(new KeyEvent(src, KeyEvent.KEY_PRESSED, 0, InputEvent.META_DOWN_MASK, KeyEvent.VK_OPEN_BRACKET, '[')));
+        String tabRefusal = KeyBindings.set("duplicateLayer", KeyStroke.getKeyStroke(KeyEvent.VK_TAB, InputEvent.META_DOWN_MASK));
+        KeyBindings.reset("duplicateLayer");
+        expect("Cmd+Tab cannot be given to a command on a Mac", tabRefusal != null || !mac);
+        long t0Press = 5_000_000;
+        expect("the same command twice within a tap is one press (the system menu and the router both delivering it)",
+                CommandKeys.fresh("foldRightPanelAll", t0Press) && !CommandKeys.fresh("foldRightPanelAll", t0Press + 30));
+        expect("but a second press after that is a press, as is another command at once", CommandKeys.fresh("foldRightPanelAll", t0Press + 30 + CommandKeys.DOUBLE_MS + 1)
+                && CommandKeys.fresh("toggleTimeline", t0Press + 30 + CommandKeys.DOUBLE_MS + 2));
+
         RightSidebar bar = RightSidebar.getInstance();
         bar.setCollapsed(false);
         for (String t : new String[]{"Alpha", "Beta", "Gamma"})
@@ -158,6 +174,27 @@ public final class PanelKeysCheck {
         java.awt.Dimension sizeBefore = btn.getPreferredSize();
         java.awt.image.BufferedImage plain = new java.awt.image.BufferedImage(260, 24, java.awt.image.BufferedImage.TYPE_INT_ARGB);
         btn.paint(plain.getGraphics());
+        // Both real panes: a left sidebar's content beside the right sidebar, folded left first
+        SideContentPane left = new SideContentPane();
+        left.add("One", new JPanel(), true);
+        left.add("Two", new JPanel(), true);
+        PanelKeys.leftPaneForCheck(left);
+        for (String tt : new String[]{"Alpha", "Beta", "Gamma"})
+            if (!bar.isUnfolded(tt))
+                PanelKeys.toggle(true, "Alpha".equals(tt) ? 1 : "Beta".equals(tt) ? 2 : 3);
+        long u0 = 90_000_000;
+        PanelKeys.collapseAllAt(false, u0); // Ctrl+Option+0: the left first
+        boolean leftFolded = PanelKeys.shown(left).stream().noneMatch(p -> p.toggleButton.isSelected());
+        expect("started from the left key, the first press folds the left sections and leaves the right ones", leftFolded
+                && (bar.isUnfolded("Alpha") || bar.isUnfolded("Beta") || bar.isUnfolded("Gamma")));
+        PanelKeys.collapseAllAt(false, u0 + 1000);
+        expect("and the second folds the right ones as well", !bar.isUnfolded("Alpha") && !bar.isUnfolded("Beta") && !bar.isUnfolded("Gamma"));
+        PanelKeys.collapseAllAt(false, u0 + 20000); // lapse
+        PanelKeys.leftPaneForCheck(null);
+        for (String tt : new String[]{"Alpha", "Beta", "Gamma"})
+            if (!bar.isUnfolded(tt))
+                PanelKeys.toggle(true, "Alpha".equals(tt) ? 1 : "Beta".equals(tt) ? 2 : 3);
+
         PanelKeyHint.lightForCheck('R');
         java.awt.image.BufferedImage lit = new java.awt.image.BufferedImage(260, 24, java.awt.image.BufferedImage.TYPE_INT_ARGB);
         btn.paint(lit.getGraphics());

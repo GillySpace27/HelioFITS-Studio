@@ -84,7 +84,8 @@ public final class PanelKeys {
         Action a = new AbstractAction((right ? "Right" : "Left") + " Sidebar Panel " + n) {
             @Override
             public void actionPerformed(ActionEvent e) {
-                toggle(right, n);
+                if (CommandKeys.fresh(id(right, n)))
+                    toggle(right, n);
             }
         };
         KeyStroke ks = defaultKey(right, n);
@@ -98,7 +99,8 @@ public final class PanelKeys {
         Action a = new AbstractAction("Collapse All, " + (right ? "Right" : "Left") + " First") {
             @Override
             public void actionPerformed(ActionEvent e) {
-                collapseAll(right);
+                if (CommandKeys.fresh(idAll(right)))
+                    collapseAll(right);
             }
         };
         KeyStroke ks = defaultKey(right, 0);
@@ -111,6 +113,14 @@ public final class PanelKeys {
     static final long WINDOW_MS = 5000;
     /** Last press time, then the presses so far in this sequence; in a final holder (guards.py ratchet). */
     private static final long[] SEQUENCE = {0, 0};
+    /** A check's own left sidebar content, where there is no main window; null in the application. A final holder (guards.py ratchet). */
+    private static final SideContentPane[] LEFT_FOR_CHECK = {null};
+
+    /** For a check only: the pane that stands for the left sidebar. */
+    static void leftPaneForCheck(@Nullable SideContentPane pane) {
+        LEFT_FOR_CHECK[0] = pane;
+    }
+
     /** The side the sequence began with: true for the right. */
     private static final boolean[] FIRST = {false};
 
@@ -133,6 +143,7 @@ public final class PanelKeys {
         SEQUENCE[0] = nowMs;
         int press = (int) Math.min(3, ++SEQUENCE[1]);
         SEQUENCE[1] = press;
+        org.helioviewer.jhv.app.Log.info("Collapse All: press " + press + ", " + (FIRST[0] ? "right" : "left") + " first");
         switch (press) {
             case 1 -> foldAll(FIRST[0]);
             case 2 -> {
@@ -158,7 +169,7 @@ public final class PanelKeys {
 
     @Nullable
     private static SideContentPane paneOf(boolean right) {
-        return right ? RightSidebar.getInstance().pane() : MainFrame.getLeftContentPane();
+        return right ? RightSidebar.getInstance().pane() : LEFT_FOR_CHECK[0] != null ? LEFT_FOR_CHECK[0] : MainFrame.getLeftContentPane();
     }
 
     /**

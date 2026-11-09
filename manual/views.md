@@ -110,6 +110,14 @@ Projection palette; its sky controls appear alongside.
   default; {menuselection}`View --> Zoom to Fit` and {menuselection}`View --> Actual Size` set the
   zoom.
 
+## Presentation mode
+
+**View > Present** (Cmd+Shift+P; Ctrl+Shift+P elsewhere) fills the screen with the picture alone. The
+pointer in it is a large white arrow with a heavy black outline, so it shows on the black sky and on a
+white frame alike, on the main canvas and on the projector's window when there are two screens. Esc
+leaves. The system keys (Cmd+Tab, Cmd+Q, Cmd+H, Cmd+M, Cmd+Space) are never taken by Studio; if Cmd+Tab
+seems not to work, **Help > Show Log** says whether Studio ever saw it.
+
 ## Several layers at once
 
 - **Multiview** puts each shown image layer in a view of its own, side by side. Each view zooms

@@ -6,10 +6,8 @@ import java.awt.Cursor;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GraphicsDevice;
-import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
-import java.awt.Toolkit;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 
@@ -37,8 +35,8 @@ import org.helioviewer.jhv.opengl.angle.MacAngleBridge;
  * {@link PresentationMode}), and this window holds no GL at all, so it can be created, made
  * undecorated and disposed freely.
  *
- * <p>It never takes focus and hides the pointer, so the keyboard stays with the main window and
- * nothing but the picture reaches the room.
+ * <p>It never takes focus, so the keyboard stays with the main window. The pointer is the bright
+ * {@link PresentationCursor} (Gilly, 2026-11-09), so it can be seen on the projector's screen.
  */
 final class AudienceWindow {
 
@@ -62,8 +60,7 @@ final class AudienceWindow {
             window.getContentPane().add(hdr);
         } else
             window.setContentPane(mirror);
-        window.setCursor(Toolkit.getDefaultToolkit().createCustomCursor(
-                new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB), new Point(), "none"));
+        window.setCursor(PresentationCursor.get()); // the presenter can point at the projector's screen and be seen
 
         Rectangle bounds = on.getDefaultConfiguration().getBounds();
         window.setBounds(bounds);
