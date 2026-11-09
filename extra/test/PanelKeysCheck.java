@@ -174,6 +174,8 @@ public final class PanelKeysCheck {
         java.awt.Dimension sizeBefore = btn.getPreferredSize();
         java.awt.image.BufferedImage plain = new java.awt.image.BufferedImage(260, 24, java.awt.image.BufferedImage.TYPE_INT_ARGB);
         btn.paint(plain.getGraphics());
+        java.awt.image.BufferedImage plain2 = new java.awt.image.BufferedImage(260, 24, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        btn.paint(plain2.getGraphics());
         // Both real panes: a left sidebar's content beside the right sidebar, folded left first
         SideContentPane left = new SideContentPane();
         left.add("One", new JPanel(), true);
@@ -205,20 +207,18 @@ public final class PanelKeysCheck {
                 && lit.getRGB(box.x + 2, box.y + box.height / 2) != plain.getRGB(box.x + 2, box.y + box.height / 2));
         // Glyph edges next to the box may antialias differently under a clip (seen on the Mac's look and feel): leave a margin
         int firstX = box == null ? 0 : box.x + box.width + 4;
-        int diffCount = 0, diffX = -1, diffY = -1;
+        int diffCount = 0, noise = 0, diffX = -1, diffY = -1;
         for (int x = firstX; x < 260; x++)
-            for (int y = 0; y < 24; y++)
-                if (lit.getRGB(x, y) != plain.getRGB(x, y)) {
-                    if (diffCount++ == 0) {
-                        diffX = x;
-                        diffY = y;
-                    }
+            for (int y = 0; y < 24; y++) {
+                if (plain.getRGB(x, y) != plain2.getRGB(x, y))
+                    noise++; // two paints of the same state differ: the look and feel is not deterministic here
+                if (lit.getRGB(x, y) != plain.getRGB(x, y) && diffCount++ == 0) {
+                    diffX = x;
+                    diffY = y;
                 }
-        boolean diffElsewhere = diffCount > 0;
-        if (diffElsewhere)
-            System.out.println("  header differs at " + diffCount + " pixels right of the box, first at " + diffX + "," + diffY
-                    + " (box " + box + ", L&F " + javax.swing.UIManager.getLookAndFeel().getName() + ")");
-        expect("nothing else on the header changes, so the title does not move", !diffElsewhere);
+            }
+        boolean diffElsewhere = diffCount > noise;
+        expect("nothing else on the header changes, so the title does not move" + (diffElsewhere ? " [" + diffCount + " pixels, first at " + diffX + "," + diffY + ", noise " + noise + ", box " + box + ", text \"" + btn.getText() + "\", L&F " + javax.swing.UIManager.getLookAndFeel().getName() + "]" : ""), !diffElsewhere);
         PanelKeyHint.cancel();
         expect("letting go takes the box away", btn.badgeBox(btn.getFontMetrics(btn.getFont()), true) == null && btn.getText().equals(textBefore));
 
