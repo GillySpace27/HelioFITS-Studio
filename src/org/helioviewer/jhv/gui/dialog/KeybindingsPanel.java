@@ -144,7 +144,7 @@ public final class KeybindingsPanel extends JPanel {
         for (CanvasKeys.Cmd c : CanvasKeys.ALL) {
             JLabel label = new JLabel(c.title());
             label.setToolTipText(c.what());
-            JComboBox<String> box = new JComboBox<>(prepend("none", KEYS));
+            JComboBox<String> box = new JComboBox<>(prepend("none", c.withCmd() ? cmdKeys() : KEYS));
             box.setSelectedItem(CanvasKeys.text(CanvasKeys.key(c.id())));
             box.setToolTipText(c.what());
             grid.add(label);
@@ -181,6 +181,15 @@ public final class KeybindingsPanel extends JPanel {
         org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.INVERT, Boolean.toString(invert.isSelected()));
         org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.RATE, String.valueOf(((Number) rate.getValue()).doubleValue()));
         status.setText(problems.length() == 0 ? "Canvas keys saved." : problems.toString().strip());
+    }
+
+    /** The names a Cmd canvas key may take: the navigation keys only. */
+    private static String[] cmdKeys() {
+        List<String> out = new ArrayList<>();
+        for (String k : KEYS)
+            if (CanvasKeys.cmdKeyAllowed(KeyBindings.keyCode(k)))
+                out.add(k);
+        return out.toArray(new String[0]);
     }
 
     private static String[] prepend(String first, String[] rest) {

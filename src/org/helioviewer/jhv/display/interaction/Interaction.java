@@ -188,7 +188,7 @@ public final class Interaction {
         if (annotating(e.shiftDown())) {
             interactionAnnotate.keyPressed(e);
         } else if (CanvasKeys.pressed(e)) {
-            // W A S D Q E turn the scene and Up and Down set the playback rate (rebindable)
+            // W A S D Q E turn the scene, Up and Down zoom, R resets the view, Cmd+Left and Right set the playback rate (rebindable)
         } else if (e.key() == KeyInputEvent.Key.X || e.key() == KeyInputEvent.Key.Y || e.key() == KeyInputEvent.Key.Z) {
             if (axisKeys.add(e.key()))
                 updateAxis();
