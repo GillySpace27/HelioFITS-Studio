@@ -46,10 +46,9 @@ public final class PanelKeysCheck {
         for (boolean right : new boolean[]{false, true})
             for (int n = 0; n <= PanelKeys.SLOTS; n++) {
                 ActionCatalog.Entry e = ActionCatalog.get(n == 0 ? PanelKeys.idAll(right) : PanelKeys.id(right, n));
-                // Ctrl+N left, Option+N right; off a Mac, Ctrl+9 and Ctrl+0 stay the zoom keys
+                // Ctrl+N left (Shift+Option+N on a Mac), Option+N right; off a Mac, Ctrl+9 and Ctrl+0 stay the zoom keys
                 KeyStroke want = !right && (n == 9 || n == 0) && !mac ? null
-                        : KeyStroke.getKeyStroke(KeyEvent.VK_0 + n, (right ? InputEvent.ALT_DOWN_MASK : InputEvent.CTRL_DOWN_MASK)
-                                | (mac && !right ? InputEvent.ALT_DOWN_MASK : 0)); // a Mac's left side adds Option: bare Ctrl+digit is the system's desktop switch
+                        : KeyStroke.getKeyStroke(KeyEvent.VK_0 + n, (right ? InputEvent.ALT_DOWN_MASK : mac ? InputEvent.SHIFT_DOWN_MASK | InputEvent.ALT_DOWN_MASK : InputEvent.CTRL_DOWN_MASK)); // a Mac's left side is Shift+Option: bare Ctrl+digit is the system's desktop switch
                 Object got = e == null ? "missing" : e.action().getValue(Action.ACCELERATOR_KEY);
                 keysOk &= e != null && java.util.Objects.equals(want, got);
                 if (e != null && want != null)
@@ -87,7 +86,7 @@ public final class PanelKeysCheck {
                 == ActionCatalog.get("interfaceScaleUp").action());
         expect("Cmd+= without Shift stays the picture's zoom, not the interface scale", CommandKeys.commandFor(new KeyEvent(src, KeyEvent.KEY_PRESSED, 0, menu, KeyEvent.VK_EQUALS, '=')) == null);
         int rightMask = PanelKeys.sideMask(true), leftMask = PanelKeys.sideMask(false);
-        expect("the section keys are found by code whatever character the modifier makes (Option+2 types a symbol)",
+        expect("the section keys are found by code whatever character the modifier makes (Option+2 types a symbol; left mask " + leftMask + ", right " + rightMask + ")",
                 CommandKeys.commandFor(new KeyEvent(src, KeyEvent.KEY_PRESSED, 0, rightMask, KeyEvent.VK_2, '\u2122')) == ActionCatalog.get("foldRightPanel2").action()
                         && CommandKeys.commandFor(new KeyEvent(src, KeyEvent.KEY_PRESSED, 0, leftMask, KeyEvent.VK_2, '2')) == ActionCatalog.get("foldLeftPanel2").action());
         expect("the two sides need different modifiers, and only exactly those", leftMask != rightMask
