@@ -55,7 +55,7 @@ public final class PanelKeysCheck {
                 if (e != null && want != null)
                     clashFree &= KeyBindings.set(e.id(), want) == null; // refused if another command or the system has it
             }
-        expect("foldLeftPanel1..9 / foldRightPanel1..9 and the two fold-alls are catalogued with Ctrl+N and Option+N (Ctrl+Option+N and Option+N on a Mac)", keysOk);
+        expect("foldLeftPanel1..9 / foldRightPanel1..9 and the two fold-alls are catalogued with Ctrl+N and Option+N (Shift+Option+N and Option+N on a Mac)", keysOk);
         expect("none of those keys is taken by another command or by the system", clashFree);
         expect("Cmd+9 and Cmd+0 stay Zoom to Fit and Actual Size", KeyStroke.getKeyStroke(KeyEvent.VK_9, menu).equals(KeyBindings.current("zoomFit"))
                 && KeyStroke.getKeyStroke(KeyEvent.VK_0, menu).equals(KeyBindings.current("zoomOne")));
@@ -185,7 +185,7 @@ public final class PanelKeysCheck {
             if (!bar.isUnfolded(tt))
                 PanelKeys.toggle(true, "Alpha".equals(tt) ? 1 : "Beta".equals(tt) ? 2 : 3);
         long u0 = 90_000_000;
-        PanelKeys.collapseAllAt(false, u0); // Ctrl+Option+0: the left first
+        PanelKeys.collapseAllAt(false, u0); // Shift+Option+0: the left first
         boolean leftFolded = PanelKeys.shown(left).stream().noneMatch(p -> p.toggleButton.isSelected());
         expect("started from the left key, the first press folds the left sections and leaves the right ones", leftFolded
                 && (bar.isUnfolded("Alpha") || bar.isUnfolded("Beta") || bar.isUnfolded("Gamma")));
