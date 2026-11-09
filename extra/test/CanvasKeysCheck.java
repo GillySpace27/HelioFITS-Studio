@@ -44,10 +44,12 @@ public final class CanvasKeysCheck {
         boolean distinct = true;
         for (CanvasKeys.Cmd c : CanvasKeys.ALL)
             distinct &= seen.add(CanvasKeys.key(c.id()));
-        expect("every canvas key starts on its own key", distinct && CanvasKeys.ALL.size() == 8);
-        expect("W S A D Q E and Up Down are the defaults",
+        expect("every canvas key starts on its own key", distinct && CanvasKeys.ALL.size() == 11);
+        expect("W S A D Q E turn; Up and Down zoom; R resets; Cmd+Right and Cmd+Left set the rate",
                 CanvasKeys.key("canvasPitchUp") == KeyEvent.VK_W && CanvasKeys.key("canvasYawRight") == KeyEvent.VK_D
-                        && CanvasKeys.key("canvasRollLeft") == KeyEvent.VK_Q && CanvasKeys.key("canvasFasterPlayback") == KeyEvent.VK_UP);
+                        && CanvasKeys.key("canvasRollLeft") == KeyEvent.VK_Q && CanvasKeys.key("canvasZoomIn") == KeyEvent.VK_UP && CanvasKeys.key("canvasZoomOut") == KeyEvent.VK_DOWN
+                        && CanvasKeys.key("canvasResetView") == KeyEvent.VK_R && CanvasKeys.key("canvasFasterPlayback") == KeyEvent.VK_RIGHT
+                        && CanvasKeys.key("canvasSlowerPlayback") == KeyEvent.VK_LEFT);
 
         expect("a key already on another canvas command is refused", CanvasKeys.set("canvasPitchUp", KeyEvent.VK_S) != null);
         expect("so is one the canvas already uses (Space, the arrows, X)", CanvasKeys.set("canvasPitchUp", KeyEvent.VK_SPACE) != null
@@ -78,6 +80,23 @@ public final class CanvasKeysCheck {
         double[] both = CanvasKeys.turn(Set.of("canvasYawLeft", "canvasYawRight"), step, false);
         expect("opposite keys held together cancel", Math.abs(both[1]) < 1e-15);
 
+        double zin = CanvasKeys.zoomFactor(Set.of("canvasZoomIn"), step);
+        double zout = CanvasKeys.zoomFactor(Set.of("canvasZoomOut"), step);
+        expect("Up zooms in, Down out, by inverse factors", zin > 1 && zout < 1 && Math.abs(zin * zout - 1) < 1e-12);
+        expect("zoom runs at half the turn rate (e-folds per radian of turn)", Math.abs(Math.log(zin) - 0.5 * step) < 1e-12);
+        expect("both zoom keys held cancel", CanvasKeys.zoomFactor(Set.of("canvasZoomIn", "canvasZoomOut"), step) == 1
+                && CanvasKeys.zoomFactor(Set.of("canvasPitchUp"), step) == 1);
+
+        expect("a Cmd command takes only the navigation keys", CanvasKeys.set("canvasFasterPlayback", KeyEvent.VK_B) != null
+                && CanvasKeys.set("canvasFasterPlayback", KeyEvent.VK_PAGE_UP) == null);
+        CanvasKeys.reset("canvasFasterPlayback");
+        expect("Up is free for zoom but Left and Right stay with the frame step",
+                CanvasKeys.set("canvasPitchUp", KeyEvent.VK_RIGHT) != null && CanvasKeys.set("canvasPitchUp", KeyEvent.VK_UP) != null);
+        expect("a plain and a Cmd command may share a key", CanvasKeys.command(KeyEvent.VK_UP, true) == null
+                && CanvasKeys.command(KeyEvent.VK_UP, false).id().equals("canvasZoomIn")
+                && CanvasKeys.command(KeyEvent.VK_RIGHT, true).id().equals("canvasFasterPlayback")
+                && CanvasKeys.command(KeyEvent.VK_RIGHT, false) == null);
+
         // A turn about a screen axis, whatever the camera already holds: scene' = R(axis) after scene
         Quat drag = Quat.createXY(0.7, -1.1);
         Vec3 axis = Vec3.YAxis;
@@ -97,6 +116,15 @@ public final class CanvasKeysCheck {
         expect("and let go on release", CanvasKeys.heldForCheck().isEmpty());
         expect("a key that is not bound is left alone", !CanvasKeys.pressed(key(KeyEvent.VK_B, false, false, false, false)));
 
+        boolean mac = Platform.isMacOS();
+        KeyInputEvent cmdOptLeft = new KeyInputEvent(KeyInputEvent.Key.OTHER, false, mac, true, !mac, KeyEvent.VK_LEFT);
+        KeyInputEvent cmdUp = new KeyInputEvent(KeyInputEvent.Key.OTHER, false, mac, false, !mac, KeyEvent.VK_UP);
+        expect("Cmd+Option+Left is Step Frame, not ours", !CanvasKeys.pressed(cmdOptLeft));
+        expect("a plain Up is the zoom key and Cmd+Up is not", CanvasKeys.pressed(key(KeyEvent.VK_UP, false, false, false, false))
+                && CanvasKeys.heldForCheck().equals(java.util.List.of("canvasZoomIn")) && !CanvasKeys.pressed(cmdUp));
+        CanvasKeys.released(key(KeyEvent.VK_UP, false, false, false, false));
+        expect("Up let go ends the zoom", CanvasKeys.heldForCheck().isEmpty());
+        expect("a plain Left is the frame step, left alone", !CanvasKeys.pressed(key(KeyEvent.VK_LEFT, false, false, false, false)));
         System.out.println(failures == 0 ? "CanvasKeysCheck: all passed" : "CanvasKeysCheck: " + failures + " FAILED");
         System.exit(failures == 0 ? 0 : 1);
     }

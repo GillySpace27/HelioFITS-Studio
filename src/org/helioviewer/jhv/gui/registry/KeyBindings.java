@@ -39,7 +39,7 @@ public final class KeyBindings {
 
     /** Combinations the system or text editing owns, written as stored: never offered to a command. */
     private static final Set<String> RESERVED_ALL = Set.of("menu C", "menu X", "menu A", "menu V", "menu Z");
-    private static final Set<String> RESERVED_MAC = Set.of("meta H", "meta SPACE", "meta TAB", "meta shift TAB");
+    private static final Set<String> RESERVED_MAC = Set.of("menu H", "menu SPACE", "menu TAB", "menu shift TAB", "menu Q", "menu M", "menu BACK_QUOTE");
     private static final Set<String> RESERVED_OTHER = Set.of("alt F4", "alt TAB", "ctrl alt DELETE", "ctrl shift ESCAPE");
 
     /**

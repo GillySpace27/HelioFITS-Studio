@@ -17,7 +17,7 @@ import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.gui.MainFrame;
 
 /**
- * Hold Ctrl (Ctrl+Option on a Mac) and the left sidebar's numbers (L1, L2, ...) get a box in the accent colour; hold Option alone and the
+ * Hold Ctrl (Shift+Option on a Mac) and the left sidebar's numbers (L1, L2, ...) get a box in the accent colour; hold Option alone and the
  * right one's (R1, R2, ...) do (on a Mac the left is Ctrl and Option together), the way holding Cmd shows the keys of pinned sessions in Claude Code
  * (Gilly, 2026-11-08). The numbers show while held even with section numbers switched off.
  *
@@ -66,7 +66,7 @@ public final class PanelKeyHint {
 
     /** The modifier keys whose being held alone lights a side: Ctrl and Alt. */
     private static boolean isSideKey(int code) {
-        return code == KeyEvent.VK_CONTROL || code == KeyEvent.VK_ALT;
+        return code == KeyEvent.VK_CONTROL || code == KeyEvent.VK_ALT || code == KeyEvent.VK_SHIFT;
     }
 
     /** 'L' or 'R' when exactly the modifiers of that side's key are held, else 0. */
