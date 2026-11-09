@@ -355,18 +355,17 @@ public final class State {
 
     /**
      * Over the limit (LoadGuard), the person reviews the manifest first: the estimate comes back
-     * when the layers that download are to be held, null when the load goes ahead. A command from
+     * the places of the layers to be held, empty when the load goes ahead as it is. A command from
      * outside (a context) or a window-less run cannot answer a dialog, so it postpones.
      */
-    @Nullable
-    private static LoadGuard.Estimate reviewDownload(@Nullable JSONArray imageLayers, @Nullable Commands.OperationContext context) {
+    private static java.util.Set<Integer> reviewDownload(@Nullable JSONArray imageLayers, @Nullable Commands.OperationContext context) {
         LoadGuard.Estimate estimate = LoadGuard.estimate(imageLayers, uri -> org.helioviewer.jhv.io.NetFileCache.cachedFile(uri).isFile());
         if (!estimate.over(LoadGuard.maxFrames(), LoadGuard.maxBytes()))
-            return null;
+            return java.util.Set.of();
         Log.warn("Session would download " + estimate.frames() + " frames, about " + LoadGuard.sizeText(estimate.bytes()));
-        boolean now = context == null && !java.awt.GraphicsEnvironment.isHeadless()
-                && org.helioviewer.jhv.gui.dialog.LoadGuardDialog.download(estimate);
-        return now ? null : estimate;
+        if (context != null || java.awt.GraphicsEnvironment.isHeadless())
+            return estimate.downloading();
+        return org.helioviewer.jhv.gui.dialog.LoadGuardDialog.postponed(estimate);
     }
 
     private static void loadLayers(JSONObject data, @Nullable Commands.OperationContext context, ViewState.ModeData modeData) {
@@ -398,7 +397,7 @@ public final class State {
         ImageLayer masterLayer = null;
 
         JSONArray imageLayers = data.optJSONArray("imageLayers");
-        LoadGuard.Estimate download = reviewDownload(imageLayers, context);
+        java.util.Set<Integer> held = reviewDownload(imageLayers, context);
         if (imageLayers != null) {
             for (int at = 0; at < imageLayers.length(); at++) {
                 if (imageLayers.opt(at) instanceof JSONObject jo) {
@@ -414,7 +413,7 @@ public final class State {
                     }
 
                     try {
-                        ImageLayer layer = ImageLayer.createDetached(jd, download != null && download.downloads(at));
+                        ImageLayer layer = ImageLayer.createDetached(jd, held.contains(at));
                         restoreId(jo, layer);
                         restoredLayers.add(layer);
                         newLayers.put(layer, jo.optBoolean("enabled", false));

@@ -49,6 +49,15 @@ public final class LoadGuard {
         public long toDownload() {
             return frames - cached;
         }
+
+        /**
+         * What the review starts each layer on: postpone when this layer alone is over either limit,
+         * load otherwise. A layer fully cached, empty, or with an unknown count has nothing known
+         * to download, so it loads.
+         */
+        public boolean postponeByDefault(long maxFrames, long maxBytes) {
+            return !unknown && (toDownload() > maxFrames || bytes > maxBytes);
+        }
     }
 
     public record Estimate(List<Item> items) {
@@ -67,6 +76,15 @@ public final class LoadGuard {
         /** Whether the layer at this place in imageLayers has anything to download. */
         public boolean downloads(int at) {
             return items.stream().anyMatch(i -> i.at() == at && i.toDownload() > 0);
+        }
+
+        /** The places in imageLayers of every layer with something to download: all of them held, when nobody can be asked. */
+        public java.util.Set<Integer> downloading() {
+            java.util.Set<Integer> at = new java.util.TreeSet<>();
+            for (Item i : items)
+                if (i.toDownload() > 0)
+                    at.add(i.at());
+            return at;
         }
 
         public boolean over(long maxFrames, long maxBytes) {

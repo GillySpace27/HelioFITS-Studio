@@ -65,6 +65,17 @@ public final class LoadGuardCheck {
         LoadGuard.Estimate q = LoadGuard.estimate(new JSONArray().put(layer("q", new JSONObject().put("fitsRequest", new JSONObject()))), uri -> false);
         expect("a bare archive query is unknown, not zero-and-hidden", q.items().size() == 1 && q.items().getFirst().unknown());
 
+        // The review's starting point, per layer: postpone only what is alone over a limit.
+        long mf = LoadGuard.DEFAULT_FRAMES, mb = LoadGuard.DEFAULT_MB * 1_000_000L;
+        expect("a month at 12 s starts on Postpone", e.items().getFirst().postponeByDefault(mf, mb));
+        expect("a day hourly starts on load", !small.items().getFirst().postponeByDefault(mf, mb));
+        expect("41 mosaics, over the size limit alone, start on Postpone", big.items().getFirst().postponeByDefault(mf, mb));
+        expect("a fully cached layer starts on load", !LoadGuard.estimate(new JSONArray().put(layer("c", new JSONObject().put("uris", forty))), uri -> true)
+                .items().getFirst().postponeByDefault(mf, mb));
+        expect("an unknown layer starts on load", !q.items().getFirst().postponeByDefault(mf, mb));
+        LoadGuard.Estimate mixed = LoadGuard.estimate(new JSONArray().put(layer("a", month)).put(layer("b", day)), uri -> false);
+        expect("when nobody can be asked, every layer with something to download is held", mixed.downloading().equals(java.util.Set.of(0, 1)));
+
         // A postponed layer loads nothing, is not mistaken for a failed one, and a save still writes what it would load.
         JSONObject held = new JSONObject().put("uris", new JSONArray().put("https://a/1.fits").put("https://a/2.fits"));
         org.helioviewer.jhv.layers.ImageLayer layer = org.helioviewer.jhv.layers.ImageLayer.createDetached(held, true);
