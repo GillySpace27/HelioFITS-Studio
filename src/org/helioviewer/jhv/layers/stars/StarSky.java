@@ -124,6 +124,24 @@ public final class StarSky {
     }
 
     /**
+     * Unit rays in the viewpoint's frame (the frame {@link #rays} writes) for objects at fixed ICRS
+     * coordinates in degrees: no proper motion, so for deep-sky objects, not stars. Three numbers
+     * per object are written into {@code rays}.
+     */
+    public static void raysAt(Position viewpoint, double[] raDeg, double[] decDeg, double[] rays) throws SpiceErrorException {
+        double[] sc = observer(viewpoint);
+        double[][] frame = frame(sc[1], sc[2]);
+        double[][] carr = Spice.j2000ToSun.get(viewpoint.time);
+        double[] ray = new double[3];
+        for (int i = 0; i < raDeg.length; i++) {
+            starRay(frame, carr, Math.toRadians(raDeg[i]), Math.toRadians(decDeg[i]), ray);
+            rays[3 * i] = ray[0];
+            rays[3 * i + 1] = ray[1];
+            rays[3 * i + 2] = ray[2];
+        }
+    }
+
+    /**
      * Vertices for the 3D views: x, y on the plane through Sun centre normal to the line of sight
      * (d tan Tx, d tan Ty, the placement GaiaClient used), size in pixels. Bodies more than
      * MAX_ELONGATION_DEG from the Sun are left out.

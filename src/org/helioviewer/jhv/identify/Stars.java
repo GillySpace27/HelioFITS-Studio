@@ -37,8 +37,12 @@ public final class Stars {
     /** The rays for one observer and magnitude limit, kept while the pointer moves over one frame. */
     private record Rays(long milli, double lon, double lat, double magLimit, int count, double[] rays, int[] index) {}
 
-    /** A star under the pointer: its row, how far in pixels, and the label the settings ask for. */
-    public record Star(int row, double pixels, String label, String details) {}
+    /**
+     * A star under the pointer: its row, how far in pixels, and the label the settings ask for.
+     * {@code ray} is its sight line in the first target's frame, null in the orbited 3D view,
+     * where the star is drawn turned with the drag and the pointer's probe no longer finds it.
+     */
+    public record Star(int row, double pixels, String label, String details, @Nullable Vec3 ray) {}
 
     /** The nearest star within the tolerance of canvas point (x, y), or null. */
     @Nullable
@@ -51,7 +55,8 @@ public final class Stars {
             return null;
         Position obs = IdentifyHover.targets(vp, mv).getFirst().observer();
         Vec3 dir, dir1;
-        if (mv.isOrthographic() && Drawn.orbited(mv.viewRotation(), obs.toQuat())) {
+        boolean turned = mv.isOrthographic() && Drawn.orbited(mv.viewRotation(), obs.toQuat());
+        if (turned) {
             // The sky is drawn at infinity, turned by the drag (StarSky.plane): undo the placement
             obs = mv.viewpoint();
             dir = orbitedDirection(mv, vp, x, y);
@@ -77,7 +82,41 @@ public final class Stars {
         int row = r.index()[best];
         Vec3 ray = new Vec3(r.rays()[3 * best], r.rays()[3 * best + 1], r.rays()[3 * best + 2]);
         return new Star(row, Identifier.angle(dir, ray) / perPixel, label(cat, names.get(), row,
-                IdentifySettings.starNamesIau(), IdentifySettings.starNamesBayer()), details(cat, row));
+                IdentifySettings.starNamesIau(), IdentifySettings.starNamesBayer()), details(cat, row), turned ? null : ray);
+    }
+
+    /** The most named stars to mark at once: a full IAU list is 450 and a ring each would be a wall of rings (judgement). */
+    static final int MAX_MARKED = 120;
+
+    /**
+     * Every named star in the catalogue brighter than the limit, as marks for the first target, the
+     * brightest first, for the highlight-all view. Empty until the tables have arrived.
+     */
+    static java.util.List<Mark> marks(Identifier.Target first) {
+        if (!IdentifySettings.stars())
+            return java.util.List.of();
+        load();
+        StarCatalog cat = catalog.get();
+        StarNames table = names.get();
+        if (cat == null || table == null)
+            return java.util.List.of();
+        Rays r = rays(first.observer(), cat, IdentifySettings.starMaxMagnitude());
+        if (r == null)
+            return java.util.List.of();
+        java.util.List<Integer> named = new java.util.ArrayList<>();
+        for (int i = 0; i < r.count(); i++) {
+            int hip = cat.hip[r.index()[i]];
+            if (hip > 0 && table.get(hip) != null)
+                named.add(i);
+        }
+        named.sort(java.util.Comparator.comparingDouble(i -> cat.vmag[r.index()[i]]));
+        java.util.List<Mark> out = new java.util.ArrayList<>();
+        for (int i : named.subList(0, Math.min(MAX_MARKED, named.size()))) {
+            Vec3 ray = new Vec3(r.rays()[3 * i], r.rays()[3 * i + 1], r.rays()[3 * i + 2]);
+            int row = r.index()[i];
+            out.add(new Mark("star:" + cat.hip[row], Kind.STAR, null, observer -> ray, 0));
+        }
+        return out;
     }
 
     /**

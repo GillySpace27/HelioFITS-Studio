@@ -1,7 +1,11 @@
 package org.helioviewer.jhv.identify;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.Nullable;
 import javax.swing.Timer;
@@ -45,8 +49,10 @@ public final class IdentifyGlow {
     /** How long the pulse runs, and how far it travels out from the outline in screen points (judgement). */
     static final long PULSE_MS = 650;
     static final double PULSE_TRAVEL = 16;
-    /** A soft blue-white that reads on dark imagery and on the white of a coronagraph's occulter edge (judgement). */
-    private static final int[] RGB = {150, 215, 255};
+    /** The most outlines drawn at once for Highlight All: past it the page is a wall of rings (judgement). */
+    static final int MAX_RINGS = 400;
+    /** A body this small on the sky (0.2 arcsec) is a point: its ring is the minimum circle, with no limb to solve for. */
+    private static final double POINT_RADIUS = 1e-6;
     /** Outlines broken where a projection's seam would draw a chord across the page. */
     private static final double SEAM_FRACTION = 0.25;
 
@@ -79,8 +85,8 @@ public final class IdentifyGlow {
     }
 
     /** Each identification: start the pulse and redraw when what is named changes. */
-    static void matched(List<Identifier.Match> matches) {
-        String key = key(matches);
+    static void matched(List<Identifier.Match> matches, List<Drawn.Hit> drawn) {
+        String key = key(matches, drawn);
         if (key.equals(STATE.key))
             return;
         STATE.key = key;
@@ -97,6 +103,15 @@ public final class IdentifyGlow {
         StringBuilder sb = new StringBuilder();
         for (Identifier.Match m : outlined(matches))
             sb.append(m.body().name()).append('/').append(m.layer()).append(';');
+        return sb.toString();
+    }
+
+    /** As {@link #key(List)}, with the drawn objects that carry an icon: a star, a comet, a cluster. */
+    static String key(List<Identifier.Match> matches, List<Drawn.Hit> drawn) {
+        StringBuilder sb = new StringBuilder(key(matches));
+        for (Drawn.Hit h : drawn)
+            if (h.mark() != null)
+                sb.append(h.mark().key()).append(';');
         return sb.toString();
     }
 
@@ -195,12 +210,17 @@ public final class IdentifyGlow {
      * the ring costs a few steps a point.
      */
     @Nullable
-    static List<double[]> outline(Viewport vp, MapView mv, Identifier.Target target, Vec3 centreDir, double angR) {
-        double[] centre = IdentifyPins.locate(vp, mv, target, centreDir, null);
+    static List<double[]> outline(Viewport vp, MapView mv, Identifier.Target target, Vec3 centreDir, double angR, @Nullable double[] start) {
+        double[] centre = IdentifyPins.locate(vp, mv, target, centreDir, start);
         if (centre == null)
             return null;
         List<double[]> out = new ArrayList<>(POINTS + 1);
         out.add(centre);
+        if (angR < POINT_RADIUS) { // a point: atLeast lays the minimum circle about it
+            for (int i = 0; i < POINTS; i++)
+                out.add(centre);
+            return out;
+        }
         double[] seed = centre;
         for (Vec3 d : limb(centreDir, angR, POINTS)) {
             double[] p = IdentifyPins.locate(vp, mv, target, d, seed);
@@ -211,57 +231,107 @@ public final class IdentifyGlow {
         return out;
     }
 
+    /** One outline on the page: its colour, its points, its centre, and whether the hover pulse runs on it. */
+    private record Ring(int[] rgb, List<double[]> points, double[] centre, boolean hover) {}
+
+    /** The hover's marks: the bodies named under the pointer (not the Sun) and the drawn objects that carry an icon. */
+    static List<Mark> hoverMarks() {
+        boolean light = IdentifySettings.lightTime();
+        List<Mark> out = new ArrayList<>();
+        for (Identifier.Match m : outlined(IdentifyHover.lastMatches()))
+            out.add(bodyMark(m.body(), m.layer(), Math.toRadians(m.angularRadius()), light));
+        for (Drawn.Hit h : IdentifyHover.lastDrawn())
+            if (h.mark() != null)
+                out.add(h.mark());
+        return out;
+    }
+
+    static Mark bodyMark(Bodies.Body body, String layer, double angR, boolean light) {
+        return new Mark(body.name() + '/' + layer, Kind.of(body), layer, observer -> Identifier.bodyDirection(body, observer, light), angR);
+    }
+
+    /** Every named thing the view holds: the bodies the imagery shows, named stars and the switched-on datasets. */
+    static List<Mark> allMarks(Viewport vp, MapView mv, List<Identifier.Target> targets) {
+        Identifier.Options options = Identifier.Options.fromSettings();
+        Set<String> seen = new LinkedHashSet<>();
+        List<Mark> out = new ArrayList<>();
+        for (Identifier.Target t : targets)
+            for (Identifier.Match m : Identifier.identifyOne(t, new Vec3(0, 0, -1), Math.PI, options)) // tolerance of pi: every body, with its qualifier
+                if (m.qualifier() == Identifier.Qualifier.NONE && seen.add(m.body().name()))
+                    out.add(bodyMark(m.body(), m.layer(), Math.toRadians(m.angularRadius()), options.lightTime()));
+        out.addAll(Drawn.allMarks(vp, mv, targets.getFirst()));
+        return out;
+    }
+
     /** Draws the glow and the pulse, in the screen pass that recordings never capture. */
     public static void render(Viewport full) {
         if (!IdentifySettings.enabled() || ExportMovie.isRecording())
             return;
         double phase = pulsePhase(System.currentTimeMillis(), STATE.pulseStart);
         boolean pulse = IdentifySettings.pulse() && phase < 1;
-        if (!IdentifySettings.glow() && !pulse)
+        boolean all = IdentifySettings.highlightAll();
+        if (!IdentifySettings.glow() && !pulse && !all)
             return;
-        List<Identifier.Match> matches = outlined(IdentifyHover.lastMatches());
-        if (matches.isEmpty())
-            return;
-
         Viewport vp = Display.getActiveViewport(); // the scene the probes look through, as for the footer and pins
         MapView mv = GLRenderer.getMapView();
         List<Identifier.Target> targets = IdentifyHover.targets(vp, mv);
         double scale = Display.pixelScale[1];
-        boolean light = IdentifySettings.lightTime();
 
-        List<List<double[]>> rings = new ArrayList<>();
-        List<double[]> centres = new ArrayList<>();
-        for (Identifier.Match m : matches) {
-            Identifier.Target target = byName(targets, m.layer());
+        Map<String, Mark> marks = new LinkedHashMap<>();
+        Set<String> hovered = new LinkedHashSet<>();
+        for (Mark m : hoverMarks()) {
+            marks.put(m.key(), m);
+            hovered.add(m.key());
+        }
+        if (all)
+            for (Mark m : allMarks(vp, mv, targets))
+                marks.putIfAbsent(m.key(), m);
+        if (marks.isEmpty())
+            return;
+
+        double[] pointer = IdentifyHover.pointer();
+        List<Ring> rings = new ArrayList<>();
+        for (Mark m : marks.values()) {
+            if (rings.size() >= MAX_RINGS)
+                break;
+            boolean hover = hovered.contains(m.key());
+            if (!hover && !all)
+                continue;
+            Identifier.Target target = m.layer() == null ? targets.getFirst() : byName(targets, m.layer());
             if (target == null)
                 continue;
-            Vec3 dir = Identifier.bodyDirection(m.body(), target.observer(), light);
+            Vec3 dir = m.where().direction(target.observer());
             if (dir == null)
                 continue;
-            List<double[]> o = outline(vp, mv, target, dir, Math.toRadians(m.angularRadius()));
+            List<double[]> o = outline(vp, mv, target, dir, m.angularRadius(), hover ? pointer : null);
             if (o == null)
                 continue;
             double[] c = o.getFirst();
-            centres.add(c);
-            rings.add(atLeast(o.subList(1, o.size()), c, MIN_RADIUS * scale));
+            rings.add(new Ring(IdentifySettings.iconRgb(m.kind()), atLeast(o.subList(1, o.size()), c, MIN_RADIUS * scale), c, hover));
         }
         if (rings.isEmpty())
             return;
 
         // Bright for a moment when something new is reached, then steady
         double boost = pulse ? 1 + 0.6 * (1 - phase) : 1;
+        Map<Integer, List<Ring>> byColour = new LinkedHashMap<>();
+        for (Ring r : rings)
+            byColour.computeIfAbsent(r.rgb()[0] << 16 | r.rgb()[1] << 8 | r.rgb()[2], k -> new ArrayList<>()).add(r);
         Transform.pushProjection();
         Transform.setOrtho2DProjection(0, full.width, 0, full.height);
         Transform.pushView();
         Transform.setIdentityView();
         try {
-            if (IdentifySettings.glow())
+            for (List<Ring> group : byColour.values()) {
+                int[] rgb = group.getFirst().rgb();
                 for (int pass = 0; pass < WIDTHS.length; pass++)
-                    draw(LINES[pass], full, rings, null, 0, (int) Math.min(255, ALPHAS[pass] * boost), WIDTHS[pass] * scale);
-            if (pulse) {
-                double eased = 1 - Math.pow(1 - phase, 3);
-                int alpha = (int) (190 * Math.pow(1 - phase, 2));
-                draw(LINES[3], full, rings, centres, PULSE_TRAVEL * scale * eased, alpha, (2.5 - 1.5 * phase) * scale);
+                    if (IdentifySettings.glow() || all)
+                        draw(LINES[pass], full, group, false, 0, rgb, (int) Math.min(255, ALPHAS[pass] * boost), WIDTHS[pass] * scale);
+                if (pulse) {
+                    double eased = 1 - Math.pow(1 - phase, 3);
+                    int alpha = (int) (190 * Math.pow(1 - phase, 2));
+                    draw(LINES[3], full, group, true, PULSE_TRAVEL * scale * eased, rgb, alpha, (2.5 - 1.5 * phase) * scale);
+                }
             }
         } finally {
             Transform.popView();
@@ -269,16 +339,16 @@ public final class IdentifyGlow {
         }
     }
 
-    private static void draw(GLSLLine line, Viewport full, List<List<double[]>> rings, @Nullable List<double[]> centres,
-                             double grow, int alpha, double widthPx) {
+    private static void draw(GLSLLine line, Viewport full, List<Ring> rings, boolean pulseOnly, double grow, int[] rgb, int alpha, double widthPx) {
         if (alpha <= 0)
             return;
-        byte[] col = {(byte) RGB[0], (byte) RGB[1], (byte) RGB[2], (byte) alpha};
+        byte[] col = {(byte) rgb[0], (byte) rgb[1], (byte) rgb[2], (byte) alpha};
         BUF.clear();
         double seam = SEAM_FRACTION * Math.max(full.width, full.height);
-        for (int i = 0; i < rings.size(); i++) {
-            List<double[]> ring = centres == null ? rings.get(i) : grown(rings.get(i), centres.get(i), grow);
-            putRing(full, ring, col, seam);
+        for (Ring r : rings) {
+            if (pulseOnly && !r.hover())
+                continue;
+            putRing(full, pulseOnly ? grown(r.points(), r.centre(), grow) : r.points(), col, seam);
         }
         line.upload(BUF);
         if (full.height > 0)

@@ -31,7 +31,12 @@ import org.helioviewer.jhv.math.Vec3;
 public final class Drawn {
 
     /** A drawn object under the pointer. {@code distanceAu} is from the Sun's centre, NaN when unknown. */
-    public record Hit(String name, String kind, double pixels, double distanceAu) {
+    public record Hit(String name, String kind, double pixels, double distanceAu, Kind tone, @Nullable Mark mark) {
+        /** A hit with no kind colour of its own and no icon. */
+        public Hit(String name, String kind, double pixels, double distanceAu) {
+            this(name, kind, pixels, distanceAu, Kind.OTHER, null);
+        }
+
         public String details() {
             return Double.isNaN(distanceAu) ? "  " + kind : String.format("  %s, %.3f AU from the Sun", kind, distanceAu);
         }
@@ -63,6 +68,20 @@ public final class Drawn {
      */
     public interface Source {
         List<Hit> at(Viewport vp, MapView mv, int x, int y, double tolerancePixels);
+
+        /** Everything this source can put its icon on in the current view, for Highlight All; none by default. */
+        default List<Mark> marks(Viewport vp, MapView mv, Identifier.Target first) {
+            return List.of();
+        }
+    }
+
+    /** Every mark the registered sources and the stars offer for the current view. */
+    public static List<Mark> allMarks(Viewport vp, MapView mv, Identifier.Target first) {
+        List<Mark> out = new ArrayList<>();
+        for (Source source : sources)
+            out.addAll(source.marks(vp, mv, first));
+        out.addAll(Stars.marks(first));
+        return out;
     }
 
     private static final List<Source> sources = new CopyOnWriteArrayList<>();
@@ -86,7 +105,8 @@ public final class Drawn {
             out.addAll(source.at(vp, mv, x, y, tolerancePixels));
         Stars.Star star = Stars.at(vp, mv, x, y, tolerancePixels);
         if (star != null)
-            out.add(new Hit(star.label(), star.details().strip(), star.pixels(), Double.NaN));
+            out.add(new Hit(star.label(), star.details().strip(), star.pixels(), Double.NaN, Kind.STAR,
+                    star.ray() == null ? null : new Mark("star:" + star.label(), Kind.STAR, null, observer -> star.ray(), 0)));
         int fixed = out.size();
         ViewpointLayer orbits = Layers.getViewpointLayer();
         String marker = orbits == null ? null : orbits.markerAt(mv, vp, x, y);
@@ -113,6 +133,29 @@ public final class Drawn {
         }
         out.subList(fixed, out.size()).sort(Comparator.comparingDouble(Hit::pixels));
         return out;
+    }
+
+    /** The pointer as a sight line from the first target's observer, and the angle one screen pixel spans there. */
+    public record Pointer(org.helioviewer.jhv.astronomy.Position observer, Vec3 dir, double perPixel) {}
+
+    /**
+     * The pointer at canvas point (x, y) for sources of objects at fixed directions, or null in a
+     * mode with no sky under it and in the orbited 3D view (where the sky is drawn turned and only
+     * the stars know how to undo that).
+     */
+    @Nullable
+    public static Pointer pointer(Viewport vp, MapView mv, int x, int y) {
+        org.helioviewer.jhv.astronomy.Position obs = IdentifyHover.targets(vp, mv).getFirst().observer();
+        if (mv.isOrthographic() && orbited(mv.viewRotation(), obs.toQuat()))
+            return null;
+        Identifier.Probe probe = Probes.at(mv, vp, x, y), probe1 = Probes.at(mv, vp, x + 1, y);
+        if (probe == null || probe1 == null)
+            return null;
+        Vec3 dir = probe.direction(obs), dir1 = probe1.direction(obs);
+        if (dir == null || dir1 == null)
+            return null;
+        double perPixel = Identifier.angle(dir, dir1);
+        return perPixel > 0 ? new Pointer(obs, dir, perPixel) : null;
     }
 
     /**

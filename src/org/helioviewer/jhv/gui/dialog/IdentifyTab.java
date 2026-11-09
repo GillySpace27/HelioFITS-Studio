@@ -2,6 +2,7 @@ package org.helioviewer.jhv.gui.dialog;
 
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
+import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
@@ -18,12 +19,39 @@ import org.helioviewer.jhv.identify.IdentifySettings;
  */
 public final class IdentifyTab {
 
+    /** The on/off switch for the whole identifier, which the Identify panel keeps above everything else. */
+    public static JCheckBox masterSwitch() {
+        JCheckBox enabled = box("Identify under cursor (footer)", IdentifySettings.enabled(), IdentifySettings.ENABLED);
+        enabled.setFont(enabled.getFont().deriveFont(java.awt.Font.BOLD));
+        IdentifySettings.addListener(() -> enabled.setSelected(IdentifySettings.enabled()));
+        return enabled;
+    }
+
     /** The whole form: the Identify panel in the sidebar shows this same one, so there is no second copy to drift. */
     public static JComponent build() {
-        JCheckBox enabled = box("Identify under cursor (footer)", IdentifySettings.enabled(), IdentifySettings.ENABLED);
         JCheckBox tooltip = box("Show the name beside the pointer", IdentifySettings.tooltip(), IdentifySettings.TOOLTIP);
         JCheckBox glow = box("Glow around what is identified", IdentifySettings.glow(), IdentifySettings.GLOW);
         JCheckBox pulse = box("Pulse when it changes", IdentifySettings.pulse(), IdentifySettings.PULSE);
+        JCheckBox all = box("Highlight all named objects in view", IdentifySettings.highlightAll(), IdentifySettings.HIGHLIGHT_ALL);
+        JCheckBox byKind = box("Colour the icon by kind of object", IdentifySettings.iconByKind(), IdentifySettings.ICON_BY_KIND);
+        JButton colour = new JButton("Icon colour…");
+        colour.setToolTipText("The one colour of every icon when it is not coloured by kind");
+        colour.addActionListener(e -> {
+            java.awt.Color c = javax.swing.JColorChooser.showDialog(colour, "Icon colour", new java.awt.Color(IdentifySettings.iconColor()));
+            if (c != null)
+                IdentifySettings.set(IdentifySettings.ICON_COLOR, String.format("#%06X", c.getRGB() & 0xFFFFFF));
+        });
+        Runnable paint = () -> {
+            colour.setEnabled(!IdentifySettings.iconByKind());
+            colour.setIcon(new ColourDot(new java.awt.Color(IdentifySettings.iconColor())));
+        };
+        paint.run();
+        JCheckBox comets = box("Comets in the movie's field", IdentifySettings.dataComets(), IdentifySettings.DATA_COMETS);
+        JCheckBox cmes = box("CMEs (CACTus events, needs the event layer)", IdentifySettings.dataCmes(), IdentifySettings.DATA_CMES);
+        JCheckBox clusters = box("Open and globular clusters", IdentifySettings.dataClusters(), IdentifySettings.DATA_CLUSTERS);
+        JCheckBox galaxies = box("Galaxies", IdentifySettings.dataGalaxies(), IdentifySettings.DATA_GALAXIES);
+        JCheckBox nebulae = box("Nebulae and supernova remnants", IdentifySettings.dataNebulae(), IdentifySettings.DATA_NEBULAE);
+        JSpinner deepMag = spinner(IdentifySettings.deepSkyMaxMagnitude(), -2, 20, 0.5, IdentifySettings.DEEP_SKY_MAX_MAG);
         JCheckBox stars = box("Include stars", IdentifySettings.stars(), IdentifySettings.STARS);
         JCheckBox iau = box("IAU proper names (Sirius)", IdentifySettings.starNamesIau(), IdentifySettings.STAR_NAMES_IAU);
         JCheckBox bayer = box("Bayer designations (α CMa)", IdentifySettings.starNamesBayer(), IdentifySettings.STAR_NAMES_BAYER);
@@ -37,7 +65,15 @@ public final class IdentifyTab {
         // Every control follows the settings, not only the three main switches: the menu, the
         // command and the panel's Reset to defaults all change them from outside this form.
         IdentifySettings.addListener(() -> {
-            enabled.setSelected(IdentifySettings.enabled());
+            all.setSelected(IdentifySettings.highlightAll());
+            byKind.setSelected(IdentifySettings.iconByKind());
+            paint.run();
+            comets.setSelected(IdentifySettings.dataComets());
+            cmes.setSelected(IdentifySettings.dataCmes());
+            clusters.setSelected(IdentifySettings.dataClusters());
+            galaxies.setSelected(IdentifySettings.dataGalaxies());
+            nebulae.setSelected(IdentifySettings.dataNebulae());
+            follow(deepMag, IdentifySettings.deepSkyMaxMagnitude());
             tooltip.setSelected(IdentifySettings.tooltip());
             glow.setSelected(IdentifySettings.glow());
             pulse.setSelected(IdentifySettings.pulse());
@@ -58,11 +94,23 @@ public final class IdentifyTab {
         form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
         form.setBorder(BorderFactory.createEmptyBorder(6, 9, 9, 9));
         form.add(heading("Switches"));
-        form.add(line(enabled));
         form.add(line(tooltip));
         form.add(line(glow));
         form.add(line(pulse));
         form.add(line(stars));
+        form.add(line(all));
+        form.add(heading("Icon"));
+        form.add(line(byKind));
+        form.add(line(colour));
+        form.add(heading("Datasets (optional)"));
+        form.add(line(comets));
+        form.add(line(cmes));
+        form.add(line(clusters));
+        form.add(line(galaxies));
+        form.add(line(nebulae));
+        form.add(line(new JLabel("Faintest deep-sky object (magnitude)"), deepMag));
+        form.add(note("Objects with a Messier number or a common name are always listed. Comets need the network and use JPL's ephemeris for SOHO. "
+                + org.helioviewer.jhv.identify.DeepSky.CREDIT));
         form.add(heading("Pointer"));
         form.add(line(new JLabel("Tolerance (screen pixels)"), tolerance));
         form.add(line(new JLabel("Label delay (ms)"), dwell));
@@ -80,6 +128,22 @@ public final class IdentifyTab {
         form.add(note("Stars without a name or designation are named by Hipparcos number. Both tables are fetched on first use. "
                 + org.helioviewer.jhv.layers.stars.StarCatalog.CREDIT + " " + org.helioviewer.jhv.layers.stars.StarNames.CREDIT));
         return form;
+    }
+
+    /** A small filled circle showing the colour chosen. */
+    private record ColourDot(java.awt.Color colour) implements javax.swing.Icon {
+        public void paintIcon(java.awt.Component c, java.awt.Graphics g, int x, int y) {
+            g.setColor(colour);
+            g.fillOval(x, y, 12, 12);
+        }
+
+        public int getIconWidth() {
+            return 12;
+        }
+
+        public int getIconHeight() {
+            return 12;
+        }
     }
 
     private static JComponent heading(String text) {

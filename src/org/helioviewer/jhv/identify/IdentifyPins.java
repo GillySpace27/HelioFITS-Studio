@@ -33,7 +33,7 @@ public final class IdentifyPins {
 
     private static final List<String> pins = new CopyOnWriteArrayList<>();
     private static final int MAX_STEPS = 12;
-    private static final double CONVERGED_PIXELS = 0.25;
+    private static final double CONVERGED_PIXELS = 0.75;
 
     /** The pinned bodies, in the order they were pinned. */
     public static List<String> all() {
@@ -118,11 +118,22 @@ public final class IdentifyPins {
     /** As {@link #locate(Viewport, MapView, Identifier.Target, Vec3)}, starting from {@code seed} (canvas pixels) when given. */
     @Nullable
     static double[] locate(Viewport vp, MapView mv, Identifier.Target target, Vec3 want, @Nullable double[] seed) {
-        return solve((x, y) -> {
+        Sky sky = (x, y) -> {
             Identifier.Probe p = Probes.at(mv, vp, x, y);
             Vec3 dir = p == null ? null : p.direction(target.observer());
             return dir == null ? null : Identifier.helioprojective(dir);
-        }, Identifier.helioprojective(want), vp.x, vp.yAWT, vp.width, vp.height, seed);
+        };
+        Vec2 goal = Identifier.helioprojective(want);
+        double[] found = solve(sky, goal, vp.x, vp.yAWT, vp.width, vp.height, seed);
+        if (found != null || seed != null)
+            return found;
+        // The middle of a polar page is singular (the Sun in Helioradial), so try other starts before giving up
+        for (double[] f : new double[][]{{.25, .25}, {.75, .25}, {.25, .75}, {.75, .75}}) {
+            found = solve(sky, goal, vp.x, vp.yAWT, vp.width, vp.height, new double[]{vp.x + f[0] * vp.width, vp.yAWT + f[1] * vp.height});
+            if (found != null)
+                return found;
+        }
+        return null;
     }
 
     /** Newton's method on the screen: the point in the box (x0, y0, w, h) where {@code sky} reads {@code goal}. */

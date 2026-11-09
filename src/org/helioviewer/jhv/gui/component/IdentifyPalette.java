@@ -66,8 +66,14 @@ public final class IdentifyPalette {
     private static JComponent build() {
         HOLDER.readout = new Readout();
         JPanel root = new JPanel(new BorderLayout());
-        root.add(HOLDER.readout, BorderLayout.NORTH);
-        root.add(IdentifyTab.build(), BorderLayout.CENTER);
+        JPanel head = new JPanel(new BorderLayout());
+        head.setBorder(BorderFactory.createEmptyBorder(6, 9, 0, 9));
+        head.add(IdentifyTab.masterSwitch(), BorderLayout.WEST);
+        JPanel body = new JPanel(new BorderLayout());
+        body.add(HOLDER.readout, BorderLayout.NORTH);
+        body.add(IdentifyTab.build(), BorderLayout.CENTER);
+        root.add(head, BorderLayout.NORTH);
+        root.add(body, BorderLayout.CENTER);
         return root;
     }
 
@@ -75,7 +81,7 @@ public final class IdentifyPalette {
     static final class Readout extends JPanel {
 
         private final JLabel status = new JLabel();
-        private final JTextArea matches = area();
+        private final javax.swing.JTextPane matches = pane();
         private final JTextArea layers = area();
         private final JCheckBox freeze = new JCheckBox("Freeze this result");
         private final Timer coalesce = new Timer(120, e -> refresh());
@@ -126,6 +132,52 @@ public final class IdentifyPalette {
             refresh();
         }
 
+        private static javax.swing.JTextPane pane() {
+            javax.swing.JTextPane p = new javax.swing.JTextPane();
+            p.setEditable(false);
+            p.setOpaque(false);
+            p.setFont(new java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, p.getFont().getSize() - 1));
+            p.setBorder(BorderFactory.createEmptyBorder());
+            return p;
+        }
+
+        /** Fills the readout: plain text as {@link #matchText}, with each object's name in bold and its kind's colour. */
+        void showMatches(IdentifyHover.Snapshot s) {
+            javax.swing.text.StyledDocument doc = matches.getStyledDocument();
+            java.awt.Color bg = javax.swing.UIManager.getColor("Panel.background");
+            if (bg == null)
+                bg = java.awt.Color.WHITE;
+            try {
+                doc.remove(0, doc.getLength());
+                java.util.List<String> names = new java.util.ArrayList<>();
+                java.util.List<org.helioviewer.jhv.identify.Kind> kinds = new java.util.ArrayList<>();
+                for (Identifier.Match m : s.matches()) {
+                    names.add(m.body().name());
+                    kinds.add(org.helioviewer.jhv.identify.Kind.of(m.body()));
+                }
+                for (org.helioviewer.jhv.identify.Drawn.Hit h : s.drawn()) {
+                    names.add(h.name());
+                    kinds.add(h.tone());
+                }
+                javax.swing.text.SimpleAttributeSet plain = new javax.swing.text.SimpleAttributeSet();
+                int next = 0;
+                for (String line : matchText(s).split("\n", -1)) {
+                    boolean head = next < names.size() && line.startsWith(names.get(next));
+                    if (head) {
+                        javax.swing.text.SimpleAttributeSet bold = new javax.swing.text.SimpleAttributeSet();
+                        javax.swing.text.StyleConstants.setBold(bold, true);
+                        javax.swing.text.StyleConstants.setForeground(bold, kinds.get(next).textOn(bg));
+                        doc.insertString(doc.getLength(), names.get(next), bold);
+                        doc.insertString(doc.getLength(), line.substring(names.get(next).length()) + "\n", plain);
+                        next++;
+                    } else
+                        doc.insertString(doc.getLength(), line + "\n", plain);
+                }
+            } catch (javax.swing.text.BadLocationException e) {
+                matches.setText(matchText(s));
+            }
+        }
+
         private static JTextArea area() {
             JTextArea a = new JTextArea();
             a.setEditable(false);
@@ -142,7 +194,7 @@ public final class IdentifyPalette {
             IdentifyHover.Snapshot s = IdentifyHover.snapshot();
             freeze.setSelected(IdentifyHover.frozen());
             if (!IdentifySettings.enabled())
-                status.setText("<html><body style='width:250px'><b>Off.</b> Switch on Identify Under Cursor (View menu, or below).");
+                status.setText("<html><body style='width:250px'><b>Off.</b> Switch on Identify Under Cursor (View menu, or the box above).");
             else if (s.millis() == 0)
                 status.setText("<html><body style='width:250px'><b>Nothing matched yet.</b> Move the pointer over the image.");
             else
@@ -151,7 +203,7 @@ public final class IdentifyPalette {
                     case EMPTY -> "Nothing under the pointer; last match " + age(s.millis());
                     case AWAY -> "Pointer left the image; last match " + age(s.millis());
                 } + (IdentifyHover.frozen() ? " (frozen)" : "") + "</b>");
-            matches.setText(matchText(s));
+            showMatches(s);
             layers.setText(layerText());
             revalidate();
             repaint();

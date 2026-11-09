@@ -27,6 +27,15 @@ public final class IdentifySettings {
     public static final String PLUTO = "identify.pluto";
     public static final String GLOW = "identify.glow";
     public static final String PULSE = "identify.pulse";
+    public static final String ICON_BY_KIND = "identify.icon.byKind";
+    public static final String ICON_COLOR = "identify.icon.color";
+    public static final String HIGHLIGHT_ALL = "identify.highlightAll";
+    public static final String DATA_COMETS = "identify.data.comets";
+    public static final String DATA_CMES = "identify.data.cmes";
+    public static final String DATA_CLUSTERS = "identify.data.clusters";
+    public static final String DATA_GALAXIES = "identify.data.galaxies";
+    public static final String DATA_NEBULAE = "identify.data.nebulae";
+    public static final String DEEP_SKY_MAX_MAG = "identify.data.deepSky.maxMagnitude";
 
     /** Off: the footer looks as it always has until someone asks for this. */
     static final boolean DEFAULT_ENABLED = false;
@@ -43,6 +52,15 @@ public final class IdentifySettings {
     public static final double DEFAULT_EARTH_UNCERTAINTY_KM = 7400;
     /** Naked-eye limit, as the starfield layer's default (judgement). */
     public static final double DEFAULT_STAR_MAX_MAG = 6;
+
+    /** The colour the icon takes when it is not coloured by kind: the soft blue-white it always had (Gilly, 2026-11-08). */
+    public static final String DEFAULT_ICON_COLOR = "#96D7FF";
+    /**
+     * Deep-sky objects fainter than this are left out unless they carry a Messier number or a
+     * common name in OpenNGC: past it the list is thousands of faint galaxies nobody asked to have
+     * named (judgement).
+     */
+    public static final double DEFAULT_DEEP_SKY_MAX_MAG = 9;
 
     private static final List<Runnable> listeners = new CopyOnWriteArrayList<>();
 
@@ -131,6 +149,57 @@ public final class IdentifySettings {
         return bool(PULSE, true);
     }
 
+    /** Icon and name colour follow the kind of object (stars white, planets green, comets red, ...). */
+    public static boolean iconByKind() {
+        return bool(ICON_BY_KIND, true);
+    }
+
+    /** The one colour of every icon when it is not coloured by kind, as 0xRRGGBB. */
+    public static int iconColor() {
+        String v = Settings.getProperty(ICON_COLOR);
+        try {
+            return v == null ? Integer.decode(DEFAULT_ICON_COLOR) : Integer.decode(v) & 0xFFFFFF;
+        } catch (NumberFormatException e) {
+            return Integer.decode(DEFAULT_ICON_COLOR);
+        }
+    }
+
+    /** The icon's red, green and blue for an object of {@code kind}. */
+    public static int[] iconRgb(Kind kind) {
+        if (iconByKind())
+            return kind.rgb;
+        int c = iconColor();
+        return new int[]{c >> 16 & 255, c >> 8 & 255, c & 255};
+    }
+
+    public static boolean highlightAll() {
+        return bool(HIGHLIGHT_ALL, false);
+    }
+
+    public static boolean dataComets() {
+        return bool(DATA_COMETS, false);
+    }
+
+    public static boolean dataCmes() {
+        return bool(DATA_CMES, false);
+    }
+
+    public static boolean dataClusters() {
+        return bool(DATA_CLUSTERS, false);
+    }
+
+    public static boolean dataGalaxies() {
+        return bool(DATA_GALAXIES, false);
+    }
+
+    public static boolean dataNebulae() {
+        return bool(DATA_NEBULAE, false);
+    }
+
+    public static double deepSkyMaxMagnitude() {
+        return number(DEEP_SKY_MAX_MAG, DEFAULT_DEEP_SKY_MAX_MAG, -2, 20);
+    }
+
     public static void setEnabled(boolean b) {
         set(ENABLED, Boolean.toString(b));
     }
@@ -159,6 +228,9 @@ public final class IdentifySettings {
         Settings.setProperty(STAR_NAMES_BAYER, "true");
         Settings.setProperty(GLOW, "true");
         Settings.setProperty(PULSE, "true");
+        Settings.setProperty(ICON_BY_KIND, "true");
+        Settings.setProperty(ICON_COLOR, DEFAULT_ICON_COLOR);
+        Settings.setProperty(DEEP_SKY_MAX_MAG, String.valueOf(DEFAULT_DEEP_SKY_MAX_MAG));
         fire();
     }
 
@@ -170,7 +242,11 @@ public final class IdentifySettings {
                 .put("starMaxMagnitude", starMaxMagnitude()).put("tolerancePixels", tolerancePixels())
                 .put("tooltipDwellMillis", dwellMillis()).put("lightTime", lightTime())
                 .put("earthObserverUncertaintyKm", earthUncertaintyKm()).put("pluto", pluto())
-                .put("glow", glow()).put("pulse", pulse());
+                .put("glow", glow()).put("pulse", pulse())
+                .put("iconByKind", iconByKind()).put("iconColor", String.format("#%06X", iconColor()))
+                .put("highlightAll", highlightAll()).put("comets", dataComets()).put("cmes", dataCmes())
+                .put("clusters", dataClusters()).put("galaxies", dataGalaxies()).put("nebulae", dataNebulae())
+                .put("deepSkyMaxMagnitude", deepSkyMaxMagnitude());
     }
 
     private IdentifySettings() {}
