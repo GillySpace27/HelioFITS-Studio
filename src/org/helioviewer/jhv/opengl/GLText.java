@@ -82,13 +82,25 @@ public final class GLText {
 
     /** Lines centred in the viewport, half again the floating text size; for the empty-canvas hint. */
     public static void drawTextCentered(Viewport vp, List<String> lines) {
+        drawText(vp, lines, false);
+    }
+
+    /** Like {@link #drawTextCentered}, but horizontally centered near the bottom edge, leaving the middle clear. */
+    public static void drawTextBottom(Viewport vp, List<String> lines) {
+        drawText(vp, lines, true);
+    }
+
+    private static void drawText(Viewport vp, List<String> lines, boolean bottom) {
         SdfTextRenderer renderer = renderer();
         int textSize = logicalToPhysicalSize(FLOAT_TEXT_SIZE * 3 / 2);
         float textScaleFactor = textSize / renderer.getFontSize();
         int lineStep = (int) (textSize * FLOAT_TEXT_LINE_HEIGHT);
 
         renderer.beginRendering(vp.width, vp.height);
-        int baselineY = vp.height / 2 + lineStep * (lines.size() - 1) / 2;
+        if (bottom) // wrap to the canvas width with a side margin; the block grows upward from the bottom margin
+            lines = wrap(renderer, lines, vp.width - 2 * lineStep, textScaleFactor);
+        int baselineY = bottom ? lineStep * (lines.size() + 1) // two lines of margin below the last line
+                : vp.height / 2 + lineStep * (lines.size() - 1) / 2;
         for (String line : lines) {
             int x = (int) ((vp.width - renderer.measureWidth(line) * textScaleFactor) / 2);
             renderer.setColor(SHADOW_COLOR);
@@ -98,6 +110,24 @@ public final class GLText {
             baselineY -= lineStep;
         }
         renderer.endRendering();
+    }
+
+    /** Greedy word wrap of each line to maxWidth; a single word wider than that stays on its own line. */
+    private static List<String> wrap(SdfTextRenderer renderer, List<String> lines, int maxWidth, float scale) {
+        List<String> out = new java.util.ArrayList<>();
+        for (String line : lines) {
+            StringBuilder cur = new StringBuilder();
+            for (String word : line.split(" ")) {
+                String next = cur.isEmpty() ? word : cur + " " + word;
+                if (!cur.isEmpty() && renderer.measureWidth(next) * scale > maxWidth) {
+                    out.add(cur.toString());
+                    cur = new StringBuilder(word);
+                } else
+                    cur = new StringBuilder(next);
+            }
+            out.add(cur.toString());
+        }
+        return out;
     }
 
     private GLText() {}

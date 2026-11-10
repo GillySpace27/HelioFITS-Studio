@@ -245,6 +245,10 @@ public final class WelcomeDialog {
         String key = search == null ? "" : shortcut(search.action());
         helpRow(rows, c, search == null ? null : search.action(), true, "Search Controls\u2026" + (key.isEmpty() ? "" : "  " + key), dialog,
                 "Type what you want to do or the name of any control. It runs the command, or points at the control and shows where it is.");
+        ActionCatalog.Entry keys = ActionCatalog.get(ShortcutsOverlay.ID);
+        String keysKey = keys == null ? "" : shortcut(keys.action());
+        helpRow(rows, c, keys == null ? null : keys.action(), true, "Keybindings" + (keysKey.isEmpty() ? "" : "  " + keysKey), dialog,
+                "Every keyboard shortcut in force, by area, with a search box. The same key opens and closes it from anywhere in Studio.");
         helpRow(rows, c, null, false, "Hover any control", dialog,
                 "Every button, slider and field has a tooltip saying what it is for.");
         ActionCatalog.Entry tip = ActionCatalog.get("tipOfTheDay");

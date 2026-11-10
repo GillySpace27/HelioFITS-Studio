@@ -7,8 +7,12 @@
 ### Changes
 - The Image Layers and Playback and Recording sections start open on a fresh install; a fold state already saved in your settings is kept.
 - On a Mac the sidebar section keys are swapped to read more naturally: Option+1 to Option+9 now fold the left sidebar's sections and Shift+Option+1 to Shift+Option+9 the right one's (Option+0 and Shift+Option+0 collapse all, left first and right first). Keys you changed in Keybindings are left as you set them; only keys still at their default move. Off a Mac nothing changes.
+### New
+- Help > Keyboard Shortcuts (Cmd+/, Ctrl+/ off a Mac; the same key closes it, as does Esc) opens a searchable overlay of every keyboard shortcut in force, grouped by area, with key caps spelled for your platform. It reads your current keybindings, so a change in Settings > Keybindings shows at once. The Welcome window has a Keybindings button for it.
 
 ### Fixes
+- Tooltips stay up until you move the pointer off the control, instead of vanishing after about four seconds. A click, Esc, or switching to another window also hides one. The delay before a tooltip first appears is unchanged in spirit (0.6 s).
+- The hint on an empty canvas now sits at the bottom, one line, and says what a drop does: "Drop any FITS, JPEG, JHV, or HFREC file to start or extend the session". The grid and the center are clear for a screenshot. The "Java option missing" dialog now says Studio, not HelioFITS Studio.
 - About and the Welcome window now say which build you are running: the version with its commits since the tag (0.9.2+37, once the tag exists), the build number (the commit count), the commit, and "debug" for a debug build, plus a line "built Nov 10, 2026 11:09 MST (2 minutes ago)" ("released ..." in a release build). Before, an untagged version read "version 0.9.2, build 0.9.2". The jar carries `jhv.built` and `jhv.channel`; a plain `ant jar` and CI leave the channel empty.
 - The Task Manager's Right now list keeps finished work instead of dropping it the moment it ends: each line has a Status (running, success, failed, cancelled; stopped for a recording you stopped), stays until you press Dismiss, and Clear finished empties them all.
 - In the Task Manager, the Recording row no longer deselects itself every half second, and Stop now stops the recording (the frames so far become the movie). The Right now list was keeping its selection by layer, which a recording does not have.

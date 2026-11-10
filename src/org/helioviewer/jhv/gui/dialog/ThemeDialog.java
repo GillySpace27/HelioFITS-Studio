@@ -182,7 +182,10 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
         c.insets = new Insets(0, 6, 0, 6);
 
         String[][] options = {
-                {PanelVisibility.HEADERS, "Stronger section headers", "Bolder bands, a thicker rule and a little more space between sections. Titles use the Section header text (strong) colour above."},
+                {PanelVisibility.HEADERS, "Stronger header band", "A band pushed further from the panel colour, until it is clearly a band."},
+                {PanelVisibility.TITLE, "Stronger header title colour", "Titles use the Section header text (strong) colour above, rather than the plain one."},
+                {PanelVisibility.RULE, "Thicker rule under each section", "A 2 px rule under each top-level section instead of 1 px."},
+                {PanelVisibility.SPACING, "More space between sections", "A little more ground under each section before the next band."},
                 {PanelVisibility.STRIPE, "Accent stripe on each section", "A thin stripe in the accent colour on the leading edge of every top-level header."},
                 {PanelVisibility.NUMBERS, "Number the sections", "Put L1, L2 (left) and R1, R2 (right) in front of each top-level title, in the order they appear: Ctrl+N and Alt+N reach them (Option+N and Shift+Option+N on a Mac)."},
                 {org.helioviewer.jhv.gui.component.PanelKeyHint.KEY, "Box the numbers while Ctrl, Option or Shift+Option is held", "Hold Option (Ctrl on Windows and Linux) for the left sidebar's numbers, Shift+Option (Alt) for the right one's; shown even when numbering is off."},
@@ -207,19 +210,43 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
         c.gridy = 0;
         box.add(master, c);
         int row = 1;
+        // "Stronger section headers": a preset that sets the four header options below together; ticked while all four are.
+        javax.swing.JCheckBox preset = new javax.swing.JCheckBox("Stronger section headers");
+        preset.setToolTipText("Turns all four header options below on or off together. Tick them one by one to mix.");
+        java.util.Map<String, javax.swing.JCheckBox> parts = new java.util.HashMap<>();
+        Runnable syncPreset = () -> preset.setSelected(parts.values().stream().allMatch(javax.swing.JCheckBox::isSelected));
+        preset.addActionListener(e -> {
+            for (String key : PanelVisibility.HEADER_PARTS) {
+                Settings.setProperty(key, Boolean.toString(preset.isSelected()));
+                parts.get(key).setSelected(preset.isSelected());
+            }
+            apply.run();
+        });
+        subs.add(preset);
+        preset.setEnabled(master.isSelected());
         for (String[] o : options) {
+            if (o[0].equals(PanelVisibility.HEADERS)) {
+                c.gridy = row++;
+                c.insets = new Insets(0, 28, 0, 6);
+                box.add(preset, c);
+            }
             javax.swing.JCheckBox sub = new javax.swing.JCheckBox(o[1], !"false".equals(Settings.getProperty(o[0])));
             sub.setToolTipText(o[2]);
             sub.setEnabled(master.isSelected());
+            boolean part = java.util.Arrays.asList(PanelVisibility.HEADER_PARTS).contains(o[0]);
+            if (part)
+                parts.put(o[0], sub);
             sub.addActionListener(e -> {
                 Settings.setProperty(o[0], Boolean.toString(sub.isSelected()));
+                syncPreset.run();
                 apply.run();
             });
             subs.add(sub);
             c.gridy = row++;
-            c.insets = new Insets(0, 28, 0, 6);
+            c.insets = new Insets(0, part ? 50 : 28, 0, 6);
             box.add(sub, c);
         }
+        syncPreset.run();
 
         // Wide bars for those who scroll by dragging the bar rather than with the wheel or a trackpad
         javax.swing.JSlider bar = new javax.swing.JSlider(PanelVisibility.SCROLLBAR_DEFAULT, PanelVisibility.SCROLLBAR_MAX,

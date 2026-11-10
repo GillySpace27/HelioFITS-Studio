@@ -18,7 +18,12 @@ import org.helioviewer.jhv.app.Theme;
 public final class PanelVisibility {
 
     public static final String MASTER = "ui.visibility.enabled";
+    /** "Stronger section headers" is a preset over these four (band, title, rule, spacing); band keeps the old key so stored choices carry over. */
     public static final String HEADERS = "ui.visibility.headers";
+    public static final String TITLE = "ui.visibility.headers.title";
+    public static final String RULE = "ui.visibility.headers.rule";
+    public static final String SPACING = "ui.visibility.headers.spacing";
+    public static final String[] HEADER_PARTS = {HEADERS, TITLE, RULE, SPACING};
     public static final String STRIPE = "ui.visibility.stripe";
     public static final String NUMBERS = "ui.visibility.numbers";
     public static final String HOVER = "ui.visibility.hover";
@@ -43,6 +48,19 @@ public final class PanelVisibility {
 
     public static boolean headers() {
         return on(HEADERS);
+    }
+
+    /** The title in its stronger colour (HeaderTextStrong, held to 3.5:1) rather than the plain one (4.5:1). */
+    public static boolean title() {
+        return on(TITLE);
+    }
+
+    public static boolean rule() {
+        return on(RULE);
+    }
+
+    public static boolean spacing() {
+        return on(SPACING);
     }
 
     public static boolean stripe() {
@@ -93,12 +111,12 @@ public final class PanelVisibility {
 
     /** Thickness of the rule under a top-level section. */
     public static int separatorThickness() {
-        return headers() ? 2 : 1;
+        return rule() ? 2 : 1;
     }
 
     /** Ground under a top-level section, between its last control and the next band. */
     public static int sectionGap() {
-        return headers() ? 9 : 5;
+        return spacing() ? 9 : 5;
     }
 
     /** Width of the accent stripe, 0 when there is none. */
@@ -112,11 +130,12 @@ public final class PanelVisibility {
         Color band = base;
         if (headers()) {
             Color panel = theme.get(Theme.Token.Background);
-            Color text = theme.get(Theme.Token.HeaderTextStrong);
+            Color text = theme.get(title() ? Theme.Token.HeaderTextStrong : Theme.Token.HeaderText);
+            double min = title() ? Theme.STRONG_TEXT_MIN : Theme.TEXT_MIN;
             Color away = theme.get(Theme.Token.Foreground);
             for (double f = 0.05; f <= 0.6 && Theme.contrast(band, panel) < STRONG_BAND; f += 0.05) {
                 Color c = Theme.mix(base, away, f);
-                if (Theme.contrast(Theme.legibleOn(text, c, Theme.STRONG_TEXT_MIN), c) < Theme.STRONG_TEXT_MIN)
+                if (Theme.contrast(Theme.legibleOn(text, c, min), c) < min)
                     break; // any further and the title cannot be made to read, even brightened
                 band = c;
             }
@@ -133,7 +152,7 @@ public final class PanelVisibility {
 
     /** The title colour for a band, held to 4.5:1 (3.5:1 for the strong one) on whichever fill is in use: the strong one when headers are strong. */
     public static Color headerText(Theme theme, Color fill) {
-        if (headers())
+        if (title())
             return Theme.legibleOn(theme.get(Theme.Token.HeaderTextStrong), fill, Theme.STRONG_TEXT_MIN);
         return Theme.legibleOn(theme.get(Theme.Token.HeaderText), fill, Theme.TEXT_MIN);
     }
@@ -171,7 +190,7 @@ public final class PanelVisibility {
 
     /** The band under the pointer: one step toward the text colour, if the title still reads on it. */
     public static Color hoverFill(Theme theme, Color fill) {
-        double min = headers() ? Theme.STRONG_TEXT_MIN : Theme.TEXT_MIN;
+        double min = title() ? Theme.STRONG_TEXT_MIN : Theme.TEXT_MIN;
         Color text = headerText(theme, fill);
         for (double f : new double[]{0.16, 0.10, 0.06}) {
             Color c = Theme.mix(fill, theme.get(Theme.Token.Foreground), f);
