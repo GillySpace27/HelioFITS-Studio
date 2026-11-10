@@ -114,7 +114,8 @@ public final class ShortcutsOverlay {
         JLabel title = new JLabel("Keyboard shortcuts");
         title.setFont(title.getFont().deriveFont(Font.BOLD, title.getFont().getSize2D() + 3));
         title.setForeground(fg);
-        field.putClientProperty("JTextField.placeholderText", "Search the shortcuts");
+        field.putClientProperty("JTextField.placeholderText", "Search");
+        field.putClientProperty("JComponent.roundRect", true); // FlatLaf pill
         field.getAccessibleContext().setAccessibleName("Search keyboard shortcuts");
         field.setToolTipText("Part of an action, a section or a key");
         field.getDocument().addDocumentListener(new DocumentListener() {
@@ -122,9 +123,23 @@ public final class ShortcutsOverlay {
             @Override public void removeUpdate(DocumentEvent e) { refill(); }
             @Override public void changedUpdate(DocumentEvent e) { refill(); }
         });
+        JLabel x = new JLabel("\u2715");
+        x.setForeground(fg);
+        x.setToolTipText("Close (Esc)");
+        x.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
+        x.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                close();
+            }
+        });
+        JPanel top = new JPanel(new BorderLayout());
+        top.setOpaque(false);
+        top.add(title, BorderLayout.CENTER);
+        top.add(x, BorderLayout.LINE_END);
         JPanel head = new JPanel(new BorderLayout(0, 10));
         head.setOpaque(false);
-        head.add(title, BorderLayout.PAGE_START);
+        head.add(top, BorderLayout.PAGE_START);
         head.add(field, BorderLayout.CENTER);
         panel.add(head, BorderLayout.PAGE_START);
 
@@ -137,7 +152,7 @@ public final class ShortcutsOverlay {
         scroll.getVerticalScrollBar().setUnitIncrement(16);
         panel.add(scroll, BorderLayout.CENTER);
 
-        JLabel viewAll = new JLabel("View all and change keybindings");
+        JLabel viewAll = new JLabel("View all and change keybindings \u2197");
         viewAll.setForeground(Theme.current().get(Token.Accent));
         viewAll.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
         viewAll.addMouseListener(new MouseAdapter() {
@@ -216,7 +231,8 @@ public final class ShortcutsOverlay {
     private JPanel rowPanel(Row r) {
         JPanel p = new JPanel(new BorderLayout(8, 0));
         p.setOpaque(false);
-        p.setBorder(BorderFactory.createEmptyBorder(3, 0, 3, 0));
+        p.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, Theme.current().get(Token.Separator)),
+                BorderFactory.createEmptyBorder(7, 0, 7, 0)));
         JLabel name = new JLabel(r.name());
         name.setForeground(fg);
         p.add(name, BorderLayout.CENTER);

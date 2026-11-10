@@ -67,16 +67,16 @@ public final class ShortcutIndex {
         return slash > 0 ? menuPath.substring(0, slash) : "Other";
     }
 
-    /** Key caps in the platform's order and spelling: ⌃⌥⇧⌘ on a Mac, Ctrl Alt Shift Meta elsewhere. */
+    /** Key caps in the platform's order and spelling: Ctrl Option Shift ⌘ on a Mac (the symbol only for Command, as Google Docs does), Ctrl Alt Shift Meta elsewhere. */
     public static List<String> caps(KeyStroke ks, boolean mac) {
         int m = ks.getModifiers();
         List<String> caps = new ArrayList<>();
         if ((m & InputEvent.CTRL_DOWN_MASK) != 0)
-            caps.add(mac ? "⌃" : "Ctrl");
+            caps.add("Ctrl");
         if ((m & InputEvent.ALT_DOWN_MASK) != 0)
-            caps.add(mac ? "⌥" : "Alt");
+            caps.add(mac ? "Option" : "Alt");
         if ((m & InputEvent.SHIFT_DOWN_MASK) != 0)
-            caps.add(mac ? "⇧" : "Shift");
+            caps.add("Shift");
         if ((m & InputEvent.META_DOWN_MASK) != 0)
             caps.add(mac ? "⌘" : "Meta");
         caps.add(keyCap(ks.getKeyCode()));
@@ -90,11 +90,10 @@ public final class ShortcutIndex {
 
     /**
      * The rows whose name, section or keys contain every word of {@code query} (case-insensitive;
-     * Cmd, Command, Option and Opt also match the symbols). An empty query keeps every row.
+     * Cmd and Command match the Mac symbol). An empty query keeps every row.
      */
     public static List<Row> filter(List<Row> rows, String query) {
-        String[] words = query.strip().toLowerCase(Locale.ROOT).replace("command", "⌘").replace("cmd", "⌘")
-                .replace("option", "⌥").replace("opt", "⌥").replace("control", "⌃").split("\\s+");
+        String[] words = query.strip().toLowerCase(Locale.ROOT).replace("command", "⌘").replace("cmd", "⌘").split("\\s+");
         List<Row> out = new ArrayList<>();
         for (Row r : rows) {
             String hay = (r.name() + " " + r.group() + " " + String.join(" ", r.caps())).toLowerCase(Locale.ROOT);

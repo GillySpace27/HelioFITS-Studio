@@ -37,7 +37,7 @@ public final class ShortcutIndexCheck {
         org.helioviewer.jhv.app.Platform.init();
         int menu = DesktopIntegration.menuShortcutMask;
         boolean mac = menu == InputEvent.META_DOWN_MASK;
-        String menuCap = mac ? "⌘" : "⌃"; // build(true) spells Ctrl as the Mac symbol
+        String menuCap = mac ? "⌘" : "Ctrl";
 
         // Every catalogued accelerator and every canvas key is a row
         List<ShortcutIndex.Row> rows = ShortcutIndex.build(true);
@@ -53,7 +53,7 @@ public final class ShortcutIndexCheck {
 
         // Platform spelling
         KeyStroke k = KeyStroke.getKeyStroke(KeyEvent.VK_EQUALS, InputEvent.CTRL_DOWN_MASK | InputEvent.ALT_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK | InputEvent.META_DOWN_MASK);
-        expect("Mac caps", ShortcutIndex.caps(k, true).equals(List.of("⌃", "⌥", "⇧", "⌘", "=")));
+        expect("Mac caps", ShortcutIndex.caps(k, true).equals(List.of("Ctrl", "Option", "Shift", "⌘", "=")));
         expect("Windows and Linux caps", ShortcutIndex.caps(k, false).equals(List.of("Ctrl", "Alt", "Shift", "Meta", "=")));
 
         // Search
@@ -67,7 +67,7 @@ public final class ShortcutIndexCheck {
         String id = "toggleTimeline";
         expect("rebinding is accepted", KeyBindings.set(id, KeyStroke.getKeyStroke(KeyEvent.VK_T, menu | InputEvent.ALT_DOWN_MASK)) == null);
         List<ShortcutIndex.Row> after = ShortcutIndex.build(true);
-        expect("the new key shows", mac ? has(after, "Show or Hide Timeline", "⌥", "⌘", "T") : has(after, "Show or Hide Timeline", "⌃", "⌥", "T"));
+        expect("the new key shows", mac ? has(after, "Show or Hide Timeline", "Option", "⌘", "T") : has(after, "Show or Hide Timeline", "Ctrl", "Option", "T"));
         expect("the old key is gone", !ShortcutIndex.filter(after, "timeline").stream().anyMatch(r -> r.caps().contains("\\")));
         KeyBindings.set(id, null);
         expect("an unbound command has no row", ShortcutIndex.filter(ShortcutIndex.build(true), "timeline").stream().noneMatch(r -> r.name().equals("Show or Hide Timeline")));
