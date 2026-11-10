@@ -207,6 +207,8 @@ public class TimelineLayers extends AbstractTableModel {
     private static boolean containsLayer(List<TimelineLayer> searchLayers, TimelineLayer target) {
         if (target instanceof Band band)
             return findBand(searchLayers, band.getBandType()) != null;
+        if (target instanceof CoverageTimelineLayer || target instanceof BodiesTimelineLayer) // singletons: a restore must not stack copies
+            return searchLayers.stream().anyMatch(l -> l.getClass() == target.getClass());
         return searchLayers.contains(target);
     }
 
