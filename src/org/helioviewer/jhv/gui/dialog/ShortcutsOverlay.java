@@ -16,6 +16,7 @@ import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.swing.AbstractAction;
 import javax.swing.Action;
@@ -56,7 +57,7 @@ public final class ShortcutsOverlay {
     private static final int HEIGHT = 560;
     private static final int ARC = 18;
 
-    private static ShortcutsOverlay open; // at most one; the key toggles it
+    private static final AtomicReference<ShortcutsOverlay> OPEN = new AtomicReference<>(); // at most one; the key toggles it
 
     public static Action action() {
         AbstractAction a = new AbstractAction("Keyboard Shortcuts...") {
@@ -71,13 +72,14 @@ public final class ShortcutsOverlay {
 
     /** Opens the overlay, or closes it if it is open. */
     public static void toggle() {
-        if (open != null) {
-            open.close();
+        ShortcutsOverlay shown = OPEN.get();
+        if (shown != null) {
+            shown.close();
             return;
         }
         JFrame frame = MainFrame.get();
         if (frame != null)
-            open = new ShortcutsOverlay(frame);
+            OPEN.set(new ShortcutsOverlay(frame));
     }
 
     private final JDialog dialog;
@@ -180,10 +182,8 @@ public final class ShortcutsOverlay {
     }
 
     private void close() {
-        if (open == this) {
-            open = null;
+        if (OPEN.compareAndSet(this, null))
             dialog.dispose();
-        }
     }
 
     /** Rebuilds the sections from the rows the search lets through. */
