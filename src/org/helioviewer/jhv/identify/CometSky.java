@@ -88,27 +88,27 @@ public final class CometSky implements Drawn.Source {
             return s.comets();
         if (running.compareAndSet(false, true)) {
             double fov = ImageLayers.getLargestRadialSize();
-            Thread t = new Thread(() -> fetch(key, start, end, fov > 1 ? fov : 30), "identify-comets");
-            t.setDaemon(true);
-            t.start();
+            org.helioviewer.jhv.thread.Task.submitBackground("identify-comets", () -> {
+                List<Tracked> found = new ArrayList<>();
+                for (Comets.Sighting c : Comets.search(start, end, fov > 1 ? fov : 30, msg -> {}))
+                    found.add(new Tracked(c.comet(), Comets.ephemeris(c.comet(), start, end)));
+                return found;
+            }, found -> {
+                state.set(new State(key, found, System.currentTimeMillis(), false));
+                Log.info("Identify comets: " + found.size() + " in the field of the loaded movie");
+                done();
+            }, (logContext, t) -> {
+                Log.warn("Identify comets: JPL did not answer; trying again in a few minutes", t);
+                state.set(new State(key, List.of(), System.currentTimeMillis(), true));
+                done();
+            });
         }
         return s != null && s.key().equals(key) ? s.comets() : List.of();
     }
 
-    private static void fetch(String key, long start, long end, double fieldRsun) {
-        try {
-            List<Tracked> found = new ArrayList<>();
-            for (Comets.Sighting s : Comets.search(start, end, fieldRsun, msg -> {}))
-                found.add(new Tracked(s.comet(), Comets.ephemeris(s.comet(), start, end)));
-            state.set(new State(key, found, System.currentTimeMillis(), false));
-            Log.info("Identify comets: " + found.size() + " in the field of the loaded movie");
-        } catch (Exception e) {
-            Log.warn("Identify comets: JPL did not answer; trying again in a few minutes", e);
-            state.set(new State(key, List.of(), System.currentTimeMillis(), true));
-        } finally {
-            running.set(false);
-            DisplayController.display();
-        }
+    private static void done() {
+        running.set(false);
+        DisplayController.display();
     }
 
     private CometSky() {}
