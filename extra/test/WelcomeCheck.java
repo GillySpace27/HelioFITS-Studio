@@ -76,6 +76,25 @@ public final class WelcomeCheck {
         expect("captions on the first run only",
                 WelcomeModel.showCaptions(WelcomeModel.State.FIRST_RUN) && !WelcomeModel.showCaptions(WelcomeModel.State.RETURNING));
 
+        // Show this window: older builds read only "false", so the values stay readable by them.
+        expect("unset is Automatically", WelcomeModel.ShowMode.of(null) == WelcomeModel.ShowMode.AUTO);
+        expect("\"false\" (the old unticked box) is Never", WelcomeModel.ShowMode.of("false") == WelcomeModel.ShowMode.NEVER);
+        expect("\"true\" (the old ticked box) is Always", WelcomeModel.ShowMode.of("true") == WelcomeModel.ShowMode.ALWAYS);
+        expect("Never is stored as \"false\"", "false".equals(WelcomeModel.ShowMode.NEVER.value));
+        for (WelcomeModel.State st : WelcomeModel.State.values())
+            for (boolean empty : new boolean[] {true, false}) {
+                expect("Always shows: " + st + (empty ? ", empty" : ", open"), WelcomeModel.showAtStartup(WelcomeModel.ShowMode.ALWAYS, st, empty));
+                expect("Never hides: " + st + (empty ? ", empty" : ", open"), !WelcomeModel.showAtStartup(WelcomeModel.ShowMode.NEVER, st, empty));
+            }
+        expect("Automatically: shown on the first run, even over an open session",
+                WelcomeModel.showAtStartup(WelcomeModel.ShowMode.AUTO, WelcomeModel.State.FIRST_RUN, false));
+        expect("Automatically: shown after an update, even over an open session",
+                WelcomeModel.showAtStartup(WelcomeModel.ShowMode.AUTO, WelcomeModel.State.UPDATED, false));
+        expect("Automatically: shown on an empty canvas",
+                WelcomeModel.showAtStartup(WelcomeModel.ShowMode.AUTO, WelcomeModel.State.RETURNING, true));
+        expect("Automatically: skipped when a session is already open",
+                !WelcomeModel.showAtStartup(WelcomeModel.ShowMode.AUTO, WelcomeModel.State.RETURNING, false));
+
         ZoneId utc = ZoneId.of("UTC");
         Instant now = Instant.parse("2026-11-10T20:00:00Z");
         expect("today", "today".equals(WelcomeDialog.when(Instant.parse("2026-11-10T01:00:00Z"), now, utc)));
@@ -121,6 +140,8 @@ public final class WelcomeCheck {
                 int count = words.toString().trim().split("\\s+").length;
                 // The window this replaced showed about 150 words of help text alone (0.9.2).
                 expect(tag + ": at most 110 words on screen, got " + count, count <= 110);
+                for (javax.swing.JComboBox<?> box : combos(built.content()))
+                    expect(tag + ": the " + box.getSelectedItem() + " list has a label", box.getAccessibleContext().getAccessibleName() != null);
                 expect(tag + ": no Close button (Esc and the close box do it)",
                         buttons.stream().noneMatch(b -> "Close".equals(b.getText())));
             }
@@ -146,6 +167,17 @@ public final class WelcomeCheck {
         if (c instanceof Container k && !(c instanceof javax.swing.JComboBox))
             for (Component child : k.getComponents())
                 walk(child, buttons, words);
+    }
+
+    private static List<javax.swing.JComboBox<?>> combos(Container c) {
+        List<javax.swing.JComboBox<?>> found = new ArrayList<>();
+        for (Component k : c.getComponents()) {
+            if (k instanceof javax.swing.JComboBox<?> box)
+                found.add(box);
+            else if (k instanceof Container cc)
+                found.addAll(combos(cc));
+        }
+        return found;
     }
 
     private WelcomeCheck() {}

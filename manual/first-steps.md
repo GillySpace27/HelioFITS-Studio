@@ -65,5 +65,7 @@ session.
   it and your recent sessions below. **Search Controls**, **Tours** and **User Manual** are always
   there; **More help** opens Tip of the Day, Send Feedback and the docs for the MCP server and the
   Local API. Hover any of them, or let a screen reader read it, for what it does. **What's New** is
-  at the top right, highlighted the first time after an update.
+  at the top right, highlighted the first time after an update. **Show this window** at the bottom picks when it opens
+  at startup: **Automatically** (the first time, after an update, and when Studio starts with
+  nothing open), **Always** or **Never**. At startup a click in the main window closes it.
 - {menuselection}`Edit --> Undo` takes back the last change to the scene.
