@@ -1,6 +1,12 @@
 package org.helioviewer.jhv.app;
 
 import java.io.InputStream;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.Locale;
 import java.util.Properties;
 
 import javax.annotation.Nullable;
@@ -147,6 +153,74 @@ public final class AppInfo {
 
     static String buildId(String version, String revision, String commit, boolean dirty) {
         return version + " (r" + revision + ", " + commit + (dirty ? ", dirty" : "") + ')';
+    }
+
+    /** "release", "debug" or "" (CI, a plain ant jar): what kind of build this is. Read from the property like commit(). */
+    public static String channel() {
+        String c = System.getProperty("jhv.channel");
+        return c == null || c.isBlank() || c.startsWith("@@") ? "" : c.trim();
+    }
+
+    /** When the jar was made, or null when the build did not record it. */
+    @Nullable
+    public static Instant built() {
+        String b = System.getProperty("jhv.built");
+        if (b == null || b.isBlank() || b.startsWith("@@"))
+            return null;
+        try {
+            return Instant.parse(b.trim());
+        } catch (DateTimeParseException e) {
+            return null;
+        }
+    }
+
+    /**
+     * What to show a person who needs to know which build they are in: "0.9.2+37, build 14212,
+     * 7671c40d9a1b, debug". The label is the version, plus the commits since its tag when the tag
+     * exists; the build number is the commit count, which grows with every commit.
+     */
+    public static String displayBuild() {
+        return displayBuild(label(), revision, commit(), dirty(), channel());
+    }
+
+    static String displayBuild(String label, String revision, String commit, boolean dirty, String channel) {
+        StringBuilder s = new StringBuilder(label).append(", build ").append(revision).append(", ").append(commit);
+        if (dirty)
+            s.append(", dirty");
+        if (!channel.isEmpty() && !"release".equals(channel))
+            s.append(", ").append(channel);
+        return s.toString();
+    }
+
+    /** "built Nov 10, 2026 11:09 MST (2 minutes ago)"; "released ..." for a release build; "" when the time is unknown. */
+    public static String builtLine() {
+        return builtLine(built(), Instant.now(), ZoneId.systemDefault(), channel());
+    }
+
+    static String builtLine(@Nullable Instant built, Instant now, ZoneId zone, String channel) {
+        if (built == null)
+            return "";
+        String when = DateTimeFormatter.ofPattern("MMM d, yyyy HH:mm z", Locale.ENGLISH).format(built.atZone(zone));
+        return ("release".equals(channel) ? "released " : "built ") + when + " (" + age(built, now) + ')';
+    }
+
+    static String age(Instant then, Instant now) {
+        long s = Duration.between(then, now).getSeconds();
+        if (s < 0)
+            return "in the future";
+        if (s < 60)
+            return "just now";
+        long m = s / 60;
+        if (m < 60)
+            return plural(m, "minute");
+        long h = m / 60;
+        if (h < 48)
+            return plural(h, "hour");
+        return plural(h / 24, "day");
+    }
+
+    private static String plural(long n, String unit) {
+        return n + " " + unit + (n == 1 ? "" : "s") + " ago";
     }
 
     /** The line stamped on images and in each frame's "writer": "HelioFITS Studio 0.8.3+112 (7671c40d9a1b)". */

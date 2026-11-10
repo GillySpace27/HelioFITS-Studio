@@ -886,7 +886,7 @@ notarize_mac() {
     fi
 
     echo "==> building a fresh jar + dylib"
-    ( cd "$SRC" && ant clean jar build-metal-host >/dev/null )
+    ( cd "$SRC" && ant -Dchannel="${HFS_CHANNEL:-release}" clean jar build-metal-host >/dev/null )
     [ -f "$SRC/$DYLIB" ] || { echo "!! $DYLIB missing after build"; exit 1; }
 
     APPSTAGE="$HERE/.app_stage"; OUT="$HERE/.app_out"; ENT="$HERE/entitlements.plist"

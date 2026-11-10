@@ -37,7 +37,7 @@ public final class PanelVisibilityCheck {
         Color child = PanelVisibility.headerFill(theme, true);
         Color text = PanelVisibility.headerText(theme, fill);
         // The strong title (headers on) is held to 3.5:1; the plain one to 4.5:1.
-        double floor = PanelVisibility.headers() ? Theme.STRONG_TEXT_MIN : Theme.TEXT_MIN;
+        double floor = PanelVisibility.title() ? Theme.STRONG_TEXT_MIN : Theme.TEXT_MIN;
         expect(n + ": band at least as strong as the theme's own", Theme.contrast(fill, panel) >= Theme.contrast(base, panel) - 1e-9);
         expect(n + ": band clears 3:1 on the panel", Theme.contrast(fill, panel) >= 3);
         expect(n + ": title keeps its floor on the band", Theme.contrast(text, fill) >= floor);
@@ -59,7 +59,7 @@ public final class PanelVisibilityCheck {
 
         // On by default, with nothing stored.
         expect("master is on by default", PanelVisibility.enabled());
-        expect("every option is on by default", PanelVisibility.headers() && PanelVisibility.stripe()
+        expect("every option is on by default", PanelVisibility.headers() && PanelVisibility.title() && PanelVisibility.rule() && PanelVisibility.spacing() && PanelVisibility.stripe()
                 && PanelVisibility.numbers() && PanelVisibility.hover());
 
         List<Theme> themes = Theme.builtIns();
@@ -116,6 +116,19 @@ public final class PanelVisibilityCheck {
         Settings.setProperty(PanelVisibility.NUMBERS, "false");
         expect("one option off leaves the others on", !PanelVisibility.numbers() && PanelVisibility.headers() && PanelVisibility.stripe());
         Settings.setProperty(PanelVisibility.NUMBERS, "true");
+        Settings.setProperty(PanelVisibility.RULE, "false");
+        expect("the rule alone can go back to 1 px, leaving spacing and band strong",
+                PanelVisibility.separatorThickness() == 1 && PanelVisibility.sectionGap() == 9 && PanelVisibility.headers());
+        Settings.setProperty(PanelVisibility.RULE, "true");
+        Settings.setProperty(PanelVisibility.SPACING, "false");
+        expect("spacing alone can go back to 5 px, leaving the rule thick",
+                PanelVisibility.separatorThickness() == 2 && PanelVisibility.sectionGap() == 5);
+        Settings.setProperty(PanelVisibility.SPACING, "true");
+        Settings.setProperty(PanelVisibility.TITLE, "false");
+        expect("plain title colour still keeps 4.5:1 on the strong band",
+                Theme.contrast(PanelVisibility.headerText(Theme.current(), PanelVisibility.headerFill(Theme.current(), false)),
+                        PanelVisibility.headerFill(Theme.current(), false)) >= Theme.TEXT_MIN);
+        Settings.setProperty(PanelVisibility.TITLE, "true");
 
         System.out.println(failures == 0 ? "PanelVisibilityCheck: PASS" : "PanelVisibilityCheck: " + failures + " FAIL");
         // Exit explicitly: CollapsiblePane.side() reaches RightSidebar, which starts the AWT event thread, and

@@ -81,7 +81,8 @@ public final class AboutDialog extends StandardDialog implements Interfaces.Show
                 + HtmlEscapers.htmlEscaper().escape(GL.renderer);
         String text = "<center><b><span style='font-size:" + (fontSize + delta) + "pt'>" +
                 AppInfo.programName + "</span><br/>" +
-                "Version " + AppInfo.buildId() + "</b><br/>" +
+                "Version " + AppInfo.displayBuild() + "</b><br/>" +
+                (AppInfo.builtLine().isEmpty() ? "" : AppInfo.builtLine() + "<br/>") +
                 "<span style='font-size:" + (fontSize - delta) + "pt'>" + AppInfo.versionDetail + "<br/>" + graphicsInfo + "</span><br/><br/>" +
                 "A fork of <a href='https://www.jhelioviewer.org'>JHelioviewer</a>, carrying its own<br/>" +
                 "changes to projection, filtering and export.<br/><br/>" +
