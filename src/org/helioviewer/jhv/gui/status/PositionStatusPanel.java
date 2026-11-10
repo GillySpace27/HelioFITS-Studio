@@ -208,8 +208,8 @@ public final class PositionStatusPanel extends StatusPanel.StatusPlugin implemen
             return;
         if (e.altDown()) // Alt-click pins the body under the pointer (docs/identify.md)
             org.helioviewer.jhv.identify.IdentifyPins.toggleAt(Display.getActiveViewport(), GLRenderer.getMapView(), e.x(), e.y());
-        else if (!e.shiftDown()) // a click on the highlighted object freezes the result; another click lets it go
-            org.helioviewer.jhv.identify.IdentifyHover.clickToggle();
+        else if (!e.shiftDown()) // a click on the highlighted object selects it and it is then followed; another click lets it go
+            org.helioviewer.jhv.identify.IdentifyHover.clickSelect(Display.getActiveViewport(), GLRenderer.getMapView(), e.x(), e.y());
     }
 
     @Override

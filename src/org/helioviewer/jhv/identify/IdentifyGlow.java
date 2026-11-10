@@ -281,11 +281,16 @@ public final class IdentifyGlow {
 
     /** The hover's marks: the bodies named under the pointer (not the Sun) and the drawn objects that carry an icon. */
     static List<Mark> hoverMarks() {
+        return marks(IdentifyHover.lastMatches(), IdentifyHover.lastDrawn());
+    }
+
+    /** The marks for an answer: the bodies named (not the Sun) and the drawn objects that carry an icon. */
+    static List<Mark> marks(List<Identifier.Match> matches, List<Drawn.Hit> drawn) {
         boolean light = IdentifySettings.lightTime();
         List<Mark> out = new ArrayList<>();
-        for (Identifier.Match m : outlined(IdentifyHover.lastMatches()))
+        for (Identifier.Match m : outlined(matches))
             out.add(bodyMark(m.body(), m.layer(), Math.toRadians(m.angularRadius()), light));
-        for (Drawn.Hit h : IdentifyHover.lastDrawn())
+        for (Drawn.Hit h : drawn)
             if (h.mark() != null)
                 out.add(h.mark());
         return out;
@@ -312,6 +317,7 @@ public final class IdentifyGlow {
     public static void render(Viewport full) {
         if (!IdentifySettings.enabled() || ExportMovie.isRecording())
             return;
+        IdentifyHover.follow(Display.getActiveViewport(), GLRenderer.getMapView()); // a selected object moves with time and the view
         double phase = pulsePhase(System.currentTimeMillis(), STATE.pulseStart);
         boolean pulse = IdentifySettings.pulse() && phase < 1;
         boolean all = IdentifySettings.highlightAll();
