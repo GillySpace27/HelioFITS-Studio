@@ -46,15 +46,15 @@ public final class PanelKeysCheck {
         for (boolean right : new boolean[]{false, true})
             for (int n = 0; n <= PanelKeys.SLOTS; n++) {
                 ActionCatalog.Entry e = ActionCatalog.get(n == 0 ? PanelKeys.idAll(right) : PanelKeys.id(right, n));
-                // Ctrl+N left (Shift+Option+N on a Mac), Option+N right; off a Mac, Ctrl+9 and Ctrl+0 stay the zoom keys
+                // Ctrl+N left (Option+N on a Mac), Alt+N right (Shift+Option+N on a Mac); off a Mac, Ctrl+9 and Ctrl+0 stay the zoom keys
                 KeyStroke want = !right && (n == 9 || n == 0) && !mac ? null
-                        : KeyStroke.getKeyStroke(KeyEvent.VK_0 + n, (right ? InputEvent.ALT_DOWN_MASK : mac ? InputEvent.SHIFT_DOWN_MASK | InputEvent.ALT_DOWN_MASK : InputEvent.CTRL_DOWN_MASK)); // a Mac's left side is Shift+Option: bare Ctrl+digit is the system's desktop switch
+                        : KeyStroke.getKeyStroke(KeyEvent.VK_0 + n, (mac ? (right ? InputEvent.SHIFT_DOWN_MASK | InputEvent.ALT_DOWN_MASK : InputEvent.ALT_DOWN_MASK) : right ? InputEvent.ALT_DOWN_MASK : InputEvent.CTRL_DOWN_MASK)); // spelled out here, not read from PanelKeys; bare Ctrl+digit is the system's desktop switch
                 Object got = e == null ? "missing" : e.action().getValue(Action.ACCELERATOR_KEY);
                 keysOk &= e != null && java.util.Objects.equals(want, got);
                 if (e != null && want != null)
                     clashFree &= KeyBindings.set(e.id(), want) == null; // refused if another command or the system has it
             }
-        expect("foldLeftPanel1..9 / foldRightPanel1..9 and the two fold-alls are catalogued with Ctrl+N and Option+N (Shift+Option+N and Option+N on a Mac)", keysOk);
+        expect("foldLeftPanel1..9 / foldRightPanel1..9 and the two fold-alls are catalogued with Ctrl+N and Alt+N (Option+N and Shift+Option+N on a Mac)", keysOk);
         expect("none of those keys is taken by another command or by the system", clashFree);
         expect("Cmd+9 and Cmd+0 stay Zoom to Fit and Actual Size", KeyStroke.getKeyStroke(KeyEvent.VK_9, menu).equals(KeyBindings.current("zoomFit"))
                 && KeyStroke.getKeyStroke(KeyEvent.VK_0, menu).equals(KeyBindings.current("zoomOne")));
@@ -184,7 +184,7 @@ public final class PanelKeysCheck {
             if (!bar.isUnfolded(tt))
                 PanelKeys.toggle(true, "Alpha".equals(tt) ? 1 : "Beta".equals(tt) ? 2 : 3);
         long u0 = 90_000_000;
-        PanelKeys.collapseAllAt(false, u0); // Shift+Option+0: the left first
+        PanelKeys.collapseAllAt(false, u0); // Option+0 on a Mac: the left first
         boolean leftFolded = PanelKeys.shown(left).stream().noneMatch(p -> p.toggleButton.isSelected());
         expect("started from the left key, the first press folds the left sections and leaves the right ones", leftFolded
                 && (bar.isUnfolded("Alpha") || bar.isUnfolded("Beta") || bar.isUnfolded("Gamma")));
@@ -249,6 +249,51 @@ public final class PanelKeysCheck {
                 "Beta".equals(PanelKeys.at(true, 1).getTitle()) && "Alpha".equals(PanelKeys.at(true, 3).getTitle()));
         String key = PanelKeys.keyText(PanelKeys.at(true, 3));
         expect("its tooltip key follows it there (" + key + ")", key != null && key.endsWith("3"));
+
+        // A settings file from before the swap holds the old Mac default spelled out; it must not outvote the new one
+        java.lang.reflect.Field setf = org.helioviewer.jhv.app.Settings.class.getDeclaredField("settings");
+        setf.setAccessible(true);
+        if (mac) {
+            for (int n = 0; n <= 9; n++)
+                org.helioviewer.jhv.app.Settings.setProperty("keys." + (n == 0 ? "foldLeftPanelAll" : "foldLeftPanel" + n), "alt shift " + n);
+            org.helioviewer.jhv.app.Settings.setProperty("keys.foldLeftPanel9", "alt shift 9");
+            org.helioviewer.jhv.app.Settings.setProperty("keys.foldRightPanel3", "meta 3"); // a person's own binding: kept
+            ((java.util.Properties) setf.get(null)).remove("keys.panelDefaults");
+            KeyBindings.apply();
+        }
+        boolean sameSide = true;
+        for (boolean right : new boolean[]{false, true})
+            for (int n = 1; n <= 9; n++) {
+                if (mac && right && n == 3)
+                    continue; // the person's own binding
+                ActionCatalog.Entry e = ActionCatalog.get(PanelKeys.id(right, n));
+                KeyStroke ks = KeyBindings.current(e.id());
+                if (ks == null) // off a Mac, left 9 has none
+                    continue;
+                int mods = ks.getModifiers() & (InputEvent.CTRL_DOWN_MASK | InputEvent.ALT_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK | InputEvent.META_DOWN_MASK);
+                // the key in force, the hint's side for that modifier, and the command that key reaches: one sidebar
+                sameSide &= mods == PanelKeys.sideMask(right) && PanelKeyHint.sideOf(mods) == (right ? 'R' : 'L')
+                        && CommandKeys.commandFor(new KeyEvent(src, KeyEvent.KEY_PRESSED, 0, mods, KeyEvent.VK_0 + n, (char) ('0' + n))) == e.action();
+            }
+        expect("the key in force, the highlighted side and the command it runs are the same sidebar (" + (mac ? "Mac, after a stale old-default setting" : "this platform") + ")", sameSide);
+        if (mac)
+            expect("a stored old default is dropped and a different stored binding is kept", !KeyBindings.isCustom("foldLeftPanel1") && KeyBindings.isCustom("foldRightPanel3"));
+
+        // Image Layers and Playback and Recording open by default (settings/layout-defaults.properties); a key in the person's own settings wins
+        java.lang.reflect.Field sf = org.helioviewer.jhv.app.Settings.class.getDeclaredField("settings"); // earlier parts of this check saved fold states; Settings has no remove
+        sf.setAccessible(true);
+        ((java.util.Properties) sf.get(null)).keySet().removeIf(k -> ((String) k).startsWith("ui.section."));
+        SideContentPane fresh = new SideContentPane();
+        fresh.add("Image Layers", new JPanel(), false);
+        fresh.add("Playback and Recording", new JPanel(), false);
+        fresh.add("Camera", new JPanel(), false);
+        java.util.List<CollapsiblePane> fp = PanelKeys.shown(fresh);
+        expect("on fresh settings Image Layers and Playback and Recording start open and Camera folded",
+                fp.get(0).isExpanded() && fp.get(1).isExpanded() && !fp.get(2).isExpanded());
+        org.helioviewer.jhv.app.Settings.setProperty("ui.section.Image_Layers", "false");
+        SideContentPane saved = new SideContentPane();
+        saved.add("Image Layers", new JPanel(), false);
+        expect("a fold state the person saved is not overridden", !PanelKeys.shown(saved).get(0).isExpanded());
 
         System.out.println(failures == 0 ? "PanelKeysCheck: PASS" : "PanelKeysCheck: " + failures + " FAILURE(S)");
         System.exit(failures == 0 ? 0 : 1);

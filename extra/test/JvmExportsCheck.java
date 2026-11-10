@@ -47,6 +47,9 @@ public final class JvmExportsCheck {
         expect("without them, -cp cannot (the check can fail)", child(false, "slider") != 0);
         expect("with the flags, nothing is reported missing", child(true, "message") == 0);
         expect("without them, the missing export is reported", child(false, "message") == 3);
+        // every self-relaunch (New Window, restart, replay) goes through Session.javaCommand
+        List<String> relaunch = org.helioviewer.jhv.app.Session.javaCommand("-Dx=1");
+        expect("a relaunched window carries the add-exports flags", relaunch.containsAll(org.helioviewer.jhv.app.JvmExports.flags()));
         if (failures > 0)
             System.exit(1);
     }

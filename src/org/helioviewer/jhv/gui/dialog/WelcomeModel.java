@@ -91,6 +91,40 @@ final class WelcomeModel {
         return hasRecent ? Primary.REOPEN : Primary.OPEN_SESSION;
     }
 
+    /**
+     * Whether the window opens at startup (startup.welcome). Older builds read only "false", so
+     * Never stays "false" and Always "true"; Automatic, the default, is "auto" or unset.
+     */
+    enum ShowMode {
+        AUTO("auto", "Automatically"), ALWAYS("true", "Always"), NEVER("false", "Never");
+
+        final String value, label;
+
+        ShowMode(String value, String label) {
+            this.value = value;
+            this.label = label;
+        }
+
+        static ShowMode of(@Nullable String value) {
+            for (ShowMode m : values())
+                if (m.value.equals(value))
+                    return m;
+            return AUTO;
+        }
+    }
+
+    static final String SHOW_TOOLTIP = "Automatically: the first time, after an update, and when Studio starts with nothing open. "
+            + "Help > Welcome opens it whenever you like.";
+
+    /** At startup: Always and Never say so; Automatically skips the everyday window when a session is already open. */
+    static boolean showAtStartup(ShowMode mode, State state, boolean sceneEmpty) {
+        return switch (mode) {
+            case ALWAYS -> true;
+            case NEVER -> false;
+            case AUTO -> state != State.RETURNING || sceneEmpty;
+        };
+    }
+
     /** The first run shows each tile's caption; later windows show the names only, in one row. */
     static boolean showCaptions(State state) {
         return state == State.FIRST_RUN;
