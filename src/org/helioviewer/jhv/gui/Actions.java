@@ -770,6 +770,14 @@ public final class Actions {
                 if (r != JOptionPane.OK_OPTION)
                     return;
             }
+            clear();
+        }
+
+        /** Empties the scene and returns the window to Untitled, without asking. */
+        public void clear() {
+            List<Layer> removable = Layers.getLayers().stream().filter(Layer::isDeletable).toList();
+            List<org.helioviewer.jhv.timelines.TimelineLayer> tracks = org.helioviewer.jhv.timelines.TimelineLayers.get()
+                    .stream().filter(org.helioviewer.jhv.timelines.TimelineLayer::isDeletable).toList();
             try {
                 // The fresh-install scene: projection, camera mode and the built-in layers' settings
                 // reset too, not only the layer list (HS-10).

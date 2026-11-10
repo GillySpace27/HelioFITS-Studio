@@ -123,6 +123,14 @@ public final class WelcomeDialog {
         JPanel starts = new JPanel(new GridLayout(1, 0, 8, 0));
         JButton continueButton = card("Continue", "Keep working on " + Session.displayName(), dialog::dispose);
         starts.add(continueButton);
+        java.util.List<String> recents = Session.recentSessions();
+        if (!recents.isEmpty()) {
+            java.io.File last = new java.io.File(recents.get(0));
+            starts.add(card("Reopen Last Session", last.getName(), () -> {
+                dialog.dispose();
+                new org.helioviewer.jhv.gui.Actions.OpenRecent(last).actionPerformed(null);
+            }));
+        }
         starts.add(card("Start Blank", "An empty canvas", () -> {
             dialog.dispose();
             run("newSession");
@@ -306,8 +314,8 @@ public final class WelcomeDialog {
         startup.add(new JLabel("When HelioFITS Studio starts: "));
         JComboBox<String> mode = new JComboBox<>(new String[] {"Reopen the last session", "Start blank"});
         mode.setToolTipText("What a plain launch opens: the session you had last, or an empty canvas");
-        mode.setSelectedIndex(CommandLine.BLANK_MODE.equals(Settings.getProperty("startup.mode")) ? 1 : 0);
-        mode.addActionListener(e -> Settings.setProperty("startup.mode", mode.getSelectedIndex() == 1 ? CommandLine.BLANK_MODE : "last"));
+        mode.setSelectedIndex(CommandLine.startsBlank(Settings.getProperty("startup.mode")) ? 1 : 0);
+        mode.addActionListener(e -> Settings.setProperty("startup.mode", mode.getSelectedIndex() == 1 ? CommandLine.BLANK_MODE : CommandLine.LAST_MODE));
         startup.add(mode);
         String pinned = Settings.getProperty("startup.loadState");
         if (pinned != null && !"false".equals(pinned) && !"true".equals(pinned))

@@ -260,8 +260,41 @@ public final class Session {
     public static void startBlank() {
         ensureSessionFile();
         File untitled = new File(Directories.STATES.getPath(), MAIN_FILE);
-        if (!named && untitled.isFile() && untitled.length() > 0) {
-            String stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HHmmss"));
+        if (!named)
+            keepAside(untitled);
+        sessionFile = untitled;
+        named = false;
+        Recovery.follow(untitled);
+    }
+
+    /**
+     * Cancel in the download review: the session being opened is not loaded, and nothing written from
+     * here on may land on it. Points this window at the Untitled file (its old content kept aside
+     * first), lets the automatic saves run again, and ends the load for whoever waits on it.
+     */
+    public static void abandonLoad() {
+        ensureSessionFile();
+        File untitled = new File(Directories.STATES.getPath(), MAIN_FILE);
+        keepAside(untitled);
+        sessionFile = untitled;
+        named = false;
+        Recovery.follow(untitled);
+        restorePending = false;
+        Recovery.restored();
+        // True, not false: the listeners that undo an optimistic setSessionFile on failure would
+        // point the window back at the session just abandoned, and the blank scene would be saved over it.
+        List<java.util.function.Consumer<Boolean>> copy = new ArrayList<>(stateLoadListeners);
+        stateLoadListeners.clear();
+        copy.forEach(r -> r.accept(true));
+        updateTitle();
+        updateLive(true);
+    }
+
+    // The Untitled autosave is about to be written over by a blank scene: copy it aside, to the top of
+    // Open Recent, if it holds image layers. A blank one is nothing to keep (and would crowd real recents out).
+    private static void keepAside(File untitled) {
+        if (untitled.isFile() && untitled.length() > 0 && hasImageLayers(untitled)) {
+            String stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HHmmss-SSS"));
             File kept = new File(untitled.getParentFile(), "Untitled before blank start " + stamp + ".jhv");
             try {
                 Files.copy(untitled.toPath(), kept.toPath());
@@ -270,9 +303,15 @@ public final class Session {
                 Log.warn("Could not keep the last session before a blank start", e);
             }
         }
-        sessionFile = untitled;
-        named = false;
-        Recovery.follow(untitled);
+    }
+
+    public static boolean hasImageLayers(File f) {
+        try {
+            org.json.JSONObject main = new org.json.JSONObject(Files.readString(f.toPath())).optJSONObject("org.helioviewer.jhv.state");
+            return main == null || main.optJSONArray("imageLayers") == null || !main.getJSONArray("imageLayers").isEmpty();
+        } catch (Exception e) { // unreadable or not JSON: keep it, losing a session is worse than a spare recent
+            return true;
+        }
     }
 
     // ---- recent sessions (Open Recent menu) --------------------------------------------------

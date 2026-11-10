@@ -511,9 +511,9 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         // HS-10: start on the fresh-install scene instead of reopening the last session. A state
         // chosen above still opens first (CommandLine.resolveStartup).
         JCheckBox blank = new JCheckBox("Start blank instead of reopening the last session",
-                org.helioviewer.jhv.io.CommandLine.BLANK_MODE.equals(Settings.getProperty("startup.mode")));
+                org.helioviewer.jhv.io.CommandLine.startsBlank(Settings.getProperty("startup.mode")));
         blank.addActionListener(e -> Settings.setProperty("startup.mode",
-                blank.isSelected() ? org.helioviewer.jhv.io.CommandLine.BLANK_MODE : "last"));
+                blank.isSelected() ? org.helioviewer.jhv.io.CommandLine.BLANK_MODE : org.helioviewer.jhv.io.CommandLine.LAST_MODE));
 
         JPanel statePanel = new JPanel(new BorderLayout());
         statePanel.add(defaultState, BorderLayout.LINE_START);

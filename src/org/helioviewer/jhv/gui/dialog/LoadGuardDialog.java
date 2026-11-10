@@ -26,8 +26,9 @@ import org.helioviewer.jhv.gui.MainFrame;
  * Postpone, Download / load from disk, or Cancel (leave the layer out of the session). A layer starts on Postpone when it alone is over either
  * limit, and on Download / load from disk otherwise (LoadGuard.Item.postponeByDefault). Postponed
  * layers stay in the scene, held, and Refresh on a layer starts it later (ImageLayer.releaseHold).
- * Download all / Postpone all / Cancel all set every row at once. Closing the window postpones
- * everything that would download, never downloads.
+ * Download all / Postpone all / Cancel all set every row at once. Cancel beside Go abandons the
+ * whole load (a blank session, the last one untouched). Closing the window postpones everything
+ * that would download, never downloads.
  */
 public final class LoadGuardDialog {
 
@@ -40,7 +41,7 @@ public final class LoadGuardDialog {
         int n = items.size();
         JRadioButton[] postpone = new JRadioButton[n], load = new JRadioButton[n], cancel = new JRadioButton[n];
         Set<Integer> holdAll = estimate.downloading();
-        boolean[] go = {false};
+        boolean[] go = {false}, abort = {false};
 
         JLabel total = new JLabel();
         Runnable update = () -> {
@@ -103,10 +104,19 @@ public final class LoadGuardDialog {
             dialog.dispose();
         });
         dialog.getRootPane().setDefaultButton(goButton);
+        JButton cancelButton = new JButton("Cancel");
+        cancelButton.setToolTipText("Load nothing: back to the Welcome window with a blank session. The last session is not touched.");
+        cancelButton.addActionListener(e -> {
+            abort[0] = true;
+            dialog.dispose();
+        });
         JPanel bottom = new JPanel(new BorderLayout(8, 0));
         bottom.add(all, BorderLayout.PAGE_START);
         bottom.add(total, BorderLayout.CENTER);
-        bottom.add(goButton, BorderLayout.LINE_END);
+        JPanel buttons = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.TRAILING, 6, 0));
+        buttons.add(cancelButton);
+        buttons.add(goButton);
+        bottom.add(buttons, BorderLayout.LINE_END);
         JPanel content = new JPanel(new BorderLayout(0, 8));
         content.setBorder(javax.swing.BorderFactory.createEmptyBorder(12, 12, 12, 12));
         content.add(text, BorderLayout.PAGE_START);
@@ -119,6 +129,8 @@ public final class LoadGuardDialog {
         dialog.setLocationRelativeTo(MainFrame.get());
         dialog.setVisible(true); // modal: returns when disposed
 
+        if (abort[0])
+            return LoadGuard.Review.ABORT;
         if (!go[0])
             return new LoadGuard.Review(holdAll, Set.of());
         LoadGuard.Choice[] choices = new LoadGuard.Choice[n];

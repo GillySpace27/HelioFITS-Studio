@@ -84,6 +84,9 @@ public final class LoadGuardCheck {
         r = LoadGuard.review(mixed.items(), new LoadGuard.Choice[]{LoadGuard.Choice.CANCEL, LoadGuard.Choice.CANCEL});
         expect("Cancel all drops every layer", r.dropped().equals(java.util.Set.of(0, 1)) && r.held().isEmpty());
 
+        expect("Cancel beside Go aborts the whole load", LoadGuard.Review.ABORT.aborted() && !LoadGuard.Review.NONE.aborted());
+        expect("a layer-level review never aborts", !r.aborted());
+
         // A postponed layer loads nothing, is not mistaken for a failed one, and a save still writes what it would load.
         JSONObject held = new JSONObject().put("uris", new JSONArray().put("https://a/1.fits").put("https://a/2.fits"));
         org.helioviewer.jhv.layers.ImageLayer layer = org.helioviewer.jhv.layers.ImageLayer.createDetached(held, true);

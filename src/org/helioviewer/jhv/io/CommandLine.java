@@ -80,8 +80,8 @@ public class CommandLine {
      *
      * <p>A spawned window restores only its assigned session file (empty if brand-new); the pinned
      * default is a primary-window concept. "true" and "false" are the Settings checkbox's values,
-     * not paths, and fall through to the autosave. {@code mode} is startup.mode: "blank" (HS-10)
-     * replaces the autosave rung with the fresh-install scene; anything else keeps the autosave.
+     * not paths, and fall through to the autosave. {@code mode} is startup.mode: unset or "blank" (HS-10)
+     * replaces the autosave rung with the fresh-install scene; only "last" keeps the autosave.
      */
     public static StartupState resolveStartup(boolean extraWindow, @Nullable java.io.File restore,
                                               @Nullable String loadState, @Nullable String mode) {
@@ -90,7 +90,7 @@ public class CommandLine {
                     : new StartupState(StartupState.Source.EXTRA_WINDOW, restore.toURI());
         if (loadState != null && !"false".equals(loadState) && !"true".equals(loadState))
             return new StartupState(StartupState.Source.PINNED, Path.of(loadState).toUri());
-        if (BLANK_MODE.equals(mode))
+        if (startsBlank(mode))
             return new StartupState(StartupState.Source.BLANK, null);
         if (restore != null)
             return new StartupState(StartupState.Source.AUTOSAVE, restore.toURI());
@@ -99,6 +99,13 @@ public class CommandLine {
 
     /** The startup.mode value for starting on the fresh-install scene (Settings, Startup). */
     public static final String BLANK_MODE = "blank";
+    /** The startup.mode value for reopening the last session. */
+    public static final String LAST_MODE = "last";
+
+    /** Blank is the default: a launch opens nothing unless the person chose to reopen the last session. */
+    public static boolean startsBlank(@Nullable String mode) {
+        return !LAST_MODE.equals(mode);
+    }
 
     /**
      * A lone session path on the command line, as Windows and Linux pass a double-clicked file,
