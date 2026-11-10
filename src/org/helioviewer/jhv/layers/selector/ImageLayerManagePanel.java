@@ -335,13 +335,17 @@ final class ImageLayerManagePanel extends JPanel {
     //   - a direct-URI layer (PUNCH FITS and friends) is cached by NetFileCache as one file per
     //     frame URI under FileCache/, hash-named, so a 97-frame movie is 97 files.
     private java.util.List<java.io.File> cachedFiles() {
+        return cachedFiles(layer.getSourceUris(), layer.getView().getBaseName());
+    }
+
+    // Off the event thread is fine: it reads only its arguments and the disk.
+    private static java.util.List<java.io.File> cachedFiles(java.util.List<java.net.URI> uris, @javax.annotation.Nullable String baseName) {
         java.util.List<java.io.File> found = new java.util.ArrayList<>();
-        for (java.net.URI uri : layer.getSourceUris()) {
+        for (java.net.URI uri : uris) {
             java.io.File f = org.helioviewer.jhv.io.NetFileCache.cachedFile(uri);
             if (f.isFile())
                 found.add(f);
         }
-        String baseName = layer.getView().getBaseName();
         if (baseName != null) {
             java.io.File jpx = new java.io.File(org.helioviewer.jhv.io.Directories.DOWNLOADS.getPath(), baseName);
             if (jpx.isFile())
@@ -642,26 +646,37 @@ final class ImageLayerManagePanel extends JPanel {
      * <p>The count is one filesystem stat per frame URI, and a 262-frame layer is 262 of them. The
      * readout rebuilds on every frame that lands while a download runs, so this must not be part of
      * that rebuild; it is refreshed on its own slow clock and the last answer is reused between.
+     *
+     * <p>And it runs on a thread of its own. A frame not in the cache is looked up in the FITS
+     * library, which reads its config and opens its index per frame; on the event thread that was
+     * most of the "Studio stopped responding" stalls logged on 2026-11-09.
      */
     private String describeCache() {
         long now = System.currentTimeMillis();
-        if (cachedSummary == null || now - lastCacheStat > CACHE_STAT_INTERVAL_MS) {
+        if (now - lastCacheStat > CACHE_STAT_INTERVAL_MS && statting.compareAndSet(false, true)) {
             lastCacheStat = now;
-            java.util.List<java.io.File> found = cachedFiles();
-            if (found.isEmpty())
-                cachedSummary = "not cached on disk";
-            else {
-                long bytes = 0;
-                for (java.io.File f : found)
-                    bytes += f.length();
-                cachedSummary = "cached " + found.size() + (found.size() == 1 ? " file · " : " files · ") + humanSize(bytes);
-            }
+            java.util.List<java.net.URI> uris = java.util.List.copyOf(layer.getSourceUris());
+            String baseName = layer.getView().getBaseName();
+            Thread.ofVirtual().name("HFS-CacheStat").start(() -> {
+                try {
+                    java.util.List<java.io.File> found = cachedFiles(uris, baseName);
+                    long bytes = 0;
+                    for (java.io.File f : found)
+                        bytes += f.length();
+                    cachedSummary = found.isEmpty() ? "not cached on disk"
+                            : "cached " + found.size() + (found.size() == 1 ? " file · " : " files · ") + humanSize(bytes);
+                } finally {
+                    statting.set(false);
+                }
+            });
         }
-        return cachedSummary;
+        String s = cachedSummary;
+        return s == null ? "checking the cache…" : s;
     }
 
     private static final long CACHE_STAT_INTERVAL_MS = 5000;
-    private String cachedSummary;
+    private final java.util.concurrent.atomic.AtomicBoolean statting = new java.util.concurrent.atomic.AtomicBoolean();
+    private volatile String cachedSummary;
     private long lastCacheStat;
 
     private static long medianSpacingSec(View view, int max) {

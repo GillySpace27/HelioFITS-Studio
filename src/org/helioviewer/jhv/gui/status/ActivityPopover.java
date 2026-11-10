@@ -220,6 +220,9 @@ public final class ActivityPopover {
                                 "Cancel", "Cancel this export job; what it already wrote is kept", () -> JobQueue.INSTANCE.cancel(j)));
             }
             case NET -> {
+                if (org.helioviewer.jhv.thread.FetchGate.isPaused())
+                    out.add(row("Downloads on hold", "Studio held new downloads after it stopped responding, or a stop was sent",
+                            -1, "Resume", "Let held downloads start", org.helioviewer.jhv.activity.Watchdog::resume));
                 for (ActivityRows.Row r : transfers())
                     out.add(workRow(r));
             }
