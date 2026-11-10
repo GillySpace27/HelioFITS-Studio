@@ -27,7 +27,8 @@ gives you the click list (below).
 3. Builds an unsigned app with `HFS_UNSIGNED=1 release/deploy_release.sh notarize`: the same jar, runtime,
    icon, bundled core and launch smoke test as a release, ad-hoc signed, nothing sent to Apple. Output:
    `~/hfs-rc/debug/app/HelioFITS Studio.app` (replaced every run) and `~/hfs-rc/HFStudio-<version>-debug-<hash>.dmg`.
-4. Quits the previous debug app only (matched by its path, never the installed one), launches the new one
+4. Quits every earlier debug copy (any app under `~/hfs-rc`, any process whose home is `~/HFStudio-debug*`; never the
+   installed app or `~/HFStudio`), launches the one new one
    against the debug data folder, and checks it stays up and wrote a log there.
 5. Writes `~/hfs-rc/debug/REPORT.md` and prints it: included PRs with the merged head hash, skipped PRs and why,
    and for each included PR its checkbox lines and "Not verified" bullets from the body.
