@@ -416,12 +416,13 @@ public final class Session {
     }
 
     /** This application started again in a new JVM, with these system properties. */
-    private static List<String> javaCommand(String... properties) {
+    public static List<String> javaCommand(String... properties) {
         String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
         String classPath = System.getProperty("java.class.path");
         List<String> cmd = new ArrayList<>();
         cmd.add(javaBin);
         cmd.add("--enable-native-access=ALL-UNNAMED");
+        cmd.addAll(JvmExports.flags()); // -cp ignores the manifest Add-Exports; a child without these fails on the first layer
         cmd.addAll(List.of(properties));
         if (!classPath.contains(File.pathSeparator) && classPath.endsWith(".jar")) {
             cmd.add("-jar");

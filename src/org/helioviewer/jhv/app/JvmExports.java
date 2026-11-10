@@ -12,6 +12,14 @@ public final class JvmExports {
 
     private static final String[] PACKAGES = {"sun.awt", "sun.swing"};
 
+    /** The JVM flags that give java.desktop's internals to a -cp launch. */
+    public static List<String> flags() {
+        List<String> flags = new ArrayList<>();
+        for (String pkg : PACKAGES)
+            flags.add("--add-exports=java.desktop/" + pkg + "=ALL-UNNAMED");
+        return flags;
+    }
+
     /** Null when java.desktop exports what Studio needs to this code; otherwise the text to show. */
     public static String missingMessage() {
         Module desktop = ModuleLayer.boot().findModule("java.desktop").orElse(null);
