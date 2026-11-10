@@ -179,6 +179,7 @@ public final class ActionCatalog {
         put("studySaveView", org.helioviewer.jhv.gui.component.StudyPanel.saveViewAction(), "Movie/Save View to Study", "Add the view on screen to the Study table as a new row");
         // Help search (HS-15): the menu item, and the Projection palette's reveal for the controls in it
         put(org.helioviewer.jhv.gui.search.CommandPalette.ID, org.helioviewer.jhv.gui.search.CommandPalette.action(), "Help/Search Controls...", "Find any command or control by name and run it or show where it is");
+        put(org.helioviewer.jhv.gui.dialog.ShortcutsOverlay.ID, org.helioviewer.jhv.gui.dialog.ShortcutsOverlay.action(), "Help/Keyboard Shortcuts...", "Every keyboard shortcut in force, grouped, with a search box; the same key closes it (rebindable in Settings > Keybindings)");
         put("showProjection", new AbstractAction("Show Projection") {
             @Override
             public void actionPerformed(java.awt.event.ActionEvent e) {
