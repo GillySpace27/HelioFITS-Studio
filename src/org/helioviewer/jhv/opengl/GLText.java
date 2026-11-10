@@ -82,13 +82,23 @@ public final class GLText {
 
     /** Lines centred in the viewport, half again the floating text size; for the empty-canvas hint. */
     public static void drawTextCentered(Viewport vp, List<String> lines) {
+        drawText(vp, lines, false);
+    }
+
+    /** Like {@link #drawTextCentered}, but horizontally centered near the bottom edge, leaving the middle clear. */
+    public static void drawTextBottom(Viewport vp, List<String> lines) {
+        drawText(vp, lines, true);
+    }
+
+    private static void drawText(Viewport vp, List<String> lines, boolean bottom) {
         SdfTextRenderer renderer = renderer();
         int textSize = logicalToPhysicalSize(FLOAT_TEXT_SIZE * 3 / 2);
         float textScaleFactor = textSize / renderer.getFontSize();
         int lineStep = (int) (textSize * FLOAT_TEXT_LINE_HEIGHT);
 
         renderer.beginRendering(vp.width, vp.height);
-        int baselineY = vp.height / 2 + lineStep * (lines.size() - 1) / 2;
+        int baselineY = bottom ? lineStep * (lines.size() + 1) // two lines of margin below the last line
+                : vp.height / 2 + lineStep * (lines.size() - 1) / 2;
         for (String line : lines) {
             int x = (int) ((vp.width - renderer.measureWidth(line) * textScaleFactor) / 2);
             renderer.setColor(SHADOW_COLOR);
