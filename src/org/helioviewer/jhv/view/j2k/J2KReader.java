@@ -21,6 +21,7 @@ class J2KReader implements Runnable {
     private final Thread myThread;
 
     private volatile boolean isAbolished;
+    private volatile boolean readAheadStopped; // from here on only the frames asked for are fetched
     private volatile JPIPSocket socket;
     private String[] cacheKey;
 
@@ -64,6 +65,10 @@ class J2KReader implements Runnable {
                 Log.error(e);
             }
         }
+    }
+
+    void stopReadAhead() {
+        readAheadStopped = true;
     }
 
     synchronized void signal(J2KParams.Read params) {
@@ -153,7 +158,7 @@ class J2KReader implements Runnable {
         boolean draining = false;
         while (true) {
             // On newer work, drain sent responses without issuing any more requests.
-            draining |= readingInterrupted();
+            draining |= readingInterrupted() || !singleFrame && readAheadStopped;
             int frame;
             boolean complete;
             if (!draining && socket.pendingCount() < limit && !remaining.isEmpty()) {
@@ -216,7 +221,7 @@ class J2KReader implements Runnable {
                     }
                 }
 
-                boolean singleFrame = cacheKey.length <= 1 || params.priority();
+                boolean singleFrame = cacheKey.length <= 1 || params.priority() || readAheadStopped;
                 String size = width + "," + height;
                 boolean finished = readFrames(params, size, singleFrame);
 
@@ -228,7 +233,7 @@ class J2KReader implements Runnable {
                     return;
                 }
                 // if single frame & not interrupted & incomplete -> signal again to go on reading
-                if (singleFrame && finished && !source.isComplete(level)) {
+                if (singleFrame && finished && !source.isComplete(level) && !readAheadStopped) {
                     queueIfEmpty(new J2KParams.Read(params.view(), params.source(), params.decodeParams(), params.viewpoint(), false));
                 }
                 // retry limit applies to consecutive failures only

@@ -1181,6 +1181,14 @@ public class ImageLayer extends AbstractLayer implements View.DataHandler {
         loader.cancelDownload();
     }
 
+    /** Stop everything this layer has on the wire: its load, a save to file, and a stream's read-ahead. The frames here stay. */
+    public void stopDownloading() {
+        loader.cancelLoad();
+        loader.cancelDownload();
+        view.stopDownloading();
+        Layers.fireLayerUpdated(this);
+    }
+
     public void startDownload(DownloadLayer.Progress progress) {
         cancelDownloadTask();
         APIRequest req = view.getAPIRequest();

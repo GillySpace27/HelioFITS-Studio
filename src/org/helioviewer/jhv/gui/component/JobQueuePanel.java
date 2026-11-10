@@ -99,6 +99,7 @@ public final class JobQueuePanel extends JDialog {
     };
     private final JTable now = new JTable(nowModel);
     private final JButton stop = new JButton("Stop");
+    private final JButton resume = new JButton("Downloads on hold: Resume");
     private final JButton show = new JButton("Show layer");
     private final JButton dismiss = new JButton("Dismiss");
     private final JButton clear = new JButton("Clear finished");
@@ -185,6 +186,7 @@ public final class JobQueuePanel extends JDialog {
     private void updateNowButtons() {
         ImageLayer l = selectedLayer();
         stop.setEnabled(l != null && l.isDownloading() || isRecording(selectedRow()));
+        resume.setVisible(org.helioviewer.jhv.thread.FetchGate.isPaused());
         show.setEnabled(l != null);
         dismiss.setEnabled(selectedItem() != null && selectedItem().ended());
         clear.setEnabled(!endedItems.isEmpty());
@@ -262,7 +264,7 @@ public final class JobQueuePanel extends JDialog {
             ImageLayer l = selectedLayer();
             if (l != null) {
                 stoppedByUser.add(ActivityRows.key(selectedRow()));
-                l.cancelDownloadTask();
+                l.stopDownloading();
             } else if (isRecording(selectedRow()))
                 ExportMovie.shallStop();
         });
@@ -270,6 +272,12 @@ public final class JobQueuePanel extends JDialog {
         show.addActionListener(e -> showLayer());
         JPanel nowButtons = new JPanel(new FlowLayout(FlowLayout.LEFT));
         nowButtons.add(stop);
+        resume.setToolTipText("Studio held new downloads after it stopped responding, or a stop was sent");
+        resume.addActionListener(e -> {
+            org.helioviewer.jhv.activity.Watchdog.resume();
+            refreshNow();
+        });
+        nowButtons.add(resume);
         nowButtons.add(show);
         dismiss.setToolTipText("Remove the selected finished line from this list");
         dismiss.addActionListener(e -> {
