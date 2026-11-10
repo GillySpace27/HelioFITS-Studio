@@ -35,6 +35,7 @@ public final class UIGlobals {
 
     public static void setLaf() {
         applyTheme();
+        TooltipPolicy.install();
         // listFontKeys();
         // listColorKeys();
 

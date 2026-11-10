@@ -103,7 +103,7 @@ if [ "$LAUNCH" = 1 ]; then
     # Quit every earlier debug copy, not just this bundle: older builds under ~/hfs-rc, and worktree dev runs that
     # were given a debug home. Matched on command line plus environment (ps eww); never /Applications or ~/HFStudio.
     stale() { ps eww -axo pid=,command= | grep -E "$HOME/hfs-rc/|HFS_HOME=$TARGET_DATA|user\.home=$TARGET_DATA|user\.home=$HOME/HFStudio-debug" \
-        | grep -E "HFStudio|HelioFITS Studio" | grep -v -E "grep|ps eww" | awk -v me=$$ '$1 != me {print $1}'; }
+        | grep -E "HFStudio|HelioFITS Studio" | grep -v -E "grep|ps eww" | awk -v me=$$ '$1 != me {print $1}' || true; }   # no match is the normal case: grep exits 1, which pipefail plus set -e would turn into a script exit
     pids=$(stale); [ -z "$pids" ] || { echo "==> quitting stale debug copies: $(echo $pids)"; kill $pids 2>/dev/null || true; }
     for _ in $(seq 10); do [ -z "$(stale)" ] && break; sleep 1; done
     pids=$(stale); [ -z "$pids" ] || kill -9 $pids 2>/dev/null || true

@@ -29,6 +29,7 @@ public final class ControlSearchCheck {
     private static final Set<String> NOT_SEARCHED = Set.of(
             "tour",                 // the spotlight's own window
             "searchControlsWindow", // the search's own window
+            "keyboardShortcutsWindow", // the shortcuts overlay's own window
             "helpMenu");            // a menu, which the screen menu bar on macOS draws outside the window
 
     private static int failures;
