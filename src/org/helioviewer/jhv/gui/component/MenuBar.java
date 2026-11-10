@@ -492,6 +492,7 @@ public final class MenuBar extends JMenuBar {
         helpMenu.setMnemonic(KeyEvent.VK_H);
         helpMenu.setName("helpMenu"); // tour target
         catalogItem(helpMenu, "searchControls");
+        catalogItem(helpMenu, "keyboardShortcuts");
         catalogItem(helpMenu, "welcome");
         catalogItem(helpMenu, "tipOfTheDay");
         JMenu toursMenu = new JMenu("Tours"); // every tour, Getting started first (HS-15); it took over Take the Tour, which only started Getting started

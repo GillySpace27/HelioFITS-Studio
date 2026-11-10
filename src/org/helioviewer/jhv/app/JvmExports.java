@@ -23,7 +23,7 @@ public final class JvmExports {
             if (!desktop.isExported(pkg, self))
                 flags.add("--add-exports=java.desktop/" + pkg + "=ALL-UNNAMED");
         return flags.isEmpty() ? null
-                : "HelioFITS Studio was started without a Java option it needs, so selecting an image layer will fail. "
+                : "Studio was started without a Java option it needs, so selecting an image layer will fail. "
                         + "Start it with java -jar HFStudio.jar, or add " + String.join(" ", flags) + " to the Java command.";
     }
 
