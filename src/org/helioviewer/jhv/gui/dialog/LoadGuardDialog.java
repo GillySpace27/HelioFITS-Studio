@@ -8,7 +8,6 @@ import java.awt.Insets;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.TreeSet;
 
 import javax.swing.ButtonGroup;
 import javax.swing.JButton;
@@ -24,21 +23,22 @@ import org.helioviewer.jhv.gui.MainFrame;
 
 /**
  * The manifest of a session that is about to download more than the limit, and one choice per layer:
- * Postpone, or Download / load from disk. A layer starts on Postpone when it alone is over either
+ * Postpone, Download / load from disk, or Cancel (leave the layer out of the session). A layer starts on Postpone when it alone is over either
  * limit, and on Download / load from disk otherwise (LoadGuard.Item.postponeByDefault). Postponed
  * layers stay in the scene, held, and Refresh on a layer starts it later (ImageLayer.releaseHold).
- * Closing the window postpones everything that would download, never downloads.
+ * Download all / Postpone all / Cancel all set every row at once. Closing the window postpones
+ * everything that would download, never downloads.
  */
 public final class LoadGuardDialog {
 
     private LoadGuardDialog() {}
 
-    /** The places in imageLayers of the layers to hold. On the event thread. */
-    public static Set<Integer> postponed(LoadGuard.Estimate estimate) {
+    /** The places in imageLayers of the layers to hold and to drop. On the event thread. */
+    public static LoadGuard.Review postponed(LoadGuard.Estimate estimate) {
         long maxFrames = LoadGuard.maxFrames(), maxBytes = LoadGuard.maxBytes();
         List<LoadGuard.Item> items = estimate.items();
         int n = items.size();
-        JRadioButton[] postpone = new JRadioButton[n], load = new JRadioButton[n];
+        JRadioButton[] postpone = new JRadioButton[n], load = new JRadioButton[n], cancel = new JRadioButton[n];
         Set<Integer> holdAll = estimate.downloading();
         boolean[] go = {false};
 
@@ -55,7 +55,7 @@ public final class LoadGuardDialog {
         };
 
         JPanel grid = new JPanel(new GridBagLayout());
-        String[] heads = {"Layer", "Source", "Frames", "Cached", "To download", "About", "Postpone", "Download / load from disk"};
+        String[] heads = {"Layer", "Source", "Frames", "Cached", "To download", "About", "Postpone", "Download / load from disk", "Cancel"};
         for (int c = 0; c < heads.length; c++)
             grid.add(new JLabel("<html><b>" + heads[c] + "</b></html>"), cell(c, 0));
         for (int i = 0; i < n; i++) {
@@ -63,11 +63,14 @@ public final class LoadGuardDialog {
             boolean hold = it.postponeByDefault(maxFrames, maxBytes);
             postpone[i] = new JRadioButton(null, null, hold);
             load[i] = new JRadioButton(null, null, !hold);
+            cancel[i] = new JRadioButton();
             ButtonGroup group = new ButtonGroup();
             group.add(postpone[i]);
             group.add(load[i]);
+            group.add(cancel[i]);
             postpone[i].addActionListener(e -> update.run());
             load[i].addActionListener(e -> update.run());
+            cancel[i].addActionListener(e -> update.run());
             String[] cells = it.unknown()
                     ? new String[]{it.name(), it.source(), "?", "?", "?", "?"}
                     : new String[]{it.name(), it.source(), String.format(Locale.ROOT, "%,d", it.frames()),
@@ -77,8 +80,14 @@ public final class LoadGuardDialog {
                 grid.add(new JLabel(cells[c]), cell(c, i + 1));
             grid.add(postpone[i], cell(6, i + 1));
             grid.add(load[i], cell(7, i + 1));
+            grid.add(cancel[i], cell(8, i + 1));
         }
         update.run();
+
+        JPanel all = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEADING, 6, 0));
+        all.add(allButton("Download all", load, update));
+        all.add(allButton("Postpone all", postpone, update));
+        all.add(allButton("Cancel all", cancel, update));
 
         JLabel text = new JLabel(String.format(Locale.ROOT,
                 "<html>This session would download about <b>%,d frames</b>, roughly <b>%s</b>. Your limit is %,d frames or %s (Settings).<br>"
@@ -95,6 +104,7 @@ public final class LoadGuardDialog {
         });
         dialog.getRootPane().setDefaultButton(goButton);
         JPanel bottom = new JPanel(new BorderLayout(8, 0));
+        bottom.add(all, BorderLayout.PAGE_START);
         bottom.add(total, BorderLayout.CENTER);
         bottom.add(goButton, BorderLayout.LINE_END);
         JPanel content = new JPanel(new BorderLayout(0, 8));
@@ -110,12 +120,21 @@ public final class LoadGuardDialog {
         dialog.setVisible(true); // modal: returns when disposed
 
         if (!go[0])
-            return holdAll;
-        Set<Integer> held = new TreeSet<>();
+            return new LoadGuard.Review(holdAll, Set.of());
+        LoadGuard.Choice[] choices = new LoadGuard.Choice[n];
         for (int i = 0; i < n; i++)
-            if (postpone[i].isSelected() && items.get(i).toDownload() > 0)
-                held.add(items.get(i).at());
-        return held;
+            choices[i] = cancel[i].isSelected() ? LoadGuard.Choice.CANCEL : postpone[i].isSelected() ? LoadGuard.Choice.POSTPONE : LoadGuard.Choice.DOWNLOAD;
+        return LoadGuard.review(items, choices);
+    }
+
+    private static JButton allButton(String label, JRadioButton[] column, Runnable update) {
+        JButton b = new JButton(label);
+        b.addActionListener(e -> {
+            for (JRadioButton r : column)
+                r.setSelected(true);
+            update.run();
+        });
+        return b;
     }
 
     private static GridBagConstraints cell(int x, int y) {

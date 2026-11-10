@@ -355,16 +355,16 @@ public final class State {
 
     /**
      * Over the limit (LoadGuard), the person reviews the manifest first: the estimate comes back
-     * the places of the layers to be held, empty when the load goes ahead as it is. A command from
+     * the layers to hold and to leave out, empty when the load goes ahead as it is. A command from
      * outside (a context) or a window-less run cannot answer a dialog, so it postpones.
      */
-    private static java.util.Set<Integer> reviewDownload(@Nullable JSONArray imageLayers, @Nullable Commands.OperationContext context) {
+    private static LoadGuard.Review reviewDownload(@Nullable JSONArray imageLayers, @Nullable Commands.OperationContext context) {
         LoadGuard.Estimate estimate = LoadGuard.estimate(imageLayers, uri -> org.helioviewer.jhv.io.NetFileCache.cachedFile(uri).isFile());
         if (!estimate.over(LoadGuard.maxFrames(), LoadGuard.maxBytes()))
-            return java.util.Set.of();
+            return LoadGuard.Review.NONE;
         Log.warn("Session would download " + estimate.frames() + " frames, about " + LoadGuard.sizeText(estimate.bytes()));
         if (context != null || java.awt.GraphicsEnvironment.isHeadless())
-            return estimate.downloading();
+            return new LoadGuard.Review(estimate.downloading(), java.util.Set.of());
         return org.helioviewer.jhv.gui.dialog.LoadGuardDialog.postponed(estimate);
     }
 
@@ -397,12 +397,14 @@ public final class State {
         ImageLayer masterLayer = null;
 
         JSONArray imageLayers = data.optJSONArray("imageLayers");
-        java.util.Set<Integer> held = reviewDownload(imageLayers, context);
+        LoadGuard.Review review = reviewDownload(imageLayers, context);
         if (imageLayers != null) {
             for (int at = 0; at < imageLayers.length(); at++) {
                 if (imageLayers.opt(at) instanceof JSONObject jo) {
                     JSONObject jd = jo.optJSONObject("data");
                     if (jd == null)
+                        continue;
+                    if (review.dropped().contains(at)) // cancelled in the review: left out of the load
                         continue;
                     if (!hasRestorableData(jd)) {
                         // A husk from a session saved before the write-side guard existed. Creating
@@ -413,7 +415,7 @@ public final class State {
                     }
 
                     try {
-                        ImageLayer layer = ImageLayer.createDetached(jd, held.contains(at));
+                        ImageLayer layer = ImageLayer.createDetached(jd, review.held().contains(at));
                         restoreId(jo, layer);
                         restoredLayers.add(layer);
                         newLayers.put(layer, jo.optBoolean("enabled", false));

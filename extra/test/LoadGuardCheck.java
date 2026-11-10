@@ -76,6 +76,14 @@ public final class LoadGuardCheck {
         LoadGuard.Estimate mixed = LoadGuard.estimate(new JSONArray().put(layer("a", month)).put(layer("b", day)), uri -> false);
         expect("when nobody can be asked, every layer with something to download is held", mixed.downloading().equals(java.util.Set.of(0, 1)));
 
+        // The review's outcome: Cancel drops a layer from the load, Postpone holds it, Download leaves it alone.
+        LoadGuard.Review r = LoadGuard.review(mixed.items(), new LoadGuard.Choice[]{LoadGuard.Choice.CANCEL, LoadGuard.Choice.POSTPONE});
+        expect("Cancel drops layer 0, Postpone holds layer 1", r.dropped().equals(java.util.Set.of(0)) && r.held().equals(java.util.Set.of(1)));
+        r = LoadGuard.review(mixed.items(), new LoadGuard.Choice[]{LoadGuard.Choice.DOWNLOAD, LoadGuard.Choice.DOWNLOAD});
+        expect("Download all holds and drops nothing", r.held().isEmpty() && r.dropped().isEmpty());
+        r = LoadGuard.review(mixed.items(), new LoadGuard.Choice[]{LoadGuard.Choice.CANCEL, LoadGuard.Choice.CANCEL});
+        expect("Cancel all drops every layer", r.dropped().equals(java.util.Set.of(0, 1)) && r.held().isEmpty());
+
         // A postponed layer loads nothing, is not mistaken for a failed one, and a save still writes what it would load.
         JSONObject held = new JSONObject().put("uris", new JSONArray().put("https://a/1.fits").put("https://a/2.fits"));
         org.helioviewer.jhv.layers.ImageLayer layer = org.helioviewer.jhv.layers.ImageLayer.createDetached(held, true);
