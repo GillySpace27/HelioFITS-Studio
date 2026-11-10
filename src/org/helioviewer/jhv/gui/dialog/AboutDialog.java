@@ -73,6 +73,15 @@ public final class AboutDialog extends StandardDialog implements Interfaces.Show
                 "<center>Third-party licenses and notices can be found inside <code>HFStudio.jar</code> and in the source tree.</center>";
     }
 
+    /** Build sequence and commit age, one line each; empty for what the build did not know. */
+    private static String extra() {
+        StringBuilder sb = new StringBuilder();
+        for (String l : new String[]{AppInfo.sequence(), AppInfo.committedLine()})
+            if (!l.isEmpty())
+                sb.append(HtmlEscapers.htmlEscaper().escape(l)).append("<br/>");
+        return sb.toString();
+    }
+
     @Override
     public JComponent createBannerPanel() {
         int delta = 3;
@@ -82,6 +91,7 @@ public final class AboutDialog extends StandardDialog implements Interfaces.Show
         String text = "<center><b><span style='font-size:" + (fontSize + delta) + "pt'>" +
                 AppInfo.programName + "</span><br/>" +
                 "Version " + AppInfo.buildId() + "</b><br/>" +
+                extra() +
                 "<span style='font-size:" + (fontSize - delta) + "pt'>" + AppInfo.versionDetail + "<br/>" + graphicsInfo + "</span><br/><br/>" +
                 "A fork of <a href='https://www.jhelioviewer.org'>JHelioviewer</a>, carrying its own<br/>" +
                 "changes to projection, filtering and export.<br/><br/>" +

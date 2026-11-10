@@ -42,6 +42,17 @@ public final class BuildInfoCheck {
         expect("no tag here, or an unsubstituted token: the bare version",
                 "0.8.4".equals(AppInfo.label("0.8.4", "")) && "0.8.4".equals(AppInfo.label("0.8.4", "@@SINCE"))
                         && "0.8.4".equals(AppInfo.label("0.8.4", null)));
+        expect("sequence: 0.9.2+37 since v0.9.1; empty with no tag or junk",
+                "0.9.2+37 (37 commits since v0.9.1)".equals(AppInfo.sequence("0.9.2", "v0.9.1 37"))
+                        && AppInfo.sequence("0.9.2", "").isEmpty() && AppInfo.sequence("0.9.2", "@@SINCETAG").isEmpty()
+                        && AppInfo.sequence("0.9.2", null).isEmpty());
+        java.time.Instant now = java.time.Instant.ofEpochSecond(1_700_000_000L);
+        java.time.ZoneId utc = java.time.ZoneId.of("UTC");
+        expect("committed line: date and age",
+                "Committed 2023-11-14 22:11 UTC (2 minutes ago)".equals(AppInfo.committedLine("1699999880", now, utc))
+                        && AppInfo.committedLine("1699999880", now.plusSeconds(7200), utc).endsWith("(2 hours ago)")
+                        && AppInfo.committedLine("1699999880", now.plusSeconds(3 * 86400), utc).endsWith("(3 days ago)")
+                        && AppInfo.committedLine("@@COMMITTED", now, utc).isEmpty());
         System.setProperty("jhv.since", "112");
         System.setProperty("jhv.commit", "7671c40d9a1b");
         expect("buildId and the image stamp carry the label",

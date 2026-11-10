@@ -140,6 +140,37 @@ public final class AppInfo {
         return version + '+' + since;
     }
 
+    /**
+     * "0.9.2+37 (37 commits since v0.9.1)": a sequence number that moves with every commit, for a
+     * build whose VERSION has no tag yet (label() is then the bare version). Empty when the build
+     * knew no tag. At the release tag itself, or past it, label() already carries the number.
+     */
+    public static String sequence() {
+        return sequence(version, System.getProperty("jhv.sincetag"));
+    }
+
+    static String sequence(String version, @Nullable String sinceTag) {
+        if (sinceTag == null || !sinceTag.matches("v\\S+ [0-9]+"))
+            return "";
+        String[] p = sinceTag.split(" ");
+        return version + '+' + p[1] + " (" + p[1] + " commits since " + p[0] + ')';
+    }
+
+    /** "Committed 2026-11-10 10:58 MST (23 minutes ago)", or empty when the build had no git. */
+    public static String committedLine() {
+        return committedLine(System.getProperty("jhv.committed"), java.time.Instant.now(), java.time.ZoneId.systemDefault());
+    }
+
+    static String committedLine(@Nullable String epoch, java.time.Instant now, java.time.ZoneId zone) {
+        if (epoch == null || !epoch.matches("[0-9]+"))
+            return "";
+        java.time.Instant t = java.time.Instant.ofEpochSecond(Long.parseLong(epoch));
+        String when = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm z").format(t.atZone(zone));
+        long s = Math.max(0, now.getEpochSecond() - t.getEpochSecond());
+        String ago = s < 90 ? "just now" : s < 5400 ? Math.round(s / 60.) + " minutes ago" : s < 129600 ? Math.round(s / 3600.) + " hours ago" : Math.round(s / 86400.) + " days ago";
+        return "Committed " + when + " (" + ago + ')';
+    }
+
     /** One string for the log, the About box and every export: "0.8.3+112 (r14185, 7671c40d9a1b)". */
     public static String buildId() {
         return buildId(label(), revision, commit(), dirty());

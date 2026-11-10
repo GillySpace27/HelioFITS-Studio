@@ -40,6 +40,17 @@
         <arg value="-c"/>
         <arg value="git rev-parse -q --verify &quot;refs/tags/v${version}^{commit}&quot; >/dev/null 2>&amp;1 &amp;&amp; git rev-list --count &quot;v${version}..HEAD&quot; || true"/>
     </exec>
+    <!-- "v0.9.1 37": the latest release tag reachable from HEAD and the commits since it, for builds
+         made before the tag of VERSION exists (the About box shows "0.9.2+37"). Empty with no tags. -->
+    <exec executable="sh" outputproperty="sincetag">
+        <arg value="-c"/>
+        <arg value="t=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null) &amp;&amp; echo &quot;$t $(git rev-list --count &quot;$t..HEAD&quot;)&quot; || true"/>
+    </exec>
+    <!-- Commit time of HEAD, epoch seconds: deterministic, so the jar parity check is unaffected. -->
+    <exec executable="sh" outputproperty="committed">
+        <arg value="-c"/>
+        <arg value="git log -1 --format=%ct 2>/dev/null || true"/>
+    </exec>
     <exec executable="sh" outputproperty="dirty">
         <arg value="-c"/>
         <arg value='if [ -n "$(git status --porcelain src resources VERSION 2>/dev/null)" ]; then echo true; else echo false; fi'/>
@@ -212,6 +223,8 @@
         <replace file="${bin}/version.properties" token="@@COMMIT" value="${commit}"/>
         <replace file="${bin}/version.properties" token="@@DIRTY" value="${dirty}"/>
         <replace file="${bin}/version.properties" token="@@SINCE" value="${since}"/>
+        <replace file="${bin}/version.properties" token="@@SINCETAG" value="${sincetag}"/>
+        <replace file="${bin}/version.properties" token="@@COMMITTED" value="${committed}"/>
         <manifestclasspath property="manifest_cp" jarfile="${jarfile}">
             <classpath>
                 <fileset refid="libfiles"/>
