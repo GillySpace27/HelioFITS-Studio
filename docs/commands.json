@@ -3001,15 +3001,19 @@
             "type": "number",
             "minimum": 0
           },
-          "nebulae": {"type": "boolean"},
           "light_time": {"type": "boolean"},
           "tooltip": {"type": "boolean"},
+          "enabled": {"type": "boolean"},
+          "symbols_always": {"type": "boolean"},
+          "symbols_instead": {"type": "boolean"},
+          "icon_by_kind": {"type": "boolean"},
+          "star_names_bayer": {"type": "boolean"},
+          "clusters": {"type": "boolean"},
+          "tooltip_by_kind": {"type": "boolean"},
+          "nebulae": {"type": "boolean"},
           "star_max_magnitude": {"type": "number"},
           "pluto": {"type": "boolean"},
           "stars": {"type": "boolean"},
-          "enabled": {"type": "boolean"},
-          "icon_by_kind": {"type": "boolean"},
-          "star_names_bayer": {"type": "boolean"},
           "tolerance_pixels": {
             "type": "number",
             "minimum": 0
@@ -3027,8 +3031,7 @@
           "deep_sky_max_magnitude": {"type": "number"},
           "comets": {"type": "boolean"},
           "star_names_iau": {"type": "boolean"},
-          "glow": {"type": "boolean"},
-          "clusters": {"type": "boolean"}
+          "glow": {"type": "boolean"}
         }
       },
       "name": "identifySet",

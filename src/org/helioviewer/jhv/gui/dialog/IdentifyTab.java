@@ -32,6 +32,9 @@ public final class IdentifyTab {
         JCheckBox tooltip = box("Show the name beside the pointer", IdentifySettings.tooltip(), IdentifySettings.TOOLTIP);
         JCheckBox glow = box("Glow around what is identified", IdentifySettings.glow(), IdentifySettings.GLOW);
         JCheckBox pulse = box("Pulse when it changes", IdentifySettings.pulse(), IdentifySettings.PULSE);
+        JCheckBox tipKind = box("Colour the name like its icon", IdentifySettings.tooltipByKind(), IdentifySettings.TOOLTIP_BY_KIND);
+        JCheckBox symInstead = box("Planet symbols instead of rings", IdentifySettings.symbolsInstead(), IdentifySettings.SYMBOLS_INSTEAD);
+        JCheckBox symAlways = box("Always show planet symbols", IdentifySettings.symbolsAlways(), IdentifySettings.SYMBOLS_ALWAYS);
         JCheckBox all = box("Highlight all named objects in view", IdentifySettings.highlightAll(), IdentifySettings.HIGHLIGHT_ALL);
         JCheckBox byKind = box("Colour the icon by kind of object", IdentifySettings.iconByKind(), IdentifySettings.ICON_BY_KIND);
         JButton colour = new JButton("Icon colour…");
@@ -66,6 +69,9 @@ public final class IdentifyTab {
         // command and the panel's Reset to defaults all change them from outside this form.
         IdentifySettings.addListener(() -> {
             all.setSelected(IdentifySettings.highlightAll());
+            tipKind.setSelected(IdentifySettings.tooltipByKind());
+            symInstead.setSelected(IdentifySettings.symbolsInstead());
+            symAlways.setSelected(IdentifySettings.symbolsAlways());
             byKind.setSelected(IdentifySettings.iconByKind());
             paint.run();
             comets.setSelected(IdentifySettings.dataComets());
@@ -99,6 +105,9 @@ public final class IdentifyTab {
         form.add(line(pulse));
         form.add(line(stars));
         form.add(line(all));
+        form.add(line(tipKind));
+        form.add(line(symInstead));
+        form.add(line(symAlways));
         form.add(heading("Icon"));
         form.add(line(byKind));
         form.add(line(colour));

@@ -140,6 +140,7 @@ final class IdentifyCommands {
                         + "\"tooltip_dwell_ms\":{\"type\":\"integer\",\"minimum\":0},\"light_time\":{\"type\":\"boolean\"},"
                         + "\"earth_observer_uncertainty_km\":{\"type\":\"number\",\"minimum\":0},\"pluto\":{\"type\":\"boolean\"},"
                         + "\"glow\":{\"type\":\"boolean\"},\"pulse\":{\"type\":\"boolean\"},"
+                        + "\"tooltip_by_kind\":{\"type\":\"boolean\"},\"symbols_instead\":{\"type\":\"boolean\"},\"symbols_always\":{\"type\":\"boolean\"},"
                         + "\"icon_by_kind\":{\"type\":\"boolean\"},\"icon_color\":{\"type\":\"string\",\"description\":\"#RRGGBB, used when the icon is not coloured by kind\"},"
                         + "\"highlight_all\":{\"type\":\"boolean\"},\"comets\":{\"type\":\"boolean\"},\"cmes\":{\"type\":\"boolean\"},"
                         + "\"clusters\":{\"type\":\"boolean\"},\"galaxies\":{\"type\":\"boolean\"},\"nebulae\":{\"type\":\"boolean\"},"
@@ -151,6 +152,8 @@ final class IdentifyCommands {
                             {"tooltip_dwell_ms", IdentifySettings.DWELL_MS}, {"light_time", IdentifySettings.LIGHT_TIME},
                             {"earth_observer_uncertainty_km", IdentifySettings.EARTH_UNCERTAINTY_KM}, {"pluto", IdentifySettings.PLUTO},
                             {"glow", IdentifySettings.GLOW}, {"pulse", IdentifySettings.PULSE},
+                            {"tooltip_by_kind", IdentifySettings.TOOLTIP_BY_KIND}, {"symbols_instead", IdentifySettings.SYMBOLS_INSTEAD},
+                            {"symbols_always", IdentifySettings.SYMBOLS_ALWAYS},
                             {"icon_by_kind", IdentifySettings.ICON_BY_KIND}, {"icon_color", IdentifySettings.ICON_COLOR},
                             {"highlight_all", IdentifySettings.HIGHLIGHT_ALL}, {"comets", IdentifySettings.DATA_COMETS},
                             {"cmes", IdentifySettings.DATA_CMES}, {"clusters", IdentifySettings.DATA_CLUSTERS},

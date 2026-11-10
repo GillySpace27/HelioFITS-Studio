@@ -19,6 +19,7 @@ import org.helioviewer.jhv.movie.ExportMovie;
 import org.helioviewer.jhv.opengl.BufVertex;
 import org.helioviewer.jhv.opengl.GLRenderer;
 import org.helioviewer.jhv.opengl.GLSLLine;
+import org.helioviewer.jhv.opengl.GLText;
 import org.helioviewer.jhv.opengl.Transform;
 
 /**
@@ -59,6 +60,19 @@ public final class IdentifyGlow {
     /** The halo, the middle and the core of the glow, from wide and faint to thin and bright, then the pulse. */
     private static final double[] WIDTHS = {9, 4.5, 1.6};
     private static final int[] ALPHAS = {38, 70, 200};
+
+    /** Each planet's astronomical symbol; the SDF text atlas carries them (resources/sdf/charset). */
+    static final Map<String, String> SYMBOLS = Map.of("Mercury", "☿", "Venus", "♀", "Earth", "♁", "Moon", "☽", "Mars", "♂",
+            "Jupiter", "♃", "Saturn", "♄", "Uranus", "♅", "Neptune", "♆", "Pluto", "♇");
+
+    /** The symbol for a mark that names a planet or the Moon, else null. */
+    @Nullable
+    static String symbol(Mark m) {
+        if (m.kind() != Kind.PLANET && m.kind() != Kind.MOON)
+            return null;
+        int slash = m.key().indexOf('/');
+        return SYMBOLS.get(slash < 0 ? m.key() : m.key().substring(0, slash));
+    }
 
     private static final class State {
         String key = "";
@@ -262,6 +276,9 @@ public final class IdentifyGlow {
     /** One outline on the page: its colour, its points, its centre, and whether the hover pulse runs on it. */
     private record Ring(int[] rgb, List<double[]> points, double[] centre, boolean hover) {}
 
+    /** A planet's symbol on the page: where, in what colour, and whether it stands in for the ring. */
+    private record Glyph(String text, int[] rgb, double[] centre, boolean replaces) {}
+
     /** The hover's marks: the bodies named under the pointer (not the Sun) and the drawn objects that carry an icon. */
     static List<Mark> hoverMarks() {
         boolean light = IdentifySettings.lightTime();
@@ -298,7 +315,9 @@ public final class IdentifyGlow {
         double phase = pulsePhase(System.currentTimeMillis(), STATE.pulseStart);
         boolean pulse = IdentifySettings.pulse() && phase < 1;
         boolean all = IdentifySettings.highlightAll();
-        if (!IdentifySettings.glow() && !pulse && !all)
+        boolean always = IdentifySettings.symbolsAlways();
+        boolean instead = IdentifySettings.symbolsInstead();
+        if (!IdentifySettings.glow() && !pulse && !all && !always)
             return;
         Viewport vp = Display.getActiveViewport(); // the scene the probes look through, as for the footer and pins
         MapView mv = GLRenderer.getMapView();
@@ -311,7 +330,7 @@ public final class IdentifyGlow {
             marks.put(m.key(), m);
             hovered.add(m.key());
         }
-        if (all)
+        if (all || always)
             for (Mark m : allMarks(vp, mv, targets))
                 marks.putIfAbsent(m.key(), m);
         if (marks.isEmpty())
@@ -319,11 +338,15 @@ public final class IdentifyGlow {
 
         double[] pointer = IdentifyHover.pointer();
         List<Ring> rings = new ArrayList<>();
+        List<Glyph> glyphs = new ArrayList<>();
         for (Mark m : marks.values()) {
             if (rings.size() >= MAX_RINGS)
                 break;
             boolean hover = hovered.contains(m.key());
-            if (!hover && !all)
+            boolean wantRing = hover || all;
+            String sym = symbol(m);
+            boolean wantSym = sym != null && (always || (instead && wantRing));
+            if (!wantRing && !wantSym)
                 continue;
             Identifier.Target target = m.layer() == null ? targets.getFirst() : byName(targets, m.layer());
             if (target == null)
@@ -331,13 +354,23 @@ public final class IdentifyGlow {
             Vec3 dir = m.where().direction(target.observer());
             if (dir == null)
                 continue;
+            int[] rgb = IdentifySettings.iconRgb(m.kind());
+            boolean replaces = wantSym && instead && wantRing;
+            if (!wantRing || replaces) { // only the centre is needed: a symbol stands where the ring would
+                double[] c = IdentifyPins.locate(vp, mv, target, dir, hover ? pointer : null);
+                if (c != null && wantSym)
+                    glyphs.add(new Glyph(sym, rgb, c, replaces));
+                continue;
+            }
             List<double[]> o = ring(vp, mv, target, dir, m.angularRadius(), hover ? pointer : null, MIN_RADIUS * scale);
             if (o == null)
                 continue;
             double[] c = o.getFirst();
-            rings.add(new Ring(IdentifySettings.iconRgb(m.kind()), o.subList(1, o.size()), c, hover));
+            rings.add(new Ring(rgb, o.subList(1, o.size()), c, hover));
+            if (wantSym)
+                glyphs.add(new Glyph(sym, rgb, c, false));
         }
-        if (rings.isEmpty())
+        if (rings.isEmpty() && glyphs.isEmpty())
             return;
 
         // Bright for a moment when something new is reached, then steady
@@ -364,6 +397,19 @@ public final class IdentifyGlow {
         } finally {
             Transform.popView();
             Transform.popProjection();
+        }
+        drawGlyphs(full, glyphs, scale);
+    }
+
+    /** The symbols, in the label's text pass: centred on the body when they stand in for the ring, else just beside it. */
+    private static void drawGlyphs(Viewport full, List<Glyph> glyphs, double scale) {
+        for (Glyph g : glyphs) {
+            float[] size = GLText.floatTextSize(g.text());
+            double cx = g.centre()[0] - full.x, cy = g.centre()[1] - full.yAWT;
+            double x = g.replaces() ? cx - size[0] / 2 : cx + MIN_RADIUS * scale + 3;
+            double y = g.replaces() ? cy + size[1] * 0.35 : cy - MIN_RADIUS * scale * 0.3;
+            float[] c = {g.rgb()[0] / 255f, g.rgb()[1] / 255f, g.rgb()[2] / 255f, 1};
+            GLText.drawTextFloat(full, List.of(g.text()), List.of(c), (int) Math.round(x), (int) Math.round(y));
         }
     }
 

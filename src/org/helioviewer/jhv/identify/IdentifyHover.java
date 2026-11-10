@@ -35,6 +35,8 @@ public final class IdentifyHover {
     private static final int OFFSET_Y = 25;
 
     private final List<String> label = new ArrayList<>();
+    private final List<float[]> labelColours = new ArrayList<>();
+    private String lastText;
     private final Timer dwell;
     private boolean labelShown;
     private int mouseX, mouseY;
@@ -112,6 +114,24 @@ public final class IdentifyHover {
         return INSTANCE.frozen;
     }
 
+    /**
+     * A click on the canvas: freezes the result when the pointer is on a highlighted object (the
+     * Sun has no highlight, so it does not count), and lets a frozen one go. True when it did either.
+     */
+    public static boolean clickToggle() {
+        IdentifyHover h = INSTANCE;
+        if (!IdentifySettings.enabled())
+            return false;
+        if (h.frozen) {
+            setFrozen(false);
+            return true;
+        }
+        if (IdentifyGlow.outlined(h.last).isEmpty() && h.lastDrawn.stream().noneMatch(d -> d.mark() != null))
+            return false;
+        setFrozen(true);
+        return true;
+    }
+
     /** Called (on the thread that moved the pointer) whenever the snapshot changes; coalesce in the listener. */
     public static void addSnapshotListener(Runnable r) {
         INSTANCE.keptListeners.add(r);
@@ -146,6 +166,8 @@ public final class IdentifyHover {
             clear();
             return null;
         }
+        if (frozen && lastText != null && (!last.isEmpty() || !lastDrawn.isEmpty()))
+            return lastText; // a frozen result holds the glow, the label and the footer where they are
         Identifier.Options options = Identifier.Options.fromSettings();
         List<Identifier.Match> matches = identify(vp, mv, x, y, options);
         List<Drawn.Hit> drawn = Drawn.at(vp, mv, x, y, options.tolerancePixels());
@@ -155,6 +177,8 @@ public final class IdentifyHover {
         IdentifyGlow.matched(matches, drawn);
         boolean wasShown = labelShown && !label.isEmpty();
         label.clear();
+        labelColours.clear();
+        lastText = null;
         labelShown = false;
         mouseX = x;
         mouseY = y;
@@ -171,6 +195,9 @@ public final class IdentifyHover {
             sb.append(m.label());
             label.add(m.label());
             label.add(details(m));
+            float[] c = tint(Kind.of(m.body()));
+            labelColours.add(c);
+            labelColours.add(c);
         }
         for (Drawn.Hit h : drawn) {
             if (!sb.isEmpty())
@@ -180,6 +207,9 @@ public final class IdentifyHover {
                 continue; // the orbit plot and the event popup label their own
             label.add(h.name());
             label.add(h.details());
+            float[] c = h.mark() == null ? null : tint(h.mark().kind());
+            labelColours.add(c);
+            labelColours.add(c);
         }
         if (IdentifySettings.tooltip()) {
             dwell.setInitialDelay(IdentifySettings.dwellMillis());
@@ -187,7 +217,17 @@ public final class IdentifyHover {
         }
         if (wasShown)
             DisplayController.display();
-        return sb.toString();
+        lastText = sb.toString();
+        return lastText;
+    }
+
+    /** The label's colour for an object of {@code kind}: its icon's, or null (the usual gray) when that is switched off. */
+    @Nullable
+    private static float[] tint(Kind kind) {
+        if (!IdentifySettings.tooltipByKind())
+            return null;
+        int[] c = IdentifySettings.iconRgb(kind);
+        return new float[]{c[0] / 255f, c[1] / 255f, c[2] / 255f, 1};
     }
 
     /** One line under each name: how far, and how far from the Sun in the sky. */
@@ -251,6 +291,8 @@ public final class IdentifyHover {
     }
 
     private void clear() {
+        if (frozen && IdentifySettings.enabled() && (!last.isEmpty() || !lastDrawn.isEmpty()))
+            return; // leaving the canvas does not drop a frozen result
         dwell.stop();
         last = List.of();
         lastDrawn = List.of();
@@ -261,6 +303,7 @@ public final class IdentifyHover {
         }
         if (!label.isEmpty()) {
             label.clear();
+            labelColours.clear();
             if (labelShown)
                 DisplayController.display();
         }
@@ -273,6 +316,6 @@ public final class IdentifyHover {
         if (!h.labelShown || h.label.isEmpty() || !IdentifySettings.tooltip() || ExportMovie.isRecording())
             return;
         // The pointer is in canvas pixels; the text is placed in the viewport, which a fixed output aspect insets
-        GLText.drawTextFloat(vp, h.label, h.mouseX - vp.x + OFFSET_X, h.mouseY - vp.yAWT + OFFSET_Y);
+        GLText.drawTextFloat(vp, h.label, h.labelColours, h.mouseX - vp.x + OFFSET_X, h.mouseY - vp.yAWT + OFFSET_Y);
     }
 }

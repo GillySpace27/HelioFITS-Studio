@@ -38,7 +38,7 @@ public final class IdentifyGlowRoundCheck {
         Directories.createPersistentDirs();
         Directories.createCacheDirs();
         AppInit.loadSpice();
-        for (String name : args.length > 0 ? args : new String[]{"Helioradial", "HPC", "ObserverSky"}) {
+        for (String name : args.length > 0 ? args : new String[]{"Helioradial"}) {
             MapMode mode;
             try {
                 mode = MapMode.valueOf(name);
