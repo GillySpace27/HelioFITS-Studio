@@ -4,6 +4,9 @@
 
 ## HelioFITS Studio 0.9.2 (unreleased)
 
+### New
+- Help > Keyboard Shortcuts (Cmd+/, Ctrl+/ off a Mac; the same key closes it, as does Esc) opens a searchable overlay of every keyboard shortcut in force, grouped by area, with key caps spelled for your platform. It reads your current keybindings, so a change in Settings > Keybindings shows at once. The Welcome window has a Keybindings button for it.
+
 ### Fixes
 - About and the Welcome window now say which build you are running: the version with its commits since the tag (0.9.2+37, once the tag exists), the build number (the commit count), the commit, and "debug" for a debug build, plus a line "built Nov 10, 2026 11:09 MST (2 minutes ago)" ("released ..." in a release build). Before, an untagged version read "version 0.9.2, build 0.9.2". The jar carries `jhv.built` and `jhv.channel`; a plain `ant jar` and CI leave the channel empty.
 - The Task Manager's Right now list keeps finished work instead of dropping it the moment it ends: each line has a Status (running, success, failed, cancelled; stopped for a recording you stopped), stays until you press Dismiss, and Clear finished empties them all.

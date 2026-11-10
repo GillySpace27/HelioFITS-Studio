@@ -36,6 +36,8 @@ public final class ShortcutIndexCheck {
         Files.createDirectories(java.nio.file.Path.of(org.helioviewer.jhv.io.Directories.SETTINGS.getPath()));
         org.helioviewer.jhv.app.Platform.init();
         int menu = DesktopIntegration.menuShortcutMask;
+        boolean mac = menu == InputEvent.META_DOWN_MASK;
+        String menuCap = mac ? "⌘" : "⌃"; // build(true) spells Ctrl as the Mac symbol
 
         // Every catalogued accelerator and every canvas key is a row
         List<ShortcutIndex.Row> rows = ShortcutIndex.build(true);
@@ -45,7 +47,7 @@ public final class ShortcutIndexCheck {
                 accelerators++;
         int canvas = (int) CanvasKeys.ALL.stream().filter(c -> CanvasKeys.key(c.id()) >= 0).count();
         expect("one row per binding (" + accelerators + " commands + " + canvas + " canvas keys)", rows.size() == accelerators + canvas);
-        expect("sidebar toggle is there with its symbols", has(rows, "Show or Hide Left Sidebar", menu == InputEvent.META_DOWN_MASK ? "⌘" : "Ctrl", "["));
+        expect("sidebar toggle is there with its symbols", has(rows, "Show or Hide Left Sidebar", menuCap, "["));
         expect("W is on the canvas, bare", has(rows, "Pitch Up", "W"));
         expect("the overlay lists itself on the slash key", rows.stream().anyMatch(r -> r.name().equals("Keyboard Shortcuts") && r.caps().get(r.caps().size() - 1).equals("/")));
 
@@ -58,19 +60,19 @@ public final class ShortcutIndexCheck {
         expect("empty search keeps every row", ShortcutIndex.filter(rows, "  ").size() == rows.size());
         List<ShortcutIndex.Row> pitch = ShortcutIndex.filter(rows, "pitch");
         expect("'pitch' narrows to the pitch rows", !pitch.isEmpty() && pitch.size() < rows.size() && pitch.stream().allMatch(r -> r.name().toLowerCase().contains("pitch")));
-        expect("'cmd [' finds the left sidebar by its keys", has(ShortcutIndex.filter(rows, "cmd ["), "Show or Hide Left Sidebar", "⌘", "["));
+        expect("'cmd [' finds the left sidebar by its keys", has(ShortcutIndex.filter(rows, mac ? "cmd [" : "ctrl ["), "Show or Hide Left Sidebar", menuCap, "["));
         expect("nonsense matches nothing", ShortcutIndex.filter(rows, "zzzqqq").isEmpty());
 
         // Rebinding is live; removal drops the row
         String id = "toggleTimeline";
         expect("rebinding is accepted", KeyBindings.set(id, KeyStroke.getKeyStroke(KeyEvent.VK_T, menu | InputEvent.ALT_DOWN_MASK)) == null);
         List<ShortcutIndex.Row> after = ShortcutIndex.build(true);
-        expect("the new key shows", has(after, "Show or Hide Timeline", "⌥", "⌘", "T") || has(after, "Show or Hide Timeline", "⌥", "T"));
+        expect("the new key shows", mac ? has(after, "Show or Hide Timeline", "⌥", "⌘", "T") : has(after, "Show or Hide Timeline", "⌃", "⌥", "T"));
         expect("the old key is gone", !ShortcutIndex.filter(after, "timeline").stream().anyMatch(r -> r.caps().contains("\\")));
         KeyBindings.set(id, null);
         expect("an unbound command has no row", ShortcutIndex.filter(ShortcutIndex.build(true), "timeline").stream().noneMatch(r -> r.name().equals("Show or Hide Timeline")));
         KeyBindings.reset(id);
-        expect("reset brings it back", has(ShortcutIndex.build(true), "Show or Hide Timeline", menu == InputEvent.META_DOWN_MASK ? "⌘" : "Ctrl", "\\"));
+        expect("reset brings it back", has(ShortcutIndex.build(true), "Show or Hide Timeline", menuCap, "\\"));
 
         // Cmd+/ is the overlay's alone
         KeyStroke slash = KeyStroke.getKeyStroke(KeyEvent.VK_SLASH, menu);
