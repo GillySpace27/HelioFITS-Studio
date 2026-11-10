@@ -112,13 +112,13 @@ public final class TipsCheck {
         expect("MenuBar adds tipOfTheDay", menuBar.contains("catalogItem(helpMenu, \"tipOfTheDay\")"));
         String welcome = Files.readString(Path.of("src/org/helioviewer/jhv/gui/dialog/WelcomeDialog.java"));
         expect("the Welcome window carries no tip of its own", !welcome.contains("Tips.next") && !welcome.contains("<b>Tip:</b>"));
-        expect("the Welcome window links to Tip of the Day and brings it on after itself at startup",
-                welcome.contains("ActionCatalog.get(\"tipOfTheDay\")") && welcome.contains("TipOfTheDay.atStartup()"));
+        expect("the Welcome window links to Tip of the Day (WelcomeModel) and brings it on after itself at startup",
+                WelcomeModel.ITEMS.stream().anyMatch(it -> it.id().equals("tipOfTheDay")) && welcome.contains("TipOfTheDay.atStartup()"));
 
         ActionCatalog.Entry demo = ActionCatalog.get("openDemo");
         expect("openDemo is catalogued under Help", demo != null && demo.menuPath().startsWith("Help/"));
         expect("MenuBar adds openDemo", menuBar.contains("catalogItem(helpMenu, \"openDemo\")"));
-        expect("the Welcome window has the demo card", welcome.contains("run(\"openDemo\")"));
+        expect("the Welcome window has the demo button", welcome.contains("\"openDemo\")"));
 
         System.out.println(failures == 0 ? "TipsCheck: ok" : "TipsCheck: " + failures + " FAIL");
         System.exit(failures == 0 ? 0 : 1);
