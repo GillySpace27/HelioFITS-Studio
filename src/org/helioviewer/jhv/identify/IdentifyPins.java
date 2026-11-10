@@ -32,8 +32,8 @@ import org.json.JSONArray;
 public final class IdentifyPins {
 
     private static final List<String> pins = new CopyOnWriteArrayList<>();
-    private static final int MAX_STEPS = 12;
-    private static final double CONVERGED_PIXELS = 0.75;
+    private static final int MAX_STEPS = 20;
+    private static final double CONVERGED_PIXELS = 0.05;
 
     /** The pinned bodies, in the order they were pinned. */
     public static List<String> all() {
@@ -118,10 +118,16 @@ public final class IdentifyPins {
     /** As {@link #locate(Viewport, MapView, Identifier.Target, Vec3)}, starting from {@code seed} (canvas pixels) when given. */
     @Nullable
     static double[] locate(Viewport vp, MapView mv, Identifier.Target target, Vec3 want, @Nullable double[] seed) {
+        // The probe reads whole pixels, so interpolate between the four around (x, y): a smooth function Newton can settle on
         Sky sky = (x, y) -> {
-            Identifier.Probe p = Probes.at(mv, vp, x, y);
-            Vec3 dir = p == null ? null : p.direction(target.observer());
-            return dir == null ? null : Identifier.helioprojective(dir);
+            int ix = (int) Math.floor(x), iy = (int) Math.floor(y);
+            double u = x - ix, w = y - iy;
+            Vec2 a = pixel(mv, vp, target, ix, iy), b = pixel(mv, vp, target, ix + 1, iy);
+            Vec2 c = pixel(mv, vp, target, ix, iy + 1), d = pixel(mv, vp, target, ix + 1, iy + 1);
+            if (a == null || b == null || c == null || d == null)
+                return null;
+            return new Vec2((a.x * (1 - u) + b.x * u) * (1 - w) + (c.x * (1 - u) + d.x * u) * w,
+                    (a.y * (1 - u) + b.y * u) * (1 - w) + (c.y * (1 - u) + d.y * u) * w);
         };
         Vec2 goal = Identifier.helioprojective(want);
         double[] found = solve(sky, goal, vp.x, vp.yAWT, vp.width, vp.height, seed);
@@ -134,6 +140,13 @@ public final class IdentifyPins {
                 return found;
         }
         return null;
+    }
+
+    @Nullable
+    private static Vec2 pixel(MapView mv, Viewport vp, Identifier.Target target, int x, int y) {
+        Identifier.Probe p = Probes.at(mv, vp, x, y);
+        Vec3 dir = p == null ? null : p.direction(target.observer());
+        return dir == null ? null : Identifier.helioprojective(dir);
     }
 
     /** Newton's method on the screen: the point in the box (x0, y0, w, h) where {@code sky} reads {@code goal}. */
