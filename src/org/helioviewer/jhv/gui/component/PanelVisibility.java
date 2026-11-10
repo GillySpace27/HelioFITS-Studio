@@ -8,7 +8,7 @@ import org.helioviewer.jhv.app.Theme;
 /**
  * Easier to find panels: how much louder than the theme's own values a top-level section is drawn.
  *
- * <p>Four independent options under one master switch, all on by default, all in {@link Settings}
+ * <p>Independent options (the stronger headers are four of them: band, rule, space, title colour) under one master switch, all on by default, all in {@link Settings}
  * rather than in a theme, so they follow whichever theme is chosen and a theme derived from an
  * accent colour keeps them. Everything below is computed from the current theme's tokens and
  * clamped so the header title keeps 4.5:1 (3.5:1 for the strong title) on the band and the band and stripe keep 3:1, which is
@@ -18,7 +18,15 @@ import org.helioviewer.jhv.app.Theme;
 public final class PanelVisibility {
 
     public static final String MASTER = "ui.visibility.enabled";
+    /**
+     * The old single switch for stronger section headers. It did four things at once, so each is now its
+     * own option below; a setting left unset follows this key, so a stored "false" keeps all four off.
+     */
     public static final String HEADERS = "ui.visibility.headers";
+    public static final String HEADER_BAND = "ui.visibility.headerBand";
+    public static final String HEADER_RULE = "ui.visibility.headerRule";
+    public static final String HEADER_GAP = "ui.visibility.headerGap";
+    public static final String HEADER_TEXT = "ui.visibility.headerText";
     public static final String STRIPE = "ui.visibility.stripe";
     public static final String NUMBERS = "ui.visibility.numbers";
     public static final String HOVER = "ui.visibility.hover";
@@ -41,8 +49,46 @@ public final class PanelVisibility {
         return !"false".equals(Settings.getProperty(MASTER)) && !"false".equals(Settings.getProperty(key));
     }
 
+    /** The four stronger-header options: an unset one follows the old combined switch, which is on unless stored as false. */
+    private static boolean header(String key) {
+        if (!enabled())
+            return false;
+        String v = Settings.getProperty(key);
+        return v == null ? !"false".equals(Settings.getProperty(HEADERS)) : !"false".equals(v);
+    }
+
+    /** The stored state of one option for the settings window, ignoring the master switch: an unset header option follows the old combined one. */
+    public static boolean optionValue(String key) {
+        String v = Settings.getProperty(key);
+        boolean headerKey = HEADER_BAND.equals(key) || HEADER_RULE.equals(key) || HEADER_GAP.equals(key) || HEADER_TEXT.equals(key);
+        if (v == null && headerKey)
+            v = Settings.getProperty(HEADERS);
+        return !"false".equals(v);
+    }
+
+    /** A bolder band: pushed further from the panel colour until it is clearly a band. */
+    public static boolean headerBand() {
+        return header(HEADER_BAND);
+    }
+
+    /** A thicker rule under each top-level section. */
+    public static boolean headerRule() {
+        return header(HEADER_RULE);
+    }
+
+    /** More space between top-level sections. */
+    public static boolean headerGap() {
+        return header(HEADER_GAP);
+    }
+
+    /** The Section header text (strong) colour for the title, held to 3.5:1. */
+    public static boolean headerText() {
+        return header(HEADER_TEXT);
+    }
+
+    /** Any of the four stronger-header options is on. */
     public static boolean headers() {
-        return on(HEADERS);
+        return headerBand() || headerRule() || headerGap() || headerText();
     }
 
     public static boolean stripe() {
@@ -93,12 +139,12 @@ public final class PanelVisibility {
 
     /** Thickness of the rule under a top-level section. */
     public static int separatorThickness() {
-        return headers() ? 2 : 1;
+        return headerRule() ? 2 : 1;
     }
 
     /** Ground under a top-level section, between its last control and the next band. */
     public static int sectionGap() {
-        return headers() ? 9 : 5;
+        return headerGap() ? 9 : 5;
     }
 
     /** Width of the accent stripe, 0 when there is none. */
@@ -110,13 +156,14 @@ public final class PanelVisibility {
     public static Color headerFill(Theme theme, boolean child) {
         Color base = theme.get(Theme.Token.HeaderFill);
         Color band = base;
-        if (headers()) {
+        if (headerBand()) {
             Color panel = theme.get(Theme.Token.Background);
-            Color text = theme.get(Theme.Token.HeaderTextStrong);
+            Color text = theme.get(headerText() ? Theme.Token.HeaderTextStrong : Theme.Token.HeaderText);
+            double textMin = headerText() ? Theme.STRONG_TEXT_MIN : Theme.TEXT_MIN;
             Color away = theme.get(Theme.Token.Foreground);
             for (double f = 0.05; f <= 0.6 && Theme.contrast(band, panel) < STRONG_BAND; f += 0.05) {
                 Color c = Theme.mix(base, away, f);
-                if (Theme.contrast(Theme.legibleOn(text, c, Theme.STRONG_TEXT_MIN), c) < Theme.STRONG_TEXT_MIN)
+                if (Theme.contrast(Theme.legibleOn(text, c, textMin), c) < textMin)
                     break; // any further and the title cannot be made to read, even brightened
                 band = c;
             }
@@ -133,7 +180,7 @@ public final class PanelVisibility {
 
     /** The title colour for a band, held to 4.5:1 (3.5:1 for the strong one) on whichever fill is in use: the strong one when headers are strong. */
     public static Color headerText(Theme theme, Color fill) {
-        if (headers())
+        if (headerText())
             return Theme.legibleOn(theme.get(Theme.Token.HeaderTextStrong), fill, Theme.STRONG_TEXT_MIN);
         return Theme.legibleOn(theme.get(Theme.Token.HeaderText), fill, Theme.TEXT_MIN);
     }
@@ -171,7 +218,7 @@ public final class PanelVisibility {
 
     /** The band under the pointer: one step toward the text colour, if the title still reads on it. */
     public static Color hoverFill(Theme theme, Color fill) {
-        double min = headers() ? Theme.STRONG_TEXT_MIN : Theme.TEXT_MIN;
+        double min = headerText() ? Theme.STRONG_TEXT_MIN : Theme.TEXT_MIN;
         Color text = headerText(theme, fill);
         for (double f : new double[]{0.16, 0.10, 0.06}) {
             Color c = Theme.mix(fill, theme.get(Theme.Token.Foreground), f);

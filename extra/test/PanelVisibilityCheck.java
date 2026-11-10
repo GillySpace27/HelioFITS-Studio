@@ -37,7 +37,7 @@ public final class PanelVisibilityCheck {
         Color child = PanelVisibility.headerFill(theme, true);
         Color text = PanelVisibility.headerText(theme, fill);
         // The strong title (headers on) is held to 3.5:1; the plain one to 4.5:1.
-        double floor = PanelVisibility.headers() ? Theme.STRONG_TEXT_MIN : Theme.TEXT_MIN;
+        double floor = PanelVisibility.headerText() ? Theme.STRONG_TEXT_MIN : Theme.TEXT_MIN;
         expect(n + ": band at least as strong as the theme's own", Theme.contrast(fill, panel) >= Theme.contrast(base, panel) - 1e-9);
         expect(n + ": band clears 3:1 on the panel", Theme.contrast(fill, panel) >= 3);
         expect(n + ": title keeps its floor on the band", Theme.contrast(text, fill) >= floor);
@@ -116,6 +116,46 @@ public final class PanelVisibilityCheck {
         Settings.setProperty(PanelVisibility.NUMBERS, "false");
         expect("one option off leaves the others on", !PanelVisibility.numbers() && PanelVisibility.headers() && PanelVisibility.stripe());
         Settings.setProperty(PanelVisibility.NUMBERS, "true");
+
+        // The stronger-header options are independent: each one changes only its own part.
+        Theme t0 = themes.get(0);
+        expect("the four header options are on by default", PanelVisibility.headerBand() && PanelVisibility.headerRule()
+                && PanelVisibility.headerGap() && PanelVisibility.headerText());
+        // Nothing is stored per option yet, so each follows the old combined switch (a stored false keeps all four off).
+        Settings.setProperty(PanelVisibility.HEADERS, "false");
+        expect("old combined switch off, nothing stored per option: all four off",
+                !PanelVisibility.headerBand() && !PanelVisibility.headerRule() && !PanelVisibility.headerGap() && !PanelVisibility.headerText()
+                        && !PanelVisibility.optionValue(PanelVisibility.HEADER_BAND));
+        Settings.setProperty(PanelVisibility.HEADER_RULE, "true");
+        expect("a stored per-option value wins over the old switch", PanelVisibility.headerRule() && !PanelVisibility.headerGap());
+        Settings.setProperty(PanelVisibility.HEADERS, "true");
+        Settings.setProperty(PanelVisibility.HEADER_BAND, "true");
+        Settings.setProperty(PanelVisibility.HEADER_GAP, "true");
+        Settings.setProperty(PanelVisibility.HEADER_TEXT, "true");
+        Color strongBand = PanelVisibility.headerFill(t0, false);
+        Color strongText = PanelVisibility.headerText(t0, strongBand);
+
+        Settings.setProperty(PanelVisibility.HEADER_RULE, "false");
+        expect("rule off: 1px rule, the gap stays 9px", PanelVisibility.separatorThickness() == 1 && PanelVisibility.sectionGap() == 9);
+        Settings.setProperty(PanelVisibility.HEADER_RULE, "true");
+        Settings.setProperty(PanelVisibility.HEADER_GAP, "false");
+        expect("gap off: 5px gap, the rule stays 2px", PanelVisibility.sectionGap() == 5 && PanelVisibility.separatorThickness() == 2);
+        Settings.setProperty(PanelVisibility.HEADER_GAP, "true");
+        Settings.setProperty(PanelVisibility.HEADER_BAND, "false");
+        expect("band off: the theme's own band, the strong title colour stays",
+                PanelVisibility.headerFill(t0, false).equals(t0.get(Theme.Token.HeaderFill)) && PanelVisibility.headerText()
+                        && PanelVisibility.headerText(t0, PanelVisibility.headerFill(t0, false)).equals(
+                        Theme.legibleOn(t0.get(Theme.Token.HeaderTextStrong), PanelVisibility.headerFill(t0, false), Theme.STRONG_TEXT_MIN)));
+        Settings.setProperty(PanelVisibility.HEADER_BAND, "true");
+        Settings.setProperty(PanelVisibility.HEADER_TEXT, "false");
+        Color plainFill = PanelVisibility.headerFill(t0, false);
+        Color plainText = PanelVisibility.headerText(t0, plainFill);
+        expect("title colour off: the plain title colour, held to 4.5:1 on its band",
+                plainText.equals(Theme.legibleOn(t0.get(Theme.Token.HeaderText), plainFill, Theme.TEXT_MIN))
+                        && Theme.contrast(plainText, plainFill) >= Theme.TEXT_MIN
+                        && Theme.contrast(plainFill, t0.get(Theme.Token.Background)) >= 3);
+        Settings.setProperty(PanelVisibility.HEADER_TEXT, "true");
+        expect("all four back on: the strong title is back", PanelVisibility.headerText(t0, strongBand).equals(strongText));
 
         System.out.println(failures == 0 ? "PanelVisibilityCheck: PASS" : "PanelVisibilityCheck: " + failures + " FAIL");
         // Exit explicitly: CollapsiblePane.side() reaches RightSidebar, which starts the AWT event thread, and

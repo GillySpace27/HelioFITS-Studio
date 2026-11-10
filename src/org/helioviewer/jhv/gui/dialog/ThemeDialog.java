@@ -182,7 +182,10 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
         c.insets = new Insets(0, 6, 0, 6);
 
         String[][] options = {
-                {PanelVisibility.HEADERS, "Stronger section headers", "Bolder bands, a thicker rule and a little more space between sections. Titles use the Section header text (strong) colour above."},
+                {PanelVisibility.HEADER_BAND, "Bolder header bands", "Push each top-level header band further from the panel colour until it clearly reads as a band."},
+                {PanelVisibility.HEADER_RULE, "Thicker rule under each section", "A 2 pixel rule under every top-level section instead of 1."},
+                {PanelVisibility.HEADER_GAP, "More space between sections", "A little more room under each top-level section, before the next band."},
+                {PanelVisibility.HEADER_TEXT, "Strong header title colour", "Titles use the Section header text (strong) colour above, held to 3.5:1 on the band."},
                 {PanelVisibility.STRIPE, "Accent stripe on each section", "A thin stripe in the accent colour on the leading edge of every top-level header."},
                 {PanelVisibility.NUMBERS, "Number the sections", "Put L1, L2 (left) and R1, R2 (right) in front of each top-level title, in the order they appear: Ctrl+N and Option+N reach them (Shift+Option+N on the left on a Mac)."},
                 {org.helioviewer.jhv.gui.component.PanelKeyHint.KEY, "Box the numbers while Ctrl, Shift+Option or Option is held", "Hold Shift+Option (Ctrl on Windows and Linux) for the left sidebar's numbers, Option (Alt) for the right one's; shown even when numbering is off."},
@@ -208,7 +211,7 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
         box.add(master, c);
         int row = 1;
         for (String[] o : options) {
-            javax.swing.JCheckBox sub = new javax.swing.JCheckBox(o[1], !"false".equals(Settings.getProperty(o[0])));
+            javax.swing.JCheckBox sub = new javax.swing.JCheckBox(o[1], PanelVisibility.optionValue(o[0]));
             sub.setToolTipText(o[2]);
             sub.setEnabled(master.isSelected());
             sub.addActionListener(e -> {

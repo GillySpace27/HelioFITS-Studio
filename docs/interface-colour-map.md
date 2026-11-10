@@ -44,8 +44,8 @@ header would get more or less contrast against the panel behind it.
 ### Easier to find panels
 
 `PanelVisibility` (gui/component) holds the Visibility options of the Theme dialog, under the settings
-`ui.visibility.enabled` (master) and `ui.visibility.headers|stripe|numbers|hover`, all on unless stored as
-`false`. They are not theme tokens. With the master off every value is the theme's own. On, from the
+`ui.visibility.enabled` (master) and `ui.visibility.headerBand|headerRule|headerGap|headerText|stripe|numbers|hover`, all on unless stored as
+`false`. (The four header options used to be one switch, `ui.visibility.headers`; an option with nothing stored follows it, so a stored `false` keeps all four off.) They are not theme tokens. With the master off every value is the theme's own. On, from the
 current theme's tokens: the `HeaderFill` band is mixed toward `Foreground` until it reaches 4.5:1 on
 `Background`, stopping where the title (`HeaderText`, brightened or darkened if needed) can no longer be
 held at 4.5:1 on it; the nested band is stepped down from it as `Theme.derive` does from the stated one
