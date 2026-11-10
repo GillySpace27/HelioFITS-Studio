@@ -40,6 +40,14 @@
         <arg value="-c"/>
         <arg value="git rev-parse -q --verify &quot;refs/tags/v${version}^{commit}&quot; >/dev/null 2>&amp;1 &amp;&amp; git rev-list --count &quot;v${version}..HEAD&quot; || true"/>
     </exec>
+    <!-- When this jar was made, UTC, so the About box can say how old the build is ("built ... 2
+         minutes ago"). channel names what kind of build it is: "release" (release/deploy_release.sh),
+         "debug" (release/debug-build.sh) or empty (CI and a plain ant jar). Set it with -Dchannel=. -->
+    <exec executable="sh" outputproperty="built">
+        <arg value="-c"/>
+        <arg value="date -u +%Y-%m-%dT%H:%M:%SZ"/>
+    </exec>
+    <property name="channel" value=""/>
     <exec executable="sh" outputproperty="dirty">
         <arg value="-c"/>
         <arg value='if [ -n "$(git status --porcelain src resources VERSION 2>/dev/null)" ]; then echo true; else echo false; fi'/>
@@ -212,6 +220,8 @@
         <replace file="${bin}/version.properties" token="@@COMMIT" value="${commit}"/>
         <replace file="${bin}/version.properties" token="@@DIRTY" value="${dirty}"/>
         <replace file="${bin}/version.properties" token="@@SINCE" value="${since}"/>
+        <replace file="${bin}/version.properties" token="@@BUILT" value="${built}"/>
+        <replace file="${bin}/version.properties" token="@@CHANNEL" value="${channel}"/>
         <manifestclasspath property="manifest_cp" jarfile="${jarfile}">
             <classpath>
                 <fileset refid="libfiles"/>
