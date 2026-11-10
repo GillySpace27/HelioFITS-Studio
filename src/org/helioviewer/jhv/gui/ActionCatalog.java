@@ -245,7 +245,7 @@ public final class ActionCatalog {
                 org.helioviewer.jhv.gui.component.MenuBar.openSettingsTab("Keybindings");
             }
         }, "Managers/Keybindings Manager...", "Every command with its keybinding: search, change or reset (opens Settings on the Keybindings tab)");
-        // Fold or show a sidebar section by its number: Ctrl+1..9 left, Alt+1..9 right, 0 collapses all (press again within 5 s to escalate); Shift+Option on the left on a Mac (PanelKeys, CommandKeys)
+        // Fold or show a sidebar section by its number: Ctrl+1..9 left, Alt+1..9 right, 0 collapses all (press again within 5 s to escalate); Option on the left and Shift+Option on the right on a Mac (PanelKeys, CommandKeys)
         for (boolean right : new boolean[]{false, true}) {
             String side = right ? "Right" : "Left";
             put(org.helioviewer.jhv.gui.component.PanelKeys.idAll(right), org.helioviewer.jhv.gui.component.PanelKeys.actionAll(right),
