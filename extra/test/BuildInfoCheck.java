@@ -52,7 +52,7 @@ public final class BuildInfoCheck {
                 "Committed 2023-11-14 22:11 UTC (2 minutes ago)".equals(AppInfo.committedLine("1699999880", now, utc))
                         && AppInfo.committedLine("1699999880", now.plusSeconds(7200), utc).endsWith("(2 hours ago)")
                         && AppInfo.committedLine("1699999880", now.plusSeconds(3 * 86400), utc).endsWith("(3 days ago)")
-                        && AppInfo.committedLine("@@COMMITTIME", now, utc).isEmpty());
+                        && AppInfo.committedLine("@@CTIME", now, utc).isEmpty());
         System.setProperty("jhv.since", "112");
         System.setProperty("jhv.commit", "7671c40d9a1b");
         expect("buildId and the image stamp carry the label",

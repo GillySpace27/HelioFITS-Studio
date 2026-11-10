@@ -224,7 +224,7 @@
         <replace file="${bin}/version.properties" token="@@DIRTY" value="${dirty}"/>
         <replace file="${bin}/version.properties" token="@@SINCE" value="${since}"/>
         <replace file="${bin}/version.properties" token="@@TAGSINCE" value="${sincetag}"/>
-        <replace file="${bin}/version.properties" token="@@COMMITTIME" value="${committed}"/>
+        <replace file="${bin}/version.properties" token="@@CTIME" value="${committed}"/>
         <manifestclasspath property="manifest_cp" jarfile="${jarfile}">
             <classpath>
                 <fileset refid="libfiles"/>
