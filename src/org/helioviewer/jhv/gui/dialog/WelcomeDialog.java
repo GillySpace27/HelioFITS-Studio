@@ -28,7 +28,6 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
-import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
@@ -39,6 +38,7 @@ import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JToggleButton;
 import javax.swing.KeyStroke;
+import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 
 import org.helioviewer.jhv.app.AppInfo;
@@ -69,7 +69,7 @@ import com.google.common.html.HtmlEscapers;
  */
 public final class WelcomeDialog {
 
-    /** "false" keeps the window from opening at startup; Help > Welcome still opens it. */
+    /** WelcomeModel.ShowMode: "auto" or unset, "true" (always) or "false" (never). Help > Welcome opens it whatever it says. */
     static final String SHOW_KEY = "startup.welcome";
     /** Written the first time this window opens, so the first one can lead with the tours. */
     static final String SEEN_KEY = "startup.welcomeSeen";
@@ -83,19 +83,33 @@ public final class WelcomeDialog {
 
     public static void offerAtStartup(boolean bareLaunch) {
         if (!bareLaunch || GraphicsEnvironment.isHeadless() || Session.isExtraWindow() || System.getenv("CI") != null
-                || "false".equals(Settings.getProperty(SHOW_KEY))) {
+                || WelcomeModel.ShowMode.of(Settings.getProperty(SHOW_KEY)) == WelcomeModel.ShowMode.NEVER) {
             Tour.offerOnce(bareLaunch);
             TipOfTheDay.offerAlone(bareLaunch); // skipped while the first-launch tour offer is pending
             return;
         }
         Tour.markOffered(); // the Welcome window has the tour's button; one invitation is enough
+        // A click or a key in the main window before the timer fires means the person is already
+        // working: the window would only be in the way.
+        java.util.concurrent.atomic.AtomicBoolean working = new java.util.concurrent.atomic.AtomicBoolean();
+        java.awt.event.AWTEventListener watch = ev -> {
+            if (isInput(ev) && inMainWindow(ev.getSource()))
+                working.set(true);
+        };
+        java.awt.Toolkit.getDefaultToolkit().addAWTEventListener(watch, java.awt.AWTEvent.MOUSE_EVENT_MASK | java.awt.AWTEvent.KEY_EVENT_MASK);
         // Checked when the timer fires, not now: macOS delivers a file opened from Finder after main
         // has started, and that launch has already said what it wants open.
         Timer later = new Timer(OFFER_DELAY_MS, e -> {
-            if (!CommandLine.desktopDocumentRequested()) {
-                tipAfterClose.set(true);
-                show();
+            java.awt.Toolkit.getDefaultToolkit().removeAWTEventListener(watch);
+            if (CommandLine.desktopDocumentRequested() || working.get())
+                return;
+            WelcomeModel.State state = WelcomeModel.state(Settings.getProperty(SEEN_KEY), Settings.getProperty(VERSION_KEY), AppInfo.version);
+            if (!WelcomeModel.showAtStartup(WelcomeModel.ShowMode.of(Settings.getProperty(SHOW_KEY)), state, sceneEmpty())) {
+                TipOfTheDay.atStartup(); // the window is skipped, the tip is not: it has its own switch
+                return;
             }
+            tipAfterClose.set(true);
+            show(true);
         });
         later.setRepeats(false);
         later.start();
@@ -109,6 +123,14 @@ public final class WelcomeDialog {
     }
 
     public static void show() {
+        show(false);
+    }
+
+    /**
+     * @param atStartup opened by the startup offer: a click in the main window closes it, since that
+     *                  person has started work. Opened from the Help menu it stays until closed.
+     */
+    private static void show(boolean atStartup) {
         JDialog open = showing.get();
         if (open != null) {
             open.toFront();
@@ -120,9 +142,16 @@ public final class WelcomeDialog {
 
         JDialog dialog = new JDialog(MainFrame.get(), "Welcome to HelioFITS Studio", false);
         dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+        java.awt.event.AWTEventListener clickAway = ev -> {
+            if (ev.getID() == java.awt.event.MouseEvent.MOUSE_PRESSED && inMainWindow(ev.getSource()))
+                dialog.dispose();
+        };
+        if (atStartup)
+            java.awt.Toolkit.getDefaultToolkit().addAWTEventListener(clickAway, java.awt.AWTEvent.MOUSE_EVENT_MASK);
         dialog.addWindowListener(new java.awt.event.WindowAdapter() {
             @Override
             public void windowClosed(java.awt.event.WindowEvent e) {
+                java.awt.Toolkit.getDefaultToolkit().removeAWTEventListener(clickAway);
                 showing.set(null);
                 if (tipAfterClose.getAndSet(false))
                     TipOfTheDay.atStartup(); // not over a tour started from here: atStartup checks
@@ -131,7 +160,7 @@ public final class WelcomeDialog {
         dialog.getRootPane().registerKeyboardAction(e -> dialog.dispose(),
                 KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_IN_FOCUSED_WINDOW);
 
-        Built built = build(dialog, state, org.helioviewer.jhv.layers.Layers.getImageLayers().isEmpty(), recentFiles());
+        Built built = build(dialog, state, sceneEmpty(), recentFiles());
         dialog.setContentPane(built.content());
         dialog.getRootPane().setDefaultButton(built.primary()); // Return presses it; the theme draws it as the one accent button
         dialog.pack();
@@ -481,10 +510,16 @@ public final class WelcomeDialog {
         if (pinned != null && !"false".equals(pinned) && !"true".equals(pinned))
             left.add(new JLabel("  (your default session opens first; File > Clear Default Session)"));
         left.add(Box.createHorizontalStrut(16));
-        JCheckBox atStartup = new JCheckBox("Show this window at startup", !"false".equals(Settings.getProperty(SHOW_KEY)));
-        atStartup.setToolTipText("This window only; Tip of the Day has its own switch. Help > Welcome opens it again");
-        atStartup.addActionListener(e -> Settings.setProperty(SHOW_KEY, Boolean.toString(atStartup.isSelected())));
-        left.add(atStartup);
+        JLabel showLabel = new JLabel("Show this window: ");
+        left.add(showLabel);
+        WelcomeModel.ShowMode[] modes = WelcomeModel.ShowMode.values();
+        JComboBox<String> show = new JComboBox<>(java.util.Arrays.stream(modes).map(m -> m.label).toArray(String[]::new));
+        showLabel.setLabelFor(show);
+        show.setSelectedIndex(WelcomeModel.ShowMode.of(Settings.getProperty(SHOW_KEY)).ordinal());
+        show.setToolTipText(WelcomeModel.SHOW_TOOLTIP);
+        show.getAccessibleContext().setAccessibleDescription(WelcomeModel.SHOW_TOOLTIP);
+        show.addActionListener(e -> Settings.setProperty(SHOW_KEY, modes[show.getSelectedIndex()].value));
+        left.add(show);
         row.add(left, BorderLayout.LINE_START);
 
         // One Settings button: Settings > Appearance has the text size and interface scale (Display Scaling, its own window).
@@ -518,6 +553,22 @@ public final class WelcomeDialog {
         b.getAccessibleContext().setAccessibleName(name);
         b.getAccessibleContext().setAccessibleDescription(description);
         b.setToolTipText(description);
+    }
+
+    private static boolean sceneEmpty() {
+        return org.helioviewer.jhv.layers.Layers.getImageLayers().isEmpty();
+    }
+
+    private static boolean isInput(java.awt.AWTEvent ev) {
+        return ev.getID() == java.awt.event.MouseEvent.MOUSE_PRESSED || ev.getID() == java.awt.event.KeyEvent.KEY_PRESSED;
+    }
+
+    /** Whether an event came from the main window (its canvas, panels or menus), not from this one or a dialog. */
+    private static boolean inMainWindow(Object source) {
+        java.awt.Window main = MainFrame.get();
+        if (main == null || !(source instanceof Component c))
+            return false;
+        return c == main || SwingUtilities.getWindowAncestor(c) == main;
     }
 
     private static List<File> recentFiles() {
