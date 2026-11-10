@@ -45,7 +45,7 @@ public final class StartupPrecedenceCheck {
     private static void row(boolean extraWindow, @javax.annotation.Nullable File restoreFile,
                             @javax.annotation.Nullable String loadState,
                             CommandLine.StartupState.Source want, @javax.annotation.Nullable File wantFile) {
-        CommandLine.StartupState got = CommandLine.resolveStartup(extraWindow, restoreFile, loadState, null);
+        CommandLine.StartupState got = CommandLine.resolveStartup(extraWindow, restoreFile, loadState, "last"); // the precedence below the blank rung
         File gotFile = got.uri() == null ? null : new File(got.uri());
         boolean ok = got.source() == want
                 && (wantFile == null ? gotFile == null : wantFile.getAbsoluteFile().equals(gotFile));
@@ -132,10 +132,15 @@ public final class StartupPrecedenceCheck {
         modeRow(true, restore, null, "blank", EXTRA, restore);
         modeRow(true, null, null, "blank", NONE, null);
         modeRow(false, restore, null, "last", AUTOSAVE, restore);
-        modeRow(false, restore, null, "", AUTOSAVE, restore);
+        modeRow(false, restore, null, "", BLANK, null);
+        // The default: nothing set means blank, so a plain launch opens nothing.
+        modeRow(false, restore, null, null, BLANK, null);
+        modeRow(false, restore, pin, null, PINNED, pinned);
+        modeRow(true, restore, null, null, EXTRA, restore);
 
         // The real startup path, primary window, with an autosave on disk. The first -state is the
         // one loadRequest loads, so an explicit one has to come first whatever is pinned.
+        Settings.setProperty("startup.mode", "last"); // these rows are about what is pinned, not the blank default
         launch("no -state, nothing pinned: the autosave", new String[0], restore, restore);
         launch("explicit -state over the autosave", new String[] {"-state", explicit.getPath()}, explicit, restore);
         Settings.setProperty("startup.loadState", "true");
@@ -165,7 +170,37 @@ public final class StartupPrecedenceCheck {
         expect("blank start: the copy is first in Open Recent",
                 kept != null && org.helioviewer.jhv.app.Session.recentSessions().indexOf(kept.getAbsolutePath()) == 0);
         launch("explicit -state over a blank start", new String[] {"-state", explicit.getPath()}, explicit, explicit);
+        // Blank is the default: with startup.mode never set, a plain launch loads nothing.
+        Settings.setProperty("startup.mode", "");
+        CommandLine.setArguments(new String[0]);
+        expect("default mode: no -state, got " + CommandLine.getOptionValues("-state"), CommandLine.getOptionValues("-state").isEmpty());
         Settings.setProperty("startup.mode", "last");
+
+        // A blank scene is not worth a recent: only an autosave with image layers is kept aside.
+        File blankScene = new File(states, "blank-scene.jhv");
+        Files.writeString(blankScene.toPath(), "{\"org.helioviewer.jhv.state\":{\"imageLayers\":[]}}");
+        File fullScene = new File(states, "full-scene.jhv");
+        Files.writeString(fullScene.toPath(), "{\"org.helioviewer.jhv.state\":{\"imageLayers\":[{}]}}");
+        expect("a blank scene is not kept aside", !org.helioviewer.jhv.app.Session.hasImageLayers(blankScene));
+        expect("a scene with image layers is", org.helioviewer.jhv.app.Session.hasImageLayers(fullScene));
+
+        // Cancel in the download review: the window leaves the session being opened before anything is
+        // cleared, so no autosave can land on it, and the Untitled autosave it replaces is kept aside.
+        File opened = new File(states, "Opened.jhv");
+        Files.writeString(opened.toPath(), "{\"org.helioviewer.jhv.state\":{\"imageLayers\":[{}]}}");
+        Files.writeString(restore.toPath(), "{\"org.helioviewer.jhv.state\":{\"imageLayers\":[{}],\"keep\":1}}");
+        org.helioviewer.jhv.app.Session.setSessionFile(opened, true);
+        org.helioviewer.jhv.app.Session.expectStateLoad();
+        org.helioviewer.jhv.app.Session.abandonLoad();
+        File now = org.helioviewer.jhv.app.Session.currentSessionFile();
+        expect("after Cancel the window no longer writes to the opened session, got " + now, now != null && !now.equals(opened) && restore.equals(now));
+        expect("after Cancel the opened session is untouched", Files.readString(opened.toPath()).contains("imageLayers"));
+        expect("after Cancel the window is Untitled", !org.helioviewer.jhv.app.Session.isNamedSession());
+        boolean keptCopy = false;
+        for (String n : states.list())
+            if (n.startsWith("Untitled before blank start") && Files.readString(new File(states, n).toPath()).contains("\"keep\":1"))
+                keptCopy = true;
+        expect("after Cancel the Untitled autosave it will overwrite is kept aside", keptCopy);
 
         System.out.println(failures == 0 ? "StartupPrecedenceCheck: ok" : "StartupPrecedenceCheck: " + failures + " FAIL");
         System.exit(failures == 0 ? 0 : 1);

@@ -92,6 +92,32 @@ public final class LoadGuard {
         }
     }
 
+    /** What the person chose for one layer. */
+    public enum Choice { DOWNLOAD, POSTPONE, CANCEL }
+
+    /** The outcome of a review: places in imageLayers to hold, places to leave out of the session load, or the whole load aborted. */
+    public record Review(java.util.Set<Integer> held, java.util.Set<Integer> dropped, boolean aborted) {
+        public static final Review NONE = new Review(java.util.Set.of(), java.util.Set.of(), false);
+        /** The person backed out of the whole load (Cancel next to Go): nothing is loaded and the session goes blank. */
+        public static final Review ABORT = new Review(java.util.Set.of(), java.util.Set.of(), true);
+
+        public Review(java.util.Set<Integer> held, java.util.Set<Integer> dropped) {
+            this(held, dropped, false);
+        }
+    }
+
+    /** Turns one choice per item into a Review. A layer with nothing to download cannot be held, but can still be cancelled. */
+    public static Review review(List<Item> items, Choice[] choices) {
+        java.util.Set<Integer> held = new java.util.TreeSet<>(), dropped = new java.util.TreeSet<>();
+        for (int i = 0; i < items.size(); i++) {
+            if (choices[i] == Choice.CANCEL)
+                dropped.add(items.get(i).at());
+            else if (choices[i] == Choice.POSTPONE && items.get(i).toDownload() > 0)
+                held.add(items.get(i).at());
+        }
+        return new Review(held, dropped);
+    }
+
     private LoadGuard() {}
 
     public static long maxFrames() {

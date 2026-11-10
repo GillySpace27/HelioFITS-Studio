@@ -355,17 +355,29 @@ public final class State {
 
     /**
      * Over the limit (LoadGuard), the person reviews the manifest first: the estimate comes back
-     * the places of the layers to be held, empty when the load goes ahead as it is. A command from
+     * the layers to hold and to leave out, empty when the load goes ahead as it is. A command from
      * outside (a context) or a window-less run cannot answer a dialog, so it postpones.
      */
-    private static java.util.Set<Integer> reviewDownload(@Nullable JSONArray imageLayers, @Nullable Commands.OperationContext context) {
+    private static LoadGuard.Review reviewDownload(@Nullable JSONArray imageLayers, @Nullable Commands.OperationContext context) {
         LoadGuard.Estimate estimate = LoadGuard.estimate(imageLayers, uri -> org.helioviewer.jhv.io.NetFileCache.cachedFile(uri).isFile());
         if (!estimate.over(LoadGuard.maxFrames(), LoadGuard.maxBytes()))
-            return java.util.Set.of();
+            return LoadGuard.Review.NONE;
         Log.warn("Session would download " + estimate.frames() + " frames, about " + LoadGuard.sizeText(estimate.bytes()));
         if (context != null || java.awt.GraphicsEnvironment.isHeadless())
-            return estimate.downloading();
+            return new LoadGuard.Review(estimate.downloading(), java.util.Set.of());
         return org.helioviewer.jhv.gui.dialog.LoadGuardDialog.postponed(estimate);
+    }
+
+    /**
+     * Cancel in the review: load nothing and go blank. The window is pointed away from the session
+     * file first (Session.abandonLoad), so the layers removed next, and every autosave after, land
+     * on an Untitled file and never on the session that was being opened.
+     */
+    private static void abandonLoad(@Nullable Commands.OperationContext context) {
+        org.helioviewer.jhv.app.Session.abandonLoad();
+        new org.helioviewer.jhv.gui.Actions.NewSession().clear();
+        Commands.notifyLoadStateFinished(context, false, "Load cancelled.");
+        org.helioviewer.jhv.gui.dialog.WelcomeDialog.show();
     }
 
     private static void loadLayers(JSONObject data, @Nullable Commands.OperationContext context, ViewState.ModeData modeData) {
@@ -397,12 +409,18 @@ public final class State {
         ImageLayer masterLayer = null;
 
         JSONArray imageLayers = data.optJSONArray("imageLayers");
-        java.util.Set<Integer> held = reviewDownload(imageLayers, context);
+        LoadGuard.Review review = reviewDownload(imageLayers, context);
+        if (review.aborted()) {
+            abandonLoad(context);
+            return;
+        }
         if (imageLayers != null) {
             for (int at = 0; at < imageLayers.length(); at++) {
                 if (imageLayers.opt(at) instanceof JSONObject jo) {
                     JSONObject jd = jo.optJSONObject("data");
                     if (jd == null)
+                        continue;
+                    if (review.dropped().contains(at)) // cancelled in the review: left out of the load
                         continue;
                     if (!hasRestorableData(jd)) {
                         // A husk from a session saved before the write-side guard existed. Creating
@@ -413,7 +431,7 @@ public final class State {
                     }
 
                     try {
-                        ImageLayer layer = ImageLayer.createDetached(jd, held.contains(at));
+                        ImageLayer layer = ImageLayer.createDetached(jd, review.held().contains(at));
                         restoreId(jo, layer);
                         restoredLayers.add(layer);
                         newLayers.put(layer, jo.optBoolean("enabled", false));
