@@ -90,6 +90,27 @@ public final class ProductVariantsCheck {
                 "aspiics_pb_l3_20250523T091503_merged_v03.fits"));
         expect("countKinds counts each kind", kinds.size() == 2 && kinds.get(a) == 2 && kinds.get(c) == 1);
 
+        List<String> mixed = List.of(
+                "aspiics_pb_l3_20250523T091503.fits",
+                "aspiics_pb_l3_1630400C0001_20250523T093003.fits",
+                "aspiics_pb_l3_20250523T094503_v03.fits");
+        expect("the no-suffix kind selects only the unsuffixed files",
+                mixed.stream().filter(d -> ProductVariants.kindMatches("", d)).count() == 2);
+        expect("the v03 kind selects only the v03 files",
+                mixed.stream().filter(d -> ProductVariants.kindMatches("v03", d)).count() == 1);
+        expect("all kinds selects every file",
+                mixed.stream().filter(d -> ProductVariants.kindMatches(ProductVariants.ALL_KINDS, d)).count() == 3);
+
+        expect("the all product matches any type", ProductVariants.productMatches(ProductVariants.ALL_PRODUCTS, "zz"));
+        expect("a product matches only its own type", !ProductVariants.productMatches("pb", "bt"));
+        String f = "2025/05/23/aspiics_pb_l3_20250523T094503_V03.fits";
+        expect("a blank filter keeps everything", ProductVariants.nameMatches("  ", false, f) && ProductVariants.nameMatches("", true, f));
+        expect("the filter ignores case", ProductVariants.nameMatches("v03", false, f));
+        expect("a miss is dropped when including", !ProductVariants.nameMatches("merged", false, f));
+        expect("exclude drops the matches", !ProductVariants.nameMatches("v03", true, f));
+        expect("exclude keeps the rest", ProductVariants.nameMatches("merged", true, f));
+        expect("the directory is not searched", !ProductVariants.nameMatches("2025/05", false, f));
+
         for (String code : List.of("bt", "pb", "pa", "fe", "he"))
             expect("ASPIICS product " + code + " has a tooltip", ProductVariants.aspiicsProductTip(code) != null);
         expect("an unknown ASPIICS product has none", ProductVariants.aspiicsProductTip("zz") == null);

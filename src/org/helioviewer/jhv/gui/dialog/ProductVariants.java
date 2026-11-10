@@ -64,6 +64,7 @@ final class ProductVariants {
             case "pa" -> "Polarisation angle";
             case "fe" -> "Fe XIV green line image, K and F corona continuum removed";
             case "he" -> "He I D3 line image, K and F corona continuum removed";
+            case ALL_PRODUCTS -> "Every product type in the result, including any the archive adds later";
             default -> null;
         };
     }
@@ -98,6 +99,33 @@ final class ProductVariants {
             kind.append(token);
         }
         return kind.toString();
+    }
+
+    /** The combo entry that shows every kind. Not "", which is the kind of a file with no suffix. */
+    static final String ALL_KINDS = "*";
+
+    /** Whether a file belongs to the selected kind; ALL_KINDS matches every file, "" only the no-suffix ones. */
+    static boolean kindMatches(String selected, String datalocation) {
+        return ALL_KINDS.equals(selected) || selected.equals(aspiicsKind(datalocation));
+    }
+
+    /** The product button that lists every product type the archive returns, so a new one needs no code. */
+    static final String ALL_PRODUCTS = "all";
+
+    static boolean productMatches(String selected, String type) {
+        return ALL_PRODUCTS.equals(selected) || selected.equals(type);
+    }
+
+    /**
+     * The name filter: a case-insensitive substring of the file name. Blank keeps everything;
+     * exclude drops the files that contain it instead of keeping only them.
+     */
+    static boolean nameMatches(String text, boolean exclude, String datalocation) {
+        String needle = text.strip().toLowerCase(Locale.ROOT);
+        if (needle.isEmpty())
+            return true;
+        String name = datalocation.substring(datalocation.lastIndexOf('/') + 1).toLowerCase(Locale.ROOT);
+        return name.contains(needle) != exclude;
     }
 
     /** Frames per kind, in name order. */
