@@ -258,6 +258,12 @@ public final class WelcomeDialog {
         ActionCatalog.Entry feedback = ActionCatalog.get("sendFeedback");
         helpRow(rows, c, feedback == null ? null : feedback.action(), false, "Send Feedback\u2026", dialog,
                 "A problem, a request or a question for the developer; no account needed.");
+        helpRow(rows, c, linkAction("https://github.com/GillySpace27/pyHelioFITS/blob/main/docs/mcp.md"), false, "MCP Server Docs", dialog,
+                "heliofits-mcp lets an AI assistant such as Claude Desktop drive Studio and the cache. It runs over stdio from the pyHelioFITS "
+                        + "package (pip install \"pyheliofits[mcp]\") and offers studio_* and cache_* tools. It needs the Local API below.");
+        helpRow(rows, c, linkAction(org.helioviewer.jhv.app.AppInfo.sourceURL + "/blob/master/docs/local-api.md"), false, "Local API Docs", dialog,
+                "Lets scripts and heliofits-mcp on this computer call Studio. Off by default: Settings > General > Local API. "
+                        + "When on, the port and key are in ~/HFStudio/api.json.");
         return titled("Find your way around", rows);
     }
 
@@ -288,6 +294,15 @@ public final class WelcomeDialog {
         JLabel desc = new JLabel("<html><div style='width:430px'>" + lead + escape(text) + "</div></html>");
         rows.add(desc, c);
         c.gridy++;
+    }
+
+    private static Action linkAction(String url) {
+        return new AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                org.helioviewer.jhv.gui.DesktopIntegration.openURL(url);
+            }
+        };
     }
 
     private static String shortcut(Action action) {
