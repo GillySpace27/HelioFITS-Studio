@@ -56,12 +56,16 @@ public final class Watchdog {
 
     // Below here the event thread's alone.
     private static final ArrayDeque<Long> recent = new ArrayDeque<>(); // when the last stalls ended, for REPEAT_STALLS
-    private static int stalls; // since fetches were last free
-    private static String lastStallAt = "";
-    private static long lastStall;
-    private static boolean settling, sawCancel, keptOnHold;
-    private static JOptionPane pane;
-    private static JDialog prompt;
+    private static final Edt edt = new Edt();
+
+    private static final class Edt {
+        int stalls; // since fetches were last free
+        String lastStallAt = "";
+        long lastStall;
+        boolean settling, sawCancel, keptOnHold;
+        JOptionPane pane;
+        JDialog prompt;
+    }
 
     private Watchdog() {}
 
@@ -128,19 +132,19 @@ public final class Watchdog {
     /** The window answered: at this moment, in milliseconds on any steady clock. */
     static void answered(long nowMs) {
         if (INTERVENED.getAndSet(false)) {
-            sawCancel |= CANCELLED.getAndSet(false);
-            stalls++;
-            lastStall = nowMs;
-            lastStallAt = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
+            edt.sawCancel |= CANCELLED.getAndSet(false);
+            edt.stalls++;
+            edt.lastStall = nowMs;
+            edt.lastStallAt = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
             recent.addLast(nowMs);
-            settling = true;
-            if (prompt != null) {
-                pane.setMessage(promptText());
-                prompt.pack();
+            edt.settling = true;
+            if (edt.prompt != null) {
+                edt.pane.setMessage(promptText());
+                edt.prompt.pack();
             }
         }
-        if (settling && nowMs - lastStall >= QUIET_MS) {
-            settling = false;
+        if (edt.settling && nowMs - edt.lastStall >= QUIET_MS) {
+            edt.settling = false;
             settle(nowMs);
         }
     }
@@ -148,60 +152,60 @@ public final class Watchdog {
     private static void settle(long nowMs) {
         while (!recent.isEmpty() && nowMs - recent.peekFirst() > REPEAT_WINDOW_MS)
             recent.removeFirst();
-        if (keptOnHold) // the person said hold; the Task Manager's Resume is the way back
+        if (edt.keptOnHold) // the person said hold; the Task Manager's Resume is the way back
             return;
-        if (prompt == null && autoResumes(sawCancel, recent.size())) {
-            Log.info("The window is answering again; downloads resume after " + stalls + " stall(s)");
+        if (edt.prompt == null && autoResumes(edt.sawCancel, recent.size())) {
+            Log.info("The window is answering again; downloads resume after " + edt.stalls + " stall(s)");
             release();
-        } else if (prompt == null)
+        } else if (edt.prompt == null)
             showPrompt();
     }
 
     private static void release() {
         FetchGate.pause(false);
-        stalls = 0;
-        sawCancel = false;
-        keptOnHold = false;
+        edt.stalls = 0;
+        edt.sawCancel = false;
+        edt.keptOnHold = false;
     }
 
     /** A person chose to resume. On the event thread. */
     public static void resume() {
         release();
-        settling = false;
+        edt.settling = false;
         recent.clear();
         closePrompt();
     }
 
     private static String promptText() {
-        return (sawCancel ? "Downloads were cancelled and new ones are on hold" : "New downloads are on hold")
-                + " (Studio stopped responding " + (stalls == 1 ? "once" : stalls + " times") + ", last at " + lastStallAt + ", or a stop was sent)."
+        return (edt.sawCancel ? "Downloads were cancelled and new ones are on hold" : "New downloads are on hold")
+                + " (Studio stopped responding " + (edt.stalls == 1 ? "once" : edt.stalls + " times") + ", last at " + edt.lastStallAt + ", or a stop was sent)."
                 + "\nResume downloading? A cancelled layer starts again from Refresh or by adding it again.";
     }
 
     private static void showPrompt() {
         if (java.awt.GraphicsEnvironment.isHeadless())
             return;
-        pane = new JOptionPane(promptText(), JOptionPane.WARNING_MESSAGE, JOptionPane.DEFAULT_OPTION, null, new String[]{KEEP, RESUME}, KEEP);
-        prompt = pane.createDialog(org.helioviewer.jhv.gui.MainFrame.get(), "Studio seemed stuck");
-        prompt.setModal(false); // a modal one keeps the event queue running under it, which is how they stacked
-        prompt.setAutoRequestFocus(false);
-        pane.addPropertyChangeListener(JOptionPane.VALUE_PROPERTY, e -> {
+        edt.pane = new JOptionPane(promptText(), JOptionPane.WARNING_MESSAGE, JOptionPane.DEFAULT_OPTION, null, new String[]{KEEP, RESUME}, KEEP);
+        edt.prompt = edt.pane.createDialog(org.helioviewer.jhv.gui.MainFrame.get(), "Studio seemed stuck");
+        edt.prompt.setModal(false); // a modal one keeps the event queue running under it, which is how they stacked
+        edt.prompt.setAutoRequestFocus(false);
+        edt.pane.addPropertyChangeListener(JOptionPane.VALUE_PROPERTY, e -> {
             if (e.getNewValue() == JOptionPane.UNINITIALIZED_VALUE)
                 return;
             if (RESUME.equals(e.getNewValue()))
                 resume();
             else { // Keep on hold, or the window closed
-                keptOnHold = true;
+                edt.keptOnHold = true;
                 closePrompt();
             }
         });
-        prompt.setVisible(true);
+        edt.prompt.setVisible(true);
     }
 
     private static void closePrompt() {
-        JDialog d = prompt;
-        prompt = null;
-        pane = null;
+        JDialog d = edt.prompt;
+        edt.prompt = null;
+        edt.pane = null;
         if (d != null)
             d.dispose();
     }
