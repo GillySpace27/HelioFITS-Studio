@@ -4,6 +4,10 @@
 
 ## HelioFITS Studio 0.9.2 (unreleased)
 
+### Changes
+- The Image Layers and Playback and Recording sections start open on a fresh install; a fold state already saved in your settings is kept.
+- On a Mac the sidebar section keys are swapped to read more naturally: Option+1 to Option+9 now fold the left sidebar's sections and Shift+Option+1 to Shift+Option+9 the right one's (Option+0 and Shift+Option+0 collapse all, left first and right first). Keys you changed in Keybindings are left as you set them; only keys still at their default move. Off a Mac nothing changes.
+
 ### Fixes
 - About and the Welcome window now say which build you are running: the version with its commits since the tag (0.9.2+37, once the tag exists), the build number (the commit count), the commit, and "debug" for a debug build, plus a line "built Nov 10, 2026 11:09 MST (2 minutes ago)" ("released ..." in a release build). Before, an untagged version read "version 0.9.2, build 0.9.2". The jar carries `jhv.built` and `jhv.channel`; a plain `ant jar` and CI leave the channel empty.
 - The Task Manager's Right now list keeps finished work instead of dropping it the moment it ends: each line has a Status (running, success, failed, cancelled; stopped for a recording you stopped), stays until you press Dismiss, and Clear finished empties them all.
