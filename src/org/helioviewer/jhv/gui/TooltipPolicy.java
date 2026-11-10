@@ -6,6 +6,8 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowEvent;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import javax.swing.ToolTipManager;
 
 /**
@@ -21,7 +23,7 @@ public final class TooltipPolicy {
     // Swing adds the delay to a long, so Integer.MAX_VALUE is as good as forever (about 24 days).
     static final int DISMISS_DELAY_MS = Integer.MAX_VALUE;
 
-    private static boolean installed;
+    private static final AtomicBoolean installed = new AtomicBoolean();
 
     private TooltipPolicy() {
     }
@@ -31,9 +33,8 @@ public final class TooltipPolicy {
         m.setInitialDelay(INITIAL_DELAY_MS);
         m.setReshowDelay(RESHOW_DELAY_MS);
         m.setDismissDelay(DISMISS_DELAY_MS);
-        if (installed)
+        if (!installed.compareAndSet(false, true))
             return;
-        installed = true;
         Toolkit.getDefaultToolkit().addAWTEventListener(TooltipPolicy::onEvent,
                 AWTEvent.KEY_EVENT_MASK | AWTEvent.MOUSE_EVENT_MASK | AWTEvent.WINDOW_EVENT_MASK);
     }

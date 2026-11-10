@@ -104,9 +104,9 @@ if [ "$LAUNCH" = 1 ]; then
     # were given a debug home. Matched on command line plus environment (ps eww); never /Applications or ~/HFStudio.
     stale() { ps eww -axo pid=,command= | grep -E "$HOME/hfs-rc/|HFS_HOME=$TARGET_DATA|user\.home=$TARGET_DATA|user\.home=$HOME/HFStudio-debug" \
         | grep -E "HFStudio|HelioFITS Studio" | grep -v -E "grep|ps eww" | awk -v me=$$ '$1 != me {print $1}'; }
-    pids=$(stale); [ -z "$pids" ] || { echo "==> quitting stale debug copies: $(echo $pids)"; kill $pids 2>/dev/null || true; }
+    pids=$(stale || true); [ -z "$pids" ] || { echo "==> quitting stale debug copies: $(echo $pids)"; kill $pids 2>/dev/null || true; }
     for _ in $(seq 10); do [ -z "$(stale)" ] && break; sleep 1; done
-    pids=$(stale); [ -z "$pids" ] || kill -9 $pids 2>/dev/null || true
+    pids=$(stale || true); [ -z "$pids" ] || kill -9 $pids 2>/dev/null || true
     mkdir -p "$TARGET_DATA"
     open -n ${TARGET_ENV:+--env "$TARGET_ENV"} "$APP" ${TARGET_ARGS:+--args $TARGET_ARGS}
     for _ in $(seq 20); do sleep 2; pgrep -f "$APP/Contents" >/dev/null && { [ -z "${TARGET_READY:-}" ] || eval "$TARGET_READY" >/dev/null 2>&1; } && break; done
