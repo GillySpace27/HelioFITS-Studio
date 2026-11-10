@@ -6,6 +6,7 @@ Each new entry ends with a `[docs: ...]` pointer to where it is documented (`rel
 ## HelioFITS Studio 0.9.2 (unreleased)
 
 ### Fixes
+- Tooltips stay up until you move the pointer off the control, instead of vanishing after about four seconds. A click, Esc, or switching to another window also hides one. The delay before a tooltip first appears is unchanged in spirit (0.6 s).
 - About and the Welcome window now say which build you are running: the version with its commits since the tag (0.9.2+37, once the tag exists), the build number (the commit count), the commit, and "debug" for a debug build, plus a line "built Nov 10, 2026 11:09 MST (2 minutes ago)" ("released ..." in a release build). Before, an untagged version read "version 0.9.2, build 0.9.2". The jar carries `jhv.built` and `jhv.channel`; a plain `ant jar` and CI leave the channel empty. [docs: release/RELEASING.md]
 - The Task Manager's Right now list keeps finished work instead of dropping it the moment it ends: each line has a Status (running, success, failed, cancelled; stopped for a recording you stopped), stays until you press Dismiss, and Clear finished empties them all.
 - In the Task Manager, the Recording row no longer deselects itself every half second, and Stop now stops the recording (the frames so far become the movie). The Right now list was keeping its selection by layer, which a recording does not have.
