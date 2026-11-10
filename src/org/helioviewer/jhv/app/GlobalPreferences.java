@@ -115,7 +115,7 @@ public final class GlobalPreferences {
             "display.", "ui.", "keys.", "canvasKeys.", "identify.", "load.", "study.", "video.", "activity.", "playback.",
             "player.", "plugins.", "export.", "preferences.", "presentation.keep", "api.glow", "record."};
     private static final java.util.Set<String> ALLOW_EXACT = java.util.Set.of(
-            "dataSources.defaultServer", "startup.sampHub", "startup.mode", "startup.welcome", "startup.welcomeSeen",
+            "dataSources.defaultServer", "startup.sampHub", "startup.mode", "startup.welcome", "startup.welcomeSeen", "startup.welcomeVersion",
             "session.confirmOnExit", "tips.atStartup", "tips.seen", "update.checkAtStartup", "api.confirmDestructive",
             "fitslibrary.hiddenColumns", "path.local", "path.state", "startup.loadState", "session.mainFile", "recentSessions");
     /** Allowed prefixes with exceptions: bound to one screen or one moment. */
