@@ -6,6 +6,7 @@ Each new entry ends with a `[docs: ...]` pointer to where it is documented (`rel
 ## HelioFITS Studio 0.9.2 (unreleased)
 
 ### Fixes
+- About and the Welcome window now say which build you are running: the version with its commits since the tag (0.9.2+37, once the tag exists), the build number (the commit count), the commit, and "debug" for a debug build, plus a line "built Nov 10, 2026 11:09 MST (2 minutes ago)" ("released ..." in a release build). Before, an untagged version read "version 0.9.2, build 0.9.2". The jar carries `jhv.built` and `jhv.channel`; a plain `ant jar` and CI leave the channel empty. [docs: release/RELEASING.md]
 - The download review window has Download all, Postpone all and Cancel all buttons, and a Cancel choice on each layer that leaves it out of the session. A Cancel button beside Go loads nothing and returns to the Welcome window with a blank session; the session being opened is not written to, and the Untitled one it replaces is kept in Open Recent.
 - Studio now opens blank unless you chose "Reopen the last session" in the Welcome window or Settings. The Welcome window has a Reopen Last Session button.
 - The Task Manager's Right now list keeps finished work instead of dropping it the moment it ends: each line has a Status (running, success, failed, cancelled; stopped for a recording you stopped), stays until you press Dismiss, and Clear finished empties them all.

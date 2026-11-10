@@ -168,7 +168,8 @@ public final class WelcomeDialog {
     private static JPanel header(JDialog dialog) {
         JPanel header = new JPanel(new BorderLayout(12, 0));
         JLabel title = new JLabel("<html><span style='font-size:150%'><b>Welcome to HelioFITS Studio</b></span><br>Version "
-                + escape(AppInfo.version) + ", build " + escape(AppInfo.buildId()) + "</html>");
+                + escape(AppInfo.displayBuild())
+                + (AppInfo.builtLine().isEmpty() ? "" : "<br>" + escape(AppInfo.builtLine())) + "</html>");
         header.add(title, BorderLayout.LINE_START);
         JButton news = new JButton("What's New in " + AppInfo.version);
         news.setToolTipText("The changes in this version");
