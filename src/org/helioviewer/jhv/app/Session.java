@@ -309,7 +309,7 @@ public final class Session {
         try {
             org.json.JSONObject main = new org.json.JSONObject(Files.readString(f.toPath())).optJSONObject("org.helioviewer.jhv.state");
             return main == null || main.optJSONArray("imageLayers") == null || !main.getJSONArray("imageLayers").isEmpty();
-        } catch (Exception e) { // unreadable or not JSON: keep it, losing a session is worse than a spare recent
+        } catch (IOException | org.json.JSONException e) { // unreadable or not JSON: keep it, losing a session is worse than a spare recent
             return true;
         }
     }
