@@ -56,6 +56,7 @@ public final class KeyBindings {
      * built; a later call applies again and keeps the defaults it recorded.
      */
     public static synchronized void apply() {
+        migratePanelKeys();
         for (ActionCatalog.Entry e : ActionCatalog.all()) {
             if (!defaults.containsKey(e.id()))
                 defaults.put(e.id(), e.action().getValue(Action.ACCELERATOR_KEY) instanceof KeyStroke ks ? ks : null);
@@ -67,6 +68,29 @@ public final class KeyBindings {
                 continue; // an unreadable value keeps the default
             e.action().putValue(Action.ACCELERATOR_KEY, ks);
         }
+    }
+
+    private static final String PANEL_KEYS_VERSION = "keys.panelDefaults";
+
+    /**
+     * The Mac sidebar section keys were swapped on 2026-11-10 (Option+N was the right sidebar, now the left).
+     * A settings file can hold the old default spelled out ("alt shift 1" for the left side), and that
+     * stays in force over the new default: the key then reached the left sidebar while the hint boxed
+     * the right one. Once, drop any stored value that still equals the old default so the command follows
+     * the new one. A value that differs from the old default is the person's own and stays.
+     */
+    private static void migratePanelKeys() {
+        if ("2".equals(Settings.getProperty(PANEL_KEYS_VERSION)))
+            return;
+        if (Platform.isMacOS())
+            for (boolean right : new boolean[]{false, true})
+                for (int n = 0; n <= 9; n++) {
+                    String id = n == 0 ? (right ? "foldRightPanelAll" : "foldLeftPanelAll") : (right ? "foldRightPanel" : "foldLeftPanel") + n;
+                    String oldDefault = right ? "alt " + n : "alt shift " + n;
+                    if (oldDefault.equals(Settings.getProperty(PREFIX + id)))
+                        Settings.setProperty(PREFIX + id, "");
+                }
+        Settings.setProperty(PANEL_KEYS_VERSION, "2");
     }
 
     /** The shortcut the command had before any of the person's changes, or null. */

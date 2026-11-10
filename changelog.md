@@ -5,6 +5,9 @@ Each new entry ends with a `[docs: ...]` pointer to where it is documented (`rel
 
 ## HelioFITS Studio 0.9.2 (unreleased)
 
+### Changes
+- The Image Layers and Playback and Recording sections start open on a fresh install; a fold state already saved in your settings is kept. [docs: docs/actions.md]
+- On a Mac the sidebar section keys are swapped to read more naturally: Option+1 to Option+9 now fold the left sidebar's sections and Shift+Option+1 to Shift+Option+9 the right one's (Option+0 and Shift+Option+0 collapse all, left first and right first). Keys you changed in Keybindings are left as you set them; only keys still at their default move. Off a Mac nothing changes. [docs: docs/actions.md]
 ### New
 - Help > Keyboard Shortcuts (Cmd+/, Ctrl+/ off a Mac; the same key closes it, as does Esc) opens a searchable overlay of every keyboard shortcut in force, grouped by area, with key caps spelled for your platform. It reads your current keybindings, so a change in Settings > Keybindings shows at once. The Welcome window has a Keybindings button for it. [docs: Help menu]
 

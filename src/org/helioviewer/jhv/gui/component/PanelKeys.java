@@ -24,8 +24,8 @@ import org.helioviewer.jhv.gui.registry.Shortcuts;
 
 /**
  * Fold or show a sidebar section from the keyboard, by its place in the sidebar: Ctrl+1 to Ctrl+9 for
- * the left one, Alt+1 to Alt+9 for the right one. On a Mac, Option+N for the right one and Shift+Option+N
- * for the left: bare Ctrl+digit is the system's switch-to-desktop.
+ * the left one, Alt+1 to Alt+9 for the right one. On a Mac, Option+N for the left one and Shift+Option+N
+ * for the right: bare Ctrl+digit is the system's switch-to-desktop.
  *
  * <p>Positional on purpose (Gilly, 2026-11-07): the key follows the number drawn in front of the
  * section's title, so moving a section changes which key reaches it, and what you see is what the
@@ -56,20 +56,20 @@ public final class PanelKeys {
     }
 
     /**
-     * The modifiers that reach a side. On a Mac (Gilly, 2026-11-09): Option on the right, Shift+Option
-     * on the left; bare Ctrl+digit is the system's "switch to desktop", so the left side is not Ctrl.
+     * The modifiers that reach a side. On a Mac (Gilly, 2026-11-10): Option on the left, Shift+Option
+     * on the right; bare Ctrl+digit is the system's "switch to desktop", so the left side is not Ctrl.
      * Option+digit types a symbol, which {@link CommandKeys} sees past by matching the key's code.
      * Elsewhere: Ctrl on the left, Alt on the right (Ctrl+Alt is AltGr on many layouts, and Shift+Alt is often the input-language switch on Windows and Linux).
      */
     static int sideMask(boolean right) {
-        if (right)
-            return InputEvent.ALT_DOWN_MASK;
-        return Platform.isMacOS() ? InputEvent.SHIFT_DOWN_MASK | InputEvent.ALT_DOWN_MASK : InputEvent.CTRL_DOWN_MASK;
+        if (Platform.isMacOS()) // left is the plain key, right adds Shift (swapped from Gilly's 2026-11-09 choice, 2026-11-10)
+            return right ? InputEvent.SHIFT_DOWN_MASK | InputEvent.ALT_DOWN_MASK : InputEvent.ALT_DOWN_MASK;
+        return right ? InputEvent.ALT_DOWN_MASK : InputEvent.CTRL_DOWN_MASK;
     }
 
     /**
      * The default keystroke of place {@code n} (0 for collapse-all), or null for none: Ctrl+N on the
-     * left, Alt+N on the right (Shift+Option+N and Option+N on a Mac). Off a Mac, Ctrl+9 and Ctrl+0 are the zoom keys, so left 9 and
+     * left, Alt+N on the right (Option+N and Shift+Option+N on a Mac). Off a Mac, Ctrl+9 and Ctrl+0 are the zoom keys, so left 9 and
      * left collapse-all have none.
      */
     @Nullable
@@ -126,7 +126,7 @@ public final class PanelKeys {
 
     /**
      * Collapse all, in three escalating presses within {@link #WINDOW_MS} of one another: the first
-     * folds every section on one side (the right for Option+0, the left for Shift+Option+0), the
+     * folds every section on one side (the left for Option+0, the right for Shift+Option+0), the
      * second folds the other side's too, the third collapses both sidebars and the timeline strip.
      * It never unfolds anything; a pause longer than the window starts over. Returns which press this
      * was (1 to 3; more presses stay at 3).

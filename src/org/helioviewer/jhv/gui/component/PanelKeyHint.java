@@ -17,8 +17,8 @@ import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.gui.MainFrame;
 
 /**
- * Hold Ctrl (Shift+Option on a Mac) and the left sidebar's numbers (L1, L2, ...) get a box in the accent colour; hold Option alone and the
- * right one's (R1, R2, ...) do (on a Mac the left is Ctrl and Option together), the way holding Cmd shows the keys of pinned sessions in Claude Code
+ * Hold Ctrl (Option on a Mac) and the left sidebar's numbers (L1, L2, ...) get a box in the accent colour; hold Shift+Option (Alt off a Mac) and the
+ * right one's (R1, R2, ...) do, the way holding Cmd shows the keys of pinned sessions in Claude Code
  * (Gilly, 2026-11-08). The numbers show while held even with section numbers switched off.
  *
  * <p>Only a modifier held alone, for {@link #DELAY_MS}: any mouse press or other key cancels it, so
