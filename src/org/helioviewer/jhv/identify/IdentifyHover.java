@@ -64,6 +64,8 @@ public final class IdentifyHover {
             }
         });
         dwell.setRepeats(false);
+        Drawn.register(DeepSky.source());
+        Drawn.register(CometSky.source());
         IdentifySettings.addListener(() -> {
             if (!IdentifySettings.enabled() || !IdentifySettings.tooltip())
                 INSTANCE.clear();
@@ -82,6 +84,12 @@ public final class IdentifyHover {
     /** The drawn 3D objects named at the last pointer position. */
     public static List<Drawn.Hit> lastDrawn() {
         return INSTANCE.lastDrawn;
+    }
+
+    /** The pointer in canvas pixels, or null when it is not on the image. */
+    @Nullable
+    public static double[] pointer() {
+        return INSTANCE.last.isEmpty() && INSTANCE.lastDrawn.isEmpty() ? null : new double[]{INSTANCE.mouseX, INSTANCE.mouseY};
     }
 
     /** The pointer left the canvas. */
@@ -144,7 +152,7 @@ public final class IdentifyHover {
         last = matches;
         lastDrawn = drawn;
         keep(matches, drawn);
-        IdentifyGlow.matched(matches);
+        IdentifyGlow.matched(matches, drawn);
         boolean wasShown = labelShown && !label.isEmpty();
         label.clear();
         labelShown = false;
@@ -246,7 +254,7 @@ public final class IdentifyHover {
         dwell.stop();
         last = List.of();
         lastDrawn = List.of();
-        IdentifyGlow.matched(last);
+        IdentifyGlow.matched(last, List.of());
         if (!frozen && kept.state() != State.AWAY) {
             kept = new Snapshot(kept.millis(), kept.matches(), kept.drawn(), State.AWAY);
             fireKept();

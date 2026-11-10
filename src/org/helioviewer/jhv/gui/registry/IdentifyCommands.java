@@ -139,14 +139,23 @@ final class IdentifyCommands {
                         + "\"star_max_magnitude\":{\"type\":\"number\"},\"tolerance_pixels\":{\"type\":\"number\",\"minimum\":0},"
                         + "\"tooltip_dwell_ms\":{\"type\":\"integer\",\"minimum\":0},\"light_time\":{\"type\":\"boolean\"},"
                         + "\"earth_observer_uncertainty_km\":{\"type\":\"number\",\"minimum\":0},\"pluto\":{\"type\":\"boolean\"},"
-                        + "\"glow\":{\"type\":\"boolean\"},\"pulse\":{\"type\":\"boolean\"}}}"),
+                        + "\"glow\":{\"type\":\"boolean\"},\"pulse\":{\"type\":\"boolean\"},"
+                        + "\"icon_by_kind\":{\"type\":\"boolean\"},\"icon_color\":{\"type\":\"string\",\"description\":\"#RRGGBB, used when the icon is not coloured by kind\"},"
+                        + "\"highlight_all\":{\"type\":\"boolean\"},\"comets\":{\"type\":\"boolean\"},\"cmes\":{\"type\":\"boolean\"},"
+                        + "\"clusters\":{\"type\":\"boolean\"},\"galaxies\":{\"type\":\"boolean\"},\"nebulae\":{\"type\":\"boolean\"},"
+                        + "\"deep_sky_max_magnitude\":{\"type\":\"number\"}}}"),
                 new JSONObject("{\"type\":\"object\"}"), args -> {
                     String[][] keys = {{"enabled", IdentifySettings.ENABLED}, {"tooltip", IdentifySettings.TOOLTIP}, {"stars", IdentifySettings.STARS},
                             {"star_names_iau", IdentifySettings.STAR_NAMES_IAU}, {"star_names_bayer", IdentifySettings.STAR_NAMES_BAYER},
                             {"star_max_magnitude", IdentifySettings.STAR_MAX_MAG}, {"tolerance_pixels", IdentifySettings.TOLERANCE_PX},
                             {"tooltip_dwell_ms", IdentifySettings.DWELL_MS}, {"light_time", IdentifySettings.LIGHT_TIME},
                             {"earth_observer_uncertainty_km", IdentifySettings.EARTH_UNCERTAINTY_KM}, {"pluto", IdentifySettings.PLUTO},
-                            {"glow", IdentifySettings.GLOW}, {"pulse", IdentifySettings.PULSE}};
+                            {"glow", IdentifySettings.GLOW}, {"pulse", IdentifySettings.PULSE},
+                            {"icon_by_kind", IdentifySettings.ICON_BY_KIND}, {"icon_color", IdentifySettings.ICON_COLOR},
+                            {"highlight_all", IdentifySettings.HIGHLIGHT_ALL}, {"comets", IdentifySettings.DATA_COMETS},
+                            {"cmes", IdentifySettings.DATA_CMES}, {"clusters", IdentifySettings.DATA_CLUSTERS},
+                            {"galaxies", IdentifySettings.DATA_GALAXIES}, {"nebulae", IdentifySettings.DATA_NEBULAE},
+                            {"deep_sky_max_magnitude", IdentifySettings.DEEP_SKY_MAX_MAG}};
                     for (String[] k : keys)
                         if (args.has(k[0]))
                             IdentifySettings.set(k[1], String.valueOf(args.get(k[0])));

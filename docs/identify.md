@@ -33,6 +33,9 @@ for example to find a date without the Moon in PUNCH.
   its centre to 7 points so the glow can be seen. The Sun is not outlined (it is under the pointer
   everywhere on the disk), nor yet are models, orbit plot markers, events or stars. Neither is
   ever drawn into a grab, an export or a recording. identifySet takes `glow` and `pulse`.
+- The **Identify under cursor** box is at the top of the panel. In the readout each name is bold and coloured by kind: Sun amber, planets green, Moon silver, stars white, comets red, CMEs orange, clusters teal, galaxies violet, diffuse nebulae blue (judgement; the colour is darkened or lightened until it reads on the panel). The icon uses the same colours unless **Colour the icon by kind** is off, when it takes the **Icon colour** you pick.
+- **Highlight all named objects in view** draws the icon on every body the imagery shows, every named star (the brightest 120) and every object of the datasets below, as on hover; the hover pulse still plays.
+- **Datasets (optional, off):** comets in the movie's field (JPL SBDB and Horizons for SOHO, the comet tracker's data; needs the network), CMEs (the CACTus events of the event layer, at the constant-speed front the layer draws), open and globular clusters, galaxies, nebulae and supernova remnants (OpenNGC, CC BY-SA 4.0, fetched on first use into the catalogue folder; objects with a Messier number or common name always, others to the magnitude limit, 9 by default). Datasets are not named in the orbited 3D view. identifySet takes `icon_by_kind`, `icon_color`, `highlight_all`, `comets`, `cmes`, `clusters`, `galaxies`, `nebulae`, `deep_sky_max_magnitude`.
 - **Settings > Identify** now only points at the panel.
 
 All defaults are judgements and can be changed. Settings keys start with `identify.`.

@@ -22,6 +22,11 @@ import org.helioviewer.jhv.event.info.SWEKEventInformationDialog;
 import org.helioviewer.jhv.gui.AwtInputAdapter;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.identify.Drawn;
+import org.helioviewer.jhv.identify.Identifier;
+import org.helioviewer.jhv.identify.IdentifySettings;
+import org.helioviewer.jhv.identify.Kind;
+import org.helioviewer.jhv.identify.Mark;
+import org.helioviewer.jhv.identify.Probes;
 import org.helioviewer.jhv.input.InputController;
 import org.helioviewer.jhv.input.InputMouseListener;
 import org.helioviewer.jhv.input.PointerEvent;
@@ -78,16 +83,46 @@ class SWEKPopupController implements InputMouseListener {
     }
 
     // The cursor identifier's view of the events: the same hit test as the popup, named for the footer.
-    private final Drawn.Source identifySource = (vp, mv, x, y, tolerancePixels) -> {
-        SWEKLayer l = layer;
-        if (l == null || !l.isEnabled())
-            return List.of();
-        RelatedEvents hit = eventsAt(l, mv, vp, x, y);
-        if (hit == null)
-            return List.of();
-        SolarEvent evt = hit.getClosestTo(GLRenderer.getDisplayedViewpoint().time.milli);
-        return List.of(new Drawn.Hit(eventName(evt), Drawn.EVENT + ", " + evt.getSupplier().displayName(), 0, Double.NaN));
+    private final Drawn.Source identifySource = new Drawn.Source() {
+        @Override
+        public List<Drawn.Hit> at(Viewport vp, MapView mv, int x, int y, double tolerancePixels) {
+            SWEKLayer l = layer;
+            if (l == null || !l.isEnabled())
+                return List.of();
+            RelatedEvents hit = eventsAt(l, mv, vp, x, y);
+            if (hit == null)
+                return List.of();
+            long now = GLRenderer.getDisplayedViewpoint().time.milli;
+            SolarEvent evt = hit.getClosestTo(now);
+            String kind = Drawn.EVENT + ", " + evt.getSupplier().displayName();
+            if (IdentifySettings.dataCmes() && evt.isCactus()) // the CMEs dataset: the CME colour, and an icon on its front
+                return List.of(new Drawn.Hit(eventName(evt), kind, 0, Double.NaN, Kind.CME, cmeMark(evt, now)));
+            return List.of(new Drawn.Hit(eventName(evt), kind, 0, Double.NaN));
+        }
+
+        @Override
+        public List<Mark> marks(Viewport vp, MapView mv, Identifier.Target first) {
+            SWEKLayer l = layer;
+            if (l == null || !l.isEnabled() || !IdentifySettings.dataCmes())
+                return List.of();
+            long now = GLRenderer.getDisplayedViewpoint().time.milli;
+            List<Mark> out = new ArrayList<>();
+            for (SWEKLayer.ActiveEvent a : l.activeEvents(now))
+                if (a.event().isCactus())
+                    out.add(cmeMark(a.event(), now));
+            for (SWEKLayer.ActiveEvent a : l.propagatingNow(now))
+                if (a.event().isCactus())
+                    out.add(cmeMark(a.event(), now));
+            return out;
+        }
     };
+
+    /** Where a CACTus CME's front is on the plane of sky at {@code now}: the constant-speed extrapolation the layer draws. */
+    static Mark cmeMark(SolarEvent evt, long now) {
+        double theta = Math.toRadians(evt.getCMEParameters().principalAngleDegree());
+        double radius = SWEKData.cactusDistance(evt, now);
+        return new Mark("cme:" + evt.getUniqueID(), Kind.CME, null, Probes.plane(PolarBasis.x(radius, theta), PolarBasis.y(radius, theta)), 0);
+    }
 
     /** "AR 13664" when the event carries a NOAA number, otherwise its group's name ("Flare", "CME"). */
     static String eventName(SolarEvent evt) {
