@@ -513,51 +513,11 @@ public final class WelcomeDialog {
         return p;
     }
 
-<<<<<<< HEAD
     /** The name a screen reader says (plain text, never the HTML on the button) and the long text, also the tooltip. */
     static void describe(AbstractButton b, String name, String description) {
         b.getAccessibleContext().setAccessibleName(name);
         b.getAccessibleContext().setAccessibleDescription(description);
         b.setToolTipText(description);
-=======
-    /** Every way the app helps: search, hover text, the Help menu and what is in it. */
-    private static JPanel helpPanel(JDialog dialog) {
-        JPanel rows = new JPanel(new GridBagLayout());
-        GridBagConstraints c = new GridBagConstraints();
-        c.gridy = 0;
-        c.insets = new Insets(3, 0, 3, 10);
-        c.anchor = GridBagConstraints.LINE_START;
-
-        ActionCatalog.Entry search = ActionCatalog.get("searchControls");
-        String key = search == null ? "" : shortcut(search.action());
-        helpRow(rows, c, search == null ? null : search.action(), true, "Search Controls\u2026" + (key.isEmpty() ? "" : "  " + key), dialog,
-                "Type what you want to do or the name of any control. It runs the command, or points at the control and shows where it is.");
-        ActionCatalog.Entry keys = ActionCatalog.get(ShortcutsOverlay.ID);
-        String keysKey = keys == null ? "" : shortcut(keys.action());
-        helpRow(rows, c, keys == null ? null : keys.action(), true, "Keybindings" + (keysKey.isEmpty() ? "" : "  " + keysKey), dialog,
-                "Every keyboard shortcut in force, by area, with a search box. The same key opens and closes it from anywhere in Studio.");
-        helpRow(rows, c, null, false, "Hover any control", dialog,
-                "Every button, slider and field has a tooltip saying what it is for.");
-        ActionCatalog.Entry tip = ActionCatalog.get("tipOfTheDay");
-        helpRow(rows, c, tip == null ? null : tip.action(), true, "Tip of the Day", dialog,
-                "One short tip at a time, each with Show Me to point at the control it is about.");
-        ActionCatalog.Entry manual = ActionCatalog.get("openUserManual");
-        helpRow(rows, c, manual == null ? null : manual.action(), false, "User Manual", dialog,
-                "The full guide to every part of the app, as a PDF.");
-        helpRow(rows, c, null, false, "Help menu", dialog,
-                "Everything here, plus Interaction Guide and Timeline Interaction (mouse and keyboard controls), "
-                        + "the Change Log, Check for Updates and the GitHub Page.");
-        ActionCatalog.Entry feedback = ActionCatalog.get("sendFeedback");
-        helpRow(rows, c, feedback == null ? null : feedback.action(), false, "Send Feedback\u2026", dialog,
-                "A problem, a request or a question for the developer; no account needed.");
-        helpRow(rows, c, linkAction("https://github.com/GillySpace27/pyHelioFITS/blob/main/docs/mcp.md"), false, "MCP Server Docs", dialog,
-                "heliofits-mcp lets an AI assistant such as Claude Desktop drive Studio and the cache. It runs over stdio from the pyHelioFITS "
-                        + "package (pip install \"pyheliofits[mcp]\") and offers studio_* and cache_* tools. It needs the Local API below.");
-        helpRow(rows, c, linkAction(org.helioviewer.jhv.app.AppInfo.sourceURL + "/blob/master/docs/local-api.md"), false, "Local API Docs", dialog,
-                "Lets scripts and heliofits-mcp on this computer call Studio. Off by default: Settings > General > Local API. "
-                        + "When on, the port and key are in ~/HFStudio/api.json.");
-        return titled("Find your way around", rows);
->>>>>>> origin/master
     }
 
     private static List<File> recentFiles() {
