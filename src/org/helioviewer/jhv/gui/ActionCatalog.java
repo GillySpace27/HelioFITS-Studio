@@ -39,7 +39,7 @@ public final class ActionCatalog {
     public record Entry(String id, Action action, String menuPath, String description) {}
 
     /** Actions classes built where they are used, one instance per dialog or file: never catalogued. */
-    public static final Set<String> PER_USE = Set.of("ShowDialog", "OpenRecent");
+    public static final Set<String> PER_USE = Set.of("ShowDialog", "OpenRecent", "OpenFromInstall", "ImportFromInstalls");
 
     /**
      * Toolbar ids that name a control (a toggle, a palette, a split button), not a command. They are

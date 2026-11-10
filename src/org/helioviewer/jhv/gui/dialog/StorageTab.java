@@ -48,10 +48,42 @@ final class StorageTab extends JPanel {
         c.gridy = 2;
         add(note, c);
         c.gridy = 3;
+        add(otherInstalls(), c);
+        c.gridy = 4;
         c.weighty = 1;
         c.fill = GridBagConstraints.BOTH;
         add(new JLabel(), c);
         refresh();
+    }
+
+    /** Other Studio installs on this computer: seen read-only in Open Recent and the cache lookup (io/Siblings). */
+    private static JPanel otherInstalls() {
+        JPanel p = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 8, 0));
+        javax.swing.JCheckBox on = new javax.swing.JCheckBox("Include other installs on this computer (read-only)",
+                !"false".equalsIgnoreCase(org.helioviewer.jhv.app.Settings.getProperty(org.helioviewer.jhv.io.Siblings.ENABLED_KEY)));
+        JLabel found = new JLabel();
+        Runnable show = () -> found.setText(org.helioviewer.jhv.io.Siblings.homes().stream()
+                .map(org.helioviewer.jhv.io.Siblings::name).collect(java.util.stream.Collectors.joining(", ")));
+        on.addActionListener(e -> {
+            org.helioviewer.jhv.app.Settings.setProperty(org.helioviewer.jhv.io.Siblings.ENABLED_KEY, String.valueOf(on.isSelected()));
+            show.run();
+        });
+        JButton add = new JButton("Add Install Folder...");
+        add.addActionListener(e -> {
+            JFileChooser ch = new JFileChooser(System.getProperty("user.home"));
+            ch.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+            if (ch.showOpenDialog(MainFrame.get()) != JFileChooser.APPROVE_OPTION)
+                return;
+            String old = org.helioviewer.jhv.app.Settings.getProperty(org.helioviewer.jhv.io.Siblings.PATHS_KEY);
+            org.helioviewer.jhv.app.Settings.setProperty(org.helioviewer.jhv.io.Siblings.PATHS_KEY,
+                    (old == null || old.isBlank() ? "" : old + "\n") + ch.getSelectedFile().getAbsolutePath());
+            show.run();
+        });
+        show.run();
+        p.add(on);
+        p.add(add);
+        p.add(found);
+        return p;
     }
 
     /** Re-read the folders and their sizes; the sizes are measured off the screen thread. */

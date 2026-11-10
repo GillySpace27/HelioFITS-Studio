@@ -58,3 +58,13 @@ With a FITS library (HelioFITS Core), the library is the one place a downloaded 
   core is found. Once per computer (`fitslibrary.autoCreated` in Settings), with one notice.
 - Not built yet: **Move library** (moving the files of a library to another place). Today that is:
   quit Studio and the Cache Manager, move the folder, then Choose Folder... at the new place.
+
+## Other installs on this computer
+
+Each install keeps its own home (see `Directories.HOME`), but the FITS library is shared, so only the
+index of what was moved into it differs. `io/Siblings` reads, never writes, the other installs found at
+`~/HFStudio*`, `~/hfs-rc/*` and the folders listed in `siblings.paths`: their `FileCache/library-moves.tsv`
+(so a download another build moved is found, not fetched again, when the library root matches), their
+`recentSessions` and `States/` (File > Open Recent > From Other Installs; opened with no save target).
+"Import Into This Install" copies their recent sessions and cache locations here, never overwriting.
+Settings > Storage turns it off (`siblings.enabled=false`). Check: `extra/test/SiblingsCheck.java`.
