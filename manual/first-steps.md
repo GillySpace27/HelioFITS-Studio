@@ -59,7 +59,11 @@ session.
   {doc}`generated/tours` has every tour written out.
 - {menuselection}`Help --> Tip of the Day...` shows a tip you have not seen yet, with **Show Me** to
   point at the control it is about. All of them are in {doc}`generated/tips`.
-- {menuselection}`Help --> Welcome to HelioFITS Studio...` opens the Welcome window again: the ways
-  to start, **Take a Tour** (a list of every tour), where the help is, and **What's New** for this
-  version.
+- {menuselection}`Help --> Welcome to HelioFITS Studio...` opens the Welcome window again. Its large
+  button does the likely thing (the Getting Started tour the first time; later Continue, your last
+  session, or **Open Session...**), with **Start Blank**, **Open Session...** and **Open Demo** under
+  it and your recent sessions below. **Search Controls**, **Tours** and **User Manual** are always
+  there; **More help** opens Tip of the Day, Send Feedback and the docs for the MCP server and the
+  Local API. Hover any of them, or let a screen reader read it, for what it does. **What's New** is
+  at the top right, highlighted the first time after an update.
 - {menuselection}`Edit --> Undo` takes back the last change to the scene.
