@@ -405,7 +405,7 @@ public final class GLRenderer {
         RenderGuard.run("identify pins", () -> org.helioviewer.jhv.identify.IdentifyPins.render(vp));
     }
 
-    private static final List<String> EMPTY_HINT = List.of("Drop a FITS or JPEG 2000 file here,", "or choose New Layer to load data");
+    private static final List<String> EMPTY_HINT = List.of("Drop any FITS, JPEG, JHV, or HFREC file to start or extend the session");
 
     /**
      * What to do with an empty canvas (HS-10), instead of plain black. Drawn here, in the screen
@@ -414,7 +414,7 @@ public final class GLRenderer {
     private static void renderEmptyHint(Viewport vp) {
         if (ExportMovie.isRecording() || !Layers.getImageLayers().isEmpty())
             return;
-        GLText.drawTextCentered(vp, EMPTY_HINT);
+        GLText.drawTextBottom(vp, EMPTY_HINT); // low, so the grid and the center stay clear
     }
 
     private static final GLSLLine printableLine = new GLSLLine(true);
