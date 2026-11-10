@@ -243,6 +243,12 @@ public class J2KView extends BaseView {
         return metaData[frameMap.nearestValue(time)];
     }
 
+    @Override
+    public void stopDownloading() {
+        if (reader != null)
+            reader.stopReadAhead();
+    }
+
     private volatile boolean isDownloading;
 
     void setDownloading(boolean val) {

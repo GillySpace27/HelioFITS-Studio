@@ -116,6 +116,9 @@ public interface View {
 
     void setDataHandler(DataHandler dataHandler);
 
+    /** Stop fetching ahead of what is on screen. */
+    default void stopDownloading() {}
+
     default boolean isDownloading() {
         return false;
     }

@@ -220,6 +220,9 @@ public final class ActivityPopover {
                                 "Cancel", "Cancel this export job; what it already wrote is kept", () -> JobQueue.INSTANCE.cancel(j)));
             }
             case NET -> {
+                if (org.helioviewer.jhv.thread.FetchGate.isPaused())
+                    out.add(row("Downloads on hold", "Studio held new downloads after it stopped responding, or a stop was sent",
+                            -1, "Resume", "Let held downloads start", org.helioviewer.jhv.activity.Watchdog::resume));
                 for (ActivityRows.Row r : transfers())
                     out.add(workRow(r));
             }
@@ -234,7 +237,7 @@ public final class ActivityPopover {
     /** A line of work and, where Studio can stop it, a Stop button; where it cannot, the reason. */
     private JComponent workRow(ActivityRows.Row r) {
         if (r.layer() != null && !r.failed() && !r.detail().startsWith("Fourier"))
-            return row(r.name(), r.detail(), r.fraction(), "Stop", "Stop this layer's download; the frames already here stay", () -> r.layer().cancelDownloadTask());
+            return row(r.name(), r.detail(), r.fraction(), "Stop", "Stop this layer's download; the frames already here stay", () -> r.layer().stopDownloading());
         if ("Recording".equals(r.name()) && ExportMovie.isRecording())
             return row(r.name(), r.detail(), r.fraction(), "Stop", "Stop capturing; the frames so far are encoded into the movie", ExportMovie::shallStop);
         if (r.detail().startsWith("Fourier"))
