@@ -409,6 +409,9 @@ Every command HelioFITS Studio has, as the menus, Help > Search Controls and the
 * - Help > Search Controls...
   - Find any command or control by name and run it or show where it is
   - `searchControls`
+* - Help > Keyboard Shortcuts...
+  - Every keyboard shortcut in force, grouped, with a search box; the same key closes it (rebindable in Settings > Keybindings)
+  - `keyboardShortcuts`
 * - Help > Open Demo Scene
   - A new session with a bundled SDO/AIA 171 image and RHEF on; nothing to download *(discards work)*
   - `openDemo`
