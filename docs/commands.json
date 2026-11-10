@@ -1487,6 +1487,24 @@
         "type": "object",
         "properties": {}
       },
+      "name": "keyboardShortcuts",
+      "description": "Every keyboard shortcut in force, grouped, with a search box; the same key closes it (rebindable in Settings > Keybindings)",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "ui"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
       "name": "showProjection",
       "description": "Open the Projection palette, wherever it is docked",
       "annotations": {
